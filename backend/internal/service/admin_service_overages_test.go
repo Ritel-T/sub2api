@@ -26,7 +26,10 @@ func (r *updateAccountOveragesRepoStub) Update(ctx context.Context, account *Acc
 	return nil
 }
 
-func TestUpdateAccount_DisableOveragesClearsAICreditsKey(t *testing.T) {
+// [OpusClaw Patch] IsOveragesEnabled always returns true for Antigravity,
+// so the "disable overages" transition never fires. This test verifies that
+// removing allow_overages from Extra does NOT clear AICredits — overages stay on.
+func TestUpdateAccount_OveragesAlwaysEnabledForAntigravity(t *testing.T) {
 	accountID := int64(101)
 	repo := &updateAccountOveragesRepoStub{
 		account: &Account{
@@ -71,18 +74,14 @@ func TestUpdateAccount_DisableOveragesClearsAICreditsKey(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, updated)
 	require.Equal(t, 1, repo.updateCalls)
-	require.False(t, updated.IsOveragesEnabled())
+	require.True(t, updated.IsOveragesEnabled())
 
-	// 关闭 overages 后，AICredits key 应被清除
 	rawLimits, ok := repo.account.Extra[modelRateLimitsKey].(map[string]any)
-	if ok {
-		_, exists := rawLimits[creditsExhaustedKey]
-		require.False(t, exists, "关闭 overages 时应清除 AICredits 限流 key")
-	}
-	// 普通模型限流应保留
 	require.True(t, ok)
-	_, exists := rawLimits["claude-sonnet-4-5"]
-	require.True(t, exists, "普通模型限流应保留")
+	_, exists := rawLimits[creditsExhaustedKey]
+	require.True(t, exists, "AICredits key preserved — overages always enabled")
+	_, exists = rawLimits["claude-sonnet-4-5"]
+	require.True(t, exists, "model rate limits preserved")
 }
 
 func TestUpdateAccount_EnableOveragesClearsModelRateLimitsBeforePersist(t *testing.T) {

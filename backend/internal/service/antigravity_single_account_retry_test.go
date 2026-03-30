@@ -736,6 +736,10 @@ func TestAntigravityRetryLoop_PreCheck_NoSingleAccountRetry_SwitchesOnRateLimit(
 				"claude-sonnet-4-5": map[string]any{
 					"rate_limit_reset_at": time.Now().Add(30 * time.Second).Format(time.RFC3339),
 				},
+				creditsExhaustedKey: map[string]any{
+					"rate_limited_at":     time.Now().Format(time.RFC3339),
+					"rate_limit_reset_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
+				},
 			},
 		},
 	}

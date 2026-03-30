@@ -835,6 +835,10 @@ func TestAntigravityRetryLoop_PreCheck_SwitchesWhenRateLimited(t *testing.T) {
 				"claude-sonnet-4-5": map[string]any{
 					"rate_limit_reset_at": time.Now().Add(2 * time.Second).Format(time.RFC3339),
 				},
+				creditsExhaustedKey: map[string]any{
+					"rate_limited_at":     time.Now().Format(time.RFC3339),
+					"rate_limit_reset_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
+				},
 			},
 		},
 	}
@@ -877,6 +881,10 @@ func TestAntigravityRetryLoop_PreCheck_SwitchesWhenRemainingLong(t *testing.T) {
 			modelRateLimitsKey: map[string]any{
 				"claude-sonnet-4-5": map[string]any{
 					"rate_limit_reset_at": time.Now().Add(11 * time.Second).Format(time.RFC3339),
+				},
+				creditsExhaustedKey: map[string]any{
+					"rate_limited_at":     time.Now().Format(time.RFC3339),
+					"rate_limit_reset_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
 				},
 			},
 		},

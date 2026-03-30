@@ -903,20 +903,11 @@ func (a *Account) IsMixedSchedulingEnabled() bool {
 	return false
 }
 
-// IsOveragesEnabled 检查 Antigravity 账号是否启用 AI Credits 超量请求。
+// [OpusClaw Patch] IsOveragesEnabled always returns true for Antigravity accounts —
+// all Antigravity accounts use AI Credits when free quota is exhausted.
+// Manual allow_overages toggle removed in favor of fully automatic scheduling.
 func (a *Account) IsOveragesEnabled() bool {
-	if a.Platform != PlatformAntigravity {
-		return false
-	}
-	if a.Extra == nil {
-		return false
-	}
-	if v, ok := a.Extra["allow_overages"]; ok {
-		if enabled, ok := v.(bool); ok {
-			return enabled
-		}
-	}
-	return false
+	return a.Platform == PlatformAntigravity
 }
 
 // IsOpenAIPassthroughEnabled 返回 OpenAI 账号是否启用“自动透传（仅替换认证）”。

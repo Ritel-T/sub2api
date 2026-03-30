@@ -310,6 +310,10 @@ func TestAntigravityGatewayService_Forward_ModelRateLimitTriggersFailover(t *tes
 				"claude-opus-4-6-thinking": map[string]any{
 					"rate_limit_reset_at": futureResetAt,
 				},
+				creditsExhaustedKey: map[string]any{
+					"rate_limited_at":     time.Now().Format(time.RFC3339),
+					"rate_limit_reset_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
+				},
 			},
 		},
 	}
@@ -366,6 +370,10 @@ func TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover(
 				"gemini-2.5-flash": map[string]any{
 					"rate_limit_reset_at": futureResetAt,
 				},
+				creditsExhaustedKey: map[string]any{
+					"rate_limited_at":     time.Now().Format(time.RFC3339),
+					"rate_limit_reset_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
+				},
 			},
 		},
 	}
@@ -419,6 +427,10 @@ func TestAntigravityGatewayService_Forward_StickySessionForceCacheBilling(t *tes
 			modelRateLimitsKey: map[string]any{
 				"claude-opus-4-6-thinking": map[string]any{
 					"rate_limit_reset_at": futureResetAt,
+				},
+				creditsExhaustedKey: map[string]any{
+					"rate_limited_at":     time.Now().Format(time.RFC3339),
+					"rate_limit_reset_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
 				},
 			},
 		},
@@ -474,6 +486,10 @@ func TestAntigravityGatewayService_ForwardGemini_StickySessionForceCacheBilling(
 			modelRateLimitsKey: map[string]any{
 				"gemini-2.5-flash": map[string]any{
 					"rate_limit_reset_at": futureResetAt,
+				},
+				creditsExhaustedKey: map[string]any{
+					"rate_limited_at":     time.Now().Format(time.RFC3339),
+					"rate_limit_reset_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
 				},
 			},
 		},
@@ -743,6 +759,10 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 					mappedModel: map[string]any{
 						"rate_limit_reset_at": futureResetAt,
 					},
+					creditsExhaustedKey: map[string]any{
+						"rate_limited_at":     time.Now().Format(time.RFC3339),
+						"rate_limit_reset_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
+					},
 				},
 			}
 		},
@@ -843,6 +863,10 @@ func TestSignatureRetry_PropagatesSwitchError(t *testing.T) {
 				modelRateLimitsKey: map[string]any{
 					mappedModel: map[string]any{
 						"rate_limit_reset_at": futureResetAt,
+					},
+					creditsExhaustedKey: map[string]any{
+						"rate_limited_at":     time.Now().Format(time.RFC3339),
+						"rate_limit_reset_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
 					},
 				},
 			}
