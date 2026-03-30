@@ -3293,3 +3293,141 @@ func TestGatewayService_ResolveGatewayGroup_DetectsFallbackCycle(t *testing.T) {
 	require.Nil(t, gotID)
 	require.Contains(t, err.Error(), "fallback group cycle")
 }
+
+func TestSelectAccount_QuotaTierPriority(t *testing.T) {
+	ctx := context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformAntigravity)
+	requestedModel := "claude-sonnet-4-5"
+
+	buildModelRateLimitExtra := func(limitUntil time.Time, includeCreditsExhausted bool) map[string]any {
+		modelLimits := map[string]any{
+			requestedModel: map[string]any{
+				"rate_limit_reset_at": limitUntil.Format(time.RFC3339),
+			},
+		}
+		if includeCreditsExhausted {
+			modelLimits["AICredits"] = map[string]any{
+				"rate_limit_reset_at": limitUntil.Format(time.RFC3339),
+			}
+		}
+		return map[string]any{
+			"allow_overages":   true,
+			"model_rate_limits": modelLimits,
+		}
+	}
+
+	t.Run("free quota tier preferred over credits tier", func(t *testing.T) {
+		now := time.Now().Add(15 * time.Minute)
+		repo := &mockAccountRepoForPlatform{
+			accounts: []Account{
+				{ID: 1, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5, Credentials: map[string]any{"model_mapping": map[string]any{requestedModel: requestedModel}}},
+				{ID: 2, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5, Credentials: map[string]any{"model_mapping": map[string]any{requestedModel: requestedModel}}, Extra: buildModelRateLimitExtra(now, false)},
+				{ID: 3, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5, Credentials: map[string]any{"model_mapping": map[string]any{requestedModel: requestedModel}}, Extra: buildModelRateLimitExtra(now, true)},
+			},
+			accountsByID: map[int64]*Account{},
+		}
+		for i := range repo.accounts {
+			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		}
+
+		concurrencyCache := &mockConcurrencyCache{
+			loadMap: map[int64]*AccountLoadInfo{
+				1: {AccountID: 1, LoadRate: 20},
+				2: {AccountID: 2, LoadRate: 20},
+				3: {AccountID: 3, LoadRate: 20},
+			},
+		}
+
+		svc := &GatewayService{
+			accountRepo:        repo,
+			cache:              &mockGatewayCacheForPlatform{},
+			cfg: func() *config.Config {
+				cfg := testConfig()
+				cfg.Gateway.Scheduling.LoadBatchEnabled = true
+				return cfg
+			}(),
+			concurrencyService: NewConcurrencyService(concurrencyCache),
+		}
+
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", requestedModel, nil, "")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Account)
+		require.Equal(t, int64(1), result.Account.ID)
+	})
+
+	t.Run("all credits tier falls back to normal ordering", func(t *testing.T) {
+		now := time.Now().Add(15 * time.Minute)
+		repo := &mockAccountRepoForPlatform{
+			accounts: []Account{
+				{ID: 11, Platform: PlatformAntigravity, Priority: 2, Status: StatusActive, Schedulable: true, Concurrency: 5, Credentials: map[string]any{"model_mapping": map[string]any{requestedModel: requestedModel}}, Extra: buildModelRateLimitExtra(now, false)},
+				{ID: 12, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5, Credentials: map[string]any{"model_mapping": map[string]any{requestedModel: requestedModel}}, Extra: buildModelRateLimitExtra(now, false)},
+			},
+			accountsByID: map[int64]*Account{},
+		}
+		for i := range repo.accounts {
+			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		}
+
+		concurrencyCache := &mockConcurrencyCache{
+			loadMap: map[int64]*AccountLoadInfo{
+				11: {AccountID: 11, LoadRate: 10},
+				12: {AccountID: 12, LoadRate: 80},
+			},
+		}
+
+		svc := &GatewayService{
+			accountRepo:        repo,
+			cache:              &mockGatewayCacheForPlatform{},
+			cfg: func() *config.Config {
+				cfg := testConfig()
+				cfg.Gateway.Scheduling.LoadBatchEnabled = true
+				return cfg
+			}(),
+			concurrencyService: NewConcurrencyService(concurrencyCache),
+		}
+
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", requestedModel, nil, "")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Account)
+		require.Equal(t, int64(12), result.Account.ID)
+	})
+
+	t.Run("free quota at full load does not bypass capacity check", func(t *testing.T) {
+		now := time.Now().Add(15 * time.Minute)
+		repo := &mockAccountRepoForPlatform{
+			accounts: []Account{
+				{ID: 21, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5, Credentials: map[string]any{"model_mapping": map[string]any{requestedModel: requestedModel}}},
+				{ID: 22, Platform: PlatformAntigravity, Priority: 2, Status: StatusActive, Schedulable: true, Concurrency: 5, Credentials: map[string]any{"model_mapping": map[string]any{requestedModel: requestedModel}}, Extra: buildModelRateLimitExtra(now, false)},
+			},
+			accountsByID: map[int64]*Account{},
+		}
+		for i := range repo.accounts {
+			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		}
+
+		concurrencyCache := &mockConcurrencyCache{
+			loadMap: map[int64]*AccountLoadInfo{
+				21: {AccountID: 21, LoadRate: 100},
+				22: {AccountID: 22, LoadRate: 15},
+			},
+		}
+
+		svc := &GatewayService{
+			accountRepo:        repo,
+			cache:              &mockGatewayCacheForPlatform{},
+			cfg: func() *config.Config {
+				cfg := testConfig()
+				cfg.Gateway.Scheduling.LoadBatchEnabled = true
+				return cfg
+			}(),
+			concurrencyService: NewConcurrencyService(concurrencyCache),
+		}
+
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", requestedModel, nil, "")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Account)
+		require.Equal(t, int64(22), result.Account.ID)
+	})
+}

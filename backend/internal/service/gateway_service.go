@@ -65,8 +65,9 @@ type forceCacheBillingKeyType struct{}
 
 // accountWithLoad 账号与负载信息的组合，用于负载感知调度
 type accountWithLoad struct {
-	account  *Account
-	loadInfo *AccountLoadInfo
+	account   *Account
+	loadInfo  *AccountLoadInfo
+	quotaTier int // [OpusClaw Patch] 0=has free quota, 1=needs Credits
 }
 
 var ForceCacheBillingContextKey = forceCacheBillingKeyType{}
@@ -453,6 +454,14 @@ func shouldClearStickySession(account *Account, requestedModel string) bool {
 	}
 	// 检查模型限流和 scope 限流，有限流即清除粘性会话
 	if remaining := account.GetRateLimitRemainingTimeWithContext(context.Background(), requestedModel); remaining > 0 {
+		// [OpusClaw Patch] If account is still schedulable (e.g., Antigravity with credits), preserve stickiness
+		if account.IsSchedulableForModelWithContext(context.Background(), requestedModel) {
+			return false
+		}
+		// [OpusClaw Patch] Short rate limits (<=60s): preserve sticky so next request returns to original account
+		if remaining <= antigravityStickyPreserveThreshold {
+			return false
+		}
 		return true
 	}
 	return false
@@ -661,7 +670,7 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 		return s.hashContent(cacheableContent)
 	}
 
-	// 3. 最后 fallback: 使用 session上下文 + system + 所有消息的完整摘要串
+	// 3. 最后 fallback: 使用 session上下文 + system + 首条用户消息摘要串
 	var combined strings.Builder
 	// 混入请求上下文区分因子，避免不同用户相同消息产生相同 hash
 	if parsed.SessionContext != nil {
@@ -678,14 +687,20 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 			_, _ = combined.WriteString(systemText)
 		}
 	}
+	// [OpusClaw Patch] 仅使用首条 user 消息，保证多轮会话 hash 跨轮稳定。
 	for _, msg := range parsed.Messages {
 		if m, ok := msg.(map[string]any); ok {
+			if role, _ := m["role"].(string); role != "user" {
+				continue
+			}
 			if content, exists := m["content"]; exists {
 				// Anthropic: messages[].content
 				if msgText := s.extractTextFromContent(content); msgText != "" {
 					_, _ = combined.WriteString(msgText)
 				}
-			} else if parts, ok := m["parts"].([]any); ok {
+				break
+			}
+			if parts, ok := m["parts"].([]any); ok {
 				// Gemini: contents[].parts[].text
 				for _, part := range parts {
 					if partMap, ok := part.(map[string]any); ok {
@@ -694,6 +709,7 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 						}
 					}
 				}
+				break
 			}
 		}
 	}
@@ -1484,14 +1500,23 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					loadInfo = &AccountLoadInfo{AccountID: acc.ID}
 				}
 				if loadInfo.LoadRate < 100 {
-					routingAvailable = append(routingAvailable, accountWithLoad{account: acc, loadInfo: loadInfo})
+					// [OpusClaw Patch] Compute quota tier for sorting.
+					tier := 0
+					if acc.isModelRateLimitedWithContext(ctx, requestedModel) {
+						tier = 1
+					}
+					routingAvailable = append(routingAvailable, accountWithLoad{account: acc, loadInfo: loadInfo, quotaTier: tier})
 				}
 			}
 
 			if len(routingAvailable) > 0 {
-				// 排序：优先级 > 负载率 > 最后使用时间
+				// 排序：[OpusClaw Patch] 配额层级 > 优先级 > 负载率 > 最后使用时间
 				sort.SliceStable(routingAvailable, func(i, j int) bool {
 					a, b := routingAvailable[i], routingAvailable[j]
+					// [OpusClaw Patch] Quota tier first: free-quota before credits-only.
+					if a.quotaTier != b.quotaTier {
+						return a.quotaTier < b.quotaTier
+					}
 					if a.account.Priority != b.account.Priority {
 						return a.account.Priority < b.account.Priority
 					}
@@ -1681,20 +1706,28 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				loadInfo = &AccountLoadInfo{AccountID: acc.ID}
 			}
 			if loadInfo.LoadRate < 100 {
+				// [OpusClaw Patch] Compute quota tier for sorting.
+				tier := 0
+				if acc.isModelRateLimitedWithContext(ctx, requestedModel) {
+					tier = 1
+				}
 				available = append(available, accountWithLoad{
-					account:  acc,
-					loadInfo: loadInfo,
+					account:   acc,
+					loadInfo:  loadInfo,
+					quotaTier: tier,
 				})
 			}
 		}
 
-		// 分层过滤选择：优先级 → 负载率 → LRU
+		// 分层过滤选择：[OpusClaw Patch] 配额层级 → 优先级 → 负载率 → LRU
 		for len(available) > 0 {
-			// 1. 取优先级最小的集合
-			candidates := filterByMinPriority(available)
-			// 2. 取负载率最低的集合
+			// 1. [OpusClaw Patch] 取配额层级最低（free-quota 优先）的集合
+			candidates := filterByMinQuotaTier(available)
+			// 2. 取优先级最小的集合
+			candidates = filterByMinPriority(candidates)
+			// 3. 取负载率最低的集合
 			candidates = filterByMinLoadRate(candidates)
-			// 3. LRU 选择最久未用的账号
+			// 4. LRU 选择最久未用的账号
 			selected := selectByLRU(candidates, preferOAuth)
 			if selected == nil {
 				break
@@ -1923,6 +1956,46 @@ func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *i
 	if s.schedulerSnapshot != nil {
 		accounts, useMixed, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, hasForcePlatform)
 		if err == nil {
+			// [OpusClaw Patch] 快照预过滤：从 Redis 快照中主动排除明显不可用的账号，
+			// 弥补 outbox 事件传播延迟导致的陈旧快照问题。
+			// 当大量账号耗尽/失效时，此过滤避免请求逐个命中失效账号再 failover。
+			preFilteredCount := 0
+			now := time.Now()
+			filtered := make([]Account, 0, len(accounts))
+			for i := range accounts {
+				acc := &accounts[i]
+				// 跳过已全局限流的账号
+				if acc.RateLimitResetAt != nil && now.Before(*acc.RateLimitResetAt) {
+					preFilteredCount++
+					continue
+				}
+				// 跳过临时不可调度的账号
+				if acc.TempUnschedulableUntil != nil && now.Before(*acc.TempUnschedulableUntil) {
+					preFilteredCount++
+					continue
+				}
+				// 跳过过载中的账号
+				if acc.OverloadUntil != nil && now.Before(*acc.OverloadUntil) {
+					preFilteredCount++
+					continue
+				}
+				// 跳过积分耗尽的 Antigravity 账号（通过 model_rate_limits 中的 AICredits key）
+				if acc.isCreditsExhausted() {
+					preFilteredCount++
+					continue
+				}
+				filtered = append(filtered, *acc)
+			}
+			if preFilteredCount > 0 {
+				slog.Info("account_scheduling_pre_filter",
+					"group_id", derefGroupID(groupID),
+					"platform", platform,
+					"original_count", len(accounts),
+					"filtered_out", preFilteredCount,
+					"remaining", len(filtered))
+			}
+			accounts = filtered
+
 			slog.Debug("account_scheduling_list_snapshot",
 				"group_id", derefGroupID(groupID),
 				"platform", platform,
@@ -2464,6 +2537,26 @@ func (s *GatewayService) getSchedulableAccount(ctx context.Context, accountID in
 		return s.schedulerSnapshot.GetAccount(ctx, accountID)
 	}
 	return s.accountRepo.GetByID(ctx, accountID)
+}
+
+// filterByMinQuotaTier [OpusClaw Patch] 过滤出配额层级最小的账号集合（free-quota 优先）
+func filterByMinQuotaTier(accounts []accountWithLoad) []accountWithLoad {
+	if len(accounts) == 0 {
+		return accounts
+	}
+	minTier := accounts[0].quotaTier
+	for _, acc := range accounts[1:] {
+		if acc.quotaTier < minTier {
+			minTier = acc.quotaTier
+		}
+	}
+	result := make([]accountWithLoad, 0, len(accounts))
+	for _, acc := range accounts {
+		if acc.quotaTier == minTier {
+			result = append(result, acc)
+		}
+	}
+	return result
 }
 
 // filterByMinPriority 过滤出优先级最小的账号集合

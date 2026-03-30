@@ -42,6 +42,12 @@ const (
 	antigravitySmartRetryMaxAttempts    = 1                // 智能重试最大次数（仅重试 1 次，防止重复限流/长期等待）
 	antigravityDefaultRateLimitDuration = 30 * time.Second // 默认限流时间（无 retryDelay 时使用）
 
+	// [OpusClaw Patch] antigravityStickyPreserveThreshold 短限流保留粘性会话阈值
+	// 限流 retryDelay <= 此阈值时，仅设模型限流 + 切号重试当前请求，但保留 sticky 绑定，
+	// 让用户下次请求在限流过期后回到原账号，保持缓存连续性。
+	// 超过此阈值（如 credits 耗尽 30min、封禁 7 天）才删除 sticky。
+	antigravityStickyPreserveThreshold = 60 * time.Second
+
 	// MODEL_CAPACITY_EXHAUSTED 专用重试参数
 	// 模型容量不足时，所有账号共享同一容量池，切换账号无意义
 	// 使用固定 1s 间隔重试，最多重试 60 次
@@ -125,22 +131,23 @@ func (e *PromptTooLongError) Error() string {
 
 // antigravityRetryLoopParams 重试循环的参数
 type antigravityRetryLoopParams struct {
-	ctx             context.Context
-	prefix          string
-	account         *Account
-	proxyURL        string
-	accessToken     string
-	action          string
-	body            []byte
-	c               *gin.Context
-	httpUpstream    HTTPUpstream
-	settingService  *SettingService
-	accountRepo     AccountRepository // 用于智能重试的模型级别限流
-	handleError     func(ctx context.Context, prefix string, account *Account, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult
-	requestedModel  string // 用于限流检查的原始请求模型
-	isStickySession bool   // 是否为粘性会话（用于账号切换时的缓存计费判断）
-	groupID         int64  // 用于模型级限流时清除粘性会话
-	sessionHash     string // 用于模型级限流时清除粘性会话
+	ctx              context.Context
+	prefix           string
+	account          *Account
+	proxyURL         string
+	accessToken      string
+	action           string
+	body             []byte
+	c                *gin.Context
+	httpUpstream     HTTPUpstream
+	settingService   *SettingService
+	accountRepo      AccountRepository // 用于智能重试的模型级别限流
+	handleError      func(ctx context.Context, prefix string, account *Account, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult
+	requestedModel   string // 用于限流检查的原始请求模型
+	isSignatureRetry bool   // [OpusClaw Patch] 标记签名修复阶段重试，避免智能重试嵌套等待
+	isStickySession  bool   // 是否为粘性会话（用于账号切换时的缓存计费判断）
+	groupID          int64  // 用于模型级限流时清除粘性会话
+	sessionHash      string // 用于模型级限流时清除粘性会话
 }
 
 // antigravityRetryLoopResult 重试循环的结果
@@ -248,6 +255,33 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 
 	// 情况2: retryDelay < 阈值（或 MODEL_CAPACITY_EXHAUSTED），智能重试
 	if shouldSmartRetry {
+		// [OpusClaw Patch] 签名修复阶段不做等待重试：直接按账号级限流处理并切换账号，避免嵌套重试放大延迟。
+		if p.isSignatureRetry && !shouldRateLimitModel && !isModelCapacityExhausted {
+			rateLimitDuration := waitDuration
+			if rateLimitDuration <= 0 {
+				rateLimitDuration = antigravityDefaultRateLimitDuration
+			}
+			logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d signature_retry_skip_smart_wait model=%s account=%d upstream_retry_delay=%v body=%s (switch account)",
+				p.prefix, resp.StatusCode, modelName, p.account.ID, rateLimitDuration, truncateForLog(respBody, 200))
+
+			resetAt := time.Now().Add(rateLimitDuration)
+			if !setModelRateLimitByModelName(p.ctx, p.accountRepo, p.account.ID, modelName, p.prefix, resp.StatusCode, resetAt, false) {
+				p.handleError(p.ctx, p.prefix, p.account, resp.StatusCode, resp.Header, respBody, p.requestedModel, p.groupID, p.sessionHash, p.isStickySession)
+				logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d signature_retry_rate_limited account=%d (no model mapping)", p.prefix, resp.StatusCode, p.account.ID)
+			} else {
+				s.updateAccountModelRateLimitInCache(p.ctx, p.account, modelName, resetAt)
+			}
+
+			return &smartRetryResult{
+				action: smartRetryActionBreakWithResp,
+				switchError: &AntigravityAccountSwitchError{
+					OriginalAccountID: p.account.ID,
+					RateLimitedModel:  modelName,
+					IsStickySession:   p.isStickySession,
+				},
+			}
+		}
+
 		var lastRetryResp *http.Response
 		var lastRetryBody []byte
 
@@ -402,8 +436,8 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 			}
 		}
 
-		// 清除粘性会话绑定，避免下次请求仍命中限流账号
-		if s.cache != nil && p.sessionHash != "" {
+		// [OpusClaw Patch] 仅在长限流时清除粘性会话
+		if s.cache != nil && p.sessionHash != "" && rateLimitDuration > antigravityStickyPreserveThreshold {
 			_ = s.cache.DeleteSessionAccountID(p.ctx, p.groupID, p.sessionHash)
 		}
 
@@ -1478,24 +1512,40 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 					continue
 				}
 				retryResult, retryErr := s.antigravityRetryLoop(antigravityRetryLoopParams{
-					ctx:             ctx,
-					prefix:          prefix,
-					account:         account,
-					proxyURL:        proxyURL,
-					accessToken:     accessToken,
-					action:          action,
-					body:            retryGeminiBody,
-					c:               c,
-					httpUpstream:    s.httpUpstream,
-					settingService:  s.settingService,
-					accountRepo:     s.accountRepo,
-					handleError:     s.handleUpstreamError,
-					requestedModel:  originalModel,
-					isStickySession: isStickySession,
-					groupID:         0,  // Forward 方法没有 groupID，由上层处理粘性会话清除
-					sessionHash:     "", // Forward 方法没有 sessionHash，由上层处理粘性会话清除
+					ctx:              ctx,
+					prefix:           prefix,
+					account:          account,
+					proxyURL:         proxyURL,
+					accessToken:      accessToken,
+					action:           action,
+					body:             retryGeminiBody,
+					c:                c,
+					httpUpstream:     s.httpUpstream,
+					settingService:   s.settingService,
+					accountRepo:      s.accountRepo,
+					handleError:      s.handleUpstreamError,
+					requestedModel:   originalModel,
+					isSignatureRetry: true, // [OpusClaw Patch] 签名修复阶段：禁用智能重试等待
+					isStickySession:  isStickySession,
+					groupID:          0,  // Forward 方法没有 groupID，由上层处理粘性会话清除
+					sessionHash:      "", // Forward 方法没有 sessionHash，由上层处理粘性会话清除
 				})
 				if retryErr != nil {
+					// [OpusClaw Patch] 签名修复重试若触发账号切换，必须直接向上层传播 failover。
+					if switchErr, ok := IsAntigravityAccountSwitchError(retryErr); ok {
+						appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+							Platform:           account.Platform,
+							AccountID:          account.ID,
+							AccountName:        account.Name,
+							UpstreamStatusCode: http.StatusServiceUnavailable,
+							Kind:               "failover",
+							Message:            sanitizeUpstreamErrorMessage(retryErr.Error()),
+						})
+						return nil, &UpstreamFailoverError{
+							StatusCode:        http.StatusServiceUnavailable,
+							ForceCacheBilling: switchErr.IsStickySession,
+						}
+					}
 					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 						Platform:           account.Platform,
 						AccountID:          account.ID,
@@ -2809,8 +2859,8 @@ func (s *AntigravityGatewayService) setModelRateLimitAndClearSession(p *handleMo
 	// 立即更新 Redis 快照中账号的限流状态，避免并发请求重复选中
 	s.updateAccountModelRateLimitInCache(p.ctx, p.account, info.ModelName, resetAt)
 
-	// 清除粘性会话绑定
-	if p.cache != nil && p.sessionHash != "" {
+	// [OpusClaw Patch] 仅在长限流时清除粘性会话，短限流保留以维持缓存连续性
+	if p.cache != nil && p.sessionHash != "" && info.RetryDelay > antigravityStickyPreserveThreshold {
 		_ = p.cache.DeleteSessionAccountID(p.ctx, p.groupID, p.sessionHash)
 	}
 }

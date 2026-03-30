@@ -16,7 +16,7 @@ const (
 	// creditsExhaustedKey 是 model_rate_limits 中标记积分耗尽的特殊 key。
 	// 与普通模型限流完全同构：通过 SetModelRateLimit / isRateLimitActiveForKey 读写。
 	creditsExhaustedKey      = "AICredits"
-	creditsExhaustedDuration = 5 * time.Hour
+	creditsExhaustedDuration = 30 * time.Minute // [OpusClaw Patch] 从 5h 缩短到 30m
 )
 
 type antigravity429Category string

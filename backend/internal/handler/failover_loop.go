@@ -113,9 +113,15 @@ func (s *FailoverState) HandleFailoverError(
 		zap.Int("max_switches", s.MaxSwitches),
 	)
 
-	// Antigravity 平台换号线性递增延时
+	// [OpusClaw Patch] Antigravity 平台换号延时：指数退避 + 4s 上限（原为线性递增无上限）
 	if platform == service.PlatformAntigravity {
-		delay := time.Duration(s.SwitchCount-1) * time.Second
+		delay := time.Duration(1) * time.Second
+		for i := 1; i < s.SwitchCount-1 && delay < 4*time.Second; i++ {
+			delay *= 2
+		}
+		if delay > 4*time.Second {
+			delay = 4 * time.Second
+		}
 		if !sleepWithContext(ctx, delay) {
 			return FailoverCanceled
 		}

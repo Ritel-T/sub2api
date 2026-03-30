@@ -772,6 +772,202 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 	require.Equal(t, "failover", events[1].Kind)
 }
 
+func TestSignatureRetry_PropagatesSwitchError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	writer := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(writer)
+
+	body, err := json.Marshal(map[string]any{
+		"model": "claude-sonnet-4-5",
+		"thinking": map[string]any{
+			"type":          "enabled",
+			"budget_tokens": 256,
+		},
+		"messages": []map[string]any{
+			{"role": "user", "content": "hello"},
+			{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "thinking", "thinking": "plan", "signature": "sig_bad"},
+					{"type": "tool_use", "id": "tool-1", "name": "Bash", "input": map[string]any{"command": "ls"}},
+				},
+			},
+			{
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "tool_result", "tool_use_id": "tool-1", "content": "ok"},
+					{"type": "redacted_thinking", "data": "..."},
+				},
+			},
+		},
+		"max_tokens": 32,
+		"stream":     true,
+	})
+	require.NoError(t, err)
+
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+
+	firstRespBody := []byte(`{"error":{"message":"Corrupted thought signature."}}`)
+	const originalModel = "claude-sonnet-4-5"
+	const mappedModel = "gemini-3-pro-high"
+	account := &Account{
+		ID:          30,
+		Name:        "acc-signature-forward-failover",
+		Platform:    PlatformAntigravity,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"access_token": "token",
+			"model_mapping": map[string]any{
+				originalModel: mappedModel,
+			},
+		},
+	}
+
+	upstream := &queuedHTTPUpstreamStub{
+		responses: []*http.Response{{
+			StatusCode: http.StatusBadRequest,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+				"X-Request-Id": []string{"req-claude-sig-1"},
+			},
+			Body: io.NopCloser(bytes.NewReader(firstRespBody)),
+		}},
+		onCall: func(_ *http.Request, stub *queuedHTTPUpstreamStub) {
+			if stub.callCount != 1 {
+				return
+			}
+			futureResetAt := time.Now().Add(30 * time.Second).Format(time.RFC3339)
+			account.Extra = map[string]any{
+				modelRateLimitsKey: map[string]any{
+					mappedModel: map[string]any{
+						"rate_limit_reset_at": futureResetAt,
+					},
+				},
+			}
+		},
+	}
+
+	svc := &AntigravityGatewayService{
+		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  &AntigravityTokenProvider{},
+		httpUpstream:   upstream,
+	}
+
+	result, err := svc.Forward(context.Background(), c, account, body, true)
+	require.Nil(t, result)
+
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr)
+	require.Equal(t, http.StatusServiceUnavailable, failoverErr.StatusCode)
+	require.True(t, failoverErr.ForceCacheBilling)
+	require.Len(t, upstream.requestBodies, 1, "signature retry should stop at preflight failover")
+}
+
+func TestSignatureRetry_ContinuesOnNonSwitchError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	writer := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(writer)
+
+	body, err := json.Marshal(map[string]any{
+		"model": "claude-sonnet-4-5",
+		"thinking": map[string]any{
+			"type":          "enabled",
+			"budget_tokens": 256,
+		},
+		"messages": []map[string]any{
+			{"role": "user", "content": "hello"},
+			{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "thinking", "thinking": "plan", "signature": "sig_bad"},
+					{"type": "tool_use", "id": "tool-1", "name": "Bash", "input": map[string]any{"command": "ls"}},
+				},
+			},
+			{
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "tool_result", "tool_use_id": "tool-1", "content": "ok"},
+					{"type": "redacted_thinking", "data": "..."},
+				},
+			},
+		},
+		"max_tokens": 32,
+		"stream":     true,
+	})
+	require.NoError(t, err)
+
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+
+	oldBaseURLs := append([]string(nil), antigravity.BaseURLs...)
+	oldAvailability := antigravity.DefaultURLAvailability
+	defer func() {
+		antigravity.BaseURLs = oldBaseURLs
+		antigravity.DefaultURLAvailability = oldAvailability
+	}()
+	antigravity.BaseURLs = []string{"https://ag-signature.test"}
+	antigravity.DefaultURLAvailability = antigravity.NewURLAvailability(time.Minute)
+
+	firstRespBody := []byte(`{"error":{"message":"Corrupted thought signature."}}`)
+	upstream := &queuedHTTPUpstreamStub{
+		responses: []*http.Response{{
+			StatusCode: http.StatusBadRequest,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+				"X-Request-Id": []string{"req-claude-sig-2"},
+			},
+			Body: io.NopCloser(bytes.NewReader(firstRespBody)),
+		}},
+		onCall: func(_ *http.Request, stub *queuedHTTPUpstreamStub) {
+			if stub.callCount == 1 {
+				antigravity.BaseURLs = nil
+			}
+		},
+	}
+
+	svc := &AntigravityGatewayService{
+		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  &AntigravityTokenProvider{},
+		httpUpstream:   upstream,
+	}
+
+	result, err := svc.Forward(context.Background(), c, &Account{
+		ID:          31,
+		Name:        "acc-signature-forward-nonswitch",
+		Platform:    PlatformAntigravity,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"access_token": "token",
+			"model_mapping": map[string]any{
+				"claude-sonnet-4-5": "gemini-3-pro-high",
+			},
+		},
+	}, body, false)
+
+	require.Nil(t, result)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "upstream error: 400")
+
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr), "non-switch signature retry errors should continue stages instead of failover")
+
+	raw, ok := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, ok)
+	events, ok := raw.([]*OpsUpstreamErrorEvent)
+	require.True(t, ok)
+
+	retryRequestErrCount := 0
+	for _, evt := range events {
+		if evt.Kind == "signature_retry_request_error" {
+			retryRequestErrCount++
+		}
+	}
+	require.Equal(t, 2, retryRequestErrCount, "both signature retry stages should continue on non-switch errors")
+}
+
 // TestStreamUpstreamResponse_UsageAndFirstToken
 // 验证：usage 字段可被累积/覆盖更新，并且能记录首 token 时间
 func TestStreamUpstreamResponse_UsageAndFirstToken(t *testing.T) {

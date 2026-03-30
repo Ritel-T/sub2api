@@ -665,6 +665,10 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			requestCtx := c.Request.Context()
 			if fs.SwitchCount > 0 {
 				requestCtx = service.WithAccountSwitchCount(requestCtx, fs.SwitchCount, h.metadataBridgeEnabled())
+				// [OpusClaw Patch] 账号切换后清理 thinking 签名，防止跨账号 signature 400
+				if account.Platform == service.PlatformAntigravity {
+					body = service.CleanClaudeThinkingSignatures(body)
+				}
 			}
 			// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
 			writerSizeBeforeForward := c.Writer.Size()

@@ -101,6 +101,95 @@ func TestShouldClearStickySession(t *testing.T) {
 			requestedModel: "claude-opus-4", // 请求不同模型
 			want:           false,           // 不同模型不受影响
 		},
+		{
+			name: "Antigravity + rate limited + overages enabled + credits not exhausted",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Platform:    PlatformAntigravity,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{
+						"claude-sonnet-4": "claude-sonnet-4",
+					},
+				},
+				Extra: map[string]any{
+					"model_rate_limits": map[string]any{
+						"claude-sonnet-4": map[string]any{
+							"rate_limit_reset_at": longRateLimitReset,
+						},
+					},
+					"allow_overages": true,
+				},
+			},
+			requestedModel: "claude-sonnet-4",
+			want:           false,
+		},
+		{
+			name: "Antigravity + rate limited + overages NOT enabled",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Platform:    PlatformAntigravity,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{
+						"claude-sonnet-4": "claude-sonnet-4",
+					},
+				},
+				Extra: map[string]any{
+					"model_rate_limits": map[string]any{
+						"claude-sonnet-4": map[string]any{
+							"rate_limit_reset_at": longRateLimitReset,
+						},
+					},
+					"allow_overages": false,
+				},
+			},
+			requestedModel: "claude-sonnet-4",
+			want:           true,
+		},
+		{
+			name: "Antigravity + rate limited + credits exhausted",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Platform:    PlatformAntigravity,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{
+						"claude-sonnet-4": "claude-sonnet-4",
+					},
+				},
+				Extra: map[string]any{
+					"model_rate_limits": map[string]any{
+						"claude-sonnet-4": map[string]any{
+							"rate_limit_reset_at": longRateLimitReset,
+						},
+						"AICredits": map[string]any{
+							"rate_limit_reset_at": longRateLimitReset,
+						},
+					},
+					"allow_overages": true,
+				},
+			},
+			requestedModel: "claude-sonnet-4",
+			want:           true,
+		},
+		{
+			name: "Non-Antigravity + rate limited",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Platform:    "OtherPlatform",
+				Extra: map[string]any{
+					"model_rate_limits": map[string]any{
+						"claude-sonnet-4": map[string]any{
+							"rate_limit_reset_at": longRateLimitReset,
+						},
+					},
+				},
+			},
+			requestedModel: "claude-sonnet-4",
+			want:           true, // Clear sticky (original behavior)
+		},
 	}
 
 	for _, tt := range tests {

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
@@ -1403,4 +1404,124 @@ func TestAntigravityRetryLoop_SmartRetryFailed_StickySession_SwitchErrorPropagat
 	require.Len(t, cache.deleteCalls, 1, "should clear sticky session in handleSmartRetry")
 	require.Equal(t, int64(55), cache.deleteCalls[0].groupID)
 	require.Equal(t, "sticky-loop-test", cache.deleteCalls[0].sessionHash)
+}
+
+func TestSignatureRetry_SkipsSmartRetryWait(t *testing.T) {
+	repo := &stubAntigravityAccountRepo{}
+	upstream := &recordingOKUpstream{}
+	account := &Account{
+		ID:       101,
+		Name:     "acc-signature-skip-wait",
+		Type:     AccountTypeOAuth,
+		Platform: PlatformAntigravity,
+	}
+
+	respBody := []byte(`{
+		"error": {
+			"status": "RESOURCE_EXHAUSTED",
+			"details": [
+				{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "metadata": {"model": "claude-sonnet-4-5"}, "reason": "RATE_LIMIT_EXCEEDED"},
+				{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "3s"}
+			]
+		}
+	}`)
+	resp := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Header:     http.Header{},
+		Body:       io.NopCloser(bytes.NewReader(respBody)),
+	}
+
+	params := antigravityRetryLoopParams{
+		ctx:              context.Background(),
+		prefix:           "[test]",
+		account:          account,
+		accessToken:      "token",
+		action:           "generateContent",
+		body:             []byte(`{"input":"test"}`),
+		httpUpstream:     upstream,
+		accountRepo:      repo,
+		isSignatureRetry: true,
+		handleError: func(ctx context.Context, prefix string, account *Account, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult {
+			return nil
+		},
+	}
+
+	svc := &AntigravityGatewayService{}
+	start := time.Now()
+	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, []string{"https://ag-1.test"})
+	elapsed := time.Since(start)
+
+	require.NotNil(t, result)
+	require.Equal(t, smartRetryActionBreakWithResp, result.action)
+	require.NotNil(t, result.switchError)
+	require.Nil(t, result.resp)
+	require.Equal(t, 0, upstream.calls, "signature retry should skip smart retry request")
+	require.Less(t, elapsed, 500*time.Millisecond, "signature retry should not wait for retryDelay")
+	require.Len(t, repo.modelRateLimitCalls, 1)
+	require.Equal(t, "claude-sonnet-4-5", repo.modelRateLimitCalls[0].modelKey)
+	resetIn := time.Until(repo.modelRateLimitCalls[0].resetAt)
+	require.GreaterOrEqual(t, resetIn, 2*time.Second)
+	require.LessOrEqual(t, resetIn, 4*time.Second)
+}
+
+func TestSignatureRetry_NonSignatureContextWaitsSmartRetry(t *testing.T) {
+	repo := &stubAntigravityAccountRepo{}
+	account := &Account{
+		ID:       102,
+		Name:     "acc-normal-smart-retry",
+		Type:     AccountTypeOAuth,
+		Platform: PlatformAntigravity,
+	}
+
+	retryRespBody := `{
+		"error": {
+			"status": "RESOURCE_EXHAUSTED",
+			"details": [
+				{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "metadata": {"model": "claude-sonnet-4-5"}, "reason": "RATE_LIMIT_EXCEEDED"},
+				{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "1s"}
+			]
+		}
+	}`
+	upstream := &mockSmartRetryUpstream{
+		responses: []*http.Response{{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{},
+			Body:       io.NopCloser(strings.NewReader(retryRespBody)),
+		}},
+		errors: []error{nil},
+	}
+
+	respBody := []byte(retryRespBody)
+	resp := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Header:     http.Header{},
+		Body:       io.NopCloser(bytes.NewReader(respBody)),
+	}
+
+	params := antigravityRetryLoopParams{
+		ctx:              context.Background(),
+		prefix:           "[test]",
+		account:          account,
+		accessToken:      "token",
+		action:           "generateContent",
+		body:             []byte(`{"input":"test"}`),
+		httpUpstream:     upstream,
+		accountRepo:      repo,
+		isSignatureRetry: false,
+		handleError: func(ctx context.Context, prefix string, account *Account, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult {
+			return nil
+		},
+	}
+
+	svc := &AntigravityGatewayService{}
+	start := time.Now()
+	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, []string{"https://ag-1.test"})
+	elapsed := time.Since(start)
+
+	require.NotNil(t, result)
+	require.Equal(t, smartRetryActionBreakWithResp, result.action)
+	require.NotNil(t, result.switchError)
+	require.Len(t, upstream.calls, 1, "non-signature context should execute smart retry request")
+	require.GreaterOrEqual(t, elapsed, 900*time.Millisecond, "non-signature context should wait before retry")
+	require.Len(t, repo.modelRateLimitCalls, 1)
 }
