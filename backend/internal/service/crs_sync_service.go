@@ -355,7 +355,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 				Concurrency: concurrency,
 				Priority:    priority,
 				Status:      status,
-				Schedulable: src.Schedulable,
+				Schedulable: true, // [OpusClaw Patch] Force Schedulable=true on CRS sync import
 			}
 			if err := s.accountRepo.Create(ctx, account); err != nil {
 				item.Action = "failed"
@@ -388,7 +388,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		existing.Concurrency = concurrency
 		existing.Priority = priority
 		existing.Status = status
-		existing.Schedulable = src.Schedulable
+		existing.Schedulable = true // [OpusClaw Patch] Force Schedulable=true on CRS sync update
 
 		if err := s.accountRepo.Update(ctx, existing); err != nil {
 			item.Action = "failed"
@@ -477,7 +477,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 				Concurrency: concurrency,
 				Priority:    priority,
 				Status:      status,
-				Schedulable: src.Schedulable,
+				Schedulable: true, // [OpusClaw Patch] Force Schedulable=true on CRS sync import
 			}
 			if err := s.accountRepo.Create(ctx, account); err != nil {
 				item.Action = "failed"
@@ -503,7 +503,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		existing.Concurrency = concurrency
 		existing.Priority = priority
 		existing.Status = status
-		existing.Schedulable = src.Schedulable
+		existing.Schedulable = true // [OpusClaw Patch] Force Schedulable=true on CRS sync update
 
 		if err := s.accountRepo.Update(ctx, existing); err != nil {
 			item.Action = "failed"
@@ -607,7 +607,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 				Concurrency: concurrency,
 				Priority:    priority,
 				Status:      status,
-				Schedulable: src.Schedulable,
+				Schedulable: true, // [OpusClaw Patch] Force Schedulable=true on CRS sync import
 			}
 			if err := s.accountRepo.Create(ctx, account); err != nil {
 				item.Action = "failed"
@@ -637,7 +637,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		existing.Concurrency = concurrency
 		existing.Priority = priority
 		existing.Status = status
-		existing.Schedulable = src.Schedulable
+		existing.Schedulable = true // [OpusClaw Patch] Force Schedulable=true on CRS sync update
 
 		if err := s.accountRepo.Update(ctx, existing); err != nil {
 			item.Action = "failed"
@@ -733,7 +733,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 				Concurrency: concurrency,
 				Priority:    priority,
 				Status:      status,
-				Schedulable: src.Schedulable,
+				Schedulable: true, // [OpusClaw Patch] Force Schedulable=true on CRS sync import
 			}
 			if err := s.accountRepo.Create(ctx, account); err != nil {
 				item.Action = "failed"
@@ -759,7 +759,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		existing.Concurrency = concurrency
 		existing.Priority = priority
 		existing.Status = status
-		existing.Schedulable = src.Schedulable
+		existing.Schedulable = true // [OpusClaw Patch] Force Schedulable=true on CRS sync update
 
 		if err := s.accountRepo.Update(ctx, existing); err != nil {
 			item.Action = "failed"
@@ -848,7 +848,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 				Concurrency: 3,
 				Priority:    clampPriority(src.Priority),
 				Status:      mapCRSStatus(src.IsActive, src.Status),
-				Schedulable: src.Schedulable,
+				Schedulable: true, // [OpusClaw Patch] Force Schedulable=true on CRS sync import
 			}
 			if err := s.accountRepo.Create(ctx, account); err != nil {
 				item.Action = "failed"
@@ -877,7 +877,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		existing.Concurrency = 3
 		existing.Priority = clampPriority(src.Priority)
 		existing.Status = mapCRSStatus(src.IsActive, src.Status)
-		existing.Schedulable = src.Schedulable
+		existing.Schedulable = true // [OpusClaw Patch] Force Schedulable=true on CRS sync update
 
 		if err := s.accountRepo.Update(ctx, existing); err != nil {
 			item.Action = "failed"
@@ -964,7 +964,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 				Concurrency: 3,
 				Priority:    clampPriority(src.Priority),
 				Status:      mapCRSStatus(src.IsActive, src.Status),
-				Schedulable: src.Schedulable,
+				Schedulable: true, // [OpusClaw Patch] Force Schedulable=true on CRS sync import
 			}
 			if err := s.accountRepo.Create(ctx, account); err != nil {
 				item.Action = "failed"
@@ -990,7 +990,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		existing.Concurrency = 3
 		existing.Priority = clampPriority(src.Priority)
 		existing.Status = mapCRSStatus(src.IsActive, src.Status)
-		existing.Schedulable = src.Schedulable
+		existing.Schedulable = true // [OpusClaw Patch] Force Schedulable=true on CRS sync update
 
 		if err := s.accountRepo.Update(ctx, existing); err != nil {
 			item.Action = "failed"
