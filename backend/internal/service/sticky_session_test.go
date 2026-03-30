@@ -34,10 +34,11 @@ func TestShouldClearStickySession(t *testing.T) {
 	future := now.Add(1 * time.Hour)
 	past := now.Add(-1 * time.Hour)
 
-	// 短限流时间（有限流即清除粘性会话）
+	// [OpusClaw Patch] Short rate limits (≤60s) preserve sticky sessions.
 	shortRateLimitReset := now.Add(5 * time.Second).Format(time.RFC3339)
-	// 长限流时间（有限流即清除粘性会话）
 	longRateLimitReset := now.Add(30 * time.Second).Format(time.RFC3339)
+	// Rate limit exceeding sticky preserve threshold (>60s) clears sticky.
+	veryLongRateLimitReset := now.Add(90 * time.Second).Format(time.RFC3339)
 
 	tests := []struct {
 		name           string
@@ -48,7 +49,8 @@ func TestShouldClearStickySession(t *testing.T) {
 		{name: "nil account", account: nil, requestedModel: "", want: false},
 		{name: "status error", account: &Account{Status: StatusError, Schedulable: true}, requestedModel: "", want: true},
 		{name: "status disabled", account: &Account{Status: StatusDisabled, Schedulable: true}, requestedModel: "", want: true},
-		{name: "schedulable false", account: &Account{Status: StatusActive, Schedulable: false}, requestedModel: "", want: true},
+		// [OpusClaw Patch] Schedulable field is ignored — active accounts are always schedulable.
+	{name: "schedulable false", account: &Account{Status: StatusActive, Schedulable: false}, requestedModel: "", want: false},
 		{name: "temp unschedulable", account: &Account{Status: StatusActive, Schedulable: true, TempUnschedulableUntil: &future}, requestedModel: "", want: true},
 		{name: "temp unschedulable expired", account: &Account{Status: StatusActive, Schedulable: true, TempUnschedulableUntil: &past}, requestedModel: "", want: false},
 		{name: "active schedulable", account: &Account{Status: StatusActive, Schedulable: true}, requestedModel: "", want: false},
@@ -67,7 +69,7 @@ func TestShouldClearStickySession(t *testing.T) {
 				},
 			},
 			requestedModel: "claude-sonnet-4",
-			want:           true, // 有限流即清除
+			want:           false, // [OpusClaw Patch] ≤60s preserves sticky
 		},
 		{
 			name: "model rate limited long duration",
@@ -83,7 +85,23 @@ func TestShouldClearStickySession(t *testing.T) {
 				},
 			},
 			requestedModel: "claude-sonnet-4",
-			want:           true, // 有限流即清除
+			want:           false, // [OpusClaw Patch] ≤60s preserves sticky
+		},
+		{
+			name: "model rate limited very long duration clears sticky",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Extra: map[string]any{
+					"model_rate_limits": map[string]any{
+						"claude-sonnet-4": map[string]any{
+							"rate_limit_reset_at": veryLongRateLimitReset,
+						},
+					},
+				},
+			},
+			requestedModel: "claude-sonnet-4",
+			want:           true, // >60s clears sticky
 		},
 		{
 			name: "model rate limited different model",
@@ -125,7 +143,7 @@ func TestShouldClearStickySession(t *testing.T) {
 			want:           false,
 		},
 		{
-			name: "Antigravity + rate limited + overages NOT enabled",
+			name: "Antigravity + rate limited + overages NOT enabled in Extra but auto-enabled",
 			account: &Account{
 				Status:      StatusActive,
 				Schedulable: true,
@@ -145,10 +163,10 @@ func TestShouldClearStickySession(t *testing.T) {
 				},
 			},
 			requestedModel: "claude-sonnet-4",
-			want:           true,
+			want:           false, // [OpusClaw Patch] IsOveragesEnabled always true for Antigravity
 		},
 		{
-			name: "Antigravity + rate limited + credits exhausted",
+			name: "Antigravity + rate limited + credits exhausted short duration",
 			account: &Account{
 				Status:      StatusActive,
 				Schedulable: true,
@@ -171,10 +189,36 @@ func TestShouldClearStickySession(t *testing.T) {
 				},
 			},
 			requestedModel: "claude-sonnet-4",
-			want:           true,
+			want:           false, // [OpusClaw Patch] ≤60s preserves sticky even with credits exhausted
 		},
 		{
-			name: "Non-Antigravity + rate limited",
+			name: "Antigravity + rate limited + credits exhausted very long duration clears sticky",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Platform:    PlatformAntigravity,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{
+						"claude-sonnet-4": "claude-sonnet-4",
+					},
+				},
+				Extra: map[string]any{
+					"model_rate_limits": map[string]any{
+						"claude-sonnet-4": map[string]any{
+							"rate_limit_reset_at": veryLongRateLimitReset,
+						},
+						"AICredits": map[string]any{
+							"rate_limit_reset_at": veryLongRateLimitReset,
+						},
+					},
+					"allow_overages": true,
+				},
+			},
+			requestedModel: "claude-sonnet-4",
+			want:           true, // >60s clears sticky
+		},
+		{
+			name: "Non-Antigravity + rate limited short duration",
 			account: &Account{
 				Status:      StatusActive,
 				Schedulable: true,
@@ -188,7 +232,24 @@ func TestShouldClearStickySession(t *testing.T) {
 				},
 			},
 			requestedModel: "claude-sonnet-4",
-			want:           true, // Clear sticky (original behavior)
+			want:           false, // [OpusClaw Patch] ≤60s preserves sticky
+		},
+		{
+			name: "Non-Antigravity + rate limited very long duration clears sticky",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Platform:    "OtherPlatform",
+				Extra: map[string]any{
+					"model_rate_limits": map[string]any{
+						"claude-sonnet-4": map[string]any{
+							"rate_limit_reset_at": veryLongRateLimitReset,
+						},
+					},
+				},
+			},
+			requestedModel: "claude-sonnet-4",
+			want:           true, // >60s clears sticky
 		},
 	}
 

@@ -152,3 +152,49 @@ func TestUpdateAccount_EmptyExtraPayloadCanClearQuotaLimits(t *testing.T) {
 	require.NotContains(t, repo.account.Extra, "quota_weekly_limit")
 	require.Len(t, repo.account.Extra, 0)
 }
+
+// [OpusClaw Patch] IsOveragesEnabled always returns true for Antigravity, regardless of Extra.
+func TestIsOveragesEnabled_AlwaysTrueForAntigravity(t *testing.T) {
+	tests := []struct {
+		name    string
+		account Account
+		want    bool
+	}{
+		{
+			name:    "Antigravity without Extra",
+			account: Account{Platform: PlatformAntigravity},
+			want:    true,
+		},
+		{
+			name:    "Antigravity with allow_overages=false",
+			account: Account{Platform: PlatformAntigravity, Extra: map[string]any{"allow_overages": false}},
+			want:    true,
+		},
+		{
+			name:    "Antigravity with allow_overages=true",
+			account: Account{Platform: PlatformAntigravity, Extra: map[string]any{"allow_overages": true}},
+			want:    true,
+		},
+		{
+			name:    "Antigravity with nil Extra",
+			account: Account{Platform: PlatformAntigravity, Extra: nil},
+			want:    true,
+		},
+		{
+			name:    "Anthropic platform",
+			account: Account{Platform: PlatformAnthropic},
+			want:    false,
+		},
+		{
+			name:    "OpenAI platform",
+			account: Account{Platform: PlatformOpenAI},
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.account.IsOveragesEnabled())
+		})
+	}
+}

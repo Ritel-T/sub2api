@@ -120,6 +120,15 @@ func TestAccountIsSchedulable_TempUnschedulable(t *testing.T) {
 			},
 			want: false, // 临时限流生效
 		},
+		{
+			// [OpusClaw Patch] Schedulable field is ignored — active accounts are always schedulable.
+			name: "schedulable_false_still_schedulable",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: false,
+			},
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {

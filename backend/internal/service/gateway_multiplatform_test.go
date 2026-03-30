@@ -507,9 +507,10 @@ func TestGatewayService_SelectAccountForModelWithPlatform_Schedulability(t *test
 			expectedID: 2,
 		},
 		{
-			name: "schedulable=false被跳过",
+			// [OpusClaw Patch] Schedulable=false is now ignored; StatusDisabled blocks scheduling.
+			name: "StatusDisabled被跳过",
 			accounts: []Account{
-				{ID: 1, Platform: PlatformAnthropic, Priority: 1, Status: StatusActive, Schedulable: false},
+				{ID: 1, Platform: PlatformAnthropic, Priority: 1, Status: StatusDisabled, Schedulable: false},
 				{ID: 2, Platform: PlatformAnthropic, Priority: 2, Status: StatusActive, Schedulable: true},
 			},
 			expectedID: 2,
@@ -1418,7 +1419,8 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
 			accounts: []Account{
 				{ID: 1, Platform: PlatformAnthropic, Priority: 1, Status: StatusActive, Schedulable: true},
-				{ID: 2, Platform: PlatformAnthropic, Priority: 1, Status: StatusActive, Schedulable: false},
+				// [OpusClaw Patch] Use StatusDisabled instead of Schedulable=false
+				{ID: 2, Platform: PlatformAnthropic, Priority: 1, Status: StatusDisabled, Schedulable: false},
 				{ID: 3, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true},
 				{
 					ID:          4,
@@ -2231,7 +2233,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		testCtx := context.WithValue(ctx, ctxkey.ForcePlatform, PlatformAnthropic)
 		repo := &mockAccountRepoForPlatform{
 			accounts: []Account{
-				{ID: 1, Platform: PlatformAnthropic, Priority: 1, Status: StatusActive, Schedulable: false, Concurrency: 5},
+				// [OpusClaw Patch] Use StatusDisabled instead of Schedulable=false to block scheduling
+				{ID: 1, Platform: PlatformAnthropic, Priority: 1, Status: StatusDisabled, Schedulable: false, Concurrency: 5},
 				{ID: 2, Platform: PlatformAnthropic, Priority: 2, Status: StatusActive, Schedulable: true, Concurrency: 5},
 			},
 			accountsByID: map[int64]*Account{},
@@ -2869,7 +2872,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
 			accounts: []Account{
 				{ID: 1, Platform: PlatformAnthropic, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 3, Platform: PlatformAnthropic, Priority: 1, Status: StatusActive, Schedulable: false, Concurrency: 5},
+				// [OpusClaw Patch] Use StatusDisabled instead of Schedulable=false
+				{ID: 3, Platform: PlatformAnthropic, Priority: 1, Status: StatusDisabled, Schedulable: false, Concurrency: 5},
 				{ID: 4, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5},
 				{
 					ID:          5,
