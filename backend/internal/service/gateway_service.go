@@ -449,7 +449,8 @@ func shouldClearStickySession(account *Account, requestedModel string) bool {
 	if account == nil {
 		return false
 	}
-	if account.Status == StatusError || account.Status == StatusDisabled || !account.Schedulable {
+	// [OpusClaw Patch] Schedulable check removed — all active accounts are always schedulable
+	if account.Status == StatusError || account.Status == StatusDisabled {
 		return true
 	}
 	if account.TempUnschedulableUntil != nil && time.Now().Before(*account.TempUnschedulableUntil) {
@@ -2174,9 +2175,7 @@ func (s *GatewayService) soraUnschedulableReason(account *Account) string {
 	if account.Status != StatusActive {
 		return fmt.Sprintf("status=%s", account.Status)
 	}
-	if !account.Schedulable {
-		return "schedulable=false"
-	}
+	// [OpusClaw Patch] Schedulable check removed — all active accounts are schedulable
 	if account.TempUnschedulableUntil != nil && time.Now().Before(*account.TempUnschedulableUntil) {
 		return fmt.Sprintf("temp_unschedulable_until=%s", account.TempUnschedulableUntil.UTC().Format(time.RFC3339))
 	}

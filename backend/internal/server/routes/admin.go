@@ -271,7 +271,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		accounts.POST("/:id/reset-quota", h.Admin.Account.ResetQuota)
 		accounts.GET("/:id/temp-unschedulable", h.Admin.Account.GetTempUnschedulable)
 		accounts.DELETE("/:id/temp-unschedulable", h.Admin.Account.ClearTempUnschedulable)
-		accounts.POST("/:id/schedulable", h.Admin.Account.SetSchedulable)
+		// [OpusClaw Patch] SetSchedulable route removed — all accounts are always schedulable
 		accounts.GET("/:id/models", h.Admin.Account.GetAvailableModels)
 		accounts.POST("/batch", h.Admin.Account.BatchCreate)
 		accounts.GET("/data", h.Admin.Account.ExportData)

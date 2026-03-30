@@ -2,6 +2,7 @@ package service
 
 import "encoding/json"
 
+// [OpusClaw Patch] Clear Claude thinking signatures after account switch.
 // CleanClaudeThinkingSignatures clears the "signature" field from thinking
 // blocks in a Claude /v1/messages request body. This causes the downstream
 // request_transformer to downgrade those blocks to plain text, preventing

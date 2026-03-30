@@ -20,11 +20,13 @@ func TestCollectSelectionFailureStats(t *testing.T) {
 			Status:      StatusActive,
 			Schedulable: true,
 		},
+		// [OpusClaw Patch] Account with Schedulable=false is now treated as schedulable.
+		// Use StatusDisabled to test unschedulable category instead.
 		// unschedulable
 		{
 			ID:          2,
 			Platform:    PlatformSora,
-			Status:      StatusActive,
+			Status:      StatusDisabled,
 			Schedulable: false,
 		},
 		// platform filtered
@@ -95,12 +97,14 @@ func TestCollectSelectionFailureStats(t *testing.T) {
 	}
 }
 
+// [OpusClaw Patch] Updated test: Schedulable=false no longer makes accounts unschedulable.
+// Use StatusDisabled to test the unschedulable category.
 func TestDiagnoseSelectionFailure_SoraUnschedulableDetail(t *testing.T) {
 	svc := &GatewayService{}
 	acc := &Account{
 		ID:          7,
 		Platform:    PlatformSora,
-		Status:      StatusActive,
+		Status:      StatusDisabled,
 		Schedulable: false,
 	}
 
@@ -108,8 +112,8 @@ func TestDiagnoseSelectionFailure_SoraUnschedulableDetail(t *testing.T) {
 	if diagnosis.Category != "unschedulable" {
 		t.Fatalf("category=%s want=unschedulable", diagnosis.Category)
 	}
-	if diagnosis.Detail != "schedulable=false" {
-		t.Fatalf("detail=%s want=schedulable=false", diagnosis.Detail)
+	if !strings.HasPrefix(diagnosis.Detail, "status=") {
+		t.Fatalf("detail=%s want=status=disabled prefix", diagnosis.Detail)
 	}
 }
 

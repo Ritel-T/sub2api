@@ -103,8 +103,10 @@ func (a *Account) EffectiveLoadFactor() int {
 	return 1
 }
 
+// [OpusClaw Patch] Schedulable field is ignored — all active accounts are always schedulable.
+// Manual scheduling toggle removed in favor of fully automatic scheduling.
 func (a *Account) IsSchedulable() bool {
-	if !a.IsActive() || !a.Schedulable {
+	if !a.IsActive() {
 		return false
 	}
 	now := time.Now()

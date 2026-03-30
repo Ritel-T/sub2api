@@ -142,7 +142,7 @@ type BulkUpdateAccountsRequest struct {
 	RateMultiplier          *float64       `json:"rate_multiplier"`
 	LoadFactor              *int           `json:"load_factor"`
 	Status                  string         `json:"status" binding:"omitempty,oneof=active inactive error"`
-	Schedulable             *bool          `json:"schedulable"`
+	// [OpusClaw Patch] Schedulable field removed from bulk update — always schedulable
 	GroupIDs                *[]int64       `json:"group_ids"`
 	Credentials             map[string]any `json:"credentials"`
 	Extra                   map[string]any `json:"extra"`
@@ -1378,7 +1378,6 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		req.RateMultiplier != nil ||
 		req.LoadFactor != nil ||
 		req.Status != "" ||
-		req.Schedulable != nil ||
 		req.GroupIDs != nil ||
 		len(req.Credentials) > 0 ||
 		len(req.Extra) > 0
@@ -1397,7 +1396,7 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		RateMultiplier:        req.RateMultiplier,
 		LoadFactor:            req.LoadFactor,
 		Status:                req.Status,
-		Schedulable:           req.Schedulable,
+		// [OpusClaw Patch] Schedulable removed from bulk update input
 		GroupIDs:              req.GroupIDs,
 		Credentials:           req.Credentials,
 		Extra:                 req.Extra,
@@ -1747,34 +1746,8 @@ func (h *AccountHandler) GetBatchTodayStats(c *gin.Context) {
 	response.Success(c, payload)
 }
 
-// SetSchedulableRequest represents the request body for setting schedulable status
-type SetSchedulableRequest struct {
-	Schedulable bool `json:"schedulable"`
-}
-
-// SetSchedulable handles toggling account schedulable status
-// POST /api/v1/admin/accounts/:id/schedulable
-func (h *AccountHandler) SetSchedulable(c *gin.Context) {
-	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "Invalid account ID")
-		return
-	}
-
-	var req SetSchedulableRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	account, err := h.adminService.SetAccountSchedulable(c.Request.Context(), accountID, req.Schedulable)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
-}
+// [OpusClaw Patch] SetSchedulable endpoint removed — all accounts are always schedulable
+// SetSchedulableRequest and SetSchedulable handler have been removed.
 
 // GetAvailableModels handles getting available models for an account
 // GET /api/v1/admin/accounts/:id/models

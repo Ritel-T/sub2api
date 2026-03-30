@@ -815,10 +815,10 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 
 func (r *accountRepository) ListSchedulable(ctx context.Context) ([]service.Account, error) {
 	now := time.Now()
+	// [OpusClaw Patch] Removed SchedulableEQ filter — all active accounts are schedulable
 	accounts, err := r.client.Account.Query().
 		Where(
 			dbaccount.StatusEQ(service.StatusActive),
-			dbaccount.SchedulableEQ(true),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -835,17 +835,17 @@ func (r *accountRepository) ListSchedulable(ctx context.Context) ([]service.Acco
 func (r *accountRepository) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]service.Account, error) {
 	return r.queryAccountsByGroup(ctx, groupID, accountGroupQueryOptions{
 		status:      service.StatusActive,
-		schedulable: true,
+		schedulable: true, // [OpusClaw Patch] schedulable flag kept for queryAccountsByGroup but SchedulableEQ removed inside
 	})
 }
 
 func (r *accountRepository) ListSchedulableByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
 	now := time.Now()
+	// [OpusClaw Patch] Removed SchedulableEQ filter — all active accounts are schedulable
 	accounts, err := r.client.Account.Query().
 		Where(
 			dbaccount.PlatformEQ(platform),
 			dbaccount.StatusEQ(service.StatusActive),
-			dbaccount.SchedulableEQ(true),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -875,11 +875,11 @@ func (r *accountRepository) ListSchedulableByPlatforms(ctx context.Context, plat
 	// 仅返回可调度的活跃账号，并过滤处于过载/限流窗口的账号。
 	// 代理与分组信息统一在 accountsToService 中批量加载，避免 N+1 查询。
 	now := time.Now()
+	// [OpusClaw Patch] Removed SchedulableEQ filter — all active accounts are schedulable
 	accounts, err := r.client.Account.Query().
 		Where(
 			dbaccount.PlatformIn(platforms...),
 			dbaccount.StatusEQ(service.StatusActive),
-			dbaccount.SchedulableEQ(true),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -895,11 +895,11 @@ func (r *accountRepository) ListSchedulableByPlatforms(ctx context.Context, plat
 
 func (r *accountRepository) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
 	now := time.Now()
+	// [OpusClaw Patch] Removed SchedulableEQ filter — all active accounts are schedulable
 	accounts, err := r.client.Account.Query().
 		Where(
 			dbaccount.PlatformEQ(platform),
 			dbaccount.StatusEQ(service.StatusActive),
-			dbaccount.SchedulableEQ(true),
 			dbaccount.Not(dbaccount.HasAccountGroups()),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
@@ -919,11 +919,11 @@ func (r *accountRepository) ListSchedulableUngroupedByPlatforms(ctx context.Cont
 		return nil, nil
 	}
 	now := time.Now()
+	// [OpusClaw Patch] Removed SchedulableEQ filter — all active accounts are schedulable
 	accounts, err := r.client.Account.Query().
 		Where(
 			dbaccount.PlatformIn(platforms...),
 			dbaccount.StatusEQ(service.StatusActive),
-			dbaccount.SchedulableEQ(true),
 			dbaccount.Not(dbaccount.HasAccountGroups()),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
@@ -1154,19 +1154,17 @@ func (r *accountRepository) UpdateSessionWindow(ctx context.Context, id int64, s
 	return nil
 }
 
+// [OpusClaw Patch] SetSchedulable always forces true — manual toggle removed
 func (r *accountRepository) SetSchedulable(ctx context.Context, id int64, schedulable bool) error {
 	_, err := r.client.Account.Update().
 		Where(dbaccount.IDEQ(id)).
-		SetSchedulable(schedulable).
+		SetSchedulable(true).
 		Save(ctx)
 	if err != nil {
 		return err
 	}
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountChanged, &id, nil, nil); err != nil {
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue schedulable change failed: account=%d err=%v", id, err)
-	}
-	if !schedulable {
-		r.syncSchedulerAccountSnapshot(ctx, id)
 	}
 	return nil
 }
@@ -1321,11 +1319,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		args = append(args, *updates.Status)
 		idx++
 	}
-	if updates.Schedulable != nil {
-		setClauses = append(setClauses, "schedulable = $"+itoa(idx))
-		args = append(args, *updates.Schedulable)
-		idx++
-	}
+	// [OpusClaw Patch] Schedulable bulk update removed — all accounts always schedulable
 	// JSONB 需要合并而非覆盖，使用 raw SQL 保持旧行为。
 	if len(updates.Credentials) > 0 {
 		payload, err := json.Marshal(updates.Credentials)
@@ -1372,9 +1366,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		if updates.Status != nil && (*updates.Status == service.StatusError || *updates.Status == service.StatusDisabled) {
 			shouldSync = true
 		}
-		if updates.Schedulable != nil && !*updates.Schedulable {
-			shouldSync = true
-		}
+		// [OpusClaw Patch] Removed Schedulable sync check — always schedulable
 		if shouldSync {
 			r.syncSchedulerAccountSnapshots(ctx, ids)
 		}
@@ -1403,8 +1395,8 @@ func (r *accountRepository) queryAccountsByGroup(ctx context.Context, groupID in
 	}
 	if opts.schedulable {
 		now := time.Now()
+		// [OpusClaw Patch] Removed SchedulableEQ filter — all active accounts are schedulable
 		preds = append(preds,
-			dbaccount.SchedulableEQ(true),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
