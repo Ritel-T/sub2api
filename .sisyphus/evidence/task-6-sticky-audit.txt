@@ -1,0 +1,24 @@
+STICKY SESSION AUDIT
+====================
+Function: shouldClearStickySession
+File: backend/internal/service/gateway_service.go
+
+Clears sticky when:
+- account is nil? NO (returns false)
+- account.Status is error
+- account.Status is disabled
+- account.TempUnschedulableUntil is active
+- requested model has a remaining rate limit AND the account is not schedulable for that model AND the remaining rate limit is longer than antigravityStickyPreserveThreshold
+
+Preserves sticky when:
+- account is otherwise healthy
+- requested model has no remaining rate limit
+- requested model is rate-limited but account.IsSchedulableForModelWithContext(...) is still true (example: Antigravity can continue via credits)
+- requested model is rate-limited for a short period (<= antigravityStickyPreserveThreshold), preserving return-to-origin behavior
+
+Quota reason:
+- CORRECTLY not cleared for quota reasons.
+- The function no longer checks !account.Schedulable.
+- It also does not clear sticky simply because free quota is exhausted when credits are still available, because the schedulable-for-model check returns false clearing only when the account is truly unavailable for the request.
+
+Verdict: CORRECT

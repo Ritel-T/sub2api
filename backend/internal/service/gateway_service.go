@@ -2707,6 +2707,9 @@ func shuffleWithinSortGroups(accounts []accountWithLoad) {
 
 // sameAccountWithLoadGroup 判断两个 accountWithLoad 是否属于同一排序组
 func sameAccountWithLoadGroup(a, b accountWithLoad) bool {
+	if a.quotaTier != b.quotaTier {
+		return false
+	}
 	if a.account.Priority != b.account.Priority {
 		return false
 	}

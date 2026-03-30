@@ -1,0 +1,29 @@
+SCHEDULING PRIORITY AUDIT
+=========================
+Date: 2026-03-30
+File: backend/internal/service/gateway_service.go
+
+Priority Chain:
+1. Sticky session is checked first.
+   - Load-aware path: SelectAccountWithLoadAwareness() resolves stickyAccountID before any candidate sorting, then tries routed sticky in Layer 1 and normal sticky in Layer 1.5 before Layer 2 load-aware selection.
+   - Legacy paths: selectAccountForModelWithPlatform() and selectAccountWithMixedScheduling() also check sticky before normal selection.
+2. Free quota vs credits-consuming is encoded as quotaTier.
+   - accountWithLoad.quotaTier comment defines 0=has free quota, 1=needs Credits.
+   - In load-aware selection, tier is computed from acc.isModelRateLimitedWithContext(ctx, requestedModel): not rate-limited => tier 0; model-rate-limited (would require credits path) => tier 1.
+3. Sort/selection order in the load-aware path is quotaTier -> Priority -> LoadRate -> LRU.
+   - Routed load-aware branch sorts routingAvailable by quotaTier, then Priority, then LoadRate, then LastUsedAt and attempts acquisition in that order.
+   - General load-aware branch filters by minimum quotaTier, then minimum Priority, then minimum LoadRate, then selects by LRU.
+4. Final selection preserves sticky over all quota-tier logic.
+   - Sticky checks happen before any non-sticky sorting/filtering, so a valid sticky binding is never broken merely to prefer a free-quota account.
+
+Issue Found:
+- The routed load-aware branch called shuffleWithinSortGroups() after sorting routingAvailable.
+- sameAccountWithLoadGroup() grouped only by Priority + LoadRate + LastUsedAt and ignored quotaTier.
+- When a free-quota account and a credits-consuming account shared the same Priority, LoadRate, and LastUsedAt group, shuffleWithinSortGroups() could randomize them together and break the intended free-quota-before-credits ordering.
+
+Fix Applied:
+- Updated sameAccountWithLoadGroup() so shuffle groups also require matching quotaTier.
+- Result: shuffle still spreads traffic within truly equivalent candidates, but it no longer crosses the free-quota/credits boundary.
+
+Verdict: NEEDS FIX -> FIXED
+Details: Sticky already had highest priority. The quota-tier scheduling patch was conceptually correct, but one post-sort shuffle step weakened it in the routed load-aware path. That gap is now closed, so the effective chain is sticky > free quota accounts > credits-consuming accounts.
