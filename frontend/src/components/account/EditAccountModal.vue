@@ -1618,10 +1618,6 @@
       </div>
 
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div>
-          <label class="input-label">{{ t('common.status') }}</label>
-          <Select v-model="form.status" :options="statusOptions" />
-        </div>
 
         <!-- Mixed Scheduling (only for antigravity accounts, read-only in edit mode) -->
         <div v-if="account?.platform === 'antigravity'" class="flex items-center gap-2">
@@ -1647,33 +1643,6 @@
               class="pointer-events-none absolute left-0 top-full z-[100] mt-1.5 w-72 rounded bg-gray-900 px-3 py-2 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-gray-700"
             >
               {{ t('admin.accounts.mixedSchedulingTooltip') }}
-              <div
-                class="absolute bottom-full left-3 border-4 border-transparent border-b-gray-900 dark:border-b-gray-700"
-              ></div>
-            </div>
-          </div>
-        </div>
-        <div v-if="account?.platform === 'antigravity'" class="mt-3 flex items-center gap-2">
-          <label class="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              v-model="allowOverages"
-              class="h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
-            />
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {{ t('admin.accounts.allowOverages') }}
-            </span>
-          </label>
-          <div class="group relative">
-            <span
-              class="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-200 text-xs text-gray-500 hover:bg-gray-300 dark:bg-dark-600 dark:text-gray-400 dark:hover:bg-dark-500"
-            >
-              ?
-            </span>
-            <div
-              class="pointer-events-none absolute left-0 top-full z-[100] mt-1.5 w-72 rounded bg-gray-900 px-3 py-2 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-gray-700"
-            >
-              {{ t('admin.accounts.allowOveragesTooltip') }}
               <div
                 class="absolute bottom-full left-3 border-4 border-transparent border-b-gray-900 dark:border-b-gray-700"
               ></div>
@@ -1848,7 +1817,6 @@ const customErrorCodeInput = ref<number | null>(null)
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(false)
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
-const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
 const antigravityModelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const antigravityWhitelistModels = ref<string[]>([])
 const antigravityModelMappings = ref<ModelMapping[]>([])
@@ -1994,16 +1962,6 @@ const form = reactive({
   expires_at: null as number | null
 })
 
-const statusOptions = computed(() => {
-  const options = [
-    { value: 'active', label: t('common.active') },
-    { value: 'inactive', label: t('common.inactive') }
-  ]
-  if (form.status === 'error') {
-    options.push({ value: 'error', label: t('admin.accounts.status.error') })
-  }
-  return options
-})
 
 const expiresAtInput = computed({
   get: () => formatDateTimeLocal(form.expires_at),
@@ -2043,9 +2001,6 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   form.load_factor = newAccount.load_factor ?? null
   form.priority = newAccount.priority
   form.rate_multiplier = newAccount.rate_multiplier ?? 1
-  form.status = (newAccount.status === 'active' || newAccount.status === 'inactive' || newAccount.status === 'error')
-    ? newAccount.status
-    : 'active'
   form.group_ids = newAccount.group_ids || []
   form.expires_at = newAccount.expires_at ?? null
 
@@ -2056,11 +2011,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
   // Load mixed scheduling setting (only for antigravity accounts)
   mixedScheduling.value = false
-  allowOverages.value = false
   const extra = newAccount.extra as Record<string, unknown> | undefined
   mixedScheduling.value = extra?.mixed_scheduling === true
-  allowOverages.value = extra?.allow_overages === true
-
   // Load OpenAI passthrough toggle (OpenAI OAuth/API Key)
   openaiPassthroughEnabled.value = false
   openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
@@ -2930,7 +2882,7 @@ const handleSubmit = async () => {
       updatePayload.credentials = newCredentials
     }
 
-    // For antigravity accounts, handle mixed_scheduling and allow_overages in extra
+    // For antigravity accounts, handle mixed_scheduling in extra
     if (props.account.platform === 'antigravity') {
       const currentExtra = (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
@@ -2938,11 +2890,6 @@ const handleSubmit = async () => {
         newExtra.mixed_scheduling = true
       } else {
         delete newExtra.mixed_scheduling
-      }
-      if (allowOverages.value) {
-        newExtra.allow_overages = true
-      } else {
-        delete newExtra.allow_overages
       }
       updatePayload.extra = newExtra
     }

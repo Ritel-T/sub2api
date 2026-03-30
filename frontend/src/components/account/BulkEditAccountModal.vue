@@ -634,32 +634,6 @@
         </div>
       </div>
 
-      <!-- Status -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div class="mb-3 flex items-center justify-between">
-          <label
-            id="bulk-edit-status-label"
-            class="input-label mb-0"
-            for="bulk-edit-status-enabled"
-          >
-            {{ t('common.status') }}
-          </label>
-          <input
-            v-model="enableStatus"
-            id="bulk-edit-status-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-status"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div id="bulk-edit-status" :class="!enableStatus && 'pointer-events-none opacity-50'">
-          <Select
-            v-model="status"
-            :options="statusOptions"
-            aria-labelledby="bulk-edit-status-label"
-          />
-        </div>
-      </div>
 
       <!-- OpenAI OAuth WS mode -->
       <div v-if="allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -1007,7 +981,6 @@ const enableConcurrency = ref(false)
 const enableLoadFactor = ref(false)
 const enablePriority = ref(false)
 const enableRateMultiplier = ref(false)
-const enableStatus = ref(false)
 const enableGroups = ref(false)
 const enableOpenAIPassthrough = ref(false)
 const enableOpenAIWSMode = ref(false)
@@ -1030,7 +1003,6 @@ const concurrency = ref(1)
 const loadFactor = ref<number | null>(null)
 const priority = ref(1)
 const rateMultiplier = ref(1)
-const status = ref<'active' | 'inactive'>('active')
 const groupIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
@@ -1056,10 +1028,6 @@ const commonErrorCodes = [
   { value: 529, label: 'Overloaded' }
 ]
 
-const statusOptions = computed(() => [
-  { value: 'active', label: t('common.active') },
-  { value: 'inactive', label: t('common.inactive') }
-])
 const isOpenAIModelRestrictionDisabled = computed(
   () =>
     allOpenAIPassthroughCapable.value &&
@@ -1185,11 +1153,6 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   if (enableRateMultiplier.value) {
     updates.rate_multiplier = rateMultiplier.value
   }
-
-  if (enableStatus.value) {
-    updates.status = status.value
-  }
-
   if (enableGroups.value) {
     updates.group_ids = groupIds.value
   }
@@ -1339,7 +1302,6 @@ const handleSubmit = async () => {
     enableLoadFactor.value ||
     enablePriority.value ||
     enableRateMultiplier.value ||
-    enableStatus.value ||
     enableGroups.value ||
     enableOpenAIWSMode.value ||
     enableRpmLimit.value ||
@@ -1431,7 +1393,6 @@ watch(
       enableLoadFactor.value = false
       enablePriority.value = false
       enableRateMultiplier.value = false
-      enableStatus.value = false
       enableGroups.value = false
       enableOpenAIPassthrough.value = false
       enableOpenAIWSMode.value = false
@@ -1451,7 +1412,6 @@ watch(
       loadFactor.value = null
       priority.value = 1
       rateMultiplier.value = 1
-      status.value = 'active'
       groupIds.value = []
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       rpmLimitEnabled.value = false
