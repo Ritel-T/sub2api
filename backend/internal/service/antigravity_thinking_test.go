@@ -20,16 +20,16 @@ func TestApplyThinkingModelSuffix(t *testing.T) {
 			expected:        "claude-sonnet-4-5-thinking",
 		},
 		{
-			name:            "thinking enabled - claude-opus-4-6 becomes thinking version",
+			name:            "thinking enabled - claude-opus-4-6 remains unchanged",
 			mappedModel:     "claude-opus-4-6",
 			thinkingEnabled: true,
-			expected:        "claude-opus-4-6-thinking",
+			expected:        "claude-opus-4-6",
 		},
 		{
-			name:            "thinking enabled - gemini-2.5-flash becomes thinking version",
+			name:            "thinking enabled - gemini-2.5-flash remains unchanged",
 			mappedModel:     "gemini-2.5-flash",
 			thinkingEnabled: true,
-			expected:        "gemini-2.5-flash-thinking",
+			expected:        "gemini-2.5-flash",
 		},
 		{
 			name:            "thinking enabled - already has suffix",
@@ -44,16 +44,16 @@ func TestApplyThinkingModelSuffix(t *testing.T) {
 			expected:        "claude-sonnet-4-5",
 		},
 		{
-			name:            "thinking disabled - strip existing suffix",
+			name:            "thinking disabled - existing thinking suffix remains unchanged",
 			mappedModel:     "claude-sonnet-4-5-thinking",
 			thinkingEnabled: false,
-			expected:        "claude-sonnet-4-5",
+			expected:        "claude-sonnet-4-5-thinking",
 		},
 		{
-			name:            "thinking disabled - strip existing suffix opus",
+			name:            "thinking disabled - opus remains unchanged",
 			mappedModel:     "claude-opus-4-6-thinking",
 			thinkingEnabled: false,
-			expected:        "claude-opus-4-6",
+			expected:        "claude-opus-4-6-thinking",
 		},
 	}
 

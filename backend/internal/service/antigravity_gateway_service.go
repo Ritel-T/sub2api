@@ -1032,15 +1032,14 @@ func (s *AntigravityGatewayService) getMappedModel(account *Account, requestedMo
 }
 
 // applyThinkingModelSuffix 根据 thinking 配置调整模型名
+// [OpusClaw Patch] 仅 claude-sonnet-4-5 存在稳定可用的 thinking 目标模型；
+// 其它模型强行追加 -thinking 会在上游触发 404 Requested entity was not found。
 func applyThinkingModelSuffix(mappedModel string, thinkingEnabled bool) string {
-	if thinkingEnabled {
-		if !strings.HasSuffix(mappedModel, "-thinking") {
-			return mappedModel + "-thinking"
-		}
+	if !thinkingEnabled {
 		return mappedModel
 	}
-	if strings.HasSuffix(mappedModel, "-thinking") {
-		return strings.TrimSuffix(mappedModel, "-thinking")
+	if mappedModel == "claude-sonnet-4-5" {
+		return "claude-sonnet-4-5-thinking"
 	}
 	return mappedModel
 }
