@@ -1009,7 +1009,7 @@ func TestStreamUpstreamResponse_UsageAndFirstToken(t *testing.T) {
 
 	go func() {
 		defer func() { _ = pw.Close() }()
-		fmt.Fprintln(pw, `data: {"usage":{"input_tokens":1,"output_tokens":2,"cache_read_input_tokens":3,"cache_creation_input_tokens":4}}`)
+		fmt.Fprintln(pw, `data: {"usage":{"input_tokens":0,"output_tokens":2,"cache_read_input_tokens":3,"cache_creation_input_tokens":4}}`)
 		fmt.Fprintln(pw, `data: {"usage":{"output_tokens":5}}`)
 	}()
 
@@ -1019,7 +1019,7 @@ func TestStreamUpstreamResponse_UsageAndFirstToken(t *testing.T) {
 
 	require.NotNil(t, result)
 	require.NotNil(t, result.usage)
-	require.Equal(t, 1, result.usage.InputTokens)
+	require.Equal(t, 0, result.usage.InputTokens)
 	// 第二次事件覆盖 output_tokens
 	require.Equal(t, 5, result.usage.OutputTokens)
 	require.Equal(t, 3, result.usage.CacheReadInputTokens)
@@ -1050,7 +1050,7 @@ func TestStreamUpstreamResponse_NormalComplete(t *testing.T) {
 	go func() {
 		defer func() { _ = pw.Close() }()
 		fmt.Fprintln(pw, `event: message_start`)
-		fmt.Fprintln(pw, `data: {"type":"message_start","message":{"usage":{"input_tokens":10}}}`)
+		fmt.Fprintln(pw, `data: {"type":"message_start","message":{"usage":{"input_tokens":0,"cache_creation_input_tokens":10}}}`)
 		fmt.Fprintln(pw, "")
 		fmt.Fprintln(pw, `event: content_block_delta`)
 		fmt.Fprintln(pw, `data: {"type":"content_block_delta","delta":{"text":"hello"}}`)
@@ -1109,10 +1109,11 @@ func TestHandleGeminiStreamingResponse_NormalComplete(t *testing.T) {
 	require.False(t, result.clientDisconnect, "normal completion should not set clientDisconnect")
 	require.NotNil(t, result.usage)
 	// Gemini usage: promptTokenCount=10, candidatesTokenCount=8, cachedContentTokenCount=2
-	// → InputTokens=10-2=8, OutputTokens=8, CacheReadInputTokens=2
-	require.Equal(t, 8, result.usage.InputTokens)
+	// → InputTokens=0, OutputTokens=8, CacheReadInputTokens=2, CacheCreationInputTokens=8
+	require.Equal(t, 0, result.usage.InputTokens)
 	require.Equal(t, 8, result.usage.OutputTokens)
 	require.Equal(t, 2, result.usage.CacheReadInputTokens)
+	require.Equal(t, 8, result.usage.CacheCreationInputTokens)
 	require.NotNil(t, result.firstTokenMs, "should record first token time")
 
 	// 验证数据被透传到客户端
@@ -1153,8 +1154,9 @@ func TestHandleClaudeStreamingResponse_NormalComplete(t *testing.T) {
 	require.NotNil(t, result)
 	require.False(t, result.clientDisconnect, "normal completion should not set clientDisconnect")
 	require.NotNil(t, result.usage)
-	// Gemini→Claude 转换的 usage：promptTokenCount=5→InputTokens=5, candidatesTokenCount=3→OutputTokens=3
-	require.Equal(t, 5, result.usage.InputTokens)
+	// Gemini→Claude 转换的 usage：promptTokenCount=5→InputTokens=0, CacheCreationInputTokens=5, candidatesTokenCount=3→OutputTokens=3
+	require.Equal(t, 0, result.usage.InputTokens)
+	require.Equal(t, 5, result.usage.CacheCreationInputTokens)
 	require.Equal(t, 3, result.usage.OutputTokens)
 	require.NotNil(t, result.firstTokenMs, "should record first token time")
 
@@ -1195,8 +1197,9 @@ func TestHandleGeminiStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.usage)
-	// promptTokenCount=100, cachedContentTokenCount=10 → InputTokens=90
-	require.Equal(t, 90, result.usage.InputTokens)
+	// promptTokenCount=100, cachedContentTokenCount=10 → InputTokens=0, CacheCreationInputTokens=90
+	require.Equal(t, 0, result.usage.InputTokens)
+	require.Equal(t, 90, result.usage.CacheCreationInputTokens)
 	// candidatesTokenCount=30 + thoughtsTokenCount=80 → OutputTokens=110
 	require.Equal(t, 110, result.usage.OutputTokens)
 	require.Equal(t, 10, result.usage.CacheReadInputTokens)
@@ -1229,8 +1232,9 @@ func TestHandleClaudeStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.usage)
-	// promptTokenCount=50 → InputTokens=50
-	require.Equal(t, 50, result.usage.InputTokens)
+	// promptTokenCount=50 → InputTokens=0, CacheCreationInputTokens=50
+	require.Equal(t, 0, result.usage.InputTokens)
+	require.Equal(t, 50, result.usage.CacheCreationInputTokens)
 	// candidatesTokenCount=10 + thoughtsTokenCount=25 → OutputTokens=35
 	require.Equal(t, 35, result.usage.OutputTokens)
 }
@@ -1518,8 +1522,8 @@ func TestExtractSSEUsage(t *testing.T) {
 		},
 		{
 			name:     "top-level usage with all fields",
-			line:     `data: {"usage":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":5,"cache_creation_input_tokens":3}}`,
-			expected: ClaudeUsage{InputTokens: 10, OutputTokens: 20, CacheReadInputTokens: 5, CacheCreationInputTokens: 3},
+			line:     `data: {"usage":{"input_tokens":0,"output_tokens":20,"cache_read_input_tokens":5,"cache_creation_input_tokens":10}}`,
+			expected: ClaudeUsage{InputTokens: 0, OutputTokens: 20, CacheReadInputTokens: 5, CacheCreationInputTokens: 10},
 		},
 	}
 	for _, tt := range tests {

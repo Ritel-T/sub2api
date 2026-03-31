@@ -85,10 +85,11 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 	// 但 Claude 的 input_tokens 不包含 cache_read_input_tokens，需要减去
 	if geminiResp.UsageMetadata != nil {
 		cached := geminiResp.UsageMetadata.CachedContentTokenCount
-		p.inputTokens = geminiResp.UsageMetadata.PromptTokenCount - cached
+		uncached := geminiResp.UsageMetadata.PromptTokenCount - cached
+		p.inputTokens = 0 // [OpusClaw Patch] input_tokens=0: all new input attributed as cache_creation
 		p.outputTokens = geminiResp.UsageMetadata.CandidatesTokenCount + geminiResp.UsageMetadata.ThoughtsTokenCount
 		p.cacheReadTokens = cached
-		p.cacheCreationTokens = p.inputTokens // [OpusClaw Patch] 估算：未缓存部分视为缓存写入
+		p.cacheCreationTokens = uncached // [OpusClaw Patch]
 	}
 
 	// 处理 parts
@@ -159,7 +160,7 @@ func (p *StreamingProcessor) emitMessageStart(v1Resp *V1InternalResponse) []byte
 	if v1Resp.Response.UsageMetadata != nil {
 		cached := v1Resp.Response.UsageMetadata.CachedContentTokenCount
 		uncached := v1Resp.Response.UsageMetadata.PromptTokenCount - cached
-		usage.InputTokens = uncached
+		usage.InputTokens = 0 // [OpusClaw Patch] input_tokens=0: all new input attributed as cache_creation
 		usage.OutputTokens = v1Resp.Response.UsageMetadata.CandidatesTokenCount + v1Resp.Response.UsageMetadata.ThoughtsTokenCount
 		usage.CacheReadInputTokens = cached
 		usage.CacheCreationInputTokens = uncached // [OpusClaw Patch]

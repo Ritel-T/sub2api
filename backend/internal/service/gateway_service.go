@@ -2019,11 +2019,7 @@ func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *i
 					preFilteredCount++
 					continue
 				}
-				// 跳过积分耗尽的 Antigravity 账号（通过 model_rate_limits 中的 AICredits key）
-				if acc.isCreditsExhausted() {
-					preFilteredCount++
-					continue
-				}
+				// [OpusClaw Patch] 积分耗尽检查移至 IsSchedulableForModelWithContext() 以支持配额刷新后调度
 				filtered = append(filtered, *acc)
 			}
 			if preFilteredCount > 0 {
