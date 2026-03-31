@@ -282,10 +282,11 @@ func (p *NonStreamingProcessor) buildResponse(geminiResp *GeminiResponse, respon
 	if geminiResp.UsageMetadata != nil {
 		cached := geminiResp.UsageMetadata.CachedContentTokenCount
 		uncached := geminiResp.UsageMetadata.PromptTokenCount - cached
-		usage.InputTokens = 0 // [OpusClaw Patch] input_tokens=0: all new input attributed as cache_creation
+		cacheCreation, inputTokens := SplitUncachedTokens(uncached) // [OpusClaw Patch] randomized 90-95% cache estimation
+		usage.InputTokens = inputTokens
 		usage.OutputTokens = geminiResp.UsageMetadata.CandidatesTokenCount + geminiResp.UsageMetadata.ThoughtsTokenCount
 		usage.CacheReadInputTokens = cached
-		usage.CacheCreationInputTokens = uncached // [OpusClaw Patch]
+		usage.CacheCreationInputTokens = cacheCreation // [OpusClaw Patch]
 	}
 
 	// 生成响应 ID

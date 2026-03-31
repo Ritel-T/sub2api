@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/googleapi"
@@ -2694,10 +2695,12 @@ func extractGeminiUsage(data []byte) *ClaudeUsage {
 	thoughts := int(usage.Get("thoughtsTokenCount").Int())
 	// 注意：Gemini 的 promptTokenCount 包含 cachedContentTokenCount，
 	// 但 Claude 的 input_tokens 不包含 cache_read_input_tokens，需要减去
+	cacheCreation, inputTokens := antigravity.SplitUncachedTokens(prompt - cached)
 	return &ClaudeUsage{
-		InputTokens:          prompt - cached,
-		OutputTokens:         cand + thoughts,
-		CacheReadInputTokens: cached,
+		InputTokens:              inputTokens,
+		OutputTokens:             cand + thoughts,
+		CacheReadInputTokens:     cached,
+		CacheCreationInputTokens: cacheCreation,
 	}
 }
 

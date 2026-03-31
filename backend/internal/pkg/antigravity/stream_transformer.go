@@ -86,10 +86,11 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 	if geminiResp.UsageMetadata != nil {
 		cached := geminiResp.UsageMetadata.CachedContentTokenCount
 		uncached := geminiResp.UsageMetadata.PromptTokenCount - cached
-		p.inputTokens = 0 // [OpusClaw Patch] input_tokens=0: all new input attributed as cache_creation
+		cacheCreation, inputTokens := SplitUncachedTokens(uncached) // [OpusClaw Patch] randomized 90-95% cache estimation
+		p.inputTokens = inputTokens
 		p.outputTokens = geminiResp.UsageMetadata.CandidatesTokenCount + geminiResp.UsageMetadata.ThoughtsTokenCount
 		p.cacheReadTokens = cached
-		p.cacheCreationTokens = uncached // [OpusClaw Patch]
+		p.cacheCreationTokens = cacheCreation // [OpusClaw Patch]
 	}
 
 	// 处理 parts
@@ -160,10 +161,11 @@ func (p *StreamingProcessor) emitMessageStart(v1Resp *V1InternalResponse) []byte
 	if v1Resp.Response.UsageMetadata != nil {
 		cached := v1Resp.Response.UsageMetadata.CachedContentTokenCount
 		uncached := v1Resp.Response.UsageMetadata.PromptTokenCount - cached
-		usage.InputTokens = 0 // [OpusClaw Patch] input_tokens=0: all new input attributed as cache_creation
+		cacheCreation, inputTokens := SplitUncachedTokens(uncached) // [OpusClaw Patch] randomized 90-95% cache estimation
+		usage.InputTokens = inputTokens
 		usage.OutputTokens = v1Resp.Response.UsageMetadata.CandidatesTokenCount + v1Resp.Response.UsageMetadata.ThoughtsTokenCount
 		usage.CacheReadInputTokens = cached
-		usage.CacheCreationInputTokens = uncached // [OpusClaw Patch]
+		usage.CacheCreationInputTokens = cacheCreation // [OpusClaw Patch]
 	}
 
 	responseID := v1Resp.ResponseID
