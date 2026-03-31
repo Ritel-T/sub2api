@@ -1204,6 +1204,34 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 		require.Equal(t, int64(2), acc.ID, "同优先级且未使用时应优先选择OAuth账户")
 	})
 
+	t.Run("混合调度-Gemini跳过粘性读取", func(t *testing.T) {
+		repo := &mockAccountRepoForPlatform{
+			accounts: []Account{
+				{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, Type: AccountTypeAPIKey},
+				{ID: 2, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, Type: AccountTypeOAuth},
+			},
+			accountsByID: map[int64]*Account{},
+		}
+		for i := range repo.accounts {
+			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		}
+
+		cache := &mockGatewayCacheForPlatform{
+			sessionBindings: map[string]int64{"session-gg": 1},
+		}
+
+		svc := &GatewayService{
+			accountRepo: repo,
+			cache:       cache,
+			cfg:         testConfig(),
+		}
+
+		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "session-gg", "gemini-2.5-pro", nil, PlatformGemini)
+		require.NoError(t, err)
+		require.NotNil(t, acc)
+		require.Equal(t, int64(2), acc.ID, "Gemini should skip sticky read and keep OAuth-preferred selection")
+	})
+
 	t.Run("混合调度-包含启用mixed_scheduling的antigravity账户", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
 			accounts: []Account{
@@ -2866,6 +2894,61 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		require.Equal(t, int64(2), result.Account.ID)
 	})
 
+	t.Run("Gemini跳过Layer1.5粘性读取-负载感知选择", func(t *testing.T) {
+		groupID := int64(240)
+
+		repo := &mockAccountRepoForPlatform{
+			accounts: []Account{
+				{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5, Type: AccountTypeAPIKey},
+				{ID: 2, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5, Type: AccountTypeOAuth},
+			},
+			accountsByID: map[int64]*Account{},
+		}
+		for i := range repo.accounts {
+			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		}
+
+		cache := &mockGatewayCacheForPlatform{
+			sessionBindings: map[string]int64{"gemini-sticky": 1},
+		}
+
+		groupRepo := &mockGroupRepoForGateway{
+			groups: map[int64]*Group{
+				groupID: {
+					ID:       groupID,
+					Platform: PlatformGemini,
+					Status:   StatusActive,
+					Hydrated: true,
+				},
+			},
+		}
+
+		cfg := testConfig()
+		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+
+		concurrencyCache := &mockConcurrencyCache{
+			loadMap: map[int64]*AccountLoadInfo{
+				1: {AccountID: 1, LoadRate: 90},
+				2: {AccountID: 2, LoadRate: 10},
+			},
+		}
+
+		svc := &GatewayService{
+			accountRepo:        repo,
+			groupRepo:          groupRepo,
+			cache:              cache,
+			cfg:                cfg,
+			concurrencyService: NewConcurrencyService(concurrencyCache),
+		}
+
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "gemini-sticky", "gemini-2.5-pro", nil, "")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Account)
+		require.Equal(t, int64(2), result.Account.ID, "Gemini should skip sticky read in Layer 1.5 and pick lower-load account")
+		require.Equal(t, 1, concurrencyCache.loadBatchCalls, "should reach Layer 2 load-aware selection")
+	})
+
 	t.Run("模型路由-过滤路径覆盖", func(t *testing.T) {
 		groupID := int64(70)
 		now := time.Now().Add(10 * time.Minute)
@@ -3314,7 +3397,7 @@ func TestSelectAccount_QuotaTierPriority(t *testing.T) {
 			}
 		}
 		return map[string]any{
-			"allow_overages":   true,
+			"allow_overages":    true,
 			"model_rate_limits": modelLimits,
 		}
 	}
@@ -3342,8 +3425,8 @@ func TestSelectAccount_QuotaTierPriority(t *testing.T) {
 		}
 
 		svc := &GatewayService{
-			accountRepo:        repo,
-			cache:              &mockGatewayCacheForPlatform{},
+			accountRepo: repo,
+			cache:       &mockGatewayCacheForPlatform{},
 			cfg: func() *config.Config {
 				cfg := testConfig()
 				cfg.Gateway.Scheduling.LoadBatchEnabled = true
@@ -3380,8 +3463,8 @@ func TestSelectAccount_QuotaTierPriority(t *testing.T) {
 		}
 
 		svc := &GatewayService{
-			accountRepo:        repo,
-			cache:              &mockGatewayCacheForPlatform{},
+			accountRepo: repo,
+			cache:       &mockGatewayCacheForPlatform{},
 			cfg: func() *config.Config {
 				cfg := testConfig()
 				cfg.Gateway.Scheduling.LoadBatchEnabled = true
@@ -3418,8 +3501,8 @@ func TestSelectAccount_QuotaTierPriority(t *testing.T) {
 		}
 
 		svc := &GatewayService{
-			accountRepo:        repo,
-			cache:              &mockGatewayCacheForPlatform{},
+			accountRepo: repo,
+			cache:       &mockGatewayCacheForPlatform{},
 			cfg: func() *config.Config {
 				cfg := testConfig()
 				cfg.Gateway.Scheduling.LoadBatchEnabled = true

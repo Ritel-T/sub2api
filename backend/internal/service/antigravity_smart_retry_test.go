@@ -139,6 +139,10 @@ func TestHandleSmartRetry_URLLevelRateLimit(t *testing.T) {
 	require.Nil(t, result.switchError)
 }
 
+func TestModelCapacityRetryMaxAttempts_OpusClawPatch(t *testing.T) {
+	require.Equal(t, 5, antigravityModelCapacityRetryMaxAttempts)
+}
+
 // TestHandleSmartRetry_LongDelay_ReturnsSwitchError 测试 retryDelay >= 阈值时返回 switchError
 func TestHandleSmartRetry_LongDelay_ReturnsSwitchError(t *testing.T) {
 	repo := &stubAntigravityAccountRepo{}

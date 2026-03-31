@@ -1301,7 +1301,8 @@ func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Contex
 		if err != nil {
 			return nil, err
 		}
-		result, err := s.tryAcquireAccountSlot(ctx, account.ID, account.Concurrency)
+		// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+		result, err := s.tryAcquireAccountSlot(ctx, account.ID, effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)))
 		if err == nil && result.Acquired {
 			return &AccountSelectionResult{
 				Account:     account,
@@ -1315,8 +1316,9 @@ func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Contex
 				return &AccountSelectionResult{
 					Account: account,
 					WaitPlan: &AccountWaitPlan{
-						AccountID:      account.ID,
-						MaxConcurrency: account.Concurrency,
+						AccountID: account.ID,
+						// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+						MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
 						Timeout:        cfg.StickySessionWaitTimeout,
 						MaxWaiting:     cfg.StickySessionMaxWaiting,
 					},
@@ -1326,8 +1328,9 @@ func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Contex
 		return &AccountSelectionResult{
 			Account: account,
 			WaitPlan: &AccountWaitPlan{
-				AccountID:      account.ID,
-				MaxConcurrency: account.Concurrency,
+				AccountID: account.ID,
+				// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+				MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
 				Timeout:        cfg.FallbackWaitTimeout,
 				MaxWaiting:     cfg.FallbackMaxWaiting,
 			},
@@ -1366,7 +1369,8 @@ func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Contex
 					if account == nil {
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 					} else {
-						result, err := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+						// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+						result, err := s.tryAcquireAccountSlot(ctx, accountID, effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)))
 						if err == nil && result.Acquired {
 							_ = s.refreshStickySessionTTL(ctx, groupID, sessionHash, openaiStickySessionTTL)
 							return &AccountSelectionResult{
@@ -1381,8 +1385,9 @@ func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Contex
 							return &AccountSelectionResult{
 								Account: account,
 								WaitPlan: &AccountWaitPlan{
-									AccountID:      accountID,
-									MaxConcurrency: account.Concurrency,
+									AccountID: accountID,
+									// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+									MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
 									Timeout:        cfg.StickySessionWaitTimeout,
 									MaxWaiting:     cfg.StickySessionMaxWaiting,
 								},
@@ -1434,7 +1439,8 @@ func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Contex
 			if fresh == nil {
 				continue
 			}
-			result, err := s.tryAcquireAccountSlot(ctx, fresh.ID, fresh.Concurrency)
+			// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+			result, err := s.tryAcquireAccountSlot(ctx, fresh.ID, effectiveConcurrencyForSlot(fresh, requestedModel, fresh.isModelRateLimitedWithContext(ctx, requestedModel)))
 			if err == nil && result.Acquired {
 				if sessionHash != "" {
 					_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, openaiStickySessionTTL)
@@ -1488,7 +1494,8 @@ func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Contex
 				if fresh == nil {
 					continue
 				}
-				result, err := s.tryAcquireAccountSlot(ctx, fresh.ID, fresh.Concurrency)
+				// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+				result, err := s.tryAcquireAccountSlot(ctx, fresh.ID, effectiveConcurrencyForSlot(fresh, requestedModel, fresh.isModelRateLimitedWithContext(ctx, requestedModel)))
 				if err == nil && result.Acquired {
 					if sessionHash != "" {
 						_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, openaiStickySessionTTL)
@@ -1513,8 +1520,9 @@ func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Contex
 		return &AccountSelectionResult{
 			Account: fresh,
 			WaitPlan: &AccountWaitPlan{
-				AccountID:      fresh.ID,
-				MaxConcurrency: fresh.Concurrency,
+				AccountID: fresh.ID,
+				// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+				MaxConcurrency: effectiveConcurrencyForSlot(fresh, requestedModel, fresh.isModelRateLimitedWithContext(ctx, requestedModel)),
 				Timeout:        cfg.FallbackWaitTimeout,
 				MaxWaiting:     cfg.FallbackMaxWaiting,
 			},

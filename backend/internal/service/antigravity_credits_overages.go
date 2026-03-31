@@ -228,6 +228,14 @@ func (s *AntigravityGatewayService) handleCreditsRetryFailure(
 			prefix, modelKey, account.ID, creditsStatusCode, truncateForLog(creditsRespBody, 200))
 		return
 	}
+	// [OpusClaw Patch] Aggressively mark credits-exhausted on any injection failure
+	// (network error, nil response, 429). Recovery via 30min TTL (creditsExhaustedDuration).
+	if account != nil && (reqErr != nil || creditsResp == nil || creditsStatusCode == http.StatusTooManyRequests) {
+		s.setCreditsExhausted(ctx, account)
+		logger.LegacyPrintf("service.antigravity_gateway", "%s credit_overages_failed model=%s account=%d marked_exhausted=true(aggressive) status=%d err=%v",
+			prefix, modelKey, account.ID, creditsStatusCode, reqErr)
+		return
+	}
 	if account != nil {
 		logger.LegacyPrintf("service.antigravity_gateway", "%s credit_overages_failed model=%s account=%d marked_exhausted=false status=%d err=%v body=%s",
 			prefix, modelKey, account.ID, creditsStatusCode, reqErr, truncateForLog(creditsRespBody, 200))

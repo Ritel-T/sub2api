@@ -50,8 +50,8 @@ const (
 
 	// MODEL_CAPACITY_EXHAUSTED 专用重试参数
 	// 模型容量不足时，所有账号共享同一容量池，切换账号无意义
-	// 使用固定 1s 间隔重试，最多重试 60 次
-	antigravityModelCapacityRetryMaxAttempts = 60
+	// [OpusClaw Patch] Reduced from 60 to prevent retry storm (was causing 60s hangs)
+	antigravityModelCapacityRetryMaxAttempts = 5
 	antigravityModelCapacityRetryWait        = 1 * time.Second
 
 	// Google RPC 状态和类型常量

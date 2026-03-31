@@ -336,7 +336,8 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		return nil, nil
 	}
 
-	result, acquireErr := s.service.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+	// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+	result, acquireErr := s.service.tryAcquireAccountSlot(ctx, accountID, effectiveConcurrencyForSlot(account, req.RequestedModel, account.isModelRateLimitedWithContext(ctx, req.RequestedModel)))
 	if acquireErr == nil && result.Acquired {
 		_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIWSSessionStickyTTL())
 		return &AccountSelectionResult{
@@ -352,8 +353,9 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		return &AccountSelectionResult{
 			Account: account,
 			WaitPlan: &AccountWaitPlan{
-				AccountID:      accountID,
-				MaxConcurrency: account.Concurrency,
+				AccountID: accountID,
+				// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+				MaxConcurrency: effectiveConcurrencyForSlot(account, req.RequestedModel, account.isModelRateLimitedWithContext(ctx, req.RequestedModel)),
 				Timeout:        cfg.StickySessionWaitTimeout,
 				MaxWaiting:     cfg.StickySessionMaxWaiting,
 			},
@@ -700,7 +702,8 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) {
 			continue
 		}
-		result, acquireErr := s.service.tryAcquireAccountSlot(ctx, fresh.ID, fresh.Concurrency)
+		// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+		result, acquireErr := s.service.tryAcquireAccountSlot(ctx, fresh.ID, effectiveConcurrencyForSlot(fresh, req.RequestedModel, fresh.isModelRateLimitedWithContext(ctx, req.RequestedModel)))
 		if acquireErr != nil {
 			return nil, len(candidates), topK, loadSkew, acquireErr
 		}
@@ -726,8 +729,9 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		return &AccountSelectionResult{
 			Account: fresh,
 			WaitPlan: &AccountWaitPlan{
-				AccountID:      fresh.ID,
-				MaxConcurrency: fresh.Concurrency,
+				AccountID: fresh.ID,
+				// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+				MaxConcurrency: effectiveConcurrencyForSlot(fresh, req.RequestedModel, fresh.isModelRateLimitedWithContext(ctx, req.RequestedModel)),
 				Timeout:        cfg.FallbackWaitTimeout,
 				MaxWaiting:     cfg.FallbackMaxWaiting,
 			},

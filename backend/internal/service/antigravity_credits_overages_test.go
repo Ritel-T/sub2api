@@ -445,6 +445,50 @@ func TestShouldMarkCreditsExhausted(t *testing.T) {
 	})
 }
 
+func TestHandleCreditsRetryFailure_AggressiveMarking(t *testing.T) {
+	t.Run("network error marks exhausted", func(t *testing.T) {
+		repo := &stubAntigravityAccountRepo{}
+		svc := &AntigravityGatewayService{accountRepo: repo}
+		account := &Account{ID: 201, Platform: PlatformAntigravity}
+
+		svc.handleCreditsRetryFailure(context.Background(), "[test]", "claude-sonnet-4-5", account, nil, io.ErrUnexpectedEOF)
+
+		require.Len(t, repo.modelRateLimitCalls, 1)
+		require.Equal(t, int64(201), repo.modelRateLimitCalls[0].accountID)
+		require.Equal(t, creditsExhaustedKey, repo.modelRateLimitCalls[0].modelKey)
+	})
+
+	t.Run("429 failure marks exhausted", func(t *testing.T) {
+		repo := &stubAntigravityAccountRepo{}
+		svc := &AntigravityGatewayService{accountRepo: repo}
+		account := &Account{ID: 202, Platform: PlatformAntigravity}
+		resp := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"permission denied"}}`)),
+		}
+
+		svc.handleCreditsRetryFailure(context.Background(), "[test]", "claude-sonnet-4-5", account, resp, nil)
+
+		require.Len(t, repo.modelRateLimitCalls, 1)
+		require.Equal(t, int64(202), repo.modelRateLimitCalls[0].accountID)
+		require.Equal(t, creditsExhaustedKey, repo.modelRateLimitCalls[0].modelKey)
+	})
+
+	t.Run("5xx does not mark exhausted", func(t *testing.T) {
+		repo := &stubAntigravityAccountRepo{}
+		svc := &AntigravityGatewayService{accountRepo: repo}
+		account := &Account{ID: 203, Platform: PlatformAntigravity}
+		resp := &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"temporary upstream issue"}}`)),
+		}
+
+		svc.handleCreditsRetryFailure(context.Background(), "[test]", "claude-sonnet-4-5", account, resp, nil)
+
+		require.Empty(t, repo.modelRateLimitCalls)
+	})
+}
+
 func TestInjectEnabledCreditTypes(t *testing.T) {
 	t.Run("正常 JSON 注入成功", func(t *testing.T) {
 		body := []byte(`{"model":"claude-sonnet-4-5","request":{}}`)

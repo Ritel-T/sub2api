@@ -3852,7 +3852,8 @@ func (s *OpenAIGatewayService) SelectAccountByPreviousResponseID(
 		return nil, nil
 	}
 
-	result, acquireErr := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+	// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+	result, acquireErr := s.tryAcquireAccountSlot(ctx, accountID, effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)))
 	if acquireErr == nil && result.Acquired {
 		logOpenAIWSBindResponseAccountWarn(
 			derefGroupID(groupID),
@@ -3872,8 +3873,9 @@ func (s *OpenAIGatewayService) SelectAccountByPreviousResponseID(
 		return &AccountSelectionResult{
 			Account: account,
 			WaitPlan: &AccountWaitPlan{
-				AccountID:      accountID,
-				MaxConcurrency: account.Concurrency,
+				AccountID: accountID,
+				// [OpusClaw Patch] Apply effective slot concurrency override at call site.
+				MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
 				Timeout:        cfg.StickySessionWaitTimeout,
 				MaxWaiting:     cfg.StickySessionMaxWaiting,
 			},

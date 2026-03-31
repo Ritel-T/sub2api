@@ -54,6 +54,9 @@ const (
 	defaultModelsListCacheTTL    = 15 * time.Second
 	postUsageBillingTimeout      = 15 * time.Second
 	debugGatewayBodyEnv          = "SUB2API_DEBUG_GATEWAY_BODY"
+	// [OpusClaw Patch] Differentiated concurrency: credits=10, quota=5.
+	opusClawCreditsConcurrency = 10
+	opusClawQuotaConcurrency   = 5
 )
 
 const (
@@ -173,6 +176,25 @@ func (s *GatewayService) debugClaudeMimicEnabled() bool {
 		return false
 	}
 	return s.debugClaudeMimic.Load()
+}
+
+// effectiveConcurrencyForSlot returns the effective max concurrency for slot acquisition.
+// [OpusClaw Patch] Override concurrency for Antigravity accounts based on quota tier.
+func effectiveConcurrencyForSlot(account *Account, requestedModel string, isModelRateLimited bool) int {
+	_ = requestedModel
+	if account == nil {
+		return 0
+	}
+	if account.Concurrency <= 0 {
+		return 0 // unlimited stays unlimited
+	}
+	if account.Platform != PlatformAntigravity {
+		return account.Concurrency // only Antigravity accounts
+	}
+	if isModelRateLimited {
+		return opusClawCreditsConcurrency // credits tier
+	}
+	return opusClawQuotaConcurrency // quota tier
 }
 
 func parseDebugEnvBool(raw string) bool {
@@ -1268,7 +1290,8 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				return nil, err
 			}
 
-			result, err := s.tryAcquireAccountSlot(ctx, account.ID, account.Concurrency)
+			// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+			result, err := s.tryAcquireAccountSlot(ctx, account.ID, effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)))
 			if err == nil && result.Acquired {
 				// 获取槽位后检查会话限制（使用 sessionHash 作为会话标识符）
 				if !s.checkAndRegisterSession(ctx, account, sessionHash) {
@@ -1295,8 +1318,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					return &AccountSelectionResult{
 						Account: account,
 						WaitPlan: &AccountWaitPlan{
-							AccountID:      account.ID,
-							MaxConcurrency: account.Concurrency,
+							AccountID: account.ID,
+							// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+							MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
 							Timeout:        cfg.StickySessionWaitTimeout,
 							MaxWaiting:     cfg.StickySessionMaxWaiting,
 						},
@@ -1306,8 +1330,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			return &AccountSelectionResult{
 				Account: account,
 				WaitPlan: &AccountWaitPlan{
-					AccountID:      account.ID,
-					MaxConcurrency: account.Concurrency,
+					AccountID: account.ID,
+					// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+					MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
 					Timeout:        cfg.FallbackWaitTimeout,
 					MaxWaiting:     cfg.FallbackMaxWaiting,
 				},
@@ -1443,7 +1468,8 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 							s.isAccountSchedulableForWindowCost(ctx, stickyAccount, true) &&
 
 							s.isAccountSchedulableForRPM(ctx, stickyAccount, true) { // 粘性会话窗口费用+RPM 检查
-							result, err := s.tryAcquireAccountSlot(ctx, stickyAccountID, stickyAccount.Concurrency)
+							// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+							result, err := s.tryAcquireAccountSlot(ctx, stickyAccountID, effectiveConcurrencyForSlot(stickyAccount, requestedModel, stickyAccount.isModelRateLimitedWithContext(ctx, requestedModel)))
 							if err == nil && result.Acquired {
 								// 会话数量限制检查
 								if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
@@ -1470,8 +1496,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 									return &AccountSelectionResult{
 										Account: stickyAccount,
 										WaitPlan: &AccountWaitPlan{
-											AccountID:      stickyAccountID,
-											MaxConcurrency: stickyAccount.Concurrency,
+											AccountID: stickyAccountID,
+											// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+											MaxConcurrency: effectiveConcurrencyForSlot(stickyAccount, requestedModel, stickyAccount.isModelRateLimitedWithContext(ctx, requestedModel)),
 											Timeout:        cfg.StickySessionWaitTimeout,
 											MaxWaiting:     cfg.StickySessionMaxWaiting,
 										},
@@ -1542,7 +1569,8 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 
 				// 4. 尝试获取槽位
 				for _, item := range routingAvailable {
-					result, err := s.tryAcquireAccountSlot(ctx, item.account.ID, item.account.Concurrency)
+					// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+					result, err := s.tryAcquireAccountSlot(ctx, item.account.ID, effectiveConcurrencyForSlot(item.account, requestedModel, item.account.isModelRateLimitedWithContext(ctx, requestedModel)))
 					if err == nil && result.Acquired {
 						// 会话数量限制检查
 						if !s.checkAndRegisterSession(ctx, item.account, sessionHash) {
@@ -1575,8 +1603,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					return &AccountSelectionResult{
 						Account: item.account,
 						WaitPlan: &AccountWaitPlan{
-							AccountID:      item.account.ID,
-							MaxConcurrency: item.account.Concurrency,
+							AccountID: item.account.ID,
+							// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+							MaxConcurrency: effectiveConcurrencyForSlot(item.account, requestedModel, item.account.isModelRateLimitedWithContext(ctx, requestedModel)),
 							Timeout:        cfg.StickySessionWaitTimeout,
 							MaxWaiting:     cfg.StickySessionMaxWaiting,
 						},
@@ -1589,8 +1618,10 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		}
 	}
 
+	// [OpusClaw Patch] Gemini: skip sticky session lookup, prefer quota-first scheduling via Layer 2.
+	// Claude: keep sticky-first behavior unchanged.
 	// ============ Layer 1.5: 粘性会话（仅在无模型路由配置时生效） ============
-	if len(routingAccountIDs) == 0 && sessionHash != "" && stickyAccountID > 0 && !isExcluded(stickyAccountID) {
+	if len(routingAccountIDs) == 0 && sessionHash != "" && stickyAccountID > 0 && !isExcluded(stickyAccountID) && platform != PlatformGemini {
 		accountID := stickyAccountID
 		if accountID > 0 && !isExcluded(accountID) {
 			account, ok := accountByID[accountID]
@@ -1609,7 +1640,8 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					s.isAccountSchedulableForWindowCost(ctx, account, true) &&
 
 					s.isAccountSchedulableForRPM(ctx, account, true) { // 粘性会话窗口费用+RPM 检查
-					result, err := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+					// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+					result, err := s.tryAcquireAccountSlot(ctx, accountID, effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)))
 					if err == nil && result.Acquired {
 						// 会话数量限制检查
 						// Session count limit check
@@ -1635,8 +1667,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 							return &AccountSelectionResult{
 								Account: account,
 								WaitPlan: &AccountWaitPlan{
-									AccountID:      accountID,
-									MaxConcurrency: account.Concurrency,
+									AccountID: accountID,
+									// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+									MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
 									Timeout:        cfg.StickySessionWaitTimeout,
 									MaxWaiting:     cfg.StickySessionMaxWaiting,
 								},
@@ -1699,7 +1732,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 
 	loadMap, err := s.concurrencyService.GetAccountsLoadBatch(ctx, accountLoads)
 	if err != nil {
-		if result, ok := s.tryAcquireByLegacyOrder(ctx, candidates, groupID, sessionHash, preferOAuth); ok {
+		if result, ok := s.tryAcquireByLegacyOrder(ctx, candidates, groupID, sessionHash, requestedModel, preferOAuth); ok {
 			return result, nil
 		}
 	} else {
@@ -1737,7 +1770,8 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				break
 			}
 
-			result, err := s.tryAcquireAccountSlot(ctx, selected.account.ID, selected.account.Concurrency)
+			// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+			result, err := s.tryAcquireAccountSlot(ctx, selected.account.ID, effectiveConcurrencyForSlot(selected.account, requestedModel, selected.account.isModelRateLimitedWithContext(ctx, requestedModel)))
 			if err == nil && result.Acquired {
 				// 会话数量限制检查
 				if !s.checkAndRegisterSession(ctx, selected.account, sessionHash) {
@@ -1776,8 +1810,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		return &AccountSelectionResult{
 			Account: acc,
 			WaitPlan: &AccountWaitPlan{
-				AccountID:      acc.ID,
-				MaxConcurrency: acc.Concurrency,
+				AccountID: acc.ID,
+				// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+				MaxConcurrency: effectiveConcurrencyForSlot(acc, requestedModel, acc.isModelRateLimitedWithContext(ctx, requestedModel)),
 				Timeout:        cfg.FallbackWaitTimeout,
 				MaxWaiting:     cfg.FallbackMaxWaiting,
 			},
@@ -1786,12 +1821,13 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	return nil, ErrNoAvailableAccounts
 }
 
-func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates []*Account, groupID *int64, sessionHash string, preferOAuth bool) (*AccountSelectionResult, bool) {
+func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates []*Account, groupID *int64, sessionHash string, requestedModel string, preferOAuth bool) (*AccountSelectionResult, bool) {
 	ordered := append([]*Account(nil), candidates...)
 	sortAccountsByPriorityAndLastUsed(ordered, preferOAuth)
 
 	for _, acc := range ordered {
-		result, err := s.tryAcquireAccountSlot(ctx, acc.ID, acc.Concurrency)
+		// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+		result, err := s.tryAcquireAccountSlot(ctx, acc.ID, effectiveConcurrencyForSlot(acc, requestedModel, acc.isModelRateLimitedWithContext(ctx, requestedModel)))
 		if err == nil && result.Acquired {
 			// 会话数量限制检查
 			if !s.checkAndRegisterSession(ctx, acc, sessionHash) {
@@ -3084,8 +3120,9 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 			logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] legacy mixed routed begin: group_id=%v model=%s platform=%s session=%s routed_ids=%v",
 				derefGroupID(groupID), requestedModel, nativePlatform, shortSessionHash(sessionHash), routingAccountIDs)
 		}
+		// [OpusClaw Patch] Gemini: skip sticky session lookup, prefer quota-first scheduling.
 		// 1) Sticky session only applies if the bound account is within the routing set.
-		if sessionHash != "" && s.cache != nil {
+		if sessionHash != "" && s.cache != nil && nativePlatform != PlatformGemini {
 			accountID, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 			if err == nil && accountID > 0 && containsInt64(routingAccountIDs, accountID) {
 				if _, excluded := excludedIDs[accountID]; !excluded {
@@ -3199,8 +3236,9 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 		logger.LegacyPrintf("service.gateway", "[ModelRouting] No routed accounts available for model=%s, falling back to normal selection", requestedModel)
 	}
 
+	// [OpusClaw Patch] Gemini: skip sticky session lookup, prefer quota-first scheduling.
 	// 1. 查询粘性会话
-	if sessionHash != "" && s.cache != nil {
+	if sessionHash != "" && s.cache != nil && nativePlatform != PlatformGemini {
 		accountID, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 		if err == nil && accountID > 0 {
 			if _, excluded := excludedIDs[accountID]; !excluded {
