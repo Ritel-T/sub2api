@@ -57,6 +57,24 @@
       </div>
     </div>
 
+    <!-- Model Family Status Indicators -->
+    <div v-if="account.platform === 'antigravity'" class="flex flex-wrap gap-1 mt-1">
+      <span v-for="fs in modelFamilyStatuses" :key="fs.family"
+        :class="[
+          'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+          fs.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+          fs.status === 'credits' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+          'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+        ]"
+      >
+        <span>{{ fs.status === 'active' ? '🟢' : fs.status === 'credits' ? '⚡' : '🔴' }}</span>
+        <span>{{ 
+          fs.family === 'claude' ? 'Claude' : 
+          fs.family === 'gemini-flash' ? 'Flash' : 'Pro' 
+        }}</span>
+      </span>
+    </div>
+
     <!-- Rate Limit Indicator (429) -->
     <div v-if="isRateLimited" class="group relative">
       <span
@@ -215,6 +233,52 @@ const activeModelStatuses = computed<AccountModelStatusItem[]>(() => {
   }
 
   return items
+})
+
+
+// Maps model key patterns to families
+const getModelFamily = (modelKey: string): 'claude' | 'gemini-flash' | 'gemini-pro' | 'other' => {
+  const k = modelKey.toLowerCase()
+  if (k.startsWith('claude')) return 'claude'
+  if (k.includes('flash') || k.includes('lite')) return 'gemini-flash'
+  if (k.includes('pro')) return 'gemini-pro'
+  return 'other'
+}
+
+// Aggregated family statuses
+const modelFamilyStatuses = computed(() => {
+  const extra = props.account.extra as Record<string, unknown> | undefined
+  const modelLimits = extra?.model_rate_limits as Record<string, { rate_limited_at: string; rate_limit_reset_at: string }> | undefined
+  const now = new Date()
+  const allowOverages = !!(extra?.allow_overages)
+  
+  // Check AICredits exhaustion
+  const aiCreditsEntry = modelLimits?.['AICredits']
+  const creditsExhausted = aiCreditsEntry && new Date(aiCreditsEntry.rate_limit_reset_at) > now
+  
+  // Determine which families are paused
+  const pausedFamilies = new Set<string>()
+  const creditsFamilies = new Set<string>()
+  
+  if (modelLimits) {
+    for (const [model, info] of Object.entries(modelLimits)) {
+      if (model === 'AICredits') continue
+      if (new Date(info.rate_limit_reset_at) <= now) continue
+      const family = getModelFamily(model)
+      if (family === 'other') continue
+      if (allowOverages && !creditsExhausted) {
+        creditsFamilies.add(family)
+      } else {
+        pausedFamilies.add(family)
+      }
+    }
+  }
+  
+  const families = ['claude', 'gemini-flash', 'gemini-pro'] as const
+  return families.map(f => ({
+    family: f,
+    status: pausedFamilies.has(f) ? 'paused' : creditsFamilies.has(f) ? 'credits' : 'active'
+  }))
 })
 
 const formatScopeName = (scope: string): string => {

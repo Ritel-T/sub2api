@@ -415,16 +415,6 @@ export async function getBatchTodayStats(accountIds: number[]): Promise<BatchTod
 }
 
 /**
- * Set account schedulable status
- * @param id - Account ID
- * @param schedulable - Whether the account should participate in scheduling
- * @returns Updated account
- */
-export async function setSchedulable(id: number, schedulable: boolean): Promise<Account> {
-  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/schedulable`, {
-    schedulable
-  })
-  return data
 }
 
 /**
@@ -658,7 +648,6 @@ export const accountsAPI = {
   resetAccountQuota,
   getTempUnschedulableStatus,
   resetTempUnschedulable,
-  setSchedulable,
   getAvailableModels,
   generateAuthUrl,
   exchangeCode,
