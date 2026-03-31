@@ -2977,7 +2977,16 @@ func (s *AntigravityGatewayService) handleUpstreamError(
 			return nil
 		}
 
-		// 无法解析模型 key，兜底为账号级限流
+		// 无法解析模型 key
+		// [OpusClaw Patch] For Antigravity accounts, never set account-wide rate limit
+		// when model key can't be resolved — this would block ALL models incorrectly.
+		// Non-Antigravity accounts retain the original fallback behavior.
+		if account.Platform == PlatformAntigravity {
+			logger.LegacyPrintf("service.antigravity_gateway",
+				"%s status=429 WARN: cannot resolve model key for rate limit, skipping account-wide block account=%d model=%s",
+				prefix, account.ID, requestedModel)
+			return nil
+		}
 		ra := s.resolveResetTime(resetAt, defaultDur)
 		logger.LegacyPrintf("service.antigravity_gateway", "%s status=429 rate_limited account=%d reset_at=%v reset_in=%v (fallback)",
 			prefix, account.ID, ra.Format("15:04:05"), time.Until(ra).Truncate(time.Second))

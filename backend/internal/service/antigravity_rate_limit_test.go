@@ -225,6 +225,39 @@ func TestHandleUpstreamError_429_NonModelRateLimit_UsesMappedModelKey(t *testing
 	require.Equal(t, "claude-opus-4-6-thinking", repo.modelRateLimitCalls[0].modelKey)
 }
 
+// [OpusClaw Patch] Antigravity accounts must NOT get account-wide rate limit
+// when model key resolution fails on a 429 response.
+func TestHandleUpstreamError_429_Antigravity_NoAccountWideBlock(t *testing.T) {
+	repo := &stubAntigravityAccountRepo{}
+	svc := &AntigravityGatewayService{accountRepo: repo}
+	account := &Account{ID: 99, Name: "acc-ag-noblock", Platform: PlatformAntigravity}
+
+	body := buildGeminiRateLimitBody("5s")
+
+	result := svc.handleUpstreamError(context.Background(), "[test]", account, http.StatusTooManyRequests, http.Header{}, body, "", 0, "", false)
+
+	require.Nil(t, result)
+	require.Empty(t, repo.rateCalls, "Antigravity account must not get account-wide rate limit when model key is unresolvable")
+	require.Empty(t, repo.modelRateLimitCalls, "no model rate limit either when model key is empty")
+}
+
+// Non-Antigravity accounts should still get account-wide rate limit fallback
+// when model key resolution fails on a 429 response.
+func TestHandleUpstreamError_429_NonAntigravity_AccountWideFallback(t *testing.T) {
+	repo := &stubAntigravityAccountRepo{}
+	svc := &AntigravityGatewayService{accountRepo: repo}
+	account := &Account{ID: 100, Name: "acc-other", Platform: "other"}
+
+	body := buildGeminiRateLimitBody("5s")
+
+	result := svc.handleUpstreamError(context.Background(), "[test]", account, http.StatusTooManyRequests, http.Header{}, body, "", 0, "", false)
+
+	require.Nil(t, result)
+	require.Len(t, repo.rateCalls, 1, "non-Antigravity account should get account-wide rate limit fallback")
+	require.Equal(t, int64(100), repo.rateCalls[0].accountID)
+	require.Empty(t, repo.modelRateLimitCalls)
+}
+
 // TestHandleUpstreamError_503_ModelCapacityExhausted 测试 503 模型容量不足场景
 // MODEL_CAPACITY_EXHAUSTED 时应等待重试，不切换账号
 func TestHandleUpstreamError_503_ModelCapacityExhausted(t *testing.T) {
