@@ -32,9 +32,10 @@ type StreamingProcessor struct {
 	groundingChunks   []GeminiGroundingChunk
 
 	// 累计 usage
-	inputTokens     int
-	outputTokens    int
-	cacheReadTokens int
+	inputTokens         int
+	outputTokens        int
+	cacheReadTokens     int
+	cacheCreationTokens int
 }
 
 // NewStreamingProcessor 创建流式响应处理器
@@ -87,6 +88,7 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 		p.inputTokens = geminiResp.UsageMetadata.PromptTokenCount - cached
 		p.outputTokens = geminiResp.UsageMetadata.CandidatesTokenCount + geminiResp.UsageMetadata.ThoughtsTokenCount
 		p.cacheReadTokens = cached
+		p.cacheCreationTokens = p.inputTokens // [OpusClaw Patch] 估算：未缓存部分视为缓存写入
 	}
 
 	// 处理 parts
@@ -124,9 +126,10 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 // 则不补发任何结束事件，防止客户端收到没有 message_start 的残缺流。
 func (p *StreamingProcessor) Finish() ([]byte, *ClaudeUsage) {
 	usage := &ClaudeUsage{
-		InputTokens:          p.inputTokens,
-		OutputTokens:         p.outputTokens,
-		CacheReadInputTokens: p.cacheReadTokens,
+		InputTokens:              p.inputTokens,
+		OutputTokens:             p.outputTokens,
+		CacheReadInputTokens:     p.cacheReadTokens,
+		CacheCreationInputTokens: p.cacheCreationTokens,
 	}
 
 	if !p.messageStartSent {
@@ -155,9 +158,11 @@ func (p *StreamingProcessor) emitMessageStart(v1Resp *V1InternalResponse) []byte
 	usage := ClaudeUsage{}
 	if v1Resp.Response.UsageMetadata != nil {
 		cached := v1Resp.Response.UsageMetadata.CachedContentTokenCount
-		usage.InputTokens = v1Resp.Response.UsageMetadata.PromptTokenCount - cached
+		uncached := v1Resp.Response.UsageMetadata.PromptTokenCount - cached
+		usage.InputTokens = uncached
 		usage.OutputTokens = v1Resp.Response.UsageMetadata.CandidatesTokenCount + v1Resp.Response.UsageMetadata.ThoughtsTokenCount
 		usage.CacheReadInputTokens = cached
+		usage.CacheCreationInputTokens = uncached // [OpusClaw Patch]
 	}
 
 	responseID := v1Resp.ResponseID
