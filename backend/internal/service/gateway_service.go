@@ -1459,38 +1459,45 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			if sessionHash != "" && stickyAccountID > 0 {
 				if containsInt64(routingAccountIDs, stickyAccountID) && !isExcluded(stickyAccountID) {
 					// 粘性账号在路由列表中，优先使用
-					if stickyAccount, ok := accountByID[stickyAccountID]; ok {
-						if s.isAccountSchedulableForSelection(stickyAccount) &&
-							s.isAccountAllowedForPlatform(stickyAccount, platform, useMixed) &&
-							(requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, stickyAccount, requestedModel)) &&
-							s.isAccountSchedulableForModelSelection(ctx, stickyAccount, requestedModel) &&
-							s.isAccountSchedulableForQuota(stickyAccount) &&
-							s.isAccountSchedulableForWindowCost(ctx, stickyAccount, true) &&
+				if stickyAccount, ok := accountByID[stickyAccountID]; ok {
+					var stickyCacheMissReason string
 
-							s.isAccountSchedulableForRPM(ctx, stickyAccount, true) { // 粘性会话窗口费用+RPM 检查
-							// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
-							result, err := s.tryAcquireAccountSlot(ctx, stickyAccountID, effectiveConcurrencyForSlot(stickyAccount, requestedModel, stickyAccount.isModelRateLimitedWithContext(ctx, requestedModel)))
-							if err == nil && result.Acquired {
-								// 会话数量限制检查
-								if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
-									result.ReleaseFunc() // 释放槽位
-									// 继续到负载感知选择
-								} else {
-									if s.debugModelRoutingEnabled() {
-										logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
-									}
-									return &AccountSelectionResult{
-										Account:     stickyAccount,
-										Acquired:    true,
-										ReleaseFunc: result.ReleaseFunc,
-									}, nil
+					gatePass := s.isAccountSchedulableForSelection(stickyAccount) &&
+						s.isAccountAllowedForPlatform(stickyAccount, platform, useMixed) &&
+						(requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, stickyAccount, requestedModel)) &&
+						s.isAccountSchedulableForModelSelection(ctx, stickyAccount, requestedModel) &&
+						s.isAccountSchedulableForQuota(stickyAccount) &&
+						s.isAccountSchedulableForWindowCost(ctx, stickyAccount, true)
+
+					rpmPass := gatePass && s.isAccountSchedulableForRPM(ctx, stickyAccount, true)
+
+					if rpmPass { // 粘性会话窗口费用+RPM 检查
+						// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+						result, err := s.tryAcquireAccountSlot(ctx, stickyAccountID, effectiveConcurrencyForSlot(stickyAccount, requestedModel, stickyAccount.isModelRateLimitedWithContext(ctx, requestedModel)))
+						if err == nil && result.Acquired {
+							// 会话数量限制检查
+							if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
+								result.ReleaseFunc() // 释放槽位
+								stickyCacheMissReason = "session_limit"
+								// 继续到负载感知选择
+							} else {
+								if s.debugModelRoutingEnabled() {
+									logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
 								}
+								return &AccountSelectionResult{
+									Account:     stickyAccount,
+									Acquired:    true,
+									ReleaseFunc: result.ReleaseFunc,
+								}, nil
 							}
+						}
 
+						if stickyCacheMissReason == "" {
 							waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, stickyAccountID)
 							if waitingCount < cfg.StickySessionMaxWaiting {
 								// 会话数量限制检查（等待计划也需要占用会话配额）
 								if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
+									stickyCacheMissReason = "session_limit"
 									// 会话限制已满，继续到负载感知选择
 								} else {
 									return &AccountSelectionResult{
@@ -1504,12 +1511,32 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 										},
 									}, nil
 								}
+							} else {
+								stickyCacheMissReason = "wait_queue_full"
 							}
-							// 粘性账号槽位满且等待队列已满，继续使用负载感知选择
 						}
+						// 粘性账号槽位满且等待队列已满，继续使用负载感知选择
+					} else if !gatePass {
+						stickyCacheMissReason = "gate_check"
 					} else {
-						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+						stickyCacheMissReason = "rpm_red"
 					}
+
+					// 记录粘性缓存未命中的结构化日志
+					if stickyCacheMissReason != "" {
+						baseRPM := stickyAccount.GetBaseRPM()
+						var currentRPM int
+						if count, ok := rpmFromPrefetchContext(ctx, stickyAccount.ID); ok {
+							currentRPM = count
+						}
+						logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=%s account_id=%d session=%s current_rpm=%d base_rpm=%d",
+							stickyCacheMissReason, stickyAccountID, shortSessionHash(sessionHash), currentRPM, baseRPM)
+					}
+				} else {
+					_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+					logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=account_cleared account_id=%d session=%s current_rpm=0 base_rpm=0",
+						stickyAccountID, shortSessionHash(sessionHash))
+				}
 				}
 			}
 
@@ -2871,6 +2898,12 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 	preferOAuth := platform == PlatformGemini
 	routingAccountIDs := s.routingAccountIDsForRequest(ctx, groupID, requestedModel, platform)
 
+	// require_privacy_set: 获取分组信息
+	var schedGroup *Group
+	if groupID != nil && s.groupRepo != nil {
+		schedGroup, _ = s.groupRepo.GetByID(ctx, *groupID)
+	}
+
 	var accounts []Account
 	accountsLoaded := false
 
@@ -2940,6 +2973,12 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 			// Scheduler snapshots can be temporarily stale; re-check schedulability here to
 			// avoid selecting accounts that were recently rate-limited/overloaded.
 			if !s.isAccountSchedulableForSelection(acc) {
+				continue
+			}
+			// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
+			if schedGroup != nil && schedGroup.RequirePrivacySet && !acc.IsPrivacySet() {
+				_ = s.accountRepo.SetError(ctx, acc.ID,
+					fmt.Sprintf("Privacy not set, required by group [%s]", schedGroup.Name))
 				continue
 			}
 			if requestedModel != "" && !s.isModelSupportedByAccountWithContext(ctx, acc, requestedModel) {
@@ -3044,6 +3083,12 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 		if !s.isAccountSchedulableForSelection(acc) {
 			continue
 		}
+		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
+		if schedGroup != nil && schedGroup.RequirePrivacySet && !acc.IsPrivacySet() {
+			_ = s.accountRepo.SetError(ctx, acc.ID,
+				fmt.Sprintf("Privacy not set, required by group [%s]", schedGroup.Name))
+			continue
+		}
 		if requestedModel != "" && !s.isModelSupportedByAccountWithContext(ctx, acc, requestedModel) {
 			continue
 		}
@@ -3106,6 +3151,12 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, nativePlatform string) (*Account, error) {
 	preferOAuth := nativePlatform == PlatformGemini
 	routingAccountIDs := s.routingAccountIDsForRequest(ctx, groupID, requestedModel, nativePlatform)
+
+	// require_privacy_set: 获取分组信息
+	var schedGroup *Group
+	if groupID != nil && s.groupRepo != nil {
+		schedGroup, _ = s.groupRepo.GetByID(ctx, *groupID)
+	}
 
 	var accounts []Account
 	accountsLoaded := false
@@ -3173,6 +3224,12 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 			// Scheduler snapshots can be temporarily stale; re-check schedulability here to
 			// avoid selecting accounts that were recently rate-limited/overloaded.
 			if !s.isAccountSchedulableForSelection(acc) {
+				continue
+			}
+			// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
+			if schedGroup != nil && schedGroup.RequirePrivacySet && !acc.IsPrivacySet() {
+				_ = s.accountRepo.SetError(ctx, acc.ID,
+					fmt.Sprintf("Privacy not set, required by group [%s]", schedGroup.Name))
 				continue
 			}
 			// 过滤：原生平台直接通过，antigravity 需要启用混合调度
@@ -3278,6 +3335,12 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 		// Scheduler snapshots can be temporarily stale; re-check schedulability here to
 		// avoid selecting accounts that were recently rate-limited/overloaded.
 		if !s.isAccountSchedulableForSelection(acc) {
+			continue
+		}
+		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
+		if schedGroup != nil && schedGroup.RequirePrivacySet && !acc.IsPrivacySet() {
+			_ = s.accountRepo.SetError(ctx, acc.ID,
+				fmt.Sprintf("Privacy not set, required by group [%s]", schedGroup.Name))
 			continue
 		}
 		// 过滤：原生平台直接通过，antigravity 需要启用混合调度
