@@ -1,6 +1,6 @@
 # Sub2API (OpusClaw Fork) — Agent Reference
 
-> **最后更新**：2026-04-03（模拟缓存计费 `94d3b8f7` + wire_gen `211b96e3`）
+> **最后更新**：2026-04-03（模拟缓存韧性加固 `6c68919c` + 管理面板 `0f07f0bc`）
 
 ## 1. What This Is
 
@@ -85,15 +85,14 @@ Client → OpusClaw Gateway → Sub2API → Antigravity (Gemini API)
 
 | 实例 | 机器 | Tailscale IP | 端口 | 镜像标签 | Image ID | 容器名 | 部署方式 |
 |------|------|-------------|------|---------|----------|--------|---------|
-| **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v5` | `3f25ed33bf16` | `sub2api-test` | 镜像传入 |
+| **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v6` | `bd3c4df6d7e3` | `sub2api-test` | 镜像传入 |
 | **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw-v5` | `3f25ed33bf16` | `sub2api-app` | 镜像传入 |
-| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `98d37e2d3dd8` | `sub2api-c` | `docker compose build` |
+| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `bd3c4df6d7e3` | `sub2api-c` | `docker compose build` |
 | **D** | oc-relay-d | `100.101.200.81` | `:8000` | `opusclaw-d` | `d1057e26657d` | `sub2api-d` | 镜像传入 |
 
-- A 和 B：相同 Image ID（`3f25ed33bf16`），构建于 2026-03-31 18:27
-- C：独立构建于 2026-04-03，源码含请求画像对齐 patch（`7f7f83e7`）+ 模拟缓存计费（`94d3b8f7`）
-- D：构建于 2026-03-31 05:59，**源码较旧**（比 v5/c 早约 12 小时）
-- **注意**：C 实例已部署请求画像对齐 patch，A/B/D 仍运行旧镜像
+- A 和 C：相同 Image ID（`bd3c4df6d7e3`），构建于 2026-04-03，含模拟缓存计费 + 韧性加固 + 管理面板
+- B：旧镜像 `opusclaw-v5`（`3f25ed33bf16`），构建于 2026-03-31
+- D：构建于 2026-03-31 05:59，**源码较旧**（比 v5 早约 12 小时）
 
 ### oc-dev 上的容器
 
@@ -132,7 +131,7 @@ backend/
 │   │   ├── gemini_native_signature_cleaner.go  # Gemini thought signature cleanup
 │   │   ├── gemini_messages_compat_service.go   # Gemini messages compat + extractGeminiUsage()
 │   │   ├── claude_signature_cleaner.go     # [OpusClaw] Claude thinking signature cleanup
-│   │   ├── sim_cache_service.go            # [OpusClaw] SimCacheService (compute override + update state)
+│   │   ├── sim_cache_service.go            # [OpusClaw] SimCacheService (compute override + update state + circuit breaker)
 │   │   ├── sim_cache_state.go              # [OpusClaw] SimCacheState + SimCacheRepository interface
 │   │   └── concurrency_service.go          # Slot acquisition + concurrency limits
 │   ├── pkg/
@@ -150,6 +149,8 @@ backend/
 │   └── web/dist/        # Embedded frontend
 ├── resources/migrations/
 │   └── 081_add_group_account_filter.sql  # 分组过滤字段迁移
+├── repository/
+│   └── sim_cache_repo.go               # [OpusClaw] Redis Lua atomic update (HINCRBY + HSET + EXPIRE)
 frontend/                # Vue 3 + Vite admin panel
 Dockerfile               # Multi-stage: node→go→alpine
 ```
@@ -183,6 +184,8 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | Shared envelope builder | `envelope.go` | `BuildV1InternalEnvelope()` used by Claude + Gemini-native paths |
 | Numeric loadCodeAssist metadata | `client.go` | ideType=9, platform=3, pluginType=2, mode=1 |
 | Simulated cache billing | `sim_cache_override.go`, `sim_cache_service.go`, `sim_cache_state.go`, `response_transformer.go`, `stream_transformer.go`, `gemini_messages_compat_service.go`, `antigravity_gateway_service.go`, `gateway_handler.go` | Per-session Redis-backed token accumulator; probability-based cache miss simulation; override injected via context; Claude `/v1/messages` path only |
+| Simulated cache admin settings | `setting_service.go`, `setting_handler.go`, `admin.go`, `SettingsView.vue` | GET/PUT `/api/v1/admin/settings/simulated-cache`; DB persistence + atomic config sync via `SimCacheService.UpdateConfig()` |
+| Simulated cache resilience | `sim_cache_service.go`, `sim_cache_repo.go`, `sim_cache_state.go` | Lua atomic update (HINCRBY+HSET+EXPIRE); atomic.Value config snapshot; 50ms Redis timeout; circuit breaker (5 failures → 30s cooldown) |
 
 ## 6. Key Constants
 
@@ -200,6 +203,9 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | `antigravityHeaderGoogAPIClient` | `gl-node/18.18.2 fire/0.8.6 grpc/1.10.x` | `client.go` | x-goog-api-client header value |
 | `antigravityIDETypeAntigravity` | 9 | `client.go` | loadCodeAssist IDE type enum |
 | `antigravityLoadCodeAssistMode` | 1 | `client.go` | loadCodeAssist mode field |
+| `simCacheRedisTimeout` | 50ms | `sim_cache_service.go` | Redis op timeout for simcache (fail-open) |
+| `simCacheBreakerThreshold` | 5 | `sim_cache_service.go` | Consecutive Redis failures before circuit opens |
+| `simCacheBreakerCooldownNs` | 30s | `sim_cache_service.go` | Circuit breaker cooldown duration |
 
 ## 7. Request Flow (Claude /v1/messages)
 
@@ -347,6 +353,8 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
+| `6c68919c` | **fix(simcache): harden for production** — Lua atomic update, atomic.Value config, 50ms Redis timeout, circuit breaker |
+| `0f07f0bc` | **feat(simcache): admin settings UI** — GET/PUT `/api/v1/admin/settings/simulated-cache`, DB persistence, Vue Gateway tab card |
 | `211b96e3` | **fix(simcache): update wire_gen.go** — inject SimCacheService into GatewayHandler |
 | `94d3b8f7` | **feat(simcache): simulated cache billing** — per-session Redis accumulator, probability miss, context-carried override, Claude /v1/messages only |
 | `7f7f83e7` | **feat(antigravity): align request profile with official client** — headers, systemInstruction, sessionId, envelope |
