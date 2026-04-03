@@ -39,6 +39,7 @@ type GatewayHandler struct {
 	gatewayService            *service.GatewayService
 	geminiCompatService       *service.GeminiMessagesCompatService
 	antigravityGatewayService *service.AntigravityGatewayService
+	simCacheService           *service.SimCacheService
 	userService               *service.UserService
 	billingCacheService       *service.BillingCacheService
 	usageService              *service.UsageService
@@ -58,6 +59,7 @@ func NewGatewayHandler(
 	gatewayService *service.GatewayService,
 	geminiCompatService *service.GeminiMessagesCompatService,
 	antigravityGatewayService *service.AntigravityGatewayService,
+	simCacheService *service.SimCacheService,
 	userService *service.UserService,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
@@ -92,6 +94,7 @@ func NewGatewayHandler(
 		gatewayService:            gatewayService,
 		geminiCompatService:       geminiCompatService,
 		antigravityGatewayService: antigravityGatewayService,
+		simCacheService:           simCacheService,
 		userService:               userService,
 		billingCacheService:       billingCacheService,
 		usageService:              usageService,
@@ -283,6 +286,16 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 	if platform == service.PlatformGemini {
 		fs := NewFailoverState(h.maxAccountSwitchesGemini, hasBoundSession)
+		requestBaseCtx := c.Request.Context()
+		if h.simCacheService != nil {
+			override, err := h.simCacheService.ComputeOverride(requestBaseCtx, derefGroupID(apiKey.GroupID), sessionHash)
+			if err != nil {
+				reqLog.Warn("gateway.simcache_compute_failed", zap.Error(err))
+			} else if override != nil {
+				requestBaseCtx = service.WithSimCacheOverride(requestBaseCtx, override)
+			}
+		}
+		c.Request = c.Request.WithContext(requestBaseCtx)
 
 		// 单账号分组提前设置 SingleAccountRetry 标记，让 Service 层首次 503 就不设模型限流标记。
 		// 避免单账号分组收到 503 (MODEL_CAPACITY_EXHAUSTED) 时设 29s 限流，导致后续请求连续快速失败。
@@ -462,6 +475,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if result.ReasoningEffort == nil {
 				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
 			}
+			if h.simCacheService != nil && sessionHash != "" {
+				totalPrompt := result.Usage.CacheCreationInputTokens + result.Usage.CacheReadInputTokens + result.Usage.InputTokens
+				if err := h.simCacheService.UpdateState(c.Request.Context(), derefGroupID(apiKey.GroupID), sessionHash, totalPrompt); err != nil {
+					reqLog.Warn("gateway.simcache_update_failed", zap.Error(err))
+				}
+			}
 
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 			h.submitUsageRecordTask(func(ctx context.Context) {
@@ -495,6 +514,16 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 	currentAPIKey := apiKey
 	currentSubscription := subscription
+	requestBaseCtx := c.Request.Context()
+	if h.simCacheService != nil {
+		override, err := h.simCacheService.ComputeOverride(requestBaseCtx, derefGroupID(apiKey.GroupID), sessionHash)
+		if err != nil {
+			reqLog.Warn("gateway.simcache_compute_failed", zap.Error(err))
+		} else if override != nil {
+			requestBaseCtx = service.WithSimCacheOverride(requestBaseCtx, override)
+		}
+	}
+	c.Request = c.Request.WithContext(requestBaseCtx)
 	var fallbackGroupID *int64
 	if apiKey.Group != nil {
 		fallbackGroupID = apiKey.Group.FallbackGroupIDOnInvalidRequest
@@ -732,6 +761,14 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						c.Request = c.Request.WithContext(ctx)
 						currentAPIKey = fallbackAPIKey
 						currentSubscription = nil
+						if h.simCacheService != nil {
+							override, simErr := h.simCacheService.ComputeOverride(c.Request.Context(), derefGroupID(currentAPIKey.GroupID), sessionHash)
+							if simErr != nil {
+								reqLog.Warn("gateway.simcache_compute_failed", zap.Error(simErr))
+							} else if override != nil {
+								c.Request = c.Request.WithContext(service.WithSimCacheOverride(c.Request.Context(), override))
+							}
+						}
 						fallbackUsed = true
 						retryWithFallback = true
 						break
@@ -797,6 +834,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 			if result.ReasoningEffort == nil {
 				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
+			}
+			if h.simCacheService != nil && sessionHash != "" {
+				totalPrompt := result.Usage.CacheCreationInputTokens + result.Usage.CacheReadInputTokens + result.Usage.InputTokens
+				if err := h.simCacheService.UpdateState(c.Request.Context(), derefGroupID(currentAPIKey.GroupID), sessionHash, totalPrompt); err != nil {
+					reqLog.Warn("gateway.simcache_update_failed", zap.Error(err))
+				}
 			}
 
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。

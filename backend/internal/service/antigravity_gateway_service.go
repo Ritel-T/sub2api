@@ -3236,7 +3236,7 @@ func (s *AntigravityGatewayService) handleGeminiStreamingResponse(c *gin.Context
 				}
 
 				// 解析 usage
-				if u := extractGeminiUsage(inner); u != nil {
+				if u := extractGeminiUsage(inner, GetSimCacheOverride(c.Request.Context())); u != nil {
 					usage = u
 				}
 				var parsed map[string]any
@@ -3409,7 +3409,7 @@ func (s *AntigravityGatewayService) handleGeminiStreamToNonStreaming(c *gin.Cont
 			last = parsed
 
 			// 提取 usage
-			if u := extractGeminiUsage(inner); u != nil {
+			if u := extractGeminiUsage(inner, GetSimCacheOverride(c.Request.Context())); u != nil {
 				usage = u
 			}
 
@@ -3915,7 +3915,8 @@ returnResponse:
 	}
 
 	// 转换 Gemini 响应为 Claude 格式
-	claudeResp, agUsage, err := antigravity.TransformGeminiToClaude(geminiBody, originalModel)
+	override := GetSimCacheOverride(c.Request.Context())
+	claudeResp, agUsage, err := antigravity.TransformGeminiToClaudeWithOverride(geminiBody, originalModel, override)
 	if err != nil {
 		logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] transform_error error=%v body=%s", err, string(geminiBody))
 		return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
@@ -3947,7 +3948,8 @@ func (s *AntigravityGatewayService) handleClaudeStreamingResponse(c *gin.Context
 		return nil, errors.New("streaming not supported")
 	}
 
-	processor := antigravity.NewStreamingProcessor(originalModel)
+	override := GetSimCacheOverride(c.Request.Context())
+	processor := antigravity.NewStreamingProcessor(originalModel, override)
 	var firstTokenMs *int
 	// 使用 Scanner 并限制单行大小，避免 ReadString 无上限导致 OOM
 	scanner := bufio.NewScanner(resp.Body)

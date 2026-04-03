@@ -458,7 +458,7 @@ func TestExtractGeminiUsage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractGeminiUsage([]byte(tt.input))
+			got := extractGeminiUsage([]byte(tt.input), nil)
 			if tt.wantNil {
 				if got != nil {
 					t.Fatalf("期望返回 nil，实际返回 %+v", got)

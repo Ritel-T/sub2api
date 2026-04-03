@@ -12,6 +12,11 @@ import (
 
 // TransformGeminiToClaude 将 Gemini 响应转换为 Claude 格式（非流式）
 func TransformGeminiToClaude(geminiResp []byte, originalModel string) ([]byte, *ClaudeUsage, error) {
+	return TransformGeminiToClaudeWithOverride(geminiResp, originalModel, nil)
+}
+
+// [OpusClaw Patch] simulated cache billing
+func TransformGeminiToClaudeWithOverride(geminiResp []byte, originalModel string, override *SimCacheOverride) ([]byte, *ClaudeUsage, error) {
 	// 解包 v1internal 响应
 	var v1Resp V1InternalResponse
 	if err := json.Unmarshal(geminiResp, &v1Resp); err != nil {
@@ -35,7 +40,7 @@ func TransformGeminiToClaude(geminiResp []byte, originalModel string) ([]byte, *
 	}
 
 	// 使用处理器转换
-	processor := NewNonStreamingProcessor()
+	processor := NewNonStreamingProcessor(override)
 	claudeResp := processor.Process(&v1Resp.Response, v1Resp.ResponseID, originalModel)
 
 	// 序列化
@@ -55,12 +60,14 @@ type NonStreamingProcessor struct {
 	thinkingSignature string
 	trailingSignature string
 	hasToolCall       bool
+	simCacheOverride  *SimCacheOverride
 }
 
 // NewNonStreamingProcessor 创建非流式响应处理器
-func NewNonStreamingProcessor() *NonStreamingProcessor {
+func NewNonStreamingProcessor(override *SimCacheOverride) *NonStreamingProcessor {
 	return &NonStreamingProcessor{
-		contentBlocks: make([]ClaudeContentItem, 0),
+		contentBlocks:    make([]ClaudeContentItem, 0),
+		simCacheOverride: override,
 	}
 }
 
@@ -280,13 +287,20 @@ func (p *NonStreamingProcessor) buildResponse(geminiResp *GeminiResponse, respon
 	// 但 Claude 的 input_tokens 不包含 cache_read_input_tokens，需要减去
 	usage := ClaudeUsage{}
 	if geminiResp.UsageMetadata != nil {
-		cached := geminiResp.UsageMetadata.CachedContentTokenCount
-		uncached := geminiResp.UsageMetadata.PromptTokenCount - cached
-		cacheCreation, inputTokens := SplitUncachedTokens(uncached) // [OpusClaw Patch] randomized 90-95% cache estimation
-		usage.InputTokens = inputTokens
+		prompt := geminiResp.UsageMetadata.PromptTokenCount
 		usage.OutputTokens = geminiResp.UsageMetadata.CandidatesTokenCount + geminiResp.UsageMetadata.ThoughtsTokenCount
-		usage.CacheReadInputTokens = cached
-		usage.CacheCreationInputTokens = cacheCreation // [OpusClaw Patch]
+		if cacheRead, cacheCreation, inputTokens, applied := ApplySimCacheOverride(p.simCacheOverride, prompt); applied {
+			usage.InputTokens = inputTokens
+			usage.CacheReadInputTokens = cacheRead
+			usage.CacheCreationInputTokens = cacheCreation
+		} else {
+			cached := geminiResp.UsageMetadata.CachedContentTokenCount
+			uncached := prompt - cached
+			cacheCreation, inputTokens := SplitUncachedTokens(uncached) // [OpusClaw Patch] randomized 90-95% cache estimation
+			usage.InputTokens = inputTokens
+			usage.CacheReadInputTokens = cached
+			usage.CacheCreationInputTokens = cacheCreation // [OpusClaw Patch]
+		}
 	}
 
 	// 生成响应 ID

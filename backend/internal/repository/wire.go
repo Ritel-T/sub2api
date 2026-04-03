@@ -99,6 +99,7 @@ var ProviderSet = wire.NewSet(
 	NewRefreshTokenCache,
 	NewErrorPassthroughCache,
 	NewTLSFingerprintProfileCache,
+	NewSimCacheRepo,
 
 	// Encryptors
 	NewAESEncryptor,

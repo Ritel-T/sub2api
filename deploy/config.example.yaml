@@ -283,6 +283,20 @@ gateway:
       queue: 0.7
       error_rate: 0.8
       ttft: 0.5
+  # [OpusClaw Patch] simulated cache billing
+  # Simulated cache billing configuration (local simulation of prompt cache hit rate)
+  # 模拟缓存计费配置（本地模拟多轮对话的 prompt cache 命中率）
+  simulated_cache:
+    # Enable simulated cache billing (default: false)
+    # 是否启用模拟缓存计费（默认：false）
+    enabled: false
+    # Simulated cache miss probability (0.0-1.0, default: 0.10)
+    # 模拟缓存丢失概率（0.0-1.0，默认：0.10）
+    miss_probability: 0.10
+    # Cache state TTL in seconds (default: 300)
+    # 缓存状态过期时间（秒，默认：300）
+    ttl_seconds: 300
+
   # HTTP upstream connection pool settings (HTTP/2 + multi-proxy scenario defaults)
   # HTTP 上游连接池配置（HTTP/2 + 多代理场景默认值）
   # Max idle connections across all hosts

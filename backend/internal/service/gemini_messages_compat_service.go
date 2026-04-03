@@ -1002,12 +1002,12 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 		firstTokenMs = streamRes.firstTokenMs
 	} else {
 		if useUpstreamStream {
-			collected, usageObj, err := collectGeminiSSE(resp.Body, true)
+			collected, usageObj, err := collectGeminiSSE(resp.Body, true, GetSimCacheOverride(c.Request.Context()))
 			if err != nil {
 				return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to read upstream stream")
 			}
 			collectedBytes, _ := json.Marshal(collected)
-			claudeResp, usageObj2 := convertGeminiToClaudeMessage(collected, originalModel, collectedBytes)
+			claudeResp, usageObj2 := convertGeminiToClaudeMessage(collected, originalModel, collectedBytes, GetSimCacheOverride(c.Request.Context()))
 			c.JSON(http.StatusOK, claudeResp)
 			usage = usageObj2
 			if usageObj != nil && (usageObj.InputTokens > 0 || usageObj.OutputTokens > 0) {
@@ -1504,7 +1504,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 		firstTokenMs = streamRes.firstTokenMs
 	} else {
 		if useUpstreamStream {
-			collected, usageObj, err := collectGeminiSSE(resp.Body, isOAuth)
+			collected, usageObj, err := collectGeminiSSE(resp.Body, isOAuth, nil)
 			if err != nil {
 				return nil, s.writeGoogleError(c, http.StatusBadGateway, "Failed to read upstream stream")
 			}
@@ -1875,7 +1875,7 @@ func (s *GeminiMessagesCompatService) handleNonStreamingResponse(c *gin.Context,
 		return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
 
-	claudeResp, usage := convertGeminiToClaudeMessage(geminiResp, originalModel, unwrappedBody)
+	claudeResp, usage := convertGeminiToClaudeMessage(geminiResp, originalModel, unwrappedBody, GetSimCacheOverride(c.Request.Context()))
 	c.JSON(http.StatusOK, claudeResp)
 
 	return usage, nil
@@ -2084,7 +2084,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 			}
 		}
 
-		if u := extractGeminiUsage(unwrappedBytes); u != nil {
+		if u := extractGeminiUsage(unwrappedBytes, GetSimCacheOverride(c.Request.Context())); u != nil {
 			usage = *u
 		}
 
@@ -2178,7 +2178,7 @@ func unwrapIfNeeded(isOAuth bool, raw []byte) []byte {
 	return inner
 }
 
-func collectGeminiSSE(body io.Reader, isOAuth bool) (map[string]any, *ClaudeUsage, error) {
+func collectGeminiSSE(body io.Reader, isOAuth bool, override *antigravity.SimCacheOverride) (map[string]any, *ClaudeUsage, error) {
 	reader := bufio.NewReader(body)
 
 	var last map[string]any
@@ -2212,7 +2212,7 @@ func collectGeminiSSE(body io.Reader, isOAuth bool) (map[string]any, *ClaudeUsag
 					}
 					if parsed != nil {
 						last = parsed
-						if u := extractGeminiUsage(rawBytes); u != nil {
+						if u := extractGeminiUsage(rawBytes, override); u != nil {
 							usage = u
 						}
 						if parts := extractGeminiParts(parsed); len(parts) > 0 {
@@ -2439,7 +2439,7 @@ func (s *GeminiMessagesCompatService) handleNativeNonStreamingResponse(c *gin.Co
 	}
 	c.Data(resp.StatusCode, contentType, respBody)
 
-	if u := extractGeminiUsage(respBody); u != nil {
+	if u := extractGeminiUsage(respBody, nil); u != nil {
 		return u, nil
 	}
 	return &ClaudeUsage{}, nil
@@ -2505,7 +2505,7 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 						rawBytes = []byte(payload)
 					}
 
-					if u := extractGeminiUsage(rawBytes); u != nil {
+					if u := extractGeminiUsage(rawBytes, nil); u != nil {
 						usage = u
 					}
 
@@ -2619,8 +2619,8 @@ func unwrapGeminiResponse(raw []byte) ([]byte, error) {
 	return raw, nil
 }
 
-func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel string, rawData []byte) (map[string]any, *ClaudeUsage) {
-	usage := extractGeminiUsage(rawData)
+func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel string, rawData []byte, override *antigravity.SimCacheOverride) (map[string]any, *ClaudeUsage) {
+	usage := extractGeminiUsage(rawData, override)
 	if usage == nil {
 		usage = &ClaudeUsage{}
 	}
@@ -2684,22 +2684,30 @@ func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel strin
 	return resp, usage
 }
 
-func extractGeminiUsage(data []byte) *ClaudeUsage {
+func extractGeminiUsage(data []byte, override *antigravity.SimCacheOverride) *ClaudeUsage {
 	usage := gjson.GetBytes(data, "usageMetadata")
 	if !usage.Exists() {
 		return nil
 	}
 	prompt := int(usage.Get("promptTokenCount").Int())
 	cand := int(usage.Get("candidatesTokenCount").Int())
-	cached := int(usage.Get("cachedContentTokenCount").Int())
 	thoughts := int(usage.Get("thoughtsTokenCount").Int())
-	// 注意：Gemini 的 promptTokenCount 包含 cachedContentTokenCount，
-	// 但 Claude 的 input_tokens 不包含 cache_read_input_tokens，需要减去
-	cacheCreation, inputTokens := antigravity.SplitUncachedTokens(prompt - cached)
+	inputTokens := 0
+	cacheRead := 0
+	cacheCreation := 0
+	if read, creation, input, applied := antigravity.ApplySimCacheOverride(override, prompt); applied {
+		cacheRead = read
+		cacheCreation = creation
+		inputTokens = input
+	} else {
+		cached := int(usage.Get("cachedContentTokenCount").Int())
+		cacheRead = cached
+		cacheCreation, inputTokens = antigravity.SplitUncachedTokens(prompt - cached)
+	}
 	return &ClaudeUsage{
 		InputTokens:              inputTokens,
 		OutputTokens:             cand + thoughts,
-		CacheReadInputTokens:     cached,
+		CacheReadInputTokens:     cacheRead,
 		CacheCreationInputTokens: cacheCreation,
 	}
 }

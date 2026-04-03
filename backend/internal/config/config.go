@@ -465,11 +465,23 @@ type GatewayConfig struct {
 	ModelsListCacheTTLSeconds int `mapstructure:"models_list_cache_ttl_seconds"`
 
 	// UserMessageQueue: 用户消息串行队列配置
-	// 对 role:"user" 的真实用户消息实施账号级串行化 + RPM 自适应延迟
 	UserMessageQueue UserMessageQueueConfig `mapstructure:"user_message_queue"`
+
+	// SimulatedCache: 模拟缓存计费配置
+	// [OpusClaw Patch] simulated cache billing
+	SimulatedCache SimulatedCacheConfig `yaml:"simulated_cache" mapstructure:"simulated_cache"`
+}
+
+// SimulatedCacheConfig 模拟缓存计费配置
+// [OpusClaw Patch] simulated cache billing
+type SimulatedCacheConfig struct {
+	Enabled         bool    `yaml:"enabled" mapstructure:"enabled"`                   // 是否启用模拟缓存计费
+	MissProbability float64 `yaml:"miss_probability" mapstructure:"miss_probability"` // 模拟缓存丢失概率 (0.0-1.0)
+	TTLSeconds      int     `yaml:"ttl_seconds" mapstructure:"ttl_seconds"`           // 模拟缓存状态过期时间（秒）
 }
 
 // UserMessageQueueConfig 用户消息串行队列配置
+
 // 用于 Anthropic OAuth/SetupToken 账号的用户消息串行化发送
 type UserMessageQueueConfig struct {
 	// Mode: 模式选择
@@ -1454,6 +1466,11 @@ func setDefaults() {
 	viper.SetDefault("gateway.user_group_rate_cache_ttl_seconds", 30)
 	viper.SetDefault("gateway.models_list_cache_ttl_seconds", 15)
 	// TLS指纹伪装配置（默认关闭，需要账号级别单独启用）
+	// [OpusClaw Patch] simulated cache billing
+	viper.SetDefault("gateway.simulated_cache.enabled", false)
+	viper.SetDefault("gateway.simulated_cache.miss_probability", 0.10)
+	viper.SetDefault("gateway.simulated_cache.ttl_seconds", 300)
+
 	// 用户消息串行队列默认值
 	viper.SetDefault("gateway.user_message_queue.enabled", false)
 	viper.SetDefault("gateway.user_message_queue.lock_ttl_ms", 120000)
@@ -2125,6 +2142,16 @@ func (c *Config) Validate() error {
 	if c.Gateway.MaxLineSize != 0 && c.Gateway.MaxLineSize < 1024*1024 {
 		return fmt.Errorf("gateway.max_line_size must be at least 1MB")
 	}
+
+	// SimulatedCache validation
+	// [OpusClaw Patch] simulated cache billing
+	if c.Gateway.SimulatedCache.MissProbability < 0 || c.Gateway.SimulatedCache.MissProbability > 1 {
+		return fmt.Errorf("gateway.simulated_cache.miss_probability must be between 0.0 and 1.0")
+	}
+	if c.Gateway.SimulatedCache.TTLSeconds < 0 {
+		return fmt.Errorf("gateway.simulated_cache.ttl_seconds must be non-negative")
+	}
+
 	if c.Gateway.UsageRecord.WorkerCount <= 0 {
 		return fmt.Errorf("gateway.usage_record.worker_count must be positive")
 	}

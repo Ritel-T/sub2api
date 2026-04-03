@@ -36,13 +36,15 @@ type StreamingProcessor struct {
 	outputTokens        int
 	cacheReadTokens     int
 	cacheCreationTokens int
+	simCacheOverride    *SimCacheOverride
 }
 
 // NewStreamingProcessor 创建流式响应处理器
-func NewStreamingProcessor(originalModel string) *StreamingProcessor {
+func NewStreamingProcessor(originalModel string, override *SimCacheOverride) *StreamingProcessor {
 	return &StreamingProcessor{
-		blockType:     BlockTypeNone,
-		originalModel: originalModel,
+		blockType:        BlockTypeNone,
+		originalModel:    originalModel,
+		simCacheOverride: override,
 	}
 }
 
@@ -84,13 +86,20 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 	// 注意：Gemini 的 promptTokenCount 包含 cachedContentTokenCount，
 	// 但 Claude 的 input_tokens 不包含 cache_read_input_tokens，需要减去
 	if geminiResp.UsageMetadata != nil {
-		cached := geminiResp.UsageMetadata.CachedContentTokenCount
-		uncached := geminiResp.UsageMetadata.PromptTokenCount - cached
-		cacheCreation, inputTokens := SplitUncachedTokens(uncached) // [OpusClaw Patch] randomized 90-95% cache estimation
-		p.inputTokens = inputTokens
+		prompt := geminiResp.UsageMetadata.PromptTokenCount
 		p.outputTokens = geminiResp.UsageMetadata.CandidatesTokenCount + geminiResp.UsageMetadata.ThoughtsTokenCount
-		p.cacheReadTokens = cached
-		p.cacheCreationTokens = cacheCreation // [OpusClaw Patch]
+		if cacheRead, cacheCreation, inputTokens, applied := ApplySimCacheOverride(p.simCacheOverride, prompt); applied {
+			p.inputTokens = inputTokens
+			p.cacheReadTokens = cacheRead
+			p.cacheCreationTokens = cacheCreation
+		} else {
+			cached := geminiResp.UsageMetadata.CachedContentTokenCount
+			uncached := prompt - cached
+			cacheCreation, inputTokens := SplitUncachedTokens(uncached) // [OpusClaw Patch] randomized 90-95% cache estimation
+			p.inputTokens = inputTokens
+			p.cacheReadTokens = cached
+			p.cacheCreationTokens = cacheCreation // [OpusClaw Patch]
+		}
 	}
 
 	// 处理 parts
@@ -159,13 +168,20 @@ func (p *StreamingProcessor) emitMessageStart(v1Resp *V1InternalResponse) []byte
 
 	usage := ClaudeUsage{}
 	if v1Resp.Response.UsageMetadata != nil {
-		cached := v1Resp.Response.UsageMetadata.CachedContentTokenCount
-		uncached := v1Resp.Response.UsageMetadata.PromptTokenCount - cached
-		cacheCreation, inputTokens := SplitUncachedTokens(uncached) // [OpusClaw Patch] randomized 90-95% cache estimation
-		usage.InputTokens = inputTokens
+		prompt := v1Resp.Response.UsageMetadata.PromptTokenCount
 		usage.OutputTokens = v1Resp.Response.UsageMetadata.CandidatesTokenCount + v1Resp.Response.UsageMetadata.ThoughtsTokenCount
-		usage.CacheReadInputTokens = cached
-		usage.CacheCreationInputTokens = cacheCreation // [OpusClaw Patch]
+		if cacheRead, cacheCreation, inputTokens, applied := ApplySimCacheOverride(p.simCacheOverride, prompt); applied {
+			usage.InputTokens = inputTokens
+			usage.CacheReadInputTokens = cacheRead
+			usage.CacheCreationInputTokens = cacheCreation
+		} else {
+			cached := v1Resp.Response.UsageMetadata.CachedContentTokenCount
+			uncached := prompt - cached
+			cacheCreation, inputTokens := SplitUncachedTokens(uncached) // [OpusClaw Patch] randomized 90-95% cache estimation
+			usage.InputTokens = inputTokens
+			usage.CacheReadInputTokens = cached
+			usage.CacheCreationInputTokens = cacheCreation // [OpusClaw Patch]
+		}
 	}
 
 	responseID := v1Resp.ResponseID
@@ -490,9 +506,10 @@ func (p *StreamingProcessor) emitFinish(finishReason string) []byte {
 	}
 
 	usage := ClaudeUsage{
-		InputTokens:          p.inputTokens,
-		OutputTokens:         p.outputTokens,
-		CacheReadInputTokens: p.cacheReadTokens,
+		InputTokens:              p.inputTokens,
+		OutputTokens:             p.outputTokens,
+		CacheReadInputTokens:     p.cacheReadTokens,
+		CacheCreationInputTokens: p.cacheCreationTokens,
 	}
 
 	deltaEvent := map[string]any{
