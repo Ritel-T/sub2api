@@ -277,6 +277,27 @@ export async function updateOverloadCooldownSettings(
   return data
 }
 
+export interface SimCacheSettings {
+  enabled: boolean
+  miss_probability: number
+  ttl_seconds: number
+}
+
+export async function getSimCacheSettings(): Promise<SimCacheSettings> {
+  const { data } = await apiClient.get<SimCacheSettings>('/admin/settings/simulated-cache')
+  return data
+}
+
+export async function updateSimCacheSettings(
+  settings: SimCacheSettings
+): Promise<SimCacheSettings> {
+  const { data } = await apiClient.put<SimCacheSettings>(
+    '/admin/settings/simulated-cache',
+    settings
+  )
+  return data
+}
+
 // ==================== Stream Timeout Settings ====================
 
 /**
@@ -540,6 +561,8 @@ export const settingsAPI = {
   deleteAdminApiKey,
   getOverloadCooldownSettings,
   updateOverloadCooldownSettings,
+  getSimCacheSettings,
+  updateSimCacheSettings,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,

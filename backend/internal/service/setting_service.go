@@ -106,6 +106,7 @@ type SettingService struct {
 	onUpdate              func() // Callback when settings are updated (for cache invalidation)
 	onS3Update            func() // Callback when Sora S3 settings are updated
 	version               string // Application version
+	simCacheService       *SimCacheService
 }
 
 // NewSettingService 创建系统设置服务实例
@@ -230,6 +231,11 @@ func (s *SettingService) SetOnS3UpdateCallback(callback func()) {
 // SetVersion sets the application version for injection into public settings
 func (s *SettingService) SetVersion(version string) {
 	s.version = version
+}
+
+// [OpusClaw Patch] simulated cache resilience
+func (s *SettingService) SetSimCacheService(svc *SimCacheService) {
+	s.simCacheService = svc
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection
@@ -1328,6 +1334,84 @@ func (s *SettingService) SetOverloadCooldownSettings(ctx context.Context, settin
 	}
 
 	return s.settingRepo.Set(ctx, SettingKeyOverloadCooldownSettings, string(data))
+}
+
+func (s *SettingService) GetSimCacheSettings(ctx context.Context) (*SimCacheSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeySimCacheSettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return &SimCacheSettings{
+				Enabled:         s.cfg.Gateway.SimulatedCache.Enabled,
+				MissProbability: s.cfg.Gateway.SimulatedCache.MissProbability,
+				TTLSeconds:      s.cfg.Gateway.SimulatedCache.TTLSeconds,
+			}, nil
+		}
+		return nil, fmt.Errorf("get sim cache settings: %w", err)
+	}
+	if value == "" {
+		return &SimCacheSettings{
+			Enabled:         s.cfg.Gateway.SimulatedCache.Enabled,
+			MissProbability: s.cfg.Gateway.SimulatedCache.MissProbability,
+			TTLSeconds:      s.cfg.Gateway.SimulatedCache.TTLSeconds,
+		}, nil
+	}
+
+	var settings SimCacheSettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return &SimCacheSettings{
+			Enabled:         s.cfg.Gateway.SimulatedCache.Enabled,
+			MissProbability: s.cfg.Gateway.SimulatedCache.MissProbability,
+			TTLSeconds:      s.cfg.Gateway.SimulatedCache.TTLSeconds,
+		}, nil
+	}
+
+	if settings.MissProbability < 0 {
+		settings.MissProbability = 0
+	}
+	if settings.MissProbability > 1 {
+		settings.MissProbability = 1
+	}
+	if settings.TTLSeconds < 1 {
+		settings.TTLSeconds = 1
+	}
+	if settings.TTLSeconds > 3600 {
+		settings.TTLSeconds = 3600
+	}
+
+	return &settings, nil
+}
+
+func (s *SettingService) SetSimCacheSettings(ctx context.Context, settings *SimCacheSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+
+	if settings.MissProbability < 0 || settings.MissProbability > 1 {
+		return fmt.Errorf("miss_probability must be between 0.0 and 1.0")
+	}
+	if settings.TTLSeconds < 1 || settings.TTLSeconds > 3600 {
+		return fmt.Errorf("ttl_seconds must be between 1 and 3600")
+	}
+
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal sim cache settings: %w", err)
+	}
+
+	if err := s.settingRepo.Set(ctx, SettingKeySimCacheSettings, string(data)); err != nil {
+		return err
+	}
+
+	// [OpusClaw Patch] simulated cache resilience — atomic config update via SimCacheService
+	if s.simCacheService != nil {
+		s.simCacheService.UpdateConfig(config.SimulatedCacheConfig{
+			Enabled:         settings.Enabled,
+			MissProbability: settings.MissProbability,
+			TTLSeconds:      settings.TTLSeconds,
+		})
+	}
+
+	return nil
 }
 
 // GetStreamTimeoutSettings 获取流超时处理配置

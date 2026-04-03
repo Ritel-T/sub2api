@@ -191,6 +191,7 @@ const (
 
 	// SettingKeyRectifierSettings stores JSON config for rectifier settings (thinking signature + budget).
 	SettingKeyRectifierSettings = "rectifier_settings"
+	SettingKeySimCacheSettings  = "sim_cache_settings"
 
 	// =========================
 	// Beta Policy Settings

@@ -1779,3 +1779,54 @@ func (h *SettingHandler) UpdateStreamTimeoutSettings(c *gin.Context) {
 		ThresholdWindowMinutes: updatedSettings.ThresholdWindowMinutes,
 	})
 }
+
+func (h *SettingHandler) GetSimCacheSettings(c *gin.Context) {
+	settings, err := h.settingService.GetSimCacheSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.SimCacheSettings{
+		Enabled:         settings.Enabled,
+		MissProbability: settings.MissProbability,
+		TTLSeconds:      settings.TTLSeconds,
+	})
+}
+
+type UpdateSimCacheSettingsRequest struct {
+	Enabled         bool    `json:"enabled"`
+	MissProbability float64 `json:"miss_probability"`
+	TTLSeconds      int     `json:"ttl_seconds"`
+}
+
+func (h *SettingHandler) UpdateSimCacheSettings(c *gin.Context) {
+	var req UpdateSimCacheSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	settings := &service.SimCacheSettings{
+		Enabled:         req.Enabled,
+		MissProbability: req.MissProbability,
+		TTLSeconds:      req.TTLSeconds,
+	}
+
+	if err := h.settingService.SetSimCacheSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	updatedSettings, err := h.settingService.GetSimCacheSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.SimCacheSettings{
+		Enabled:         updatedSettings.Enabled,
+		MissProbability: updatedSettings.MissProbability,
+		TTLSeconds:      updatedSettings.TTLSeconds,
+	})
+}

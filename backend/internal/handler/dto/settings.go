@@ -177,6 +177,12 @@ type OverloadCooldownSettings struct {
 	CooldownMinutes int  `json:"cooldown_minutes"`
 }
 
+type SimCacheSettings struct {
+	Enabled         bool    `json:"enabled"`
+	MissProbability float64 `json:"miss_probability"`
+	TTLSeconds      int     `json:"ttl_seconds"`
+}
+
 // StreamTimeoutSettings 流超时处理配置 DTO
 type StreamTimeoutSettings struct {
 	Enabled                bool   `json:"enabled"`

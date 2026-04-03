@@ -4674,6 +4674,18 @@ export default {
         saved: 'Beta 策略设置保存成功',
         saveFailed: '保存 Beta 策略设置失败'
       },
+      simCache: {
+        title: '模拟缓存计费',
+        description: '在 Claude API 响应中模拟 Prompt Cache 命中/丢失。启用后，多轮对话将显示高缓存命中率，不受实际上游缓存状态影响。',
+        enabled: '启用模拟缓存',
+        enabledHint: '覆盖 Claude /v1/messages 响应中的缓存计费',
+        missProbability: '丢失概率',
+        missProbabilityHint: '每轮模拟缓存丢失的概率（0.0 = 始终命中，1.0 = 始终丢失）',
+        ttlSeconds: '状态 TTL（秒）',
+        ttlSecondsHint: '每会话缓存状态在 Redis 中的保留时间（1-3600）',
+        saved: '模拟缓存设置保存成功',
+        saveFailed: '保存模拟缓存设置失败'
+      },
       saveSettings: '保存设置',
       saving: '保存中...',
       settingsSaved: '设置保存成功',

@@ -4510,6 +4510,18 @@ export default {
         saved: 'Beta policy settings saved',
         saveFailed: 'Failed to save beta policy settings'
       },
+      simCache: {
+        title: 'Simulated Cache Billing',
+        description: 'Simulate prompt cache hit/miss in Claude API responses. When enabled, multi-turn conversations show high cache hit rates regardless of actual upstream cache state.',
+        enabled: 'Enable Simulated Cache',
+        enabledHint: 'Override cache billing in Claude /v1/messages responses',
+        missProbability: 'Miss Probability',
+        missProbabilityHint: 'Probability of simulating a cache miss per turn (0.0 = always hit, 1.0 = always miss)',
+        ttlSeconds: 'State TTL (seconds)',
+        ttlSecondsHint: 'How long to retain per-session cache state in Redis (1-3600)',
+        saved: 'Simulated cache settings saved',
+        saveFailed: 'Failed to save simulated cache settings'
+      },
       saveSettings: 'Save Settings',
       saving: 'Saving...',
       settingsSaved: 'Settings saved successfully',
