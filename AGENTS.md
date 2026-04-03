@@ -1,6 +1,6 @@
 # Sub2API (OpusClaw Fork) — Agent Reference
 
-> **最后更新**：2026-04-03（请求画像对齐官方客户端 `7f7f83e7`）
+> **最后更新**：2026-04-03（模拟缓存计费 `94d3b8f7` + wire_gen `211b96e3`）
 
 ## 1. What This Is
 
@@ -43,18 +43,23 @@ docker save sub2api:opusclaw-v6 | gzip | ssh root@<目标IP> "gunzip | docker lo
 ### 测试
 
 ```bash
-# 通过 Docker 运行测试（无本地 Go 环境）
-cd /root/src/sub2api/
-docker run --rm -v $(pwd)/backend:/app -v go-mod-cache:/go/pkg/mod -w /app golang:1.26.1-alpine go test ./internal/service/... -count=1
+# 本地 Go 可直接使用（/usr/local/go/bin/go 已链接到 PATH）
+cd /root/src/sub2api/backend
+go test ./internal/service/... -count=1
 
 # 运行特定包
-docker run --rm -v $(pwd)/backend:/app -v go-mod-cache:/go/pkg/mod -w /app golang:1.26.1-alpine go test ./internal/pkg/antigravity/... -count=1
+go test ./internal/pkg/antigravity/... -count=1
+
+# 运行 unit 标签测试（antigravity 包的部分测试需要此标签）
+go test -tags unit ./internal/pkg/antigravity/... -count=1
 
 # 运行特定测试
-docker run --rm -v $(pwd)/backend:/app -v go-mod-cache:/go/pkg/mod -w /app golang:1.26.1-alpine go test -run "TestExtractGeminiUsage" ./internal/service/... -count=1 -v
-```
+go test -run "TestExtractGeminiUsage" ./internal/service/... -count=1 -v
 
-> 首次运行需下载 Go 模块（~2-3 min）。`-v go-mod-cache:/go/pkg/mod` 缓存模块加速后续运行。
+# 备选：通过 Docker 运行测试（首次需下载模块 ~2-3 min）
+cd /root/src/sub2api/
+docker run --rm -v $(pwd)/backend:/app -v go-mod-cache:/go/pkg/mod -w /app golang:1.26.1-alpine go test ./internal/service/... -count=1
+```
 
 ### 已知测试失败（预先存在）
 
@@ -82,11 +87,11 @@ Client → OpusClaw Gateway → Sub2API → Antigravity (Gemini API)
 |------|------|-------------|------|---------|----------|--------|---------|
 | **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v5` | `3f25ed33bf16` | `sub2api-test` | 镜像传入 |
 | **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw-v5` | `3f25ed33bf16` | `sub2api-app` | 镜像传入 |
-| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `b123fc0fb64d` | `sub2api-c` | `docker compose build` |
+| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `98d37e2d3dd8` | `sub2api-c` | `docker compose build` |
 | **D** | oc-relay-d | `100.101.200.81` | `:8000` | `opusclaw-d` | `d1057e26657d` | `sub2api-d` | 镜像传入 |
 
 - A 和 B：相同 Image ID（`3f25ed33bf16`），构建于 2026-03-31 18:27
-- C：独立构建于 2026-04-03，源码含请求画像对齐 patch（`7f7f83e7`）
+- C：独立构建于 2026-04-03，源码含请求画像对齐 patch（`7f7f83e7`）+ 模拟缓存计费（`94d3b8f7`）
 - D：构建于 2026-03-31 05:59，**源码较旧**（比 v5/c 早约 12 小时）
 - **注意**：C 实例已部署请求画像对齐 patch，A/B/D 仍运行旧镜像
 
@@ -127,6 +132,8 @@ backend/
 │   │   ├── gemini_native_signature_cleaner.go  # Gemini thought signature cleanup
 │   │   ├── gemini_messages_compat_service.go   # Gemini messages compat + extractGeminiUsage()
 │   │   ├── claude_signature_cleaner.go     # [OpusClaw] Claude thinking signature cleanup
+│   │   ├── sim_cache_service.go            # [OpusClaw] SimCacheService (compute override + update state)
+│   │   ├── sim_cache_state.go              # [OpusClaw] SimCacheState + SimCacheRepository interface
 │   │   └── concurrency_service.go          # Slot acquisition + concurrency limits
 │   ├── pkg/
 │   │   ├── antigravity/  # Request/response transformation
@@ -134,6 +141,7 @@ backend/
 │   │   │   ├── response_transformer.go  # Gemini→Claude response (non-streaming)
 │   │   │   ├── stream_transformer.go    # Gemini→Claude streaming
 │   │   │   ├── envelope.go             # [OpusClaw] Shared BuildV1InternalEnvelope
+│   │   │   ├── sim_cache_override.go   # [OpusClaw] SimCacheOverride + ApplySimCacheOverride
 │   │   │   ├── claude_types.go          # Claude types
 │   │   │   ├── gemini_types.go          # Gemini types
 │   │   │   └── testdata/               # Golden test fixtures (claude_*.golden.json, gemini_*.golden.json)
@@ -174,6 +182,7 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | Per-process stable sessionId | `request_transformer.go` | UUID+timestamp format (replaces SHA256 hash) |
 | Shared envelope builder | `envelope.go` | `BuildV1InternalEnvelope()` used by Claude + Gemini-native paths |
 | Numeric loadCodeAssist metadata | `client.go` | ideType=9, platform=3, pluginType=2, mode=1 |
+| Simulated cache billing | `sim_cache_override.go`, `sim_cache_service.go`, `sim_cache_state.go`, `response_transformer.go`, `stream_transformer.go`, `gemini_messages_compat_service.go`, `antigravity_gateway_service.go`, `gateway_handler.go` | Per-session Redis-backed token accumulator; probability-based cache miss simulation; override injected via context; Claude `/v1/messages` path only |
 
 ## 6. Key Constants
 
@@ -198,6 +207,7 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 gateway_handler.go:Messages()
   → SelectAccountWithLoadAwareness()
   → if account switched: CleanClaudeThinkingSignatures(body)
+  → [SimCache] ComputeOverride(groupID, sessionHash) → inject into context
   → antigravityGatewayService.Forward()
       → antigravityRetryLoop()
           → pre-check: model rate limit? → inject credits or switch
@@ -209,7 +219,9 @@ gateway_handler.go:Messages()
               → MODEL_CAPACITY: retry up to 5x
           → if 400 + signature error: strip thinking → retry
       → response: Gemini→Claude transform
-          → InputTokens=0, CacheCreationInputTokens=uncached
+          → if SimCacheOverride: ApplySimCacheOverride(override, promptTokenCount)
+          → else: InputTokens=0, CacheCreationInputTokens=uncached
+  → [SimCache] UpdateState(groupID, sessionHash, totalPromptTokens) — only on success
   → on UpstreamFailoverError: HandleFailoverError() → select new account → loop
 ```
 
@@ -227,6 +239,15 @@ Claude response:
 ```
 
 4 locations: `response_transformer.go:282-289`, `stream_transformer.go:127-134,161-168`, `gemini_messages_compat_service.go:2696-2705`
+
+**Simulated Cache Override（`gateway.simulated_cache.enabled=true` 时）**：
+上述 4 处 token transform 在检测到 `SimCacheOverride` 时跳过 `SplitUncachedTokens()`，
+改用 `ApplySimCacheOverride(override, promptTokenCount)` 计算 usage 分配：
+- 第 1 轮（`IsFirstTurn`）：`cache_read=0, cache_creation=全部 prompt`
+- 命中轮（`!IsMiss`）：`cache_read=min(历史累积, prompt), cache_creation=剩余`
+- 丢失轮（`IsMiss`）：`cache_read=0, cache_creation=全部 prompt`
+Override 通过 `context.Value` 从 Handler 层传入，Service 层取出后以函数参数传递给 transform。
+Gemini 原生路径（`gemini_v1beta_handler.go`）不注入 override。
 
 ### Scheduling Flow
 
@@ -326,6 +347,8 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
+| `211b96e3` | **fix(simcache): update wire_gen.go** — inject SimCacheService into GatewayHandler |
+| `94d3b8f7` | **feat(simcache): simulated cache billing** — per-session Redis accumulator, probability miss, context-carried override, Claude /v1/messages only |
 | `7f7f83e7` | **feat(antigravity): align request profile with official client** — headers, systemInstruction, sessionId, envelope |
 | `fb56c842` | **merge: upstream `origin/main` (055c48ab)** — RPM buffer, group filter, privacy, customtools, OpenAI refactor |
 | `2a32db04` | fix(incident): restrict thinking suffix to supported claude-sonnet-4-5 |
