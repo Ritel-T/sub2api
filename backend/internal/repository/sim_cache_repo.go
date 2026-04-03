@@ -13,12 +13,24 @@ import (
 
 const simCachePrefix = "simcache:"
 
+// [OpusClaw Patch] simulated cache resilience — Lua script for atomic state update.
+// KEYS[1] = simcache key, ARGV[1] = cached_token_count, ARGV[2] = TTL seconds.
+// Sets cached_token_count, increments turn_count, refreshes TTL — all atomically.
+var simCacheAtomicUpdateScript = redis.NewScript(`
+local key = KEYS[1]
+local tokens = tonumber(ARGV[1])
+local ttl = tonumber(ARGV[2])
+local tc = redis.call('HINCRBY', key, 'turn_count', 1)
+redis.call('HSET', key, 'cached_token_count', tokens)
+redis.call('EXPIRE', key, ttl)
+return tc
+`)
+
 // [OpusClaw Patch] simulated cache billing
 type simCacheRepo struct {
 	rdb *redis.Client
 }
 
-// NewSimCacheRepo creates a Redis-backed SimCacheRepository.
 // [OpusClaw Patch] simulated cache billing
 func NewSimCacheRepo(rdb *redis.Client) service.SimCacheRepository {
 	return &simCacheRepo{rdb: rdb}
@@ -30,6 +42,24 @@ func buildSimCacheKey(groupID int64, sessionHash string) string {
 
 func (r *simCacheRepo) GetSessionCacheState(ctx context.Context, groupID int64, sessionHash string) (*service.SimCacheState, error) {
 	key := buildSimCacheKey(groupID, sessionHash)
+
+	// Try hash format first (new atomic format)
+	vals, err := r.rdb.HGetAll(ctx, key).Result()
+	if err != nil {
+		return nil, err
+	}
+	if len(vals) > 0 {
+		state := &service.SimCacheState{}
+		if v, ok := vals["cached_token_count"]; ok {
+			fmt.Sscanf(v, "%d", &state.CachedTokenCount)
+		}
+		if v, ok := vals["turn_count"]; ok {
+			fmt.Sscanf(v, "%d", &state.TurnCount)
+		}
+		return state, nil
+	}
+
+	// Fall back to legacy JSON string format (backward compat during rollout)
 	val, err := r.rdb.Get(ctx, key).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -54,4 +84,14 @@ func (r *simCacheRepo) SetSessionCacheState(ctx context.Context, groupID int64, 
 		return fmt.Errorf("simcache: marshal state: %w", err)
 	}
 	return r.rdb.Set(ctx, key, data, ttl).Err()
+}
+
+// [OpusClaw Patch] simulated cache resilience
+func (r *simCacheRepo) AtomicUpdateSessionCacheState(ctx context.Context, groupID int64, sessionHash string, cachedTokenCount int, ttl time.Duration) error {
+	key := buildSimCacheKey(groupID, sessionHash)
+	ttlSec := int(ttl.Seconds())
+	if ttlSec <= 0 {
+		ttlSec = 300
+	}
+	return simCacheAtomicUpdateScript.Run(ctx, r.rdb, []string{key}, cachedTokenCount, ttlSec).Err()
 }

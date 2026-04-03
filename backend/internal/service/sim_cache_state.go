@@ -23,4 +23,8 @@ type SimCacheRepository interface {
 	// SetSessionCacheState 设置会话的模拟缓存状态，带 TTL。
 	// state 序列化为 JSON 存储到 Redis。
 	SetSessionCacheState(ctx context.Context, groupID int64, sessionHash string, state *SimCacheState, ttl time.Duration) error
+	// AtomicUpdateSessionCacheState 原子更新会话缓存状态：设置 cachedTokenCount 并递增 turnCount。
+	// 使用 Lua 脚本保证并发安全，消除 GET→改→SET 竞态。
+	// [OpusClaw Patch] simulated cache resilience
+	AtomicUpdateSessionCacheState(ctx context.Context, groupID int64, sessionHash string, cachedTokenCount int, ttl time.Duration) error
 }

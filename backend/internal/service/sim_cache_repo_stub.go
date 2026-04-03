@@ -45,3 +45,20 @@ func (s *StubSimCacheRepository) SetSessionCacheState(_ context.Context, groupID
 	s.store[s.stubKey(groupID, sessionHash)] = &cp
 	return nil
 }
+
+// [OpusClaw Patch] simulated cache resilience
+func (s *StubSimCacheRepository) AtomicUpdateSessionCacheState(_ context.Context, groupID int64, sessionHash string, cachedTokenCount int, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := s.stubKey(groupID, sessionHash)
+	existing := s.store[key]
+	turnCount := 1
+	if existing != nil {
+		turnCount = existing.TurnCount + 1
+	}
+	s.store[key] = &SimCacheState{
+		CachedTokenCount: cachedTokenCount,
+		TurnCount:        turnCount,
+	}
+	return nil
+}
