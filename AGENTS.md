@@ -1,6 +1,6 @@
 # Sub2API (OpusClaw Fork) — Agent Reference
 
-> **最后更新**：2026-04-02（合并上游 `origin/main` 至 `fb56c842`）
+> **最后更新**：2026-04-03（请求画像对齐官方客户端 `7f7f83e7`）
 
 ## 1. What This Is
 
@@ -82,13 +82,13 @@ Client → OpusClaw Gateway → Sub2API → Antigravity (Gemini API)
 |------|------|-------------|------|---------|----------|--------|---------|
 | **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v5` | `3f25ed33bf16` | `sub2api-test` | 镜像传入 |
 | **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw-v5` | `3f25ed33bf16` | `sub2api-app` | 镜像传入 |
-| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `5d90fea52761` | `sub2api-c` | `docker compose build` |
+| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `b123fc0fb64d` | `sub2api-c` | `docker compose build` |
 | **D** | oc-relay-d | `100.101.200.81` | `:8000` | `opusclaw-d` | `d1057e26657d` | `sub2api-d` | 镜像传入 |
 
 - A 和 B：相同 Image ID（`3f25ed33bf16`），构建于 2026-03-31 18:27
-- C：独立构建于 2026-03-31 18:34，源码与开发仓库一致
+- C：独立构建于 2026-04-03，源码含请求画像对齐 patch（`7f7f83e7`）
 - D：构建于 2026-03-31 05:59，**源码较旧**（比 v5/c 早约 12 小时）
-- **注意**：合并上游后尚未重新构建部署，所有实例仍运行旧镜像
+- **注意**：C 实例已部署请求画像对齐 patch，A/B/D 仍运行旧镜像
 
 ### oc-dev 上的容器
 
@@ -133,8 +133,10 @@ backend/
 │   │   │   ├── request_transformer.go   # Claude→Gemini request (SENSITIVE)
 │   │   │   ├── response_transformer.go  # Gemini→Claude response (non-streaming)
 │   │   │   ├── stream_transformer.go    # Gemini→Claude streaming
+│   │   │   ├── envelope.go             # [OpusClaw] Shared BuildV1InternalEnvelope
 │   │   │   ├── claude_types.go          # Claude types
-│   │   │   └── gemini_types.go          # Gemini types
+│   │   │   ├── gemini_types.go          # Gemini types
+│   │   │   └── testdata/               # Golden test fixtures (claude_*.golden.json, gemini_*.golden.json)
 │   │   └── gemini/
 │   │       └── models.go               # Gemini model metadata (含 customtools fallback)
 │   └── web/dist/        # Embedded frontend
@@ -165,6 +167,13 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | Credits-exhausted pre-filter removal | `gateway_service.go:2049` | Deferred to downstream |
 | Token double-counting fix | `response_transformer.go:286`, `stream_transformer.go:131,165`, `gemini_messages_compat_service.go:2700` | `InputTokens=0` when `CacheCreation>0` |
 | Thinking suffix restriction | Commit `2a32db04` | Restrict to supported claude-sonnet-4-5 only |
+| Official request headers | `client.go` | Add X-Client-Name, X-Client-Version, x-goog-api-client, X-Machine-Session-Id |
+| Official UA version | `oauth.go` | Updated default from `1.20.5 windows/amd64` to `1.107.0 linux/amd64` |
+| Official systemInstruction format | `request_transformer.go` | Compact identity + `[ignore]` wrapper (replaces boundary markers) |
+| Conditional stopSequences/toolConfig | `request_transformer.go` | stopSequences not sent by default; toolConfig only when tools exist |
+| Per-process stable sessionId | `request_transformer.go` | UUID+timestamp format (replaces SHA256 hash) |
+| Shared envelope builder | `envelope.go` | `BuildV1InternalEnvelope()` used by Claude + Gemini-native paths |
+| Numeric loadCodeAssist metadata | `client.go` | ideType=9, platform=3, pluginType=2, mode=1 |
 
 ## 6. Key Constants
 
@@ -178,6 +187,10 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | `opusClawCreditsConcurrency` | 10 | `gateway_service.go:58` | Credits-tier slots |
 | `opusClawQuotaConcurrency` | 5 | `gateway_service.go:59` | Quota-tier slots |
 | `maxSameAccountRetries` | 3 | `failover_loop.go:33` | Same-account retry limit |
+| `antigravityHeaderClientVersion` | `1.107.0` | `client.go` | X-Client-Version header value |
+| `antigravityHeaderGoogAPIClient` | `gl-node/18.18.2 fire/0.8.6 grpc/1.10.x` | `client.go` | x-goog-api-client header value |
+| `antigravityIDETypeAntigravity` | 9 | `client.go` | loadCodeAssist IDE type enum |
+| `antigravityLoadCodeAssistMode` | 1 | `client.go` | loadCodeAssist mode field |
 
 ## 7. Request Flow (Claude /v1/messages)
 
@@ -313,6 +326,7 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
+| `7f7f83e7` | **feat(antigravity): align request profile with official client** — headers, systemInstruction, sessionId, envelope |
 | `fb56c842` | **merge: upstream `origin/main` (055c48ab)** — RPM buffer, group filter, privacy, customtools, OpenAI refactor |
 | `2a32db04` | fix(incident): restrict thinking suffix to supported claude-sonnet-4-5 |
 | `698cef81` | fix(scheduling): prevent account-wide rate limit for Antigravity 429 fallback |
