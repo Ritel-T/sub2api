@@ -129,6 +129,8 @@ vite.config.js
 docs/*
 .serena/
 .codex/
+.sisyphus/
+*.orig
 frontend/coverage/
 aicodex
 output/
