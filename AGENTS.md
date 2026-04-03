@@ -1,6 +1,6 @@
 # Sub2API (OpusClaw Fork) — Agent Reference
 
-> **最后更新**：2026-04-03（模拟缓存韧性加固 `6c68919c` + 管理面板 `0f07f0bc`）
+> **最后更新**：2026-04-03（模拟缓存韧性加固 `6c68919c` + 管理面板 `0f07f0bc` + 默认启用 `fce00844`）
 
 ## 1. What This Is
 
@@ -85,13 +85,12 @@ Client → OpusClaw Gateway → Sub2API → Antigravity (Gemini API)
 
 | 实例 | 机器 | Tailscale IP | 端口 | 镜像标签 | Image ID | 容器名 | 部署方式 |
 |------|------|-------------|------|---------|----------|--------|---------|
-| **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v6` | `bd3c4df6d7e3` | `sub2api-test` | 镜像传入 |
-| **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw-v5` | `3f25ed33bf16` | `sub2api-app` | 镜像传入 |
-| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `bd3c4df6d7e3` | `sub2api-c` | `docker compose build` |
+| **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v6` | `fe6334bde19f` | `sub2api-test` | 镜像传入 |
+| **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw-v6` | `fe6334bde19f` | `sub2api-app` | 镜像传入 |
+| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `fe6334bde19f` | `sub2api-c` | `docker compose build` |
 | **D** | oc-relay-d | `100.101.200.81` | `:8000` | `opusclaw-d` | `d1057e26657d` | `sub2api-d` | 镜像传入 |
 
-- A 和 C：相同 Image ID（`bd3c4df6d7e3`），构建于 2026-04-03，含模拟缓存计费 + 韧性加固 + 管理面板
-- B：旧镜像 `opusclaw-v5`（`3f25ed33bf16`），构建于 2026-03-31
+- A、B 和 C：相同 Image ID（`fe6334bde19f`），构建于 2026-04-03，含模拟缓存计费 + 韧性加固 + 管理面板 + 默认启用
 - D：构建于 2026-03-31 05:59，**源码较旧**（比 v5 早约 12 小时）
 
 ### oc-dev 上的容器
@@ -353,6 +352,7 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
+| `fce00844` | **chore(simcache): default enabled=true, miss_probability=0** |
 | `6c68919c` | **fix(simcache): harden for production** — Lua atomic update, atomic.Value config, 50ms Redis timeout, circuit breaker |
 | `0f07f0bc` | **feat(simcache): admin settings UI** — GET/PUT `/api/v1/admin/settings/simulated-cache`, DB persistence, Vue Gateway tab card |
 | `211b96e3` | **fix(simcache): update wire_gen.go** — inject SimCacheService into GatewayHandler |
