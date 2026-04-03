@@ -1467,8 +1467,8 @@ func setDefaults() {
 	viper.SetDefault("gateway.models_list_cache_ttl_seconds", 15)
 	// TLS指纹伪装配置（默认关闭，需要账号级别单独启用）
 	// [OpusClaw Patch] simulated cache billing
-	viper.SetDefault("gateway.simulated_cache.enabled", false)
-	viper.SetDefault("gateway.simulated_cache.miss_probability", 0.10)
+	viper.SetDefault("gateway.simulated_cache.enabled", true)
+	viper.SetDefault("gateway.simulated_cache.miss_probability", 0)
 	viper.SetDefault("gateway.simulated_cache.ttl_seconds", 300)
 
 	// 用户消息串行队列默认值
