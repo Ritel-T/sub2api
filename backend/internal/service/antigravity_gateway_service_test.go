@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -790,6 +792,116 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 	require.Len(t, events, 2)
 	require.Equal(t, "signature_error", events[0].Kind)
 	require.Equal(t, "failover", events[1].Kind)
+}
+
+func TestInjectIdentityPatchToGeminiRequest_OfficialFormat(t *testing.T) {
+	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`)
+
+	patched, err := injectIdentityPatchToGeminiRequest(body)
+	require.NoError(t, err)
+
+	var req map[string]any
+	require.NoError(t, json.Unmarshal(patched, &req))
+	systemInstruction, ok := req["systemInstruction"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "user", systemInstruction["role"])
+	parts, ok := systemInstruction["parts"].([]any)
+	require.True(t, ok)
+	require.Len(t, parts, 2)
+	first, ok := parts[0].(map[string]any)
+	require.True(t, ok)
+	second, ok := parts[1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, antigravity.GetDefaultIdentityPatch(), first["text"])
+	require.Contains(t, second["text"], "[ignore]")
+}
+
+func TestAntigravityGatewayService_Forward_PropagatesMachineSessionHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	writer := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(writer)
+
+	body, err := json.Marshal(map[string]any{
+		"model": "claude-sonnet-4-5",
+		"messages": []map[string]any{{
+			"role":    "user",
+			"content": "hello",
+		}},
+		"max_tokens": 16,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/antigravity/v1/messages", bytes.NewReader(body))
+	c.Request = req
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Request-Id": []string{"req-session"}},
+		Body:       io.NopCloser(strings.NewReader("data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"promptTokenCount\":8,\"candidatesTokenCount\":3}}}\n\n")),
+	}
+
+	var seenSessionHeader string
+	upstream := &queuedHTTPUpstreamStub{
+		responses: []*http.Response{resp},
+		onCall: func(r *http.Request, _ *queuedHTTPUpstreamStub) {
+			seenSessionHeader = r.Header.Get("X-Machine-Session-Id")
+		},
+	}
+
+	svc := &AntigravityGatewayService{
+		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  &AntigravityTokenProvider{},
+		httpUpstream:   upstream,
+	}
+
+	account := &Account{
+		ID:          99,
+		Name:        "acc-session-header",
+		Platform:    PlatformAntigravity,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Concurrency: 1,
+		Credentials: map[string]any{"access_token": "token"},
+	}
+
+	result, err := svc.Forward(context.Background(), c, account, body, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotEmpty(t, seenSessionHeader)
+	var forwarded antigravity.V1InternalRequest
+	require.NoError(t, json.Unmarshal(upstream.requestBodies[0], &forwarded))
+	require.Equal(t, forwarded.Request.SessionID, seenSessionHeader)
+}
+
+func TestGolden_GeminiNativeWrap(t *testing.T) {
+	svc := &AntigravityGatewayService{}
+	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`)
+
+	injected, err := injectIdentityPatchToGeminiRequest(body)
+	require.NoError(t, err)
+	wrapped, err := svc.wrapV1InternalRequest("project-1", "gemini-2.5-flash", injected)
+	require.NoError(t, err)
+
+	assertServiceGolden(t, wrapped, filepath.Join("..", "pkg", "antigravity", "testdata", "gemini_native_basic.golden.json"))
+}
+
+func assertServiceGolden(t *testing.T, actual []byte, goldenPath string) {
+	t.Helper()
+	normalizedActual := normalizeServiceGoldenJSON(t, actual)
+	expected, err := os.ReadFile(goldenPath)
+	require.NoError(t, err)
+	normalizedExpected := normalizeServiceGoldenJSON(t, expected)
+	require.JSONEq(t, string(normalizedExpected), string(normalizedActual))
+}
+
+func normalizeServiceGoldenJSON(t *testing.T, body []byte) []byte {
+	t.Helper()
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(body, &raw))
+	raw["requestId"] = "<request-id>"
+	normalized, err := json.MarshalIndent(raw, "", "  ")
+	require.NoError(t, err)
+	return normalized
 }
 
 func TestSignatureRetry_PropagatesSwitchError(t *testing.T) {

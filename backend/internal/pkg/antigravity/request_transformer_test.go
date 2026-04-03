@@ -2,6 +2,8 @@ package antigravity
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -399,4 +401,178 @@ func TestTransformClaudeToGeminiWithOptions_PreservesBillingHeaderSystemBlock(t 
 			require.True(t, found, "转换后的 systemInstruction 应保留 x-anthropic-billing-header 内容")
 		})
 	}
+}
+
+func TestBuildSystemInstruction_OfficialFormat_NoUserSystem(t *testing.T) {
+	instruction := buildSystemInstruction(nil, "claude-sonnet-4-5", DefaultTransformOptions(), nil)
+	require.NotNil(t, instruction)
+	require.Equal(t, "user", instruction.Role)
+	require.Len(t, instruction.Parts, 2)
+	require.Equal(t, antigravityIdentity, instruction.Parts[0].Text)
+	require.Contains(t, instruction.Parts[1].Text, "[ignore]")
+	require.NotContains(t, instruction.Parts[1].Text, "SYSTEM_PROMPT_END")
+	require.NotContains(t, instruction.Parts[1].Text, "internal initialization logs")
+}
+
+func TestBuildSystemInstruction_OfficialFormat_WithUserSystem(t *testing.T) {
+	system := json.RawMessage(`"Follow user instructions carefully."`)
+	instruction := buildSystemInstruction(system, "claude-sonnet-4-5", DefaultTransformOptions(), nil)
+	require.NotNil(t, instruction)
+	require.Len(t, instruction.Parts, 3)
+	require.Equal(t, antigravityIdentity, instruction.Parts[0].Text)
+	require.Contains(t, instruction.Parts[1].Text, "[ignore]")
+	require.Equal(t, "Follow user instructions carefully.", instruction.Parts[2].Text)
+	require.NotContains(t, instruction.Parts[1].Text, "internal initialization logs")
+}
+
+func TestBuildSystemInstruction_OfficialFormat_ExistingIdentity(t *testing.T) {
+	system := json.RawMessage(`"You are Antigravity already. Keep this."`)
+	instruction := buildSystemInstruction(system, "claude-sonnet-4-5", DefaultTransformOptions(), nil)
+	require.NotNil(t, instruction)
+	require.Len(t, instruction.Parts, 1)
+	require.Equal(t, "You are Antigravity already. Keep this.", instruction.Parts[0].Text)
+}
+
+func TestGenerateSessionID_Format(t *testing.T) {
+	contents := []GeminiContent{{
+		Role: "user",
+		Parts: []GeminiPart{{Text: "hello world"}},
+	}}
+	id := generateStableSessionID(contents)
+	require.Regexp(t, `^[0-9a-fA-F\-]{36}[0-9]{13}$`, id)
+}
+
+func TestStopSequences_NotSentByDefault(t *testing.T) {
+	req := &ClaudeRequest{Model: "claude-sonnet-4-5", MaxTokens: 10}
+	cfg := buildGenerationConfig(req)
+	require.NotNil(t, cfg)
+	require.Nil(t, cfg.StopSequences)
+}
+
+func TestToolConfig_NotSentWithoutTools(t *testing.T) {
+	claudeReq := &ClaudeRequest{
+		Model: "claude-sonnet-4-5",
+		Messages: []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hi"`)}},
+	}
+	body, err := TransformClaudeToGeminiWithOptions(claudeReq, "project-1", "claude-sonnet-4-5", DefaultTransformOptions())
+	require.NoError(t, err)
+
+	var req V1InternalRequest
+	require.NoError(t, json.Unmarshal(body, &req))
+	require.Nil(t, req.Request.ToolConfig)
+}
+
+func TestEnvelopeParity_ClaudeAndGeminiPathsMatch(t *testing.T) {
+	request := GeminiRequest{
+		Contents: []GeminiContent{{
+			Role:  "user",
+			Parts: []GeminiPart{{Text: "hello"}},
+		}},
+		SessionID: "session-1",
+	}
+
+	body, err := BuildV1InternalEnvelope("project-1", "gemini-2.5-flash", "agent", request)
+	require.NoError(t, err)
+
+	var got V1InternalRequest
+	require.NoError(t, json.Unmarshal(body, &got))
+	require.Equal(t, "project-1", got.Project)
+	require.Equal(t, "antigravity", got.UserAgent)
+	require.Equal(t, "agent", got.RequestType)
+	require.Equal(t, "gemini-2.5-flash", got.Model)
+	require.Equal(t, request.SessionID, got.Request.SessionID)
+	require.Len(t, got.Request.Contents, 1)
+	require.True(t, strings.HasPrefix(got.RequestID, "agent-"))
+}
+
+func TestGolden_ClaudeToV1Internal(t *testing.T) {
+	tests := []struct {
+		name       string
+		request    *ClaudeRequest
+		projectID  string
+		mapped     string
+		goldenFile string
+	}{
+		{
+			name: "basic",
+			request: &ClaudeRequest{
+				Model: "claude-sonnet-4-5",
+				Messages: []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hello"`)}},
+				MaxTokens: 16,
+			},
+			projectID:  "project-1",
+			mapped:     "claude-sonnet-4-5",
+			goldenFile: "claude_basic.golden.json",
+		},
+		{
+			name: "with tools",
+			request: &ClaudeRequest{
+				Model: "claude-sonnet-4-5",
+				Messages: []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hello"`)}},
+				MaxTokens: 16,
+				Tools: []ClaudeTool{{
+					Name:        "get_weather",
+					Description: "Get weather",
+					InputSchema: map[string]any{"type": "object", "properties": map[string]any{"city": map[string]any{"type": "string"}}},
+				}},
+			},
+			projectID:  "project-1",
+			mapped:     "claude-sonnet-4-5",
+			goldenFile: "claude_with_tools.golden.json",
+		},
+		{
+			name: "with thinking",
+			request: &ClaudeRequest{
+				Model: "claude-opus-4-6-thinking",
+				Messages: []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hello"`)}},
+				MaxTokens: 2000,
+				Thinking: &ThinkingConfig{Type: "adaptive"},
+			},
+			projectID:  "project-1",
+			mapped:     "claude-opus-4-6-thinking",
+			goldenFile: "claude_with_thinking.golden.json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, err := TransformClaudeToGeminiWithOptions(tt.request, tt.projectID, tt.mapped, DefaultTransformOptions())
+			require.NoError(t, err)
+			assertMatchesGolden(t, body, tt.goldenFile)
+		})
+	}
+}
+
+func assertMatchesGolden(t *testing.T, actual []byte, goldenFile string) {
+	t.Helper()
+	normalizedActual := normalizeGoldenJSON(t, actual)
+	goldenPath := filepath.Join("testdata", goldenFile)
+	expected, err := os.ReadFile(goldenPath)
+	require.NoError(t, err)
+	normalizedExpected := normalizeGoldenJSON(t, expected)
+	if *update {
+		require.NoError(t, os.WriteFile(goldenPath, normalizedActual, 0o644))
+		normalizedExpected = normalizedActual
+	}
+	require.JSONEq(t, string(normalizedExpected), string(normalizedActual))
+}
+
+var update = func() *bool {
+	b := false
+	return &b
+}()
+
+func normalizeGoldenJSON(t *testing.T, body []byte) []byte {
+	t.Helper()
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(body, &raw))
+	raw["requestId"] = "<request-id>"
+	request, ok := raw["request"].(map[string]any)
+	require.True(t, ok)
+	if _, exists := request["sessionId"]; exists {
+		request["sessionId"] = "<session-id>"
+	}
+	normalized, err := json.MarshalIndent(raw, "", "  ")
+	require.NoError(t, err)
+	return normalized
 }

@@ -19,6 +19,18 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
 )
 
+const (
+	antigravityHeaderClientName    = "antigravity"
+	antigravityHeaderClientVersion = "1.107.0"
+	antigravityHeaderGoogAPIClient = "gl-node/18.18.2 fire/0.8.6 grpc/1.10.x"
+
+	antigravityIDETypeAntigravity = 9
+	antigravityPlatformLinuxAMD64 = 3
+	antigravityPlatformUnspecified = 0
+	antigravityPluginTypeGemini   = 2
+	antigravityLoadCodeAssistMode = 1
+)
+
 // ForbiddenError 表示上游返回 403 Forbidden
 type ForbiddenError struct {
 	StatusCode int
@@ -30,7 +42,7 @@ func (e *ForbiddenError) Error() string {
 }
 
 // NewAPIRequestWithURL 使用指定的 base URL 创建 Antigravity API 请求（v1internal 端点）
-func NewAPIRequestWithURL(ctx context.Context, baseURL, action, accessToken string, body []byte) (*http.Request, error) {
+func NewAPIRequestWithURL(ctx context.Context, baseURL, action, accessToken string, body []byte, sessionID ...string) (*http.Request, error) {
 	// 构建 URL，流式请求添加 ?alt=sse 参数
 	apiURL := fmt.Sprintf("%s/v1internal:%s", baseURL, action)
 	isStream := action == "streamGenerateContent"
@@ -43,10 +55,15 @@ func NewAPIRequestWithURL(ctx context.Context, baseURL, action, accessToken stri
 		return nil, err
 	}
 
-	// 基础 Headers（与 Antigravity-Manager 保持一致，只设置这 3 个）
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("User-Agent", GetUserAgent())
+	req.Header.Set("X-Client-Name", antigravityHeaderClientName)
+	req.Header.Set("X-Client-Version", antigravityHeaderClientVersion)
+	req.Header.Set("x-goog-api-client", antigravityHeaderGoogAPIClient)
+	if len(sessionID) > 0 && strings.TrimSpace(sessionID[0]) != "" {
+		req.Header.Set("X-Machine-Session-Id", sessionID[0])
+	}
 
 	return req, nil
 }
@@ -77,10 +94,13 @@ type UserInfo struct {
 
 // LoadCodeAssistRequest loadCodeAssist 请求
 type LoadCodeAssistRequest struct {
+	Mode     int `json:"mode,omitempty"`
 	Metadata struct {
-		IDEType    string `json:"ideType"`
-		IDEVersion string `json:"ideVersion"`
-		IDEName    string `json:"ideName"`
+		IDEType    int    `json:"ideType"`
+		Platform   int    `json:"platform,omitempty"`
+		PluginType int    `json:"pluginType,omitempty"`
+		IDEVersion string `json:"ideVersion,omitempty"`
+		IDEName    string `json:"ideName,omitempty"`
 	} `json:"metadata"`
 }
 
@@ -192,9 +212,9 @@ func (c *AvailableCredit) GetMinimumAmount() float64 {
 type OnboardUserRequest struct {
 	TierID   string `json:"tierId"`
 	Metadata struct {
-		IDEType    string `json:"ideType"`
-		Platform   string `json:"platform,omitempty"`
-		PluginType string `json:"pluginType,omitempty"`
+		IDEType    int `json:"ideType"`
+		Platform   int `json:"platform,omitempty"`
+		PluginType int `json:"pluginType,omitempty"`
 	} `json:"metadata"`
 }
 
@@ -439,9 +459,12 @@ func (c *Client) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo
 // 支持 URL fallback：sandbox → daily → prod
 func (c *Client) LoadCodeAssist(ctx context.Context, accessToken string) (*LoadCodeAssistResponse, map[string]any, error) {
 	reqBody := LoadCodeAssistRequest{}
-	reqBody.Metadata.IDEType = "ANTIGRAVITY"
-	reqBody.Metadata.IDEVersion = "1.20.6"
-	reqBody.Metadata.IDEName = "antigravity"
+	reqBody.Mode = antigravityLoadCodeAssistMode
+	reqBody.Metadata.IDEType = antigravityIDETypeAntigravity
+	reqBody.Metadata.Platform = antigravityPlatformLinuxAMD64
+	reqBody.Metadata.PluginType = antigravityPluginTypeGemini
+	reqBody.Metadata.IDEVersion = antigravityHeaderClientVersion
+	reqBody.Metadata.IDEName = antigravityHeaderClientName
 
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -462,6 +485,9 @@ func (c *Client) LoadCodeAssist(ctx context.Context, accessToken string) (*LoadC
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", GetUserAgent())
+		req.Header.Set("X-Client-Name", antigravityHeaderClientName)
+		req.Header.Set("X-Client-Version", antigravityHeaderClientVersion)
+		req.Header.Set("x-goog-api-client", antigravityHeaderGoogAPIClient)
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -517,9 +543,9 @@ func (c *Client) OnboardUser(ctx context.Context, accessToken, tierID string) (s
 	}
 
 	reqBody := OnboardUserRequest{TierID: tierID}
-	reqBody.Metadata.IDEType = "ANTIGRAVITY"
-	reqBody.Metadata.Platform = "PLATFORM_UNSPECIFIED"
-	reqBody.Metadata.PluginType = "GEMINI"
+	reqBody.Metadata.IDEType = antigravityIDETypeAntigravity
+	reqBody.Metadata.Platform = antigravityPlatformUnspecified
+	reqBody.Metadata.PluginType = antigravityPluginTypeGemini
 
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -541,6 +567,9 @@ func (c *Client) OnboardUser(ctx context.Context, accessToken, tierID string) (s
 			req.Header.Set("Authorization", "Bearer "+accessToken)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("User-Agent", GetUserAgent())
+			req.Header.Set("X-Client-Name", antigravityHeaderClientName)
+			req.Header.Set("X-Client-Version", antigravityHeaderClientVersion)
+			req.Header.Set("x-goog-api-client", antigravityHeaderGoogAPIClient)
 
 			resp, err := c.httpClient.Do(req)
 			if err != nil {
@@ -675,6 +704,9 @@ func (c *Client) FetchAvailableModels(ctx context.Context, accessToken, projectI
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", GetUserAgent())
+		req.Header.Set("X-Client-Name", antigravityHeaderClientName)
+		req.Header.Set("X-Client-Version", antigravityHeaderClientVersion)
+		req.Header.Set("x-goog-api-client", antigravityHeaderGoogAPIClient)
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {

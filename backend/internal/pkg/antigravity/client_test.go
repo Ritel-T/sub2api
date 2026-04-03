@@ -72,6 +72,43 @@ func TestNewAPIRequestWithURL_流式请求(t *testing.T) {
 	}
 }
 
+func TestNewAPIRequestWithURL_OfficialHeaders(t *testing.T) {
+	ctx := context.Background()
+	baseURL := "https://example.com"
+	token := "official-token"
+	body := []byte(`{"prompt":"hello"}`)
+
+	req, err := NewAPIRequestWithURL(ctx, baseURL, "generateContent", token, body)
+	if err != nil {
+		t.Fatalf("创建请求失败: %v", err)
+	}
+
+	if got := req.Header.Get("X-Client-Name"); got != "antigravity" {
+		t.Fatalf("X-Client-Name 不匹配: got %q, want %q", got, "antigravity")
+	}
+	if got := req.Header.Get("X-Client-Version"); got != "1.107.0" {
+		t.Fatalf("X-Client-Version 不匹配: got %q, want %q", got, "1.107.0")
+	}
+	if got := req.Header.Get("x-goog-api-client"); got != "gl-node/18.18.2 fire/0.8.6 grpc/1.10.x" {
+		t.Fatalf("x-goog-api-client 不匹配: got %q", got)
+	}
+	if got := req.Header.Get("User-Agent"); !strings.HasPrefix(got, "antigravity/") || !strings.Contains(got, " linux/") {
+		t.Fatalf("User-Agent 格式不匹配: got %q", got)
+	}
+}
+
+func TestNewAPIRequestWithURL_SessionHeader(t *testing.T) {
+	ctx := context.Background()
+	req, err := NewAPIRequestWithURL(ctx, "https://example.com", "generateContent", "tok", []byte(`{}`), "session-1")
+	if err != nil {
+		t.Fatalf("创建请求失败: %v", err)
+	}
+
+	if got := req.Header.Get("X-Machine-Session-Id"); got != "session-1" {
+		t.Fatalf("X-Machine-Session-Id 不匹配: got %q, want %q", got, "session-1")
+	}
+}
+
 func TestNewAPIRequestWithURL_空Body(t *testing.T) {
 	ctx := context.Background()
 	req, err := NewAPIRequestWithURL(ctx, "https://example.com", "test", "tok", nil)
@@ -1295,8 +1332,17 @@ func TestClient_LoadCodeAssist_Success_RealCall(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 			t.Fatalf("解析请求体失败: %v", err)
 		}
-		if reqBody.Metadata.IDEType != "ANTIGRAVITY" {
-			t.Errorf("IDEType 不匹配: got %s, want ANTIGRAVITY", reqBody.Metadata.IDEType)
+		if reqBody.Mode != antigravityLoadCodeAssistMode {
+			t.Errorf("mode 不匹配: got %d, want %d", reqBody.Mode, antigravityLoadCodeAssistMode)
+		}
+		if reqBody.Metadata.IDEType != antigravityIDETypeAntigravity {
+			t.Errorf("IDEType 不匹配: got %d, want %d", reqBody.Metadata.IDEType, antigravityIDETypeAntigravity)
+		}
+		if reqBody.Metadata.Platform != antigravityPlatformLinuxAMD64 {
+			t.Errorf("Platform 不匹配: got %d, want %d", reqBody.Metadata.Platform, antigravityPlatformLinuxAMD64)
+		}
+		if reqBody.Metadata.PluginType != antigravityPluginTypeGemini {
+			t.Errorf("PluginType 不匹配: got %d, want %d", reqBody.Metadata.PluginType, antigravityPluginTypeGemini)
 		}
 		if strings.TrimSpace(reqBody.Metadata.IDEVersion) == "" {
 			t.Errorf("IDEVersion 不应为空")

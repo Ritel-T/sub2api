@@ -23,7 +23,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 )
 
@@ -136,6 +135,7 @@ type antigravityRetryLoopParams struct {
 	account          *Account
 	proxyURL         string
 	accessToken      string
+	upstreamSessionID string
 	action           string
 	body             []byte
 	c                *gin.Context
@@ -657,7 +657,7 @@ urlFallbackLoop:
 			default:
 			}
 
-			upstreamReq, err := antigravity.NewAPIRequestWithURL(p.ctx, baseURL, p.action, p.accessToken, p.body)
+			upstreamReq, err := antigravity.NewAPIRequestWithURL(p.ctx, baseURL, p.action, p.accessToken, p.body, p.upstreamSessionID)
 			if err != nil {
 				return nil, err
 			}
@@ -1300,23 +1300,23 @@ func injectIdentityPatchToGeminiRequest(body []byte) ([]byte, error) {
 		}
 	}
 
-	// 获取默认身份提示词
 	identityPatch := antigravity.GetDefaultIdentityPatch()
-
-	// 构建新的 systemInstruction
-	newPart := map[string]any{"text": identityPatch}
+	newParts := []any{
+		map[string]any{"text": identityPatch},
+		map[string]any{"text": fmt.Sprintf("Please ignore the following [ignore]%s[/ignore]", identityPatch)},
+	}
 
 	if existing, ok := request["systemInstruction"].(map[string]any); ok {
-		// 已有 systemInstruction，在开头插入身份提示词
+		existing["role"] = "user"
 		if parts, ok := existing["parts"].([]any); ok {
-			existing["parts"] = append([]any{newPart}, parts...)
+			existing["parts"] = append(newParts, parts...)
 		} else {
-			existing["parts"] = []any{newPart}
+			existing["parts"] = newParts
 		}
 	} else {
-		// 没有 systemInstruction，创建新的
 		request["systemInstruction"] = map[string]any{
-			"parts": []any{newPart},
+			"role":  "user",
+			"parts": newParts,
 		}
 	}
 
@@ -1325,21 +1325,11 @@ func injectIdentityPatchToGeminiRequest(body []byte) ([]byte, error) {
 
 // wrapV1InternalRequest 包装请求为 v1internal 格式
 func (s *AntigravityGatewayService) wrapV1InternalRequest(projectID, model string, originalBody []byte) ([]byte, error) {
-	var request any
+	var request antigravity.GeminiRequest
 	if err := json.Unmarshal(originalBody, &request); err != nil {
 		return nil, fmt.Errorf("解析请求体失败: %w", err)
 	}
-
-	wrapped := map[string]any{
-		"project":     projectID,
-		"requestId":   "agent-" + uuid.New().String(),
-		"userAgent":   "antigravity", // 固定值，与官方客户端一致
-		"requestType": "agent",
-		"model":       model,
-		"request":     request,
-	}
-
-	return json.Marshal(wrapped)
+	return antigravity.BuildV1InternalEnvelope(projectID, model, "agent", request)
 }
 
 // unwrapV1InternalResponse 解包 v1internal 响应
@@ -1366,6 +1356,17 @@ func isModelNotFoundError(statusCode int, body []byte) bool {
 		}
 	}
 	return true // 404 without specific message also treated as model not found
+}
+
+func extractUpstreamSessionID(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	result := gjson.GetBytes(body, "request.sessionId")
+	if result.Exists() {
+		return strings.TrimSpace(result.String())
+	}
+	return ""
 }
 
 // Forward 转发 Claude 协议请求（Claude → Gemini 转换）
@@ -1452,6 +1453,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		account:         account,
 		proxyURL:        proxyURL,
 		accessToken:     accessToken,
+		upstreamSessionID: extractUpstreamSessionID(geminiBody),
 		action:          action,
 		body:            geminiBody,
 		c:               c,
@@ -2223,6 +2225,7 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 		account:         account,
 		proxyURL:        proxyURL,
 		accessToken:     accessToken,
+		upstreamSessionID: extractUpstreamSessionID(wrappedBody),
 		action:          upstreamAction,
 		body:            wrappedBody,
 		c:               c,
@@ -2316,14 +2319,15 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 			cleanedInjectedBody := CleanGeminiNativeThoughtSignatures(injectedBody)
 			retryWrappedBody, wrapErr := s.wrapV1InternalRequest(projectID, mappedModel, cleanedInjectedBody)
 			if wrapErr == nil {
-				retryResult, retryErr := s.antigravityRetryLoop(antigravityRetryLoopParams{
-					ctx:             ctx,
-					prefix:          prefix,
-					account:         account,
-					proxyURL:        proxyURL,
-					accessToken:     accessToken,
-					action:          upstreamAction,
-					body:            retryWrappedBody,
+					retryResult, retryErr := s.antigravityRetryLoop(antigravityRetryLoopParams{
+						ctx:             ctx,
+						prefix:          prefix,
+						account:         account,
+						proxyURL:        proxyURL,
+						accessToken:     accessToken,
+						upstreamSessionID: extractUpstreamSessionID(retryWrappedBody),
+						action:          upstreamAction,
+						body:            retryWrappedBody,
 					c:               c,
 					httpUpstream:    s.httpUpstream,
 					settingService:  s.settingService,
