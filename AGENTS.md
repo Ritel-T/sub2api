@@ -87,10 +87,11 @@ Client → OpusClaw Gateway → Sub2API → Antigravity (Gemini API)
 |------|------|-------------|------|---------|----------|--------|---------|
 | **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v6` | `fe6334bde19f` | `sub2api-test` | 镜像传入 |
 | **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw-v6` | `fe6334bde19f` | `sub2api-app` | 镜像传入 |
-| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `fe6334bde19f` | `sub2api-c` | `docker compose build` |
+| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `7a35235f7134` | `sub2api-c` | `docker compose build` |
 | **D** | oc-relay-d | `100.101.200.81` | `:8000` | `opusclaw-d` | `d1057e26657d` | `sub2api-d` | 镜像传入 |
 
-- A、B 和 C：相同 Image ID（`fe6334bde19f`），构建于 2026-04-03，含模拟缓存计费 + 韧性加固 + 管理面板 + 默认启用
+- A、B：Image ID `fe6334bde19f`，构建于 2026-04-03，含模拟缓存计费 + 韧性加固 + 管理面板 + 默认启用
+- C：Image ID `7a35235f7134`，构建于 2026-04-04，**最新**，含 SimCache TTL 1h + ephemeral_1h 自动分类
 - D：构建于 2026-03-31 05:59，**源码较旧**（比 v5 早约 12 小时）
 
 ### oc-dev 上的容器
