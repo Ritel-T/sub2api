@@ -1,6 +1,6 @@
 # Sub2API (OpusClaw Fork) — Agent Reference
 
-> **最后更新**：2026-04-03（模拟缓存韧性加固 `6c68919c` + 管理面板 `0f07f0bc` + 默认启用 `fce00844`）
+> **最后更新**：2026-04-04（SimCache TTL 1h + ephemeral_1h 自动分类 `30107375`）
 
 ## 1. What This Is
 
@@ -205,6 +205,8 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | `simCacheRedisTimeout` | 50ms | `sim_cache_service.go` | Redis op timeout for simcache (fail-open) |
 | `simCacheBreakerThreshold` | 5 | `sim_cache_service.go` | Consecutive Redis failures before circuit opens |
 | `simCacheBreakerCooldownNs` | 30s | `sim_cache_service.go` | Circuit breaker cooldown duration |
+| `simCacheEphemeral1hThreshold` | 1800 (30min) | `sim_cache_service.go` | TTL >= this → cache_creation classified as ephemeral_1h |
+| default simcache TTL | 3600 (1h) | `sim_cache_service.go` | Default TTL when config TTLSeconds <= 0 |
 
 ## 7. Request Flow (Claude /v1/messages)
 
@@ -253,6 +255,15 @@ Claude response:
 - 丢失轮（`IsMiss`）：`cache_read=0, cache_creation=全部 prompt`
 Override 通过 `context.Value` 从 Handler 层传入，Service 层取出后以函数参数传递给 transform。
 Gemini 原生路径（`gemini_v1beta_handler.go`）不注入 override。
+
+**SimCache TTL → ephemeral_1h 自动分类（`TTLSeconds >= 1800` 时）**：
+当 SimCache TTL >= 30 分钟时，gateway_service 层自动将 cache_creation tokens 归入 `ephemeral_1h` 桶：
+- Handler 层将 `override.TTLSeconds` 通过 `WithSimCacheTTL(ctx, ttl)` 写入 context
+- 流式响应：SSE rewrite 在 `message_start` / `message_delta` 事件中调用 `rewriteCacheCreationJSON(u, "1h")`，生成嵌套 `cache_creation.ephemeral_1h_input_tokens` 字段
+- 非流式响应：`applyCacheTTLOverride(&response.Usage, "1h")` + sjson 更新 body JSON
+- RecordUsage（2 条路径）：`applyCacheTTLOverride(&result.Usage, "1h")` 确保计费用 `CacheCreation1hTokens`
+- 优先级：account-level `IsCacheTTLOverrideEnabled()` > SimCache TTL（若 account-level 已启用则跳过 SimCache）
+- `rewriteCacheCreationJSON` 可从扁平 `cache_creation_input_tokens` 自动合成嵌套 `cache_creation` 对象（兼容 Antigravity transform 层只输出扁平字段的情况）
 
 ### Scheduling Flow
 
@@ -378,6 +389,7 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
+| `30107375` | **feat(simcache): upgrade TTL to 1h and auto-classify ephemeral_1h tokens** — default TTL 300→3600, TTL>=1800 auto-promotes cache_creation to ephemeral_1h in SSE/non-streaming/RecordUsage, rewriteCacheCreationJSON synthesizes nested object from flat aggregate |
 | `fce00844` | **chore(simcache): default enabled=true, miss_probability=0** |
 | `6c68919c` | **fix(simcache): harden for production** — Lua atomic update, atomic.Value config, 50ms Redis timeout, circuit breaker |
 | `0f07f0bc` | **feat(simcache): admin settings UI** — GET/PUT `/api/v1/admin/settings/simulated-cache`, DB persistence, Vue Gateway tab card |
