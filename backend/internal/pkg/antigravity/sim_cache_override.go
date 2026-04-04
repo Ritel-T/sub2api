@@ -7,6 +7,7 @@ type SimCacheOverride struct {
 	HistoryCachedTokenCount int  // 上一轮累积的 prompt token 数（来自 Redis）
 	IsMiss                  bool // 本轮是否缓存丢失（概率掷骰结果）
 	IsFirstTurn             bool // 是否第 1 轮（无历史状态）
+	TTLSeconds              int  // 当前模拟缓存 TTL（秒），用于下游 5m/1h 分类
 }
 
 // ApplySimCacheOverride 根据决策和实际 promptTokenCount 计算最终 usage 分配。

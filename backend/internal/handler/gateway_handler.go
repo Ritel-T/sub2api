@@ -293,6 +293,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				reqLog.Warn("gateway.simcache_compute_failed", zap.Error(err))
 			} else if override != nil {
 				requestBaseCtx = service.WithSimCacheOverride(requestBaseCtx, override)
+				requestBaseCtx = service.WithSimCacheTTL(requestBaseCtx, override.TTLSeconds)
 			}
 		}
 		c.Request = c.Request.WithContext(requestBaseCtx)
@@ -521,6 +522,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			reqLog.Warn("gateway.simcache_compute_failed", zap.Error(err))
 		} else if override != nil {
 			requestBaseCtx = service.WithSimCacheOverride(requestBaseCtx, override)
+			requestBaseCtx = service.WithSimCacheTTL(requestBaseCtx, override.TTLSeconds)
 		}
 	}
 	c.Request = c.Request.WithContext(requestBaseCtx)
@@ -766,7 +768,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 							if simErr != nil {
 								reqLog.Warn("gateway.simcache_compute_failed", zap.Error(simErr))
 							} else if override != nil {
-								c.Request = c.Request.WithContext(service.WithSimCacheOverride(c.Request.Context(), override))
+								ctx := service.WithSimCacheOverride(c.Request.Context(), override)
+								ctx = service.WithSimCacheTTL(ctx, override.TTLSeconds)
+								c.Request = c.Request.WithContext(ctx)
 							}
 						}
 						fallbackUsed = true

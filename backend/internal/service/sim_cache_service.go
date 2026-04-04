@@ -11,9 +11,15 @@ import (
 )
 
 type simCacheOverrideContextKey struct{}
+type simCacheTTLContextKey struct{}
 
 // [OpusClaw Patch] simulated cache billing
 var SimCacheOverrideContextKey = simCacheOverrideContextKey{}
+
+// [OpusClaw Patch] simulated cache billing
+var SimCacheTTLContextKey = simCacheTTLContextKey{}
+
+const simCacheEphemeral1hThreshold = 1800
 
 // [OpusClaw Patch] simulated cache billing
 func WithSimCacheOverride(ctx context.Context, override *antigravity.SimCacheOverride) context.Context {
@@ -24,9 +30,31 @@ func WithSimCacheOverride(ctx context.Context, override *antigravity.SimCacheOve
 }
 
 // [OpusClaw Patch] simulated cache billing
+func WithSimCacheTTL(ctx context.Context, ttlSeconds int) context.Context {
+	if ttlSeconds <= 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, SimCacheTTLContextKey, ttlSeconds)
+}
+
+// [OpusClaw Patch] simulated cache billing
 func GetSimCacheOverride(ctx context.Context) *antigravity.SimCacheOverride {
 	override, _ := ctx.Value(SimCacheOverrideContextKey).(*antigravity.SimCacheOverride)
 	return override
+}
+
+// [OpusClaw Patch] simulated cache billing
+func GetSimCacheTTL(ctx context.Context) int {
+	ttlSeconds, _ := ctx.Value(SimCacheTTLContextKey).(int)
+	return ttlSeconds
+}
+
+func resolveSimCacheTTLSeconds(cfg config.SimulatedCacheConfig) int {
+	ttlSeconds := cfg.TTLSeconds
+	if ttlSeconds <= 0 {
+		return 3600
+	}
+	return ttlSeconds
 }
 
 const (
@@ -96,6 +124,7 @@ func (s *SimCacheService) recordFailure() {
 // [OpusClaw Patch] simulated cache billing
 func (s *SimCacheService) ComputeOverride(ctx context.Context, groupID int64, sessionHash string) (*antigravity.SimCacheOverride, error) {
 	cfg := s.loadConfig()
+	ttlSeconds := resolveSimCacheTTLSeconds(cfg)
 	if s == nil || !cfg.Enabled || sessionHash == "" || s.repo == nil {
 		return nil, nil
 	}
@@ -114,13 +143,14 @@ func (s *SimCacheService) ComputeOverride(ctx context.Context, groupID int64, se
 	s.recordSuccess()
 
 	if state == nil || state.TurnCount <= 0 {
-		return &antigravity.SimCacheOverride{IsFirstTurn: true}, nil
+		return &antigravity.SimCacheOverride{IsFirstTurn: true, TTLSeconds: ttlSeconds}, nil
 	}
 
 	return &antigravity.SimCacheOverride{
 		HistoryCachedTokenCount: state.CachedTokenCount,
 		IsMiss:                  rand.Float64() < cfg.MissProbability,
 		IsFirstTurn:             false,
+		TTLSeconds:              ttlSeconds,
 	}, nil
 }
 
@@ -137,10 +167,7 @@ func (s *SimCacheService) UpdateState(ctx context.Context, groupID int64, sessio
 		totalPromptTokens = 0
 	}
 
-	ttlSeconds := cfg.TTLSeconds
-	if ttlSeconds <= 0 {
-		ttlSeconds = 300
-	}
+	ttlSeconds := resolveSimCacheTTLSeconds(cfg)
 
 	// Use context.WithoutCancel so client disconnect doesn't abort the post-response state update,
 	// but cap with a short timeout to prevent lingering Redis ops.

@@ -336,7 +336,33 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 | Sub2API-C PostgreSQL | sub2api / sub2apic_pg_29f8a1b3 |
 | Sub2API-C Redis | sub2apic_redis_4e7c2d91 |
 
-## 10. Important Notes
+## 10. Production Safety — No Unconfirmed Disruptive Operations
+
+**Any operation that could cause service downtime, data loss, or corruption is FORBIDDEN without explicit user confirmation.** This includes but is not limited to:
+
+- Restarting, stopping, or upgrading production containers (`docker restart`, `docker stop`, `docker compose up`, etc.)
+- Directly reading, writing, copying, or replacing database files on disk
+- Modifying database schemas or running migrations against production databases
+- Changing environment variables or configs that require a container restart to take effect
+- Any `docker exec` command that writes to persistent storage inside a running container
+
+**Preferred safe alternatives (MUST be attempted first):**
+
+- **Configuration/settings changes**: Use the application's Admin API (e.g. `PUT /api/v1/admin/settings/*`) which takes effect at runtime without restart
+- **Database record updates**: Use the application's CRUD API endpoints, not direct SQL
+- **Reading production data**: Use API endpoints or read-only SQL queries against a *copy* of the database, never against the live file while the application is running
+- **If no safe API exists**: Inform the user and ask how they want to proceed before touching any production resource
+
+**If a disruptive operation is truly unavoidable:**
+
+1. Explain the risk clearly (downtime duration, data loss potential, rollback plan)
+2. Propose the exact commands you will run
+3. **Wait for explicit user confirmation** — a clear "yes", "go ahead", "do it", or equivalent
+4. Execute with proper safety steps (e.g., stop container before touching database files; verify integrity before and after)
+
+**Incident reference**: On 2026-04-03, directly overwriting a SQLite database file via `docker cp` while a sibling service container (opusclaw-app) was running caused WAL/DB mismatch corruption, resulting in ~22 hours of production downtime. Always use runtime APIs when available, and always stop containers before touching persistent storage files.
+
+## 11. Important Notes
 
 - All patches must be tagged with `[OpusClaw Patch]` comment
 - **Never modify `request_transformer.go`** without understanding the full Claude↔Gemini transform chain

@@ -256,6 +256,34 @@ func TestNonStreamingReconcile_NativeClaude(t *testing.T) {
 	assert.Equal(t, 30, response.Usage.CacheReadInputTokens)
 }
 
+func TestRewriteCacheCreationJSON_CreatesNestedObjectFromAggregate(t *testing.T) {
+	usage := map[string]any{
+		"cache_creation_input_tokens": float64(21),
+	}
+
+	changed := rewriteCacheCreationJSON(usage, "1h")
+	require.True(t, changed)
+
+	ccObj, ok := usage["cache_creation"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(0), ccObj["ephemeral_5m_input_tokens"])
+	assert.Equal(t, float64(21), ccObj["ephemeral_1h_input_tokens"])
+}
+
+func TestRewriteCacheCreationJSON_UsesFiveMinuteBucket(t *testing.T) {
+	usage := map[string]any{
+		"cache_creation_input_tokens": float64(9),
+	}
+
+	changed := rewriteCacheCreationJSON(usage, "5m")
+	require.True(t, changed)
+
+	ccObj, ok := usage["cache_creation"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(9), ccObj["ephemeral_5m_input_tokens"])
+	assert.Equal(t, float64(0), ccObj["ephemeral_1h_input_tokens"])
+}
+
 func TestNonStreamingReconcile_NoCachedTokens(t *testing.T) {
 	// 没有 cached_tokens 字段
 	body := []byte(`{

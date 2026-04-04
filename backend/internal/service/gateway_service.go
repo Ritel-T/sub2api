@@ -1459,84 +1459,84 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			if sessionHash != "" && stickyAccountID > 0 {
 				if containsInt64(routingAccountIDs, stickyAccountID) && !isExcluded(stickyAccountID) {
 					// 粘性账号在路由列表中，优先使用
-				if stickyAccount, ok := accountByID[stickyAccountID]; ok {
-					var stickyCacheMissReason string
+					if stickyAccount, ok := accountByID[stickyAccountID]; ok {
+						var stickyCacheMissReason string
 
-					gatePass := s.isAccountSchedulableForSelection(stickyAccount) &&
-						s.isAccountAllowedForPlatform(stickyAccount, platform, useMixed) &&
-						(requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, stickyAccount, requestedModel)) &&
-						s.isAccountSchedulableForModelSelection(ctx, stickyAccount, requestedModel) &&
-						s.isAccountSchedulableForQuota(stickyAccount) &&
-						s.isAccountSchedulableForWindowCost(ctx, stickyAccount, true)
+						gatePass := s.isAccountSchedulableForSelection(stickyAccount) &&
+							s.isAccountAllowedForPlatform(stickyAccount, platform, useMixed) &&
+							(requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, stickyAccount, requestedModel)) &&
+							s.isAccountSchedulableForModelSelection(ctx, stickyAccount, requestedModel) &&
+							s.isAccountSchedulableForQuota(stickyAccount) &&
+							s.isAccountSchedulableForWindowCost(ctx, stickyAccount, true)
 
-					rpmPass := gatePass && s.isAccountSchedulableForRPM(ctx, stickyAccount, true)
+						rpmPass := gatePass && s.isAccountSchedulableForRPM(ctx, stickyAccount, true)
 
-					if rpmPass { // 粘性会话窗口费用+RPM 检查
-						// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
-						result, err := s.tryAcquireAccountSlot(ctx, stickyAccountID, effectiveConcurrencyForSlot(stickyAccount, requestedModel, stickyAccount.isModelRateLimitedWithContext(ctx, requestedModel)))
-						if err == nil && result.Acquired {
-							// 会话数量限制检查
-							if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
-								result.ReleaseFunc() // 释放槽位
-								stickyCacheMissReason = "session_limit"
-								// 继续到负载感知选择
-							} else {
-								if s.debugModelRoutingEnabled() {
-									logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
-								}
-								return &AccountSelectionResult{
-									Account:     stickyAccount,
-									Acquired:    true,
-									ReleaseFunc: result.ReleaseFunc,
-								}, nil
-							}
-						}
-
-						if stickyCacheMissReason == "" {
-							waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, stickyAccountID)
-							if waitingCount < cfg.StickySessionMaxWaiting {
-								// 会话数量限制检查（等待计划也需要占用会话配额）
+						if rpmPass { // 粘性会话窗口费用+RPM 检查
+							// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+							result, err := s.tryAcquireAccountSlot(ctx, stickyAccountID, effectiveConcurrencyForSlot(stickyAccount, requestedModel, stickyAccount.isModelRateLimitedWithContext(ctx, requestedModel)))
+							if err == nil && result.Acquired {
+								// 会话数量限制检查
 								if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
+									result.ReleaseFunc() // 释放槽位
 									stickyCacheMissReason = "session_limit"
-									// 会话限制已满，继续到负载感知选择
+									// 继续到负载感知选择
 								} else {
+									if s.debugModelRoutingEnabled() {
+										logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
+									}
 									return &AccountSelectionResult{
-										Account: stickyAccount,
-										WaitPlan: &AccountWaitPlan{
-											AccountID: stickyAccountID,
-											// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
-											MaxConcurrency: effectiveConcurrencyForSlot(stickyAccount, requestedModel, stickyAccount.isModelRateLimitedWithContext(ctx, requestedModel)),
-											Timeout:        cfg.StickySessionWaitTimeout,
-											MaxWaiting:     cfg.StickySessionMaxWaiting,
-										},
+										Account:     stickyAccount,
+										Acquired:    true,
+										ReleaseFunc: result.ReleaseFunc,
 									}, nil
 								}
-							} else {
-								stickyCacheMissReason = "wait_queue_full"
 							}
-						}
-						// 粘性账号槽位满且等待队列已满，继续使用负载感知选择
-					} else if !gatePass {
-						stickyCacheMissReason = "gate_check"
-					} else {
-						stickyCacheMissReason = "rpm_red"
-					}
 
-					// 记录粘性缓存未命中的结构化日志
-					if stickyCacheMissReason != "" {
-						baseRPM := stickyAccount.GetBaseRPM()
-						var currentRPM int
-						if count, ok := rpmFromPrefetchContext(ctx, stickyAccount.ID); ok {
-							currentRPM = count
+							if stickyCacheMissReason == "" {
+								waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, stickyAccountID)
+								if waitingCount < cfg.StickySessionMaxWaiting {
+									// 会话数量限制检查（等待计划也需要占用会话配额）
+									if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
+										stickyCacheMissReason = "session_limit"
+										// 会话限制已满，继续到负载感知选择
+									} else {
+										return &AccountSelectionResult{
+											Account: stickyAccount,
+											WaitPlan: &AccountWaitPlan{
+												AccountID: stickyAccountID,
+												// [OpusClaw Patch] Use differentiated Antigravity concurrency override.
+												MaxConcurrency: effectiveConcurrencyForSlot(stickyAccount, requestedModel, stickyAccount.isModelRateLimitedWithContext(ctx, requestedModel)),
+												Timeout:        cfg.StickySessionWaitTimeout,
+												MaxWaiting:     cfg.StickySessionMaxWaiting,
+											},
+										}, nil
+									}
+								} else {
+									stickyCacheMissReason = "wait_queue_full"
+								}
+							}
+							// 粘性账号槽位满且等待队列已满，继续使用负载感知选择
+						} else if !gatePass {
+							stickyCacheMissReason = "gate_check"
+						} else {
+							stickyCacheMissReason = "rpm_red"
 						}
-						logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=%s account_id=%d session=%s current_rpm=%d base_rpm=%d",
-							stickyCacheMissReason, stickyAccountID, shortSessionHash(sessionHash), currentRPM, baseRPM)
+
+						// 记录粘性缓存未命中的结构化日志
+						if stickyCacheMissReason != "" {
+							baseRPM := stickyAccount.GetBaseRPM()
+							var currentRPM int
+							if count, ok := rpmFromPrefetchContext(ctx, stickyAccount.ID); ok {
+								currentRPM = count
+							}
+							logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=%s account_id=%d session=%s current_rpm=%d base_rpm=%d",
+								stickyCacheMissReason, stickyAccountID, shortSessionHash(sessionHash), currentRPM, baseRPM)
+						}
+					} else {
+						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+						logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=account_cleared account_id=%d session=%s current_rpm=0 base_rpm=0",
+							stickyAccountID, shortSessionHash(sessionHash))
 					}
-				} else {
-					_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
-					logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=account_cleared account_id=%d session=%s current_rpm=0 base_rpm=0",
-						stickyAccountID, shortSessionHash(sessionHash))
-				}
 				}
 			}
 
@@ -7044,6 +7044,20 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				}
 			}
 		}
+		if !account.IsCacheTTLOverrideEnabled() && GetSimCacheTTL(ctx) >= simCacheEphemeral1hThreshold {
+			if eventType == "message_start" {
+				if msg, ok := event["message"].(map[string]any); ok {
+					if u, ok := msg["usage"].(map[string]any); ok {
+						eventChanged = rewriteCacheCreationJSON(u, "1h") || eventChanged
+					}
+				}
+			}
+			if eventType == "message_delta" {
+				if u, ok := event["usage"].(map[string]any); ok {
+					eventChanged = rewriteCacheCreationJSON(u, "1h") || eventChanged
+				}
+			}
+		}
 
 		if needModelReplace {
 			if msg, ok := event["message"].(map[string]any); ok {
@@ -7389,11 +7403,21 @@ func applyCacheTTLOverride(usage *ClaudeUsage, target string) bool {
 func rewriteCacheCreationJSON(usageObj map[string]any, target string) bool {
 	ccObj, ok := usageObj["cache_creation"].(map[string]any)
 	if !ok {
-		return false
+		total, exists := parseSSEUsageInt(usageObj["cache_creation_input_tokens"])
+		if !exists || total == 0 {
+			return false
+		}
+		ccObj = map[string]any{}
+		usageObj["cache_creation"] = ccObj
 	}
 	v5m, _ := parseSSEUsageInt(ccObj["ephemeral_5m_input_tokens"])
 	v1h, _ := parseSSEUsageInt(ccObj["ephemeral_1h_input_tokens"])
 	total := v5m + v1h
+	if total == 0 {
+		if fallbackTotal, exists := parseSSEUsageInt(usageObj["cache_creation_input_tokens"]); exists {
+			total = fallbackTotal
+		}
+	}
 	if total == 0 {
 		return false
 	}
@@ -7466,6 +7490,16 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 		overrideTarget := account.GetCacheTTLOverrideTarget()
 		if applyCacheTTLOverride(&response.Usage, overrideTarget) {
 			// 同步更新 body JSON 中的嵌套 cache_creation 对象
+			if newBody, err := sjson.SetBytes(body, "usage.cache_creation.ephemeral_5m_input_tokens", response.Usage.CacheCreation5mTokens); err == nil {
+				body = newBody
+			}
+			if newBody, err := sjson.SetBytes(body, "usage.cache_creation.ephemeral_1h_input_tokens", response.Usage.CacheCreation1hTokens); err == nil {
+				body = newBody
+			}
+		}
+	}
+	if !account.IsCacheTTLOverrideEnabled() && GetSimCacheTTL(c.Request.Context()) >= simCacheEphemeral1hThreshold {
+		if applyCacheTTLOverride(&response.Usage, "1h") {
 			if newBody, err := sjson.SetBytes(body, "usage.cache_creation.ephemeral_5m_input_tokens", response.Usage.CacheCreation5mTokens); err == nil {
 				body = newBody
 			}
@@ -7846,6 +7880,10 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 		applyCacheTTLOverride(&result.Usage, account.GetCacheTTLOverrideTarget())
 		cacheTTLOverridden = (result.Usage.CacheCreation5mTokens + result.Usage.CacheCreation1hTokens) > 0
 	}
+	if !cacheTTLOverridden && GetSimCacheTTL(ctx) >= simCacheEphemeral1hThreshold {
+		applyCacheTTLOverride(&result.Usage, "1h")
+		cacheTTLOverridden = (result.Usage.CacheCreation5mTokens + result.Usage.CacheCreation1hTokens) > 0
+	}
 
 	// 获取费率倍数（优先级：用户专属 > 分组默认 > 系统默认）
 	multiplier := 1.0
@@ -8049,6 +8087,10 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 	cacheTTLOverridden := false
 	if account.IsCacheTTLOverrideEnabled() {
 		applyCacheTTLOverride(&result.Usage, account.GetCacheTTLOverrideTarget())
+		cacheTTLOverridden = (result.Usage.CacheCreation5mTokens + result.Usage.CacheCreation1hTokens) > 0
+	}
+	if !cacheTTLOverridden && GetSimCacheTTL(ctx) >= simCacheEphemeral1hThreshold {
+		applyCacheTTLOverride(&result.Usage, "1h")
 		cacheTTLOverridden = (result.Usage.CacheCreation5mTokens + result.Usage.CacheCreation1hTokens) > 0
 	}
 

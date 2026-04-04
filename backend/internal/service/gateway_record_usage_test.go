@@ -447,3 +447,59 @@ func TestGatewayServiceRecordUsage_ReasoningEffortNil(t *testing.T) {
 	require.NotNil(t, usageRepo.lastLog)
 	require.Nil(t, usageRepo.lastLog.ReasoningEffort)
 }
+
+func TestGatewayServiceRecordUsage_SimCacheTTLPromotesTo1H(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	ctx := WithSimCacheTTL(context.Background(), 1800)
+	err := svc.RecordUsage(ctx, &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID: "gateway_simcache_1h",
+			Usage: ClaudeUsage{
+				InputTokens:              0,
+				OutputTokens:             6,
+				CacheCreationInputTokens: 10,
+			},
+			Model:    "claude-sonnet-4",
+			Duration: time.Second,
+		},
+		APIKey:  &APIKey{ID: 509},
+		User:    &User{ID: 609},
+		Account: &Account{ID: 709},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 10, usageRepo.lastLog.CacheCreation1hTokens)
+	require.Equal(t, 0, usageRepo.lastLog.CacheCreation5mTokens)
+}
+
+func TestGatewayServiceRecordUsage_SimCacheTTLBelowThresholdKeepsDefaultBucket(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	ctx := WithSimCacheTTL(context.Background(), 1799)
+	err := svc.RecordUsage(ctx, &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID: "gateway_simcache_5m",
+			Usage: ClaudeUsage{
+				InputTokens:              0,
+				OutputTokens:             6,
+				CacheCreationInputTokens: 10,
+			},
+			Model:    "claude-sonnet-4",
+			Duration: time.Second,
+		},
+		APIKey:  &APIKey{ID: 510},
+		User:    &User{ID: 610},
+		Account: &Account{ID: 710},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 0, usageRepo.lastLog.CacheCreation1hTokens)
+	require.Equal(t, 0, usageRepo.lastLog.CacheCreation5mTokens)
+}
