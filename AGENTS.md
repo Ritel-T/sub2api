@@ -1,6 +1,6 @@
 # Sub2API (OpusClaw Fork) — Agent Reference
 
-> **最后更新**：2026-04-04（SimCache TTL 1h + ephemeral_1h 自动分类 `30107375`）
+> **最后更新**：2026-04-05（积分误判修复 + 调度加固 `40aeeecf`）
 
 ## 1. What This Is
 
@@ -33,7 +33,7 @@ Upstream repo: `github.com/Wei-Shaw/sub2api` (merged up to `055c48ab`)
 ```
 
 镜像标签策略：每次 build 生成 `sub2api:opusclaw-<git-short-hash>`（不可变），
-同时更新别名 `opusclaw-v6`（A/B compose 引用）和 `opusclaw-c`（C compose 默认）。
+同时更新别名 `opusclaw`（A/B/C compose 统一引用此标签）。
 
 ### 测试
 
@@ -80,13 +80,12 @@ Client → OpusClaw Gateway → Sub2API → Antigravity (Gemini API)
 
 | 实例 | 机器 | Tailscale IP | 端口 | 镜像标签 | Image ID | 容器名 | 部署方式 |
 |------|------|-------------|------|---------|----------|--------|---------|
-| **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v6` | `84b96cbccdca` | `sub2api-test` | 镜像传入 |
-| **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw-v6` | `84b96cbccdca` | `sub2api-app` | 镜像传入 |
-| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `84b96cbccdca` | `sub2api-c` | `docker compose build` |
+| **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw` | `a2c780234791` | `sub2api-test` | 镜像传入 |
+| **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw` | `a2c780234791` | `sub2api-app` | 镜像传入 |
+| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw` | `a2c780234791` | `sub2api-c` | `docker compose build` |
 | **D** | oc-relay-d | `100.101.200.81` | `:8000` | `opusclaw-d` | `d1057e26657d` | `sub2api-d` | 镜像传入 |
 
-- A、B：Image ID `84b96cbccdca`，构建于 2026-04-05，含模拟缓存计费 + 韧性加固 + 管理面板 + 默认启用 + SimCache key 解耦
-- C：Image ID `84b96cbccdca`，构建于 2026-04-05，**最新**，含 SimCache TTL 1h + ephemeral_1h 自动分类 + SimCache key 解耦
+- A、B、C：Image ID `a2c780234791`，构建于 2026-04-05，含积分误判修复 + 调度加固 + 模拟缓存计费 + SimCache TTL 1h + ephemeral_1h 自动分类 + SimCache key 解耦
 - D：构建于 2026-03-31 05:59，**源码较旧**（比 v5 早约 12 小时）
 
 ### oc-dev 上的容器
@@ -161,7 +160,7 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | Claude signature cleanup | `claude_signature_cleaner.go` + `gateway_handler.go` | Clear thinking signatures on account switch |
 | Signature retry skip smart wait | `antigravity_gateway_service.go` | Don't nest smart retry inside signature retry |
 | Credits exhausted 30min cooldown | `antigravity_credits_overages.go` | Reduced from 5h to 30min |
-| Aggressive credits exhaustion marking | `antigravity_credits_overages.go:231` | Mark on nil/error/429 |
+| Aggressive credits exhaustion marking | `antigravity_credits_overages.go:239` | Mark on nil/error only (429 removed) |
 | Failover exponential backoff | `failover_loop.go` | Exponential backoff with 4s cap |
 | First-message-only session hash | `gateway_service.go` | Stable multi-turn hash |
 | Quota tier scheduling | `gateway_service.go` | Free-quota prioritized over credits-only |
@@ -181,6 +180,12 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | Simulated cache billing | `sim_cache_override.go`, `sim_cache_service.go`, `sim_cache_state.go`, `response_transformer.go`, `stream_transformer.go`, `gemini_messages_compat_service.go`, `antigravity_gateway_service.go`, `gateway_handler.go` | Per-session Redis-backed token accumulator; probability-based cache miss simulation; override injected via context; Claude `/v1/messages` path only |
 | Simulated cache admin settings | `setting_service.go`, `setting_handler.go`, `admin.go`, `SettingsView.vue` | GET/PUT `/api/v1/admin/settings/simulated-cache`; DB persistence + atomic config sync via `SimCacheService.UpdateConfig()` |
 | Simulated cache resilience | `sim_cache_service.go`, `sim_cache_repo.go`, `sim_cache_state.go` | Lua atomic update (HINCRBY+HSET+EXPIRE); atomic.Value config snapshot; 50ms Redis timeout; circuit breaker (5 failures → 30s cooldown) |
+| Credits false-positive fix | `antigravity_credits_overages.go` | Remove 429 from aggressive marking; remove ambiguous `"resource has been exhausted"` keyword; symmetric cache update in `clearCreditsExhausted()` |
+| Post-injection 429 marking | `antigravity_gateway_service.go:719` | When `overagesInjected=true` and upstream still 429, mark credits exhausted to break hot-loop |
+| Second-stage credits retry 429 | `antigravity_credits_overages.go:208` | Mark exhausted when `attemptCreditsOveragesRetry` returns 429 |
+| Rate-limit window preservation | `antigravity_gateway_service.go:153` | `nextModelRateLimitReset()`: use `max(existing, proposed)` instead of blind overwrite |
+| WaitPlan revalidation | `gateway_handler.go:396,643` | After `AcquireAccountSlotWithWaitTimeout`, re-fetch account and verify still schedulable |
+| Sticky context propagation | `antigravity_gateway_service.go:152-182`, `gateway_handler.go:419,725` | Pass `groupID/sessionHash` via context into `Forward()`/`ForwardGemini()` for immediate sticky cleanup |
 
 ## 6. Key Constants
 
@@ -378,19 +383,23 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 - Commit 是免费的安全网——可以 amend、squash、revert，但未提交的工作区变更丢了就无法恢复
 - 未提交的修改不受 `git reflog` 保护
 
-**禁止执行的 git 操作（除非用户明确要求）：**
+**绝对禁止的 git 操作（无例外）：**
 - `git checkout -- <file>` 或 `git checkout .`（还原工作区文件）
 - `git reset --hard`（丢弃所有未提交修改）
 - `git clean -fd`（删除未跟踪文件）
 - `git stash drop`（丢弃 stash 内容）
-- 任何会覆盖工作区中其他 agent 可能正在进行的修改的操作
 
-**如果需要还原文件：**
-1. 先检查 `git status` 和 `git diff` 确认工作区是否有其他人的未提交修改
-2. 如果有 → **禁止还原**，先通知用户
-3. 如果确认只有自己的修改 → 可以 checkout 单个文件，但必须说明原因
+**核心原则：未提交的工作区修改永远不属于你。**
+- 工作区中的未提交修改可能来自其他 session、其他 agent、或用户手动编辑
+- 即使修改看起来是子 agent 的 scope creep，也**绝对不能丢弃**——子 agent 改了额外文件通常有其原因（依赖联动、类型定义、配置同步）
+- 你无法判断未提交修改的来源和意图，因此**没有资格决定丢弃**
 
-**事故参考**：2026-04-05，一个 agent 完成了 11 个文件的 retention_ratio 功能实现（含测试、部署），但未 commit。另一个 agent 随后执行了 git checkout 类操作，导致全部修改不可恢复地丢失，需要完整重新实现。
+**如果工作区有不属于当前任务的未提交修改：**
+1. **不要动它们**——直接在其基础上工作
+2. 只 `git add` 并 commit 你自己修改的文件
+3. 如果你的修改与已有未提交修改冲突 → 停下来，告知用户，等待指示
+
+**事故参考**：2026-04-05，一个 agent 看到工作区有 14 个文件的未提交修改，误判为子 agent 的 scope creep，执行 `git checkout` 全部丢弃。实际上其中包含另一个 session 完成的 retention_ratio 功能实现（含测试、部署），导致全部修改不可恢复地丢失，需要完整重新实现。
 
 ## 11. Important Notes
 
@@ -408,6 +417,9 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
+| `40aeeecf` | **fix(scheduling): harden antigravity retry and wait-path handling** — second-stage credits retry 429 marks exhausted; `nextModelRateLimitReset()` preserves later windows; WaitPlan revalidation after slot acquisition; sticky context propagation via `WithAntigravityStickyContext()` |
+| `7930b2a9` | **fix(credits): break hot-loop by marking exhausted on post-injection 429** — when `overagesInjected=true` and upstream still 429, `setCreditsExhausted()` breaks cross-request scheduling loop |
+| `ca0aaeb3` | **fix(credits): prevent false-positive credits exhaustion marking on new accounts** — remove 429 from aggressive marking; remove ambiguous `"resource has been exhausted"` keyword; symmetric cache update in `clearCreditsExhausted()` |
 | `30107375` | **feat(simcache): upgrade TTL to 1h and auto-classify ephemeral_1h tokens** — default TTL 300→3600, TTL>=1800 auto-promotes cache_creation to ephemeral_1h in SSE/non-streaming/RecordUsage, rewriteCacheCreationJSON synthesizes nested object from flat aggregate |
 | `fce00844` | **chore(simcache): default enabled=true, miss_probability=0** |
 | `6c68919c` | **fix(simcache): harden for production** — Lua atomic update, atomic.Value config, 50ms Redis timeout, circuit breaker |

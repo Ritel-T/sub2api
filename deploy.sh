@@ -11,15 +11,14 @@
 #   ./deploy.sh rollback <a|b> <tag>   Roll back target to a previous tag
 #
 # Tags: each build produces sub2api:opusclaw-<git-hash> (immutable).
-# Alias sub2api:opusclaw-v6 always points to the latest build (A/B compose use it).
-# Alias sub2api:opusclaw-c is kept for C's local compose default.
+# Alias sub2api:opusclaw is the single stable tag all compose files reference.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_DIR="/srv/sub2api-c"
 IMAGE_BASE="sub2api"
-ALIAS_TAG="opusclaw-v6"
+ALIAS_TAG="opusclaw"
 
 declare -A HOSTS=( [a]="100.114.245.91" [b]="100.112.136.98" )
 declare -A COMPOSE_FILES=( [a]="/srv/sub2api/docker-compose.yml" [b]="/srv/sub2api/docker-compose.yml" )
@@ -44,11 +43,10 @@ cmd_build() {
   cd "$COMPOSE_DIR"
   SUB2API_TAG="${tag}" docker compose build --no-cache
 
-  docker tag "${IMAGE_BASE}:${tag}" "${IMAGE_BASE}:opusclaw-c"
   docker tag "${IMAGE_BASE}:${tag}" "${IMAGE_BASE}:${ALIAS_TAG}"
 
   ok "Built: ${IMAGE_BASE}:${tag}"
-  ok "Aliases: opusclaw-c, ${ALIAS_TAG}"
+  ok "Alias: ${ALIAS_TAG}"
   echo
   docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}' \
     | grep "^${IMAGE_BASE}:" | head -10 || true
