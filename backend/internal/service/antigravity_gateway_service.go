@@ -130,24 +130,24 @@ func (e *PromptTooLongError) Error() string {
 
 // antigravityRetryLoopParams 重试循环的参数
 type antigravityRetryLoopParams struct {
-	ctx              context.Context
-	prefix           string
-	account          *Account
-	proxyURL         string
-	accessToken      string
+	ctx               context.Context
+	prefix            string
+	account           *Account
+	proxyURL          string
+	accessToken       string
 	upstreamSessionID string
-	action           string
-	body             []byte
-	c                *gin.Context
-	httpUpstream     HTTPUpstream
-	settingService   *SettingService
-	accountRepo      AccountRepository // 用于智能重试的模型级别限流
-	handleError      func(ctx context.Context, prefix string, account *Account, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult
-	requestedModel   string // 用于限流检查的原始请求模型
-	isSignatureRetry bool   // [OpusClaw Patch] 标记签名修复阶段重试，避免智能重试嵌套等待
-	isStickySession  bool   // 是否为粘性会话（用于账号切换时的缓存计费判断）
-	groupID          int64  // 用于模型级限流时清除粘性会话
-	sessionHash      string // 用于模型级限流时清除粘性会话
+	action            string
+	body              []byte
+	c                 *gin.Context
+	httpUpstream      HTTPUpstream
+	settingService    *SettingService
+	accountRepo       AccountRepository // 用于智能重试的模型级别限流
+	handleError       func(ctx context.Context, prefix string, account *Account, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult
+	requestedModel    string // 用于限流检查的原始请求模型
+	isSignatureRetry  bool   // [OpusClaw Patch] 标记签名修复阶段重试，避免智能重试嵌套等待
+	isStickySession   bool   // 是否为粘性会话（用于账号切换时的缓存计费判断）
+	groupID           int64  // 用于模型级限流时清除粘性会话
+	sessionHash       string // 用于模型级限流时清除粘性会话
 }
 
 // antigravityRetryLoopResult 重试循环的结果
@@ -704,13 +704,22 @@ urlFallbackLoop:
 				respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 				_ = resp.Body.Close()
 
-				if overagesInjected && shouldMarkCreditsExhausted(resp, respBody, nil) {
+				if overagesInjected {
 					modelKey := resolveCreditsOveragesModelKey(p.ctx, p.account, "", p.requestedModel)
-					s.handleCreditsRetryFailure(p.ctx, p.prefix, modelKey, p.account, &http.Response{
-						StatusCode: resp.StatusCode,
-						Header:     resp.Header.Clone(),
-						Body:       io.NopCloser(bytes.NewReader(respBody)),
-					}, nil)
+					if shouldMarkCreditsExhausted(resp, respBody, nil) {
+						s.handleCreditsRetryFailure(p.ctx, p.prefix, modelKey, p.account, &http.Response{
+							StatusCode: resp.StatusCode,
+							Header:     resp.Header.Clone(),
+							Body:       io.NopCloser(bytes.NewReader(respBody)),
+						}, nil)
+					} else if resp.StatusCode == http.StatusTooManyRequests {
+						// [OpusClaw Patch] 积分注入后仍 429 → 标记积分耗尽，阻断热循环。
+						// 区别于旧 aggressive marking：仅在 overagesInjected=true 时触发，
+						// 不影响未注入积分的普通 429 流程。
+						s.setCreditsExhausted(p.ctx, p.account)
+						logger.LegacyPrintf("service.antigravity_gateway", "%s pre_injected_credits_429 model=%s account=%d marked_exhausted=true (breaking credits injection loop)",
+							p.prefix, modelKey, p.account.ID)
+					}
 				}
 
 				// ★ 统一入口：自定义错误码 + 临时不可调度
@@ -1448,23 +1457,23 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 
 	// 执行带重试的请求
 	result, err := s.antigravityRetryLoop(antigravityRetryLoopParams{
-		ctx:             ctx,
-		prefix:          prefix,
-		account:         account,
-		proxyURL:        proxyURL,
-		accessToken:     accessToken,
+		ctx:               ctx,
+		prefix:            prefix,
+		account:           account,
+		proxyURL:          proxyURL,
+		accessToken:       accessToken,
 		upstreamSessionID: extractUpstreamSessionID(geminiBody),
-		action:          action,
-		body:            geminiBody,
-		c:               c,
-		httpUpstream:    s.httpUpstream,
-		settingService:  s.settingService,
-		accountRepo:     s.accountRepo,
-		handleError:     s.handleUpstreamError,
-		requestedModel:  originalModel,
-		isStickySession: isStickySession, // Forward 由上层判断粘性会话
-		groupID:         0,               // Forward 方法没有 groupID，由上层处理粘性会话清除
-		sessionHash:     "",              // Forward 方法没有 sessionHash，由上层处理粘性会话清除
+		action:            action,
+		body:              geminiBody,
+		c:                 c,
+		httpUpstream:      s.httpUpstream,
+		settingService:    s.settingService,
+		accountRepo:       s.accountRepo,
+		handleError:       s.handleUpstreamError,
+		requestedModel:    originalModel,
+		isStickySession:   isStickySession, // Forward 由上层判断粘性会话
+		groupID:           0,               // Forward 方法没有 groupID，由上层处理粘性会话清除
+		sessionHash:       "",              // Forward 方法没有 sessionHash，由上层处理粘性会话清除
 	})
 	if err != nil {
 		// 检查是否是账号切换信号，转换为 UpstreamFailoverError 让 Handler 切换账号
@@ -2220,23 +2229,23 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 
 	// 执行带重试的请求
 	result, err := s.antigravityRetryLoop(antigravityRetryLoopParams{
-		ctx:             ctx,
-		prefix:          prefix,
-		account:         account,
-		proxyURL:        proxyURL,
-		accessToken:     accessToken,
+		ctx:               ctx,
+		prefix:            prefix,
+		account:           account,
+		proxyURL:          proxyURL,
+		accessToken:       accessToken,
 		upstreamSessionID: extractUpstreamSessionID(wrappedBody),
-		action:          upstreamAction,
-		body:            wrappedBody,
-		c:               c,
-		httpUpstream:    s.httpUpstream,
-		settingService:  s.settingService,
-		accountRepo:     s.accountRepo,
-		handleError:     s.handleUpstreamError,
-		requestedModel:  originalModel,
-		isStickySession: isStickySession, // ForwardGemini 由上层判断粘性会话
-		groupID:         0,               // ForwardGemini 方法没有 groupID，由上层处理粘性会话清除
-		sessionHash:     "",              // ForwardGemini 方法没有 sessionHash，由上层处理粘性会话清除
+		action:            upstreamAction,
+		body:              wrappedBody,
+		c:                 c,
+		httpUpstream:      s.httpUpstream,
+		settingService:    s.settingService,
+		accountRepo:       s.accountRepo,
+		handleError:       s.handleUpstreamError,
+		requestedModel:    originalModel,
+		isStickySession:   isStickySession, // ForwardGemini 由上层判断粘性会话
+		groupID:           0,               // ForwardGemini 方法没有 groupID，由上层处理粘性会话清除
+		sessionHash:       "",              // ForwardGemini 方法没有 sessionHash，由上层处理粘性会话清除
 	})
 	if err != nil {
 		// 检查是否是账号切换信号，转换为 UpstreamFailoverError 让 Handler 切换账号
@@ -2319,24 +2328,24 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 			cleanedInjectedBody := CleanGeminiNativeThoughtSignatures(injectedBody)
 			retryWrappedBody, wrapErr := s.wrapV1InternalRequest(projectID, mappedModel, cleanedInjectedBody)
 			if wrapErr == nil {
-					retryResult, retryErr := s.antigravityRetryLoop(antigravityRetryLoopParams{
-						ctx:             ctx,
-						prefix:          prefix,
-						account:         account,
-						proxyURL:        proxyURL,
-						accessToken:     accessToken,
-						upstreamSessionID: extractUpstreamSessionID(retryWrappedBody),
-						action:          upstreamAction,
-						body:            retryWrappedBody,
-					c:               c,
-					httpUpstream:    s.httpUpstream,
-					settingService:  s.settingService,
-					accountRepo:     s.accountRepo,
-					handleError:     s.handleUpstreamError,
-					requestedModel:  originalModel,
-					isStickySession: isStickySession,
-					groupID:         0,
-					sessionHash:     "",
+				retryResult, retryErr := s.antigravityRetryLoop(antigravityRetryLoopParams{
+					ctx:               ctx,
+					prefix:            prefix,
+					account:           account,
+					proxyURL:          proxyURL,
+					accessToken:       accessToken,
+					upstreamSessionID: extractUpstreamSessionID(retryWrappedBody),
+					action:            upstreamAction,
+					body:              retryWrappedBody,
+					c:                 c,
+					httpUpstream:      s.httpUpstream,
+					settingService:    s.settingService,
+					accountRepo:       s.accountRepo,
+					handleError:       s.handleUpstreamError,
+					requestedModel:    originalModel,
+					isStickySession:   isStickySession,
+					groupID:           0,
+					sessionHash:       "",
 				})
 				if retryErr == nil {
 					retryResp := retryResult.resp
