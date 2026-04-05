@@ -45,7 +45,6 @@ var (
 		"minimumcreditamountforusage",
 		"minimum credit amount for usage",
 		"minimum credit",
-		"resource has been exhausted",
 	}
 )
 
@@ -90,6 +89,12 @@ func (s *AntigravityGatewayService) clearCreditsExhausted(ctx context.Context, a
 		modelRateLimitsKey: rawLimits,
 	}); err != nil {
 		logger.LegacyPrintf("service.antigravity_gateway", "clear credits exhausted failed: account=%d err=%v", account.ID, err)
+	}
+	// [OpusClaw Patch] 对称更新调度器缓存：与 setCreditsExhausted 一致，确保调度器立即感知清除。
+	if s.schedulerSnapshot != nil {
+		if err := s.schedulerSnapshot.UpdateAccountInCache(ctx, account); err != nil {
+			logger.LegacyPrintf("service.antigravity_gateway", "clear credits exhausted cache update failed: account=%d err=%v", account.ID, err)
+		}
 	}
 }
 
@@ -228,11 +233,12 @@ func (s *AntigravityGatewayService) handleCreditsRetryFailure(
 			prefix, modelKey, account.ID, creditsStatusCode, truncateForLog(creditsRespBody, 200))
 		return
 	}
-	// [OpusClaw Patch] Aggressively mark credits-exhausted on any injection failure
-	// (network error, nil response, 429). Recovery via 30min TTL (creditsExhaustedDuration).
-	if account != nil && (reqErr != nil || creditsResp == nil || creditsStatusCode == http.StatusTooManyRequests) {
+	// [OpusClaw Patch] Mark credits-exhausted on transport-level injection failure
+	// (network error, nil response). 429 responses are NOT marked here — they may be
+	// ordinary rate limits unrelated to credits. Recovery via 30min TTL (creditsExhaustedDuration).
+	if account != nil && (reqErr != nil || creditsResp == nil) {
 		s.setCreditsExhausted(ctx, account)
-		logger.LegacyPrintf("service.antigravity_gateway", "%s credit_overages_failed model=%s account=%d marked_exhausted=true(aggressive) status=%d err=%v",
+		logger.LegacyPrintf("service.antigravity_gateway", "%s credit_overages_failed model=%s account=%d marked_exhausted=true(transport_error) status=%d err=%v",
 			prefix, modelKey, account.ID, creditsStatusCode, reqErr)
 		return
 	}
