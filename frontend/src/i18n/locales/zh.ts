@@ -4683,6 +4683,8 @@ export default {
         missProbabilityHint: '每轮模拟缓存丢失的概率（0.0 = 始终命中，1.0 = 始终丢失）',
         ttlSeconds: '状态 TTL（秒）',
         ttlSecondsHint: '每会话缓存状态在 Redis 中的保留时间（1-3600）',
+        retentionRatio: '缓存保留比例',
+        retentionRatioHint: '模拟缓存保留的 token 比例（0.0-1.0）。值越低，cache_creation 计费越多。',
         saved: '模拟缓存设置保存成功',
         saveFailed: '保存模拟缓存设置失败'
       },

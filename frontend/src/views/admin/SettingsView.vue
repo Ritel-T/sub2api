@@ -732,6 +732,23 @@
                     {{ t('admin.settings.simCache.ttlSecondsHint') }}
                   </p>
                 </div>
+
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.simCache.retentionRatio') }}
+                  </label>
+                  <input
+                    v-model.number="simCacheForm.retention_ratio"
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    class="input w-32"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.simCache.retentionRatioHint') }}
+                  </p>
+                </div>
               </div>
 
               <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
@@ -2166,7 +2183,8 @@ const simCacheSaving = ref(false)
 const simCacheForm = reactive({
   enabled: false,
   miss_probability: 0,
-  ttl_seconds: 300
+  ttl_seconds: 300,
+  retention_ratio: 1
 })
 
 // Stream Timeout 状态
@@ -2783,7 +2801,8 @@ async function saveSimCacheSettings() {
     const updated = await adminAPI.settings.updateSimCacheSettings({
       enabled: simCacheForm.enabled,
       miss_probability: simCacheForm.miss_probability,
-      ttl_seconds: simCacheForm.ttl_seconds
+      ttl_seconds: simCacheForm.ttl_seconds,
+      retention_ratio: simCacheForm.retention_ratio
     })
     Object.assign(simCacheForm, updated)
     appStore.showSuccess(t('admin.settings.simCache.saved'))

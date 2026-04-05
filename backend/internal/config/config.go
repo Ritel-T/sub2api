@@ -478,6 +478,7 @@ type SimulatedCacheConfig struct {
 	Enabled         bool    `yaml:"enabled" mapstructure:"enabled"`                   // 是否启用模拟缓存计费
 	MissProbability float64 `yaml:"miss_probability" mapstructure:"miss_probability"` // 模拟缓存丢失概率 (0.0-1.0)
 	TTLSeconds      int     `yaml:"ttl_seconds" mapstructure:"ttl_seconds"`           // 模拟缓存状态过期时间（秒）
+	RetentionRatio  float64 `yaml:"retention_ratio" mapstructure:"retention_ratio"`
 }
 
 // UserMessageQueueConfig 用户消息串行队列配置
@@ -1470,6 +1471,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.simulated_cache.enabled", true)
 	viper.SetDefault("gateway.simulated_cache.miss_probability", 0)
 	viper.SetDefault("gateway.simulated_cache.ttl_seconds", 300)
+	viper.SetDefault("gateway.simulated_cache.retention_ratio", 0.7)
 
 	// 用户消息串行队列默认值
 	viper.SetDefault("gateway.user_message_queue.enabled", false)
@@ -2150,6 +2152,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.SimulatedCache.TTLSeconds < 0 {
 		return fmt.Errorf("gateway.simulated_cache.ttl_seconds must be non-negative")
+	}
+	if c.Gateway.SimulatedCache.RetentionRatio < 0 || c.Gateway.SimulatedCache.RetentionRatio > 1 {
+		return fmt.Errorf("gateway.simulated_cache.retention_ratio must be between 0.0 and 1.0")
 	}
 
 	if c.Gateway.UsageRecord.WorkerCount <= 0 {

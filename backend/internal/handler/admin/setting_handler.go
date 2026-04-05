@@ -1791,6 +1791,7 @@ func (h *SettingHandler) GetSimCacheSettings(c *gin.Context) {
 		Enabled:         settings.Enabled,
 		MissProbability: settings.MissProbability,
 		TTLSeconds:      settings.TTLSeconds,
+		RetentionRatio:  settings.RetentionRatio,
 	})
 }
 
@@ -1798,6 +1799,7 @@ type UpdateSimCacheSettingsRequest struct {
 	Enabled         bool    `json:"enabled"`
 	MissProbability float64 `json:"miss_probability"`
 	TTLSeconds      int     `json:"ttl_seconds"`
+	RetentionRatio  float64 `json:"retention_ratio"`
 }
 
 func (h *SettingHandler) UpdateSimCacheSettings(c *gin.Context) {
@@ -1811,6 +1813,7 @@ func (h *SettingHandler) UpdateSimCacheSettings(c *gin.Context) {
 		Enabled:         req.Enabled,
 		MissProbability: req.MissProbability,
 		TTLSeconds:      req.TTLSeconds,
+		RetentionRatio:  req.RetentionRatio,
 	}
 
 	if err := h.settingService.SetSimCacheSettings(c.Request.Context(), settings); err != nil {
@@ -1828,5 +1831,6 @@ func (h *SettingHandler) UpdateSimCacheSettings(c *gin.Context) {
 		Enabled:         updatedSettings.Enabled,
 		MissProbability: updatedSettings.MissProbability,
 		TTLSeconds:      updatedSettings.TTLSeconds,
+		RetentionRatio:  updatedSettings.RetentionRatio,
 	})
 }

@@ -181,6 +181,7 @@ type SimCacheSettings struct {
 	Enabled         bool    `json:"enabled"`
 	MissProbability float64 `json:"miss_probability"`
 	TTLSeconds      int     `json:"ttl_seconds"`
+	RetentionRatio  float64 `json:"retention_ratio"`
 }
 
 // StreamTimeoutSettings 流超时处理配置 DTO

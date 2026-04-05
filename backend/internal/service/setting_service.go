@@ -1344,6 +1344,7 @@ func (s *SettingService) GetSimCacheSettings(ctx context.Context) (*SimCacheSett
 				Enabled:         s.cfg.Gateway.SimulatedCache.Enabled,
 				MissProbability: s.cfg.Gateway.SimulatedCache.MissProbability,
 				TTLSeconds:      s.cfg.Gateway.SimulatedCache.TTLSeconds,
+				RetentionRatio:  s.cfg.Gateway.SimulatedCache.RetentionRatio,
 			}, nil
 		}
 		return nil, fmt.Errorf("get sim cache settings: %w", err)
@@ -1353,6 +1354,7 @@ func (s *SettingService) GetSimCacheSettings(ctx context.Context) (*SimCacheSett
 			Enabled:         s.cfg.Gateway.SimulatedCache.Enabled,
 			MissProbability: s.cfg.Gateway.SimulatedCache.MissProbability,
 			TTLSeconds:      s.cfg.Gateway.SimulatedCache.TTLSeconds,
+			RetentionRatio:  s.cfg.Gateway.SimulatedCache.RetentionRatio,
 		}, nil
 	}
 
@@ -1362,7 +1364,15 @@ func (s *SettingService) GetSimCacheSettings(ctx context.Context) (*SimCacheSett
 			Enabled:         s.cfg.Gateway.SimulatedCache.Enabled,
 			MissProbability: s.cfg.Gateway.SimulatedCache.MissProbability,
 			TTLSeconds:      s.cfg.Gateway.SimulatedCache.TTLSeconds,
+			RetentionRatio:  s.cfg.Gateway.SimulatedCache.RetentionRatio,
 		}, nil
+	}
+	// [OpusClaw Patch] legacy JSON backward compat: field absent → full retention
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(value), &raw); err == nil {
+		if _, ok := raw["retention_ratio"]; !ok {
+			settings.RetentionRatio = 1.0
+		}
 	}
 
 	if settings.MissProbability < 0 {
@@ -1376,6 +1386,12 @@ func (s *SettingService) GetSimCacheSettings(ctx context.Context) (*SimCacheSett
 	}
 	if settings.TTLSeconds > 3600 {
 		settings.TTLSeconds = 3600
+	}
+	if settings.RetentionRatio < 0 {
+		settings.RetentionRatio = 1.0
+	}
+	if settings.RetentionRatio > 1 {
+		settings.RetentionRatio = 1.0
 	}
 
 	return &settings, nil
@@ -1391,6 +1407,9 @@ func (s *SettingService) SetSimCacheSettings(ctx context.Context, settings *SimC
 	}
 	if settings.TTLSeconds < 1 || settings.TTLSeconds > 3600 {
 		return fmt.Errorf("ttl_seconds must be between 1 and 3600")
+	}
+	if settings.RetentionRatio < 0 || settings.RetentionRatio > 1 {
+		return fmt.Errorf("retention_ratio must be between 0.0 and 1.0")
 	}
 
 	data, err := json.Marshal(settings)
@@ -1408,6 +1427,7 @@ func (s *SettingService) SetSimCacheSettings(ctx context.Context, settings *SimC
 			Enabled:         settings.Enabled,
 			MissProbability: settings.MissProbability,
 			TTLSeconds:      settings.TTLSeconds,
+			RetentionRatio:  settings.RetentionRatio,
 		})
 	}
 

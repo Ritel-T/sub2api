@@ -251,6 +251,7 @@ type SimCacheSettings struct {
 	Enabled         bool    `json:"enabled"`
 	MissProbability float64 `json:"miss_probability"`
 	TTLSeconds      int     `json:"ttl_seconds"`
+	RetentionRatio  float64 `json:"retention_ratio"`
 }
 
 // DefaultBetaPolicySettings 返回默认的 Beta 策略配置

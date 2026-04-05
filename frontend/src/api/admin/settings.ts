@@ -281,6 +281,7 @@ export interface SimCacheSettings {
   enabled: boolean
   miss_probability: number
   ttl_seconds: number
+  retention_ratio: number
 }
 
 export async function getSimCacheSettings(): Promise<SimCacheSettings> {

@@ -166,6 +166,11 @@ func (s *SimCacheService) UpdateState(ctx context.Context, groupID int64, sessio
 	if totalPromptTokens < 0 {
 		totalPromptTokens = 0
 	}
+	retentionRatio := cfg.RetentionRatio
+	if retentionRatio < 0 || retentionRatio > 1 {
+		retentionRatio = 1.0
+	}
+	totalPromptTokens = int(float64(totalPromptTokens) * retentionRatio)
 
 	ttlSeconds := resolveSimCacheTTLSeconds(cfg)
 

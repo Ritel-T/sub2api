@@ -4519,6 +4519,8 @@ export default {
         missProbabilityHint: 'Probability of simulating a cache miss per turn (0.0 = always hit, 1.0 = always miss)',
         ttlSeconds: 'State TTL (seconds)',
         ttlSecondsHint: 'How long to retain per-session cache state in Redis (1-3600)',
+        retentionRatio: 'Retention Ratio',
+        retentionRatioHint: 'Percentage of tokens to retain in simulated cache (0.0-1.0). Lower values increase cache_creation billing.',
         saved: 'Simulated cache settings saved',
         saveFailed: 'Failed to save simulated cache settings'
       },
