@@ -369,6 +369,29 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 **Incident reference**: On 2026-04-03, directly overwriting a SQLite database file via `docker cp` while a sibling service container (opusclaw-app) was running caused WAL/DB mismatch corruption, resulting in ~22 hours of production downtime. Always use runtime APIs when available, and always stop containers before touching persistent storage files.
 
+## 10.1 Source Code Safety — Commit Early, Never Discard
+
+**所有代码修改必须及时 commit，禁止执行会丢失未提交代码的 git 操作。**
+
+**及时 Commit 规则：**
+- 每完成一个逻辑单元的修改（编辑 + 测试通过 + 诊断通过），**立即 commit**，不等用户要求
+- Commit 是免费的安全网——可以 amend、squash、revert，但未提交的工作区变更丢了就无法恢复
+- 未提交的修改不受 `git reflog` 保护
+
+**禁止执行的 git 操作（除非用户明确要求）：**
+- `git checkout -- <file>` 或 `git checkout .`（还原工作区文件）
+- `git reset --hard`（丢弃所有未提交修改）
+- `git clean -fd`（删除未跟踪文件）
+- `git stash drop`（丢弃 stash 内容）
+- 任何会覆盖工作区中其他 agent 可能正在进行的修改的操作
+
+**如果需要还原文件：**
+1. 先检查 `git status` 和 `git diff` 确认工作区是否有其他人的未提交修改
+2. 如果有 → **禁止还原**，先通知用户
+3. 如果确认只有自己的修改 → 可以 checkout 单个文件，但必须说明原因
+
+**事故参考**：2026-04-05，一个 agent 完成了 11 个文件的 retention_ratio 功能实现（含测试、部署），但未 commit。另一个 agent 随后执行了 git checkout 类操作，导致全部修改不可恢复地丢失，需要完整重新实现。
+
 ## 11. Important Notes
 
 - All patches must be tagged with `[OpusClaw Patch]` comment
