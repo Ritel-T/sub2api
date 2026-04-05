@@ -20,25 +20,20 @@ Upstream repo: `github.com/Wei-Shaw/sub2api` (merged up to `055c48ab`)
 
 ### 构建与部署
 
+使用 `deploy.sh`（仓库根目录）进行标准化构建与部署：
+
 ```bash
-# 1. 修改代码
-cd /root/src/sub2api/
-# ... 编辑 ...
-
-# 2. 构建 Sub2API-C（本机直接 build）
-cd /srv/sub2api-c/
-docker compose build --no-cache
-docker compose up -d
-
-# 3. 验证
-curl -s http://localhost:8000/health
-docker logs sub2api-c --tail 20
-
-# 4. 推送到其他实例（A/B/D）
-docker tag sub2api:opusclaw-c sub2api:opusclaw-v6
-docker save sub2api:opusclaw-v6 | gzip | ssh root@<目标IP> "gunzip | docker load"
-# 目标机器更新 compose 镜像标签并重启
+./deploy.sh build          # 构建（自动以 git commit hash 打标签）
+./deploy.sh deploy-c       # 部署到 C 并验证
+./deploy.sh push a         # 推送到 A（传输镜像 + compose 重建 + 健康检查）
+./deploy.sh push b         # 推送到 B
+./deploy.sh push ab        # 同时推送 A 和 B
+./deploy.sh status         # 查看所有实例状态
+./deploy.sh rollback a opusclaw-<hash>  # 回滚
 ```
+
+镜像标签策略：每次 build 生成 `sub2api:opusclaw-<git-short-hash>`（不可变），
+同时更新别名 `opusclaw-v6`（A/B compose 引用）和 `opusclaw-c`（C compose 默认）。
 
 ### 测试
 
@@ -85,13 +80,13 @@ Client → OpusClaw Gateway → Sub2API → Antigravity (Gemini API)
 
 | 实例 | 机器 | Tailscale IP | 端口 | 镜像标签 | Image ID | 容器名 | 部署方式 |
 |------|------|-------------|------|---------|----------|--------|---------|
-| **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v6` | `fe6334bde19f` | `sub2api-test` | 镜像传入 |
-| **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw-v6` | `fe6334bde19f` | `sub2api-app` | 镜像传入 |
-| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `7a35235f7134` | `sub2api-c` | `docker compose build` |
+| **A** | oc-relay-a | `100.114.245.91` | `:8000` | `opusclaw-v6` | `84b96cbccdca` | `sub2api-test` | 镜像传入 |
+| **B** | oc-relay-b | `100.112.136.98` | `:8000` | `opusclaw-v6` | `84b96cbccdca` | `sub2api-app` | 镜像传入 |
+| **C** | oc-dev | `100.114.232.111` | `:8000` | `opusclaw-c` | `84b96cbccdca` | `sub2api-c` | `docker compose build` |
 | **D** | oc-relay-d | `100.101.200.81` | `:8000` | `opusclaw-d` | `d1057e26657d` | `sub2api-d` | 镜像传入 |
 
-- A、B：Image ID `fe6334bde19f`，构建于 2026-04-03，含模拟缓存计费 + 韧性加固 + 管理面板 + 默认启用
-- C：Image ID `7a35235f7134`，构建于 2026-04-04，**最新**，含 SimCache TTL 1h + ephemeral_1h 自动分类
+- A、B：Image ID `84b96cbccdca`，构建于 2026-04-05，含模拟缓存计费 + 韧性加固 + 管理面板 + 默认启用 + SimCache key 解耦
+- C：Image ID `84b96cbccdca`，构建于 2026-04-05，**最新**，含 SimCache TTL 1h + ephemeral_1h 自动分类 + SimCache key 解耦
 - D：构建于 2026-03-31 05:59，**源码较旧**（比 v5 早约 12 小时）
 
 ### oc-dev 上的容器

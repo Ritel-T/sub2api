@@ -746,6 +746,58 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 	return ""
 }
 
+// [OpusClaw Patch] GenerateSimCacheKey produces a stable key for simulated cache,
+// decoupled from sticky session routing. Unlike GenerateSessionHash, it excludes
+// ClientIP/UserAgent and structured system blocks to prevent key churn.
+func (s *GatewayService) GenerateSimCacheKey(parsed *ParsedRequest) string {
+	if parsed == nil {
+		return ""
+	}
+
+	if parsed.MetadataUserID != "" {
+		if uid := ParseMetadataUserID(parsed.MetadataUserID); uid != nil && uid.SessionID != "" {
+			return uid.SessionID
+		}
+	}
+
+	var combined strings.Builder
+	if parsed.SessionContext != nil {
+		_, _ = combined.WriteString(strconv.FormatInt(parsed.SessionContext.APIKeyID, 10))
+		_, _ = combined.WriteString("|")
+	}
+	if systemStr, ok := parsed.System.(string); ok && systemStr != "" {
+		_, _ = combined.WriteString(systemStr)
+	}
+	for _, msg := range parsed.Messages {
+		if m, ok := msg.(map[string]any); ok {
+			if role, _ := m["role"].(string); role != "user" {
+				continue
+			}
+			if content, exists := m["content"]; exists {
+				if msgText := s.extractTextFromContent(content); msgText != "" {
+					_, _ = combined.WriteString(msgText)
+				}
+				break
+			}
+			if parts, ok := m["parts"].([]any); ok {
+				for _, part := range parts {
+					if partMap, ok := part.(map[string]any); ok {
+						if text, ok := partMap["text"].(string); ok {
+							_, _ = combined.WriteString(text)
+						}
+					}
+				}
+				break
+			}
+		}
+	}
+	if combined.Len() > 0 {
+		return s.hashContent(combined.String())
+	}
+
+	return ""
+}
+
 // BindStickySession sets session -> account binding with standard TTL.
 func (s *GatewayService) BindStickySession(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
 	if sessionHash == "" || accountID <= 0 || s.cache == nil {

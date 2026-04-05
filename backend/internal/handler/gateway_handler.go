@@ -255,6 +255,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		APIKeyID:  apiKey.ID,
 	}
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
+	simCacheKey := h.gatewayService.GenerateSimCacheKey(parsedReq) // [OpusClaw Patch]
 
 	// 获取平台：优先使用强制平台（/antigravity 路由，中间件已设置 request.Context），否则使用分组平台
 	platform := ""
@@ -288,7 +289,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		fs := NewFailoverState(h.maxAccountSwitchesGemini, hasBoundSession)
 		requestBaseCtx := c.Request.Context()
 		if h.simCacheService != nil {
-			override, err := h.simCacheService.ComputeOverride(requestBaseCtx, derefGroupID(apiKey.GroupID), sessionHash)
+			override, err := h.simCacheService.ComputeOverride(requestBaseCtx, derefGroupID(apiKey.GroupID), simCacheKey)
 			if err != nil {
 				reqLog.Warn("gateway.simcache_compute_failed", zap.Error(err))
 			} else if override != nil {
@@ -487,9 +488,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if result.ReasoningEffort == nil {
 				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
 			}
-			if h.simCacheService != nil && sessionHash != "" {
+			if h.simCacheService != nil && simCacheKey != "" {
 				totalPrompt := result.Usage.CacheCreationInputTokens + result.Usage.CacheReadInputTokens + result.Usage.InputTokens
-				if err := h.simCacheService.UpdateState(c.Request.Context(), derefGroupID(apiKey.GroupID), sessionHash, totalPrompt); err != nil {
+				if err := h.simCacheService.UpdateState(c.Request.Context(), derefGroupID(apiKey.GroupID), simCacheKey, totalPrompt); err != nil {
 					reqLog.Warn("gateway.simcache_update_failed", zap.Error(err))
 				}
 			}
@@ -528,7 +529,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	currentSubscription := subscription
 	requestBaseCtx := c.Request.Context()
 	if h.simCacheService != nil {
-		override, err := h.simCacheService.ComputeOverride(requestBaseCtx, derefGroupID(apiKey.GroupID), sessionHash)
+		override, err := h.simCacheService.ComputeOverride(requestBaseCtx, derefGroupID(apiKey.GroupID), simCacheKey)
 		if err != nil {
 			reqLog.Warn("gateway.simcache_compute_failed", zap.Error(err))
 		} else if override != nil {
@@ -786,7 +787,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						currentAPIKey = fallbackAPIKey
 						currentSubscription = nil
 						if h.simCacheService != nil {
-							override, simErr := h.simCacheService.ComputeOverride(c.Request.Context(), derefGroupID(currentAPIKey.GroupID), sessionHash)
+							override, simErr := h.simCacheService.ComputeOverride(c.Request.Context(), derefGroupID(currentAPIKey.GroupID), simCacheKey)
 							if simErr != nil {
 								reqLog.Warn("gateway.simcache_compute_failed", zap.Error(simErr))
 							} else if override != nil {
@@ -861,9 +862,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if result.ReasoningEffort == nil {
 				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
 			}
-			if h.simCacheService != nil && sessionHash != "" {
+			if h.simCacheService != nil && simCacheKey != "" {
 				totalPrompt := result.Usage.CacheCreationInputTokens + result.Usage.CacheReadInputTokens + result.Usage.InputTokens
-				if err := h.simCacheService.UpdateState(c.Request.Context(), derefGroupID(currentAPIKey.GroupID), sessionHash, totalPrompt); err != nil {
+				if err := h.simCacheService.UpdateState(c.Request.Context(), derefGroupID(currentAPIKey.GroupID), simCacheKey, totalPrompt); err != nil {
 					reqLog.Warn("gateway.simcache_update_failed", zap.Error(err))
 				}
 			}
