@@ -209,6 +209,30 @@ func TestHandleUpstreamError_429_NonModelRateLimit(t *testing.T) {
 	require.Equal(t, "claude-sonnet-4-5", repo.modelRateLimitCalls[0].modelKey)
 }
 
+func TestNextModelRateLimitReset_PreservesLaterExistingWindow(t *testing.T) {
+	later := time.Now().Add(45 * time.Second).UTC().Format(time.RFC3339)
+	account := &Account{
+		Extra: map[string]any{
+			modelRateLimitsKey: map[string]any{
+				"claude-sonnet-4-5": map[string]any{
+					"rate_limited_at":     time.Now().UTC().Format(time.RFC3339),
+					"rate_limit_reset_at": later,
+				},
+			},
+		},
+	}
+
+	resetAt := nextModelRateLimitReset(account, "claude-sonnet-4-5", 5*time.Second)
+	require.WithinDuration(t, mustParseRFC3339(t, later), resetAt, 2*time.Second)
+}
+
+func mustParseRFC3339(t *testing.T, value string) time.Time {
+	t.Helper()
+	ts, err := time.Parse(time.RFC3339, value)
+	require.NoError(t, err)
+	return ts
+}
+
 // TestHandleUpstreamError_429_NonModelRateLimit_UsesMappedModelKey 测试 429 非模型限流场景
 // 验证：requestedModel 会被映射到 Antigravity 最终模型（例如 claude-opus-4-6 -> claude-opus-4-6-thinking）
 func TestHandleUpstreamError_429_NonModelRateLimit_UsesMappedModelKey(t *testing.T) {

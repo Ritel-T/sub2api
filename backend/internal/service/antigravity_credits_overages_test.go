@@ -626,3 +626,53 @@ func TestClearCreditsExhausted(t *testing.T) {
 		require.Equal(t, int64(2), cache.setAccountCalls[0].ID)
 	})
 }
+
+func TestAttemptCreditsOveragesRetry_SecondStage429MarksExhausted(t *testing.T) {
+	repo := &stubAntigravityAccountRepo{}
+	account := &Account{
+		ID:          301,
+		Name:        "acc-301",
+		Type:        AccountTypeOAuth,
+		Platform:    PlatformAntigravity,
+		Schedulable: true,
+		Status:      StatusActive,
+		Concurrency: 1,
+	}
+	respBody := []byte(`{"error":{"status":"RESOURCE_EXHAUSTED","message":"quota_exhausted"}}`)
+	credits429Body := `{
+		"error": {
+			"status": "RESOURCE_EXHAUSTED",
+			"details": [
+				{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "metadata": {"model": "claude-sonnet-4-5"}, "reason": "RATE_LIMIT_EXCEEDED"},
+				{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "0.5s"}
+			]
+		}
+	}`
+	upstream := &mockSmartRetryUpstream{
+		responses: []*http.Response{{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{},
+			Body:       io.NopCloser(strings.NewReader(credits429Body)),
+		}},
+		errors: []error{nil},
+	}
+	svc := &AntigravityGatewayService{accountRepo: repo}
+
+	result := svc.attemptCreditsOveragesRetry(antigravityRetryLoopParams{
+		ctx:            context.Background(),
+		prefix:         "[test]",
+		account:        account,
+		action:         "generateContent",
+		body:           []byte(`{"input":"test"}`),
+		httpUpstream:   upstream,
+		accountRepo:    repo,
+		accessToken:    "token",
+		requestedModel: "claude-sonnet-4-5",
+	}, "https://ag-1.test", "claude-sonnet-4-5", 500*time.Millisecond, http.StatusTooManyRequests, respBody)
+
+	require.NotNil(t, result)
+	require.True(t, result.handled)
+	require.Nil(t, result.resp)
+	require.Len(t, repo.modelRateLimitCalls, 1)
+	require.Equal(t, creditsExhaustedKey, repo.modelRateLimitCalls[0].modelKey)
+}

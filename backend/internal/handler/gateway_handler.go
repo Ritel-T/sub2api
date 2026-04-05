@@ -393,6 +393,16 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				}
 				// Slot acquired: no longer waiting in queue.
 				releaseWait()
+				freshAccount, refreshErr := h.gatewayService.RefreshAccountForExecution(c.Request.Context(), account.ID, reqModel)
+				if refreshErr != nil {
+					reqLog.Warn("gateway.account_revalidation_failed_after_wait", zap.Int64("account_id", account.ID), zap.Error(refreshErr))
+					if accountReleaseFunc != nil {
+						accountReleaseFunc()
+					}
+					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "Selected account became unavailable, please retry", streamStarted)
+					return
+				}
+				account = freshAccount
 				if err := h.gatewayService.BindStickySession(c.Request.Context(), apiKey.GroupID, sessionKey, account.ID); err != nil {
 					reqLog.Warn("gateway.bind_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				}
@@ -406,6 +416,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if fs.SwitchCount > 0 {
 				requestCtx = service.WithAccountSwitchCount(requestCtx, fs.SwitchCount, h.metadataBridgeEnabled())
 			}
+			requestCtx = service.WithAntigravityStickyContext(requestCtx, derefGroupID(apiKey.GroupID), sessionKey)
 			// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
 			writerSizeBeforeForward := c.Writer.Size()
 			if account.Platform == service.PlatformAntigravity {
@@ -632,6 +643,16 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				}
 				// Slot acquired: no longer waiting in queue.
 				releaseWait()
+				freshAccount, refreshErr := h.gatewayService.RefreshAccountForExecution(c.Request.Context(), account.ID, parsedReq.Model)
+				if refreshErr != nil {
+					reqLog.Warn("gateway.account_revalidation_failed_after_wait", zap.Int64("account_id", account.ID), zap.Error(refreshErr))
+					if accountReleaseFunc != nil {
+						accountReleaseFunc()
+					}
+					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "Selected account became unavailable, please retry", streamStarted)
+					return
+				}
+				account = freshAccount
 				if err := h.gatewayService.BindStickySession(c.Request.Context(), currentAPIKey.GroupID, sessionKey, account.ID); err != nil {
 					reqLog.Warn("gateway.bind_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				}
@@ -701,6 +722,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					body = service.CleanClaudeThinkingSignatures(body)
 				}
 			}
+			requestCtx = service.WithAntigravityStickyContext(requestCtx, derefGroupID(currentAPIKey.GroupID), sessionKey)
 			// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
 			writerSizeBeforeForward := c.Writer.Size()
 			if account.Platform == service.PlatformAntigravity && account.Type != service.AccountTypeAPIKey {

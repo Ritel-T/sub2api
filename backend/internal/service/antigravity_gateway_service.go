@@ -150,6 +150,44 @@ type antigravityRetryLoopParams struct {
 	sessionHash       string // 用于模型级限流时清除粘性会话
 }
 
+type antigravityStickyContextKey string
+
+const (
+	antigravityStickyGroupIDKey antigravityStickyContextKey = "antigravity_sticky_group_id"
+	antigravityStickySessionKey antigravityStickyContextKey = "antigravity_sticky_session"
+)
+
+func WithAntigravityStickyContext(ctx context.Context, groupID int64, sessionHash string) context.Context {
+	ctx = context.WithValue(ctx, antigravityStickyGroupIDKey, groupID)
+	return context.WithValue(ctx, antigravityStickySessionKey, sessionHash)
+}
+
+func antigravityStickyContext(ctx context.Context) (int64, string, bool) {
+	if ctx == nil {
+		return 0, "", false
+	}
+	groupID, ok := ctx.Value(antigravityStickyGroupIDKey).(int64)
+	if !ok || groupID == 0 {
+		return 0, "", false
+	}
+	sessionHash, ok := ctx.Value(antigravityStickySessionKey).(string)
+	if !ok || strings.TrimSpace(sessionHash) == "" {
+		return 0, "", false
+	}
+	return groupID, sessionHash, true
+}
+
+func nextModelRateLimitReset(account *Account, modelName string, duration time.Duration) time.Time {
+	proposed := time.Now().Add(duration)
+	if account == nil {
+		return proposed
+	}
+	if existing := account.modelRateLimitResetAt(strings.TrimSpace(modelName)); existing != nil && existing.After(proposed) {
+		return *existing
+	}
+	return proposed
+}
+
 // antigravityRetryLoopResult 重试循环的结果
 type antigravityRetryLoopResult struct {
 	resp *http.Response
@@ -234,7 +272,7 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 		logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d oauth_long_delay model=%s account=%d upstream_retry_delay=%v body=%s (model rate limit, switch account)",
 			p.prefix, resp.StatusCode, modelName, p.account.ID, rateLimitDuration, truncateForLog(respBody, 200))
 
-		resetAt := time.Now().Add(rateLimitDuration)
+		resetAt := nextModelRateLimitReset(p.account, modelName, rateLimitDuration)
 		if !setModelRateLimitByModelName(p.ctx, p.accountRepo, p.account.ID, modelName, p.prefix, resp.StatusCode, resetAt, false) {
 			p.handleError(p.ctx, p.prefix, p.account, resp.StatusCode, resp.Header, respBody, p.requestedModel, p.groupID, p.sessionHash, p.isStickySession)
 			logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d rate_limited account=%d (no model mapping)", p.prefix, resp.StatusCode, p.account.ID)
@@ -264,7 +302,7 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 			logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d signature_retry_skip_smart_wait model=%s account=%d upstream_retry_delay=%v body=%s (switch account)",
 				p.prefix, resp.StatusCode, modelName, p.account.ID, rateLimitDuration, truncateForLog(respBody, 200))
 
-			resetAt := time.Now().Add(rateLimitDuration)
+			resetAt := nextModelRateLimitReset(p.account, modelName, rateLimitDuration)
 			if !setModelRateLimitByModelName(p.ctx, p.accountRepo, p.account.ID, modelName, p.prefix, resp.StatusCode, resetAt, false) {
 				p.handleError(p.ctx, p.prefix, p.account, resp.StatusCode, resp.Header, respBody, p.requestedModel, p.groupID, p.sessionHash, p.isStickySession)
 				logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d signature_retry_rate_limited account=%d (no model mapping)", p.prefix, resp.StatusCode, p.account.ID)
@@ -425,7 +463,7 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 		log.Printf("%s status=%d smart_retry_exhausted attempts=%d model=%s account=%d upstream_retry_delay=%v body=%s (switch account)",
 			p.prefix, resp.StatusCode, maxAttempts, modelName, p.account.ID, rateLimitDuration, truncateForLog(retryBody, 200))
 
-		resetAt := time.Now().Add(rateLimitDuration)
+		resetAt := nextModelRateLimitReset(p.account, modelName, rateLimitDuration)
 		if p.accountRepo != nil && modelName != "" {
 			if err := p.accountRepo.SetModelRateLimit(p.ctx, p.account.ID, modelName, resetAt); err != nil {
 				logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d model_rate_limit_failed model=%s error=%v", p.prefix, resp.StatusCode, modelName, err)
@@ -1454,6 +1492,10 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 	// Antigravity 上游只支持流式请求，统一使用 streamGenerateContent
 	// 如果客户端请求非流式，在响应处理阶段会收集完整流式响应后转换返回
 	action := "streamGenerateContent"
+	groupID, sessionHash, hasStickyContext := antigravityStickyContext(ctx)
+	if !hasStickyContext {
+		groupID, sessionHash = 0, ""
+	}
 
 	// 执行带重试的请求
 	result, err := s.antigravityRetryLoop(antigravityRetryLoopParams{
@@ -1472,8 +1514,8 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		handleError:       s.handleUpstreamError,
 		requestedModel:    originalModel,
 		isStickySession:   isStickySession, // Forward 由上层判断粘性会话
-		groupID:           0,               // Forward 方法没有 groupID，由上层处理粘性会话清除
-		sessionHash:       "",              // Forward 方法没有 sessionHash，由上层处理粘性会话清除
+		groupID:           groupID,
+		sessionHash:       sessionHash,
 	})
 	if err != nil {
 		// 检查是否是账号切换信号，转换为 UpstreamFailoverError 让 Handler 切换账号
@@ -2226,6 +2268,10 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 	// Antigravity 上游只支持流式请求，统一使用 streamGenerateContent
 	// 如果客户端请求非流式，在响应处理阶段会收集完整流式响应后返回
 	upstreamAction := "streamGenerateContent"
+	groupID, sessionHash, hasStickyContext := antigravityStickyContext(ctx)
+	if !hasStickyContext {
+		groupID, sessionHash = 0, ""
+	}
 
 	// 执行带重试的请求
 	result, err := s.antigravityRetryLoop(antigravityRetryLoopParams{
@@ -2244,8 +2290,8 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 		handleError:       s.handleUpstreamError,
 		requestedModel:    originalModel,
 		isStickySession:   isStickySession, // ForwardGemini 由上层判断粘性会话
-		groupID:           0,               // ForwardGemini 方法没有 groupID，由上层处理粘性会话清除
-		sessionHash:       "",              // ForwardGemini 方法没有 sessionHash，由上层处理粘性会话清除
+		groupID:           groupID,
+		sessionHash:       sessionHash,
 	})
 	if err != nil {
 		// 检查是否是账号切换信号，转换为 UpstreamFailoverError 让 Handler 切换账号

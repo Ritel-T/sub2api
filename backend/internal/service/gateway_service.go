@@ -2264,6 +2264,23 @@ func (s *GatewayService) isAccountSchedulableForModelSelection(ctx context.Conte
 	return account.IsSchedulableForModelWithContext(ctx, requestedModel)
 }
 
+func (s *GatewayService) RefreshAccountForExecution(ctx context.Context, accountID int64, requestedModel string) (*Account, error) {
+	if s == nil || s.accountRepo == nil {
+		return nil, errors.New("account repo not configured")
+	}
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if account == nil {
+		return nil, errors.New("account not found")
+	}
+	if !s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) {
+		return nil, errors.New("account no longer schedulable")
+	}
+	return account, nil
+}
+
 // isAccountInGroup checks if the account belongs to the specified group.
 // When groupID is nil, returns true only for ungrouped accounts (no group assignments).
 func (s *GatewayService) isAccountInGroup(account *Account, groupID *int64) bool {
