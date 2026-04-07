@@ -1,12 +1,12 @@
 # Sub2API (OpusClaw Fork) — Agent Reference
 
-> **最后更新**：2026-04-05（积分误判修复 + 调度加固 `40aeeecf`）
+> **最后更新**：2026-04-07（v0.1.108 上游合并）
 
 ## 1. What This Is
 
 Sub2API is a Go API gateway that proxies AI model requests through Google Antigravity accounts. It accepts Claude/Gemini API format requests, transforms them to Gemini v1internal format, and forwards to Antigravity upstream. This fork contains OpusClaw-specific patches for caching, sticky sessions, rate-limit handling, scheduling optimization, and token accounting.
 
-Upstream repo: `github.com/Wei-Shaw/sub2api` (merged up to `055c48ab`)
+Upstream repo: `github.com/Wei-Shaw/sub2api` (merged up to `8fa61516`)
 
 ## 2. 开发环境
 
@@ -108,8 +108,12 @@ backend/
 │   │   ├── gateway_handler.go        # Claude /v1/messages entry + failover loop
 │   │   ├── gemini_v1beta_handler.go  # Gemini native API entry (含 v1beta 404 回退)
 │   │   ├── admin/group_handler.go    # Group CRUD (含分组过滤字段透传)
+│   │   ├── admin/channel_handler.go  # [Upstream] Channel CRUD
 │   │   └── failover_loop.go          # Account switch logic
 │   ├── service/         # Business logic
+│   │   ├── channel_service.go              # [Upstream] Channel management (渠道管理)
+│   │   ├── channel_stats_service.go        # [Upstream] Channel usage stats
+│   │   ├── model_pricing_resolver.go       # [Upstream] Channel-based model pricing
 │   │   ├── antigravity_gateway_service.go  # Core: Claude→Gemini transform + retry + rate-limit
 │   │   ├── antigravity_credits_overages.go # AI Credits handling + aggressive marking
 │   │   ├── antigravity_quota_scope.go      # IsSchedulableForModelWithContext()
@@ -142,8 +146,10 @@ backend/
 │   │       └── models.go               # Gemini model metadata (含 customtools fallback)
 │   └── web/dist/        # Embedded frontend
 ├── resources/migrations/
-│   └── 081_add_group_account_filter.sql  # 分组过滤字段迁移
+│   ├── 090_drop_sora.sql                 # Sora 彻底移除
+│   └── 091_add_group_account_filter.sql  # 分组过滤字段迁移 (renumbered from 081)
 ├── repository/
+│   ├── channel_repo.go                 # [Upstream] Channel storage
 │   └── sim_cache_repo.go               # [OpusClaw] Redis Lua atomic update (HINCRBY + HSET + EXPIRE)
 frontend/                # Vue 3 + Vite admin panel
 Dockerfile               # Multi-stage: node→go→alpine
@@ -185,7 +191,8 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | Second-stage credits retry 429 | `antigravity_credits_overages.go:208` | Mark exhausted when `attemptCreditsOveragesRetry` returns 429 |
 | Rate-limit window preservation | `antigravity_gateway_service.go:153` | `nextModelRateLimitReset()`: use `max(existing, proposed)` instead of blind overwrite |
 | WaitPlan revalidation | `gateway_handler.go:396,643` | After `AcquireAccountSlotWithWaitTimeout`, re-fetch account and verify still schedulable |
-| Sticky context propagation | `antigravity_gateway_service.go:152-182`, `gateway_handler.go:419,725` | Pass `groupID/sessionHash` via context into `Forward()`/`ForwardGemini()` for immediate sticky cleanup |
+| Sticky context propagation | `antigravity_gateway_service.go` + `gateway_handler.go` | Pass `groupID/sessionHash` via context into `Forward()`/`ForwardGemini()` for immediate sticky cleanup |
+| Non-Claude-Code system→messages rewrite | `gateway_service.go` | Adopts upstream `rewriteSystemForNonClaudeCode()` — moves non-CC system content to synthetic user/assistant messages to bypass third-party app detection |
 
 ## 6. Key Constants
 
@@ -417,6 +424,9 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
+| `4166a6de` | **merge: upstream origin/main (8fa61516) — v0.1.107+v0.1.108** — Channel management; Sora removal; system→messages migration; renumbered migrations; 429/529 failover fixes |
+| `06030f19` | fix(test): restore status=disabled detail in diagnoseSelectionFailure |
+| `0744ffb1` | chore: renumber migration 081→091 to avoid upstream collision |
 | `40aeeecf` | **fix(scheduling): harden antigravity retry and wait-path handling** — second-stage credits retry 429 marks exhausted; `nextModelRateLimitReset()` preserves later windows; WaitPlan revalidation after slot acquisition; sticky context propagation via `WithAntigravityStickyContext()` |
 | `7930b2a9` | **fix(credits): break hot-loop by marking exhausted on post-injection 429** — when `overagesInjected=true` and upstream still 429, `setCreditsExhausted()` breaks cross-request scheduling loop |
 | `ca0aaeb3` | **fix(credits): prevent false-positive credits exhaustion marking on new accounts** — remove 429 from aggressive marking; remove ambiguous `"resource has been exhausted"` keyword; symmetric cache update in `clearCreditsExhausted()` |
@@ -439,6 +449,30 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 | `13ed03f1` | feat(scheduling): differentiated concurrency, Gemini sticky skip, anti-deadlock fixes |
 
 ## 12. Upstream Merge Log
+
+### v0.1.107+v0.1.108 merge (2026-04-07)
+
+**合并范围**: 109 commits (non-merge), 150+ files
+
+**上游变更摘要**:
+
+- **渠道管理系统 (Channel Management)** — erio, ~60 commits
+  - 支持模型映射 (Model Mapping)、价格配置 (Pricing)、使用量统计 (Usage Stats)
+  - 引入 `channels`, `channel_models`, `model_prices` 等表
+  - 路由逻辑重构以支持渠道选择
+- **Sora 彻底移除** — erio, ~16 commits
+  - 移除所有 Sora 相关代码、配置及前端页面
+- **OAuth/OpenAI 改进** — DaydreamCoding
+  - 增强隐私模式、令牌刷新优化、plan_type 同步
+- **Bug Fixes & 优化**
+  - **system→messages 迁移** (`f3aa54b7`): 将 system 指令重写为 synthetic messages 以绕过第三方应用检测
+  - **响应重建** (`8fa61516`): 非流式路径在 output 为空时从 delta 事件重建响应
+  - **Failover 增强**: 透传 429/529 错误以触发上游 failover 逻辑
+
+**冲突解决 & 调整**:
+- **Migration 冲突**: 将 OpusClaw 的 `081_add_group_account_filter.sql` 重编号为 `091`，避开上游 `081-090` 渠道及 Sora 移除的迁移脚本
+- **代码冲突**: 解决 `gateway_service.go`, `account_service.go` 等 9 个核心文件的逻辑冲突，并修复 3 处损坏的自动合并
+- **Patch 保留**: 完整保留模拟缓存计费 (SimCache)、Antigravity 专有转换、细粒度并发控制等 OpusClaw 核心补丁
 
 ### `fb56c842` — Merge upstream `origin/main` (2026-04-02)
 
