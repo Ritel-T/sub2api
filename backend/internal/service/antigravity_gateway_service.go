@@ -3012,6 +3012,14 @@ func (s *AntigravityGatewayService) handleUpstreamError(
 		resetAt := ParseGeminiRateLimitResetTime(body)
 		defaultDur := s.getDefaultRateLimitDuration()
 
+		// [OpusClaw Patch] Antigravity 账号：忽略 quotaResetDelay 解析结果，固定使用 defaultDur。
+		// Google 上游 429 body 中的 quotaResetDelay 可能是周配额重置时间（~168h/7天），
+		// 但这不代表账号真正用尽了周配额——该字段仅为信息展示。
+		// 将其原样写入模型限流会导致账号被锁 7 天无法调度，即使实际额度充足。
+		if account.Platform == PlatformAntigravity {
+			resetAt = nil
+		}
+
 		// 尝试解析模型 key 并设置模型级限流
 		//
 		// 注意：requestedModel 可能是"映射前"的请求模型名（例如 claude-opus-4-6），
