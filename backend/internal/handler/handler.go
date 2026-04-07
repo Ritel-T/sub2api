@@ -30,6 +30,7 @@ type AdminHandlers struct {
 	TLSFingerprintProfile *admin.TLSFingerprintProfileHandler
 	APIKey                *admin.AdminAPIKeyHandler
 	ScheduledTest         *admin.ScheduledTestHandler
+	Channel               *admin.ChannelHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -44,8 +45,6 @@ type Handlers struct {
 	Admin         *AdminHandlers
 	Gateway       *GatewayHandler
 	OpenAIGateway *OpenAIGatewayHandler
-	SoraGateway   *SoraGatewayHandler
-	SoraClient    *SoraClientHandler
 	Setting       *SettingHandler
 	Totp          *TotpHandler
 }

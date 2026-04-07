@@ -28,6 +28,14 @@ const (
 	FieldRequestedModel = "requested_model"
 	// FieldUpstreamModel holds the string denoting the upstream_model field in the database.
 	FieldUpstreamModel = "upstream_model"
+	// FieldChannelID holds the string denoting the channel_id field in the database.
+	FieldChannelID = "channel_id"
+	// FieldModelMappingChain holds the string denoting the model_mapping_chain field in the database.
+	FieldModelMappingChain = "model_mapping_chain"
+	// FieldBillingTier holds the string denoting the billing_tier field in the database.
+	FieldBillingTier = "billing_tier"
+	// FieldBillingMode holds the string denoting the billing_mode field in the database.
+	FieldBillingMode = "billing_mode"
 	// FieldGroupID holds the string denoting the group_id field in the database.
 	FieldGroupID = "group_id"
 	// FieldSubscriptionID holds the string denoting the subscription_id field in the database.
@@ -76,8 +84,6 @@ const (
 	FieldImageCount = "image_count"
 	// FieldImageSize holds the string denoting the image_size field in the database.
 	FieldImageSize = "image_size"
-	// FieldMediaType holds the string denoting the media_type field in the database.
-	FieldMediaType = "media_type"
 	// FieldCacheTTLOverridden holds the string denoting the cache_ttl_overridden field in the database.
 	FieldCacheTTLOverridden = "cache_ttl_overridden"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -141,6 +147,10 @@ var Columns = []string{
 	FieldModel,
 	FieldRequestedModel,
 	FieldUpstreamModel,
+	FieldChannelID,
+	FieldModelMappingChain,
+	FieldBillingTier,
+	FieldBillingMode,
 	FieldGroupID,
 	FieldSubscriptionID,
 	FieldInputTokens,
@@ -165,7 +175,6 @@ var Columns = []string{
 	FieldIPAddress,
 	FieldImageCount,
 	FieldImageSize,
-	FieldMediaType,
 	FieldCacheTTLOverridden,
 	FieldCreatedAt,
 }
@@ -189,6 +198,12 @@ var (
 	RequestedModelValidator func(string) error
 	// UpstreamModelValidator is a validator for the "upstream_model" field. It is called by the builders before save.
 	UpstreamModelValidator func(string) error
+	// ModelMappingChainValidator is a validator for the "model_mapping_chain" field. It is called by the builders before save.
+	ModelMappingChainValidator func(string) error
+	// BillingTierValidator is a validator for the "billing_tier" field. It is called by the builders before save.
+	BillingTierValidator func(string) error
+	// BillingModeValidator is a validator for the "billing_mode" field. It is called by the builders before save.
+	BillingModeValidator func(string) error
 	// DefaultInputTokens holds the default value on creation for the "input_tokens" field.
 	DefaultInputTokens int
 	// DefaultOutputTokens holds the default value on creation for the "output_tokens" field.
@@ -227,8 +242,6 @@ var (
 	DefaultImageCount int
 	// ImageSizeValidator is a validator for the "image_size" field. It is called by the builders before save.
 	ImageSizeValidator func(string) error
-	// MediaTypeValidator is a validator for the "media_type" field. It is called by the builders before save.
-	MediaTypeValidator func(string) error
 	// DefaultCacheTTLOverridden holds the default value on creation for the "cache_ttl_overridden" field.
 	DefaultCacheTTLOverridden bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -276,6 +289,26 @@ func ByRequestedModel(opts ...sql.OrderTermOption) OrderOption {
 // ByUpstreamModel orders the results by the upstream_model field.
 func ByUpstreamModel(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUpstreamModel, opts...).ToFunc()
+}
+
+// ByChannelID orders the results by the channel_id field.
+func ByChannelID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldChannelID, opts...).ToFunc()
+}
+
+// ByModelMappingChain orders the results by the model_mapping_chain field.
+func ByModelMappingChain(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldModelMappingChain, opts...).ToFunc()
+}
+
+// ByBillingTier orders the results by the billing_tier field.
+func ByBillingTier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBillingTier, opts...).ToFunc()
+}
+
+// ByBillingMode orders the results by the billing_mode field.
+func ByBillingMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBillingMode, opts...).ToFunc()
 }
 
 // ByGroupID orders the results by the group_id field.
@@ -396,11 +429,6 @@ func ByImageCount(opts ...sql.OrderTermOption) OrderOption {
 // ByImageSize orders the results by the image_size field.
 func ByImageSize(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldImageSize, opts...).ToFunc()
-}
-
-// ByMediaType orders the results by the media_type field.
-func ByMediaType(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldMediaType, opts...).ToFunc()
 }
 
 // ByCacheTTLOverridden orders the results by the cache_ttl_overridden field.

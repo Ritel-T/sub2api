@@ -45,6 +45,10 @@
         <span>{{ privacyBadge.label }}</span>
       </span>
     </div>
+    <!-- Row 3: Subscription expiration (non-free paid accounts only) -->
+    <div v-if="expiresLabel" class="text-[10px] leading-tight text-gray-400 dark:text-gray-500 pl-0.5" :title="subscriptionExpiresAt">
+      {{ expiresLabel }}
+    </div>
   </div>
 </template>
 
@@ -62,6 +66,7 @@ interface Props {
   type: AccountType
   planType?: string
   privacyMode?: string
+  subscriptionExpiresAt?: string
 }
 
 const props = defineProps<Props>()
@@ -70,7 +75,6 @@ const platformLabel = computed(() => {
   if (props.platform === 'anthropic') return 'Anthropic'
   if (props.platform === 'openai') return 'OpenAI'
   if (props.platform === 'antigravity') return 'Antigravity'
-  if (props.platform === 'sora') return 'Sora'
   return 'Gemini'
 })
 
@@ -119,9 +123,6 @@ const platformClass = computed(() => {
   if (props.platform === 'antigravity') {
     return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
   }
-  if (props.platform === 'sora') {
-    return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-  }
   return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
 })
 
@@ -135,9 +136,6 @@ const typeClass = computed(() => {
   if (props.platform === 'antigravity') {
     return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
   }
-  if (props.platform === 'sora') {
-    return 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
-  }
   return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
 })
 
@@ -146,6 +144,22 @@ const planBadgeClass = computed(() => {
     return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
   }
   return typeClass.value
+})
+
+// Subscription expiration label (non-free only)
+const expiresLabel = computed(() => {
+  if (!props.subscriptionExpiresAt || !props.planType) return ''
+  if (props.planType.toLowerCase() === 'free') return ''
+  try {
+    const d = new Date(props.subscriptionExpiresAt)
+    if (isNaN(d.getTime())) return ''
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${t('admin.accounts.subscriptionExpires')} ${yyyy}-${mm}-${dd}`
+  } catch {
+    return ''
+  }
 })
 
 // Privacy badge — shows different states for OpenAI/Antigravity OAuth privacy setting

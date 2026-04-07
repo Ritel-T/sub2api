@@ -301,6 +301,7 @@ func (p *NonStreamingProcessor) buildResponse(geminiResp *GeminiResponse, respon
 			usage.CacheReadInputTokens = cached
 			usage.CacheCreationInputTokens = cacheCreation // [OpusClaw Patch]
 		}
+		usage.ImageOutputTokens = geminiResp.UsageMetadata.ImageOutputTokens()
 	}
 
 	// 生成响应 ID

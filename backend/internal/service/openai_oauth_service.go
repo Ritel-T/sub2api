@@ -3,29 +3,14 @@ package service
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
-	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 )
-
-var openAISoraSessionAuthURL = "https://sora.chatgpt.com/api/auth/session"
-
-var soraSessionCookiePattern = regexp.MustCompile(`(?i)(?:^|[\n\r;])\s*(?:(?:set-cookie|cookie)\s*:\s*)?__Secure-(?:next-auth|authjs)\.session-token(?:\.(\d+))?=([^;\r\n]+)`)
-
-type soraSessionChunk struct {
-	index int
-	value string
-}
 
 // OpenAIOAuthService handles OpenAI OAuth authentication flows
 type OpenAIOAuthService struct {
@@ -127,18 +112,19 @@ type OpenAIExchangeCodeInput struct {
 
 // OpenAITokenInfo represents the token information for OpenAI
 type OpenAITokenInfo struct {
-	AccessToken      string `json:"access_token"`
-	RefreshToken     string `json:"refresh_token"`
-	IDToken          string `json:"id_token,omitempty"`
-	ExpiresIn        int64  `json:"expires_in"`
-	ExpiresAt        int64  `json:"expires_at"`
-	ClientID         string `json:"client_id,omitempty"`
-	Email            string `json:"email,omitempty"`
-	ChatGPTAccountID string `json:"chatgpt_account_id,omitempty"`
-	ChatGPTUserID    string `json:"chatgpt_user_id,omitempty"`
-	OrganizationID   string `json:"organization_id,omitempty"`
-	PlanType         string `json:"plan_type,omitempty"`
-	PrivacyMode      string `json:"privacy_mode,omitempty"`
+	AccessToken           string `json:"access_token"`
+	RefreshToken          string `json:"refresh_token"`
+	IDToken               string `json:"id_token,omitempty"`
+	ExpiresIn             int64  `json:"expires_in"`
+	ExpiresAt             int64  `json:"expires_at"`
+	ClientID              string `json:"client_id,omitempty"`
+	Email                 string `json:"email,omitempty"`
+	ChatGPTAccountID      string `json:"chatgpt_account_id,omitempty"`
+	ChatGPTUserID         string `json:"chatgpt_user_id,omitempty"`
+	OrganizationID        string `json:"organization_id,omitempty"`
+	PlanType              string `json:"plan_type,omitempty"`
+	SubscriptionExpiresAt string `json:"subscription_expires_at,omitempty"`
+	PrivacyMode           string `json:"privacy_mode,omitempty"`
 }
 
 // ExchangeCode exchanges authorization code for tokens
@@ -214,6 +200,8 @@ func (s *OpenAIOAuthService) ExchangeCode(ctx context.Context, input *OpenAIExch
 		tokenInfo.PlanType = userInfo.PlanType
 	}
 
+	s.enrichTokenInfo(ctx, tokenInfo, proxyURL)
+
 	return tokenInfo, nil
 }
 
@@ -222,7 +210,7 @@ func (s *OpenAIOAuthService) RefreshToken(ctx context.Context, refreshToken stri
 	return s.RefreshTokenWithClientID(ctx, refreshToken, proxyURL, "")
 }
 
-// RefreshTokenWithClientID refreshes an OpenAI/Sora OAuth token with optional client_id.
+// RefreshTokenWithClientID refreshes an OpenAI OAuth token with optional client_id.
 func (s *OpenAIOAuthService) RefreshTokenWithClientID(ctx context.Context, refreshToken string, proxyURL string, clientID string) (*OpenAITokenInfo, error) {
 	tokenResp, err := s.oauthClient.RefreshTokenWithClientID(ctx, refreshToken, proxyURL, clientID)
 	if err != nil {
@@ -259,242 +247,46 @@ func (s *OpenAIOAuthService) RefreshTokenWithClientID(ctx context.Context, refre
 		tokenInfo.PlanType = userInfo.PlanType
 	}
 
-	// id_token 中缺少 plan_type 时（如 Mobile RT），尝试通过 ChatGPT backend-api 补全
-	if tokenInfo.PlanType == "" && tokenInfo.AccessToken != "" && s.privacyClientFactory != nil {
-		// 从 access_token JWT 中提取 orgID（poid），用于匹配正确的账号
-		orgID := tokenInfo.OrganizationID
-		if orgID == "" {
-			if atClaims, err := openai.DecodeIDToken(tokenInfo.AccessToken); err == nil && atClaims.OpenAIAuth != nil {
-				orgID = atClaims.OpenAIAuth.POID
-			}
-		}
-		if info := fetchChatGPTAccountInfo(ctx, s.privacyClientFactory, tokenInfo.AccessToken, proxyURL, orgID); info != nil {
-			if tokenInfo.PlanType == "" && info.PlanType != "" {
-				tokenInfo.PlanType = info.PlanType
-			}
-			if tokenInfo.Email == "" && info.Email != "" {
-				tokenInfo.Email = info.Email
-			}
-		}
-	}
-
-	// 尝试设置隐私（关闭训练数据共享），best-effort
-	if tokenInfo.AccessToken != "" && s.privacyClientFactory != nil {
-		tokenInfo.PrivacyMode = disableOpenAITraining(ctx, s.privacyClientFactory, tokenInfo.AccessToken, proxyURL)
-	}
+	s.enrichTokenInfo(ctx, tokenInfo, proxyURL)
 
 	return tokenInfo, nil
 }
 
-// ExchangeSoraSessionToken exchanges Sora session_token to access_token.
-func (s *OpenAIOAuthService) ExchangeSoraSessionToken(ctx context.Context, sessionToken string, proxyID *int64) (*OpenAITokenInfo, error) {
-	sessionToken = normalizeSoraSessionTokenInput(sessionToken)
-	if strings.TrimSpace(sessionToken) == "" {
-		return nil, infraerrors.New(http.StatusBadRequest, "SORA_SESSION_TOKEN_REQUIRED", "session_token is required")
+// enrichTokenInfo 通过 ChatGPT backend-api 补全 tokenInfo 并设置隐私（best-effort）。
+// 从 accounts/check 获取最新 plan_type、subscription_expires_at、email，
+// 然后尝试关闭训练数据共享。适用于所有获取/刷新 token 的路径。
+func (s *OpenAIOAuthService) enrichTokenInfo(ctx context.Context, tokenInfo *OpenAITokenInfo, proxyURL string) {
+	if tokenInfo.AccessToken == "" || s.privacyClientFactory == nil {
+		return
 	}
 
-	proxyURL, err := s.resolveProxyURL(ctx, proxyID)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, openAISoraSessionAuthURL, nil)
-	if err != nil {
-		return nil, infraerrors.Newf(http.StatusInternalServerError, "SORA_SESSION_REQUEST_BUILD_FAILED", "failed to build request: %v", err)
-	}
-	req.Header.Set("Cookie", "__Secure-next-auth.session-token="+strings.TrimSpace(sessionToken))
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Origin", "https://sora.chatgpt.com")
-	req.Header.Set("Referer", "https://sora.chatgpt.com/")
-	req.Header.Set("User-Agent", "Sora/1.2026.007 (Android 15; 24122RKC7C; build 2600700)")
-
-	client, err := httpclient.GetClient(httpclient.Options{
-		ProxyURL: proxyURL,
-		Timeout:  120 * time.Second,
-	})
-	if err != nil {
-		return nil, infraerrors.Newf(http.StatusBadGateway, "SORA_SESSION_CLIENT_FAILED", "create http client failed: %v", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, infraerrors.Newf(http.StatusBadGateway, "SORA_SESSION_REQUEST_FAILED", "request failed: %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-	if resp.StatusCode != http.StatusOK {
-		return nil, infraerrors.Newf(http.StatusBadGateway, "SORA_SESSION_EXCHANGE_FAILED", "status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var sessionResp struct {
-		AccessToken string `json:"accessToken"`
-		Expires     string `json:"expires"`
-		User        struct {
-			Email string `json:"email"`
-			Name  string `json:"name"`
-		} `json:"user"`
-	}
-	if err := json.Unmarshal(body, &sessionResp); err != nil {
-		return nil, infraerrors.Newf(http.StatusBadGateway, "SORA_SESSION_PARSE_FAILED", "failed to parse response: %v", err)
-	}
-	if strings.TrimSpace(sessionResp.AccessToken) == "" {
-		return nil, infraerrors.New(http.StatusBadGateway, "SORA_SESSION_ACCESS_TOKEN_MISSING", "session exchange response missing access token")
-	}
-
-	expiresAt := time.Now().Add(time.Hour).Unix()
-	if strings.TrimSpace(sessionResp.Expires) != "" {
-		if parsed, parseErr := time.Parse(time.RFC3339, sessionResp.Expires); parseErr == nil {
-			expiresAt = parsed.Unix()
+	// 从 access_token JWT 中提取 orgID（poid），用于匹配正确的账号
+	orgID := tokenInfo.OrganizationID
+	if orgID == "" {
+		if atClaims, err := openai.DecodeIDToken(tokenInfo.AccessToken); err == nil && atClaims.OpenAIAuth != nil {
+			orgID = atClaims.OpenAIAuth.POID
 		}
 	}
-	expiresIn := expiresAt - time.Now().Unix()
-	if expiresIn < 0 {
-		expiresIn = 0
+	if info := fetchChatGPTAccountInfo(ctx, s.privacyClientFactory, tokenInfo.AccessToken, proxyURL, orgID); info != nil {
+		if info.PlanType != "" {
+			tokenInfo.PlanType = info.PlanType
+		}
+		if info.SubscriptionExpiresAt != "" {
+			tokenInfo.SubscriptionExpiresAt = info.SubscriptionExpiresAt
+		}
+		if tokenInfo.Email == "" && info.Email != "" {
+			tokenInfo.Email = info.Email
+		}
 	}
 
-	return &OpenAITokenInfo{
-		AccessToken: strings.TrimSpace(sessionResp.AccessToken),
-		ExpiresIn:   expiresIn,
-		ExpiresAt:   expiresAt,
-		ClientID:    openai.SoraClientID,
-		Email:       strings.TrimSpace(sessionResp.User.Email),
-	}, nil
+	// 尝试设置隐私（关闭训练数据共享），best-effort
+	tokenInfo.PrivacyMode = disableOpenAITraining(ctx, s.privacyClientFactory, tokenInfo.AccessToken, proxyURL)
 }
 
-func normalizeSoraSessionTokenInput(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return ""
-	}
-
-	matches := soraSessionCookiePattern.FindAllStringSubmatch(trimmed, -1)
-	if len(matches) == 0 {
-		return sanitizeSessionToken(trimmed)
-	}
-
-	chunkMatches := make([]soraSessionChunk, 0, len(matches))
-	singleValues := make([]string, 0, len(matches))
-
-	for _, match := range matches {
-		if len(match) < 3 {
-			continue
-		}
-
-		value := sanitizeSessionToken(match[2])
-		if value == "" {
-			continue
-		}
-
-		if strings.TrimSpace(match[1]) == "" {
-			singleValues = append(singleValues, value)
-			continue
-		}
-
-		idx, err := strconv.Atoi(strings.TrimSpace(match[1]))
-		if err != nil || idx < 0 {
-			continue
-		}
-		chunkMatches = append(chunkMatches, soraSessionChunk{
-			index: idx,
-			value: value,
-		})
-	}
-
-	if merged := mergeLatestSoraSessionChunks(chunkMatches); merged != "" {
-		return merged
-	}
-
-	if len(singleValues) > 0 {
-		return singleValues[len(singleValues)-1]
-	}
-
-	return ""
-}
-
-func mergeSoraSessionChunkSegment(chunks []soraSessionChunk, requiredMaxIndex int, requireComplete bool) string {
-	if len(chunks) == 0 {
-		return ""
-	}
-
-	byIndex := make(map[int]string, len(chunks))
-	for _, chunk := range chunks {
-		byIndex[chunk.index] = chunk.value
-	}
-
-	if _, ok := byIndex[0]; !ok {
-		return ""
-	}
-	if requireComplete {
-		for idx := 0; idx <= requiredMaxIndex; idx++ {
-			if _, ok := byIndex[idx]; !ok {
-				return ""
-			}
-		}
-	}
-
-	orderedIndexes := make([]int, 0, len(byIndex))
-	for idx := range byIndex {
-		orderedIndexes = append(orderedIndexes, idx)
-	}
-	sort.Ints(orderedIndexes)
-
-	var builder strings.Builder
-	for _, idx := range orderedIndexes {
-		if _, err := builder.WriteString(byIndex[idx]); err != nil {
-			return ""
-		}
-	}
-	return sanitizeSessionToken(builder.String())
-}
-
-func mergeLatestSoraSessionChunks(chunks []soraSessionChunk) string {
-	if len(chunks) == 0 {
-		return ""
-	}
-
-	requiredMaxIndex := 0
-	for _, chunk := range chunks {
-		if chunk.index > requiredMaxIndex {
-			requiredMaxIndex = chunk.index
-		}
-	}
-
-	groupStarts := make([]int, 0, len(chunks))
-	for idx, chunk := range chunks {
-		if chunk.index == 0 {
-			groupStarts = append(groupStarts, idx)
-		}
-	}
-
-	if len(groupStarts) == 0 {
-		return mergeSoraSessionChunkSegment(chunks, requiredMaxIndex, false)
-	}
-
-	for i := len(groupStarts) - 1; i >= 0; i-- {
-		start := groupStarts[i]
-		end := len(chunks)
-		if i+1 < len(groupStarts) {
-			end = groupStarts[i+1]
-		}
-		if merged := mergeSoraSessionChunkSegment(chunks[start:end], requiredMaxIndex, true); merged != "" {
-			return merged
-		}
-	}
-
-	return mergeSoraSessionChunkSegment(chunks, requiredMaxIndex, false)
-}
-
-func sanitizeSessionToken(raw string) string {
-	token := strings.TrimSpace(raw)
-	token = strings.Trim(token, "\"'`")
-	token = strings.TrimSuffix(token, ";")
-	return strings.TrimSpace(token)
-}
-
-// RefreshAccountToken refreshes token for an OpenAI/Sora OAuth account
+// RefreshAccountToken refreshes token for an OpenAI OAuth account
 func (s *OpenAIOAuthService) RefreshAccountToken(ctx context.Context, account *Account) (*OpenAITokenInfo, error) {
-	if account.Platform != PlatformOpenAI && account.Platform != PlatformSora {
-		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_OAUTH_INVALID_ACCOUNT", "account is not an OpenAI/Sora account")
+	if account.Platform != PlatformOpenAI {
+		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_OAUTH_INVALID_ACCOUNT", "account is not an OpenAI account")
 	}
 	if account.Type != AccountTypeOAuth {
 		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_OAUTH_INVALID_ACCOUNT_TYPE", "account is not an OAuth account")
@@ -567,6 +359,9 @@ func (s *OpenAIOAuthService) BuildAccountCredentials(tokenInfo *OpenAITokenInfo)
 	if tokenInfo.PlanType != "" {
 		creds["plan_type"] = tokenInfo.PlanType
 	}
+	if tokenInfo.SubscriptionExpiresAt != "" {
+		creds["subscription_expires_at"] = tokenInfo.SubscriptionExpiresAt
+	}
 	if strings.TrimSpace(tokenInfo.ClientID) != "" {
 		creds["client_id"] = strings.TrimSpace(tokenInfo.ClientID)
 	}
@@ -579,25 +374,6 @@ func (s *OpenAIOAuthService) Stop() {
 	s.sessionStore.Stop()
 }
 
-func (s *OpenAIOAuthService) resolveProxyURL(ctx context.Context, proxyID *int64) (string, error) {
-	if proxyID == nil {
-		return "", nil
-	}
-	proxy, err := s.proxyRepo.GetByID(ctx, *proxyID)
-	if err != nil {
-		return "", infraerrors.Newf(http.StatusBadRequest, "OPENAI_OAUTH_PROXY_NOT_FOUND", "proxy not found: %v", err)
-	}
-	if proxy == nil {
-		return "", nil
-	}
-	return proxy.URL(), nil
-}
-
 func normalizeOpenAIOAuthPlatform(platform string) string {
-	switch strings.ToLower(strings.TrimSpace(platform)) {
-	case PlatformSora:
-		return openai.OAuthPlatformSora
-	default:
-		return openai.OAuthPlatformOpenAI
-	}
+	return openai.OAuthPlatformOpenAI
 }

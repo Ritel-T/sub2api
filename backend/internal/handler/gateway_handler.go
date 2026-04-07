@@ -161,6 +161,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	reqStream := parsedReq.Stream
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 
+	// 解析渠道级模型映射
+	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+
 	// 设置 max_tokens=1 + haiku 探测请求标识到 context 中
 	// 必须在 SetClaudeCodeClientContext 之前设置，因为 ClaudeCodeValidator 需要读取此标识进行绕过判断
 	if isMaxTokensOneHaikuRequest(reqModel, parsedReq.MaxTokens, reqStream) {
@@ -307,7 +310,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		}
 
 		for {
-			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, "") // Gemini 不使用会话限制
+			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, "", int64(0)) // Gemini 不使用会话限制
 			if err != nil {
 				if len(fs.FailedAccountIDs) == 0 {
 					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts: "+err.Error(), streamStarted)
@@ -510,6 +513,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					RequestPayloadHash: requestPayloadHash,
 					ForceCacheBilling:  fs.ForceCacheBilling,
 					APIKeyService:      h.apiKeyService,
+					ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
 				}); err != nil {
 					logger.L().With(
 						zap.String("component", "handler.gateway.messages"),
@@ -557,7 +561,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 		for {
 			// 选择支持该模型的账号
-			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), currentAPIKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, parsedReq.MetadataUserID)
+			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), currentAPIKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, parsedReq.MetadataUserID, int64(0))
 			if err != nil {
 				if len(fs.FailedAccountIDs) == 0 {
 					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts: "+err.Error(), streamStarted)
@@ -712,6 +716,13 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			// 注入回调到 ParsedRequest：使用外层 wrapper 以便提前清理 AfterFunc
 			parsedReq.OnUpstreamAccepted = queueRelease
 			// ===== 用户消息串行队列 END =====
+
+			// 应用渠道模型映射到请求
+			if channelMapping.Mapped {
+				parsedReq.Model = channelMapping.MappedModel
+				parsedReq.Body = h.gatewayService.ReplaceModelInBody(parsedReq.Body, channelMapping.MappedModel)
+				body = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
+			}
 
 			// 转发请求 - 根据账号平台分流
 			var result *service.ForwardResult
@@ -884,6 +895,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					RequestPayloadHash: requestPayloadHash,
 					ForceCacheBilling:  fs.ForceCacheBilling,
 					APIKeyService:      h.apiKeyService,
+					ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
 				}); err != nil {
 					logger.L().With(
 						zap.String("component", "handler.gateway.messages"),
@@ -919,14 +931,6 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	}
 	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && strings.TrimSpace(forcedPlatform) != "" {
 		platform = forcedPlatform
-	}
-
-	if platform == service.PlatformSora {
-		c.JSON(http.StatusOK, gin.H{
-			"object": "list",
-			"data":   service.DefaultSoraModels(h.cfg),
-		})
-		return
 	}
 
 	// Get available models from account configurations (without platform filter)

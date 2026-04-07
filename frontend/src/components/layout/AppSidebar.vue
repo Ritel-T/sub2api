@@ -287,6 +287,21 @@ const FolderIcon = {
     )
 }
 
+const ChannelIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0l4.179 2.25L12 17.25 2.25 12m15.321-2.25l4.179 2.25L12 17.25l-9.75-5.25'
+        })
+      ]
+    )
+}
+
 const CreditCardIcon = {
   render: () =>
     h(
@@ -452,21 +467,6 @@ const ChevronDoubleLeftIcon = {
     )
 }
 
-const SoraIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z'
-        })
-      ]
-    )
-}
-
 const ChevronDoubleRightIcon = {
   render: () =>
     h(
@@ -489,9 +489,6 @@ const userNavItems = computed((): NavItem[] => {
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
-    ...(appStore.cachedPublicSettings?.sora_client_enabled
-      ? [{ path: '/sora', label: t('nav.sora'), icon: SoraIcon }]
-      : []),
     ...(appStore.cachedPublicSettings?.purchase_subscription_enabled
       ? [
           {
@@ -520,9 +517,6 @@ const personalNavItems = computed((): NavItem[] => {
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
-    ...(appStore.cachedPublicSettings?.sora_client_enabled
-      ? [{ path: '/sora', label: t('nav.sora'), icon: SoraIcon }]
-      : []),
     ...(appStore.cachedPublicSettings?.purchase_subscription_enabled
       ? [
           {
@@ -568,6 +562,7 @@ const adminNavItems = computed((): NavItem[] => {
       : []),
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon, hideInSimpleMode: true },
+    { path: '/admin/channels', label: t('nav.channels', '渠道管理'), icon: ChannelIcon, hideInSimpleMode: true },
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },

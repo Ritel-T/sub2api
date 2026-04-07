@@ -839,6 +839,7 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 			if updateErr != nil {
 				return nil, "", fmt.Errorf("failed to update credentials: %w", updateErr)
 			}
+			h.adminService.EnsureAntigravityPrivacy(ctx, updatedAccount)
 			return updatedAccount, "missing_project_id_temporary", nil
 		}
 
@@ -1844,12 +1845,6 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	if account.Platform == service.PlatformAntigravity {
 		// 直接复用 antigravity.DefaultModels()，与 /v1/models 端点保持同步
 		response.Success(c, antigravity.DefaultModels())
-		return
-	}
-
-	// Handle Sora accounts
-	if account.Platform == service.PlatformSora {
-		response.Success(c, service.DefaultSoraModels(nil))
 		return
 	}
 

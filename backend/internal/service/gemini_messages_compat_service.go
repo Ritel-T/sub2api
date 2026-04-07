@@ -2704,11 +2704,26 @@ func extractGeminiUsage(data []byte, override *antigravity.SimCacheOverride) *Cl
 		cacheRead = cached
 		cacheCreation, inputTokens = antigravity.SplitUncachedTokens(prompt - cached)
 	}
+
+	// 从 candidatesTokensDetails 提取 IMAGE 模态 token 数
+	imageTokens := 0
+	candidateDetails := usage.Get("candidatesTokensDetails")
+	if candidateDetails.Exists() {
+		candidateDetails.ForEach(func(_, detail gjson.Result) bool {
+			if detail.Get("modality").String() == "IMAGE" {
+				imageTokens = int(detail.Get("tokenCount").Int())
+				return false
+			}
+			return true
+		})
+	}
+
 	return &ClaudeUsage{
 		InputTokens:              inputTokens,
 		OutputTokens:             cand + thoughts,
 		CacheReadInputTokens:     cacheRead,
 		CacheCreationInputTokens: cacheCreation,
+		ImageOutputTokens:        imageTokens,
 	}
 }
 

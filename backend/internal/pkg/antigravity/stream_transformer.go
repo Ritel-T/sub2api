@@ -37,6 +37,7 @@ type StreamingProcessor struct {
 	cacheReadTokens     int
 	cacheCreationTokens int
 	simCacheOverride    *SimCacheOverride
+	imageOutputTokens   int
 }
 
 // NewStreamingProcessor 创建流式响应处理器
@@ -100,6 +101,7 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 			p.cacheReadTokens = cached
 			p.cacheCreationTokens = cacheCreation // [OpusClaw Patch]
 		}
+		p.imageOutputTokens = geminiResp.UsageMetadata.ImageOutputTokens()
 	}
 
 	// 处理 parts
@@ -141,6 +143,7 @@ func (p *StreamingProcessor) Finish() ([]byte, *ClaudeUsage) {
 		OutputTokens:             p.outputTokens,
 		CacheReadInputTokens:     p.cacheReadTokens,
 		CacheCreationInputTokens: p.cacheCreationTokens,
+		ImageOutputTokens:        p.imageOutputTokens,
 	}
 
 	if !p.messageStartSent {
@@ -182,6 +185,7 @@ func (p *StreamingProcessor) emitMessageStart(v1Resp *V1InternalResponse) []byte
 			usage.CacheReadInputTokens = cached
 			usage.CacheCreationInputTokens = cacheCreation // [OpusClaw Patch]
 		}
+		usage.ImageOutputTokens = v1Resp.Response.UsageMetadata.ImageOutputTokens()
 	}
 
 	responseID := v1Resp.ResponseID
@@ -510,6 +514,7 @@ func (p *StreamingProcessor) emitFinish(finishReason string) []byte {
 		OutputTokens:             p.outputTokens,
 		CacheReadInputTokens:     p.cacheReadTokens,
 		CacheCreationInputTokens: p.cacheCreationTokens,
+		ImageOutputTokens:        p.imageOutputTokens,
 	}
 
 	deltaEvent := map[string]any{

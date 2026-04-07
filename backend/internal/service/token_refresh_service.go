@@ -60,7 +60,6 @@ func NewTokenRefreshService(
 	}
 
 	openAIRefresher := NewOpenAITokenRefresher(openaiOAuthService, accountRepo)
-	openAIRefresher.SetSyncLinkedSoraAccounts(cfg.TokenRefresh.SyncLinkedSoraAccounts)
 
 	claudeRefresher := NewClaudeTokenRefresher(oauthService)
 	geminiRefresher := NewGeminiTokenRefresher(geminiOAuthService)
@@ -83,18 +82,6 @@ func NewTokenRefreshService(
 	}
 
 	return s
-}
-
-// SetSoraAccountRepo 设置 Sora 账号扩展表仓储
-// 用于在 OpenAI Token 刷新时同步更新 sora_accounts 表
-// 需要在 Start() 之前调用
-func (s *TokenRefreshService) SetSoraAccountRepo(repo SoraAccountRepository) {
-	// 将 soraAccountRepo 注入到 OpenAITokenRefresher
-	for _, refresher := range s.refreshers {
-		if openaiRefresher, ok := refresher.(*OpenAITokenRefresher); ok {
-			openaiRefresher.SetSoraAccountRepo(repo)
-		}
-	}
 }
 
 // SetPrivacyDeps 注入 OpenAI privacy opt-out 所需依赖
@@ -489,15 +476,14 @@ func (s *TokenRefreshService) ensureOpenAIPrivacy(ctx context.Context, account *
 }
 
 // ensureAntigravityPrivacy 后台刷新中检查 Antigravity OAuth 账号隐私状态。
-// 仅做 Extra["privacy_mode"] 存在性检查，不发起 HTTP 请求，避免每轮循环产生额外网络开销。
-// 用户可通过前端 SetPrivacy 按钮强制重新设置。
+// 仅当 privacy_mode 已成功设置（"privacy_set"）时跳过；
+// 未设置或之前失败（"privacy_set_failed"）均会重试。
 func (s *TokenRefreshService) ensureAntigravityPrivacy(ctx context.Context, account *Account) {
 	if account.Platform != PlatformAntigravity || account.Type != AccountTypeOAuth {
 		return
 	}
-	// 已设置过（无论成功或失败）则跳过，不发 HTTP
 	if account.Extra != nil {
-		if _, ok := account.Extra["privacy_mode"]; ok {
+		if mode, ok := account.Extra["privacy_mode"].(string); ok && mode == AntigravityPrivacySet {
 			return
 		}
 	}
