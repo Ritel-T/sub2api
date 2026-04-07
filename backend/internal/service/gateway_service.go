@@ -3523,6 +3523,15 @@ func (s *GatewayService) diagnoseSelectionFailure(
 	if _, excluded := excludedIDs[acc.ID]; excluded {
 		return selectionFailureDiagnosis{Category: "excluded"}
 	}
+
+	// Status check (OpusClaw Patch)
+	if acc.Status == StatusDisabled {
+		return selectionFailureDiagnosis{Category: "unschedulable", Detail: "status=disabled"}
+	}
+	if acc.Status == StatusError {
+		return selectionFailureDiagnosis{Category: "unschedulable", Detail: "status=error"}
+	}
+
 	if !s.isAccountSchedulableForSelection(acc) {
 		return selectionFailureDiagnosis{Category: "unschedulable", Detail: "generic_unschedulable"}
 	}
