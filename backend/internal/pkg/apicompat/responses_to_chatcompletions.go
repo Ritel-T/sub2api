@@ -409,7 +409,7 @@ func (a *BufferedResponseAccumulator) ProcessEvent(event *ResponsesStreamEvent) 
 	switch event.Type {
 	case "response.output_text.delta":
 		if event.Delta != "" {
-			a.text.WriteString(event.Delta)
+			_, _ = a.text.WriteString(event.Delta)
 		}
 	case "response.output_item.added":
 		if event.Item != nil && event.Item.Type == "function_call" {
@@ -423,12 +423,12 @@ func (a *BufferedResponseAccumulator) ProcessEvent(event *ResponsesStreamEvent) 
 	case "response.function_call_arguments.delta":
 		if event.Delta != "" {
 			if idx, ok := a.outputIndexToFuncIdx[event.OutputIndex]; ok {
-				a.funcCalls[idx].Args.WriteString(event.Delta)
+				_, _ = a.funcCalls[idx].Args.WriteString(event.Delta)
 			}
 		}
 	case "response.reasoning_summary_text.delta":
 		if event.Delta != "" {
-			a.reasoning.WriteString(event.Delta)
+			_, _ = a.reasoning.WriteString(event.Delta)
 		}
 	}
 }
