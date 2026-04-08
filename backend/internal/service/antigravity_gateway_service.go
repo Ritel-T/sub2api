@@ -246,7 +246,7 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 	if resp.StatusCode == http.StatusTooManyRequests &&
 		category == antigravity429QuotaExhausted &&
 		p.account.IsOveragesEnabled() &&
-		!p.account.isCreditsExhausted() {
+		!p.account.IsCreditsPathPaused() {
 		result := s.attemptCreditsOveragesRetry(p, baseURL, modelName, waitDuration, resp.StatusCode, respBody)
 		if result.handled && result.resp != nil {
 			return &smartRetryResult{
@@ -627,7 +627,7 @@ func (s *AntigravityGatewayService) antigravityRetryLoop(p antigravityRetryLoopP
 	// 预检查：模型限流 + overages 启用 + 积分未耗尽 → 直接注入 AI Credits
 	overagesInjected := false
 	if p.requestedModel != "" && p.account.Platform == PlatformAntigravity &&
-		p.account.IsOveragesEnabled() && !p.account.isCreditsExhausted() &&
+		p.account.IsOveragesEnabled() && !p.account.IsCreditsPathPaused() &&
 		p.account.isModelRateLimitedWithContext(p.ctx, p.requestedModel) {
 		if creditsBody := injectEnabledCreditTypes(p.body); creditsBody != nil {
 			p.body = creditsBody
@@ -754,7 +754,7 @@ urlFallbackLoop:
 						// [OpusClaw Patch] 积分注入后仍 429 → 标记积分耗尽，阻断热循环。
 						// 区别于旧 aggressive marking：仅在 overagesInjected=true 时触发，
 						// 不影响未注入积分的普通 429 流程。
-						s.setCreditsExhausted(p.ctx, p.account)
+						s.setCreditsPathPaused(p.ctx, p.account)
 						logger.LegacyPrintf("service.antigravity_gateway", "%s pre_injected_credits_429 model=%s account=%d marked_exhausted=true (breaking credits injection loop)",
 							p.prefix, modelKey, p.account.ID)
 					}

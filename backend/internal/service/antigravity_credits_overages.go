@@ -12,13 +12,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 )
 
-const (
-	// creditsExhaustedKey 是 model_rate_limits 中标记积分耗尽的特殊 key。
-	// 与普通模型限流完全同构：通过 SetModelRateLimit / isRateLimitActiveForKey 读写。
-	creditsExhaustedKey      = "AICredits"
-	creditsExhaustedDuration = 30 * time.Minute // [OpusClaw Patch] 从 5h 缩短到 30m
-)
-
 type antigravity429Category string
 
 const (
@@ -50,52 +43,17 @@ var (
 
 // isCreditsExhausted 检查账号的 AICredits 限流 key 是否生效（积分是否耗尽）。
 func (a *Account) isCreditsExhausted() bool {
-	if a == nil {
-		return false
-	}
-	return a.isRateLimitActiveForKey(creditsExhaustedKey)
+	return a.IsCreditsPathPaused()
 }
 
 // setCreditsExhausted 标记账号积分耗尽：写入 model_rate_limits["AICredits"] + 更新缓存。
 func (s *AntigravityGatewayService) setCreditsExhausted(ctx context.Context, account *Account) {
-	if account == nil || account.ID == 0 {
-		return
-	}
-	resetAt := time.Now().Add(creditsExhaustedDuration)
-	if err := s.accountRepo.SetModelRateLimit(ctx, account.ID, creditsExhaustedKey, resetAt); err != nil {
-		logger.LegacyPrintf("service.antigravity_gateway", "set credits exhausted failed: account=%d err=%v", account.ID, err)
-		return
-	}
-	s.updateAccountModelRateLimitInCache(ctx, account, creditsExhaustedKey, resetAt)
-	logger.LegacyPrintf("service.antigravity_gateway", "credits_exhausted_marked account=%d reset_at=%s",
-		account.ID, resetAt.UTC().Format(time.RFC3339))
+	s.setCreditsPathPaused(ctx, account)
 }
 
 // clearCreditsExhausted 清除账号的 AICredits 限流 key。
 func (s *AntigravityGatewayService) clearCreditsExhausted(ctx context.Context, account *Account) {
-	if account == nil || account.ID == 0 || account.Extra == nil {
-		return
-	}
-	rawLimits, ok := account.Extra[modelRateLimitsKey].(map[string]any)
-	if !ok {
-		return
-	}
-	if _, exists := rawLimits[creditsExhaustedKey]; !exists {
-		return
-	}
-	delete(rawLimits, creditsExhaustedKey)
-	account.Extra[modelRateLimitsKey] = rawLimits
-	if err := s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
-		modelRateLimitsKey: rawLimits,
-	}); err != nil {
-		logger.LegacyPrintf("service.antigravity_gateway", "clear credits exhausted failed: account=%d err=%v", account.ID, err)
-	}
-	// [OpusClaw Patch] 对称更新调度器缓存：与 setCreditsExhausted 一致，确保调度器立即感知清除。
-	if s.schedulerSnapshot != nil {
-		if err := s.schedulerSnapshot.UpdateAccountInCache(ctx, account); err != nil {
-			logger.LegacyPrintf("service.antigravity_gateway", "clear credits exhausted cache update failed: account=%d err=%v", account.ID, err)
-		}
-	}
+	s.clearCreditsPathPaused(ctx, account)
 }
 
 // classifyAntigravity429 将 Antigravity 的 429 响应归类为配额耗尽、限流或未知。
