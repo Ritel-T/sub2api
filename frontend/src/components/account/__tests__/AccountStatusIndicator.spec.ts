@@ -98,7 +98,7 @@ describe('AccountStatusIndicator', () => {
     expect(wrapper.text()).not.toContain('⚡')
   })
 
-  it('AICredits key 生效 → 显示积分已用尽 (credits_exhausted)', () => {
+  it('AICredits key 生效 → 显示积分通道暂停 (credits_paused)', () => {
     const wrapper = mount(AccountStatusIndicator, {
       props: {
         account: makeAccount({
@@ -122,7 +122,7 @@ describe('AccountStatusIndicator', () => {
       }
     })
 
-    expect(wrapper.text()).toContain('account.creditsExhausted')
+    expect(wrapper.text()).toContain('admin.accounts.status.creditsPaused')
   })
 
   it('模型限流 + overages 启用 + AICredits key 生效 → 普通限流样式（积分耗尽，无 ⚡）', () => {
@@ -156,7 +156,37 @@ describe('AccountStatusIndicator', () => {
     // 模型限流 + 积分耗尽 → 不应显示 ⚡
     expect(wrapper.text()).toContain('CSon45')
     expect(wrapper.text()).not.toContain('⚡')
-    // AICredits 积分耗尽状态应显示
-    expect(wrapper.text()).toContain('account.creditsExhausted')
+    // AICredits 通道暂停状态应显示
+    expect(wrapper.text()).toContain('admin.accounts.status.creditsPaused')
+  })
+
+  it('优先使用新的 credits_policy_status 字段显示积分通道暂停', () => {
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          id: 5,
+          name: 'ag-5',
+          credits_policy_status: 'paused',
+          credits_policy_reset_at: '2099-03-15T00:00:00Z',
+          extra: {
+            allow_overages: true,
+            model_rate_limits: {
+              'claude-sonnet-4-5': {
+                rate_limited_at: '2026-03-15T00:00:00Z',
+                rate_limit_reset_at: '2099-03-15T00:00:00Z'
+              }
+            }
+          }
+        })
+      },
+      global: {
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('admin.accounts.status.creditsPaused')
+    expect(wrapper.text()).not.toContain('⚡')
   })
 })
