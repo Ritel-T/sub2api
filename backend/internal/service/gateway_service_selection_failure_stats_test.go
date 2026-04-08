@@ -51,13 +51,9 @@ func TestCollectSelectionFailureStats(t *testing.T) {
 			Platform:    PlatformOpenAI,
 			Status:      StatusActive,
 			Schedulable: true,
-			Extra: map[string]any{
-				"model_rate_limits": map[string]any{
-					model: map[string]any{
-						"rate_limit_reset_at": resetAt,
-					},
-				},
-			},
+			Extra: testModelRateLimits(map[string]map[string]any{
+				model: {"rate_limit_reset_at": resetAt},
+			}),
 		},
 
 		{
@@ -121,13 +117,9 @@ func TestDiagnoseSelectionFailure_ModelRateLimitedDetail(t *testing.T) {
 		Platform:    PlatformOpenAI,
 		Status:      StatusActive,
 		Schedulable: true,
-		Extra: map[string]any{
-			"model_rate_limits": map[string]any{
-				model: map[string]any{
-					"rate_limit_reset_at": resetAt,
-				},
-			},
-		},
+		Extra: testModelRateLimits(map[string]map[string]any{
+			model: {"rate_limit_reset_at": resetAt},
+		}),
 	}
 
 	diagnosis := svc.diagnoseSelectionFailure(context.Background(), acc, model, PlatformOpenAI, map[int64]struct{}{}, false)

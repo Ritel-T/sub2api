@@ -53,19 +53,8 @@ func TestIsCreditsExhausted_UsesAICreditsKey(t *testing.T) {
 	})
 
 	t.Run("AICredits key 生效则积分耗尽", func(t *testing.T) {
-		account := &Account{
-			ID:       2,
-			Platform: PlatformAntigravity,
-			Extra: map[string]any{
-				"allow_overages": true,
-				modelRateLimitsKey: map[string]any{
-					creditsExhaustedKey: map[string]any{
-						"rate_limited_at":     time.Now().UTC().Format(time.RFC3339),
-						"rate_limit_reset_at": time.Now().Add(5 * time.Hour).UTC().Format(time.RFC3339),
-					},
-				},
-			},
-		}
+		account := testAccountWithCreditsPolicy(time.Now().Add(5 * time.Hour))
+		account.ID = 2
 		require.True(t, account.isCreditsExhausted())
 	})
 
@@ -76,10 +65,7 @@ func TestIsCreditsExhausted_UsesAICreditsKey(t *testing.T) {
 			Extra: map[string]any{
 				"allow_overages": true,
 				modelRateLimitsKey: map[string]any{
-					creditsExhaustedKey: map[string]any{
-						"rate_limited_at":     time.Now().Add(-6 * time.Hour).UTC().Format(time.RFC3339),
-						"rate_limit_reset_at": time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339),
-					},
+					creditsExhaustedKey: testRateLimitEntryAt(time.Now().Add(-6*time.Hour), time.Now().Add(-1*time.Hour)),
 				},
 			},
 		}

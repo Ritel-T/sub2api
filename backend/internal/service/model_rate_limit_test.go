@@ -21,15 +21,9 @@ func TestIsModelRateLimited(t *testing.T) {
 	}{
 		{
 			name: "official model ID hit - claude-sonnet-4-5",
-			account: &Account{
-				Extra: map[string]any{
-					modelRateLimitsKey: map[string]any{
-						"claude-sonnet-4-5": map[string]any{
-							"rate_limit_reset_at": future,
-						},
-					},
-				},
-			},
+			account: testAccountWithModelRateLimits(map[string]map[string]any{
+				"claude-sonnet-4-5": {"rate_limit_reset_at": future},
+			}),
 			requestedModel: "claude-sonnet-4-5",
 			expected:       true,
 		},
@@ -41,42 +35,26 @@ func TestIsModelRateLimited(t *testing.T) {
 						"claude-3-5-sonnet": "claude-sonnet-4-5",
 					},
 				},
-				Extra: map[string]any{
-					modelRateLimitsKey: map[string]any{
-						"claude-sonnet-4-5": map[string]any{
-							"rate_limit_reset_at": future,
-						},
-					},
-				},
+				Extra: testModelRateLimits(map[string]map[string]any{
+					"claude-sonnet-4-5": {"rate_limit_reset_at": future},
+				}),
 			},
 			requestedModel: "claude-3-5-sonnet",
 			expected:       true,
 		},
 		{
 			name: "no rate limit - expired",
-			account: &Account{
-				Extra: map[string]any{
-					modelRateLimitsKey: map[string]any{
-						"claude-sonnet-4-5": map[string]any{
-							"rate_limit_reset_at": past,
-						},
-					},
-				},
-			},
+			account: testAccountWithModelRateLimits(map[string]map[string]any{
+				"claude-sonnet-4-5": {"rate_limit_reset_at": past},
+			}),
 			requestedModel: "claude-sonnet-4-5",
 			expected:       false,
 		},
 		{
 			name: "no rate limit - no matching key",
-			account: &Account{
-				Extra: map[string]any{
-					modelRateLimitsKey: map[string]any{
-						"gemini-3-flash": map[string]any{
-							"rate_limit_reset_at": future,
-						},
-					},
-				},
-			},
+			account: testAccountWithModelRateLimits(map[string]map[string]any{
+				"gemini-3-flash": {"rate_limit_reset_at": future},
+			}),
 			requestedModel: "claude-sonnet-4-5",
 			expected:       false,
 		},
@@ -94,15 +72,9 @@ func TestIsModelRateLimited(t *testing.T) {
 		},
 		{
 			name: "gemini model hit",
-			account: &Account{
-				Extra: map[string]any{
-					modelRateLimitsKey: map[string]any{
-						"gemini-3-pro-high": map[string]any{
-							"rate_limit_reset_at": future,
-						},
-					},
-				},
-			},
+			account: testAccountWithModelRateLimits(map[string]map[string]any{
+				"gemini-3-pro-high": {"rate_limit_reset_at": future},
+			}),
 			requestedModel: "gemini-3-pro-high",
 			expected:       true,
 		},
@@ -110,13 +82,9 @@ func TestIsModelRateLimited(t *testing.T) {
 			name: "antigravity platform - gemini-3-pro-preview mapped to gemini-3-pro-high",
 			account: &Account{
 				Platform: PlatformAntigravity,
-				Extra: map[string]any{
-					modelRateLimitsKey: map[string]any{
-						"gemini-3-pro-high": map[string]any{
-							"rate_limit_reset_at": future,
-						},
-					},
-				},
+				Extra: testModelRateLimits(map[string]map[string]any{
+					"gemini-3-pro-high": {"rate_limit_reset_at": future},
+				}),
 			},
 			requestedModel: "gemini-3-pro-preview",
 			expected:       true,

@@ -40,16 +40,13 @@ func TestUpdateAccount_OveragesAlwaysEnabledForAntigravity(t *testing.T) {
 			Extra: map[string]any{
 				"allow_overages":   true,
 				"mixed_scheduling": true,
-				modelRateLimitsKey: map[string]any{
-					"claude-sonnet-4-5": map[string]any{
+				modelRateLimitsKey: testModelRateLimits(map[string]map[string]any{
+					"claude-sonnet-4-5": {
 						"rate_limited_at":     "2026-03-15T00:00:00Z",
 						"rate_limit_reset_at": "2099-03-15T00:00:00Z",
 					},
-					creditsExhaustedKey: map[string]any{
-						"rate_limited_at":     "2026-03-15T00:00:00Z",
-						"rate_limit_reset_at": time.Now().Add(5 * time.Hour).UTC().Format(time.RFC3339),
-					},
-				},
+					creditsExhaustedKey: testRateLimitEntry(time.Now().Add(5 * time.Hour)),
+				})[modelRateLimitsKey],
 			},
 		},
 	}
@@ -58,16 +55,13 @@ func TestUpdateAccount_OveragesAlwaysEnabledForAntigravity(t *testing.T) {
 	updated, err := svc.UpdateAccount(context.Background(), accountID, &UpdateAccountInput{
 		Extra: map[string]any{
 			"mixed_scheduling": true,
-			modelRateLimitsKey: map[string]any{
-				"claude-sonnet-4-5": map[string]any{
+			modelRateLimitsKey: testModelRateLimits(map[string]map[string]any{
+				"claude-sonnet-4-5": {
 					"rate_limited_at":     "2026-03-15T00:00:00Z",
 					"rate_limit_reset_at": "2099-03-15T00:00:00Z",
 				},
-				creditsExhaustedKey: map[string]any{
-					"rate_limited_at":     "2026-03-15T00:00:00Z",
-					"rate_limit_reset_at": time.Now().Add(5 * time.Hour).UTC().Format(time.RFC3339),
-				},
-			},
+				creditsExhaustedKey: testRateLimitEntry(time.Now().Add(5 * time.Hour)),
+			})[modelRateLimitsKey],
 		},
 	})
 
@@ -94,12 +88,12 @@ func TestUpdateAccount_EnableOveragesClearsModelRateLimitsBeforePersist(t *testi
 			Status:   StatusActive,
 			Extra: map[string]any{
 				"mixed_scheduling": true,
-				modelRateLimitsKey: map[string]any{
-					"claude-sonnet-4-5": map[string]any{
+				modelRateLimitsKey: testModelRateLimits(map[string]map[string]any{
+					"claude-sonnet-4-5": {
 						"rate_limited_at":     "2026-03-15T00:00:00Z",
 						"rate_limit_reset_at": "2099-03-15T00:00:00Z",
 					},
-				},
+				})[modelRateLimitsKey],
 			},
 		},
 	}

@@ -27,14 +27,10 @@ func TestCrossModelIsolation(t *testing.T) {
 			Status:      StatusActive,
 			Schedulable: true,
 			Extra: map[string]any{
-				modelRateLimitsKey: map[string]any{
-					claudeModel: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-					creditsKey: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-				},
+				modelRateLimitsKey: testModelRateLimits(map[string]map[string]any{
+					claudeModel: {"rate_limit_reset_at": future},
+					creditsKey:  {"rate_limit_reset_at": future},
+				})[modelRateLimitsKey],
 				"allow_overages": true,
 			},
 		}
@@ -52,14 +48,10 @@ func TestCrossModelIsolation(t *testing.T) {
 			Status:      StatusActive,
 			Schedulable: true,
 			Extra: map[string]any{
-				modelRateLimitsKey: map[string]any{
-					geminiModel: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-					creditsKey: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-				},
+				modelRateLimitsKey: testModelRateLimits(map[string]map[string]any{
+					geminiModel: {"rate_limit_reset_at": future},
+					creditsKey:  {"rate_limit_reset_at": future},
+				})[modelRateLimitsKey],
 				"allow_overages": true,
 			},
 		}
@@ -77,17 +69,11 @@ func TestCrossModelIsolation(t *testing.T) {
 			Status:      StatusActive,
 			Schedulable: true,
 			Extra: map[string]any{
-				modelRateLimitsKey: map[string]any{
-					claudeModel: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-					geminiModel: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-					creditsKey: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-				},
+				modelRateLimitsKey: testModelRateLimits(map[string]map[string]any{
+					claudeModel: {"rate_limit_reset_at": future},
+					geminiModel: {"rate_limit_reset_at": future},
+					creditsKey:  {"rate_limit_reset_at": future},
+				})[modelRateLimitsKey],
 				"allow_overages": true,
 			},
 		}
@@ -104,12 +90,9 @@ func TestCrossModelIsolation(t *testing.T) {
 			Status:      StatusActive,
 			Schedulable: true,
 			Extra: map[string]any{
-				modelRateLimitsKey: map[string]any{
-					claudeModel: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-					// AICredits 未限流
-				},
+				modelRateLimitsKey: testModelRateLimits(map[string]map[string]any{
+					claudeModel: {"rate_limit_reset_at": future},
+				})[modelRateLimitsKey],
 				"allow_overages": true,
 			},
 		}
@@ -125,15 +108,10 @@ func TestCrossModelIsolation(t *testing.T) {
 			Status:      StatusActive,
 			Schedulable: true,
 			Extra: map[string]any{
-				modelRateLimitsKey: map[string]any{
-					claudeModel: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-					geminiModel: map[string]any{
-						"rate_limit_reset_at": future,
-					},
-					// AICredits 未限流
-				},
+				modelRateLimitsKey: testModelRateLimits(map[string]map[string]any{
+					claudeModel: {"rate_limit_reset_at": future},
+					geminiModel: {"rate_limit_reset_at": future},
+				})[modelRateLimitsKey],
 				"allow_overages": true,
 			},
 		}
