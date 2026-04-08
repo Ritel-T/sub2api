@@ -65,6 +65,9 @@ const isRateLimited = computed(() => {
   if (props.account?.rate_limit_reset_at && new Date(props.account.rate_limit_reset_at) > new Date()) {
     return true
   }
+  if (props.account?.credits_policy_status === 'paused' && props.account?.credits_policy_reset_at) {
+    return new Date(props.account.credits_policy_reset_at) > new Date()
+  }
   const modelLimits = (props.account?.extra as Record<string, unknown> | undefined)?.model_rate_limits as
     | Record<string, { rate_limit_reset_at: string }>
     | undefined
