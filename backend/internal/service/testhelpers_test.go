@@ -1,5 +1,3 @@
-//go:build unit
-
 package service
 
 // testPtrFloat64 returns a pointer to the given float64 value.
