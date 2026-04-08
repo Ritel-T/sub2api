@@ -116,7 +116,9 @@ backend/
 │   │   ├── model_pricing_resolver.go       # [Upstream] Channel-based model pricing
 │   │   ├── antigravity_gateway_service.go  # Core: Claude→Gemini transform + retry + rate-limit
 │   │   ├── antigravity_credits_overages.go # AI Credits handling + aggressive marking
+│   │   ├── credits_policy.go               # [OpusClaw] Typed credits-policy accessors over legacy AICredits key
 │   │   ├── antigravity_quota_scope.go      # IsSchedulableForModelWithContext()
+│   │   ├── antigravity_quota_fetcher.go    # [Upstream] Verified AI Credits / usage truth from loadCodeAssist
 │   │   ├── gateway_service.go              # Session hash, account selection, sticky sessions
 │   │   ├── account.go                      # Account model (含 IsPrivacySet, RPM buffer, customtools normalize)
 │   │   ├── account_service.go              # Account CRUD (含 require_oauth_only 检查)
@@ -189,6 +191,7 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | Credits false-positive fix | `antigravity_credits_overages.go` | Remove 429 from aggressive marking; remove ambiguous `"resource has been exhausted"` keyword; symmetric cache update in `clearCreditsExhausted()` |
 | Post-injection 429 marking | `antigravity_gateway_service.go:719` | When `overagesInjected=true` and upstream still 429, mark credits exhausted to break hot-loop |
 | Second-stage credits retry 429 | `antigravity_credits_overages.go:208` | Mark exhausted when `attemptCreditsOveragesRetry` returns 429 |
+| Credits policy typing + UI semantics | `credits_policy.go`, DTO mappers, `AccountStatusIndicator.vue` | Separate local credits-path pause policy from verified AI Credits balance truth; preserve legacy AICredits key only as compatibility storage |
 | Rate-limit window preservation | `antigravity_gateway_service.go:153` | `nextModelRateLimitReset()`: use `max(existing, proposed)` instead of blind overwrite |
 | WaitPlan revalidation | `gateway_handler.go:396,643` | After `AcquireAccountSlotWithWaitTimeout`, re-fetch account and verify still schedulable |
 | Sticky context propagation | `antigravity_gateway_service.go` + `gateway_handler.go` | Pass `groupID/sessionHash` via context into `Forward()`/`ForwardGemini()` for immediate sticky cleanup |
@@ -202,7 +205,7 @@ All patches are tagged with `[OpusClaw Patch]` in comments.
 | `antigravityStickyPreserveThreshold` | 60s | `antigravity_gateway_service.go:49` | Short vs long rate-limit for sticky |
 | `antigravitySmartRetryMaxAttempts` | 1 | `antigravity_gateway_service.go:42` | Max smart retry |
 | `antigravityModelCapacityRetryMaxAttempts` | 5 | `antigravity_gateway_service.go:54` | MODEL_CAPACITY retries (was 60) |
-| `creditsExhaustedDuration` | 30min | `antigravity_credits_overages.go:19` | Credits cooldown |
+| `creditsExhaustedDuration` | 30min | `credits_policy.go` | Local credits-path cooldown policy duration |
 | `opusClawCreditsConcurrency` | 10 | `gateway_service.go:58` | Credits-tier slots |
 | `opusClawQuotaConcurrency` | 5 | `gateway_service.go:59` | Quota-tier slots |
 | `maxSameAccountRetries` | 3 | `failover_loop.go:33` | Same-account retry limit |
@@ -278,17 +281,38 @@ Gemini 原生路径（`gemini_v1beta_handler.go`）不注入 override。
 ```
 Pre-filter (gateway_service.go:2026-2060):
   → Skip: rate-limited / temporarily unschedulable / overloaded
-  → DO NOT pre-filter: credits-exhausted (deferred)
+  → DO NOT pre-filter: credits-path-paused policy (deferred)
 
 IsSchedulableForModelWithContext (antigravity_quota_scope.go:27-42):
   → model NOT rate-limited → schedulable
-  → model rate-limited + overages + credits NOT exhausted → schedulable
+  → model rate-limited + overages + credits path NOT paused → schedulable
   → Otherwise → NOT schedulable
 
 Concurrency (effectiveConcurrencyForSlot, gateway_service.go:183-198):
   → Antigravity + rate-limited (credits tier): 10 slots
   → Antigravity + NOT rate-limited (quota tier): 5 slots
 ```
+
+### Credits State Model (Truth vs Policy vs Presentation)
+
+```
+Truth layer:
+  → `antigravity_quota_fetcher.go` / `UsageInfo.AICredits`
+  → upstream-reported AI Credits balance / credit type / minimum balance
+
+Policy layer:
+  → `credits_policy.go`
+  → local scheduler cooldown stored via legacy `model_rate_limits["AICredits"]`
+  → semantic meaning: "credits path paused", NOT authoritative balance exhaustion
+
+Presentation layer:
+  → DTO: `credits_policy_status`, `credits_policy_reset_at`
+  → Frontend: `AccountStatusIndicator.vue`, `AccountActionMenu.vue`
+  → UI wording: "积分通道暂停 / Credits Path Paused"
+```
+
+**Important:** `model_rate_limits["AICredits"]` remains a backward-compatible storage key only.
+Do NOT present it as factual "credits exhausted" in new code. Verified credits truth comes from usage/quota fetch data, not from this local policy key.
 
 ### SelectAccountWithLoadAwareness 选号层级
 
