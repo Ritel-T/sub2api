@@ -265,6 +265,29 @@ func TestBuildTools_CustomTypeTools(t *testing.T) {
 	}
 }
 
+func TestBuildTools_PreservesWebSearchAlongsideFunctions(t *testing.T) {
+	tools := []ClaudeTool{
+		{
+			Name:        "get_weather",
+			Description: "Get weather information",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		{
+			Type: "web_search_20250305",
+			Name: "web_search",
+		},
+	}
+
+	result := buildTools(tools)
+	require.Len(t, result, 2)
+	require.Len(t, result[0].FunctionDeclarations, 1)
+	require.Equal(t, "get_weather", result[0].FunctionDeclarations[0].Name)
+	require.NotNil(t, result[1].GoogleSearch)
+	require.NotNil(t, result[1].GoogleSearch.EnhancedContent)
+	require.NotNil(t, result[1].GoogleSearch.EnhancedContent.ImageSearch)
+	require.Equal(t, 5, result[1].GoogleSearch.EnhancedContent.ImageSearch.MaxResultCount)
+}
+
 func TestBuildGenerationConfig_ThinkingDynamicBudget(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -435,7 +458,7 @@ func TestBuildSystemInstruction_OfficialFormat_ExistingIdentity(t *testing.T) {
 
 func TestGenerateSessionID_Format(t *testing.T) {
 	contents := []GeminiContent{{
-		Role: "user",
+		Role:  "user",
 		Parts: []GeminiPart{{Text: "hello world"}},
 	}}
 	id := generateStableSessionID(contents)
@@ -451,7 +474,7 @@ func TestStopSequences_NotSentByDefault(t *testing.T) {
 
 func TestToolConfig_NotSentWithoutTools(t *testing.T) {
 	claudeReq := &ClaudeRequest{
-		Model: "claude-sonnet-4-5",
+		Model:    "claude-sonnet-4-5",
 		Messages: []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hi"`)}},
 	}
 	body, err := TransformClaudeToGeminiWithOptions(claudeReq, "project-1", "claude-sonnet-4-5", DefaultTransformOptions())
@@ -460,6 +483,37 @@ func TestToolConfig_NotSentWithoutTools(t *testing.T) {
 	var req V1InternalRequest
 	require.NoError(t, json.Unmarshal(body, &req))
 	require.Nil(t, req.Request.ToolConfig)
+}
+
+func TestTransformClaudeToGeminiWithOptions_PreservesWebSearchAlongsideFunctions(t *testing.T) {
+	claudeReq := &ClaudeRequest{
+		Model: "claude-3-5-sonnet-latest",
+		Messages: []ClaudeMessage{{
+			Role:    "user",
+			Content: json.RawMessage(`[{"type":"text","text":"hello"}]`),
+		}},
+		Tools: []ClaudeTool{
+			{
+				Name:        "get_weather",
+				Description: "Get weather information",
+				InputSchema: map[string]any{"type": "object"},
+			},
+			{
+				Type: "web_search_20250305",
+				Name: "web_search",
+			},
+		},
+	}
+
+	body, err := TransformClaudeToGeminiWithOptions(claudeReq, "project-1", "gemini-2.5-flash", DefaultTransformOptions())
+	require.NoError(t, err)
+
+	var req V1InternalRequest
+	require.NoError(t, json.Unmarshal(body, &req))
+	require.Len(t, req.Request.Tools, 2)
+	require.Len(t, req.Request.Tools[0].FunctionDeclarations, 1)
+	require.Equal(t, "get_weather", req.Request.Tools[0].FunctionDeclarations[0].Name)
+	require.NotNil(t, req.Request.Tools[1].GoogleSearch)
 }
 
 func TestEnvelopeParity_ClaudeAndGeminiPathsMatch(t *testing.T) {
@@ -496,8 +550,8 @@ func TestGolden_ClaudeToV1Internal(t *testing.T) {
 		{
 			name: "basic",
 			request: &ClaudeRequest{
-				Model: "claude-sonnet-4-5",
-				Messages: []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hello"`)}},
+				Model:     "claude-sonnet-4-5",
+				Messages:  []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hello"`)}},
 				MaxTokens: 16,
 			},
 			projectID:  "project-1",
@@ -507,8 +561,8 @@ func TestGolden_ClaudeToV1Internal(t *testing.T) {
 		{
 			name: "with tools",
 			request: &ClaudeRequest{
-				Model: "claude-sonnet-4-5",
-				Messages: []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hello"`)}},
+				Model:     "claude-sonnet-4-5",
+				Messages:  []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hello"`)}},
 				MaxTokens: 16,
 				Tools: []ClaudeTool{{
 					Name:        "get_weather",
@@ -523,10 +577,10 @@ func TestGolden_ClaudeToV1Internal(t *testing.T) {
 		{
 			name: "with thinking",
 			request: &ClaudeRequest{
-				Model: "claude-opus-4-6-thinking",
-				Messages: []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hello"`)}},
+				Model:     "claude-opus-4-6-thinking",
+				Messages:  []ClaudeMessage{{Role: "user", Content: json.RawMessage(`"hello"`)}},
 				MaxTokens: 2000,
-				Thinking: &ThinkingConfig{Type: "adaptive"},
+				Thinking:  &ThinkingConfig{Type: "adaptive"},
 			},
 			projectID:  "project-1",
 			mapped:     "claude-opus-4-6-thinking",
