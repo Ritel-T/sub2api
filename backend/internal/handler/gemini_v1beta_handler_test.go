@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -166,4 +167,52 @@ func TestShouldFallbackGeminiModel_DelegatesScopeFallback(t *testing.T) {
 		Body:       []byte("insufficient authentication scopes"),
 	}
 	require.True(t, shouldFallbackGeminiModel("gemini-future-model", res))
+}
+
+func TestValidateGeminiFunctionResponseOrdering(t *testing.T) {
+	t.Parallel()
+
+	t.Run("accepts matching function call before response", func(t *testing.T) {
+		err := validateGeminiFunctionResponseOrdering([]antigravity.GeminiContent{
+			{
+				Role: "model",
+				Parts: []antigravity.GeminiPart{{
+					FunctionCall: &antigravity.GeminiFunctionCall{Name: "get_weather"},
+				}},
+			},
+			{
+				Role: "user",
+				Parts: []antigravity.GeminiPart{{
+					FunctionResponse: &antigravity.GeminiFunctionResponse{Name: "get_weather", Response: map[string]any{"ok": true}},
+				}},
+			},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("rejects response without prior matching call", func(t *testing.T) {
+		err := validateGeminiFunctionResponseOrdering([]antigravity.GeminiContent{
+			{
+				Role: "user",
+				Parts: []antigravity.GeminiPart{{
+					FunctionResponse: &antigravity.GeminiFunctionResponse{Name: "get_weather", Response: map[string]any{"ok": true}},
+				}},
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "functionResponse must immediately follow")
+	})
+
+	t.Run("rejects response without name", func(t *testing.T) {
+		err := validateGeminiFunctionResponseOrdering([]antigravity.GeminiContent{
+			{
+				Role: "user",
+				Parts: []antigravity.GeminiPart{{
+					FunctionResponse: &antigravity.GeminiFunctionResponse{Response: map[string]any{"ok": true}},
+				}},
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "functionResponse.name is required")
+	})
 }

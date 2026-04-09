@@ -181,6 +181,19 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		return
 	}
 
+	// [OpusClaw Patch] Fast-fail invalid Gemini function-response ordering locally.
+	// Upstream may spend tens of seconds before returning INVALID_ARGUMENT for
+	// malformed functionResponse turn ordering, which ties up account selection and
+	// makes the relay look globally slow. Rejecting this shape here keeps the error
+	// semantics but removes unnecessary upstream latency.
+	var fastFailGeminiReq antigravity.GeminiRequest
+	if err := json.Unmarshal(body, &fastFailGeminiReq); err == nil {
+		if err := validateGeminiFunctionResponseOrdering(fastFailGeminiReq.Contents); err != nil {
+			googleError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
 	setOpsRequestContext(c, modelName, stream, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(stream, false)))
 
@@ -548,6 +561,35 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		)
 		return
 	}
+}
+
+func validateGeminiFunctionResponseOrdering(contents []antigravity.GeminiContent) error {
+	if len(contents) == 0 {
+		return nil
+	}
+
+	pendingCalls := make(map[string]struct{})
+	for _, content := range contents {
+		for _, part := range content.Parts {
+			if part.FunctionCall != nil {
+				name := strings.TrimSpace(part.FunctionCall.Name)
+				if name != "" {
+					pendingCalls[name] = struct{}{}
+				}
+			}
+			if part.FunctionResponse != nil {
+				name := strings.TrimSpace(part.FunctionResponse.Name)
+				if name == "" {
+					return errors.New("Invalid Gemini request: functionResponse.name is required")
+				}
+				if _, ok := pendingCalls[name]; !ok {
+					return errors.New("Invalid Gemini request: functionResponse must immediately follow a matching functionCall turn")
+				}
+				delete(pendingCalls, name)
+			}
+		}
+	}
+	return nil
 }
 
 func parseGeminiModelAction(rest string) (model string, action string, err error) {
