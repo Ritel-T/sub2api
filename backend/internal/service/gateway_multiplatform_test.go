@@ -2633,6 +2633,73 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		require.Equal(t, int64(2), cache.sessionBindings[sessionHash])
 	})
 
+	t.Run("模型路由-粘性账号快照过期且模型限流-跳过并回退到健康账号", func(t *testing.T) {
+		groupID := int64(220)
+		sessionHash := "route-stale-rate-limited"
+		future := time.Now().Add(30 * time.Minute).UTC().Format(time.RFC3339)
+
+		repo := &mockAccountRepoForPlatform{
+			accounts: []Account{
+				{ID: 1, Platform: PlatformAnthropic, Priority: 1, Status: StatusActive, Schedulable: true, Concurrency: 5},
+				{ID: 2, Platform: PlatformAnthropic, Priority: 2, Status: StatusActive, Schedulable: true, Concurrency: 5},
+			},
+			accountsByID: map[int64]*Account{
+				1: {
+					ID:          1,
+					Platform:    PlatformAnthropic,
+					Priority:    1,
+					Status:      StatusActive,
+					Schedulable: true,
+					Concurrency: 5,
+					Extra: map[string]any{
+						modelRateLimitsKey: map[string]any{
+							"claude-3-5-sonnet-20241022": map[string]any{"rate_limit_reset_at": future},
+						},
+					},
+				},
+				2: {ID: 2, Platform: PlatformAnthropic, Priority: 2, Status: StatusActive, Schedulable: true, Concurrency: 5},
+			},
+		}
+		for i := range repo.accounts {
+			if _, ok := repo.accountsByID[repo.accounts[i].ID]; !ok {
+				repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			}
+		}
+
+		cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{sessionHash: 1}}
+		groupRepo := &mockGroupRepoForGateway{groups: map[int64]*Group{
+			groupID: {
+				ID:                  groupID,
+				Platform:            PlatformAnthropic,
+				Status:              StatusActive,
+				Hydrated:            true,
+				ModelRoutingEnabled: true,
+				ModelRouting: map[string][]int64{
+					"claude-3-5-sonnet-20241022": {1, 2},
+				},
+			},
+		}}
+
+		cfg := testConfig()
+		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		concurrencyCache := &mockConcurrencyCache{}
+
+		svc := &GatewayService{
+			accountRepo:        repo,
+			groupRepo:          groupRepo,
+			cache:              cache,
+			cfg:                cfg,
+			concurrencyService: NewConcurrencyService(concurrencyCache),
+		}
+
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "claude-3-5-sonnet-20241022", nil, "", int64(0))
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Account)
+		require.Equal(t, int64(2), result.Account.ID)
+		require.Equal(t, int64(2), cache.sessionBindings[sessionHash])
+	})
+
 	t.Run("模型路由-按负载选择账号", func(t *testing.T) {
 		groupID := int64(21)
 

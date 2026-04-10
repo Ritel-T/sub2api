@@ -1383,6 +1383,12 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			}
 
 			if stickyAccountID > 0 && stickyAccountID == account.ID && s.concurrencyService != nil {
+				freshAccount, refreshErr := s.refreshAccountForSelection(ctx, account.ID, requestedModel)
+				if refreshErr != nil {
+					localExcluded[account.ID] = struct{}{}
+					continue
+				}
+				account = freshAccount
 				waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, account.ID)
 				if waitingCount < cfg.StickySessionMaxWaiting {
 					return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
@@ -1393,6 +1399,12 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					})
 				}
 			}
+			freshAccount, refreshErr := s.refreshAccountForSelection(ctx, account.ID, requestedModel)
+			if refreshErr != nil {
+				localExcluded[account.ID] = struct{}{}
+				continue
+			}
+			account = freshAccount
 			return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 				AccountID:      account.ID,
 				MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
@@ -2243,6 +2255,20 @@ func (s *GatewayService) RefreshAccountForExecution(ctx context.Context, account
 	return account, nil
 }
 
+func (s *GatewayService) refreshAccountForSelection(ctx context.Context, accountID int64, requestedModel string) (*Account, error) {
+	account, err := s.RefreshAccountForExecution(ctx, accountID, requestedModel)
+	if err != nil {
+		return nil, err
+	}
+	if account == nil {
+		return nil, errors.New("account not found")
+	}
+	if !s.isAccountSchedulableForSelection(account) {
+		return nil, errors.New("account no longer selectable")
+	}
+	return account, nil
+}
+
 // isAccountInGroup checks if the account belongs to the specified group.
 // When groupID is nil, returns true only for ungrouped accounts (no group assignments).
 func (s *GatewayService) isAccountInGroup(account *Account, groupID *int64) bool {
@@ -2937,7 +2963,13 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 							if s.debugModelRoutingEnabled() {
 								logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] legacy routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), accountID)
 							}
-							return account, nil
+							freshAccount, refreshErr := s.refreshAccountForSelection(ctx, account.ID, requestedModel)
+							if refreshErr != nil {
+								excludedIDs[accountID] = struct{}{}
+								_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+								return s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
+							}
+							return freshAccount, nil
 						}
 					}
 				}
@@ -3035,6 +3067,12 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 			if s.debugModelRoutingEnabled() {
 				logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] legacy routed select: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), selected.ID)
 			}
+			freshSelected, refreshErr := s.refreshAccountForSelection(ctx, selected.ID, requestedModel)
+			if refreshErr != nil {
+				excludedIDs[selected.ID] = struct{}{}
+				return s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
+			}
+			selected = freshSelected
 			return selected, nil
 		}
 		logger.LegacyPrintf("service.gateway", "[ModelRouting] No routed accounts available for model=%s, falling back to normal selection", requestedModel)
@@ -3053,7 +3091,13 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
 					if !clearSticky && s.isAccountInGroup(account, groupID) && account.Platform == platform && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) {
-						return account, nil
+						freshAccount, refreshErr := s.refreshAccountForSelection(ctx, account.ID, requestedModel)
+						if refreshErr != nil {
+							excludedIDs[accountID] = struct{}{}
+							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+							return s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
+						}
+						return freshAccount, nil
 					}
 				}
 			}
@@ -3155,6 +3199,12 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 		}
 	}
 
+	freshSelected, refreshErr := s.refreshAccountForSelection(ctx, selected.ID, requestedModel)
+	if refreshErr != nil {
+		excludedIDs[selected.ID] = struct{}{}
+		return s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
+	}
+	selected = freshSelected
 	return selected, nil
 }
 
@@ -3197,7 +3247,13 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 								if s.debugModelRoutingEnabled() {
 									logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] legacy mixed routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), accountID)
 								}
-								return account, nil
+								freshAccount, refreshErr := s.refreshAccountForSelection(ctx, account.ID, requestedModel)
+								if refreshErr != nil {
+									excludedIDs[accountID] = struct{}{}
+									_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+									return s.selectAccountWithMixedScheduling(ctx, groupID, sessionHash, requestedModel, excludedIDs, nativePlatform)
+								}
+								return freshAccount, nil
 							}
 						}
 					}
@@ -3296,6 +3352,12 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 			if s.debugModelRoutingEnabled() {
 				logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] legacy mixed routed select: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), selected.ID)
 			}
+			freshSelected, refreshErr := s.refreshAccountForSelection(ctx, selected.ID, requestedModel)
+			if refreshErr != nil {
+				excludedIDs[selected.ID] = struct{}{}
+				return s.selectAccountWithMixedScheduling(ctx, groupID, sessionHash, requestedModel, excludedIDs, nativePlatform)
+			}
+			selected = freshSelected
 			return selected, nil
 		}
 		logger.LegacyPrintf("service.gateway", "[ModelRouting] No routed accounts available for model=%s, falling back to normal selection", requestedModel)
@@ -3316,7 +3378,13 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 					}
 					if !clearSticky && s.isAccountInGroup(account, groupID) && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) {
 						if account.Platform == nativePlatform || (account.Platform == PlatformAntigravity && account.IsMixedSchedulingEnabled()) {
-							return account, nil
+							freshAccount, refreshErr := s.refreshAccountForSelection(ctx, account.ID, requestedModel)
+							if refreshErr != nil {
+								excludedIDs[accountID] = struct{}{}
+								_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+								return s.selectAccountWithMixedScheduling(ctx, groupID, sessionHash, requestedModel, excludedIDs, nativePlatform)
+							}
+							return freshAccount, nil
 						}
 					}
 				}
@@ -3418,6 +3486,12 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 		}
 	}
 
+	freshSelected, refreshErr := s.refreshAccountForSelection(ctx, selected.ID, requestedModel)
+	if refreshErr != nil {
+		excludedIDs[selected.ID] = struct{}{}
+		return s.selectAccountWithMixedScheduling(ctx, groupID, sessionHash, requestedModel, excludedIDs, nativePlatform)
+	}
+	selected = freshSelected
 	return selected, nil
 }
 
