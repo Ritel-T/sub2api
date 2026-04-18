@@ -1,12 +1,12 @@
 # Sub2API (OpusClaw Fork) — Agent Reference
 
-> **最后更新**：2026-04-07（v0.1.108 上游合并）
+> **最后更新**：2026-04-18（v0.1.110 上游合并）
 
 ## 1. What This Is
 
 Sub2API is a Go API gateway that proxies AI model requests through Google Antigravity accounts. It accepts Claude/Gemini API format requests, transforms them to Gemini v1internal format, and forwards to Antigravity upstream. This fork contains OpusClaw-specific patches for caching, sticky sessions, rate-limit handling, scheduling optimization, and token accounting.
 
-Upstream repo: `github.com/Wei-Shaw/sub2api` (merged up to `8fa61516`)
+Upstream repo: `github.com/Wei-Shaw/sub2api` (merged up to `1b79f6a7`)
 
 ## 2. 开发环境
 
@@ -14,9 +14,16 @@ Upstream repo: `github.com/Wei-Shaw/sub2api` (merged up to `8fa61516`)
 
 | 路径 | 用途 |
 |------|------|
-| `/root/src/sub2api/` | **本仓库**（开发源码，含 `.git`，branch: `opusclaw/v0.1.106-merge`） |
+| `/root/src/sub2api/` | **本仓库**（开发源码，含 `.git`，branch: `opusclaw/v0.1.110-merge`） |
 | `/root/src/opusclaw/` | OpusClaw 网关源码（另一个仓库，详见其 AGENTS.md） |
 | `/srv/sub2api-c/` | Sub2API-C 部署目录（docker-compose + 数据卷，build context 指向 `/root/src/sub2api/`） |
+
+### 本地 merge 分支约定
+
+- 长期维护分支名称跟随**已完成 upstream merge 的最高版本**，例如当前为 `opusclaw/v0.1.110-merge`
+- 完成新的 upstream merge 后，应同步更新本地分支名与本文件顶部元数据，避免分支名滞后于实际代码基线
+- 当前本地 merge 分支应跟踪 `origin/main` 作为对比/合并基线；**不要**将其直接 push 到 `origin/main`
+- 如需发布到个人 fork，请显式创建/推送同名远端分支，而不是依赖过期的 fork tracking 配置
 
 ### 构建与部署
 
@@ -448,6 +455,10 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
+| `86757918` | fix(scheduling): revalidate stale sticky account selections |
+| `a96939cd` | fix(gemini): fast-fail invalid function response ordering |
+| `e506112d` | **merge: upstream origin/main (1b79f6a7) — v0.1.110** — Redis snapshot meta fix; sync VERSION to 0.1.110; CCH signing + billing header sync; Go 1.26.2 CVE bump; empty output rebuild fix remains preserved from upstream |
+| `30de5c50` | **merge: upstream origin/main (00aaf0f7) — v0.1.109** — upstream sync before v0.1.110 porting; follow-up cleanup landed in `520bbee4` / `a8f360e8` |
 | `4166a6de` | **merge: upstream origin/main (8fa61516) — v0.1.107+v0.1.108** — Channel management; Sora removal; system→messages migration; renumbered migrations; 429/529 failover fixes |
 | `06030f19` | fix(test): restore status=disabled detail in diagnoseSelectionFailure |
 | `0744ffb1` | chore: renumber migration 081→091 to avoid upstream collision |
@@ -473,6 +484,33 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 | `13ed03f1` | feat(scheduling): differentiated concurrency, Gemini sticky skip, anti-deadlock fixes |
 
 ## 12. Upstream Merge Log
+
+### v0.1.110 merge (2026-04-09)
+
+**对应提交**: `e506112d` — `merge: upstream origin/main (1b79f6a7) — v0.1.110`
+
+**上游基线**:
+
+- tag: `v0.1.110`
+- merge target: `origin/main@1b79f6a7`
+
+**合并后本地追加修复**:
+
+- `a96939cd` — `fix(gemini): fast-fail invalid function response ordering`
+- `86757918` — `fix(scheduling): revalidate stale sticky account selections`
+
+**维护提示**:
+
+- 当前长期 merge 分支名已规范为 `opusclaw/v0.1.110-merge`
+- 本地分支跟踪 `origin/main` 仅用于查看 ahead/behind 与继续做 upstream merge，**不是**为了直接 push 到 `main`
+
+### v0.1.109 merge (2026-04-08)
+
+**对应提交**: `30de5c50` — `merge: upstream origin/main (00aaf0f7) — v0.1.109`
+
+**后续清理**:
+
+- `520bbee4` / `a8f360e8` — `fix(simcache): clean v0.1.109 merge fallout`
 
 ### v0.1.107+v0.1.108 merge (2026-04-07)
 
