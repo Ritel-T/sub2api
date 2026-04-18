@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from '../client'
-import type { CustomMenuItem, CustomEndpoint } from '@/types'
+import type { CustomMenuItem, CustomEndpoint, NotifyEmailEntry } from '@/types'
 
 export interface DefaultSubscriptionSetting {
   group_id: number
@@ -38,8 +38,8 @@ export interface SystemSettings {
   doc_url: string
   home_content: string
   hide_ccs_import_button: boolean
-  purchase_subscription_enabled: boolean
-  purchase_subscription_url: string
+  table_default_page_size: number
+  table_page_size_options: number[]
   backend_mode_enabled: boolean
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
@@ -61,6 +61,30 @@ export interface SystemSettings {
   linuxdo_connect_client_id: string
   linuxdo_connect_client_secret_configured: boolean
   linuxdo_connect_redirect_url: string
+
+  // Generic OIDC OAuth settings
+  oidc_connect_enabled: boolean
+  oidc_connect_provider_name: string
+  oidc_connect_client_id: string
+  oidc_connect_client_secret_configured: boolean
+  oidc_connect_issuer_url: string
+  oidc_connect_discovery_url: string
+  oidc_connect_authorize_url: string
+  oidc_connect_token_url: string
+  oidc_connect_userinfo_url: string
+  oidc_connect_jwks_url: string
+  oidc_connect_scopes: string
+  oidc_connect_redirect_url: string
+  oidc_connect_frontend_redirect_url: string
+  oidc_connect_token_auth_method: string
+  oidc_connect_use_pkce: boolean
+  oidc_connect_validate_id_token: boolean
+  oidc_connect_allowed_signing_algs: string
+  oidc_connect_clock_skew_seconds: number
+  oidc_connect_require_email_verified: boolean
+  oidc_connect_userinfo_email_path: string
+  oidc_connect_userinfo_id_path: string
+  oidc_connect_userinfo_username_path: string
 
   // Model fallback configuration
   enable_model_fallback: boolean
@@ -90,6 +114,36 @@ export interface SystemSettings {
   enable_fingerprint_unification: boolean
   enable_metadata_passthrough: boolean
   enable_cch_signing: boolean
+  web_search_emulation_enabled?: boolean
+
+  // Payment configuration
+  payment_enabled: boolean
+  payment_min_amount: number
+  payment_max_amount: number
+  payment_daily_limit: number
+  payment_order_timeout_minutes: number
+  payment_max_pending_orders: number
+  payment_enabled_types: string[]
+  payment_balance_disabled: boolean
+  payment_balance_recharge_multiplier: number
+  payment_recharge_fee_rate: number
+  payment_load_balance_strategy: string
+  payment_product_name_prefix: string
+  payment_product_name_suffix: string
+  payment_help_image_url: string
+  payment_help_text: string
+  payment_cancel_rate_limit_enabled: boolean
+  payment_cancel_rate_limit_max: number
+  payment_cancel_rate_limit_window: number
+  payment_cancel_rate_limit_unit: string
+  payment_cancel_rate_limit_window_mode: string
+
+  // Balance & quota notification
+  balance_low_notify_enabled: boolean
+  balance_low_notify_threshold: number
+  balance_low_notify_recharge_url: string
+  account_quota_notify_enabled: boolean
+  account_quota_notify_emails: NotifyEmailEntry[]
 }
 
 export interface UpdateSettingsRequest {
@@ -112,8 +166,8 @@ export interface UpdateSettingsRequest {
   doc_url?: string
   home_content?: string
   hide_ccs_import_button?: boolean
-  purchase_subscription_enabled?: boolean
-  purchase_subscription_url?: string
+  table_default_page_size?: number
+  table_page_size_options?: number[]
   backend_mode_enabled?: boolean
   custom_menu_items?: CustomMenuItem[]
   custom_endpoints?: CustomEndpoint[]
@@ -131,6 +185,28 @@ export interface UpdateSettingsRequest {
   linuxdo_connect_client_id?: string
   linuxdo_connect_client_secret?: string
   linuxdo_connect_redirect_url?: string
+  oidc_connect_enabled?: boolean
+  oidc_connect_provider_name?: string
+  oidc_connect_client_id?: string
+  oidc_connect_client_secret?: string
+  oidc_connect_issuer_url?: string
+  oidc_connect_discovery_url?: string
+  oidc_connect_authorize_url?: string
+  oidc_connect_token_url?: string
+  oidc_connect_userinfo_url?: string
+  oidc_connect_jwks_url?: string
+  oidc_connect_scopes?: string
+  oidc_connect_redirect_url?: string
+  oidc_connect_frontend_redirect_url?: string
+  oidc_connect_token_auth_method?: string
+  oidc_connect_use_pkce?: boolean
+  oidc_connect_validate_id_token?: boolean
+  oidc_connect_allowed_signing_algs?: string
+  oidc_connect_clock_skew_seconds?: number
+  oidc_connect_require_email_verified?: boolean
+  oidc_connect_userinfo_email_path?: string
+  oidc_connect_userinfo_id_path?: string
+  oidc_connect_userinfo_username_path?: string
   enable_model_fallback?: boolean
   fallback_model_anthropic?: string
   fallback_model_openai?: string
@@ -148,6 +224,33 @@ export interface UpdateSettingsRequest {
   enable_fingerprint_unification?: boolean
   enable_metadata_passthrough?: boolean
   enable_cch_signing?: boolean
+  // Payment configuration
+  payment_enabled?: boolean
+  payment_min_amount?: number
+  payment_max_amount?: number
+  payment_daily_limit?: number
+  payment_order_timeout_minutes?: number
+  payment_max_pending_orders?: number
+  payment_enabled_types?: string[]
+  payment_balance_disabled?: boolean
+  payment_balance_recharge_multiplier?: number
+  payment_recharge_fee_rate?: number
+  payment_load_balance_strategy?: string
+  payment_product_name_prefix?: string
+  payment_product_name_suffix?: string
+  payment_help_image_url?: string
+  payment_help_text?: string
+  payment_cancel_rate_limit_enabled?: boolean
+  payment_cancel_rate_limit_max?: number
+  payment_cancel_rate_limit_window?: number
+  payment_cancel_rate_limit_unit?: string
+  payment_cancel_rate_limit_window_mode?: string
+  // Balance & quota notification
+  balance_low_notify_enabled?: boolean
+  balance_low_notify_threshold?: number
+  balance_low_notify_recharge_url?: string
+  account_quota_notify_enabled?: boolean
+  account_quota_notify_emails?: NotifyEmailEntry[]
 }
 
 /**
@@ -419,6 +522,63 @@ export async function updateBetaPolicySettings(
   return data
 }
 
+// --- Web Search Emulation Config ---
+
+export interface WebSearchProviderConfig {
+  type: 'brave' | 'tavily'
+  api_key: string
+  api_key_configured: boolean
+  quota_limit: number | null
+  subscribed_at: number | null
+  quota_used?: number
+  proxy_id: number | null
+  expires_at: number | null
+}
+
+export interface WebSearchEmulationConfig {
+  enabled: boolean
+  providers: WebSearchProviderConfig[]
+}
+
+export interface WebSearchTestResult {
+  provider: string
+  results: { url: string; title: string; snippet: string; page_age?: string }[]
+  query: string
+}
+
+export async function getWebSearchEmulationConfig(): Promise<WebSearchEmulationConfig> {
+  const { data } = await apiClient.get<WebSearchEmulationConfig>(
+    '/admin/settings/web-search-emulation'
+  )
+  return data
+}
+
+export async function updateWebSearchEmulationConfig(
+  config: WebSearchEmulationConfig
+): Promise<WebSearchEmulationConfig> {
+  const { data } = await apiClient.put<WebSearchEmulationConfig>(
+    '/admin/settings/web-search-emulation',
+    config
+  )
+  return data
+}
+
+export async function testWebSearchEmulation(
+  query: string
+): Promise<WebSearchTestResult> {
+  const { data } = await apiClient.post<WebSearchTestResult>(
+    '/admin/settings/web-search-emulation/test',
+    { query }
+  )
+  return data
+}
+
+export async function resetWebSearchUsage(
+  payload: { provider_type: string }
+): Promise<void> {
+  await apiClient.post('/admin/settings/web-search-emulation/reset-usage', payload)
+}
+
 export const settingsAPI = {
   getSettings,
   updateSettings,
@@ -436,7 +596,11 @@ export const settingsAPI = {
   getRectifierSettings,
   updateRectifierSettings,
   getBetaPolicySettings,
-  updateBetaPolicySettings
+  updateBetaPolicySettings,
+  getWebSearchEmulationConfig,
+  updateWebSearchEmulationConfig,
+  testWebSearchEmulation,
+  resetWebSearchUsage
 }
 
 export default settingsAPI

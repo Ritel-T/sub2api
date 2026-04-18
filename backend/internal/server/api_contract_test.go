@@ -58,6 +58,11 @@ func TestAPIContracts(t *testing.T) {
 					"allowed_groups": null,
 					"created_at": "2025-01-02T03:04:05Z",
 					"updated_at": "2025-01-02T03:04:05Z",
+					"balance_notify_enabled": false,
+					"balance_notify_threshold_type": "",
+					"balance_notify_threshold": null,
+					"balance_notify_extra_emails": null,
+					"total_recharged": 0,
 					"run_mode": "standard"
 				}
 			}`,
@@ -204,11 +209,10 @@ func TestAPIContracts(t *testing.T) {
 						"image_price_1k": null,
 						"image_price_2k": null,
 						"image_price_4k": null,
-							"claude_code_only": false,
+						"claude_code_only": false,
 						"allow_messages_dispatch": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,
-						"allow_messages_dispatch": false,
 						"require_oauth_only": false,
 						"require_privacy_set": false,
 						"created_at": "2025-01-02T03:04:05Z",
@@ -462,6 +466,28 @@ func TestAPIContracts(t *testing.T) {
 					service.SettingKeyTurnstileSiteKey:   "site-key",
 					service.SettingKeyTurnstileSecretKey: "secret-key",
 
+					service.SettingKeyOIDCConnectEnabled:              "false",
+					service.SettingKeyOIDCConnectProviderName:         "OIDC",
+					service.SettingKeyOIDCConnectClientID:             "",
+					service.SettingKeyOIDCConnectIssuerURL:            "",
+					service.SettingKeyOIDCConnectDiscoveryURL:         "",
+					service.SettingKeyOIDCConnectAuthorizeURL:         "",
+					service.SettingKeyOIDCConnectTokenURL:             "",
+					service.SettingKeyOIDCConnectUserInfoURL:          "",
+					service.SettingKeyOIDCConnectJWKSURL:              "",
+					service.SettingKeyOIDCConnectScopes:               "openid email profile",
+					service.SettingKeyOIDCConnectRedirectURL:          "",
+					service.SettingKeyOIDCConnectFrontendRedirectURL:  "/auth/oidc/callback",
+					service.SettingKeyOIDCConnectTokenAuthMethod:      "client_secret_post",
+					service.SettingKeyOIDCConnectUsePKCE:              "false",
+					service.SettingKeyOIDCConnectValidateIDToken:      "true",
+					service.SettingKeyOIDCConnectAllowedSigningAlgs:   "RS256,ES256,PS256",
+					service.SettingKeyOIDCConnectClockSkewSeconds:     "120",
+					service.SettingKeyOIDCConnectRequireEmailVerified: "false",
+					service.SettingKeyOIDCConnectUserInfoEmailPath:    "",
+					service.SettingKeyOIDCConnectUserInfoIDPath:       "",
+					service.SettingKeyOIDCConnectUserInfoUsernamePath: "",
+
 					service.SettingKeySiteName:     "Sub2API",
 					service.SettingKeySiteLogo:     "",
 					service.SettingKeySiteSubtitle: "Subtitle",
@@ -469,8 +495,10 @@ func TestAPIContracts(t *testing.T) {
 					service.SettingKeyContactInfo:  "support",
 					service.SettingKeyDocURL:       "https://docs.example.com",
 
-					service.SettingKeyDefaultConcurrency: "5",
-					service.SettingKeyDefaultBalance:     "1.25",
+					service.SettingKeyDefaultConcurrency:   "5",
+					service.SettingKeyDefaultBalance:       "1.25",
+					service.SettingKeyTableDefaultPageSize: "20",
+					service.SettingKeyTablePageSizeOptions: "[10,20,50,100]",
 
 					service.SettingKeyOpsMonitoringEnabled:         "false",
 					service.SettingKeyOpsRealtimeMonitoringEnabled: "true",
@@ -503,10 +531,32 @@ func TestAPIContracts(t *testing.T) {
 					"turnstile_enabled": true,
 					"turnstile_site_key": "site-key",
 					"turnstile_secret_key_configured": true,
-					"linuxdo_connect_enabled": false,
+						"linuxdo_connect_enabled": false,
 						"linuxdo_connect_client_id": "",
 						"linuxdo_connect_client_secret_configured": false,
 						"linuxdo_connect_redirect_url": "",
+						"oidc_connect_enabled": false,
+						"oidc_connect_provider_name": "OIDC",
+						"oidc_connect_client_id": "",
+						"oidc_connect_client_secret_configured": false,
+						"oidc_connect_issuer_url": "",
+						"oidc_connect_discovery_url": "",
+						"oidc_connect_authorize_url": "",
+						"oidc_connect_token_url": "",
+						"oidc_connect_userinfo_url": "",
+						"oidc_connect_jwks_url": "",
+						"oidc_connect_scopes": "openid email profile",
+						"oidc_connect_redirect_url": "",
+						"oidc_connect_frontend_redirect_url": "/auth/oidc/callback",
+						"oidc_connect_token_auth_method": "client_secret_post",
+						"oidc_connect_use_pkce": false,
+						"oidc_connect_validate_id_token": true,
+						"oidc_connect_allowed_signing_algs": "RS256,ES256,PS256",
+						"oidc_connect_clock_skew_seconds": 120,
+						"oidc_connect_require_email_verified": false,
+						"oidc_connect_userinfo_email_path": "",
+						"oidc_connect_userinfo_id_path": "",
+						"oidc_connect_userinfo_username_path": "",
 						"ops_monitoring_enabled": false,
 						"ops_realtime_monitoring_enabled": true,
 						"ops_query_mode_default": "auto",
@@ -532,6 +582,8 @@ func TestAPIContracts(t *testing.T) {
 					"hide_ccs_import_button": false,
 					"purchase_subscription_enabled": false,
 					"purchase_subscription_url": "",
+					"table_default_page_size": 20,
+						"table_page_size_options": [10, 20, 50, 100],
 					"min_claude_code_version": "",
 					"max_claude_code_version": "",
 					"allow_ungrouped_key_scheduling": false,
@@ -539,8 +591,34 @@ func TestAPIContracts(t *testing.T) {
 					"enable_cch_signing": false,
 					"enable_fingerprint_unification": true,
 					"enable_metadata_passthrough": false,
+					"web_search_emulation_enabled": false,
 					"custom_menu_items": [],
-					"custom_endpoints": []
+					"custom_endpoints": [],
+					"payment_enabled": false,
+					"payment_min_amount": 0,
+					"payment_max_amount": 0,
+					"payment_daily_limit": 0,
+					"payment_order_timeout_minutes": 0,
+					"payment_max_pending_orders": 0,
+					"payment_balance_disabled": false,
+					"payment_balance_recharge_multiplier": 0,
+					"payment_recharge_fee_rate": 0,
+					"payment_load_balance_strategy": "",
+					"payment_product_name_prefix": "",
+					"payment_product_name_suffix": "",
+					"payment_help_image_url": "",
+					"payment_help_text": "",
+					"payment_enabled_types": null,
+					"payment_cancel_rate_limit_enabled": false,
+					"payment_cancel_rate_limit_max": 0,
+					"payment_cancel_rate_limit_window": 0,
+					"payment_cancel_rate_limit_unit": "",
+					"payment_cancel_rate_limit_window_mode": "",
+					"balance_low_notify_enabled": false,
+					"account_quota_notify_enabled": false,
+					"balance_low_notify_threshold": 0,
+					"balance_low_notify_recharge_url": "",
+					"account_quota_notify_emails": []
 				}
 			}`,
 		},
@@ -633,7 +711,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 		RunMode: config.RunModeStandard,
 	}
 
-	userService := service.NewUserService(userRepo, nil, nil)
+	userService := service.NewUserService(userRepo, nil, nil, nil)
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, nil, apiKeyCache, cfg)
 
 	usageRepo := newStubUsageLogRepo()
@@ -652,7 +730,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService)
-	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil)
+	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil)
 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	jwtAuth := func(c *gin.Context) {

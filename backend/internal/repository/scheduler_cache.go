@@ -378,6 +378,7 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 		Platform:                account.Platform,
 		Type:                    account.Type,
 		Concurrency:             account.Concurrency,
+		LoadFactor:              account.LoadFactor,
 		Priority:                account.Priority,
 		RateMultiplier:          account.RateMultiplier,
 		Status:                  account.Status,
@@ -425,6 +426,13 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"window_cost_sticky_reserve",
 		"max_sessions",
 		"session_idle_timeout_minutes",
+		"openai_oauth_responses_websockets_v2_enabled",
+		"openai_oauth_responses_websockets_v2_mode",
+		"openai_apikey_responses_websockets_v2_enabled",
+		"openai_apikey_responses_websockets_v2_mode",
+		"responses_websockets_v2_enabled",
+		"openai_ws_enabled",
+		"openai_ws_force_http",
 	}
 	filtered := make(map[string]any)
 	for _, key := range keys {

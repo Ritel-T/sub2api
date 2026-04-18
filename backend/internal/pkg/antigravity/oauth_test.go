@@ -690,7 +690,8 @@ func TestConstants_值正确(t *testing.T) {
 	if RedirectURI != "http://localhost:8085/callback" {
 		t.Errorf("RedirectURI 不匹配: got %s", RedirectURI)
 	}
-	if GetUserAgent() != "antigravity/1.21.9 windows/amd64" {
+	// [OpusClaw Patch] UA overridden to "antigravity/1.107.0 linux/amd64" via oauth.go defaultUserAgentVersion
+	if GetUserAgent() != "antigravity/1.107.0 linux/amd64" {
 		t.Errorf("UserAgent 不匹配: got %s", GetUserAgent())
 	}
 	if SessionTTL != 30*time.Minute {
