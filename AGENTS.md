@@ -459,7 +459,7 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
-| (待填) | **merge: upstream Wei-Shaw/main (`6c73b621`) — v0.1.114** — 213 commits / 458 files (+71542/-6356)；payment system v2、balance/quota notify、websearch quota & failover、OIDC login、Anthropic credit-balance 400 处理、Cursor body compat、KYC 标记停止调度、opus-4.7 支持、scheduler cache loadFactor 同步等。冲突 3 文件（`setting_handler.go`、`server/routes/admin.go`、`setting_service.go`），均为上游新增 WebSearch/OIDC 路由 + handler/service 与 OpusClaw SimCache admin settings 共存合并；oauth_test UA 断言就地适配 OpusClaw `1.107.0 linux/amd64` patch |
+| 17feb5ee | **merge: upstream Wei-Shaw/main (`6c73b621`) — v0.1.114** — 213 commits / 458 files (+71542/-6356)；payment system v2、balance/quota notify、websearch quota & failover、OIDC login、Anthropic credit-balance 400 处理、Cursor body compat、KYC 标记停止调度、opus-4.7 支持、scheduler cache loadFactor 同步等。冲突 3 文件（`setting_handler.go`、`server/routes/admin.go`、`setting_service.go`），均为上游新增 WebSearch/OIDC 路由 + handler/service 与 OpusClaw SimCache admin settings 共存合并；oauth_test UA 断言就地适配 OpusClaw `1.107.0 linux/amd64` patch |
 | `86757918` | fix(scheduling): revalidate stale sticky account selections |
 | `a96939cd` | fix(gemini): fast-fail invalid function response ordering |
 | `e506112d` | **merge: upstream origin/main (1b79f6a7) — v0.1.110** — Redis snapshot meta fix; sync VERSION to 0.1.110; CCH signing + billing header sync; Go 1.26.2 CVE bump; empty output rebuild fix remains preserved from upstream |
@@ -492,7 +492,7 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 ### v0.1.114 merge (2026-04-18)
 
-**对应提交**: `(待填)` — `merge: upstream Wei-Shaw/main (6c73b621) — v0.1.114`
+**对应提交**: `17feb5ee` — `merge: upstream Wei-Shaw/main (6c73b621) — v0.1.114`
 
 **上游基线**:
 
