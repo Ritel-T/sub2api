@@ -13,16 +13,21 @@ func UserFromServiceShallow(u *service.User) *User {
 		return nil
 	}
 	return &User{
-		ID:            u.ID,
-		Email:         u.Email,
-		Username:      u.Username,
-		Role:          u.Role,
-		Balance:       u.Balance,
-		Concurrency:   u.Concurrency,
-		Status:        u.Status,
-		AllowedGroups: u.AllowedGroups,
-		CreatedAt:     u.CreatedAt,
-		UpdatedAt:     u.UpdatedAt,
+		ID:                         u.ID,
+		Email:                      u.Email,
+		Username:                   u.Username,
+		Role:                       u.Role,
+		Balance:                    u.Balance,
+		Concurrency:                u.Concurrency,
+		Status:                     u.Status,
+		AllowedGroups:              u.AllowedGroups,
+		CreatedAt:                  u.CreatedAt,
+		UpdatedAt:                  u.UpdatedAt,
+		BalanceNotifyEnabled:       u.BalanceNotifyEnabled,
+		BalanceNotifyThresholdType: u.BalanceNotifyThresholdType,
+		BalanceNotifyThreshold:     u.BalanceNotifyThreshold,
+		BalanceNotifyExtraEmails:   NotifyEmailEntriesFromService(u.BalanceNotifyExtraEmails),
+		TotalRecharged:             u.TotalRecharged,
 	}
 }
 
@@ -133,16 +138,17 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 		return nil
 	}
 	out := &AdminGroup{
-		Group:                   groupFromServiceBase(g),
-		ModelRouting:            g.ModelRouting,
-		ModelRoutingEnabled:     g.ModelRoutingEnabled,
-		MCPXMLInject:            g.MCPXMLInject,
-		DefaultMappedModel:      g.DefaultMappedModel,
-		SupportedModelScopes:    g.SupportedModelScopes,
-		AccountCount:            g.AccountCount,
-		ActiveAccountCount:      g.ActiveAccountCount,
-		RateLimitedAccountCount: g.RateLimitedAccountCount,
-		SortOrder:               g.SortOrder,
+		Group:                       groupFromServiceBase(g),
+		ModelRouting:                g.ModelRouting,
+		ModelRoutingEnabled:         g.ModelRoutingEnabled,
+		MCPXMLInject:                g.MCPXMLInject,
+		DefaultMappedModel:          g.DefaultMappedModel,
+		MessagesDispatchModelConfig: g.MessagesDispatchModelConfig,
+		SupportedModelScopes:        g.SupportedModelScopes,
+		AccountCount:                g.AccountCount,
+		ActiveAccountCount:          g.ActiveAccountCount,
+		RateLimitedAccountCount:     g.RateLimitedAccountCount,
+		SortOrder:                   g.SortOrder,
 	}
 	if len(g.AccountGroups) > 0 {
 		out.AccountGroups = make([]AccountGroup, 0, len(g.AccountGroups))
@@ -329,6 +335,26 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 			if v, ok := a.Extra["quota_weekly_reset_at"].(string); ok && v != "" {
 				out.QuotaWeeklyResetAt = &v
 			}
+		}
+
+		// 配额通知配置
+		if enabled := a.GetQuotaNotifyDailyEnabled(); enabled {
+			out.QuotaNotifyDailyEnabled = &enabled
+		}
+		if threshold := a.GetQuotaNotifyDailyThreshold(); threshold > 0 {
+			out.QuotaNotifyDailyThreshold = &threshold
+		}
+		if enabled := a.GetQuotaNotifyWeeklyEnabled(); enabled {
+			out.QuotaNotifyWeeklyEnabled = &enabled
+		}
+		if threshold := a.GetQuotaNotifyWeeklyThreshold(); threshold > 0 {
+			out.QuotaNotifyWeeklyThreshold = &threshold
+		}
+		if enabled := a.GetQuotaNotifyTotalEnabled(); enabled {
+			out.QuotaNotifyTotalEnabled = &enabled
+		}
+		if threshold := a.GetQuotaNotifyTotalThreshold(); threshold > 0 {
+			out.QuotaNotifyTotalThreshold = &threshold
 		}
 	}
 
@@ -611,6 +637,7 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 		ModelMappingChain:     l.ModelMappingChain,
 		BillingTier:           l.BillingTier,
 		AccountRateMultiplier: l.AccountRateMultiplier,
+		AccountStatsCost:      l.AccountStatsCost,
 		IPAddress:             l.IPAddress,
 		Account:               AccountSummaryFromService(l.Account),
 	}

@@ -51,6 +51,29 @@ type SystemSettings struct {
 	LinuxDoConnectClientSecretConfigured bool   `json:"linuxdo_connect_client_secret_configured"`
 	LinuxDoConnectRedirectURL            string `json:"linuxdo_connect_redirect_url"`
 
+	OIDCConnectEnabled                bool   `json:"oidc_connect_enabled"`
+	OIDCConnectProviderName           string `json:"oidc_connect_provider_name"`
+	OIDCConnectClientID               string `json:"oidc_connect_client_id"`
+	OIDCConnectClientSecretConfigured bool   `json:"oidc_connect_client_secret_configured"`
+	OIDCConnectIssuerURL              string `json:"oidc_connect_issuer_url"`
+	OIDCConnectDiscoveryURL           string `json:"oidc_connect_discovery_url"`
+	OIDCConnectAuthorizeURL           string `json:"oidc_connect_authorize_url"`
+	OIDCConnectTokenURL               string `json:"oidc_connect_token_url"`
+	OIDCConnectUserInfoURL            string `json:"oidc_connect_userinfo_url"`
+	OIDCConnectJWKSURL                string `json:"oidc_connect_jwks_url"`
+	OIDCConnectScopes                 string `json:"oidc_connect_scopes"`
+	OIDCConnectRedirectURL            string `json:"oidc_connect_redirect_url"`
+	OIDCConnectFrontendRedirectURL    string `json:"oidc_connect_frontend_redirect_url"`
+	OIDCConnectTokenAuthMethod        string `json:"oidc_connect_token_auth_method"`
+	OIDCConnectUsePKCE                bool   `json:"oidc_connect_use_pkce"`
+	OIDCConnectValidateIDToken        bool   `json:"oidc_connect_validate_id_token"`
+	OIDCConnectAllowedSigningAlgs     string `json:"oidc_connect_allowed_signing_algs"`
+	OIDCConnectClockSkewSeconds       int    `json:"oidc_connect_clock_skew_seconds"`
+	OIDCConnectRequireEmailVerified   bool   `json:"oidc_connect_require_email_verified"`
+	OIDCConnectUserInfoEmailPath      string `json:"oidc_connect_userinfo_email_path"`
+	OIDCConnectUserInfoIDPath         string `json:"oidc_connect_userinfo_id_path"`
+	OIDCConnectUserInfoUsernamePath   string `json:"oidc_connect_userinfo_username_path"`
+
 	SiteName                    string           `json:"site_name"`
 	SiteLogo                    string           `json:"site_logo"`
 	SiteSubtitle                string           `json:"site_subtitle"`
@@ -61,6 +84,8 @@ type SystemSettings struct {
 	HideCcsImportButton         bool             `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled bool             `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     string           `json:"purchase_subscription_url"`
+	TableDefaultPageSize        int              `json:"table_default_page_size"`
+	TablePageSizeOptions        []int            `json:"table_page_size_options"`
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
@@ -98,6 +123,40 @@ type SystemSettings struct {
 	EnableFingerprintUnification bool `json:"enable_fingerprint_unification"`
 	EnableMetadataPassthrough    bool `json:"enable_metadata_passthrough"`
 	EnableCCHSigning             bool `json:"enable_cch_signing"`
+
+	// Web Search Emulation
+	WebSearchEmulationEnabled bool `json:"web_search_emulation_enabled"`
+
+	// Payment configuration
+	PaymentEnabled                   bool     `json:"payment_enabled"`
+	PaymentMinAmount                 float64  `json:"payment_min_amount"`
+	PaymentMaxAmount                 float64  `json:"payment_max_amount"`
+	PaymentDailyLimit                float64  `json:"payment_daily_limit"`
+	PaymentOrderTimeoutMin           int      `json:"payment_order_timeout_minutes"`
+	PaymentMaxPendingOrders          int      `json:"payment_max_pending_orders"`
+	PaymentEnabledTypes              []string `json:"payment_enabled_types"`
+	PaymentBalanceDisabled           bool     `json:"payment_balance_disabled"`
+	PaymentBalanceRechargeMultiplier float64  `json:"payment_balance_recharge_multiplier"`
+	PaymentRechargeFeeRate           float64  `json:"payment_recharge_fee_rate"`
+	PaymentLoadBalanceStrat          string   `json:"payment_load_balance_strategy"`
+	PaymentProductNamePrefix         string   `json:"payment_product_name_prefix"`
+	PaymentProductNameSuffix         string   `json:"payment_product_name_suffix"`
+	PaymentHelpImageURL              string   `json:"payment_help_image_url"`
+	PaymentHelpText                  string   `json:"payment_help_text"`
+
+	// Cancel rate limit
+	PaymentCancelRateLimitEnabled bool   `json:"payment_cancel_rate_limit_enabled"`
+	PaymentCancelRateLimitMax     int    `json:"payment_cancel_rate_limit_max"`
+	PaymentCancelRateLimitWindow  int    `json:"payment_cancel_rate_limit_window"`
+	PaymentCancelRateLimitUnit    string `json:"payment_cancel_rate_limit_unit"`
+	PaymentCancelRateLimitMode    string `json:"payment_cancel_rate_limit_window_mode"`
+
+	// Balance low notification
+	BalanceLowNotifyEnabled     bool               `json:"balance_low_notify_enabled"`
+	BalanceLowNotifyThreshold   float64            `json:"balance_low_notify_threshold"`
+	BalanceLowNotifyRechargeURL string             `json:"balance_low_notify_recharge_url"`
+	AccountQuotaNotifyEnabled   bool               `json:"account_quota_notify_enabled"`
+	AccountQuotaNotifyEmails    []NotifyEmailEntry `json:"account_quota_notify_emails"`
 }
 
 type DefaultSubscriptionSetting struct {
@@ -125,11 +184,21 @@ type PublicSettings struct {
 	HideCcsImportButton              bool             `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled      bool             `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL          string           `json:"purchase_subscription_url"`
+	TableDefaultPageSize             int              `json:"table_default_page_size"`
+	TablePageSizeOptions             []int            `json:"table_page_size_options"`
 	CustomMenuItems                  []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints                  []CustomEndpoint `json:"custom_endpoints"`
 	LinuxDoOAuthEnabled              bool             `json:"linuxdo_oauth_enabled"`
+	OIDCOAuthEnabled                 bool             `json:"oidc_oauth_enabled"`
+	OIDCOAuthProviderName            string           `json:"oidc_oauth_provider_name"`
+	SoraClientEnabled                bool             `json:"sora_client_enabled"`
 	BackendModeEnabled               bool             `json:"backend_mode_enabled"`
+	PaymentEnabled                   bool             `json:"payment_enabled"`
 	Version                          string           `json:"version"`
+	BalanceLowNotifyEnabled          bool             `json:"balance_low_notify_enabled"`
+	AccountQuotaNotifyEnabled        bool             `json:"account_quota_notify_enabled"`
+	BalanceLowNotifyThreshold        float64          `json:"balance_low_notify_threshold"`
+	BalanceLowNotifyRechargeURL      string           `json:"balance_low_notify_recharge_url"`
 }
 
 // OverloadCooldownSettings 529过载冷却配置 DTO

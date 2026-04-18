@@ -1,12 +1,12 @@
 # Sub2API (OpusClaw Fork) — Agent Reference
 
-> **最后更新**：2026-04-18（v0.1.110 上游合并）
+> **最后更新**：2026-04-18（v0.1.114 上游合并）
 
 ## 1. What This Is
 
 Sub2API is a Go API gateway that proxies AI model requests through Google Antigravity accounts. It accepts Claude/Gemini API format requests, transforms them to Gemini v1internal format, and forwards to Antigravity upstream. This fork contains OpusClaw-specific patches for caching, sticky sessions, rate-limit handling, scheduling optimization, and token accounting.
 
-Upstream repo: `github.com/Wei-Shaw/sub2api` (merged up to `1b79f6a7`)
+Upstream repo: `github.com/Wei-Shaw/sub2api` (merged up to `6c73b621`，对应 v0.1.114)
 
 ## 2. 开发环境
 
@@ -65,15 +65,19 @@ docker run --rm -v $(pwd)/backend:/app -v go-mod-cache:/go/pkg/mod -w /app golan
 
 ### 已知测试失败（预先存在）
 
-以下 3 个测试因 OpusClaw 的 `InputTokens=0` patch 与上游测试期望值不一致而失败，**非 bug**：
+以下测试因 OpusClaw 自有 patch 与上游测试期望值不一致而失败，**非 bug**：
 
-| 测试 | 文件 | 原始作者 | 原因 |
-|------|------|---------|------|
-| `TestHandleGeminiStreamingResponse_ThoughtsTokenCount` | `antigravity_gateway_service_test.go` | sususu98 (2026-02-11, `d21d70a5`) | 期望 `InputTokens=8`，实际 `0` |
-| `TestHandleClaudeStreamingResponse_ThoughtsTokenCount` | `antigravity_gateway_service_test.go` | sususu98 (2026-02-11, `d21d70a5`) | 期望 `InputTokens=5`，实际 `0` |
-| `TestExtractGeminiUsage` (4 个子测试) | `gemini_messages_compat_service_test.go` | sususu98 (2026-02-11, `d21d70a5`) | 期望 `InputTokens` 非零，实际 `0` |
+| 测试 | 文件 | 原因 |
+|------|------|------|
+| `TestHandleGeminiStreamingResponse_ThoughtsTokenCount` | `antigravity_gateway_service_test.go` | OpusClaw patch `8a9dfa8b` 固定 `InputTokens=0`；上游期望 `InputTokens=8` |
+| `TestHandleClaudeStreamingResponse_ThoughtsTokenCount` | `antigravity_gateway_service_test.go` | 同上，期望 `InputTokens=5` |
+| `TestExtractGeminiUsage` (4 个子测试) | `gemini_messages_compat_service_test.go` | 同上，期望 `InputTokens` 非零 |
+| `TestHandleFailoverError_BasicSwitch/非重试错误_Antigravity_第一次切换无延迟` | `failover_loop_test.go` | OpusClaw 指数退避 patch（`failover_loop.go:116-128`）首次切换即应用 1s 延迟；上游期望首次延迟 0 |
+| `TestHandleFailoverError_IntegrationScenario/模拟Antigravity平台完整流程` | `failover_loop_test.go` | 同上根因 |
 
-这些测试由上游贡献者 sususu98 在 `d21d70a5` (fix: include Gemini thoughtsTokenCount in output token billing) 中引入，断言的是上游的 token 计算逻辑。我们的 patch `8a9dfa8b` 将 `InputTokens` 固定为 0（uncached 归入 `CacheCreationInputTokens`），导致期望值不匹配。从该 patch 起就一直失败。待修复：更新测试期望值与 `InputTokens=0` 逻辑对齐。
+这 5 类失败均在 v0.1.114 合并前的 `bb29002` 基线上即存在，**非本次合并引入**。待修复：更新这些测试的期望值以匹配 OpusClaw 行为。
+
+`TestConstants_值正确`（`oauth_test.go`）原本也属此类（OpusClaw UA `1.107.0 linux/amd64` vs 上游期望 `1.21.9 windows/amd64`），v0.1.114 合并时已就地修正断言以匹配 OpusClaw UA patch。
 
 ## 3. Architecture
 
@@ -455,6 +459,7 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 
 | Commit | Description |
 |--------|-------------|
+| (待填) | **merge: upstream Wei-Shaw/main (`6c73b621`) — v0.1.114** — 213 commits / 458 files (+71542/-6356)；payment system v2、balance/quota notify、websearch quota & failover、OIDC login、Anthropic credit-balance 400 处理、Cursor body compat、KYC 标记停止调度、opus-4.7 支持、scheduler cache loadFactor 同步等。冲突 3 文件（`setting_handler.go`、`server/routes/admin.go`、`setting_service.go`），均为上游新增 WebSearch/OIDC 路由 + handler/service 与 OpusClaw SimCache admin settings 共存合并；oauth_test UA 断言就地适配 OpusClaw `1.107.0 linux/amd64` patch |
 | `86757918` | fix(scheduling): revalidate stale sticky account selections |
 | `a96939cd` | fix(gemini): fast-fail invalid function response ordering |
 | `e506112d` | **merge: upstream origin/main (1b79f6a7) — v0.1.110** — Redis snapshot meta fix; sync VERSION to 0.1.110; CCH signing + billing header sync; Go 1.26.2 CVE bump; empty output rebuild fix remains preserved from upstream |
@@ -484,6 +489,57 @@ docker exec sub2api-c-postgres pg_dump -U sub2api sub2api > /srv/sub2api-c/backu
 | `13ed03f1` | feat(scheduling): differentiated concurrency, Gemini sticky skip, anti-deadlock fixes |
 
 ## 12. Upstream Merge Log
+
+### v0.1.114 merge (2026-04-18)
+
+**对应提交**: `(待填)` — `merge: upstream Wei-Shaw/main (6c73b621) — v0.1.114`
+
+**上游基线**:
+
+- 起点：`1b79f6a7` (v0.1.110)
+- 终点：`6c73b621`（main HEAD，对应 tag v0.1.114 + 后续未发版提交）
+- 跨 4 个发版：v0.1.111 / v0.1.112 / v0.1.113 / v0.1.114
+- 规模：213 个非合并 commits、458 文件、+71542 / −6356 行
+
+**上游主要变更**:
+
+- **Payment System v2** (touwaeriol & 团队，~50 commits)：完整支付重构，多 provider（Alipay / Wxpay / Stripe / EasyPay），订单生命周期、退款、负载均衡、H5/移动端、推荐链接、费率乘数等；新增 `internal/payment/` 包及 ent schema `payment_order` / `payment_audit_log` / `payment_provider_instance` / `subscription_plan`
+- **Balance/Quota Notify** (~20 commits)：邮件提醒系统，支持余额低位、配额阈值、百分比、per-recipient timeout、saved-email 验证、tri-state、`balance_notify_service.go` 等
+- **WebSearch 模拟** (~15 commits)：管理员可配置 Brave / Tavily 等 provider，失败转移、超时、配额加权负载均衡、admin test 接口；新增 `internal/pkg/websearch/` 包；新增 `gateway_websearch_emulation.go` 用于注入到 Anthropic API Key 账号
+- **OIDC Login** (`02a66a01`, `8e1a7bdf`)：完整 OIDC 协议支持，登录回调、provider metadata 解析、PKCE、ID Token 验证；新增 `auth_oidc_oauth.go` handler、settings 端「最终生效」OIDC 配置解析
+- **Channel 改进**：`account_stats_pricing` 自定义计费规则、features_config、channel_features 列；`account_test_service` 与 channel restrict 改造
+- **OpenAI / Cursor 兼容**：Cursor `/v1/chat/completions` Responses API body 兼容、Codex transform 重构、Anthropic credit balance 400 转账号错误、Cursor warmup pipeline、ws-codex scheduler cache 修复、OpenAI 模型解析重构
+- **Scheduler / 调度**：scheduler cache loadFactor 同步、KYC 上游响应停止调度（`5d586a9f`）、stop ratelimit miswrite、outbox watermark 修复、ctx pool ws mode 选项恢复
+- **表格/前端**：表格排序与搜索后端化、全局表格分页配置、移动端账号 Usage cell 懒加载、QR code 密度优化、sidebar smooth collapse、版本下拉裁剪修复
+- **Account 字段**：账号成本（account_cost）展示到 dashboard / usage 表格、QuotaDimensionRow / QuotaNotifyToggle UI 拆分
+
+**冲突解决**（3 文件，均为 OpusClaw SimCache admin settings 与上游新增配置 API 在同位置追加）:
+
+| 文件 | 解决方式 |
+|------|---------|
+| `backend/internal/server/routes/admin.go` | 同时保留 OpusClaw `/simulated-cache` GET/PUT 与上游 `/web-search-emulation` GET/PUT/POST(test/reset-usage) 路由 |
+| `backend/internal/handler/admin/setting_handler.go` | 文件末尾并存 OpusClaw `GetSimCacheSettings` / `UpdateSimCacheSettings` 与上游 `GetWebSearchEmulationConfig` / `UpdateWebSearchEmulationConfig` / `ResetWebSearchUsage` / `TestWebSearchEmulation` |
+| `backend/internal/service/setting_service.go` | `SettingService` struct 字段同时保留上游新增的 `proxyRepo` / `webSearchManagerBuilder` 与 OpusClaw 的 `simCacheService`；方法体中保留 OpusClaw `GetSimCacheSettings` / `SetSimCacheSettings` 与上游 `GetOIDCConnectOAuthConfig` 一族 |
+
+**Migration**：
+
+- 上游新增 17 个迁移文件（091–107），其中上游自身已存在重复前缀（091/095/101/102 各有多个文件，按完整文件名字典序排序运行）。
+- OpusClaw 既有 `091_add_group_account_filter.sql` 与上游新 `091_add_group_messages_dispatch_model_config.sql` 共存。两者文件名不同、内容互不重叠且 OpusClaw 那条幂等（`ADD COLUMN IF NOT EXISTS`），按字典序「091_add_group_account_filter.sql」先于「091_add_group_messages_dispatch_model_config.sql」运行，**无需重命名**。
+- 跟踪键是完整 filename（`schema_migrations.filename` 主键），任何重命名都会导致旧条目孤立 + 新文件再跑一遍，故按现状保留。
+
+**测试结果**：
+
+- `go build ./...`：通过
+- `go vet ./...`：通过
+- `go test ./internal/service/...`：仅 3 个 v0.1.110 已知失败（`TestHandleGeminiStreamingResponse_ThoughtsTokenCount` / `TestHandleClaudeStreamingResponse_ThoughtsTokenCount` / `TestExtractGeminiUsage`），无新增回归
+- `go test -tags unit ./internal/pkg/antigravity/...`：1 个失败 `TestConstants_值正确`，已就地修正断言适配 OpusClaw UA `1.107.0 linux/amd64` patch
+- `go test ./internal/handler/...`：2 个 pre-existing 失败 `TestHandleFailoverError_BasicSwitch/非重试错误_Antigravity_第一次切换无延迟` 和 `TestHandleFailoverError_IntegrationScenario/模拟Antigravity平台完整流程`，根因为 OpusClaw 指数退避 patch（`failover_loop.go:116-128`）首次切换即注入 1s 延迟；与本次合并无关，已记入 §2 已知失败列表
+
+**维护提示**:
+
+- 当前长期 merge 分支建议更名为 `opusclaw/v0.1.114-merge`（与既有命名约定一致）
+- 本仓库 `claude/merge-upstream-updates-RVze7` 是本次任务的工作分支
+- v0.1.114 引入大量新前端/新表，部署前请确认 17 个新 migration 在生产 DB 顺利执行，并且 ent generated 代码已同步（本次合并已纳入 `backend/ent/` 全套生成产物）
 
 ### v0.1.110 merge (2026-04-09)
 
