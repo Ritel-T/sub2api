@@ -115,14 +115,17 @@ func (s *FailoverState) HandleFailoverError(
 
 	// [OpusClaw Patch] Antigravity 平台换号延时：指数退避 + 4s 上限（原为线性递增无上限）
 	if platform == service.PlatformAntigravity {
-		delay := time.Duration(1) * time.Second
-		for i := 1; i < s.SwitchCount-1 && delay < 4*time.Second; i++ {
+		delay := time.Duration(0)
+		if s.SwitchCount > 1 {
+			delay = time.Second
+		}
+		for i := 2; i < s.SwitchCount && delay < 4*time.Second; i++ {
 			delay *= 2
 		}
 		if delay > 4*time.Second {
 			delay = 4 * time.Second
 		}
-		if !sleepWithContext(ctx, delay) {
+		if delay > 0 && !sleepWithContext(ctx, delay) {
 			return FailoverCanceled
 		}
 	}

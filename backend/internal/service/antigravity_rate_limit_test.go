@@ -104,7 +104,7 @@ func (s *stubAntigravityAccountRepo) UpdateExtra(ctx context.Context, id int64, 
 	return nil
 }
 
-func TestAntigravityRetryLoop_NoURLFallback_UsesConfiguredBaseURL(t *testing.T) {
+func TestAntigravityRetryLoop_URLFallback_UsesNextAvailableBaseURL(t *testing.T) {
 	t.Setenv(antigravityForwardBaseURLEnv, "")
 
 	oldBaseURLs := append([]string(nil), antigravity.BaseURLs...)
@@ -151,16 +151,15 @@ func TestAntigravityRetryLoop_NoURLFallback_UsesConfiguredBaseURL(t *testing.T) 
 	require.NotNil(t, result)
 	require.NotNil(t, result.resp)
 	defer func() { _ = result.resp.Body.Close() }()
-	require.Equal(t, http.StatusTooManyRequests, result.resp.StatusCode)
-	require.True(t, handleErrorCalled)
-	require.Len(t, upstream.calls, antigravityMaxRetries)
-	for _, callURL := range upstream.calls {
-		require.True(t, strings.HasPrefix(callURL, base1))
-	}
+	require.Equal(t, http.StatusOK, result.resp.StatusCode)
+	require.False(t, handleErrorCalled)
+	require.Len(t, upstream.calls, 2)
+	require.True(t, strings.HasPrefix(upstream.calls[0], base1))
+	require.True(t, strings.HasPrefix(upstream.calls[1], base2))
 
 	available := antigravity.DefaultURLAvailability.GetAvailableURLs()
 	require.NotEmpty(t, available)
-	require.Equal(t, base1, available[0])
+	require.Equal(t, base2, available[0], "fallback success should promote the healthy URL")
 }
 
 // TestHandleUpstreamError_429_ModelRateLimit 测试 429 模型限流场景

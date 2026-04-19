@@ -193,16 +193,39 @@ type antigravityRetryLoopResult struct {
 	resp *http.Response
 }
 
-// resolveAntigravityForwardBaseURL 解析转发用 base URL。
-// 默认使用 daily（ForwardBaseURLs 的首个地址）；当环境变量为 prod 时使用第二个地址。
+func antigravityPreferredForwardBaseURLs() []string {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv(antigravityForwardBaseURLEnv)))
+	if mode == "prod" {
+		return append([]string(nil), antigravity.BaseURLs...)
+	}
+	return antigravity.ForwardBaseURLs()
+}
+
+// resolveAntigravityForwardBaseURLs 解析转发用 base URL 列表。
+// 默认使用 daily 优先顺序；当环境变量为 prod 时使用 prod 优先顺序。
+// 若 URL 可用性管理器当前将所有 URL 标记为 unavailable，则回退到原始顺序，
+// 避免本地状态导致所有转发请求立即失败。
+func resolveAntigravityForwardBaseURLs() []string {
+	baseURLs := antigravityPreferredForwardBaseURLs()
+	if len(baseURLs) == 0 {
+		return nil
+	}
+	if antigravity.DefaultURLAvailability == nil {
+		return baseURLs
+	}
+	available := antigravity.DefaultURLAvailability.GetAvailableURLsWithBase(baseURLs)
+	if len(available) > 0 {
+		return available
+	}
+	return baseURLs
+}
+
+// resolveAntigravityForwardBaseURL 返回当前首选的转发 URL。
+// 保留该函数以兼容现有调用和测试。
 func resolveAntigravityForwardBaseURL() string {
-	baseURLs := antigravity.ForwardBaseURLs()
+	baseURLs := resolveAntigravityForwardBaseURLs()
 	if len(baseURLs) == 0 {
 		return ""
-	}
-	mode := strings.ToLower(strings.TrimSpace(os.Getenv(antigravityForwardBaseURLEnv)))
-	if mode == "prod" && len(baseURLs) > 1 {
-		return baseURLs[1]
 	}
 	return baseURLs[0]
 }
@@ -229,6 +252,9 @@ type smartRetryResult struct {
 func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParams, resp *http.Response, respBody []byte, baseURL string, urlIdx int, availableURLs []string) *smartRetryResult {
 	// "Resource has been exhausted" 是 URL 级别限流，切换 URL（仅 429）
 	if resp.StatusCode == http.StatusTooManyRequests && isURLLevelRateLimit(respBody) && urlIdx < len(availableURLs)-1 {
+		if strings.TrimSpace(baseURL) != "" && antigravity.DefaultURLAvailability != nil {
+			antigravity.DefaultURLAvailability.MarkUnavailable(baseURL)
+		}
 		logger.LegacyPrintf("service.antigravity_gateway", "%s URL fallback (429): %s -> %s", p.prefix, baseURL, availableURLs[urlIdx+1])
 		return &smartRetryResult{action: smartRetryActionContinueURL}
 	}
@@ -392,6 +418,12 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 			// 网络错误时，继续重试
 			if retryErr != nil || retryResp == nil {
 				log.Printf("%s status=smart_retry_network_error attempt=%d/%d error=%v", p.prefix, attempt, maxAttempts, retryErr)
+				if !isModelCapacityExhausted && attempt < maxAttempts {
+					waitDuration *= 2
+					if waitDuration > antigravityRateLimitThreshold {
+						waitDuration = antigravityRateLimitThreshold
+					}
+				}
 				continue
 			}
 
@@ -663,11 +695,10 @@ func (s *AntigravityGatewayService) antigravityRetryLoop(p antigravityRetryLoopP
 		}
 	}
 
-	baseURL := resolveAntigravityForwardBaseURL()
-	if baseURL == "" {
+	availableURLs := resolveAntigravityForwardBaseURLs()
+	if len(availableURLs) == 0 {
 		return nil, errors.New("no antigravity forward base url configured")
 	}
-	availableURLs := []string{baseURL}
 
 	var resp *http.Response
 	var usedBaseURL string
@@ -721,6 +752,9 @@ urlFallbackLoop:
 					Message:            safeErr,
 				})
 				if shouldAntigravityFallbackToNextURL(err, 0) && urlIdx < len(availableURLs)-1 {
+					if strings.TrimSpace(baseURL) != "" && antigravity.DefaultURLAvailability != nil {
+						antigravity.DefaultURLAvailability.MarkUnavailable(baseURL)
+					}
 					logger.LegacyPrintf("service.antigravity_gateway", "%s URL fallback (connection error): %s -> %s", p.prefix, baseURL, availableURLs[urlIdx+1])
 					continue urlFallbackLoop
 				}
@@ -751,11 +785,7 @@ urlFallbackLoop:
 							Body:       io.NopCloser(bytes.NewReader(respBody)),
 						}, nil)
 					} else if resp.StatusCode == http.StatusTooManyRequests {
-						// [OpusClaw Patch] 积分注入后仍 429 → 标记积分耗尽，阻断热循环。
-						// 区别于旧 aggressive marking：仅在 overagesInjected=true 时触发，
-						// 不影响未注入积分的普通 429 流程。
-						s.setCreditsPathPaused(p.ctx, p.account)
-						logger.LegacyPrintf("service.antigravity_gateway", "%s pre_injected_credits_429 model=%s account=%d marked_exhausted=true (breaking credits injection loop)",
+						logger.LegacyPrintf("service.antigravity_gateway", "%s pre_injected_credits_429 model=%s account=%d marked_exhausted=false (no positive credits exhaustion evidence)",
 							p.prefix, modelKey, p.account.ID)
 					}
 				}
