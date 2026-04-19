@@ -431,6 +431,31 @@ func TestShouldMarkCreditsExhausted(t *testing.T) {
 	})
 }
 
+func TestHandleCreditsRetryFailure_DoesNotPauseOnTransportError(t *testing.T) {
+	repo := &stubAntigravityAccountRepo{}
+	svc := &AntigravityGatewayService{accountRepo: repo}
+	account := &Account{ID: 301, Platform: PlatformAntigravity}
+
+	svc.handleCreditsRetryFailure(context.Background(), "[test]", "claude-sonnet-4-5", account, nil, io.ErrUnexpectedEOF)
+
+	require.Empty(t, repo.modelRateLimitCalls, "transport error should not write AICredits cooldown")
+}
+
+func TestHandleCreditsRetryFailure_Generic429DoesNotPauseCredits(t *testing.T) {
+	repo := &stubAntigravityAccountRepo{}
+	svc := &AntigravityGatewayService{accountRepo: repo}
+	account := &Account{ID: 302, Platform: PlatformAntigravity}
+	resp := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"too many requests"}}`)),
+	}
+
+	svc.handleCreditsRetryFailure(context.Background(), "[test]", "claude-sonnet-4-5", account, resp, nil)
+
+	require.Empty(t, repo.modelRateLimitCalls, "generic 429 without credits evidence should not write AICredits cooldown")
+}
+
 func TestHandleCreditsRetryFailure_AggressiveMarking(t *testing.T) {
 	t.Run("network error marks exhausted", func(t *testing.T) {
 		repo := &stubAntigravityAccountRepo{}

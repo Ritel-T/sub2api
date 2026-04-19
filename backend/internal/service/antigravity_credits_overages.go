@@ -162,13 +162,6 @@ func (s *AntigravityGatewayService) attemptCreditsOveragesRetry(
 			p.prefix, creditsResp.StatusCode, modelKey, p.account.ID)
 		return &creditsOveragesRetryResult{handled: true, resp: creditsResp}
 	}
-	if err == nil && creditsResp != nil && creditsResp.StatusCode == http.StatusTooManyRequests {
-		// [OpusClaw Patch] 第二阶段 credits retry 仍返回 429 时，标记积分耗尽，
-		// 避免 quota_exhausted -> credit_overages_retry 在后续请求中反复重入。
-		s.setCreditsExhausted(p.ctx, p.account)
-		logger.LegacyPrintf("service.antigravity_gateway", "%s status=429 credit_overages_retry_failed model=%s account=%d marked_exhausted=true(second_stage_429)",
-			p.prefix, modelKey, p.account.ID)
-	}
 
 	s.handleCreditsRetryFailure(p.ctx, p.prefix, modelKey, p.account, creditsResp, err)
 	return &creditsOveragesRetryResult{handled: true}
@@ -196,15 +189,6 @@ func (s *AntigravityGatewayService) handleCreditsRetryFailure(
 		s.setCreditsExhausted(ctx, account)
 		logger.LegacyPrintf("service.antigravity_gateway", "%s credit_overages_failed model=%s account=%d marked_exhausted=true status=%d body=%s",
 			prefix, modelKey, account.ID, creditsStatusCode, truncateForLog(creditsRespBody, 200))
-		return
-	}
-	// [OpusClaw Patch] Mark credits-exhausted on transport-level injection failure
-	// (network error, nil response). 429 responses are NOT marked here — they may be
-	// ordinary rate limits unrelated to credits. Recovery via 30min TTL (creditsExhaustedDuration).
-	if account != nil && (reqErr != nil || creditsResp == nil) {
-		s.setCreditsExhausted(ctx, account)
-		logger.LegacyPrintf("service.antigravity_gateway", "%s credit_overages_failed model=%s account=%d marked_exhausted=true(transport_error) status=%d err=%v",
-			prefix, modelKey, account.ID, creditsStatusCode, reqErr)
 		return
 	}
 	if account != nil {
