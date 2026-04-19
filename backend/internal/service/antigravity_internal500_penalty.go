@@ -15,6 +15,8 @@ const (
 	internal500PenaltyTier1Duration  = 30 * time.Minute // 第 1 轮：临时不可调度 30 分钟
 	internal500PenaltyTier2Duration  = 2 * time.Hour    // 第 2 轮：临时不可调度 2 小时
 	internal500PenaltyTier3Threshold = 3                // 第 3+ 轮：永久禁用
+	internal500FleetGuardMinAccounts = 5
+	internal500FleetGuardHealthyPct  = 25
 )
 
 // isAntigravityInternalServerError 检测特定的 INTERNAL 500 错误
@@ -29,12 +31,28 @@ func isAntigravityInternalServerError(statusCode int, body []byte) bool {
 }
 
 // applyInternal500Penalty 根据连续 INTERNAL 500 轮次数应用渐进惩罚
-// count=1: temp_unschedulable 10 分钟
-// count=2: temp_unschedulable 10 小时
-// count>=3: SetError 永久禁用
+// count=1: temp_unschedulable 30 分钟
+// count=2: temp_unschedulable 2 小时
+// count>=3: SetError 永久禁用（fleet guard 触发时会被降级为短期 temp-unsched）
 func (s *AntigravityGatewayService) applyInternal500Penalty(
 	ctx context.Context, prefix string, account *Account, count int64,
 ) {
+	if s.shouldCapInternal500Penalty(ctx, account) && count >= 2 {
+		duration := internal500PenaltyTier1Duration
+		until := time.Now().Add(duration)
+		reason := fmt.Sprintf("INTERNAL 500 x%d (fleet guard active, temp unsched %v)", count, duration)
+		if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
+			slog.Error("internal500_fleet_guard_temp_unsched_failed", "account_id", account.ID, "error", err)
+			return
+		}
+		slog.Warn("internal500_fleet_guard_active",
+			"account_id", account.ID,
+			"account_name", account.Name,
+			"consecutive_count", count,
+			"capped_duration", duration)
+		return
+	}
+
 	switch {
 	case count >= int64(internal500PenaltyTier3Threshold):
 		reason := fmt.Sprintf("INTERNAL 500 consecutive failures: %d rounds", count)
@@ -65,6 +83,44 @@ func (s *AntigravityGatewayService) applyInternal500Penalty(
 			"account_id", account.ID, "account_name", account.Name,
 			"duration", internal500PenaltyTier1Duration, "consecutive_count", count)
 	}
+}
+
+func (s *AntigravityGatewayService) shouldCapInternal500Penalty(ctx context.Context, account *Account) bool {
+	if s == nil || s.accountRepo == nil || account == nil {
+		return false
+	}
+
+	accounts, err := s.accountRepo.ListActive(ctx)
+	if err != nil {
+		slog.Warn("internal500_fleet_guard_list_active_failed", "account_id", account.ID, "error", err)
+		return false
+	}
+
+	total := 0
+	healthy := 0
+	for i := range accounts {
+		acc := &accounts[i]
+		if acc.Platform != PlatformAntigravity || acc.Status != StatusActive {
+			continue
+		}
+		total++
+		if acc.ID == account.ID {
+			continue
+		}
+		if acc.IsSchedulable() {
+			healthy++
+		}
+	}
+
+	if total < internal500FleetGuardMinAccounts {
+		return false
+	}
+
+	threshold := (total * internal500FleetGuardHealthyPct) / 100
+	if threshold < 1 {
+		threshold = 1
+	}
+	return healthy <= threshold
 }
 
 // handleInternal500RetryExhausted 处理 INTERNAL 500 重试耗尽：递增计数器并应用惩罚
