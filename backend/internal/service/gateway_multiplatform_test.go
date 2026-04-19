@@ -2217,7 +2217,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
 		require.Equal(t, int64(1), result.Account.ID)
-		require.Equal(t, 0, repo.getByIDCalls, "粘性命中不应调用GetByID")
+		require.Equal(t, 1, repo.getByIDCalls, "粘性命中后应做一次实时校验")
 		require.Equal(t, 0, concurrencyCache.loadBatchCalls, "粘性命中应在负载批量查询前返回")
 	})
 
@@ -2253,7 +2253,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
 		require.Equal(t, int64(2), result.Account.ID, "粘性账号不在候选集时应回退到可用账号")
-		require.Equal(t, 0, repo.getByIDCalls, "粘性账号缺失不应回退到GetByID")
+		require.Equal(t, 1, repo.getByIDCalls, "回退到可用账号后应做一次实时校验")
 		require.Equal(t, 1, concurrencyCache.loadBatchCalls, "应继续进行负载批量查询")
 	})
 
@@ -3008,7 +3008,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			concurrencyService: NewConcurrencyService(concurrencyCache),
 		}
 
-		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "gemini-sticky", "gemini-2.5-pro", nil, "")
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "gemini-sticky", "gemini-2.5-pro", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
@@ -3502,7 +3502,7 @@ func TestSelectAccount_QuotaTierPriority(t *testing.T) {
 			concurrencyService: NewConcurrencyService(concurrencyCache),
 		}
 
-		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", requestedModel, nil, "")
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", requestedModel, nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
@@ -3540,7 +3540,7 @@ func TestSelectAccount_QuotaTierPriority(t *testing.T) {
 			concurrencyService: NewConcurrencyService(concurrencyCache),
 		}
 
-		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", requestedModel, nil, "")
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", requestedModel, nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
@@ -3578,7 +3578,7 @@ func TestSelectAccount_QuotaTierPriority(t *testing.T) {
 			concurrencyService: NewConcurrencyService(concurrencyCache),
 		}
 
-		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", requestedModel, nil, "")
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", requestedModel, nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)

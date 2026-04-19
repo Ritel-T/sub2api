@@ -1375,6 +1375,13 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					localExcluded[account.ID] = struct{}{} // 排除此账号
 					continue                               // 重新选择
 				}
+				freshAccount, refreshErr := s.refreshAccountForSelection(ctx, account.ID, requestedModel)
+				if refreshErr != nil {
+					result.ReleaseFunc()
+					localExcluded[account.ID] = struct{}{}
+					continue
+				}
+				account = freshAccount
 				return s.newSelectionResult(ctx, account, true, result.ReleaseFunc, nil)
 			}
 
@@ -1391,8 +1398,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					continue
 				}
 				account = freshAccount
-				waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, account.ID)
-				if waitingCount < cfg.StickySessionMaxWaiting {
+				if s.canQueueWaitForAccount(ctx, account.ID, cfg.StickySessionMaxWaiting) {
 					return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 						AccountID:      account.ID,
 						MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
@@ -1407,6 +1413,10 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				continue
 			}
 			account = freshAccount
+			if !s.canQueueWaitForAccount(ctx, account.ID, cfg.FallbackMaxWaiting) {
+				localExcluded[account.ID] = struct{}{}
+				continue
+			}
 			return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 				AccountID:      account.ID,
 				MaxConcurrency: effectiveConcurrencyForSlot(account, requestedModel, account.isModelRateLimitedWithContext(ctx, requestedModel)),
@@ -1556,10 +1566,17 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 									stickyCacheMissReason = "session_limit"
 									// 继续到负载感知选择
 								} else {
-									if s.debugModelRoutingEnabled() {
-										logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
+									freshSticky, refreshErr := s.refreshAccountForSelection(ctx, stickyAccountID, requestedModel)
+									if refreshErr != nil {
+										result.ReleaseFunc()
+										stickyCacheMissReason = "gate_check"
+									} else {
+										stickyAccount = freshSticky
+										if s.debugModelRoutingEnabled() {
+											logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
+										}
+										return s.newSelectionResult(ctx, stickyAccount, true, result.ReleaseFunc, nil)
 									}
-									return s.newSelectionResult(ctx, stickyAccount, true, result.ReleaseFunc, nil)
 								}
 							}
 
@@ -1675,6 +1692,12 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 							result.ReleaseFunc() // 释放槽位，继续尝试下一个账号
 							continue
 						}
+						freshAccount, refreshErr := s.refreshAccountForSelection(ctx, item.account.ID, requestedModel)
+						if refreshErr != nil {
+							result.ReleaseFunc()
+							continue
+						}
+						item.account = freshAccount
 						if sessionHash != "" && s.cache != nil {
 							_ = s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, item.account.ID, stickySessionTTL)
 						}
@@ -1690,6 +1713,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				for _, item := range routingAvailable {
 					if !s.checkAndRegisterSession(ctx, item.account, sessionHash) {
 						continue // 会话限制已满，尝试下一个
+					}
+					if !s.canQueueWaitForAccount(ctx, item.account.ID, cfg.StickySessionMaxWaiting) {
+						continue
 					}
 					if s.debugModelRoutingEnabled() {
 						logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed wait: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), item.account.ID)
@@ -1736,15 +1762,22 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 						if !s.checkAndRegisterSession(ctx, account, sessionHash) {
 							result.ReleaseFunc() // 释放槽位，继续到 Layer 2
 						} else {
-							if s.cache != nil {
-								_ = s.cache.RefreshSessionTTL(ctx, derefGroupID(groupID), sessionHash, stickySessionTTL)
+							freshAccount, refreshErr := s.refreshAccountForSelection(ctx, accountID, requestedModel)
+							if refreshErr != nil {
+								result.ReleaseFunc()
+								account = nil
+							} else {
+								account = freshAccount
+								if s.cache != nil {
+									_ = s.cache.RefreshSessionTTL(ctx, derefGroupID(groupID), sessionHash, stickySessionTTL)
+								}
+								return s.newSelectionResult(ctx, account, true, result.ReleaseFunc, nil)
 							}
-							return s.newSelectionResult(ctx, account, true, result.ReleaseFunc, nil)
 						}
 					}
 
 					waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, accountID)
-					if waitingCount < cfg.StickySessionMaxWaiting {
+					if account != nil && waitingCount < cfg.StickySessionMaxWaiting {
 						// 会话数量限制检查（等待计划也需要占用会话配额）
 						if !s.checkAndRegisterSession(ctx, account, sessionHash) {
 							// 会话限制已满，继续到 Layer 2
@@ -1860,6 +1893,20 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				if !s.checkAndRegisterSession(ctx, selected.account, sessionHash) {
 					result.ReleaseFunc() // 释放槽位，继续尝试下一个账号
 				} else {
+					freshSelected, refreshErr := s.refreshAccountForSelection(ctx, selected.account.ID, requestedModel)
+					if refreshErr != nil {
+						result.ReleaseFunc()
+						selectedID := selected.account.ID
+						newAvailable := make([]accountWithLoad, 0, len(available)-1)
+						for _, acc := range available {
+							if acc.account.ID != selectedID {
+								newAvailable = append(newAvailable, acc)
+							}
+						}
+						available = newAvailable
+						continue
+					}
+					selected.account = freshSelected
 					if sessionHash != "" && s.cache != nil {
 						_ = s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, selected.account.ID, stickySessionTTL)
 					}
@@ -1886,6 +1933,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		if !s.checkAndRegisterSession(ctx, acc, sessionHash) {
 			continue // 会话限制已满，尝试下一个账号
 		}
+		if !s.canQueueWaitForAccount(ctx, acc.ID, cfg.FallbackMaxWaiting) {
+			continue
+		}
 		return s.newSelectionResult(ctx, acc, false, nil, &AccountWaitPlan{
 			AccountID:      acc.ID,
 			MaxConcurrency: effectiveConcurrencyForSlot(acc, requestedModel, acc.isModelRateLimitedWithContext(ctx, requestedModel)),
@@ -1909,6 +1959,12 @@ func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates
 				result.ReleaseFunc() // 释放槽位，继续尝试下一个账号
 				continue
 			}
+			freshAcc, refreshErr := s.refreshAccountForSelection(ctx, acc.ID, requestedModel)
+			if refreshErr != nil {
+				result.ReleaseFunc()
+				continue
+			}
+			acc = freshAcc
 			if sessionHash != "" && s.cache != nil {
 				_ = s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, acc.ID, stickySessionTTL)
 			}
@@ -2289,6 +2345,17 @@ func (s *GatewayService) tryAcquireAccountSlot(ctx context.Context, accountID in
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, nil
 	}
 	return s.concurrencyService.AcquireAccountSlot(ctx, accountID, maxConcurrency)
+}
+
+func (s *GatewayService) canQueueWaitForAccount(ctx context.Context, accountID int64, maxWaiting int) bool {
+	if s == nil || s.concurrencyService == nil || maxWaiting <= 0 {
+		return true
+	}
+	waitingCount, err := s.concurrencyService.GetAccountWaitingCount(ctx, accountID)
+	if err != nil {
+		return true
+	}
+	return waitingCount < maxWaiting
 }
 
 type usageLogWindowStatsBatchProvider interface {
