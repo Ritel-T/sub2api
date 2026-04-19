@@ -19,6 +19,25 @@ const (
 	internal500FleetGuardHealthyPct  = 25
 )
 
+var internal500FleetGuardCacheTTL = 10 * time.Second
+
+type internal500FleetGuardSnapshot struct {
+	total     int
+	healthy   int
+	expiresAt time.Time
+}
+
+func internal500FleetGuardTriggered(total, healthy int) bool {
+	if total < internal500FleetGuardMinAccounts {
+		return false
+	}
+	threshold := (total * internal500FleetGuardHealthyPct) / 100
+	if threshold < 1 {
+		threshold = 1
+	}
+	return healthy <= threshold
+}
+
 // isAntigravityInternalServerError 检测特定的 INTERNAL 500 错误
 // 必须同时匹配 error.code==500, error.message=="Internal error encountered.", error.status=="INTERNAL"
 func isAntigravityInternalServerError(statusCode int, body []byte) bool {
@@ -50,6 +69,7 @@ func (s *AntigravityGatewayService) applyInternal500Penalty(
 			"account_name", account.Name,
 			"consecutive_count", count,
 			"capped_duration", duration)
+		s.resetInternal500Counter(ctx, prefix, account.ID)
 		return
 	}
 
@@ -90,6 +110,15 @@ func (s *AntigravityGatewayService) shouldCapInternal500Penalty(ctx context.Cont
 		return false
 	}
 
+	now := time.Now()
+
+	s.fleetGuardMu.Lock()
+	defer s.fleetGuardMu.Unlock()
+
+	if snapshot := s.fleetGuardState; snapshot != nil && now.Before(snapshot.expiresAt) {
+		return internal500FleetGuardTriggered(snapshot.total, snapshot.healthy)
+	}
+
 	accounts, err := s.accountRepo.ListActive(ctx)
 	if err != nil {
 		slog.Warn("internal500_fleet_guard_list_active_failed", "account_id", account.ID, "error", err)
@@ -112,15 +141,13 @@ func (s *AntigravityGatewayService) shouldCapInternal500Penalty(ctx context.Cont
 		}
 	}
 
-	if total < internal500FleetGuardMinAccounts {
-		return false
+	s.fleetGuardState = &internal500FleetGuardSnapshot{
+		total:     total,
+		healthy:   healthy,
+		expiresAt: now.Add(internal500FleetGuardCacheTTL),
 	}
 
-	threshold := (total * internal500FleetGuardHealthyPct) / 100
-	if threshold < 1 {
-		threshold = 1
-	}
-	return healthy <= threshold
+	return internal500FleetGuardTriggered(total, healthy)
 }
 
 // handleInternal500RetryExhausted 处理 INTERNAL 500 重试耗尽：递增计数器并应用惩罚

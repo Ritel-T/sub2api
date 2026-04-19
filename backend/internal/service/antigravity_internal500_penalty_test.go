@@ -39,6 +39,8 @@ type internal500AccountRepoStub struct {
 
 	tempUnschedCalls []tempUnschedCall
 	setErrorCalls    []setErrorCall
+	activeAccounts   []Account
+	listActiveCalls  int
 }
 
 type tempUnschedCall struct {
@@ -60,6 +62,14 @@ func (r *internal500AccountRepoStub) SetTempUnschedulable(_ context.Context, id 
 func (r *internal500AccountRepoStub) SetError(_ context.Context, id int64, errorMsg string) error {
 	r.setErrorCalls = append(r.setErrorCalls, setErrorCall{accountID: id, reason: errorMsg})
 	return nil
+}
+
+func (r *internal500AccountRepoStub) ListActive(_ context.Context) ([]Account, error) {
+	r.listActiveCalls++
+	if r.activeAccounts == nil {
+		return nil, nil
+	}
+	return append([]Account(nil), r.activeAccounts...), nil
 }
 
 // =============================================================================
@@ -194,6 +204,51 @@ func TestApplyInternal500Penalty(t *testing.T) {
 		require.Empty(t, repo.tempUnschedCalls)
 		require.Empty(t, repo.setErrorCalls)
 	})
+
+	t.Run("fleet guard 生效时缓存计数并重置 internal500 counter", func(t *testing.T) {
+		now := time.Now().Add(30 * time.Minute)
+		repo := &internal500AccountRepoStub{
+			activeAccounts: []Account{
+				{ID: 1, Platform: PlatformAntigravity, Status: StatusActive},
+				{ID: 2, Platform: PlatformAntigravity, Status: StatusActive, TempUnschedulableUntil: &now},
+				{ID: 3, Platform: PlatformAntigravity, Status: StatusActive, TempUnschedulableUntil: &now},
+				{ID: 4, Platform: PlatformAntigravity, Status: StatusActive, TempUnschedulableUntil: &now},
+				{ID: 5, Platform: PlatformAntigravity, Status: StatusActive},
+			},
+		}
+		cache := &mockInternal500Cache{}
+		svc := &AntigravityGatewayService{accountRepo: repo, internal500Cache: cache}
+		account := &Account{ID: 1, Name: "acc-1", Platform: PlatformAntigravity}
+
+		svc.applyInternal500Penalty(context.Background(), "[test]", account, 3)
+
+		require.Len(t, repo.tempUnschedCalls, 1)
+		require.Empty(t, repo.setErrorCalls)
+		require.Equal(t, []int64{1}, cache.resetCalls)
+	})
+}
+
+func TestShouldCapInternal500Penalty_UsesShortTTLCache(t *testing.T) {
+	oldTTL := internal500FleetGuardCacheTTL
+	internal500FleetGuardCacheTTL = time.Minute
+	defer func() { internal500FleetGuardCacheTTL = oldTTL }()
+
+	now := time.Now().Add(10 * time.Minute)
+	repo := &internal500AccountRepoStub{
+		activeAccounts: []Account{
+			{ID: 1, Platform: PlatformAntigravity, Status: StatusActive},
+			{ID: 2, Platform: PlatformAntigravity, Status: StatusActive, TempUnschedulableUntil: &now},
+			{ID: 3, Platform: PlatformAntigravity, Status: StatusActive, TempUnschedulableUntil: &now},
+			{ID: 4, Platform: PlatformAntigravity, Status: StatusActive, TempUnschedulableUntil: &now},
+			{ID: 5, Platform: PlatformAntigravity, Status: StatusActive},
+		},
+	}
+	svc := &AntigravityGatewayService{accountRepo: repo}
+	account := &Account{ID: 1, Platform: PlatformAntigravity}
+
+	require.True(t, svc.shouldCapInternal500Penalty(context.Background(), account))
+	require.True(t, svc.shouldCapInternal500Penalty(context.Background(), account))
+	require.Equal(t, 1, repo.listActiveCalls, "second evaluation should reuse the cached fleet snapshot")
 }
 
 // =============================================================================
