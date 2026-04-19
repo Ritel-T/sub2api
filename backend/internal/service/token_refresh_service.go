@@ -21,6 +21,8 @@ const (
 	tokenRefreshMaxWorkers = 12
 )
 
+var tokenRefreshRetryTotalTimeout = 60 * time.Second
+
 // TokenRefreshService OAuth token自动刷新服务
 // 定期检查并刷新即将过期的token
 type TokenRefreshService struct {
@@ -317,6 +319,9 @@ func (s *TokenRefreshService) listActiveAccounts(ctx context.Context) ([]Account
 
 // refreshWithRetry 带重试的刷新
 func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Account, refresher TokenRefresher, executor OAuthRefreshExecutor, refreshWindow time.Duration) error {
+	ctx, cancel := withTokenRefreshRetryTimeout(ctx)
+	defer cancel()
+
 	var lastErr error
 
 	for attempt := 1; attempt <= s.cfg.MaxRetries; attempt++ {
@@ -457,6 +462,19 @@ func sleepTokenRefreshBackoff(ctx context.Context, backoff time.Duration) bool {
 	case <-timer.C:
 		return true
 	}
+}
+
+func withTokenRefreshRetryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if tokenRefreshRetryTotalTimeout <= 0 {
+		return context.WithCancel(ctx)
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		remaining := time.Until(deadline)
+		if remaining <= 0 || remaining <= tokenRefreshRetryTotalTimeout {
+			return context.WithCancel(ctx)
+		}
+	}
+	return context.WithTimeout(ctx, tokenRefreshRetryTotalTimeout)
 }
 
 func nextTokenRefreshTempUnschedDuration(account *Account) time.Duration {

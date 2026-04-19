@@ -124,6 +124,23 @@ func (r *tokenRefresherStub) CacheKey(account *Account) string {
 	return "test:stub:" + account.Platform
 }
 
+type ctxWaitTokenRefresher struct{}
+
+func (r *ctxWaitTokenRefresher) CanRefresh(account *Account) bool { return true }
+
+func (r *ctxWaitTokenRefresher) NeedsRefresh(account *Account, refreshWindowDuration time.Duration) bool {
+	return true
+}
+
+func (r *ctxWaitTokenRefresher) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (r *ctxWaitTokenRefresher) CacheKey(account *Account) string {
+	return "test:ctxwait:" + account.Platform
+}
+
 type blockingTokenRefresher struct {
 	started chan int64
 	release chan struct{}
@@ -369,6 +386,35 @@ func TestTokenRefreshService_RefreshWithRetry_BackoffCancelable(t *testing.T) {
 
 	require.ErrorIs(t, err, context.Canceled)
 	require.Less(t, elapsed, time.Second, "cancel should interrupt backoff sleep promptly")
+}
+
+func TestTokenRefreshService_RefreshWithRetry_TotalTimeout(t *testing.T) {
+	oldTimeout := tokenRefreshRetryTotalTimeout
+	tokenRefreshRetryTotalTimeout = 50 * time.Millisecond
+	defer func() { tokenRefreshRetryTotalTimeout = oldTimeout }()
+
+	repo := &tokenRefreshAccountRepo{}
+	cfg := &config.Config{
+		TokenRefresh: config.TokenRefreshConfig{
+			MaxRetries:          1,
+			RetryBackoffSeconds: 0,
+		},
+	}
+	service := NewTokenRefreshService(repo, nil, nil, nil, nil, nil, nil, cfg, nil)
+	account := &Account{
+		ID:       78,
+		Platform: PlatformGemini,
+		Type:     AccountTypeOAuth,
+	}
+	refresher := &ctxWaitTokenRefresher{}
+
+	start := time.Now()
+	err := service.refreshWithRetry(context.Background(), account, refresher, refresher, time.Hour)
+	elapsed := time.Since(start)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Less(t, elapsed, 500*time.Millisecond, "overall timeout should stop a stuck refresh promptly")
+	require.Equal(t, 1, repo.setTempUnschedCalls)
 }
 
 func TestNextTokenRefreshTempUnschedDuration(t *testing.T) {
