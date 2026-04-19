@@ -12,8 +12,14 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 )
 
-// tokenRefreshTempUnschedDuration token 刷新重试耗尽后临时不可调度的持续时间
-const tokenRefreshTempUnschedDuration = 10 * time.Minute
+const (
+	// tokenRefreshTempUnschedDuration token 刷新重试耗尽后临时不可调度的基础持续时间
+	tokenRefreshTempUnschedDuration = 10 * time.Minute
+	// 连续刷新失败时指数退避的临时不可调度上限
+	tokenRefreshTempUnschedMaxDuration = 2 * time.Hour
+	// 后台 token 刷新的最大并发 worker 数。
+	tokenRefreshMaxWorkers = 12
+)
 
 // TokenRefreshService OAuth token自动刷新服务
 // 定期检查并刷新即将过期的token
@@ -35,6 +41,19 @@ type TokenRefreshService struct {
 	stopCh   chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
+}
+
+type tokenRefreshTask struct {
+	account   *Account
+	refresher TokenRefresher
+	executor  OAuthRefreshExecutor
+}
+
+type tokenRefreshResult struct {
+	accountID   int64
+	accountName string
+	err         error
+	skipped     bool
 }
 
 // NewTokenRefreshService 创建token刷新服务
@@ -153,7 +172,8 @@ func (s *TokenRefreshService) refreshLoop() {
 
 // processRefresh 执行一次刷新检查
 func (s *TokenRefreshService) processRefresh() {
-	ctx := context.Background()
+	ctx, cancel := s.newRefreshContext()
+	defer cancel()
 
 	// 计算刷新窗口
 	refreshWindow := time.Duration(s.cfg.RefreshBeforeExpiryHours * float64(time.Hour))
@@ -169,8 +189,12 @@ func (s *TokenRefreshService) processRefresh() {
 	oauthAccounts := 0 // 可刷新的OAuth账号数
 	needsRefresh := 0  // 需要刷新的账号数
 	refreshed, failed, skipped := 0, 0, 0
+	tasks := make([]tokenRefreshTask, 0)
 
 	for i := range accounts {
+		if ctx.Err() != nil {
+			break
+		}
 		account := &accounts[i]
 
 		// 遍历所有刷新器，找到能处理此账号的
@@ -194,28 +218,77 @@ func (s *TokenRefreshService) processRefresh() {
 				executor = s.executors[idx]
 			}
 
-			// 执行刷新
-			if err := s.refreshWithRetry(ctx, account, refresher, executor, refreshWindow); err != nil {
-				if errors.Is(err, errRefreshSkipped) {
-					skipped++
-				} else {
-					slog.Warn("token_refresh.account_refresh_failed",
-						"account_id", account.ID,
-						"account_name", account.Name,
-						"error", err,
-					)
-					failed++
-				}
-			} else {
-				slog.Info("token_refresh.account_refreshed",
-					"account_id", account.ID,
-					"account_name", account.Name,
-				)
-				refreshed++
-			}
+			tasks = append(tasks, tokenRefreshTask{
+				account:   account,
+				refresher: refresher,
+				executor:  executor,
+			})
 
 			// 每个账号只由一个refresher处理
 			break
+		}
+	}
+
+	if len(tasks) > 0 && ctx.Err() == nil {
+		workerCount := s.tokenRefreshWorkerCount(len(tasks))
+		jobs := make(chan tokenRefreshTask)
+		results := make(chan tokenRefreshResult, len(tasks))
+
+		var workerWG sync.WaitGroup
+		for i := 0; i < workerCount; i++ {
+			workerWG.Add(1)
+			go func() {
+				defer workerWG.Done()
+				for task := range jobs {
+					if task.account == nil {
+						continue
+					}
+					err := s.refreshWithRetry(ctx, task.account, task.refresher, task.executor, refreshWindow)
+					result := tokenRefreshResult{
+						accountID:   task.account.ID,
+						accountName: task.account.Name,
+						err:         err,
+						skipped:     errors.Is(err, errRefreshSkipped) || errors.Is(err, context.Canceled),
+					}
+					select {
+					case results <- result:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}()
+		}
+
+	dispatchLoop:
+		for _, task := range tasks {
+			select {
+			case <-ctx.Done():
+				break dispatchLoop
+			case jobs <- task:
+			}
+		}
+		close(jobs)
+		workerWG.Wait()
+		close(results)
+
+		for result := range results {
+			switch {
+			case result.err == nil:
+				slog.Info("token_refresh.account_refreshed",
+					"account_id", result.accountID,
+					"account_name", result.accountName,
+				)
+				refreshed++
+			case result.skipped:
+				skipped++
+			default:
+				slog.Warn("token_refresh.account_refresh_failed",
+					"account_id", result.accountID,
+					"account_name", result.accountName,
+					"error", result.err,
+				)
+				failed++
+			}
 		}
 	}
 
@@ -247,6 +320,10 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 	var lastErr error
 
 	for attempt := 1; attempt <= s.cfg.MaxRetries; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		var newCredentials map[string]any
 		var err error
 
@@ -308,7 +385,9 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 		if attempt < s.cfg.MaxRetries {
 			// 指数退避：2^(attempt-1) * baseSeconds
 			backoff := time.Duration(s.cfg.RetryBackoffSeconds) * time.Second * time.Duration(1<<(attempt-1))
-			time.Sleep(backoff)
+			if !sleepTokenRefreshBackoff(ctx, backoff) {
+				return ctx.Err()
+			}
 		}
 	}
 
@@ -324,9 +403,10 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 	s.ensureOpenAIPrivacy(ctx, account)
 	s.ensureAntigravityPrivacy(ctx, account)
 
-	// 设置临时不可调度 10 分钟（不标记 error，保持 status=active 让下个刷新周期能继续尝试）
-	until := time.Now().Add(tokenRefreshTempUnschedDuration)
-	reason := fmt.Sprintf("token refresh retry exhausted: %v", lastErr)
+	// 设置临时不可调度（不标记 error，保持 status=active 让下个刷新周期能继续尝试）
+	tempUnschedDuration := nextTokenRefreshTempUnschedDuration(account)
+	until := time.Now().Add(tempUnschedDuration)
+	reason := fmt.Sprintf("token refresh retry exhausted: %v (cooldown=%s)", lastErr, tempUnschedDuration)
 	if setErr := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); setErr != nil {
 		slog.Warn("token_refresh.set_temp_unschedulable_failed",
 			"account_id", account.ID,
@@ -340,6 +420,64 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 	}
 
 	return lastErr
+}
+
+func (s *TokenRefreshService) tokenRefreshWorkerCount(taskCount int) int {
+	if taskCount <= 0 {
+		return 0
+	}
+	if taskCount < tokenRefreshMaxWorkers {
+		return taskCount
+	}
+	return tokenRefreshMaxWorkers
+}
+
+func (s *TokenRefreshService) newRefreshContext() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-s.stopCh:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
+}
+
+func sleepTokenRefreshBackoff(ctx context.Context, backoff time.Duration) bool {
+	if backoff <= 0 {
+		return true
+	}
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func nextTokenRefreshTempUnschedDuration(account *Account) time.Duration {
+	duration := tokenRefreshTempUnschedDuration
+	if account == nil || account.TempUnschedulableUntil == nil {
+		return duration
+	}
+
+	remaining := time.Until(*account.TempUnschedulableUntil)
+	if remaining <= 0 {
+		return duration
+	}
+
+	duration = remaining * 2
+	if duration < tokenRefreshTempUnschedDuration {
+		duration = tokenRefreshTempUnschedDuration
+	}
+	if duration > tokenRefreshTempUnschedMaxDuration {
+		duration = tokenRefreshTempUnschedMaxDuration
+	}
+	return duration
 }
 
 // postRefreshActions 刷新成功后的后续动作（清除错误状态、缓存失效、调度器同步等）

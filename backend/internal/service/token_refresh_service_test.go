@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ type tokenRefreshAccountRepo struct {
 	setTempUnschedCalls    int
 	lastAccount            *Account
 	updateErr              error
+	listActiveFunc         func(context.Context) ([]Account, error)
 }
 
 func (r *tokenRefreshAccountRepo) Update(ctx context.Context, account *Account) error {
@@ -62,6 +64,13 @@ func (r *tokenRefreshAccountRepo) ClearTempUnschedulable(ctx context.Context, id
 func (r *tokenRefreshAccountRepo) SetTempUnschedulable(ctx context.Context, id int64, until time.Time, reason string) error {
 	r.setTempUnschedCalls++
 	return nil
+}
+
+func (r *tokenRefreshAccountRepo) ListActive(ctx context.Context) ([]Account, error) {
+	if r.listActiveFunc != nil {
+		return r.listActiveFunc(ctx)
+	}
+	return r.mockAccountRepoForGemini.ListActive(ctx)
 }
 
 type tokenCacheInvalidatorStub struct {
@@ -115,6 +124,48 @@ func (r *tokenRefresherStub) CacheKey(account *Account) string {
 	return "test:stub:" + account.Platform
 }
 
+type blockingTokenRefresher struct {
+	started chan int64
+	release chan struct{}
+	current atomic.Int64
+	maxSeen atomic.Int64
+}
+
+func (r *blockingTokenRefresher) CanRefresh(account *Account) bool { return true }
+
+func (r *blockingTokenRefresher) NeedsRefresh(account *Account, refreshWindowDuration time.Duration) bool {
+	return true
+}
+
+func (r *blockingTokenRefresher) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
+	cur := r.current.Add(1)
+	for {
+		max := r.maxSeen.Load()
+		if cur <= max || r.maxSeen.CompareAndSwap(max, cur) {
+			break
+		}
+	}
+	select {
+	case r.started <- account.ID:
+	case <-ctx.Done():
+		r.current.Add(-1)
+		return nil, ctx.Err()
+	}
+
+	select {
+	case <-r.release:
+		r.current.Add(-1)
+		return map[string]any{"access_token": "token-" + account.Name}, nil
+	case <-ctx.Done():
+		r.current.Add(-1)
+		return nil, ctx.Err()
+	}
+}
+
+func (r *blockingTokenRefresher) CacheKey(account *Account) string {
+	return "test:blocking:" + account.Name
+}
+
 func TestTokenRefreshService_RefreshWithRetry_InvalidatesCache(t *testing.T) {
 	repo := &tokenRefreshAccountRepo{}
 	invalidator := &tokenCacheInvalidatorStub{}
@@ -143,6 +194,68 @@ func TestTokenRefreshService_RefreshWithRetry_InvalidatesCache(t *testing.T) {
 	require.Equal(t, 0, repo.fullUpdateCalls)
 	require.Equal(t, 1, invalidator.calls)
 	require.Equal(t, "new-token", account.GetCredential("access_token"))
+}
+
+func TestTokenRefreshService_ProcessRefresh_UsesWorkerPool(t *testing.T) {
+	accounts := []Account{
+		{ID: 1, Name: "a1", Platform: PlatformGemini, Type: AccountTypeOAuth, Status: StatusActive},
+		{ID: 2, Name: "a2", Platform: PlatformGemini, Type: AccountTypeOAuth, Status: StatusActive},
+		{ID: 3, Name: "a3", Platform: PlatformGemini, Type: AccountTypeOAuth, Status: StatusActive},
+	}
+	accountsByID := map[int64]*Account{
+		1: &accounts[0],
+		2: &accounts[1],
+		3: &accounts[2],
+	}
+	repo := &tokenRefreshAccountRepo{
+		mockAccountRepoForGemini: mockAccountRepoForGemini{
+			accounts:     accounts,
+			accountsByID: accountsByID,
+		},
+		listActiveFunc: func(ctx context.Context) ([]Account, error) {
+			return accounts, nil
+		},
+	}
+	refresher := &blockingTokenRefresher{
+		started: make(chan int64, len(accounts)),
+		release: make(chan struct{}),
+	}
+	service := &TokenRefreshService{
+		accountRepo:   repo,
+		refreshers:    []TokenRefresher{refresher},
+		executors:     []OAuthRefreshExecutor{refresher},
+		refreshPolicy: DefaultBackgroundRefreshPolicy(),
+		cfg: &config.TokenRefreshConfig{
+			MaxRetries:          1,
+			RetryBackoffSeconds: 0,
+		},
+		stopCh: make(chan struct{}),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		service.processRefresh()
+		close(done)
+	}()
+
+	for i := 0; i < len(accounts); i++ {
+		select {
+		case <-refresher.started:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out waiting for worker %d to start", i+1)
+		}
+	}
+
+	require.GreaterOrEqual(t, refresher.maxSeen.Load(), int64(2), "refresh workers should process multiple accounts concurrently")
+	close(refresher.release)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("processRefresh did not finish")
+	}
+
+	require.Equal(t, len(accounts), repo.updateCredentialsCalls)
 }
 
 func TestTokenRefreshService_RefreshWithRetry_InvalidatorErrorIgnored(t *testing.T) {
@@ -223,6 +336,49 @@ func TestTokenRefreshService_RefreshWithRetry_Antigravity(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, repo.updateCalls)
 	require.Equal(t, 1, invalidator.calls) // Antigravity 也应触发缓存失效
+}
+
+func TestTokenRefreshService_RefreshWithRetry_BackoffCancelable(t *testing.T) {
+	repo := &tokenRefreshAccountRepo{}
+	cfg := &config.Config{
+		TokenRefresh: config.TokenRefreshConfig{
+			MaxRetries:          2,
+			RetryBackoffSeconds: 5,
+		},
+	}
+	service := NewTokenRefreshService(repo, nil, nil, nil, nil, nil, nil, cfg, nil)
+	account := &Account{
+		ID:       77,
+		Platform: PlatformGemini,
+		Type:     AccountTypeOAuth,
+	}
+	refresher := &tokenRefresherStub{err: errors.New("network timeout")}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	go func() {
+		close(started)
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	<-started
+	err := service.refreshWithRetry(ctx, account, refresher, refresher, time.Hour)
+	elapsed := time.Since(start)
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Less(t, elapsed, time.Second, "cancel should interrupt backoff sleep promptly")
+}
+
+func TestNextTokenRefreshTempUnschedDuration(t *testing.T) {
+	require.Equal(t, tokenRefreshTempUnschedDuration, nextTokenRefreshTempUnschedDuration(nil))
+
+	until := time.Now().Add(15 * time.Minute)
+	account := &Account{TempUnschedulableUntil: &until}
+	got := nextTokenRefreshTempUnschedDuration(account)
+	require.GreaterOrEqual(t, got, 29*time.Minute)
+	require.LessOrEqual(t, got, tokenRefreshTempUnschedMaxDuration)
 }
 
 // TestTokenRefreshService_RefreshWithRetry_NonOAuthAccount 测试非 OAuth 账号不触发缓存失效
