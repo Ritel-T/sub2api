@@ -1755,9 +1755,24 @@ func copyJSONMap(in map[string]any) map[string]any {
 	}
 	out := make(map[string]any, len(in))
 	for k, v := range in {
-		out[k] = v
+		out[k] = copyJSONValue(v)
 	}
 	return out
+}
+
+func copyJSONValue(v any) any {
+	switch typed := v.(type) {
+	case map[string]any:
+		return copyJSONMap(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i, item := range typed {
+			out[i] = copyJSONValue(item)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 func joinClauses(clauses []string, sep string) string {
