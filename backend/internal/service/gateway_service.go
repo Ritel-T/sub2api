@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -53,6 +54,7 @@ const (
 	defaultUserGroupRateCacheTTL = 30 * time.Second
 	defaultModelsListCacheTTL    = 15 * time.Second
 	postUsageBillingTimeout      = 15 * time.Second
+	refreshAccountCacheTTL       = 100 * time.Millisecond
 	debugGatewayBodyEnv          = "SUB2API_DEBUG_GATEWAY_BODY"
 	// [OpusClaw Patch] Differentiated concurrency: credits=10, quota=5.
 	opusClawCreditsConcurrency = 10
@@ -593,6 +595,8 @@ type GatewayService struct {
 	userGroupRateSF       singleflight.Group
 	modelsListCache       *gocache.Cache
 	modelsListCacheTTL    time.Duration
+	refreshAccountCache   *gocache.Cache
+	refreshAccountCacheMu sync.Once
 	settingService        *SettingService
 	responseHeaderFilter  *responseheaders.CompiledHeaderFilter
 	debugModelRouting     atomic.Bool
@@ -662,6 +666,7 @@ func NewGatewayService(
 		settingService:       settingService,
 		modelsListCache:      gocache.New(modelsListTTL, time.Minute),
 		modelsListCacheTTL:   modelsListTTL,
+		refreshAccountCache:  gocache.New(refreshAccountCacheTTL, time.Second),
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		tlsFPProfileService:  tlsFPProfileService,
 		channelService:       channelService,
@@ -2295,6 +2300,14 @@ func (s *GatewayService) RefreshAccountForExecution(ctx context.Context, account
 	if s == nil || s.accountRepo == nil {
 		return nil, errors.New("account repo not configured")
 	}
+
+	if cached := s.getRefreshAccountExecutionCache(ctx, accountID, requestedModel); cached != nil {
+		if !s.isAccountSchedulableForModelSelection(ctx, cached, requestedModel) {
+			return nil, errors.New("account no longer schedulable")
+		}
+		return cached, nil
+	}
+
 	account, err := s.accountRepo.GetByID(ctx, accountID)
 	if err != nil {
 		return nil, err
@@ -2305,6 +2318,7 @@ func (s *GatewayService) RefreshAccountForExecution(ctx context.Context, account
 	if !s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) {
 		return nil, errors.New("account no longer schedulable")
 	}
+	s.setRefreshAccountExecutionCache(ctx, accountID, requestedModel, account)
 	return account, nil
 }
 
@@ -2345,6 +2359,91 @@ func (s *GatewayService) tryAcquireAccountSlot(ctx context.Context, accountID in
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, nil
 	}
 	return s.concurrencyService.AcquireAccountSlot(ctx, accountID, maxConcurrency)
+}
+
+func (s *GatewayService) ensureRefreshAccountCache() *gocache.Cache {
+	if s == nil {
+		return nil
+	}
+	s.refreshAccountCacheMu.Do(func() {
+		if s.refreshAccountCache == nil {
+			s.refreshAccountCache = gocache.New(refreshAccountCacheTTL, time.Second)
+		}
+	})
+	return s.refreshAccountCache
+}
+
+func refreshAccountExecutionCacheKey(ctx context.Context, accountID int64, requestedModel string) string {
+	thinkingEnabled, _ := ThinkingEnabledFromContext(ctx)
+	return fmt.Sprintf("%d|%s|thinking=%t", accountID, strings.TrimSpace(requestedModel), thinkingEnabled)
+}
+
+func cloneGatewayJSONValue(v any) any {
+	switch typed := v.(type) {
+	case map[string]any:
+		return cloneGatewayJSONMap(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i, item := range typed {
+			out[i] = cloneGatewayJSONValue(item)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+func cloneGatewayJSONMap(in map[string]any) map[string]any {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		out[k] = cloneGatewayJSONValue(v)
+	}
+	return out
+}
+
+func cloneGatewayAccount(account *Account) *Account {
+	if account == nil {
+		return nil
+	}
+	cloned := *account
+	cloned.Credentials = cloneCredentials(account.Credentials)
+	cloned.Extra = cloneGatewayJSONMap(account.Extra)
+	if len(account.GroupIDs) > 0 {
+		cloned.GroupIDs = append([]int64(nil), account.GroupIDs...)
+	}
+	if len(account.Groups) > 0 {
+		cloned.Groups = append([]*Group(nil), account.Groups...)
+	}
+	if len(account.AccountGroups) > 0 {
+		cloned.AccountGroups = append([]AccountGroup(nil), account.AccountGroups...)
+	}
+	return &cloned
+}
+
+func (s *GatewayService) getRefreshAccountExecutionCache(ctx context.Context, accountID int64, requestedModel string) *Account {
+	cache := s.ensureRefreshAccountCache()
+	if cache == nil {
+		return nil
+	}
+	key := refreshAccountExecutionCacheKey(ctx, accountID, requestedModel)
+	if raw, found := cache.Get(key); found {
+		if account, ok := raw.(*Account); ok && account != nil {
+			return cloneGatewayAccount(account)
+		}
+	}
+	return nil
+}
+
+func (s *GatewayService) setRefreshAccountExecutionCache(ctx context.Context, accountID int64, requestedModel string, account *Account) {
+	cache := s.ensureRefreshAccountCache()
+	if cache == nil || account == nil {
+		return
+	}
+	key := refreshAccountExecutionCacheKey(ctx, accountID, requestedModel)
+	cache.Set(key, cloneGatewayAccount(account), refreshAccountCacheTTL)
 }
 
 func (s *GatewayService) canQueueWaitForAccount(ctx context.Context, accountID int64, maxWaiting int) bool {

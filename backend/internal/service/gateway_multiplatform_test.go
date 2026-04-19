@@ -11,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/require"
 )
 
@@ -299,6 +300,41 @@ func (m *mockGroupRepoForGateway) UpdateSortOrders(ctx context.Context, updates 
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+func TestGatewayService_RefreshAccountForExecution_UsesShortL1Cache(t *testing.T) {
+	ctx := context.Background()
+	repo := &mockAccountRepoForPlatform{
+		accountsByID: map[int64]*Account{
+			1: {
+				ID:          1,
+				Platform:    PlatformAnthropic,
+				Status:      StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+			},
+		},
+	}
+	svc := &GatewayService{
+		accountRepo:         repo,
+		refreshAccountCache: gocache.New(refreshAccountCacheTTL, time.Second),
+	}
+
+	account, err := svc.RefreshAccountForExecution(ctx, 1, "claude-3-5-sonnet-20241022")
+	require.NoError(t, err)
+	require.NotNil(t, account)
+
+	account, err = svc.RefreshAccountForExecution(ctx, 1, "claude-3-5-sonnet-20241022")
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.Equal(t, 1, repo.getByIDCalls, "second call within TTL should reuse the short-lived execution cache")
+
+	time.Sleep(refreshAccountCacheTTL + 20*time.Millisecond)
+
+	account, err = svc.RefreshAccountForExecution(ctx, 1, "claude-3-5-sonnet-20241022")
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.Equal(t, 2, repo.getByIDCalls, "cache should expire quickly to preserve freshness")
 }
 
 // TestGatewayService_SelectAccountForModelWithPlatform_Anthropic 测试 anthropic 单平台选择
