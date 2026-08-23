@@ -1163,7 +1163,7 @@ func TestOpenAIWSHTTPBridgeRelaysSSEFramesAsWebSocketMessages(t *testing.T) {
 		Concurrency: 1,
 		Status:      StatusActive,
 	}
-	payload := []byte(`{"type":"response.create","generate":true,"model":"gpt-5","stream":true,"client_metadata":{"ws_request_header_x_openai_internal_codex_responses_lite":"true"},"input":"hi"}`)
+	payload := []byte(`{"type":"response.create","generate":true,"model":"gpt-5","stream":true,"parallel_tool_calls":true,"client_metadata":{"ws_request_header_x_openai_internal_codex_responses_lite":"true"},"input":"hi"}`)
 
 	type bridgeResult struct {
 		result *OpenAIForwardResult
@@ -1249,6 +1249,49 @@ func TestOpenAIWSHTTPBridgeRelaysSSEFramesAsWebSocketMessages(t *testing.T) {
 	require.False(t, gjson.GetBytes(upstream.lastBody, "type").Exists())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "generate").Exists())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "parallel_tool_calls").Exists())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "parallel_tool_calls").Bool())
+}
+
+func TestOpenAIWSHTTPBridgeHonorsResponsesLiteHeaderOverrideFalse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body: io.NopCloser(strings.NewReader(
+			"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_bridge_override\",\"model\":\"gpt-5\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n",
+		)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:           &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
+		httpUpstream:  upstream,
+		toolCorrector: NewCodexToolCorrector(),
+	}
+	account := &Account{
+		ID: 8, Name: "api-key-lite-disabled", Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+		Concurrency: 1, Status: StatusActive,
+		Credentials: map[string]any{
+			"api_key":                    "sk-test",
+			credKeyHeaderOverrideEnabled: true,
+			credKeyHeaderOverrides:       map[string]any{responsesLiteHeaderKey: "false"},
+		},
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Request.Header.Set(responsesLiteHeader, "true")
+	payload := []byte(`{"type":"response.create","model":"gpt-5","stream":true,"parallel_tool_calls":true,"client_metadata":{"ws_request_header_x_openai_internal_codex_responses_lite":"true"},"input":"hi"}`)
+
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
+		context.Background(), c, account, "sk-test", payload, len(payload), "gpt-5", "", "", "", "", 1,
+		func([]byte) error { return nil },
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "false", openAIResponsesLiteHeaderValue(upstream.lastReq.Header))
+	require.True(t, gjson.GetBytes(upstream.lastBody, "parallel_tool_calls").Bool())
 }
 
 func TestProxyOpenAIWSHTTPBridgeTurnForGrokDefaultsEmptyModelTo45(t *testing.T) {
