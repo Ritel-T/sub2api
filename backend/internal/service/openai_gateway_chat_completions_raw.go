@@ -106,6 +106,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		return nil, policyErr
 	}
 	upstreamBody = updatedBody
+	serviceTier = extractOpenAIServiceTierFromBody(upstreamBody)
 	if account.Platform == PlatformGrok {
 		strippedBody, stripErr := stripRedundantGrokChatViewImageTool(upstreamBody)
 		if stripErr != nil {
