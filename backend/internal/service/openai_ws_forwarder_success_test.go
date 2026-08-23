@@ -31,6 +31,9 @@ func TestOpenAIGatewayService_Forward_WSv2_SuccessAndBindSticky(t *testing.T) {
 		PreviousResponseID string
 		StreamExists       bool
 		Stream             bool
+		ParallelExists     bool
+		Parallel           bool
+		ResponsesLite      string
 	}
 	receivedCh := make(chan receivedPayload, 1)
 
@@ -56,6 +59,9 @@ func TestOpenAIGatewayService_Forward_WSv2_SuccessAndBindSticky(t *testing.T) {
 			PreviousResponseID: strings.TrimSpace(gjson.Get(requestJSON, "previous_response_id").String()),
 			StreamExists:       gjson.Get(requestJSON, "stream").Exists(),
 			Stream:             gjson.Get(requestJSON, "stream").Bool(),
+			ParallelExists:     gjson.Get(requestJSON, "parallel_tool_calls").Exists(),
+			Parallel:           gjson.Get(requestJSON, "parallel_tool_calls").Bool(),
+			ResponsesLite:      r.Header.Get(responsesLiteHeader),
 		}
 
 		if err := conn.WriteJSON(map[string]any{
@@ -92,6 +98,7 @@ func TestOpenAIGatewayService_Forward_WSv2_SuccessAndBindSticky(t *testing.T) {
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
 	c.Request.Header.Set("User-Agent", "unit-test-agent/1.0")
+	c.Request.Header.Set(responsesLiteHeader, "true")
 	groupID := int64(1001)
 	c.Set("api_key", &APIKey{GroupID: &groupID})
 
@@ -143,7 +150,7 @@ func TestOpenAIGatewayService_Forward_WSv2_SuccessAndBindSticky(t *testing.T) {
 		},
 	}
 
-	body := []byte(`{"model":"gpt-5.1","stream":false,"previous_response_id":"resp_prev_1","input":[{"type":"input_text","text":"hello"}]}`)
+	body := []byte(`{"model":"gpt-5.1","stream":false,"previous_response_id":"resp_prev_1","parallel_tool_calls":true,"input":[{"type":"input_text","text":"hello"}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -159,6 +166,9 @@ func TestOpenAIGatewayService_Forward_WSv2_SuccessAndBindSticky(t *testing.T) {
 	require.Equal(t, "resp_prev_1", received.PreviousResponseID)
 	require.True(t, received.StreamExists, "WS 请求应携带 stream 字段")
 	require.False(t, received.Stream, "应保持客户端 stream=false 的原始语义")
+	require.True(t, received.ParallelExists)
+	require.False(t, received.Parallel)
+	require.Equal(t, "true", received.ResponsesLite)
 
 	store := svc.getOpenAIWSStateStore()
 	mappedAccountID, getErr := store.GetResponseAccount(context.Background(), groupID, "resp_new_1")

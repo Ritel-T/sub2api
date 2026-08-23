@@ -62,6 +62,13 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 
 	payload := s.buildOpenAIWSCreatePayload(reqBody, account)
 	payloadStrategy, removedKeys := applyOpenAIWSRetryPayloadStrategy(payload, attempt)
+	clientResponsesLiteHeader := ""
+	if c != nil {
+		clientResponsesLiteHeader = c.GetHeader(responsesLiteHeader)
+	}
+	if isOpenAIResponsesLiteOutboundRequest(clientResponsesLiteHeader, account) {
+		payload["parallel_tool_calls"] = false
+	}
 	turnState := ""
 	turnMetadata := ""
 	if c != nil && c.Request != nil {
