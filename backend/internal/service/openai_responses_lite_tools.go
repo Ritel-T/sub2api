@@ -1,17 +1,24 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"reflect"
 	"strings"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // normalizeOpenAIResponsesLiteTools applies the Responses Lite request
-// contract: reasoning must cover all turns, and private namespace declarations
-// use the input.additional_tools carrier. Other top-level tools must belong to
-// the small set accepted by the Lite endpoint; rejecting unsupported hosted
-// tools is intentional because silently dropping them would change behavior.
+// contract: reasoning must cover all turns, tool calls must be serial, and
+// private namespace declarations use the input.additional_tools carrier. Other
+// top-level tools must belong to the small set accepted by the Lite endpoint;
+// rejecting unsupported hosted tools is intentional because silently dropping
+// them would change behavior.
 func normalizeOpenAIResponsesLiteTools(reqBody map[string]any) (bool, error) {
 	if reqBody == nil {
 		return false, nil
@@ -23,7 +30,11 @@ func normalizeOpenAIResponsesLiteTools(reqBody map[string]any) (bool, error) {
 	}
 	rawTools, exists := reqBody["tools"]
 	if !exists || rawTools == nil {
-		return ensureOpenAIResponsesLiteReasoningContext(reqBody)
+		changed, err := ensureOpenAIResponsesLiteReasoningContext(reqBody)
+		if err != nil {
+			return false, err
+		}
+		return ensureOpenAIResponsesLiteParallelToolCalls(reqBody, changed), nil
 	}
 	tools, ok := rawTools.([]any)
 	if !ok {
@@ -57,7 +68,11 @@ func normalizeOpenAIResponsesLiteTools(reqBody map[string]any) (bool, error) {
 		}
 	}
 	if len(namespaceTools) == 0 {
-		return ensureOpenAIResponsesLiteReasoningContext(reqBody)
+		changed, err := ensureOpenAIResponsesLiteReasoningContext(reqBody)
+		if err != nil {
+			return false, err
+		}
+		return ensureOpenAIResponsesLiteParallelToolCalls(reqBody, changed), nil
 	}
 
 	input, err := appendOpenAIResponsesLiteAdditionalTools(reqBody["input"], namespaceTools)
@@ -73,7 +88,15 @@ func normalizeOpenAIResponsesLiteTools(reqBody map[string]any) (bool, error) {
 	} else {
 		reqBody["tools"] = topLevelTools
 	}
-	return true, nil
+	return ensureOpenAIResponsesLiteParallelToolCalls(reqBody, true), nil
+}
+
+func ensureOpenAIResponsesLiteParallelToolCalls(reqBody map[string]any, changed bool) bool {
+	if parallel, exists := reqBody["parallel_tool_calls"].(bool); exists && !parallel {
+		return changed
+	}
+	reqBody["parallel_tool_calls"] = false
+	return true
 }
 
 func ensureOpenAIResponsesLiteReasoningContext(reqBody map[string]any) (bool, error) {
@@ -213,4 +236,94 @@ func normalizeOpenAIResponsesLiteToolsPayload(body []byte) ([]byte, bool, error)
 		return body, false, fmt.Errorf("encode responses Lite request body: %w", err)
 	}
 	return rebuilt, true, nil
+}
+
+func normalizeOpenAIResponsesLiteParallelToolCallsPayload(body []byte) ([]byte, bool, error) {
+	if !gjson.ValidBytes(body) {
+		return body, false, fmt.Errorf("decode responses Lite request body: invalid JSON")
+	}
+	if gjson.GetBytes(body, "parallel_tool_calls").Type == gjson.False {
+		return body, false, nil
+	}
+	normalized, err := sjson.SetBytes(body, "parallel_tool_calls", false)
+	if err != nil {
+		return body, false, fmt.Errorf("normalize responses Lite parallel_tool_calls: %w", err)
+	}
+	return normalized, true, nil
+}
+
+func normalizeOpenAIResponsesLitePayloadForAccount(body []byte, account *Account) ([]byte, bool, error) {
+	if isOpenAIResponsesLiteAccount(account) && account.UsesOpenAICodexProtocol() {
+		return normalizeOpenAIResponsesLiteToolsPayload(body)
+	}
+	return normalizeOpenAIResponsesLiteParallelToolCallsPayload(body)
+}
+
+func isOpenAIResponsesLiteAccount(account *Account) bool {
+	return account != nil && (account.IsOpenAI() || (account.Type == AccountTypeOAuth && strings.TrimSpace(account.Platform) == ""))
+}
+
+func isOpenAIResponsesLiteOutboundRequest(clientHeader string, account *Account) bool {
+	if !isOpenAIResponsesLiteAccount(account) {
+		return false
+	}
+	if override, ok := account.HeaderOverrideValue(responsesLiteHeaderKey); ok {
+		return isOpenAIResponsesLiteHeader(override)
+	}
+	return isOpenAIResponsesLiteHeader(clientHeader)
+}
+
+func isOpenAIResponsesLiteWebSocketRequest(clientHeader string, body []byte, account *Account) bool {
+	if !isOpenAIResponsesLiteAccount(account) {
+		return false
+	}
+	if override, ok := account.HeaderOverrideValue(responsesLiteHeaderKey); ok {
+		return isOpenAIResponsesLiteHeader(override)
+	}
+	return isOpenAIResponsesLiteHeader(clientHeader) || isOpenAIResponsesLiteWebSocketPayload(body)
+}
+
+func openAIResponsesLiteHeaderValue(headers http.Header) string {
+	for name, values := range headers {
+		if strings.EqualFold(name, responsesLiteHeader) && len(values) > 0 {
+			return values[0]
+		}
+	}
+	return ""
+}
+
+func applyOpenAIResponsesLiteWebSocketHTTPHeader(headers http.Header, clientHeader string, body []byte, account *Account) {
+	if headers == nil || !isOpenAIResponsesLiteWebSocketRequest(clientHeader, body, account) {
+		return
+	}
+	for name := range headers {
+		if strings.EqualFold(name, responsesLiteHeader) {
+			delete(headers, name)
+		}
+	}
+	headers.Set(responsesLiteHeader, "true")
+}
+
+func guardOpenAIResponsesLiteHTTPRequest(req *http.Request, body []byte) ([]byte, error) {
+	if req == nil || !isOpenAIResponsesLiteHeader(openAIResponsesLiteHeaderValue(req.Header)) {
+		return body, nil
+	}
+	normalized, changed, err := normalizeOpenAIResponsesLiteParallelToolCallsPayload(body)
+	if err != nil {
+		return body, err
+	}
+	if !changed {
+		return body, nil
+	}
+
+	payload := append([]byte(nil), normalized...)
+	if req.Body != nil {
+		_ = req.Body.Close()
+	}
+	req.Body = io.NopCloser(bytes.NewReader(payload))
+	req.ContentLength = int64(len(payload))
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(payload)), nil
+	}
+	return payload, nil
 }
