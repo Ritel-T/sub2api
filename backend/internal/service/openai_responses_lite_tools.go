@@ -1,16 +1,9 @@
 package service
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"reflect"
 	"strings"
-
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 type openAIResponsesLiteValidationError struct {
@@ -25,14 +18,18 @@ func newOpenAIResponsesLiteValidationError(param, format string, args ...any) er
 }
 
 // normalizeOpenAIResponsesLiteTools applies the Responses Lite request
-// contract: reasoning must cover all turns, tool calls must be serial, and
-// private namespace declarations use the input.additional_tools carrier. Other
-// top-level tools must belong to the small set accepted by the Lite endpoint;
-// rejecting unsupported hosted tools is intentional because silently dropping
-// them would change behavior.
+// contract: reasoning must cover all turns, and private namespace declarations
+// use the input.additional_tools carrier. Other top-level tools must belong to
+// the small set accepted by the Lite endpoint; rejecting unsupported hosted
+// tools is intentional because silently dropping them would change behavior.
 func normalizeOpenAIResponsesLiteTools(reqBody map[string]any) (bool, error) {
 	if reqBody == nil {
 		return false, nil
+	}
+	if parallel, exists := reqBody["parallel_tool_calls"]; exists {
+		if _, ok := parallel.(bool); !ok {
+			return false, newOpenAIResponsesLiteValidationError("parallel_tool_calls", "responses Lite requires parallel_tool_calls to be a boolean")
+		}
 	}
 	if rawReasoning, exists := reqBody["reasoning"]; exists && rawReasoning != nil {
 		if _, ok := rawReasoning.(map[string]any); !ok {
@@ -103,7 +100,12 @@ func normalizeOpenAIResponsesLiteTools(reqBody map[string]any) (bool, error) {
 }
 
 func ensureOpenAIResponsesLiteParallelToolCalls(reqBody map[string]any, changed bool) (bool, error) {
-	parallel := reqBody["parallel_tool_calls"]
+	parallel, exists := reqBody["parallel_tool_calls"]
+	if exists {
+		if _, ok := parallel.(bool); !ok {
+			return false, newOpenAIResponsesLiteValidationError("parallel_tool_calls", "responses Lite requires parallel_tool_calls to be a boolean")
+		}
+	}
 	if parallel == false {
 		return changed, nil
 	}
@@ -236,7 +238,7 @@ func openAIResponsesLiteToolIdentityForError(rawTool any) string {
 
 func normalizeOpenAIResponsesLiteToolsPayload(body []byte) ([]byte, bool, error) {
 	var requestBody map[string]any
-	if err := json.Unmarshal(body, &requestBody); err != nil {
+	if err := decodeOpenAIJSONUseNumber(body, &requestBody); err != nil {
 		return body, false, fmt.Errorf("decode responses Lite request body: %w", err)
 	}
 	changed, err := normalizeOpenAIResponsesLiteTools(requestBody)
@@ -251,91 +253,27 @@ func normalizeOpenAIResponsesLiteToolsPayload(body []byte) ([]byte, bool, error)
 }
 
 func normalizeOpenAIResponsesLiteParallelToolCallsPayload(body []byte) ([]byte, bool, error) {
-	if !gjson.ValidBytes(body) {
-		return body, false, fmt.Errorf("decode responses Lite request body: invalid JSON")
+	var requestBody map[string]any
+	if err := decodeOpenAIJSONUseNumber(body, &requestBody); err != nil {
+		return body, false, fmt.Errorf("decode responses Lite request body: %w", err)
 	}
-	if gjson.GetBytes(body, "parallel_tool_calls").Type == gjson.False {
-		return body, false, nil
+	changed, err := ensureOpenAIResponsesLiteParallelToolCalls(requestBody, false)
+	if err != nil || !changed {
+		return body, false, err
 	}
-	normalized, err := sjson.SetBytes(body, "parallel_tool_calls", false)
+	rebuilt, err := marshalOpenAIUpstreamJSON(requestBody)
 	if err != nil {
-		return body, false, fmt.Errorf("normalize responses Lite parallel_tool_calls: %w", err)
+		return body, false, fmt.Errorf("encode responses Lite request body: %w", err)
 	}
-	return normalized, true, nil
+	return rebuilt, true, nil
 }
 
 func normalizeOpenAIResponsesLitePayloadForAccount(body []byte, account *Account) ([]byte, bool, error) {
-	if isOpenAIResponsesLiteAccount(account) && account.UsesOpenAICodexProtocol() {
+	if account == nil || !account.IsOpenAI() {
+		return body, false, nil
+	}
+	if account.IsOpenAIOAuthLike() {
 		return normalizeOpenAIResponsesLiteToolsPayload(body)
 	}
 	return normalizeOpenAIResponsesLiteParallelToolCallsPayload(body)
-}
-
-func isOpenAIResponsesLiteAccount(account *Account) bool {
-	return account != nil && (account.IsOpenAI() || (account.Type == AccountTypeOAuth && strings.TrimSpace(account.Platform) == ""))
-}
-
-func isOpenAIResponsesLiteOutboundRequest(clientHeader string, account *Account) bool {
-	if !isOpenAIResponsesLiteAccount(account) {
-		return false
-	}
-	if override, ok := account.HeaderOverrideValue(responsesLiteHeaderKey); ok {
-		return isOpenAIResponsesLiteHeader(override)
-	}
-	return isOpenAIResponsesLiteHeader(clientHeader)
-}
-
-func isOpenAIResponsesLiteWebSocketRequest(clientHeader string, body []byte, account *Account) bool {
-	if !isOpenAIResponsesLiteAccount(account) {
-		return false
-	}
-	if override, ok := account.HeaderOverrideValue(responsesLiteHeaderKey); ok {
-		return isOpenAIResponsesLiteHeader(override)
-	}
-	return isOpenAIResponsesLiteHeader(clientHeader) || isOpenAIResponsesLiteWebSocketPayload(body)
-}
-
-func openAIResponsesLiteHeaderValue(headers http.Header) string {
-	for name, values := range headers {
-		if strings.EqualFold(name, responsesLiteHeader) && len(values) > 0 {
-			return values[0]
-		}
-	}
-	return ""
-}
-
-func applyOpenAIResponsesLiteWebSocketHTTPHeader(headers http.Header, clientHeader string, body []byte, account *Account) {
-	if headers == nil || !isOpenAIResponsesLiteWebSocketRequest(clientHeader, body, account) {
-		return
-	}
-	for name := range headers {
-		if strings.EqualFold(name, responsesLiteHeader) {
-			delete(headers, name)
-		}
-	}
-	headers.Set(responsesLiteHeader, "true")
-}
-
-func guardOpenAIResponsesLiteHTTPRequest(req *http.Request, body []byte) ([]byte, error) {
-	if req == nil || !isOpenAIResponsesLiteHeader(openAIResponsesLiteHeaderValue(req.Header)) {
-		return body, nil
-	}
-	normalized, changed, err := normalizeOpenAIResponsesLiteParallelToolCallsPayload(body)
-	if err != nil {
-		return body, err
-	}
-	if !changed {
-		return body, nil
-	}
-
-	payload := append([]byte(nil), normalized...)
-	if req.Body != nil {
-		_ = req.Body.Close()
-	}
-	req.Body = io.NopCloser(bytes.NewReader(payload))
-	req.ContentLength = int64(len(payload))
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(bytes.NewReader(payload)), nil
-	}
-	return payload, nil
 }
