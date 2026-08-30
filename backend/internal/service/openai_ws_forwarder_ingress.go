@@ -187,6 +187,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		payloadRaw               []byte
 		accountIdentitySourceRaw []byte
 		rawForHash               []byte
+		fastTrace                *OpenAIFastTrace
 		promptCacheKey           string
 		previousResponseID       string
 		originalModel            string
@@ -231,6 +232,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		if !gjson.ValidBytes(trimmed) {
 			return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", errors.New("invalid json"))
 		}
+		fastTrace := newOpenAIFastTrace(ctx, account, trimmed)
 
 		values := gjson.GetManyBytes(trimmed, "type", "model", "prompt_cache_key", "previous_response_id")
 		eventType := strings.TrimSpace(values[0].String())
@@ -423,6 +425,10 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			imageInputSize = imageCfg.InputSize
 		}
 
+		// Capture the client-requested tier before policy normalization so the
+		// diagnostic can distinguish an explicit request from an injected one.
+		fastTrace.SetRequestedFromBody(normalized)
+
 		// Apply OpenAI Fast Policy on the response.create frame using the same
 		// evaluator/normalize/scope rules as the HTTP entrypoints. This is the
 		// single integration point for all WS ingress turns (first + follow-up
@@ -460,12 +466,14 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 		normalized = policyApplied
+		fastTrace.SetOutbound(normalized)
 		ingressSessionOriginalModel = originalModel
 
 		return openAIWSClientPayload{
 			payloadRaw:               normalized,
 			accountIdentitySourceRaw: accountIdentitySourceRaw,
 			rawForHash:               trimmed,
+			fastTrace:                fastTrace,
 			promptCacheKey:           promptCacheKey,
 			previousResponseID:       previousResponseID,
 			originalModel:            originalModel,
@@ -634,6 +642,10 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					return fmt.Errorf("resolve Grok websocket cache identity: %w", err)
 				}
 			}
+			// The bridge may replay/normalize the frame immediately before the
+			// actual HTTP request. Keep the trace tied to that final outbound
+			// payload rather than only the pre-bridge ingress frame.
+			currentBridgePayload.fastTrace.SetOutbound(bridgePayloadRaw)
 			result, bridgeErr := s.proxyOpenAIWSHTTPBridgeTurn(
 				ctx,
 				c,
@@ -653,6 +665,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				return errOpenAIWSSessionPreempted
 			}
 			if hooks != nil && hooks.AfterTurn != nil {
+				attachOpenAIFastTrace(result, currentBridgePayload.fastTrace)
 				hooks.AfterTurn(turn, result, bridgeErr)
 			}
 			if bridgeErr != nil {
@@ -909,11 +922,14 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 
 	var rejectedFieldRetryState *openAIResponsesRejectedFieldRetryState
-	sendAndRelay := func(turn int, lease *openAIWSConnLease, payload []byte, payloadBytes int, originalModel string, imageBillingModel string, imageSizeTier string, imageInputSize string) (*OpenAIForwardResult, error) {
+	sendAndRelay := func(turn int, lease *openAIWSConnLease, payload []byte, payloadBytes int, originalModel string, imageBillingModel string, imageSizeTier string, imageInputSize string, fastTrace *OpenAIFastTrace) (*OpenAIForwardResult, error) {
 		responseModelObserver := &upstreamResponseModelObserver{}
 		if lease == nil {
 			return nil, errors.New("upstream websocket lease is nil")
 		}
+		// Retries can alter the canonical frame (for example by removing an
+		// unsupported field), so sample the exact bytes written on every turn.
+		fastTrace.SetOutbound(payload)
 		turnStart := time.Now()
 		wroteDownstream := false
 		if err := lease.WriteJSONWithContextTimeout(ctx, json.RawMessage(payload), s.openAIWSWriteTimeout()); err != nil {
@@ -1187,6 +1203,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					Duration:                      time.Since(turnStart),
 					FirstTokenMs:                  firstTokenMs,
 				}
+				attachOpenAIFastTrace(result, fastTrace)
 				if replayInput := replayCollector.Items(); len(replayInput) > 0 {
 					result.wsReplayInput = replayInput
 					result.wsReplayInputExists = true
@@ -1204,6 +1221,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 
 	currentPayload := firstPayload.payloadRaw
+	currentFastTrace := firstPayload.fastTrace
 	currentOriginalModel := firstPayload.originalModel
 	currentImageBillingModel := firstPayload.imageBillingModel
 	currentImageSizeTier := firstPayload.imageSizeTier
@@ -1697,7 +1715,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 
-		result, relayErr := sendAndRelay(turn, sessionLease, currentPayload, currentPayloadBytes, currentOriginalModel, currentImageBillingModel, currentImageSizeTier, currentImageInputSize)
+		result, relayErr := sendAndRelay(turn, sessionLease, currentPayload, currentPayloadBytes, currentOriginalModel, currentImageBillingModel, currentImageSizeTier, currentImageInputSize, currentFastTrace)
 		if relayErr != nil {
 			lastTurnClean = false
 			if isOpenAIWSSessionPreempted(ctx) {
@@ -1854,6 +1872,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 		}
 		currentPayload = nextPayload.payloadRaw
+		currentFastTrace = nextPayload.fastTrace
 		currentOriginalModel = nextPayload.originalModel
 		currentImageBillingModel = nextPayload.imageBillingModel
 		currentImageSizeTier = nextPayload.imageSizeTier

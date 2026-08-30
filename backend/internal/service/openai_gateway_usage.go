@@ -126,6 +126,24 @@ func openAIUsagePricingAt(input *OpenAIRecordUsageInput) time.Time {
 	return timezone.Now()
 }
 
+func groupBillsOpenAIFastAtStandard(apiKey *APIKey, account *Account, serviceTier string) bool {
+	if apiKey == nil || apiKey.Group == nil || !apiKey.Group.FreeOpenAIFast {
+		return false
+	}
+	if account == nil || !account.IsOpenAI() {
+		return false
+	}
+	if !groupSupportsOpenAIFast(apiKey.Group.Platform) {
+		return false
+	}
+	switch normalizeBillingServiceTier(serviceTier) {
+	case "priority", "fast":
+		return true
+	default:
+		return false
+	}
+}
+
 // RecordUsage records usage and deducts balance
 func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRecordUsageInput) error {
 	if input == nil {
@@ -146,7 +164,18 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if !isGrokVideoUsageResult(result, nil) {
 		ApplyOpenAIImageBillingResolution(result)
 	}
-	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, ApplyOpenAIServiceTierBillingResolution(result))
+	tierResolution := ApplyOpenAIServiceTierBillingResolution(account, result)
+	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, tierResolution)
+	// The forward path may have detached the request context before usage is
+	// recorded. Keep the diagnostic emission here, after tier resolution, so it
+	// reports the same observed/billed values as the usage row and still fires
+	// for simple-mode or billing-error returns. Cyber-policy synthetic rows do
+	// not carry a trace and are explicitly excluded by the helper.
+	traceRequestID := ""
+	traceRateMultiplier := 0.0
+	defer func() {
+		logOpenAIFastTrace(ctx, input, result, traceRequestID, tierResolution, traceRateMultiplier)
+	}()
 
 	// OpenAI input_tokens 是总输入，包含缓存读取和缓存写入明细。
 	// 将三类 token 拆成互斥桶，避免缓存写入同时按普通输入和 cache_write 重复计费。
@@ -181,6 +210,10 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	pricingAt := openAIUsagePricingAt(input)
 	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, pricingAt)
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
+	// Keep a useful diagnostic value even if a later pricing/database step
+	// returns early; successful media paths overwrite it with their final
+	// usage-log multiplier below.
+	traceRateMultiplier = multiplier
 
 	var cost *CostBreakdown
 	var err error
@@ -275,6 +308,34 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		}
 	}
 
+	// Free Fast is a customer-pricing policy, not an upstream-tier rewrite.
+	// Preserve the priority TotalCost and service_tier for upstream accounting,
+	// but charge the user the same ActualCost as an otherwise identical Standard
+	// request. This also respects group/channel prices, peak multipliers, and
+	// long-context rules because the same pricing path is evaluated twice.
+	if groupBillsOpenAIFastAtStandard(apiKey, billingAccount, serviceTier) {
+		standardCost, standardErr := s.calculateOpenAIRecordUsageCost(
+			ctx,
+			result,
+			apiKey,
+			billingModels,
+			multiplier,
+			imageMultiplier,
+			videoMultiplier,
+			baseMultiplier,
+			tokens,
+			"",
+			longContextBillingGate,
+			pricingAt,
+		)
+		if standardErr != nil {
+			return standardErr
+		}
+		if cost != nil && standardCost != nil {
+			cost.ActualCost = standardCost.ActualCost
+		}
+	}
+
 	// Determine billing type
 	isSubscriptionBilling := subscription != nil && apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
 	billingType := BillingTypeBalance
@@ -303,6 +364,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			requestID = stable
 		}
 	}
+	traceRequestID = requestID
 
 	// 确定 RequestedModel（渠道映射前的原始模型）
 	requestedModel := result.Model
@@ -372,6 +434,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	} else {
 		usageLog.RateMultiplier = multiplier
 	}
+	traceRateMultiplier = usageLog.RateMultiplier
 	usageLog.AccountRateMultiplier = &accountRateMultiplier
 	usageLog.BillingType = billingType
 	usageLog.Stream = result.Stream

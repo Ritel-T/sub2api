@@ -140,16 +140,42 @@ type openAIWSPassthroughUsageMeta struct {
 
 	// 仅在 client->upstream filter goroutine 中读写；Load 侧通过上方原子指针同步。
 	sessionRequestModel string
+	fastTraceMu         sync.Mutex
+	fastTraces          map[int]*OpenAIFastTrace
 }
 
 func newOpenAIWSPassthroughUsageMeta(initialRequestModel string, firstFrame []byte) *openAIWSPassthroughUsageMeta {
 	meta := &openAIWSPassthroughUsageMeta{
 		sessionRequestModel: strings.TrimSpace(initialRequestModel),
+		fastTraces:          make(map[int]*OpenAIFastTrace),
 	}
 	if meta.sessionRequestModel == "" {
 		meta.sessionRequestModel = openAIWSPassthroughRequestModelForFrame(firstFrame)
 	}
 	return meta
+}
+
+func (m *openAIWSPassthroughUsageMeta) storeFastTrace(turn int, trace *OpenAIFastTrace) {
+	if m == nil || turn <= 0 || trace == nil || !trace.Captured {
+		return
+	}
+	m.fastTraceMu.Lock()
+	if m.fastTraces == nil {
+		m.fastTraces = make(map[int]*OpenAIFastTrace)
+	}
+	m.fastTraces[turn] = trace
+	m.fastTraceMu.Unlock()
+}
+
+func (m *openAIWSPassthroughUsageMeta) takeFastTrace(turn int) *OpenAIFastTrace {
+	if m == nil || turn <= 0 {
+		return nil
+	}
+	m.fastTraceMu.Lock()
+	trace := m.fastTraces[turn]
+	delete(m.fastTraces, turn)
+	m.fastTraceMu.Unlock()
+	return trace
 }
 
 func (m *openAIWSPassthroughUsageMeta) initFromFirstFrame(policyOutput []byte, mappedModel string) {
@@ -759,6 +785,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		firstClientMessage = accountScopedFirst
 	}
 	usageMeta := newOpenAIWSPassthroughUsageMeta(initialRequestModel, firstClientMessage)
+	firstFastTrace := newOpenAIFastTrace(ctx, account, firstClientMessage)
+	firstFastTrace.SetRequestedFromBody(firstClientMessage)
 	updatedFirst, blocked, policyErr := s.applyOpenAIFastPolicyToWSResponseCreate(ctx, account, capturedSessionModel, firstClientMessage)
 	if policyErr != nil {
 		return fmt.Errorf("apply openai fast policy on first ws frame: %w", policyErr)
@@ -781,6 +809,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, blocked.Message, blocked)
 	}
 	firstClientMessage = updatedFirst
+	firstFastTrace.SetOutbound(firstClientMessage)
+	usageMeta.storeFastTrace(1, firstFastTrace)
 
 	// 在 policy filter 之后再提取 service_tier / reasoning_effort 用于
 	// usage 上报：filter
@@ -1077,7 +1107,16 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if isResponseCreate && model != "" && model != strings.TrimSpace(gjson.GetBytes(payload, "model").String()) {
 				payload = s.ReplaceModelInBody(payload, model)
 			}
+			fastTrace := (*OpenAIFastTrace)(nil)
+			if isResponseCreate {
+				fastTrace = newOpenAIFastTrace(ctx, account, payload)
+				fastTrace.SetRequestedFromBody(payload)
+			}
 			out, blocked, policyErr := s.applyOpenAIFastPolicyToWSResponseCreate(ctx, account, model, payload)
+			if policyErr == nil && blocked == nil && isResponseCreate {
+				fastTrace.SetOutbound(out)
+				usageMeta.storeFastTrace(turnNo, fastTrace)
+			}
 			// 多轮 passthrough usage：仅在成功（non-block / non-err）
 			// 的 response.create 帧上更新 usageMeta，使用
 			// filter 处理后的 payload，与首帧 policy-after-extract 语义
@@ -1208,6 +1247,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					Duration:                      turn.Duration,
 					FirstTokenMs:                  turn.FirstTokenMs,
 				}
+				attachOpenAIFastTrace(turnResult, usageMeta.takeFastTrace(turnNo))
 				logOpenAIWSV2Passthrough(
 					"relay_turn_completed account_id=%d turn=%d request_id=%s terminal_event=%s turn_requested_model=%s turn_upstream_model=%s duration_ms=%d first_token_ms=%d input_tokens=%d output_tokens=%d cache_read_tokens=%d",
 					account.ID,
@@ -1353,6 +1393,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if hooks.TurnStarted != nil {
 				hooks.TurnStarted(1, time.Now().Add(-result.Duration))
 			}
+			attachOpenAIFastTrace(result, usageMeta.takeFastTrace(1))
 			hooks.AfterTurn(1, result, nil)
 		}
 		return nil

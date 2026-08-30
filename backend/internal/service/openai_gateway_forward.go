@@ -18,7 +18,13 @@ import (
 )
 
 // Forward forwards request to OpenAI API
-func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
+func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (ret *OpenAIForwardResult, retErr error) {
+	// Capture the request-side Fast state before any account-specific body
+	// normalization or policy rewrite. The deferred attachment also covers
+	// protocol fallbacks that return from this method early.
+	fastTrace := newOpenAIFastTrace(ctx, account, body)
+	defer func() { attachOpenAIFastTrace(ret, fastTrace) }()
+
 	beginUpstreamResponseModelObservation(c)
 	clearGrokResponsesClientToolMapping(c)
 	clearOpenAIResponsesClientToolMapping(c)
@@ -710,6 +716,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if err != nil {
 			return nil, err
 		}
+		fastTrace.SetOutboundMap(wsReqBody)
 		_, hasPreviousResponseID := wsReqBody["previous_response_id"]
 		logOpenAIWSModeDebug(
 			"forward_start account_id=%d account_type=%s model=%s stream=%v has_previous_response_id=%v",
@@ -944,6 +951,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	agentTaskRecoveryTried := false
 	rejectedFieldRetryState := openAIResponsesRejectedFieldRetryStateForRequest(c, body)
 	for {
+		// body is the final canonical payload for this attempt. Updating this on
+		// every retry makes the diagnostic reflect the request that actually
+		// reached the successful upstream account.
+		fastTrace.SetOutbound(body)
 		// Build upstream request
 		upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 		var headerGuard *openAIFirstOutputHeaderGuard

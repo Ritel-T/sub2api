@@ -134,7 +134,10 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	reasoningEffort *string,
 	reqStream bool,
 	startTime time.Time,
-) (*OpenAIForwardResult, error) {
+) (ret *OpenAIForwardResult, retErr error) {
+	fastTrace := newOpenAIFastTrace(ctx, account, body)
+	defer func() { attachOpenAIFastTrace(ret, fastTrace) }()
+
 	requestedModel := reqModel
 	upstreamPassthroughModel := ""
 	if isOpenAIResponsesCompactPath(c) {
@@ -251,6 +254,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	}
 
 	// Apply OpenAI fast policy to the passthrough body (filter/block by service_tier).
+	fastTrace.SetRequestedFromBody(body)
 	// 统一使用 upstream 视角的 model：透传路径下 body 已经过 compact 映射 +
 	// OAuth normalize，body 中的 model 字段即上游真正会看到的 slug。
 	// 这样可以与 chat-completions / messages / native /responses 入口的
@@ -269,6 +273,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		return nil, policyErr
 	}
 	body = updatedBody
+	fastTrace.SetOutbound(body)
 
 	apiKey := getAPIKeyFromContext(c)
 	// 同一 attempt 的最终 model/body 只判定一次，权限检查与后续图片状态设置共用该结果。
@@ -361,6 +366,9 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	imageCount := 0
 	var imageOutputSizes []string
 	for {
+		// A rejected-field/agent-recovery retry can replace body after the
+		// initial policy pass; sample the exact payload for every attempt.
+		fastTrace.SetOutbound(body)
 		actualModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 		if actualModel == "" {
 			actualModel = reqModel

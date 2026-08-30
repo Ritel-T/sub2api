@@ -58,7 +58,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (ret *OpenAIForwardResult, retErr error) {
+	fastTrace := newOpenAIFastTrace(ctx, account, body)
+	defer func() { attachOpenAIFastTrace(ret, fastTrace) }()
+
 	beginUpstreamResponseModelObservation(c)
 	setCodexToolNameReverse(c, nil)
 	if _, err := s.prepareCodexAccountIdentitySource(ctx, c, account); err != nil {
@@ -291,6 +294,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	}
 
 	// 4b. Apply OpenAI fast policy (may filter service_tier or block the request).
+	fastTrace.SetRequestedFromBody(responsesBody)
 	updatedBody, policyErr := s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, responsesBody)
 	if policyErr != nil {
 		var blocked *OpenAIFastBlockedError
@@ -301,6 +305,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		return nil, policyErr
 	}
 	responsesBody = updatedBody
+	fastTrace.SetOutbound(responsesBody)
 	responsesReq.ServiceTier = normalizedOpenAIServiceTierValue(gjson.GetBytes(responsesBody, "service_tier").String())
 
 	// 5. Get access token

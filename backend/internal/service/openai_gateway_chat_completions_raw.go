@@ -58,7 +58,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (ret *OpenAIForwardResult, retErr error) {
+	fastTrace := newOpenAIFastTrace(ctx, account, body)
+	defer func() { attachOpenAIFastTrace(ret, fastTrace) }()
+
 	startTime := time.Now()
 
 	// 1. Parse minimal fields needed for routing/billing
@@ -93,6 +96,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	}
 
 	// 4. Apply OpenAI fast policy on the CC body
+	fastTrace.SetRequestedFromBody(upstreamBody)
 	updatedBody, policyErr := s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, upstreamBody)
 	if policyErr != nil {
 		var blocked *OpenAIFastBlockedError
@@ -103,6 +107,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		return nil, policyErr
 	}
 	upstreamBody = updatedBody
+	fastTrace.SetOutbound(upstreamBody)
 	// 计费兜底 tier = 最终出站 body（policy filter/force 后）里的 tier；
 	// 最终值由 resolvedOpenAIUpstreamServiceTier 决定（上游回显优先）。
 	serviceTier := extractOpenAIServiceTierFromBody(upstreamBody)
@@ -158,6 +163,9 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		}
 	}
 	upstreamBody = applyOllamaCloudRawChatCompletionsRequest(account, upstreamBody)
+	// Keep the trace aligned with the exact body handed to the shared CC
+	// transport after all provider-specific rewrites.
+	fastTrace.SetOutbound(upstreamBody)
 
 	logger.L().Debug("openai chat_completions raw: forwarding without protocol conversion",
 		zap.Int64("account_id", account.ID),

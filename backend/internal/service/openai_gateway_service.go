@@ -229,6 +229,23 @@ type OpenAIUsage struct {
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
 }
 
+// OpenAIFastTrace carries the small, non-sensitive set of request metadata
+// needed to explain how an OpenAI service tier was routed and billed.  It is
+// captured while the request context still contains the authenticated Group
+// and travels with the forward result to the asynchronous usage recorder.
+// It deliberately contains no request body, token, API key, or OAuth data.
+type OpenAIFastTrace struct {
+	Captured             bool
+	GroupID              int64
+	GroupForceOpenAIFast bool
+	GroupFreeOpenAIFast  bool
+	RequestedServiceTier string
+	// Empty means the final payload omitted service_tier; the upstream then
+	// applies its default tier.  Keeping omission distinct from an explicit
+	// "default" request helps diagnose policy filtering without changing billing.
+	OutboundServiceTier string
+}
+
 // OpenAIForwardResult represents the result of forwarding
 type OpenAIForwardResult struct {
 	RequestID  string
@@ -261,6 +278,10 @@ type OpenAIForwardResult struct {
 	ReasoningEffort *string
 	Stream          bool
 	OpenAIWSMode    bool
+	// OpenAIFastTrace is populated for real OpenAI-platform requests so usage
+	// recording can emit the redacted openai.fast_trace diagnostic event even
+	// when it runs outside the original request context.
+	OpenAIFastTrace *OpenAIFastTrace `json:"-"`
 	// UpstreamTerminalEvent is the normalized terminal event observed on an
 	// upstream Responses WebSocket turn. Empty preserves legacy/non-WS success.
 	UpstreamTerminalEvent string

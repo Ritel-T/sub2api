@@ -34,7 +34,10 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (ret *OpenAIForwardResult, retErr error) {
+	fastTrace := newOpenAIFastTrace(ctx, account, body)
+	defer func() { attachOpenAIFastTrace(ret, fastTrace) }()
+
 	startTime := time.Now()
 
 	// 1. Parse Anthropic request
@@ -87,6 +90,8 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 			}
 		}
 	}
+	fastTrace.SetRequestedFromBody(chatBody)
+	fastTrace.SetOutbound(chatBody)
 	// Unlike forwardResponsesViaRawChatCompletions, applyOpenAIFastPolicyToBody
 	// is intentionally skipped: Anthropic Messages bodies carry no service_tier,
 	// so the converted Chat Completions body never contains one and the policy
@@ -152,15 +157,16 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsAnthropic(
 	c.JSON(http.StatusOK, anthropicResp)
 
 	return &OpenAIForwardResult{
-		RequestID:       requestID,
-		Usage:           usage,
-		Model:           originalModel,
-		BillingModel:    billingModel,
-		UpstreamModel:   upstreamModel,
-		ReasoningEffort: reasoningEffort,
-		ServiceTier:     resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-		Stream:          false,
-		Duration:        time.Since(startTime),
+		RequestID:                   requestID,
+		Usage:                       usage,
+		Model:                       originalModel,
+		BillingModel:                billingModel,
+		UpstreamModel:               upstreamModel,
+		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
+		ReasoningEffort:             reasoningEffort,
+		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
+		Stream:                      false,
+		Duration:                    time.Since(startTime),
 	}, nil
 }
 
@@ -212,17 +218,18 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 		// masks the truncation, and surface the error to flag usage incomplete
 		// (mirrors forwardResponsesViaRawChatCompletions).
 		return &OpenAIForwardResult{
-			RequestID:        requestID,
-			Usage:            usage,
-			Model:            originalModel,
-			BillingModel:     billingModel,
-			UpstreamModel:    upstreamModel,
-			ReasoningEffort:  reasoningEffort,
-			ServiceTier:      resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-			Stream:           true,
-			Duration:         time.Since(startTime),
-			FirstTokenMs:     scan.FirstTokenMs,
-			ClientDisconnect: clientDisconnected,
+			RequestID:                   requestID,
+			Usage:                       usage,
+			Model:                       originalModel,
+			BillingModel:                billingModel,
+			UpstreamModel:               upstreamModel,
+			UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
+			ReasoningEffort:             reasoningEffort,
+			ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
+			Stream:                      true,
+			Duration:                    time.Since(startTime),
+			FirstTokenMs:                scan.FirstTokenMs,
+			ClientDisconnect:            clientDisconnected,
 		}, fmt.Errorf("stream usage incomplete: %w", scan.Err)
 	}
 
@@ -247,16 +254,17 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 	}
 
 	return &OpenAIForwardResult{
-		RequestID:        requestID,
-		Usage:            usage,
-		Model:            originalModel,
-		BillingModel:     billingModel,
-		UpstreamModel:    upstreamModel,
-		ReasoningEffort:  reasoningEffort,
-		ServiceTier:      resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-		Stream:           true,
-		Duration:         time.Since(startTime),
-		FirstTokenMs:     scan.FirstTokenMs,
-		ClientDisconnect: clientDisconnected,
+		RequestID:                   requestID,
+		Usage:                       usage,
+		Model:                       originalModel,
+		BillingModel:                billingModel,
+		UpstreamModel:               upstreamModel,
+		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
+		ReasoningEffort:             reasoningEffort,
+		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
+		Stream:                      true,
+		Duration:                    time.Since(startTime),
+		FirstTokenMs:                scan.FirstTokenMs,
+		ClientDisconnect:            clientDisconnected,
 	}, nil
 }
