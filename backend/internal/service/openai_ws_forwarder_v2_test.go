@@ -88,7 +88,8 @@ func TestForwardOpenAIWSV2_UpstreamDefaultServiceTierWinsOverRequest(t *testing.
 			require.Equal(t, tc.stream, result.Stream)
 			require.Equal(t, "resp_tier_v2", result.RequestID)
 			require.NotNil(t, result.ServiceTier)
-			require.Equal(t, "default", *result.ServiceTier)
+			require.Equal(t, "priority", *result.ServiceTier)
+			require.Equal(t, "default", result.UpstreamResponseServiceTier)
 			require.Equal(t, "priority", captureConn.lastWrite["service_tier"],
 				"outbound WS payload still carries the requested Fast tier")
 		})

@@ -38,7 +38,7 @@ func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
 	t.Run("openai downgrade rewrites tier", func(t *testing.T) {
 		requested := "priority"
 		result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
-		resolution := ApplyOpenAIServiceTierBillingResolution(result)
+		resolution := ApplyOpenAIServiceTierBillingResolution(&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, result)
 		require.True(t, resolution.Downgraded)
 		require.NotNil(t, result.ServiceTier)
 		require.Equal(t, "default", *result.ServiceTier)
@@ -47,14 +47,28 @@ func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
 	t.Run("openai honoured tier keeps pointer", func(t *testing.T) {
 		requested := "priority"
 		result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "priority"}
-		require.False(t, ApplyOpenAIServiceTierBillingResolution(result).Downgraded)
+		require.False(t, ApplyOpenAIServiceTierBillingResolution(&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, result).Downgraded)
 		require.Same(t, &requested, result.ServiceTier)
 	})
 
 	t.Run("openai untiered request stays nil", func(t *testing.T) {
 		result := &OpenAIForwardResult{UpstreamResponseServiceTier: "priority"}
-		require.False(t, ApplyOpenAIServiceTierBillingResolution(result).Downgraded)
+		require.False(t, ApplyOpenAIServiceTierBillingResolution(&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, result).Downgraded)
 		require.Nil(t, result.ServiceTier)
+	})
+
+	t.Run("codex oauth keeps outbound priority despite default echo", func(t *testing.T) {
+		requested := "priority"
+		result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
+		resolution := ApplyOpenAIServiceTierBillingResolution(
+			&Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			result,
+		)
+		require.False(t, resolution.Downgraded)
+		require.Equal(t, "priority", resolution.Requested)
+		require.Equal(t, "default", resolution.Observed)
+		require.Equal(t, "priority", resolution.Billing)
+		require.Same(t, &requested, result.ServiceTier)
 	})
 
 	t.Run("anthropic standard speed rewrites fast", func(t *testing.T) {
@@ -65,7 +79,7 @@ func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
 	})
 
 	t.Run("nil results are ignored", func(t *testing.T) {
-		require.False(t, ApplyOpenAIServiceTierBillingResolution(nil).Downgraded)
+		require.False(t, ApplyOpenAIServiceTierBillingResolution(nil, nil).Downgraded)
 		require.False(t, ApplyForwardServiceTierBillingResolution(nil).Downgraded)
 	})
 }

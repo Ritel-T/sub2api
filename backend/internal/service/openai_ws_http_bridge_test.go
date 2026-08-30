@@ -80,7 +80,8 @@ func TestProxyOpenAIWSHTTPBridgeTurn_UpstreamDefaultServiceTierWinsOverRequest(t
 	require.NotNil(t, result)
 	require.Equal(t, "priority", gjson.GetBytes(upstream.lastBody, "service_tier").String())
 	require.NotNil(t, result.ServiceTier)
-	require.Equal(t, "default", *result.ServiceTier)
+	require.Equal(t, "priority", *result.ServiceTier)
+	require.Equal(t, "default", result.UpstreamResponseServiceTier)
 }
 
 func TestProxyOpenAIWSHTTPBridgeTurn_UpstreamDefaultWinsOverFastAlias(t *testing.T) {
@@ -116,8 +117,9 @@ func TestProxyOpenAIWSHTTPBridgeTurn_UpstreamDefaultWinsOverFastAlias(t *testing
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)
-	require.Equal(t, "default", *result.ServiceTier,
-		"local observer's upstream-echoed default must win over the fast alias")
+	require.Equal(t, "priority", *result.ServiceTier,
+		"the canonical outbound Fast tier stays separate from the upstream echo")
+	require.Equal(t, "default", result.UpstreamResponseServiceTier)
 }
 
 func TestProxyOpenAIWSHTTPBridgeTurnAPIKeyAdaptsClientTools(t *testing.T) {
