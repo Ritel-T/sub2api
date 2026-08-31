@@ -387,6 +387,30 @@ func (s *OpenAIGatewayService) ClearAccountSchedulingBlock(accountID int64) {
 	s.openaiAccountRuntimeBlockGeneration.Store(accountID, s.openaiAccountRuntimeBlockSequence.Add(1))
 }
 
+// ClearAccountSchedulingBlockIfUntil removes only the in-process block whose
+// deadline still matches the rate-limit generation observed before a managed
+// probe. A later 429 changes the deadline and therefore survives the old probe.
+func (s *OpenAIGatewayService) ClearAccountSchedulingBlockIfUntil(accountID int64, observedUntil time.Time) bool {
+	if s == nil || accountID <= 0 || observedUntil.IsZero() {
+		return false
+	}
+	mu := s.openAIAccountRuntimeBlockLock(accountID)
+	mu.Lock()
+	defer mu.Unlock()
+	value, ok := s.openaiAccountRuntimeBlockUntil.Load(accountID)
+	if !ok {
+		return false
+	}
+	currentUntil, ok := value.(time.Time)
+	if !ok || !currentUntil.Equal(observedUntil) {
+		return false
+	}
+	s.openaiAccountRuntimeBlockUntil.Delete(accountID)
+	s.openaiOAuth429RetryStartedAt.Delete(accountID)
+	s.openaiAccountRuntimeBlockGeneration.Store(accountID, s.openaiAccountRuntimeBlockSequence.Add(1))
+	return true
+}
+
 func (s *OpenAIGatewayService) isOpenAIAccountRuntimeBlocked(account *Account) bool {
 	if s == nil || !isOpenAIAccount(account) {
 		return false

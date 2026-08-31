@@ -44,6 +44,19 @@ type AccountRuntimeBlocker interface {
 	ClearAccountSchedulingBlock(accountID int64)
 }
 
+type conditionalAccountRuntimeBlockClearer interface {
+	ClearAccountSchedulingBlockIfUntil(accountID int64, observedUntil time.Time) bool
+}
+
+type openAIObservedRateLimitClearRepository interface {
+	ClearOpenAIAccountRateLimitIfObserved(
+		ctx context.Context,
+		accountID int64,
+		observedLimitedAt *time.Time,
+		observedResetAt *time.Time,
+	) (bool, error)
+}
+
 // SuccessfulTestRecoveryResult 表示测试成功后恢复了哪些运行时状态。
 type SuccessfulTestRecoveryResult struct {
 	ClearedError     bool
@@ -2094,6 +2107,40 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 // 按需恢复 error / rate-limit / overload / temp-unsched / model-rate-limit 等运行时状态。
 func (s *RateLimitService) RecoverAccountAfterSuccessfulTest(ctx context.Context, accountID int64) (*SuccessfulTestRecoveryResult, error) {
 	return s.RecoverAccountState(ctx, accountID, AccountRecoveryOptions{})
+}
+
+// RecoverOpenAIAccountRateLimitIfObserved performs the narrow managed-probe
+// recovery. It never changes account status, manual schedulability, overload,
+// temporary-unschedulable, or model-level rate limits.
+func (s *RateLimitService) RecoverOpenAIAccountRateLimitIfObserved(
+	ctx context.Context,
+	accountID int64,
+	observedLimitedAt *time.Time,
+	observedResetAt *time.Time,
+) (string, error) {
+	if s == nil || s.accountRepo == nil || accountID <= 0 || (observedLimitedAt == nil && observedResetAt == nil) {
+		return ScheduledTestRecoveryNotApplicable, nil
+	}
+	repo, ok := s.accountRepo.(openAIObservedRateLimitClearRepository)
+	if !ok {
+		return ScheduledTestRecoveryError, fmt.Errorf("account repository does not support observed OpenAI rate-limit recovery")
+	}
+	cleared, err := repo.ClearOpenAIAccountRateLimitIfObserved(ctx, accountID, observedLimitedAt, observedResetAt)
+	if err != nil {
+		return ScheduledTestRecoveryError, err
+	}
+	if !cleared {
+		return ScheduledTestRecoveryConflict, nil
+	}
+
+	// The database CAS is authoritative. Only remove the in-process bridge block
+	// when it still represents the same observed reset boundary.
+	if observedResetAt != nil && s.runtimeBlocker != nil {
+		if clearer, ok := s.runtimeBlocker.(conditionalAccountRuntimeBlockClearer); ok {
+			clearer.ClearAccountSchedulingBlockIfUntil(accountID, *observedResetAt)
+		}
+	}
+	return ScheduledTestRecoveryCleared, nil
 }
 
 func (s *RateLimitService) ClearTempUnschedulable(ctx context.Context, accountID int64) error {
