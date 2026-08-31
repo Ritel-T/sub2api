@@ -62,9 +62,9 @@ func serviceTierCostRank(tier string) (rank int, known bool) {
 // selected credential. Public OpenAI API responses declare the actual tier and
 // may lower billing. The private ChatGPT Codex endpoint does not: it commonly
 // reports default for effective Fast turns, so OAuth-like credentials retain
-// the final outbound tier while still exposing the observed value for tracing.
+// the final outbound tier while still exposing the observed value.
 func ResolveOpenAIServiceTierBilling(account *Account, requested, observed string) ServiceTierBillingResolution {
-	if account != nil && account.IsOpenAIOAuthLike() {
+	if account != nil && account.IsOpenAIOAuthLike() && codexOAuthResponseTierIsNonAuthoritative(observed) {
 		return ServiceTierBillingResolution{
 			Requested: normalizeBillingServiceTier(requested),
 			Observed:  normalizeBillingServiceTier(observed),
@@ -72,6 +72,15 @@ func ResolveOpenAIServiceTierBilling(account *Account, requested, observed strin
 		}
 	}
 	return ResolveBillingServiceTier(requested, observed)
+}
+
+func codexOAuthResponseTierIsNonAuthoritative(observed string) bool {
+	switch normalizeBillingServiceTier(observed) {
+	case "default":
+		return true
+	default:
+		return false
+	}
 }
 
 // ApplyOpenAIServiceTierBillingResolution lowers result.ServiceTier only when

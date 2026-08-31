@@ -229,23 +229,6 @@ type OpenAIUsage struct {
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
 }
 
-// OpenAIFastTrace carries the small, non-sensitive set of request metadata
-// needed to explain how an OpenAI service tier was routed and billed.  It is
-// captured while the request context still contains the authenticated Group
-// and travels with the forward result to the asynchronous usage recorder.
-// It deliberately contains no request body, token, API key, or OAuth data.
-type OpenAIFastTrace struct {
-	Captured             bool
-	GroupID              int64
-	GroupForceOpenAIFast bool
-	GroupFreeOpenAIFast  bool
-	RequestedServiceTier string
-	// Empty means the final payload omitted service_tier; the upstream then
-	// applies its default tier.  Keeping omission distinct from an explicit
-	// "default" request helps diagnose policy filtering without changing billing.
-	OutboundServiceTier string
-}
-
 // OpenAIForwardResult represents the result of forwarding
 type OpenAIForwardResult struct {
 	RequestID  string
@@ -270,18 +253,19 @@ type OpenAIForwardResult struct {
 	// UpstreamEndpoint is the actual upstream API path used for this request.
 	// It avoids guessing when one downstream protocol can use multiple upstream endpoints.
 	UpstreamEndpoint string
-	// ServiceTier 优先取上游实际响应回显的 tier；缺失时回退到最终出站 body 的
-	// tier。nil 表示两者都无识别 tier。
+	// ServiceTier is the final tier sent upstream after policy rewriting.
+	// The upstream response declaration remains separate above and is reconciled
+	// at usage-recording time, where the credential protocol is available.
 	ServiceTier *string
-	// ReasoningEffort is extracted from request body (reasoning.effort) or derived from model suffix.
+	// ReasoningEffort is extracted from request body (reasoning.effort) or derived from model suffix
+	// after group policy rewriting and model-family remapping.
 	// Stored for usage records display; nil means not provided / not applicable.
 	ReasoningEffort *string
-	Stream          bool
-	OpenAIWSMode    bool
-	// OpenAIFastTrace is populated for real OpenAI-platform requests so usage
-	// recording can emit the redacted openai.fast_trace diagnostic event even
-	// when it runs outside the original request context.
-	OpenAIFastTrace *OpenAIFastTrace `json:"-"`
+	// RequestedReasoningEffort is the client-requested effort before mapping.
+	// Empty/nil means it should fall back to ReasoningEffort at persistence.
+	RequestedReasoningEffort *string
+	Stream                   bool
+	OpenAIWSMode             bool
 	// UpstreamTerminalEvent is the normalized terminal event observed on an
 	// upstream Responses WebSocket turn. Empty preserves legacy/non-WS success.
 	UpstreamTerminalEvent string
@@ -338,6 +322,16 @@ func SetActualOpenAIUpstreamEndpoint(c *gin.Context, endpoint string) {
 	if endpoint = strings.TrimSpace(endpoint); endpoint != "" {
 		c.Set(openAIUpstreamEndpointContextKey, endpoint)
 	}
+}
+
+// ClearActualOpenAIUpstreamEndpoint 清理当前转发尝试记录的端点。
+// Handler 会在账号 failover 尝试间复用同一个 Gin context，因此每次尝试
+// 都必须从无残留状态开始。
+func ClearActualOpenAIUpstreamEndpoint(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	c.Set(openAIUpstreamEndpointContextKey, "")
 }
 
 // GetActualOpenAIUpstreamEndpoint returns the endpoint recorded by the latest

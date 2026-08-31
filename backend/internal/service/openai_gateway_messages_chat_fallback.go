@@ -34,10 +34,7 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-) (ret *OpenAIForwardResult, retErr error) {
-	fastTrace := newOpenAIFastTrace(ctx, account, body)
-	defer func() { attachOpenAIFastTrace(ret, fastTrace) }()
-
+) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
 
 	// 1. Parse Anthropic request
@@ -90,8 +87,6 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 			}
 		}
 	}
-	fastTrace.SetRequestedFromBody(chatBody)
-	fastTrace.SetOutbound(chatBody)
 	// Unlike forwardResponsesViaRawChatCompletions, applyOpenAIFastPolicyToBody
 	// is intentionally skipped: Anthropic Messages bodies carry no service_tier,
 	// so the converted Chat Completions body never contains one and the policy
@@ -162,8 +157,8 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsAnthropic(
 		Model:                       originalModel,
 		BillingModel:                billingModel,
 		UpstreamModel:               upstreamModel,
-		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 		ReasoningEffort:             reasoningEffort,
+		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 		Stream:                      false,
 		Duration:                    time.Since(startTime),
@@ -223,8 +218,8 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 			Model:                       originalModel,
 			BillingModel:                billingModel,
 			UpstreamModel:               upstreamModel,
-			UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 			ReasoningEffort:             reasoningEffort,
+			UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 			ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 			Stream:                      true,
 			Duration:                    time.Since(startTime),
@@ -259,8 +254,8 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 		Model:                       originalModel,
 		BillingModel:                billingModel,
 		UpstreamModel:               upstreamModel,
-		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 		ReasoningEffort:             reasoningEffort,
+		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 		Stream:                      true,
 		Duration:                    time.Since(startTime),

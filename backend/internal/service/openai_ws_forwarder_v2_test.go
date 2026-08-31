@@ -12,10 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// HTTP POST /v1/responses → forwardOpenAIWSV2 共用 stream/non-stream 的
-// OpenAIForwardResult：上游 response.completed.service_tier 必须覆盖请求
-// fast/priority，不能只读 reqBody。
-func TestForwardOpenAIWSV2_UpstreamDefaultServiceTierWinsOverRequest(t *testing.T) {
+// HTTP POST /v1/responses -> forwardOpenAIWSV2 keeps the canonical outbound
+// tier separate from response.completed.service_tier for usage-time billing.
+func TestForwardOpenAIWSV2_KeepsOutboundAndObservedServiceTiersSeparate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cases := []struct {

@@ -24,10 +24,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	c *gin.Context,
 	account *Account,
 	body []byte,
-) (ret *OpenAIForwardResult, retErr error) {
-	fastTrace := newOpenAIFastTrace(ctx, account, body)
-	defer func() { attachOpenAIFastTrace(ret, fastTrace) }()
-
+) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
 
 	var responsesReq apicompat.ResponsesRequest
@@ -82,7 +79,6 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	if err != nil {
 		return nil, fmt.Errorf("marshal chat completions fallback request: %w", err)
 	}
-	fastTrace.SetRequestedFromBody(chatBody)
 	chatBody, err = s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, chatBody)
 	if err != nil {
 		var blocked *OpenAIFastBlockedError
@@ -91,10 +87,8 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		}
 		return nil, err
 	}
-	fastTrace.SetOutbound(chatBody)
-	// 计费兜底 tier = 最终出站 body（policy filter/force 后）里的 tier；最终值由
-	// resolvedOpenAIUpstreamServiceTier 决定（上游回显优先）。filter 删掉字段后
-	// 这里取到 nil，不再按原请求 Fast 计费。
+	// Keep the final outbound tier for usage-time reconciliation. A policy
+	// filter that removes the field therefore leaves this nil.
 	serviceTier := extractOpenAIServiceTierFromBody(chatBody)
 
 	logger.L().Debug("openai responses: forwarding via raw chat completions",
@@ -164,8 +158,8 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 		Model:                       originalModel,
 		BillingModel:                billingModel,
 		UpstreamModel:               upstreamModel,
-		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 		ReasoningEffort:             reasoningEffort,
+		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 		Stream:                      false,
 		Duration:                    time.Since(startTime),
@@ -235,8 +229,8 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 			Model:                       originalModel,
 			BillingModel:                billingModel,
 			UpstreamModel:               upstreamModel,
-			UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 			ReasoningEffort:             reasoningEffort,
+			UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 			ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 			Stream:                      true,
 			Duration:                    time.Since(startTime),
@@ -250,8 +244,8 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 			Model:                       originalModel,
 			BillingModel:                billingModel,
 			UpstreamModel:               upstreamModel,
-			UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 			ReasoningEffort:             reasoningEffort,
+			UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 			ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 			Stream:                      true,
 			Duration:                    time.Since(startTime),
@@ -281,8 +275,8 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 		Model:                       originalModel,
 		BillingModel:                billingModel,
 		UpstreamModel:               upstreamModel,
-		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 		ReasoningEffort:             reasoningEffort,
+		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
 		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 		Stream:                      true,
 		Duration:                    time.Since(startTime),
