@@ -941,6 +941,65 @@ func (s *AccountRepoSuite) TestClearRateLimitIfObservedProtectsRearmed429Generat
 	s.Require().WithinDuration(rearmedReset, *retyped.RateLimitResetAt, time.Second)
 }
 
+func (s *AccountRepoSuite) TestClearOpenAIAccountRateLimitIfObservedPreservesOtherRuntimeState() {
+	overloadUntil := time.Now().Add(45 * time.Minute).UTC().Truncate(time.Second)
+	tempUntil := time.Now().Add(15 * time.Minute).UTC().Truncate(time.Second)
+	account := mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:        "openai-managed-recovery-cas",
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeOAuth,
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Extra: map[string]any{
+			"model_rate_limits": map[string]any{"gpt-5.6-sol": map[string]any{"rate_limit_reset_at": overloadUntil.Format(time.RFC3339)}},
+		},
+	})
+	firstReset := time.Now().Add(30 * time.Minute).UTC().Truncate(time.Second)
+	s.Require().NoError(s.repo.SetRateLimited(s.ctx, account.ID, firstReset))
+	_, err := s.client.Account.UpdateOneID(account.ID).
+		SetOverloadUntil(overloadUntil).
+		SetTempUnschedulableUntil(tempUntil).
+		SetTempUnschedulableReason("preserve-me").
+		Save(s.ctx)
+	s.Require().NoError(err)
+
+	stale, err := s.repo.GetByID(s.ctx, account.ID)
+	s.Require().NoError(err)
+	s.Require().NotNil(stale.RateLimitedAt)
+	s.Require().NotNil(stale.RateLimitResetAt)
+
+	newLimitedAt := stale.RateLimitedAt.Add(time.Second)
+	newReset := firstReset.Add(10 * time.Minute)
+	_, err = s.client.Account.UpdateOneID(account.ID).
+		SetRateLimitedAt(newLimitedAt).
+		SetRateLimitResetAt(newReset).
+		Save(s.ctx)
+	s.Require().NoError(err)
+
+	cleared, err := s.repo.ClearOpenAIAccountRateLimitIfObserved(s.ctx, account.ID, stale.RateLimitedAt, stale.RateLimitResetAt)
+	s.Require().NoError(err)
+	s.Require().False(cleared, "stale probe success must not erase a newer 429")
+
+	current, err := s.repo.GetByID(s.ctx, account.ID)
+	s.Require().NoError(err)
+	cleared, err = s.repo.ClearOpenAIAccountRateLimitIfObserved(s.ctx, account.ID, current.RateLimitedAt, current.RateLimitResetAt)
+	s.Require().NoError(err)
+	s.Require().True(cleared)
+
+	got, err := s.repo.GetByID(s.ctx, account.ID)
+	s.Require().NoError(err)
+	s.Require().Nil(got.RateLimitedAt)
+	s.Require().Nil(got.RateLimitResetAt)
+	s.Require().True(got.Schedulable)
+	s.Require().Equal(service.StatusActive, got.Status)
+	s.Require().NotNil(got.OverloadUntil)
+	s.Require().WithinDuration(overloadUntil, *got.OverloadUntil, time.Second)
+	s.Require().NotNil(got.TempUnschedulableUntil)
+	s.Require().WithinDuration(tempUntil, *got.TempUnschedulableUntil, time.Second)
+	s.Require().Equal("preserve-me", got.TempUnschedulableReason)
+	s.Require().NotEmpty(got.Extra["model_rate_limits"])
+}
+
 func (s *AccountRepoSuite) TestClearRateLimit() {
 	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-clear"})
 	until := time.Now().Add(1 * time.Hour)

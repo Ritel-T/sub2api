@@ -2232,6 +2232,53 @@ func (r *accountRepository) ClearRateLimitIfObserved(ctx context.Context, id int
 	return true, nil
 }
 
+// ClearOpenAIAccountRateLimitIfObserved clears only the OpenAI OAuth
+// account-level rate-limit generation captured before a successful managed
+// probe. Both nullable timestamps participate in the CAS so an older success
+// cannot erase a newer 429 written while the probe was running.
+func (r *accountRepository) ClearOpenAIAccountRateLimitIfObserved(
+	ctx context.Context,
+	id int64,
+	observedLimitedAt *time.Time,
+	observedResetAt *time.Time,
+) (bool, error) {
+	preds := []dbpredicate.Account{
+		dbaccount.IDEQ(id),
+		dbaccount.PlatformEQ(service.PlatformOpenAI),
+		dbaccount.TypeEQ(service.AccountTypeOAuth),
+		dbaccount.DeletedAtIsNil(),
+		dbaccount.ParentAccountIDIsNil(),
+	}
+	if observedLimitedAt == nil {
+		preds = append(preds, dbaccount.RateLimitedAtIsNil())
+	} else {
+		preds = append(preds, dbaccount.RateLimitedAtEQ(*observedLimitedAt))
+	}
+	if observedResetAt == nil {
+		preds = append(preds, dbaccount.RateLimitResetAtIsNil())
+	} else {
+		preds = append(preds, dbaccount.RateLimitResetAtEQ(*observedResetAt))
+	}
+
+	updated, err := r.client.Account.Update().
+		Where(preds...).
+		ClearRateLimitedAt().
+		ClearRateLimitResetAt().
+		Save(ctx)
+	if err != nil {
+		return false, err
+	}
+	if updated == 0 {
+		r.syncSchedulerAccountSnapshot(ctx, id)
+		return false, nil
+	}
+	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountChanged, &id, nil, nil); err != nil {
+		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue managed rate-limit clear failed: account=%d err=%v", id, err)
+	}
+	r.syncSchedulerAccountSnapshot(ctx, id)
+	return true, nil
+}
+
 func (r *accountRepository) SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time, reason ...string) error {
 	if scope == "" {
 		return nil
