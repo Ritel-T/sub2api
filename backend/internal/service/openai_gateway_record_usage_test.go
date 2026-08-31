@@ -69,6 +69,54 @@ func TestOpenAIGatewayServiceRecordUsage_RejectsNilInput(t *testing.T) {
 	require.Error(t, svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{}))
 }
 
+func TestOpenAIGatewayServiceRecordUsage_FreeFastChargesStandardActualCost(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
+	user := &User{ID: 1}
+	apiKey := &APIKey{
+		ID:   2,
+		User: user,
+		Group: &Group{
+			ID:             3,
+			Platform:       PlatformOpenAI,
+			FreeOpenAIFast: true,
+			RateMultiplier: 1.1,
+		},
+	}
+	account := &Account{ID: 4, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	tier := "priority"
+	result := &OpenAIForwardResult{
+		RequestID:   "rid-free-fast",
+		Model:       "gpt-5.5",
+		ServiceTier: &tier,
+		Usage: OpenAIUsage{
+			InputTokens:  1000,
+			OutputTokens: 500,
+		},
+	}
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result:  result,
+		APIKey:  apiKey,
+		User:    user,
+		Account: account,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+
+	tokens := UsageTokens{InputTokens: 1000, OutputTokens: 500}
+	priorityCost, err := svc.billingService.CalculateCostWithServiceTier("gpt-5.5", tokens, 1.1, "priority")
+	require.NoError(t, err)
+	standardCost, err := svc.billingService.CalculateCostWithServiceTier("gpt-5.5", tokens, 1.1, "")
+	require.NoError(t, err)
+	require.InDelta(t, priorityCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, standardCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.InDelta(t, standardCost.ActualCost, userRepo.lastAmount, 1e-12)
+	require.NotNil(t, usageRepo.lastLog.ServiceTier)
+	require.Equal(t, "priority", *usageRepo.lastLog.ServiceTier)
+}
+
 func TestRecordCyberPolicyUsageLog_BillsRealUpstreamTokens(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
