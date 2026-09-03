@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 
@@ -7,18 +7,22 @@ import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 
 const {
   listAccounts,
+  listWithEtag,
   getById,
   getBatchTodayStats,
   getUpstreamBillingProbeSettings,
   getAllProxies,
-  getAllGroups
+  getAllGroups,
+  showError
 } = vi.hoisted(() => ({
   listAccounts: vi.fn(),
+  listWithEtag: vi.fn(),
   getById: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getUpstreamBillingProbeSettings: vi.fn(),
   getAllProxies: vi.fn(),
-  getAllGroups: vi.fn()
+  getAllGroups: vi.fn(),
+  showError: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -26,7 +30,7 @@ vi.mock('@/api/admin', () => ({
     accounts: {
       list: listAccounts,
       getById,
-      listWithEtag: vi.fn().mockResolvedValue({ notModified: true, etag: null, data: null }),
+      listWithEtag,
       getBatchTodayStats,
       getUpstreamBillingProbeSettings,
       delete: vi.fn(),
@@ -40,7 +44,7 @@ vi.mock('@/api/admin', () => ({
 }))
 
 vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({ showError: vi.fn(), showSuccess: vi.fn(), showInfo: vi.fn() })
+  useAppStore: () => ({ showError, showSuccess: vi.fn(), showInfo: vi.fn() })
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -79,6 +83,11 @@ const AccountTestModalStub = defineComponent({
   template: '<div data-test="test-account">{{ show ? account?.name : "" }}</div>'
 })
 
+const AccountStatsModalStub = defineComponent({
+  props: { show: Boolean, account: { type: Object, default: null } },
+  template: '<div data-test="stats-account">{{ show ? account?.name : "" }}</div>'
+})
+
 function mountView() {
   return mount(AccountsView, {
     global: {
@@ -95,7 +104,7 @@ function mountView() {
         ImportDataModal: true,
         ReAuthAccountModal: true,
         AccountTestModal: AccountTestModalStub,
-        AccountStatsModal: true,
+        AccountStatsModal: AccountStatsModalStub,
         ScheduledTestsPanel: true,
         SyncFromCrsModal: true,
         TempUnschedStatusModal: true,
@@ -145,11 +154,18 @@ describe('admin AccountsView lite account list', () => {
   beforeEach(() => {
     localStorage.clear()
     listAccounts.mockReset().mockResolvedValue({ items: [listRow], total: 1, page: 1, page_size: 20, pages: 1 })
+    listWithEtag.mockReset().mockResolvedValue({ notModified: true, etag: 'compact-etag', data: null })
     getById.mockReset().mockResolvedValue(fullAccount)
     getBatchTodayStats.mockReset().mockResolvedValue({ stats: {} })
     getUpstreamBillingProbeSettings.mockReset().mockResolvedValue({ enabled: true })
     getAllProxies.mockReset().mockResolvedValue([])
     getAllGroups.mockReset().mockResolvedValue([{ id: 7, name: 'codex', platform: 'openai' }])
+    showError.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('keeps lite=1 on the initial list request', async () => {
@@ -173,7 +189,26 @@ describe('admin AccountsView lite account list', () => {
     wrapper.unmount()
   })
 
-  it('loads the full account by id before opening edit and test actions', async () => {
+  it('keeps lite=1 on automatic ETag refreshes', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    localStorage.setItem('account-auto-refresh', JSON.stringify({ enabled: true, interval_seconds: 5 }))
+    const wrapper = mountView()
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(6000)
+    await flushPromises()
+
+    expect(listWithEtag).toHaveBeenCalledWith(
+      1,
+      20,
+      expect.objectContaining({ lite: '1' }),
+      expect.objectContaining({ etag: null })
+    )
+    wrapper.unmount()
+  })
+
+  it('loads the full account by id before opening edit, test, and stats actions', async () => {
     const wrapper = mountView()
     await flushPromises()
 
@@ -189,6 +224,27 @@ describe('admin AccountsView lite account list', () => {
     await flushPromises()
     expect(getById).toHaveBeenCalledTimes(2)
     expect(wrapper.get('[data-test="test-account"]').text()).toBe('compact row')
+
+    menu.vm.$emit('stats', listRow)
+    await flushPromises()
+    expect(getById).toHaveBeenCalledTimes(3)
+    expect(wrapper.get('[data-test="stats-account"]').text()).toBe('compact row')
+    wrapper.unmount()
+  })
+
+  it('shows an error and keeps the modal closed when detail loading fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    getById.mockRejectedValueOnce(new Error('detail failed'))
+    const wrapper = mountView()
+    await flushPromises()
+
+    const editButton = wrapper.findAll('button').find(button => button.text().includes('common.edit'))
+    await editButton!.trigger('click')
+    await flushPromises()
+
+    expect(showError).toHaveBeenCalledWith('detail failed')
+    expect(wrapper.get('[data-test="edit-account"]').text()).toBe('')
+    consoleError.mockRestore()
     wrapper.unmount()
   })
 })

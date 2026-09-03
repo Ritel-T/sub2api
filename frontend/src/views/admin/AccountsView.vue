@@ -540,11 +540,11 @@ const authStore = useAuthStore()
 
 const proxies = ref<AccountProxy[]>([])
 const groups = ref<AdminGroup[]>([])
+const groupsByID = computed(() => new Map(groups.value.map(group => [group.id, group])))
 const accountGroupsForRow = (account: Pick<AccountListItem, 'group_ids'>): AdminGroup[] => {
   const groupIDs = account.group_ids ?? []
   if (groupIDs.length === 0) return []
-  const groupsByID = new Map(groups.value.map(group => [group.id, group]))
-  return groupIDs.map(id => groupsByID.get(id)).filter((group): group is AdminGroup => Boolean(group))
+  return groupIDs.map(id => groupsByID.value.get(id)).filter((group): group is AdminGroup => Boolean(group))
 }
 const accountTableRef = ref<HTMLElement | null>(null)
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null)
@@ -1829,6 +1829,7 @@ const loadAccountDetails = async (account: Pick<AccountListItem, 'id'>): Promise
     return await adminAPI.accounts.getById(account.id)
   } catch (error) {
     console.error('Failed to load account details:', error)
+    appStore.showError(extractApiErrorMessage(error, t('common.error')))
     return null
   } finally {
     accountDetailLoading.delete(account.id)
