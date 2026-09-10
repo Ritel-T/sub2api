@@ -356,15 +356,16 @@ func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, start
 // Partial buckets must query raw logs or the edge hours/days change the range.
 func trendRangeHasWholeBuckets(start, end time.Time, granularity string) bool {
 	for _, boundary := range []time.Time{start, end} {
-		if granularity == "hour" {
+		switch granularity {
+		case "hour":
 			if !boundary.Equal(boundary.Truncate(time.Hour)) {
 				return false
 			}
-		} else if granularity == "day" {
+		case "day":
 			if !boundary.Equal(timezone.StartOfDay(boundary)) {
 				return false
 			}
-		} else {
+		default:
 			return false
 		}
 	}
