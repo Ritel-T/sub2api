@@ -546,7 +546,6 @@ func (h *UsageHandler) CreateCleanupTask(c *gin.Context) {
 		response.BadRequest(c, "start_date must be before end_date")
 		return
 	}
-	endTime = endTime.Add(-time.Nanosecond)
 
 	var requestType *int16
 	stream := req.Stream
@@ -562,16 +561,17 @@ func (h *UsageHandler) CreateCleanupTask(c *gin.Context) {
 	}
 
 	filters := service.UsageCleanupFilters{
-		StartTime:   startTime,
-		EndTime:     endTime,
-		UserID:      req.UserID,
-		APIKeyID:    req.APIKeyID,
-		AccountID:   req.AccountID,
-		GroupID:     req.GroupID,
-		Model:       req.Model,
-		RequestType: requestType,
-		Stream:      stream,
-		BillingType: req.BillingType,
+		EndExclusive: true,
+		StartTime:    startTime,
+		EndTime:      endTime,
+		UserID:       req.UserID,
+		APIKeyID:     req.APIKeyID,
+		AccountID:    req.AccountID,
+		GroupID:      req.GroupID,
+		Model:        req.Model,
+		RequestType:  requestType,
+		Stream:       stream,
+		BillingType:  req.BillingType,
 	}
 
 	var userID any
