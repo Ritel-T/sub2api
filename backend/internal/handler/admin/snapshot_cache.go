@@ -94,7 +94,12 @@ func (c *snapshotCache) Set(key string, payload any) snapshotCacheEntry {
 	// FIFO order also orders expiry because TTL is fixed. Evict only as needed,
 	// without scanning the map or retaining an unbounded expiry queue.
 	for oldest := c.order.Front(); oldest != nil; oldest = c.order.Front() {
-		oldKey := oldest.Value.(string)
+		oldKey, ok := oldest.Value.(string)
+		if !ok {
+			// Set only inserts strings; discard a corrupt queue node defensively.
+			c.order.Remove(oldest)
+			continue
+		}
 		if len(c.items) < c.maxEntries && c.cost+cost <= c.maxCost && time.Now().Before(c.items[oldKey].ExpiresAt) {
 			break
 		}
@@ -151,15 +156,6 @@ func (c *snapshotCache) GetOrLoad(key string, load func() (any, error)) (snapsho
 		return snapshotCacheEntry{}, false, nil
 	}
 	return result.Entry, result.Hit, nil
-}
-
-func buildETagFromAny(payload any) string {
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return ""
-	}
-	sum := sha256.Sum256(raw)
-	return "\"" + hex.EncodeToString(sum[:]) + "\""
 }
 
 func parseBoolQueryWithDefault(raw string, def bool) bool {
