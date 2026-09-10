@@ -34,35 +34,80 @@ const formatLocalDate = (date: Date): string => {
 }
 
 describe('DateRangePicker', () => {
-  it('preserves a rolling 24-hour window when precision is enabled', async () => {
+  it('emits minute-aligned rolling ranges and preserves calendar presets', async () => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-10T06:30:00Z'))
+    vi.setSystemTime(new Date('2026-09-10T06:30:48Z'))
     const wrapper = mount(DateRangePicker, {
-      props: { startDate: '2026-09-09T06:30:00Z', endDate: '2026-09-10T06:30:00Z', preciseLast24Hours: true },
+      props: { startDate: '2026-09-09T06:30:00Z', endDate: '2026-09-10T06:30:00Z', enableTime: true, preset: 'last24Hours' },
       global: { stubs: { Icon: true } }
     })
     try {
       expect(wrapper.text()).toContain('Last 24 Hours')
       await wrapper.find('.date-picker-trigger').trigger('click')
+      expect(wrapper.findAll('input[type="datetime-local"]')).toHaveLength(2)
       await wrapper.find('.date-picker-apply').trigger('click')
       expect(wrapper.emitted('change')?.[0]).toEqual([{
-        startDate: '2026-09-09T06:30:00.000Z',
-        endDate: '2026-09-10T06:30:00.000Z',
-        preset: 'last24Hours'
+        startDate: '2026-09-09T06:30:00.000Z', endDate: '2026-09-10T06:30:00.000Z', preset: 'last24Hours'
       }])
-      await wrapper.find('.date-picker-trigger').trigger('click')
-      await wrapper.find('input[type="date"]').setValue('2026-09-08')
-      await wrapper.find('.date-picker-apply').trigger('click')
-      expect(wrapper.emitted('update:startDate')?.[1]?.[0]).toBe('2026-09-08')
-      expect(wrapper.emitted('update:endDate')?.[1]?.[0]).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       await wrapper.find('.date-picker-trigger').trigger('click')
       await wrapper.findAll('.date-picker-preset').find((b) => b.text() === 'Today')!.trigger('click')
       await wrapper.find('.date-picker-apply').trigger('click')
       expect(wrapper.emitted('update:startDate')?.[1]?.[0]).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    } finally {
-      wrapper.unmount()
-      vi.useRealTimers()
+    } finally { wrapper.unmount(); vi.useRealTimers() }
+  })
+
+  it('keeps manual minute inputs fixed, even for exactly 24 hours', async () => {
+    const wrapper = mount(DateRangePicker, {
+      props: { startDate: '2026-09-09', endDate: '2026-09-10', enableTime: true, preset: null },
+      global: { stubs: { Icon: true } }
+    })
+    await wrapper.find('.date-picker-trigger').trigger('click')
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('2026-09-08T14:37')
+    await inputs[1].setValue('2026-09-09T14:37')
+    await wrapper.find('.date-picker-apply').trigger('click')
+    expect(wrapper.emitted('change')?.[0]).toEqual([{
+      startDate: new Date('2026-09-08T14:37').toISOString(),
+      endDate: new Date('2026-09-09T14:37').toISOString(), preset: null
+    }])
+    wrapper.unmount()
+  })
+
+  it('rejects equal, reversed and empty boundaries', async () => {
+    const wrapper = mount(DateRangePicker, {
+      props: { startDate: '2026-09-09', endDate: '2026-09-10', enableTime: true, preset: null },
+      global: { stubs: { Icon: true } }
+    })
+    await wrapper.find('.date-picker-trigger').trigger('click')
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('2026-09-09T14:37')
+    for (const end of ['2026-09-09T14:37', '2026-09-09T14:36', '']) {
+      await inputs[1].setValue(end)
+      expect(wrapper.find('.date-picker-apply').attributes('disabled')).toBeDefined()
+      await wrapper.find('.date-picker-apply').trigger('click')
+      expect(wrapper.emitted('change')).toBeUndefined()
     }
+    wrapper.unmount()
+  })
+
+  it('displays timestamp dates in the browser timezone and cancels drafts on reopen', async () => {
+    const start = '2026-09-09T23:37:00Z'
+    const wrapper = mount(DateRangePicker, {
+      props: { startDate: start, endDate: '2026-09-10T23:37:00Z', enableTime: true, preset: null },
+      global: { stubs: { Icon: true } }
+    })
+    await wrapper.find('.date-picker-trigger').trigger('click')
+    const input = wrapper.find('input')
+    const expected = new Date(start)
+    expect((input.element as HTMLInputElement).value).toBe(
+      formatLocalDate(expected) + 'T' + String(expected.getHours()).padStart(2, '0') + ':' + String(expected.getMinutes()).padStart(2, '0')
+    )
+    await input.setValue('2026-09-08T10:00')
+    await wrapper.find('.date-picker-trigger').trigger('click')
+    await wrapper.find('.date-picker-trigger').trigger('click')
+    expect(wrapper.emitted('change')).toBeUndefined()
+    expect((wrapper.find('input').element as HTMLInputElement).value).not.toBe('2026-09-08T10:00')
+    wrapper.unmount()
   })
 
   it('uses last 24 hours as the default recognized preset', () => {

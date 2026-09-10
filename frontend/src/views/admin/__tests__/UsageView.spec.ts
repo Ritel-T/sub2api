@@ -194,6 +194,43 @@ describe('admin UsageView route filters', () => {
     vi.useRealTimers()
   })
 
+  it('preserves a historical 24-hour deep link when refreshing', async () => {
+    routeQuery.start_date = '2026-09-08T05:12:00Z'
+    routeQuery.end_date = '2026-09-09T05:12:00Z'
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    vi.advanceTimersByTime(120000)
+    ;(wrapper.vm as any).refreshData()
+    await flushPromises()
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({
+      start_date: routeQuery.start_date, end_date: routeQuery.end_date
+    }), expect.anything())
+    wrapper.unmount()
+  })
+
+  it('advances the rolling preset on refresh, but keeps manual times fixed', async () => {
+    vi.setSystemTime(new Date('2026-09-10T05:12:59Z'))
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    vi.setSystemTime(new Date('2026-09-10T05:15:10Z'))
+    ;(wrapper.vm as any).refreshData()
+    await flushPromises()
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({
+      start_date: '2026-09-09T05:15:00.000Z', end_date: '2026-09-10T05:15:00.000Z'
+    }), expect.anything())
+    wrapper.findComponent({ name: 'DateRangePicker' }).vm.$emit('change', {
+      startDate: '2026-09-08T04:37:00.000Z', endDate: '2026-09-09T04:37:00.000Z', preset: null
+    })
+    await flushPromises()
+    vi.advanceTimersByTime(120000)
+    ;(wrapper.vm as any).refreshData()
+    await flushPromises()
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({
+      start_date: '2026-09-08T04:37:00.000Z', end_date: '2026-09-09T04:37:00.000Z'
+    }), expect.anything())
+    wrapper.unmount()
+  })
+
   it('shows the routed user while applying user_id to usage requests', async () => {
     routeQuery.user_id = '42'
     getById.mockResolvedValue({ id: 42, email: 'route-user@test.com' })

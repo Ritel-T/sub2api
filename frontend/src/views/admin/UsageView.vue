@@ -8,7 +8,7 @@
           <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
-              <DateRangePicker precise-last24-hours
+              <DateRangePicker enable-time :preset="selectedPreset"
                 v-model:start-date="startDate"
                 v-model:end-date="endDate"
                 @change="onDateRangeChange"
@@ -184,6 +184,7 @@
 </template>
 
 <script setup lang="ts">
+import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
@@ -276,20 +277,7 @@ const handleRankingSelectUser = (userId: number, email: string) => {
 
 const granularityOptions = computed(() => [{ value: 'day', label: t('admin.dashboard.day') }, { value: 'hour', label: t('admin.dashboard.hour') }])
 // Use local timezone to avoid UTC timezone issues
-const getLast24HoursRangeDates = (): { start: string; end: string } => {
-  const end = new Date()
-  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-  return {
-    start: start.toISOString(),
-    end: end.toISOString()
-  }
-}
-const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
-  const startTime = new Date(start.includes('T') ? start : `${start}T00:00:00`).getTime()
-  const endTime = new Date(end.includes('T') ? end : `${end}T00:00:00`).getTime()
-  const daysDiff = Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24))
-  return daysDiff <= 1 ? 'hour' : 'day'
-}
+const selectedPreset = ref<string | null>('last24Hours')
 const defaultRange = getLast24HoursRangeDates()
 const startDate = ref(defaultRange.start); const endDate = ref(defaultRange.end)
 const filters = ref<AdminUsageQueryParams>({ user_id: undefined, model: undefined, group_id: undefined, request_type: undefined, native_compaction_v2: null, billing_type: null, start_date: startDate.value, end_date: endDate.value })
@@ -315,6 +303,7 @@ const applyRouteQueryFilters = () => {
   const queryStartDate = getSingleQueryValue(route.query.start_date)
   const queryEndDate = getSingleQueryValue(route.query.end_date)
   const queryUserId = getNumericQueryValue(route.query.user_id)
+  if (queryStartDate || queryEndDate) selectedPreset.value = null
 
   if (queryStartDate) {
     startDate.value = queryStartDate
@@ -353,6 +342,7 @@ const loadRouteUserFilterLabel = async () => {
 }
 
 const onDateRangeChange = (range: { startDate: string; endDate: string; preset: string | null }) => {
+  selectedPreset.value = range.preset
   startDate.value = range.startDate
   endDate.value = range.endDate
   filters.value = {
@@ -526,8 +516,8 @@ const applyFilters = () => {
   }
 }
 const refreshData = () => {
-  if (startDate.value.includes('T') && new Date(endDate.value).getTime() - new Date(startDate.value).getTime() === 86400000) {
-    const range = getLast24HoursRangeDates()
+  const range = selectedPreset.value ? getDatePresetRange(selectedPreset.value) : null
+  if (range) {
     startDate.value = range.start
     endDate.value = range.end
     filters.value.start_date = range.start
@@ -542,6 +532,7 @@ const refreshData = () => {
   if (rankingMounted.value) rankingRef.value?.reload()
 }
 const resetFilters = () => {
+  selectedPreset.value = 'last24Hours'
   const range = getLast24HoursRangeDates()
   startDate.value = range.start
   endDate.value = range.end
