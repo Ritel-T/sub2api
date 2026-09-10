@@ -181,6 +181,11 @@ func (h *UsageHandler) List(c *gin.Context) {
 		endTime = &t
 	}
 
+	if startTime != nil && endTime != nil && !startTime.Before(*endTime) {
+		response.BadRequest(c, "start_date must be before end_date")
+		return
+	}
+
 	params := pagination.PaginationParams{
 		Page:      page,
 		PageSize:  pageSize,
@@ -317,7 +322,11 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 	startDateStr := c.Query("start_date")
 	endDateStr := c.Query("end_date")
 
-	if startDateStr != "" && endDateStr != "" {
+	if startDateStr != "" || endDateStr != "" {
+		if startDateStr == "" || endDateStr == "" {
+			response.BadRequest(c, "start_date and end_date must be provided together")
+			return
+		}
 		var err error
 		startTime, err = timezone.ParseRangeBoundary(startDateStr, userTZ, false)
 		if err != nil {
@@ -342,6 +351,11 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 			startTime = timezone.StartOfDayInUserLocation(now, userTZ)
 		}
 		endTime = now
+	}
+
+	if !startTime.Before(endTime) {
+		response.BadRequest(c, "start_date must be before end_date")
+		return
 	}
 
 	// Build filters and call GetStatsWithFilters
@@ -382,7 +396,11 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		c.Header("X-Usage-Stats-Cache", cacheStatusValue(hit))
 	}
 
-	response.Success(c, stats)
+	response.Success(c, struct {
+		*usagestats.UsageStats
+		StartTime string `json:"start_time"`
+		EndTime   string `json:"end_time"`
+	}{stats, startTime.Format(time.RFC3339Nano), endTime.Format(time.RFC3339Nano)})
 }
 
 // SearchUsers handles searching users by email keyword
@@ -524,6 +542,10 @@ func (h *UsageHandler) CreateCleanupTask(c *gin.Context) {
 		response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or RFC3339")
 		return
 	}
+	if !startTime.Before(endTime) {
+		response.BadRequest(c, "start_date must be before end_date")
+		return
+	}
 	endTime = endTime.Add(-time.Nanosecond)
 
 	var requestType *int16
@@ -595,8 +617,8 @@ func (h *UsageHandler) CreateCleanupTask(c *gin.Context) {
 	executeAdminIdempotentJSON(c, "admin.usage.cleanup_tasks.create", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		logger.LegacyPrintf("handler.admin.usage", "[UsageCleanup] 请求创建清理任务: operator=%d start=%s end=%s user_id=%v api_key_id=%v account_id=%v group_id=%v model=%v request_type=%v stream=%v billing_type=%v tz=%q",
 			subject.UserID,
-			filters.StartTime.Format(time.RFC3339),
-			filters.EndTime.Format(time.RFC3339),
+			filters.StartTime.Format(time.RFC3339Nano),
+			filters.EndTime.Format(time.RFC3339Nano),
 			userID,
 			apiKeyID,
 			accountID,
