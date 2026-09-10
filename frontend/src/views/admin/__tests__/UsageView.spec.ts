@@ -712,6 +712,22 @@ describe('admin UsageView errors tab filter forwarding', () => {
       account_id: 7,
       group_id: 3,
     }))
+    wrapper.findComponent({ name: 'DateRangePicker' }).vm.$emit('change', {
+      startDate: '2026-09-10', endDate: '2026-09-10', preset: 'today'
+    })
+    await flushPromises()
+    expect(listErrorLogs).toHaveBeenLastCalledWith(expect.objectContaining({
+      start_time: new Date('2026-09-10T00:00:00').toISOString(),
+      end_time: new Date('2026-09-11T00:00:00').toISOString(),
+    }))
+    wrapper.findComponent({ name: 'DateRangePicker' }).vm.$emit('change', {
+      startDate: '2026-09-10T05:37:00Z', endDate: '2026-09-10T06:42:00Z', preset: null
+    })
+    await flushPromises()
+    expect(listErrorLogs).toHaveBeenLastCalledWith(expect.objectContaining({
+      start_time: '2026-09-10T05:37:00.000Z', end_time: '2026-09-10T06:42:00.000Z',
+    }))
+    wrapper.unmount()
   })
 })
 

@@ -184,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
+import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange, parseDateBoundary } from '@/utils/dateRange'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
@@ -803,9 +803,9 @@ const errSortOrder = ref<'asc' | 'desc'>('desc')
 const showErrorModal = ref(false)
 const selectedErrorId = ref<number | null>(null)
 
-// 注意：'YYYY-MM-DDT00:00:00' 无时区后缀，按本地时区解析后再转 UTC——与页面其它日期处理语义一致，刻意如此，勿改成 'T00:00:00Z'
+// Error queries share the same exclusive end as usage records and statistics.
 const toRFC3339 = (d: string | undefined, endOfDay = false): string | undefined =>
-  d ? new Date(d.includes('T') ? d : d + (endOfDay ? 'T23:59:59.999' : 'T00:00:00')).toISOString() : undefined
+  d ? parseDateBoundary(d, endOfDay).toISOString() : undefined
 
 const loadAdminErrors = async () => {
   errLoading.value = true
