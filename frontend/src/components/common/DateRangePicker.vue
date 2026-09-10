@@ -42,10 +42,11 @@
             <label class="date-picker-label">{{ t('dates.startDate') }}</label>
             <input
               type="date"
-              v-model="localStartDate"
-              :max="localEndDate || tomorrow"
+              :value="inputDate(localStartDate)"
+              @input="localStartDate = ($event.target as HTMLInputElement).value"
+              :max="inputDate(localEndDate) || tomorrow"
               class="date-picker-input"
-              @change="onDateChange"
+              @change="onCalendarDateChange"
             />
           </div>
           <div class="date-picker-separator">
@@ -55,11 +56,12 @@
             <label class="date-picker-label">{{ t('dates.endDate') }}</label>
             <input
               type="date"
-              v-model="localEndDate"
-              :min="localStartDate"
+              :value="inputDate(localEndDate)"
+              @input="localEndDate = ($event.target as HTMLInputElement).value"
+              :min="inputDate(localStartDate)"
               :max="tomorrow"
               class="date-picker-input"
-              @change="onDateChange"
+              @change="onCalendarDateChange"
             />
           </div>
         </div>
@@ -89,6 +91,7 @@ interface DatePreset {
 interface Props {
   startDate: string
   endDate: string
+  preciseLast24Hours?: boolean
 }
 
 interface Emits {
@@ -133,6 +136,9 @@ const formatDateToString = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
+const inputDate = (value: string): string =>
+  value.includes('T') ? formatDateToString(new Date(value)) : value
+
 const presets: DatePreset[] = [
   {
     labelKey: 'dates.today',
@@ -159,8 +165,8 @@ const presets: DatePreset[] = [
       const end = new Date()
       const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
       return {
-        start: formatDateToString(start),
-        end: formatDateToString(end)
+        start: props.preciseLast24Hours ? start.toISOString() : formatDateToString(start),
+        end: props.preciseLast24Hours ? end.toISOString() : formatDateToString(end)
       }
     }
   },
@@ -235,7 +241,7 @@ const displayValue = computed(() => {
 })
 
 const formatDate = (dateStr: string): string => {
-  const date = new Date(dateStr + 'T00:00:00')
+  const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
   const dateLocale = locale.value === 'zh' ? 'zh-CN' : 'en-US'
   return date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })
 }
@@ -254,6 +260,11 @@ const selectPreset = (preset: DatePreset) => {
 const onDateChange = () => {
   // Check if current dates match any preset
   activePreset.value = null
+  if (props.preciseLast24Hours && localStartDate.value.includes('T') &&
+      new Date(localEndDate.value).getTime() - new Date(localStartDate.value).getTime() === 86400000) {
+    activePreset.value = 'last24Hours'
+    return
+  }
   for (const preset of presets) {
     const range = preset.getRange()
     if (range.start === localStartDate.value && range.end === localEndDate.value) {
@@ -263,11 +274,20 @@ const onDateChange = () => {
   }
 }
 
+const onCalendarDateChange = () => {
+  localStartDate.value = inputDate(localStartDate.value)
+  localEndDate.value = inputDate(localEndDate.value)
+  onDateChange()
+}
+
 const toggle = () => {
   isOpen.value = !isOpen.value
 }
 
 const apply = () => {
+  if (props.preciseLast24Hours && activePreset.value === 'last24Hours') {
+    selectPreset(presets.find((p) => p.value === 'last24Hours')!)
+  }
   emit('update:startDate', localStartDate.value)
   emit('update:endDate', localEndDate.value)
   emit('change', {

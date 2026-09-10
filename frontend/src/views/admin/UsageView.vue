@@ -8,7 +8,7 @@
           <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
-              <DateRangePicker
+              <DateRangePicker precise-last24-hours
                 v-model:start-date="startDate"
                 v-model:end-date="endDate"
                 @change="onDateRangeChange"
@@ -276,23 +276,17 @@ const handleRankingSelectUser = (userId: number, email: string) => {
 
 const granularityOptions = computed(() => [{ value: 'day', label: t('admin.dashboard.day') }, { value: 'hour', label: t('admin.dashboard.hour') }])
 // Use local timezone to avoid UTC timezone issues
-const formatLD = (d: Date) => {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 const getLast24HoursRangeDates = (): { start: string; end: string } => {
   const end = new Date()
   const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
   return {
-    start: formatLD(start),
-    end: formatLD(end)
+    start: start.toISOString(),
+    end: end.toISOString()
   }
 }
 const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
-  const startTime = new Date(`${start}T00:00:00`).getTime()
-  const endTime = new Date(`${end}T00:00:00`).getTime()
+  const startTime = new Date(start.includes('T') ? start : `${start}T00:00:00`).getTime()
+  const endTime = new Date(end.includes('T') ? end : `${end}T00:00:00`).getTime()
   const daysDiff = Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24))
   return daysDiff <= 1 ? 'hour' : 'day'
 }
@@ -532,6 +526,13 @@ const applyFilters = () => {
   }
 }
 const refreshData = () => {
+  if (startDate.value.includes('T') && new Date(endDate.value).getTime() - new Date(startDate.value).getTime() === 86400000) {
+    const range = getLast24HoursRangeDates()
+    startDate.value = range.start
+    endDate.value = range.end
+    filters.value.start_date = range.start
+    filters.value.end_date = range.end
+  }
   invalidateModelStatsCache()
   loadLogs()
   loadStats(true)
@@ -813,7 +814,7 @@ const selectedErrorId = ref<number | null>(null)
 
 // 注意：'YYYY-MM-DDT00:00:00' 无时区后缀，按本地时区解析后再转 UTC——与页面其它日期处理语义一致，刻意如此，勿改成 'T00:00:00Z'
 const toRFC3339 = (d: string | undefined, endOfDay = false): string | undefined =>
-  d ? new Date(d + (endOfDay ? 'T23:59:59.999' : 'T00:00:00')).toISOString() : undefined
+  d ? new Date(d.includes('T') ? d : d + (endOfDay ? 'T23:59:59.999' : 'T00:00:00')).toISOString() : undefined
 
 const loadAdminErrors = async () => {
   errLoading.value = true

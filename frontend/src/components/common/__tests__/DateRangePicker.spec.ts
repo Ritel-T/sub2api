@@ -34,6 +34,37 @@ const formatLocalDate = (date: Date): string => {
 }
 
 describe('DateRangePicker', () => {
+  it('preserves a rolling 24-hour window when precision is enabled', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-10T06:30:00Z'))
+    const wrapper = mount(DateRangePicker, {
+      props: { startDate: '2026-09-09T06:30:00Z', endDate: '2026-09-10T06:30:00Z', preciseLast24Hours: true },
+      global: { stubs: { Icon: true } }
+    })
+    try {
+      expect(wrapper.text()).toContain('Last 24 Hours')
+      await wrapper.find('.date-picker-trigger').trigger('click')
+      await wrapper.find('.date-picker-apply').trigger('click')
+      expect(wrapper.emitted('change')?.[0]).toEqual([{
+        startDate: '2026-09-09T06:30:00.000Z',
+        endDate: '2026-09-10T06:30:00.000Z',
+        preset: 'last24Hours'
+      }])
+      await wrapper.find('.date-picker-trigger').trigger('click')
+      await wrapper.find('input[type="date"]').setValue('2026-09-08')
+      await wrapper.find('.date-picker-apply').trigger('click')
+      expect(wrapper.emitted('update:startDate')?.[1]?.[0]).toBe('2026-09-08')
+      expect(wrapper.emitted('update:endDate')?.[1]?.[0]).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      await wrapper.find('.date-picker-trigger').trigger('click')
+      await wrapper.findAll('.date-picker-preset').find((b) => b.text() === 'Today')!.trigger('click')
+      await wrapper.find('.date-picker-apply').trigger('click')
+      expect(wrapper.emitted('update:startDate')?.[1]?.[0]).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
+  })
+
   it('uses last 24 hours as the default recognized preset', () => {
     const now = new Date()
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)

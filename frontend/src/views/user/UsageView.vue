@@ -8,7 +8,7 @@
           <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
-              <DateRangePicker
+              <DateRangePicker precise-last24-hours
                 v-model:start-date="startDate"
                 v-model:end-date="endDate"
                 @change="onDateRangeChange"
@@ -330,18 +330,15 @@ let chartReqSeq = 0
 let statsReqSeq = 0
 let modelStatsReqSeq = 0
 
-const formatLocalDate = (date: Date): string =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-
 const getLast24HoursRangeDates = () => {
   const end = new Date()
   const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-  return { start: formatLocalDate(start), end: formatLocalDate(end) }
+  return { start: start.toISOString(), end: end.toISOString() }
 }
 
 const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
-  const startTime = new Date(`${start}T00:00:00`).getTime()
-  const endTime = new Date(`${end}T00:00:00`).getTime()
+  const startTime = new Date(start.includes('T') ? start : `${start}T00:00:00`).getTime()
+  const endTime = new Date(end.includes('T') ? end : `${end}T00:00:00`).getTime()
   return Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24)) <= 1 ? 'hour' : 'day'
 }
 
@@ -547,6 +544,13 @@ const applyFilters = () => {
 }
 
 const refreshData = () => {
+  if (startDate.value.includes('T') && new Date(endDate.value).getTime() - new Date(startDate.value).getTime() === 86400000) {
+    const range = getLast24HoursRangeDates()
+    startDate.value = range.start
+    endDate.value = range.end
+    filters.value.start_date = range.start
+    filters.value.end_date = range.end
+  }
   void loadLogs()
   void loadStats()
   void loadModelStats()
