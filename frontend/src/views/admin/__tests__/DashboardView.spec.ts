@@ -128,7 +128,7 @@ describe('admin DashboardView', () => {
     await flushPromises()
 
     const now = new Date()
-    now.setSeconds(0, 0)
+    now.setTime(Math.ceil(now.getTime() / 60000) * 60000)
     const yesterday = new Date(now.getTime() - 86400000)
 
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)

@@ -5,7 +5,7 @@ import ts from 'typescript'
 import { formatLocalMinute, getDatePresetRange, parseDateBoundary, parseLocalMinute } from '../dateRange'
 
 describe('minute ranges', () => {
-  it('floors instants without jumping to the earlier DST overlap hour', () => {
+  it('rounds up without jumping to the earlier DST overlap hour', () => {
     // A subprocess fixes the timezone independently of the test worker's TZ.
     const source = readFileSync('src/utils/dateRange.ts', 'utf8')
     const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
@@ -13,15 +13,28 @@ describe('minute ranges', () => {
     const range = JSON.parse(execFileSync(process.execPath, ['-e', script], {
       encoding: 'utf8', env: { ...process.env, TZ: 'America/New_York' }
     }))
-    expect(range).toEqual({ start: '2026-10-31T06:30:00.000Z', end: '2026-11-01T06:30:00.000Z' })
+    expect(range).toEqual({ start: '2026-10-31T06:31:00.000Z', end: '2026-11-01T06:31:00.000Z' })
   })
 
   it('uses identical exact 24-hour windows within a minute', () => {
     const first = getDatePresetRange('last24Hours', new Date('2026-09-10T05:12:01.123Z'))!
     const second = getDatePresetRange('last24Hours', new Date('2026-09-10T05:12:59.999Z'))!
     expect(first).toEqual(second)
-    expect(first.end).toBe('2026-09-10T05:12:00.000Z')
+    expect(first.end).toBe('2026-09-10T05:13:00.000Z')
     expect(new Date(first.end).getTime() - new Date(first.start).getTime()).toBe(86400000)
+  })
+  it('includes the current partial minute, retains exact boundaries, and crosses midnight', () => {
+    for (const [now, end] of [
+      ['2026-09-10T17:17:50Z', '2026-09-10T17:18:00.000Z'],
+      ['2026-09-10T17:17:00Z', '2026-09-10T17:17:00.000Z'],
+      ['2026-09-10T17:17:00.001Z', '2026-09-10T17:18:00.000Z'],
+      ['2026-09-10T23:59:50Z', '2026-09-11T00:00:00.000Z']
+    ]) {
+      const range = getDatePresetRange('last24Hours', new Date(now))!
+      expect(range.end).toBe(end)
+      expect(new Date(range.end).getTime() - new Date(range.start).getTime()).toBe(86400000)
+      expect(new Date(range.end).getTime()).toBeGreaterThanOrEqual(new Date(now).getTime())
+    }
   })
   it('keeps calendar-day boundaries and advances presets across midnight', () => {
     expect(getDatePresetRange('today', new Date(2026, 8, 10, 23, 59))).toEqual({ start: '2026-09-10', end: '2026-09-10' })

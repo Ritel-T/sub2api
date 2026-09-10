@@ -64,7 +64,7 @@ describe('DateRangePicker', () => {
       expect(wrapper.findAll('input[type="datetime-local"]')).toHaveLength(2)
       await wrapper.find('.date-picker-apply').trigger('click')
       expect(wrapper.emitted('change')?.[0]).toEqual([{
-        startDate: '2026-09-09T06:30:00.000Z', endDate: '2026-09-10T06:30:00.000Z', preset: 'last24Hours'
+        startDate: '2026-09-09T06:31:00.000Z', endDate: '2026-09-10T06:31:00.000Z', preset: 'last24Hours'
       }])
       await wrapper.find('.date-picker-trigger').trigger('click')
       await wrapper.findAll('.date-picker-preset').find((b) => b.text() === 'Today')!.trigger('click')

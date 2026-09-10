@@ -28,7 +28,8 @@ export function parseLocalMinute(value: string): Date | null {
 export function getDatePresetRange(preset: string, now = new Date()): DateRange | null {
   const end = new Date(now)
   if (preset === 'last24Hours') {
-    end.setTime(Math.floor(end.getTime() / 60000) * 60000)
+    // Include requests in the current partial minute; exact minutes stay exact.
+    end.setTime(Math.ceil(end.getTime() / 60000) * 60000)
     return { start: new Date(end.getTime() - 86400000).toISOString(), end: end.toISOString() }
   }
   const start = new Date(now)

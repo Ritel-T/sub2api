@@ -126,7 +126,8 @@ const presetRange = (preset: string) => {
   const range = getDatePresetRange(preset)!
   // Date-only consumers retain their original API contract.
   if (!props.enableTime && preset === 'last24Hours') {
-    return { start: formatLocalDate(new Date(range.start)), end: formatLocalDate(new Date(range.end)) }
+    const now = new Date()
+    return { start: formatLocalDate(new Date(now.getTime() - 86400000)), end: formatLocalDate(now) }
   }
   return range
 }

@@ -216,7 +216,7 @@ describe('admin UsageView route filters', () => {
     ;(wrapper.vm as any).refreshData()
     await flushPromises()
     expect(list).toHaveBeenLastCalledWith(expect.objectContaining({
-      start_date: '2026-09-09T05:15:00.000Z', end_date: '2026-09-10T05:15:00.000Z'
+      start_date: '2026-09-09T05:16:00.000Z', end_date: '2026-09-10T05:16:00.000Z'
     }), expect.anything())
     wrapper.findComponent({ name: 'DateRangePicker' }).vm.$emit('change', {
       startDate: '2026-09-08T04:37:00.000Z', endDate: '2026-09-09T04:37:00.000Z', preset: null
@@ -471,7 +471,8 @@ describe('admin UsageView distribution metric toggles', () => {
 
     const range = vi.mocked(getSnapshotV2).mock.calls[0]![0]!
     expect(new Date(range.end_date!).getTime() - new Date(range.start_date!).getTime()).toBe(86400000)
-    expect(new Date(range.end_date!).getTime()).toBeLessThanOrEqual(now.getTime())
+    expect(new Date(range.end_date!).getTime()).toBeGreaterThanOrEqual(now.getTime() - 1000)
+    expect(new Date(range.end_date!).getTime()).toBeLessThanOrEqual(now.getTime() + 60000)
 
     const modelChart = wrapper.find('[data-test="model-chart"]')
     const groupChart = wrapper.find('[data-test="group-chart"]')
