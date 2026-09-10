@@ -34,6 +34,23 @@ const formatLocalDate = (date: Date): string => {
 }
 
 describe('DateRangePicker', () => {
+  it.each(['2026-09-09T14:12:00+09:00', '2026-09-08T22:12:00-07:00'])('accepts offset-bearing fixed ranges: %s', async (startDate) => {
+    const endDate = '2026-09-10T14:12:00+09:00'
+    const wrapper = mount(DateRangePicker, {
+      props: { startDate, endDate, enableTime: true, preset: null },
+      global: { stubs: { Icon: true } }
+    })
+    await wrapper.find('.date-picker-trigger').trigger('click')
+    const start = new Date(startDate)
+    expect((wrapper.find('input').element as HTMLInputElement).value).toBe(
+      formatLocalDate(start) + 'T' + String(start.getHours()).padStart(2, '0') + ':' + String(start.getMinutes()).padStart(2, '0')
+    )
+    expect(wrapper.find('.date-picker-apply').attributes('disabled')).toBeUndefined()
+    await wrapper.find('.date-picker-apply').trigger('click')
+    expect(wrapper.emitted('change')?.[0]).toEqual([{ startDate, endDate, preset: null }])
+    wrapper.unmount()
+  })
+
   it('emits minute-aligned rolling ranges and preserves calendar presets', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-10T06:30:48Z'))

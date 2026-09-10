@@ -28,7 +28,7 @@ export function parseLocalMinute(value: string): Date | null {
 export function getDatePresetRange(preset: string, now = new Date()): DateRange | null {
   const end = new Date(now)
   if (preset === 'last24Hours') {
-    end.setSeconds(0, 0)
+    end.setTime(Math.floor(end.getTime() / 60000) * 60000)
     return { start: new Date(end.getTime() - 86400000).toISOString(), end: end.toISOString() }
   }
   const start = new Date(now)

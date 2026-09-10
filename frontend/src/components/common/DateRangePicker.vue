@@ -151,7 +151,7 @@ const inputValue = (value: string, end: boolean): string => {
   if (!value) return ''
   if (!props.enableTime) return value.includes('T') ? formatLocalDate(new Date(value)) : value
   // An unfinished/invalid local input must remain invalid rather than normalize.
-  if (value.includes('T') && !/[zZ]|[+-]\\d{2}:\\d{2}$/.test(value)) return value
+  if (value.includes('T') && !/(?:[zZ]|[+-]\d{2}:\d{2})$/.test(value)) return value
   const date = parseDateBoundary(value, end)
   return Number.isFinite(date.getTime()) ? formatLocalMinute(date) : ''
 }
