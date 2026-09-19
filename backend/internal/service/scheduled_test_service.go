@@ -12,22 +12,18 @@ var scheduledTestCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom 
 
 // ScheduledTestService provides CRUD operations for scheduled test plans and results.
 type ScheduledTestService struct {
-	planRepo       ScheduledTestPlanRepository
-	resultRepo     ScheduledTestResultRepository
-	accountRepo    AccountRepository
-	managedMetrics managedScheduledTestRuntimeMetrics
+	planRepo   ScheduledTestPlanRepository
+	resultRepo ScheduledTestResultRepository
 }
 
 // NewScheduledTestService creates a new ScheduledTestService.
 func NewScheduledTestService(
 	planRepo ScheduledTestPlanRepository,
 	resultRepo ScheduledTestResultRepository,
-	accountRepo AccountRepository,
 ) *ScheduledTestService {
 	return &ScheduledTestService{
-		planRepo:    planRepo,
-		resultRepo:  resultRepo,
-		accountRepo: accountRepo,
+		planRepo:   planRepo,
+		resultRepo: resultRepo,
 	}
 }
 
@@ -83,20 +79,10 @@ func (s *ScheduledTestService) ListResults(ctx context.Context, planID int64, li
 // SaveResult inserts a result and prunes old entries beyond maxResults.
 func (s *ScheduledTestService) SaveResult(ctx context.Context, planID int64, maxResults int, result *ScheduledTestResult) error {
 	result.PlanID = planID
-	created, err := s.resultRepo.Create(ctx, result)
-	if err != nil {
+	if _, err := s.resultRepo.Create(ctx, result); err != nil {
 		return err
 	}
-	result.ID = created.ID
-	result.CreatedAt = created.CreatedAt
 	return s.resultRepo.PruneOldResults(ctx, planID, maxResults)
-}
-
-func (s *ScheduledTestService) UpdateResultRecoveryStatus(ctx context.Context, resultID int64, recoveryStatus string) error {
-	if resultID <= 0 {
-		return nil
-	}
-	return s.resultRepo.UpdateRecoveryStatus(ctx, resultID, recoveryStatus)
 }
 
 func computeNextRun(cronExpr string, from time.Time) (time.Time, error) {

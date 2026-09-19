@@ -1211,11 +1211,20 @@ func (r *accountRepository) ListOAuthRefreshCandidatePage(ctx context.Context, o
 	// NOT (a AND b) 在 PG 三值逻辑下会把 a 或 b 为 NULL 的行（即绝大多数
 	// 健康账号：temp_unschedulable_until=NULL）也排除，导致后台 token
 	// 刷新工作器漏掉所有正常账号 → access_token 到期后请求开始 401。
+	//
+	// Deliberately NO `schedulable = TRUE` filter here: paused accounts
+	// (schedulable=false, status=active) still hold valid refresh tokens and
+	// their stored access_token must keep working for the admin usage-window
+	// probe. Excluding them lets the token silently expire, after which the
+	// dashboard reports a false "needs re-auth" even though Test Connection
+	// (which refreshes on demand) succeeds. Permanent rejection is already
+	// covered by the status = 'active' filter (error accounts drop out), and
+	// accounts whose refresh actually fails are rate-limited by the
+	// ExcludeRetryCooldown clause below.
 	query := `
 		SELECT id
 		FROM accounts
 		WHERE deleted_at IS NULL
-			AND schedulable = TRUE
 			AND platform = ANY($1)
 			AND id > $2`
 	if options.ActiveOnly {
@@ -2252,53 +2261,6 @@ func (r *accountRepository) ClearRateLimitIfObserved(ctx context.Context, id int
 	}
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountChanged, &id, nil, nil); err != nil {
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue observed rate-limit clear failed: account=%d err=%v", id, err)
-	}
-	r.syncSchedulerAccountSnapshot(ctx, id)
-	return true, nil
-}
-
-// ClearOpenAIAccountRateLimitIfObserved clears only the OpenAI OAuth
-// account-level rate-limit generation captured before a successful managed
-// probe. Both nullable timestamps participate in the CAS so an older success
-// cannot erase a newer 429 written while the probe was running.
-func (r *accountRepository) ClearOpenAIAccountRateLimitIfObserved(
-	ctx context.Context,
-	id int64,
-	observedLimitedAt *time.Time,
-	observedResetAt *time.Time,
-) (bool, error) {
-	preds := []dbpredicate.Account{
-		dbaccount.IDEQ(id),
-		dbaccount.PlatformEQ(service.PlatformOpenAI),
-		dbaccount.TypeEQ(service.AccountTypeOAuth),
-		dbaccount.DeletedAtIsNil(),
-		dbaccount.ParentAccountIDIsNil(),
-	}
-	if observedLimitedAt == nil {
-		preds = append(preds, dbaccount.RateLimitedAtIsNil())
-	} else {
-		preds = append(preds, dbaccount.RateLimitedAtEQ(*observedLimitedAt))
-	}
-	if observedResetAt == nil {
-		preds = append(preds, dbaccount.RateLimitResetAtIsNil())
-	} else {
-		preds = append(preds, dbaccount.RateLimitResetAtEQ(*observedResetAt))
-	}
-
-	updated, err := r.client.Account.Update().
-		Where(preds...).
-		ClearRateLimitedAt().
-		ClearRateLimitResetAt().
-		Save(ctx)
-	if err != nil {
-		return false, err
-	}
-	if updated == 0 {
-		r.syncSchedulerAccountSnapshot(ctx, id)
-		return false, nil
-	}
-	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountChanged, &id, nil, nil); err != nil {
-		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue managed rate-limit clear failed: account=%d err=%v", id, err)
 	}
 	r.syncSchedulerAccountSnapshot(ctx, id)
 	return true, nil

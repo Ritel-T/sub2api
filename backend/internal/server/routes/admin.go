@@ -723,15 +723,6 @@ func registerScheduledTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		plans.DELETE("/:id", h.Admin.ScheduledTest.Delete)
 		plans.GET("/:id/results", h.Admin.ScheduledTest.ListResults)
 	}
-	managedDefaults := admin.Group("/scheduled-test-defaults/:template_key")
-	{
-		managedDefaults.PUT("", h.Admin.ScheduledTest.UpdateManagedTemplate)
-		managedDefaults.GET("/preview", h.Admin.ScheduledTest.PreviewManagedTemplate)
-		managedDefaults.POST("/reconcile", h.Admin.ScheduledTest.ReconcileManagedTemplate)
-		managedDefaults.GET("/status", h.Admin.ScheduledTest.ManagedTemplateStatus)
-		managedDefaults.PUT("/enabled", h.Admin.ScheduledTest.SetManagedTemplateEnabled)
-		managedDefaults.PUT("/accounts/:id/opt-out", h.Admin.ScheduledTest.SetManagedAccountOptOut)
-	}
 	// Nested under accounts
 	admin.GET("/accounts/:id/scheduled-test-plans", h.Admin.ScheduledTest.ListByAccount)
 }
@@ -768,6 +759,7 @@ func registerPluginRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAut
 		plugins.POST("/:id/disable", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.Disable)
 		plugins.DELETE("/:id", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.Delete)
 		plugins.GET("/:id/config", h.Admin.Plugin.GetConfig)
+		plugins.GET("/:id/status", h.Admin.Plugin.Status)
 		plugins.PUT("/:id/config", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.SaveConfig)
 		plugins.POST("/:id/test", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.Test)
 		plugins.POST("/:id/ui-session", h.Admin.Plugin.CreateUISession)

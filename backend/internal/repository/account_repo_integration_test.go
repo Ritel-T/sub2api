@@ -327,14 +327,16 @@ func (s *AccountRepoSuite) TestListOAuthRefreshCandidatePage_GrokCursorAndExclus
 			"expires_at":    now.Add(30 * time.Minute).Format(time.RFC3339),
 		},
 	})
-	unschedulable := mustCreateAccount(s.T(), s.client, &service.Account{
-		Name:        "grok-oauth-unschedulable-excluded",
+	// Paused but active OAuth accounts (schedulable=false) must remain refresh
+	// candidates so their stored access_token does not silently expire.
+	paused := mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:        "grok-oauth-paused-included",
 		Platform:    service.PlatformGrok,
 		Type:        service.AccountTypeOAuth,
 		Status:      service.StatusActive,
-		Credentials: map[string]any{"refresh_token": "refresh-unschedulable"},
+		Credentials: map[string]any{"refresh_token": "refresh-paused"},
 	})
-	s.Require().NoError(s.client.Account.UpdateOneID(unschedulable.ID).SetSchedulable(false).Exec(s.ctx))
+	s.Require().NoError(s.client.Account.UpdateOneID(paused.ID).SetSchedulable(false).Exec(s.ctx))
 	mustCreateAccount(s.T(), s.client, &service.Account{
 		Name:     "grok-api-key-excluded",
 		Platform: service.PlatformGrok,
@@ -393,15 +395,14 @@ func (s *AccountRepoSuite) TestListOAuthRefreshCandidatePage_GrokCursorAndExclus
 	s.Require().NoError(err)
 	first := firstPage.Accounts
 	s.Require().Len(first, 2)
-	s.Require().Equal([]int64{valid1.ID, valid2.ID}, []int64{first[0].ID, first[1].ID})
-	s.Require().NotContains([]int64{first[0].ID, first[1].ID}, unschedulable.ID)
+	s.Require().Equal([]int64{valid1.ID, paused.ID}, []int64{first[0].ID, first[1].ID})
 
 	options.AfterID = first[len(first)-1].ID
 	secondPage, err := s.repo.ListOAuthRefreshCandidatePage(s.ctx, options)
 	s.Require().NoError(err)
 	second := secondPage.Accounts
-	s.Require().Len(second, 1)
-	s.Require().Equal(valid3.ID, second[0].ID)
+	s.Require().Len(second, 2)
+	s.Require().Equal([]int64{valid2.ID, valid3.ID}, []int64{second[0].ID, second[1].ID})
 	s.Require().NotContains([]int64{first[0].ID, first[1].ID}, second[0].ID)
 }
 
@@ -939,65 +940,6 @@ func (s *AccountRepoSuite) TestClearRateLimitIfObservedProtectsRearmed429Generat
 	s.Require().NotNil(retyped.RateLimitedAt)
 	s.Require().NotNil(retyped.RateLimitResetAt)
 	s.Require().WithinDuration(rearmedReset, *retyped.RateLimitResetAt, time.Second)
-}
-
-func (s *AccountRepoSuite) TestClearOpenAIAccountRateLimitIfObservedPreservesOtherRuntimeState() {
-	overloadUntil := time.Now().Add(45 * time.Minute).UTC().Truncate(time.Second)
-	tempUntil := time.Now().Add(15 * time.Minute).UTC().Truncate(time.Second)
-	account := mustCreateAccount(s.T(), s.client, &service.Account{
-		Name:        "openai-managed-recovery-cas",
-		Platform:    service.PlatformOpenAI,
-		Type:        service.AccountTypeOAuth,
-		Status:      service.StatusActive,
-		Schedulable: true,
-		Extra: map[string]any{
-			"model_rate_limits": map[string]any{"gpt-5.6-sol": map[string]any{"rate_limit_reset_at": overloadUntil.Format(time.RFC3339)}},
-		},
-	})
-	firstReset := time.Now().Add(30 * time.Minute).UTC().Truncate(time.Second)
-	s.Require().NoError(s.repo.SetRateLimited(s.ctx, account.ID, firstReset))
-	_, err := s.client.Account.UpdateOneID(account.ID).
-		SetOverloadUntil(overloadUntil).
-		SetTempUnschedulableUntil(tempUntil).
-		SetTempUnschedulableReason("preserve-me").
-		Save(s.ctx)
-	s.Require().NoError(err)
-
-	stale, err := s.repo.GetByID(s.ctx, account.ID)
-	s.Require().NoError(err)
-	s.Require().NotNil(stale.RateLimitedAt)
-	s.Require().NotNil(stale.RateLimitResetAt)
-
-	newLimitedAt := stale.RateLimitedAt.Add(time.Second)
-	newReset := firstReset.Add(10 * time.Minute)
-	_, err = s.client.Account.UpdateOneID(account.ID).
-		SetRateLimitedAt(newLimitedAt).
-		SetRateLimitResetAt(newReset).
-		Save(s.ctx)
-	s.Require().NoError(err)
-
-	cleared, err := s.repo.ClearOpenAIAccountRateLimitIfObserved(s.ctx, account.ID, stale.RateLimitedAt, stale.RateLimitResetAt)
-	s.Require().NoError(err)
-	s.Require().False(cleared, "stale probe success must not erase a newer 429")
-
-	current, err := s.repo.GetByID(s.ctx, account.ID)
-	s.Require().NoError(err)
-	cleared, err = s.repo.ClearOpenAIAccountRateLimitIfObserved(s.ctx, account.ID, current.RateLimitedAt, current.RateLimitResetAt)
-	s.Require().NoError(err)
-	s.Require().True(cleared)
-
-	got, err := s.repo.GetByID(s.ctx, account.ID)
-	s.Require().NoError(err)
-	s.Require().Nil(got.RateLimitedAt)
-	s.Require().Nil(got.RateLimitResetAt)
-	s.Require().True(got.Schedulable)
-	s.Require().Equal(service.StatusActive, got.Status)
-	s.Require().NotNil(got.OverloadUntil)
-	s.Require().WithinDuration(overloadUntil, *got.OverloadUntil, time.Second)
-	s.Require().NotNil(got.TempUnschedulableUntil)
-	s.Require().WithinDuration(tempUntil, *got.TempUnschedulableUntil, time.Second)
-	s.Require().Equal("preserve-me", got.TempUnschedulableReason)
-	s.Require().NotEmpty(got.Extra["model_rate_limits"])
 }
 
 func (s *AccountRepoSuite) TestClearRateLimit() {

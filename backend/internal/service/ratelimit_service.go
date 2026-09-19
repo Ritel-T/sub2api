@@ -49,19 +49,6 @@ type AccountRuntimeBlocker interface {
 	ClearAccountSchedulingBlock(accountID int64)
 }
 
-type conditionalAccountRuntimeBlockClearer interface {
-	ClearAccountSchedulingBlockIfUntil(accountID int64, observedUntil time.Time) bool
-}
-
-type openAIObservedRateLimitClearRepository interface {
-	ClearOpenAIAccountRateLimitIfObserved(
-		ctx context.Context,
-		accountID int64,
-		observedLimitedAt *time.Time,
-		observedResetAt *time.Time,
-	) (bool, error)
-}
-
 // SuccessfulTestRecoveryResult 表示测试成功后恢复了哪些运行时状态。
 type SuccessfulTestRecoveryResult struct {
 	ClearedError     bool
@@ -1003,6 +990,14 @@ func (s *RateLimitService) handle403(ctx context.Context, account *Account, upst
 	// into the escalating 403 counter that can permanently mark the account error.
 	if isCNProviderConcurrencyLimit403(account, upstreamMsg) {
 		s.handleCNProviderConcurrencyLimit403(ctx, account)
+		return true
+	}
+	// Kimi 等 CN 供应商把 Coding Plan 配额窗口耗尽打成 403
+	// （error.type=access_terminated_error），这是窗口到期后自动恢复的限流
+	// 信号而非封禁：按 429 口径冷却到真实窗口重置点，避免落入下方通用 403
+	// 升级计数后被永久 SetError。
+	if isCNProviderQuotaExhausted403(account, responseBody, upstreamMsg) {
+		s.handleCNProviderQuotaExhausted403(ctx, account, upstreamMsg)
 		return true
 	}
 	// 国产供应商与 openai 同口径:HTML 403(CDN/代理拦截页)不构成账号失效证据,
@@ -2164,40 +2159,6 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 // 按需恢复 error / rate-limit / overload / temp-unsched / model-rate-limit 等运行时状态。
 func (s *RateLimitService) RecoverAccountAfterSuccessfulTest(ctx context.Context, accountID int64) (*SuccessfulTestRecoveryResult, error) {
 	return s.RecoverAccountState(ctx, accountID, AccountRecoveryOptions{})
-}
-
-// RecoverOpenAIAccountRateLimitIfObserved performs the narrow managed-probe
-// recovery. It never changes account status, manual schedulability, overload,
-// temporary-unschedulable, or model-level rate limits.
-func (s *RateLimitService) RecoverOpenAIAccountRateLimitIfObserved(
-	ctx context.Context,
-	accountID int64,
-	observedLimitedAt *time.Time,
-	observedResetAt *time.Time,
-) (string, error) {
-	if s == nil || s.accountRepo == nil || accountID <= 0 || (observedLimitedAt == nil && observedResetAt == nil) {
-		return ScheduledTestRecoveryNotApplicable, nil
-	}
-	repo, ok := s.accountRepo.(openAIObservedRateLimitClearRepository)
-	if !ok {
-		return ScheduledTestRecoveryError, fmt.Errorf("account repository does not support observed OpenAI rate-limit recovery")
-	}
-	cleared, err := repo.ClearOpenAIAccountRateLimitIfObserved(ctx, accountID, observedLimitedAt, observedResetAt)
-	if err != nil {
-		return ScheduledTestRecoveryError, err
-	}
-	if !cleared {
-		return ScheduledTestRecoveryConflict, nil
-	}
-
-	// The database CAS is authoritative. Only remove the in-process bridge block
-	// when it still represents the same observed reset boundary.
-	if observedResetAt != nil && s.runtimeBlocker != nil {
-		if clearer, ok := s.runtimeBlocker.(conditionalAccountRuntimeBlockClearer); ok {
-			clearer.ClearAccountSchedulingBlockIfUntil(accountID, *observedResetAt)
-		}
-	}
-	return ScheduledTestRecoveryCleared, nil
 }
 
 func (s *RateLimitService) ClearTempUnschedulable(ctx context.Context, accountID int64) error {

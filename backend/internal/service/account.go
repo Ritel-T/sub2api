@@ -88,8 +88,6 @@ type OpenAIEndpointCapability string
 
 const openAILongContextBillingEnabledKey = "openai_long_context_billing_enabled"
 
-const AutoRecoveryTestDisabledExtraKey = "auto_recovery_test_disabled"
-
 const (
 	OpenAIEndpointCapabilityChatCompletions OpenAIEndpointCapability = "chat_completions"
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
@@ -151,12 +149,6 @@ func (a *Account) IsSyntheticUITest() bool {
 	}
 	enabled, ok := a.Extra["synthetic_ui_test"].(bool)
 	return ok && enabled
-}
-
-// IsAutoRecoveryTestDisabled reports whether managed recovery probes are
-// permanently excluded for this account by an administrator-controlled flag.
-func (a *Account) IsAutoRecoveryTestDisabled() bool {
-	return a != nil && a.getExtraBool(AutoRecoveryTestDisabledExtraKey)
 }
 
 // BillingRateMultiplier 返回账号计费倍率。
@@ -1835,6 +1827,11 @@ func (a *Account) GetOpenAISessionID() string {
 func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapability) bool {
 	if a == nil {
 		return false
+	}
+	if capability == OpenAIEndpointCapabilitySeedance {
+		configured, _ := a.openAIEndpointCapabilitySet()
+		return configured["seedance"] && a.Platform == PlatformOpenAI && a.Type == AccountTypeAPIKey &&
+			strings.TrimSpace(a.GetCredential("base_url")) != ""
 	}
 	if capability == "" {
 		return true
