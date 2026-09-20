@@ -243,6 +243,21 @@ func ProvideAccountUsageService(
 	return service
 }
 
+func ProvidePluginManager(
+	repo PluginRepository,
+	encryptor SecretEncryptor,
+	cfg *config.Config,
+	hostInfo PluginHostInfo,
+	kvStore PluginKVStore,
+	gateway *OpenAIGatewayService,
+	accounts AccountRepository,
+	proxies ProxyRepository,
+) *PluginManager {
+	manager := NewPluginManager(repo, encryptor, cfg, hostInfo, kvStore)
+	manager.SetAccountDirectory(NewPluginResourceDirectory(gateway, accounts, proxies))
+	return manager
+}
+
 func ProvideAccountTestService(
 	accountRepo AccountRepository,
 	geminiTokenProvider *GeminiTokenProvider,
@@ -924,7 +939,7 @@ var ProviderSet = wire.NewSet(
 	NewTotpService,
 	NewErrorPassthroughService,
 	NewTLSFingerprintProfileService,
-	NewPluginManager,
+	ProvidePluginManager,
 	NewDigestSessionStore,
 	ProvideIdempotencyCoordinator,
 	ProvideSystemOperationLockService,

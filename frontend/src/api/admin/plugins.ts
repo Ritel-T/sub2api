@@ -155,7 +155,12 @@ export async function createUISession(id: number): Promise<PluginUISession> {
   return data
 }
 
+export async function action(id: number, action: Record<string, unknown>): Promise<{accepted: boolean; message: string}> {
+ const { data } = await apiClient.post(`/admin/plugins/${id}/actions`, action)
+ return data
+}
 export default {
+ action,
   list,
   upload,
   enable,

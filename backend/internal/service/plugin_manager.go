@@ -1152,3 +1152,25 @@ func stablePluginBucket(accountID int64) uint64 {
 	value ^= value >> 33
 	return value % 100
 }
+
+// RunAction is an explicit administrator action on the running plugin only.
+// Never start temporary runtimes for side effects or use passive status for commands.
+func (m *PluginManager) RunAction(ctx context.Context, id int64, raw []byte) (*pluginv1.RunActionResponse, error) {
+	m.operationMu.Lock()
+	defer m.operationMu.Unlock()
+	if len(raw) > 32768 {
+		return nil, errors.New("action too large")
+	}
+	if _, err := m.repo.GetByID(ctx, id); err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	runtime := m.runtimes[id]
+	m.mu.Unlock()
+	if runtime == nil {
+		return nil, errors.New("请先在插件管理中启用插件")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return runtime.api.RunAction(ctx, &pluginv1.RunActionRequest{ActionJson: raw})
+}
