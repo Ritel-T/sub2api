@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -115,6 +116,48 @@ func TestStablePluginBucketIsDeterministicAndBounded(t *testing.T) {
 
 type statusStubRepository struct {
 	PluginRepository
+}
+
+type rolloutValidationRepository struct {
+	PluginRepository
+	err error
+}
+
+func (r *rolloutValidationRepository) GetByID(context.Context, int64) (*PluginInstallation, error) {
+	return nil, r.err
+}
+
+func TestPluginManagerEnableAcceptsZeroRollout(t *testing.T) {
+	lookupErr := errors.New("lookup reached")
+	manager := &PluginManager{repo: &rolloutValidationRepository{err: lookupErr}}
+	for _, rollout := range []int{0, 1, 100} {
+		_, err := manager.Enable(context.Background(), 1, false, rollout)
+		require.ErrorIs(t, err, lookupErr)
+	}
+	for _, rollout := range []int{-1, 101} {
+		_, err := manager.Enable(context.Background(), 1, false, rollout)
+		require.Error(t, err)
+		require.NotErrorIs(t, err, lookupErr)
+	}
+}
+
+func TestPluginManagerZeroRolloutKeepsAllBusinessTrafficOnNativePath(t *testing.T) {
+	bindings := []PluginBinding{{Capability: PluginCapabilityOpenAIOAuthOutbound,
+		Platform: PlatformOpenAI, AccountType: AccountTypeOAuth, Enabled: true, RolloutPercent: 0}}
+	require.True(t, hasEnabledOpenAIBinding(bindings))
+	require.Zero(t, bindingRollout(bindings))
+	manager := &PluginManager{}
+	manager.route.Store(&pluginRoute{pluginID: 1, rolloutPercent: 0, unavailable: "diagnostic runtime unavailable"})
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/v1/responses", nil)
+	require.NoError(t, err)
+	for id := int64(1); id <= 1000; id++ {
+		account := &Account{ID: id, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+		require.False(t, manager.ShouldRouteOpenAIOAuth(account))
+		response, handled, routeErr := manager.RoundTripOpenAIOAuth(context.Background(), request, "", account)
+		require.Nil(t, response)
+		require.False(t, handled)
+		require.NoError(t, routeErr)
+	}
 }
 
 func (r *statusStubRepository) GetByID(context.Context, int64) (*PluginInstallation, error) {

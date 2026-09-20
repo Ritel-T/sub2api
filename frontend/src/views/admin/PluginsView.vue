@@ -225,7 +225,7 @@
               <input
                 :value="rolloutValues[plugin.id] ?? currentRollout(plugin)"
                 type="range"
-                min="1"
+                min="0"
                 max="100"
                 step="1"
                 class="mt-2 w-full accent-primary-600"
@@ -443,7 +443,7 @@ function currentRollout(plugin: PluginInstallation): number {
   return (
     plugin.bindings.find(
       (binding) => binding.capability === "openai.oauth.outbound_transport.v1",
-    )?.rollout_percent || 100
+    )?.rollout_percent ?? 100
   );
 }
 
@@ -453,7 +453,7 @@ function hasEnabledBinding(plugin: PluginInstallation): boolean {
 
 function setRollout(id: number, event: Event): void {
   const value = Number((event.target as HTMLInputElement).value);
-  rolloutValues.value[id] = Math.min(100, Math.max(1, value));
+  rolloutValues.value[id] = Math.min(100, Math.max(0, value));
 }
 
 async function enablePlugin(plugin: PluginInstallation): Promise<void> {
@@ -467,7 +467,7 @@ async function enablePlugin(plugin: PluginInstallation): Promise<void> {
     await pluginStepUp.run(() =>
       adminAPI.plugins.enable(
         plugin.id,
-        rolloutValues.value[plugin.id] || 100,
+        rolloutValues.value[plugin.id] ?? 100,
         acceptUntested,
       ),
     );

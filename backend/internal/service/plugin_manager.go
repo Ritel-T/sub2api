@@ -557,8 +557,8 @@ func verifyLocalPluginBinary(installation *PluginInstallation, root string) erro
 func (m *PluginManager) Enable(ctx context.Context, id int64, acceptUntested bool, rolloutPercent int) (*PluginInstallation, error) {
 	m.operationMu.Lock()
 	defer m.operationMu.Unlock()
-	if rolloutPercent < 1 || rolloutPercent > 100 {
-		return nil, errors.New("灰度比例必须在 1 到 100 之间")
+	if rolloutPercent < 0 || rolloutPercent > 100 {
+		return nil, errors.New("灰度比例必须在 0 到 100 之间")
 	}
 	installation, err := m.repo.GetByID(ctx, id)
 	if err != nil {

@@ -166,4 +166,27 @@ describe('管理员插件页二次验证', () => {
     expect(stepUpRun).toHaveBeenCalledTimes(1)
     expect(uploadPlugin).toHaveBeenCalledTimes(1)
   })
+
+  it('preserves a saved zero rollout when enabling', async () => {
+    listPlugins.mockResolvedValue([{ ...plugin, bindings: [{ ...plugin.bindings[0], rollout_percent: 0 }] }])
+    const wrapper = mountView()
+    await flushPromises()
+    const slider = wrapper.get('input[type="range"]')
+    expect(slider.attributes('min')).toBe('0')
+    expect((slider.element as HTMLInputElement).value).toBe('0')
+    const button = wrapper.findAll('button').find(item => item.text().includes('admin.plugins.enable'))
+    await button!.trigger('click')
+    await flushPromises()
+    expect(enablePlugin).toHaveBeenCalledWith(7, 0, false)
+  })
+
+  it('allows selecting zero rollout without falling back to full traffic', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('input[type="range"]').setValue('0')
+    const button = wrapper.findAll('button').find(item => item.text().includes('admin.plugins.enable'))
+    await button!.trigger('click')
+    await flushPromises()
+    expect(enablePlugin).toHaveBeenCalledWith(7, 0, false)
+  })
 })
