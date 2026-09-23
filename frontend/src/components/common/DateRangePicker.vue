@@ -45,7 +45,7 @@
               :type="enableTime ? 'datetime-local' : 'date'"
               :step="enableTime ? 60 : undefined"
               v-model="startInput"
-              :max="endInput || undefined"
+              :max="endInput || (!enableTime ? tomorrow() : undefined)"
               :aria-invalid="!validRange"
               class="date-picker-input"
             />
@@ -61,6 +61,7 @@
               :step="enableTime ? 60 : undefined"
               v-model="endInput"
               :min="startInput || undefined"
+              :max="!enableTime ? tomorrow() : undefined"
               :aria-invalid="!validRange"
               class="date-picker-input"
             />
@@ -121,6 +122,12 @@ const presets = [
   { value: 'thisMonth', labelKey: 'dates.thisMonth' },
   { value: 'lastMonth', labelKey: 'dates.lastMonth' }
 ]
+
+const tomorrow = () => {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return formatLocalDate(d)
+}
 
 const presetRange = (preset: string) => {
   const range = getDatePresetRange(preset)!
