@@ -1800,6 +1800,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	if account == nil {
 		return false, "account_nil"
 	}
+	if openAIEncryptedMessageCapabilityMismatch(ctx, account, req.RequestedModel) {
+		return false, "encrypted_message_unsupported"
+	}
 	if req.RequirePrivacySet && !account.IsPrivacySet() {
 		return false, "privacy_not_set"
 	}
@@ -2347,6 +2350,11 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 	}
 	platform = NormalizeOpenAICompatiblePlatform(platform)
 	decision := OpenAIAccountScheduleDecision{}
+	if platform == PlatformOpenAI && !previousResponseCanMove {
+		if err := s.checkOpenAIEncryptedMessageResponseOwner(ctx, groupID, previousResponseID, requestedModel); err != nil {
+			return nil, decision, err
+		}
+	}
 	preserveGuardianParentBinding := preserveOpenAIGuardianParentBinding(ctx, sessionHash)
 	guardianParentAccountID := int64(0)
 	if strings.TrimSpace(previousResponseID) == "" {
