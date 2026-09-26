@@ -128,7 +128,17 @@ func (s *GeminiQuotaService) Policy(ctx context.Context) *GeminiQuotaPolicy {
 	if s.settingRepo != nil {
 		value, err := s.settingRepo.GetValue(ctx, SettingKeyGeminiQuotaPolicy)
 		if err != nil && !errors.Is(err, ErrSettingNotFound) {
-			log.Printf("gemini quota: load setting failed: %v", err)
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				log.Printf("gemini quota: load setting failed: %v", err)
+			}
+			// Failed reads must not replace configured limits or extend the cache TTL.
+			s.mu.Lock()
+			cached := s.policy
+			s.mu.Unlock()
+			if cached != nil {
+				return cached
+			}
+			return policy
 		} else if strings.TrimSpace(value) != "" {
 			raw := []byte(value)
 			var overridesV2 geminiQuotaOverridesV2
