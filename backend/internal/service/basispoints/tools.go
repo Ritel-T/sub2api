@@ -556,6 +556,10 @@ func (b *Bridge) translateResponse(response object) error {
 	if response == nil {
 		return nil
 	}
+	// Validate the whole batch before mutating output or committing replay items.
+	if err := b.validateToolResponse(response); err != nil {
+		return err
+	}
 	output, _ := response["output"].([]any)
 	for i, raw := range output {
 		item, _ := raw.(object)

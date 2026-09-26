@@ -38,3 +38,27 @@ the final response locally. This does not provide upstream constrained decoding.
 - Enforce the existing 20-inline-image and 32 MiB per-request relay limits.
   A relay capacity error and an upstream overload are separate from a tool
   protocol error; HTTP 200 alone does not establish a successful SSE terminal.
+
+# Tool transport corrections
+
+- Validate a complete native tool batch before committing replay entries or
+  emitting any client tool events. Never evaluate transport code in the gateway.
+- When a completed batch consists entirely of identifiable run_officejs calls
+  with valid outer arguments, return local validation errors as native tool
+  results with `executed: false`. Continue on the same BPS account, model, effort,
+  proxy and scoped conversation, with at most two corrective model requests.
+- Preserve intended operations and call order. Require the corrected batch to
+  have the same number of calls and pass the current catalog's transport checks.
+  Reject changes to previously valid operations or to unframed raw code.
+  Keep ordinary text incremental and retain its original response identity and
+  output indexes. Hide intermediate correction text and native tool events.
+- Release the preceding response body before a correction request so accounts
+  with concurrency one do not deadlock. Cancel corrections on client disconnect.
+  Include all returned terminal usage in the final success or failure response.
+- Do not retry transport I/O failures, upstream rejections, incomplete streams,
+  undeclared tool targets, unsupported native tools, missing call identities or
+  structured answer failures. Preserve any explicit declared target on correction.
+  Do not infer a tool target from arbitrary raw code. Stop on a changed batch or
+  exhausted correction limit without dispatching any client tools.
+- Treat this as bounded model correction, not constrained upstream decoding or
+  a guarantee that arbitrary malformed model output will always recover.
