@@ -254,7 +254,7 @@ func TestMissingOriginalToolItemCannotBeFabricatedFromOutputOnly(t *testing.T) {
 	source["tools"] = []any{object{"type": "function", "name": "get_weather"}}
 	source["input"] = []any{message("user", "weather"), object{"type": "function_call_output", "call_id": "call_missing", "output": "18 C"}}
 	raw, _ := json.Marshal(source)
-	if _, _, err := Prepare(raw, "account/key", new(ReplayCache)); err == nil || !strings.Contains(err.Error(), "original tool item is unavailable") {
+	if _, _, err := Prepare(raw, "account/key", new(ReplayCache)); err == nil || !strings.Contains(err.Error(), "original tool item is unavailable") || !strings.Contains(err.Error(), "path=input[1]") || !strings.Contains(err.Error(), "matching complete tool call") || strings.Contains(err.Error(), "call_missing") {
 		t.Fatalf("missing native identity must produce an actionable error: %v", err)
 	}
 }
