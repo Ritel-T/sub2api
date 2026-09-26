@@ -147,3 +147,41 @@ func TestExcelBPSToolCorrectionStopsOnHTTPRejection(t *testing.T) {
 		})
 	}
 }
+
+func TestExcelBPS429CorrectionDoesNotChangeCodexState(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprint(stream), func(t *testing.T) {
+			first := &excelBPSRepairBody{Reader: strings.NewReader(excelBPSRepairWire(t, "rate_limit", "Run"))}
+			rejected := &excelBPSRepairBody{Reader: strings.NewReader(`{"error":{"type":"usage_limit_reached","resets_in_seconds":7200,"message":"PRIVATE_UPSTREAM"}}`)}
+			upstream := &httpUpstreamRecorder{responses: []*http.Response{
+				{StatusCode: http.StatusOK, Header: http.Header{}, Body: first},
+				{StatusCode: http.StatusTooManyRequests, Header: excelBPSQuotaHeaders("100", "100"), Body: rejected},
+			}}
+			svc := openAIClientToolsTestService(upstream)
+			repo := &excelBPSQuotaRepo{writes: make(chan excelBPSQuotaWrite, 4)}
+			svc.accountRepo = repo
+			svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil, nil)
+			svc.rateLimitService.SetAccountRuntimeBlocker(svc)
+			account := excelAccount()
+			body := []byte(fmt.Sprintf(`{"model":"gpt-5.6-sol","stream":%t,"input":"test","tools":[{"type":"namespace","name":"functions","tools":[{"type":"custom","name":"exec"}]}]}`, stream))
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+
+			result, err := svc.Forward(context.Background(), c, account, body)
+
+			require.Error(t, err)
+			var failover *UpstreamFailoverError
+			require.NotErrorAs(t, err, &failover)
+			require.Len(t, upstream.requests, 2, "stop after the throttled correction")
+			require.True(t, first.closed.Load())
+			require.True(t, rejected.closed.Load())
+			require.Equal(t, 10, result.Usage.InputTokens)
+			require.NotContains(t, rec.Body.String(), "PRIVATE_UPSTREAM")
+			require.NotContains(t, rec.Body.String(), "response.output_item.added")
+			requireNoExcelBPSQuotaWrite(t, repo)
+			require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+			require.True(t, account.IsSchedulable())
+		})
+	}
+}

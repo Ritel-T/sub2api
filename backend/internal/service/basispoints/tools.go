@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 type tool struct {
@@ -16,19 +17,55 @@ type tool struct {
 	Parameters object
 }
 
+const (
+	replayCacheMaxEntries = 1024
+	replayCacheMaxBytes   = 16 << 20
+	replayCacheEntryBytes = 1 << 20
+	replayCacheIdleTTL    = 2 * time.Hour
+)
+
 type replayEntry struct {
 	key             string
 	raw             []byte
 	callFingerprint string
+	used            time.Time
+	weight          int
 }
 
 // ReplayCache retains native tool identities without mixing accounts or sessions.
 // Both entry count and bytes are bounded because tool arguments can be large.
+// Idle entries expire on the next cache operation. The byte budget includes
+// payloads, keys, signatures and estimated metadata; it is not an RSS limit.
 type ReplayCache struct {
 	mu      sync.Mutex
 	entries map[string]*list.Element
 	order   list.List
 	bytes   int
+	now     func() time.Time
+}
+
+func (c *ReplayCache) currentTime() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+
+func (c *ReplayCache) removeLocked(element *list.Element) {
+	entry, _ := element.Value.(replayEntry)
+	delete(c.entries, entry.key)
+	c.bytes -= entry.weight
+	c.order.Remove(element)
+}
+
+func (c *ReplayCache) expireLocked(now time.Time) {
+	for oldest := c.order.Front(); oldest != nil; oldest = c.order.Front() {
+		entry, _ := oldest.Value.(replayEntry)
+		if now.Sub(entry.used) < replayCacheIdleTTL {
+			return
+		}
+		c.removeLocked(oldest)
+	}
 }
 
 func (c *ReplayCache) put(scope, id string, item object, clientCall ...object) {
@@ -36,33 +73,31 @@ func (c *ReplayCache) put(scope, id string, item object, clientCall ...object) {
 		return
 	}
 	raw, err := json.Marshal(item)
-	if err != nil || len(raw) > 1<<20 {
-		return
+	var signature string
+	if err == nil && len(raw) <= replayCacheEntryBytes && len(clientCall) == 1 {
+		signature = historyCallFingerprint(clientCall[0])
 	}
+	key := scope + "\x00" + id
+	weight := len(raw) + len(key) + len(signature) + 128
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.entries == nil {
 		c.entries = make(map[string]*list.Element)
 	}
-	key := scope + "\x00" + id
+	now := c.currentTime()
+	c.expireLocked(now)
 	if old := c.entries[key]; old != nil {
-		// Only replayEntry values are inserted into this private list.
-		entry, _ := old.Value.(replayEntry)
-		c.bytes -= len(entry.raw)
-		c.order.Remove(old)
+		c.removeLocked(old)
 	}
-	var signature string
-	if len(clientCall) == 1 {
-		signature = historyCallFingerprint(clientCall[0])
+	// An uncacheable replacement must not leave an older native identity
+	// available to a later output-only replay with the same call ID.
+	if err != nil || len(raw) > replayCacheEntryBytes || weight > replayCacheMaxBytes {
+		return
 	}
-	c.entries[key] = c.order.PushBack(replayEntry{key: key, raw: raw, callFingerprint: signature})
-	c.bytes += len(raw)
-	for len(c.entries) > 1024 || c.bytes > 16<<20 {
-		old := c.order.Front()
-		entry, _ := old.Value.(replayEntry)
-		delete(c.entries, entry.key)
-		c.bytes -= len(entry.raw)
-		c.order.Remove(old)
+	c.entries[key] = c.order.PushBack(replayEntry{key: key, raw: raw, callFingerprint: signature, used: now, weight: weight})
+	c.bytes += weight
+	for len(c.entries) > replayCacheMaxEntries || c.bytes > replayCacheMaxBytes {
+		c.removeLocked(c.order.Front())
 	}
 }
 
@@ -124,16 +159,24 @@ func (c *ReplayCache) getMatching(scope, id, signature string, requireSignature 
 		return nil
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	now := c.currentTime()
+	c.expireLocked(now)
 	entry := c.entries[scope+"\x00"+id]
 	if entry == nil {
+		c.mu.Unlock()
 		return nil
 	}
 	cached, ok := entry.Value.(replayEntry)
 	if !ok || (requireSignature && cached.callFingerprint != signature) {
+		c.mu.Unlock()
 		return nil
 	}
+	cached.used = now
+	entry.Value = cached
 	c.order.MoveToBack(entry)
+	c.mu.Unlock()
+	// Stored JSON is immutable. Decode an independent caller-owned tree
+	// outside the global cache lock, including after eviction/replacement.
 	var item object
 	if decode(cached.raw, &item) != nil {
 		return nil
