@@ -61,6 +61,15 @@ type NativeImages struct {
 // PrepareNativeImages checks every inline image before any upload. Only typed
 // message/tool-output content is traversed; arbitrary tool arguments are opaque.
 func PrepareNativeImages(raw []byte) (*NativeImages, error) {
+	return PrepareNativeImagesWithLimit(raw, imageRelayMaxRequestImages)
+}
+
+// PrepareNativeImagesWithLimit is PrepareNativeImages with an administrator-
+// configurable per-request inline image limit.
+func PrepareNativeImagesWithLimit(raw []byte, maxImages int) (*NativeImages, error) {
+	if maxImages < 1 {
+		maxImages = imageRelayMaxRequestImages
+	}
 	var source object
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
@@ -98,10 +107,11 @@ func PrepareNativeImages(raw []byte) (*NativeImages, error) {
 			if _, exists := part["file_id"]; exists {
 				return nil, fmt.Errorf("basispoints input_image requires exactly one image reference")
 			}
-			if len(plan.parts) >= imageRelayMaxRequestImages {
-				return nil, fmt.Errorf("basispoints accepts at most 20 inline images per request")
+			if len(plan.parts) >= maxImages {
+				return nil, fmt.Errorf("basispoints accepts at most %d inline images per request", maxImages)
 			}
-			mimeType, payload, err := relayImagePayload(rawURL)
+			// Native uploads share the configured count limit; byte limits remain fixed.
+			mimeType, payload, err := relayImagePayload(rawURL, imageRelayMaxImageBytes>>20)
 			if err != nil {
 				return nil, err
 			}
