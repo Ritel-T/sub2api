@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/service/basispoints"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -151,7 +152,7 @@ func TestExcelBPSImageSettingsRejectInvalidUpdatesAtomically(t *testing.T) {
 		require.Equal(t, DefaultExcelBPSImageBodyLimitMiB, runtime.BodyLimitMiB)
 		require.Equal(t, DefaultExcelBPSImageBudgetMiB, runtime.BudgetMiB)
 		require.Equal(t, DefaultExcelBPSImageMaxRequests, runtime.MaxRequests)
-		require.Equal(t, DefaultExcelBPSImageMaxImages, runtime.MaxImages)
+		require.Equal(t, basispoints.DefaultImageRelayLimits().MaxImages, runtime.Limits.MaxImages)
 	}
 	for _, origin := range []string{"", "http://images.example", "https://images.example/v1", "https://user:secret@images.example", "https://images.example?token=secret"} {
 		err := settings.UpdateSettings(ctx, &SystemSettings{ExcelBPSImageRelayEnabled: true, ExcelBPSImageBaseURL: origin})

@@ -828,6 +828,8 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.get('#excel-bps-image-enabled').setValue(true);
     await wrapper.get('#excel-bps-image-mode').setValue('native');
     expect(wrapper.find('#excel-bps-image-base-url').exists()).toBe(false);
+    expect(wrapper.find('#excel-bps-image-max-images').exists()).toBe(true);
+    expect(wrapper.find('#excel-bps-image-storage-mib').exists()).toBe(false);
     await wrapper.find('form').trigger('submit.prevent');
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_image_mode: 'native', excel_bps_image_relay_enabled: true, excel_bps_image_base_url: '' });
@@ -838,6 +840,9 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
     expect((loaded.get('#excel-bps-image-mode').element as HTMLSelectElement).value).toBe('native');
     expect(loaded.find('#excel-bps-image-base-url').exists()).toBe(false);
+    expect(loaded.find('#excel-bps-image-max-images').exists()).toBe(true);
+    await loaded.get('#excel-bps-image-mode').setValue('relay');
+    expect(loaded.find('#excel-bps-image-max-images').exists()).toBe(true);
     loaded.unmount();
   });
 
