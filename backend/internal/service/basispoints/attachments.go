@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const AttachmentsURL = "https://bps.openai.com/basispoints/api/attachments"
@@ -201,18 +203,32 @@ func (c *AttachmentCache) clock() time.Time {
 }
 
 func (p *NativeImages) Upload(ctx context.Context, cache *AttachmentCache, scope string, upload AttachmentUpload) ([]byte, error) {
-	ids := make(map[[32]byte]string)
+	indexes := make(map[[32]byte]int)
+	var images []InlineAttachment
 	for _, part := range p.parts {
-		id := ids[part.image.digest]
-		if id == "" {
-			var err error
-			id, err = cache.get(ctx, scope, part.image, upload)
-			if err != nil {
-				return nil, err
-			}
-			ids[part.image.digest] = id
+		if _, exists := indexes[part.image.digest]; !exists {
+			indexes[part.image.digest] = len(images)
+			images = append(images, part.image)
 		}
-		part.part["file_id"] = id
+	}
+	ids := make([]string, len(images))
+	group, uploadCtx := errgroup.WithContext(ctx)
+	// Bound each request as well as the cache's shared 32-upload capacity.
+	group.SetLimit(4)
+	for index, img := range images {
+		group.Go(func() error {
+			id, err := cache.get(uploadCtx, scope, img, upload)
+			if err == nil {
+				ids[index] = id
+			}
+			return err
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+	for _, part := range p.parts {
+		part.part["file_id"] = ids[indexes[part.image.digest]]
 	}
 	return p.Body()
 }

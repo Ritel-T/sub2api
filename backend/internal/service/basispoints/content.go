@@ -1,6 +1,48 @@
 package basispoints
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+// Only protocol labels and root flags are logged, never message contents or identities.
+func historyContentError(err error, item object) error {
+	content, _ := item["content"].([]any)
+	labels := make([]string, 0, 8)
+	encrypted := false
+	for index, raw := range content {
+		part, _ := raw.(object)
+		kind := text(part["type"])
+		if kind == "encrypted_content" {
+			encrypted = true
+		}
+		if index >= 8 {
+			continue
+		}
+		switch kind {
+		case "input_text", "output_text", "text", "refusal", "input_image", "encrypted_content":
+			labels = append(labels, kind)
+		default:
+			labels = append(labels, contentTypeDiagnostic(part))
+		}
+	}
+	if !encrypted {
+		return err
+	}
+	kind := text(item["type"])
+	switch kind {
+	case "message", "agent_message", "function_call_output", "custom_tool_call_output":
+	case "":
+		kind = "unspecified"
+	default:
+		kind = "unknown"
+	}
+	isRoot := func(value any) bool {
+		return text(value) == "root" || text(value) == "/root"
+	}
+	return fmt.Errorf("%w (item_type=%s; author_is_root=%t; recipient_is_root=%t; content_parts=%d; content_types=%s)",
+		err, kind, isRoot(item["author"]), isRoot(item["recipient"]), len(content), strings.Join(labels, ","))
+}
 
 func validateHistoryContent(value any, inputIndex int, field string) error {
 	content, _ := value.([]any)

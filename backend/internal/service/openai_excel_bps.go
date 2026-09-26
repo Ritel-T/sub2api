@@ -210,15 +210,33 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 		return fail(400, "basispoints_account_id_missing", "Excel BPS requires chatgpt_account_id")
 	}
 	if images != nil && images.HasImages() {
+		uploadCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		if c.Request != nil {
+			stopClientCancel := context.AfterFunc(c.Request.Context(), cancel)
+			defer stopClientCancel()
+		}
+		ctx = uploadCtx
+		if stream {
+			if _, running := c.Get(openAICompactSSEKeepaliveKey); !running {
+				stop := startOpenAISSEKeepaliveWithCancel(c, 15*time.Second, cancel)
+				defer stop()
+			}
+		}
 		attachmentScope := ""
 		if identity != "" {
 			attachmentScope = scope + "\x00" + accountID + "\x00" + token
 		}
+		SetActualOpenAIUpstreamEndpoint(c, "/basispoints/api/attachments")
 		body, err = images.Upload(ctx, &s.excelBPSAttachments, attachmentScope, func(uploadCtx context.Context, img basispoints.InlineAttachment) (string, error) {
-			SetActualOpenAIUpstreamEndpoint(c, "/basispoints/api/attachments")
 			return s.uploadExcelBPSAttachment(uploadCtx, account, token, accountID, img)
 		})
 		if err != nil {
+			if ctx.Err() != nil {
+				StopOpenAICompactSSEKeepaliveCommitted(c)
+				MarkResponseCommitted(c)
+				return &OpenAIForwardResult{Model: originalModel, UpstreamModel: model, Stream: stream, ClientDisconnect: true, Duration: time.Since(start)}, ctx.Err()
+			}
 			status, code := http.StatusBadGateway, "basispoints_attachment_error"
 			var uploadError *excelBPSAttachmentError
 			if errors.As(err, &uploadError) {
@@ -230,8 +248,9 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 			if status == http.StatusTooManyRequests {
 				code = "basispoints_rate_limited"
 			}
-			setOpsUpstreamError(c, status, "Excel BPS attachment upload failed", "")
-			return fail(status, code, "Excel BPS attachment upload failed; request was not replayed and account scheduling was not changed")
+			message := fmt.Sprintf("Excel BPS attachment upload failed (reason=%s)", excelBPSAttachmentFailureKind(err))
+			setOpsUpstreamError(c, status, message, "")
+			return fail(status, code, message)
 		}
 		upstreamBody, bridge, err = basispoints.Prepare(body, scope, &excelBPSReplay)
 		if err != nil {
@@ -253,6 +272,11 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(sent).Milliseconds())
 	if err != nil {
+		if ctx.Err() != nil {
+			StopOpenAICompactSSEKeepaliveCommitted(c)
+			MarkResponseCommitted(c)
+			return &OpenAIForwardResult{Model: originalModel, UpstreamModel: model, Stream: stream, ClientDisconnect: true, Duration: time.Since(start)}, ctx.Err()
+		}
 		return fail(502, "basispoints_transport_error", "Excel BPS connection failed; request was not replayed")
 	}
 	defer func() { _ = resp.Body.Close() }()

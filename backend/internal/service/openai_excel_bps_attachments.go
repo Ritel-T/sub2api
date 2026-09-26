@@ -3,18 +3,54 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service/basispoints"
 )
 
-type excelBPSAttachmentError struct{ status int }
+type excelBPSAttachmentError struct {
+	status int
+	kind   string
+}
+
+func excelBPSAttachmentFailureKind(err error) string {
+	var attachment *excelBPSAttachmentError
+	if errors.As(err, &attachment) {
+		if attachment.kind != "" {
+			return attachment.kind
+		}
+		return "upstream_http"
+	}
+	if errors.Is(err, basispoints.ErrAttachmentBusy) {
+		return "upload_capacity"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "request_canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	return "invalid_attachment_response"
+}
 
 func (e *excelBPSAttachmentError) Error() string {
 	return fmt.Sprintf("excel BPS attachment returned HTTP %d", e.status)
+}
+
+func excelBPSAttachmentTransportError(err error) error {
+	kind := "transport_error"
+	var timeout net.Error
+	if errors.Is(err, context.Canceled) {
+		kind = "request_canceled"
+	} else if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &timeout) && timeout.Timeout()) {
+		kind = "timeout"
+	}
+	return &excelBPSAttachmentError{status: http.StatusBadGateway, kind: kind}
 }
 
 func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, account *Account, token, accountID string, img basispoints.InlineAttachment) (string, error) {
@@ -44,7 +80,7 @@ func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, acc
 	}
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
-		return "", fmt.Errorf("excel BPS attachment connection failed")
+		return "", excelBPSAttachmentTransportError(err)
 	}
 	// Release the account's upstream connection slot before starting Responses.
 	defer func() { _ = resp.Body.Close() }()
@@ -57,7 +93,10 @@ func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, acc
 		return "", &excelBPSAttachmentError{status: status}
 	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, (64<<10)+1))
-	if err != nil || len(raw) > 64<<10 {
+	if err != nil {
+		return "", excelBPSAttachmentTransportError(err)
+	}
+	if len(raw) > 64<<10 {
 		return "", fmt.Errorf("invalid Excel BPS attachment response")
 	}
 	var result struct {

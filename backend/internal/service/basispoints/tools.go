@@ -410,7 +410,7 @@ func (b *Bridge) translateHistory(input []any) ([]any, error) {
 			return nil, fmt.Errorf("basispoints does not support configuration_update; start a new request with the desired effort")
 		}
 		if err := validateHistoryContent(item["content"], index, "content"); err != nil {
-			return nil, err
+			return nil, historyContentError(err, item)
 		}
 		result = append(result, item)
 		if imageResult != nil {
