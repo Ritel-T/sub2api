@@ -2045,9 +2045,18 @@ func inferResponsesFailedOpsErrorType(code string) string {
 	}
 }
 
-func inferStreamFailureStatus(_ *gin.Context, parsed parsedOpsError) int {
+func inferStreamFailureStatus(c *gin.Context, parsed parsedOpsError) int {
 	if parsed.StatusCode >= 400 && parsed.StatusCode <= 599 {
 		return parsed.StatusCode
+	}
+	// A local SSE failure can retain its status after heartbeat headers commit.
+	// Match the terminal error so an earlier attempt cannot override it.
+	code, message := strings.TrimSpace(parsed.Code), strings.TrimSpace(parsed.Message)
+	if marker, ok := service.GetOpsStreamError(c); ok && code != "" && message != "" &&
+		marker.IntendedStatus >= 400 && marker.IntendedStatus <= 599 &&
+		(code == strings.TrimSpace(marker.Code) || code == strings.TrimSpace(marker.ErrType)) &&
+		message == strings.TrimSpace(marker.Message) {
+		return marker.IntendedStatus
 	}
 	switch strings.TrimSpace(parsed.Code) {
 	case "rate_limit_exceeded":
