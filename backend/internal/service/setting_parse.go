@@ -274,6 +274,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky:         "",
 
 		SettingKeyAllowUserViewErrorRequests: "false",
+		SettingKeyExcelBPSImageMode:          ExcelBPSImageModeRelay,
 		SettingKeyExcelBPSImageRelayEnabled:  "false",
 		SettingKeyExcelBPSImageBaseURL:       "",
 
@@ -1051,6 +1052,10 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.RequestCaptureRetentionDays, _ = strconv.Atoi(settings[SettingKeyRequestCaptureRetentionDays])
 	if result.RequestCaptureRetentionDays < 1 || result.RequestCaptureRetentionDays > 30 {
 		result.RequestCaptureRetentionDays = 7
+	}
+	result.ExcelBPSImageMode = settings[SettingKeyExcelBPSImageMode]
+	if result.ExcelBPSImageMode == "" {
+		result.ExcelBPSImageMode = ExcelBPSImageModeRelay
 	}
 	result.ExcelBPSImageRelayEnabled = settings[SettingKeyExcelBPSImageRelayEnabled] == "true"
 	result.ExcelBPSImageBaseURL = settings[SettingKeyExcelBPSImageBaseURL]
