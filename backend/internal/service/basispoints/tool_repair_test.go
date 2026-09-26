@@ -134,7 +134,7 @@ func TestToolRepairBoundsAttemptsAndPreservesFailureUsage(t *testing.T) {
 				if success && calls == 2 {
 					summary = "codex2api.custom/functions.exec"
 				}
-				return repairResponse(fmt.Sprintf("resp_%d", calls), 20, 3, repairCall(fmt.Sprintf("retry_%d", calls), summary, "text(1)")), nil
+				return repairResponse(fmt.Sprintf("resp_%d", calls), 20, 3, repairCall(fmt.Sprintf("retry_%d", calls), summary, fmt.Sprintf("text(%d)", calls+1))), nil
 			})
 			events := repairEvents(t, stream)
 			require.Equal(t, 2, calls)
@@ -142,6 +142,8 @@ func TestToolRepairBoundsAttemptsAndPreservesFailureUsage(t *testing.T) {
 			response := repairValue[object](t, last["response"])
 			if success {
 				require.Equal(t, "response.completed", last["type"])
+				output := repairValue[[]any](t, response["output"])
+				require.Equal(t, "text(1)", repairValue[object](t, output[0])["input"], "retain the initial source across both corrections")
 			} else {
 				require.Equal(t, "response.failed", last["type"])
 				require.Len(t, events, 1)
@@ -202,15 +204,81 @@ func TestToolRepairDoesNotRetryOtherFailures(t *testing.T) {
 	}
 }
 
+func TestToolRepairRestoresOriginalRawPayload(t *testing.T) {
+	for _, tc := range []struct {
+		name, code   string
+		functionCode bool
+	}{
+		{name: "patch", code: "*** Begin Patch\n*** Update File: sample.tex\n@@\n-($x,y)\n+(x,y)\n*** End Patch"},
+		{name: "javascript", code: "text(1)"},
+		{name: "raw_json", code: "{\"payload\":1}"},
+		{name: "function_code", code: "const price = '$1';\ntext(price);", functionCode: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			code := tc.code
+			cache := new(ReplayCache)
+			source := testSource()
+			definition := object{"type": "custom", "name": "apply_patch"}
+			marker := customTransportPrefix + "apply_patch"
+			if tc.functionCode {
+				definition = object{"type": "function", "name": "run_script", "parameters": object{"type": "object", "properties": object{"code": object{"type": "string"}, "timeout_ms": object{"type": "integer"}}}}
+				marker = functionCodeTransportPrefix + "run_script"
+			}
+			source["tools"] = []any{definition}
+			_, bridge := mustPrepare(t, source, "repair-scope", cache)
+			initial := repairResponse("resp_original", 10, 2, repairCall("bad", "Run", code))
+			corrected := repairCall("fixed", marker, strings.ReplaceAll(code, "$", "")+"\n")
+			if tc.functionCode {
+				args := transportArguments(corrected)
+				args["extended_summary"] = "{\"timeout_ms\":1500}"
+				encoded, err := json.Marshal(args)
+				require.NoError(t, err)
+				corrected["arguments"] = string(encoded)
+			}
+			modelArguments := corrected["arguments"]
+			body := bridge.StreamWithToolRepair(context.Background(), io.NopCloser(strings.NewReader(sse(object{"type": "response.completed", "response": initial}))), func(context.Context, object, error) (object, error) {
+				return repairResponse("resp_fixed", 20, 3, corrected), nil
+			})
+			events := repairEvents(t, body)
+			last := events[len(events)-1]
+			require.Equal(t, "response.completed", last["type"])
+			response := repairValue[object](t, last["response"])
+			output := repairValue[[]any](t, response["output"])
+			require.Len(t, output, 1)
+			call := repairValue[object](t, output[0])
+			if tc.functionCode {
+				var args object
+				require.NoError(t, decode([]byte(text(call["arguments"])), &args))
+				require.Equal(t, code, args["code"])
+				require.Equal(t, json.Number("1500"), args["timeout_ms"])
+			} else {
+				require.Equal(t, code, call["input"])
+			}
+			require.Equal(t, "fixed", call["call_id"])
+			require.Equal(t, code, transportArguments(cache.get("repair-scope", "fixed"))["code"])
+			require.Equal(t, modelArguments, corrected["arguments"], "leave the model response untouched")
+			require.Nil(t, cache.get("repair-scope", "bad"))
+			source["input"] = []any{call, object{"type": text(call["type"]) + "_output", "call_id": "fixed", "output": "done"}}
+			prepared, _ := mustPrepare(t, source, "repair-scope", cache)
+			found := false
+			for _, raw := range repairValue[[]any](t, prepared["input"]) {
+				item := repairValue[object](t, raw)
+				if text(item["call_id"]) == "fixed" && text(item["type"]) == "function_call" {
+					found = true
+					require.Equal(t, code, transportArguments(item)["code"])
+				}
+			}
+			require.True(t, found, "next request must replay the dispatched source text")
+		})
+	}
+}
+
 func TestToolRepairRejectsChangedBatchAndOperations(t *testing.T) {
-	for _, change := range []string{"extra_tool", "text_only", "raw_code", "valid_operation", "explicit_target", "raw_json"} {
+	for _, change := range []string{"extra_tool", "text_only", "unmarked_raw_code", "valid_operation", "valid_custom_operation", "explicit_target", "oversized_raw_code"} {
 		t.Run(change, func(t *testing.T) {
 			cache := new(ReplayCache)
 			_, bridge := repairBridge(t, cache)
 			code := "text(1)"
-			if change == "raw_json" {
-				code = `{"payload":1}`
-			}
 			original := []any{repairCall("bad", "Run", code)}
 			corrected := []any{repairCall("fixed", "codex2api.custom/functions.exec", code)}
 			switch change {
@@ -218,13 +286,18 @@ func TestToolRepairRejectsChangedBatchAndOperations(t *testing.T) {
 				corrected = append(corrected, repairCall("extra", "codex2api.custom/functions.exec", code))
 			case "text_only":
 				corrected = nil
-			case "raw_code", "raw_json":
-				corrected = []any{repairCall("fixed", "codex2api.custom/functions.exec", "text(2)")}
+			case "unmarked_raw_code":
+				corrected = []any{nativeCall(object{"name": "functions.exec", "input": "text(2)"})}
 			case "valid_operation":
 				original = append(original, nativeCall(object{"name": "shell", "arguments": object{"cmd": "pwd"}}))
 				corrected = append(corrected, nativeCall(object{"name": "shell", "arguments": object{"cmd": "ls"}}))
+			case "valid_custom_operation":
+				original = append(original, repairCall("valid", customTransportPrefix+"functions.exec", "text(1)"))
+				corrected = append(corrected, repairCall("fixed_valid", customTransportPrefix+"functions.exec", "text(2)"))
 			case "explicit_target":
 				original = []any{nativeCall(object{"name": "shell", "arguments": 42})}
+			case "oversized_raw_code":
+				original = []any{repairCall("bad", "Run", strings.Repeat("x", maxEnvelopeBytes+1))}
 			}
 			calls := 0
 			initial := repairResponse("resp", 10, 2, original...)

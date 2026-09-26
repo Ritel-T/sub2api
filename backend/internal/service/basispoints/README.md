@@ -49,7 +49,13 @@ the final response locally. This does not provide upstream constrained decoding.
   proxy and scoped conversation, with at most two corrective model requests.
 - Preserve intended operations and call order. Require the corrected batch to
   have the same number of calls and pass the current catalog's transport checks.
-  Reject changes to previously valid operations or to unframed raw code.
+  Reject changes to previously valid operations. For an invalid raw call corrected
+  to an explicit CUSTOM or FUNCTION_CODE transport, bind its code field to the
+  original bytes before checking the operation and size limits. Never dispatch
+  source text rewritten by the correction model, including whitespace changes.
+  Store the bound native call in replay history so later turns see the exact
+  operation dispatched to the client. Do not bind named JSON envelopes or infer
+  targets from source text; retain the explicit target and whole-batch checks.
   Keep ordinary text incremental and retain its original response identity and
   output indexes. Hide intermediate correction text and native tool events.
 - Release the preceding response body before a correction request so accounts

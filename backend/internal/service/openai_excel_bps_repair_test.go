@@ -40,9 +40,9 @@ func (u *excelBPSRepairUpstream) Do(req *http.Request, proxy string, accountID i
 	return u.httpUpstreamRecorder.Do(req, proxy, accountID, concurrency)
 }
 
-func excelBPSRepairWire(t *testing.T, id, summary string) string {
+func excelBPSRepairWire(t *testing.T, id, summary, code string) string {
 	t.Helper()
-	args, err := json.Marshal(map[string]any{"summary": summary, "code": "text(42);", "extended_summary": "{}", "references": []any{}, "destructive": false})
+	args, err := json.Marshal(map[string]any{"summary": summary, "code": code, "extended_summary": "{}", "references": []any{}, "destructive": false})
 	require.NoError(t, err)
 	event, err := json.Marshal(map[string]any{"type": "response.completed", "response": map[string]any{
 		"id": "resp_" + id, "status": "completed", "model": "gpt-5.6-sol", "usage": map[string]int{"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
@@ -65,10 +65,12 @@ func TestExcelBPSToolCorrectionPreservesRouteAndUsage(t *testing.T) {
 				}
 				for i := 0; i < attempts; i++ {
 					summary := "Run client tool"
+					code := "text(42);"
 					if corrected && i == attempts-1 {
 						summary = "codex2api.custom/functions.exec"
+						code = "text(24);"
 					}
-					body := &excelBPSRepairBody{Reader: strings.NewReader(excelBPSRepairWire(t, fmt.Sprint(i), summary))}
+					body := &excelBPSRepairBody{Reader: strings.NewReader(excelBPSRepairWire(t, fmt.Sprint(i), summary, code))}
 					checked.bodies = append(checked.bodies, body)
 					upstream.responses = append(upstream.responses, &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: body})
 				}
@@ -85,6 +87,7 @@ func TestExcelBPSToolCorrectionPreservesRouteAndUsage(t *testing.T) {
 					require.NoError(t, err)
 					require.NotContains(t, rec.Body.String(), "response.failed")
 					require.Contains(t, rec.Body.String(), `"input":"text(42);"`)
+					require.NotContains(t, rec.Body.String(), "text(24);")
 					require.Contains(t, rec.Body.String(), `"name":"exec"`)
 					if stream {
 						require.Equal(t, 1, strings.Count(rec.Body.String(), "event: response.output_item.added"))
@@ -124,7 +127,7 @@ func TestExcelBPSToolCorrectionPreservesRouteAndUsage(t *testing.T) {
 func TestExcelBPSToolCorrectionStopsOnHTTPRejection(t *testing.T) {
 	for _, status := range []int{403, 429, 500} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
-			first := &excelBPSRepairBody{Reader: strings.NewReader(excelBPSRepairWire(t, "http_rejection", "Run"))}
+			first := &excelBPSRepairBody{Reader: strings.NewReader(excelBPSRepairWire(t, "http_rejection", "Run", "text(42);"))}
 			rejected := &excelBPSRepairBody{Reader: strings.NewReader(`{"error":{"message":"private echoed request text"}}`)}
 			upstream := &httpUpstreamRecorder{responses: []*http.Response{
 				{StatusCode: 200, Header: http.Header{}, Body: first},
