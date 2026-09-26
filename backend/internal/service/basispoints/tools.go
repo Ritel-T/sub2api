@@ -499,6 +499,9 @@ func (b *Bridge) translateDirectCatalogCall(native object) (object, error) {
 	if !ok {
 		return nil, fmt.Errorf("basispoints returned an unsupported native tool; no tool was executed")
 	}
+	if err := validateCollaborationEncryption(native, info); err != nil {
+		return nil, err
+	}
 	kind := text(native["type"])
 	var envelope object
 	switch info.Kind {
