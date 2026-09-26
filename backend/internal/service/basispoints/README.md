@@ -19,3 +19,22 @@ the final response locally. This does not provide upstream constrained decoding.
 - Resolve schema references inside the submitted document only. Never fetch
   remote schemas or read local files. Limit schemas to 1 MiB and answer text to
   16 MiB, subject to the existing SSE event limit.
+
+# Tool history and input boundaries
+
+- Rebuild complete CUSTOM calls using their current catalog's exact
+  `codex2api.custom/NAME` marker and raw input. Preserve cached native calls
+  verbatim. Retain unavailable historical tools as recorded history; never
+  infer a new tool target from executable text.
+- Require a matching complete call or scoped replay-cache entry for each tool
+  result. Report the input path when neither is available. Do not invent calls
+  or discard their results.
+- Reject encrypted message parts with an `encrypted_content` diagnostic and
+  input path. Do not reinterpret ciphertext as plaintext. Top-level encrypted
+  reasoning items retain their existing handling.
+- Preserve `detail: original` on HTTPS images and inline images rewritten by
+  the relay. Let the upstream model validate its supported detail levels; do
+  not silently downgrade the requested detail.
+- Enforce the existing 20-inline-image and 32 MiB per-request relay limits.
+  A relay capacity error and an upstream overload are separate from a tool
+  protocol error; HTTP 200 alone does not establish a successful SSE terminal.

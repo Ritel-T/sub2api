@@ -268,6 +268,16 @@ func (b *Bridge) rebuildNativeHistoryCall(item object) (object, error) {
 		"extended_summary": "The supplied client history contains this tool call; consume its recorded result without repeating it.",
 		"destructive":      false, "references": []any{},
 	}
+	// Rebuilt calls are examples for subsequent model turns. Use the same raw
+	// transport advertised by today's catalog instead of teaching CUSTOM tools
+	// to use the ordinary FUNCTION envelope. Cached native calls stay verbatim.
+	if info, ok := b.tools[name]; ok && info.Kind == "custom" && text(item["type"]) == "custom_tool_call" {
+		outer["summary"] = customTransportPrefix + name
+		outer["code"] = envelope["input"]
+		if _, _, err := customTransportEnvelope(outer); err != nil {
+			return nil, err
+		}
+	}
 	if info, ok := b.tools[name]; ok && text(item["type"]) == "function_call" && supportsFunctionCodeTransport(name, info.Kind, info.Parameters) {
 		args, _ := envelope["arguments"].(object)
 		if _, hasCode := args["code"].(string); hasCode {
@@ -332,7 +342,7 @@ func (b *Bridge) translateHistory(input []any) ([]any, error) {
 			if !seenCalls[id] {
 				native := b.replay.get(b.scope, id)
 				if native == nil {
-					return nil, fmt.Errorf("basispoints original tool item is unavailable for this tool result; start a new conversation")
+					return nil, fmt.Errorf("basispoints original tool item is unavailable for this tool result (path=input[%d]); resend the matching complete tool call with its result, or start a new conversation", index)
 				}
 				result = append(result, native)
 				seenCalls[id] = true
@@ -398,6 +408,8 @@ func (b *Bridge) translateCall(native object) (object, error) {
 		if err != nil {
 			if recovered, ok := recoverTransportEnvelope(arguments["code"], b.tools); ok {
 				envelope, err = recovered, nil
+			} else {
+				err = fmt.Errorf("%w; raw CUSTOM input requires summary=codex2api.custom/CATALOG_NAME; raw FUNCTION_CODE requires summary=codex2api.function_code/CATALOG_NAME for an eligible catalog function", err)
 			}
 		}
 	}

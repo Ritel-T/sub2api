@@ -24,9 +24,9 @@ func validateImage(part object) error {
 	}
 	if detail, exists := part["detail"]; exists && detail != nil {
 		switch text(detail) {
-		case "auto", "low", "high":
+		case "auto", "low", "high", "original":
 		default:
-			return fmt.Errorf("basispoints image detail must be auto, low or high")
+			return fmt.Errorf("basispoints image detail must be auto, low, high or original")
 		}
 	}
 	return nil
