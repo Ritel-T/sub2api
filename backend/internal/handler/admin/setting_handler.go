@@ -266,6 +266,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		RiskControlEnabled:                                     settings.RiskControlEnabled,
 		CyberSessionBlockEnabled:                               settings.CyberSessionBlockEnabled,
 		CyberSessionBlockTTLSeconds:                            settings.CyberSessionBlockTTLSeconds,
+		CyberSessionIdentityStrictEnabled:                      settings.CyberSessionIdentityStrictEnabled,
 		AffiliateRebateRate:                                    settings.AffiliateRebateRate,
 		AffiliateRebateFreezeHours:                             settings.AffiliateRebateFreezeHours,
 		AffiliateRebateDurationDays:                            settings.AffiliateRebateDurationDays,
@@ -303,6 +304,15 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpenAICodexClientVersion:                               settings.OpenAICodexClientVersion,
 		OpenAICodexClientVersionSynced:                         settings.OpenAICodexClientVersionSynced,
 		OpenAICodexVersionAutoSyncEnabled:                      settings.OpenAICodexVersionAutoSyncEnabled,
+		OpenAICodexTicketEnabled:                               settings.OpenAICodexTicketEnabled,
+		OpenAICodexTicketHarvestProxyURL:                       service.MaskProxyURL(settings.OpenAICodexTicketHarvestProxyURL),
+		OpenAICodexTicketStaticProxyURL:                        service.MaskProxyURL(settings.OpenAICodexTicketStaticProxyURL),
+		OpenAICodexTicketHarvestScope:                          settings.OpenAICodexTicketHarvestScope,
+		OpenAICodexTicketStrategy:                              settings.OpenAICodexTicketStrategy,
+		OpenAICodexTicketStrictResponse:                        settings.OpenAICodexTicketStrictResponse,
+		OpenAICodexTicketFailClosed:                            settings.OpenAICodexTicketFailClosed,
+		OpenAICodexTicketHarvestProxyConfigured:                strings.TrimSpace(settings.OpenAICodexTicketHarvestProxyURL) != "",
+		OpenAICodexTicketModels:                                settings.OpenAICodexTicketModels,
 		ClaudeCodeClientVersion:                                settings.ClaudeCodeClientVersion,
 		ClaudeCodeClientVersionSynced:                          settings.ClaudeCodeClientVersionSynced,
 		ClaudeCodeVersionAutoSyncEnabled:                       settings.ClaudeCodeVersionAutoSyncEnabled,
@@ -386,6 +396,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		GrokDefaultBaseURLMode:         settings.GrokDefaultBaseURLMode,
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
+		PelicanShowcaseEnabled:   settings.PelicanShowcaseEnabled,
+		PelicanShowcase:          settings.PelicanShowcase,
 		SubscriptionEnabled:      settings.SubscriptionEnabled,
 
 		ModelPlazaEnabled:       settings.ModelPlazaEnabled,
@@ -397,6 +409,16 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 
 		AccountSchedulingThresholds: settings.AccountSchedulingThresholds,
 		AllowUserViewErrorRequests:  settings.AllowUserViewErrorRequests,
+		UsageShowLongContextBadge:   settings.UsageShowLongContextBadge,
+		RequestCaptureEnabled:       settings.RequestCaptureEnabled,
+		RequestCaptureQuotaMiB:      settings.RequestCaptureQuotaMiB,
+		RequestCaptureRetentionDays: settings.RequestCaptureRetentionDays,
+		ExcelBPSImageMode:           settings.ExcelBPSImageMode,
+		ExcelBPSImageRelayEnabled:   settings.ExcelBPSImageRelayEnabled,
+		ExcelBPSImageBaseURL:        settings.ExcelBPSImageBaseURL,
+		ExcelBPSImageBodyLimitMiB:   settings.ExcelBPSImageBodyLimitMiB,
+		ExcelBPSImageBudgetMiB:      settings.ExcelBPSImageBudgetMiB,
+		ExcelBPSImageMaxRequests:    settings.ExcelBPSImageMaxRequests,
 	}
 
 	// OpenAI fast policy (stored under a dedicated setting key)

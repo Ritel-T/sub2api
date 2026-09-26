@@ -141,7 +141,10 @@ docs/*
 !docs/COMPOSITE_GROUPS.md
 !docs/PLUGIN_DEVELOPMENT.md
 !docs/channel-monitor-v2-safe-defaults.md
+!docs/cyber-session-blocking.md
+!docs/request-capture.md
 !docs/codex-credits.md
+!docs/account-token-guard.md
 !docs/legal/
 !docs/legal/*.md
 !docs/screenshots/
@@ -161,3 +164,5 @@ issues/
 .vite/
 # 本地闭源插件开发目录及构建产物不进入 Sub2API 仓库
 /plugins/
+
+!docs/codex-ticket-pinning.md

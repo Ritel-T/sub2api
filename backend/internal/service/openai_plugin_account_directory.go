@@ -111,6 +111,12 @@ func accountReadableSnapshotJSON(account *Account) []byte {
 	clone.Credentials = nil
 	clone.Groups = nil
 	clone.AccountGroups = nil
+	clone.Extra = make(map[string]any, len(account.Extra))
+	for key, value := range account.Extra {
+		if !IsOpenAICodexTicketPrivateExtraKey(key) {
+			clone.Extra[key] = value
+		}
+	}
 	data, err := json.Marshal(&clone)
 	if err != nil {
 		return nil
