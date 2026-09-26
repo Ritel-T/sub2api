@@ -354,6 +354,7 @@ func (b *Bridge) translateHistory(input []any) ([]any, error) {
 			return nil, fmt.Errorf("invalid Basispoints input item")
 		}
 		delete(item, "internal_chat_message_metadata_passthrough")
+		var imageResult object
 		switch text(item["type"]) {
 		case "additional_tools":
 			continue
@@ -404,6 +405,7 @@ func (b *Bridge) translateHistory(input []any) ([]any, error) {
 				itemID = "fc_" + fingerprint(itemID)
 			}
 			item["id"] = itemID
+			imageResult = nativeToolImageMessage(item)
 		case "configuration_update":
 			return nil, fmt.Errorf("basispoints does not support configuration_update; start a new request with the desired effort")
 		}
@@ -411,6 +413,9 @@ func (b *Bridge) translateHistory(input []any) ([]any, error) {
 			return nil, err
 		}
 		result = append(result, item)
+		if imageResult != nil {
+			result = append(result, imageResult)
+		}
 	}
 	if trigger != nil {
 		result = append(result, trigger)
