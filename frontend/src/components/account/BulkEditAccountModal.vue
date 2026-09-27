@@ -68,6 +68,85 @@
               <p class="input-hint">{{ t('admin.accounts.openai.excelBPSModelsHint') }}</p>
             </div>
             <p class="text-xs text-amber-600 dark:text-amber-400">{{ t('admin.accounts.openai.excelBPSNotice') }}</p>
+            <div class="mt-3">
+              <label class="flex items-center gap-2">
+                <input v-model="excelBPSOmitUnsupportedTools" type="checkbox"
+                  data-testid="bulk-excel-bps-omit-unsupported-tools"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+                <span class="text-sm">{{ t('admin.accounts.openai.excelBPSOmitUnsupportedTools') }}</span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSOmitUnsupportedToolsDesc') }}</p>
+            </div>
+            <div class="mt-3">
+              <label class="flex items-center gap-2">
+                <input v-model="excelBPSIgnoreImages" type="checkbox"
+                  data-testid="bulk-excel-bps-ignore-images"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+                <span class="text-sm">{{ t('admin.accounts.openai.excelBPSIgnoreImages') }}</span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSIgnoreImagesDesc') }}</p>
+            </div>
+            <div class="mt-3">
+              <label class="flex items-center gap-2">
+                <input v-model="excelBPSIgnoreEncryptedContent" type="checkbox"
+                  data-testid="bulk-excel-bps-ignore-encrypted-content"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+                <span class="text-sm">{{ t('admin.accounts.openai.excelBPSIgnoreEncryptedContent') }}</span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSIgnoreEncryptedContentDesc') }}</p>
+            </div>
+            <div class="mt-3">
+              <label class="flex items-center gap-2">
+                <input v-model="excelBPSAutoDisableOn403" type="checkbox"
+                  data-testid="bulk-excel-bps-auto-disable-on-403"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+                <span class="text-sm">{{ t('admin.accounts.openai.excelBPSAutoDisableOn403') }}</span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoDisableOn403Desc') }}</p>
+            </div>
+            <div class="mt-3">
+              <label class="flex items-center gap-2">
+                <input v-model="excelBPSAutoMoveOn403" type="checkbox"
+                  data-testid="bulk-excel-bps-auto-move-on-403"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+                <span class="text-sm">{{ t('admin.accounts.openai.excelBPSAutoMoveOn403') }}</span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoMoveOn403Desc') }}</p>
+              <div v-if="excelBPSAutoMoveOn403" class="mt-2">
+                <label class="input-label">{{ t('admin.accounts.openai.excelBPS403TargetGroup') }}</label>
+                <Select v-model="excelBPS403TargetGroupID" :options="excelBPS403GroupOptions"
+                  :aria-label="t('admin.accounts.openai.excelBPS403TargetGroup')"
+                  data-testid="bulk-excel-bps-403-target-group" />
+              </div>
+            </div>
+            <div class="mt-3">
+              <label class="flex items-center gap-2">
+                <input v-model="excelBPSMihomo" type="checkbox" data-testid="excel-bps-mihomo"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+                <span class="text-sm">{{ t('admin.accounts.openai.excelBPSMihomo') }}</span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSMihomoDesc') }}</p>
+              <div v-if="excelBPSMihomo" class="mt-2 flex flex-wrap items-center gap-4" role="radiogroup"
+                :aria-label="t('admin.accounts.openai.excelBPSProxySource')">
+                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSProxySource') }}</span>
+                <label class="flex items-center gap-1.5 text-sm">
+                  <input v-model="excelBPSProxySource" type="radio" value="mihomo"
+                    data-testid="bulk-excel-bps-proxy-source-mihomo"
+                    class="h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+                  {{ t('admin.accounts.openai.excelBPSProxySourceMihomo') }}
+                </label>
+                <label class="flex items-center gap-1.5 text-sm">
+                  <input v-model="excelBPSProxySource" type="radio" value="ip_pool"
+                    data-testid="bulk-excel-bps-proxy-source-ip-pool"
+                    class="h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+                  {{ t('admin.accounts.openai.excelBPSProxySourceIPPool') }}
+                </label>
+              </div>
+              <p v-if="excelBPSMihomo && excelBPSProxySource === 'ip_pool'"
+                class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.openai.excelBPSProxySourceIPPoolDesc') }}
+              </p>
+            </div>
             <div>
               <label class="flex items-center gap-2">
                 <input v-model="excelBPSCacheCreationAsInput" type="checkbox"
@@ -1536,7 +1615,9 @@
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
+import { DEFAULT_EXCEL_BPS_MODELS } from '@/constants/account'
 import type {
   Proxy as ProxyConfig,
   AdminGroup,
@@ -1600,6 +1681,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const authStore = useAuthStore()
 
 // Platform awareness
 const targetMode = computed(() => props.target?.mode ?? 'selected')
@@ -1757,8 +1839,23 @@ const status = ref<'active' | 'inactive'>('active')
 const groupIds = ref<number[]>([])
 const excelBPSEnabled = ref(false)
 const excelBPSAllModels = ref(false)
-const excelBPSModels = ref<string[]>(['gpt-6-astra'])
+const excelBPSModels = ref<string[]>([...DEFAULT_EXCEL_BPS_MODELS])
+const excelBPSMihomo = ref(false)
+const excelBPSProxySource = ref<'mihomo' | 'ip_pool'>('mihomo')
 const excelBPSCacheCreationAsInput = ref(false)
+const excelBPSAutoDisableOn403 = ref(false)
+const excelBPSOmitUnsupportedTools = ref(false)
+const excelBPSIgnoreImages = ref(false)
+const excelBPSIgnoreEncryptedContent = ref(false)
+const excelBPSAutoMoveOn403 = ref(false)
+const excelBPS403TargetGroupID = ref<number | string>('')
+const excelBPS403GroupOptions = computed(() => [
+  { value: '', label: t('admin.accounts.openai.excelBPS403SelectTarget') },
+  { value: 0, label: t('admin.accounts.openai.excelBPS403LeaveAllGroups') },
+  ...props.groups
+    .filter(group => group.platform === 'openai' || (!authStore.isSimpleMode && group.platform === 'composite'))
+    .map(group => ({ value: group.id, label: group.name }))
+])
 const openaiPassthroughEnabled = ref(false)
 // Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
@@ -2053,8 +2150,20 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     extra.openai_excel_bps_models = excelBPSEnabled.value && !excelBPSAllModels.value
       ? [...new Set(excelBPSModels.value.map(model => model.trim()).filter(Boolean))]
       : null
+    extra.openai_excel_bps_mihomo = excelBPSEnabled.value && excelBPSMihomo.value
+    extra.openai_excel_bps_proxy_source = excelBPSEnabled.value && excelBPSMihomo.value
+      ? excelBPSProxySource.value
+      : 'mihomo'
     extra.openai_excel_bps_cache_creation_as_input =
       excelBPSEnabled.value && excelBPSCacheCreationAsInput.value
+    extra.openai_excel_bps_auto_disable_on_403 = excelBPSEnabled.value && excelBPSAutoDisableOn403.value
+    extra.openai_excel_bps_omit_unsupported_tools = excelBPSEnabled.value && excelBPSOmitUnsupportedTools.value
+    extra.openai_excel_bps_ignore_images = excelBPSEnabled.value && excelBPSIgnoreImages.value
+    extra.openai_excel_bps_ignore_encrypted_content = excelBPSEnabled.value && excelBPSIgnoreEncryptedContent.value
+    extra.openai_excel_bps_auto_move_on_403 = excelBPSEnabled.value && excelBPSAutoMoveOn403.value
+    extra.openai_excel_bps_403_target_group_id = excelBPSEnabled.value && excelBPSAutoMoveOn403.value
+      ? Number(excelBPS403TargetGroupID.value)
+      : null
   }
 
   if (enableOpenAIPassthrough.value) {
@@ -2317,6 +2426,15 @@ const handleSubmit = async () => {
     return
   }
 
+  if (enableExcelBPS.value && allOpenAIOAuthOnly.value && excelBPSEnabled.value && excelBPSAutoMoveOn403.value) {
+    const target = Number(excelBPS403TargetGroupID.value)
+    if (excelBPS403TargetGroupID.value === '' || !Number.isSafeInteger(target) || target < 0 ||
+      !excelBPS403GroupOptions.value.some(option => option.value === target)) {
+      appStore.showError(t('admin.accounts.openai.excelBPS403SelectTarget'))
+      return
+    }
+  }
+
   // base_url 现在也会作用于 Grok OAuth 订阅账号的转发端点；坏值会让请求期
   // 校验失败、账号请求全挂，因此保存前强制格式校验（与单账号编辑一致）。
   if (enableBaseUrl.value) {
@@ -2468,8 +2586,16 @@ watch(
       baseUrl.value = ''
       excelBPSEnabled.value = false
       excelBPSAllModels.value = false
-      excelBPSModels.value = ['gpt-6-astra']
+      excelBPSModels.value = [...DEFAULT_EXCEL_BPS_MODELS]
+      excelBPSMihomo.value = false
+      excelBPSProxySource.value = 'mihomo'
       excelBPSCacheCreationAsInput.value = false
+      excelBPSAutoDisableOn403.value = false
+      excelBPSOmitUnsupportedTools.value = false
+      excelBPSIgnoreImages.value = false
+      excelBPSIgnoreEncryptedContent.value = false
+      excelBPSAutoMoveOn403.value = false
+      excelBPS403TargetGroupID.value = ''
       openaiPassthroughEnabled.value = false
       openaiFlattenNamespacesEnabled.value = false
       openAILongContextBillingEnabled.value = false

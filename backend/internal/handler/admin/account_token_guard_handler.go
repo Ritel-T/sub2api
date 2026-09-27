@@ -54,6 +54,34 @@ func (h *AccountTokenGuardHandler) Run(c *gin.Context) {
 	response.Success(c, stats)
 }
 
+// StartRun 接受后台巡检并立即返回。保留 Run 以兼容旧客户端。
+func (h *AccountTokenGuardHandler) StartRun(c *gin.Context) {
+	job, err := h.svc.StartRun(true)
+	if err != nil && job == nil {
+		response.Error(c, http.StatusServiceUnavailable, "巡检任务创建失败: "+err.Error())
+		return
+	}
+	response.Accepted(c, job)
+}
+
+func (h *AccountTokenGuardHandler) Job(c *gin.Context) {
+	job, ok := h.svc.Job(c.Param("id"))
+	if !ok {
+		response.NotFound(c, "巡检任务不存在")
+		return
+	}
+	response.Success(c, job)
+}
+
+func (h *AccountTokenGuardHandler) Cancel(c *gin.Context) {
+	job, err := h.svc.CancelRun(c.Param("id"))
+	if err != nil {
+		response.NotFound(c, err.Error())
+		return
+	}
+	response.Success(c, job)
+}
+
 func (h *AccountTokenGuardHandler) Events(c *gin.Context) {
 	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	if err != nil || offset < 0 {
@@ -94,4 +122,40 @@ func (h *AccountTokenGuardHandler) Relogin(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"account_id": accountID, "action": action})
+}
+
+func (h *AccountTokenGuardHandler) StartTwoFALogin(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var entry service.AccountTokenGuardReloginAccount
+	if err := c.ShouldBindJSON(&entry); err != nil {
+		response.BadRequest(c, "登录凭据格式不正确")
+		return
+	}
+	if err := service.ValidateOpenAITwoFALogin(entry); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	job, err := h.svc.StartTwoFALogin(c.Request.Context(), entry)
+	if err != nil {
+		response.Error(c, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	response.Accepted(c, job)
+}
+
+func (h *AccountTokenGuardHandler) TwoFALogin(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	job, ok := h.svc.TwoFALogin(c.Param("id"))
+	if !ok {
+		response.NotFound(c, "登录任务不存在或已过期")
+		return
+	}
+	response.Success(c, job)
+}
+
+func (h *AccountTokenGuardHandler) DeleteTwoFALogin(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	h.svc.DeleteTwoFALogin(c.Param("id"))
+	response.Success(c, gin.H{"deleted": true})
 }

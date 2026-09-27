@@ -142,6 +142,9 @@ type WindowStats struct {
 	Cost         float64 `json:"cost"`
 	StandardCost float64 `json:"standard_cost"`
 	UserCost     float64 `json:"user_cost"`
+	// Lifetime totals (no time filter); only populated by today-stats queries.
+	LifetimeTokens int64   `json:"lifetime_tokens,omitempty"`
+	LifetimeCost   float64 `json:"lifetime_cost,omitempty"`
 }
 
 // UsageProgress 使用量进度
@@ -726,7 +729,7 @@ func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Accou
 				if quotaUsage, err := s.openAIQuotaService.QueryUsage(ctx, account.ID); err == nil {
 					if updates := buildCodexSparkWindowExtraUpdates(quotaUsage, now); len(updates) > 0 {
 						mergeAccountExtra(account, updates)
-						s.persistOpenAICodexProbeSnapshot(account.ID, updates)
+						s.persistOpenAICodexProbeSnapshot(account.ID, updates, nil)
 						if account.ParentAccountID != nil {
 							notifyOpenAIAutoReset(*account.ParentAccountID)
 						}
@@ -830,6 +833,7 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 	if account == nil || !account.IsOAuth() {
 		return nil, nil
 	}
+	observed := observeOpenAIQuotaRecovery(account, time.Now())
 	accessToken := ""
 	if !account.IsOpenAIAgentIdentity() {
 		accessToken = account.GetOpenAIAccessToken()
@@ -900,18 +904,27 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	return s.persistOpenAICodexProbeResponse(account.ID, resp, observed)
+}
+
+func (s *AccountUsageService) persistOpenAICodexProbeResponse(accountID int64, resp *http.Response, observed *openAIQuotaRecoveryObservation) (map[string]any, error) {
 	updates, err := extractOpenAICodexProbeUpdates(resp)
 	if err != nil {
 		return nil, err
 	}
 	if len(updates) > 0 {
-		s.persistOpenAICodexProbeSnapshot(account.ID, updates)
+		// Error responses can carry zero-usage headers too. Keep their display
+		// snapshot, but never use them to undo the account's cooldown.
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			observed = nil
+		}
+		s.persistOpenAICodexProbeSnapshot(accountID, updates, observed)
 		return updates, nil
 	}
 	return nil, nil
 }
 
-func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(accountID int64, updates map[string]any) {
+func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(accountID int64, updates map[string]any, observed *openAIQuotaRecoveryObservation) {
 	if s == nil || s.accountRepo == nil || accountID <= 0 {
 		return
 	}
@@ -923,6 +936,7 @@ func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(accountID int64, u
 		updateCtx, updateCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer updateCancel()
 		if err := s.accountRepo.UpdateExtra(updateCtx, accountID, updates); err == nil {
+			recoverOpenAIQuotaRateLimit(updateCtx, s.accountRepo, observed, updates)
 			notifyOpenAIAutoReset(accountID)
 		}
 	}()
@@ -1390,20 +1404,24 @@ func (s *AccountUsageService) addWindowStats(ctx context.Context, account *Accou
 	}
 }
 
-// GetTodayStats 获取账号今日统计
+// GetTodayStats 获取账号今日统计，并附带账号累计 Token/费用。
 func (s *AccountUsageService) GetTodayStats(ctx context.Context, accountID int64) (*WindowStats, error) {
 	stats, err := s.usageLogRepo.GetAccountTodayStats(ctx, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("get today stats failed: %w", err)
 	}
 
-	return &WindowStats{
+	ws := &WindowStats{
 		Requests:     stats.Requests,
 		Tokens:       stats.Tokens,
 		Cost:         stats.Cost,
 		StandardCost: stats.StandardCost,
 		UserCost:     stats.UserCost,
-	}, nil
+	}
+	if lifetime, lerr := s.usageLogRepo.GetAccountWindowStats(ctx, accountID, time.Time{}); lerr == nil {
+		attachLifetimeStats(ws, lifetime)
+	}
+	return ws, nil
 }
 
 // GetTodayStatsBatch 批量获取账号今日统计，优先走批量 SQL，失败时回退单账号查询。
@@ -1430,8 +1448,13 @@ func (s *AccountUsageService) GetTodayStatsBatch(ctx context.Context, accountIDs
 	if batchReader, ok := s.usageLogRepo.(accountWindowStatsBatchReader); ok {
 		statsByAccount, err := batchReader.GetAccountWindowStatsBatch(ctx, uniqueIDs, startTime)
 		if err == nil {
+			lifetimeByAccount, lerr := batchReader.GetAccountWindowStatsBatch(ctx, uniqueIDs, time.Time{})
 			for _, accountID := range uniqueIDs {
-				result[accountID] = windowStatsFromAccountStats(statsByAccount[accountID])
+				ws := windowStatsFromAccountStats(statsByAccount[accountID])
+				if lerr == nil {
+					attachLifetimeStats(ws, lifetimeByAccount[accountID])
+				}
+				result[accountID] = ws
 			}
 			return result, nil
 		}
@@ -1458,8 +1481,13 @@ func (s *AccountUsageService) GetTodayStatsBatch(ctx context.Context, accountIDs
 	_ = g.Wait()
 
 	for _, accountID := range uniqueIDs {
-		if _, ok := result[accountID]; !ok {
-			result[accountID] = &WindowStats{}
+		ws, ok := result[accountID]
+		if !ok {
+			ws = &WindowStats{}
+			result[accountID] = ws
+		}
+		if lifetime, err := s.usageLogRepo.GetAccountWindowStats(ctx, accountID, time.Time{}); err == nil {
+			attachLifetimeStats(ws, lifetime)
 		}
 	}
 	return result, nil
@@ -1476,6 +1504,14 @@ func windowStatsFromAccountStats(stats *usagestats.AccountStats) *WindowStats {
 		StandardCost: stats.StandardCost,
 		UserCost:     stats.UserCost,
 	}
+}
+
+func attachLifetimeStats(ws *WindowStats, lifetime *usagestats.AccountStats) {
+	if ws == nil || lifetime == nil {
+		return
+	}
+	ws.LifetimeTokens = lifetime.Tokens
+	ws.LifetimeCost = lifetime.Cost
 }
 
 func buildCodexUsageProgressFromExtra(extra map[string]any, window string, now time.Time) *UsageProgress {

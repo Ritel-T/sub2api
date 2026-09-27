@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 type tool struct {
@@ -15,6 +17,8 @@ type tool struct {
 	Kind       string
 	Definition string
 	Parameters object
+	Catalog    object
+	Schema     *jsonschema.Schema
 }
 
 const (
@@ -186,7 +190,10 @@ func (c *ReplayCache) getMatching(scope, id, signature string, requireSignature 
 
 func (b *Bridge) collectTools(value any, namespace string) ([]any, error) {
 	var catalog []any
-	items, _ := value.([]any)
+	items, ok := value.([]any)
+	if value != nil && !ok {
+		return nil, fmt.Errorf("basispoints client tools must be an array")
+	}
 	for _, raw := range items {
 		item, ok := raw.(object)
 		if !ok {
@@ -237,18 +244,61 @@ func (b *Bridge) collectTools(value any, namespace string) ([]any, error) {
 				entry["parameters"] = item["input_schema"]
 			}
 		}
-		definition := fingerprint(item)
+		definition := toolDefinitionFingerprint(item)
 		if previous, exists := b.tools[key]; exists {
 			if previous.Definition != definition || previous.Namespace != namespace || previous.Name != name {
 				return nil, fmt.Errorf("conflicting duplicate Basispoints client tool %q", key)
 			}
 			continue
 		}
-		parameters, _ := entry["parameters"].(object)
-		b.tools[key] = tool{Name: name, Namespace: namespace, Kind: kind, Definition: definition, Parameters: parameters}
+		parameters, ok := entry["parameters"].(object)
+		if entry["parameters"] != nil && !ok {
+			return nil, fmt.Errorf("basispoints function parameters must be a schema object")
+		}
+		schema, err := compileToolSchema(parameters)
+		if err != nil {
+			return nil, err
+		}
+		b.tools[key] = tool{Name: name, Namespace: namespace, Kind: kind, Definition: definition, Parameters: parameters, Schema: schema, Catalog: item}
 		catalog = append(catalog, entry)
 	}
 	return catalog, nil
+}
+
+// Tool descriptions and discovery state can change as Codex replays or lazily
+// loads its catalog. They do not change how a call is decoded. Keep the first
+// declaration (the explicit/inherited catalog precedes historical additions),
+// but compare its call contract rather than rejecting annotation-only changes.
+// Unknown fields remain part of the signature so new execution constraints
+// cannot silently disappear.
+func toolDefinitionFingerprint(item object) string {
+	definition := make(object, len(item))
+	function := text(item["type"]) == "function"
+	for field, value := range item {
+		switch field {
+		case "description", "defer_loading":
+			continue
+		case "parameters", "inputSchema", "input_schema":
+			if function {
+				continue
+			}
+		}
+		definition[field] = value
+	}
+	if function {
+		// Match collectTools' existing schema alias precedence exactly.
+		parameters := item["parameters"]
+		if parameters == nil {
+			parameters = item["inputSchema"]
+		}
+		if parameters == nil {
+			parameters = item["input_schema"]
+		}
+		if parameters != nil {
+			definition["parameters"] = parameters
+		}
+	}
+	return fingerprint(definition)
 }
 
 // Hosted capabilities cannot be relayed as client function calls. Ignore known
@@ -330,6 +380,15 @@ func (b *Bridge) rebuildNativeHistoryCall(item object) (object, error) {
 			}
 		}
 	}
+	if info, ok := b.tools[name]; ok && text(item["type"]) == "function_call" && supportsFunctionCmdTransport(name, info.Kind, info.Parameters) {
+		args, _ := envelope["arguments"].(object)
+		if _, hasCmd := args["cmd"].(string); hasCmd {
+			outer, err = encodeFunctionCmdTransport(name, args)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	arguments, err := json.Marshal(outer)
 	if err != nil {
 		return nil, fmt.Errorf("basispoints history transport cannot be serialized")
@@ -349,6 +408,7 @@ func (b *Bridge) translateHistory(input []any) ([]any, error) {
 	seenCalls := make(map[string]bool)
 	var trigger any
 	for index, raw := range input {
+		var toolImages object
 		item, ok := raw.(object)
 		if !ok {
 			return nil, fmt.Errorf("invalid Basispoints input item")
@@ -391,7 +451,7 @@ func (b *Bridge) translateHistory(input []any) ([]any, error) {
 				seenCalls[id] = true
 			}
 			item["type"] = "function_call_output"
-			if err := validateHistoryContent(item["output"], index, "output"); err != nil {
+			if err := b.validateHistoryContent(item["output"], index, "output"); err != nil {
 				return nil, err
 			}
 			// Codex custom results carry ctco_ IDs. After lowering to a function
@@ -404,13 +464,22 @@ func (b *Bridge) translateHistory(input []any) ([]any, error) {
 				itemID = "fc_" + fingerprint(itemID)
 			}
 			item["id"] = itemID
+			toolImages = separateToolImages(item)
 		case "configuration_update":
 			return nil, fmt.Errorf("basispoints does not support configuration_update; start a new request with the desired effort")
 		}
-		if err := validateHistoryContent(item["content"], index, "content"); err != nil {
+		if err := b.validateHistoryContent(item["content"], index, "content"); err != nil {
+			return nil, err
+		}
+		var err error
+		item, err = normalizeHistoryMessage(item, index)
+		if err != nil {
 			return nil, err
 		}
 		result = append(result, item)
+		if toolImages != nil {
+			result = append(result, toolImages)
+		}
 	}
 	if trigger != nil {
 		result = append(result, trigger)
@@ -443,8 +512,13 @@ func (b *Bridge) translateCall(native object) (object, error) {
 	}
 	envelope, marked, err := customTransportEnvelope(arguments)
 	rawCustom := marked
+	rawCmd := false
 	if !marked && err == nil {
 		envelope, marked, err = b.functionCodeTransportEnvelope(arguments)
+	}
+	if !marked && err == nil {
+		envelope, marked, err = b.functionCmdTransportEnvelope(arguments)
+		rawCmd = marked
 	}
 	if !marked && err == nil {
 		envelope, err = decodeTransportEnvelope(arguments["code"])
@@ -465,14 +539,14 @@ func (b *Bridge) translateCall(native object) (object, error) {
 	}
 	info, allowed := b.tools[toolName]
 	if !allowed {
-		return nil, fmt.Errorf("basispoints returned a tool outside the client's catalog")
+		return nil, unknownClientToolError{}
 	}
-	result, err := b.finishClientToolCall(native, info, envelope, rawCustom)
+	result, err := b.finishClientToolCall(native, info, envelope, rawCustom, !rawCmd)
 	if err != nil {
 		return nil, err
 	}
 	// run_officejs is a real BPS-native tool, so its item replays upstream verbatim.
-	b.replay.put(b.scope, text(native["call_id"]), native, result)
+	b.rememberReplay(text(native["call_id"]), native, result)
 	return result, nil
 }
 
@@ -514,7 +588,7 @@ func (b *Bridge) translateDirectCatalogCall(native object) (object, error) {
 	default:
 		return nil, fmt.Errorf("basispoints returned an unsupported native tool; no tool was executed")
 	}
-	result, err := b.finishClientToolCall(native, info, envelope, false)
+	result, err := b.finishClientToolCall(native, info, envelope, false, true)
 	if err != nil {
 		return nil, err
 	}
@@ -530,14 +604,14 @@ func (b *Bridge) translateDirectCatalogCall(native object) (object, error) {
 	if err != nil {
 		return nil, err
 	}
-	b.replay.put(b.scope, text(native["call_id"]), wrapped, result)
+	b.rememberReplay(text(native["call_id"]), wrapped, result)
 	return result, nil
 }
 
 // finishClientToolCall builds the client-facing tool item from a resolved catalog
 // tool and its envelope. It performs no caching and executes nothing; callers decide
 // how the call replays upstream.
-func (b *Bridge) finishClientToolCall(native object, info tool, envelope object, marked bool) (object, error) {
+func (b *Bridge) finishClientToolCall(native object, info tool, envelope object, marked, validateSchema bool) (object, error) {
 	if marked && info.Kind != "custom" {
 		return nil, fmt.Errorf("basispoints raw transport requires a declared custom tool")
 	}
@@ -584,6 +658,16 @@ func (b *Bridge) finishClientToolCall(native object, info tool, envelope object,
 		if _, ok := args.(object); !ok {
 			return nil, fmt.Errorf("basispoints function arguments must be an object")
 		}
+		if info.Schema != nil {
+			if err := validateToolNumberBudget(args); err != nil {
+				return nil, toolArgumentsSchemaError{}
+			}
+		}
+		// FUNCTION_CMD preserves client-validated metadata verbatim. Ordinary
+		// function envelopes still enforce their complete declared schema.
+		if validateSchema && info.Schema != nil && info.Schema.Validate(args) != nil {
+			return nil, toolArgumentsSchemaError{}
+		}
 		encoded, _ := json.Marshal(args)
 		result["arguments"] = string(encoded)
 		// The relay envelope contains plaintext, even when a catalog parameter
@@ -595,6 +679,20 @@ func (b *Bridge) finishClientToolCall(native object, info tool, envelope object,
 	return result, nil
 }
 
+type replayWrite struct {
+	id             string
+	native, client object
+}
+
+func (b *Bridge) rememberReplay(id string, native, client object) {
+	if b.stagedReplays != nil {
+		*b.stagedReplays = append(*b.stagedReplays, replayWrite{id, native, client})
+		return
+	}
+	b.replay.put(b.scope, id, native, client)
+}
+
+// Validate the whole batch before changing output or committing any replay entry.
 func (b *Bridge) translateResponse(response object) error {
 	if response == nil {
 		return nil
@@ -604,16 +702,37 @@ func (b *Bridge) translateResponse(response object) error {
 		return err
 	}
 	output, _ := response["output"].([]any)
+	translated := make([]any, len(output))
+	var writes []replayWrite
+	staged := *b
+	staged.stagedReplays = &writes
+	ids := make(map[string]bool)
+	count := 0
 	for i, raw := range output {
 		item, _ := raw.(object)
 		if isTool(item) {
-			translated, err := b.translateCall(item)
+			count++
+			if count > 1024 || (b.disallowParallel && count > 1) {
+				return fmt.Errorf("basispoints response violates the tool call count limit")
+			}
+			id := text(item["call_id"])
+			if id == "" || ids[id] {
+				return fmt.Errorf("basispoints response contains a missing or duplicate tool call_id")
+			}
+			ids[id] = true
+			call, err := staged.translateCall(item)
 			if err != nil {
 				return err
 			}
-			output[i] = translated
+			translated[i] = call
+		} else {
+			translated[i] = raw
 		}
 	}
+	for _, write := range writes {
+		b.replay.put(b.scope, write.id, write.native, write.client)
+	}
+	response["output"] = translated
 	response["reasoning"] = object{"effort": b.Effort}
 	response["parallel_tool_calls"] = false
 	return nil

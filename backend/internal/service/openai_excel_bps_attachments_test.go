@@ -168,9 +168,15 @@ func TestExcelBPSNativeUploadFailureStopsWithoutQuotaWrite(t *testing.T) {
 			account := excelAccount()
 			_, err := svc.Forward(context.Background(), c, account, body)
 			require.Error(t, err)
-			require.Equal(t, tc.want, rec.Code)
+			if tc.status == http.StatusTooManyRequests {
+				// Nothing was generated, so another account may take the request.
+				requireExcelBPSRateLimitFailover(t, err, c)
+			} else {
+				require.Equal(t, tc.want, rec.Code)
+				require.True(t, IsResponseCommitted(c))
+			}
+			require.Equal(t, tc.status == http.StatusTooManyRequests, svc.isExcelBPSCoolingDown(account, "gpt-6-astra"))
 			require.Equal(t, 1, calls)
-			require.True(t, IsResponseCommitted(c))
 			require.NotContains(t, rec.Body.String(), "PRIVATE")
 			require.NotContains(t, err.Error(), "PRIVATE")
 			requireNoExcelBPSQuotaWrite(t, repo)
@@ -178,9 +184,6 @@ func TestExcelBPSNativeUploadFailureStopsWithoutQuotaWrite(t *testing.T) {
 			require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 			if !tc.transport {
 				require.True(t, closed.closed)
-			}
-			if tc.status == 429 {
-				require.Contains(t, rec.Body.String(), "basispoints_rate_limited")
 			}
 		})
 	}
@@ -242,4 +245,96 @@ func nativeGatewayParts(t *testing.T, v map[string]any) []any {
 	parts, ok := message["content"].([]any)
 	require.True(t, ok)
 	return parts
+}
+
+func TestExcelBPSAttachmentUsesResolvedSessionProxy(t *testing.T) {
+	body, _ := nativeGatewayBody(t)
+	images, err := basispoints.PrepareNativeImages(body)
+	require.NoError(t, err)
+	svc := openAIClientToolsTestService(nil)
+	account := excelAccount()
+	account.Proxy = &Proxy{Protocol: "http", Host: "account-proxy.example", Port: 8080}
+	const selected = "http://127.0.0.1:19007"
+	calls := 0
+	svc.httpUpstream = &nativeAttachmentUpstream{do: func(req *http.Request, proxy string, id int64, concurrency int) (*http.Response, error) {
+		calls++
+		require.Equal(t, selected, proxy)
+		require.Equal(t, account.ID, id)
+		require.Equal(t, basispoints.AttachmentsURL, req.URL.String())
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("{\"openai_file_id\":\"file-selected-proxy\"}"))}, nil
+	}}
+	_, err = images.Upload(context.Background(), new(basispoints.AttachmentCache), "", func(ctx context.Context, img basispoints.InlineAttachment) (string, error) {
+		return svc.uploadExcelBPSAttachment(ctx, account, "test-token", "test-account", selected, img)
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, calls)
+}
+
+func TestExcelBPSNativeToolScreenshotsStayInline(t *testing.T) {
+	imageBody, _ := nativeGatewayBody(t)
+	dataURL := gjson.GetBytes(imageBody, "input.0.content.0.image_url").String()
+	for _, kind := range []string{"function_call_output", "custom_tool_call_output"} {
+		for _, mixed := range []bool{false, true} {
+			for _, detail := range []string{"", "null", "low", "high", "original"} {
+				t.Run(fmt.Sprintf("%s/mixed=%t/detail=%s", kind, mixed, detail), func(t *testing.T) {
+					part := map[string]any{"type": "input_image", "image_url": dataURL}
+					wantDetail := detail
+					if detail == "null" {
+						part["detail"] = nil
+					} else if detail != "" {
+						part["detail"] = detail
+					}
+					if detail == "" || detail == "null" {
+						wantDetail = "auto"
+					}
+					input := []any{}
+					if mixed {
+						input = append(input, map[string]any{"role": "user", "content": []any{part}})
+					}
+					input = append(input, map[string]any{"type": "function_call", "name": "view_image", "call_id": "call_image", "arguments": "{}"}, map[string]any{"type": kind, "call_id": "call_image", "output": []any{part, map[string]any{"type": "input_text", "text": "screenshot context"}}})
+					body, err := json.Marshal(map[string]any{"model": "gpt-6-astra", "input": input})
+					require.NoError(t, err)
+					svc := openAIClientToolsTestService(nil)
+					enableNativeAttachments(svc)
+					uploads, responses := 0, 0
+					svc.httpUpstream = &nativeAttachmentUpstream{do: func(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+						if req.URL.String() == basispoints.AttachmentsURL {
+							uploads++
+							require.True(t, mixed, "tool-only requests must not upload")
+							return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"openai_file_id":"file-user-image"}`))}, nil
+						}
+						responses++
+						raw, err := io.ReadAll(req.Body)
+						require.NoError(t, err)
+						found := false
+						for _, item := range gjson.GetBytes(raw, "input").Array() {
+							if item.Get("type").String() == "function_call_output" {
+								found = true
+								require.Equal(t, dataURL, item.Get("output.0.image_url").String())
+								require.False(t, item.Get("output.0.file_id").Exists())
+								require.Equal(t, wantDetail, item.Get("output.0.detail").String())
+								require.Equal(t, "screenshot context", item.Get("output.1.text").String())
+							}
+						}
+						require.True(t, found)
+						if mixed {
+							require.Contains(t, string(raw), `"file_id":"file-user-image"`)
+						}
+						return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_screenshot\",\"status\":\"completed\",\"output\":[]}}\n\n"))}, nil
+					}}
+					rec := httptest.NewRecorder()
+					c, _ := gin.CreateTestContext(rec)
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+					_, err = svc.Forward(context.Background(), c, excelAccount(), body)
+					require.NoError(t, err)
+					require.Equal(t, 1, responses)
+					if mixed {
+						require.Equal(t, 1, uploads)
+					} else {
+						require.Zero(t, uploads)
+					}
+				})
+			}
+		}
+	}
 }

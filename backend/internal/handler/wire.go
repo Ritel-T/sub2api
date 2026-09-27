@@ -164,9 +164,12 @@ func ProvideBatchImageHandler(
 	return h
 }
 
-// ProvideSystemHandler creates admin.SystemHandler with UpdateService
-func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService) *admin.SystemHandler {
-	return admin.NewSystemHandler(updateService, lockService)
+// ProvideSystemHandler creates admin.SystemHandler with UpdateService and the
+// Mihomo node checks backed by the admin proxy diagnostics.
+func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService, adminService service.AdminService) *admin.SystemHandler {
+	h := admin.NewSystemHandler(updateService, lockService)
+	h.SetMihomoNodeChecker(adminService)
+	return h
 }
 
 // ProvideSettingHandler creates SettingHandler with version from BuildInfo

@@ -758,10 +758,12 @@ export async function exportData(options?: {
 
 export async function importData(payload: {
   data: AdminDataPayload
+  group_ids?: number[]
   skip_default_group_bind?: boolean
 }): Promise<AdminDataImportResult> {
   const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', {
     data: payload.data,
+    group_ids: payload.group_ids,
     skip_default_group_bind: payload.skip_default_group_bind
   })
   return data
@@ -1056,6 +1058,45 @@ export async function probeUpstreamBillingBatch(accountIds: number[]): Promise<U
     { account_ids: accountIds }
   )
   return data.results
+}
+
+export type OpenAICodexStateVerdict = 'healthy' | 'degraded' | 'inconclusive'
+
+export interface OpenAICodexStateProbeResult {
+  account_id: number
+  model: string
+  verdict: OpenAICodexStateVerdict
+  reason: string
+  failure?: string
+  detail?: string
+  mint_status: number
+  continue_status: number
+  minted: boolean
+  new_ticket: boolean
+  ticket_length: number
+  continue_ticket_length: number
+  reported_model?: string
+  latency_ms: number
+  started_at: string
+  finished_at: string
+}
+
+/**
+ * Two-shot Codex turn-state probe: mint a ticket, then continue with it. A new
+ * ticket on the continuation means the account is degraded. Each shot may take
+ * up to 45s upstream, so the default client timeout is too short.
+ */
+export async function probeOpenAICodexState(
+  id: number,
+  modelId?: string,
+  options?: { signal?: AbortSignal }
+): Promise<OpenAICodexStateProbeResult> {
+  const { data } = await apiClient.post<OpenAICodexStateProbeResult>(
+    `/admin/accounts/${id}/state-probe`,
+    { model_id: modelId?.trim() || undefined },
+    { timeout: 120_000, signal: options?.signal }
+  )
+  return data
 }
 
 export async function getOllamaCloudUsageSettings(): Promise<OllamaCloudUsageSettings> {
@@ -1394,6 +1435,7 @@ export const accountsAPI = {
   syncFromCrs,
   exportData,
   importData,
+  getManagementCapabilities,
   importCodexSession,
   createOpenAICodexPAT,
   getAntigravityDefaultModelMapping,
@@ -1410,6 +1452,7 @@ export const accountsAPI = {
   setUpstreamBillingProbeEnabled,
   probeUpstreamBilling,
   probeUpstreamBillingBatch,
+  probeOpenAICodexState,
   getOllamaCloudUsageSettings,
   updateOllamaCloudUsageSettings,
   getOllamaCloudUsage,
@@ -1428,3 +1471,8 @@ export const accountsAPI = {
 }
 
 export default accountsAPI
+
+export async function getManagementCapabilities(): Promise<{ web_search_enabled: boolean; account_quota_notify_enabled: boolean }> {
+  const { data } = await apiClient.get('/admin/accounts/management-capabilities')
+  return data
+}

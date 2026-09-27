@@ -53,14 +53,25 @@ type nativeImagePart struct {
 	image InlineAttachment
 }
 type NativeImages struct {
-	source object
-	parts  []nativeImagePart
-	raw    []byte
+	source      object
+	parts       []nativeImagePart
+	raw         []byte
+	toolImages  map[string]bool
+	inlineCount int
 }
 
 // PrepareNativeImages checks every inline image before any upload. Only typed
 // message/tool-output content is traversed; arbitrary tool arguments are opaque.
 func PrepareNativeImages(raw []byte) (*NativeImages, error) {
+	return PrepareNativeImagesWithLimit(raw, imageRelayMaxRequestImages)
+}
+
+// PrepareNativeImagesWithLimit is PrepareNativeImages with an administrator-
+// configurable per-request inline image limit.
+func PrepareNativeImagesWithLimit(raw []byte, maxImages int) (*NativeImages, error) {
+	if maxImages < 1 {
+		maxImages = imageRelayMaxRequestImages
+	}
 	var source object
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
@@ -78,7 +89,7 @@ func PrepareNativeImages(raw []byte) (*NativeImages, error) {
 		item, _ := entry.(map[string]any)
 		field := ""
 		switch text(item["type"]) {
-		case "", "message":
+		case "", "message", "agent_message":
 			field = "content"
 		case "function_call_output", "custom_tool_call_output":
 			field = "output"
@@ -98,10 +109,13 @@ func PrepareNativeImages(raw []byte) (*NativeImages, error) {
 			if _, exists := part["file_id"]; exists {
 				return nil, fmt.Errorf("basispoints input_image requires exactly one image reference")
 			}
-			if len(plan.parts) >= imageRelayMaxRequestImages {
-				return nil, fmt.Errorf("basispoints accepts at most 20 inline images per request")
+			if plan.inlineCount >= maxImages {
+				return nil, fmt.Errorf("basispoints accepts at most %d inline images per request", maxImages)
 			}
-			mimeType, payload, err := relayImagePayload(rawURL)
+			plan.inlineCount++
+			// Apply the same administrator-configured image size and count
+			// safeguards as the temporary HTTPS relay before uploading natively.
+			mimeType, payload, err := relayImagePayload(rawURL, imageRelayMaxImageBytes>>20)
 			if err != nil {
 				return nil, err
 			}
@@ -127,21 +141,36 @@ func PrepareNativeImages(raw []byte) (*NativeImages, error) {
 			}
 			attachment := InlineAttachment{MIME: mimeType, payload: payload, Size: size}
 			copy(attachment.digest[:], hash.Sum(nil))
+			if part["detail"] == nil {
+				part["detail"] = "auto"
+			}
 			delete(part, "image_url")
 			part["file_id"] = "file-preflight"
 			if err := validateImage(part); err != nil {
 				return nil, err
 			}
-			plan.parts = append(plan.parts, nativeImagePart{part: part, image: attachment})
+			if field == "output" {
+				// BPS tool screenshots use inline image_url, not attachment IDs.
+				delete(part, "file_id")
+				part["image_url"] = rawURL
+				if plan.toolImages == nil {
+					plan.toolImages = make(map[string]bool)
+				}
+				plan.toolImages[rawURL] = true
+			} else {
+				plan.parts = append(plan.parts, nativeImagePart{part: part, image: attachment})
+			}
 		}
 	}
 	return plan, nil
 }
 
+// HasImages reports whether any message images require attachment upload.
+// Validated inline tool screenshots do not require an upload or attachment lease.
 func (p *NativeImages) HasImages() bool { return len(p.parts) != 0 }
 
 func (p *NativeImages) Body() ([]byte, error) {
-	if len(p.parts) == 0 {
+	if p.inlineCount == 0 {
 		return p.raw, nil
 	}
 	return json.Marshal(p.source)
@@ -279,4 +308,14 @@ func (c *AttachmentCache) get(ctx context.Context, scope string, img InlineAttac
 	flight.id, flight.err = id, err
 	close(flight.done)
 	return id, err
+}
+
+// PrepareWithCatalog permits only the tool screenshots validated by this native
+// request plan. Ordinary Prepare calls keep rejecting inline images.
+func (p *NativeImages) PrepareWithCatalog(scope string, replay *ReplayCache, cache *CatalogCache) ([]byte, *Bridge, error) {
+	raw, err := p.Body()
+	if err != nil {
+		return nil, nil, err
+	}
+	return prepareWithCatalog(raw, scope, replay, cache, p.toolImages)
 }

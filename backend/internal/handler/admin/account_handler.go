@@ -397,7 +397,7 @@ func (h *AccountHandler) isSimpleMode() bool {
 
 func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, account *service.Account) AccountWithConcurrency {
 	item := AccountWithConcurrency{
-		Account:            h.accountResponseFromService(account),
+		Account:            dto.AccountForObserver(ctx, h.accountResponseFromService(account)),
 		simpleMode:         h.isSimpleMode(),
 		CurrentConcurrency: 0,
 	}
@@ -831,9 +831,9 @@ func (h *AccountHandler) List(c *gin.Context) {
 	result := make([]AccountWithConcurrency, len(accounts))
 	for i := range accounts {
 		acc := &accounts[i]
-		accountResponse := h.accountResponseFromService(acc)
+		accountResponse := dto.AccountForObserver(c.Request.Context(), h.accountResponseFromService(acc))
 		if lite {
-			accountResponse = h.accountListResponseFromService(acc)
+			accountResponse = dto.AccountForObserver(c.Request.Context(), h.accountListResponseFromService(acc))
 			if h.isSimpleMode() {
 				accountResponse.GroupIDs = filterSimpleModeGroupIDs(accountResponse.GroupIDs, simpleModeCompositeServiceGroupIDs(acc))
 			}
@@ -1381,6 +1381,34 @@ func (h *AccountHandler) PelicanTest(c *gin.Context) {
 	if err := h.accountTestService.TestPelicanAccountConnection(c, accountID, req.ModelID, req.Prompt, req.ReasoningEffort); err != nil {
 		return
 	}
+}
+
+type StateProbeRequest struct {
+	ModelID string `json:"model_id"`
+}
+
+// StateProbe runs the two-shot Codex turn-state probe (degraded / healthy).
+// POST /api/v1/admin/accounts/:id/state-probe
+func (h *AccountHandler) StateProbe(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+
+	var req StateProbeRequest
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.BadRequest(c, "Invalid request: "+err.Error())
+			return
+		}
+	}
+	result, err := h.accountTestService.ProbeOpenAICodexState(c.Request.Context(), accountID, req.ModelID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
 }
 
 // RecoverState handles unified recovery of recoverable account runtime state.
@@ -2729,7 +2757,7 @@ func (h *AccountHandler) ClearTempUnschedulable(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Temp unschedulable cleared successfully"})
 }
 
-// GetTodayStats handles getting account today statistics
+// GetTodayStats handles getting account today statistics plus lifetime totals.
 // GET /api/v1/admin/accounts/:id/today-stats
 func (h *AccountHandler) GetTodayStats(c *gin.Context) {
 	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
@@ -2757,7 +2785,7 @@ type BatchUsageRequest struct {
 	Force      bool    `json:"force"`
 }
 
-// GetBatchTodayStats 批量获取多个账号的今日统计。
+// GetBatchTodayStats 批量获取多个账号的今日统计及累计 Token/费用。
 // POST /api/v1/admin/accounts/today-stats/batch
 func (h *AccountHandler) GetBatchTodayStats(c *gin.Context) {
 	var req BatchTodayStatsRequest

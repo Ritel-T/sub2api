@@ -22,6 +22,11 @@ the final response locally. This does not provide upstream constrained decoding.
 
 # Tool history and input boundaries
 
+- OAuth models routed through BPS do not advertise native encrypted multi-agent
+  capabilities. Apply this limit to generated, fetched and pinned group catalogs
+  by the actual mapped route, and recalculate the client ETag. Plaintext client
+  tools remain available; refresh the catalog and start a new conversation to
+  leave an old client-side v2 override or encrypted history behind.
 - Rebuild complete CUSTOM calls using their current catalog's exact
   `codex2api.custom/NAME` marker and raw input. Preserve cached native calls
   verbatim. Retain unavailable historical tools as recorded history; never
@@ -32,6 +37,13 @@ the final response locally. This does not provide upstream constrained decoding.
 - Reject encrypted message parts with an `encrypted_content` diagnostic and
   input path. Do not reinterpret ciphertext as plaintext. Top-level encrypted
   reasoning items retain their existing handling.
+- The OAuth gateway retries once when HTTP 400 specifically rejects encrypted
+  content and the prepared history can recover by removing opaque reasoning
+  items only. It keeps the same account, model, effort, proxy, attachments and
+  conversation metadata, and closes the rejected response before retrying.
+  It never drops encrypted messages, tool results or compaction context. A
+  second rejection returns `invalid_encrypted_content` with plaintext-history
+  recovery guidance; ordinary 400s and transport failures do not use this retry.
 - Preserve `detail: original` on HTTPS images and inline images rewritten by
   the relay. Let the upstream model validate its supported detail levels; do
   not silently downgrade the requested detail.
@@ -50,7 +62,7 @@ the final response locally. This does not provide upstream constrained decoding.
 - Preserve intended operations and call order. Require the corrected batch to
   have the same number of calls and pass the current catalog's transport checks.
   Reject changes to previously valid operations. For an invalid raw call corrected
-  to an explicit CUSTOM or FUNCTION_CODE transport, bind its code field to the
+  to an explicit CUSTOM, FUNCTION_CODE or FUNCTION_CMD transport, bind its code field to the
   original bytes before checking the operation and size limits. Never dispatch
   source text rewritten by the correction model, including whitespace changes.
   Store the bound native call in replay history so later turns see the exact
@@ -61,10 +73,14 @@ the final response locally. This does not provide upstream constrained decoding.
 - Release the preceding response body before a correction request so accounts
   with concurrency one do not deadlock. Cancel corrections on client disconnect.
   Include all returned terminal usage in the final success or failure response.
-- Do not retry transport I/O failures, upstream rejections, incomplete streams,
-  undeclared tool targets, unsupported native tools, missing call identities or
-  structured answer failures. Preserve any explicit declared target on correction.
+- This formatting path does not retry transport I/O failures, upstream rejections, incomplete streams, undeclared tool targets, unsupported native tools, missing call identities, function argument schema failures or structured answer failures. Preserve any explicit declared target on correction.
   Do not infer a tool target from arbitrary raw code. Stop on a changed batch or
   exhausted correction limit without dispatching any client tools.
 - Treat this as bounded model correction, not constrained upstream decoding or
   a guarantee that arbitrary malformed model output will always recover.
+
+# First-turn unknown-target correction
+
+The gateway separately permits one regeneration when the first tool interaction ends in exactly one undeclared run_officejs target at the end of a completed response. It must have no prior tool calls/results and no dispatched client tool. This path reuses the prepared request, current catalog, account, model, proxy and attachment IDs; it does not append a fabricated executed tool result. Its corrected response must pass the current catalog, argument schema, identity and parallel-call checks. A second unknown target, invalid arguments or incomplete response fails without dispatching tools. Both attempts' reported usage is retained, including progressive usage if the correction disconnects before its terminal event.
+
+This path and the existing known-target formatting path are selected independently. A function argument schema error alone does not trigger either path.
