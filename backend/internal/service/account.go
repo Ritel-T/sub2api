@@ -2265,6 +2265,9 @@ func (a *Account) isExcelBPSAllModelsEnabled() bool {
 	if !a.IsExcelBPSEnabled() {
 		return false
 	}
+	if _, isolated, _ := a.excelBPSGroupIsolation(); isolated {
+		return false
+	}
 	_, scoped := a.Extra["openai_excel_bps_models"]
 	return !scoped
 }
@@ -2280,6 +2283,22 @@ func (a *Account) IsExcelBPSEnabledForModel(requestedModel string) bool {
 
 func (a *Account) isExcelBPSUpstreamModelEnabled(model string) bool {
 	if !a.IsExcelBPSEnabled() {
+		return false
+	}
+	if _, isolated, _ := a.excelBPSGroupIsolation(); isolated {
+		if !a.excelBPSRequiredUpstreamModel(model) {
+			return false
+		}
+		selected, valid := excelBPSModelList(a.Extra["openai_excel_bps_models"])
+		if !valid {
+			return false
+		}
+		model = normalizeExcelBPSIsolationModel(model)
+		for _, candidate := range selected {
+			if candidate == model {
+				return true
+			}
+		}
 		return false
 	}
 	raw, scoped := a.Extra["openai_excel_bps_models"]

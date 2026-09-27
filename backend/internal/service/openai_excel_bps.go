@@ -196,6 +196,9 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 		return err
 	}
 	model := account.GetMappedModel(originalModel)
+	if account.excelBPSRequiredUpstreamModel(model) {
+		model = normalizeExcelBPSIsolationModel(model)
+	}
 	stream := gjson.GetBytes(body, "stream").Bool()
 	clientCanceled := func() (*OpenAIForwardResult, error) {
 		StopOpenAICompactSSEKeepaliveCommitted(c)

@@ -395,6 +395,9 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 	if account.Platform != platform || !account.IsOpenAICompatible() {
 		return "platform_mismatch"
 	}
+	if forward, ok := openAIForwardModelFromContext(ctx); ok && forward.model != "" && !account.excelBPSModelAllowedInGroup(groupID, forward.model) {
+		return "model_not_allowed_in_group"
+	}
 	if openAIEncryptedMessageCapabilityMismatch(ctx, account, requestedModel) {
 		return "encrypted_message_unsupported"
 	}

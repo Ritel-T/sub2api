@@ -190,3 +190,74 @@ func TestExcelBPSCooldownRepositoryOuterTransactionIsAtomic(t *testing.T) {
 		})
 	}
 }
+
+func TestExcelBPSCooldownRepositoryStaleAccountEditPreservesDeadline(t *testing.T) {
+	ctx := context.Background()
+	repo, account := newExcelBPSCooldownIntegrationAccount(t)
+	stale, err := repo.GetByID(ctx, account.ID)
+	require.NoError(t, err)
+	until := time.Now().UTC().Add(time.Hour)
+	_, err = repo.ExtendExcelBPSRateLimit(ctx, account.ID, until, "quota_exhausted")
+	require.NoError(t, err)
+	stale.Extra[service.ExcelBPSRequiredGroupIDsKey] = []any{float64(16)}
+	stale.Extra[service.ExcelBPSRequiredModelsKey] = []any{"gpt-6-sol", "gpt-6-astra"}
+	stale.Extra[excelBPSCooldownResetKey] = until.Add(-time.Hour).Format(time.RFC3339Nano)
+	stale.Extra[excelBPSCooldownReasonKey] = "stale"
+	require.NoError(t, repo.Update(ctx, stale))
+	for _, mode := range []string{"full_edit", "extra_patch", "bulk"} {
+		updates := map[string]any{excelBPSCooldownResetKey: nil, excelBPSCooldownReasonKey: "stale", "admin_setting": mode}
+		switch mode {
+		case "extra_patch":
+			require.NoError(t, repo.UpdateExtra(ctx, account.ID, updates))
+		case "bulk":
+			_, err = repo.BulkUpdate(ctx, []int64{account.ID}, service.AccountBulkUpdate{Extra: updates})
+			require.NoError(t, err)
+		}
+		after, err := repo.GetByID(ctx, account.ID)
+		require.NoError(t, err)
+		require.Equal(t, until.Format(time.RFC3339Nano), after.Extra[excelBPSCooldownResetKey], mode)
+		require.Equal(t, "quota_exhausted", after.Extra[excelBPSCooldownReasonKey], mode)
+		require.Equal(t, []any{float64(16)}, after.Extra[service.ExcelBPSRequiredGroupIDsKey])
+	}
+}
+
+func TestExcelBPSCooldownRepositoryConcurrentFullEditsPreserveMaximum(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	repo, account := newExcelBPSCooldownIntegrationAccount(t)
+	stale, err := repo.GetByID(ctx, account.ID)
+	require.NoError(t, err)
+	const workers = 8
+	base := time.Now().UTC().Truncate(time.Second).Add(time.Hour)
+	start := make(chan struct{})
+	results := make(chan error, workers*2)
+	for i := 1; i <= workers; i++ {
+		until := base.Add(time.Duration(i) * time.Second)
+		go func() {
+			<-start
+			_, err := repo.ExtendExcelBPSRateLimit(ctx, account.ID, until, "quota_exhausted")
+			results <- err
+		}()
+		go func() {
+			edit := *stale
+			edit.Extra = maps.Clone(stale.Extra)
+			edit.Extra["admin_setting"] = true
+			<-start
+			results <- repo.Update(ctx, &edit)
+		}()
+	}
+	close(start)
+	for range workers * 2 {
+		if err := <-results; err != nil {
+			t.Errorf("concurrent operation: %v", err)
+		}
+	}
+	if t.Failed() {
+		return
+	}
+	after, err := repo.GetByID(ctx, account.ID)
+	require.NoError(t, err)
+	require.Equal(t, base.Add(workers*time.Second).Format(time.RFC3339Nano), after.Extra[excelBPSCooldownResetKey])
+	require.Equal(t, "quota_exhausted", after.Extra[excelBPSCooldownReasonKey])
+	require.Equal(t, true, after.Extra["admin_setting"])
+}

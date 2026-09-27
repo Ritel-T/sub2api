@@ -95,6 +95,9 @@ func (a *Account) GroupAllowedModels(groupID int64) []string {
 // IsModelAllowedInGroup 判断账号能否在指定分组里服务该模型。
 // 没有分组上下文、没有指定模型、账号在该分组没有设置限制时一律放行。
 func (a *Account) IsModelAllowedInGroup(groupID *int64, requestedModel string) bool {
+	if !a.excelBPSModelAllowedInGroup(groupID, requestedModel) {
+		return false
+	}
 	if a == nil || groupID == nil {
 		return true
 	}

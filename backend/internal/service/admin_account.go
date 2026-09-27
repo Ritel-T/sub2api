@@ -966,7 +966,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
 	_, moveChanged := updates[ExcelBPSAutoMoveOn403Key]
 	_, targetChanged := updates[ExcelBPS403TargetGroupIDKey]
-	if moveChanged || targetChanged {
+	_, isolationGroupsChanged := updates[ExcelBPSRequiredGroupIDsKey]
+	_, isolationModelsChanged := updates[ExcelBPSRequiredModelsKey]
+	if moveChanged || targetChanged || isolationGroupsChanged || isolationModelsChanged {
 		account, err := s.accountRepo.GetByID(ctx, id)
 		if err != nil {
 			return err

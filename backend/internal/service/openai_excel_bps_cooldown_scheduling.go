@@ -47,7 +47,7 @@ func openAIExcelBPSRequestUsesBPS(ctx context.Context, account *Account, request
 	if !account.IsExcelBPSEnabledForModel(requestedModel) {
 		return false
 	}
-	if ctx != nil && !account.IsExcelBPSOmitUnsupportedToolsEnabled() {
+	if ctx != nil && !account.IsExcelBPSOmitUnsupportedToolsEnabled() && !account.excelBPSRequiredForModel(requestedModel) {
 		if reason, _ := ctx.Value(openAIExcelBPSNativeFallbackContextKey{}).(string); reason != "" {
 			return false
 		}

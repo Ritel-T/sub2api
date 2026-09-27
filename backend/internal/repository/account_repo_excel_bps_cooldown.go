@@ -4,11 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"maps"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
+
+func stripExcelBPSCooldownExtra(extra map[string]any) map[string]any {
+	_, deadline := extra[excelBPSCooldownResetKey]
+	_, reason := extra[excelBPSCooldownReasonKey]
+	if !deadline && !reason {
+		return extra
+	}
+	extra = maps.Clone(extra)
+	delete(extra, excelBPSCooldownResetKey)
+	delete(extra, excelBPSCooldownReasonKey)
+	return extra
+}
 
 const (
 	excelBPSCooldownResetKey  = "openai_excel_bps_rate_limit_reset_at"

@@ -748,6 +748,15 @@ func lockAndMergeAccountProbeExtra(
 	}
 	extra := service.MergeOpenAICodexTicketExtra(copyJSONMap(normalizeJSONMap(account.Extra)), currentExtra)
 	extra = service.MergeExcelBPS403Marker(extra, currentExtra)
+	// Only ExtendExcelBPSRateLimit owns these runtime keys. Account edits can
+	// carry a snapshot from before a concurrent 429; merge the locked row's
+	// values so editing routing cannot shorten or erase that cooldown.
+	for _, key := range []string{excelBPSCooldownResetKey, excelBPSCooldownReasonKey} {
+		delete(extra, key)
+		if value, ok := currentExtra[key]; ok {
+			extra[key] = value
+		}
+	}
 	for _, key := range []string{
 		service.UpstreamBillingProbeEnabledExtraKey,
 		service.UpstreamBillingRateSyncEnabledExtraKey,
@@ -2854,6 +2863,7 @@ func (r *accountRepository) AutoPauseExpiredAccounts(ctx context.Context, now ti
 
 func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
 	updates = stripCodexFingerprintSeedFromExtraUpdate(updates)
+	updates = stripExcelBPSCooldownExtra(updates)
 	if len(updates) == 0 {
 		return nil
 	}
@@ -3131,6 +3141,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		return 0, nil
 	}
 	updates.Extra = stripCodexFingerprintSeedFromExtraUpdate(updates.Extra)
+	updates.Extra = stripExcelBPSCooldownExtra(updates.Extra)
 
 	setClauses := make([]string, 0, 8)
 	args := make([]any, 0, 8)

@@ -1804,6 +1804,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	if account == nil {
 		return false, "account_nil"
 	}
+	if forward, ok := openAIForwardModelFromContext(ctx); ok && forward.model != "" && !account.excelBPSModelAllowedInGroup(req.GroupID, forward.model) {
+		return false, "model_not_allowed_in_group"
+	}
 	if openAIEncryptedMessageCapabilityMismatch(ctx, account, req.RequestedModel) {
 		return false, "encrypted_message_unsupported"
 	}
