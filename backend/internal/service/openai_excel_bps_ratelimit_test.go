@@ -27,6 +27,15 @@ type excelBPSQuotaRepo struct {
 	writes    chan excelBPSQuotaWrite
 	updateErr error
 	limitErr  error
+	bpsWrites chan excelBPSQuotaWrite
+}
+
+func (r *excelBPSQuotaRepo) ExtendExcelBPSRateLimit(ctx context.Context, id int64, until time.Time, reason string) (time.Time, error) {
+	deadline, _ := ctx.Deadline()
+	if r.bpsWrites != nil {
+		r.bpsWrites <- excelBPSQuotaWrite{accountID: id, resetAt: until, ctxErr: ctx.Err(), deadline: deadline, updates: map[string]any{ExcelBPSRateLimitReasonKey: reason}}
+	}
+	return until, r.limitErr
 }
 
 type excelBPSQuotaSettingsRepo struct {
@@ -160,7 +169,7 @@ func (r *excelBPSCancelReader) Read(p []byte) (int, error) {
 	return r.Reader.Read(p)
 }
 
-func TestExcelBPS429DoesNotChangeCodexQuotaOrScheduling(t *testing.T) {
+func TestExcelBPS429CoolsBPSAndFailsOverWithoutChangingNativeQuota(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		headers      http.Header
@@ -189,7 +198,7 @@ func TestExcelBPS429DoesNotChangeCodexQuotaOrScheduling(t *testing.T) {
 				}
 				upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: http.StatusTooManyRequests, Header: tc.headers, Body: io.NopCloser(reader)}}
 				svc := openAIClientToolsTestService(upstream)
-				repo := &excelBPSQuotaRepo{writes: make(chan excelBPSQuotaWrite, 4)}
+				repo := &excelBPSQuotaRepo{writes: make(chan excelBPSQuotaWrite, 4), bpsWrites: make(chan excelBPSQuotaWrite, 4)}
 				svc.accountRepo = repo
 				svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil, nil)
 				svc.rateLimitService.SetSettingService(NewSettingService(&excelBPSQuotaSettingsRepo{cooldown: `{"enabled":true,"cooldown_seconds":11}`}, svc.cfg))
@@ -205,13 +214,19 @@ func TestExcelBPS429DoesNotChangeCodexQuotaOrScheduling(t *testing.T) {
 
 				_, err := svc.Forward(ctx, c, account, body)
 
-				require.EqualError(t, err, "excel BPS: basispoints_rate_limited")
 				var failover *UpstreamFailoverError
-				require.NotErrorAs(t, err, &failover)
-				require.Equal(t, http.StatusTooManyRequests, rec.Code)
-				require.True(t, IsResponseCommitted(c))
-				require.Contains(t, rec.Body.String(), "basispoints_rate_limited")
-				require.NotContains(t, rec.Body.String(), "PRIVATE_UPSTREAM")
+				require.ErrorAs(t, err, &failover)
+				require.Equal(t, http.StatusTooManyRequests, failover.StatusCode)
+				require.False(t, failover.RetryableOnSameAccount)
+				require.False(t, IsResponseCommitted(c))
+				require.Empty(t, rec.Body.String(), "handler must be able to select another account")
+				require.Contains(t, string(failover.ResponseBody), "basispoints_rate_limited")
+				require.NotContains(t, string(failover.ResponseBody), "PRIVATE_UPSTREAM")
+				require.True(t, svc.excelBPSCooldownUntil(account).After(time.Now()))
+				write := <-repo.bpsWrites
+				require.NoError(t, write.ctxErr, "persist observed throttles despite client cancellation")
+				require.True(t, write.deadline.After(time.Now()))
+				require.NotContains(t, account.Extra, ExcelBPSRateLimitResetAtKey, "shared snapshot stays immutable")
 				require.Len(t, upstream.requests, 1)
 				requireNoExcelBPSQuotaWrite(t, repo)
 				require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
@@ -221,13 +236,19 @@ func TestExcelBPS429DoesNotChangeCodexQuotaOrScheduling(t *testing.T) {
 				retryState, ok := svc.openaiOAuth429RetryStartedAt.Load(account.ID)
 				require.True(t, ok)
 				require.Equal(t, retryStarted, retryState)
+				if !tc.cancelOnRead {
+					_, nextErr := svc.Forward(ctx, c, account, body)
+					require.ErrorAs(t, nextErr, &failover)
+					require.Len(t, upstream.requests, 1, "next request cannot reuse the cooling BPS account")
+				}
 			})
 		}
 	}
 }
 
 func TestExcelBPSNon429DoesNotChangeQuotaState(t *testing.T) {
-	for _, status := range []int{400, 401, 403, 500} {
+	// Authentication failures have their own scheduling assertions.
+	for _, status := range []int{400, 403, 500} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: status, Header: excelBPSQuotaHeaders("100", "100"), Body: io.NopCloser(strings.NewReader("{}"))}}
 			svc := openAIClientToolsTestService(upstream)

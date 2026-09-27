@@ -4,6 +4,7 @@ import { defineComponent } from 'vue'
 
 import AccountsView from '../AccountsView.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
+import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 
 const {
   listAccounts,
@@ -32,6 +33,7 @@ const {
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
+      getManagementCapabilities: vi.fn().mockResolvedValue({ web_search_enabled: false, account_quota_notify_enabled: false }),
       list: listAccounts,
       getById,
       listWithEtag,
@@ -67,6 +69,7 @@ const DataTableStub = defineComponent({
     <div>
       <div v-for="row in data" :key="row.id" :data-account-name="row.name">
         <slot name="cell-groups" :row="row" />
+        <slot name="cell-status" :row="row" />
         <slot name="cell-actions" :row="row" />
       </div>
     </div>
@@ -235,6 +238,43 @@ describe('admin AccountsView lite account list', () => {
       expect.objectContaining({ etag: null })
     )
     wrapper.unmount()
+  })
+
+  it.each([
+    { openai_excel_bps: false },
+    { openai_excel_bps_rate_limit_reset_at: '2026-10-04T03:00:00Z' },
+    { openai_excel_bps_rate_limit_reason: 'quota_exhausted' },
+    { openai_excel_bps_rate_limit_reset_at: null }
+  ])('refreshes a BPS-only Extra change without other account changes: %j', async (changedExtra) => {
+    vi.useFakeTimers()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    localStorage.setItem('account-auto-refresh', JSON.stringify({ enabled: true, interval_seconds: 5 }))
+    const initial = {
+      ...listRow,
+      updated_at: '2026-09-27T03:00:00Z',
+      extra: {
+        openai_excel_bps: true,
+        openai_excel_bps_rate_limit_reset_at: '2026-10-03T03:00:00Z',
+        openai_excel_bps_rate_limit_reason: 'rate_limited'
+      }
+    }
+    const next = { ...initial, extra: { ...initial.extra, ...changedExtra } }
+    listAccounts.mockResolvedValue({ items: [initial], total: 1, page: 1, page_size: 20, pages: 1 })
+    listWithEtag.mockResolvedValueOnce({
+      notModified: false, etag: 'bps-cooldown-etag',
+      data: { items: [next], total: 1, page: 1, page_size: 20, pages: 1 }
+    })
+    const wrapper = mountView()
+    try {
+      await flushPromises()
+      expect(wrapper.getComponent(AccountStatusIndicator).props('account').extra).toEqual(initial.extra)
+      await vi.advanceTimersByTimeAsync(6000)
+      await flushPromises()
+      expect(wrapper.getComponent(AccountStatusIndicator).props('account').extra).toEqual(next.extra)
+      expect(wrapper.getComponent(AccountStatusIndicator).props('account').schedulable).toBe(true)
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('loads the full account by id before opening edit, test, and stats actions', async () => {

@@ -450,39 +450,46 @@ var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /r
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	excelBPSImagesMu      sync.Mutex
-	excelBPSImages        *basispoints.ImageRelay
-	excelBPSAttachments   basispoints.AttachmentCache
-	codexHarvestRunMu     sync.RWMutex
-	accountRepo           AccountRepository
-	proxyRepo             ProxyRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	cache                 GatewayCache
-	cfg                   *config.Config
-	codexDetector         CodexClientRestrictionDetector
-	schedulerSnapshot     *SchedulerSnapshotService
-	concurrencyService    *ConcurrencyService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	userGroupRateResolver *userGroupRateResolver
-	httpUpstream          HTTPUpstream
-	pluginManager         *PluginManager
-	deferredService       *DeferredService
-	openAITokenProvider   *OpenAITokenProvider
-	grokTokenProvider     *GrokTokenProvider
-	toolCorrector         *CodexToolCorrector
-	openaiWSResolver      OpenAIWSProtocolResolver
-	resolver              *ModelPricingResolver
-	channelService        *ChannelService
-	balanceNotifyService  *BalanceNotifyService
-	settingService        *SettingService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
-	liveAttestation       liveattestation.Provider
-	liveAttestationCipher SecretEncryptor
+	excelBPSImagesMu       sync.Mutex
+	excelBPSImages         *basispoints.ImageRelay
+	excelBPSAttachments    basispoints.AttachmentCache
+	excelBPSRateLimits     sync.Map // account ID -> BPS-only cooldown deadline
+	excelBPSIPPoolMu       sync.Mutex
+	excelBPSIPPoolSyncedAt time.Time
+	harvestIPPoolMu        sync.Mutex
+	harvestIPPoolExits     []harvestIPPoolExit
+	harvestIPPoolSyncedAt  time.Time
+	harvestIPPoolCursor    atomic.Uint64
+	codexHarvestRunMu      sync.RWMutex
+	accountRepo            AccountRepository
+	proxyRepo              ProxyRepository
+	usageLogRepo           UsageLogRepository
+	usageBillingRepo       UsageBillingRepository
+	userRepo               UserRepository
+	userSubRepo            UserSubscriptionRepository
+	cache                  GatewayCache
+	cfg                    *config.Config
+	codexDetector          CodexClientRestrictionDetector
+	schedulerSnapshot      *SchedulerSnapshotService
+	concurrencyService     *ConcurrencyService
+	billingService         *BillingService
+	rateLimitService       *RateLimitService
+	billingCacheService    *BillingCacheService
+	userGroupRateResolver  *userGroupRateResolver
+	httpUpstream           HTTPUpstream
+	pluginManager          *PluginManager
+	deferredService        *DeferredService
+	openAITokenProvider    *OpenAITokenProvider
+	grokTokenProvider      *GrokTokenProvider
+	toolCorrector          *CodexToolCorrector
+	openaiWSResolver       OpenAIWSProtocolResolver
+	resolver               *ModelPricingResolver
+	channelService         *ChannelService
+	balanceNotifyService   *BalanceNotifyService
+	settingService         *SettingService
+	userPlatformQuotaRepo  UserPlatformQuotaRepository
+	liveAttestation        liveattestation.Provider
+	liveAttestationCipher  SecretEncryptor
 
 	openaiWSPoolOnce               sync.Once
 	openaiWSStateStoreOnce         sync.Once
@@ -523,6 +530,7 @@ type OpenAIGatewayService struct {
 	openaiCodexTurnStateWrites  atomic.Uint64
 	// openaiCodexTickets: accountID\x00model → *openAICodexTicket，292 长度门票。
 	openaiCodexTickets             sync.Map
+	codex780Routes                 codex780RouteCache
 	openaiCodexTicketStateMu       sync.Mutex
 	openaiCodexTicketCursors       sync.Map // codexHarvestTier -> *atomic.Uint64
 	openaiCodexTicketFlight        singleflight.Group

@@ -75,6 +75,10 @@ func (b *Bridge) translateCompleted(ctx context.Context, response object, repair
 	if validation == nil {
 		return b.translateResponse(response)
 	}
+	var schemaError toolArgumentsSchemaError
+	if errors.As(validation, &schemaError) {
+		return validation
+	}
 	original, eligible := repairableTools(response)
 	if repair == nil || !eligible || b.structured != nil {
 		return validation
@@ -106,8 +110,16 @@ func (b *Bridge) translateCompleted(ctx context.Context, response object, repair
 		}
 		validation = b.validateToolResponse(corrected)
 		if validation == nil {
-			items, err = b.restoreRawToolPayloads(original, items)
+			items, err = b.restoreToolOperations(original, items)
 			if err != nil {
+				return err
+			}
+			outputItems := make([]any, len(items))
+			for i, item := range items {
+				outputItems[i] = item
+			}
+			combined := object{"output": outputItems}
+			if err := b.validateToolResponse(combined); err != nil {
 				return err
 			}
 			if !b.preservesToolOperations(original, items) {
@@ -131,17 +143,28 @@ func (b *Bridge) translateCompleted(ctx context.Context, response object, repair
 	return fmt.Errorf("basispoints tool transport remains invalid after %d corrections; no tool was executed: %w", maxToolRepairs, validation)
 }
 
-// A correction chooses a declared raw transport, not replacement source text.
-// Bind its code field to the original bytes before checking the whole batch.
-// Valid operations and named JSON envelopes are never rebound.
+// A correction chooses transport formatting, not replacement operations.
+// Keep already valid calls intact when the correction addresses the same tool,
+// and bind unframed raw payloads to their original bytes. New call identities
+// belong to the correction turn; replay must retain the operation sent downstream.
 // Clone corrected calls so replay records exactly what the client receives,
 // without rewriting the model response used by the continuation.
-func (b *Bridge) restoreRawToolPayloads(original, corrected []object) ([]object, error) {
+func (b *Bridge) restoreToolOperations(original, corrected []object) ([]object, error) {
 	check := *b
 	check.replay = nil
 	result := append([]object(nil), corrected...)
 	for i, native := range original {
-		if _, err := check.translateCall(native); err == nil {
+		if before, err := check.translateCall(native); err == nil {
+			after, afterErr := check.translateCall(corrected[i])
+			// Never use argument restoration to hide a changed tool target.
+			if afterErr == nil && before["type"] == after["type"] && before["name"] == after["name"] && text(before["namespace"]) == text(after["namespace"]) {
+				bound := make(object, len(native))
+				for key, value := range native {
+					bound[key] = value
+				}
+				bound["id"], bound["call_id"] = corrected[i]["id"], corrected[i]["call_id"]
+				result[i] = bound
+			}
 			continue
 		}
 		code, ok := transportArguments(native)["code"].(string)
@@ -155,7 +178,7 @@ func (b *Bridge) restoreRawToolPayloads(original, corrected []object) ([]object,
 		}
 		args := transportArguments(corrected[i])
 		summary := text(args["summary"])
-		if (!strings.HasPrefix(summary, customTransportPrefix) && !strings.HasPrefix(summary, functionCodeTransportPrefix)) || args["code"] == code {
+		if (!strings.HasPrefix(summary, customTransportPrefix) && !strings.HasPrefix(summary, functionCodeTransportPrefix) && !strings.HasPrefix(summary, functionCmdTransportPrefix)) || args["code"] == code {
 			continue
 		}
 		boundArgs := make(object, len(args))
@@ -219,7 +242,11 @@ func (b *Bridge) preservesToolOperations(original, corrected []object) bool {
 			}
 		} else {
 			var payload object
-			if decode([]byte(text(after["arguments"])), &payload) != nil || payload["code"] != code {
+			field := "code"
+			if strings.HasPrefix(text(transportArguments(corrected[i])["summary"]), functionCmdTransportPrefix) {
+				field = "cmd"
+			}
+			if decode([]byte(text(after["arguments"])), &payload) != nil || payload[field] != code {
 				return false
 			}
 		}
@@ -237,7 +264,7 @@ func transportArguments(native object) object {
 }
 
 func transportTarget(args object) string {
-	for _, prefix := range []string{customTransportPrefix, functionCodeTransportPrefix} {
+	for _, prefix := range []string{customTransportPrefix, functionCodeTransportPrefix, functionCmdTransportPrefix} {
 		if summary := text(args["summary"]); strings.HasPrefix(summary, prefix) {
 			return strings.TrimPrefix(summary, prefix)
 		}
@@ -307,7 +334,7 @@ func BuildToolRepairRequest(prepared []byte, failed map[string]any, validation e
 		call := text(item["call_id"])
 		input = append(input, object{"type": "function_call_output", "id": "fc_" + fingerprint([]any{call, len(input)}), "call_id": call, "output": string(feedback)})
 	}
-	input = append(input, message("developer", fmt.Sprintf("The preceding tool batch failed transport validation before any client tool was executed. Correct only its transport formatting and return exactly %d run_officejs calls in the same order, preserving the intended operations and exact raw code. Use the existing client catalog: FUNCTION needs one JSON envelope with object arguments; CUSTOM needs summary=codex2api.custom/CATALOG_NAME and raw input in code; FUNCTION_CODE needs its declared marker and metadata JSON in extended_summary. Do not execute Office code, infer an undeclared target, add operations, or repeat commentary.", len(items))))
+	input = append(input, message("developer", fmt.Sprintf("The preceding tool batch failed transport validation before any client tool was executed. Correct only its transport formatting and return exactly %d run_officejs calls in the same order, preserving the intended operations and exact raw code. Use the existing client catalog: FUNCTION needs one JSON envelope with object arguments; CUSTOM needs summary=codex2api.custom/CATALOG_NAME and raw input in code; FUNCTION_CODE and FUNCTION_CMD need their declared markers and metadata JSON in extended_summary. Calls that already passed validation must remain unchanged. Do not execute Office code, infer an undeclared target, add operations, or repeat commentary.", len(items))))
 	request["input"] = input
 	metadata, _ := request["metadata"].(object)
 	if metadata == nil {

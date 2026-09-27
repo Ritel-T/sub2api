@@ -136,7 +136,7 @@ func TestImageRelayPreservesOriginalDetail(t *testing.T) {
 		last := mustTestValue[object](t, items[len(items)-1])
 		field, index := "content", 1
 		if toolResult {
-			field, index = "output", 0
+			index = 2 // Tool images follow their result in a labeled user message.
 		}
 		image := mustTestValue[object](t, mustTestValue[[]any](t, last[field])[index])
 		require.Equal(t, "original", image["detail"])
@@ -176,7 +176,7 @@ func TestImageRelayDisabledAndHTTPSPassthrough(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, raw, out)
 	_, _, err = Prepare(out, "scope", nil)
-	require.ErrorContains(t, err, "HTTPS image URL")
+	require.ErrorContains(t, err, "image support is disabled")
 	r, err := newTestImageRelay(t, "https://images.example")
 	require.NoError(t, err)
 	raw = []byte(`{ "model":"gpt-6-astra", "input":[{"role":"user","content":[{"type":"input_image","image_url":"https://cdn.example/image.png?sig=a%2Fb"}]}] }`)

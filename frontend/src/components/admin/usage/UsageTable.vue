@@ -28,8 +28,9 @@
       >
         <template #cell-user="{ row }">
           <div class="text-sm">
+            <span v-if="observerMode" class="font-medium text-gray-900 dark:text-white">{{ row.user?.email || "-" }}</span>
             <button
-              v-if="row.user?.email"
+              v-else-if="row.user?.email"
               class="font-medium text-primary-600 underline decoration-dashed underline-offset-2 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
               @click="$emit('userClick', row.user_id, row.user?.email)"
               :title="t('admin.usage.clickToViewBalance')"
@@ -541,8 +542,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, inject } from 'vue'
 import UsageTimingDialog from './UsageTimingDialog.vue'
+import { observerUsageContext } from './observerUsageContext'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
@@ -611,6 +613,8 @@ interface Props {
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
 }
+
+const observerMode = inject(observerUsageContext, false)
 
 const timingRecord = ref<AdminUsageLog | null>(null)
 

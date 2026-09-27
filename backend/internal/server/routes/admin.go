@@ -29,6 +29,7 @@ func RegisterAdminRoutes(
 	admin.Use(panelRateLimiter.Global())
 	// 审计中间件挂在认证之后：所有管理面变更类操作 + 敏感读取入审计日志
 	admin.Use(gin.HandlerFunc(auditLog))
+	admin.Use(h.Admin.Account.AuthorizeObserver)
 	admin.Use(middleware.AdminComplianceGuard(settingService))
 	{
 		// 部署与运营合规确认
@@ -376,6 +377,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 	accounts := admin.Group("/accounts")
 	{
 		accounts.GET("", h.Admin.Account.List)
+		accounts.GET("/management-capabilities", h.Admin.Setting.GetAccountManagementCapabilities)
 		accounts.GET("/upstream-billing-rates", h.Admin.Account.GetUpstreamBillingRates)
 		accounts.GET("/upstream-billing-probe/settings", h.Admin.Account.GetUpstreamBillingProbeSettings)
 		accounts.PUT("/upstream-billing-probe/settings", h.Admin.Account.UpdateUpstreamBillingProbeSettings)
@@ -414,6 +416,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.DELETE("/:id", h.Admin.Account.Delete)
 		accounts.POST("/:id/test", h.Admin.Account.Test)
 		accounts.POST("/:id/pelican-test", h.Admin.Account.PelicanTest)
+		accounts.POST("/:id/state-probe", h.Admin.Account.StateProbe)
 		accounts.POST("/:id/recover-state", h.Admin.Account.RecoverState)
 		accounts.POST("/:id/refresh", h.Admin.Account.Refresh)
 		accounts.POST("/:id/apply-oauth-credentials", h.Admin.Account.ApplyOAuthCredentials)
@@ -694,6 +697,7 @@ func registerSystemRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		system.GET("/version", h.Admin.System.GetVersion)
 		system.GET("/mihomo", h.Admin.System.GetMihomo)
 		system.POST("/mihomo", h.Admin.System.ManageMihomo)
+		system.PUT("/mihomo/download-mode", h.Admin.System.SetMihomoDownloadMode)
 		system.GET("/check-updates", h.Admin.System.CheckUpdates)
 		system.GET("/rollback-versions", h.Admin.System.GetRollbackVersions)
 		system.POST("/update", h.Admin.System.PerformUpdate)
@@ -759,6 +763,9 @@ func registerScheduledTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.GET("/account-ops/token-guard/status", h.Admin.AccountTokenGuard.Status)
 	admin.PUT("/account-ops/token-guard/config", h.Admin.AccountTokenGuard.SaveConfig)
 	admin.POST("/account-ops/token-guard/run", h.Admin.AccountTokenGuard.Run)
+	admin.POST("/account-ops/token-guard/run/start", h.Admin.AccountTokenGuard.StartRun)
+	admin.GET("/account-ops/token-guard/jobs/:id", h.Admin.AccountTokenGuard.Job)
+	admin.POST("/account-ops/token-guard/jobs/:id/cancel", h.Admin.AccountTokenGuard.Cancel)
 	admin.GET("/account-ops/token-guard/events", h.Admin.AccountTokenGuard.Events)
 	admin.POST("/account-ops/token-guard/accounts/:id/relogin", h.Admin.AccountTokenGuard.Relogin)
 	admin.GET("/account-quality-results", h.Admin.ScheduledTest.ListQualityHistory)
@@ -766,6 +773,7 @@ func registerScheduledTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.POST("/account-quality-plans/:id/run", h.Admin.ScheduledTest.TriggerQuality)
 	admin.GET("/pelican-test-results", h.Admin.ScheduledTest.ListPelicanHistory)
 	plans := admin.Group("/scheduled-test-plans")
+	plans.Use(h.Admin.ScheduledTest.ObserverGuard(h.Admin.Account))
 	{
 		plans.POST("", h.Admin.ScheduledTest.Create)
 		plans.PUT("/:id", h.Admin.ScheduledTest.Update)

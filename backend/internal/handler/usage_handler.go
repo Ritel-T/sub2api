@@ -77,24 +77,30 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 	var apiKeyID int64
 	if apiKeyIDStr := strings.TrimSpace(c.Query("api_key_id")); apiKeyIDStr != "" {
 		id, err := strconv.ParseInt(apiKeyIDStr, 10, 64)
-		if err != nil {
+		if err != nil || id <= 0 {
 			response.BadRequest(c, "Invalid api_key_id")
 			return nil, false
 		}
-		if h.apiKeyService == nil {
-			response.InternalError(c, "API key service not available")
-			return nil, false
+		if isObserverUsageRequest(c) {
+			// The final query always includes authenticated UserID. This also
+			// permits filtering historical records whose key was soft-deleted.
+			apiKeyID = id
+		} else {
+			if h.apiKeyService == nil {
+				response.InternalError(c, "API key service not available")
+				return nil, false
+			}
+			apiKey, err := h.apiKeyService.GetByID(c.Request.Context(), id)
+			if err != nil {
+				response.ErrorFrom(c, err)
+				return nil, false
+			}
+			if apiKey.UserID != subject.UserID {
+				response.Forbidden(c, "Not authorized to access this API key's usage records")
+				return nil, false
+			}
+			apiKeyID = id
 		}
-		apiKey, err := h.apiKeyService.GetByID(c.Request.Context(), id)
-		if err != nil {
-			response.ErrorFrom(c, err)
-			return nil, false
-		}
-		if apiKey.UserID != subject.UserID {
-			response.Forbidden(c, "Not authorized to access this API key's usage records")
-			return nil, false
-		}
-		apiKeyID = id
 	}
 
 	var groupID int64
@@ -208,7 +214,7 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 		return nil, false
 	}
 
-	return &userUsageFilters{
+	parsed := &userUsageFilters{
 		Filters: usagestats.UsageLogFilters{
 			UserID:             subject.UserID,
 			APIKeyID:           apiKeyID,
@@ -225,7 +231,11 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 		},
 		StartTime: derefTime(startPtr),
 		EndTime:   derefTime(endPtr),
-	}, true
+	}
+	if !applyObserverUsageFilters(c, &parsed.Filters) {
+		return nil, false
+	}
+	return parsed, true
 }
 
 func derefTime(value *time.Time) time.Time {
@@ -257,6 +267,14 @@ func (h *UsageHandler) List(c *gin.Context) {
 		return
 	}
 
+	if isObserverUsageRequest(c) {
+		out := make([]dto.AdminUsageLog, 0, len(records))
+		for i := range records {
+			out = append(out, *dto.UsageLogFromServiceAdmin(&records[i]))
+		}
+		response.Paginated(c, out, result.Total, page, pageSize)
+		return
+	}
 	out := make([]dto.UsageLog, 0, len(records))
 	for i := range records {
 		out = append(out, *dto.UsageLogFromService(&records[i]))
@@ -345,6 +363,27 @@ func (h *UsageHandler) ListErrors(c *gin.Context) {
 	// 排序对齐用量明细:列白名单与方向归一在 repo 层,非法值回退 created_at DESC。
 	filter.SetSort(c.Query("sort_by"), c.Query("sort_order"))
 
+	if isObserverUsageRequest(c) {
+		for name, dest := range map[string]**int64{"account_id": &filter.AccountID, "group_id": &filter.GroupID} {
+			if value := strings.TrimSpace(c.Query(name)); value != "" {
+				id, err := strconv.ParseInt(value, 10, 64)
+				if err != nil || id <= 0 {
+					response.BadRequest(c, "Invalid "+name)
+					return
+				}
+				*dest = &id
+			}
+		}
+		filter.Phase = strings.TrimSpace(c.Query("phase"))
+		result, err := h.opsService.ListObserverErrorRequests(c.Request.Context(), subject.UserID, filter)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		response.Paginated(c, result.Items, int64(result.Total), result.Page, result.PageSize)
+		return
+	}
+
 	result, err := h.opsService.ListUserErrorRequests(c.Request.Context(), subject.UserID, filter)
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -372,6 +411,15 @@ func (h *UsageHandler) GetErrorDetail(c *gin.Context) {
 	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "Invalid id")
+		return
+	}
+	if isObserverUsageRequest(c) {
+		detail, err := h.opsService.GetObserverErrorRequestDetail(c.Request.Context(), subject.UserID, id)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		response.Success(c, detail)
 		return
 	}
 	detail, err := h.opsService.GetUserErrorRequestDetail(c.Request.Context(), subject.UserID, id)
@@ -409,6 +457,10 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 		return
 	}
 
+	if isObserverUsageRequest(c) {
+		response.Success(c, dto.UsageLogFromServiceAdmin(record))
+		return
+	}
 	response.Success(c, dto.UsageLogFromService(record))
 }
 
@@ -425,9 +477,11 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	stats.TotalAccountCost = nil
-	stats.UpstreamEndpoints = nil
-	stats.EndpointPaths = nil
+	if !isObserverUsageRequest(c) {
+		stats.TotalAccountCost = nil
+		stats.UpstreamEndpoints = nil
+		stats.EndpointPaths = nil
+	}
 
 	response.Success(c, struct {
 		*usagestats.UsageStats
@@ -511,19 +565,26 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 	}
 
 	modelSource := strings.TrimSpace(c.Query("model_source"))
-	if modelSource != "" && modelSource != usagestats.ModelSourceRequested {
+	if modelSource == "" {
+		modelSource = usagestats.ModelSourceRequested
+	}
+	if modelSource != usagestats.ModelSourceRequested && (!isObserverUsageRequest(c) || (modelSource != usagestats.ModelSourceUpstream && modelSource != usagestats.ModelSourceMapping)) {
 		response.BadRequest(c, "Invalid model_source, user usage only supports requested")
 		return
 	}
 
-	stats, err := h.usageService.GetModelStatsWithFiltersBySource(c.Request.Context(), parsed.StartTime, parsed.EndTime, parsed.Filters, usagestats.ModelSourceRequested)
+	stats, err := h.usageService.GetModelStatsWithFiltersBySource(c.Request.Context(), parsed.StartTime, parsed.EndTime, parsed.Filters, modelSource)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
+	var models any = userModelStatsFromUsageStats(stats)
+	if isObserverUsageRequest(c) {
+		models = stats
+	}
 	response.Success(c, gin.H{
-		"models":     userModelStatsFromUsageStats(stats),
+		"models":     models,
 		"start_date": parsed.StartTime.Format("2006-01-02"),
 		"start_time": parsed.StartTime.Format(time.RFC3339Nano),
 		"end_date":   timezone.RangeEndDate(parsed.EndTime),
@@ -579,7 +640,11 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 			response.ErrorFrom(c, err)
 			return
 		}
-		resp["models"] = userModelStatsFromUsageStats(models)
+		if isObserverUsageRequest(c) {
+			resp["models"] = models
+		} else {
+			resp["models"] = userModelStatsFromUsageStats(models)
+		}
 	}
 	if includeGroups {
 		groups, err := h.usageService.GetGroupStatsWithFilters(c.Request.Context(), parsed.StartTime, parsed.EndTime, parsed.Filters)
@@ -587,7 +652,11 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 			response.ErrorFrom(c, err)
 			return
 		}
-		resp["groups"] = userGroupStatsFromUsageStats(groups)
+		if isObserverUsageRequest(c) {
+			resp["groups"] = groups
+		} else {
+			resp["groups"] = userGroupStatsFromUsageStats(groups)
+		}
 	}
 
 	response.Success(c, resp)

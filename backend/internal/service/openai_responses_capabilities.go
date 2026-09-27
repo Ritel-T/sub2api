@@ -11,11 +11,12 @@ import (
 type openAIEncryptedMessageContentContextKey struct{}
 
 // WithOpenAIResponsesRequestCapabilities records structural requirements from the
-// original Responses body. Only the boolean is retained, not message contents.
+// original Responses body. Only structural flags are retained, not message contents.
 func WithOpenAIResponsesRequestCapabilities(ctx context.Context, body []byte) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ctx = withOpenAIExcelBPSRequestRoute(ctx, body)
 	return context.WithValue(ctx, openAIEncryptedMessageContentContextKey{}, openAIHasEncryptedMessageContent(body))
 }
 

@@ -384,6 +384,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) (selection *AccountSelectionResult, decision OpenAIAccountScheduleDecision, err error) {
+	ctx = withExcelBPSPreviousResponseCanMove(ctx, req.PreviousResponseCanMove)
 	if s != nil && s.service != nil && s.service.openAIGroupRequiresPrivacySet(ctx, req.GroupID) {
 		req.RequirePrivacySet = true
 	}
@@ -420,6 +421,9 @@ func (s *defaultOpenAIAccountScheduler) Select(
 				!compatible || !s.isAccountTransportCompatible(selection.Account, req.RequiredTransport, req.RequestedModel) {
 				if selection.ReleaseFunc != nil {
 					selection.ReleaseFunc()
+				}
+				if !req.PreviousResponseCanMove {
+					return nil, decision, errOpenAIRequiredResponseOwnerUnavailable
 				}
 				selection = nil
 			}
@@ -1803,6 +1807,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	if openAIEncryptedMessageCapabilityMismatch(ctx, account, req.RequestedModel) {
 		return false, "encrypted_message_unsupported"
 	}
+	if s != nil && s.service != nil && s.service.isOpenAIExcelBPSCooldownBlocked(ctx, account, req.RequestedModel) {
+		return false, openAIExcelBPSCooldownReason
+	}
 	if req.RequirePrivacySet && !account.IsPrivacySet() {
 		return false, "privacy_not_set"
 	}
@@ -2313,6 +2320,9 @@ func (s *OpenAIGatewayService) selectLegacyAccountByPreviousResponse(
 		if selection.ReleaseFunc != nil {
 			selection.ReleaseFunc()
 		}
+		if !excelBPSPreviousResponseCanMove(ctx) {
+			return nil, false, errOpenAIRequiredResponseOwnerUnavailable
+		}
 		return nil, false, nil
 	}
 	if sessionHash != "" {
@@ -2336,6 +2346,8 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 	previousResponseCanMove bool,
 	useUpstreamTokenCost bool,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	ctx = s.withExcelBPSCooldownContext(ctx)
+	ctx = withExcelBPSPreviousResponseCanMove(ctx, previousResponseCanMove)
 	ctx = withOpenAIProxyQuarantineTransport(ctx, requiredTransport)
 	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
 	ctx = s.withOpenAIGroupPrivacyRequirement(ctx, groupID)

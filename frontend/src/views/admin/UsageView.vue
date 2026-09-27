@@ -35,6 +35,7 @@
             :start-date="startDate"
             :end-date="endDate"
             :filters="breakdownFilters"
+            :enable-breakdown="!props.observerMode"
           />
           <GroupDistributionChart
             v-model:metric="groupDistributionMetric"
@@ -44,6 +45,7 @@
             :start-date="startDate"
             :end-date="endDate"
             :filters="breakdownFilters"
+            :enable-breakdown="!props.observerMode"
           />
         </div>
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -60,6 +62,7 @@
             :start-date="startDate"
             :end-date="endDate"
             :filters="breakdownFilters"
+            :enable-breakdown="!props.observerMode"
           />
           <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
         </div>
@@ -144,7 +147,7 @@
             :rows="errRows" :total="errTotal" :loading="errLoading"
             :page="errPage" :page-size="errPageSize"
             :visible-column-keys="errVisibleColumnKeys"
-            user-clickable
+            :user-clickable="!props.observerMode"
             @userClick="handleUserClick"
             @openErrorDetail="openError"
             @sort="onErrSort"
@@ -153,7 +156,7 @@
             @ipGeoBatchFailed="handleIpGeoBatchFailed" />
         </div>
         <!-- 懒挂载：首次切到该 tab 才请求排行数据，之后随筛选自动刷新 -->
-        <div v-if="rankingMounted" v-show="activeTab === 'ranking'" class="overflow-hidden rounded-b-2xl">
+        <div v-if="!props.observerMode && rankingMounted" v-show="activeTab === 'ranking'" class="overflow-hidden rounded-b-2xl">
           <UserTokenRanking
             ref="rankingRef"
             :start-date="startDate"
@@ -169,6 +172,7 @@
   </AppLayout>
   <UsageExportProgress :show="exportProgress.show" :progress="exportProgress.progress" :current="exportProgress.current" :total="exportProgress.total" :estimated-time="exportProgress.estimatedTime" @cancel="cancelExport" />
   <UsageCleanupDialog
+    v-if="!props.observerMode"
     :show="cleanupDialogVisible"
     :filters="filters"
     :start-date="startDate"
@@ -177,6 +181,7 @@
   />
   <!-- Balance history modal triggered from usage table user click -->
   <UserBalanceHistoryModal
+    v-if="!props.observerMode"
     :show="showBalanceHistoryModal"
     :user="balanceHistoryUser"
     :hide-actions="true"
@@ -186,7 +191,9 @@
 
 <script setup lang="ts">
 import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange, parseDateBoundary } from '@/utils/dateRange'
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, provide } from 'vue'
+import { observerUsageAPI } from '@/api/observerUsage'
+import { observerUsageContext } from '@/components/admin/usage/observerUsageContext'
 import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
 import { useRoute } from 'vue-router'
@@ -209,6 +216,8 @@ import EndpointDistributionChart from '@/components/charts/EndpointDistributionC
 import Icon from '@/components/icons/Icon.vue'
 import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
 
+const props = withDefaults(defineProps<{ observerMode?: boolean }>(), { observerMode: false })
+provide(observerUsageContext, props.observerMode)
 const { t } = useI18n()
 const appStore = useAppStore()
 type DistributionMetric = 'tokens' | 'actual_cost'
@@ -258,6 +267,7 @@ const modelNameOptions = computed(() =>
 )
 
 const handleUserClick = async (userId: number) => {
+  if (props.observerMode) return
   try {
     const user = await adminAPI.users.getById(userId, true)
     balanceHistoryUser.value = user
@@ -270,6 +280,7 @@ const handleUserClick = async (userId: number) => {
 // Drill down from the per-user token ranking: scope the whole usage view to
 // that user and jump to the usage-detail tab so the drill-down is visible.
 const handleRankingSelectUser = (userId: number, email: string) => {
+  if (props.observerMode) return
   filters.value = { ...filters.value, user_id: userId }
   usageFiltersRef.value?.setUserKeyword?.(email || '')
   activeTab.value = 'usage'
@@ -303,7 +314,7 @@ const getNumericQueryValue = (value: string | null | Array<string | null> | unde
 const applyRouteQueryFilters = () => {
   const queryStartDate = getSingleQueryValue(route.query.start_date)
   const queryEndDate = getSingleQueryValue(route.query.end_date)
-  const queryUserId = getNumericQueryValue(route.query.user_id)
+  const queryUserId = props.observerMode ? undefined : getNumericQueryValue(route.query.user_id)
   if (queryStartDate || queryEndDate) selectedPreset.value = null
 
   if (queryStartDate) {
@@ -323,6 +334,7 @@ const applyRouteQueryFilters = () => {
 }
 
 const loadRouteUserFilterLabel = async () => {
+  if (props.observerMode) return
   const requestedUserId = filters.value.user_id
   if (!requestedUserId) return
   const userSearchRevision = usageFiltersRef.value?.getUserSearchRevision?.()
@@ -376,7 +388,7 @@ const buildUsageListParams = (
 const loadLogs = async () => {
   abortController?.abort(); const c = new AbortController(); abortController = c; loading.value = true
   try {
-    const res = await adminAPI.usage.list(
+    const res = await (props.observerMode ? observerUsageAPI.list : adminAPI.usage.list)(
       buildUsageListParams(pagination.page, pagination.page_size, false),
       { signal: c.signal }
     )
@@ -389,7 +401,7 @@ const loadStats = async (force = false) => {
   try {
     const requestType = filters.value.request_type
     const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
-    const s = await adminAPI.usage.getStats({
+    const s = await (props.observerMode ? observerUsageAPI.getStats : adminAPI.usage.getStats)({
       ...filters.value,
       stream: legacyStream === null ? undefined : legacyStream,
       ...(force ? { nocache: 1 } : {}),
@@ -442,7 +454,7 @@ const loadModelStats = async (source: ModelDistributionSource, force = false) =>
 	  upstream_model_mismatch: filters.value.upstream_model_mismatch,
     }
 
-    const response = await adminAPI.dashboard.getModelStats({ ...baseParams, model_source: source })
+    const response = await (props.observerMode ? observerUsageAPI.getModelStats : adminAPI.dashboard.getModelStats)({ ...baseParams, model_source: source })
 
     if (seq !== modelStatsReqSeq) return
 
@@ -477,7 +489,7 @@ const loadChartData = async () => {
   try {
     const requestType = filters.value.request_type
     const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
-    const snapshot = await adminAPI.dashboard.getSnapshotV2({
+    const snapshot = await (props.observerMode ? observerUsageAPI.getSnapshotV2 : adminAPI.dashboard.getSnapshotV2)({
       start_date: filters.value.start_date || startDate.value,
       end_date: filters.value.end_date || endDate.value,
       granularity: granularity.value,
@@ -554,7 +566,7 @@ const handleIpGeoBatchFailed = () => {
   appStore.showError(t('usage.ipGeo.batchFailed'))
 }
 const cancelExport = () => exportAbortController?.abort()
-const openCleanupDialog = () => { cleanupDialogVisible.value = true }
+const openCleanupDialog = () => { if (!props.observerMode) cleanupDialogVisible.value = true }
 const getRequestTypeLabel = (log: AdminUsageLog): string => {
   const requestType = resolveUsageRequestType(log)
   if (requestType === 'cyber') return t('usage.cyber')
@@ -586,7 +598,7 @@ const exportToExcel = async () => {
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers])
     while (true) {
-      const res = await adminUsageAPI.list(
+      const res = await (props.observerMode ? observerUsageAPI.list : adminUsageAPI.list)(
         buildUsageListParams(p, 100, true),
         { signal: c.signal }
       )
@@ -778,16 +790,18 @@ const loadSavedColumns = () => {
 // Detail tabs
 type DetailTab = 'usage' | 'errors' | 'ranking'
 const activeTab = ref<DetailTab>('usage')
+const canViewErrors = computed(() => !props.observerMode || !!appStore.cachedPublicSettings?.allow_user_view_error_requests)
 const detailTabs = computed(() => [
   { key: 'usage' as const, label: t('usage.tabs.usage'), icon: 'document' as const },
-  { key: 'errors' as const, label: t('usage.tabs.errors'), icon: 'exclamationTriangle' as const },
-  { key: 'ranking' as const, label: t('usage.tabs.ranking'), icon: 'chart' as const },
+  ...(canViewErrors.value ? [{ key: 'errors' as const, label: t('usage.tabs.errors'), icon: 'exclamationTriangle' as const }] : []),
+  ...(!props.observerMode ? [{ key: 'ranking' as const, label: t('usage.tabs.ranking'), icon: 'chart' as const }] : []),
 ])
 const usageFiltersRef = ref<InstanceType<typeof UsageFilters> | null>(null)
 const rankingMounted = ref(false)
 const rankingRef = ref<InstanceType<typeof UserTokenRanking> | null>(null)
 
 const switchTab = (tab: DetailTab) => {
+  if (!detailTabs.value.some(item => item.key === tab)) return
   activeTab.value = tab
   if (tab === 'errors' && errRows.value.length === 0) loadAdminErrors()
   if (tab === 'ranking') rankingMounted.value = true
@@ -809,9 +823,11 @@ const toRFC3339 = (d: string | undefined, endOfDay = false): string | undefined 
   d ? parseDateBoundary(d, endOfDay).toISOString() : undefined
 
 const loadAdminErrors = async () => {
+  if (!canViewErrors.value) return
   errLoading.value = true
   try {
-    const resp = await listErrorLogs({
+    const resp = await (props.observerMode ? observerUsageAPI.listErrors : listErrorLogs)({
+      ...(props.observerMode ? { start_date: filters.value.start_date, end_date: filters.value.end_date, status_code: filters.value.status_code } : {}),
       page: errPage.value,
       page_size: errPageSize.value,
       view: 'all',

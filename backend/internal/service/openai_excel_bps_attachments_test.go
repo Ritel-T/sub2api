@@ -38,6 +38,25 @@ type nativeAttachmentBody struct {
 
 func (b *nativeAttachmentBody) Close() error { b.closed = true; return nil }
 
+type nativeAttachmentCooldownWrite struct {
+	accountID int64
+	until     time.Time
+	reason    string
+	ctxErr    error
+	deadline  time.Time
+}
+
+type nativeAttachmentCooldownRepo struct {
+	*excelBPSQuotaRepo
+	cooldowns chan nativeAttachmentCooldownWrite
+}
+
+func (r *nativeAttachmentCooldownRepo) ExtendExcelBPSRateLimit(ctx context.Context, id int64, until time.Time, reason string) (time.Time, error) {
+	deadline, _ := ctx.Deadline()
+	r.cooldowns <- nativeAttachmentCooldownWrite{id, until, reason, ctx.Err(), deadline}
+	return until, nil
+}
+
 func nativeGatewayBody(t *testing.T) ([]byte, []byte) {
 	t.Helper()
 	var data bytes.Buffer
@@ -130,7 +149,7 @@ func TestExcelBPSNativeAttachmentForward(t *testing.T) {
 	}
 }
 
-func TestExcelBPSNativeUploadFailureStopsWithoutQuotaWrite(t *testing.T) {
+func TestExcelBPSNativeUploadFailurePreservesNativeQuota(t *testing.T) {
 	cases := []struct {
 		name      string
 		status    int
@@ -168,9 +187,22 @@ func TestExcelBPSNativeUploadFailureStopsWithoutQuotaWrite(t *testing.T) {
 			account := excelAccount()
 			_, err := svc.Forward(context.Background(), c, account, body)
 			require.Error(t, err)
-			require.Equal(t, tc.want, rec.Code)
 			require.Equal(t, 1, calls)
-			require.True(t, IsResponseCommitted(c))
+			if tc.status == http.StatusTooManyRequests {
+				var failover *UpstreamFailoverError
+				require.ErrorAs(t, err, &failover)
+				require.Equal(t, http.StatusTooManyRequests, failover.StatusCode)
+				require.True(t, failover.SafeToFailoverAfterWrite)
+				require.Contains(t, string(failover.ResponseBody), "basispoints_rate_limited")
+				require.NotContains(t, string(failover.ResponseBody), "PRIVATE")
+				require.False(t, IsResponseCommitted(c))
+				require.Empty(t, rec.Body.String())
+				require.WithinDuration(t, time.Now().Add(7*24*time.Hour), svc.excelBPSCooldownUntil(account), 5*time.Second)
+			} else {
+				require.Equal(t, tc.want, rec.Code)
+				require.True(t, IsResponseCommitted(c))
+				require.True(t, svc.excelBPSCooldownUntil(account).IsZero())
+			}
 			require.NotContains(t, rec.Body.String(), "PRIVATE")
 			require.NotContains(t, err.Error(), "PRIVATE")
 			requireNoExcelBPSQuotaWrite(t, repo)
@@ -179,9 +211,86 @@ func TestExcelBPSNativeUploadFailureStopsWithoutQuotaWrite(t *testing.T) {
 			if !tc.transport {
 				require.True(t, closed.closed)
 			}
-			if tc.status == 429 {
-				require.Contains(t, rec.Body.String(), "basispoints_rate_limited")
+		})
+	}
+}
+
+func TestExcelBPSAttachment429RecordsCooldownBeforeBodyReadError(t *testing.T) {
+	quotaBody, err := json.Marshal(map[string]any{"error": map[string]any{"code": "usage_limit_reached", "resets_in_seconds": 90}})
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name         string
+		headers      http.Header
+		readErr      error
+		cancelClient bool
+		wantDelay    time.Duration
+	}{
+		{"complete quota body", nil, nil, false, 90 * time.Second},
+		{"canceled quota body", nil, context.Canceled, true, 90 * time.Second},
+		{"canceled body with retry header", http.Header{"Retry-After": {"120"}}, context.Canceled, true, 2 * time.Minute},
+		{"timeout after quota body", nil, context.DeadlineExceeded, false, 90 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := openAIClientToolsTestService(nil)
+			repo := &nativeAttachmentCooldownRepo{
+				excelBPSQuotaRepo: &excelBPSQuotaRepo{writes: make(chan excelBPSQuotaWrite, 4)},
+				cooldowns:         make(chan nativeAttachmentCooldownWrite, 1),
 			}
+			svc.accountRepo = repo
+			account := excelAccount()
+			account.Extra["codex_5h_used_percent"] = float64(42)
+			account.Extra["codex_7d_used_percent"] = float64(17)
+			before := make(map[string]any, len(account.Extra))
+			for key, value := range account.Extra {
+				before[key] = value
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			var reader io.Reader = bytes.NewReader(quotaBody)
+			if tc.readErr != nil {
+				reader = io.MultiReader(reader, &bpsAttachmentErrorBody{
+					err: fmt.Errorf("PRIVATE_TRANSPORT: %w", tc.readErr),
+					beforeRead: func() {
+						if tc.cancelClient {
+							cancel()
+						}
+					},
+				})
+			}
+			responseBody := &nativeAttachmentBody{Reader: reader}
+			svc.httpUpstream = &nativeAttachmentUpstream{do: func(*http.Request, string, int64, int) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusTooManyRequests, Header: tc.headers, Body: responseBody}, nil
+			}}
+			started := time.Now()
+			id, err := svc.uploadExcelBPSAttachment(ctx, account, "test-token", "test-account", "", basispoints.InlineAttachment{MIME: "image/png"})
+			require.Empty(t, id)
+			require.EqualError(t, err, "excel BPS attachment returned HTTP 429")
+			var attachment *excelBPSAttachmentError
+			require.ErrorAs(t, err, &attachment)
+			require.Equal(t, http.StatusTooManyRequests, attachment.status)
+			if tc.readErr != nil {
+				require.ErrorIs(t, err, tc.readErr)
+			} else {
+				require.Nil(t, errors.Unwrap(err))
+			}
+			require.True(t, responseBody.closed)
+			require.Len(t, repo.cooldowns, 1, "BPS cooldown must be persisted before returning the upload error")
+			write := <-repo.cooldowns
+			require.Equal(t, account.ID, write.accountID)
+			require.Equal(t, "quota_exhausted", write.reason)
+			require.WithinDuration(t, started.Add(tc.wantDelay), write.until, time.Second)
+			require.Equal(t, write.until, svc.excelBPSCooldownUntil(account))
+			require.NoError(t, write.ctxErr, "cooldown persistence must outlive client cancellation")
+			require.True(t, write.deadline.After(started), "detached persistence must still have a deadline")
+			if tc.cancelClient {
+				require.ErrorIs(t, ctx.Err(), context.Canceled)
+			} else {
+				require.NoError(t, ctx.Err())
+			}
+			requireNoExcelBPSQuotaWrite(t, repo.excelBPSQuotaRepo)
+			require.Equal(t, before, account.Extra, "BPS must preserve the shared native quota snapshot")
+			require.True(t, account.IsSchedulable())
+			require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 		})
 	}
 }
@@ -242,4 +351,96 @@ func nativeGatewayParts(t *testing.T, v map[string]any) []any {
 	parts, ok := message["content"].([]any)
 	require.True(t, ok)
 	return parts
+}
+
+func TestExcelBPSAttachmentUsesResolvedSessionProxy(t *testing.T) {
+	body, _ := nativeGatewayBody(t)
+	images, err := basispoints.PrepareNativeImages(body)
+	require.NoError(t, err)
+	svc := openAIClientToolsTestService(nil)
+	account := excelAccount()
+	account.Proxy = &Proxy{Protocol: "http", Host: "account-proxy.example", Port: 8080}
+	const selected = "http://127.0.0.1:19007"
+	calls := 0
+	svc.httpUpstream = &nativeAttachmentUpstream{do: func(req *http.Request, proxy string, id int64, concurrency int) (*http.Response, error) {
+		calls++
+		require.Equal(t, selected, proxy)
+		require.Equal(t, account.ID, id)
+		require.Equal(t, basispoints.AttachmentsURL, req.URL.String())
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("{\"openai_file_id\":\"file-selected-proxy\"}"))}, nil
+	}}
+	_, err = images.Upload(context.Background(), new(basispoints.AttachmentCache), "", func(ctx context.Context, img basispoints.InlineAttachment) (string, error) {
+		return svc.uploadExcelBPSAttachment(ctx, account, "test-token", "test-account", selected, img)
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, calls)
+}
+
+func TestExcelBPSNativeToolScreenshotsStayInline(t *testing.T) {
+	imageBody, _ := nativeGatewayBody(t)
+	dataURL := gjson.GetBytes(imageBody, "input.0.content.0.image_url").String()
+	for _, kind := range []string{"function_call_output", "custom_tool_call_output"} {
+		for _, mixed := range []bool{false, true} {
+			for _, detail := range []string{"", "null", "low", "high", "original"} {
+				t.Run(fmt.Sprintf("%s/mixed=%t/detail=%s", kind, mixed, detail), func(t *testing.T) {
+					part := map[string]any{"type": "input_image", "image_url": dataURL}
+					wantDetail := detail
+					if detail == "null" {
+						part["detail"] = nil
+					} else if detail != "" {
+						part["detail"] = detail
+					}
+					if detail == "" || detail == "null" {
+						wantDetail = "auto"
+					}
+					input := []any{}
+					if mixed {
+						input = append(input, map[string]any{"role": "user", "content": []any{part}})
+					}
+					input = append(input, map[string]any{"type": "function_call", "name": "view_image", "call_id": "call_image", "arguments": "{}"}, map[string]any{"type": kind, "call_id": "call_image", "output": []any{part, map[string]any{"type": "input_text", "text": "screenshot context"}}})
+					body, err := json.Marshal(map[string]any{"model": "gpt-6-astra", "input": input})
+					require.NoError(t, err)
+					svc := openAIClientToolsTestService(nil)
+					enableNativeAttachments(svc)
+					uploads, responses := 0, 0
+					svc.httpUpstream = &nativeAttachmentUpstream{do: func(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+						if req.URL.String() == basispoints.AttachmentsURL {
+							uploads++
+							require.True(t, mixed, "tool-only requests must not upload")
+							return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"openai_file_id":"file-user-image"}`))}, nil
+						}
+						responses++
+						raw, err := io.ReadAll(req.Body)
+						require.NoError(t, err)
+						found := false
+						for _, item := range gjson.GetBytes(raw, "input").Array() {
+							if item.Get("type").String() == "function_call_output" {
+								found = true
+								require.Equal(t, dataURL, item.Get("output.0.image_url").String())
+								require.False(t, item.Get("output.0.file_id").Exists())
+								require.Equal(t, wantDetail, item.Get("output.0.detail").String())
+								require.Equal(t, "screenshot context", item.Get("output.1.text").String())
+							}
+						}
+						require.True(t, found)
+						if mixed {
+							require.Contains(t, string(raw), `"file_id":"file-user-image"`)
+						}
+						return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_screenshot\",\"status\":\"completed\",\"output\":[]}}\n\n"))}, nil
+					}}
+					rec := httptest.NewRecorder()
+					c, _ := gin.CreateTestContext(rec)
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+					_, err = svc.Forward(context.Background(), c, excelAccount(), body)
+					require.NoError(t, err)
+					require.Equal(t, 1, responses)
+					if mixed {
+						require.Equal(t, 1, uploads)
+					} else {
+						require.Zero(t, uploads)
+					}
+				})
+			}
+		}
+	}
 }

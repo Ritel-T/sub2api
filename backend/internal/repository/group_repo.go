@@ -77,10 +77,10 @@ func newGroupRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *groupRep
 }
 
 func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) error {
-	if err := createGroupRecord(ctx, r.client, groupIn); err != nil {
+	if err := createGroupRecord(ctx, clientFromContext(ctx, r.client), groupIn); err != nil {
 		return err
 	}
-	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
+	if err := enqueueSchedulerOutbox(ctx, txAwareSQLExecutor(ctx, r.sql, r.client), service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
 		logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group create failed: group=%d err=%v", groupIn.ID, err)
 	}
 	return nil

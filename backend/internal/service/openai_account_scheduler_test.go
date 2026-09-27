@@ -458,12 +458,27 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_DefaultDisabledUsesLega
 		OpenAIUpstreamTransportAny,
 		false,
 	)
+	require.ErrorIs(t, err, errOpenAIRequiredResponseOwnerUnavailable)
+	require.Nil(t, selection, "disabling the advanced scheduler must not bypass a required owner's group eligibility")
+	owner, readErr := store.GetResponseAccount(ctx, groupID, "resp_disabled_001")
+	require.NoError(t, readErr)
+	require.Equal(t, accounts[0].ID, owner)
+
+	// These ungrouped fixtures cannot own a required continuation in groupID.
+	// A reconstructible request may still fall back through legacy load awareness.
+	selection, decision, err = svc.SelectAccountWithSchedulerForCapability(
+		ctx, &groupID, "resp_disabled_001", "", "gpt-5.1", nil,
+		OpenAIUpstreamTransportAny, "", false, true, false,
+	)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.NotNil(t, selection.Account)
 	require.Equal(t, int64(36002), selection.Account.ID)
 	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
 	require.False(t, decision.StickyPreviousHit)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
 }
 
 // Regression: the legacy load-batch path had two bare ErrNoAvailableAccounts
@@ -1414,7 +1429,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_PreviousResponseCompact
 	store := svc.getOpenAIWSStateStore()
 	require.NoError(t, store.BindResponseAccount(ctx, groupID, "resp_compact_unsupported", 37121, time.Hour))
 
-	selection, decision, err := svc.SelectAccountWithScheduler(
+	selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
 		ctx,
 		&groupID,
 		"resp_compact_unsupported",
@@ -1422,7 +1437,10 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_PreviousResponseCompact
 		"gpt-5.1",
 		nil,
 		OpenAIUpstreamTransportAny,
+		OpenAIEndpointCapabilityResponses,
 		true,
+		true,
+		false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
@@ -1568,6 +1586,17 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_Enabled_EmbeddingsSkips
 		false,
 		true,
 	)
+	require.ErrorIs(t, err, errOpenAIRequiredResponseOwnerUnavailable)
+	require.Nil(t, selection, "a capability mismatch must not move required response history")
+	owner, readErr := store.GetResponseAccount(ctx, groupID, "resp_embeddings_chat_only")
+	require.NoError(t, readErr)
+	require.Equal(t, accounts[0].ID, owner)
+	require.Equal(t, accounts[0].ID, cache.sessionBindings["openai:session_hash_embeddings"])
+
+	selection, decision, err = svc.SelectAccountWithSchedulerForCapability(
+		ctx, &groupID, "resp_embeddings_chat_only", "session_hash_embeddings", "text-embedding-3-small", nil,
+		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityEmbeddings, false, true, true,
+	)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.NotNil(t, selection.Account)
@@ -1576,6 +1605,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_Enabled_EmbeddingsSkips
 	require.False(t, decision.StickyPreviousHit)
 	require.False(t, decision.StickySessionHit)
 	require.Equal(t, int64(37022), cache.sessionBindings["openai:session_hash_embeddings"])
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
 }
 
 func TestOpenAIGatewayService_OpenAIAccountSchedulerMetrics_DisabledNoOp(t *testing.T) {

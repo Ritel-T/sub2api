@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center gap-2">
+  <div class="flex flex-wrap items-center gap-2">
     <!-- Rate Limit Display (429) - Two-line layout -->
     <div v-if="isRateLimited" class="flex flex-col items-center gap-1">
       <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rateLimited') }}</span>
@@ -31,6 +31,8 @@
         {{ statusText }}
       </span>
     </template>
+
+    <ExcelBPSCooldownBadge :account="account" />
 
     <!-- Error Info Indicator -->
     <div v-if="hasError && account.error_message" class="group/error relative">
@@ -162,6 +164,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import ExcelBPSCooldownBadge from './ExcelBPSCooldownBadge.vue'
 import type { Account } from '@/types'
 import { formatCountdown, formatDateTime, formatDateTimeToMinute, formatCountdownWithSuffix, formatTime } from '@/utils/format'
 

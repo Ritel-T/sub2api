@@ -121,6 +121,7 @@ func provideCleanup(
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	accountOps *service.AccountOpsService,
+	accountTokenGuard *service.AccountTokenGuardService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
@@ -145,6 +146,12 @@ func provideCleanup(
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
+			{"AccountTokenGuardService", func() error {
+				if accountTokenGuard != nil {
+					accountTokenGuard.Stop()
+				}
+				return nil
+			}},
 			{"PluginManager", func() error {
 				if pluginManager != nil {
 					pluginManager.Stop()

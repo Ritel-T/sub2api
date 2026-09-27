@@ -4630,6 +4630,22 @@
                       />
                       <span>{{ t("admin.settings.gatewayForwarding.codexTicketProxyModeStatic") }}</span>
                     </label>
+                    <label
+                      class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
+                      :class="codexTicketProxyMode === 'ip_pool'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'border-gray-200 text-gray-600 hover:border-primary-300 dark:border-dark-600 dark:text-gray-400'"
+                    >
+                      <input
+                        class="sr-only"
+                        type="radio"
+                        name="codex-ticket-proxy-mode"
+                        value="ip_pool"
+                        :checked="codexTicketProxyMode === 'ip_pool'"
+                        @change="selectCodexTicketProxyMode('ip_pool')"
+                      />
+                      <span>{{ t("admin.settings.gatewayForwarding.codexTicketProxyModeIPPool") }}</span>
+                    </label>
                   </div>
                   <div
                     v-if="codexTicketProxyMode === 'mihomo'"
@@ -4639,8 +4655,15 @@
                       <span>{{ t("admin.settings.gatewayForwarding.codexTicketProxyMihomoEndpoint") }}</span>
                       <code class="rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs dark:bg-dark-800/70">{{ CODEX_TICKET_MIHOMO_PROXY_URL }}</code>
                     </div>
-                    <MihomoSettings @ready="selectMihomoHarvestProxy" />
+                    <MihomoProxySelector @ready="selectMihomoHarvestProxy" />
                   </div>
+                  <p
+                    v-else-if="codexTicketProxyMode === 'ip_pool'"
+                    data-testid="codex-ticket-proxy-ip-pool-hint"
+                    class="mt-3 rounded-md border border-primary-200 bg-primary-50/60 px-3 py-2.5 text-sm text-primary-800 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-200"
+                  >
+                    {{ t("admin.settings.gatewayForwarding.codexTicketProxyIPPoolHint") }}
+                  </p>
                   <input
                     v-else
                     id="codex-ticket-harvest-proxy"
@@ -9335,7 +9358,7 @@ import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
-import MihomoSettings from "@/views/admin/settings/MihomoSettings.vue";
+import MihomoProxySelector from "@/views/admin/settings/MihomoProxySelector.vue";
 import PelicanShowcaseSettings from "@/views/admin/settings/PelicanShowcaseSettings.vue";
 import {
   defaultPelicanShowcaseConfig,
@@ -11354,12 +11377,23 @@ const codexSyncedVersionLabel = computed(() => {
 });
 
 const CODEX_TICKET_MIHOMO_PROXY_URL = "http://127.0.0.1:3101";
-type CodexTicketProxyMode = "mihomo" | "static";
+const CODEX_TICKET_IP_POOL_PROXY_URL = "ippool://active";
+type CodexTicketProxyMode = "mihomo" | "static" | "ip_pool";
 const codexTicketProxyMode = ref<CodexTicketProxyMode>("static");
 const codexTicketStaticProxyDraft = ref("");
 
 function isCodexTicketMihomoProxyURL(value: string): boolean {
   return value.trim().replace(/\/+$/, "") === CODEX_TICKET_MIHOMO_PROXY_URL;
+}
+
+function isCodexTicketIPPoolProxyURL(value: string): boolean {
+  return value.trim() === CODEX_TICKET_IP_POOL_PROXY_URL;
+}
+
+function codexTicketProxyModeOf(value: string): CodexTicketProxyMode {
+  if (isCodexTicketMihomoProxyURL(value)) return "mihomo";
+  if (isCodexTicketIPPoolProxyURL(value)) return "ip_pool";
+  return "static";
 }
 
 function selectMihomoHarvestProxy(endpoint: string): void {
@@ -11369,19 +11403,23 @@ function selectMihomoHarvestProxy(endpoint: string): void {
 
 function syncCodexTicketProxyMode(): void {
   const current = form.openai_codex_ticket_harvest_proxy_url;
-  const isMihomo = isCodexTicketMihomoProxyURL(current);
-  codexTicketProxyMode.value = isMihomo ? "mihomo" : "static";
-  codexTicketStaticProxyDraft.value = isMihomo ? form.openai_codex_ticket_static_proxy_url || "" : current;
+  const mode = codexTicketProxyModeOf(current);
+  codexTicketProxyMode.value = mode;
+  codexTicketStaticProxyDraft.value = mode === "static" ? current : form.openai_codex_ticket_static_proxy_url || "";
 }
 
 function selectCodexTicketProxyMode(mode: CodexTicketProxyMode): void {
-  const wasMihomo = isCodexTicketMihomoProxyURL(form.openai_codex_ticket_harvest_proxy_url);
-  if (!wasMihomo) {
+  const previous = codexTicketProxyModeOf(form.openai_codex_ticket_harvest_proxy_url);
+  if (previous === "static") {
     codexTicketStaticProxyDraft.value =
       form.openai_codex_ticket_harvest_proxy_url;
   }
   codexTicketProxyMode.value = mode;
-  if (mode === "static" && wasMihomo) {
+  if (mode === "ip_pool") {
+    form.openai_codex_ticket_harvest_proxy_url = CODEX_TICKET_IP_POOL_PROXY_URL;
+  } else if (previous !== "static" && previous !== mode) {
+    // Mihomo writes its endpoint only once the kernel reports ready, so until
+    // then the form keeps the static address rather than the pool sentinel.
     form.openai_codex_ticket_harvest_proxy_url =
       codexTicketStaticProxyDraft.value;
   }
