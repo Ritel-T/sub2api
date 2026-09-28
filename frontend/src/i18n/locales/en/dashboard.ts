@@ -607,7 +607,7 @@ export default {
     itemCount: '{count} items',
     latestAt: 'Updated {time}',
     groupEmpty: 'No results in this group yet. They appear here once a scheduled test succeeds.',
-    loadMore: 'Load more',
+    scrollLabel: '{group}: drag to see earlier results',
     loadError: 'Failed to load the Pelican showcase',
     itemLoading: 'Loading…',
     itemLoadError: 'Failed to load this result',
