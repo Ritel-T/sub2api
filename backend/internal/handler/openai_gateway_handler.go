@@ -526,6 +526,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 
 	setOpsRequestContext(c, "", false)
 	sessionHashBody := body
+	c.Request = c.Request.WithContext(service.WithOpenAIResponsesRequestCapabilities(c.Request.Context(), body))
 	body, ok = h.normalizeOpenAIResponsesCompactRequest(c, reqLog, body)
 	if !ok {
 		return

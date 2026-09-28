@@ -66,14 +66,14 @@ func (s *OpenAIGatewayService) coolDownExcelBPS(ctx context.Context, account *Ac
 	}
 	until := time.Now().Add(cooldown)
 	for {
-		current, loaded := s.excelBPSCooldownUntil.LoadOrStore(account.ID, until)
+		current, loaded := s.excelBPSRuntimeCooldownUntil.LoadOrStore(account.ID, until)
 		if !loaded {
 			break
 		}
 		if currentUntil, valid := current.(time.Time); valid && !until.After(currentUntil) {
 			return
 		}
-		if s.excelBPSCooldownUntil.CompareAndSwap(account.ID, current, until) {
+		if s.excelBPSRuntimeCooldownUntil.CompareAndSwap(account.ID, current, until) {
 			break
 		}
 	}
@@ -110,13 +110,5 @@ func (s *OpenAIGatewayService) isExcelBPSCoolingDown(account *Account, requested
 	if s == nil || account == nil {
 		return false
 	}
-	value, ok := s.excelBPSCooldownUntil.Load(account.ID)
-	if !ok {
-		return false
-	}
-	if until, valid := value.(time.Time); valid && time.Now().Before(until) {
-		return account.IsExcelBPSEnabledForModel(requestedModel)
-	}
-	s.excelBPSCooldownUntil.CompareAndDelete(account.ID, value)
-	return false
+	return account.IsExcelBPSEnabledForModel(requestedModel) && !s.excelBPSCooldownUntil(account).IsZero()
 }

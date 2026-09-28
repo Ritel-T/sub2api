@@ -176,6 +176,7 @@ func prepare(raw []byte, scope string, replay *ReplayCache, nativeToolImages map
 			"CATALOG_NAME includes its exact namespace. Outer arguments also include extended_summary, destructive=false and references=[]. For ordinary FUNCTION transport, use a descriptive summary; FUNCTION_CODE and FUNCTION_CMD use their exact markers and metadata JSON instead. " +
 			"Never nest run_officejs inside code. Serialize outer native arguments with proper JSON escaping. For FUNCTION envelopes also escape all quotes, backslashes, newline, carriage return and tab characters within JSON string values. " +
 			"Call one client tool at a time, including update_plan through this transport. After receiving its result continue the task; do not repeat completed calls. " +
+			"For collaboration.spawn_agent, collaboration.send_message and collaboration.followup_task, always use run_officejs with the original plaintext message inside the client-tool envelope. Native encrypted collaboration arguments cannot be delivered through this bridge. " +
 			"Tool results replayed under run_officejs are the named client tool's results. When a tool is needed, emit its call in this response instead of only announcing it. " +
 			"Do not call other native tools or claim that shell, filesystem or workspace access is unavailable when a suitable catalog tool exists. " +
 			"If no tool is needed, answer as assistant text. Client tool catalog:\n" + describeCatalog(catalog) +

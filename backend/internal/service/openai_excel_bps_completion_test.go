@@ -75,7 +75,8 @@ func TestExcelBPSNativeAttachmentFailureDoesNotGenerate(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest("POST", "/v1/responses", nil)
-			_, err := svc.Forward(context.Background(), c, excelAccount(), body)
+			account := excelAccount()
+			_, err := svc.Forward(context.Background(), c, account, body)
 			require.Error(t, err)
 			require.Len(t, upstream.requests, 1)
 			if status == http.StatusTooManyRequests {
@@ -86,7 +87,20 @@ func TestExcelBPSNativeAttachmentFailureDoesNotGenerate(t *testing.T) {
 			if status == 302 {
 				expected = 502
 			}
-			require.Equal(t, expected, rec.Code)
+			if status == http.StatusTooManyRequests {
+				var failover *UpstreamFailoverError
+				require.ErrorAs(t, err, &failover)
+				require.Equal(t, http.StatusTooManyRequests, failover.StatusCode)
+				require.True(t, failover.SafeToFailoverAfterWrite)
+				require.Empty(t, rec.Body.String())
+				require.False(t, IsResponseCommitted(c))
+				require.False(t, svc.excelBPSCooldownUntil(account).IsZero())
+			} else {
+				require.Equal(t, expected, rec.Code)
+				require.True(t, svc.excelBPSCooldownUntil(account).IsZero())
+			}
+			require.True(t, account.IsSchedulable())
+			require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 			require.NotContains(t, rec.Body.String(), "PRIVATE_RESPONSE")
 		})
 	}

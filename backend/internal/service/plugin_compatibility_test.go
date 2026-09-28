@@ -46,3 +46,11 @@ func TestMatchesSemverRange(t *testing.T) {
 	assert.False(t, matchesSemverRange("dev", ">=0.1.0"))
 	assert.False(t, matchesSemverRange("0.1.179", "^0.1.0"))
 }
+
+func TestForkHostVersionCompatibility(t *testing.T) {
+	assert.Equal(t, "v2.9.0+ritel.1", normalizeHostSemver("2.9.0.1-ritel"))
+	assert.True(t, matchesSemverRange("2.9.0.1-ritel", ">=2.9.0 <2.10.0"))
+	assert.False(t, matchesSemverRange("2.9.0.1-ritel", ">2.9.0"))
+	assert.False(t, matchesSemverRange("2.9.0.1-ritel", ">=2.9.0.1-ritel"), "manifest bounds must remain valid SemVer")
+	assert.Equal(t, "", normalizeHostSemver("2.9.0.1-other"))
+}

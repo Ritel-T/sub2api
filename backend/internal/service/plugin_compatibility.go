@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	pluginv1 "github.com/Wei-Shaw/sub2api/pkg/pluginapi/v1"
@@ -36,7 +37,7 @@ func EvaluatePluginCompatibility(manifest PluginManifest, host PluginHostInfo) P
 	}
 	result.Compatible = true
 	for _, tested := range manifest.Requires.TestedSub2APIVersions {
-		if normalizeSemver(tested) == normalizeSemver(host.Version) {
+		if normalizeSemver(tested) == normalizeHostSemver(host.Version) {
 			result.Tested = true
 			break
 		}
@@ -65,8 +66,20 @@ func normalizeSemver(version string) string {
 	return v
 }
 
+var forkHostVersion = regexp.MustCompile(`^v?([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)-ritel$`)
+
+// The historical four-number Fork version is a display/build identifier.
+// Compare its three-number upstream core using SemVer build metadata, while
+// keeping manifest range bounds strictly SemVer.
+func normalizeHostSemver(version string) string {
+	if parts := forkHostVersion.FindStringSubmatch(strings.TrimSpace(version)); parts != nil {
+		return normalizeSemver(fmt.Sprintf("%s.%s.%s+ritel.%s", parts[1], parts[2], parts[3], parts[4]))
+	}
+	return normalizeSemver(version)
+}
+
 func matchesSemverRange(version, expression string) bool {
-	v := normalizeSemver(version)
+	v := normalizeHostSemver(version)
 	if v == "" {
 		return false
 	}

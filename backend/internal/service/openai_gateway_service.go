@@ -456,51 +456,52 @@ type OpenAIGatewayService struct {
 	excelBPSRecoveryDone    chan struct{}
 	excelBPSRecoveryStopped bool
 
-	excelBPSWarmMu         sync.Mutex
-	excelBPSWarmCancel     context.CancelFunc
-	excelBPSWarmDone       chan struct{}
-	excelBPSWarmStopped    bool
-	excelBPSImagesMu       sync.Mutex
-	excelBPSImages         *basispoints.ImageRelay
-	excelBPSAttachments    basispoints.AttachmentCache
-	excelBPSIPPoolMu       sync.Mutex
-	excelBPSIPPoolSyncedAt time.Time
-	excelBPSCooldownUntil  sync.Map // key: int64(accountID), value: time.Time
-	harvestIPPoolMu        sync.Mutex
-	harvestIPPoolExits     []harvestIPPoolExit
-	harvestIPPoolSyncedAt  time.Time
-	harvestIPPoolCursor    atomic.Uint64
-	codexHarvestRunMu      sync.RWMutex
-	accountRepo            AccountRepository
-	proxyRepo              ProxyRepository
-	usageLogRepo           UsageLogRepository
-	usageBillingRepo       UsageBillingRepository
-	userRepo               UserRepository
-	userSubRepo            UserSubscriptionRepository
-	cache                  GatewayCache
-	rpmCache               RPMCache
-	cfg                    *config.Config
-	codexDetector          CodexClientRestrictionDetector
-	schedulerSnapshot      *SchedulerSnapshotService
-	concurrencyService     *ConcurrencyService
-	billingService         *BillingService
-	rateLimitService       *RateLimitService
-	billingCacheService    *BillingCacheService
-	userGroupRateResolver  *userGroupRateResolver
-	httpUpstream           HTTPUpstream
-	pluginManager          *PluginManager
-	deferredService        *DeferredService
-	openAITokenProvider    *OpenAITokenProvider
-	grokTokenProvider      *GrokTokenProvider
-	toolCorrector          *CodexToolCorrector
-	openaiWSResolver       OpenAIWSProtocolResolver
-	resolver               *ModelPricingResolver
-	channelService         *ChannelService
-	balanceNotifyService   *BalanceNotifyService
-	settingService         *SettingService
-	userPlatformQuotaRepo  UserPlatformQuotaRepository
-	liveAttestation        liveattestation.Provider
-	liveAttestationCipher  SecretEncryptor
+	excelBPSWarmMu               sync.Mutex
+	excelBPSWarmCancel           context.CancelFunc
+	excelBPSWarmDone             chan struct{}
+	excelBPSWarmStopped          bool
+	excelBPSImagesMu             sync.Mutex
+	excelBPSImages               *basispoints.ImageRelay
+	excelBPSAttachments          basispoints.AttachmentCache
+	excelBPSRateLimits           sync.Map // account ID -> BPS-only cooldown deadline
+	excelBPSIPPoolMu             sync.Mutex
+	excelBPSIPPoolSyncedAt       time.Time
+	excelBPSRuntimeCooldownUntil sync.Map // key: int64(accountID), value: time.Time
+	harvestIPPoolMu              sync.Mutex
+	harvestIPPoolExits           []harvestIPPoolExit
+	harvestIPPoolSyncedAt        time.Time
+	harvestIPPoolCursor          atomic.Uint64
+	codexHarvestRunMu            sync.RWMutex
+	accountRepo                  AccountRepository
+	proxyRepo                    ProxyRepository
+	usageLogRepo                 UsageLogRepository
+	usageBillingRepo             UsageBillingRepository
+	userRepo                     UserRepository
+	userSubRepo                  UserSubscriptionRepository
+	cache                        GatewayCache
+	rpmCache                     RPMCache
+	cfg                          *config.Config
+	codexDetector                CodexClientRestrictionDetector
+	schedulerSnapshot            *SchedulerSnapshotService
+	concurrencyService           *ConcurrencyService
+	billingService               *BillingService
+	rateLimitService             *RateLimitService
+	billingCacheService          *BillingCacheService
+	userGroupRateResolver        *userGroupRateResolver
+	httpUpstream                 HTTPUpstream
+	pluginManager                *PluginManager
+	deferredService              *DeferredService
+	openAITokenProvider          *OpenAITokenProvider
+	grokTokenProvider            *GrokTokenProvider
+	toolCorrector                *CodexToolCorrector
+	openaiWSResolver             OpenAIWSProtocolResolver
+	resolver                     *ModelPricingResolver
+	channelService               *ChannelService
+	balanceNotifyService         *BalanceNotifyService
+	settingService               *SettingService
+	userPlatformQuotaRepo        UserPlatformQuotaRepository
+	liveAttestation              liveattestation.Provider
+	liveAttestationCipher        SecretEncryptor
 
 	openaiWSPoolOnce               sync.Once
 	openaiWSStateStoreOnce         sync.Once

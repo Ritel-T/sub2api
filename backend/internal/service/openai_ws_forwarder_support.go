@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
+
+var errOpenAIRequiredResponseOwnerUnavailable = fmt.Errorf("%w: required response owner unavailable", ErrNoAvailableAccounts)
 
 func (s *OpenAIGatewayService) isOpenAIWSGeneratePrewarmEnabled() bool {
 	return s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.PrewarmGenerateEnabled
@@ -475,7 +478,15 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 	if s == nil {
 		return nil, nil
 	}
-	accountID, account, responseID, store := s.resolveAccountByPreviousResponseIDForCapability(ctx, groupID, previousResponseID, requestedModel, excludedIDs, requiredCapability, requireCompact)
+	if !excelBPSPreviousResponseCanMove(ctx) {
+		if err := s.checkOpenAIExcelBPSResponseOwner(ctx, groupID, previousResponseID, requestedModel); err != nil {
+			return nil, err
+		}
+	}
+	accountID, account, responseID, store, resolveErr := s.resolveAccountByPreviousResponseIDForCapability(ctx, groupID, previousResponseID, requestedModel, excludedIDs, requiredCapability, requireCompact)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
 	if accountID <= 0 || account == nil || store == nil {
 		return nil, nil
 	}
@@ -507,6 +518,9 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 			},
 		}), nil
 	}
+	if !excelBPSPreviousResponseCanMove(ctx) {
+		return nil, errOpenAIRequiredResponseOwnerUnavailable
+	}
 	return nil, nil
 }
 
@@ -519,7 +533,7 @@ func (s *OpenAIGatewayService) ResolveAccountIDByPreviousResponseIDForScheduler(
 	requiredCapability OpenAIEndpointCapability,
 	requireCompact bool,
 ) int64 {
-	accountID, _, _, _ := s.resolveAccountByPreviousResponseIDForCapability(ctx, groupID, previousResponseID, requestedModel, excludedIDs, requiredCapability, requireCompact)
+	accountID, _, _, _, _ := s.resolveAccountByPreviousResponseIDForCapability(ctx, groupID, previousResponseID, requestedModel, excludedIDs, requiredCapability, requireCompact)
 	return accountID
 }
 
@@ -531,112 +545,143 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 	excludedIDs map[int64]struct{},
 	requiredCapability OpenAIEndpointCapability,
 	requireCompact bool,
-) (int64, *Account, string, OpenAIWSStateStore) {
+) (resolvedAccountID int64, resolvedAccount *Account, resolvedResponseID string, resolvedStore OpenAIWSStateStore, resolveErr error) {
 	if s == nil {
-		return 0, nil, "", nil
+		return 0, nil, "", nil, nil
 	}
 	responseID := strings.TrimSpace(previousResponseID)
 	if responseID == "" {
-		return 0, nil, "", nil
+		return 0, nil, "", nil, nil
 	}
 	store := s.getOpenAIWSStateStore()
 	if store == nil {
-		return 0, nil, "", nil
+		return 0, nil, "", nil, nil
 	}
 
 	accountID, err := store.GetResponseAccount(ctx, derefGroupID(groupID), responseID)
-	if err != nil || accountID <= 0 {
-		return 0, nil, "", nil
+	if err != nil {
+		if !excelBPSPreviousResponseCanMove(ctx) {
+			return 0, nil, "", nil, errOpenAIRequiredResponseOwnerUnavailable
+		}
+		return 0, nil, "", nil, nil
+	}
+	if accountID <= 0 {
+		return 0, nil, "", nil, nil
+	}
+	canMove := excelBPSPreviousResponseCanMove(ctx)
+	// Every rejection of a known required owner must stop selection. Its history
+	// cannot be reconstructed on another account, including after a failed read.
+	defer func() {
+		if !canMove && resolvedAccountID == 0 && resolveErr == nil {
+			resolveErr = errOpenAIRequiredResponseOwnerUnavailable
+		}
+	}()
+	deleteBinding := func() {
+		if canMove {
+			_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
+		}
 	}
 	if excludedIDs != nil {
 		if _, excluded := excludedIDs[accountID]; excluded {
-			return 0, nil, "", nil
+			return 0, nil, "", nil, nil
 		}
 	}
 
 	account, err := s.getSchedulableAccount(ctx, accountID)
-	if err != nil || account == nil {
-		_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
-		return 0, nil, "", nil
+	if err != nil || account == nil || account.ID != accountID {
+		deleteBinding()
+		return 0, nil, "", nil, nil
+	}
+	if s.isOpenAIExcelBPSCooldownBlocked(ctx, account, requestedModel) {
+		if !excelBPSPreviousResponseCanMove(ctx) {
+			return 0, nil, "", nil, excelBPSRequiredResponseOwnerCooldownError()
+		}
+		return 0, nil, "", nil, nil
 	}
 	// OAuth/SetupToken continuation state lives on the WSv2 session and cannot
 	// survive an HTTP fallback. Official API-key Responses HTTP requests are
 	// different: previous_response_id is supported by the provider and scoped to
 	// the selected key/project, so the response-id binding must retain that key.
 	if !account.IsOpenAIApiKey() && s.getOpenAIWSProtocolResolver().Resolve(account).Transport != OpenAIUpstreamTransportResponsesWebsocketV2 {
-		return 0, nil, "", nil
+		return 0, nil, "", nil, nil
 	}
 	if shouldClearStickySession(account, requestedModel) || !account.IsOpenAI() || !account.IsSchedulable() {
-		_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
-		return 0, nil, "", nil
+		deleteBinding()
+		return 0, nil, "", nil, nil
 	}
 	if !parentHealthyForShadow(account, s.parentAccountLookup(ctx)) {
-		_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
-		return 0, nil, "", nil
+		deleteBinding()
+		return 0, nil, "", nil, nil
 	}
 	if requestedModel != "" && !account.IsModelSupportedInGroup(groupID, requestedModel) {
-		return 0, nil, "", nil
+		return 0, nil, "", nil, nil
 	}
 	if !account.SupportsOpenAIEndpointCapability(requiredCapability) {
-		return 0, nil, "", nil
+		return 0, nil, "", nil, nil
 	}
 	// Quota auto-pause must also gate the previous_response_id sticky path; otherwise an
 	// account over its 5h/7d threshold keeps serving the same response chain even though
-	// normal scheduling skips it. Pause is transient, so fall through to normal scheduling
-	// without deleting the binding (the window may reset before the next turn).
+	// normal scheduling skips it. Preserve the binding for the next quota window;
+	// only a movable continuation may fall through to normal scheduling.
 	if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
-		return 0, nil, "", nil
+		return 0, nil, "", nil, nil
 	}
 	// 分组利润控制：与 quota auto-pause 同语义——利润不合格是暂时
 	// 状态（上游倍率/高峰随时间变化），只跳过本次复用、落回普通调度，不删除
 	// 绑定（倍率恢复后可继续按 previous_response_id 粘连）。
 	if vetoed, _ := openAIProfitControlVetoReason(ctx, account); vetoed {
-		return 0, nil, "", nil
+		return 0, nil, "", nil, nil
 	}
 	if s.schedulerSnapshot != nil && s.accountRepo != nil {
 		latest, latestErr := s.accountRepo.GetByID(ctx, account.ID)
-		if latestErr != nil || latest == nil {
-			_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
-			return 0, nil, "", nil
+		if latestErr != nil || latest == nil || latest.ID != accountID {
+			deleteBinding()
+			return 0, nil, "", nil, nil
+		}
+		if s.isOpenAIExcelBPSCooldownBlocked(ctx, latest, requestedModel) {
+			if !excelBPSPreviousResponseCanMove(ctx) {
+				return 0, nil, "", nil, excelBPSRequiredResponseOwnerCooldownError()
+			}
+			return 0, nil, "", nil, nil
 		}
 		if shouldClearStickySession(latest, requestedModel) || !latest.IsOpenAI() || !latest.IsSchedulable() {
-			_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
-			return 0, nil, "", nil
+			deleteBinding()
+			return 0, nil, "", nil, nil
 		}
 		if !s.openAIAccountMatchesSchedulingGroup(latest, groupID) {
-			return 0, nil, "", nil
+			return 0, nil, "", nil, nil
 		}
 		if s.openAIGroupRequiresPrivacySet(ctx, groupID) && !latest.IsPrivacySet() {
-			return 0, nil, "", nil
+			return 0, nil, "", nil, nil
 		}
 		if !parentHealthyForShadow(latest, s.parentAccountLookup(ctx)) {
-			_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
-			return 0, nil, "", nil
+			deleteBinding()
+			return 0, nil, "", nil, nil
 		}
 		if requestedModel != "" && !latest.IsModelSupportedInGroup(groupID, requestedModel) {
-			return 0, nil, "", nil
+			return 0, nil, "", nil, nil
 		}
 		if !latest.SupportsOpenAIEndpointCapability(requiredCapability) {
-			return 0, nil, "", nil
+			return 0, nil, "", nil, nil
 		}
 		if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, latest); paused {
-			return 0, nil, "", nil
+			return 0, nil, "", nil, nil
 		}
 		// 利润门对最新账号状态复检一次，语义同上：跳过复用、不删绑定。
 		if vetoed, _ := openAIProfitControlVetoReason(ctx, latest); vetoed {
-			return 0, nil, "", nil
+			return 0, nil, "", nil, nil
 		}
 		if s.isOpenAIAccountRequestRuntimeBlocked(latest, requestedModel, requireCompact) {
-			_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
-			return 0, nil, "", nil
+			deleteBinding()
+			return 0, nil, "", nil, nil
 		}
 		account = latest
 	}
 	if requireCompact && openAICompactSupportTier(account) == 0 {
-		_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
-		return 0, nil, "", nil
+		deleteBinding()
+		return 0, nil, "", nil, nil
 	}
-	return accountID, account, responseID, store
+	return accountID, account, responseID, store, nil
 }
 
 func classifyOpenAIWSAcquireError(err error) string {

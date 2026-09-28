@@ -469,7 +469,7 @@ func (b *Bridge) translateHistory(input []any) ([]any, error) {
 			return nil, fmt.Errorf("basispoints does not support configuration_update; start a new request with the desired effort")
 		}
 		if err := b.validateHistoryContent(item["content"], index, "content"); err != nil {
-			return nil, err
+			return nil, historyContentError(err, item)
 		}
 		var err error
 		item, err = normalizeHistoryMessage(item, index)
@@ -567,6 +567,9 @@ func (b *Bridge) translateDirectCatalogCall(native object) (object, error) {
 	}
 	if !ok {
 		return nil, fmt.Errorf("basispoints returned an unsupported native tool; no tool was executed")
+	}
+	if err := validateCollaborationEncryption(native, info); err != nil {
+		return nil, err
 	}
 	kind := text(native["type"])
 	var envelope object

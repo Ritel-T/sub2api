@@ -86,6 +86,11 @@ func normalizeBulkExcelBPSExtra(extra map[string]any) (bool, error) {
 			return true, err
 		}
 	}
+	for _, key := range []string{ExcelBPSRequiredGroupIDsKey, ExcelBPSRequiredModelsKey} {
+		if _, exists := extra[key]; exists {
+			changed = true
+		}
+	}
 	for _, key := range []string{"openai_excel_bps", ExcelBPSIgnoreImagesKey, ExcelBPSIgnoreEncryptedContentKey, "openai_excel_bps_cache_creation_as_input", "openai_excel_bps_auto_disable_on_403", ExcelBPSAutoRecoverOn403Key, ExcelBPSAutoMoveOn403Key, "openai_excel_bps_mihomo"} {
 		if raw, exists := extra[key]; exists {
 			changed = true

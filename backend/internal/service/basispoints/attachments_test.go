@@ -112,6 +112,40 @@ func TestNativeImagesValidateAllBeforeUpload(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestNativeImagesConfiguredCountAcrossHistory(t *testing.T) {
+	url, _ := nativeTestURL(t)
+	parts := func(count int) []any {
+		result := make([]any, count)
+		for i := range result {
+			result[i] = object{"type": "input_image", "image_url": url}
+		}
+		return result
+	}
+	raw, err := json.Marshal(object{"model": "gpt-6-astra", "input": []any{
+		object{"role": "user", "content": parts(20)},
+		object{"type": "function_call_output", "call_id": "capture_1", "output": parts(1)},
+		object{"type": "custom_tool_call_output", "call_id": "capture_2", "output": parts(1)},
+	}})
+	require.NoError(t, err)
+	for _, limit := range []int{0, 20, 21} {
+		plan, err := PrepareNativeImagesWithLimit(raw, limit)
+		require.Error(t, err)
+		require.Nil(t, plan, "over-limit history must fail before any upload")
+	}
+	for _, limit := range []int{22, 128} {
+		plan, err := PrepareNativeImagesWithLimit(raw, limit)
+		require.NoError(t, err)
+		require.Len(t, plan.parts, 20, "only message images require attachment uploads")
+		require.Equal(t, 22, plan.inlineCount, "count message images and inline tool screenshots")
+	}
+	boundary := nativeTestRequest(t, strings.Fields(strings.Repeat(url+" ", 128))...)
+	plan, err := PrepareNativeImagesWithLimit(boundary, 128)
+	require.NoError(t, err)
+	require.Len(t, plan.parts, 128)
+	_, err = PrepareNativeImagesWithLimit(boundary, 127)
+	require.EqualError(t, err, "basispoints accepts at most 127 inline images per request")
+}
+
 func TestNativeImagesOnlyTraverseTypedContent(t *testing.T) {
 	url, _ := nativeTestURL(t)
 	source := object{"model": "gpt-6-astra", "input": []any{

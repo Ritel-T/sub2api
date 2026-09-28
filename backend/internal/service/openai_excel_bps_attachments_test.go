@@ -38,6 +38,25 @@ type nativeAttachmentBody struct {
 
 func (b *nativeAttachmentBody) Close() error { b.closed = true; return nil }
 
+type nativeAttachmentCooldownWrite struct {
+	accountID int64
+	until     time.Time
+	reason    string
+	ctxErr    error
+	deadline  time.Time
+}
+
+type nativeAttachmentCooldownRepo struct {
+	*excelBPSQuotaRepo
+	cooldowns chan nativeAttachmentCooldownWrite
+}
+
+func (r *nativeAttachmentCooldownRepo) ExtendExcelBPSRateLimit(ctx context.Context, id int64, until time.Time, reason string) (time.Time, error) {
+	deadline, _ := ctx.Deadline()
+	r.cooldowns <- nativeAttachmentCooldownWrite{id, until, reason, ctx.Err(), deadline}
+	return until, nil
+}
+
 func nativeGatewayBody(t *testing.T) ([]byte, []byte) {
 	t.Helper()
 	var data bytes.Buffer
@@ -130,7 +149,7 @@ func TestExcelBPSNativeAttachmentForward(t *testing.T) {
 	}
 }
 
-func TestExcelBPSNativeUploadFailureStopsWithoutQuotaWrite(t *testing.T) {
+func TestExcelBPSNativeUploadFailurePreservesNativeQuota(t *testing.T) {
 	cases := []struct {
 		name      string
 		status    int

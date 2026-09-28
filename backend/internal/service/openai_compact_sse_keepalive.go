@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -32,8 +33,9 @@ type openAICompactSSEKeepalive struct {
 	// bytes 是心跳已写出的注释字节数。心跳不构成语义响应，handler 的
 	// "Forward 期间是否已写响应"判定（failover 放弃换号的依据）必须扣除
 	// 这部分字节，见 OpenAICompactKeepaliveAdjustedWrittenSize。
-	bytes int
-	stop  chan struct{}
+	bytes  int
+	stop   chan struct{}
+	cancel context.CancelFunc
 }
 
 // StartOpenAICompactSSEKeepalive 为已标记 body-signal 客户端流式的 compact
@@ -56,6 +58,10 @@ func StartOpenAICompactSSEKeepalive(c *gin.Context, interval time.Duration) func
 // 心跳字节由 OpenAICompactKeepaliveAdjustedWrittenSize 统一排除，因此不会污染
 // "是否已向客户端写出语义响应"的 failover 判定（见 #3887）。
 func startOpenAISSEKeepalive(c *gin.Context, interval time.Duration) func() {
+	return startOpenAISSEKeepaliveWithCancel(c, interval, nil)
+}
+
+func startOpenAISSEKeepaliveWithCancel(c *gin.Context, interval time.Duration, cancel context.CancelFunc) func() {
 	if c == nil || c.Writer == nil || interval <= 0 {
 		return func() {}
 	}
@@ -63,6 +69,7 @@ func startOpenAISSEKeepalive(c *gin.Context, interval time.Duration) func() {
 	k := &openAICompactSSEKeepalive{
 		writer: originalWriter,
 		stop:   make(chan struct{}),
+		cancel: cancel,
 	}
 	c.Set(openAICompactSSEKeepaliveKey, k)
 	wrappedWriter := &openAICompactKeepaliveWriter{ResponseWriter: originalWriter, k: k}
@@ -120,6 +127,9 @@ func (k *openAICompactSSEKeepalive) beat() bool {
 	k.bytes += n
 	if err != nil {
 		k.stopped = true
+		if k.cancel != nil {
+			k.cancel()
+		}
 		return false
 	}
 	k.writer.Flush()

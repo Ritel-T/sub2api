@@ -86,6 +86,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		return nil, errors.New("bps probe path is unavailable")
 	}
 	if account.IsExcelBPSEnabledForModel(modelForBPS) {
+		// Protected groups must never route unsupported BPS capabilities to Codex.
+		// Other BPS accounts use the upstream bridge's tool handling.
+		if reason := account.excelBPSNativeFallbackReason(body); reason != "" && account.excelBPSRequiredForModel(modelForBPS) {
+			MarkResponseCommitted(c)
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "code": "basispoints_native_fallback_disabled", "message": "This group requires Basispoints; this request requires an unsupported native capability"}})
+			return nil, errors.New("basispoints native fallback disabled: " + reason)
+		}
 		return s.forwardExcelBPS(ctx, c, account, body, startTime)
 	}
 
@@ -1631,6 +1638,9 @@ func shouldAdaptDeepSeekResponsesClientTools(account *Account, body []byte, comp
 
 func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool) (*http.Request, error) {
 	defer requesttiming.Observe(ctx, "build_upstream_request")()
+	if account.excelBPSRequiredUpstreamModel(gjson.GetBytes(body, "model").String()) {
+		return nil, denyOpenAITurn("basispoints_required_use_responses")
+	}
 	// Determine target URL based on account type
 	var targetURL string
 	switch account.Type {

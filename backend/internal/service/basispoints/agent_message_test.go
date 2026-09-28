@@ -133,8 +133,8 @@ func TestCollaborationPlaintextStreamsAndReplays(t *testing.T) {
 	}
 }
 
-func TestDirectCallPreservesEncryptionMetadata(t *testing.T) {
-	for _, metadata := range []any{nil, []any{}, []any{"message"}} {
+func TestDirectCollaborationPlaintextMetadata(t *testing.T) {
+	for _, metadata := range []any{nil, []any{}} {
 		_, bridge := mustPrepare(t, collaborationSource("spawn_agent"), "scope", nil)
 		native := object{"type": "function_call", "name": "collaboration.spawn_agent", "call_id": "call_direct",
 			"arguments": `{"message":"opaque-ciphertext","task_name":"worker"}`, "encrypted_function_args": metadata}
@@ -150,6 +150,72 @@ func TestDirectCallPreservesEncryptionMetadata(t *testing.T) {
 		if call["arguments"] != native["arguments"] {
 			t.Fatal("ciphertext arguments changed")
 		}
+	}
+}
+
+func TestEncryptedDirectCollaborationIsRejectedBeforeDispatch(t *testing.T) {
+	for _, name := range []string{"spawn_agent", "send_message", "followup_task"} {
+		for _, metadata := range []any{[]any{"message"}, "message", false, object{}} {
+			cache := new(ReplayCache)
+			_, bridge := mustPrepare(t, collaborationSource(name), "scope", cache)
+			native := object{"type": "function_call", "name": "collaboration." + name, "call_id": "call_encrypted", "id": "fc_encrypted",
+				"arguments": `{"message":"private-ciphertext","target":"worker"}`, "encrypted_function_args": metadata}
+			wire := sse(object{"type": "response.output_item.done", "item": native, "output_index": 0}) +
+				sse(object{"type": "response.completed", "response": object{"id": "resp_encrypted", "status": "completed", "output": []any{native}}})
+			body := bridge.Stream(io.NopCloser(strings.NewReader(wire)))
+			raw, err := io.ReadAll(body)
+			_ = body.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(raw, []byte("encrypted collaboration arguments")) || bytes.Contains(raw, []byte("private-ciphertext")) || bytes.Contains(raw, []byte("response.output_item.added")) || cache.get("scope", "call_encrypted") != nil {
+				t.Fatalf("encrypted collaboration escaped validation: %s", raw)
+			}
+		}
+	}
+}
+
+func TestDirectNonCollaborationEncryptionMetadataIsPreserved(t *testing.T) {
+	source := testSource()
+	source["tools"] = []any{object{"type": "function", "name": "opaque_tool", "parameters": object{"type": "object"}}}
+	_, bridge := mustPrepare(t, source, "scope", nil)
+	native := object{"type": "function_call", "name": "opaque_tool", "call_id": "call_opaque",
+		"arguments": `{"value":"opaque"}`, "encrypted_function_args": []any{"value"}}
+	call, err := bridge.translateCall(native)
+	if err != nil || !reflect.DeepEqual(call["encrypted_function_args"], native["encrypted_function_args"]) || call["arguments"] != native["arguments"] {
+		t.Fatalf("unrelated tool encryption metadata changed: %+v, %v", call, err)
+	}
+}
+
+func TestPlaintextChildReplyCanContinueParentAfterSendMessage(t *testing.T) {
+	source := collaborationSource("send_message")
+	cache := new(ReplayCache)
+	_, bridge := mustPrepare(t, source, "parent", cache)
+	native := nativeCall(object{"name": "collaboration.send_message", "arguments": object{"target": "worker", "message": "check the result"}})
+	call, err := bridge.translateCall(native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply := object{"type": "agent_message", "author": "/root/worker", "recipient": "/root", "content": []any{
+		object{"type": "input_text", "text": "Message from worker:"}, object{"type": "input_text", "text": "checked result"},
+	}}
+	source["input"] = []any{message("user", "continue"), call, object{"type": "function_call_output", "call_id": call["call_id"], "output": ""}, reply}
+	prepared, _ := mustPrepare(t, source, "parent", cache)
+	items := mustTestValue[[]any](t, prepared["input"])
+	normalized, ok := items[len(items)-1].(object)
+	if !ok || normalized["type"] != "message" || normalized["role"] != "user" {
+		t.Fatal("plaintext child reply was not lowered to user context")
+	}
+	content, ok := normalized["content"].([]any)
+	if !ok || len(content) != 3 || !reflect.DeepEqual(content[1:], reply["content"]) {
+		t.Fatal("plaintext child reply content was changed")
+	}
+	parts := reply["content"].([]any)
+	parts[1] = object{"type": "encrypted_content", "encrypted_content": "opaque-child-reply"}
+	raw, _ := json.Marshal(source)
+	_, _, err = Prepare(raw, "parent", cache)
+	if err == nil || !strings.Contains(err.Error(), "path=input[3].content[1]") || strings.Contains(err.Error(), "opaque-child-reply") {
+		t.Fatalf("opaque child reply must not be discarded or relabeled: %v", err)
 	}
 }
 

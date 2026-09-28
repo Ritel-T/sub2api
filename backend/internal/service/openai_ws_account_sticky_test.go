@@ -49,7 +49,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Hit(t *testing.T
 }
 
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_QuotaAutoPausedMiss(t *testing.T) {
-	ctx := context.Background()
+	ctx := withExcelBPSPreviousResponseCanMove(context.Background(), true)
 	groupID := int64(23)
 	account := Account{
 		ID:          77,
@@ -89,7 +89,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_QuotaAutoPausedM
 }
 
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_RateLimitedMiss(t *testing.T) {
-	ctx := context.Background()
+	ctx := withExcelBPSPreviousResponseCanMove(context.Background(), true)
 	groupID := int64(23)
 	rateLimitedUntil := time.Now().Add(30 * time.Minute)
 	account := Account{
@@ -126,7 +126,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_RateLimitedMiss(
 }
 
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_DBRuntimeRecheckRateLimitedMiss(t *testing.T) {
-	ctx := context.Background()
+	ctx := withExcelBPSPreviousResponseCanMove(context.Background(), true)
 	groupID := int64(24)
 	rateLimitedUntil := time.Now().Add(30 * time.Minute)
 	staleAccount := &Account{
@@ -178,7 +178,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_DBRuntimeRecheck
 }
 
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Excluded(t *testing.T) {
-	ctx := context.Background()
+	ctx := withExcelBPSPreviousResponseCanMove(context.Background(), true)
 	groupID := int64(23)
 	account := Account{
 		ID:          8,
@@ -248,7 +248,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_APIKeyForceHTTPH
 }
 
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_OAuthForceHTTPIgnored(t *testing.T) {
-	ctx := context.Background()
+	ctx := withExcelBPSPreviousResponseCanMove(context.Background(), true)
 	groupID := int64(23)
 	account := Account{
 		ID:          12,
@@ -384,7 +384,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_CapabilityMismat
 		OpenAIEndpointCapabilityEmbeddings,
 		false,
 	)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, errOpenAIRequiredResponseOwnerUnavailable)
 	require.Nil(t, selection)
 	boundAccountID, getErr := store.GetResponseAccount(ctx, groupID, "resp_prev_capability")
 	require.NoError(t, getErr)

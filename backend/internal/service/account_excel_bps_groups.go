@@ -48,6 +48,9 @@ func excelBPS403GroupID(value any) (int64, bool) {
 }
 
 func validateExcelBPS403GroupExtra(extra map[string]any) error {
+	if err := validateExcelBPSGroupIsolationExtra(extra); err != nil {
+		return err
+	}
 	invalid := func(message string) error {
 		return infraerrors.BadRequest("OPENAI_EXCEL_BPS_INVALID", message)
 	}

@@ -365,13 +365,21 @@ func TestOpenAIGatewayService_PreviousResponseHonorsGroupAndRequiredPrivacy(t *t
 			directSelection, directErr := svc.SelectAccountByPreviousResponseID(
 				context.Background(), &groupID, responseID, codexAutoReviewModel, nil, false,
 			)
-			require.NoError(t, directErr)
+			require.ErrorIs(t, directErr, errOpenAIRequiredResponseOwnerUnavailable)
 			require.Nil(t, directSelection, "the previous-response helper must enforce fresh group/privacy state")
+
+			requiredSelection, _, requiredErr := svc.SelectAccountWithSchedulerForCapability(
+				context.Background(), &groupID, responseID, "", codexAutoReviewModel,
+				nil, OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityResponses,
+				false, false, true,
+			)
+			require.ErrorIs(t, requiredErr, errOpenAIRequiredResponseOwnerUnavailable)
+			require.Nil(t, requiredSelection)
 
 			selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
 				context.Background(), &groupID, responseID, "", codexAutoReviewModel,
 				nil, OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityResponses,
-				false, false, true,
+				false, true, true,
 			)
 			require.NoError(t, err)
 			require.NotNil(t, selection)

@@ -319,6 +319,18 @@ func TestCodexTicketSchedulerAffinityCannotBypassFinalState(t *testing.T) {
 				}
 				result, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, previous, session,
 					"gpt-6-astra", nil, OpenAIUpstreamTransportAny, false)
+				if binding == "previous_response" {
+					require.ErrorIs(t, err, errOpenAIRequiredResponseOwnerUnavailable)
+					require.Nil(t, result, "a valid ticket must not move a required continuation after owner revocation")
+					owner, readErr := svc.getOpenAIWSStateStore().GetResponseAccount(context.Background(), groupID, previous)
+					require.NoError(t, readErr)
+					require.Equal(t, stale.ID, owner)
+
+					result, _, err = svc.SelectAccountWithSchedulerForCapability(
+						context.Background(), &groupID, previous, session, "gpt-6-astra", nil,
+						OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityResponses, false, true, false,
+					)
+				}
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.Equal(t, backup.ID, result.Account.ID)

@@ -47,7 +47,7 @@ func TestProfitControl_PreviousResponseStickyVetoKeepsBinding(t *testing.T) {
 	require.NoError(t, store.BindResponseAccount(ctx, groupID, "resp_profit", expensive.ID, time.Hour))
 
 	selection, err := svc.SelectAccountByPreviousResponseID(ctx, &groupID, "resp_profit", "gpt-5.1", nil, false)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, errOpenAIRequiredResponseOwnerUnavailable)
 	require.Nil(t, selection, "上游倍率 0.8 超过阈值 0.5 的账号不应继续命中 previous_response_id 粘连")
 
 	// 利润不合格与 quota auto-pause 同为暂时状态：绑定必须保留。

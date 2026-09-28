@@ -149,7 +149,7 @@ func (b *excelBPSTrackedBody) Read(p []byte) (int, error) {
 // At most one extra model attempt, on another healthy managed exit, and only
 // before HTTP could have written anything. The caller owns the returned lease
 // through response closure. Static account proxies retain their old behavior.
-func (s *OpenAIGatewayService) doExcelBPSRequest(ctx context.Context, c *gin.Context, account *Account, scope string, body []byte, token, accountID string, acquire excelBPSAcquire) (*http.Response, excelBPSLease, string, error) {
+func (s *OpenAIGatewayService) doExcelBPSRequest(ctx context.Context, c *gin.Context, account *Account, scope string, body []byte, token, accountID string, acquire excelBPSAcquire, guards ...func(context.Context) error) (*http.Response, excelBPSLease, string, error) {
 	managed := account.IsExcelBPSMihomoEnabled()
 	var excluded []string
 	proxy := ""
@@ -171,6 +171,17 @@ func (s *OpenAIGatewayService) doExcelBPSRequest(ctx context.Context, c *gin.Con
 				err = &excelBPSAcquisitionFailure{cause: err}
 				recordExcelBPSTransportFailure(ctx, c, account, scope, proxy, err, "proxy_acquisition", attempt, false)
 				return nil, nil, proxy, err
+			}
+		}
+		// Acquisition may queue. Recheck after it, including the second exit attempt.
+		for _, guard := range guards {
+			if guard != nil {
+				if err := guard(ctx); err != nil {
+					if lease != nil {
+						lease.Release()
+					}
+					return nil, nil, proxy, err
+				}
 			}
 		}
 		req, err := newExcelBPSRequest(ctx, body, token, accountID)

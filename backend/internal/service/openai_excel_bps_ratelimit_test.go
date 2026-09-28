@@ -30,6 +30,15 @@ type excelBPSQuotaRepo struct {
 	writes    chan excelBPSQuotaWrite
 	updateErr error
 	limitErr  error
+	bpsWrites chan excelBPSQuotaWrite
+}
+
+func (r *excelBPSQuotaRepo) ExtendExcelBPSRateLimit(ctx context.Context, id int64, until time.Time, reason string) (time.Time, error) {
+	deadline, _ := ctx.Deadline()
+	if r.bpsWrites != nil {
+		r.bpsWrites <- excelBPSQuotaWrite{accountID: id, resetAt: until, ctxErr: ctx.Err(), deadline: deadline, updates: map[string]any{ExcelBPSRateLimitReasonKey: reason}}
+	}
+	return until, r.limitErr
 }
 
 type excelBPSQuotaSettingsRepo struct {
@@ -185,7 +194,7 @@ func requireExcelBPSRateLimitFailover(t *testing.T, err error, c *gin.Context) {
 
 func excelBPSCooldownRemaining(t *testing.T, svc *OpenAIGatewayService, accountID int64) time.Duration {
 	t.Helper()
-	value, ok := svc.excelBPSCooldownUntil.Load(accountID)
+	value, ok := svc.excelBPSRuntimeCooldownUntil.Load(accountID)
 	require.True(t, ok, "expected a BPS cooldown")
 	until, ok := value.(time.Time)
 	require.True(t, ok)
@@ -228,7 +237,7 @@ func TestExcelBPS429FailsOverWithoutChangingCodexState(t *testing.T) {
 				}
 				upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: http.StatusTooManyRequests, Header: tc.headers, Body: io.NopCloser(reader)}}
 				svc := openAIClientToolsTestService(upstream)
-				repo := &excelBPSQuotaRepo{writes: make(chan excelBPSQuotaWrite, 4)}
+				repo := &excelBPSQuotaRepo{writes: make(chan excelBPSQuotaWrite, 4), bpsWrites: make(chan excelBPSQuotaWrite, 4)}
 				svc.accountRepo = repo
 				svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil, nil)
 				svc.rateLimitService.SetSettingService(NewSettingService(&excelBPSQuotaSettingsRepo{cooldown: `{"enabled":true,"cooldown_seconds":11}`}, svc.cfg))
@@ -282,6 +291,12 @@ func TestExcelBPS429FailsOverWithoutChangingCodexState(t *testing.T) {
 				retryState, ok := svc.openaiOAuth429RetryStartedAt.Load(account.ID)
 				require.True(t, ok)
 				require.Equal(t, retryStarted, retryState)
+				if !tc.cancelOnRead {
+					_, nextErr := svc.Forward(ctx, c, account, body)
+					var nextFailover *UpstreamFailoverError
+					require.ErrorAs(t, nextErr, &nextFailover)
+					require.Len(t, upstream.requests, 1, "next request cannot reuse the cooling BPS account")
+				}
 			})
 		}
 	}
@@ -346,7 +361,7 @@ func TestExcelBPS429FallbackCooldownFollowsSetting(t *testing.T) {
 
 			requireExcelBPSRateLimitFailover(t, err, c)
 			if tc.wantCooldown == 0 {
-				_, cooling := svc.excelBPSCooldownUntil.Load(account.ID)
+				_, cooling := svc.excelBPSRuntimeCooldownUntil.Load(account.ID)
 				require.False(t, cooling, "a disabled fallback only relies on this request's exclusion")
 				return
 			}
@@ -377,9 +392,9 @@ func TestExcelBPSCooldownNeverShortensAndExpires(t *testing.T) {
 	wg.Wait()
 	require.InDelta(t, 640, excelBPSCooldownRemaining(t, svc, other.ID).Seconds(), 1, "concurrent writes keep the longest cooldown")
 
-	svc.excelBPSCooldownUntil.Store(account.ID, time.Now().Add(-time.Second))
+	svc.excelBPSRuntimeCooldownUntil.Store(account.ID, time.Now().Add(-time.Second))
 	require.False(t, svc.isExcelBPSCoolingDown(account, "gpt-6-astra"))
-	_, stale := svc.excelBPSCooldownUntil.Load(account.ID)
+	_, stale := svc.excelBPSRuntimeCooldownUntil.Load(account.ID)
 	require.False(t, stale, "expired cooldowns are dropped")
 }
 
@@ -481,7 +496,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_ExcelBPSCooldownSkipsOn
 			svc.coolDownExcelBPS(ctx, &accounts[1], "60")
 			_, err := selectModel("gpt-6-astra")
 			require.ErrorIs(t, err, ErrNoAvailableAccounts)
-			require.Contains(t, err.Error(), excelBPSRateLimitedFilterReason+"=2")
+			require.Contains(t, err.Error(), openAIExcelBPSCooldownReason+"=2")
 			selection, err := selectModel("gpt-5.1")
 			require.NoError(t, err, "models these accounts forward natively stay schedulable")
 			require.NotNil(t, selection.Account)

@@ -222,3 +222,80 @@ func TestToolImagesNativeUploadReprepare(t *testing.T) {
 		require.JSONEq(t, string(body), string(again))
 	}
 }
+
+func TestToolImagesConfiguredLimitCountsInlineOnlyOutputs(t *testing.T) {
+	url, _ := nativeTestURL(t)
+	for _, kind := range []string{"function", "custom"} {
+		t.Run(kind, func(t *testing.T) {
+			parts := make([]any, 128)
+			for i := range parts {
+				parts[i] = object{"type": "input_image", "image_url": url}
+			}
+			raw, err := json.Marshal(toolImageSource(kind, parts))
+			require.NoError(t, err)
+			for _, limit := range []int{0, 20, 127} {
+				plan, err := PrepareNativeImagesWithLimit(raw, limit)
+				require.ErrorContains(t, err, "inline images per request")
+				require.Nil(t, plan)
+			}
+			plan, err := PrepareNativeImagesWithLimit(raw, 128)
+			require.NoError(t, err)
+			require.Equal(t, 128, plan.inlineCount)
+			require.False(t, plan.HasImages(), "tool screenshots count toward the limit without requiring uploads")
+			wire, _, err := plan.PrepareWithCatalog("scope", nil, new(CatalogCache))
+			require.NoError(t, err)
+			var body object
+			require.NoError(t, decode(wire, &body))
+			items := mustTestValue[[]any](t, body["input"])
+			result := mustTestValue[object](t, items[len(items)-1])
+			output := mustTestValue[[]any](t, result["output"])
+			require.Len(t, output, 128)
+			for _, part := range output {
+				require.Equal(t, object{"type": "input_image", "image_url": url, "detail": "auto"}, part)
+			}
+		})
+	}
+}
+
+func TestToolImagesMixedUploadPreservesInlineGrantAndCount(t *testing.T) {
+	url, _ := nativeTestURL(t)
+	for _, kind := range []string{"function", "custom"} {
+		t.Run(kind, func(t *testing.T) {
+			inline := object{"type": "input_image", "image_url": url, "detail": "original"}
+			source := toolImageSource(kind, []any{object{"type": "input_text", "text": "screenshot"}, inline})
+			source["input"] = append([]any{object{"role": "user", "content": []any{inline, inline}}}, mustTestValue[[]any](t, source["input"])...)
+			raw, err := json.Marshal(source)
+			require.NoError(t, err)
+			_, err = PrepareNativeImagesWithLimit(raw, 2)
+			require.ErrorContains(t, err, "at most 2")
+			plan, err := PrepareNativeImagesWithLimit(raw, 3)
+			require.NoError(t, err)
+			require.Equal(t, 3, plan.inlineCount)
+			require.Len(t, plan.parts, 2)
+			_, bridge, err := plan.PrepareWithCatalog("scope", new(ReplayCache), new(CatalogCache))
+			require.NoError(t, err)
+			calls := 0
+			uploaded, err := plan.Upload(context.Background(), new(AttachmentCache), "scope", func(context.Context, InlineAttachment) (string, error) {
+				calls++
+				return "file-uploaded", nil
+			})
+			require.NoError(t, err)
+			require.Equal(t, 1, calls, "only the deduplicated message image should upload")
+			wire, _, err := bridge.Reprepare(uploaded)
+			require.NoError(t, err)
+			require.NotContains(t, string(wire), "file-preflight")
+			var body object
+			require.NoError(t, decode(wire, &body))
+			items := mustTestValue[[]any](t, body["input"])
+			message := mustTestValue[object](t, items[len(items)-3])
+			for _, part := range mustTestValue[[]any](t, message["content"]) {
+				require.Equal(t, object{"type": "input_image", "file_id": "file-uploaded", "detail": "original"}, part)
+			}
+			result := mustTestValue[object](t, items[len(items)-1])
+			require.Equal(t, []any{object{"type": "input_text", "text": "screenshot"}, inline}, result["output"])
+			again, _, err := bridge.Reprepare(uploaded)
+			require.NoError(t, err)
+			require.JSONEq(t, string(wire), string(again))
+		})
+	}
+}
