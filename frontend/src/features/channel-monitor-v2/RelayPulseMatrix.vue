@@ -581,7 +581,7 @@ function formatBucketRange(value: string) {
 }
 :global(.dark) .pulse-tooltip {
   border-color: rgb(55 65 81);
-  background: rgb(17 24 39);
+  background: var(--theme-surface-inset);
   color: rgb(229 231 235);
 }
 .pulse-tooltip-line {
@@ -596,7 +596,7 @@ function formatBucketRange(value: string) {
 .pulse-tooltip-title {
   margin-bottom: 0.2rem;
   font-weight: 600;
-  color: rgb(17 24 39);
+  color: var(--theme-foreground);
 }
 :global(.dark) .pulse-tooltip-title {
   color: rgb(243 244 246);
@@ -628,7 +628,7 @@ function formatBucketRange(value: string) {
 }
 :global(.dark) .matrix-floating-tooltip {
   border-color: rgb(55 65 81);
-  background: rgb(17 24 39);
+  background: var(--theme-surface-inset);
   color: rgb(229 231 235);
 }
 .matrix-floating-tooltip-line {
@@ -643,7 +643,7 @@ function formatBucketRange(value: string) {
 .matrix-floating-tooltip-title {
   margin-bottom: 0.2rem;
   font-weight: 600;
-  color: rgb(17 24 39);
+  color: var(--theme-foreground);
 }
 :global(.dark) .matrix-floating-tooltip-title {
   color: rgb(243 244 246);

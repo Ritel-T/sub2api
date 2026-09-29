@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'
 import {
   Chart as ChartJS,
@@ -48,19 +49,16 @@ ChartJS.register(
 )
 
 const { t } = useI18n()
+const chartTheme = useChartTheme()
 
 const props = defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
 }>()
 
-const isDarkMode = computed(() => {
-  return document.documentElement.classList.contains('dark')
-})
 
 const chartColors = computed(() => ({
-  text: isDarkMode.value ? '#e5e7eb' : '#374151',
-  grid: isDarkMode.value ? '#374151' : '#e5e7eb',
+  ...chartTheme.value,
   input: '#3b82f6',
   output: '#10b981',
   cacheCreation: '#f59e0b',
@@ -144,6 +142,7 @@ const lineOptions = computed(() => ({
       }
     },
     tooltip: {
+      ...chartTheme.value.tooltip,
       callbacks: {
         label: (context: any) => {
           if (context.dataset.yAxisID === 'yPercent') {
@@ -164,6 +163,7 @@ const lineOptions = computed(() => ({
   },
   scales: {
     x: {
+      border: { color: chartTheme.value.grid },
       grid: {
         color: chartColors.value.grid
       },
@@ -175,6 +175,7 @@ const lineOptions = computed(() => ({
       }
     },
     y: {
+      border: { color: chartTheme.value.grid },
       grid: {
         color: chartColors.value.grid
       },
@@ -187,6 +188,7 @@ const lineOptions = computed(() => ({
       }
     },
     yPercent: {
+      border: { color: chartTheme.value.grid },
       position: 'right' as const,
       min: 0,
       max: 100,

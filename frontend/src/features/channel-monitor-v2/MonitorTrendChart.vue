@@ -59,6 +59,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { useChartTheme } from '@/utils/chartTheme'
 import { computed, ref, watch } from 'vue'
 import {
   Chart as ChartJS,
@@ -87,6 +88,7 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 const { t, locale } = useI18n()
+const chartTheme = useChartTheme()
 
 const props = defineProps<{
   trend: Array<{ bucket_start: string; metrics: MonitorMetric; health: MonitorHealth }>
@@ -98,9 +100,6 @@ const chartRef = ref<HTMLElement | null>(null)
 const zoom = ref<ZoomState>(resetZoom())
 const zoomed = computed(() => isZoomed(zoom.value))
 
-const isDark = computed(() =>
-  typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-)
 
 const bucketLabel = computed(() => {
   const seconds = props.coverage?.bucket_seconds || 60
@@ -205,11 +204,7 @@ function smoothTrend(values: Array<number | null>): Array<number | null> {
 }
 
 const chartOptions = computed(() => {
-  const text = isDark.value ? '#9ca3af' : '#6b7280'
-  const grid = isDark.value ? '#374151' : '#f3f4f6'
-  const tooltipBg = isDark.value ? '#1f2937' : '#ffffff'
-  const tooltipTitle = isDark.value ? '#f3f4f6' : '#111827'
-  const tooltipBody = isDark.value ? '#d1d5db' : '#4b5563'
+  const { text, grid, tooltip } = chartTheme.value
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -217,11 +212,7 @@ const chartOptions = computed(() => {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: tooltipBg,
-        titleColor: tooltipTitle,
-        bodyColor: tooltipBody,
-        borderColor: grid,
-        borderWidth: 1,
+        ...tooltip,
         padding: 10,
         displayColors: true,
         callbacks: {
@@ -239,10 +230,12 @@ const chartOptions = computed(() => {
     },
     scales: {
       x: {
+        border: { color: chartTheme.value.grid },
         ticks: { color: text, maxRotation: 0, autoSkip: true, maxTicksLimit: 8, autoSkipPadding: 10, font: { size: 10 } },
         grid: { display: false },
       },
       yPct: {
+        border: { color: chartTheme.value.grid },
         type: 'linear' as const,
         position: 'left' as const,
         min: 0,
@@ -256,6 +249,7 @@ const chartOptions = computed(() => {
         title: { display: true, text: t('channelMonitorV2.chart.percentAxis'), color: text, font: { size: 11 } },
       },
       yTtft: {
+        border: { color: chartTheme.value.grid },
         type: 'linear' as const,
         position: 'right' as const,
         min: 0,

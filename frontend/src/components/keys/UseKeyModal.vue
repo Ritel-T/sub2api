@@ -232,9 +232,9 @@
         </section>
 
         <!-- Usage Note -->
-        <div v-if="showPlatformNote" class="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
-          <Icon name="infoCircle" size="md" class="text-blue-500 flex-shrink-0 mt-0.5" />
-          <p class="text-sm text-blue-700 dark:text-blue-300">
+        <div v-if="showPlatformNote" class="flex items-start gap-3 p-3 rounded-lg theme-info-panel border">
+          <Icon name="infoCircle" size="md" class="theme-info-icon flex-shrink-0 mt-0.5" />
+          <p class="text-sm">
             {{ platformNote }}
           </p>
         </div>

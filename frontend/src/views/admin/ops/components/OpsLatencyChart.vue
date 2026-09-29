@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, BarElement, CategoryScale, Legend, LinearScale, Tooltip } from 'chart.js'
 import { Bar } from 'vue-chartjs'
@@ -17,12 +18,11 @@ interface Props {
 
 const props = defineProps<Props>()
 const { t } = useI18n()
+const chartTheme = useChartTheme()
 
-const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
 const colors = computed(() => ({
-  blue: '#3b82f6',
-  grid: isDarkMode.value ? '#374151' : '#f3f4f6',
-  text: isDarkMode.value ? '#9ca3af' : '#6b7280'
+  ...chartTheme.value,
+  blue: '#3b82f6'
 }))
 
 const hasData = computed(() => (props.latencyData?.total_requests ?? 0) > 0)
@@ -56,14 +56,17 @@ const options = computed(() => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: false }
+      legend: { display: false },
+      tooltip: { ...chartTheme.value.tooltip }
     },
     scales: {
       x: {
+        border: { color: chartTheme.value.grid },
         grid: { display: false },
         ticks: { color: c.text, font: { size: 10 } }
       },
       y: {
+        border: { color: chartTheme.value.grid },
         beginAtZero: true,
         grid: { color: c.grid, borderDash: [4, 4] },
         ticks: { color: c.text, font: { size: 10 } }

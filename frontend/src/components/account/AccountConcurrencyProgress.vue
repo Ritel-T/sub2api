@@ -27,7 +27,8 @@ const progress = computed(() => {
 
 <style scoped>
 .concurrency-progress {
-  @apply my-1 block h-1.5 w-full overflow-hidden rounded-full border-0 bg-[#e9edf1] text-[#00bc7c] dark:bg-dark-700;
+  @apply my-1 block h-1.5 w-full overflow-hidden rounded-full border-0 text-[#00bc7c];
+  background-color: var(--theme-surface-raised);
   appearance: none;
   -webkit-appearance: none;
 }
