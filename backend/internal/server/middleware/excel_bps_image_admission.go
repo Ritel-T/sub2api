@@ -9,9 +9,11 @@ import (
 	"sync"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/service/basispoints"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 const (
@@ -43,16 +45,41 @@ type bpsImageReservation struct {
 	once   sync.Once
 }
 
+type bpsImageAdmissionRejection struct {
+	requests        int
+	bytes           int64
+	maxRequests     int
+	limitBytes      int64
+	attemptedWeight int64
+	reason          string
+}
+
 func (b *bpsImageAdmissionBudget) acquire(weight int64) (*bpsImageReservation, bool) {
+	reservation, rejection := b.acquireWithRejection(weight)
+	return reservation, rejection == nil
+}
+
+func (b *bpsImageAdmissionBudget) acquireWithRejection(weight int64) (*bpsImageReservation, *bpsImageAdmissionRejection) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	limitBytes, maxRequests := b.limits()
-	if b.requests >= maxRequests || weight > limitBytes-b.bytes {
-		return nil, false
+	if b.requests >= maxRequests {
+		return nil, b.rejectionLocked(weight, limitBytes, maxRequests, "request_slots")
+	}
+	if weight > limitBytes-b.bytes {
+		return nil, b.rejectionLocked(weight, limitBytes, maxRequests, "byte_budget")
 	}
 	b.bytes += weight
 	b.requests++
-	return &bpsImageReservation{budget: b, weight: weight}, true
+	return &bpsImageReservation{budget: b, weight: weight}, nil
+}
+
+// Capture the limits and usage at the failed decision while holding b.mu.
+func (b *bpsImageAdmissionBudget) rejectionLocked(weight, limitBytes int64, maxRequests int, reason string) *bpsImageAdmissionRejection {
+	return &bpsImageAdmissionRejection{
+		requests: b.requests, bytes: b.bytes, maxRequests: maxRequests,
+		limitBytes: limitBytes, attemptedWeight: weight, reason: reason,
+	}
 }
 
 func (b *bpsImageAdmissionBudget) limits() (int64, int) {
@@ -79,16 +106,20 @@ func (b *bpsImageAdmissionBudget) configure(limitBytes int64, maxRequests int) {
 }
 
 func (r *bpsImageReservation) resize(weight int64) bool {
+	return r.resizeWithRejection(weight) == nil
+}
+
+func (r *bpsImageReservation) resizeWithRejection(weight int64) *bpsImageAdmissionRejection {
 	b := r.budget
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	limitBytes, _ := b.limits()
+	limitBytes, maxRequests := b.limits()
 	if weight > r.weight && weight-r.weight > limitBytes-b.bytes {
-		return false
+		return b.rejectionLocked(weight, limitBytes, maxRequests, "byte_budget")
 	}
 	b.bytes += weight - r.weight
 	r.weight = weight
-	return true
+	return nil
 }
 
 func (r *bpsImageReservation) release() {
@@ -102,6 +133,47 @@ func (r *bpsImageReservation) release() {
 }
 
 var errBPSImageRequestBusy = errors.New("image relay request capacity is busy")
+
+type bpsImageAdmissionBusyError struct {
+	stage     string
+	rejection *bpsImageAdmissionRejection
+}
+
+func (e *bpsImageAdmissionBusyError) Error() string { return errBPSImageRequestBusy.Error() }
+func (e *bpsImageAdmissionBusyError) Unwrap() error { return errBPSImageRequestBusy }
+
+func bpsImageAdmissionEncoding(encoding string) string {
+	switch strings.ToLower(strings.TrimSpace(encoding)) {
+	case "", "identity":
+		return "identity"
+	case "gzip", "x-gzip":
+		return "gzip"
+	case "zstd":
+		return "zstd"
+	case "deflate":
+		return "deflate"
+	default:
+		return "unsupported"
+	}
+}
+
+func bpsImageAdmissionLogRejection(log *zap.Logger, stage, encoding string, wireLength int64, rejection *bpsImageAdmissionRejection) {
+	if rejection == nil {
+		return
+	}
+	log.Warn("image_relay_admission_rejected",
+		zap.String("component", "image_admission"),
+		zap.String("stage", stage),
+		zap.String("reason", rejection.reason),
+		zap.Int("occupied_requests", rejection.requests),
+		zap.Int64("occupied_bytes", rejection.bytes),
+		zap.Int("max_requests", rejection.maxRequests),
+		zap.Int64("limit_bytes", rejection.limitBytes),
+		zap.Int64("attempted_weight_bytes", rejection.attemptedWeight),
+		zap.String("content_encoding", bpsImageAdmissionEncoding(encoding)),
+		zap.Int64("wire_content_length", wireLength),
+	)
+}
 
 type bpsImageBudgetedBody struct {
 	io.ReadCloser
@@ -118,8 +190,8 @@ func (b *bpsImageBudgetedBody) Read(p []byte) (int, error) {
 	if anticipated < bpsImageMinBodyBytes {
 		anticipated = bpsImageMinBodyBytes
 	}
-	if !b.reservation.resize(anticipated * bpsImageBodyMultiplier) {
-		return 0, errBPSImageRequestBusy
+	if rejection := b.reservation.resizeWithRejection(anticipated * bpsImageBodyMultiplier); rejection != nil {
+		return 0, &bpsImageAdmissionBusyError{stage: "read", rejection: rejection}
 	}
 	n, err := b.ReadCloser.Read(p)
 	b.read += int64(n)
@@ -180,19 +252,18 @@ func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax 
 		}
 		encoding := strings.TrimSpace(c.GetHeader("Content-Encoding"))
 		compressed := encoding != "" && !strings.EqualFold(encoding, "identity")
-		// Compressed input needs the full budget while decoding, but only its
-		// actual decoded size while the downstream response is in flight.
+		// Compressed/unknown bodies grow their reservation before each bounded
+		// read or decode allocation, then hold only the actual decoded size.
 		accounted := readLimit
-		if compressed {
-			accounted = maxBody
-		} else if length <= 0 {
+		if compressed || length <= 0 {
 			accounted = bpsImageMinBodyBytes
 		}
 		if accounted < bpsImageMinBodyBytes {
 			accounted = bpsImageMinBodyBytes
 		}
-		reservation, acquired := budget.acquire(accounted * bpsImageBodyMultiplier)
-		if !acquired {
+		reservation, rejection := budget.acquireWithRejection(accounted * bpsImageBodyMultiplier)
+		if rejection != nil {
+			bpsImageAdmissionLogRejection(logger.L(), "acquire", encoding, length, rejection)
 			bpsImageAdmissionError(c, http.StatusServiceUnavailable, "basispoints_image_request_busy", "Image relay request capacity is busy; retry later")
 			return
 		}
@@ -202,11 +273,30 @@ func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax 
 			if !compressed {
 				c.Request.Body = &bpsImageBudgetedBody{ReadCloser: c.Request.Body, reservation: reservation, maxBody: maxBody}
 			}
-			body, err := httputil.ReadRequestBodyWithPreallocLimit(c.Request, maxBody)
+			var readBudget httputil.RequestBodyReadBudget
+			if compressed {
+				readBudget = func(stage string, size int64) error {
+					if size > maxBody {
+						size = maxBody
+					}
+					if size < bpsImageMinBodyBytes {
+						size = bpsImageMinBodyBytes
+					}
+					if rejection := reservation.resizeWithRejection(size * bpsImageBodyMultiplier); rejection != nil {
+						return &bpsImageAdmissionBusyError{stage: stage, rejection: rejection}
+					}
+					return nil
+				}
+			}
+			body, err := httputil.ReadRequestBodyWithPreallocLimitAndBudget(c.Request, maxBody, readBudget)
 			_ = c.Request.Body.Close()
 			if err != nil {
 				switch {
 				case errors.Is(err, errBPSImageRequestBusy):
+					var busy *bpsImageAdmissionBusyError
+					if errors.As(err, &busy) {
+						bpsImageAdmissionLogRejection(logger.L(), busy.stage, encoding, length, busy.rejection)
+					}
 					bpsImageAdmissionError(c, http.StatusServiceUnavailable, "basispoints_image_request_busy", "Image relay request capacity is busy; retry later")
 				default:
 					var maxErr *http.MaxBytesError

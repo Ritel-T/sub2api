@@ -65,16 +65,29 @@ func (p *PrereadBody) Bytes() []byte {
 // 已由 PrereadBody 回填的请求体直接返回其完整切片（零拷贝），不检查内部
 // reader 是否已被消费——见 PrereadBody 的文档说明。
 func ReadRequestBodyWithPrealloc(req *http.Request) (result []byte, resultErr error) {
-	return readRequestBodyWithPrealloc(req, maxDecompressedBodySize, false)
+	return readRequestBodyWithPrealloc(req, maxDecompressedBodySize, false, nil)
 }
 
 // ReadRequestBodyWithPreallocLimit applies a caller-specific decoded body cap.
 // It rejects compressed input that exceeds the cap instead of truncating it.
 func ReadRequestBodyWithPreallocLimit(req *http.Request, maxDecodedBytes int64) (result []byte, resultErr error) {
-	return readRequestBodyWithPrealloc(req, maxDecodedBytes, true)
+	return readRequestBodyWithPrealloc(req, maxDecodedBytes, true, nil)
 }
 
-func readRequestBodyWithPrealloc(req *http.Request, maxDecodedBytes int64, strict bool) (result []byte, resultErr error) {
+// RequestBodyReadBudget reserves capacity before allocating another bounded
+// chunk or a decoder window. Bytes is the largest retained wire body, decoded
+// body, or decoder window; callers must allow for their processing copies.
+// Stage is "read" for wire bytes and "decode" for decoding allocations.
+type RequestBodyReadBudget func(stage string, bytes int64) error
+
+// ReadRequestBodyWithPreallocLimitAndBudget additionally meters compressed
+// requests during reading and decoding. A nil budget preserves the existing
+// reader behavior. Budget errors retain their identity through decode errors.
+func ReadRequestBodyWithPreallocLimitAndBudget(req *http.Request, maxDecodedBytes int64, budget RequestBodyReadBudget) ([]byte, error) {
+	return readRequestBodyWithPrealloc(req, maxDecodedBytes, true, budget)
+}
+
+func readRequestBodyWithPrealloc(req *http.Request, maxDecodedBytes int64, strict bool, budget RequestBodyReadBudget) (result []byte, resultErr error) {
 	defer func() {
 		if resultErr == nil && req != nil {
 			requestcapture.FromContext(req.Context()).ClientRequest(result, req.Header.Get("Content-Type"), req.Header)
@@ -100,7 +113,11 @@ func readRequestBodyWithPrealloc(req *http.Request, maxDecodedBytes int64, stric
 		}
 	}
 
-	raw, err := readRequestBodyChunks(req.Body, capHint, req.ContentLength)
+	var wireBudget func(int64) error
+	if budget != nil {
+		wireBudget = func(size int64) error { return budget("read", size) }
+	}
+	raw, err := readRequestBodyChunks(req.Body, capHint, req.ContentLength, wireBudget)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +127,7 @@ func readRequestBodyWithPrealloc(req *http.Request, maxDecodedBytes int64, stric
 		return raw, nil
 	}
 
-	decoded, err := decompressRequestBody(enc, raw, maxDecodedBytes, strict)
+	decoded, err := decompressRequestBody(enc, raw, maxDecodedBytes, strict, budget)
 	if err != nil {
 		return nil, fmt.Errorf("decode Content-Encoding %q: %w", enc, err)
 	}
@@ -125,7 +142,7 @@ func readRequestBodyWithPrealloc(req *http.Request, maxDecodedBytes int64, stric
 // Read bounded chunks as bytes arrive, then assemble the exact-size result.
 // This avoids doubling large buffers or eagerly allocating an untrusted
 // Content-Length before the corresponding bytes have arrived.
-func readRequestBodyChunks(reader io.Reader, initialCapacity int, contentLength int64) ([]byte, error) {
+func readRequestBodyChunks(reader io.Reader, initialCapacity int, contentLength int64, budget func(int64) error) ([]byte, error) {
 	capacity := initialCapacity
 	var chunks [][]byte
 	total := 0
@@ -133,6 +150,11 @@ func readRequestBodyChunks(reader io.Reader, initialCapacity int, contentLength 
 		chunkCapacity := capacity
 		if remaining := contentLength - int64(total); remaining >= 0 && remaining < int64(chunkCapacity) {
 			chunkCapacity = int(remaining) + 1
+		}
+		if budget != nil {
+			if err := budget(int64(total) + int64(chunkCapacity)); err != nil {
+				return nil, err
+			}
 		}
 		chunk := make([]byte, chunkCapacity)
 		n := 0
@@ -182,13 +204,22 @@ func ReadLenientJSONRequestBodyWithPrealloc(req *http.Request, maxNormalizedByte
 	return NormalizeLenientJSONRequestBody(body, maxNormalizedBytes)
 }
 
-func decompressRequestBody(encoding string, raw []byte, maxDecodedBytes int64, strict bool) ([]byte, error) {
+func decompressRequestBody(encoding string, raw []byte, maxDecodedBytes int64, strict bool, budget RequestBodyReadBudget) ([]byte, error) {
+	retained := int64(len(raw))
 	readDecoded := func(reader io.Reader) ([]byte, error) {
 		limit := maxDecodedBytes
 		if strict {
 			limit++
 		}
-		decoded, err := io.ReadAll(io.LimitReader(reader, limit))
+		var decoded []byte
+		var err error
+		if budget == nil {
+			decoded, err = io.ReadAll(io.LimitReader(reader, limit))
+		} else {
+			decoded, err = readRequestBodyChunks(io.LimitReader(reader, limit), requestBodyReadInitCap, limit, func(size int64) error {
+				return budget("decode", max(retained, size))
+			})
+		}
 		if strict && int64(len(decoded)) > maxDecodedBytes {
 			return nil, &http.MaxBytesError{Limit: maxDecodedBytes}
 		}
@@ -196,7 +227,24 @@ func decompressRequestBody(encoding string, raw []byte, maxDecodedBytes int64, s
 	}
 	switch encoding {
 	case "zstd":
-		dec, err := zstd.NewReader(bytes.NewReader(raw))
+		var options []zstd.DOption
+		if budget != nil {
+			window, err := zstdRequestWindow(raw, maxDecodedBytes)
+			if err != nil {
+				return nil, err
+			}
+			// The synchronous decoder allocates history before returning its
+			// first output byte. Reserve every frame's largest window up front.
+			retained = max(retained, window+(128<<10))
+			if err := budget("decode", retained); err != nil {
+				return nil, err
+			}
+			options = []zstd.DOption{
+				zstd.WithDecodeBuffersBelow(0), zstd.WithDecoderConcurrency(1),
+				zstd.WithDecoderMaxMemory(uint64(max(maxDecodedBytes, 1024))),
+			}
+		}
+		dec, err := zstd.NewReader(bytes.NewReader(raw), options...)
 		if err != nil {
 			return nil, err
 		}
@@ -219,6 +267,63 @@ func decompressRequestBody(encoding string, raw []byte, maxDecodedBytes int64, s
 	default:
 		return nil, errors.New("unsupported Content-Encoding")
 	}
+}
+
+// zstdRequestWindow walks frame and block boundaries without decoding payloads.
+// It also covers concatenated and skippable frames, so a later large window
+// cannot allocate outside the request's reservation.
+func zstdRequestWindow(raw []byte, maxDecodedBytes int64) (int64, error) {
+	var largest uint64
+	for len(raw) > 0 {
+		var header zstd.Header
+		if err := header.Decode(raw); err != nil {
+			return 0, err
+		}
+		raw = raw[header.HeaderSize:]
+		if header.Skippable {
+			if uint64(header.SkippableSize) > uint64(len(raw)) {
+				return 0, io.ErrUnexpectedEOF
+			}
+			raw = raw[header.SkippableSize:]
+			continue
+		}
+		window := header.WindowSize
+		if header.SingleSegment {
+			window = max(header.FrameContentSize, 1024)
+		}
+		if window > uint64(max(maxDecodedBytes, 1024)) {
+			return 0, &http.MaxBytesError{Limit: maxDecodedBytes}
+		}
+		largest = max(largest, window)
+		for {
+			if len(raw) < 3 {
+				return 0, io.ErrUnexpectedEOF
+			}
+			block := uint32(raw[0]) | uint32(raw[1])<<8 | uint32(raw[2])<<16
+			raw = raw[3:]
+			size := int(block >> 3)
+			switch (block >> 1) & 3 {
+			case 1: // RLE blocks retain one wire byte.
+				size = 1
+			case 3:
+				return 0, errors.New("invalid zstd block type")
+			}
+			if size > len(raw) {
+				return 0, io.ErrUnexpectedEOF
+			}
+			raw = raw[size:]
+			if block&1 != 0 {
+				break
+			}
+		}
+		if header.HasCheckSum {
+			if len(raw) < 4 {
+				return 0, io.ErrUnexpectedEOF
+			}
+			raw = raw[4:]
+		}
+	}
+	return int64(largest), nil
 }
 
 // NormalizeLenientJSONRequestBody escapes raw control bytes that broken
