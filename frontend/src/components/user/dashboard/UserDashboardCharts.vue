@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
@@ -79,6 +80,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcEleme
 const props = defineProps<{ loading: boolean, startDate: string, endDate: string, granularity: string, trend: TrendDataPoint[], models: ModelStat[] }>()
 defineEmits(['update:startDate', 'update:endDate', 'update:granularity', 'dateRangeChange', 'granularityChange', 'refresh'])
 const { t } = useI18n()
+const chartTheme = useChartTheme()
 
 const modelData = computed(() => !props.models?.length ? null : {
   labels: props.models.map((m: ModelStat) => m.model),
@@ -88,16 +90,17 @@ const modelData = computed(() => !props.models?.length ? null : {
   }]
 })
 
-const doughnutOptions = {
+const doughnutOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: { display: false },
     tooltip: {
+      ...chartTheme.value.tooltip,
       callbacks: {
         label: (context: any) => `${context.label}: ${formatTokens(context.parsed)} tokens`
       }
     }
   }
-}
+}))
 </script>

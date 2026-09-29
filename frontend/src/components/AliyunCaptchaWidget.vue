@@ -312,12 +312,10 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.5rem;
   border-radius: 0.5rem;
-  border: 1px solid rgb(209 213 219);
-  background-color: rgb(249 250 251);
+  @apply border border-gray-300 bg-gray-50 text-gray-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-300;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: rgb(55 65 81);
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease,
@@ -325,27 +323,17 @@ onUnmounted(() => {
 }
 
 .aliyun-captcha-button:hover:not(:disabled) {
-  border-color: rgb(156 163 175);
-  background-color: rgb(243 244 246);
+  @apply border-gray-400 bg-gray-100 dark:border-dark-600 dark:bg-dark-700;
+}
+
+.aliyun-captcha-button:focus-visible {
+  @apply outline-none ring-2 ring-primary-400 ring-offset-2 dark:ring-offset-dark-900;
 }
 
 .aliyun-captcha-button--verified {
   border-color: rgb(34 197 94);
   background-color: rgb(240 253 244);
   color: rgb(21 128 61);
-}
-
-:root.dark .aliyun-captcha-button,
-.dark .aliyun-captcha-button {
-  border-color: rgb(55 65 81);
-  background-color: rgb(31 41 55);
-  color: rgb(209 213 219);
-}
-
-:root.dark .aliyun-captcha-button:hover:not(:disabled),
-.dark .aliyun-captcha-button:hover:not(:disabled) {
-  border-color: rgb(75 85 99);
-  background-color: rgb(55 65 81);
 }
 
 :root.dark .aliyun-captcha-button--verified,

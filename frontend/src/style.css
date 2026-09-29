@@ -3,6 +3,55 @@
 @tailwind utilities;
 
 @layer base {
+  /* Shared surfaces also cover scoped CSS, sticky cells, overlays and canvas consumers. */
+  :root {
+    --theme-shadow-rgb: 30, 30, 28;
+    --theme-surface: theme('colors.white');
+    --theme-surface-raised: theme('colors.gray.50');
+    --theme-surface-inset: theme('colors.gray.100');
+    --theme-hover: theme('colors.gray.100');
+    --theme-selected: theme('colors.brand.selected');
+    --theme-selected-hover: theme('colors.primary.50');
+    --theme-foreground: theme('colors.primary.950');
+    --theme-muted: theme('colors.primary.500');
+    --theme-border: theme('colors.gray.200');
+    --theme-primary: theme('colors.primary.600');
+    --theme-primary-hover: theme('colors.primary.700');
+    --theme-primary-soft: theme('colors.primary.50');
+    --theme-primary-border: theme('colors.primary.200');
+    --theme-control-fill: theme('colors.primary.950');
+    --theme-control-hover: theme('colors.primary.800');
+    --theme-on-control: theme('colors.white');
+    --theme-scrollbar: theme('colors.gray.400');
+    --theme-scrollbar-hover: theme('colors.dark.500');
+    --theme-scrollbar-track: theme('colors.gray.100');
+    --theme-selection-fill: color-mix(in srgb, var(--theme-primary) 12%, transparent);
+    --theme-selection-border: var(--theme-primary);
+    --theme-focus: color-mix(in srgb, var(--theme-primary) 30%, transparent);
+  }
+
+  .dark {
+    --theme-surface: theme('colors.dark.900');
+    --theme-surface-raised: theme('colors.dark.800');
+    --theme-surface-inset: theme('colors.dark.950');
+    --theme-hover: theme('colors.dark.700');
+    --theme-selected: theme('colors.primary.800');
+    --theme-selected-hover: theme('colors.primary.700');
+    --theme-foreground: theme('colors.dark.100');
+    --theme-muted: theme('colors.dark.400');
+    --theme-border: theme('colors.dark.700');
+    --theme-primary: theme('colors.primary.400');
+    --theme-primary-hover: theme('colors.primary.300');
+    --theme-primary-soft: color-mix(in srgb, theme('colors.primary.900') 35%, transparent);
+    --theme-primary-border: theme('colors.primary.700');
+    --theme-control-fill: theme('colors.primary.100');
+    --theme-control-hover: theme('colors.primary.200');
+    --theme-on-control: theme('colors.primary.950');
+    --theme-scrollbar: theme('colors.dark.600');
+    --theme-scrollbar-hover: theme('colors.dark.500');
+    --theme-scrollbar-track: theme('colors.dark.900');
+  }
+
   * {
     @apply border-gray-200 dark:border-dark-700;
   }
@@ -14,6 +63,12 @@
 
   .dark {
     color-scheme: dark;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'],
+  input[type='range'] {
+    accent-color: var(--theme-primary);
   }
 
   body {
@@ -30,13 +85,9 @@
 
     *:hover,
     *:focus-within {
-      scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+      scrollbar-color: var(--theme-scrollbar) transparent;
     }
 
-    .dark *:hover,
-    .dark *:focus-within {
-      scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
-    }
   }
 
   ::-webkit-scrollbar {
@@ -69,6 +120,38 @@
 }
 
 @layer components {
+  /* Repeated query links and ordinary actions share colors and keyboard focus. */
+  .theme-action-link,
+  .theme-action-button {
+    color: var(--theme-primary);
+  }
+
+  .theme-action-link:hover,
+  .theme-action-button:hover {
+    color: var(--theme-primary-hover);
+  }
+
+  .theme-action-button:hover {
+    background-color: var(--theme-primary-soft);
+  }
+
+  .theme-action-link:focus-visible,
+  .theme-action-button:focus-visible {
+    outline: 2px solid var(--theme-primary);
+    outline-offset: 2px;
+  }
+
+  .theme-info-panel {
+    background-color: var(--theme-primary-soft);
+    border-color: var(--theme-primary-border);
+    color: var(--theme-primary);
+  }
+
+  .theme-info-icon {
+    background-color: var(--theme-primary-soft);
+    color: var(--theme-primary);
+  }
+
   /* ============ 按钮样式 ============ */
   .btn {
     @apply inline-flex items-center justify-center gap-2;

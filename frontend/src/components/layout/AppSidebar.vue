@@ -1105,14 +1105,10 @@ onBeforeUnmount(() => {
   right: 0.75rem;
   top: 50%;
   height: 1px;
-  background: rgb(229 231 235);
+  background: var(--theme-border);
   opacity: 0;
   transform: translateY(-50%);
   transition: opacity 0.18s ease;
-}
-
-.dark .sidebar-section-title::after {
-  background: rgb(55 65 81);
 }
 
 .sidebar-section-title-text-collapsed {

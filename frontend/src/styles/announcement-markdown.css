@@ -25,7 +25,7 @@
 }
 
 .markdown-body a {
-  @apply font-medium text-blue-600 underline decoration-blue-600/30 decoration-2 underline-offset-2 transition-all hover:decoration-blue-600 dark:text-blue-400 dark:decoration-blue-400/30 dark:hover:decoration-blue-400;
+  @apply font-medium text-primary-600 underline decoration-primary-600/30 decoration-2 underline-offset-2 transition-colors hover:text-primary-700 hover:decoration-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 dark:text-primary-400 dark:hover:text-primary-300 dark:decoration-primary-400/30 dark:hover:decoration-primary-300;
 }
 
 .markdown-body ul,
@@ -46,16 +46,16 @@
 }
 
 .markdown-body li::marker {
-  @apply text-blue-600 dark:text-blue-400;
+  @apply text-primary-600 dark:text-primary-400;
 }
 
 .markdown-body blockquote {
-  @apply relative my-5 border-l-4 border-blue-500 bg-blue-50/50 py-3 pl-5 pr-4 italic text-gray-700 dark:border-blue-400 dark:bg-blue-900/10 dark:text-gray-300;
+  @apply relative my-5 border-l-4 border-primary-500 bg-primary-50/50 py-3 pl-5 pr-4 italic text-gray-700 dark:border-primary-400 dark:bg-primary-900/10 dark:text-gray-300;
 }
 
 .markdown-body blockquote::before {
   content: '"';
-  @apply absolute -left-1 top-0 font-serif text-5xl text-blue-500/20 dark:text-blue-400/20;
+  @apply absolute -left-1 top-0 font-serif text-5xl text-primary-500/20 dark:text-primary-400/20;
 }
 
 .markdown-body code {
@@ -93,7 +93,7 @@
 }
 
 .markdown-body th {
-  @apply bg-gradient-to-br from-blue-50 to-indigo-50 font-semibold text-gray-900 dark:from-blue-900/20 dark:to-indigo-900/10 dark:text-white;
+  @apply bg-primary-50 font-semibold text-gray-900 dark:bg-dark-700 dark:text-white;
 }
 
 .markdown-body tbody tr {

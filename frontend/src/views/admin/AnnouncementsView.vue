@@ -116,14 +116,14 @@
             <div class="flex items-center space-x-1">
               <button
                 @click="openPreview(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
                 :title="t('admin.announcements.preview')"
               >
                 <Icon name="eye" size="sm" />
               </button>
               <button
                 @click="openReadStatus(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
                 :title="t('admin.announcements.readStatus')"
               >
                 <Icon name="chartBar" size="sm" />

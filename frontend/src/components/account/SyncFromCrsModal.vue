@@ -104,12 +104,12 @@
           <div class="flex gap-2">
             <button
               type="button"
-              class="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              class="theme-action-link text-xs"
               @click="selectAll"
             >{{ t('admin.accounts.crsSelectAll') }}</button>
             <button
               type="button"
-              class="text-xs text-gray-500 hover:text-gray-600 dark:text-gray-400"
+              class="theme-action-link text-xs"
               @click="selectNone"
             >{{ t('admin.accounts.crsSelectNone') }}</button>
           </div>

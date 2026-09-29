@@ -8,7 +8,7 @@
         <header class="page-header mb-0 flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 px-5 py-4 dark:border-dark-700 sm:px-6">
           <div class="min-w-0">
             <h1 class="page-title flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
-              <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-500 dark:bg-blue-900/30 dark:text-blue-400">
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
                 <Icon name="chart" size="sm" />
               </span>
               {{ t('channelMonitorV2.title') }}
@@ -60,25 +60,25 @@
         <!-- First-upgrade silent backfill: show until 30d product window is covered -->
         <div
           v-if="bootstrapActive"
-          class="border-b border-blue-100 bg-blue-50/90 px-5 py-3 dark:border-blue-900/40 dark:bg-blue-950/40 sm:px-6"
+          class="theme-info-panel border-b px-5 py-3 sm:px-6"
           role="status"
           aria-live="polite"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-semibold text-blue-900 dark:text-blue-100">
+              <p class="text-sm font-semibold text-primary-900 dark:text-primary-100">
                 {{ t('channelMonitorV2.bootstrap.title') }}
               </p>
-              <p class="mt-0.5 text-xs text-blue-800/80 dark:text-blue-200/80">
+              <p class="mt-0.5 text-xs text-primary-800/80 dark:text-primary-200/80">
                 {{ t('channelMonitorV2.bootstrap.description') }}
               </p>
             </div>
-            <span class="shrink-0 text-xs font-medium tabular-nums text-blue-700 dark:text-blue-300">
+            <span class="shrink-0 text-xs font-medium tabular-nums text-primary-700 dark:text-primary-300">
               {{ t('channelMonitorV2.bootstrap.progress', { percent: bootstrapPercent }) }}
             </span>
           </div>
           <div
-            class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-blue-200/80 dark:bg-blue-900/60"
+            class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-primary-200/80 dark:bg-primary-900/60"
             role="progressbar"
             :aria-valuenow="bootstrapPercent"
             aria-valuemin="0"
@@ -86,7 +86,7 @@
             :aria-label="t('channelMonitorV2.bootstrap.working')"
           >
             <div
-              class="h-full rounded-full bg-blue-500 transition-[width] duration-500 ease-out dark:bg-blue-400"
+              class="h-full rounded-full bg-primary-500 transition-[width] duration-500 ease-out dark:bg-primary-300"
               :style="{ width: `${bootstrapPercent}%` }"
             />
           </div>

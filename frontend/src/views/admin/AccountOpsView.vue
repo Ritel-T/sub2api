@@ -115,7 +115,7 @@ onBeforeUnmount(() => { alive = false; version++; if (timer) clearInterval(timer
 .enable-row input::before { content:''; position:absolute; width:18px; height:18px; border-radius:50%; top:3px; left:3px; background:white; transition:transform .15s; box-shadow:0 1px 3px #0002; }
 .enable-row input:checked { @apply bg-primary-600; }
 .enable-row input:checked::before { transform:translateX(16px); }
-.kind-option input { accent-color:#0d9488; }
+.kind-option input { accent-color:var(--theme-primary); }
 .kind-option:has(input:checked) { @apply border-primary-200 bg-primary-50/30 dark:border-primary-800 dark:bg-primary-950/20; }
 .field-label { @apply mb-2 mt-5 block text-xs font-medium text-gray-600 dark:text-gray-300; }
 .field-hint { @apply mt-2 text-xs leading-relaxed text-gray-400; }

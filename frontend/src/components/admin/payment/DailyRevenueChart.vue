@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'
 import {
   Chart as ChartJS,
@@ -38,6 +39,7 @@ import type { DailyPaymentStats } from '@/types/payment'
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
 const { t } = useI18n()
+const chartTheme = useChartTheme()
 
 const props = defineProps<{
   data: DailyPaymentStats[]
@@ -85,27 +87,38 @@ const chartData = computed(() => {
   }
 })
 
-const chartOptions = {
+const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   interaction: { mode: 'index' as const, intersect: false },
   scales: {
+    x: {
+      border: { color: chartTheme.value.grid },
+      grid: { color: chartTheme.value.grid },
+      ticks: { color: chartTheme.value.text }
+    },
     y: {
+      border: { color: chartTheme.value.grid },
       type: 'linear' as const,
       display: true,
       position: 'left' as const,
-      title: { display: true, text: t('payment.admin.revenue') },
+      title: { display: true, text: t('payment.admin.revenue'), color: chartTheme.value.text },
+      ticks: { color: chartTheme.value.text },
+      grid: { color: chartTheme.value.grid },
     },
     y1: {
+      border: { color: chartTheme.value.grid },
       type: 'linear' as const,
       display: true,
       position: 'right' as const,
-      title: { display: true, text: t('payment.admin.orderCount') },
-      grid: { drawOnChartArea: false },
+      title: { display: true, text: t('payment.admin.orderCount'), color: chartTheme.value.text },
+      ticks: { color: chartTheme.value.text },
+      grid: { drawOnChartArea: false, color: chartTheme.value.grid },
     }
   },
   plugins: {
-    legend: { position: 'top' as const },
+    legend: { position: 'top' as const, labels: { color: chartTheme.value.text } },
+    tooltip: { ...chartTheme.value.tooltip },
   }
-}
+}))
 </script>

@@ -1,3 +1,11 @@
+// Neutral utility families share the brand palette; status and provider colors stay distinct.
+const warmNeutral = {
+  50: '#FAF8F5', 100: '#F5EFE6', 200: '#DDD8D0', 300: '#C3BDB4',
+  400: '#ABA59B', 500: '#756B5F', 600: '#615D55', 700: '#393833',
+  800: '#2E2D29', 900: '#242421', 950: '#1E1E1C'
+}
+const darkNeutral = { ...warmNeutral, 100: '#F0EDE7', 500: '#8B857B' }
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
@@ -19,35 +27,15 @@ export default {
           900: '#292722',
           950: '#1E1E1C'
         },
-        brand: { paper: '#F5EFE6' },
-        // 辅助色 - 中性灰
-        accent: {
-          50: '#FAF8F5',
-          100: '#F0EDE7',
-          200: '#DDD8D0',
-          300: '#C3BDB4',
-          400: '#ABA59B',
-          500: '#8B857B',
-          600: '#615D55',
-          700: '#393833',
-          800: '#2E2D29',
-          900: '#242421',
-          950: '#1E1E1C'
-        },
-        // 深色模式背景
-        dark: {
-          50: '#FAF8F5',
-          100: '#F0EDE7',
-          200: '#DDD8D0',
-          300: '#C3BDB4',
-          400: '#ABA59B',
-          500: '#8B857B',
-          600: '#615D55',
-          700: '#393833',
-          800: '#2E2D29',
-          900: '#242421',
-          950: '#1E1E1C'
-        }
+        brand: { paper: '#F5EFE6', selected: '#F8F4ED' },
+        // Common neutral classes and dark surfaces use the same warm palette.
+        gray: warmNeutral,
+        slate: warmNeutral,
+        zinc: warmNeutral,
+        neutral: warmNeutral,
+        stone: warmNeutral,
+        accent: darkNeutral,
+        dark: darkNeutral
       },
       fontFamily: {
         sans: [

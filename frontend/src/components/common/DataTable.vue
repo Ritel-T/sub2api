@@ -48,10 +48,10 @@
       <div
         v-for="(row, index) in sortedData"
         :key="resolveRowKey(row, index)"
-        class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+        class="table-card rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
         :class="{
           'cursor-pointer': clickableRows,
-          'border-primary-300 bg-primary-50/40 dark:border-primary-700 dark:bg-primary-900/10': selectable && isRowSelected(row, index)
+          'is-selected border-primary-300 dark:border-primary-700': selectable && isRowSelected(row, index)
         }"
         @click="clickableRows && emit('rowClick', row)"
       >
@@ -100,7 +100,7 @@
     }"
   >
     <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
-      <thead class="table-header bg-gray-50 dark:bg-dark-800">
+      <thead class="table-header">
         <tr>
           <th
             v-if="selectable"
@@ -125,7 +125,7 @@
             :class="[
               'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
               getAdaptivePaddingClass(),
-              { 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700': column.sortable },
+              { 'is-sortable cursor-pointer': column.sortable },
               getStickyColumnClass(column, index),
               column.class
             ]"
@@ -166,7 +166,7 @@
           </th>
         </tr>
       </thead>
-      <tbody class="table-body divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
+      <tbody class="table-body divide-y divide-gray-200 dark:divide-dark-700">
         <!-- Loading skeleton -->
         <tr v-if="loading" v-for="i in 5" :key="i">
           <td v-if="selectable" class="w-11 min-w-11 px-3 py-4">
@@ -213,10 +213,10 @@
             :data-row-id="resolveRowKey(item.row, item.index)"
             :data-index="item.index"
             :ref="item.measure ? measureElement : undefined"
-            class="hover:bg-gray-50 dark:hover:bg-dark-800"
+            class="table-row"
             :class="{
               'cursor-pointer': clickableRows,
-              'bg-primary-50/40 dark:bg-primary-900/10': selectable && isRowSelected(item.row, item.index)
+              'is-selected': selectable && isRowSelected(item.row, item.index)
             }"
             @click="clickableRows && emit('rowClick', item.row)"
           >
@@ -967,17 +967,36 @@ defineExpose({
   position: sticky;
   top: 0;
   z-index: 200;
-  background-color: rgb(249 250 251);
-}
-
-.dark .table-wrapper .table-header {
-  background-color: rgb(31 41 55);
+  background-color: var(--theme-surface-raised);
 }
 
 /* 表体保持在表头下方 */
 .table-body {
   position: relative;
   z-index: 0;
+  background-color: var(--theme-surface);
+}
+
+/* Row states share one opaque background so pinned cells remain in sync. */
+.table-row {
+  --table-row-background: var(--theme-surface);
+  background-color: var(--table-row-background);
+}
+
+.table-row:hover {
+  --table-row-background: var(--theme-hover);
+}
+
+.table-row.is-selected {
+  --table-row-background: var(--theme-selected);
+}
+
+.table-row.is-selected:hover {
+  --table-row-background: var(--theme-selected-hover);
+}
+
+.table-card.is-selected {
+  background-color: var(--theme-selected);
 }
 
 /* 所有表头单元格固定在顶部 */
@@ -985,11 +1004,11 @@ defineExpose({
   position: sticky;
   top: 0;
   z-index: 210; /* 必须高于所有表体内容 */
-  background-color: rgb(249 250 251);
+  background-color: var(--theme-surface-raised);
 }
 
-.dark .sticky-header-cell {
-  background-color: rgb(31 41 55);
+.sticky-header-cell.is-sortable:hover {
+  background-color: var(--theme-hover);
 }
 
 /* Sticky 列基础样式 */
@@ -1023,22 +1042,9 @@ defineExpose({
   z-index: 220; /* 高于普通表头单元格和表体固定列 */
 }
 
-/* 表体 sticky 列背景 */
+/* Opaque pinned backgrounds prevent scrolling content from showing through. */
 tbody .sticky-col {
-  background-color: white;
-}
-
-.dark tbody .sticky-col {
-  background-color: rgb(17 24 39);
-}
-
-/* hover 状态保持 */
-tbody tr:hover .sticky-col {
-  background-color: rgb(249 250 251);
-}
-
-.dark tbody tr:hover .sticky-col {
-  background-color: rgb(31 41 55);
+  background-color: var(--table-row-background, var(--theme-surface));
 }
 
 /* 阴影只在可滚动时显示 */
@@ -1090,63 +1096,47 @@ tbody tr:hover .sticky-col {
 .dark .is-scrollable .sticky-col-right::before {
   background: linear-gradient(to left, rgba(0, 0, 0, 0.2), transparent);
 }
-</style>
 
-<style>
-/* ==========================================================================
-   终极悬浮滚动条防丢器 (Sledgehammer Override)
-   绕过 style.css 中 `* { scrollbar-color: transparent }` 的全局悬停隐身诅咒！
-   ========================================================================== */
-
-/* 1. 废除全局针对所有元素的 scrollbar-width 设定，拿回 Chrome/Safari 下 Webkit 滚动条规则的控制权！ */
-.table-wrapper {
-  scrollbar-width: auto !important; /* 阻止 Chrome 121 退化到原生 Mac 闪隐滚动条 */
+/* Keep both scrollbars visible without leaking overrides outside this table. */
+div.table-wrapper {
+  scrollbar-width: auto;
+  scrollbar-color: var(--theme-scrollbar) var(--theme-scrollbar-track);
 }
 
-/* 2. 重写 Webkit 滚动层，全部加上 !important 强制覆盖透明悬停陷阱 */
+div.table-wrapper:hover,
+div.table-wrapper:focus-within {
+  scrollbar-color: var(--theme-scrollbar-hover) var(--theme-scrollbar-track);
+}
+
 .table-wrapper::-webkit-scrollbar {
-  height: 12px !important;
-  width: 12px !important;
-  display: block !important;
-  background-color: transparent !important;
+  height: 12px;
+  width: 12px;
 }
 
 .table-wrapper::-webkit-scrollbar-track {
-  background-color: rgba(0, 0, 0, 0.03) !important;
-  border-radius: 6px !important;
-  margin: 0 4px !important;
-}
-.dark .table-wrapper::-webkit-scrollbar-track {
-  background-color: rgba(255, 255, 255, 0.05) !important;
+  background-color: var(--theme-scrollbar-track);
+  border-radius: 6px;
+  margin: 0 4px;
 }
 
-/* 常驻、不透明的滑块，无视鼠标是否 hover 都在那！ */
 .table-wrapper::-webkit-scrollbar-thumb {
-  background-color: rgba(107, 114, 128, 0.75) !important; 
-  border-radius: 6px !important;
-  border: 2px solid transparent !important;
-  background-clip: padding-box !important;
-  -webkit-appearance: none !important;
+  background-color: var(--theme-scrollbar);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
+
 .table-wrapper::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(75, 85, 99, 0.9) !important;
+  background-color: var(--theme-scrollbar-hover);
 }
 
-.dark .table-wrapper::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.75) !important;
-}
-.dark .table-wrapper::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(209, 213, 219, 0.9) !important;
+.table-wrapper::-webkit-scrollbar-corner {
+  background-color: var(--theme-scrollbar-track);
 }
 
-/* 3. 仅给真正的 Firefox 留的后路 */
-@supports (-moz-appearance:none) {
-  .table-wrapper {
-    scrollbar-width: thin !important;
-    scrollbar-color: rgba(156, 163, 175, 0.5) rgba(0, 0, 0, 0.03) !important;
-  }
-  .dark .table-wrapper {
-    scrollbar-color: rgba(75, 85, 99, 0.5) rgba(255, 255, 255, 0.05) !important;
+@supports (-moz-appearance: none) {
+  div.table-wrapper {
+    scrollbar-width: thin;
   }
 }
 </style>

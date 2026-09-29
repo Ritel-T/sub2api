@@ -89,7 +89,7 @@
         <div class="flex items-center gap-2">
           <button
             @click="emit('detail', row)"
-            class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-gray-800/50 dark:hover:text-gray-300"
+            class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
           >
             <Icon name="eye" size="sm" />
             <span class="text-xs">{{ t('common.view') }}</span>
@@ -105,7 +105,7 @@
           <button
             v-if="row.status === 'FAILED'"
             @click="emit('retry', row)"
-            class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+            class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
           >
             <Icon name="refresh" size="sm" />
             <span class="text-xs">{{ t('payment.admin.retry') }}</span>
