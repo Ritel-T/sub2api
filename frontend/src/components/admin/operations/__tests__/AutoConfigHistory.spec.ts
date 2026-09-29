@@ -31,6 +31,18 @@ beforeEach(() => {
 })
 afterEach(() => { wrapper?.unmount(); wrapper = undefined })
 describe('AutoConfigHistory', () => {
+  it('renders initial mappings and the saved mapping template', async () => {
+    const initial = event(11, 'initial_applied')
+    initial.details.model_mapping = { 'gpt-5.4': 'gpt-5.5' }
+    const saved = event(10, 'config_saved')
+    saved.details.config = { enabled: false, platform: 'openai', priority: 50, load_factor: 1, concurrency: 3, group_ids: [], upgrade_enabled: false, upgrade_group_ids: [], successes_per_step: 20, upgrade_step: 1, max_concurrency: 100, cooldown_seconds: 60, revision: 'saved', model_mappings: [{ from: 'gpt-5.4', to: 'gpt-5.5' }] }
+    vi.mocked(getAutoConfigEvents).mockResolvedValue({ items: [initial, saved], has_more: false })
+    const w = render(); await flushPromises()
+    expect(w.findAll('[data-testid=history-row]')[0].text()).toContain('模型映射：gpt-5.4 → gpt-5.5')
+    expect(w.get('details').text()).toContain('模型映射')
+    expect(w.get('details').text()).toContain('gpt-5.4 → gpt-5.5')
+  })
+
   it('shows an honest empty state without invented history', async () => {
     const w = render(); await flushPromises()
     expect(w.get('[data-testid=history-empty]').text()).toContain('暂无自动配置日志')

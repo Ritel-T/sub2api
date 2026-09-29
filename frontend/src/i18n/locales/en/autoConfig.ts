@@ -1,6 +1,19 @@
 export default {
   "title": "Auto Configuration",
   "description": "Manage BPS defaults, new OAuth account initialization and concurrency upgrades.",
+  "mapping": {
+    "title": "Model mappings",
+    "hint": "Applied with initial configuration to new OAuth accounts on the selected platform. Existing rules for the same source take precedence. The OpenAI example is gpt-5.4 → gpt-5.5; edit or remove all rules as needed.",
+    "from": "Requested model",
+    "to": "Target model",
+    "add": "Add mapping",
+    "remove": "Remove mapping",
+    "allowlistHint": "Account mapping behavior applies: a nonempty mapping also acts as a model allowlist. Add “model name → same model name” for other models you want to use directly. Only source names may end with *; targets cannot contain *.",
+    "invalid": "Enter valid source and target names (up to 256 bytes, without whitespace or control characters). Only source names may end with *.",
+    "duplicate": "Requested models must be unique.",
+    "applied": "Model mappings",
+    "tooMany": "Configure at most 100 model mappings."
+  },
   "initial": "Initial OAuth configuration",
   "enable": "Enable",
   "initialHint": "Applies to new OAuth accounts on the selected platform. These four values override import values. Existing accounts, reauthorization and manual edits do not trigger initial configuration.",

@@ -72,3 +72,12 @@ No source or plugin ABI was copied. The bounded HTTP 400 reasoning recovery
 uses Sub2API's existing OAuth recovery approach and is not claimed as a feature
 of that reference release. Its v0.1.18 incremental-streaming changes do not
 justify replaying an already delivered stream.
+
+## 2026-09-29 message attachment references
+
+Behavioral reference: JaxsonWang/cpa-plugin-oai-basispoints v0.2.4, commit
+08e349cf20d12d721fd704c40654253f3db8a3b3, for the BPS message attachment contract: input_image file references
+contain only type and file_id. This is implemented independently at Sub2API's
+existing translated-history boundary after input validation; HTTPS image URLs
+and tool screenshot payloads retain their existing behavior. No source files or
+CPA plugin ABI were copied.
