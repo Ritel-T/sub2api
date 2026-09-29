@@ -65,8 +65,10 @@ func TestUpstreamFailurePreservesOnlyNumericCooldownHints(t *testing.T) {
 		}
 	}
 	require.NotNil(t, event)
-	response := event["response"].(object)
-	detail := response["error"].(object)
+	response, ok := event["response"].(object)
+	require.True(t, ok)
+	detail, ok := response["error"].(object)
+	require.True(t, ok)
 	require.Equal(t, json.Number("3600"), detail["resets_in_seconds"])
 	require.Equal(t, json.Number("1790000000"), detail["resets_at"])
 	require.NotContains(t, detail, "other")

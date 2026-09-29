@@ -99,17 +99,6 @@ func excelBPSQuotaExhausted(body []byte) bool {
 	return err.Get("code").String() == "usage_limit_reached" || err.Get("type").String() == "usage_limit_reached"
 }
 
-func excelBPSStreamRateLimited(body []byte) bool {
-	err := excelBPSQuotaError(body)
-	for _, key := range []string{"code", "type"} {
-		switch err.Get(key).String() {
-		case "usage_limit_reached", "rate_limit_exceeded", "rate_limit_error", "basispoints_rate_limited":
-			return true
-		}
-	}
-	return err.Get("status_code").Int() == http.StatusTooManyRequests
-}
-
 func excelBPSRateLimitDeadline(account *Account, headers http.Header, body []byte, now time.Time) (time.Time, string) {
 	until := time.Time{}
 	reason := "rate_limited"
