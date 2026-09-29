@@ -17,7 +17,7 @@
   }
 
   body {
-    @apply bg-gray-50 text-gray-900 dark:bg-dark-950 dark:text-gray-100;
+    @apply bg-brand-paper text-gray-900 dark:bg-dark-950 dark:text-gray-100;
     @apply min-h-screen;
   }
 
@@ -75,15 +75,15 @@
     @apply rounded-xl px-4 py-2.5 text-sm font-medium;
     @apply transition-all duration-200 ease-out;
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2;
+    @apply dark:focus:ring-primary-400/60 dark:focus:ring-offset-dark-950;
     @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
     @apply active:scale-[0.98];
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-500 to-primary-600;
-    @apply text-white shadow-md shadow-primary-500/25;
-    @apply hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/30;
-    @apply dark:shadow-primary-500/20;
+    @apply bg-primary-950 text-white shadow-sm;
+    @apply hover:bg-primary-800 hover:shadow-md;
+    @apply dark:bg-primary-100 dark:text-primary-950 dark:hover:bg-primary-200;
   }
 
   .btn-secondary {
@@ -172,6 +172,7 @@
     @apply placeholder:text-gray-400 dark:placeholder:text-dark-400;
     @apply transition-all duration-200;
     @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
+    @apply dark:focus:border-primary-400 dark:focus:ring-primary-400/30;
     @apply disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-dark-900;
   }
 
@@ -748,9 +749,14 @@
 }
 
 @layer utilities {
-  /* 文字渐变 */
+  /* 品牌文字 */
   .text-gradient {
-    @apply bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent;
+    @apply text-primary-950 dark:text-primary-100;
+  }
+
+  /* 保证未设置暗色变体的主色文字在深色背景上可读 */
+  .dark .text-primary-500:where(:not([class*='dark:text-'])) {
+    @apply text-primary-400;
   }
 
   /* 玻璃效果 */

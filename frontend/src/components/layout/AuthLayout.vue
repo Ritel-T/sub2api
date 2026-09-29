@@ -2,25 +2,25 @@
   <div class="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
     <!-- Background -->
     <div
-      class="absolute inset-0 bg-gradient-to-br from-gray-50 via-primary-50/30 to-gray-100 dark:from-dark-950 dark:via-dark-900 dark:to-dark-950"
+      class="absolute inset-0 bg-brand-paper dark:bg-dark-950"
     ></div>
 
     <!-- Decorative Elements -->
     <div class="pointer-events-none absolute inset-0 overflow-hidden">
       <!-- Gradient Orbs -->
       <div
-        class="absolute -right-40 -top-40 h-80 w-80 rounded-full bg-primary-400/20 blur-3xl"
+        class="absolute -right-40 -top-40 h-80 w-80 rounded-full bg-primary-400/5 blur-3xl"
       ></div>
       <div
-        class="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-primary-500/15 blur-3xl"
+        class="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-primary-400/5 blur-3xl"
       ></div>
       <div
-        class="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-300/10 blur-3xl"
+        class="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-300/[0.025] blur-3xl"
       ></div>
 
       <!-- Grid Pattern -->
       <div
-        class="absolute inset-0 bg-[linear-gradient(rgba(20,184,166,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,166,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"
+        class="absolute inset-0 bg-[linear-gradient(rgba(166,158,148,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(166,158,148,0.025)_1px,transparent_1px)] bg-[size:64px_64px]"
       ></div>
     </div>
 
@@ -31,11 +31,11 @@
         <!-- Custom Logo or Default Logo -->
         <template v-if="settingsLoaded">
           <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-primary-500/30"
+            class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-sm"
           >
             <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
           </div>
-          <h1 class="text-gradient mb-2 text-3xl font-bold">
+          <h1 class="mb-2 text-3xl font-bold text-primary-950 dark:text-primary-100">
             {{ siteName }}
           </h1>
           <p class="text-sm text-gray-500 dark:text-dark-400">
@@ -80,9 +80,3 @@ onMounted(() => {
   appStore.fetchPublicSettings()
 })
 </script>
-
-<style scoped>
-.text-gradient {
-  @apply bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent;
-}
-</style>
