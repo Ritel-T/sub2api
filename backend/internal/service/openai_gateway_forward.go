@@ -696,8 +696,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			markPatchDelete("max_completion_tokens")
 		}
 		for _, unsupportedField := range []string{"prompt_cache_retention", "safety_identifier", "prompt_cache_options"} {
-			if openai.IsGPT61SolModelSpelling(upstreamModel) && (unsupportedField == "prompt_cache_options" || unsupportedField == "prompt_cache_retention") {
-				continue // GPT-6.1 accepts ttl; migrate legacy retention after final mapping.
+			if account.IsOpenAIApiKey() && openai.IsGPT61SolModelSpelling(upstreamModel) && (unsupportedField == "prompt_cache_options" || unsupportedField == "prompt_cache_retention") {
+				continue // Standard API GPT-6.1 accepts ttl; the Codex OAuth endpoint does not.
 			}
 			if gjson.GetBytes(body, unsupportedField).Exists() {
 				markPatchDelete(unsupportedField)

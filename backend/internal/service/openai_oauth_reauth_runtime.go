@@ -20,7 +20,7 @@ import (
 // build versions on the original release gate; review this mapping whenever the
 // fork version or upstream re-login protocol changes.
 const managedReauthRuntimeVersion = "2.9.4"
-const managedReauthForkVersion = "2.9.4.2-ritel"
+const managedReauthForkVersion = "2.9.4.3-ritel"
 
 func (s *OpenAIOAuthReauthService) configureWorker(cfg *config.Config, info BuildInfo) {
 	token := strings.TrimSpace(os.Getenv("OPENAI_REAUTH_WORKER_TOKEN"))
@@ -54,7 +54,7 @@ func (s *OpenAIOAuthReauthService) configureWorker(cfg *config.Config, info Buil
 		}
 	}
 	runtimeVersion := info.Version
-	if runtimeVersion == managedReauthForkVersion || runtimeVersion == "2.9.4.1-ritel" {
+	if runtimeVersion == managedReauthForkVersion || runtimeVersion == "2.9.4.2-ritel" || runtimeVersion == "2.9.4.1-ritel" {
 		runtimeVersion = managedReauthRuntimeVersion
 	}
 	s.worker = reauthruntime.New(filepath.Join(dir, "credential-worker"), runtimeVersion, "http://"+net.JoinHostPort(host, strconv.Itoa(port)), s.workerToken)

@@ -81,7 +81,7 @@ func TestOpenAIOAuthReauthForkVersionUsesPinnedRuntimeRelease(t *testing.T) {
 		s.stopWorker()
 		http.DefaultTransport = originalTransport
 	}()
-	s.configureWorker(&config.Config{}, BuildInfo{Version: "2.9.4.2-ritel"})
+	s.configureWorker(&config.Config{}, BuildInfo{Version: "2.9.4.3-ritel"})
 	s.EnsureWorker()
 	select {
 	case got := <-requests:
