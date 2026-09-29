@@ -683,14 +683,14 @@ onBeforeUnmount(() => {
 <style scoped>
 .pelican-tests { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .ops-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
-.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600; }
+.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
 .ops-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 .ops-columns { display: grid; grid-template-columns: minmax(300px, .32fr) minmax(0, .68fr); gap: 20px; align-items: start; }
 .settings-card, .plans-card, .history-card { @apply min-w-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
 .history-card { @apply mt-5; }
 .section-title { @apply flex items-center gap-3 border-b border-gray-100 p-5 dark:border-dark-700; }
-.icon-tile { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30; }
+.icon-tile { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30 dark:text-primary-400; }
 .section-title h3, .panel-heading h3 { @apply text-base font-semibold; }
 .section-title p, .panel-heading p { @apply mt-1 text-xs leading-relaxed text-gray-400; }
 .settings-form { @apply p-5; }

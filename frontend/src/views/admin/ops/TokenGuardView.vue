@@ -371,7 +371,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 <style scoped>
 .token-guard { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .ops-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
-.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600; }
+.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
 .ops-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 
@@ -385,7 +385,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 .stack { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
 .settings-card, .events-card { @apply min-w-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
 .section-title { @apply flex items-center gap-3 border-b border-gray-100 p-5 dark:border-dark-700; }
-.icon-tile { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30; }
+.icon-tile { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30 dark:text-primary-400; }
 .section-title h3, .events-heading h3 { @apply text-base font-semibold; }
 .section-title p, .events-heading p { @apply mt-1 text-xs text-gray-400; }
 .settings-form { @apply p-5; }
@@ -426,7 +426,7 @@ td.detail { max-width: 24rem; @apply whitespace-normal leading-5 text-gray-500 d
 .managed-hint { @apply mx-5 mb-3 rounded-lg bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-800 dark:bg-sky-950/30 dark:text-sky-200; }
 .managed-hint.warn { @apply bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300; }
 .managed-badge { @apply ml-2 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300; }
-.link-btn { @apply inline-block rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:hover:bg-dark-800; }
+.link-btn { @apply inline-block rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:hover:bg-dark-800 dark:text-primary-400; }
 .empty-state { @apply flex min-h-56 flex-col items-center justify-center gap-3 p-6 text-center text-gray-400; }
 .empty-state h4 { @apply text-sm font-medium; }
 .empty-state p { @apply max-w-sm text-xs leading-relaxed; }

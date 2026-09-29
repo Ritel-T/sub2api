@@ -846,7 +846,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .summary-cell div > span { @apply block text-xs text-gray-500 dark:text-gray-400; }
 .summary-cell strong { @apply mt-1 block text-2xl font-semibold tabular-nums tracking-tight; }
 .summary-cell strong small { @apply text-sm font-normal text-gray-400; }
-.summary-link { @apply ml-auto inline-flex items-center gap-1 text-xs text-primary-600; }
+.summary-link { @apply ml-auto inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400; }
 .workspace-columns { display: grid; grid-template-columns: clamp(320px, 30%, 480px) minmax(0, 1fr); gap: 16px; flex: 1; min-height: 0; }
 .workspace-panel { @apply flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
 .panel-heading { @apply flex shrink-0 items-center justify-between gap-3 px-5 pb-4 pt-5; }
@@ -859,7 +859,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .all-accounts { @apply mx-4 mb-3 flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-gray-500 dark:text-gray-400; }
 .rule-selection-toolbar { @apply mx-4 mb-3 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 text-xs text-gray-500 dark:text-gray-400; }
 .rule-check-all { @apply flex cursor-pointer items-center gap-2; }
-.rule-selection-toolbar > button { @apply text-primary-600; }
+.rule-selection-toolbar > button { @apply text-primary-600 dark:text-primary-400; }
 .rule-bulk-actions { @apply ml-auto flex items-center gap-2; }
 .bulk-edit-button { @apply inline-flex items-center gap-1.5 px-3 py-2 text-xs; }
 .bulk-delete-button { @apply px-3 py-2 text-xs text-red-600 dark:text-red-400; }
@@ -888,7 +888,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .state-paused { @apply bg-gray-100 text-gray-500 dark:bg-dark-800; }
 .rule-model { @apply mt-3 flex flex-wrap items-center gap-2 text-[11px] text-gray-600 dark:text-gray-400; }
 .rule-model code { overflow-wrap: anywhere; @apply min-w-0 rounded bg-gray-100 px-1.5 py-0.5 dark:bg-dark-800; }
-.running-label { @apply text-primary-600; }
+.running-label { @apply text-primary-600 dark:text-primary-400; }
 .probe-tag { @apply rounded bg-violet-50 px-1.5 py-0.5 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300; }
 .template-tag { @apply rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300; }
 .template-section { @apply space-y-2 border-b border-dashed border-gray-200 pb-3 dark:border-dark-700; }
@@ -905,7 +905,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .rule-warning { @apply mt-2 text-xs text-amber-600; }
 .rule-actions { @apply mt-3 flex items-center gap-1 border-t border-gray-100 pt-2 dark:border-dark-700; }
 .rule-actions button { @apply inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-md text-[11px] text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-800 dark:hover:text-gray-100; }
-.rule-actions button:first-child { @apply text-primary-600; }
+.rule-actions button:first-child { @apply text-primary-600 dark:text-primary-400; }
 .operations-toolbar { @apply flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-t border-gray-100 bg-gray-50/60 px-5 py-3 dark:border-dark-700 dark:bg-dark-800/50; }
 .scope-label { overflow-wrap: anywhere; @apply flex min-w-0 items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300; max-width: 65%; }
 .scope-dot { @apply h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500; }
@@ -920,7 +920,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .time-cell strong { @apply block text-xs font-medium; }
 .time-cell > span, .account-cell > span { @apply mt-1 block text-[10px] text-gray-400; }
 .account-cell { max-width: 220px; }
-.account-cell button { @apply max-w-full text-left hover:text-primary-600; }
+.account-cell button { @apply max-w-full text-left hover:text-primary-600 dark:hover:text-primary-300; }
 .account-cell strong { @apply block truncate font-medium; max-width: 190px; }
 .test-count { @apply inline-flex items-center gap-1.5 whitespace-nowrap font-medium tabular-nums; }
 .test-passed { @apply text-emerald-600 dark:text-emerald-400; }
@@ -932,9 +932,9 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .tone-muted { @apply bg-slate-100 text-slate-600 dark:bg-dark-700 dark:text-gray-300; }
 .tone-neutral { @apply bg-gray-100 text-gray-500 dark:bg-dark-800; }
 .tone-danger { @apply bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300; }
-.detail-button { @apply inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-md px-1 text-xs text-gray-400 hover:text-primary-600; }
+.detail-button { @apply inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-md px-1 text-xs text-gray-400 hover:text-primary-600 dark:hover:text-primary-300; }
 .operations-footer { @apply flex min-h-14 shrink-0 items-center justify-between gap-3 border-t border-gray-100 px-5 text-[11px] text-gray-400 dark:border-dark-700; }
-.operations-footer button { @apply inline-flex items-center gap-1.5 text-primary-600; }
+.operations-footer button { @apply inline-flex items-center gap-1.5 text-primary-600 dark:text-primary-400; }
 .panel-error { @apply m-3 flex items-center justify-between gap-3 rounded-lg bg-red-50 p-3 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300; }
 .panel-error button { @apply shrink-0 underline; }
 .panel-empty { @apply flex min-h-52 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-gray-400; }
@@ -947,7 +947,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .detail-heading { @apply mb-5 flex items-center gap-3; }
 .detail-heading h3 { @apply text-base font-semibold; }
 .detail-heading p { @apply mt-1 text-xs text-gray-400; }
-.account-management-link { @apply ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-primary-600; }
+.account-management-link { @apply ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-primary-600 dark:text-primary-400; }
 .round-overview { @apply mb-5 grid grid-cols-2 divide-x divide-gray-200 rounded-xl border border-gray-200 bg-gray-50 dark:divide-dark-700 dark:border-dark-700 dark:bg-dark-800; }
 .round-overview > div { @apply p-4; }
 .round-overview span { @apply block text-xs text-gray-500; }

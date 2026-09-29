@@ -186,6 +186,7 @@
 
   .input-error {
     @apply border-red-500 focus:border-red-500 focus:ring-red-500/30;
+    @apply dark:focus:border-red-500 dark:focus:ring-red-500/30;
   }
 
   .input-label {
@@ -755,8 +756,16 @@
   }
 
   /* 保证未设置暗色变体的主色文字在深色背景上可读 */
-  .dark .text-primary-500:where(:not([class*='dark:text-'])) {
+  .dark [class~='text-primary-500']:where(:not([class*='dark:text-'])),
+  .dark [class~='text-primary-600']:where(:not([class*='dark:text-'])),
+  .dark [class~='text-primary-700']:where(:not([class*='dark:text-'])) {
     @apply text-primary-400;
+  }
+
+  .dark [class~='hover:text-primary-500']:where(:not([class*='dark:hover:text-'])):hover,
+  .dark [class~='hover:text-primary-600']:where(:not([class*='dark:hover:text-'])):hover,
+  .dark [class~='hover:text-primary-700']:where(:not([class*='dark:hover:text-'])):hover {
+    @apply text-primary-300;
   }
 
   /* 玻璃效果 */

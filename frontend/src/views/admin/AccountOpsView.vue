@@ -98,13 +98,13 @@ onBeforeUnmount(() => { alive = false; version++; if (timer) clearInterval(timer
 <style scoped>
 .account-ops { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .ops-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
-.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600; }
+.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
 .ops-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 .ops-columns { display:grid; grid-template-columns: minmax(300px,.3fr) minmax(0,.7fr); gap:20px; }
 .settings-card,.events-card { @apply min-w-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
 .section-title { @apply flex items-center gap-3 border-b border-gray-100 p-5 dark:border-dark-700; }
-.icon-tile { @apply flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30; }
+.icon-tile { @apply flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30 dark:text-primary-400; }
 .section-title h3,.events-heading h3 { @apply text-base font-semibold; }
 .section-title p,.events-heading p { @apply mt-1 text-xs text-gray-400; }
 .settings-form { @apply p-5; }
@@ -145,9 +145,9 @@ td small { @apply mt-1.5 block text-[10px] text-gray-400; }
 tbody tr:hover { @apply bg-gray-50/70 dark:bg-dark-800/50; }
 .failure-badge { @apply whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300; }
 .delivery-status { @apply whitespace-nowrap text-xs text-gray-500; }
-.delivery-sent { @apply text-emerald-600; }.delivery-failed { @apply text-red-500; }.delivery-sending,.delivery-pending { @apply text-primary-600; }
+.delivery-sent { @apply text-emerald-600; }.delivery-failed { @apply text-red-500; }.delivery-sending,.delivery-pending { @apply text-primary-600 dark:text-primary-400; }
 .events-footer { @apply flex shrink-0 items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 text-[11px] text-gray-400 dark:border-dark-700; }
-.events-footer button { @apply shrink-0 text-primary-600; }
+.events-footer button { @apply shrink-0 text-primary-600 dark:text-primary-400; }
 .empty-state { @apply flex min-h-72 flex-col items-center justify-center gap-3 p-6 text-center text-gray-400; }
 .empty-state h4 { @apply text-sm font-medium; }.empty-state p { @apply max-w-sm text-xs leading-relaxed; }
 .scope-note { @apply mt-5 flex items-start gap-2 text-xs leading-6 text-gray-400; }.scope-note svg { @apply mt-1 shrink-0; }

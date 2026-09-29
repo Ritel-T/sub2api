@@ -502,7 +502,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 <style scoped>
 .guard-v2 { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .page-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
-.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600; }
+.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
 .page-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:20px; @apply mb-5; }
@@ -534,6 +534,7 @@ tbody tr:hover { @apply bg-gray-50/70 dark:bg-dark-800/50; }
 .badge.danger { @apply bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-300; }
 .actions { @apply flex max-w-64 flex-wrap gap-1.5; }
 .link-btn { @apply rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:hover:bg-dark-800; }
+.link-btn:not(.danger-text) { @apply dark:text-primary-400; }
 .danger-text { @apply text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30; }
 .empty-state { @apply flex min-h-72 flex-col items-center justify-center gap-3 p-8 text-center text-gray-400; }
 .empty-state h3 { @apply text-sm font-medium text-gray-600 dark:text-gray-300; }
