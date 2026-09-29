@@ -16,9 +16,10 @@ import (
 const SettingKeyOAuthAutoConfig = "smart_ops_oauth_auto_config"
 const AutoConfigConcurrencyExtraKey = "auto_config_concurrency"
 
-// Initial account fields, BPS defaults and concurrency upgrades are independent.
+// Initial account fields, BPS defaults, model billing and concurrency upgrades are independent.
 type OAuthAutoConfig struct {
 	ModelMappings    []OAuthModelMappingRule `json:"model_mappings"`
+	ModelBilling     ModelBillingConfig      `json:"model_billing"`
 	ExcelBPS         ExcelBPSDefaults        `json:"excel_bps"`
 	UpdatedAt        time.Time               `json:"updated_at"`
 	Enabled          bool                    `json:"enabled"`
@@ -37,10 +38,13 @@ type OAuthAutoConfig struct {
 }
 
 func DefaultOAuthAutoConfig() OAuthAutoConfig {
-	return OAuthAutoConfig{ModelMappings: defaultOAuthModelMappings(PlatformOpenAI), ExcelBPS: DefaultExcelBPSDefaults(), Platform: PlatformOpenAI, Priority: 50, LoadFactor: 1, Concurrency: 3, GroupIDs: []int64{}, UpgradeGroupIDs: []int64{}, SuccessesPerStep: 20, UpgradeStep: 1, MaxConcurrency: 100, CooldownSeconds: 60}
+	return OAuthAutoConfig{ModelMappings: defaultOAuthModelMappings(PlatformOpenAI), ModelBilling: DefaultModelBillingConfig(), ExcelBPS: DefaultExcelBPSDefaults(), Platform: PlatformOpenAI, Priority: 50, LoadFactor: 1, Concurrency: 3, GroupIDs: []int64{}, UpgradeGroupIDs: []int64{}, SuccessesPerStep: 20, UpgradeStep: 1, MaxConcurrency: 100, CooldownSeconds: 60}
 }
 func ValidateOAuthAutoConfig(c OAuthAutoConfig) error {
 	if err := validateOAuthModelMappings(c.ModelMappings); err != nil {
+		return err
+	}
+	if err := validateModelBillingConfig(c.ModelBilling); err != nil {
 		return err
 	}
 	if err := validateExcelBPSDefaults(c.ExcelBPS); err != nil {

@@ -141,12 +141,74 @@ func TestOAuthModelMappingCRSNewAccount(t *testing.T) {
 	policy := &adminServiceImpl{settingService: NewSettingService(&accountOpsSettingsStub{raw: string(raw)}, nil), groupRepo: autoConfigGroups{group: &Group{ID: 2, Platform: PlatformOpenAI, Status: StatusActive}}}
 	repo := &autoConfigAccountRepo{}
 	syncer := &CRSSyncService{accountRepo: repo, autoConfigure: policy.ApplyOAuthAutoConfig}
-	original := map[string]any{"access_token": "fake-token"}
+	originalMapping := map[string]any{"gpt-5.4": "gpt-5.4", "gpt-5.5": "gpt-5.5"}
+	original := map[string]any{"access_token": "fake-token", "model_mapping": originalMapping}
 	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: original, Concurrency: 7}
 	require.NoError(t, syncer.createSyncedAccount(t.Context(), account))
 	require.Equal(t, "gpt-5.5", repo.created.GetMappedModel("gpt-5.4"))
 	require.Equal(t, "fake-token", repo.created.Credentials["access_token"])
-	require.NotContains(t, original, "model_mapping")
+	require.Equal(t, "gpt-5.4", originalMapping["gpt-5.4"])
+	require.Equal(t, "gpt-5.5", repo.created.GetMappedModel("gpt-5.5"))
 	require.Equal(t, c.Concurrency, repo.created.Concurrency)
 	require.Equal(t, c.GroupIDs, repo.groups)
+}
+
+func TestOAuthModelMappingIdentityImportScope(t *testing.T) {
+	for _, tc := range []struct {
+		name, platform, kind, want string
+		enabled                    bool
+	}{
+		{"enabled OAuth", PlatformOpenAI, AccountTypeOAuth, "gpt-5.5", true},
+		{"disabled", PlatformOpenAI, AccountTypeOAuth, "gpt-5.4", false},
+		{"API key", PlatformOpenAI, AccountTypeAPIKey, "gpt-5.4", true},
+		{"other platform", PlatformAnthropic, AccountTypeOAuth, "gpt-5.4", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := DefaultOAuthAutoConfig()
+			c.Enabled, c.GroupIDs = tc.enabled, []int64{2}
+			raw, err := json.Marshal(c)
+			require.NoError(t, err)
+			svc := &adminServiceImpl{settingService: NewSettingService(&accountOpsSettingsStub{raw: string(raw)}, nil), groupRepo: autoConfigGroups{group: &Group{ID: 2, Platform: PlatformOpenAI, Status: StatusActive}}}
+			originalMapping := map[string]any{"gpt-5.4": "gpt-5.4", "gpt-5.5": "gpt-5.5", "custom": "custom-upstream"}
+			input := &CreateAccountInput{Platform: tc.platform, Type: tc.kind, Credentials: map[string]any{"access_token": "test-token", "model_mapping": originalMapping}}
+			require.NoError(t, svc.ApplyOAuthAutoConfig(t.Context(), input))
+			account := &Account{Platform: tc.platform, Type: tc.kind, Credentials: input.Credentials}
+			require.Equal(t, tc.want, account.GetMappedModel("gpt-5.4"))
+			require.Equal(t, "gpt-5.5", account.GetMappedModel("gpt-5.5"))
+			require.Equal(t, "custom-upstream", account.GetMappedModel("custom"))
+			require.Equal(t, "test-token", input.Credentials["access_token"])
+			require.Equal(t, "gpt-5.4", originalMapping["gpt-5.4"], "do not mutate shared import credentials")
+		})
+	}
+}
+
+func TestOAuthModelMappingIdentityPrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		mapping any
+		target  string
+		want    any
+		applied bool
+	}{
+		{"decoded identity", map[string]any{"gpt-5.4": "gpt-5.4"}, "gpt-5.5", "gpt-5.5", true},
+		{"typed identity", map[string]string{"gpt-5.4": "gpt-5.4"}, "gpt-5.5", "gpt-5.5", true},
+		{"custom mapping", map[string]any{"gpt-5.4": "custom-upstream"}, "gpt-5.5", "custom-upstream", false},
+		{"already matches template", map[string]any{"gpt-5.4": "gpt-5.5"}, "gpt-5.5", "gpt-5.5", false},
+		{"identity template no-op", map[string]any{"gpt-5.4": "gpt-5.4"}, "gpt-5.4", "gpt-5.4", false},
+		{"non-string target", map[string]any{"gpt-5.4": []string{"invalid"}}, "gpt-5.5", []string{"invalid"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before, err := json.Marshal(tc.mapping)
+			require.NoError(t, err)
+			input := &CreateAccountInput{Credentials: map[string]any{"model_mapping": tc.mapping}}
+			applied := applyOAuthModelMappings(input, []OAuthModelMappingRule{{From: "gpt-5.4", To: tc.target}})
+			require.Equal(t, tc.applied, applied)
+			mapping, ok := input.Credentials["model_mapping"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, tc.want, mapping["gpt-5.4"])
+			after, err := json.Marshal(tc.mapping)
+			require.NoError(t, err)
+			require.JSONEq(t, string(before), string(after), "caller-owned mapping must be unchanged")
+		})
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/reauthruntime"
 	"log/slog"
 	"net/http"
 	"net/mail"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/mihomo"
@@ -169,6 +171,9 @@ type OpenAIOAuthReauthAccountReader interface {
 }
 
 type OpenAIOAuthReauthService struct {
+	worker                  *reauthruntime.Manager
+	workerToken             string
+	workerLastSeen          atomic.Int64
 	repo                    OpenAIOAuthReauthRepository
 	accounts                OpenAIOAuthReauthAccountReader
 	credentialUpdater       OpenAIOAuthReauthCredentialUpdater
@@ -559,6 +564,9 @@ func (s *OpenAIOAuthReauthService) CreateTask(ctx context.Context, accountID int
 	if view == nil || !view.Configured {
 		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_REAUTH_CONFIG_REQUIRED", "save a complete re-login configuration first")
 	}
+	if err := s.checkWorkerMode(stored.CredentialMode); err != nil {
+		return nil, err
+	}
 	expectedCredentialsHash, err := hashReauthCredentials(account.Credentials)
 	if err != nil {
 		return nil, infraerrors.New(http.StatusInternalServerError, "OPENAI_REAUTH_CREDENTIAL_SNAPSHOT_FAILED", "failed to snapshot account credentials")
@@ -595,7 +603,20 @@ func (s *OpenAIOAuthReauthService) ClaimTask(ctx context.Context, workerID strin
 	if workerID == "" || len(workerID) > 128 {
 		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_REAUTH_WORKER_ID_INVALID", "worker id is required")
 	}
-	record, err := s.repo.ClaimNextTask(ctx, workerID, openAIOAuthReauthStaleAfter)
+	s.workerLastSeen.Store(time.Now().UnixNano())
+	var record *OpenAIOAuthReauthTaskRecord
+	var err error
+	if s.worker != nil {
+		claimer, ok := s.repo.(interface {
+			ClaimNextPasswordTask(context.Context, string, time.Duration) (*OpenAIOAuthReauthTaskRecord, error)
+		})
+		if !ok {
+			return nil, infraerrors.ServiceUnavailable("OPENAI_REAUTH_WORKER_UNAVAILABLE", "Managed re-login queue is unavailable")
+		}
+		record, err = claimer.ClaimNextPasswordTask(ctx, workerID, openAIOAuthReauthStaleAfter)
+	} else {
+		record, err = s.repo.ClaimNextTask(ctx, workerID, openAIOAuthReauthStaleAfter)
+	}
 	if err != nil {
 		return nil, infraerrors.New(http.StatusInternalServerError, "OPENAI_REAUTH_TASK_CLAIM_FAILED", "failed to claim re-login task")
 	}

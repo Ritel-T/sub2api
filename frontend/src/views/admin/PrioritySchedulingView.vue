@@ -23,7 +23,6 @@
           <button class="btn btn-primary" type="submit">{{ t(saving ? 'priorityScheduling.saving' : 'priorityScheduling.save') }}</button>
         </fieldset>
       </form>
-      <PriorityAccountBatch />
       <section class="card p-5">
         <header class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-lg font-semibold">{{ t('priorityScheduling.recent') }}</h2><button class="btn btn-secondary" :disabled="refreshing" @click="refresh">{{ t('priorityScheduling.refresh') }}</button></header>
         <p class="my-3 text-xs leading-5 text-gray-500">{{ t('priorityScheduling.snapshotHint') }}</p>
@@ -43,7 +42,6 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import PriorityAccountBatch from '@/components/admin/operations/PriorityAccountBatch.vue'
 import SmartOpsNav from '@/components/admin/operations/SmartOpsNav.vue'
 import { getPriorityConfig, savePriorityConfig, getPrioritySnapshot, type PrioritySchedulingConfig, type PrioritySnapshot } from '@/api/admin/priorityScheduling'
 const { t } = useI18n(), auth = useAuthStore()

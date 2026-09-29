@@ -5,6 +5,7 @@ import AutoConfigView from '../AutoConfigView.vue'
 import { getAutoConfig, saveAutoConfig, type AutoConfig } from '@/api/admin/autoConfig'
 import { getAll } from '@/api/admin/groups'
 import type { Group } from '@/types'
+import { defaultModelBillingConfig } from '@/utils/modelBilling'
 import { defaultExcelBPSDefaults } from '@/utils/excelBPSDefaults'
 import { defaultOAuthModelMappings } from '@/utils/oauthModelMappings'
 vi.mock('@/components/account/ModelWhitelistSelector.vue', () => ({ default: { props: ['modelValue'], template: '<div data-testid="model-selection">{{ modelValue.join(", ") }}</div>' } }))
@@ -16,13 +17,50 @@ vi.mock('@/components/admin/operations/SmartOpsNav.vue', () => ({ default: { tem
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/api/admin/autoConfig', () => ({ getAutoConfig: vi.fn(), saveAutoConfig: vi.fn() }))
 vi.mock('@/api/admin/groups', () => ({ getAll: vi.fn() }))
-const config: AutoConfig = { model_mappings: defaultOAuthModelMappings('openai'), excel_bps: defaultExcelBPSDefaults(), enabled: false, platform: 'openai', priority: 50, load_factor: 1, concurrency: 3, group_ids: [], upgrade_enabled: false, upgrade_group_ids: [], successes_per_step: 20, upgrade_step: 1, max_concurrency: 100, cooldown_seconds: 60, revision: '' }
+const config: AutoConfig = { model_billing: defaultModelBillingConfig(), model_mappings: defaultOAuthModelMappings('openai'), excel_bps: defaultExcelBPSDefaults(), enabled: false, platform: 'openai', priority: 50, load_factor: 1, concurrency: 3, group_ids: [], upgrade_enabled: false, upgrade_group_ids: [], successes_per_step: 20, upgrade_step: 1, max_concurrency: 100, cooldown_seconds: 60, revision: '' }
 beforeEach(() => {
  vi.resetAllMocks(); state.auth = reactive({ user: { id: 1, role: 'admin' } })
  vi.mocked(getAutoConfig).mockResolvedValue(structuredClone(config)); vi.mocked(saveAutoConfig).mockImplementation(async c => c)
  vi.mocked(getAll).mockResolvedValue([{ id: 5, name: 'OpenAI test', platform: 'openai', status: 'active' }, { id: 6, name: 'Anthropic test', platform: 'anthropic', status: 'active' }] as Group[])
 })
 describe('AutoConfigView', () => {
+ it('starts with the Luna 10x rule disabled and saves model billing independently', async () => {
+  const w = mount(AutoConfigView); await flushPromises()
+  expect(w.get<HTMLInputElement>('[data-testid="model-billing-enabled"]').element.checked).toBe(false)
+  expect(w.get<HTMLInputElement>('[data-testid="model-billing-model-0"]').element.value).toBe('gpt-6-luna*')
+  expect(w.get<HTMLInputElement>('[data-testid="model-billing-multiplier-0"]').element.value).toBe('10')
+  await w.get('[data-testid="model-billing-enabled"]').setValue(true)
+  await w.get('[data-testid="model-billing-multiplier-0"]').setValue(2.5)
+  await w.get('[data-testid="model-billing-add"]').trigger('click')
+  expect(w.get<HTMLInputElement>('[data-testid="model-billing-multiplier-1"]').element.value).toBe('10')
+  await w.get('[data-testid="model-billing-model-1"]').setValue(' custom-mini ')
+  await w.get('form').trigger('submit'); await flushPromises()
+  expect(saveAutoConfig).toHaveBeenCalledWith({ ...config, model_billing: { enabled: true, rules: [{ model: 'gpt-6-luna*', multiplier: 2.5 }, { model: 'custom-mini', multiplier: 10 }] } })
+  w.unmount()
+ })
+ it.each([0, -1, 1001, ''])('rejects invalid model multipliers (%s)', async multiplier => {
+  const w = mount(AutoConfigView); await flushPromises()
+  await w.get('[data-testid="model-billing-multiplier-0"]').setValue(multiplier)
+  await w.get('form').trigger('submit'); await flushPromises()
+  expect(saveAutoConfig).not.toHaveBeenCalled()
+  expect(w.get('[role="alert"]').text()).toContain('modelBilling.invalid')
+  w.unmount()
+ })
+ it('requires a rule when enabled and rejects duplicate patterns', async () => {
+  const w = mount(AutoConfigView); await flushPromises()
+  await w.get('[data-testid="model-billing-enabled"]').setValue(true)
+  await w.get('[data-testid="model-billing-add"]').trigger('click')
+  await w.get('[data-testid="model-billing-model-1"]').setValue(' GPT-6-LUNA* ')
+  await w.get('form').trigger('submit'); expect(saveAutoConfig).not.toHaveBeenCalled()
+  await w.get('[data-testid="model-billing-remove-1"]').trigger('click')
+  await w.get('[data-testid="model-billing-remove-0"]').trigger('click')
+  await w.get('form').trigger('submit'); expect(saveAutoConfig).not.toHaveBeenCalled()
+  await w.get('[data-testid="model-billing-enabled"]').setValue(false)
+  await w.get('form').trigger('submit'); await flushPromises()
+  expect(saveAutoConfig).toHaveBeenCalledWith({ ...config, model_billing: { enabled: false, rules: [] } })
+  w.unmount()
+ })
+
  it('edits model mappings inside initial OAuth configuration using its existing switch and platform', async () => {
   const w = mount(AutoConfigView); await flushPromises()
   expect(w.find('[data-testid="mapping-enabled"]').exists()).toBe(false)
@@ -66,6 +104,21 @@ describe('AutoConfigView', () => {
   expect(saveAutoConfig).toHaveBeenCalledWith({ ...config, platform: 'anthropic', model_mappings: [{ from: 'claude-*', to: 'claude-example' }] })
   w.unmount()
  })
+ it('saves model mappings and billing rules together without resetting either', async () => {
+  const w = mount(AutoConfigView); await flushPromises()
+  await w.get('[data-testid="mapping-to-0"]').setValue('gpt-6-luna')
+  await w.get('[data-testid="model-billing-enabled"]').setValue(true)
+  await w.get('[data-testid="model-billing-multiplier-0"]').setValue(12.5)
+  await w.get('form').trigger('submit'); await flushPromises()
+  expect(saveAutoConfig).toHaveBeenLastCalledWith({
+    ...config,
+    model_mappings: [{ from: 'gpt-5.4', to: 'gpt-6-luna' }],
+    model_billing: { enabled: true, rules: [{ model: 'gpt-6-luna*', multiplier: 12.5 }] }
+  })
+  expect(w.get<HTMLInputElement>('[data-testid="mapping-to-0"]').element.value).toBe('gpt-6-luna')
+  expect(w.get<HTMLInputElement>('[data-testid="model-billing-multiplier-0"]').element.value).toBe('12.5')
+  w.unmount()
+ })
  it('saves only the reusable BPS template without any account activation switch', async () => {
   const w = mount(AutoConfigView); await flushPromises()
   expect(w.find('[data-testid="bps-initialize_enabled"]').exists()).toBe(false)
@@ -88,7 +141,7 @@ describe('AutoConfigView', () => {
   expect(recovery.element.disabled).toBe(true); expect(recovery.element.checked).toBe(false); w.unmount()
  })
  it('fills compatible defaults when loading legacy settings', async () => {
-  const { excel_bps: _bps, model_mappings: _mapping, ...legacy } = config
+  const { excel_bps: _bps, model_billing: _billing, model_mappings: _mapping, ...legacy } = config
   vi.mocked(getAutoConfig).mockResolvedValueOnce(legacy)
   const w = mount(AutoConfigView); await flushPromises()
   await w.get('form').trigger('submit'); await flushPromises()

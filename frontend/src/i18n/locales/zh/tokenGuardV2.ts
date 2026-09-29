@@ -1,4 +1,25 @@
 export default {
+  runtimeTitle: '自动重登服务',
+  runtimeManaged: '由程序自动准备和管理，账密 / 2FA 无需额外配置。',
+  runtimeExternal: '当前使用已有的独立重登服务。',
+  runtimeReasons: {
+    unsupported_platform: '此平台暂不支持内置重登运行环境。',
+    release_required: '此开发构建没有对应的已发布运行环境。',
+    runtime_install_failed: '运行环境下载、校验或准备失败，稍后会自动重试。',
+    worker_start_failed: '重登进程启动失败，稍后会自动重试。',
+    worker_exited: '重登进程意外退出，稍后会自动恢复。',
+    external_not_configured: '已有独立重登服务的连接配置无效。',
+    external_offline: '尚未收到独立重登服务的连接。',
+    api_unreachable: '重登进程尚未连接到本机服务。'
+  },
+  runtimeStates: {
+    idle: '将在首次使用时自动准备',
+    preparing: '正在准备运行环境，任务会在准备完成后执行',
+    running: '已就绪，正在处理重登队列',
+    unavailable: '暂时不可用，程序会自动重试',
+    stopped: '服务正在停止'
+  },
+
   encryption: {
     "title": "凭据加密",
     "ready": "已启用，可以保存登录凭据",

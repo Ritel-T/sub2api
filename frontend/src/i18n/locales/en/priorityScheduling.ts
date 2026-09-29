@@ -3,16 +3,6 @@ export default {
   profit: 'Recent profit / margin',
   economics: { usage: 'Usage records', rate: 'Rate estimate', unknown: 'Insufficient profit samples' },
   priority: 'Priority',
-  batch: {
-    typeOrder: 'Account type order', typeOrderHint: 'Drag or use the arrows to order Teams, Pro, Plus and API. Priorities are generated automatically; API rates ascend within the type. Applying writes account priorities; reloading infers the order from those values.', moveUp: 'Move {type} up', moveDown: 'Move {type} down', resetOrder: 'Reset Teams → Pro → Plus → API',
-
-    title: 'Quick settings by account category', hint: 'Writes existing fields on physical accounts (excluding shadows), affecting scheduling even when priority scheduling is disabled. Load accounts to review Teams, Pro, Plus and API account-rate buckets. Billing rates are not modified.',
-    group: 'Group ID (optional)', load: 'Load accounts and generate order', category: 'Category / rate', accounts: 'Accounts', current: 'Current priority / concurrency / load factor', priority: 'New priority',
-    priorityHint: 'Lower priority numbers run first within an experience tier, before dynamic scores. Assign the same priority to categories that should compete on dynamic scores.',
-    concurrency: 'Also set concurrency', loadFactor: 'Also set load factor', loadHint: 'Concurrency limits simultaneous requests. A higher load factor increases scheduling frequency. With concurrency 100 and load factor 10000, congestion and slots still use the actual concurrency limit. Unchecked fields retain their values.',
-    preview: 'Update priority for {count} accounts; concurrency: {concurrency}; load factor: {loadFactor}.', keep: 'Keep existing', apply: 'Apply to selected accounts', empty: 'No accounts awaiting updates.', otherOAuth: 'OAuth · Other plans',
-    loadError: 'Could not load accounts, or more than 10000 matched. Narrow by group and retry.', result: 'Updated {count} accounts.', partial: 'Some accounts were not updated. They remain in the list for retry.'
-  },
 
   title: 'Priority scheduling', description: 'Meet experience targets, then balance quality, latency, capacity and cost.', enabled: 'Enable priority scheduling',
   scopeNote: 'Applies to freely routed OpenAI text requests. Session binding, protocol preference, model permissions, rate limits and profit gates still apply. Images, video and other platforms keep their existing scheduling.',

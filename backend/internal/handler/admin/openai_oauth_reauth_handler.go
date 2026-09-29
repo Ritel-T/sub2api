@@ -1,9 +1,7 @@
 package admin
 
 import (
-	"crypto/subtle"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
@@ -106,14 +104,13 @@ type reauthWorkerFailureRequest struct {
 }
 
 func (h *OpenAIOAuthReauthHandler) requireWorker(c *gin.Context) bool {
-	expected := strings.TrimSpace(os.Getenv(openAIOAuthReauthWorkerTokenEnv))
-	if len(expected) < 32 {
+	configured, valid := h.service.WorkerAuthentication(strings.TrimSpace(c.GetHeader("X-OpenAI-Reauth-Worker-Token")))
+	if !configured {
 		response.Error(c, http.StatusServiceUnavailable, "OpenAI re-auth worker is not configured")
 		c.Abort()
 		return false
 	}
-	provided := strings.TrimSpace(c.GetHeader("X-OpenAI-Reauth-Worker-Token"))
-	if provided == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+	if !valid {
 		response.Unauthorized(c, "invalid OpenAI re-auth worker token")
 		c.Abort()
 		return false

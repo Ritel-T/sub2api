@@ -1033,6 +1033,7 @@ func (s *AccountTestService) testExcelBPSAccountConnection(c *gin.Context, accou
 		probeCtx.Request.Header.Set("Session-Id", "account-test-"+uuid.NewString())
 	}
 	result, err := s.openaiGatewayService.Forward(probeCtx.Request.Context(), probeCtx, account, body)
+	recordPelicanTestSSE(c.Request.Context(), "openai", model, probe.Body.Bytes())
 	if err != nil {
 		// A single-account test has no other account to fail over to.
 		var failover *UpstreamFailoverError
@@ -2228,6 +2229,9 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	c.Writer.Flush()
 
 	payload := createOpenAIChatCompletionsTestPayload(testModelID, prompt)
+	if pelicanUsageFromContext(ctx) != nil {
+		payload["stream_options"] = map[string]any{"include_usage": true}
+	}
 	if options, ok := pelicanTestOptionsFromContext(ctx); ok && options.reasoningEffort != "" {
 		payload["reasoning_effort"] = options.reasoningEffort
 	}
@@ -2791,6 +2795,7 @@ func createGeminiTestPayload(modelID string, prompt string) []byte {
 // processGeminiStream processes SSE stream from Gemini API
 func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader) error {
 	reader := bufio.NewReader(body)
+	usage := startPelicanTestStream(c, "gemini")
 
 	for {
 		line, err := reader.ReadString('\n')
@@ -2808,6 +2813,7 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 		}
 
 		jsonStr := strings.TrimPrefix(line, "data: ")
+		usage.read(jsonStr)
 		if jsonStr == "[DONE]" {
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 			return nil
@@ -2919,6 +2925,7 @@ func createOpenAIChatCompletionsTestPayload(modelID string, prompt string) map[s
 // processClaudeStream processes the SSE stream from Claude API
 func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader) error {
 	reader := bufio.NewReader(body)
+	usage := startPelicanTestStream(c, "anthropic")
 
 	for {
 		line, err := reader.ReadString('\n')
@@ -2936,6 +2943,7 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 		}
 
 		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
+		usage.read(jsonStr)
 		if jsonStr == "[DONE]" {
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 			return nil
@@ -2974,6 +2982,7 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 // OpenAI-compatible Chat Completions API.
 func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, body io.Reader) error {
 	reader := bufio.NewReader(body)
+	usage := startPelicanTestStream(c, "chat")
 	seenJSON := false
 	seenFinish := false
 
@@ -3000,6 +3009,7 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 		}
 
 		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
+		usage.read(jsonStr)
 		if jsonStr == "[DONE]" {
 			s.sendEvent(c, TestEvent{Type: "status", Text: "已通过 /v1/chat/completions 验证"})
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
@@ -3049,6 +3059,7 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 // processOpenAIStream processes the SSE stream from OpenAI Responses API
 func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader) error {
 	reader := bufio.NewReader(body)
+	usage := startPelicanTestStream(c, "openai")
 	seenCompleted := false
 
 	for {
@@ -3070,6 +3081,7 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 		}
 
 		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
+		usage.read(jsonStr)
 		if jsonStr == "[DONE]" {
 			if seenCompleted {
 				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
@@ -3416,6 +3428,11 @@ func (s *AccountTestService) testExcelBPSImages(c *gin.Context, ctx context.Cont
 }
 
 func (s *AccountTestService) sendEvent(c *gin.Context, event TestEvent) {
+	if event.Type == "test_start" && event.Model != "" && c.Request != nil {
+		if usage := pelicanUsageFromContext(c.Request.Context()); usage != nil {
+			usage.model = event.Model
+		}
+	}
 	if event.Type == "test_complete" {
 		if suppress, ok := c.Get(accountTestSuppressCompletionContextKey); ok {
 			if suppressCompletion, _ := suppress.(bool); suppressCompletion {

@@ -21,6 +21,13 @@
 
       <CredentialEncryptionSetup class="mb-5" @ready="encryptionReady = $event" />
 
+      <section v-if="status.worker" class="mb-5 rounded-xl border border-gray-200 p-4 dark:border-gray-700" data-testid="reauth-runtime-status" role="status">
+        <strong>{{ t('tokenGuardV2.runtimeTitle') }}</strong>
+        <p>{{ t(`tokenGuardV2.runtimeStates.${runtimeState}`) }}</p>
+        <p v-if="runtimeReason">{{ t(`tokenGuardV2.runtimeReasons.${runtimeReason}`) }}</p>
+        <small>{{ t(status.worker.mode === 'external' ? 'tokenGuardV2.runtimeExternal' : 'tokenGuardV2.runtimeManaged') }}</small>
+      </section>
+
       <section class="summary-grid">
         <article class="summary-card"><span>{{ t('tokenGuardV2.monitored') }}</span><strong>{{ accounts.length }}</strong><small>{{ t('tokenGuardV2.intervalHint', { minutes: Math.round(status.probe_interval_seconds / 60) }) }}</small></article>
         <article class="summary-card"><span>{{ t('tokenGuardV2.healthy') }}</span><strong>{{ healthyCount }}</strong><small>{{ t('tokenGuardV2.enabledCount', { count: enabledCount }) }}</small></article>
@@ -269,6 +276,14 @@ const accountGroupNames = (account: AccountListItem) => groups.value
   .filter(group => account.group_ids?.includes(group.id))
   .map(group => group.name)
   .join(' ')
+const runtimeReason = computed(() => {
+  const reason = status.worker?.reason || ''
+  return ['unsupported_platform', 'release_required', 'runtime_install_failed', 'worker_start_failed', 'worker_exited', 'external_not_configured', 'external_offline', 'api_unreachable'].includes(reason) ? reason : ''
+})
+const runtimeState = computed(() => {
+  const state = status.worker?.state || 'idle'
+  return ['idle', 'preparing', 'running', 'unavailable', 'stopped'].includes(state) ? state : 'unavailable'
+})
 const accounts = computed(() => status.accounts)
 const enabledCount = computed(() => accounts.value.filter(item => item.enabled).length)
 const healthyCount = computed(() => accounts.value.filter(item => item.probe_state === 'ok').length)

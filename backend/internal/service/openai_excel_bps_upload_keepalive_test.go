@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service/basispoints"
+	"github.com/Wei-Shaw/sub2api/internal/util/transportdiag"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
@@ -160,22 +161,27 @@ func TestExcelBPSAttachmentBodyTimeoutIsClassified(t *testing.T) {
 	require.NotContains(t, err.Error(), "private")
 }
 
-func TestExcelBPSAttachmentTransportErrorsRetainSafeCause(t *testing.T) {
+func TestExcelBPSAttachmentTransportErrorsRetainOnlySafeSentinels(t *testing.T) {
 	for _, tc := range []struct {
 		name, kind string
 		cause      error
+		sentinel   error
 	}{
-		{"canceled", "request_canceled", context.Canceled},
-		{"deadline", "timeout", context.DeadlineExceeded},
-		{"socket timeout", "timeout", &net.DNSError{Err: "PRIVATE_TIMEOUT", Name: "PRIVATE_HOST", IsTimeout: true}},
-		{"transport", "transport_error", errors.New("PRIVATE_TRANSPORT")},
+		{"canceled", "request_canceled", context.Canceled, context.Canceled},
+		{"deadline", "timeout", context.DeadlineExceeded, context.DeadlineExceeded},
+		{"socket timeout", "dns_error", &net.DNSError{Err: "PRIVATE_TIMEOUT", Name: "PRIVATE_HOST", IsTimeout: true}, nil},
+		{"transport", "transport_error", errors.New("PRIVATE_TRANSPORT"), nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cause := &url.Error{Op: "Post", URL: "https://PRIVATE_USER:PRIVATE_PASS@upload.invalid/?token=PRIVATE_TOKEN", Err: tc.cause}
 			err := excelBPSAttachmentTransportError(cause)
-			require.ErrorIs(t, err, tc.cause)
-			require.Same(t, cause, errors.Unwrap(err))
-			require.EqualError(t, err, "excel BPS attachment returned HTTP 502")
+			if tc.sentinel != nil {
+				require.ErrorIs(t, err, tc.sentinel)
+			} else {
+				require.NoError(t, errors.Unwrap(err))
+			}
+			require.NotEqual(t, cause, errors.Unwrap(err))
+			require.EqualError(t, err, "excel BPS attachment failed: attachment_transport/"+transportdiag.Classify(cause)+" (status 502)")
 			require.NotContains(t, err.Error(), "PRIVATE")
 			require.Equal(t, tc.kind, excelBPSAttachmentFailureKind(err))
 			var attachment *excelBPSAttachmentError
@@ -188,7 +194,7 @@ func TestExcelBPSAttachmentTransportErrorsRetainSafeCause(t *testing.T) {
 				}
 				c, _ := gin.CreateTestContext(httptest.NewRecorder())
 				c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil).WithContext(ctx)
-				require.Equal(t, canceled && errors.Is(tc.cause, context.Canceled), isExcelBPSClientCancellation(c, err))
+				require.Equal(t, canceled && errors.Is(tc.sentinel, context.Canceled), isExcelBPSClientCancellation(c, err))
 				cancel()
 			}
 		})

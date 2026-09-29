@@ -184,3 +184,19 @@ configurable in both modes. Both modes retain the 64-megapixel safeguard.
 Relay download concurrency and automatic compaction checkpoint limits are
 unchanged. Large capacity settings require appropriate resource provisioning;
 these ceilings are not throughput or memory-use guarantees.
+
+# In-band upstream failures
+
+- Recognize error, response.failed and response.cancelled as failed terminals.
+  Explicit error status takes precedence over known error codes and types;
+  unknown identifiers use a safe 502 fallback. Never forward upstream free text.
+- Buffered client responses return the classified HTTP status. Started streams
+  retain their HTTP status and carry the classification in the error event.
+  Ops records keep the actual upstream HTTP status separate from the semantic
+  failure status; existing compact keepalives still finish with an SSE failure.
+- A rate-limit terminal cools only the BPS route for subsequent requests, except
+  observation-only quality probes. It never retries the accepted generation,
+  disables an account on an in-band 403, or changes shared Codex account health.
+- Failure/cancellation retains usage and withholds unvalidated tools. Readers
+  stop at cancellation without waiting for EOF, including correction and image
+  compaction readers. This does not add a BPS WebSocket transport.

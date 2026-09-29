@@ -3,16 +3,6 @@ export default {
   profit: '近期利润 / 利润率',
   economics: { usage: '使用记录', rate: '倍率估算', unknown: '利润样本不足' },
   priority: '优先级',
-  batch: {
-    typeOrder: '账号类型顺序', typeOrderHint: '拖动或使用箭头调整 Teams、Pro、Plus、API 的顺序，自动生成优先级；API 内按倍率从低到高。应用后写入账号，再次加载按已有优先级还原类型顺序。', moveUp: '上移 {type}', moveDown: '下移 {type}', resetOrder: '恢复 Teams → Pro → Plus → API',
-
-    title: '按账号类别快捷设置', hint: '批量写入真实账号现有字段（不含影子账号），优先调度关闭时也会影响账号调度。加载后可查看命中账号，按 Teams、Pro、Plus 和 API 账号倍率分档设置；不修改计费倍率。',
-    group: '限定分组 ID（可留空）', load: '加载账号并生成排序', category: '账号类别 / 倍率', accounts: '命中账号', current: '当前优先级 / 并发 / 负载因子', priority: '新优先级',
-    priorityHint: '优先级数值越小越先使用；同一体验档内先比较优先级，再比较动态得分。可手动填写相同优先级，让多类账号一起参与动态竞争。',
-    concurrency: '同时设置并发数', loadFactor: '同时设置负载因子', loadHint: '并发数是实际同时请求上限；提高负载因子可提高调度频率。即使并发数为 100、负载因子为 10000，拥堵判断和并发槽仍按实际并发上限执行。未勾选的字段保留原值。',
-    preview: '将更新 {count} 个账号的优先级；并发数：{concurrency}；负载因子：{loadFactor}。', keep: '保持原值', apply: '应用到选中账号', empty: '没有待更新的账号。', otherOAuth: 'OAuth · 其他套餐',
-    loadError: '加载账号失败或超过 10000 个，请限定分组后重试。', result: '已更新 {count} 个账号。', partial: '部分账号未完成更新，已保留在列表中，可重试。'
-  },
 
   title: '优先调度',
   description: '先满足体验目标，再平衡质量、延迟、并发与成本。',

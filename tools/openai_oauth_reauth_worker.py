@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -223,7 +224,7 @@ class WorkerConfig:
     base_url: str
     worker_token: str
     worker_id: str
-    protocol_root: Path
+    protocol_root: Path | None
     tosub2_root: Path | None = None
     poll_seconds: float = 5.0
     request_timeout: float = 30.0
@@ -249,17 +250,18 @@ class WorkerConfig:
             raise WorkerError("OPENAI_REAUTH_WORKER_ID must be at most 128 characters")
 
         root_raw = (os.getenv("CODEX_PROTOCOL_ROOT", "").strip() or os.getenv("TURB_ROOT", "").strip())
-        protocol_root = Path(root_raw).expanduser().resolve() if root_raw else Path()
-        required = (
-            protocol_root / "core" / "codex_oauth.py",
-            protocol_root / "core" / "session.py",
-            protocol_root / "sentinel" / "sentinel-runner.js",
-            protocol_root / "sentinel" / "sdk.js",
-        )
-        if not root_raw or not all(path.is_file() for path in required):
-            raise WorkerError(
-                "CODEX_PROTOCOL_ROOT/TURB_ROOT must point to a Turb project with the pure protocol and Sentinel assets"
+        protocol_root = Path(root_raw).expanduser().resolve() if root_raw else None
+        if protocol_root is not None:
+            required = (
+                protocol_root / "core" / "codex_oauth.py",
+                protocol_root / "core" / "session.py",
+                protocol_root / "sentinel" / "sentinel-runner.js",
+                protocol_root / "sentinel" / "sdk.js",
             )
+            if not all(path.is_file() for path in required):
+                raise WorkerError(
+                    "CODEX_PROTOCOL_ROOT/TURB_ROOT must point to a Turb project with the pure protocol and Sentinel assets"
+                )
 
         tosub2_raw = os.getenv("TOSUB2_ROOT", "").strip()
         tosub2_root = Path(tosub2_raw).expanduser().resolve() if tosub2_raw else None
@@ -270,6 +272,9 @@ class WorkerConfig:
             )
             if not all(path.is_file() for path in required_tosub2):
                 raise WorkerError("TOSUB2_ROOT must point to a toSub2 checkout containing src/protocol-login.mjs")
+
+        if protocol_root is None and tosub2_root is None:
+            raise WorkerError("configure TOSUB2_ROOT for password/TOTP or CODEX_PROTOCOL_ROOT/TURB_ROOT for email OTP")
 
         return cls(
             base_url=base_url,
@@ -772,13 +777,15 @@ def _wait_for_otp(
     raise WorkerError("timed out waiting for a new mailbox verification code")
 
 
-def process_claim(api: WorkerAPI, protocol: SimpleNamespace, claim: dict[str, Any]) -> None:
+def process_claim(api: WorkerAPI, protocol: SimpleNamespace | None, claim: dict[str, Any]) -> None:
     mode = str(claim.get("credential_mode") or "email_otp_url").strip()
     if mode == "password_totp":
         process_password_claim(api, claim)
         return
     if mode != "email_otp_url":
         raise WorkerError("claimed task has an unsupported credential mode")
+    if protocol is None:
+        raise WorkerError("email OTP re-login requires CODEX_PROTOCOL_ROOT/TURB_ROOT")
 
     task_id = int(claim.get("task_id") or 0)
     account_id = int(claim.get("account_id") or 0)
@@ -971,7 +978,7 @@ def process_password_claim(api: WorkerAPI, claim: dict[str, Any]) -> None:
     LOGGER.info("task=%s account=%s succeeded", task_id, account_id)
 
 
-def run_once(api: WorkerAPI, protocol: SimpleNamespace) -> bool:
+def run_once(api: WorkerAPI, protocol: SimpleNamespace | None) -> bool:
     try:
         claim = api.claim()
     except WorkerError as exc:
@@ -993,19 +1000,38 @@ def run_once(api: WorkerAPI, protocol: SimpleNamespace) -> bool:
     return True
 
 
+def terminate_worker(_signum: int, _frame: Any) -> None:
+    # The managed launcher makes us a process-group leader. On API death its
+    # parent-death SIGTERM must also terminate Node/TLS descendants.
+    if hasattr(os, "getpgrp") and os.getpgrp() == os.getpid():
+        try:
+            os.killpg(os.getpgrp(), signal.SIGKILL)
+        except OSError:
+            pass
+    raise SystemExit(0)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true", help="claim at most one task, then exit")
+    parser.add_argument("--check", action="store_true", help="validate local configuration without claiming a task")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
         config = WorkerConfig.from_env()
-        protocol = load_protocol(config.protocol_root)
+        node_executable = os.getenv("NODE_EXECUTABLE", "node").strip()
+        if not node_executable or shutil.which(node_executable) is None:
+            raise WorkerError("Node.js is required for the re-login protocol runner")
+        protocol = load_protocol(config.protocol_root) if config.protocol_root is not None else None
         api = WorkerAPI(config)
     except Exception as exc:
         LOGGER.error("worker startup failed: %s", sanitize_error(f"{type(exc).__name__}: {exc}"))
         return 2
 
+    if args.check:
+        LOGGER.info("worker configuration valid (password_totp=%s email_otp_url=%s)", config.tosub2_root is not None, protocol is not None)
+        return 0
+    signal.signal(signal.SIGTERM, terminate_worker)
     LOGGER.info("worker=%s ready", config.worker_id)
     try:
         while True:

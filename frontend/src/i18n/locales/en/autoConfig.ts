@@ -1,9 +1,20 @@
 export default {
   "title": "Auto Configuration",
-  "description": "Manage BPS defaults, new OAuth account initialization and concurrency upgrades.",
+  "description": "Manage BPS defaults, model pricing, new OAuth account initialization and concurrency upgrades.",
+  "modelBilling": {
+    "title": "Model pricing",
+    "hint": "Set an extra billing multiplier for selected low-cost models, defaulting to 10×. Enable independently for new requests across all accounts. Only customer token charges increase; base prices and upstream account costs stay the same.",
+    "model": "Billing model / prefix rule",
+    "multiplier": "Billing multiplier",
+    "remove": "Remove rule",
+    "add": "Add model (default 10×)",
+    "matchHint": "Matches the model used for pricing. Use an exact name or a trailing * prefix wildcard. Exact names take precedence, then the longest prefix; rules never compound. Multipliers range from 1 to 1000.",
+    "example": "Example: group 0.2× × model 10× = 2× base token prices, before existing account and peak multipliers. Unmatched models keep their current charges; per-request fees and search surcharges are not multiplied. Changes take effect within about 15 seconds.",
+    "invalid": "Enter 1–100 unique model rules with multipliers from 1 to 1000. Only exact model names or a trailing * wildcard are supported."
+  },
   "mapping": {
     "title": "Model mappings",
-    "hint": "Applied with initial configuration to new OAuth accounts on the selected platform. Existing rules for the same source take precedence. The OpenAI example is gpt-5.4 → gpt-5.5; edit or remove all rules as needed.",
+    "hint": "Applied with initial configuration to new OAuth accounts on the selected platform. Fills missing mappings and replaces same-name passthrough entries while preserving existing custom mappings. The OpenAI example is gpt-5.4 → gpt-5.5; edit or remove all rules as needed.",
     "from": "Requested model",
     "to": "Target model",
     "add": "Add mapping",

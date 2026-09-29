@@ -22,6 +22,7 @@ import (
 
 // ProviderSet 提供服务器层的依赖
 var ProviderSet = wire.NewSet(
+	ProvideLifecycle,
 	ProvideRouter,
 	ProvideHTTPServer,
 )
@@ -110,7 +111,7 @@ func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {
 }
 
 // ProvideHTTPServer 提供 HTTP 服务器
-func ProvideHTTPServer(cfg *config.Config, router *gin.Engine) *http.Server {
+func ProvideHTTPServer(cfg *config.Config, router *gin.Engine, lifecycle *Lifecycle) *http.Server {
 	httpHandler := http.Handler(router)
 	server := &http.Server{
 		Addr:           cfg.Server.Address(),
@@ -159,7 +160,7 @@ func ProvideHTTPServer(cfg *config.Config, router *gin.Engine) *http.Server {
 		}
 	}
 
-	server.Handler = httpHandler
+	server.Handler = lifecycle.Wrap(httpHandler)
 	return server
 }
 

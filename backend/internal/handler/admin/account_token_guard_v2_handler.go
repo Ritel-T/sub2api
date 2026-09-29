@@ -72,6 +72,7 @@ func (h *AccountTokenGuardV2Handler) List(c *gin.Context) {
 	}
 	response.Success(c, gin.H{
 		"accounts":                 accounts,
+		"worker":                   h.service.WorkerStatus(),
 		"probe_interval_seconds":   rules.ProbeIntervalSeconds,
 		"retry_interval_seconds":   rules.RetryIntervalSeconds,
 		"relogin_cooldown_seconds": rules.ReloginCooldownSeconds,

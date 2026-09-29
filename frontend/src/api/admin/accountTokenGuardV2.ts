@@ -55,6 +55,7 @@ export interface TokenGuardV2Rules {
 }
 
 export interface TokenGuardV2Status extends TokenGuardV2Rules {
+  worker?: { mode: string; state: string; reason?: string }
   accounts: TokenGuardV2Account[]
 }
 

@@ -1,4 +1,25 @@
 export default {
+  runtimeTitle: 'Automatic re-login service',
+  runtimeManaged: 'Prepared and managed by the application. Password / 2FA needs no extra setup.',
+  runtimeExternal: 'Using the existing external re-login service.',
+  runtimeReasons: {
+    unsupported_platform: 'This platform does not support the built-in runtime yet.',
+    release_required: 'No published runtime matches this development build.',
+    runtime_install_failed: 'Runtime download, verification or preparation failed; it will retry.',
+    worker_start_failed: 'The re-login process could not start; it will retry.',
+    worker_exited: 'The re-login process exited; it will be restarted.',
+    external_not_configured: 'The existing external service connection is invalid.',
+    external_offline: 'The external re-login service has not connected.',
+    api_unreachable: 'The re-login process has not connected to the local API.'
+  },
+  runtimeStates: {
+    idle: 'Will be prepared automatically on first use',
+    preparing: 'Preparing the runtime; queued tasks will start when ready',
+    running: 'Ready and processing re-login tasks',
+    unavailable: 'Temporarily unavailable; the application will retry automatically',
+    stopped: 'Service is stopping'
+  },
+
   encryption: {
     "title": "Credential encryption",
     "ready": "Enabled; login credentials can be saved",

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/reauthruntime"
 	"log/slog"
 	"net/http"
 	"os"
@@ -227,6 +228,9 @@ func (s *AccountTokenGuardV2Service) Start() {
 			runCycle := func() {
 				ctx, cancel := context.WithTimeout(s.rootCtx, 90*time.Second)
 				defer cancel()
+				if rows, err := s.repo.ListAccounts(ctx); err == nil && len(rows) > 0 {
+					s.reauth.EnsureWorker()
+				}
 				if _, err := s.RunDue(ctx); err != nil {
 					slog.Warn("account_token_guard_v2_cycle_failed", "error", err)
 				}
@@ -251,6 +255,7 @@ func (s *AccountTokenGuardV2Service) Stop() {
 	if s == nil {
 		return
 	}
+	s.reauth.stopWorker()
 	s.cancel()
 	s.startOnce.Do(func() { close(s.doneCh) })
 	select {
@@ -467,4 +472,9 @@ func (s *AccountTokenGuardV2Service) probeAccount(ctx context.Context, account *
 		}
 	}
 	return AccountTokenGuardV2ProbeTransient, "temporary inspection failure"
+}
+
+// WorkerStatus separates saved login credentials from execution availability.
+func (s *AccountTokenGuardV2Service) WorkerStatus() reauthruntime.Status {
+	return s.reauth.WorkerStatus()
 }

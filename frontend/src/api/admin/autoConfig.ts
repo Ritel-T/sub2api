@@ -1,7 +1,9 @@
 import { apiClient } from '../client'
+import type { ModelBillingConfig } from '@/utils/modelBilling'
 import type { ExcelBPSDefaults } from '@/utils/excelBPSDefaults'
 import type { OAuthModelMappingRule } from '@/utils/oauthModelMappings'
 export interface AutoConfig {
+ model_billing?: ModelBillingConfig
  model_mappings?: OAuthModelMappingRule[] | null
  excel_bps?: ExcelBPSDefaults
  enabled: boolean

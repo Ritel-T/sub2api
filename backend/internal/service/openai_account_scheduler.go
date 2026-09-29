@@ -2775,10 +2775,19 @@ func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(account *Accoun
 	if account == nil {
 		return false
 	}
+	// A failed managed proxy acquisition says nothing about account health.
+	// Keep the existing error response and diagnostics, but do not turn a local
+	// pool outage into an account penalty (or a successful recovery sample).
+	if !success && len(observedErr) > 0 && errors.Is(observedErr[0], errExcelBPSProxyUnavailable) {
+		return false
+	}
 	accountID := account.ID
 	healthTripped := false
 	if s != nil && s.rateLimitService != nil {
 		if success {
+			// Reset at the synchronous result boundary, before asynchronous
+			// usage recording can reorder this success behind a later failure.
+			s.rateLimitService.resetOpenAIIPUnauthorizedStreak(account)
 			s.rateLimitService.ObserveOpenAIAPIKeyHealthSuccess(context.Background(), account)
 		} else if len(observedErr) > 0 && observedErr[0] != nil {
 			healthTripped = s.rateLimitService.ObserveOpenAIAPIKeyHealthFailure(context.Background(), account, observedErr[0])
