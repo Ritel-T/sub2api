@@ -185,3 +185,6 @@ issues/
 # Python test caches
 __pycache__/
 *.pyc
+
+# Ephemeral BPS image relay fixtures from backend tests
+backend/internal/service/data/bps-images/

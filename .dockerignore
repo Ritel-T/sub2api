@@ -83,3 +83,6 @@ deploy/redis_data/
 .claude/
 issues/
 CLAUDE.md
+
+# Ephemeral BPS image relay fixtures from backend tests
+backend/internal/service/data/bps-images/
