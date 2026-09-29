@@ -21,6 +21,16 @@ describe('useModelWhitelist', () => {
     expect(models).toContain('gpt-6-luna')
   })
 
+  it('exposes GPT-6.1 Sol as an exact model and identity preset', () => {
+    expect(getModelsByPlatform('openai')).toContain('gpt-6.1-sol')
+    const presets = getPresetMappingsByPlatform('openai')
+    expect(presets).toContainEqual(expect.objectContaining({
+      label: 'GPT-6.1 Sol', from: 'gpt-6.1-sol', to: 'gpt-6.1-sol'
+    }))
+    expect(presets.filter(({ from, to }) => from === 'gpt-6.1-sol' || to === 'gpt-6.1-sol'))
+      .toHaveLength(1)
+  })
+
   it('openai 预设映射包含 GPT-6 别名和 Astra', () => {
     expect(getPresetMappingsByPlatform('openai')).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'GPT-6', from: 'gpt-6', to: 'gpt-6' }),

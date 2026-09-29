@@ -639,7 +639,7 @@ describe('UseKeyModal', () => {
     expect(codeBlock.text()).not.toContain('"name": "GPT-5.4 Nano"')
   })
 
-  it('renders GPT-5.6 and GPT-6 Astra capabilities in OpenCode config', async () => {
+  it('renders GPT-5.6, GPT-6 Astra and GPT-6.1 Sol capabilities in OpenCode config', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {
         show: true,
@@ -673,6 +673,20 @@ describe('UseKeyModal', () => {
       expect(models[model].variants).toHaveProperty('max')
       expect(models[model].variants).toHaveProperty('xhigh')
     }
+    expect(models['gpt-6.1-sol']).toEqual({
+      name: 'GPT-6.1 Sol',
+      limit: { context: 1050000, output: 128000 },
+      options: { store: false, reasoningEffort: 'medium' },
+      variants: {
+        low: { reasoningEffort: 'low' },
+        medium: { reasoningEffort: 'medium' },
+        high: { reasoningEffort: 'high' },
+        xhigh: { reasoningEffort: 'xhigh' },
+        max: { reasoningEffort: 'max' }
+      }
+    })
+    expect(models['gpt-6.1-sol'].variants).not.toHaveProperty('none')
+    expect(models['gpt-6.1-sol'].variants).not.toHaveProperty('minimal')
     expect(models['gpt-5.6'].name).toBe('GPT-5.6 (Sol)')
     expect(models['gpt-6-sol'].variants).toHaveProperty('none')
     expect(models['gpt-6-luna'].limit).toEqual({ context: 1050000, output: 128000 })

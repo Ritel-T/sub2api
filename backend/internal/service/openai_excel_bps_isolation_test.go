@@ -21,8 +21,8 @@ func isolatedExcelAccount() *Account {
 	a.Status = StatusActive
 	a.Schedulable = true
 	a.Extra[ExcelBPSRequiredGroupIDsKey] = []any{float64(16)}
-	a.Extra[ExcelBPSRequiredModelsKey] = []any{"gpt-6-sol", "gpt-6-astra"}
-	a.Extra["openai_excel_bps_models"] = []any{"gpt-6-sol", "gpt-6-astra"}
+	a.Extra[ExcelBPSRequiredModelsKey] = []any{"gpt-6.1-sol", "gpt-6-sol", "gpt-6-astra"}
+	a.Extra["openai_excel_bps_models"] = []any{"gpt-6.1-sol", "gpt-6-sol", "gpt-6-astra"}
 	return a
 }
 
@@ -30,7 +30,7 @@ func TestExcelBPSIsolationGroupAndModelPolicy(t *testing.T) {
 	account := isolatedExcelAccount()
 	account.Credentials["model_mapping"] = map[string]any{"alias": "gpt-6-astra"}
 	for _, group := range []int64{0, 1, 15, 16, 19} {
-		for _, model := range []string{"gpt-6-sol", "gpt-6-astra", "gpt-6-astra-high", "openai/gpt-6-astra", "alias", "gpt-6-luna", "gpt-5.6-sol", "future-model"} {
+		for _, model := range []string{"gpt-6.1-sol", "openai/gpt-6.1-sol-high", "gpt-6-sol", "gpt-6-astra", "gpt-6-astra-high", "openai/gpt-6-astra", "alias", "gpt-6-luna", "gpt-5.6-sol", "future-model"} {
 			t.Run(fmt.Sprintf("%d/%s", group, model), func(t *testing.T) {
 				protected := model != "gpt-6-luna" && model != "gpt-5.6-sol" && model != "future-model"
 				require.Equal(t, !protected || group == 16, account.IsModelAllowedInGroup(&group, model))
@@ -141,7 +141,7 @@ func isolationForwardContext(group int64, path string) (*gin.Context, *httptest.
 
 func TestExcelBPSIsolationForwardRoutes(t *testing.T) {
 	for _, group := range []int64{1, 15, 16, 19} {
-		for _, model := range []string{"gpt-6-astra", "gpt-6-sol", "gpt-6-luna"} {
+		for _, model := range []string{"gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna"} {
 			t.Run(fmt.Sprintf("%d/%s", group, model), func(t *testing.T) {
 				wire := fmt.Sprintf("event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_isolation\",\"status\":\"completed\",\"model\":%q,\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n", model)
 				upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(wire))}}

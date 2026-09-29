@@ -531,6 +531,10 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 			if isOpenAIGPT56Model(modelID) || openai.IsGPT6SolOrLunaModelSpelling(modelID) {
 				descriptor.MaxContextWindow = configuredCodexGPT56MaxContext
 			}
+			if openai.IsGPT61SolModelSpelling(modelID) {
+				descriptor.ContextWindow = configuredCodexGPT6AstraContext
+				descriptor.MaxContextWindow = configuredCodexGPT6AstraContext
+			}
 			if isOpenAIGPT6AstraModel(modelID) {
 				// Codex resolves the Ultra workflow to this effort before inference.
 				// openai/codex a9896da3: codex-rs/models-manager/models.json.
@@ -2063,6 +2067,7 @@ func CodexModelsManifestETag(body []byte) string {
 }
 
 var apiKeyCodexModelsWithoutResponsesLite = map[string]struct{}{
+	"gpt-6.1-sol":   {},
 	"gpt-6-astra":   {},
 	"gpt-5.6-sol":   {},
 	"gpt-5.6-terra": {},
@@ -2099,6 +2104,8 @@ func adjustAPIKeyCodexModelsManifest(body []byte, account *Account) ([]byte, err
 		}
 		if isOpenAIGPT6AstraModel(target) {
 			target = "gpt-6-astra"
+		} else if openai.IsGPT61SolModelSpelling(target) {
+			target = "gpt-6.1-sol"
 		}
 		if _, targeted := apiKeyCodexModelsWithoutResponsesLite[target]; !targeted {
 			continue

@@ -1352,11 +1352,40 @@ func normalizeOpenAIOAuthResponsesCompatibilityBody(body []byte) ([]byte, bool, 
 }
 
 func normalizeGPT6ResponsesSampling(body []byte, model string) ([]byte, bool, error) {
-	if !openai.IsGPT6SolOrLunaModelSpelling(model) || gjson.GetBytes(body, "reasoning.effort").String() == "none" {
+	isGPT61 := openai.IsGPT61SolModelSpelling(model)
+	if !isGPT61 && (!openai.IsGPT6SolOrLunaModelSpelling(model) || gjson.GetBytes(body, "reasoning.effort").String() == "none") {
 		return body, false, nil
 	}
 	out := body
 	changed := false
+	if isGPT61 {
+		if gjson.GetBytes(out, "prompt_cache_retention").Exists() {
+			var err error
+			if !gjson.GetBytes(out, "prompt_cache_options.ttl").Exists() {
+				out, err = sjson.SetBytes(out, "prompt_cache_options.ttl", "30m")
+				if err != nil {
+					return body, false, fmt.Errorf("normalize GPT-6.1 prompt cache ttl: %w", err)
+				}
+			}
+			out, err = sjson.DeleteBytes(out, "prompt_cache_retention")
+			if err != nil {
+				return body, false, fmt.Errorf("remove GPT-6.1 prompt cache retention: %w", err)
+			}
+			changed = true
+		}
+		for _, path := range []string{"reasoning.effort", "reasoning_effort"} {
+			effort := strings.ToLower(strings.TrimSpace(gjson.GetBytes(out, path).String()))
+			if effort != "none" && effort != "minimal" {
+				continue
+			}
+			var err error
+			out, err = sjson.SetBytes(out, path, "low")
+			if err != nil {
+				return body, false, fmt.Errorf("normalize GPT-6.1 reasoning effort: %w", err)
+			}
+			changed = true
+		}
+	}
 	for _, key := range []string{"temperature", "top_p", "top_logprobs", "logprobs"} {
 		if !gjson.GetBytes(out, key).Exists() {
 			continue
@@ -1487,7 +1516,7 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 		normalized = sanitized
 		changed = true
 	}
-	if account != nil && account.IsOpenAI() && account.IsOAuth() {
+	if account != nil && account.IsOpenAI() && (account.IsOAuth() || openai.IsGPT61SolModelSpelling(account.GetMappedModel(gjson.GetBytes(normalized, "model").String()))) {
 		if reasoningBody, reasoningChanged, err := normalizeOpenAIResponsesReasoningMode(normalized, account.GetMappedModel(gjson.GetBytes(normalized, "model").String())); err != nil {
 			return body, false, err
 		} else if reasoningChanged {
@@ -2563,6 +2592,12 @@ func normalizeOpenAIReasoningEffort(raw string) string {
 }
 
 func normalizeOpenAIReasoningEffortForModel(raw, model string) string {
+	if openai.IsGPT61SolModelSpelling(model) {
+		switch strings.ToLower(strings.TrimSpace(raw)) {
+		case "none", "minimal":
+			return "low"
+		}
+	}
 	if strings.EqualFold(strings.TrimSpace(raw), "none") && openai.IsGPT6SolOrLunaModelSpelling(model) {
 		return "none"
 	}
