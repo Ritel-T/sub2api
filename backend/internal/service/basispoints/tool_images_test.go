@@ -294,7 +294,7 @@ func TestToolImagesMixedUploadPreservesInlineGrantAndCount(t *testing.T) {
 			items := mustTestValue[[]any](t, body["input"])
 			message := mustTestValue[object](t, items[len(items)-3])
 			for _, part := range mustTestValue[[]any](t, message["content"]) {
-				require.Equal(t, object{"type": "input_image", "file_id": "file-uploaded", "detail": "original"}, part)
+				require.Equal(t, object{"type": "input_image", "file_id": "file-uploaded"}, part)
 			}
 			result := mustTestValue[object](t, items[len(items)-1])
 			require.Equal(t, []any{object{"type": "input_text", "text": "screenshot"}, inline}, result["output"])
