@@ -133,6 +133,7 @@ deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
 docs/*
+!docs/openai-ws-sse-acceleration.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
@@ -141,18 +142,22 @@ docs/*
 !docs/COMPOSITE_GROUPS.md
 !docs/PLUGIN_DEVELOPMENT.md
 !docs/channel-monitor-v2-safe-defaults.md
+!docs/quality-bps-observation.md
 !docs/cyber-session-blocking.md
 !docs/request-capture.md
 !docs/codex-credits.md
 !docs/account-token-guard.md
+!docs/priority-scheduling.md
 !docs/legal/
 !docs/legal/*.md
 !docs/screenshots/
 docs/screenshots/*
+!docs/screenshots/ws-sse-acceleration/
 !docs/screenshots/mobile-account-actions-menu.png
 !docs/screenshots/codex-referral-dialog.png
 !docs/screenshots/codex-referral-success.png
 !docs/screenshots/bps403-recovery/
+!docs/screenshots/account-cost-multiplier/
 .serena/
 .codex/
 frontend/coverage/
@@ -167,3 +172,16 @@ issues/
 /plugins/
 
 !docs/codex-ticket-pinning.md
+
+!docs/account-auto-config.md
+!docs/screenshots/auto-config/
+
+# Runtime credential encryption keys must never enter source control.
+**/credential-operations.key
+**/.credential-key-*
+!docs/credential-encryption.md
+!docs/screenshots/credential-encryption/
+
+# Python test caches
+__pycache__/
+*.pyc

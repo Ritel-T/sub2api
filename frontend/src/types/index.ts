@@ -1145,6 +1145,7 @@ export interface UpstreamBillingProbeResult {
 }
 
 export interface UpstreamBillingRateSnapshotItem {
+  cost_multiplier?: number
   account_id: number
   snapshot?: UpstreamBillingProbeSnapshot | null
 }
@@ -2564,7 +2565,7 @@ export interface QualityBPSPolicy {
 export interface QualityPolicy {
   judge?: QualityJudgeConfig
   expected_answer: string
-  action: 'remove_groups' | 'disable_scheduling' | 'enable_bps'
+  action: 'remove_groups' | 'disable_scheduling' | 'enable_bps' | 'observe_only'
   remove_group_ids: number[]
   auto_restore: boolean
   bps?: QualityBPSPolicy
@@ -2573,6 +2574,7 @@ export interface QualityPolicy {
 export interface PelicanTestConfig {
   quality?: QualityPolicy
   question_kind?: 'candy' | 'pelican' | 'state_probe'
+  test_channel?: 'account' | 'bps'
   prompt: string
   reasoning_effort: string
   parallel_count: number

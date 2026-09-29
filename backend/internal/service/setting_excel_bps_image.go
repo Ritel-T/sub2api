@@ -11,6 +11,10 @@ import (
 )
 
 const (
+	SettingKeyExcelBPSImageLimitPolicy      = "excel_bps_image_limit_policy"
+	SettingKeyExcelBPSImageWarningRemaining = "excel_bps_image_warning_remaining"
+	SettingKeyExcelBPSImageCompactReserve   = "excel_bps_image_compact_reserve"
+
 	SettingKeyExcelBPSImageMode           = "excel_bps_image_mode"
 	ExcelBPSImageModeRelay                = "relay"
 	ExcelBPSImageModeNative               = "native"
@@ -32,13 +36,16 @@ const (
 )
 
 type ExcelBPSImageRelaySettings struct {
-	Mode         string
-	Enabled      bool
-	BaseURL      string
-	BodyLimitMiB int
-	BudgetMiB    int
-	MaxRequests  int
-	Limits       basispoints.ImageRelayLimits
+	Mode             string
+	Enabled          bool
+	BaseURL          string
+	BodyLimitMiB     int
+	BudgetMiB        int
+	MaxRequests      int
+	Policy           string
+	WarningRemaining int
+	CompactReserve   int
+	Limits           basispoints.ImageRelayLimits
 }
 
 func normalizeExcelBPSImageRelaySettings(enabled bool, baseURL, mode string) (ExcelBPSImageRelaySettings, error) {
@@ -64,14 +71,14 @@ func normalizeExcelBPSImageRelaySettings(enabled bool, baseURL, mode string) (Ex
 }
 
 func validateExcelBPSImageCapacity(bodyLimitMiB, budgetMiB, maxRequests int) error {
-	if bodyLimitMiB < 1 || bodyLimitMiB > 128 {
-		return infraerrors.BadRequest("INVALID_EXCEL_BPS_IMAGE_CAPACITY", "Image request body limit must be 1-128 MiB")
+	if bodyLimitMiB < 1 || bodyLimitMiB > basispoints.MaxImageBodyMiB {
+		return infraerrors.BadRequest("INVALID_EXCEL_BPS_IMAGE_CAPACITY", fmt.Sprintf("Image request body limit must be 1-%d MiB", basispoints.MaxImageBodyMiB))
 	}
-	if budgetMiB < 512 || budgetMiB > 2048 || budgetMiB < bodyLimitMiB*8 {
-		return infraerrors.BadRequest("INVALID_EXCEL_BPS_IMAGE_CAPACITY", "Image request budget must be 512-2048 MiB and at least eight times the body limit")
+	if budgetMiB < basispoints.MinImageBudgetMiB || budgetMiB > basispoints.MaxImageBudgetMiB || budgetMiB < bodyLimitMiB*8 {
+		return infraerrors.BadRequest("INVALID_EXCEL_BPS_IMAGE_CAPACITY", fmt.Sprintf("Image request budget must be %d-%d MiB and at least eight times the body limit", basispoints.MinImageBudgetMiB, basispoints.MaxImageBudgetMiB))
 	}
-	if maxRequests < 1 || maxRequests > 512 {
-		return infraerrors.BadRequest("INVALID_EXCEL_BPS_IMAGE_CAPACITY", "Image concurrent requests must be 1-512")
+	if maxRequests < 1 || maxRequests > basispoints.MaxImageRequests {
+		return infraerrors.BadRequest("INVALID_EXCEL_BPS_IMAGE_CAPACITY", fmt.Sprintf("Image concurrent requests must be 1-%d", basispoints.MaxImageRequests))
 	}
 	return nil
 }
@@ -96,6 +103,7 @@ func (s *SettingService) GetExcelBPSImageRelaySettings(ctx context.Context) (Exc
 	dbCtx, cancel := context.WithTimeout(ctx, gatewayForwardingDBTimeout)
 	defer cancel()
 	values, err := s.settingRepo.GetMultiple(dbCtx, []string{
+		SettingKeyExcelBPSImageLimitPolicy, SettingKeyExcelBPSImageWarningRemaining, SettingKeyExcelBPSImageCompactReserve,
 		SettingKeyExcelBPSImageMode, SettingKeyExcelBPSImageRelayEnabled, SettingKeyExcelBPSImageBaseURL,
 		SettingKeyExcelBPSImageBodyLimitMiB, SettingKeyExcelBPSImageBudgetMiB, SettingKeyExcelBPSImageMaxRequests,
 		SettingKeyExcelBPSImageMaxImageMiB, SettingKeyExcelBPSImageMaxImages, SettingKeyExcelBPSImageMaxTotalMiB, SettingKeyExcelBPSImageStorageMiB, SettingKeyExcelBPSImageStorageEntries, SettingKeyExcelBPSImageTTLMinutes,
@@ -120,6 +128,20 @@ func (s *SettingService) GetExcelBPSImageRelaySettings(ctx context.Context) (Exc
 	settings.Limits, err = parseExcelBPSImageLimits(values)
 	if err != nil {
 		return ExcelBPSImageRelaySettings{}, infraerrors.ServiceUnavailable("EXCEL_BPS_IMAGE_SETTINGS_UNAVAILABLE", "Excel BPS image limits are unavailable")
+	}
+	settings.Policy = values[SettingKeyExcelBPSImageLimitPolicy]
+	settings.WarningRemaining, err = parseExcelBPSImageCapacity(values[SettingKeyExcelBPSImageWarningRemaining], 8)
+	if err == nil {
+		settings.CompactReserve, err = parseExcelBPSImageCapacity(values[SettingKeyExcelBPSImageCompactReserve], 3)
+	}
+	if settings.Policy == "" {
+		settings.Policy = "off"
+	}
+	if err == nil {
+		err = validateExcelBPSImagePolicy(settings.Policy, settings.WarningRemaining, settings.CompactReserve, settings.Limits.MaxImages)
+	}
+	if err != nil {
+		return ExcelBPSImageRelaySettings{}, infraerrors.ServiceUnavailable("EXCEL_BPS_IMAGE_SETTINGS_UNAVAILABLE", "Excel BPS image policy is invalid")
 	}
 	return settings, nil
 }
@@ -163,4 +185,19 @@ func (s *SystemSettings) imageRelayLimits() basispoints.ImageRelayLimits {
 		StorageEntries: s.ExcelBPSImageStorageEntries,
 		TTLMinutes:     s.ExcelBPSImageTTLMinutes,
 	}
+}
+
+func validateExcelBPSImagePolicy(policy string, warning, reserve, limit int) error {
+	switch policy {
+	case "off", "auto_compact", "warn":
+	default:
+		return fmt.Errorf("unknown image limit policy")
+	}
+	if warning < 1 || warning > basispoints.MaxRelayImages || reserve < 1 || reserve > basispoints.MaxRelayImages {
+		return fmt.Errorf("image policy margins must be 1-%d", basispoints.MaxRelayImages)
+	}
+	if policy == "warn" && (reserve >= warning || warning >= limit) {
+		return fmt.Errorf("image policy requires reserve < warning remaining < image limit")
+	}
+	return nil
 }

@@ -118,6 +118,22 @@ func ProvideOpenAIOAuthService(
 	return svc
 }
 
+// ProvideOpenAIOAuthReauthService wires the durable mailbox/task flow while
+// keeping the pure HTTP protocol runner in a separately run worker process.
+func ProvideOpenAIOAuthReauthService(
+	repo OpenAIOAuthReauthRepository,
+	adminService AdminService,
+	accountRepo AccountRepository,
+	openaiOAuthService *OpenAIOAuthService,
+	secretEncryptor OpenAICredentialEncryptor,
+	cfg *config.Config,
+	tokenCacheInvalidator TokenCacheInvalidator,
+	runtimeBlocker AccountRuntimeBlocker,
+) *OpenAIOAuthReauthService {
+	credentialUpdater, _ := accountRepo.(OpenAIOAuthReauthCredentialUpdater)
+	return NewOpenAIOAuthReauthService(repo, adminService, credentialUpdater, openaiOAuthService, secretEncryptor, cfg != nil && cfg.Totp.EncryptionKeyConfigured, tokenCacheInvalidator, runtimeBlocker)
+}
+
 // ProvideTokenRefreshService creates and starts TokenRefreshService
 func ProvideTokenRefreshService(
 	accountRepo AccountRepository,
@@ -646,8 +662,11 @@ func ProvideIdempotencyCleanupService(repo IdempotencyRepository, cfg *config.Co
 func ProvideScheduledTestService(
 	planRepo ScheduledTestPlanRepository,
 	resultRepo ScheduledTestResultRepository,
+	templateRepo QualityRuleTemplateRepository,
 ) *ScheduledTestService {
-	return NewScheduledTestService(planRepo, resultRepo)
+	svc := NewScheduledTestService(planRepo, resultRepo)
+	svc.templateRepo = templateRepo
+	return svc
 }
 
 // ProvideScheduledTestRunnerService creates and starts ScheduledTestRunnerService.
@@ -659,10 +678,12 @@ func ProvideScheduledTestRunnerService(
 	cfg *config.Config,
 	judge *QualityJudgeService,
 	groupTests *PelicanGroupTestService,
+	monitor *ChannelMonitorV2Service,
 ) *ScheduledTestRunnerService {
 	svc := NewScheduledTestRunnerService(planRepo, scheduledSvc, accountTestSvc, rateLimitSvc, cfg)
 	svc.judgeQuality = judge.Judge
 	svc.groupTests = groupTests
+	svc.candyMonitor = monitor.candy
 	svc.Start()
 	return svc
 }
@@ -737,6 +758,7 @@ func ProvideBackupService(
 // hold a *SettingService reference, but wire injects a tiny callback so writes to
 // ops_advanced_settings immediately propagate into the scheduler hot-path cache.
 func ProvideOpsService(
+	accountOps *AccountOpsService,
 	opsRepo OpsRepository,
 	settingRepo SettingRepository,
 	cfg *config.Config,
@@ -771,6 +793,7 @@ func ProvideOpsService(
 		// a populated cache rather than zero defaults. Best-effort, sync-bounded.
 		settingService.WarmOpenAIQuotaAutoPauseSettings(context.Background())
 	}
+	svc.SetAutoConfigObserver(accountOps.ObserveConcurrencyResult)
 	svc.authCacheInvalidationWorker = authCacheInvalidationWorker
 	svc.apiKeyService = apiKeyService
 	svc.StartRuntimeSettingsRefresh(context.Background())
@@ -890,6 +913,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
 	NewOAuthService,
 	ProvideOpenAIOAuthService,
+	ProvideOpenAIOAuthReauthService,
 	ProvideGrokOAuthService,
 	wire.Bind(new(GrokOAuthTokenService), new(*GrokOAuthService)),
 	NewGeminiOAuthService,
@@ -931,6 +955,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpsScheduledReportService,
 	ProvideAccountOpsService,
 	ProvideAccountTokenGuardService,
+	ProvideAccountTokenGuardV2Service,
 	NewEmailService,
 	NewNotificationEmailService,
 	ProvideEmailQueueService,
@@ -944,7 +969,7 @@ var ProviderSet = wire.NewSet(
 	NewUsageRecordWorkerPool,
 	ProvideSchedulerSnapshotService,
 	NewIdentityService,
-	NewCRSSyncService,
+	ProvideCRSSyncService,
 	ProvideUpdateService,
 	ProvideTokenRefreshService,
 	wire.Bind(new(GrokOAuthReconciler), new(*TokenRefreshService)),
@@ -1067,9 +1092,10 @@ func ProvideChannelMonitorRunner(
 
 // ProvideChannelMonitorV2Service wires settings for user-facing privacy flags
 // (e.g. hide RPM/TPM throughput).
-func ProvideChannelMonitorV2Service(repo ChannelMonitorV2Repository, settingService *SettingService) *ChannelMonitorV2Service {
+func ProvideChannelMonitorV2Service(repo ChannelMonitorV2Repository, settingService *SettingService, groups *PelicanGroupTestService) *ChannelMonitorV2Service {
 	svc := NewChannelMonitorV2Service(repo)
 	svc.SetRuntimeReader(settingService)
+	svc.candy = newChannelMonitorV2CandyService(repo, groups, settingService)
 	return svc
 }
 
@@ -1085,8 +1111,10 @@ func ProvideChannelMonitorV2Aggregator(repo ChannelMonitorV2Repository, db *sql.
 	return aggregator
 }
 
-func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsRepository, email *EmailService) *AccountOpsService {
+func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsRepository, email *EmailService, accounts AccountRepository, groups GroupRepository) *AccountOpsService {
 	svc := NewAccountOpsService(settings, repo, email)
+	svc.autoAccounts, _ = accounts.(AccountConcurrencyRepository)
+	svc.autoGroups = groups
 	svc.Start()
 	return svc
 }
@@ -1096,5 +1124,19 @@ func ProvideAccountTokenGuardService(settings SettingRepository, repo AccountTok
 	accounts AccountRepository, admin AdminService, invalidator TokenCacheInvalidator) *AccountTokenGuardService {
 	svc := NewAccountTokenGuardService(settings, repo, accounts, admin, invalidator)
 	svc.Start()
+	return svc
+}
+
+func ProvideAccountTokenGuardV2Service(repo AccountTokenGuardV2Repository, settings SettingRepository, admin AdminService,
+	openAIGateway *OpenAIGatewayService, reauth *OpenAIOAuthReauthService) *AccountTokenGuardV2Service {
+	svc := NewAccountTokenGuardV2Service(repo, settings, admin, openAIGateway, reauth)
+	svc.Start()
+	return svc
+}
+
+func ProvideCRSSyncService(accounts AccountRepository, proxies ProxyRepository, oauth *OAuthService, openai *OpenAIOAuthService, gemini *GeminiOAuthService, cfg *config.Config, settings *SettingService, groups GroupRepository) *CRSSyncService {
+	svc := NewCRSSyncService(accounts, proxies, oauth, openai, gemini, cfg)
+	defaults := &adminServiceImpl{settingService: settings, groupRepo: groups}
+	svc.autoConfigure = defaults.ApplyOAuthAutoConfig
 	return svc
 }

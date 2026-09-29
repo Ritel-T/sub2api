@@ -757,6 +757,22 @@ func lockAndMergeAccountProbeExtra(
 			extra[key] = value
 		}
 	}
+	// Omitted cost means an unrelated edit. Keep the value under the row lock,
+	// including a probe update committed after the edit form was loaded.
+	for _, key := range []string{service.AccountCostMultiplierExtraKey, service.AccountCostAutoSyncExtraKey} {
+		if _, provided := extra[key]; !provided {
+			if value, exists := currentExtra[key]; exists {
+				if extra == nil {
+					extra = make(map[string]any)
+				}
+				extra[key] = value
+			}
+		}
+	}
+	delete(extra, service.AutoConfigConcurrencyExtraKey)
+	if state, ok := currentExtra[service.AutoConfigConcurrencyExtraKey]; ok {
+		extra[service.AutoConfigConcurrencyExtraKey] = state
+	}
 	for _, key := range []string{
 		service.UpstreamBillingProbeEnabledExtraKey,
 		service.UpstreamBillingRateSyncEnabledExtraKey,
@@ -993,6 +1009,107 @@ func (r *accountRepository) UpdateCredentials(ctx context.Context, id int64, cre
 	return nil
 }
 
+// ApplyOpenAIOAuthReauth atomically swaps OAuth credentials only when the
+// account still has the credential snapshot captured before protocol login.
+// Re-authentication may take several minutes; the expected-value guard keeps a
+// concurrent manual edit or token refresh from being overwritten by a stale
+// callback. Successful swaps also restore the account's active/schedulable
+// state and clear transient scheduling quarantine.
+func (r *accountRepository) ApplyOpenAIOAuthReauth(
+	ctx context.Context,
+	taskID int64,
+	workerID string,
+	accountID int64,
+	expectedCredentials, credentials, extra map[string]any,
+) (bool, error) {
+	expectedJSON, err := json.Marshal(normalizeJSONMap(expectedCredentials))
+	if err != nil {
+		return false, err
+	}
+	credentialsJSON, err := json.Marshal(normalizeJSONMap(credentials))
+	if err != nil {
+		return false, err
+	}
+	extraJSON, err := json.Marshal(normalizeJSONMap(extra))
+	if err != nil {
+		return false, err
+	}
+	var subscriptionExpiresAt *time.Time
+	if raw, ok := credentials["subscription_expires_at"].(string); ok {
+		if parsed, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(raw)); parseErr == nil {
+			subscriptionExpiresAt = &parsed
+		}
+	}
+	result, err := r.sql.ExecContext(ctx, `
+		WITH locked_task AS (
+		SELECT task.id, task.account_id
+		FROM openai_oauth_reauth_tasks AS task
+		WHERE task.id = $9
+			AND task.account_id = $3
+			AND task.worker_id = $10
+			AND task.status = $11
+		FOR UPDATE
+		), updated_account AS (
+		UPDATE accounts AS a
+		SET credentials = $1::jsonb,
+			extra = CASE
+				WHEN $2::jsonb = '{}'::jsonb THEN a.extra
+				ELSE COALESCE(a.extra, '{}'::jsonb) || $2::jsonb
+			END,
+			expires_at = COALESCE($14::timestamptz, a.expires_at),
+			status = $5,
+			error_message = '',
+			schedulable = TRUE,
+			rate_limited_at = NULL,
+			rate_limit_reset_at = NULL,
+			overload_until = NULL,
+			temp_unschedulable_until = NULL,
+			temp_unschedulable_reason = NULL,
+			updated_at = NOW()
+		FROM locked_task
+		WHERE a.id = $3
+			AND a.id = locked_task.account_id
+			AND deleted_at IS NULL
+			AND platform = $6
+			AND type = $7
+			AND a.credentials = $4::jsonb
+		RETURNING a.id
+		), completed_task AS (
+		UPDATE openai_oauth_reauth_tasks AS task
+		SET status = $12,
+			stage = $13,
+			error_message = NULL,
+			finished_at = NOW(),
+			updated_at = NOW()
+		FROM updated_account
+		WHERE task.id = $9
+			AND task.account_id = updated_account.id
+			AND task.worker_id = $10
+			AND task.status = $11
+		RETURNING task.account_id
+		)
+		INSERT INTO scheduler_outbox (event_type, account_id, group_id, payload)
+		SELECT $8, completed_task.account_id, NULL, NULL FROM completed_task
+	`, string(credentialsJSON), string(extraJSON), accountID, string(expectedJSON),
+		service.StatusActive, service.PlatformOpenAI, service.AccountTypeOAuth,
+		service.SchedulerOutboxEventAccountChanged, taskID, workerID,
+		service.OpenAIOAuthReauthStatusCallbackProcessing,
+		service.OpenAIOAuthReauthStatusSucceeded, service.OpenAIOAuthReauthStageSucceeded,
+		subscriptionExpiresAt)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if affected == 0 {
+		return false, nil
+	}
+	r.syncSchedulerAccountSnapshotDetached(ctx, accountID)
+	return true, nil
+}
+
 func (r *accountRepository) Delete(ctx context.Context, id int64) error {
 	groupIDs, err := r.loadAccountGroupIDs(ctx, id)
 	if err != nil {
@@ -1039,6 +1156,78 @@ func (r *accountRepository) List(ctx context.Context, params pagination.Paginati
 	return r.ListWithFilters(ctx, params, "", "", "", "", 0, "")
 }
 
+// accountStatusFilterPredicate 把列表的 status 筛选换成查询条件。质量运维等场景
+// 需要一次筛多个状态（如「正常+限流中」），因此支持逗号分隔的多个值，任一命中即可；
+// 单个值的行为与原先完全一致。
+func accountStatusFilterPredicate(status string) dbpredicate.Account {
+	var predicates []dbpredicate.Account
+	for _, value := range strings.Split(status, ",") {
+		if value = strings.TrimSpace(value); value != "" {
+			predicates = append(predicates, accountStatusPredicate(value))
+		}
+	}
+	switch len(predicates) {
+	case 0:
+		return nil
+	case 1:
+		return predicates[0]
+	}
+	return dbaccount.Or(predicates...)
+}
+
+// accountStatusPredicate 是单个状态值的查询条件。除数据库里的真实状态外，还有几个
+// 派生状态：正常 = active 且可调度且不在限流/临时不可调度中；限流中 / 临时不可调度 /
+// 不可调度分别取对应的一段。
+func accountStatusPredicate(status string) dbpredicate.Account {
+	notTempUnschedulable := dbpredicate.Account(func(s *entsql.Selector) {
+		col := s.C("temp_unschedulable_until")
+		s.Where(entsql.Or(
+			entsql.IsNull(col),
+			entsql.LTE(col, entsql.Expr("NOW()")),
+		))
+	})
+	switch status {
+	case service.StatusActive:
+		return dbaccount.And(
+			dbaccount.StatusEQ(status),
+			dbaccount.SchedulableEQ(true),
+			dbaccount.Or(
+				dbaccount.RateLimitResetAtIsNil(),
+				dbaccount.RateLimitResetAtLTE(time.Now()),
+			),
+			notTempUnschedulable,
+		)
+	case "rate_limited":
+		return dbaccount.And(
+			dbaccount.StatusEQ(service.StatusActive),
+			dbaccount.RateLimitResetAtGT(time.Now()),
+			notTempUnschedulable,
+		)
+	case "temp_unschedulable":
+		return dbaccount.And(
+			dbaccount.StatusEQ(service.StatusActive),
+			dbpredicate.Account(func(s *entsql.Selector) {
+				col := s.C("temp_unschedulable_until")
+				s.Where(entsql.And(
+					entsql.Not(entsql.IsNull(col)),
+					entsql.GT(col, entsql.Expr("NOW()")),
+				))
+			}),
+		)
+	case "unschedulable":
+		return dbaccount.And(
+			dbaccount.StatusEQ(service.StatusActive),
+			dbaccount.SchedulableEQ(false),
+			dbaccount.Or(
+				dbaccount.RateLimitResetAtIsNil(),
+				dbaccount.RateLimitResetAtLTE(time.Now()),
+			),
+			notTempUnschedulable,
+		)
+	}
+	return dbaccount.StatusEQ(status)
+}
+
 func (r *accountRepository) accountListFilteredQuery(platform, accountType, status, search string, groupID int64, privacyMode string) *dbent.AccountQuery {
 	q := r.client.Account.Query()
 
@@ -1048,66 +1237,8 @@ func (r *accountRepository) accountListFilteredQuery(platform, accountType, stat
 	if accountType != "" {
 		q = q.Where(dbaccount.TypeEQ(accountType))
 	}
-	if status != "" {
-		switch status {
-		case service.StatusActive:
-			q = q.Where(
-				dbaccount.StatusEQ(status),
-				dbaccount.SchedulableEQ(true),
-				dbaccount.Or(
-					dbaccount.RateLimitResetAtIsNil(),
-					dbaccount.RateLimitResetAtLTE(time.Now()),
-				),
-				dbpredicate.Account(func(s *entsql.Selector) {
-					col := s.C("temp_unschedulable_until")
-					s.Where(entsql.Or(
-						entsql.IsNull(col),
-						entsql.LTE(col, entsql.Expr("NOW()")),
-					))
-				}),
-			)
-		case "rate_limited":
-			q = q.Where(
-				dbaccount.StatusEQ(service.StatusActive),
-				dbaccount.RateLimitResetAtGT(time.Now()),
-				dbpredicate.Account(func(s *entsql.Selector) {
-					col := s.C("temp_unschedulable_until")
-					s.Where(entsql.Or(
-						entsql.IsNull(col),
-						entsql.LTE(col, entsql.Expr("NOW()")),
-					))
-				}),
-			)
-		case "temp_unschedulable":
-			q = q.Where(
-				dbaccount.StatusEQ(service.StatusActive),
-				dbpredicate.Account(func(s *entsql.Selector) {
-					col := s.C("temp_unschedulable_until")
-					s.Where(entsql.And(
-						entsql.Not(entsql.IsNull(col)),
-						entsql.GT(col, entsql.Expr("NOW()")),
-					))
-				}),
-			)
-		case "unschedulable":
-			q = q.Where(
-				dbaccount.StatusEQ(service.StatusActive),
-				dbaccount.SchedulableEQ(false),
-				dbaccount.Or(
-					dbaccount.RateLimitResetAtIsNil(),
-					dbaccount.RateLimitResetAtLTE(time.Now()),
-				),
-				dbpredicate.Account(func(s *entsql.Selector) {
-					col := s.C("temp_unschedulable_until")
-					s.Where(entsql.Or(
-						entsql.IsNull(col),
-						entsql.LTE(col, entsql.Expr("NOW()")),
-					))
-				}),
-			)
-		default:
-			q = q.Where(dbaccount.StatusEQ(status))
-		}
+	if predicate := accountStatusFilterPredicate(status); predicate != nil {
+		q = q.Where(predicate)
 	}
 	if search != "" {
 		q = q.Where(dbaccount.NameContainsFold(search))
@@ -2983,7 +3114,13 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 	snapshot *service.UpstreamBillingProbeSnapshot,
 	rateMultiplier *float64,
 ) error {
-	payload, err := json.Marshal(map[string]any{service.UpstreamBillingProbeExtraKey: snapshot})
+	updates := map[string]any{service.UpstreamBillingProbeExtraKey: snapshot}
+	if service.IsUpstreamBillingProbeIdentity(account.Platform, account.Type) {
+		if cost, ok := snapshot.CostMultiplierToSync(); ok {
+			updates[service.AccountCostMultiplierExtraKey] = cost
+		}
+	}
+	payload, err := json.Marshal(updates)
 	if err != nil {
 		return err
 	}
@@ -3030,7 +3167,11 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 	result, err := client.ExecContext(ctx, `
 		UPDATE accounts
 		SET
-			extra = COALESCE(extra, '{}'::jsonb) || $1::jsonb,
+			extra = COALESCE(extra, '{}'::jsonb) || CASE
+				WHEN extra @> '{"cost_multiplier_auto_sync": false}'::jsonb
+				THEN $1::jsonb - 'cost_multiplier'
+				ELSE $1::jsonb
+			END,
 			rate_multiplier = CASE
 				WHEN $10::numeric IS NOT NULL
 					AND extra @> '{"upstream_billing_probe_enabled": true}'::jsonb

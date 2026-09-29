@@ -140,6 +140,7 @@ type openAIAccountSchedulerMetrics struct {
 }
 
 type openAIAccountLoadPlan struct {
+	priorityScheduling        bool
 	allCandidates             []openAIAccountCandidateScore
 	candidates                []openAIAccountCandidateScore
 	staleSnapshotCompactRetry []openAIAccountCandidateScore
@@ -1112,6 +1113,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 		plan.topK = 1
 	}
 
+	s.applyPriorityScheduling(req, &plan)
 	plan.selectionOrder = s.buildOpenAISelectionOrder(req, plan)
 	return plan
 }
@@ -1123,6 +1125,20 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 	buildSelectionOrder := func(pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {
 		if len(pool) == 0 || plan.topK <= 0 {
 			return nil
+		}
+		if plan.priorityScheduling {
+			ranked := append([]openAIAccountCandidateScore(nil), pool...)
+			sort.SliceStable(ranked, func(i, j int) bool {
+				a, b := ranked[i], ranked[j]
+				if int(a.score/200) != int(b.score/200) {
+					return a.score > b.score
+				}
+				if openAIAccountSchedulingPriority(a.account) != openAIAccountSchedulingPriority(b.account) {
+					return openAIAccountSchedulingPriority(a.account) < openAIAccountSchedulingPriority(b.account)
+				}
+				return isOpenAIAccountCandidateBetter(a, b)
+			})
+			return ranked
 		}
 		groupTopK := plan.topK
 		if groupTopK > len(pool) {
@@ -1626,23 +1642,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		}
 		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false, filterStats.summary(""))
 	}
-	// BPS is an explicit per-account route choice. If at least one eligible BPS
-	// account serves this model, remove native candidates from this selection
-	// pass so load balancing cannot silently send the request to /v1/responses.
-	// A BPS 403 is handled by disabling the account; the next selection then
-	// naturally rebuilds this pool without that account.
-	if req.Platform == PlatformOpenAI && strings.TrimSpace(req.RequestedModel) != "" {
-		bpsAccounts := make([]*Account, 0, len(filtered))
-		for _, account := range filtered {
-			if account != nil && account.IsExcelBPSEnabledForModel(req.RequestedModel) {
-				bpsAccounts = append(bpsAccounts, account)
-			}
-		}
-		if len(bpsAccounts) > 0 && len(bpsAccounts) < len(filtered) {
-			filtered = bpsAccounts
-			loadReq = buildOpenAIAccountLoadRequest(filtered)
-		}
-	}
+	// Keep native candidates available until BPS capacity has been checked.
 
 	loadMap := map[int64]*AccountLoadInfo{}
 	if s.service.concurrencyService != nil {
@@ -1651,6 +1651,49 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		}
 	}
 
+	// Preserve BPS preference across subscription/compact priority partitions,
+	// but try native capacity before committing a request to a BPS wait plan.
+	if req.Platform == PlatformOpenAI && strings.TrimSpace(req.RequestedModel) != "" {
+		var bps, native []*Account
+		for _, account := range filtered {
+			if account.IsExcelBPSEnabledForModel(req.RequestedModel) {
+				bps = append(bps, account)
+			} else {
+				native = append(native, account)
+			}
+		}
+		if len(bps) > 0 && len(native) > 0 {
+			preferred, count, topK, skew, preferredErr := s.selectByLoadBalanceCandidates(ctx, req, bps, loadMap, budget, filterStats)
+			if preferred != nil && preferred.Acquired {
+				return preferred, count, topK, skew, preferredErr
+			}
+			if preferredErr != nil && !errors.Is(preferredErr, ErrNoAvailableAccounts) && !errors.Is(preferredErr, ErrNoAvailableCompactAccounts) {
+				return nil, count, topK, skew, preferredErr
+			}
+			fallback, fallbackCount, fallbackTopK, fallbackSkew, fallbackErr := s.selectByLoadBalanceCandidates(ctx, req, native, loadMap, budget, filterStats)
+			if fallback != nil && fallback.Acquired {
+				return fallback, fallbackCount, fallbackTopK, fallbackSkew, fallbackErr
+			}
+			if fallbackErr != nil && !errors.Is(fallbackErr, ErrNoAvailableAccounts) && !errors.Is(fallbackErr, ErrNoAvailableCompactAccounts) {
+				return nil, fallbackCount, fallbackTopK, fallbackSkew, fallbackErr
+			}
+			if preferred != nil {
+				return preferred, count, topK, skew, preferredErr
+			}
+			return fallback, fallbackCount, fallbackTopK, fallbackSkew, fallbackErr
+		}
+	}
+	return s.selectByLoadBalanceCandidates(ctx, req, filtered, loadMap, budget, filterStats)
+}
+
+func (s *defaultOpenAIAccountScheduler) selectByLoadBalanceCandidates(
+	ctx context.Context,
+	req OpenAIAccountScheduleRequest,
+	filtered []*Account,
+	loadMap map[int64]*AccountLoadInfo,
+	budget *openAISelectionProbeBudget,
+	filterStats openAISelectionFilterStats,
+) (*AccountSelectionResult, int, int, float64, error) {
 	if req.SubscriptionPriority {
 		subscriptionAccounts, regularAccounts := partitionOpenAIChatGPTSubscriptionAccounts(filtered)
 		if len(subscriptionAccounts) > 0 {
@@ -2240,11 +2283,11 @@ func cloneOpenAIAdvancedSchedulerWeightOverrides(in map[string]float64) map[stri
 	return out
 }
 
-func (s *OpenAIGatewayService) getOpenAIAccountScheduler(ctx context.Context) OpenAIAccountScheduler {
+func (s *OpenAIGatewayService) getOpenAIAccountScheduler(ctx context.Context, priority bool) OpenAIAccountScheduler {
 	if s == nil {
 		return nil
 	}
-	if !s.isOpenAIAdvancedSchedulerEnabled(ctx) {
+	if !s.isOpenAIAdvancedSchedulerEnabled(ctx) && !priority {
 		return nil
 	}
 	s.openaiSchedulerOnce.Do(func() {
@@ -2506,7 +2549,8 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 	if strings.TrimSpace(previousResponseID) == "" {
 		guardianParentAccountID = s.resolveOpenAIGuardianParentAccountID(ctx, groupID)
 	}
-	scheduler := s.getOpenAIAccountScheduler(ctx)
+	priority := s.prioritySchedulingRuntimeConfig()
+	scheduler := s.getOpenAIAccountScheduler(ctx, platform == PlatformOpenAI && requiredImageCapability == "" && useUpstreamTokenCost && priority.applies(groupID, requestedModel))
 	if scheduler == nil {
 		decision.Layer = openAIAccountScheduleLayerLoadBalance
 		if selection, hit, err := s.selectLegacyAccountByPreviousResponse(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform); err != nil {
@@ -2744,7 +2788,7 @@ func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(account *Accoun
 		s.openaiOAuth429RetryStartedAt.Delete(accountID)
 		s.clearOpenAIAccountModelTransientState(accountID, normalizeOpenAIAccountModelTransientModel(model))
 	}
-	scheduler := s.getOpenAIAccountScheduler(context.Background())
+	scheduler := s.getOpenAIAccountScheduler(context.Background(), s.prioritySchedulingRuntimeConfig().Enabled)
 	if scheduler == nil {
 		return healthTripped
 	}
@@ -2762,7 +2806,7 @@ func (s *OpenAIGatewayService) ObserveOpenAIAccountHealthFailure(ctx context.Con
 }
 
 func (s *OpenAIGatewayService) RecordOpenAIAccountSwitch() {
-	scheduler := s.getOpenAIAccountScheduler(context.Background())
+	scheduler := s.getOpenAIAccountScheduler(context.Background(), s.prioritySchedulingRuntimeConfig().Enabled)
 	if scheduler == nil {
 		return
 	}
@@ -2770,7 +2814,7 @@ func (s *OpenAIGatewayService) RecordOpenAIAccountSwitch() {
 }
 
 func (s *OpenAIGatewayService) SnapshotOpenAIAccountSchedulerMetrics() OpenAIAccountSchedulerMetricsSnapshot {
-	scheduler := s.getOpenAIAccountScheduler(context.Background())
+	scheduler := s.getOpenAIAccountScheduler(context.Background(), s.prioritySchedulingRuntimeConfig().Enabled)
 	if scheduler == nil {
 		return OpenAIAccountSchedulerMetricsSnapshot{}
 	}

@@ -448,7 +448,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_DefaultDisabledUsesLega
 	require.NoError(t, store.BindResponseAccount(ctx, groupID, "resp_disabled_001", 36001, time.Hour))
 	require.False(t, svc.isOpenAIAdvancedSchedulerEnabled(ctx))
 
-	selection, decision, err := svc.SelectAccountWithScheduler(
+	selection, _, err := svc.SelectAccountWithScheduler(
 		ctx,
 		&groupID,
 		"resp_disabled_001",
@@ -466,7 +466,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_DefaultDisabledUsesLega
 
 	// These ungrouped fixtures cannot own a required continuation in groupID.
 	// A reconstructible request may still fall back through legacy load awareness.
-	selection, decision, err = svc.SelectAccountWithSchedulerForCapability(
+	selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
 		ctx, &groupID, "resp_disabled_001", "", "gpt-5.1", nil,
 		OpenAIUpstreamTransportAny, "", false, true, false,
 	)
@@ -1573,7 +1573,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_Enabled_EmbeddingsSkips
 	store := svc.getOpenAIWSStateStore()
 	require.NoError(t, store.BindResponseAccount(ctx, groupID, "resp_embeddings_chat_only", 37021, time.Hour))
 
-	selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
+	selection, _, err := svc.SelectAccountWithSchedulerForCapability(
 		ctx,
 		&groupID,
 		"resp_embeddings_chat_only",
@@ -1593,7 +1593,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_Enabled_EmbeddingsSkips
 	require.Equal(t, accounts[0].ID, owner)
 	require.Equal(t, accounts[0].ID, cache.sessionBindings["openai:session_hash_embeddings"])
 
-	selection, decision, err = svc.SelectAccountWithSchedulerForCapability(
+	selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
 		ctx, &groupID, "resp_embeddings_chat_only", "session_hash_embeddings", "text-embedding-3-small", nil,
 		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityEmbeddings, false, true, true,
 	)

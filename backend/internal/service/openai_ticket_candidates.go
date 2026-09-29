@@ -14,11 +14,35 @@ func (s *OpenAIGatewayService) listSchedulableAccountsForRequest(
 	requireCompact bool, excludedIDs map[int64]struct{},
 ) ([]Account, error) {
 	accounts, err := s.listSchedulableAccounts(ctx, groupID, platform)
-	if err != nil || s.schedulerSnapshot == nil || len(accounts) == 0 {
+	if err != nil {
 		return accounts, err
 	}
+	// Channel model mapping is authoritative for this route; account mapping
+	// is applied by IsExcelBPSEnabledForModel for each candidate.
+	bpsModel := requestedModel
+	if forward, ok := openAIForwardModelFromContext(ctx); ok && forward.model != "" {
+		bpsModel = forward.model
+	}
+	// This common candidate gate covers advanced, legacy, sticky and retry
+	// selection. A protected group/model cannot acquire a native account when
+	// its BPS candidates are busy, cooling or disabled.
+	filterRequiredBPS := func(candidates []Account) []Account {
+		if !excelBPSGroupRequiresProtocol(accounts, groupID, bpsModel) {
+			return candidates
+		}
+		filtered := make([]Account, 0, len(candidates))
+		for i := range candidates {
+			if candidates[i].IsExcelBPSEnabledForModel(bpsModel) {
+				filtered = append(filtered, candidates[i])
+			}
+		}
+		return filtered
+	}
+	if s.schedulerSnapshot == nil || len(accounts) == 0 {
+		return filterRequiredBPS(accounts), nil
+	}
 	if !s.openAICodexTicketEnabledContext(ctx) || !s.openAICodexTicketConfig().FailClosed {
-		return accounts, nil
+		return filterRequiredBPS(accounts), nil
 	}
 	ids := make([]int64, 0, len(accounts))
 	hydrate := make(map[int64]struct{})
@@ -40,7 +64,7 @@ func (s *OpenAIGatewayService) listSchedulableAccountsForRequest(
 		}
 	}
 	if len(ids) == 0 {
-		return accounts, nil
+		return filterRequiredBPS(accounts), nil
 	}
 	full, err := s.schedulerSnapshot.GetAccounts(ctx, ids)
 	if err != nil {
@@ -58,5 +82,5 @@ func (s *OpenAIGatewayService) listSchedulableAccountsForRequest(
 		}
 		result = append(result, *account)
 	}
-	return result, nil
+	return filterRequiredBPS(result), nil
 }

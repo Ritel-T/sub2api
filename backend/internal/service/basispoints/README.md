@@ -47,7 +47,8 @@ the final response locally. This does not provide upstream constrained decoding.
 - Preserve `detail: original` on HTTPS images and inline images rewritten by
   the relay. Let the upstream model validate its supported detail levels; do
   not silently downgrade the requested detail.
-- Enforce the existing 20-inline-image and 32 MiB per-request relay limits.
+- Enforce the saved inline-image count and byte limits; defaults remain 20
+  inline images and 32 MiB per request for the relay.
   A relay capacity error and an upstream overload are separate from a tool
   protocol error; HTTP 200 alone does not establish a successful SSE terminal.
 
@@ -84,3 +85,99 @@ the final response locally. This does not provide upstream constrained decoding.
 The gateway separately permits one regeneration when the first tool interaction ends in exactly one undeclared run_officejs target at the end of a completed response. It must have no prior tool calls/results and no dispatched client tool. This path reuses the prepared request, current catalog, account, model, proxy and attachment IDs; it does not append a fabricated executed tool result. Its corrected response must pass the current catalog, argument schema, identity and parallel-call checks. A second unknown target, invalid arguments or incomplete response fails without dispatching tools. Both attempts' reported usage is retained, including progressive usage if the correction disconnects before its terminal event.
 
 This path and the existing known-target formatting path are selected independently. A function argument schema error alone does not trigger either path.
+
+For streaming clients, first-turn regeneration stops once nonempty text, reasoning
+summary or refusal content has been forwarded. An unknown target then produces
+`response.failed` with the original response identity and usage, without tool
+dispatch or another generation. Empty lifecycle events and opaque reasoning alone
+do not block regeneration; non-streaming requests remain buffered and retain their
+one correction attempt. Known-target formatting corrections still preserve the
+original text and replace only withheld tool slots.
+
+# Optional inline image limit policies
+
+Administrator settings under Facilities → Feature switches → Excel / BPS image
+support select off (default), automatic compaction, or warning interception.
+Existing persisted settings need no migration. Clients omitting the new fields
+preserve their current values. Native uploads and HTTPS relay use the same
+inline image counting rules, including tool outputs and agent messages; repeated
+image occurrences each count. Existing size and resource limits still apply.
+
+Automatic compaction only runs when history plus new images exceeds the configured
+limit and each partition fits independently. It accepts Codex client identities
+and a stable session scoped by account, API key, thread and model. A digest of the
+last successful input identifies the unconsumed tail; bootstrap accepts only a
+trailing user batch or a complete terminal tool call/result batch. Uncertain
+boundaries fail explicitly. Old history is compacted at most once with client
+tools disabled, and the actual encrypted compaction window is used for the
+continuation. New inputs stay intact. The compacted window is emitted before
+continuation items with adjusted output indexes, and both phases' reported usage
+is counted even when generation fails. This consumes additional model tokens.
+The client must retain and echo the compaction output items on later requests;
+the gateway reconciles verified history checkpoints as described below. Mock
+protocol tests do not replace acceptance testing in the actual Codex client;
+unsupported clients should use manual compact.
+
+Warning mode requires 1 <= reserve < warning remainder < maximum images. With
+20/8/3, 0–11 pass, 12–17 warn once per conversation cycle then pass on retry, and
+18–20 block ordinary requests. At 12 images the user sees 5 available slots.
+Only administrators see the reserve setting. Explicit compact endpoints and native
+compaction triggers bypass these warning thresholds, but not the total limit.
+Successful compact or a return below the warning threshold starts a new cycle.
+Redis stores only progress position/digest and the atomic warning marker, expiring
+after two idle hours. A missing stable session identity rejects requests requiring a policy action.
+Redis session-state errors fail closed for ordinary requests; manual compact
+remains available when Redis policy state is unavailable.
+
+## Gateway checkpoint reconciliation
+
+Ordinary Codex compaction output does not itself replace local client history.
+After automatic compaction, the gateway commits an authenticated checkpoint
+before emitting the window. Redis stores only canonical SHA256 digests, input
+positions and split positions; it never stores the compacted window or full
+messages. The client must echo the exact emitted window immediately after the
+request input. On subsequent requests the gateway verifies the prior input and
+window, moves the preserved new-input tail after that window, and drops only
+the verified compacted prefix from the BPS request. It applies at most 16 such
+checkpoints in order. Altered/missing windows fail explicitly where the prefix
+matches; unrecognized histories retain normal limits. Concurrent checkpoint
+writes use compare-and-swap and abort on conflict before generation.
+
+The client's raw upload can still include old images. Raw request-size protection
+remains in force; this is gateway reconciliation, not client memory cleanup.
+A manual compact resets the checkpoint chain. State expiry or a different account,
+model, key or thread can require manual compact again. Checkpoints remain useful
+if generation fails after emitting the compaction window; all usage is still billed.
+
+# Configurable image capacity
+
+Administrators can raise image limits for larger servers without changing the
+conservative defaults or existing saved settings. The settings UI, admin API,
+per-request settings reader and admission middleware use these ceilings:
+
+| Setting | Default | Maximum |
+| --- | ---: | ---: |
+| Request body | 64 MiB | 1024 MiB |
+| Shared admission budget | 1024 MiB | 65536 MiB |
+| In-flight requests | 128 | 4096 |
+| Relay image size | 20 MiB | 512 MiB |
+| Relay image bytes per request | 32 MiB | 512 MiB |
+| Images per request | 20 | 65536 |
+| Relay disk storage | 1024 MiB | 262144 MiB |
+| Relay stored images | 512 | 1048576 |
+| Relay link lifetime | 30 minutes | 10080 minutes |
+
+The budget must cover eight times the configured body limit, and its effective
+value remains at least eight MiB per in-flight slot. It is accounting capacity,
+not preallocated RAM. Storage must cover one request's image bytes and count;
+request image bytes must cover one image. Base64 expands encoded request bodies.
+The server/global body limit, gateway body limit and reverse proxy can impose
+smaller limits; to admit bodies above their defaults, adjust them explicitly.
+Higher settings do not bypass those limits or provision memory or disk.
+
+Native attachments retain their 20 MiB per-image and 32 MiB per-request size
+limits and their bounded attachment-ID cache. The per-request image count is
+configurable in both modes. Both modes retain the 64-megapixel safeguard.
+Relay download concurrency and automatic compaction checkpoint limits are
+unchanged. Large capacity settings require appropriate resource provisioning;
+these ceilings are not throughput or memory-use guarantees.

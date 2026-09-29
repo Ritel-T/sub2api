@@ -46,7 +46,9 @@ func TestExcelBPSNativePreUploadKeepaliveAndFailure(t *testing.T) {
 				if tc.beat {
 					value, exists := c.Get(openAICompactSSEKeepaliveKey)
 					require.True(t, exists, "keepalive must exist during uploads and before Responses headers")
-					keeper = value.(*openAICompactSSEKeepalive)
+					typedKeeper, ok := value.(*openAICompactSSEKeepalive)
+					require.True(t, ok)
+					keeper = typedKeeper
 					require.True(t, keeper.beat())
 				}
 				if req.URL.String() == basispoints.AttachmentsURL {
@@ -108,7 +110,8 @@ func TestExcelBPSUploadHeartbeatWriteFailureCancels(t *testing.T) {
 	defer cancel()
 	stop := startOpenAISSEKeepaliveWithCancel(c, time.Hour, cancel)
 	defer stop()
-	keeper := c.MustGet(openAICompactSSEKeepaliveKey).(*openAICompactSSEKeepalive)
+	keeper, ok := c.MustGet(openAICompactSSEKeepaliveKey).(*openAICompactSSEKeepalive)
+	require.True(t, ok)
 	require.False(t, keeper.beat())
 	require.ErrorIs(t, ctx.Err(), context.Canceled)
 }

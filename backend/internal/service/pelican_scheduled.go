@@ -46,6 +46,10 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 
 	}
 	started := time.Now()
+	ctx = withPelicanTestOptions(ctx, pelicanTestOptions{
+		testChannel: cfg.TestChannel,
+		observeOnly: cfg.Quality != nil && cfg.Quality.Action == QualityActionObserveOnly,
+	})
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	w := &pelicanRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}
@@ -256,11 +260,11 @@ func intelligenceTestOutputError(cfg *PelicanTestConfig, output string) string {
 		}
 		return ""
 	}
-	if isBuiltinCandyPlan(cfg) && strings.TrimSpace(output) != "21" {
-		return "answer_mismatch: expected 21"
-	}
 	if strings.TrimSpace(output) == "" {
 		return pelicanErrEmptyOutput
+	}
+	if isBuiltinCandyPlan(cfg) && !CandyAnswerCorrect(output) {
+		return "answer_mismatch: expected 21"
 	}
 	if cfg.QuestionKind != "candy" && !isBuiltinCandyPlan(cfg) && !pelicanHTMLPattern.MatchString(output) {
 		return "Model did not return HTML or SVG"

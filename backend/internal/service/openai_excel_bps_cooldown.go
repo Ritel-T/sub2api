@@ -39,7 +39,11 @@ func (s *OpenAIGatewayService) extendLocalExcelBPSCooldown(id int64, until time.
 		if !loaded {
 			return until
 		}
-		old := previous.(time.Time)
+		old, valid := previous.(time.Time)
+		if !valid {
+			s.excelBPSRateLimits.Store(id, until)
+			return until
+		}
 		if !until.After(old) {
 			return old
 		}
@@ -57,16 +61,20 @@ func (s *OpenAIGatewayService) excelBPSCooldownUntil(account *Account) time.Time
 	until := excelBPSExtraTime(account, ExcelBPSRateLimitResetAtKey)
 	if s != nil {
 		if raw, ok := s.excelBPSRuntimeCooldownUntil.Load(account.ID); ok {
-			runtime := raw.(time.Time)
-			if !runtime.After(now) {
+			runtime, valid := raw.(time.Time)
+			if !valid {
+				s.excelBPSRuntimeCooldownUntil.Delete(account.ID)
+			} else if !runtime.After(now) {
 				s.excelBPSRuntimeCooldownUntil.CompareAndDelete(account.ID, runtime)
 			} else if runtime.After(until) {
 				until = runtime
 			}
 		}
 		if raw, ok := s.excelBPSRateLimits.Load(account.ID); ok {
-			local := raw.(time.Time)
-			if !local.After(now) {
+			local, valid := raw.(time.Time)
+			if !valid {
+				s.excelBPSRateLimits.Delete(account.ID)
+			} else if !local.After(now) {
 				s.excelBPSRateLimits.CompareAndDelete(account.ID, local)
 			} else if local.After(until) {
 				until = local
@@ -166,6 +174,11 @@ func excelBPSRateLimitDeadline(account *Account, headers http.Header, body []byt
 }
 
 func (s *OpenAIGatewayService) recordExcelBPSRateLimit(ctx context.Context, account *Account, headers http.Header, body []byte) time.Time {
+	// Observation probes must not change the account's BPS scheduling state.
+	// Their errors remain inconclusive quality evidence.
+	if isQualityObservation(ctx) {
+		return time.Time{}
+	}
 	until, reason := excelBPSRateLimitDeadline(account, headers, body, time.Now())
 	until = s.extendLocalExcelBPSCooldown(account.ID, until)
 	stateCtx, cancel := openAIAccountStateContext(ctx)

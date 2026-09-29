@@ -1,3 +1,4 @@
+import { excelBPSImageLimits } from "@/utils/excelBPSImageLimits";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
@@ -754,6 +755,47 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
+  it("saves expanded image capacity and rejects values above each ceiling", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.get('#excel-bps-image-enabled').setValue(true);
+    await wrapper.get('#excel-bps-image-base-url').setValue('https://images.example');
+    const fields = [
+      ['body-limit', 'body_limit_mib', excelBPSImageLimits.bodyMiB],
+      ['budget', 'budget_mib', excelBPSImageLimits.budgetMiB],
+      ['max-requests', 'max_requests', excelBPSImageLimits.requests],
+      ['max-image-mib', 'max_image_mib', excelBPSImageLimits.imageMiB],
+      ['max-total-mib', 'max_total_mib', excelBPSImageLimits.totalMiB],
+      ['max-images', 'max_images', excelBPSImageLimits.images],
+      ['storage-mib', 'storage_mib', excelBPSImageLimits.storageMiB],
+      ['storage-entries', 'storage_entries', excelBPSImageLimits.storageEntries],
+      ['ttl-minutes', 'ttl_minutes', excelBPSImageLimits.ttlMinutes],
+    ] as const;
+    for (const [id, , maximum] of fields) {
+      const input = wrapper.get('#excel-bps-image-' + id);
+      expect(input.attributes('max')).toBe(String(maximum));
+      await input.setValue(String(maximum));
+    }
+    // Check each invalid field independently while all other fields are valid.
+    for (const [id, , maximum] of fields) {
+      const input = wrapper.get('#excel-bps-image-' + id);
+      await input.setValue(String(maximum + 1));
+      await wrapper.find('form').trigger('submit.prevent');
+      await flushPromises();
+      expect(updateSettings).not.toHaveBeenCalled();
+      await input.setValue(String(maximum));
+    }
+    showError.mockClear();
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    for (const [, key, maximum] of fields) {
+      expect(updateSettings.mock.calls[0]?.[0]).toHaveProperty('excel_bps_image_' + key, maximum);
+    }
+    expect(showError).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
   it("saves Excel BPS image relay from the feature switches tab", async () => {
     const wrapper = mountView();
     await flushPromises();
@@ -820,6 +862,47 @@ describe("admin SettingsView payment visible method controls", () => {
     loaded.unmount();
   });
 
+  it("defaults the image policy off and saves auto compaction", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.get('#excel-bps-image-enabled').setValue(true);
+    await wrapper.get('#excel-bps-image-mode').setValue('native');
+    expect((wrapper.get('#bps-image-limit-policy').element as HTMLSelectElement).value).toBe('off');
+    await wrapper.get('#bps-image-limit-policy').setValue('auto_compact');
+    expect(wrapper.find('#bps-image-compact-reserve').exists()).toBe(false);
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_image_limit_policy: 'auto_compact', excel_bps_image_warning_remaining: 8, excel_bps_image_compact_reserve: 3 });
+    expect(showError).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("validates warning margins and reloads the policy", async () => {
+    getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, excel_bps_image_relay_enabled: true, excel_bps_image_mode: 'native', excel_bps_image_limit_policy: 'warn', excel_bps_image_warning_remaining: 8, excel_bps_image_compact_reserve: 3 });
+    const wrapper = mountView();
+    await flushPromises();
+    expect((wrapper.get('#bps-image-limit-policy').element as HTMLSelectElement).value).toBe('warn');
+    for (const [selector, value, original] of [
+      ['#bps-image-warning-remaining', '20', '8'],
+      ['#bps-image-compact-reserve', '8', '3'],
+      ['#bps-image-compact-reserve', '0', '3'],
+      ['#bps-image-warning-remaining', '8.5', '8'],
+    ]) {
+      await wrapper.get(selector).setValue(value);
+      await wrapper.find('form').trigger('submit.prevent');
+      await flushPromises();
+      expect(updateSettings).not.toHaveBeenCalled();
+      expect(showError).toHaveBeenLastCalledWith('admin.settings.features.excelBpsImages.invalidLimits');
+      await wrapper.get(selector).setValue(original);
+    }
+    await wrapper.get('#bps-image-warning-remaining').setValue('9');
+    await wrapper.get('#bps-image-compact-reserve').setValue('4');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_image_limit_policy: 'warn', excel_bps_image_warning_remaining: 9, excel_bps_image_compact_reserve: 4 });
+    wrapper.unmount();
+  });
+
   it("loads saved Excel BPS image settings and preserves the address when disabled", async () => {
     getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, excel_bps_image_relay_enabled: true, excel_bps_image_base_url: 'https://saved.example', excel_bps_image_body_limit_mib: 24, excel_bps_image_budget_mib: 896, excel_bps_image_max_requests: 40 });
     const wrapper = mountView();
@@ -841,7 +924,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
     expect((wrapper.get('#excel-bps-image-max-images').element as HTMLInputElement).value).toBe('100');
     for (const [id, value, original] of [
-      ['max-images', '0', '100'], ['max-images', '4097', '100'], ['ttl-minutes', '1441', '60'],
+      ['max-images', '0', '100'], ['max-images', String(excelBPSImageLimits.images + 1), '100'], ['ttl-minutes', String(excelBPSImageLimits.ttlMinutes + 1), '60'],
       ['max-total-mib', '1', '32'], ['storage-entries', '99', '512'], ['storage-mib', '1', '1024'],
     ]) {
       await wrapper.get(`#excel-bps-image-${id}`).setValue(value);
@@ -878,10 +961,10 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.get('#excel-bps-image-enabled').setValue(true);
     await wrapper.get('#excel-bps-image-base-url').setValue('https://images.example');
     for (const [selector, value] of [
-      ['#excel-bps-image-body-limit', '129'],
+      ['#excel-bps-image-body-limit', String(excelBPSImageLimits.bodyMiB + 1)],
       ['#excel-bps-image-budget', '511'],
       ['#excel-bps-image-max-requests', '0'],
-      ['#excel-bps-image-max-requests', '513'],
+      ['#excel-bps-image-max-requests', String(excelBPSImageLimits.requests + 1)],
       ['#excel-bps-image-max-requests', '1.5'],
     ]) {
       const input = wrapper.get(selector);

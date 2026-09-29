@@ -111,6 +111,26 @@ func (a *Account) excelBPSRequiredForModel(model string) bool {
 	return a != nil && (a.excelBPSRequiredUpstreamModel(model) || a.excelBPSRequiredUpstreamModel(a.GetMappedModel(model)))
 }
 
+// A protected group remains BPS-only even if another, unprotected account is
+// also bound to it. Detect the policy before capacity and cooldown filtering
+// so a busy BPS account cannot cause a native account to take its model.
+func excelBPSGroupRequiresProtocol(accounts []Account, groupID *int64, model string) bool {
+	if groupID == nil || strings.TrimSpace(model) == "" {
+		return false
+	}
+	for i := range accounts {
+		account := &accounts[i]
+		groups, active, valid := account.excelBPSGroupIsolation()
+		if !active {
+			continue
+		}
+		if !valid || (containsInt64(groups, *groupID) && account.excelBPSRequiredForModel(model)) {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *Account) excelBPSModelAllowedInGroup(groupID *int64, model string) bool {
 	groups, active, valid := a.excelBPSGroupIsolation()
 	if !active {

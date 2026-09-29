@@ -78,7 +78,9 @@ func TestOpenAIEncryptedMessageCapabilities_ContextAndModels(t *testing.T) {
 	require.False(t, openAIEncryptedMessageCapabilityMismatch(WithOpenAIForwardModel(ctx, "gpt-6-sol", false), &bps, "client-alias"))
 	require.False(t, openAIEncryptedMessageCapabilityMismatch(context.Background(), &bps, "client-alias"))
 	require.False(t, openAIEncryptedMessageCapabilityMismatch(ctx, nil, "gpt-6-astra"))
+	//nolint:staticcheck // Deliberately verify nil-context tolerance at the bridge boundary.
 	require.False(t, openAIRequiresEncryptedMessageContent(nil))
+	//nolint:staticcheck // Deliberately verify nil-context tolerance at the bridge boundary.
 	require.False(t, openAIRequiresEncryptedMessageContent(WithOpenAIResponsesRequestCapabilities(nil, []byte(`{}`))))
 	// A separate request is classified independently, even if it inherits a context.
 	require.False(t, openAIRequiresEncryptedMessageContent(WithOpenAIResponsesRequestCapabilities(ctx, []byte(`{}`))))

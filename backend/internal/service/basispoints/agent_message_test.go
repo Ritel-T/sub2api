@@ -210,7 +210,10 @@ func TestPlaintextChildReplyCanContinueParentAfterSendMessage(t *testing.T) {
 	if !ok || len(content) != 3 || !reflect.DeepEqual(content[1:], reply["content"]) {
 		t.Fatal("plaintext child reply content was changed")
 	}
-	parts := reply["content"].([]any)
+	parts, ok := reply["content"].([]any)
+	if !ok {
+		t.Fatal("plaintext child reply content is not an array")
+	}
 	parts[1] = object{"type": "encrypted_content", "encrypted_content": "opaque-child-reply"}
 	raw, _ := json.Marshal(source)
 	_, _, err = Prepare(raw, "parent", cache)
