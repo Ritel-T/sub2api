@@ -318,7 +318,10 @@ func (s *SquarespacePaymentBridge) deferSync(ctx context.Context, stateID int64,
 	if errors.Is(cause, ErrSquarespaceTokenRotationBusy) {
 		code = "OAUTH_ROTATION_BUSY"
 	}
-	_, saveErr := s.client.PaymentSyncState.UpdateOneID(stateID).SetRetryAt(s.now().Add(delay)).SetLastErrorCode(code).Save(ctx)
+	_, saveErr := s.client.PaymentSyncState.Update().Where(paymentsyncstate.IDEQ(stateID), paymentsyncstate.RotationPhaseEQ("idle")).SetRetryAt(s.now().Add(delay)).SetLastErrorCode(code).Save(ctx)
+	if saveErr == nil {
+		_, saveErr = s.client.PaymentSyncState.Update().Where(paymentsyncstate.IDEQ(stateID), paymentsyncstate.RotationPhaseNEQ("idle")).SetRetryAt(s.now().Add(delay)).Save(ctx)
+	}
 	if saveErr != nil {
 		return saveErr
 	}

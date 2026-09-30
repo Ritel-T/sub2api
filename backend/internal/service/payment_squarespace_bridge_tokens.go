@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"entgo.io/ent/dialect"
 
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 
@@ -18,6 +19,11 @@ import (
 
 var ErrSquarespaceReauthorizationRequired = errors.New("Squarespace OAuth reauthorization required")
 var ErrSquarespaceTokenRotationBusy = errors.New("Squarespace OAuth token rotation in progress")
+
+type squarespaceRotationFailure struct{ code string }
+
+func (e *squarespaceRotationFailure) Error() string { return e.code }
+func (e *squarespaceRotationFailure) Unwrap() error { return ErrSquarespaceReauthorizationRequired }
 
 func (s *PaymentConfigService) squarespaceSyncState(ctx context.Context, websiteID string) (*dbent.PaymentSyncState, error) {
 	if websiteID == "" || len(websiteID) > 128 {
@@ -58,21 +64,33 @@ func (s *PaymentConfigService) LoadSquarespaceOAuthTokens(ctx context.Context, w
 	return &pair, row.TokenVersion, nil
 }
 
-// SaveSquarespaceOAuthTokens atomically commits both rotating tokens before the
-// new access token can be used. Concurrent clients cannot overwrite a newer pair.
+// SaveSquarespaceOAuthTokens is the bootstrap/recovery write path. A caller
+// cannot overwrite an active refresh writer; unknown recovery needs a new RT.
 func (s *PaymentConfigService) SaveSquarespaceOAuthTokens(ctx context.Context, websiteID, clientID string, expectedVersion int64, pair *provider.SquarespaceOAuthTokenPair) error {
+	return s.saveSquarespaceOAuthTokenPair(ctx, websiteID, clientID, expectedVersion, pair, nil)
+}
+
+type squarespaceRotationOwner struct {
+	Version   int64
+	StartedAt time.Time
+}
+
+func (s *PaymentConfigService) saveRotatedSquarespaceOAuthTokens(ctx context.Context, websiteID, clientID string, owner squarespaceRotationOwner, pair *provider.SquarespaceOAuthTokenPair) error {
+	return s.saveSquarespaceOAuthTokenPair(ctx, websiteID, clientID, owner.Version, pair, &owner)
+}
+func (s *PaymentConfigService) saveSquarespaceOAuthTokenPair(ctx context.Context, websiteID, clientID string, expectedVersion int64, pair *provider.SquarespaceOAuthTokenPair, owner *squarespaceRotationOwner) error {
 	if err := validateSquarespaceTokenPair(pair); err != nil {
 		return err
 	}
-	if clientID == "" || len(clientID) > 200 {
-		return errors.New("invalid Squarespace OAuth client identifier")
+	if clientID == "" || len(clientID) > 200 || expectedVersion < 0 {
+		return errors.New("invalid Squarespace OAuth client or version")
 	}
 	row, err := s.squarespaceSyncState(ctx, websiteID)
 	if err != nil {
 		return err
 	}
-	if row.OauthClientID != "" && row.OauthClientID != clientID {
-		return errors.New("Squarespace website belongs to another OAuth client")
+	if err = s.validateSquarespaceTokenWriter(row, clientID, expectedVersion, pair, owner); err != nil {
+		return err
 	}
 	plain, err := json.Marshal(pair)
 	if err != nil {
@@ -82,18 +100,78 @@ func (s *PaymentConfigService) SaveSquarespaceOAuthTokens(ctx context.Context, w
 	if err != nil {
 		return errors.New("encrypt Squarespace OAuth token pair")
 	}
-	count, err := s.entClient.PaymentSyncState.Update().Where(paymentsyncstate.IDEQ(row.ID), paymentsyncstate.TokenVersionEQ(expectedVersion), paymentsyncstate.Or(paymentsyncstate.OauthClientIDEQ(""), paymentsyncstate.OauthClientIDEQ(clientID))).SetOauthClientID(clientID).SetEncryptedOauthTokens(encrypted).SetTokenVersion(expectedVersion + 1).SetRotationPhase("idle").ClearRotationStartedAt().SetLastErrorCode("").Save(ctx)
+	update := s.entClient.PaymentSyncState.Update().Where(paymentsyncstate.IDEQ(row.ID), paymentsyncstate.TokenVersionEQ(expectedVersion), paymentsyncstate.Or(paymentsyncstate.OauthClientIDEQ(""), paymentsyncstate.OauthClientIDEQ(clientID)))
+	if owner == nil {
+		update = update.Where(paymentsyncstate.RotationPhaseEQ(row.RotationPhase))
+	} else {
+		update = update.Where(paymentsyncstate.RotationPhaseEQ("request_in_flight"), paymentsyncstate.RotationStartedAtEQ(owner.StartedAt))
+	}
+	count, err := update.SetOauthClientID(clientID).SetEncryptedOauthTokens(encrypted).SetTokenVersion(expectedVersion + 1).SetRotationPhase("idle").ClearRotationStartedAt().SetLastErrorCode("").ClearRetryAt().Save(ctx)
 	if err != nil {
 		return err
 	}
 	if count != 1 {
-		return errors.New("Squarespace OAuth token version changed")
+		return errors.New("Squarespace OAuth token writer changed")
 	}
 	stored, version, err := s.LoadSquarespaceOAuthTokens(ctx, websiteID)
 	if err != nil || version != expectedVersion+1 || stored == nil || *stored != *pair {
 		return errors.New("Squarespace OAuth token persistence could not be verified")
 	}
 	return nil
+}
+func (s *PaymentConfigService) validateSquarespaceTokenWriter(row *dbent.PaymentSyncState, clientID string, expectedVersion int64, pair *provider.SquarespaceOAuthTokenPair, owner *squarespaceRotationOwner) error {
+	if row == nil || row.TokenVersion != expectedVersion {
+		return errors.New("Squarespace OAuth token version changed")
+	}
+	if row.OauthClientID != "" && row.OauthClientID != clientID {
+		return errors.New("Squarespace website belongs to another OAuth client")
+	}
+	if owner != nil {
+		if owner.Version != expectedVersion || row.RotationPhase != "request_in_flight" || row.RotationStartedAt == nil || !row.RotationStartedAt.Equal(owner.StartedAt) {
+			return ErrSquarespaceTokenRotationBusy
+		}
+		return nil
+	}
+	if row.RotationPhase == "request_in_flight" {
+		return ErrSquarespaceTokenRotationBusy
+	}
+	if row.RotationPhase != "idle" && row.RotationPhase != "unknown" {
+		return ErrSquarespaceReauthorizationRequired
+	}
+	if row.RotationPhase == "unknown" {
+		if err := pair.Validate(time.Now()); err != nil {
+			return ErrSquarespaceReauthorizationRequired
+		}
+		if row.EncryptedOauthTokens != "" {
+			plain, err := s.DecryptPrivatePaymentData(row.EncryptedOauthTokens)
+			if err != nil {
+				return ErrSquarespaceReauthorizationRequired
+			}
+			var previous provider.SquarespaceOAuthTokenPair
+			if json.Unmarshal([]byte(plain), &previous) != nil || previous.RefreshToken == pair.RefreshToken {
+				return ErrSquarespaceReauthorizationRequired
+			}
+		}
+	}
+	return nil
+}
+
+// Import holds this row lock before credentials or token writes. Even a stale
+// request_in_flight marker cannot be stolen: timeout alone cannot prove outcome.
+func (s *PaymentConfigService) lockSquarespaceOAuthImport(ctx context.Context, websiteID, clientID string, expectedVersion int64, pair *provider.SquarespaceOAuthTokenPair) error {
+	row, err := s.squarespaceSyncState(ctx, websiteID)
+	if err != nil {
+		return err
+	}
+	query := s.entClient.PaymentSyncState.Query().Where(paymentsyncstate.IDEQ(row.ID))
+	if s.entClient.Driver().Dialect() == dialect.Postgres {
+		query = query.ForUpdate()
+	}
+	row, err = query.Only(ctx)
+	if err != nil {
+		return err
+	}
+	return s.validateSquarespaceTokenWriter(row, clientID, expectedVersion, pair, nil)
 }
 
 func validateSquarespaceTokenPair(pair *provider.SquarespaceOAuthTokenPair) error {
@@ -141,29 +219,42 @@ func (s *squarespaceDurableTokenSource) AccessToken(ctx context.Context) (string
 	if !refreshExpires.After(s.now().Add(30 * time.Second)) {
 		return "", ErrSquarespaceReauthorizationRequired
 	}
-	claimed, err := s.config.entClient.PaymentSyncState.Update().Where(paymentsyncstate.IDEQ(row.ID), paymentsyncstate.TokenVersionEQ(version), paymentsyncstate.RotationPhaseEQ("idle")).SetRotationPhase("request_in_flight").SetRotationStartedAt(s.now()).Save(ctx)
+	startedAt := s.now().UTC().Truncate(time.Microsecond)
+	claimed, err := s.config.entClient.PaymentSyncState.Update().Where(paymentsyncstate.IDEQ(row.ID), paymentsyncstate.TokenVersionEQ(version), paymentsyncstate.RotationPhaseEQ("idle")).SetRotationPhase("request_in_flight").SetRotationStartedAt(startedAt).Save(ctx)
 	if err != nil {
 		return "", err
 	}
 	if claimed != 1 {
 		return "", ErrSquarespaceTokenRotationBusy
 	}
+	persisted, err := s.config.entClient.PaymentSyncState.Get(ctx, row.ID)
+	if err != nil || persisted.RotationStartedAt == nil || persisted.TokenVersion != version || persisted.RotationPhase != "request_in_flight" {
+		code := "OAUTH_ROTATION_LEASE_READ_FAILED"
+		s.markSquarespaceRotationUnknown(row.ID, squarespaceRotationOwner{Version: version, StartedAt: startedAt}, code)
+		return "", &squarespaceRotationFailure{code: code}
+	}
+	owner := squarespaceRotationOwner{Version: version, StartedAt: *persisted.RotationStartedAt}
 	refresh := s.refresh
 	if refresh == nil {
 		refresh = s.oauth.Refresh
 	}
 	refreshed, err := refresh(ctx, pair.RefreshToken)
 	if err != nil {
-		// A refresh can succeed remotely even if the response was lost. Never replay
-		// the old refresh token or use a new access token that was not durably stored.
-		failCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_, _ = s.config.entClient.PaymentSyncState.Update().Where(paymentsyncstate.IDEQ(row.ID), paymentsyncstate.TokenVersionEQ(version), paymentsyncstate.RotationPhaseEQ("request_in_flight")).SetRotationPhase("unknown").SetLastErrorCode("OAUTH_ROTATION_UNKNOWN").Save(failCtx)
-		return "", ErrSquarespaceReauthorizationRequired
+		code := provider.SquarespaceOAuthFailureCode(err)
+		s.markSquarespaceRotationUnknown(row.ID, owner, code)
+		return "", &squarespaceRotationFailure{code: code}
 	}
-	if err := s.config.SaveSquarespaceOAuthTokens(ctx, s.websiteID, s.clientID, version, refreshed); err != nil {
-		return "", fmt.Errorf("persist refreshed OAuth pair: %w", err)
+	if refreshed == nil || refreshed.RefreshToken == pair.RefreshToken || refreshed.Validate(s.now()) != nil {
+		code := "OAUTH_ROTATION_INVALID_PAIR"
+		s.markSquarespaceRotationUnknown(row.ID, owner, code)
+		return "", &squarespaceRotationFailure{code: code}
 	}
+	if err = s.config.saveRotatedSquarespaceOAuthTokens(ctx, s.websiteID, s.clientID, owner, refreshed); err != nil {
+		code := "OAUTH_ROTATION_PERSISTENCE_FAILED"
+		s.markSquarespaceRotationUnknown(row.ID, owner, code)
+		return "", &squarespaceRotationFailure{code: code}
+	}
+
 	return refreshed.AccessToken, nil
 }
 
@@ -237,4 +328,10 @@ func (s *PaymentService) createSquarespaceQueryProvider(ctx context.Context, ins
 		return nil, err
 	}
 	return provider.NewSquarespaceWithTokenSource(strconv.FormatInt(instance.ID, 10), cfg, tokens)
+}
+
+func (s *squarespaceDurableTokenSource) markSquarespaceRotationUnknown(stateID int64, owner squarespaceRotationOwner, code string) {
+	failCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, _ = s.config.entClient.PaymentSyncState.Update().Where(paymentsyncstate.IDEQ(stateID), paymentsyncstate.TokenVersionEQ(owner.Version), paymentsyncstate.RotationPhaseEQ("request_in_flight"), paymentsyncstate.RotationStartedAtEQ(owner.StartedAt)).SetRotationPhase("unknown").SetLastErrorCode(code).Save(failCtx)
 }

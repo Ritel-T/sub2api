@@ -38,14 +38,24 @@ func (s *PaymentConfigService) ImportSquarespaceOAuth(ctx context.Context, websi
 	defer func() { _ = tx.Rollback() }()
 	transactional := *s
 	transactional.entClient = tx.Client()
-	if err = transactional.SaveSquarespaceOAuthCredentials(ctx, websiteID, clientID, clientSecret); err != nil {
-		return err
-	}
-	if err = transactional.SaveSquarespaceOAuthTokens(ctx, websiteID, clientID, expectedVersion, pair); err != nil {
+	if err = transactional.importVerifiedSquarespaceOAuthPair(ctx, websiteID, clientID, clientSecret, expectedVersion, pair); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("commit OAuth import: %w", err)
 	}
+
 	return nil
+}
+
+// Called only after official website verification; kept separate for deterministic
+// database/rotation tests which must never send token-bearing network requests.
+func (s *PaymentConfigService) importVerifiedSquarespaceOAuthPair(ctx context.Context, websiteID, clientID, clientSecret string, expectedVersion int64, pair *provider.SquarespaceOAuthTokenPair) error {
+	if err := s.lockSquarespaceOAuthImport(ctx, websiteID, clientID, expectedVersion, pair); err != nil {
+		return err
+	}
+	if err := s.SaveSquarespaceOAuthCredentials(ctx, websiteID, clientID, clientSecret); err != nil {
+		return err
+	}
+	return s.SaveSquarespaceOAuthTokens(ctx, websiteID, clientID, expectedVersion, pair)
 }

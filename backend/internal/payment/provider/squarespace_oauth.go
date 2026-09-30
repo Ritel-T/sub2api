@@ -1,8 +1,10 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"net/http"
@@ -30,6 +32,105 @@ type SquarespaceOAuthTokenPair struct {
 
 func (SquarespaceOAuthTokenPair) String() string   { return "SquarespaceOAuthTokenPair{redacted}" }
 func (SquarespaceOAuthTokenPair) GoString() string { return "SquarespaceOAuthTokenPair{redacted}" }
+
+// UnmarshalJSON accepts epoch seconds as either a JSON string or JSON number.
+// Numbers are copied lexically, never rounded through a float64 re-encoding.
+// Token strings and complete-pair validation remain unchanged.
+func (p *SquarespaceOAuthTokenPair) UnmarshalJSON(raw []byte) error {
+	var wire struct {
+		AccessToken           string          `json:"access_token"`
+		RefreshToken          string          `json:"refresh_token"`
+		AccessTokenExpiresAt  json.RawMessage `json:"access_token_expires_at"`
+		RefreshTokenExpiresAt json.RawMessage `json:"refresh_token_expires_at"`
+		TokenType             string          `json:"token_type"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return squarespaceError("invalid_oauth_response")
+	}
+	accessExpiry, err := squarespaceOAuthEpochJSON(wire.AccessTokenExpiresAt)
+	if err != nil {
+		return err
+	}
+	refreshExpiry, err := squarespaceOAuthEpochJSON(wire.RefreshTokenExpiresAt)
+	if err != nil {
+		return err
+	}
+	*p = SquarespaceOAuthTokenPair{AccessToken: wire.AccessToken, RefreshToken: wire.RefreshToken,
+		AccessTokenExpiresAt: accessExpiry, RefreshTokenExpiresAt: refreshExpiry, TokenType: wire.TokenType}
+	return nil
+}
+
+func squarespaceOAuthEpochJSON(raw json.RawMessage) (string, error) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || len(raw) > 128 {
+		return "", squarespaceError("invalid_oauth_expiration")
+	}
+	var value string
+	if raw[0] == '"' {
+		if json.Unmarshal(raw, &value) != nil {
+			return "", squarespaceError("invalid_oauth_expiration")
+		}
+	} else {
+		// Unmarshal into json.Number rejects bool/null/object/array, while keeping
+		// the original decimal/exponent representation intact.
+		var number json.Number
+		if raw[0] != '-' && (raw[0] < '0' || raw[0] > '9') {
+			return "", squarespaceError("invalid_oauth_expiration")
+		}
+		if json.Unmarshal(raw, &number) != nil {
+			return "", squarespaceError("invalid_oauth_expiration")
+		}
+		value = number.String()
+	}
+	if len(value) > 128 {
+		return "", squarespaceError("invalid_oauth_expiration")
+	}
+	if _, err := SquarespaceOAuthExpiry(value); err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
+// SquarespaceOAuthFailureCode maps only known error categories and HTTP codes.
+// It never includes response bodies, credentials, URLs, or arbitrary error text.
+// A code is diagnostic only; it does not authorize replay of a refresh token.
+func SquarespaceOAuthFailureCode(err error) string {
+	var upstream *SquarespaceAPIError
+	if !errors.As(err, &upstream) || upstream == nil {
+		return "OAUTH_ROTATION_UNKNOWN"
+	}
+	var code string
+	switch upstream.Kind {
+	case "oauth_request_outcome_unknown":
+		code = "OAUTH_REQUEST_OUTCOME_UNKNOWN"
+	case "invalid_oauth_response":
+		code = "OAUTH_RESPONSE_INVALID"
+	case "invalid_oauth_expiration":
+		code = "OAUTH_EXPIRATION_INVALID"
+	case "invalid_offline_oauth_pair":
+		code = "OAUTH_PAIR_INVALID"
+	case "invalid_oauth_pair_expirations":
+		code = "OAUTH_EXPIRATIONS_INVALID"
+	case "expired_oauth_pair":
+		code = "OAUTH_RESPONSE_EXPIRED"
+	case "invalid_refresh_token":
+		code = "OAUTH_REFRESH_TOKEN_INVALID"
+	case "invalid_oauth_request":
+		code = "OAUTH_REQUEST_INVALID"
+	case "oauth_request_rejected":
+		code = "OAUTH_REQUEST_REJECTED"
+	case "rate_limited":
+		code = "OAUTH_RATE_LIMITED"
+	case "redirect_rejected":
+		code = "OAUTH_REDIRECT_REJECTED"
+	default:
+		return "OAUTH_ROTATION_UNKNOWN"
+	}
+	if upstream.HTTPStatus >= 100 && upstream.HTTPStatus <= 599 {
+		code += "_HTTP_" + strconv.Itoa(upstream.HTTPStatus)
+	}
+	return code
+}
 
 func SquarespaceOAuthExpiry(raw string) (time.Time, error) {
 	seconds, err := strconv.ParseFloat(raw, 64)
@@ -137,10 +238,22 @@ func (c *SquarespaceOAuthClient) request(ctx context.Context, body url.Values) (
 	}
 	var pair SquarespaceOAuthTokenPair
 	if err := json.Unmarshal(raw, &pair); err != nil {
-		return nil, squarespaceError("invalid_oauth_response")
+		var safe *SquarespaceAPIError
+		if errors.As(err, &safe) {
+			copy := *safe
+			copy.HTTPStatus = res.StatusCode
+			return nil, &copy
+		}
+		return nil, &SquarespaceAPIError{Kind: "invalid_oauth_response", HTTPStatus: res.StatusCode}
 	}
 	if err := pair.Validate(time.Now()); err != nil {
-		return nil, err
+		var safe *SquarespaceAPIError
+		if errors.As(err, &safe) {
+			copy := *safe
+			copy.HTTPStatus = res.StatusCode
+			return nil, &copy
+		}
+		return nil, &SquarespaceAPIError{Kind: "invalid_offline_oauth_pair", HTTPStatus: res.StatusCode}
 	}
 	return &pair, nil
 }
