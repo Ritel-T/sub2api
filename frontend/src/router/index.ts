@@ -11,6 +11,7 @@ import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
+import { paymentAPI } from '@/api/payment'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
 
@@ -980,8 +981,20 @@ router.beforeEach(async (to, _from, next) => {
     appStore.publicSettingsLoaded &&
     appStore.cachedPublicSettings?.payment_enabled === false
   ) {
-    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
-    return
+    // A globally closed payment system may still authorize a specific merchant
+    // test account. Read its current protected scope instead of trusting role,
+    // client-side IDs, or a cached payment configuration.
+    let merchantTestAccess = false
+    try {
+      const response = await paymentAPI.getConfig()
+      merchantTestAccess = response.data?.merchant_test_access === true && response.data?.enabled === true
+    } catch {
+      // Authentication failures, timeouts, and malformed responses stay closed.
+    }
+    if (!merchantTestAccess) {
+      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      return
+    }
   }
 
   if (

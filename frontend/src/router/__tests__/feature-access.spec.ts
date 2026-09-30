@@ -6,6 +6,9 @@ type NavigationGuard = (
   next: ReturnType<typeof vi.fn>
 ) => Promise<void>
 
+const getPaymentConfig = vi.hoisted(() => vi.fn())
+vi.mock('@/api/payment', () => ({ paymentAPI: { getConfig: getPaymentConfig } }))
+
 const routerHarness = vi.hoisted(() => ({
   guard: null as NavigationGuard | null,
 }))
@@ -122,6 +125,71 @@ describe('feature route guard', () => {
     appStore.publicSettingsLoaded = false
     appStore.cachedPublicSettings = null
     appStore.fetchPublicSettings.mockReset()
+    getPaymentConfig.mockReset().mockResolvedValue({ data: { enabled: false, merchant_test_access: false } })
+  })
+
+  it('allows a server-authorized merchant test account while the global payment switch is off', async () => {
+    appStore.publicSettingsLoaded = true
+    appStore.cachedPublicSettings = { payment_enabled: false }
+    getPaymentConfig.mockResolvedValue({ data: { enabled: true, merchant_test_access: true } })
+    const { navigation, next } = runGuard({ requiresPayment: true }, '/purchase')
+    await navigation
+    expect(getPaymentConfig).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it.each([
+    { enabled: true, merchant_test_access: false },
+    { enabled: false, merchant_test_access: true },
+    { payment_enabled: true, merchant_test_access: true },
+    { enabled: 'true', merchant_test_access: true },
+    { enabled: true, merchant_test_access: 'true' },
+  ])('does not grant an admin payment access without both exact protected scope flags: %j', async config => {
+    authStore.isAdmin = true
+    appStore.publicSettingsLoaded = true
+    appStore.cachedPublicSettings = { payment_enabled: false }
+    getPaymentConfig.mockResolvedValue({ data: config })
+    const { navigation, next } = runGuard({ requiresPayment: true }, '/purchase')
+    await navigation
+    expect(next).toHaveBeenCalledWith('/admin/dashboard')
+  })
+
+  it.each([{ status: 401 }, { code: 'ECONNABORTED' }, new Error('transient network failure')])('keeps payment routes closed when protected config fails: %j', async error => {
+    appStore.publicSettingsLoaded = true
+    appStore.cachedPublicSettings = { payment_enabled: false }
+    getPaymentConfig.mockRejectedValueOnce(error)
+    const { navigation, next } = runGuard({ requiresPayment: true }, '/purchase')
+    await navigation
+    expect(next).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('enforces authentication before asking for merchant payment access', async () => {
+    authStore.isAuthenticated = false
+    appStore.publicSettingsLoaded = true
+    appStore.cachedPublicSettings = { payment_enabled: false }
+    const { navigation, next } = runGuard({ requiresPayment: true }, '/purchase')
+    await navigation
+    expect(getPaymentConfig).not.toHaveBeenCalled()
+    expect(next).toHaveBeenCalledWith({ path: '/login', query: { redirect: '/purchase' } })
+  })
+
+  it('keeps risk-control restrictions after granting merchant payment test access', async () => {
+    authStore.isAdmin = true
+    appStore.publicSettingsLoaded = true
+    appStore.cachedPublicSettings = { payment_enabled: false, risk_control_enabled: false }
+    getPaymentConfig.mockResolvedValue({ data: { enabled: true, merchant_test_access: true } })
+    const { navigation, next } = runGuard({ requiresPayment: true, requiresRiskControl: true }, '/purchase')
+    await navigation
+    expect(next).toHaveBeenCalledWith('/admin/settings')
+  })
+
+  it('keeps subscription restrictions after granting merchant payment test access', async () => {
+    appStore.publicSettingsLoaded = true
+    appStore.cachedPublicSettings = { payment_enabled: false, subscription_enabled: false }
+    getPaymentConfig.mockResolvedValue({ data: { enabled: true, merchant_test_access: true } })
+    const { navigation, next } = runGuard({ requiresPayment: true, requiresSubscription: true }, '/purchase')
+    await navigation
+    expect(next).toHaveBeenCalledWith('/dashboard')
   })
 
   it('allows observers own usage in backend mode without opening other user or admin pages', async () => {

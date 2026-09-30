@@ -29,7 +29,10 @@ export type PaymentClaimMode = 'receipt_otp' | 'reference'
 
 export interface PaymentConfig {
   merchant_test_access?: boolean
-  payment_enabled: boolean
+  /** Effective access returned by the protected /payment/config endpoint. */
+  enabled: boolean
+  /** Legacy frontend alias; checkout-info uses payment_enabled instead. */
+  payment_enabled?: boolean
   min_amount: number
   max_amount: number
   daily_limit: number
