@@ -8420,7 +8420,7 @@
                       :placeholder="t('admin.settings.payment.noLimit')"
                     />
                   </div>
-                  <div>
+                  <div v-if="!form.balance_retail_pricing_enabled">
                     <label class="input-label">{{
                       t("admin.settings.payment.balanceRechargeMultiplier")
                     }}</label>
@@ -8485,7 +8485,7 @@
                       }}
                     </p>
                   </div>
-                  <div>
+                  <div v-if="!form.balance_retail_pricing_enabled">
                     <label class="input-label">{{
                       t("admin.settings.payment.rechargeFeeRate")
                     }}</label>
@@ -8727,6 +8727,7 @@
                     </div>
                   </div>
                 </div>
+                <BalanceRetailSettings v-model="retailPricingSettings" />
                 <!-- Row 4: Enabled payment types (provider badges like sub2apipay) -->
                 <div>
                   <label class="input-label">{{
@@ -9375,6 +9376,12 @@ import {
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import PaymentProviderList from "@/components/payment/PaymentProviderList.vue";
 import PaymentProviderDialog from "@/components/payment/PaymentProviderDialog.vue";
+import BalanceRetailSettings from "@/components/payment/BalanceRetailSettings.vue";
+import {
+  DEFAULT_BALANCE_RETAIL_SETTINGS,
+  validateBalanceRetailSettings,
+  type BalanceRetailSettingsValue,
+} from "@/components/payment/balanceRetailSettings";
 import GroupBadge from "@/components/common/GroupBadge.vue";
 import GroupOptionItem from "@/components/common/GroupOptionItem.vue";
 import Toggle from "@/components/common/Toggle.vue";
@@ -10070,7 +10077,7 @@ type SettingsForm = Omit<
   | "wechat_connect_mp_enabled"
   | "wechat_connect_mobile_enabled"
   | "openai_oauth_scheduling_rate_multiplier"
-> & {
+> & BalanceRetailSettingsValue & {
   openai_codex_ticket_harvest_scope: { mode: "all" | "selected"; group_ids: number[]; account_policy: "schedulable_only" | "prioritize_schedulable" };
   /** Form always binds a concrete boolean (SystemSettings marks this optional). */
   channel_monitor_hide_throughput: boolean;
@@ -10175,6 +10182,7 @@ const form = reactive<SettingsForm>({
   payment_balance_recharge_multiplier: 1,
   payment_subscription_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
+  ...DEFAULT_BALANCE_RETAIL_SETTINGS,
   payment_enabled_types: [],
   payment_help_image_url: "",
   payment_help_text: "",
@@ -11734,6 +11742,11 @@ function toggleCodexTicketModel(model: string, enabled: boolean) {
 async function saveSettings() {
   saving.value = true;
   try {
+    const retailError = validateBalanceRetailSettings(retailPricingSettings.value);
+    if (retailError) {
+      appStore.showError(t(retailError));
+      return;
+    }
     const imageBaseUrl = form.excel_bps_image_base_url.trim();
     if ((form.excel_bps_image_relay_enabled && form.excel_bps_image_mode === 'relay') || imageBaseUrl) {
       try {
@@ -12185,6 +12198,7 @@ async function saveSettings() {
       payment_subscription_usd_to_cny_rate:
         Number(form.payment_subscription_usd_to_cny_rate) || 0,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
+      ...retailPricingSettings.value,
       payment_enabled_types: form.payment_enabled_types,
       payment_load_balance_strategy: form.payment_load_balance_strategy,
       payment_product_name_prefix: form.payment_product_name_prefix,
@@ -13039,6 +13053,21 @@ async function saveBetaPolicySettings() {
   }
 }
 
+const retailPricingSettings = computed<BalanceRetailSettingsValue>({
+  get: () => ({
+    balance_retail_pricing_enabled: form.balance_retail_pricing_enabled,
+    balance_retail_cost_rate: Number(form.balance_retail_cost_rate),
+    balance_retail_fixed_cost_gbp: Number(form.balance_retail_fixed_cost_gbp),
+    balance_retail_quote_ttl_seconds: Number(form.balance_retail_quote_ttl_seconds),
+    balance_retail_fx_source: form.balance_retail_fx_source,
+    balance_retail_fx_usd_per_gbp: Number(form.balance_retail_fx_usd_per_gbp),
+    balance_retail_fx_cny_per_gbp: Number(form.balance_retail_fx_cny_per_gbp),
+    balance_retail_fx_asof: form.balance_retail_fx_asof.trim(),
+    balance_retail_fx_max_age_hours: Number(form.balance_retail_fx_max_age_hours),
+  }),
+  set: (value: BalanceRetailSettingsValue) => Object.assign(form, value),
+});
+
 // ==================== Provider Management ====================
 
 const allPaymentTypes = computed(() => [
@@ -13047,6 +13076,7 @@ const allPaymentTypes = computed(() => [
   { value: "wxpay", label: t("payment.methods.wxpay") },
   { value: "stripe", label: t("payment.methods.stripe") },
   { value: "airwallex", label: t("payment.methods.airwallex") },
+  { value: "squarespace", label: t("squarespaceProvider.name") },
 ]);
 
 function isPaymentTypeEnabled(type: string): boolean {
@@ -13104,6 +13134,7 @@ const providerKeyOptions = computed(() => [
   { value: "wxpay", label: t("admin.settings.payment.providerWxpay") },
   { value: "stripe", label: t("admin.settings.payment.providerStripe") },
   { value: "airwallex", label: t("admin.settings.payment.providerAirwallex") },
+  { value: "squarespace", label: t("squarespaceProvider.name") },
 ]);
 
 const enabledProviderKeyOptions = computed(() => {

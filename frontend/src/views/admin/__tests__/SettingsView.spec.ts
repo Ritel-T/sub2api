@@ -985,6 +985,69 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
+
+  it("loads and saves uniform retail pricing without changing legacy settings", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      payment_enabled: true,
+      payment_balance_recharge_multiplier: 1.5,
+      payment_recharge_fee_rate: 3,
+      balance_retail_pricing_enabled: true,
+      balance_retail_cost_rate: 4,
+      balance_retail_fixed_cost_gbp: 0.25,
+      balance_retail_quote_ttl_seconds: 900,
+      balance_retail_fx_source: "manual",
+      balance_retail_fx_usd_per_gbp: 1.34,
+      balance_retail_fx_cny_per_gbp: 9.6,
+      balance_retail_fx_asof: "2026-09-30T00:00:00Z",
+      balance_retail_fx_max_age_hours: 120,
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    expect((wrapper.get('#retail-fx-usd').element as HTMLInputElement).value).toBe('1.34');
+    expect((wrapper.get('#retail-fx-cny').element as HTMLInputElement).value).toBe('9.6');
+    expect(wrapper.text()).not.toContain('admin.settings.payment.balanceRechargeMultiplierHint');
+    expect(wrapper.text()).not.toContain('admin.settings.payment.rechargeFeeRateHint');
+    await wrapper.get('#retail-fixed-cost').setValue('0');
+    await wrapper.get('#retail-quote-ttl').setValue('600');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({
+      balance_retail_pricing_enabled: true,
+      balance_retail_cost_rate: 4,
+      balance_retail_fixed_cost_gbp: 0,
+      balance_retail_quote_ttl_seconds: 600,
+      balance_retail_fx_source: 'manual',
+      balance_retail_fx_usd_per_gbp: 1.34,
+      balance_retail_fx_cny_per_gbp: 9.6,
+      balance_retail_fx_asof: '2026-09-30T00:00:00Z',
+      balance_retail_fx_max_age_hours: 120,
+      payment_balance_recharge_multiplier: 1.5,
+      payment_recharge_fee_rate: 3,
+    });
+    wrapper.unmount();
+  });
+
+  it("rejects invalid manual retail rates before saving any settings", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      payment_enabled: true,
+      balance_retail_pricing_enabled: true,
+      balance_retail_fx_source: "manual",
+      balance_retail_fx_usd_per_gbp: 0,
+      balance_retail_fx_cny_per_gbp: 9.6,
+      balance_retail_fx_asof: "2026-09-30T00:00:00Z",
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenLastCalledWith('squarespaceProvider.retail.validationFXRates');
+    wrapper.unmount();
+  });
+
   it("submits the Codex ticket harvest toggle", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,

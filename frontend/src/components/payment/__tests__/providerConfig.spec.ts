@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   PAYMENT_CURRENCY_OPTIONS,
   PROVIDER_CONFIG_FIELDS,
+  PROVIDER_SUPPORTED_TYPES,
+  getVisibleProviderConfigFields,
+  WEBHOOK_PATHS,
+  isValidSquarespacePayLink,
+  isValidSquarespaceProductId,
   isBuiltInAlipayMethod,
   isBuiltInWxpayMethod,
   parseEasyPayCustomMethods,
@@ -91,5 +96,59 @@ describe('built-in payment method helpers', () => {
     expect(isBuiltInWxpayMethod('wxpay')).toBe(true)
     expect(isBuiltInWxpayMethod('wxpay_direct')).toBe(true)
     expect(isBuiltInWxpayMethod('card_wxpay')).toBe(false)
+  })
+})
+
+describe('Squarespace public provider configuration', () => {
+  it('exposes only hosted-link metadata and restricts currency to GBP', () => {
+    expect(PROVIDER_SUPPORTED_TYPES.squarespace).toEqual(['squarespace'])
+    expect(PROVIDER_CONFIG_FIELDS.squarespace.map(field => field.key)).toEqual([
+      'websiteId', 'productId', 'payLinkUrl', 'currency', 'paymentClaimMode', 'referenceFieldLabel',
+    ])
+    expect(PROVIDER_CONFIG_FIELDS.squarespace.every(field => !field.sensitive)).toBe(true)
+    expect(findField('squarespace', 'currency')?.options).toEqual([{ value: 'GBP', label: 'GBP' }])
+    expect(findField('squarespace', 'currency')?.defaultValue).toBe('GBP')
+    expect(WEBHOOK_PATHS.squarespace).toBeUndefined()
+    expect(findField('squarespace', 'paymentClaimMode')?.defaultValue).toBe('receipt_otp')
+    expect(findField('squarespace', 'productId')?.optional).toBeFalsy()
+    expect(findField('squarespace', 'productId')?.defaultValue).toBeUndefined()
+  })
+
+  it('only requires the reference field when reference claim mode is selected', () => {
+    expect(getVisibleProviderConfigFields('squarespace', {}).map(field => field.key)).not.toContain('referenceFieldLabel')
+    expect(getVisibleProviderConfigFields('squarespace', { paymentClaimMode: 'receipt_otp' }).map(field => field.key)).not.toContain('referenceFieldLabel')
+    expect(getVisibleProviderConfigFields('squarespace', { paymentClaimMode: 'reference' }).map(field => field.key)).toContain('referenceFieldLabel')
+  })
+
+  it.each([
+    'https://merchant.squarespace.com/pay-link/123',
+    'https://ritelt.squarespace.com/pay-link/',
+    ' https://merchant.squarespace.com/pay-link/123?source=website ',
+  ])('accepts the existing hosted Pay Link %s', url => {
+    expect(isValidSquarespacePayLink(url)).toBe(true)
+  })
+
+  it.each([
+    'http://merchant.squarespace.com/pay-link/123',
+    'https://squarespace.com/pay-link/123',
+    'https://merchant.squarespace.com.evil.example/pay-link/123',
+    'https://evil.example/pay-link/123',
+    'https://merchant.squarespace.com/checkout/123',
+    'https://user:secret@merchant.squarespace.com/pay-link/123',
+    'https://merchant.squarespace.com:8443/pay-link/123',
+    'https://merchant.squarespace.com:443/pay-link/123',
+    'https://merchant.squarespace.com/pay-link/123#fragment',
+    'not-a-url',
+  ])('rejects an unsafe or unrelated Pay Link %s', url => {
+    expect(isValidSquarespacePayLink(url)).toBe(false)
+  })
+})
+
+describe('Squarespace top-up product ID validation', () => {
+  it.each(['0123456789abcdef01234567', ' 0123456789ABCDEF01234567 '])('accepts a valid product ID %s', value => {
+    expect(isValidSquarespaceProductId(value)).toBe(true)
+  })
+  it.each(['', '0123456789abcdef0123456', '0123456789abcdef012345678', '0123456789abcdef0123456z', 'another-product'])('rejects invalid product ID %s', value => {
+    expect(isValidSquarespaceProductId(value)).toBe(false)
   })
 })

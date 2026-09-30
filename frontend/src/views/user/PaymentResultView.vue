@@ -29,7 +29,7 @@
             {{ statusTitle }}
           </h2>
           <p v-if="isPending" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {{ t('payment.result.processingHint') }}
+            {{ t(isRetailOrder ? 'paymentRetail.creditProcessing' : 'payment.result.processingHint') }}
           </p>
         </div>
         <!-- Order Info -->
@@ -43,19 +43,20 @@
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ order.out_trade_no }}</span>
             </div>
-            <div v-if="hasAmountFields(order)" class="flex justify-between">
+            <RetailQuoteSummary v-if="resultRetailQuote" :quote="resultRetailQuote" />
+            <div v-if="hasAmountFields(order) && !resultRetailQuote" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(baseAmount) }}</span>
             </div>
-            <div v-if="hasAmountFields(order) && order.fee_rate > 0" class="flex justify-between">
+            <div v-if="hasAmountFields(order) && !resultRetailQuote && order.fee_rate > 0" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.fee') }} ({{ order.fee_rate }}%)</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(feeAmount) }}</span>
             </div>
-            <div v-if="hasAmountFields(order)" class="flex justify-between">
+            <div v-if="hasAmountFields(order) && !resultRetailQuote" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
               <span class="font-bold text-primary-600 dark:text-primary-400">{{ formatGatewayAmount(order.pay_amount) }}</span>
             </div>
-            <div v-if="hasAmountFields(order) && order.amount !== order.pay_amount" class="flex justify-between">
+            <div v-if="hasAmountFields(order) && !resultRetailQuote && order.amount !== order.pay_amount" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' + order.amount.toFixed(2) : formatGatewayAmount(order.amount) }}</span>
             </div>
@@ -86,6 +87,8 @@
             </div>
           </div>
         </div>
+        <p v-if="order?.payment_type === 'squarespace' && order.status === 'CANCELLED'" class="rounded-xl border border-amber-200 p-4 text-sm text-amber-800 dark:border-amber-800 dark:text-amber-200">{{ t('paymentRetail.claim.cancelledManual') }}</p>
+        <SquarespaceReceiptClaim v-if="claimableOwnedOrder" :order-id="claimableOwnedOrder.id" :account-email="authStore.user?.email" @updated="onClaimUpdated" @refresh="refreshOwnedOrder" />
         <!-- Actions -->
         <div class="flex gap-3">
           <button class="btn btn-secondary flex-1" @click="router.push('/purchase')">{{ t('payment.result.backToRecharge') }}</button>
@@ -101,6 +104,8 @@ import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
+import RetailQuoteSummary from '@/components/payment/RetailQuoteSummary.vue'
+import SquarespaceReceiptClaim from '@/components/payment/SquarespaceReceiptClaim.vue'
 import {
   PAYMENT_RECOVERY_STORAGE_KEY,
   clearPaymentRecoverySnapshot,
@@ -110,7 +115,7 @@ import { usePaymentStore } from '@/stores/payment'
 import { useAuthStore } from '@/stores/auth'
 import { paymentAPI } from '@/api/payment'
 import type { PublicOrderVerifyResult } from '@/api/payment'
-import type { OrderStatus, PaymentOrder } from '@/types/payment'
+import type { OrderStatus, PaymentOrder, RetailQuote } from '@/types/payment'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import { normalizePaymentMethodForDisplay, paymentMethodI18nKey } from './paymentUx'
 
@@ -125,7 +130,19 @@ type ResolvedOrder = PaymentOrder | PublicOrderVerifyResult
 
 const order = ref<ResolvedOrder | null>(null)
 const loading = ref(true)
+const authenticatedOrderLoaded = ref(false)
 const currency = ref('CNY')
+const recoveryRetailQuote = ref<RetailQuote | null>(null)
+const resultRetailQuote = computed(() => order.value?.retail_quote || recoveryRetailQuote.value)
+const claimableOwnedOrder = computed(() => {
+  const candidate = order.value
+  if (!authenticatedOrderLoaded.value || !hasOrderId(candidate) || candidate.payment_type !== 'squarespace'
+    || (candidate.retail_quote?.payment_claim_mode || candidate.payment_claim_mode) !== 'receipt_otp'
+    || !['PENDING', 'EXPIRED'].includes(candidate.status)) return null
+  return candidate
+})
+const isRetailOrder = computed(() => !!resultRetailQuote.value || order.value?.payment_type === 'squarespace'
+  || !!(order.value && 'retail_pricing' in order.value && order.value.retail_pricing))
 
 interface ReturnInfo {
   outTradeNo: string
@@ -203,6 +220,21 @@ function setResolvedOrder(nextOrder: ResolvedOrder | null): void {
   refreshUserBalanceForSuccessfulOrder(nextOrder)
 }
 
+function onClaimUpdated(nextOrder: PaymentOrder) {
+  if (!hasOrderId(order.value) || nextOrder.id !== order.value.id) return
+  setResolvedOrder(nextOrder)
+  clearRecoverySnapshotForTerminalStatus(nextOrder.status)
+  if (isPendingStatus(nextOrder.status)) scheduleStatusRefresh(() => paymentStore.pollOrderStatus(nextOrder.id))
+}
+
+async function refreshOwnedOrder() {
+  if (!hasOrderId(order.value)) return
+  try {
+    const nextOrder = await paymentStore.pollOrderStatus(order.value.id)
+    if (nextOrder) onClaimUpdated(nextOrder)
+  } catch { /* Keep the current authoritative result and allow another read. */ }
+}
+
 function refreshUserBalanceForSuccessfulOrder(nextOrder: ResolvedOrder | null): void {
   if (!nextOrder || userBalanceRefreshStarted || normalizeOrderStatus(nextOrder.status) !== 'COMPLETED') {
     return
@@ -238,11 +270,12 @@ function displayOrderStatus(status: string): OrderStatus {
 }
 
 function isSuccessStatus(status: string | null | undefined): boolean {
-  return SUCCESS_STATUSES.has(normalizeOrderStatus(status))
+  return isRetailOrder.value ? normalizeOrderStatus(status) === 'COMPLETED' : SUCCESS_STATUSES.has(normalizeOrderStatus(status))
 }
 
 function isPendingStatus(status: string | null | undefined): boolean {
-  return PENDING_STATUSES.has(normalizeOrderStatus(status))
+  const normalized = normalizeOrderStatus(status)
+  return PENDING_STATUSES.has(normalized) || (isRetailOrder.value && ['PAID', 'RECHARGING'].includes(normalized))
 }
 
 function readRouteQueryString(key: string): string {
@@ -337,7 +370,7 @@ function clearRecoverySnapshotForTerminalStatus(status: string | null | undefine
 
 function scheduleStatusRefresh(refreshOrder: (() => Promise<ResolvedOrder | null>) | null): void {
   clearStatusRefreshTimer()
-  if (!refreshOrder || !isPending.value || refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS) {
+  if (!refreshOrder || !isPending.value || (!isRetailOrder.value && refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS)) {
     return
   }
 
@@ -370,6 +403,7 @@ onMounted(async () => {
   if (restored?.orderId) {
     orderId = restored.orderId
   }
+  recoveryRetailQuote.value = restored?.retailQuote || null
   if (restored?.currency) {
     currency.value = normalizePaymentCurrency(restored.currency)
   }
@@ -399,7 +433,9 @@ onMounted(async () => {
 
   if (!order.value && orderId && (!resumeToken || routeOrderId > 0)) {
     try {
-      setResolvedOrder(await paymentStore.pollOrderStatus(orderId))
+      const ownedOrder = await paymentStore.pollOrderStatus(orderId)
+      authenticatedOrderLoaded.value = !!ownedOrder
+      setResolvedOrder(ownedOrder)
     } catch (_err: unknown) {
       // Order lookup failed, will try legacy fallback below when possible.
     }
@@ -424,7 +460,18 @@ onMounted(async () => {
     }
   }
 
+  if (orderId > 0 && !authenticatedOrderLoaded.value && order.value?.payment_type === 'squarespace') {
+    try {
+      const ownedOrder = await paymentStore.pollOrderStatus(orderId)
+      if (ownedOrder) { authenticatedOrderLoaded.value = true; setResolvedOrder(ownedOrder) }
+    } catch { /* Public status remains visible when an authenticated read is unavailable. */ }
+  }
+
   const refreshOrder = async (): Promise<ResolvedOrder | null> => {
+    if (authenticatedOrderLoaded.value && orderId > 0) {
+      const ownedOrder = await paymentStore.pollOrderStatus(orderId)
+      if (ownedOrder) return ownedOrder
+    }
     if (resumeToken) {
       const resolvedOrder = await resolveOrderFromResumeToken(resumeToken)
       if (resolvedOrder) {
@@ -434,7 +481,9 @@ onMounted(async () => {
 
     if (orderId) {
       try {
-        return await paymentStore.pollOrderStatus(orderId)
+        const ownedOrder = await paymentStore.pollOrderStatus(orderId)
+        if (ownedOrder) authenticatedOrderLoaded.value = true
+        return ownedOrder
       } catch (_err: unknown) {
         // Fall through to legacy public verification when order polling is unavailable.
       }

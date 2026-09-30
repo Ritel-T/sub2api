@@ -52,6 +52,7 @@ vi.mock('@/api/payment', () => ({
 }))
 
 import PaymentResultView from '../PaymentResultView.vue'
+import SquarespaceReceiptClaim from '@/components/payment/SquarespaceReceiptClaim.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 import { formatPaymentAmount } from '@/components/payment/currency'
 
@@ -105,6 +106,80 @@ describe('PaymentResultView', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('offers receipt claim for an authenticated owned order even after its quote expired, then trusts only completed status', async () => {
+    routeState.query = { order_id: '42' }
+    const owned = { ...orderFactory('EXPIRED'), payment_type: 'squarespace', payment_claim_mode: 'receipt_otp', expires_at: '2020-01-01T00:00:00Z' }
+    pollOrderStatus.mockResolvedValue(owned)
+    const wrapper = mount(PaymentResultView, { global: { stubs: { OrderStatusBadge: true } } })
+    await flushPromises()
+    const claimForm = wrapper.findComponent(SquarespaceReceiptClaim)
+    expect(claimForm.exists()).toBe(true)
+    expect(claimForm.props('orderId')).toBe(42)
+    expect(refreshUser).not.toHaveBeenCalled()
+    claimForm.vm.$emit('updated', { ...owned, status: 'COMPLETED' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('payment.result.success')
+    expect(refreshUser).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('requires support for a cancelled owned order and never exposes an OTP claim form', async () => {
+    routeState.query = { order_id: '42' }
+    pollOrderStatus.mockResolvedValue({ ...orderFactory('CANCELLED'), payment_type: 'squarespace', payment_claim_mode: 'receipt_otp' })
+    const wrapper = mount(PaymentResultView, { global: { stubs: { OrderStatusBadge: true } } })
+    await flushPromises()
+    expect(wrapper.findComponent(SquarespaceReceiptClaim).exists()).toBe(false)
+    expect(wrapper.text()).toContain('paymentRetail.claim.cancelledManual')
+    expect(refreshUser).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('never shows a receipt claim form from an anonymous result without an authenticated owned-order read', async () => {
+    routeState.query = { resume_token: 'public-square' }
+    resolveOrderPublicByResumeToken.mockResolvedValue({ data: { ...orderFactory('EXPIRED'), payment_type: 'squarespace', payment_claim_mode: 'receipt_otp' } })
+    pollOrderStatus.mockResolvedValue(null)
+    const wrapper = mount(PaymentResultView, { global: { stubs: { OrderStatusBadge: true } } })
+    await flushPromises()
+    expect(wrapper.findComponent(SquarespaceReceiptClaim).exists()).toBe(false)
+    expect(refreshUser).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps an anonymous retail PAID or RECHARGING result pending until credit completes', async () => {
+    vi.useFakeTimers()
+    routeState.query = { resume_token: 'retail-resume', status: 'success' }
+    const publicOrder = { out_trade_no: 'retail-42', paid: true, created_at: '2026-09-29T12:00:00Z', expires_at: '2099-01-01T00:00:00Z', retail_pricing: true }
+    resolveOrderPublicByResumeToken.mockResolvedValueOnce({ data: { ...publicOrder, status: 'PAID' } })
+      .mockResolvedValueOnce({ data: { ...publicOrder, status: 'RECHARGING' } })
+      .mockResolvedValueOnce({ data: { ...publicOrder, status: 'COMPLETED' } })
+    const wrapper = mount(PaymentResultView, { global: { stubs: { OrderStatusBadge: true } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('paymentRetail.creditProcessing')
+    expect(wrapper.text()).not.toContain('payment.result.success')
+    expect(refreshUser).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(wrapper.text()).not.toContain('payment.result.success')
+    await vi.advanceTimersByTimeAsync(2000)
+    await flushPromises()
+    expect(wrapper.text()).toContain('payment.result.success')
+    expect(refreshUser).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('renders retail GBP product costs from the stored quote without reversing a gateway fee', async () => {
+    routeState.query = { order_id: '42' }
+    pollOrderStatus.mockResolvedValue({ ...orderFactory('COMPLETED'), amount: 10, pay_amount: 8.42, currency: 'GBP', fee_rate: 99, payment_type: 'squarespace',
+      retail_quote: { credited_amount_usd: 10, base_amount_gbp: 8, included_cost_gbp: 0.42, total_amount_gbp: 8.42, pay_amount: 8.42, currency: 'GBP' } })
+    const wrapper = mount(PaymentResultView, { global: { stubs: { OrderStatusBadge: true } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('£8.42 GBP')
+    expect(wrapper.text()).toContain('£0.42 GBP')
+    expect(wrapper.text()).toContain('$10.00 USD')
+    expect(wrapper.text()).not.toContain('99%')
+    expect(wrapper.text()).not.toContain('payment.orders.baseAmount')
+    wrapper.unmount()
   })
 
   it('renders a pending state instead of a failure state when the restored order is still pending', async () => {

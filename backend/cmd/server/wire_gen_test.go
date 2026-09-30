@@ -95,6 +95,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // accountTokenGuardV2
 		nil, // backupSvc
 		nil, // paymentOrderExpiry
+		nil, // squarespacePaymentBridge
 		nil, // channelMonitorRunner
 		nil, // channelMonitorV2Aggregator
 		nil, // quotaFlusher

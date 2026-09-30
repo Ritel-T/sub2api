@@ -43,6 +43,7 @@ vi.mock('qrcode', () => ({
 }))
 
 import PaymentStatusPanel from '../PaymentStatusPanel.vue'
+import SquarespaceReceiptClaim from '../SquarespaceReceiptClaim.vue'
 
 const orderFactory = (status: string) => ({
   id: 42,
@@ -71,6 +72,46 @@ describe('PaymentStatusPanel', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('allows an expired owned receipt order to be claimed without reopening the expired payment link', async () => {
+    const wrapper = mount(PaymentStatusPanel, { props: { orderId: 42, qrCode: '', expiresAt: '2020-01-01T00:00:00Z', paymentType: 'squarespace', orderType: 'balance', paymentClaimMode: 'receipt_otp', accountEmail: 'mine@example.com' }, global: { stubs: { Icon: true } } })
+    await flushPromises()
+    expect(wrapper.findComponent(SquarespaceReceiptClaim).exists()).toBe(true)
+    expect(wrapper.find('[data-test="open-squarespace-checkout"]').exists()).toBe(false)
+    expect(wrapper.emitted('success')).toBeUndefined()
+    wrapper.findComponent(SquarespaceReceiptClaim).vm.$emit('updated', { ...orderFactory('COMPLETED'), payment_type: 'squarespace' })
+    await flushPromises()
+    expect(wrapper.emitted('success')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('does not offer receipt OTP after the server reports cancellation and asks for manual support', async () => {
+    pollOrderStatus.mockResolvedValue({ ...orderFactory('CANCELLED'), payment_type: 'squarespace' })
+    const wrapper = mount(PaymentStatusPanel, { props: { orderId: 42, qrCode: '', expiresAt: '2099-01-01T00:00:00Z', paymentType: 'squarespace', orderType: 'balance', paymentClaimMode: 'receipt_otp' }, global: { stubs: { Icon: true } } })
+    await vi.advanceTimersByTimeAsync(3000)
+    await flushPromises()
+    expect(wrapper.findComponent(SquarespaceReceiptClaim).exists()).toBe(false)
+    expect(wrapper.text()).toContain('paymentRetail.claim.cancelledManual')
+    expect(wrapper.emitted('success')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('keeps retail PAID and RECHARGING pending until the balance is COMPLETED', async () => {
+    pollOrderStatus.mockResolvedValueOnce({ ...orderFactory('PAID'), payment_type: 'squarespace' })
+      .mockResolvedValueOnce({ ...orderFactory('RECHARGING'), payment_type: 'squarespace' })
+      .mockResolvedValueOnce({ ...orderFactory('COMPLETED'), payment_type: 'squarespace' })
+    const wrapper = mount(PaymentStatusPanel, { props: { orderId: 42, qrCode: '', expiresAt: '2099-01-01T12:30:00Z', paymentType: 'squarespace', orderType: 'balance' }, global: { stubs: { Icon: true } } })
+    await vi.advanceTimersByTimeAsync(3000)
+    await flushPromises()
+    expect(wrapper.text()).toContain('paymentRetail.creditProcessing')
+    expect(wrapper.emitted('success')).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(wrapper.emitted('success')).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(3000)
+    await flushPromises()
+    expect(wrapper.emitted('success')).toHaveLength(1)
+    wrapper.unmount()
   })
 
   it('treats RECHARGING as a successful terminal state', async () => {

@@ -5,6 +5,7 @@
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
       <template v-else>
+        <p v-if="checkout.merchant_test_access" data-test="merchant-test-access" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{{ t('paymentRetail.merchantTest') }}</p>
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
         <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
           <button v-for="tab in tabs" :key="tab.key"
@@ -26,6 +27,9 @@
             :currency="paymentState.currency || selectedCurrency"
             :out-trade-no="paymentState.outTradeNo"
             :mobile-alipay-deep-link="paymentState.alipayMobilePrecreateDeepLink"
+            :retail-quote="paymentState.retailQuote"
+            :payment-claim-mode="paymentState.paymentClaimMode"
+            :account-email="user?.email"
             @done="onPaymentDone"
             @success="onPaymentSuccess"
             @settled="onPaymentSettled"
@@ -50,6 +54,8 @@
             </div>
             <template v-else>
             <div class="card p-6">
+              <p v-if="retailPricingEnabled" class="mb-2 text-sm font-medium">{{ t('paymentRetail.amountLabel') }}</p>
+              <p v-if="retailPricingEnabled" class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('paymentRetail.amountHint') }}</p>
               <AmountInput
                 v-model="amount"
                 :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
@@ -65,7 +71,21 @@
                 @select="selectedMethod = $event"
               />
             </div>
-            <div v-if="validAmount > 0" class="card p-6">
+            <div v-if="retailPricingEnabled && validAmount > 0" class="card space-y-4 p-6">
+              <p v-if="quoteLoading" class="text-sm text-gray-500">{{ t('paymentRetail.loading') }}</p>
+              <template v-else-if="retailQuote">
+                <RetailQuoteSummary :quote="retailQuote" />
+                <p class="text-xs text-gray-500">{{ t('paymentRetail.expires', { time: quoteExpiryLabel }) }}</p>
+                <p v-if="quoteExpired" class="text-sm text-amber-600">{{ t('paymentRetail.expired') }}</p>
+                <label v-else class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input v-model="quoteConfirmed" data-test="confirm-retail-quote" type="checkbox" class="mt-1" />
+                  <span>{{ t('paymentRetail.confirm') }}</span>
+                </label>
+              </template>
+              <p v-else-if="quoteFailed" class="text-sm text-amber-600">{{ t('paymentRetail.unavailable') }}</p>
+              <button v-if="quoteExpired || quoteFailed" data-test="refresh-retail-quote" class="btn btn-secondary" :disabled="quoteLoading" @click="refreshRetailQuote">{{ t('paymentRetail.refresh') }}</button>
+            </div>
+            <div v-else-if="validAmount > 0" class="card p-6">
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
@@ -88,11 +108,12 @@
                 </p>
               </div>
             </div>
-            <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
+            <button data-test="create-recharge-order" :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
               <span v-if="submitting" class="flex items-center justify-center gap-2">
                 <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                 {{ t('common.processing') }}
               </span>
+              <span v-else-if="retailPricingEnabled">{{ t('paymentRetail.createOrder') }}<template v-if="retailQuote && !quoteExpired"> {{ formatPaymentAmount(retailQuote.pay_amount, retailQuote.currency, localeCode) }} {{ retailQuote.currency }}</template></span>
               <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
             </button>
             </template>
@@ -275,7 +296,7 @@ import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
+import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType, PaymentQuoteRequest } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
@@ -294,6 +315,9 @@ import {
 import { platformAccentBarClass, platformBadgeLightClass, platformBadgeClass, platformTextClass, platformLabel } from '@/utils/platformColors'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
+import RetailQuoteSummary from '@/components/payment/RetailQuoteSummary.vue'
+import { useRetailQuote } from '@/components/payment/useRetailQuote'
+import { isRetailQuote } from '@/components/payment/retailQuote'
 import Icon from '@/components/icons/Icon.vue'
 import { DEFAULT_PAYMENT_CURRENCY, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import { planValiditySuffix as validitySuffixOf } from '@/components/payment/validity'
@@ -335,6 +359,7 @@ const amount = ref<number | null>(null)
 const selectedMethod = ref('')
 const selectedPlan = ref<SubscriptionPlan | null>(null)
 const previewImage = ref('')
+const retailWechatOpenid = ref('')
 
 const paymentPhase = ref<'select' | 'paying'>('select')
 
@@ -344,6 +369,7 @@ interface CreateOrderOptions {
   paymentType?: string
   isResume?: boolean
   mobileQrFallbackAttempted?: boolean
+  quoteToken?: string
 }
 
 interface WeixinJSBridgeLike {
@@ -540,6 +566,19 @@ watch(tabs, (available) => {
 const visibleMethods = computed(() => getVisibleMethods(checkout.value.methods))
 const enabledMethods = computed(() => Object.keys(visibleMethods.value))
 const validAmount = computed(() => amount.value ?? 0)
+const retailPricingEnabled = computed(() => checkout.value.balance_retail_pricing_enabled === true)
+const quoteRequest = computed<PaymentQuoteRequest | null>(() => {
+  if (!retailPricingEnabled.value || activeTab.value !== 'recharge' || paymentPhase.value !== 'select'
+    || validAmount.value <= 0 || !selectedMethod.value
+    || (checkout.value.global_min > 0 && validAmount.value < checkout.value.global_min)
+    || (checkout.value.global_max > 0 && validAmount.value > checkout.value.global_max)) return null
+  return { amount: validAmount.value, payment_type: selectedMethod.value, order_type: 'balance' }
+})
+const {
+  response: quoteResponse, quote: retailQuote, loading: quoteLoading, failed: quoteFailed,
+  confirmed: quoteConfirmed, expired: quoteExpired, current: retailQuoteCurrent, refresh: refreshRetailQuote,
+} = useRetailQuote(quoteRequest)
+const quoteExpiryLabel = computed(() => retailQuote.value ? new Date(retailQuote.value.expires_at).toLocaleTimeString() : '')
 const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
   return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
@@ -570,12 +609,14 @@ function amountFitsMethod(amt: number, methodType: string): boolean {
 
 // Visible methods decide the amount range shown to users.
 const globalMinAmount = computed(() => {
+  if (retailPricingEnabled.value) return checkout.value.global_min
   const limits = Object.values(visibleMethods.value)
   if (limits.length === 0) return 0
   if (limits.some(limit => limit.single_min <= 0)) return 0
   return Math.min(...limits.map(limit => limit.single_min))
 })
 const globalMaxAmount = computed(() => {
+  if (retailPricingEnabled.value) return checkout.value.global_max
   const limits = Object.values(visibleMethods.value)
   if (limits.length === 0) return 0
   if (limits.some(limit => limit.single_max <= 0)) return 0
@@ -637,8 +678,8 @@ const methodOptions = computed<PaymentMethodOption[]>(() =>
     return {
       type,
       display_name: ml?.display_name,
-      fee_rate: ml?.fee_rate ?? 0,
-      available: ml?.available !== false && amountFitsMethod(validAmount.value, type),
+      fee_rate: retailPricingEnabled.value ? 0 : ml?.fee_rate ?? 0,
+      available: ml?.available !== false && (retailPricingEnabled.value || amountFitsMethod(validAmount.value, type)),
     }
   })
 )
@@ -657,6 +698,11 @@ const totalAmount = computed(() =>
 
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''
+  if (retailPricingEnabled.value) {
+    if (globalMinAmount.value > 0 && validAmount.value < globalMinAmount.value) return t('payment.amountTooLow', { min: formatPaymentAmount(globalMinAmount.value, 'USD', localeCode.value) })
+    if (globalMaxAmount.value > 0 && validAmount.value > globalMaxAmount.value) return t('payment.amountTooHigh', { max: formatPaymentAmount(globalMaxAmount.value, 'USD', localeCode.value) })
+    return ''
+  }
   // No method can handle this amount
   if (!enabledMethods.value.some((m) => amountFitsMethod(validAmount.value, m))) {
     return t('payment.amountNoMethod')
@@ -670,8 +716,10 @@ const amountError = computed(() => {
   return ''
 })
 
-const canSubmit = computed(() =>
-  validAmount.value > 0
+const canSubmit = computed(() => retailPricingEnabled.value
+  ? !!retailQuote.value && quoteConfirmed.value && !quoteExpired.value && !quoteLoading.value && !amountError.value
+    && amountFitsMethod(retailQuote.value.pay_amount, selectedMethod.value) && selectedLimit.value?.available !== false
+  : validAmount.value > 0
     && amountFitsMethod(validAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
@@ -708,20 +756,26 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
       type,
       display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
-      available: ml?.available !== false && amountFitsMethod(subscriptionTotalAmountForCurrency(price, currency), type),
+      available: type !== 'squarespace' && ml?.available !== false && amountFitsMethod(subscriptionTotalAmountForCurrency(price, currency), type),
     }
   })
 })
 
 const canSubmitSubscription = computed(() =>
   selectedPlan.value !== null
+    && selectedMethod.value !== 'squarespace'
     && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
 
+watch([activeTab, selectedPlan], () => {
+  if (activeTab.value !== 'subscription' || selectedMethod.value !== 'squarespace') return
+  selectedMethod.value = subMethodOptions.value.find(method => method.available)?.type || ''
+})
+
 // Auto-switch to first available method when current selection can't handle the amount
 watch(() => [validAmount.value, selectedMethod.value] as const, ([amt, method]) => {
-  if (amt <= 0 || amountFitsMethod(amt, method)) return
+  if (retailPricingEnabled.value || amt <= 0 || amountFitsMethod(amt, method)) return
   const available = enabledMethods.value.find((m) => amountFitsMethod(amt, m))
   if (available) selectedMethod.value = available
 })
@@ -781,7 +835,14 @@ function closeRenewalModal() {
 
 async function handleSubmitRecharge() {
   if (!canSubmit.value || submitting.value) return
-  await createOrder(validAmount.value, 'balance')
+  if (retailPricingEnabled.value && !retailQuoteCurrent()) {
+    await refreshRetailQuote()
+    return
+  }
+  await createOrder(validAmount.value, 'balance', undefined, {
+    quoteToken: quoteResponse.value?.quote_token,
+    openid: selectedMethod.value === 'wxpay' ? retailWechatOpenid.value || undefined : undefined,
+  })
 }
 
 async function confirmSubscribe() {
@@ -800,6 +861,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       paymentType: requestType,
       orderType,
       planId,
+      quoteToken: options.quoteToken,
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: isMobileDevice(),
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
@@ -813,7 +875,19 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       payload.wechat_resume_token = options.wechatResumeToken
     }
 
+    const confirmedQuote = orderType === 'balance' && options.quoteToken ? retailQuote.value : null
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
+    if (confirmedQuote && (!isRetailQuote(result.retail_quote)
+      || result.amount !== confirmedQuote.credited_amount_usd
+      || result.pay_amount !== confirmedQuote.pay_amount
+      || result.currency !== confirmedQuote.currency
+      || result.retail_quote.credited_amount_usd !== confirmedQuote.credited_amount_usd
+      || result.retail_quote.total_amount_gbp !== confirmedQuote.total_amount_gbp
+      || result.retail_quote.pay_amount !== confirmedQuote.pay_amount
+      || result.retail_quote.currency !== confirmedQuote.currency
+      || result.retail_quote.product_id !== confirmedQuote.product_id)) {
+      throw new Error(t('paymentRetail.unavailable'))
+    }
     const openWindow = (url: string) => {
       const win = window.open(url, 'paymentPopup', getPaymentPopupFeatures())
       if (!win || win.closed) {
@@ -858,6 +932,12 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       stripeRouteUrl,
       airwallexRouteUrl,
     })
+
+    if (decision.kind === 'order_result') {
+      removeRecoverySnapshot()
+      await redirectToPaymentResult(decision.paymentState)
+      return
+    }
 
     if (decision.kind === 'wechat_oauth' && decision.oauth?.authorize_url) {
       window.location.href = buildWechatOAuthAuthorizeUrl(decision.oauth.authorize_url, {
@@ -941,7 +1021,11 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     }
   } catch (err: unknown) {
     const apiErr = err as Record<string, unknown>
-    if (apiErr.reason === 'TOO_MANY_PENDING') {
+    if (orderType === 'balance' && retailPricingEnabled.value && String(apiErr.reason || '').includes('QUOTE')) {
+      await refreshRetailQuote()
+      appStore.showWarning(t('paymentRetail.expired'))
+      return
+    } else if (apiErr.reason === 'TOO_MANY_PENDING') {
       const metadata = apiErr.metadata as Record<string, unknown> | undefined
       errorMessage.value = t('payment.errors.tooManyPending', { max: metadata?.max || '' })
       errorHintMessage.value = ''
@@ -1017,6 +1101,7 @@ function shouldFallbackToDesktopQr(err: unknown, paymentMethod: string, attempte
 }
 
 async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackContext): Promise<boolean> {
+  if (retailPricingEnabled.value && context.orderType === 'balance') return false
   if (!shouldFallbackToDesktopQr(err, context.paymentType, context.attempted)) {
     return false
   }
@@ -1112,6 +1197,10 @@ async function resumeWechatPaymentFromQuery() {
     return
   }
 
+  if (retailPricingEnabled.value && resume.orderType === 'balance') {
+    retailWechatOpenid.value = resume.openid || ''
+    return
+  }
   if (resume.orderAmount > 0 && resume.openid) {
     await createOrder(resume.orderAmount, resume.orderType, resume.planId, {
       openid: resume.openid,

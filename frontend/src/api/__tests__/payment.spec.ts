@@ -22,6 +22,19 @@ describe('payment api', () => {
     post.mockResolvedValue({ data: {} })
   })
 
+  it('requests a server-priced USD balance quote without computing a gateway surcharge', async () => {
+    const payload = { amount: 10, payment_type: 'squarespace', order_type: 'balance' as const }
+    await paymentAPI.quote(payload)
+    expect(post).toHaveBeenCalledWith('/payment/quote', payload)
+  })
+
+  it('uses a bound receipt challenge and verifies only the opaque challenge plus code', async () => {
+    await paymentAPI.requestSquarespaceClaimCode(42, '#1234')
+    expect(post).toHaveBeenCalledWith('/payment/squarespace/claim-challenge', { local_order_id: 42, receipt_order_number: '#1234' })
+    await paymentAPI.claimSquarespacePayment('bound-token', '123456')
+    expect(post).toHaveBeenCalledWith('/payment/squarespace/claim', { challenge_token: 'bound-token', code: '123456' })
+  })
+
   it('keeps legacy public out_trade_no verification for upgrade compatibility', async () => {
     await paymentAPI.verifyOrderPublic('legacy-order-no')
 

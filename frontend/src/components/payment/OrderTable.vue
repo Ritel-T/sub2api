@@ -14,11 +14,16 @@
     </template>
     <template #cell-pay_amount="{ value, row }">
       <div class="text-sm">
-        <span class="font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(row) }}{{ value.toFixed(2) }}</span>
-        <span v-if="row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
+        <span class="font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(row) }}{{ value.toFixed(2) }}<template v-if="row.retail_quote"> {{ row.retail_quote.currency }}</template></span>
+        <span v-if="!row.retail_quote && row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
           ({{ t('payment.orders.fee') }} {{ row.fee_rate }}%)
         </span>
-        <div v-if="row.amount !== row.pay_amount" class="text-xs text-gray-500">
+        <div v-if="row.retail_quote" class="space-y-1 text-xs text-gray-500">
+          <div>{{ t('paymentRetail.credited') }}: {{ creditedAmountSymbol }}{{ row.retail_quote.credited_amount_usd.toFixed(2) }} USD</div>
+          <div>{{ t('paymentRetail.total') }}: £{{ row.retail_quote.total_amount_gbp.toFixed(2) }} GBP</div>
+          <div>{{ t('paymentRetail.includedCost') }}: £{{ row.retail_quote.included_cost_gbp.toFixed(2) }} GBP</div>
+        </div>
+        <div v-else-if="row.amount !== row.pay_amount" class="text-xs text-gray-500">
           {{ t('payment.orders.creditedAmount') }}: {{ creditedAmountSymbol }}{{ row.amount.toFixed(2) }}
         </div>
       </div>

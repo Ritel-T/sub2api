@@ -1,3 +1,5 @@
+import paymentRetail from './paymentRetail'
+import squarespaceProvider from './squarespaceProvider'
 import priorityScheduling from './priorityScheduling'
 import qualityOps from './qualityOps'
 import accountOps from './accountOps'
@@ -17,6 +19,8 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  paymentRetail,
+  squarespaceProvider,
   autoConfig,
   priorityScheduling,
   qualityOps,

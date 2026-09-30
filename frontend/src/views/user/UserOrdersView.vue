@@ -18,6 +18,9 @@
       <OrderTable :orders="orders" :loading="loading">
         <template #actions="{ row }">
           <div class="flex items-center gap-2">
+            <button v-if="row.payment_type === 'squarespace' && (row.retail_quote?.payment_claim_mode || row.payment_claim_mode) === 'receipt_otp'" data-test="open-square-order" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:text-primary-400" @click="router.push({ path: '/payment/result', query: { order_id: String(row.id) } })">
+              {{ t(['PENDING', 'EXPIRED'].includes(row.status) ? 'paymentRetail.claim.openOrder' : 'paymentRetail.claim.viewResult') }}
+            </button>
             <button v-if="row.status === 'PENDING'" @click="handleCancel(row.id)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-yellow-600 hover:bg-yellow-50 dark:text-yellow-400 dark:hover:bg-yellow-900/20">
               <Icon name="x" size="sm" />
               <span>{{ t('payment.orders.cancel') }}</span>
@@ -43,7 +46,7 @@
 
     <!-- Cancel Confirm Dialog -->
     <BaseDialog :show="!!cancelTargetId" :title="t('payment.orders.cancel')" width="narrow" @close="cancelTargetId = null">
-      <p class="text-sm text-gray-600 dark:text-gray-300">{{ t('payment.confirmCancel') }}</p>
+      <p class="text-sm text-gray-600 dark:text-gray-300">{{ t(orders.find(order => order.id === cancelTargetId)?.payment_type === 'squarespace' ? 'paymentRetail.claim.cancelHint' : 'payment.confirmCancel') }}</p>
       <template #footer>
         <div class="flex justify-end gap-3">
           <button class="btn btn-secondary" @click="cancelTargetId = null">{{ t('common.cancel') }}</button>
@@ -173,6 +176,7 @@ async function confirmRefund() {
 }
 
 function canRequestRefund(order: PaymentOrder): boolean {
+  if (order.payment_type === 'squarespace') return false
   if (order.status !== 'COMPLETED') return false
   if (!order.provider_instance_id) return false
   return refundEligibleProviders.value.has(order.provider_instance_id)

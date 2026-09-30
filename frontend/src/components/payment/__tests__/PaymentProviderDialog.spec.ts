@@ -17,6 +17,19 @@ const messages: Record<string, string> = {
   'admin.settings.payment.paymentGuideTrigger': 'View payment guide',
   'admin.settings.payment.alipayGuideSummary': 'Desktop prefers QR precreate and falls back to cashier; mobile prefers WAP checkout.',
   'admin.settings.payment.wxpayGuideSummary': 'Desktop prefers Native QR; mobile routes to JSAPI or H5 based on browser context.',
+  'squarespaceProvider.name': 'Card / Squarespace',
+  'squarespaceProvider.guideSummary': 'Use the hosted Pay Link and verify the receipt email.',
+  'squarespaceProvider.guideNote': 'Merchant authorization is securely imported. Automatic refunds and Webhooks are unavailable.',
+  'squarespaceProvider.guideReferenceSummary': 'Enter the top-up reference in the required configured Pay Link field.',
+  'squarespaceProvider.guideReferenceNote': 'Reference mode requires a configured required field.',
+  'squarespaceProvider.field_paymentClaimMode': 'Payment claim method',
+  'squarespaceProvider.claimModeReceiptOTP': 'Receipt email verification',
+  'squarespaceProvider.claimModeReference': 'Required payment form reference',
+  'squarespaceProvider.field_productId': 'Pay Link product ID',
+  'squarespaceProvider.validationProductId': 'Use a 24-character hexadecimal product ID.',
+  'squarespaceProvider.field_websiteId': 'Website ID',
+  'squarespaceProvider.field_payLinkUrl': 'Pay Link',
+  'squarespaceProvider.field_referenceFieldLabel': 'Top-up reference field',
   'admin.settings.payment.airwallexGuideSummary': 'Use Payment Acceptance read/write only.',
   'admin.settings.payment.stripeWebhookHint': 'Configure Stripe webhook.',
   'admin.settings.payment.stripeWebhookApiVersionHint': 'Use Stripe API version {version}.',
@@ -65,12 +78,14 @@ function mountDialog(options: { editing?: ProviderInstance | null } = {}) {
         { value: 'wxpay', label: 'WeChat Pay' },
         { value: 'stripe', label: 'Stripe' },
         { value: 'airwallex', label: 'Airwallex' },
+        { value: 'squarespace', label: 'Card / Squarespace' },
       ],
       enabledKeyOptions: [
         { value: 'easypay', label: 'EasyPay' },
         { value: 'alipay', label: 'Alipay' },
         { value: 'wxpay', label: 'WeChat Pay' },
         { value: 'airwallex', label: 'Airwallex' },
+        { value: 'squarespace', label: 'Card / Squarespace' },
       ],
       allPaymentTypes: [
         { value: 'alipay', label: 'Alipay' },
@@ -134,6 +149,7 @@ describe('PaymentProviderDialog payment guide', () => {
     ['alipay', 'admin.settings.payment.alipayGuideSummary'],
     ['wxpay', 'admin.settings.payment.wxpayGuideSummary'],
     ['airwallex', 'admin.settings.payment.airwallexGuideSummary'],
+    ['squarespace', 'squarespaceProvider.guideSummary'],
   ])('shows the payment guide summary for %s', async (providerKey, summaryKey) => {
     const wrapper = mountDialog()
 
@@ -275,5 +291,122 @@ describe('PaymentProviderDialog payment guide', () => {
     await wrapper.find('form').trigger('submit.prevent')
 
     expect(wrapper.emitted('save')).toBeUndefined()
+  })
+})
+
+describe('PaymentProviderDialog Squarespace', () => {
+  it('saves GBP public metadata without refund flags, OAuth credentials, or callbacks', async () => {
+    const provider = providerFactory({
+      provider_key: 'squarespace',
+      name: 'Card / Squarespace',
+      supported_types: ['squarespace'],
+      refund_enabled: true,
+      allow_user_refund: true,
+      config: {
+        websiteId: 'site_123',
+        productId: ' 0123456789ABCDEF01234567 ',
+        payLinkUrl: 'https://merchant.squarespace.com/pay-link/123',
+        currency: 'CNY',
+        referenceFieldLabel: 'RynexAI top-up reference',
+        accessToken: 'must-not-submit',
+        notifyUrl: 'https://site.example/api/v1/payment/webhook/squarespace',
+      },
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    expect(wrapper.text()).not.toContain('admin.settings.payment.refundEnabled')
+    expect(wrapper.text()).not.toContain('admin.settings.payment.allowUserRefund')
+    expect(wrapper.findAll('textarea')).toHaveLength(0)
+    expect(wrapper.text()).not.toContain(messages['squarespaceProvider.field_referenceFieldLabel'])
+    expect(wrapper.text()).toContain(messages['squarespaceProvider.guideSummary'])
+    expect(wrapper.text()).not.toContain('/api/v1/payment/webhook/squarespace')
+    await wrapper.find('form').trigger('submit.prevent')
+
+    const payload = wrapper.emitted('save')?.[0]?.[0] as {
+      provider_key: string
+      config: Record<string, string>
+      supported_types: string[]
+      refund_enabled: boolean
+      allow_user_refund: boolean
+      payment_mode: string
+    }
+    expect(payload.provider_key).toBe('squarespace')
+    expect(payload.supported_types).toEqual(['squarespace'])
+    expect(payload.refund_enabled).toBe(false)
+    expect(payload.allow_user_refund).toBe(false)
+    expect(payload.payment_mode).toBe('')
+    expect(payload.config).toEqual({
+      websiteId: 'site_123',
+      productId: '0123456789abcdef01234567',
+      payLinkUrl: 'https://merchant.squarespace.com/pay-link/123',
+      currency: 'GBP',
+      paymentClaimMode: 'receipt_otp',
+    })
+    wrapper.unmount()
+  })
+
+  it('retains the future reference mode and its exact form field when explicitly configured', async () => {
+    const provider = providerFactory({
+      provider_key: 'squarespace',
+      supported_types: ['squarespace'],
+      config: {
+        websiteId: 'site_123',
+        productId: '0123456789abcdef01234567',
+        payLinkUrl: 'https://merchant.squarespace.com/pay-link/',
+        currency: 'GBP',
+        paymentClaimMode: 'reference',
+        referenceFieldLabel: 'Configured top-up reference',
+      },
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    expect(wrapper.text()).toContain(messages['squarespaceProvider.field_referenceFieldLabel'])
+    expect(wrapper.text()).toContain(messages['squarespaceProvider.guideReferenceSummary'])
+    expect(wrapper.text()).not.toContain(messages['squarespaceProvider.guideSummary'])
+    await wrapper.find('form').trigger('submit.prevent')
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
+    expect(payload.config.paymentClaimMode).toBe('reference')
+    expect(payload.config.referenceFieldLabel).toBe('Configured top-up reference')
+    wrapper.unmount()
+  })
+
+  it.each(['', 'another-product', '0123456789abcdef0123456'])('blocks missing or invalid product ID %s before saving', async productId => {
+    const provider = providerFactory({
+      provider_key: 'squarespace',
+      config: {
+        websiteId: 'site_123',
+        productId,
+        payLinkUrl: 'https://merchant.squarespace.com/pay-link/',
+        currency: 'GBP',
+        paymentClaimMode: 'receipt_otp',
+      },
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    await wrapper.find('form').trigger('submit.prevent')
+    expect(wrapper.emitted('save')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('blocks unrelated or insecure Pay Links before emitting a save', async () => {
+    const provider = providerFactory({
+      provider_key: 'squarespace',
+      config: {
+        websiteId: 'site_123',
+        productId: '0123456789abcdef01234567',
+        payLinkUrl: 'https://evil.example/pay-link/123',
+        currency: 'GBP',
+        referenceFieldLabel: 'RynexAI top-up reference',
+      },
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    await wrapper.find('form').trigger('submit.prevent')
+    expect(wrapper.emitted('save')).toBeUndefined()
+    wrapper.unmount()
   })
 })

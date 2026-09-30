@@ -150,6 +150,20 @@ func (s *PaymentService) reconcilePaid(ctx context.Context, o *dbent.PaymentOrde
 }
 
 func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.PaymentOrder, opts checkPaidOptions) string {
+	if psStringValue(o.ProviderKey) == "squarespace" && PaymentOrderClaimMode(o) == "receipt_otp" {
+		if strings.TrimSpace(o.PaymentTradeNo) == "" {
+			return ""
+		}
+		paid, err := s.ReconcileBoundSquarespaceReceipt(ctx, o)
+		if err != nil {
+			slog.Warn("bound Squarespace receipt reconciliation failed", "orderID", o.ID)
+			return ""
+		}
+		if paid {
+			return checkPaidResultAlreadyPaid
+		}
+		return ""
+	}
 	prov, err := s.getOrderProvider(ctx, o)
 	if err != nil {
 		return ""
@@ -248,6 +262,8 @@ func paymentOrderQueryReference(order *dbent.PaymentOrder, prov payment.Provider
 	}
 
 	switch payment.GetBasePaymentType(providerKey) {
+	case "squarespace":
+		return strings.TrimSpace(order.PaymentTradeNo)
 	case payment.TypeAlipay, payment.TypeEasyPay, payment.TypeWxpay:
 		return strings.TrimSpace(order.OutTradeNo)
 	default:
@@ -406,6 +422,9 @@ func (s *PaymentService) getOrderProvider(ctx context.Context, o *dbent.PaymentO
 		return nil, fmt.Errorf("load order provider instance: %w", err)
 	}
 	if inst != nil {
+		if inst.ProviderKey == "squarespace" {
+			return s.createHistoricalSquarespaceProvider(ctx, inst, o)
+		}
 		return s.createProviderFromInstance(ctx, inst)
 	}
 	if !paymentOrderAllowsRegistryFallback(o) {
@@ -463,6 +482,9 @@ func (s *PaymentService) createProviderFromInstance(ctx context.Context, inst *d
 		cfg["paymentMode"] = inst.PaymentMode
 	}
 
+	if inst.ProviderKey == "squarespace" {
+		return s.createSquarespaceQueryProvider(ctx, inst, cfg)
+	}
 	instID := strconv.FormatInt(int64(inst.ID), 10)
 	prov, err := createPaymentProviderFromInstance(inst.ProviderKey, instID, cfg)
 	if err != nil {

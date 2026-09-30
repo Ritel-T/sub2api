@@ -66,11 +66,23 @@ type IdentityAdoptionDecision func(*sql.Selector)
 // PaymentAuditLog is the predicate function for paymentauditlog builders.
 type PaymentAuditLog func(*sql.Selector)
 
+// PaymentExternalOrder is the predicate function for paymentexternalorder builders.
+type PaymentExternalOrder func(*sql.Selector)
+
+// PaymentExternalPayment is the predicate function for paymentexternalpayment builders.
+type PaymentExternalPayment func(*sql.Selector)
+
+// PaymentExternalRefundJournal is the predicate function for paymentexternalrefundjournal builders.
+type PaymentExternalRefundJournal func(*sql.Selector)
+
 // PaymentOrder is the predicate function for paymentorder builders.
 type PaymentOrder func(*sql.Selector)
 
 // PaymentProviderInstance is the predicate function for paymentproviderinstance builders.
 type PaymentProviderInstance func(*sql.Selector)
+
+// PaymentSyncState is the predicate function for paymentsyncstate builders.
+type PaymentSyncState func(*sql.Selector)
 
 // PendingAuthSession is the predicate function for pendingauthsession builders.
 type PendingAuthSession func(*sql.Selector)

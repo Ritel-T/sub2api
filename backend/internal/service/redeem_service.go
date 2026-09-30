@@ -478,6 +478,9 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 
 	// 将事务放入 context，使 repository 方法能够使用同一事务
 	txCtx := dbent.NewTxContext(ctx, tx)
+	if err := lockPaymentRedemptionGuard(txCtx, tx, s.entClient, userID, code); err != nil {
+		return nil, err
+	}
 
 	// 【关键】先标记兑换码为已使用，确保并发安全
 	// 利用数据库乐观锁（WHERE status = 'unused'）保证原子性

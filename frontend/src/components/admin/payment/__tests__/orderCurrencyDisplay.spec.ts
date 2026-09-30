@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import type { PaymentOrder } from '@/types/payment'
+import type { PaymentOrder, RetailQuote } from '@/types/payment'
 import AdminOrderDetail from '../AdminOrderDetail.vue'
 import AdminOrderTable from '../AdminOrderTable.vue'
 import AdminRefundDialog from '../AdminRefundDialog.vue'
@@ -149,5 +149,62 @@ describe('admin order currency display', () => {
     expect(text).toContain('$108.00')
     expect(text).toContain('¥108.00')
     expect(text).toContain('$100.00')
+  })
+})
+
+const retailQuote: RetailQuote = {
+  credited_amount_usd: 10,
+  base_amount_gbp: 7.47,
+  included_cost_gbp: 0.41,
+  total_amount_gbp: 7.88,
+  pay_amount: 75.65,
+  currency: 'CNY',
+  fx: { GBP: 1, USD: 1.34, CNY: 9.6 },
+  fx_source: 'manual',
+  fx_asof: '2026-09-30T00:00:00Z',
+  issued_at: '2026-09-30T00:00:00Z',
+  expires_at: '2026-09-30T00:15:00Z',
+  checkout_reference: 'RXT-TEST',
+}
+
+describe('admin immutable retail order amounts', () => {
+  const order = orderFactory({
+    amount: 10,
+    pay_amount: 75.65,
+    currency: 'CNY',
+    fee_rate: 88,
+    order_type: 'balance',
+    refund_amount: 0,
+    retail_quote: retailQuote,
+  })
+
+  it('shows the stored USD credit, GBP total, included cost, and gateway amount without legacy fee inference', () => {
+    const wrapper = mount(AdminOrderDetail, {
+      props: { show: true, order },
+      global: { stubs: { BaseDialog: BaseDialogStub } },
+    })
+    const text = wrapper.get('[data-testid="admin-retail-order-amounts"]').text()
+    expect(text).toContain('$10.00 USD')
+    expect(text).toContain('£7.88 GBP')
+    expect(text).toContain('£0.41 GBP')
+    expect(text).toContain('¥75.65 CNY')
+    expect(wrapper.text()).not.toContain('payment.orders.baseAmount')
+    expect(wrapper.text()).not.toContain('88%')
+    expect(wrapper.text()).not.toContain('payment.orders.fee')
+    wrapper.unmount()
+  })
+
+  it('shows all four immutable snapshot values in the admin table for any payment method', () => {
+    const wrapper = mount(AdminOrderTable, {
+      props: { orders: [order], loading: false, page: 1, pageSize: 20, total: 1 },
+      global: { stubs: { DataTable: DataTableStub, Icon: true, Pagination: true, Select: true } },
+    })
+    const text = wrapper.get('[data-testid="admin-retail-order-amounts"]').text()
+    expect(text).toContain('$10.00 USD')
+    expect(text).toContain('£7.88 GBP')
+    expect(text).toContain('£0.41 GBP')
+    expect(text).toContain('¥75.65 CNY')
+    expect(wrapper.text()).not.toContain('88%')
+    wrapper.unmount()
   })
 })

@@ -45,7 +45,7 @@
             </svg>
           </div>
           <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.qr.cancelled') }}</p>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.cancelledDesc') }}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t(isReceiptMode ? 'paymentRetail.claim.cancelledManual' : 'payment.qr.cancelledDesc') }}</p>
           <button class="btn btn-primary" @click="handleDone">{{ t('common.confirm') }}</button>
         </div>
       </div>
@@ -65,9 +65,26 @@
           <button class="btn btn-primary" @click="handleDone">{{ t('common.confirm') }}</button>
         </div>
       </div>
+      <SquarespaceReceiptClaim v-if="canClaimReceipt" :order-id="orderId" :account-email="accountEmail" @updated="onClaimUpdated" @refresh="pollStatus" />
     </template>
 
     <!-- ═══ Active States: QR or Popup waiting ═══ -->
+
+    <template v-else-if="retailSettlementPending">
+      <div class="card space-y-4 p-6 text-center">
+        <div class="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+        <p>{{ t('paymentRetail.creditProcessing') }}</p>
+      </div>
+    </template>
+    <template v-else-if="paymentType === 'squarespace' && retailQuote">
+      <SquarespaceCheckoutInstructions :quote="retailQuote" :pay-url="payUrl || ''" :order-number="displayOrderNumber" :order-id="orderId" :account-email="accountEmail" :payment-claim-mode="paymentClaimMode" @updated="onClaimUpdated" @refresh="pollStatus" />
+      <div class="card p-4 text-center">
+        <p class="text-sm text-gray-500">{{ t('payment.qr.expiresIn') }}</p>
+        <p class="mt-1 text-2xl font-bold tabular-nums">{{ countdownDisplay }}</p>
+      </div>
+      <p class="text-xs text-gray-500">{{ t('paymentRetail.claim.cancelHint') }}</p>
+      <button class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">{{ cancelling ? t('common.processing') : t('paymentRetail.claim.cancelLocalOrder') }}</button>
+    </template>
 
     <!-- Mobile Alipay app handoff. The QR fallback stays hidden until launch timeout. -->
     <template v-else-if="isMobileAlipayDeepLink">
@@ -226,8 +243,10 @@ import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import { currencySymbol, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
-import type { PaymentOrder } from '@/types/payment'
+import type { PaymentOrder, RetailQuote, PaymentClaimMode } from '@/types/payment'
 import Icon from '@/components/icons/Icon.vue'
+import SquarespaceCheckoutInstructions from './SquarespaceCheckoutInstructions.vue'
+import SquarespaceReceiptClaim from './SquarespaceReceiptClaim.vue'
 import QRCode from 'qrcode'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
@@ -250,6 +269,9 @@ const props = defineProps<{
   currency?: string
   outTradeNo?: string
   mobileAlipayDeepLink?: boolean
+  retailQuote?: RetailQuote
+  paymentClaimMode?: PaymentClaimMode
+  accountEmail?: string
 }>()
 
 type PaymentOutcome = 'success' | 'cancelled' | 'expired'
@@ -266,6 +288,10 @@ const qrUrl = ref('')
 const remainingSeconds = ref(0)
 const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
+const retailSettlementPending = ref(false)
+const receiptOrderStatus = ref('PENDING')
+const isReceiptMode = computed(() => props.paymentType === 'squarespace' && (props.retailQuote?.payment_claim_mode || props.paymentClaimMode) === 'receipt_otp')
+const canClaimReceipt = computed(() => isReceiptMode.value && props.orderId > 0 && ['PENDING', 'EXPIRED'].includes(receiptOrderStatus.value))
 const deepLinkState = ref<AlipayDeepLinkState>('idle')
 const deepLinkFallbackVisible = ref(false)
 const paymentCurrency = computed(() => normalizePaymentCurrency(props.currency))
@@ -340,6 +366,7 @@ function formatGatewayAmount(value: number, currency?: string | null): string {
 }
 
 function isSuccessStatus(status: string | null | undefined): boolean {
+  if (props.retailQuote || props.paymentType === 'squarespace') return status === 'COMPLETED'
   return status === 'COMPLETED' || status === 'PAID' || status === 'RECHARGING'
 }
 
@@ -353,6 +380,8 @@ function reopenPopup() {
 }
 
 function setOutcome(next: PaymentOutcome) {
+  if (next === 'cancelled') receiptOrderStatus.value = 'CANCELLED'
+  else if (next === 'expired' && receiptOrderStatus.value === 'PENDING') receiptOrderStatus.value = 'EXPIRED'
   if (outcome.value === next) return
   outcome.value = next
   emit('settled', next)
@@ -413,9 +442,25 @@ async function tryRecoverPendingOrder(order: PaymentOrder): Promise<PaymentOrder
   }
 }
 
+function onClaimUpdated(order: PaymentOrder) {
+  if (order.id !== props.orderId) return
+  receiptOrderStatus.value = order.status
+  if (order.status === 'COMPLETED') {
+    cleanup()
+    paidOrder.value = order
+    setOutcome('success')
+    emit('success')
+  } else {
+    outcome.value = null
+    retailSettlementPending.value = ['PAID', 'RECHARGING', 'PENDING'].includes(order.status)
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+    if (!pollTimer) pollTimer = setInterval(pollStatus, 3000)
+  }
+}
+
 let pollInFlight = false
 async function pollStatus() {
-  if (!props.orderId || outcome.value) return
+  if (!props.orderId || (outcome.value && !canClaimReceipt.value)) return
   // 防重入：接口（含 verifyOrder 二次确认）响应慢于 3 秒轮询间隔时避免并发重叠请求。
   if (pollInFlight) return
   pollInFlight = true
@@ -423,9 +468,16 @@ async function pollStatus() {
     let order = await paymentStore.pollOrderStatus(props.orderId)
     if (!order) return
     // 已进入终态则不再处理迟到的响应。
-    if (outcome.value) return
+    if (outcome.value && !canClaimReceipt.value) return
     order = await tryRecoverPendingOrder(order)
-    if (outcome.value) return
+    receiptOrderStatus.value = order.status
+    if (outcome.value && !canClaimReceipt.value) return
+    if ((props.retailQuote || props.paymentType === 'squarespace') && ['PAID', 'RECHARGING'].includes(order.status)) {
+      outcome.value = null
+      retailSettlementPending.value = true
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+      return
+    }
     if (isSuccessStatus(order.status)) {
       cleanup()
       paidOrder.value = order

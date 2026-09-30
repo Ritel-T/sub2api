@@ -19,13 +19,16 @@ export type OrderStatus =
   | 'REFUNDED'
   | 'REFUND_FAILED'
 
-export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex'
+export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex' | 'squarespace'
 
 export type OrderType = 'balance' | 'subscription'
+
+export type PaymentClaimMode = 'receipt_otp' | 'reference'
 
 // ==================== Configuration ====================
 
 export interface PaymentConfig {
+  merchant_test_access?: boolean
   payment_enabled: boolean
   min_amount: number
   max_amount: number
@@ -34,6 +37,7 @@ export interface PaymentConfig {
   order_timeout_minutes: number
   balance_disabled: boolean
   balance_recharge_multiplier: number
+  balance_retail_pricing_enabled?: boolean
   subscription_usd_to_cny_rate: number
   enabled_payment_types: PaymentType[]
   help_image_url: string
@@ -62,12 +66,15 @@ export interface MethodLimitsResponse {
 
 /** Response from /payment/checkout-info API — single call for the payment page */
 export interface CheckoutInfoResponse {
+  payment_enabled?: boolean
+  merchant_test_access?: boolean
   methods: Record<string, MethodLimit>
   global_min: number
   global_max: number
   plans: SubscriptionPlan[]
   balance_disabled: boolean
   balance_recharge_multiplier: number
+  balance_retail_pricing_enabled?: boolean
   /** Subscription CNY conversion rate (1 USD = X CNY); 0 = disabled, plan price is charged as-is */
   subscription_usd_to_cny_rate: number
   recharge_fee_rate: number
@@ -78,6 +85,42 @@ export interface CheckoutInfoResponse {
   alipay_force_qrcode?: boolean
   /** When true, official Alipay mobile orders use precreate plus an Alipay app deep link */
   alipay_mobile_precreate_deep_link?: boolean
+}
+
+export interface RetailQuote {
+  credited_amount_usd: number
+  base_amount_gbp: number
+  included_cost_gbp: number
+  cost_rate?: number
+  fixed_cost_gbp?: number
+  total_amount_gbp: number
+  pay_amount: number
+  currency: string
+  fx: { GBP: number; USD: number; CNY: number }
+  fx_source: string
+  fx_asof: string
+  issued_at: string
+  expires_at: string
+  checkout_reference: string
+  payment_claim_mode?: PaymentClaimMode
+  product_id?: string
+}
+
+export interface PaymentQuoteRequest {
+  amount: number
+  payment_type: string
+  order_type: 'balance'
+}
+
+export interface SquarespaceClaimChallenge {
+  challenge_token: string
+  expires_at: string
+  resend_after_seconds: number
+}
+
+export interface PaymentQuoteResponse {
+  quote_token: string
+  retail_quote: RetailQuote
 }
 
 // ==================== Orders ====================
@@ -104,6 +147,9 @@ export interface PaymentOrder {
   refund_request_reason?: string
   plan_id?: number
   provider_instance_id?: string
+  retail_quote?: RetailQuote
+  payment_claim_mode?: PaymentClaimMode
+  pay_url?: string
 }
 
 // ==================== Plans & Channels ====================
@@ -170,6 +216,7 @@ export interface CreateOrderRequest {
   amount: number
   payment_type: string
   order_type: string
+  quote_token?: string
   plan_id?: number
   return_url?: string
   payment_source?: string
@@ -199,8 +246,11 @@ export interface WechatJSAPIPayload {
 }
 
 export interface CreateOrderResult {
+  status?: OrderStatus
+  payment_claim_mode?: PaymentClaimMode
   order_id: number
   amount: number
+  retail_quote?: RetailQuote
   pay_url?: string
   qr_code?: string
   client_secret?: string

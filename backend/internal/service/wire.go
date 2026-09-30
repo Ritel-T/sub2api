@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"time"
 
@@ -1015,6 +1016,7 @@ var ProviderSet = wire.NewSet(
 	ProvidePaymentConfigService,
 	ProvidePaymentService,
 	ProvidePaymentOrderExpiryService,
+	ProvideSquarespacePaymentBridge,
 	ProvideBalanceNotifyService,
 	ProvideChannelMonitorService,
 	ProvideChannelMonitorRunner,
@@ -1046,9 +1048,12 @@ func ProvideBalanceNotifyService(emailService *EmailService, settingRepo Setting
 }
 
 // ProvidePaymentService creates PaymentService and attaches notification email delivery.
-func ProvidePaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService, notificationEmailService *NotificationEmailService) *PaymentService {
+func ProvidePaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService, notificationEmailService *NotificationEmailService, emailService *EmailService, redisClient *redis.Client) *PaymentService {
 	svc := NewPaymentService(entClient, registry, loadBalancer, redeemService, subscriptionSvc, configService, userRepo, groupRepo, affiliateService)
 	svc.SetNotificationEmailService(notificationEmailService)
+	if redisClient != nil {
+		svc.SetSquarespaceClaimService(NewSquarespaceClaimService(svc, emailService, &redisSquarespaceClaimCache{client: redisClient}))
+	}
 	return svc
 }
 
@@ -1150,4 +1155,37 @@ func ProvideCRSSyncService(accounts AccountRepository, proxies ProxyRepository, 
 	defaults := &adminServiceImpl{settingService: settings, groupRepo: groups}
 	svc.autoConfigure = defaults.ApplyOAuthAutoConfig
 	return svc
+}
+
+// Redis is kept in this depguard-exempt wiring adapter. The claim service owns
+// purpose-specific Lua and stores no payment recipient in cache plaintext.
+type redisSquarespaceClaimCache struct{ client *redis.Client }
+
+func (c *redisSquarespaceClaimCache) Eval(ctx context.Context, script string, keys []string, args ...any) (any, error) {
+	if c == nil || c.client == nil {
+		return nil, errors.New("claim cache unavailable")
+	}
+	return c.client.Eval(ctx, script, keys, args...).Result()
+}
+func (c *redisSquarespaceClaimCache) Get(ctx context.Context, key string) (string, error) {
+	if c == nil || c.client == nil {
+		return "", errors.New("claim cache unavailable")
+	}
+	v, err := c.client.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return "", nil
+	}
+	return v, err
+}
+func (c *redisSquarespaceClaimCache) Set(ctx context.Context, key, value string, ttl time.Duration) error {
+	if c == nil || c.client == nil {
+		return errors.New("claim cache unavailable")
+	}
+	return c.client.Set(ctx, key, value, ttl).Err()
+}
+func (c *redisSquarespaceClaimCache) Del(ctx context.Context, key string) error {
+	if c == nil || c.client == nil {
+		return errors.New("claim cache unavailable")
+	}
+	return c.client.Del(ctx, key).Err()
 }

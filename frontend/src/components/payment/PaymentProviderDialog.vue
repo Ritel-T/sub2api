@@ -32,8 +32,8 @@
       <!-- Toggles + Payment mode + Supported types (single row) -->
       <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
         <ToggleSwitch :label="t('common.enabled')" :checked="form.enabled" @toggle="form.enabled = !form.enabled" />
-        <ToggleSwitch :label="t('admin.settings.payment.refundEnabled')" :checked="form.refund_enabled" @toggle="form.refund_enabled = !form.refund_enabled; if (!form.refund_enabled) form.allow_user_refund = false" />
-        <ToggleSwitch v-if="form.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="form.allow_user_refund" @toggle="form.allow_user_refund = !form.allow_user_refund" />
+        <ToggleSwitch v-if="supportsRefund" :label="t('admin.settings.payment.refundEnabled')" :checked="form.refund_enabled" @toggle="form.refund_enabled = !form.refund_enabled; if (!form.refund_enabled) form.allow_user_refund = false" />
+        <ToggleSwitch v-if="supportsRefund && form.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="form.allow_user_refund" @toggle="form.allow_user_refund = !form.allow_user_refund" />
         <div v-if="supportsPaymentMode" class="flex items-center gap-2">
           <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.paymentMode') }}</span>
           <div class="flex gap-1.5">
@@ -324,6 +324,9 @@ import {
   PAYMENT_MODE_REDIRECT,
   STRIPE_SDK_API_VERSION,
   getAvailableTypes,
+  getVisibleProviderConfigFields,
+  isValidSquarespacePayLink,
+  isValidSquarespaceProductId,
   extractBaseUrl,
   parseEasyPayCustomMethods,
   serializeEasyPayCustomMethods,
@@ -432,6 +435,7 @@ const providerWebhookHint = computed(() =>
 const callbackPaths = computed(() => PROVIDER_CALLBACK_PATHS[form.provider_key] || null)
 
 const supportsPaymentMode = computed(() => providerSupportsPaymentMode(form.provider_key))
+const supportsRefund = computed(() => form.provider_key !== 'squarespace')
 
 const paymentModeOptions = computed(() => {
   if (form.provider_key === 'alipay') {
@@ -469,10 +473,14 @@ const availableTypes = computed(() => {
 })
 
 const resolvedFields = computed(() => {
-  const fields = PROVIDER_CONFIG_FIELDS[form.provider_key] || []
+  const fields = getVisibleProviderConfigFields(form.provider_key, config)
   return fields.map(f => ({
     ...f,
-    label: f.label || t(`admin.settings.payment.field_${f.key}`),
+    label: f.label || t(f.labelKey || `admin.settings.payment.field_${f.key}`),
+    options: f.options?.map(option => ({
+      ...option,
+      label: option.labelKey ? t(option.labelKey) : option.label,
+    })),
   }))
 })
 
@@ -527,6 +535,14 @@ const paymentGuide = computed<PaymentGuide | null>(() => {
           fallback: t('admin.settings.payment.wxpayGuideH5Fallback'),
         },
       ],
+    }
+  }
+
+  if (form.provider_key === 'squarespace') {
+    return {
+      summary: t(config.paymentClaimMode === 'reference' ? 'squarespaceProvider.guideReferenceSummary' : 'squarespaceProvider.guideSummary'),
+      note: t(config.paymentClaimMode === 'reference' ? 'squarespaceProvider.guideReferenceNote' : 'squarespaceProvider.guideNote'),
+      items: [],
     }
   }
 
@@ -591,6 +607,10 @@ function removeEasyPayCustomMethod(index: number) {
 function onKeyChange() {
   form.supported_types = [...(PROVIDER_SUPPORTED_TYPES[form.provider_key] || [])]
   form.payment_mode = defaultPaymentMode(form.provider_key)
+  if (form.provider_key === 'squarespace') {
+    form.refund_enabled = false
+    form.allow_user_refund = false
+  }
   clearConfig()
   applyDefaults()
 }
@@ -606,7 +626,7 @@ function clearConfig() {
 }
 
 function applyDefaults() {
-  for (const f of PROVIDER_CONFIG_FIELDS[form.provider_key] || []) {
+  for (const f of getVisibleProviderConfigFields(form.provider_key, config)) {
     if (f.defaultValue && !config[f.key]) config[f.key] = f.defaultValue
   }
 }
@@ -671,15 +691,28 @@ function handleSave() {
   // Validate required config fields — all non-optional fields must be filled.
   // In edit mode, sensitive fields may be left blank to preserve the stored
   // value (backend merges blanks by preserving the existing secret).
-  for (const f of PROVIDER_CONFIG_FIELDS[form.provider_key] || []) {
+  for (const f of getVisibleProviderConfigFields(form.provider_key, config)) {
     if (f.optional) continue
     if (props.editing && f.sensitive) continue
     const val = (config[f.key] || '').trim()
     if (!val) {
-      const label = f.label || t(`admin.settings.payment.field_${f.key}`)
+      const label = f.label || t(f.labelKey || `admin.settings.payment.field_${f.key}`)
       emitValidationError(t('admin.settings.payment.validationFieldRequired', { field: label }))
       return
     }
+  }
+
+  if (form.provider_key === 'squarespace' && !isValidSquarespaceProductId(config.productId || '')) {
+    emitValidationError(t('squarespaceProvider.validationProductId'))
+    return
+  }
+  if (form.provider_key === 'squarespace' && !['receipt_otp', 'reference'].includes(config.paymentClaimMode || 'receipt_otp')) {
+    emitValidationError(t('squarespaceProvider.validationClaimMode'))
+    return
+  }
+  if (form.provider_key === 'squarespace' && !isValidSquarespacePayLink(config.payLinkUrl || '')) {
+    emitValidationError(t('squarespaceProvider.validationPayLink'))
+    return
   }
 
   const clearableConfigKeys = new Set(
@@ -688,17 +721,26 @@ function handleSave() {
       .map(field => field.key),
   )
   const filteredConfig: Record<string, string> = {}
+  const publicSquarespaceKeys = new Set((PROVIDER_CONFIG_FIELDS.squarespace || []).map(field => field.key))
   for (const [k, v] of Object.entries(config)) {
+    if (form.provider_key === 'squarespace' && !publicSquarespaceKeys.has(k)) continue
     if (!v || !v.trim()) {
       if (clearableConfigKeys.has(k)) {
         filteredConfig[k] = ''
       }
       continue
     }
-    filteredConfig[k] = v
+    filteredConfig[k] = form.provider_key === 'squarespace' ? v.trim() : v
   }
   if (form.provider_key === 'easypay') {
     filteredConfig.customMethods = serializeEasyPayCustomMethods(normalizedEasyPayCustomMethods())
+  }
+
+  if (form.provider_key === 'squarespace') {
+    filteredConfig.currency = 'GBP'
+    filteredConfig.productId = (filteredConfig.productId || '').toLowerCase()
+    filteredConfig.paymentClaimMode = config.paymentClaimMode || 'receipt_otp'
+    if (filteredConfig.paymentClaimMode === 'receipt_otp') delete filteredConfig.referenceFieldLabel
   }
 
   // Inject computed callback URLs (each URL = independent base + fixed path)
@@ -719,8 +761,8 @@ function handleSave() {
     supported_types: form.supported_types,
     enabled: form.enabled,
     payment_mode: supportsPaymentMode.value ? form.payment_mode : '',
-    refund_enabled: form.refund_enabled,
-    allow_user_refund: form.refund_enabled ? form.allow_user_refund : false,
+    refund_enabled: supportsRefund.value && form.refund_enabled,
+    allow_user_refund: supportsRefund.value && form.refund_enabled ? form.allow_user_refund : false,
     config: filteredConfig,
     limits: serializeLimits(),
   })
@@ -833,6 +875,7 @@ function loadProvider(provider: ProviderInstance) {
     }
   }
   applyDefaults()
+  if (form.provider_key === 'squarespace') config.currency = 'GBP'
   // Parse existing limits
   if (provider.limits) {
     try {

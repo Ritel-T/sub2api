@@ -28,8 +28,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalorder"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalpayment"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalrefundjournal"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
+	"github.com/Wei-Shaw/sub2api/ent/paymentsyncstate"
 	"github.com/Wei-Shaw/sub2api/ent/pendingauthsession"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
@@ -646,6 +650,87 @@ func (f TraversePaymentAuditLog) Traverse(ctx context.Context, q ent.Query) erro
 	return fmt.Errorf("unexpected query type %T. expect *ent.PaymentAuditLogQuery", q)
 }
 
+// The PaymentExternalOrderFunc type is an adapter to allow the use of ordinary function as a Querier.
+type PaymentExternalOrderFunc func(context.Context, *ent.PaymentExternalOrderQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f PaymentExternalOrderFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.PaymentExternalOrderQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.PaymentExternalOrderQuery", q)
+}
+
+// The TraversePaymentExternalOrder type is an adapter to allow the use of ordinary function as Traverser.
+type TraversePaymentExternalOrder func(context.Context, *ent.PaymentExternalOrderQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraversePaymentExternalOrder) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraversePaymentExternalOrder) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.PaymentExternalOrderQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.PaymentExternalOrderQuery", q)
+}
+
+// The PaymentExternalPaymentFunc type is an adapter to allow the use of ordinary function as a Querier.
+type PaymentExternalPaymentFunc func(context.Context, *ent.PaymentExternalPaymentQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f PaymentExternalPaymentFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.PaymentExternalPaymentQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.PaymentExternalPaymentQuery", q)
+}
+
+// The TraversePaymentExternalPayment type is an adapter to allow the use of ordinary function as Traverser.
+type TraversePaymentExternalPayment func(context.Context, *ent.PaymentExternalPaymentQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraversePaymentExternalPayment) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraversePaymentExternalPayment) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.PaymentExternalPaymentQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.PaymentExternalPaymentQuery", q)
+}
+
+// The PaymentExternalRefundJournalFunc type is an adapter to allow the use of ordinary function as a Querier.
+type PaymentExternalRefundJournalFunc func(context.Context, *ent.PaymentExternalRefundJournalQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f PaymentExternalRefundJournalFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.PaymentExternalRefundJournalQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.PaymentExternalRefundJournalQuery", q)
+}
+
+// The TraversePaymentExternalRefundJournal type is an adapter to allow the use of ordinary function as Traverser.
+type TraversePaymentExternalRefundJournal func(context.Context, *ent.PaymentExternalRefundJournalQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraversePaymentExternalRefundJournal) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraversePaymentExternalRefundJournal) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.PaymentExternalRefundJournalQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.PaymentExternalRefundJournalQuery", q)
+}
+
 // The PaymentOrderFunc type is an adapter to allow the use of ordinary function as a Querier.
 type PaymentOrderFunc func(context.Context, *ent.PaymentOrderQuery) (ent.Value, error)
 
@@ -698,6 +783,33 @@ func (f TraversePaymentProviderInstance) Traverse(ctx context.Context, q ent.Que
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.PaymentProviderInstanceQuery", q)
+}
+
+// The PaymentSyncStateFunc type is an adapter to allow the use of ordinary function as a Querier.
+type PaymentSyncStateFunc func(context.Context, *ent.PaymentSyncStateQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f PaymentSyncStateFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.PaymentSyncStateQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.PaymentSyncStateQuery", q)
+}
+
+// The TraversePaymentSyncState type is an adapter to allow the use of ordinary function as Traverser.
+type TraversePaymentSyncState func(context.Context, *ent.PaymentSyncStateQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraversePaymentSyncState) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraversePaymentSyncState) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.PaymentSyncStateQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.PaymentSyncStateQuery", q)
 }
 
 // The PendingAuthSessionFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1202,10 +1314,18 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.IdentityAdoptionDecisionQuery, predicate.IdentityAdoptionDecision, identityadoptiondecision.OrderOption]{typ: ent.TypeIdentityAdoptionDecision, tq: q}, nil
 	case *ent.PaymentAuditLogQuery:
 		return &query[*ent.PaymentAuditLogQuery, predicate.PaymentAuditLog, paymentauditlog.OrderOption]{typ: ent.TypePaymentAuditLog, tq: q}, nil
+	case *ent.PaymentExternalOrderQuery:
+		return &query[*ent.PaymentExternalOrderQuery, predicate.PaymentExternalOrder, paymentexternalorder.OrderOption]{typ: ent.TypePaymentExternalOrder, tq: q}, nil
+	case *ent.PaymentExternalPaymentQuery:
+		return &query[*ent.PaymentExternalPaymentQuery, predicate.PaymentExternalPayment, paymentexternalpayment.OrderOption]{typ: ent.TypePaymentExternalPayment, tq: q}, nil
+	case *ent.PaymentExternalRefundJournalQuery:
+		return &query[*ent.PaymentExternalRefundJournalQuery, predicate.PaymentExternalRefundJournal, paymentexternalrefundjournal.OrderOption]{typ: ent.TypePaymentExternalRefundJournal, tq: q}, nil
 	case *ent.PaymentOrderQuery:
 		return &query[*ent.PaymentOrderQuery, predicate.PaymentOrder, paymentorder.OrderOption]{typ: ent.TypePaymentOrder, tq: q}, nil
 	case *ent.PaymentProviderInstanceQuery:
 		return &query[*ent.PaymentProviderInstanceQuery, predicate.PaymentProviderInstance, paymentproviderinstance.OrderOption]{typ: ent.TypePaymentProviderInstance, tq: q}, nil
+	case *ent.PaymentSyncStateQuery:
+		return &query[*ent.PaymentSyncStateQuery, predicate.PaymentSyncState, paymentsyncstate.OrderOption]{typ: ent.TypePaymentSyncState, tq: q}, nil
 	case *ent.PendingAuthSessionQuery:
 		return &query[*ent.PendingAuthSessionQuery, predicate.PendingAuthSession, pendingauthsession.OrderOption]{typ: ent.TypePendingAuthSession, tq: q}, nil
 	case *ent.PromoCodeQuery:

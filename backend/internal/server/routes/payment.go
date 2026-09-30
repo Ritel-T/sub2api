@@ -29,6 +29,9 @@ func RegisterPaymentRoutes(
 	// 面板全局按用户限流
 	authenticated.Use(panelRateLimiter.Global())
 	{
+		authenticated.POST("/quote", paymentHandler.QuotePayment)
+		authenticated.POST("/squarespace/claim-challenge", paymentHandler.RequestSquarespaceClaimChallenge)
+		authenticated.POST("/squarespace/claim", paymentHandler.ClaimSquarespaceReceipt)
 		authenticated.GET("/config", paymentHandler.GetPaymentConfig)
 		authenticated.GET("/checkout-info", paymentHandler.GetCheckoutInfo)
 		authenticated.GET("/plans", paymentHandler.GetPlans)
@@ -74,6 +77,9 @@ func RegisterPaymentRoutes(
 	adminGroup.Use(gin.HandlerFunc(auditLog))
 	adminGroup.Use(middleware.AdminComplianceGuard(settingService))
 	{
+		adminGroup.POST("/squarespace/oauth/import", adminPaymentHandler.SquarespaceOAuthImport)
+		adminGroup.GET("/squarespace/oauth/status", adminPaymentHandler.SquarespaceOAuthStatus)
+
 		// Dashboard
 		adminGroup.GET("/dashboard", adminPaymentHandler.GetDashboard)
 

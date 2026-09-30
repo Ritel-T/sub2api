@@ -109,11 +109,11 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 		})
 		return fmt.Errorf("invalid paid amount from provider: %v", paid)
 	}
-	if math.Abs(paid-o.PayAmount) > paymentAmountToleranceForCurrency(PaymentOrderCurrency(o)) {
+	if !paymentOrderAmountMatches(o, paid) {
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_AMOUNT_MISMATCH", pk, map[string]any{"expected": o.PayAmount, "paid": paid, "tradeNo": tradeNo})
 		return fmt.Errorf("amount mismatch: expected %s, got %s", strconv.FormatFloat(o.PayAmount, 'f', -1, 64), strconv.FormatFloat(paid, 'f', -1, 64))
 	}
-	return s.toPaid(ctx, o, tradeNo, paid, pk)
+	return s.toPaid(ctx, o, tradeNo, paid, pk, metadata)
 }
 
 func paymentAmountToleranceForCurrency(currency string) float64 {
@@ -147,19 +147,20 @@ func expectedNotificationProviderKey(registry *payment.Registry, orderPaymentTyp
 	return strings.TrimSpace(orderPaymentType)
 }
 
-func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, tradeNo string, paid float64, pk string) error {
+func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, tradeNo string, paid float64, pk string, metadata map[string]string) error {
 	previousStatus := o.Status
 	now := time.Now()
 	grace := now.Add(-paymentGraceMinutes * time.Minute)
+	expiredPredicate := paymentorder.And(paymentorder.StatusEQ(OrderStatusExpired), paymentorder.UpdatedAtGTE(grace))
+	if pk == "squarespace" && validateSquarespaceRetailMetadata(o, metadata) == nil {
+		expiredPredicate = paymentorder.StatusEQ(OrderStatusExpired)
+	}
 	c, err := s.entClient.PaymentOrder.Update().Where(
 		paymentorder.IDEQ(o.ID),
 		paymentorder.Or(
 			paymentorder.StatusEQ(OrderStatusPending),
 			paymentorder.StatusEQ(OrderStatusCancelled),
-			paymentorder.And(
-				paymentorder.StatusEQ(OrderStatusExpired),
-				paymentorder.UpdatedAtGTE(grace),
-			),
+			expiredPredicate,
 		),
 	).SetStatus(OrderStatusPaid).SetPayAmount(paid).SetPaymentTradeNo(tradeNo).SetPaidAt(now).ClearFailedAt().ClearFailedReason().Save(ctx)
 	if err != nil {
@@ -389,7 +390,11 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 	case redeemActionRedeem:
 		// Code exists but unused — skip creation, proceed to redeem
 	}
-	if _, err := s.redeemService.redeemForPaymentFulfillment(ctx, o.UserID, o.RechargeCode); err != nil {
+	redeemCtx := ctx
+	if psStringValue(o.ProviderKey) == "squarespace" {
+		redeemCtx = context.WithValue(ctx, paymentRedeemGuardKey{}, paymentRedeemGuard{OrderID: o.ID, LeaseVersion: lease.version})
+	}
+	if _, err := s.redeemService.redeemForPaymentFulfillment(redeemCtx, o.UserID, o.RechargeCode); err != nil {
 		return fmt.Errorf("redeem balance: %w", err)
 	}
 	if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
@@ -678,6 +683,19 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 	defer func() { _ = tx.Rollback() }()
 
 	txCtx := dbent.NewTxContext(ctx, tx)
+	if psStringValue(o.ProviderKey) == "squarespace" {
+		query := tx.PaymentOrder.Query().Where(paymentorder.IDEQ(o.ID))
+		if s.entClient.Driver().Dialect() == dialect.Postgres {
+			query = query.ForUpdate()
+		}
+		current, err := query.Only(txCtx)
+		if err != nil {
+			return fmt.Errorf("lock payment for affiliate rebate: %w", err)
+		}
+		if psIsRefundStatus(current.Status) || current.RefundAmount > 0 {
+			return nil
+		}
+	}
 	claimed, err := s.tryClaimAffiliateRebateAudit(txCtx, tx.Client(), o.ID, baseAmount)
 	if err != nil {
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{

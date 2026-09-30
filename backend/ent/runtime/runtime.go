@@ -25,8 +25,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalorder"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalpayment"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalrefundjournal"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
+	"github.com/Wei-Shaw/sub2api/ent/paymentsyncstate"
 	"github.com/Wei-Shaw/sub2api/ent/pendingauthsession"
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
@@ -1317,6 +1321,262 @@ func init() {
 	paymentauditlogDescCreatedAt := paymentauditlogFields[4].Descriptor()
 	// paymentauditlog.DefaultCreatedAt holds the default value on creation for the created_at field.
 	paymentauditlog.DefaultCreatedAt = paymentauditlogDescCreatedAt.Default.(func() time.Time)
+	paymentexternalorderFields := schema.PaymentExternalOrder{}.Fields()
+	_ = paymentexternalorderFields
+	// paymentexternalorderDescProviderKey is the schema descriptor for provider_key field.
+	paymentexternalorderDescProviderKey := paymentexternalorderFields[0].Descriptor()
+	// paymentexternalorder.ProviderKeyValidator is a validator for the "provider_key" field. It is called by the builders before save.
+	paymentexternalorder.ProviderKeyValidator = func() func(string) error {
+		validators := paymentexternalorderDescProviderKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(provider_key string) error {
+			for _, fn := range fns {
+				if err := fn(provider_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// paymentexternalorderDescWebsiteID is the schema descriptor for website_id field.
+	paymentexternalorderDescWebsiteID := paymentexternalorderFields[1].Descriptor()
+	// paymentexternalorder.WebsiteIDValidator is a validator for the "website_id" field. It is called by the builders before save.
+	paymentexternalorder.WebsiteIDValidator = func() func(string) error {
+		validators := paymentexternalorderDescWebsiteID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(website_id string) error {
+			for _, fn := range fns {
+				if err := fn(website_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// paymentexternalorderDescExternalOrderID is the schema descriptor for external_order_id field.
+	paymentexternalorderDescExternalOrderID := paymentexternalorderFields[2].Descriptor()
+	// paymentexternalorder.ExternalOrderIDValidator is a validator for the "external_order_id" field. It is called by the builders before save.
+	paymentexternalorder.ExternalOrderIDValidator = func() func(string) error {
+		validators := paymentexternalorderDescExternalOrderID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(external_order_id string) error {
+			for _, fn := range fns {
+				if err := fn(external_order_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// paymentexternalorderDescOrderNumber is the schema descriptor for order_number field.
+	paymentexternalorderDescOrderNumber := paymentexternalorderFields[3].Descriptor()
+	// paymentexternalorder.DefaultOrderNumber holds the default value on creation for the order_number field.
+	paymentexternalorder.DefaultOrderNumber = paymentexternalorderDescOrderNumber.Default.(string)
+	// paymentexternalorder.OrderNumberValidator is a validator for the "order_number" field. It is called by the builders before save.
+	paymentexternalorder.OrderNumberValidator = paymentexternalorderDescOrderNumber.Validators[0].(func(string) error)
+	// paymentexternalorderDescBindingMethod is the schema descriptor for binding_method field.
+	paymentexternalorderDescBindingMethod := paymentexternalorderFields[4].Descriptor()
+	// paymentexternalorder.DefaultBindingMethod holds the default value on creation for the binding_method field.
+	paymentexternalorder.DefaultBindingMethod = paymentexternalorderDescBindingMethod.Default.(string)
+	// paymentexternalorder.BindingMethodValidator is a validator for the "binding_method" field. It is called by the builders before save.
+	paymentexternalorder.BindingMethodValidator = paymentexternalorderDescBindingMethod.Validators[0].(func(string) error)
+	// paymentexternalorderDescQuoteHash is the schema descriptor for quote_hash field.
+	paymentexternalorderDescQuoteHash := paymentexternalorderFields[5].Descriptor()
+	// paymentexternalorder.DefaultQuoteHash holds the default value on creation for the quote_hash field.
+	paymentexternalorder.DefaultQuoteHash = paymentexternalorderDescQuoteHash.Default.(string)
+	// paymentexternalorder.QuoteHashValidator is a validator for the "quote_hash" field. It is called by the builders before save.
+	paymentexternalorder.QuoteHashValidator = paymentexternalorderDescQuoteHash.Validators[0].(func(string) error)
+	// paymentexternalorderDescCheckoutReference is the schema descriptor for checkout_reference field.
+	paymentexternalorderDescCheckoutReference := paymentexternalorderFields[7].Descriptor()
+	// paymentexternalorder.DefaultCheckoutReference holds the default value on creation for the checkout_reference field.
+	paymentexternalorder.DefaultCheckoutReference = paymentexternalorderDescCheckoutReference.Default.(string)
+	// paymentexternalorder.CheckoutReferenceValidator is a validator for the "checkout_reference" field. It is called by the builders before save.
+	paymentexternalorder.CheckoutReferenceValidator = paymentexternalorderDescCheckoutReference.Validators[0].(func(string) error)
+	// paymentexternalorderDescCurrency is the schema descriptor for currency field.
+	paymentexternalorderDescCurrency := paymentexternalorderFields[8].Descriptor()
+	// paymentexternalorder.DefaultCurrency holds the default value on creation for the currency field.
+	paymentexternalorder.DefaultCurrency = paymentexternalorderDescCurrency.Default.(string)
+	// paymentexternalorder.CurrencyValidator is a validator for the "currency" field. It is called by the builders before save.
+	paymentexternalorder.CurrencyValidator = paymentexternalorderDescCurrency.Validators[0].(func(string) error)
+	// paymentexternalorderDescTotalMinor is the schema descriptor for total_minor field.
+	paymentexternalorderDescTotalMinor := paymentexternalorderFields[9].Descriptor()
+	// paymentexternalorder.DefaultTotalMinor holds the default value on creation for the total_minor field.
+	paymentexternalorder.DefaultTotalMinor = paymentexternalorderDescTotalMinor.Default.(int64)
+	// paymentexternalorderDescRefundedMinor is the schema descriptor for refunded_minor field.
+	paymentexternalorderDescRefundedMinor := paymentexternalorderFields[10].Descriptor()
+	// paymentexternalorder.DefaultRefundedMinor holds the default value on creation for the refunded_minor field.
+	paymentexternalorder.DefaultRefundedMinor = paymentexternalorderDescRefundedMinor.Default.(int64)
+	// paymentexternalorderDescCreditedUsdUnits is the schema descriptor for credited_usd_units field.
+	paymentexternalorderDescCreditedUsdUnits := paymentexternalorderFields[11].Descriptor()
+	// paymentexternalorder.DefaultCreditedUsdUnits holds the default value on creation for the credited_usd_units field.
+	paymentexternalorder.DefaultCreditedUsdUnits = paymentexternalorderDescCreditedUsdUnits.Default.(int64)
+	// paymentexternalorderDescRefundTargetUsdUnits is the schema descriptor for refund_target_usd_units field.
+	paymentexternalorderDescRefundTargetUsdUnits := paymentexternalorderFields[12].Descriptor()
+	// paymentexternalorder.DefaultRefundTargetUsdUnits holds the default value on creation for the refund_target_usd_units field.
+	paymentexternalorder.DefaultRefundTargetUsdUnits = paymentexternalorderDescRefundTargetUsdUnits.Default.(int64)
+	// paymentexternalorderDescRecoveredUsdUnits is the schema descriptor for recovered_usd_units field.
+	paymentexternalorderDescRecoveredUsdUnits := paymentexternalorderFields[13].Descriptor()
+	// paymentexternalorder.DefaultRecoveredUsdUnits holds the default value on creation for the recovered_usd_units field.
+	paymentexternalorder.DefaultRecoveredUsdUnits = paymentexternalorderDescRecoveredUsdUnits.Default.(int64)
+	// paymentexternalorderDescDebtUsdUnits is the schema descriptor for debt_usd_units field.
+	paymentexternalorderDescDebtUsdUnits := paymentexternalorderFields[14].Descriptor()
+	// paymentexternalorder.DefaultDebtUsdUnits holds the default value on creation for the debt_usd_units field.
+	paymentexternalorder.DefaultDebtUsdUnits = paymentexternalorderDescDebtUsdUnits.Default.(int64)
+	// paymentexternalorderDescPaymentState is the schema descriptor for payment_state field.
+	paymentexternalorderDescPaymentState := paymentexternalorderFields[15].Descriptor()
+	// paymentexternalorder.DefaultPaymentState holds the default value on creation for the payment_state field.
+	paymentexternalorder.DefaultPaymentState = paymentexternalorderDescPaymentState.Default.(string)
+	// paymentexternalorder.PaymentStateValidator is a validator for the "payment_state" field. It is called by the builders before save.
+	paymentexternalorder.PaymentStateValidator = paymentexternalorderDescPaymentState.Validators[0].(func(string) error)
+	// paymentexternalorderDescStatus is the schema descriptor for status field.
+	paymentexternalorderDescStatus := paymentexternalorderFields[16].Descriptor()
+	// paymentexternalorder.DefaultStatus holds the default value on creation for the status field.
+	paymentexternalorder.DefaultStatus = paymentexternalorderDescStatus.Default.(string)
+	// paymentexternalorder.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	paymentexternalorder.StatusValidator = paymentexternalorderDescStatus.Validators[0].(func(string) error)
+	// paymentexternalorderDescAnomalyCode is the schema descriptor for anomaly_code field.
+	paymentexternalorderDescAnomalyCode := paymentexternalorderFields[17].Descriptor()
+	// paymentexternalorder.DefaultAnomalyCode holds the default value on creation for the anomaly_code field.
+	paymentexternalorder.DefaultAnomalyCode = paymentexternalorderDescAnomalyCode.Default.(string)
+	// paymentexternalorder.AnomalyCodeValidator is a validator for the "anomaly_code" field. It is called by the builders before save.
+	paymentexternalorder.AnomalyCodeValidator = paymentexternalorderDescAnomalyCode.Validators[0].(func(string) error)
+	// paymentexternalorderDescLastSeenAt is the schema descriptor for last_seen_at field.
+	paymentexternalorderDescLastSeenAt := paymentexternalorderFields[20].Descriptor()
+	// paymentexternalorder.DefaultLastSeenAt holds the default value on creation for the last_seen_at field.
+	paymentexternalorder.DefaultLastSeenAt = paymentexternalorderDescLastSeenAt.Default.(func() time.Time)
+	// paymentexternalorderDescCreatedAt is the schema descriptor for created_at field.
+	paymentexternalorderDescCreatedAt := paymentexternalorderFields[21].Descriptor()
+	// paymentexternalorder.DefaultCreatedAt holds the default value on creation for the created_at field.
+	paymentexternalorder.DefaultCreatedAt = paymentexternalorderDescCreatedAt.Default.(func() time.Time)
+	// paymentexternalorderDescUpdatedAt is the schema descriptor for updated_at field.
+	paymentexternalorderDescUpdatedAt := paymentexternalorderFields[22].Descriptor()
+	// paymentexternalorder.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	paymentexternalorder.DefaultUpdatedAt = paymentexternalorderDescUpdatedAt.Default.(func() time.Time)
+	// paymentexternalorder.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	paymentexternalorder.UpdateDefaultUpdatedAt = paymentexternalorderDescUpdatedAt.UpdateDefault.(func() time.Time)
+	paymentexternalpaymentFields := schema.PaymentExternalPayment{}.Fields()
+	_ = paymentexternalpaymentFields
+	// paymentexternalpaymentDescProviderKey is the schema descriptor for provider_key field.
+	paymentexternalpaymentDescProviderKey := paymentexternalpaymentFields[0].Descriptor()
+	// paymentexternalpayment.ProviderKeyValidator is a validator for the "provider_key" field. It is called by the builders before save.
+	paymentexternalpayment.ProviderKeyValidator = func() func(string) error {
+		validators := paymentexternalpaymentDescProviderKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(provider_key string) error {
+			for _, fn := range fns {
+				if err := fn(provider_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// paymentexternalpaymentDescWebsiteID is the schema descriptor for website_id field.
+	paymentexternalpaymentDescWebsiteID := paymentexternalpaymentFields[1].Descriptor()
+	// paymentexternalpayment.WebsiteIDValidator is a validator for the "website_id" field. It is called by the builders before save.
+	paymentexternalpayment.WebsiteIDValidator = func() func(string) error {
+		validators := paymentexternalpaymentDescWebsiteID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(website_id string) error {
+			for _, fn := range fns {
+				if err := fn(website_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// paymentexternalpaymentDescPaymentID is the schema descriptor for payment_id field.
+	paymentexternalpaymentDescPaymentID := paymentexternalpaymentFields[2].Descriptor()
+	// paymentexternalpayment.PaymentIDValidator is a validator for the "payment_id" field. It is called by the builders before save.
+	paymentexternalpayment.PaymentIDValidator = func() func(string) error {
+		validators := paymentexternalpaymentDescPaymentID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(payment_id string) error {
+			for _, fn := range fns {
+				if err := fn(payment_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// paymentexternalpaymentDescCurrency is the schema descriptor for currency field.
+	paymentexternalpaymentDescCurrency := paymentexternalpaymentFields[4].Descriptor()
+	// paymentexternalpayment.CurrencyValidator is a validator for the "currency" field. It is called by the builders before save.
+	paymentexternalpayment.CurrencyValidator = func() func(string) error {
+		validators := paymentexternalpaymentDescCurrency.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(currency string) error {
+			for _, fn := range fns {
+				if err := fn(currency); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// paymentexternalpaymentDescRefundedMinor is the schema descriptor for refunded_minor field.
+	paymentexternalpaymentDescRefundedMinor := paymentexternalpaymentFields[6].Descriptor()
+	// paymentexternalpayment.DefaultRefundedMinor holds the default value on creation for the refunded_minor field.
+	paymentexternalpayment.DefaultRefundedMinor = paymentexternalpaymentDescRefundedMinor.Default.(int64)
+	// paymentexternalpaymentDescCreatedAt is the schema descriptor for created_at field.
+	paymentexternalpaymentDescCreatedAt := paymentexternalpaymentFields[8].Descriptor()
+	// paymentexternalpayment.DefaultCreatedAt holds the default value on creation for the created_at field.
+	paymentexternalpayment.DefaultCreatedAt = paymentexternalpaymentDescCreatedAt.Default.(func() time.Time)
+	// paymentexternalpaymentDescUpdatedAt is the schema descriptor for updated_at field.
+	paymentexternalpaymentDescUpdatedAt := paymentexternalpaymentFields[9].Descriptor()
+	// paymentexternalpayment.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	paymentexternalpayment.DefaultUpdatedAt = paymentexternalpaymentDescUpdatedAt.Default.(func() time.Time)
+	// paymentexternalpayment.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	paymentexternalpayment.UpdateDefaultUpdatedAt = paymentexternalpaymentDescUpdatedAt.UpdateDefault.(func() time.Time)
+	paymentexternalrefundjournalFields := schema.PaymentExternalRefundJournal{}.Fields()
+	_ = paymentexternalrefundjournalFields
+	// paymentexternalrefundjournalDescRecoveredUsdUnits is the schema descriptor for recovered_usd_units field.
+	paymentexternalrefundjournalDescRecoveredUsdUnits := paymentexternalrefundjournalFields[5].Descriptor()
+	// paymentexternalrefundjournal.DefaultRecoveredUsdUnits holds the default value on creation for the recovered_usd_units field.
+	paymentexternalrefundjournal.DefaultRecoveredUsdUnits = paymentexternalrefundjournalDescRecoveredUsdUnits.Default.(int64)
+	// paymentexternalrefundjournalDescDebtUsdUnits is the schema descriptor for debt_usd_units field.
+	paymentexternalrefundjournalDescDebtUsdUnits := paymentexternalrefundjournalFields[6].Descriptor()
+	// paymentexternalrefundjournal.DefaultDebtUsdUnits holds the default value on creation for the debt_usd_units field.
+	paymentexternalrefundjournal.DefaultDebtUsdUnits = paymentexternalrefundjournalDescDebtUsdUnits.Default.(int64)
+	// paymentexternalrefundjournalDescStatus is the schema descriptor for status field.
+	paymentexternalrefundjournalDescStatus := paymentexternalrefundjournalFields[7].Descriptor()
+	// paymentexternalrefundjournal.DefaultStatus holds the default value on creation for the status field.
+	paymentexternalrefundjournal.DefaultStatus = paymentexternalrefundjournalDescStatus.Default.(string)
+	// paymentexternalrefundjournal.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	paymentexternalrefundjournal.StatusValidator = paymentexternalrefundjournalDescStatus.Validators[0].(func(string) error)
+	// paymentexternalrefundjournalDescCreatedAt is the schema descriptor for created_at field.
+	paymentexternalrefundjournalDescCreatedAt := paymentexternalrefundjournalFields[8].Descriptor()
+	// paymentexternalrefundjournal.DefaultCreatedAt holds the default value on creation for the created_at field.
+	paymentexternalrefundjournal.DefaultCreatedAt = paymentexternalrefundjournalDescCreatedAt.Default.(func() time.Time)
+	// paymentexternalrefundjournalDescUpdatedAt is the schema descriptor for updated_at field.
+	paymentexternalrefundjournalDescUpdatedAt := paymentexternalrefundjournalFields[9].Descriptor()
+	// paymentexternalrefundjournal.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	paymentexternalrefundjournal.DefaultUpdatedAt = paymentexternalrefundjournalDescUpdatedAt.Default.(func() time.Time)
+	// paymentexternalrefundjournal.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	paymentexternalrefundjournal.UpdateDefaultUpdatedAt = paymentexternalrefundjournalDescUpdatedAt.UpdateDefault.(func() time.Time)
 	paymentorderFields := schema.PaymentOrder{}.Fields()
 	_ = paymentorderFields
 	// paymentorderDescUserEmail is the schema descriptor for user_email field.
@@ -1467,6 +1727,94 @@ func init() {
 	paymentproviderinstance.DefaultUpdatedAt = paymentproviderinstanceDescUpdatedAt.Default.(func() time.Time)
 	// paymentproviderinstance.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	paymentproviderinstance.UpdateDefaultUpdatedAt = paymentproviderinstanceDescUpdatedAt.UpdateDefault.(func() time.Time)
+	paymentsyncstateFields := schema.PaymentSyncState{}.Fields()
+	_ = paymentsyncstateFields
+	// paymentsyncstateDescProviderKey is the schema descriptor for provider_key field.
+	paymentsyncstateDescProviderKey := paymentsyncstateFields[0].Descriptor()
+	// paymentsyncstate.ProviderKeyValidator is a validator for the "provider_key" field. It is called by the builders before save.
+	paymentsyncstate.ProviderKeyValidator = func() func(string) error {
+		validators := paymentsyncstateDescProviderKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(provider_key string) error {
+			for _, fn := range fns {
+				if err := fn(provider_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// paymentsyncstateDescWebsiteID is the schema descriptor for website_id field.
+	paymentsyncstateDescWebsiteID := paymentsyncstateFields[1].Descriptor()
+	// paymentsyncstate.WebsiteIDValidator is a validator for the "website_id" field. It is called by the builders before save.
+	paymentsyncstate.WebsiteIDValidator = func() func(string) error {
+		validators := paymentsyncstateDescWebsiteID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(website_id string) error {
+			for _, fn := range fns {
+				if err := fn(website_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// paymentsyncstateDescOauthClientID is the schema descriptor for oauth_client_id field.
+	paymentsyncstateDescOauthClientID := paymentsyncstateFields[2].Descriptor()
+	// paymentsyncstate.DefaultOauthClientID holds the default value on creation for the oauth_client_id field.
+	paymentsyncstate.DefaultOauthClientID = paymentsyncstateDescOauthClientID.Default.(string)
+	// paymentsyncstate.OauthClientIDValidator is a validator for the "oauth_client_id" field. It is called by the builders before save.
+	paymentsyncstate.OauthClientIDValidator = paymentsyncstateDescOauthClientID.Validators[0].(func(string) error)
+	// paymentsyncstateDescEncryptedOauthCredentials is the schema descriptor for encrypted_oauth_credentials field.
+	paymentsyncstateDescEncryptedOauthCredentials := paymentsyncstateFields[3].Descriptor()
+	// paymentsyncstate.DefaultEncryptedOauthCredentials holds the default value on creation for the encrypted_oauth_credentials field.
+	paymentsyncstate.DefaultEncryptedOauthCredentials = paymentsyncstateDescEncryptedOauthCredentials.Default.(string)
+	// paymentsyncstateDescEncryptedOauthTokens is the schema descriptor for encrypted_oauth_tokens field.
+	paymentsyncstateDescEncryptedOauthTokens := paymentsyncstateFields[4].Descriptor()
+	// paymentsyncstate.DefaultEncryptedOauthTokens holds the default value on creation for the encrypted_oauth_tokens field.
+	paymentsyncstate.DefaultEncryptedOauthTokens = paymentsyncstateDescEncryptedOauthTokens.Default.(string)
+	// paymentsyncstateDescTokenVersion is the schema descriptor for token_version field.
+	paymentsyncstateDescTokenVersion := paymentsyncstateFields[5].Descriptor()
+	// paymentsyncstate.DefaultTokenVersion holds the default value on creation for the token_version field.
+	paymentsyncstate.DefaultTokenVersion = paymentsyncstateDescTokenVersion.Default.(int64)
+	// paymentsyncstateDescRotationPhase is the schema descriptor for rotation_phase field.
+	paymentsyncstateDescRotationPhase := paymentsyncstateFields[6].Descriptor()
+	// paymentsyncstate.DefaultRotationPhase holds the default value on creation for the rotation_phase field.
+	paymentsyncstate.DefaultRotationPhase = paymentsyncstateDescRotationPhase.Default.(string)
+	// paymentsyncstate.RotationPhaseValidator is a validator for the "rotation_phase" field. It is called by the builders before save.
+	paymentsyncstate.RotationPhaseValidator = paymentsyncstateDescRotationPhase.Validators[0].(func(string) error)
+	// paymentsyncstateDescNextCursor is the schema descriptor for next_cursor field.
+	paymentsyncstateDescNextCursor := paymentsyncstateFields[8].Descriptor()
+	// paymentsyncstate.DefaultNextCursor holds the default value on creation for the next_cursor field.
+	paymentsyncstate.DefaultNextCursor = paymentsyncstateDescNextCursor.Default.(string)
+	// paymentsyncstateDescLastErrorCode is the schema descriptor for last_error_code field.
+	paymentsyncstateDescLastErrorCode := paymentsyncstateFields[13].Descriptor()
+	// paymentsyncstate.DefaultLastErrorCode holds the default value on creation for the last_error_code field.
+	paymentsyncstate.DefaultLastErrorCode = paymentsyncstateDescLastErrorCode.Default.(string)
+	// paymentsyncstate.LastErrorCodeValidator is a validator for the "last_error_code" field. It is called by the builders before save.
+	paymentsyncstate.LastErrorCodeValidator = paymentsyncstateDescLastErrorCode.Validators[0].(func(string) error)
+	// paymentsyncstateDescLeaseOwner is the schema descriptor for lease_owner field.
+	paymentsyncstateDescLeaseOwner := paymentsyncstateFields[14].Descriptor()
+	// paymentsyncstate.DefaultLeaseOwner holds the default value on creation for the lease_owner field.
+	paymentsyncstate.DefaultLeaseOwner = paymentsyncstateDescLeaseOwner.Default.(string)
+	// paymentsyncstate.LeaseOwnerValidator is a validator for the "lease_owner" field. It is called by the builders before save.
+	paymentsyncstate.LeaseOwnerValidator = paymentsyncstateDescLeaseOwner.Validators[0].(func(string) error)
+	// paymentsyncstateDescCreatedAt is the schema descriptor for created_at field.
+	paymentsyncstateDescCreatedAt := paymentsyncstateFields[16].Descriptor()
+	// paymentsyncstate.DefaultCreatedAt holds the default value on creation for the created_at field.
+	paymentsyncstate.DefaultCreatedAt = paymentsyncstateDescCreatedAt.Default.(func() time.Time)
+	// paymentsyncstateDescUpdatedAt is the schema descriptor for updated_at field.
+	paymentsyncstateDescUpdatedAt := paymentsyncstateFields[17].Descriptor()
+	// paymentsyncstate.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	paymentsyncstate.DefaultUpdatedAt = paymentsyncstateDescUpdatedAt.Default.(func() time.Time)
+	// paymentsyncstate.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	paymentsyncstate.UpdateDefaultUpdatedAt = paymentsyncstateDescUpdatedAt.UpdateDefault.(func() time.Time)
 	pendingauthsessionMixin := schema.PendingAuthSession{}.Mixin()
 	pendingauthsessionMixinFields0 := pendingauthsessionMixin[0].Fields()
 	_ = pendingauthsessionMixinFields0

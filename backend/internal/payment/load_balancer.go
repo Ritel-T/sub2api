@@ -314,21 +314,23 @@ func (lb *DefaultLoadBalancer) buildSelection(selected *dbent.PaymentProviderIns
 	}, nil
 }
 
-// decryptConfig parses a stored provider config.
-// New records are plaintext JSON; legacy records are AES-256-GCM ciphertext.
-// Unreadable values (legacy ciphertext without a valid key, or malformed data)
-// are treated as empty so the service keeps running while the admin re-enters
-// the config via the UI.
-//
-// TODO(deprecated-legacy-ciphertext): The AES fallback branch below is a
-// transitional compatibility shim for pre-plaintext records. Remove it (and
-// the encryptionKey field + the Decrypt import) after a few releases once all
-// live deployments have re-saved their provider configs through the UI.
+// decryptConfig supports new encrypted writes plus historic plaintext and
+// unversioned AES-GCM records. Corruption of a versioned record fails closed.
 func (lb *DefaultLoadBalancer) decryptConfig(stored string) (map[string]string, error) {
 	if stored == "" {
 		return nil, nil
 	}
 	var config map[string]string
+	if strings.HasPrefix(stored, "enc:v1:") {
+		plain, err := Decrypt(strings.TrimPrefix(stored, "enc:v1:"), lb.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt encrypted provider config: %w", err)
+		}
+		if err = json.Unmarshal([]byte(plain), &config); err != nil {
+			return nil, fmt.Errorf("parse encrypted provider config: %w", err)
+		}
+		return config, nil
+	}
 	if err := json.Unmarshal([]byte(stored), &config); err == nil {
 		return config, nil
 	}

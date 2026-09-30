@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 // --- Order Status Constants ---
@@ -85,6 +86,8 @@ type CreateOrderRequest struct {
 	OrderType       string
 	PlanID          int64
 	Locale          string
+	QuoteToken      string
+	RetailQuote     *RetailQuote
 }
 
 type CreateOrderResponse struct {
@@ -109,6 +112,8 @@ type CreateOrderResponse struct {
 	ExpiresAt                     time.Time                       `json:"expires_at"`
 	PaymentMode                   string                          `json:"payment_mode,omitempty"`
 	ResumeToken                   string                          `json:"resume_token,omitempty"`
+	RetailQuote                   *RetailQuote                    `json:"retail_quote,omitempty"`
+	PaymentClaimMode              string                          `json:"payment_claim_mode,omitempty"`
 	AlipayMobilePrecreateDeepLink bool                            `json:"alipay_mobile_precreate_deep_link,omitempty"`
 }
 
@@ -196,6 +201,7 @@ type PaymentService struct {
 	userRepo                 UserRepository
 	groupRepo                GroupRepository
 	resumeService            *PaymentResumeService
+	squarespaceClaims        *SquarespaceClaimService
 	affiliateService         *AffiliateService
 	notificationEmailService *NotificationEmailService
 }
@@ -382,4 +388,20 @@ func applyPagination(pageSize, page int) (size, pg int) {
 		pg = 1
 	}
 	return size, pg
+}
+
+func (s *PaymentService) SetSquarespaceClaimService(claims *SquarespaceClaimService) {
+	s.squarespaceClaims = claims
+}
+func (s *PaymentService) RequestSquarespaceClaimChallenge(ctx context.Context, userID, orderID int64, receipt string) (*SquarespaceClaimChallengeResponse, error) {
+	if s.squarespaceClaims == nil {
+		return nil, infraerrors.ServiceUnavailable("SQUARESPACE_CLAIM_SERVICE_UNAVAILABLE", "receipt claim service is unavailable")
+	}
+	return s.squarespaceClaims.RequestChallenge(ctx, userID, orderID, receipt)
+}
+func (s *PaymentService) ClaimSquarespaceReceipt(ctx context.Context, userID int64, token, code string) (*dbent.PaymentOrder, error) {
+	if s.squarespaceClaims == nil {
+		return nil, infraerrors.ServiceUnavailable("SQUARESPACE_CLAIM_SERVICE_UNAVAILABLE", "receipt claim service is unavailable")
+	}
+	return s.squarespaceClaims.Claim(ctx, userID, token, code)
 }

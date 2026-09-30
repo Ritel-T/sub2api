@@ -35,8 +35,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalorder"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalpayment"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalrefundjournal"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
+	"github.com/Wei-Shaw/sub2api/ent/paymentsyncstate"
 	"github.com/Wei-Shaw/sub2api/ent/pendingauthsession"
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
@@ -103,10 +107,18 @@ type Client struct {
 	IdentityAdoptionDecision *IdentityAdoptionDecisionClient
 	// PaymentAuditLog is the client for interacting with the PaymentAuditLog builders.
 	PaymentAuditLog *PaymentAuditLogClient
+	// PaymentExternalOrder is the client for interacting with the PaymentExternalOrder builders.
+	PaymentExternalOrder *PaymentExternalOrderClient
+	// PaymentExternalPayment is the client for interacting with the PaymentExternalPayment builders.
+	PaymentExternalPayment *PaymentExternalPaymentClient
+	// PaymentExternalRefundJournal is the client for interacting with the PaymentExternalRefundJournal builders.
+	PaymentExternalRefundJournal *PaymentExternalRefundJournalClient
 	// PaymentOrder is the client for interacting with the PaymentOrder builders.
 	PaymentOrder *PaymentOrderClient
 	// PaymentProviderInstance is the client for interacting with the PaymentProviderInstance builders.
 	PaymentProviderInstance *PaymentProviderInstanceClient
+	// PaymentSyncState is the client for interacting with the PaymentSyncState builders.
+	PaymentSyncState *PaymentSyncStateClient
 	// PendingAuthSession is the client for interacting with the PendingAuthSession builders.
 	PendingAuthSession *PendingAuthSessionClient
 	// PromoCode is the client for interacting with the PromoCode builders.
@@ -172,8 +184,12 @@ func (c *Client) init() {
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
 	c.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(c.config)
 	c.PaymentAuditLog = NewPaymentAuditLogClient(c.config)
+	c.PaymentExternalOrder = NewPaymentExternalOrderClient(c.config)
+	c.PaymentExternalPayment = NewPaymentExternalPaymentClient(c.config)
+	c.PaymentExternalRefundJournal = NewPaymentExternalRefundJournalClient(c.config)
 	c.PaymentOrder = NewPaymentOrderClient(c.config)
 	c.PaymentProviderInstance = NewPaymentProviderInstanceClient(c.config)
+	c.PaymentSyncState = NewPaymentSyncStateClient(c.config)
 	c.PendingAuthSession = NewPendingAuthSessionClient(c.config)
 	c.PromoCode = NewPromoCodeClient(c.config)
 	c.PromoCodeUsage = NewPromoCodeUsageClient(c.config)
@@ -303,8 +319,12 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
+		PaymentExternalOrder:          NewPaymentExternalOrderClient(cfg),
+		PaymentExternalPayment:        NewPaymentExternalPaymentClient(cfg),
+		PaymentExternalRefundJournal:  NewPaymentExternalRefundJournalClient(cfg),
 		PaymentOrder:                  NewPaymentOrderClient(cfg),
 		PaymentProviderInstance:       NewPaymentProviderInstanceClient(cfg),
+		PaymentSyncState:              NewPaymentSyncStateClient(cfg),
 		PendingAuthSession:            NewPendingAuthSessionClient(cfg),
 		PromoCode:                     NewPromoCodeClient(cfg),
 		PromoCodeUsage:                NewPromoCodeUsageClient(cfg),
@@ -361,8 +381,12 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
+		PaymentExternalOrder:          NewPaymentExternalOrderClient(cfg),
+		PaymentExternalPayment:        NewPaymentExternalPaymentClient(cfg),
+		PaymentExternalRefundJournal:  NewPaymentExternalRefundJournalClient(cfg),
 		PaymentOrder:                  NewPaymentOrderClient(cfg),
 		PaymentProviderInstance:       NewPaymentProviderInstanceClient(cfg),
+		PaymentSyncState:              NewPaymentSyncStateClient(cfg),
 		PendingAuthSession:            NewPendingAuthSessionClient(cfg),
 		PromoCode:                     NewPromoCodeClient(cfg),
 		PromoCodeUsage:                NewPromoCodeUsageClient(cfg),
@@ -414,12 +438,13 @@ func (c *Client) Use(hooks ...Hook) {
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
 		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentExternalOrder,
+		c.PaymentExternalPayment, c.PaymentExternalRefundJournal, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PaymentSyncState, c.PendingAuthSession,
+		c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret,
+		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
+		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
+		c.UserAttributeValue, c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -434,12 +459,13 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
 		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentExternalOrder,
+		c.PaymentExternalPayment, c.PaymentExternalRefundJournal, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PaymentSyncState, c.PendingAuthSession,
+		c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret,
+		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
+		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
+		c.UserAttributeValue, c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -488,10 +514,18 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.IdentityAdoptionDecision.mutate(ctx, m)
 	case *PaymentAuditLogMutation:
 		return c.PaymentAuditLog.mutate(ctx, m)
+	case *PaymentExternalOrderMutation:
+		return c.PaymentExternalOrder.mutate(ctx, m)
+	case *PaymentExternalPaymentMutation:
+		return c.PaymentExternalPayment.mutate(ctx, m)
+	case *PaymentExternalRefundJournalMutation:
+		return c.PaymentExternalRefundJournal.mutate(ctx, m)
 	case *PaymentOrderMutation:
 		return c.PaymentOrder.mutate(ctx, m)
 	case *PaymentProviderInstanceMutation:
 		return c.PaymentProviderInstance.mutate(ctx, m)
+	case *PaymentSyncStateMutation:
+		return c.PaymentSyncState.mutate(ctx, m)
 	case *PendingAuthSessionMutation:
 		return c.PendingAuthSession.mutate(ctx, m)
 	case *PromoCodeMutation:
@@ -3710,6 +3744,405 @@ func (c *PaymentAuditLogClient) mutate(ctx context.Context, m *PaymentAuditLogMu
 	}
 }
 
+// PaymentExternalOrderClient is a client for the PaymentExternalOrder schema.
+type PaymentExternalOrderClient struct {
+	config
+}
+
+// NewPaymentExternalOrderClient returns a client for the PaymentExternalOrder from the given config.
+func NewPaymentExternalOrderClient(c config) *PaymentExternalOrderClient {
+	return &PaymentExternalOrderClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `paymentexternalorder.Hooks(f(g(h())))`.
+func (c *PaymentExternalOrderClient) Use(hooks ...Hook) {
+	c.hooks.PaymentExternalOrder = append(c.hooks.PaymentExternalOrder, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `paymentexternalorder.Intercept(f(g(h())))`.
+func (c *PaymentExternalOrderClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PaymentExternalOrder = append(c.inters.PaymentExternalOrder, interceptors...)
+}
+
+// Create returns a builder for creating a PaymentExternalOrder entity.
+func (c *PaymentExternalOrderClient) Create() *PaymentExternalOrderCreate {
+	mutation := newPaymentExternalOrderMutation(c.config, OpCreate)
+	return &PaymentExternalOrderCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PaymentExternalOrder entities.
+func (c *PaymentExternalOrderClient) CreateBulk(builders ...*PaymentExternalOrderCreate) *PaymentExternalOrderCreateBulk {
+	return &PaymentExternalOrderCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PaymentExternalOrderClient) MapCreateBulk(slice any, setFunc func(*PaymentExternalOrderCreate, int)) *PaymentExternalOrderCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PaymentExternalOrderCreateBulk{err: fmt.Errorf("calling to PaymentExternalOrderClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PaymentExternalOrderCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PaymentExternalOrderCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PaymentExternalOrder.
+func (c *PaymentExternalOrderClient) Update() *PaymentExternalOrderUpdate {
+	mutation := newPaymentExternalOrderMutation(c.config, OpUpdate)
+	return &PaymentExternalOrderUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PaymentExternalOrderClient) UpdateOne(_m *PaymentExternalOrder) *PaymentExternalOrderUpdateOne {
+	mutation := newPaymentExternalOrderMutation(c.config, OpUpdateOne, withPaymentExternalOrder(_m))
+	return &PaymentExternalOrderUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PaymentExternalOrderClient) UpdateOneID(id int64) *PaymentExternalOrderUpdateOne {
+	mutation := newPaymentExternalOrderMutation(c.config, OpUpdateOne, withPaymentExternalOrderID(id))
+	return &PaymentExternalOrderUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PaymentExternalOrder.
+func (c *PaymentExternalOrderClient) Delete() *PaymentExternalOrderDelete {
+	mutation := newPaymentExternalOrderMutation(c.config, OpDelete)
+	return &PaymentExternalOrderDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PaymentExternalOrderClient) DeleteOne(_m *PaymentExternalOrder) *PaymentExternalOrderDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PaymentExternalOrderClient) DeleteOneID(id int64) *PaymentExternalOrderDeleteOne {
+	builder := c.Delete().Where(paymentexternalorder.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PaymentExternalOrderDeleteOne{builder}
+}
+
+// Query returns a query builder for PaymentExternalOrder.
+func (c *PaymentExternalOrderClient) Query() *PaymentExternalOrderQuery {
+	return &PaymentExternalOrderQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePaymentExternalOrder},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PaymentExternalOrder entity by its id.
+func (c *PaymentExternalOrderClient) Get(ctx context.Context, id int64) (*PaymentExternalOrder, error) {
+	return c.Query().Where(paymentexternalorder.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PaymentExternalOrderClient) GetX(ctx context.Context, id int64) *PaymentExternalOrder {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *PaymentExternalOrderClient) Hooks() []Hook {
+	return c.hooks.PaymentExternalOrder
+}
+
+// Interceptors returns the client interceptors.
+func (c *PaymentExternalOrderClient) Interceptors() []Interceptor {
+	return c.inters.PaymentExternalOrder
+}
+
+func (c *PaymentExternalOrderClient) mutate(ctx context.Context, m *PaymentExternalOrderMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PaymentExternalOrderCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PaymentExternalOrderUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PaymentExternalOrderUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PaymentExternalOrderDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PaymentExternalOrder mutation op: %q", m.Op())
+	}
+}
+
+// PaymentExternalPaymentClient is a client for the PaymentExternalPayment schema.
+type PaymentExternalPaymentClient struct {
+	config
+}
+
+// NewPaymentExternalPaymentClient returns a client for the PaymentExternalPayment from the given config.
+func NewPaymentExternalPaymentClient(c config) *PaymentExternalPaymentClient {
+	return &PaymentExternalPaymentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `paymentexternalpayment.Hooks(f(g(h())))`.
+func (c *PaymentExternalPaymentClient) Use(hooks ...Hook) {
+	c.hooks.PaymentExternalPayment = append(c.hooks.PaymentExternalPayment, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `paymentexternalpayment.Intercept(f(g(h())))`.
+func (c *PaymentExternalPaymentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PaymentExternalPayment = append(c.inters.PaymentExternalPayment, interceptors...)
+}
+
+// Create returns a builder for creating a PaymentExternalPayment entity.
+func (c *PaymentExternalPaymentClient) Create() *PaymentExternalPaymentCreate {
+	mutation := newPaymentExternalPaymentMutation(c.config, OpCreate)
+	return &PaymentExternalPaymentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PaymentExternalPayment entities.
+func (c *PaymentExternalPaymentClient) CreateBulk(builders ...*PaymentExternalPaymentCreate) *PaymentExternalPaymentCreateBulk {
+	return &PaymentExternalPaymentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PaymentExternalPaymentClient) MapCreateBulk(slice any, setFunc func(*PaymentExternalPaymentCreate, int)) *PaymentExternalPaymentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PaymentExternalPaymentCreateBulk{err: fmt.Errorf("calling to PaymentExternalPaymentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PaymentExternalPaymentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PaymentExternalPaymentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PaymentExternalPayment.
+func (c *PaymentExternalPaymentClient) Update() *PaymentExternalPaymentUpdate {
+	mutation := newPaymentExternalPaymentMutation(c.config, OpUpdate)
+	return &PaymentExternalPaymentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PaymentExternalPaymentClient) UpdateOne(_m *PaymentExternalPayment) *PaymentExternalPaymentUpdateOne {
+	mutation := newPaymentExternalPaymentMutation(c.config, OpUpdateOne, withPaymentExternalPayment(_m))
+	return &PaymentExternalPaymentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PaymentExternalPaymentClient) UpdateOneID(id int64) *PaymentExternalPaymentUpdateOne {
+	mutation := newPaymentExternalPaymentMutation(c.config, OpUpdateOne, withPaymentExternalPaymentID(id))
+	return &PaymentExternalPaymentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PaymentExternalPayment.
+func (c *PaymentExternalPaymentClient) Delete() *PaymentExternalPaymentDelete {
+	mutation := newPaymentExternalPaymentMutation(c.config, OpDelete)
+	return &PaymentExternalPaymentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PaymentExternalPaymentClient) DeleteOne(_m *PaymentExternalPayment) *PaymentExternalPaymentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PaymentExternalPaymentClient) DeleteOneID(id int64) *PaymentExternalPaymentDeleteOne {
+	builder := c.Delete().Where(paymentexternalpayment.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PaymentExternalPaymentDeleteOne{builder}
+}
+
+// Query returns a query builder for PaymentExternalPayment.
+func (c *PaymentExternalPaymentClient) Query() *PaymentExternalPaymentQuery {
+	return &PaymentExternalPaymentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePaymentExternalPayment},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PaymentExternalPayment entity by its id.
+func (c *PaymentExternalPaymentClient) Get(ctx context.Context, id int64) (*PaymentExternalPayment, error) {
+	return c.Query().Where(paymentexternalpayment.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PaymentExternalPaymentClient) GetX(ctx context.Context, id int64) *PaymentExternalPayment {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *PaymentExternalPaymentClient) Hooks() []Hook {
+	return c.hooks.PaymentExternalPayment
+}
+
+// Interceptors returns the client interceptors.
+func (c *PaymentExternalPaymentClient) Interceptors() []Interceptor {
+	return c.inters.PaymentExternalPayment
+}
+
+func (c *PaymentExternalPaymentClient) mutate(ctx context.Context, m *PaymentExternalPaymentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PaymentExternalPaymentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PaymentExternalPaymentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PaymentExternalPaymentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PaymentExternalPaymentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PaymentExternalPayment mutation op: %q", m.Op())
+	}
+}
+
+// PaymentExternalRefundJournalClient is a client for the PaymentExternalRefundJournal schema.
+type PaymentExternalRefundJournalClient struct {
+	config
+}
+
+// NewPaymentExternalRefundJournalClient returns a client for the PaymentExternalRefundJournal from the given config.
+func NewPaymentExternalRefundJournalClient(c config) *PaymentExternalRefundJournalClient {
+	return &PaymentExternalRefundJournalClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `paymentexternalrefundjournal.Hooks(f(g(h())))`.
+func (c *PaymentExternalRefundJournalClient) Use(hooks ...Hook) {
+	c.hooks.PaymentExternalRefundJournal = append(c.hooks.PaymentExternalRefundJournal, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `paymentexternalrefundjournal.Intercept(f(g(h())))`.
+func (c *PaymentExternalRefundJournalClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PaymentExternalRefundJournal = append(c.inters.PaymentExternalRefundJournal, interceptors...)
+}
+
+// Create returns a builder for creating a PaymentExternalRefundJournal entity.
+func (c *PaymentExternalRefundJournalClient) Create() *PaymentExternalRefundJournalCreate {
+	mutation := newPaymentExternalRefundJournalMutation(c.config, OpCreate)
+	return &PaymentExternalRefundJournalCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PaymentExternalRefundJournal entities.
+func (c *PaymentExternalRefundJournalClient) CreateBulk(builders ...*PaymentExternalRefundJournalCreate) *PaymentExternalRefundJournalCreateBulk {
+	return &PaymentExternalRefundJournalCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PaymentExternalRefundJournalClient) MapCreateBulk(slice any, setFunc func(*PaymentExternalRefundJournalCreate, int)) *PaymentExternalRefundJournalCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PaymentExternalRefundJournalCreateBulk{err: fmt.Errorf("calling to PaymentExternalRefundJournalClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PaymentExternalRefundJournalCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PaymentExternalRefundJournalCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PaymentExternalRefundJournal.
+func (c *PaymentExternalRefundJournalClient) Update() *PaymentExternalRefundJournalUpdate {
+	mutation := newPaymentExternalRefundJournalMutation(c.config, OpUpdate)
+	return &PaymentExternalRefundJournalUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PaymentExternalRefundJournalClient) UpdateOne(_m *PaymentExternalRefundJournal) *PaymentExternalRefundJournalUpdateOne {
+	mutation := newPaymentExternalRefundJournalMutation(c.config, OpUpdateOne, withPaymentExternalRefundJournal(_m))
+	return &PaymentExternalRefundJournalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PaymentExternalRefundJournalClient) UpdateOneID(id int64) *PaymentExternalRefundJournalUpdateOne {
+	mutation := newPaymentExternalRefundJournalMutation(c.config, OpUpdateOne, withPaymentExternalRefundJournalID(id))
+	return &PaymentExternalRefundJournalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PaymentExternalRefundJournal.
+func (c *PaymentExternalRefundJournalClient) Delete() *PaymentExternalRefundJournalDelete {
+	mutation := newPaymentExternalRefundJournalMutation(c.config, OpDelete)
+	return &PaymentExternalRefundJournalDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PaymentExternalRefundJournalClient) DeleteOne(_m *PaymentExternalRefundJournal) *PaymentExternalRefundJournalDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PaymentExternalRefundJournalClient) DeleteOneID(id int64) *PaymentExternalRefundJournalDeleteOne {
+	builder := c.Delete().Where(paymentexternalrefundjournal.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PaymentExternalRefundJournalDeleteOne{builder}
+}
+
+// Query returns a query builder for PaymentExternalRefundJournal.
+func (c *PaymentExternalRefundJournalClient) Query() *PaymentExternalRefundJournalQuery {
+	return &PaymentExternalRefundJournalQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePaymentExternalRefundJournal},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PaymentExternalRefundJournal entity by its id.
+func (c *PaymentExternalRefundJournalClient) Get(ctx context.Context, id int64) (*PaymentExternalRefundJournal, error) {
+	return c.Query().Where(paymentexternalrefundjournal.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PaymentExternalRefundJournalClient) GetX(ctx context.Context, id int64) *PaymentExternalRefundJournal {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *PaymentExternalRefundJournalClient) Hooks() []Hook {
+	return c.hooks.PaymentExternalRefundJournal
+}
+
+// Interceptors returns the client interceptors.
+func (c *PaymentExternalRefundJournalClient) Interceptors() []Interceptor {
+	return c.inters.PaymentExternalRefundJournal
+}
+
+func (c *PaymentExternalRefundJournalClient) mutate(ctx context.Context, m *PaymentExternalRefundJournalMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PaymentExternalRefundJournalCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PaymentExternalRefundJournalUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PaymentExternalRefundJournalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PaymentExternalRefundJournalDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PaymentExternalRefundJournal mutation op: %q", m.Op())
+	}
+}
+
 // PaymentOrderClient is a client for the PaymentOrder schema.
 type PaymentOrderClient struct {
 	config
@@ -3989,6 +4422,139 @@ func (c *PaymentProviderInstanceClient) mutate(ctx context.Context, m *PaymentPr
 		return (&PaymentProviderInstanceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown PaymentProviderInstance mutation op: %q", m.Op())
+	}
+}
+
+// PaymentSyncStateClient is a client for the PaymentSyncState schema.
+type PaymentSyncStateClient struct {
+	config
+}
+
+// NewPaymentSyncStateClient returns a client for the PaymentSyncState from the given config.
+func NewPaymentSyncStateClient(c config) *PaymentSyncStateClient {
+	return &PaymentSyncStateClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `paymentsyncstate.Hooks(f(g(h())))`.
+func (c *PaymentSyncStateClient) Use(hooks ...Hook) {
+	c.hooks.PaymentSyncState = append(c.hooks.PaymentSyncState, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `paymentsyncstate.Intercept(f(g(h())))`.
+func (c *PaymentSyncStateClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PaymentSyncState = append(c.inters.PaymentSyncState, interceptors...)
+}
+
+// Create returns a builder for creating a PaymentSyncState entity.
+func (c *PaymentSyncStateClient) Create() *PaymentSyncStateCreate {
+	mutation := newPaymentSyncStateMutation(c.config, OpCreate)
+	return &PaymentSyncStateCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PaymentSyncState entities.
+func (c *PaymentSyncStateClient) CreateBulk(builders ...*PaymentSyncStateCreate) *PaymentSyncStateCreateBulk {
+	return &PaymentSyncStateCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PaymentSyncStateClient) MapCreateBulk(slice any, setFunc func(*PaymentSyncStateCreate, int)) *PaymentSyncStateCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PaymentSyncStateCreateBulk{err: fmt.Errorf("calling to PaymentSyncStateClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PaymentSyncStateCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PaymentSyncStateCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PaymentSyncState.
+func (c *PaymentSyncStateClient) Update() *PaymentSyncStateUpdate {
+	mutation := newPaymentSyncStateMutation(c.config, OpUpdate)
+	return &PaymentSyncStateUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PaymentSyncStateClient) UpdateOne(_m *PaymentSyncState) *PaymentSyncStateUpdateOne {
+	mutation := newPaymentSyncStateMutation(c.config, OpUpdateOne, withPaymentSyncState(_m))
+	return &PaymentSyncStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PaymentSyncStateClient) UpdateOneID(id int64) *PaymentSyncStateUpdateOne {
+	mutation := newPaymentSyncStateMutation(c.config, OpUpdateOne, withPaymentSyncStateID(id))
+	return &PaymentSyncStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PaymentSyncState.
+func (c *PaymentSyncStateClient) Delete() *PaymentSyncStateDelete {
+	mutation := newPaymentSyncStateMutation(c.config, OpDelete)
+	return &PaymentSyncStateDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PaymentSyncStateClient) DeleteOne(_m *PaymentSyncState) *PaymentSyncStateDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PaymentSyncStateClient) DeleteOneID(id int64) *PaymentSyncStateDeleteOne {
+	builder := c.Delete().Where(paymentsyncstate.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PaymentSyncStateDeleteOne{builder}
+}
+
+// Query returns a query builder for PaymentSyncState.
+func (c *PaymentSyncStateClient) Query() *PaymentSyncStateQuery {
+	return &PaymentSyncStateQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePaymentSyncState},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PaymentSyncState entity by its id.
+func (c *PaymentSyncStateClient) Get(ctx context.Context, id int64) (*PaymentSyncState, error) {
+	return c.Query().Where(paymentsyncstate.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PaymentSyncStateClient) GetX(ctx context.Context, id int64) *PaymentSyncState {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *PaymentSyncStateClient) Hooks() []Hook {
+	return c.hooks.PaymentSyncState
+}
+
+// Interceptors returns the client interceptors.
+func (c *PaymentSyncStateClient) Interceptors() []Interceptor {
+	return c.inters.PaymentSyncState
+}
+
+func (c *PaymentSyncStateClient) mutate(ctx context.Context, m *PaymentSyncStateMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PaymentSyncStateCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PaymentSyncStateUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PaymentSyncStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PaymentSyncStateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PaymentSyncState mutation op: %q", m.Op())
 	}
 }
 
@@ -6846,11 +7412,12 @@ type (
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
-		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
-		UserSubscription []ent.Hook
+		PaymentExternalOrder, PaymentExternalPayment, PaymentExternalRefundJournal,
+		PaymentOrder, PaymentProviderInstance, PaymentSyncState, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
@@ -6858,11 +7425,12 @@ type (
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
-		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
-		UserSubscription []ent.Interceptor
+		PaymentExternalOrder, PaymentExternalPayment, PaymentExternalRefundJournal,
+		PaymentOrder, PaymentProviderInstance, PaymentSyncState, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
 )
 

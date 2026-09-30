@@ -52,7 +52,8 @@
       </template>
 
       <template #cell-pay_amount="{ value, row }">
-        <div class="text-sm">
+        <AdminRetailOrderAmounts v-if="row.retail_quote" :quote="row.retail_quote" compact />
+        <div v-else class="text-sm">
           <span class="font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(row) }}{{ value.toFixed(2) }}</span>
           <span v-if="row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
             ({{ row.fee_rate }}%)
@@ -65,7 +66,7 @@
 
       <template #cell-payment_type="{ value }">
         <span class="text-sm text-gray-700 dark:text-gray-300">
-          {{ t('payment.methods.' + value, value) }}
+          {{ value === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + value, value) }}
         </span>
       </template>
 
@@ -142,6 +143,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
+import AdminRetailOrderAmounts from './AdminRetailOrderAmounts.vue'
 import { statusBadgeClass, canRefund, formatOrderDateTime } from '@/components/payment/orderUtils'
 import { currencySymbol } from '@/components/payment/currency'
 
@@ -220,6 +222,7 @@ const paymentTypeFilterOptions = computed(() => [
   { value: 'wxpay', label: t('payment.methods.wxpay') },
   { value: 'stripe', label: t('payment.methods.stripe') },
   { value: 'airwallex', label: t('payment.methods.airwallex') },
+  { value: 'squarespace', label: t('squarespaceProvider.name') },
 ])
 
 const orderTypeFilterOptions = computed(() => [
@@ -229,7 +232,7 @@ const orderTypeFilterOptions = computed(() => [
 ])
 
 function canRefundRow(order: PaymentOrder): boolean {
-  return canRefund(order.status)
+  return order.payment_type !== 'squarespace' && canRefund(order.status)
 }
 
 function formatDateTime(dateStr: string): string {

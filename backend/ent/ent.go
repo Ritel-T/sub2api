@@ -32,8 +32,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalorder"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalpayment"
+	"github.com/Wei-Shaw/sub2api/ent/paymentexternalrefundjournal"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
+	"github.com/Wei-Shaw/sub2api/ent/paymentsyncstate"
 	"github.com/Wei-Shaw/sub2api/ent/pendingauthsession"
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
@@ -131,8 +135,12 @@ func checkColumn(t, c string) error {
 			idempotencyrecord.Table:             idempotencyrecord.ValidColumn,
 			identityadoptiondecision.Table:      identityadoptiondecision.ValidColumn,
 			paymentauditlog.Table:               paymentauditlog.ValidColumn,
+			paymentexternalorder.Table:          paymentexternalorder.ValidColumn,
+			paymentexternalpayment.Table:        paymentexternalpayment.ValidColumn,
+			paymentexternalrefundjournal.Table:  paymentexternalrefundjournal.ValidColumn,
 			paymentorder.Table:                  paymentorder.ValidColumn,
 			paymentproviderinstance.Table:       paymentproviderinstance.ValidColumn,
+			paymentsyncstate.Table:              paymentsyncstate.ValidColumn,
 			pendingauthsession.Table:            pendingauthsession.ValidColumn,
 			promocode.Table:                     promocode.ValidColumn,
 			promocodeusage.Table:                promocodeusage.ValidColumn,

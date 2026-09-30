@@ -90,6 +90,9 @@ func (s *PaymentService) getPinnedOrderProvider(ctx context.Context, o *dbent.Pa
 	if inst == nil {
 		return nil, fmt.Errorf("order %d provider instance is missing", o.ID)
 	}
+	if inst.ProviderKey == "squarespace" {
+		return s.createHistoricalSquarespaceProvider(ctx, inst, o)
+	}
 	return s.createProviderFromInstance(ctx, inst)
 }
 

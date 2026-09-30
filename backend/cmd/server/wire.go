@@ -127,6 +127,7 @@ func provideCleanup(
 	accountTokenGuardV2 *service.AccountTokenGuardV2Service,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
+	squarespacePaymentBridge *service.SquarespacePaymentBridge,
 	channelMonitorRunner *service.ChannelMonitorRunner,
 	channelMonitorV2Aggregator *service.ChannelMonitorV2Aggregator,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
@@ -395,6 +396,12 @@ func provideCleanup(
 			{"BackupService", func() error {
 				if backupSvc != nil {
 					backupSvc.Stop()
+				}
+				return nil
+			}},
+			{"SquarespacePaymentBridge", func() error {
+				if squarespacePaymentBridge != nil {
+					squarespacePaymentBridge.Stop()
 				}
 				return nil
 			}},

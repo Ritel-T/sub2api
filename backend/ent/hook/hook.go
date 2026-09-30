@@ -249,6 +249,42 @@ func (f PaymentAuditLogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Va
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentAuditLogMutation", m)
 }
 
+// The PaymentExternalOrderFunc type is an adapter to allow the use of ordinary
+// function as PaymentExternalOrder mutator.
+type PaymentExternalOrderFunc func(context.Context, *ent.PaymentExternalOrderMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PaymentExternalOrderFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PaymentExternalOrderMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentExternalOrderMutation", m)
+}
+
+// The PaymentExternalPaymentFunc type is an adapter to allow the use of ordinary
+// function as PaymentExternalPayment mutator.
+type PaymentExternalPaymentFunc func(context.Context, *ent.PaymentExternalPaymentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PaymentExternalPaymentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PaymentExternalPaymentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentExternalPaymentMutation", m)
+}
+
+// The PaymentExternalRefundJournalFunc type is an adapter to allow the use of ordinary
+// function as PaymentExternalRefundJournal mutator.
+type PaymentExternalRefundJournalFunc func(context.Context, *ent.PaymentExternalRefundJournalMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PaymentExternalRefundJournalFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PaymentExternalRefundJournalMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentExternalRefundJournalMutation", m)
+}
+
 // The PaymentOrderFunc type is an adapter to allow the use of ordinary
 // function as PaymentOrder mutator.
 type PaymentOrderFunc func(context.Context, *ent.PaymentOrderMutation) (ent.Value, error)
@@ -271,6 +307,18 @@ func (f PaymentProviderInstanceFunc) Mutate(ctx context.Context, m ent.Mutation)
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentProviderInstanceMutation", m)
+}
+
+// The PaymentSyncStateFunc type is an adapter to allow the use of ordinary
+// function as PaymentSyncState mutator.
+type PaymentSyncStateFunc func(context.Context, *ent.PaymentSyncStateMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PaymentSyncStateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PaymentSyncStateMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentSyncStateMutation", m)
 }
 
 // The PendingAuthSessionFunc type is an adapter to allow the use of ordinary

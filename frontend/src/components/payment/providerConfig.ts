@@ -12,12 +12,14 @@ export interface ConfigFieldDef {
   clearable?: boolean
   defaultValue?: string
   hintKey?: string
+  labelKey?: string
   options?: TypeOption[]
 }
 
 export interface TypeOption {
   value: string
   label: string
+  labelKey?: string
   [key: string]: unknown
 }
 
@@ -42,13 +44,14 @@ export const PROVIDER_SUPPORTED_TYPES: Record<string, string[]> = {
   wxpay: ['wxpay'],
   stripe: ['card', 'alipay', 'wxpay', 'link'],
   airwallex: ['airwallex'],
+  squarespace: ['squarespace'],
 }
 
 /** Available payment modes for EasyPay providers. */
 export const EASYPAY_PAYMENT_MODES = ['qrcode', 'popup'] as const
 
 /** Fixed display order for user-facing payment methods */
-export const METHOD_ORDER = ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct', 'stripe', 'airwallex'] as const
+export const METHOD_ORDER = ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct', 'squarespace', 'stripe', 'airwallex'] as const
 
 export function isBuiltInAlipayMethod(type: string): boolean {
   return type === 'alipay' || type === 'alipay_direct'
@@ -152,6 +155,17 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
     { key: 'webhookSecret', label: '', sensitive: true },
     { key: 'currency', label: '', sensitive: false, defaultValue: 'CNY', hintKey: 'admin.settings.payment.field_paymentCurrencyHint', options: PAYMENT_CURRENCY_OPTIONS },
   ],
+  squarespace: [
+    { key: 'websiteId', label: '', labelKey: 'squarespaceProvider.field_websiteId', sensitive: false },
+    { key: 'productId', label: '', labelKey: 'squarespaceProvider.field_productId', sensitive: false, hintKey: 'squarespaceProvider.productIdHint' },
+    { key: 'payLinkUrl', label: '', labelKey: 'squarespaceProvider.field_payLinkUrl', sensitive: false, hintKey: 'squarespaceProvider.payLinkHint' },
+    { key: 'currency', label: '', labelKey: 'squarespaceProvider.field_currency', sensitive: false, defaultValue: 'GBP', hintKey: 'squarespaceProvider.currencyHint', options: [{ value: 'GBP', label: 'GBP' }] },
+    { key: 'paymentClaimMode', label: '', labelKey: 'squarespaceProvider.field_paymentClaimMode', sensitive: false, defaultValue: 'receipt_otp', hintKey: 'squarespaceProvider.claimModeHint', options: [
+      { value: 'receipt_otp', label: '', labelKey: 'squarespaceProvider.claimModeReceiptOTP' },
+      { value: 'reference', label: '', labelKey: 'squarespaceProvider.claimModeReference' },
+    ] },
+    { key: 'referenceFieldLabel', label: '', labelKey: 'squarespaceProvider.field_referenceFieldLabel', sensitive: false, defaultValue: 'RynexAI top-up reference', hintKey: 'squarespaceProvider.referenceHint' },
+  ],
   airwallex: [
     { key: 'clientId', label: '', sensitive: false },
     { key: 'apiKey', label: '', sensitive: true },
@@ -219,4 +233,32 @@ export function extractBaseUrl(fullUrl: string, path: string): string {
   if (fullUrl.endsWith(path)) return fullUrl.slice(0, -path.length)
   // Fallback: try to extract origin
   try { return new URL(fullUrl).origin } catch { return fullUrl }
+}
+
+/** Squarespace uses an existing hosted Pay Link, never a payer OAuth flow. */
+export function isValidSquarespacePayLink(value: string): boolean {
+  try {
+    const raw = value.trim()
+    const url = new URL(raw)
+    // URL normalizes an explicit :443 away; the backend rejects every explicit port.
+    const authority = raw.match(/^https:\/\/([^/?#]*)/i)?.[1] || ''
+    return url.protocol === 'https:' && Boolean(authority) &&
+      !url.username && !url.password && !url.port && !url.hash && !authority.includes(':') &&
+      url.hostname.endsWith('.squarespace.com') &&
+      url.pathname.startsWith('/pay-link/')
+  } catch {
+    return false
+  }
+}
+
+/** Receipt-email claims do not require a reference field on the Pay Link. */
+export function getVisibleProviderConfigFields(providerKey: string, config: Record<string, string>): ConfigFieldDef[] {
+  const fields = PROVIDER_CONFIG_FIELDS[providerKey] || []
+  if (providerKey !== 'squarespace' || config.paymentClaimMode === 'reference') return fields
+  return fields.filter(field => field.key !== 'referenceFieldLabel')
+}
+
+/** Bind claims to the verified Pay Link product, not just a website and amount. */
+export function isValidSquarespaceProductId(value: string): boolean {
+  return /^[a-f0-9]{24}$/i.test(value.trim())
 }

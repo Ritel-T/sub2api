@@ -1,8 +1,11 @@
+import { isRetailQuote } from './retailQuote'
 import type {
   CreateOrderRequest,
   CreateOrderResult,
   MethodLimit,
   OrderType,
+  RetailQuote,
+  PaymentClaimMode,
   WechatJSAPIPayload,
   WechatOAuthInfo,
 } from '@/types/payment'
@@ -16,11 +19,14 @@ const VISIBLE_METHOD_ALIASES = {
   wxpay_direct: 'wxpay',
   stripe: 'stripe',
   airwallex: 'airwallex',
+  squarespace: 'squarespace',
 } as const
 
-export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex'
+export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex' | 'squarespace'
 export type StripeVisibleMethod = 'alipay' | 'wechat_pay'
 export type PaymentLaunchKind =
+  | 'order_result'
+  | 'checkout_instructions'
   | 'qr_waiting'
   | 'alipay_deep_link'
   | 'redirect_waiting'
@@ -50,6 +56,8 @@ export interface PaymentRecoverySnapshot {
   resumeToken: string
   alipayMobilePrecreateDeepLink?: boolean
   createdAt: number
+  retailQuote?: RetailQuote
+  paymentClaimMode?: PaymentClaimMode
 }
 
 export interface PaymentLaunchContext {
@@ -80,6 +88,7 @@ export interface BuildCreateOrderPayloadInput {
   amount: number
   paymentType: string
   orderType: OrderType
+  quoteToken?: string
   planId?: number
   origin?: string
   isMobile: boolean
@@ -136,6 +145,8 @@ export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): Cr
       : 'hosted_redirect',
   }
 
+  if (input.quoteToken) payload.quote_token = input.quoteToken
+
   if (input.planId) {
     payload.plan_id = input.planId
   }
@@ -169,7 +180,21 @@ export function decidePaymentLaunch(
     paymentMode: (result.payment_mode || '').trim(),
     resumeToken: result.resume_token || '',
     alipayMobilePrecreateDeepLink: result.alipay_mobile_precreate_deep_link === true,
+    retailQuote: result.retail_quote,
+    paymentClaimMode: result.retail_quote?.payment_claim_mode || result.payment_claim_mode,
   }, context.now)
+
+  if (result.status && result.status.trim().toUpperCase() !== 'PENDING') {
+    return { kind: 'order_result', paymentState: baseState, recovery: baseState }
+  }
+
+  if (visibleMethod === 'squarespace') {
+    const ready = !!baseState.payUrl && isRetailQuote(baseState.retailQuote) && baseState.retailQuote.currency === 'GBP'
+      && !!baseState.retailQuote.checkout_reference
+      && /^[a-f0-9]{24}$/i.test(baseState.retailQuote.product_id || '')
+      && ['receipt_otp', 'reference'].includes(baseState.paymentClaimMode || '')
+    return { kind: ready ? 'checkout_instructions' : 'unhandled', paymentState: baseState, recovery: baseState }
+  }
 
   if (visibleMethod === 'airwallex' && baseState.clientSecret && baseState.intentId) {
     if (!context.airwallexRouteUrl) {
@@ -328,6 +353,8 @@ export function readPaymentRecoverySnapshot(
       paymentMode: parsed.paymentMode,
       resumeToken: parsed.resumeToken,
       alipayMobilePrecreateDeepLink: parsed.alipayMobilePrecreateDeepLink === true,
+      retailQuote: isRetailQuote(parsed.retailQuote) ? parsed.retailQuote : undefined,
+      paymentClaimMode: parsed.paymentClaimMode === 'receipt_otp' || parsed.paymentClaimMode === 'reference' ? parsed.paymentClaimMode : undefined,
       createdAt: parsed.createdAt,
     }
   } catch {

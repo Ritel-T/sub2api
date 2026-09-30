@@ -33,6 +33,14 @@ function createOrderResult(overrides: Partial<CreateOrderResult> = {}): CreateOr
 }
 
 describe('getVisibleMethods', () => {
+  it('keeps Squarespace as a distinct visible card channel', () => {
+    expect(getVisibleMethods({ squarespace: methodLimit({ currency: 'GBP', display_name: 'Card / Squarespace' }) }))
+      .toEqual({ squarespace: methodLimit({ currency: 'GBP', display_name: 'Card / Squarespace' }) })
+    expect(buildCreateOrderPayload({ amount: 10, paymentType: 'squarespace', orderType: 'balance', isMobile: true, isWechatBrowser: false, quoteToken: 'opaque-quote' }))
+      .toMatchObject({ amount: 10, payment_type: 'squarespace', quote_token: 'opaque-quote' })
+  })
+
+
   it('normalizes provider aliases and keeps stripe as a top-level method', () => {
     const visible = getVisibleMethods({
       alipay_direct: methodLimit({ single_min: 5 }),
@@ -74,6 +82,27 @@ describe('getVisibleMethods', () => {
 })
 
 describe('decidePaymentLaunch', () => {
+  it.each(['COMPLETED', 'EXPIRED', 'CANCELLED', 'FAILED', 'PAID', 'RECHARGING'] as const)('routes a replayed %s order to its actual result without opening payment again', status => {
+    const decision = decidePaymentLaunch(createOrderResult({ status, pay_url: 'https://ritelt.squarespace.com/pay-link/' }), { visibleMethod: 'squarespace', orderType: 'balance', isMobile: true })
+    expect(decision.kind).toBe('order_result')
+  })
+
+  it('requires the locked GBP quote before showing Squarespace checkout instructions', () => {
+    const retailQuote = { credited_amount_usd: 10, base_amount_gbp: 8, included_cost_gbp: 0.42, total_amount_gbp: 8.42,
+      pay_amount: 8.42, currency: 'GBP', fx: { GBP: 1, USD: 1.25, CNY: 9 }, fx_source: 'manual', fx_asof: '2026-09-29T12:00:00Z',
+      issued_at: '2026-09-29T12:00:00Z', expires_at: '2099-01-01T00:00:00Z', checkout_reference: 'RYNEX-topup-42', product_id: '0123456789abcdef01234567', payment_claim_mode: 'reference' as const }
+    const result = createOrderResult({ amount: 10, pay_amount: 8.42, currency: 'GBP', pay_url: 'https://ritelt.squarespace.com/pay-link/', retail_quote: retailQuote })
+    const context = { visibleMethod: 'squarespace', orderType: 'balance' as const, isMobile: true }
+    const decision = decidePaymentLaunch(result, context)
+    expect(decision.kind).toBe('checkout_instructions')
+    expect(decision.recovery.retailQuote).toEqual(retailQuote)
+    expect(readPaymentRecoverySnapshot(JSON.stringify(decision.recovery))?.retailQuote).toEqual(retailQuote)
+    expect(decidePaymentLaunch({ ...result, retail_quote: undefined }, context).kind).toBe('unhandled')
+    expect(decidePaymentLaunch({ ...result, retail_quote: { ...retailQuote, product_id: undefined } }, context).kind).toBe('unhandled')
+    expect(decidePaymentLaunch({ ...result, retail_quote: { ...retailQuote, currency: 'USD' } }, context).kind).toBe('unhandled')
+  })
+
+
   it('uses Stripe popup waiting flow for desktop Alipay client secret', () => {
     const decision = decidePaymentLaunch(createOrderResult({
       client_secret: 'cs_test',

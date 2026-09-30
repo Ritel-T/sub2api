@@ -10,8 +10,12 @@ import type {
   MethodLimitsResponse,
   CheckoutInfoResponse,
   CreateOrderRequest,
+  PaymentQuoteRequest,
+  PaymentQuoteResponse,
   CreateOrderResult,
-  PaymentOrder
+  PaymentOrder,
+  RetailQuote,
+  SquarespaceClaimChallenge
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
@@ -21,6 +25,9 @@ export interface PublicOrderVerifyResult {
   paid: boolean
   created_at: string
   expires_at: string
+  payment_type?: string
+  retail_quote?: RetailQuote
+  retail_pricing?: boolean
 }
 
 export const paymentAPI = {
@@ -44,9 +51,30 @@ export const paymentAPI = {
     return apiClient.get<MethodLimitsResponse>('/payment/limits')
   },
 
+  /** Obtain a server-priced balance quote before confirming checkout. */
+  quote(data: PaymentQuoteRequest) {
+    return apiClient.post<PaymentQuoteResponse>('/payment/quote', data)
+  },
+
   /** Create a new payment order */
   createOrder(data: CreateOrderRequest) {
     return apiClient.post<CreateOrderResult>('/payment/orders', data)
+  },
+
+  /** Request a code for an official receipt, bound to the current user and local order. */
+  requestSquarespaceClaimCode(localOrderId: number, receiptOrderNumber: string) {
+    return apiClient.post<SquarespaceClaimChallenge>('/payment/squarespace/claim-challenge', {
+      local_order_id: localOrderId,
+      receipt_order_number: receiptOrderNumber,
+    })
+  },
+
+  /** Verify the one-time challenge and read back the owned order status. */
+  claimSquarespacePayment(challengeToken: string, code: string) {
+    return apiClient.post<PaymentOrder>('/payment/squarespace/claim', {
+      challenge_token: challengeToken,
+      code,
+    })
   },
 
   /** Get current user's orders */

@@ -1,0 +1,78 @@
+{
+  "order": {
+    "id": "6abc2dbbea41076f38f5a407",
+    "orderNumber": "1",
+    "paymentState": "PAID",
+    "testmode": false,
+    "grandTotal": {
+      "currency": "GBP",
+      "value": "1.00"
+    },
+    "refundedTotal": {
+      "currency": "GBP",
+      "value": "0.00"
+    },
+    "lineItems": [
+      {
+        "id": "6abc2d02ac3ba7447cdc0753",
+        "productId": "6abc2d02ac3ba7447cdc0752",
+        "variantId": null
+      }
+    ]
+  },
+  "documents": [
+    {
+      "id": "c0c66ad6-1fcc-4359-8848-e54c5ad39339",
+      "salesOrderId": "6abc2dbbea41076f38f5a407",
+      "voided": false,
+      "paymentGatewayError": null,
+      "total": {
+        "currency": "GBP",
+        "value": "1.00"
+      },
+      "totalNetPayment": {
+        "currency": "GBP",
+        "value": "0.73"
+      },
+      "payments": [
+        {
+          "id": "8d7163f8-af5e-4563-861b-2adb447be7b8",
+          "externalTransactionId": "verified_external_transaction_1",
+          "provider": "SQSP_PAYMENTS",
+          "paidOn": "2026-09-29T21:29:26.493Z",
+          "amount": {
+            "currency": "GBP",
+            "value": "1.00"
+          },
+          "netAmount": {
+            "currency": "GBP",
+            "value": "0.73"
+          },
+          "refundedAmount": {
+            "currency": "GBP",
+            "value": "0.00"
+          },
+          "processingFees": [
+            {
+              "amount": {
+                "currency": "GBP",
+                "value": "0.27"
+              },
+              "netAmount": {
+                "currency": "GBP",
+                "value": "0.27"
+              },
+              "refundedAmount": {
+                "currency": "GBP",
+                "value": "0.00"
+              },
+              "feeRefunds": []
+            }
+          ],
+          "refunds": []
+        }
+      ]
+    }
+  ],
+  "external_transaction_ids_pseudonymized": true
+}

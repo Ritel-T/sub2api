@@ -33,8 +33,11 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if err != nil {
 		return nil, fmt.Errorf("get payment config: %w", err)
 	}
-	if !cfg.Enabled {
+	if !paymentRequestEnabled(cfg, req) {
 		return nil, infraerrors.Forbidden("PAYMENT_DISABLED", "payment system is disabled")
+	}
+	if req.PaymentType == "squarespace" && !cfg.BalanceRetailPricingEnabled {
+		return nil, infraerrors.Forbidden("RETAIL_PRICING_DISABLED", "Squarespace requires a signed uniform retail quote")
 	}
 	plan, err := s.validateOrderInput(ctx, req, cfg)
 	if err != nil {
@@ -52,6 +55,12 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	}
 	if s.notificationEmailService != nil {
 		s.notificationEmailService.RememberRecipientLocale(ctx, req.UserID, user.Email, req.Locale)
+	}
+	if cfg.BalanceRetailPricingEnabled && req.OrderType == payment.OrderTypeBalance {
+		return s.createRetailQuotedOrder(ctx, req, cfg, user)
+	}
+	if req.QuoteToken != "" {
+		return nil, infraerrors.BadRequest("RETAIL_PRICING_DISABLED", "retail pricing changed; request a fresh checkout")
 	}
 	orderAmount := req.Amount
 	limitAmount := req.Amount
@@ -75,6 +84,9 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	}
 	sel, err := s.selectCreateOrderInstance(ctx, req, cfg, payAmount)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireSquarespaceProductionAccess(cfg, req.UserID, sel); err != nil {
 		return nil, err
 	}
 	if err := s.validateSelectedCreateOrderInstance(ctx, req, sel); err != nil {
@@ -158,7 +170,11 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	if err := s.checkPendingLimit(ctx, tx, req.UserID, cfg.MaxPendingOrders); err != nil {
 		return nil, err
 	}
-	if err := s.checkDailyLimit(ctx, tx, req.UserID, limitAmount, cfg.DailyLimit); err != nil {
+	if req.RetailQuote != nil {
+		if err := s.checkDailyLimitUSD(ctx, tx, req.UserID, limitAmount, cfg.DailyLimit); err != nil {
+			return nil, err
+		}
+	} else if err := s.checkDailyLimit(ctx, tx, req.UserID, limitAmount, cfg.DailyLimit); err != nil {
 		return nil, err
 	}
 	tm := cfg.OrderTimeoutMin
@@ -166,9 +182,15 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		tm = defaultOrderTimeoutMin
 	}
 	exp := time.Now().Add(time.Duration(tm) * time.Minute)
-	outTradeNo, err := s.allocateOutTradeNo(ctx, tx)
-	if err != nil {
-		return nil, err
+	outTradeNo := ""
+	if req.RetailQuote != nil {
+		outTradeNo = req.RetailQuote.CheckoutReference
+		exp = req.RetailQuote.ExpiresAt
+	} else {
+		outTradeNo, err = s.allocateOutTradeNo(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
 	}
 	providerSnapshot := buildPaymentOrderProviderSnapshot(sel, req)
 	selectedInstanceID := ""
@@ -306,6 +328,22 @@ func buildPaymentOrderProviderSnapshot(sel *payment.InstanceSelection, req Creat
 		snapshot["currency"] = paymentProviderConfigCurrency(providerKey, sel.Config)
 	}
 
+	if req.RetailQuote != nil {
+		snapshot["retail_quote"] = retailQuoteSnapshot(req.RetailQuote)
+	}
+	if providerKey == "squarespace" {
+		snapshot["merchant_id"] = strings.TrimSpace(sel.Config["websiteId"])
+		productID, _ := canonicalSquarespaceProductID(sel.Config["productId"])
+		snapshot["product_id"] = productID
+		snapshot["currency"] = "GBP"
+		snapshot["pay_link_url"] = sel.Config["payLinkUrl"]
+		snapshot["reference_field_label"] = sel.Config["referenceFieldLabel"]
+		mode := sel.Config["paymentClaimMode"]
+		if mode == "" {
+			mode = "receipt_otp"
+		}
+		snapshot["payment_claim_mode"] = mode
+	}
 	if len(snapshot) == 1 {
 		return nil
 	}
@@ -731,26 +769,28 @@ func classifyCreatePaymentError(req CreateOrderRequest, providerKey string, err 
 
 func buildCreateOrderResponse(order *dbent.PaymentOrder, req CreateOrderRequest, payAmount float64, sel *payment.InstanceSelection, pr *payment.CreatePaymentResponse, resultType payment.CreatePaymentResultType) *CreateOrderResponse {
 	return &CreateOrderResponse{
-		OrderID:      order.ID,
-		Amount:       order.Amount,
-		PayAmount:    payAmount,
-		FeeRate:      order.FeeRate,
-		Status:       OrderStatusPending,
-		ResultType:   resultType,
-		PaymentType:  req.PaymentType,
-		OutTradeNo:   order.OutTradeNo,
-		PayURL:       pr.PayURL,
-		QRCode:       pr.QRCode,
-		ClientSecret: pr.ClientSecret,
-		IntentID:     pr.IntentID,
-		Currency:     pr.Currency,
-		CountryCode:  pr.CountryCode,
-		PaymentEnv:   pr.PaymentEnv,
-		OAuth:        pr.OAuth,
-		JSAPI:        pr.JSAPI,
-		JSAPIPayload: pr.JSAPI,
-		ExpiresAt:    order.ExpiresAt,
-		PaymentMode:  sel.PaymentMode,
+		OrderID:          order.ID,
+		Amount:           order.Amount,
+		PayAmount:        payAmount,
+		FeeRate:          order.FeeRate,
+		Status:           OrderStatusPending,
+		ResultType:       resultType,
+		PaymentType:      req.PaymentType,
+		OutTradeNo:       order.OutTradeNo,
+		PayURL:           pr.PayURL,
+		QRCode:           pr.QRCode,
+		ClientSecret:     pr.ClientSecret,
+		IntentID:         pr.IntentID,
+		Currency:         pr.Currency,
+		RetailQuote:      PaymentOrderRetailQuote(order),
+		PaymentClaimMode: PaymentOrderClaimMode(order),
+		CountryCode:      pr.CountryCode,
+		PaymentEnv:       pr.PaymentEnv,
+		OAuth:            pr.OAuth,
+		JSAPI:            pr.JSAPI,
+		JSAPIPayload:     pr.JSAPI,
+		ExpiresAt:        order.ExpiresAt,
+		PaymentMode:      sel.PaymentMode,
 	}
 }
 

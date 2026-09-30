@@ -116,6 +116,7 @@ var providerSensitiveConfigFields = map[string]map[string]struct{}{
 	payment.TypeWxpay:     {"privatekey": {}, "apiv3key": {}, "publickey": {}},
 	payment.TypeStripe:    {"secretkey": {}, "webhooksecret": {}},
 	payment.TypeAirwallex: {"apikey": {}, "webhooksecret": {}},
+	"squarespace":         {"clientsecret": {}, "accesstoken": {}, "refreshtoken": {}, "webhooksecret": {}},
 }
 
 // providerPendingOrderProtectedConfigFields lists config keys that cannot be
@@ -128,6 +129,7 @@ var providerPendingOrderProtectedConfigFields = map[string]map[string]struct{}{
 	payment.TypeWxpay:     {"privatekey": {}, "apiv3key": {}, "publickey": {}, "appid": {}, "mpappid": {}, "mchid": {}, "publickeyid": {}, "certserial": {}},
 	payment.TypeStripe:    {"secretkey": {}, "webhooksecret": {}, "currency": {}},
 	payment.TypeAirwallex: {"clientid": {}, "apikey": {}, "webhooksecret": {}, "apibase": {}, "accountid": {}, "currency": {}},
+	"squarespace":         {"websiteid": {}, "paylinkurl": {}, "currency": {}, "referencefieldlabel": {}, "productid": {}, "paymentclaimmode": {}, "productionapproved": {}, "clientid": {}, "clientsecret": {}, "accesstoken": {}, "refreshtoken": {}, "webhooksecret": {}},
 }
 
 func isSensitiveProviderConfigField(providerKey, fieldName string) bool {
@@ -178,13 +180,18 @@ func (s *PaymentConfigService) countPendingOrdersByPlan(ctx context.Context, pla
 }
 
 var validProviderKeys = map[string]bool{
-	payment.TypeEasyPay: true, payment.TypeAlipay: true, payment.TypeWxpay: true, payment.TypeStripe: true, payment.TypeAirwallex: true,
+	payment.TypeEasyPay: true, payment.TypeAlipay: true, payment.TypeWxpay: true, payment.TypeStripe: true, payment.TypeAirwallex: true, "squarespace": true,
 }
 
 func (s *PaymentConfigService) CreateProviderInstance(ctx context.Context, req CreateProviderInstanceRequest) (*dbent.PaymentProviderInstance, error) {
 	typesStr := joinTypes(req.SupportedTypes)
 	if err := validateProviderRequest(req.ProviderKey, req.Name, typesStr); err != nil {
 		return nil, err
+	}
+	if req.ProviderKey == "squarespace" {
+		if err := validateSquarespacePublicConfig(req.Config); err != nil {
+			return nil, err
+		}
 	}
 	if req.ProviderKey == payment.TypeEasyPay {
 		if err := validateEasyPayCustomMethods(req.Config, typesStr); err != nil {
@@ -359,6 +366,11 @@ func (s *PaymentConfigService) UpdateProviderInstance(ctx context.Context, id in
 			return nil, err
 		}
 	}
+	if current.ProviderKey == "squarespace" {
+		if err := validateSquarespacePublicConfig(configToValidate); err != nil {
+			return nil, err
+		}
+	}
 	// Validate merged config when the instance will end up enabled.
 	// This surfaces provider-level errors (e.g. wxpay missing certSerial) at save time,
 	// so admins see them in the dialog instead of only when an order is created.
@@ -490,24 +502,28 @@ func (s *PaymentConfigService) mergeConfig(ctx context.Context, id int64, newCon
 	return existing, nil
 }
 
-// decryptConfig parses a stored provider config.
-// New records are plaintext JSON; legacy records are AES-256-GCM ciphertext
-// ("iv:authTag:ciphertext"). Values that cannot be parsed as either — including
-// legacy ciphertext with no/invalid TOTP_ENCRYPTION_KEY — are treated as empty,
-// letting the admin re-enter the config via the UI to complete the migration.
-//
-// TODO(deprecated-legacy-ciphertext): The AES fallback branch is a transitional
-// shim for pre-plaintext records. Remove it (and the encryptionKey field) after
-// a few releases once all live deployments have re-saved their provider configs.
+// decryptConfig accepts historic plaintext JSON and AES ciphertext. New writes
+// use versioned AES-GCM; corruption of a new encrypted record fails closed.
+
 func (s *PaymentConfigService) decryptConfig(stored string) (map[string]string, error) {
 	if stored == "" {
 		return nil, nil
 	}
 	var cfg map[string]string
+	if strings.HasPrefix(stored, "enc:v1:") {
+		plain, err := s.DecryptPrivatePaymentData(stored)
+		if err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal([]byte(plain), &cfg); err != nil {
+			return nil, fmt.Errorf("parse encrypted provider config: %w", err)
+		}
+		return cfg, nil
+	}
 	if err := json.Unmarshal([]byte(stored), &cfg); err == nil {
 		return cfg, nil
 	}
-	// Deprecated: legacy AES-256-GCM ciphertext fallback — scheduled for removal.
+	// Compatibility for earlier unversioned AES-GCM ciphertext.
 	if len(s.encryptionKey) == payment.AES256KeySize {
 		//nolint:staticcheck // SA1019: intentional legacy fallback, scheduled for removal
 		if plaintext, err := payment.Decrypt(stored, s.encryptionKey); err == nil {
@@ -533,13 +549,57 @@ func (s *PaymentConfigService) DeleteProviderInstance(ctx context.Context, id in
 	return s.entClient.PaymentProviderInstance.DeleteOneID(id).Exec(ctx)
 }
 
-// encryptConfig serialises a provider config for storage.
-// New records are written as plaintext JSON; the historical AES-GCM wrapping
-// has been dropped but decryptConfig still accepts old ciphertext during migration.
+// encryptConfig protects all new provider config writes with the configured
+// TOTP encryption key. Existing plaintext records remain readable.
 func (s *PaymentConfigService) encryptConfig(cfg map[string]string) (string, error) {
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		return "", fmt.Errorf("marshal config: %w", err)
 	}
-	return string(data), nil
+	return s.EncryptPrivatePaymentData(string(data))
+}
+
+// EncryptPrivatePaymentData is also used by durable OAuth token state. It never
+// exposes the shared key and has no plaintext fallback when the key is missing.
+func (s *PaymentConfigService) EncryptPrivatePaymentData(plain string) (string, error) {
+	if s == nil || len(s.encryptionKey) != payment.AES256KeySize {
+		return "", infraerrors.ServiceUnavailable("PAYMENT_ENCRYPTION_UNAVAILABLE", "payment credentials require a configured 32-byte encryption key")
+	}
+	encrypted, err := payment.Encrypt(plain, s.encryptionKey)
+	if err != nil {
+		return "", err
+	}
+	return "enc:v1:" + encrypted, nil
+}
+func (s *PaymentConfigService) DecryptPrivatePaymentData(stored string) (string, error) {
+	if s == nil || len(s.encryptionKey) != payment.AES256KeySize {
+		return "", infraerrors.ServiceUnavailable("PAYMENT_ENCRYPTION_UNAVAILABLE", "payment credential encryption key is unavailable")
+	}
+	if !strings.HasPrefix(stored, "enc:v1:") {
+		return "", fmt.Errorf("unsupported private payment data format")
+	}
+	return payment.Decrypt(strings.TrimPrefix(stored, "enc:v1:"), s.encryptionKey)
+}
+
+func validateSquarespacePublicConfig(config map[string]string) error {
+	allowed := map[string]bool{"websiteId": true, "payLinkUrl": true, "currency": true, "referenceFieldLabel": true, "paymentClaimMode": true, "productId": true, "productionApproved": true}
+	for key := range config {
+		if !allowed[key] {
+			return infraerrors.BadRequest("INVALID_SQUARESPACE_PUBLIC_CONFIG", "Squarespace provider config only accepts public payment settings; use the OAuth import endpoint for credentials")
+		}
+	}
+	if raw, exists := config["productId"]; exists && strings.TrimSpace(raw) != "" {
+		canonical, err := canonicalSquarespaceProductID(raw)
+		if err != nil {
+			return infraerrors.BadRequest("INVALID_SQUARESPACE_PUBLIC_CONFIG", err.Error())
+		}
+		config["productId"] = canonical
+	}
+	if approval := config["productionApproved"]; approval != "" && approval != "true" && approval != "false" {
+		return infraerrors.BadRequest("INVALID_SQUARESPACE_PUBLIC_CONFIG", "production approval must be true or false")
+	}
+	if mode := config["paymentClaimMode"]; mode != "" && mode != "reference" && mode != "receipt_otp" {
+		return infraerrors.BadRequest("INVALID_PAYMENT_CLAIM_MODE", "Squarespace claim mode must be reference or receipt_otp")
+	}
+	return nil
 }

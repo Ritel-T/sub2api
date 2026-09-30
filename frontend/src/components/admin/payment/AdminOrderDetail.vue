@@ -17,6 +17,8 @@
             {{ t('payment.status.' + order.status.toLowerCase(), order.status) }}
           </span>
         </div>
+        <AdminRetailOrderAmounts v-if="order.retail_quote" :quote="order.retail_quote" class="col-span-2" />
+        <template v-else>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</p>
           <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ baseAmount.toFixed(2) }}</p>
@@ -33,10 +35,11 @@
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</p>
           <p class="text-sm font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ order.amount.toFixed(2) }}</p>
         </div>
+        </template>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p>
           <p class="text-sm text-gray-700 dark:text-gray-300">
-            {{ t('payment.methods.' + order.payment_type, order.payment_type) }}
+            {{ order.payment_type === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + order.payment_type, order.payment_type) }}
           </p>
         </div>
         <div>
@@ -117,6 +120,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import AdminRetailOrderAmounts from './AdminRetailOrderAmounts.vue'
 import type { PaymentOrder } from '@/types/payment'
 import { statusBadgeClass, canRefund as canRefundStatus, formatOrderDateTime } from '@/components/payment/orderUtils'
 import { currencySymbol } from '@/components/payment/currency'
@@ -134,7 +138,7 @@ const paymentAmountSymbol = computed(() => currencySymbol(props.order?.currency)
 
 /** 充值金额 (base amount before fee) = pay_amount - fee = pay_amount / (1 + fee_rate/100) */
 const baseAmount = computed(() => {
-  if (!props.order) return 0
+  if (!props.order || props.order.retail_quote) return 0
   const feeRate = Number(props.order.fee_rate) || 0
   if (feeRate <= 0) return props.order.pay_amount
   return props.order.pay_amount / (1 + feeRate / 100)
@@ -142,7 +146,7 @@ const baseAmount = computed(() => {
 
 /** 手续费 = pay_amount - baseAmount */
 const feeAmount = computed(() => {
-  if (!props.order) return 0
+  if (!props.order || props.order.retail_quote) return 0
   const feeRate = Number(props.order.fee_rate) || 0
   if (feeRate <= 0) return 0
   return props.order.pay_amount - baseAmount.value
@@ -156,7 +160,7 @@ const emit = defineEmits<{
 }>()
 
 function canRefund(order: PaymentOrder): boolean {
-  return canRefundStatus(order.status)
+  return order.payment_type !== 'squarespace' && canRefundStatus(order.status)
 }
 
 function formatDateTime(dateStr: string): string {

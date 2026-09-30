@@ -50,6 +50,18 @@ const (
 
 // PaymentConfig holds the payment system configuration.
 type PaymentConfig struct {
+	MerchantTestUserIDs          []int64 `json:"-"`
+	MerchantTestAccess           bool    `json:"merchant_test_access"`
+	BalanceRetailPricingEnabled  bool    `json:"balance_retail_pricing_enabled"`
+	BalanceRetailCostRate        float64 `json:"balance_retail_cost_rate"`
+	BalanceRetailFixedCostGBP    float64 `json:"balance_retail_fixed_cost_gbp"`
+	BalanceRetailQuoteTTLSeconds int     `json:"balance_retail_quote_ttl_seconds"`
+	BalanceRetailFXSource        string  `json:"balance_retail_fx_source"`
+	BalanceRetailFXUSDPerGBP     float64 `json:"balance_retail_fx_usd_per_gbp"`
+	BalanceRetailFXCNYPerGBP     float64 `json:"balance_retail_fx_cny_per_gbp"`
+	BalanceRetailFXAsOf          string  `json:"balance_retail_fx_asof"`
+	BalanceRetailFXMaxAgeHours   int     `json:"balance_retail_fx_max_age_hours"`
+
 	Enabled                   bool     `json:"enabled"`
 	MinAmount                 float64  `json:"min_amount"`
 	MaxAmount                 float64  `json:"max_amount"`
@@ -84,6 +96,17 @@ type PaymentConfig struct {
 
 // UpdatePaymentConfigRequest contains fields to update payment configuration.
 type UpdatePaymentConfigRequest struct {
+	MerchantTestUserIDs          []int64  `json:"merchant_test_user_ids"`
+	BalanceRetailPricingEnabled  *bool    `json:"balance_retail_pricing_enabled"`
+	BalanceRetailCostRate        *float64 `json:"balance_retail_cost_rate"`
+	BalanceRetailFixedCostGBP    *float64 `json:"balance_retail_fixed_cost_gbp"`
+	BalanceRetailQuoteTTLSeconds *int     `json:"balance_retail_quote_ttl_seconds"`
+	BalanceRetailFXSource        *string  `json:"balance_retail_fx_source"`
+	BalanceRetailFXUSDPerGBP     *float64 `json:"balance_retail_fx_usd_per_gbp"`
+	BalanceRetailFXCNYPerGBP     *float64 `json:"balance_retail_fx_cny_per_gbp"`
+	BalanceRetailFXAsOf          *string  `json:"balance_retail_fx_asof"`
+	BalanceRetailFXMaxAgeHours   *int     `json:"balance_retail_fx_max_age_hours"`
+
 	Enabled                   *bool    `json:"enabled"`
 	MinAmount                 *float64 `json:"min_amount"`
 	MaxAmount                 *float64 `json:"max_amount"`
@@ -228,6 +251,7 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 		SettingPaymentVisibleMethodAlipayEnabled, SettingPaymentVisibleMethodAlipaySource,
 		SettingPaymentVisibleMethodWxpayEnabled, SettingPaymentVisibleMethodWxpaySource,
 	}
+	keys = append(keys, retailPaymentSettingsKeys...)
 	vals, err := s.settingRepo.GetMultiple(ctx, keys)
 	if err != nil {
 		return nil, fmt.Errorf("get payment config settings: %w", err)
@@ -265,6 +289,7 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		AlipayForceQRCode:             vals[SettingAlipayForceQRCode] == "true",
 		AlipayMobilePrecreateDeepLink: vals[SettingAlipayMobilePrecreateDeepLink] == "true",
 	}
+	parseRetailPaymentConfig(cfg, vals)
 	cfg.AlipayMobilePrecreateDeepLink = pcEnvBoolOverride(
 		SettingAlipayMobilePrecreateDeepLink,
 		cfg.AlipayMobilePrecreateDeepLink,
@@ -344,6 +369,9 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 		}
 	}
 	m := make(map[string]string)
+	if err := retailPaymentConfigUpdates(req, m); err != nil {
+		return err
+	}
 	if req.Enabled != nil {
 		m[SettingPaymentEnabled] = formatBoolOrEmpty(req.Enabled)
 	}

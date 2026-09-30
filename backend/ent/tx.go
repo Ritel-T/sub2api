@@ -54,10 +54,18 @@ type Tx struct {
 	IdentityAdoptionDecision *IdentityAdoptionDecisionClient
 	// PaymentAuditLog is the client for interacting with the PaymentAuditLog builders.
 	PaymentAuditLog *PaymentAuditLogClient
+	// PaymentExternalOrder is the client for interacting with the PaymentExternalOrder builders.
+	PaymentExternalOrder *PaymentExternalOrderClient
+	// PaymentExternalPayment is the client for interacting with the PaymentExternalPayment builders.
+	PaymentExternalPayment *PaymentExternalPaymentClient
+	// PaymentExternalRefundJournal is the client for interacting with the PaymentExternalRefundJournal builders.
+	PaymentExternalRefundJournal *PaymentExternalRefundJournalClient
 	// PaymentOrder is the client for interacting with the PaymentOrder builders.
 	PaymentOrder *PaymentOrderClient
 	// PaymentProviderInstance is the client for interacting with the PaymentProviderInstance builders.
 	PaymentProviderInstance *PaymentProviderInstanceClient
+	// PaymentSyncState is the client for interacting with the PaymentSyncState builders.
+	PaymentSyncState *PaymentSyncStateClient
 	// PendingAuthSession is the client for interacting with the PendingAuthSession builders.
 	PendingAuthSession *PendingAuthSessionClient
 	// PromoCode is the client for interacting with the PromoCode builders.
@@ -243,8 +251,12 @@ func (tx *Tx) init() {
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)
 	tx.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(tx.config)
 	tx.PaymentAuditLog = NewPaymentAuditLogClient(tx.config)
+	tx.PaymentExternalOrder = NewPaymentExternalOrderClient(tx.config)
+	tx.PaymentExternalPayment = NewPaymentExternalPaymentClient(tx.config)
+	tx.PaymentExternalRefundJournal = NewPaymentExternalRefundJournalClient(tx.config)
 	tx.PaymentOrder = NewPaymentOrderClient(tx.config)
 	tx.PaymentProviderInstance = NewPaymentProviderInstanceClient(tx.config)
+	tx.PaymentSyncState = NewPaymentSyncStateClient(tx.config)
 	tx.PendingAuthSession = NewPendingAuthSessionClient(tx.config)
 	tx.PromoCode = NewPromoCodeClient(tx.config)
 	tx.PromoCodeUsage = NewPromoCodeUsageClient(tx.config)

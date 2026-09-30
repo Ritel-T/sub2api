@@ -45,8 +45,8 @@
       <!-- Right: toggles + actions -->
       <div class="flex items-center gap-4">
         <ToggleSwitch :label="t('common.enabled')" :checked="provider.enabled" @toggle="emit('toggleField', 'enabled')" />
-        <ToggleSwitch :label="t('admin.settings.payment.refundEnabled')" :checked="provider.refund_enabled" @toggle="emit('toggleField', 'refund_enabled')" />
-        <ToggleSwitch v-if="provider.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="provider.allow_user_refund" @toggle="emit('toggleField', 'allow_user_refund')" />
+        <ToggleSwitch v-if="provider.provider_key !== 'squarespace'" :label="t('admin.settings.payment.refundEnabled')" :checked="provider.refund_enabled" @toggle="emit('toggleField', 'refund_enabled')" />
+        <ToggleSwitch v-if="provider.provider_key !== 'squarespace' && provider.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="provider.allow_user_refund" @toggle="emit('toggleField', 'allow_user_refund')" />
         <div class="flex items-center gap-2 border-l border-gray-200 pl-3 dark:border-dark-600">
           <button type="button" @click="emit('edit')" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 theme-action-button transition-colors">
             <Icon name="edit" size="sm" />
@@ -77,6 +77,7 @@ const PROVIDER_KEY_LABELS: Record<string, string> = {
   wxpay: 'admin.settings.payment.providerWxpay',
   stripe: 'admin.settings.payment.providerStripe',
   airwallex: 'admin.settings.payment.providerAirwallex',
+  squarespace: 'squarespaceProvider.name',
 }
 
 const props = defineProps<{

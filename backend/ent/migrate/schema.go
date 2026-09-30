@@ -1122,6 +1122,130 @@ var (
 			},
 		},
 	}
+	// PaymentExternalOrdersColumns holds the columns for the "payment_external_orders" table.
+	PaymentExternalOrdersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "provider_key", Type: field.TypeString, Size: 30},
+		{Name: "website_id", Type: field.TypeString, Size: 128},
+		{Name: "external_order_id", Type: field.TypeString, Size: 128},
+		{Name: "order_number", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "binding_method", Type: field.TypeString, Size: 30, Default: "reference"},
+		{Name: "quote_hash", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "local_order_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "checkout_reference", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "currency", Type: field.TypeString, Size: 3, Default: ""},
+		{Name: "total_minor", Type: field.TypeInt64, Default: 0},
+		{Name: "refunded_minor", Type: field.TypeInt64, Default: 0},
+		{Name: "credited_usd_units", Type: field.TypeInt64, Default: 0},
+		{Name: "refund_target_usd_units", Type: field.TypeInt64, Default: 0},
+		{Name: "recovered_usd_units", Type: field.TypeInt64, Default: 0},
+		{Name: "debt_usd_units", Type: field.TypeInt64, Default: 0},
+		{Name: "payment_state", Type: field.TypeString, Size: 30, Default: "UNKNOWN"},
+		{Name: "status", Type: field.TypeString, Size: 30, Default: "OBSERVED"},
+		{Name: "anomaly_code", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "paid_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "provider_modified_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "last_seen_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// PaymentExternalOrdersTable holds the schema information for the "payment_external_orders" table.
+	PaymentExternalOrdersTable = &schema.Table{
+		Name:       "payment_external_orders",
+		Columns:    PaymentExternalOrdersColumns,
+		PrimaryKey: []*schema.Column{PaymentExternalOrdersColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "paymentexternalorder_provider_key_website_id_external_order_id",
+				Unique:  true,
+				Columns: []*schema.Column{PaymentExternalOrdersColumns[1], PaymentExternalOrdersColumns[2], PaymentExternalOrdersColumns[3]},
+			},
+			{
+				Name:    "paymentexternalorder_local_order_id",
+				Unique:  true,
+				Columns: []*schema.Column{PaymentExternalOrdersColumns[7]},
+			},
+			{
+				Name:    "paymentexternalorder_provider_key_website_id_order_number",
+				Unique:  false,
+				Columns: []*schema.Column{PaymentExternalOrdersColumns[1], PaymentExternalOrdersColumns[2], PaymentExternalOrdersColumns[4]},
+			},
+			{
+				Name:    "paymentexternalorder_provider_key_website_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{PaymentExternalOrdersColumns[1], PaymentExternalOrdersColumns[2], PaymentExternalOrdersColumns[17]},
+			},
+			{
+				Name:    "paymentexternalorder_anomaly_code",
+				Unique:  false,
+				Columns: []*schema.Column{PaymentExternalOrdersColumns[18]},
+			},
+		},
+	}
+	// PaymentExternalPaymentsColumns holds the columns for the "payment_external_payments" table.
+	PaymentExternalPaymentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "provider_key", Type: field.TypeString, Size: 30},
+		{Name: "website_id", Type: field.TypeString, Size: 128},
+		{Name: "payment_id", Type: field.TypeString, Size: 128},
+		{Name: "external_order_ledger_id", Type: field.TypeInt64},
+		{Name: "currency", Type: field.TypeString, Size: 3},
+		{Name: "amount_minor", Type: field.TypeInt64},
+		{Name: "refunded_minor", Type: field.TypeInt64, Default: 0},
+		{Name: "paid_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// PaymentExternalPaymentsTable holds the schema information for the "payment_external_payments" table.
+	PaymentExternalPaymentsTable = &schema.Table{
+		Name:       "payment_external_payments",
+		Columns:    PaymentExternalPaymentsColumns,
+		PrimaryKey: []*schema.Column{PaymentExternalPaymentsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "paymentexternalpayment_provider_key_website_id_payment_id",
+				Unique:  true,
+				Columns: []*schema.Column{PaymentExternalPaymentsColumns[1], PaymentExternalPaymentsColumns[2], PaymentExternalPaymentsColumns[3]},
+			},
+			{
+				Name:    "paymentexternalpayment_external_order_ledger_id",
+				Unique:  false,
+				Columns: []*schema.Column{PaymentExternalPaymentsColumns[4]},
+			},
+		},
+	}
+	// PaymentExternalRefundJournalsColumns holds the columns for the "payment_external_refund_journals" table.
+	PaymentExternalRefundJournalsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "external_order_ledger_id", Type: field.TypeInt64},
+		{Name: "cumulative_refund_minor", Type: field.TypeInt64},
+		{Name: "delta_refund_minor", Type: field.TypeInt64},
+		{Name: "target_usd_units", Type: field.TypeInt64},
+		{Name: "delta_target_usd_units", Type: field.TypeInt64},
+		{Name: "recovered_usd_units", Type: field.TypeInt64, Default: 0},
+		{Name: "debt_usd_units", Type: field.TypeInt64, Default: 0},
+		{Name: "status", Type: field.TypeString, Size: 30, Default: "RECORDED"},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// PaymentExternalRefundJournalsTable holds the schema information for the "payment_external_refund_journals" table.
+	PaymentExternalRefundJournalsTable = &schema.Table{
+		Name:       "payment_external_refund_journals",
+		Columns:    PaymentExternalRefundJournalsColumns,
+		PrimaryKey: []*schema.Column{PaymentExternalRefundJournalsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "paymentexternalrefundjournal_order_cumulative",
+				Unique:  true,
+				Columns: []*schema.Column{PaymentExternalRefundJournalsColumns[1], PaymentExternalRefundJournalsColumns[2]},
+			},
+			{
+				Name:    "paymentexternalrefundjournal_status",
+				Unique:  false,
+				Columns: []*schema.Column{PaymentExternalRefundJournalsColumns[8]},
+			},
+		},
+	}
 	// PaymentOrdersColumns holds the columns for the "payment_orders" table.
 	PaymentOrdersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1255,6 +1379,41 @@ var (
 				Name:    "paymentproviderinstance_enabled",
 				Unique:  false,
 				Columns: []*schema.Column{PaymentProviderInstancesColumns[5]},
+			},
+		},
+	}
+	// PaymentSyncStatesColumns holds the columns for the "payment_sync_states" table.
+	PaymentSyncStatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "provider_key", Type: field.TypeString, Size: 30},
+		{Name: "website_id", Type: field.TypeString, Size: 128},
+		{Name: "oauth_client_id", Type: field.TypeString, Size: 200, Default: ""},
+		{Name: "encrypted_oauth_credentials", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "encrypted_oauth_tokens", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "token_version", Type: field.TypeInt64, Default: 0},
+		{Name: "rotation_phase", Type: field.TypeString, Size: 30, Default: "idle"},
+		{Name: "rotation_started_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "next_cursor", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "window_start", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "window_end", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "last_synced_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "retry_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "last_error_code", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "lease_owner", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "lease_until", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// PaymentSyncStatesTable holds the schema information for the "payment_sync_states" table.
+	PaymentSyncStatesTable = &schema.Table{
+		Name:       "payment_sync_states",
+		Columns:    PaymentSyncStatesColumns,
+		PrimaryKey: []*schema.Column{PaymentSyncStatesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "paymentsyncstate_provider_key_website_id",
+				Unique:  true,
+				Columns: []*schema.Column{PaymentSyncStatesColumns[1], PaymentSyncStatesColumns[2]},
 			},
 		},
 	}
@@ -2112,8 +2271,12 @@ var (
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
 		PaymentAuditLogsTable,
+		PaymentExternalOrdersTable,
+		PaymentExternalPaymentsTable,
+		PaymentExternalRefundJournalsTable,
 		PaymentOrdersTable,
 		PaymentProviderInstancesTable,
+		PaymentSyncStatesTable,
 		PendingAuthSessionsTable,
 		PromoCodesTable,
 		PromoCodeUsagesTable,
@@ -2211,12 +2374,24 @@ func init() {
 	PaymentAuditLogsTable.Annotation = &entsql.Annotation{
 		Table: "payment_audit_logs",
 	}
+	PaymentExternalOrdersTable.Annotation = &entsql.Annotation{
+		Table: "payment_external_orders",
+	}
+	PaymentExternalPaymentsTable.Annotation = &entsql.Annotation{
+		Table: "payment_external_payments",
+	}
+	PaymentExternalRefundJournalsTable.Annotation = &entsql.Annotation{
+		Table: "payment_external_refund_journals",
+	}
 	PaymentOrdersTable.ForeignKeys[0].RefTable = UsersTable
 	PaymentOrdersTable.Annotation = &entsql.Annotation{
 		Table: "payment_orders",
 	}
 	PaymentProviderInstancesTable.Annotation = &entsql.Annotation{
 		Table: "payment_provider_instances",
+	}
+	PaymentSyncStatesTable.Annotation = &entsql.Annotation{
+		Table: "payment_sync_states",
 	}
 	PendingAuthSessionsTable.ForeignKeys[0].RefTable = UsersTable
 	PendingAuthSessionsTable.Annotation = &entsql.Annotation{
