@@ -215,6 +215,7 @@ import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { useMerchantTestPaymentAccess } from '@/composables/useMerchantTestPaymentAccess'
 
 interface NavItem {
   path: string
@@ -261,6 +262,7 @@ const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
+const { merchantTestPaymentAccess } = useMerchantTestPaymentAccess()
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
@@ -737,7 +739,8 @@ const ChevronDownIcon = {
 // which handles the opt-in vs opt-out fallback when settings haven't loaded
 // yet. Admin-only flags (not in public settings) stay inline below.
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
-const flagPayment = makeSidebarFlag(FeatureFlags.payment)
+const flagPublicPayment = makeSidebarFlag(FeatureFlags.payment)
+const flagPayment = () => flagPublicPayment() || merchantTestPaymentAccess.value
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
 const flagPelicanShowcase = makeSidebarFlag(FeatureFlags.pelicanShowcase)
 const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)
@@ -757,7 +760,10 @@ const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagPluginManagement = makeSidebarFlag(FeatureFlags.pluginManagement)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
-const flagAdminPayment = () => adminSettingsStore.paymentEnabled
+// An explicit global closure also overrides stale admin-settings cache values.
+const flagAdminPayment = () => appStore.cachedPublicSettings?.payment_enabled === false
+  ? merchantTestPaymentAccess.value
+  : adminSettingsStore.paymentEnabled || merchantTestPaymentAccess.value
 const flagBatchImageAccess = () => canUseBatchImage.value
 
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
