@@ -566,11 +566,13 @@ func (s *SquarespacePaymentBridge) bindExternalOrder(ctx context.Context, ledger
 		}
 	}
 
-	transactionalPayment := *s.payment
-	transactionalPayment.entClient = tx.Client()
 	transactionalCfg := *s.config
 	transactionalCfg.entClient = tx.Client()
-	transactionalPayment.configService = &transactionalCfg
+	// Scope verification only needs these transaction-bound readers. Do not
+	// copy the shared PaymentService, which owns the provider registry mutex.
+	transactionalPayment := PaymentService{
+		entClient: tx.Client(), configService: &transactionalCfg,
+	}
 	grant, scopeErr := transactionalPayment.squarespaceReceiptScope(ctx, lockedLocal, remote, nil)
 	if scopeErr != nil {
 		return nil, scopeErr
