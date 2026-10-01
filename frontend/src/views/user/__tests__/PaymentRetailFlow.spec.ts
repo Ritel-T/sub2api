@@ -70,6 +70,20 @@ describe('server-priced retail checkout', () => {
     wrapper.unmount()
   })
 
+  it('shows the GBP notice for Squarespace and offers administrator payment without inventing a contact', async () => {
+    const wrapper = await mountPage()
+    wrapper.findComponent(PaymentMethodSelector).vm.$emit('select', 'squarespace')
+    await flushPromises()
+    expect(wrapper.get('[data-test="gbp-payment-notice"]').text()).toBe('paymentRetail.gbpPaymentNotice')
+    const adminHint = wrapper.get('[data-test="admin-payment-hint"]')
+    expect(adminHint.text()).toBe('paymentRetail.adminPaymentHint')
+    expect(adminHint.find('a').exists()).toBe(false)
+    wrapper.findComponent(PaymentMethodSelector).vm.$emit('select', 'stripe')
+    await flushPromises()
+    expect(wrapper.find('[data-test="gbp-payment-notice"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('uses server GBP totals and included cost, confirms before creation, and never auto-opens PayLink', async () => {
     const wrapper = await mountPage()
     wrapper.findComponent(PaymentMethodSelector).vm.$emit('select', 'squarespace')

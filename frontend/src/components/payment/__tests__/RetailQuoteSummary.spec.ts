@@ -47,14 +47,20 @@ describe('CNY principal pricing display and compatibility', () => {
     expect(wrapper.get('[data-test="retail-credit-policy"]').text()).toContain('GBP/CNY')
     expect(wrapper.get('[data-test="retail-gbp-cny-rate"]').text()).toContain('£1 = ¥8.88')
     expect(text).not.toContain('GBP/USD')
+    const details = wrapper.get('[data-test="retail-price-details"]')
+    expect(details.attributes('open')).toBeUndefined()
+    expect(details.get('[data-test="retail-cny-principal"]').text()).toContain('¥50.00 CNY')
+    expect(wrapper.get('[data-test="retail-included-fee"]').text()).toContain('£0.50 GBP')
+    // The GBP total is shown once, as the payable amount, not duplicated in a second row.
+    expect(text.match(/£6\.14 GBP/g)).toHaveLength(1)
     wrapper.unmount()
   })
 
   it('keeps site credit and CNY principal distinct from USD gateway settlement', () => {
     const wrapper = render({ ...currentQuote, currency: 'USD', pay_amount: 8.11 })
     const text = wrapper.text()
-    expect(text).toContain('Site credit (displayed in $)')
-    expect(text).toContain('Top-up principal (CNY)')
+    expect(text).toContain('Credit received')
+    expect(text).toContain('Top-up principal')
     expect(text).toContain('$50.00')
     expect(text).toContain('¥50.00 CNY')
     expect(text).toContain('£6.14 GBP')
@@ -69,6 +75,7 @@ describe('CNY principal pricing display and compatibility', () => {
     expect(wrapper.text()).toContain('£39.72 GBP')
     expect(wrapper.find('[data-test="retail-cny-principal"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="retail-credit-policy"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="retail-price-details"]').exists()).toBe(false)
     wrapper.unmount()
   })
 

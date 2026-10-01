@@ -54,6 +54,7 @@
             </div>
             <template v-else>
             <div class="card p-6">
+              <p v-if="retailPricingEnabled && selectedMethod === 'squarespace'" data-test="gbp-payment-notice" class="mb-4 text-sm text-gray-600 dark:text-gray-300">{{ t('paymentRetail.gbpPaymentNotice') }}</p>
               <p v-if="retailPricingEnabled" class="mb-2 text-sm font-medium">{{ t('paymentRetail.amountLabel') }}</p>
               <p v-if="retailPricingEnabled" class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('paymentRetail.amountHint') }}</p>
               <AmountInput
@@ -65,6 +66,9 @@
               <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
             </div>
             <div v-if="enabledMethods.length >= 1" class="card p-6">
+              <p v-if="retailPricingEnabled" data-test="admin-payment-hint" class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                {{ t('paymentRetail.adminPaymentHint') }}<span v-if="appStore.contactInfo" class="ml-1 break-words">{{ appStore.contactInfo }}</span>
+              </p>
               <PaymentMethodSelector
                 :methods="methodOptions"
                 :selected="selectedMethod"

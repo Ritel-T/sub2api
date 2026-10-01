@@ -5,7 +5,6 @@
       <h3 class="font-semibold text-gray-900 dark:text-white">{{ t('paymentRetail.claim.title') }}</h3>
       <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">{{ t('paymentRetail.claim.hint') }}</p>
       <p v-if="accountEmail" class="break-all text-sm font-medium">{{ t('paymentRetail.balanceAccount') }}: {{ accountEmail }}</p>
-      <p class="text-xs leading-5 text-gray-500">{{ t('paymentRetail.claim.paidOnHint') }}</p>
       <div v-if="checking" class="space-y-2 text-sm text-gray-600 dark:text-gray-300" role="status">
         <p>{{ t('paymentRetail.creditProcessing') }}</p>
         <button class="btn btn-secondary" @click="emit('refresh')">{{ t('paymentRetail.claim.refreshStatus') }}</button>
@@ -28,6 +27,10 @@
         </template>
       </template>
       <p v-if="errorKey" class="text-sm leading-6 text-amber-700 dark:text-amber-300" role="alert">{{ t(errorKey) }}</p>
+      <details class="text-xs leading-5 text-gray-500">
+        <summary class="cursor-pointer select-none">{{ t('paymentRetail.claim.paidOnTitle') }}</summary>
+        <p class="mt-2">{{ t('paymentRetail.claim.paidOnHint') }}</p>
+      </details>
     </template>
   </div>
 </template>

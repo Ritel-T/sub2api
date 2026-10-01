@@ -62,9 +62,9 @@ export default {
   // Recharge / Subscription Page
   purchase: {
     title: 'Recharge / Subscription',
-    description: 'Recharge balance or purchase subscription via the embedded page',
-    rechargeDescription: 'Recharge balance via the embedded page',
-    subscriptionDescription: 'Purchase subscription via the embedded page',
+    description: 'Top up or subscribe',
+    rechargeDescription: 'Top up your balance',
+    subscriptionDescription: 'Subscribe',
     openInNewTab: 'Open in new tab',
     notEnabledTitle: 'Feature not enabled',
     notEnabledDesc: 'The administrator has not enabled the recharge/subscription entry. Please contact admin.',
