@@ -22,6 +22,9 @@ func TestOpenAIAccountSchedulingIgnoresBPSProxyAcquisitionFailures(t *testing.T)
 			cfg := DefaultPrioritySchedulingConfig()
 			cfg.Enabled = true
 			svc := priorityGateway(cfg, &priorityReaderStub{})
+			now := time.Now()
+			svc.openaiAccountStats = newOpenAIAccountRuntimeStats()
+			svc.openaiAccountStats.now = func() time.Time { return now }
 			account := excelAccount()
 			ttft := 450
 			svc.ReportOpenAIAccountScheduleResult(account, "gpt-6-astra", true, &ttft)
@@ -56,6 +59,9 @@ func TestExcelBPSProxyUnavailableReachesSchedulerWithoutPenalty(t *testing.T) {
 		t.Run(fmt.Sprintf("attachments_%t", attachments), func(t *testing.T) {
 			upstream := &httpUpstreamRecorder{}
 			svc := openAIClientToolsTestService(upstream)
+			now := time.Now()
+			svc.openaiAccountStats = newOpenAIAccountRuntimeStats()
+			svc.openaiAccountStats.now = func() time.Time { return now }
 			enableNativeAttachments(svc)
 			cfg := DefaultPrioritySchedulingConfig()
 			cfg.Enabled = true
@@ -95,6 +101,9 @@ func TestExcelBPSUpstreamFailuresStillPenalizeScheduling(t *testing.T) {
 				Body: io.NopCloser(strings.NewReader(`{"error":{"type":"api_error","message":"test upstream failure"}}`)),
 			}}
 			svc := openAIClientToolsTestService(upstream)
+			now := time.Now()
+			svc.openaiAccountStats = newOpenAIAccountRuntimeStats()
+			svc.openaiAccountStats.now = func() time.Time { return now }
 			cfg := DefaultPrioritySchedulingConfig()
 			cfg.Enabled = true
 			svc.settingService = priorityGateway(cfg, &priorityReaderStub{}).settingService

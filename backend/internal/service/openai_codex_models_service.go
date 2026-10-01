@@ -389,6 +389,7 @@ type configuredCodexModelMessages struct {
 // emitted: unlike ordinary OpenAI /v1/models entries, the Codex manifest parser
 // requires them to be present.
 type configuredCodexModelDescriptor struct {
+	officialMetadata                  json.RawMessage
 	Slug                              string                          `json:"slug"`
 	DisplayName                       string                          `json:"display_name"`
 	Description                       string                          `json:"description"`
@@ -519,7 +520,7 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 		descriptor.ServiceTiers = configuredCodexServiceTiersForModel(modelID)
 		if isOpenAICodexReasoningGPTModel(modelID) {
 			defaultReasoningLevel := "medium"
-			if getNormalizedCodexModel(modelID) == "gpt-5.6-sol" {
+			if getNormalizedCodexModel(modelID) == "gpt-5.6-sol" || openai.IsGPT61SolModelSpelling(modelID) {
 				defaultReasoningLevel = "low"
 			}
 			descriptor.DefaultReasoningLevel = &defaultReasoningLevel
@@ -528,7 +529,7 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 			descriptor.TruncationPolicy = configuredCodexTruncationPolicy{Mode: "tokens", Limit: configuredCodexToolOutputMaxTokens}
 			// GPT-6 Sol/Luna retain the existing 5.6 Codex window as an offline
 			// compatibility template; live account metadata remains authoritative.
-			if isOpenAIGPT56Model(modelID) || openai.IsGPT6SolOrLunaModelSpelling(modelID) {
+			if isOpenAIGPT56Model(modelID) || openai.IsGPT6SolOrLunaModelSpelling(modelID) || openai.IsGPT61SolModelSpelling(modelID) {
 				descriptor.MaxContextWindow = configuredCodexGPT56MaxContext
 			}
 			if openai.IsGPT61SolModelSpelling(modelID) {
@@ -552,6 +553,17 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 		}
 	}
 
+	if openai.IsGPT61SolModelSpelling(modelID) {
+		if err := json.Unmarshal(openai.CodexGPT61SolMetadata, &descriptor); err != nil {
+			panic(err)
+		}
+		// The bundled Codex snapshot has a smaller window than this fork's
+		// verified GPT-6.1 Sol catalog. Preserve the existing client contract.
+		descriptor.ContextWindow = configuredCodexGPT6AstraContext
+		descriptor.MaxContextWindow = configuredCodexGPT6AstraContext
+		descriptor.Slug = modelID
+		descriptor.officialMetadata = openai.CodexGPT61SolMetadata
+	}
 	return descriptor
 }
 
@@ -651,7 +663,7 @@ func configuredCodexGPTReasoningLevels(modelID string) []configuredCodexReasonin
 			Description: "Maximum reasoning depth for complex tasks",
 		})
 	}
-	if isOpenAIGPT6AstraModel(modelID) || normalized == "gpt-5.6-sol" || normalized == "gpt-5.6-terra" {
+	if isOpenAIGPT6AstraModel(modelID) || openai.IsGPT61SolModelSpelling(modelID) || normalized == "gpt-5.6-sol" || normalized == "gpt-5.6-terra" {
 		levels = append(levels, configuredCodexReasoningLevel{
 			Effort:      "ultra",
 			Description: "Maximum reasoning with automatic task delegation",
@@ -1856,6 +1868,21 @@ func (s *OpenAIGatewayService) fetchCachedOpenAIModels(ctx context.Context, requ
 	if state == openAIModelsCacheFresh {
 		return openAIModelsResponseForClient(manifest, ifNoneMatch), nil
 	}
+	if HasAPIKeyAdmissionOwner(ctx) {
+		// A background singleflight has no request-capacity owner. Limited
+		// callers share completed cache entries, but own and join their refresh
+		// independently so cancellation cannot strand work or cancel a peer.
+		refreshCtx, cancel := context.WithTimeout(ctx, codexModelsManifestRequestTimeout)
+		defer cancel()
+		refreshed, err := s.fetchAndCacheOpenAIModels(refreshCtx, cacheKey, fetch)
+		if err != nil {
+			if refreshCtx.Err() == nil && state == openAIModelsCacheStale {
+				return openAIModelsResponseForClient(manifest, ifNoneMatch), nil
+			}
+			return nil, err
+		}
+		return openAIModelsResponseForClient(refreshed, ifNoneMatch), nil
+	}
 	resultCh := s.refreshCachedOpenAIModels(cacheKey, request, fetch)
 	if state == openAIModelsCacheStale {
 		return openAIModelsResponseForClient(manifest, ifNoneMatch), nil
@@ -1879,24 +1906,34 @@ func (s *OpenAIGatewayService) refreshCachedOpenAIModels(cacheKey string, reques
 	return s.openAIModelsCache.refresh.DoChan(cacheKey, func() (any, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), codexModelsManifestRequestTimeout)
 		defer cancel()
-		cached, _ := s.openAIModelsCache.get(cacheKey, time.Now())
-		ifNoneMatch := ""
-		if cached != nil {
-			ifNoneMatch = cached.upstreamETag
-		}
-		manifest, err := fetch(ctx, ifNoneMatch)
-		if err != nil {
-			return nil, err
-		}
-		if manifest.NotModified && cached != nil {
-			s.openAIModelsCache.set(cacheKey, cached, time.Now())
-			return cached, nil
-		}
-		if !manifest.NotModified {
-			s.openAIModelsCache.set(cacheKey, manifest, time.Now())
-		}
-		return manifest, nil
+		return s.fetchAndCacheOpenAIModels(ctx, cacheKey, fetch)
 	})
+}
+
+func (s *OpenAIGatewayService) fetchAndCacheOpenAIModels(ctx context.Context, cacheKey string, fetch func(context.Context, string) (*OpenAIModelsResponse, error)) (*OpenAIModelsResponse, error) {
+	cached, _ := s.openAIModelsCache.get(cacheKey, time.Now())
+	ifNoneMatch := ""
+	if cached != nil {
+		ifNoneMatch = cached.upstreamETag
+	}
+	manifest, err := fetch(ctx, ifNoneMatch)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if manifest == nil {
+		return nil, infraerrors.New(http.StatusInternalServerError, "OPENAI_CODEX_MODELS_REQUEST_FAILED", "invalid Codex models manifest result")
+	}
+	if manifest.NotModified && cached != nil {
+		s.openAIModelsCache.set(cacheKey, cached, time.Now())
+		return cached, nil
+	}
+	if !manifest.NotModified {
+		s.openAIModelsCache.set(cacheKey, manifest, time.Now())
+	}
+	return manifest, nil
 }
 
 func (s *OpenAIGatewayService) fetchCodexModelsManifestUpstreamForRequest(request openAIModelsRequest) func(ctx context.Context, ifNoneMatch string) (*OpenAIModelsResponse, error) {
@@ -2639,4 +2676,43 @@ func buildCodexModelsManifestURL(endpoint string, appendModelsPath bool, clientV
 	query.Set("client_version", clientVersion)
 	requestURL.RawQuery = query.Encode()
 	return requestURL, nil
+}
+
+// MarshalJSON keeps fields added by the official client, including nested tool
+// instructions, while the generated descriptor still controls routing metadata.
+func (d configuredCodexModelDescriptor) MarshalJSON() ([]byte, error) {
+	type descriptor configuredCodexModelDescriptor
+	encoded, err := json.Marshal(descriptor(d))
+	if err != nil || len(d.officialMetadata) == 0 {
+		return encoded, err
+	}
+	var fields, official map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(d.officialMetadata, &official); err != nil {
+		return nil, err
+	}
+	for key, value := range official {
+		if _, exists := fields[key]; !exists {
+			fields[key] = value
+		}
+	}
+	var messages, officialMessages map[string]json.RawMessage
+	if err := json.Unmarshal(fields["model_messages"], &messages); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(official["model_messages"], &officialMessages); err != nil {
+		return nil, err
+	}
+	for key, value := range officialMessages {
+		if _, exists := messages[key]; !exists {
+			messages[key] = value
+		}
+	}
+	fields["model_messages"], err = json.Marshal(messages)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(fields)
 }

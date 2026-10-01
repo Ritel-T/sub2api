@@ -655,13 +655,14 @@ export default {
       // OpenAI specific hints
       openai: {
         baseUrlHint: 'Leave default for official OpenAI API',
+        prismBrowser: 'Use Prism browser protocol automatically',
+        prismBrowserDesc: 'Uses the server-managed Prism adapter with this OpenAI OAuth account. No separate Prism credentials are needed. Currently supports text requests with gpt-5.6-sol.',
+        prismBrowserManagedEndpoint: 'Enabled: requests are routed to the server-managed Prism adapter.',
         apiKeyHint: 'Your OpenAI API Key',
         oauthPassthrough: 'Auto passthrough (auth only)',
         excelBPS: 'Excel / BPS protocol',
         excelBPSOmitUnsupportedTools: 'Keep BPS and omit unsupported hosted tools',
         excelBPSOmitUnsupportedToolsDesc: 'Off by default: declarations for live web search (external_web_access=true), high search context or image generation use native Codex, even with tool_choice=auto before any tool executes. Enable to keep BPS, omit hosted tools unsupported by the bridge and tell the model they are unavailable. This does not add search or image generation support; client function tools are unaffected. Forced tool choices return 400; tool_choice=none does not trigger tool fallback. Fallback reasons appear in response headers and excel_bps.native_fallback diagnostic logs.',
-        excelBPSIgnoreImages: 'Ignore image inputs when image support is disabled',
-        excelBPSIgnoreImagesDesc: 'Disabled by default. Only applies while Excel / BPS image support is off in system settings. Replaces every image in current and historical messages and tool results with an unavailable notice before forwarding, preserving text and tool call pairing so old screenshots cannot repeatedly block the conversation. Even mixed text/image results tell the model it cannot see the image and should not retry view_image or other image-reading tools while image support is disabled. Enabling image support restores normal image handling.',
         excelBPSCacheCreationAsInput: 'Bill cache creation as regular input',
         excelBPSMihomo: 'BPS session proxy (use with caution)',
         excelBPSProxySource: 'Exit source',

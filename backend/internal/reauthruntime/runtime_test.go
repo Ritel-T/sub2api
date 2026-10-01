@@ -131,8 +131,9 @@ func TestManagedProcessGetsOnlyWorkerEnvironmentAndStops(t *testing.T) {
 	dir := filepath.Join(root, "1.2.3-linux-"+runtime.GOARCH)
 	require.NoError(t, os.MkdirAll(dir, 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ready"), []byte("cached"), 0600))
-	script := "#!/bin/sh\nprintf '%s' \"$OPENAI_REAUTH_WORKER_TOKEN\" > worker-token\nprintf '%s' \"$DATABASE_PASSWORD\" > unrelated-secret\nexec /bin/sleep 60\n"
+	script := "#!/bin/sh\nprintf '%s' \"$OPENAI_REAUTH_WORKER_TOKEN\" > worker-token\nprintf '%s' \"$DATABASE_PASSWORD\" > unrelated-secret\nprintf '%s' \"$OPENAI_REAUTH_CONCURRENCY\" > concurrency\nexec /bin/sleep 60\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "python"), []byte(script), 0700))
+	t.Setenv("OPENAI_REAUTH_CONCURRENCY", "4")
 	t.Setenv("DATABASE_PASSWORD", "must-not-inherit")
 	m := New(root, "1.2.3", "http://127.0.0.1:4040", "synthetic-worker-token")
 	m.Ensure()
@@ -145,6 +146,9 @@ func TestManagedProcessGetsOnlyWorkerEnvironmentAndStops(t *testing.T) {
 	got, err = os.ReadFile(filepath.Join(dir, "unrelated-secret"))
 	require.NoError(t, err)
 	require.Empty(t, got)
+	got, err = os.ReadFile(filepath.Join(dir, "concurrency"))
+	require.NoError(t, err)
+	require.Equal(t, "4", string(got))
 	m.Stop()
 	require.Equal(t, "stopped", m.Status().State)
 }

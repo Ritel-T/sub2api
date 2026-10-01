@@ -30,14 +30,14 @@ func TestGPT61SolIdentityAndCatalog(t *testing.T) {
 	require.Contains(t, openai.DefaultModelIDs(), "gpt-6.1-sol")
 	require.Equal(t, "gpt-6-sol", normalizeCodexModel("gpt-6-sol"))
 	descriptor := newConfiguredCodexModelDescriptor("gpt-6.1-sol")
-	require.Equal(t, "GPT-6.1 Sol", descriptor.DisplayName)
+	require.Equal(t, "GPT-6.1-Sol", descriptor.DisplayName)
 	require.EqualValues(t, 1_050_000, descriptor.ContextWindow)
 	require.EqualValues(t, 1_050_000, descriptor.MaxContextWindow)
 	var levels []string
 	for _, level := range descriptor.SupportedReasoningLevels {
 		levels = append(levels, level.Effort)
 	}
-	require.Equal(t, []string{"low", "medium", "high", "xhigh", "max"}, levels)
+	require.Equal(t, []string{"low", "medium", "high", "xhigh", "max", "ultra"}, levels)
 	require.Len(t, descriptor.ServiceTiers, 1)
 	require.Equal(t, "priority", descriptor.ServiceTiers[0].ID)
 	account := newCodexModelsAPIKeyTestAccount("https://api.openai.com/v1")
@@ -48,7 +48,7 @@ func TestGPT61SolIdentityAndCatalog(t *testing.T) {
 }
 
 func TestGPT61SolReasoningSamplingCompatibility(t *testing.T) {
-	for _, effort := range []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"} {
+	for _, effort := range []string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"} {
 		t.Run(effort, func(t *testing.T) {
 			body := []byte(`{"model":"gpt-6.1-sol","reasoning":{"mode":"standard","effort":"` + effort + `"},"temperature":0.7,"top_p":0.9,"top_logprobs":2,"logprobs":true,"include":["reasoning.encrypted_content","message.output_text.logprobs"],"prompt_cache_options":{"ttl":"30m"}}`)
 			out, changed, err := normalizeOpenAIResponsesReasoningMode(body, "")
@@ -75,6 +75,7 @@ func TestGPT61SolReasoningSamplingCompatibility(t *testing.T) {
 	require.False(t, changed)
 	require.Equal(t, old, out)
 	require.Equal(t, "none", normalizeOpenAIReasoningEffortForModel("none", "gpt-6-sol"))
+	require.Equal(t, "", normalizeOpenAIReasoningEffortForModel("ultra", "gpt-6-sol"))
 }
 
 func TestGPT61SolRawChatToolsAlwaysRequireResponses(t *testing.T) {

@@ -1,5 +1,22 @@
 # Kubernetes / K3s 请求副本
 
+## 正式版升级脚本
+
+从包含此脚本的正式版本开始，Release 页面会自动提供对应 tag 的升级命令。在已有单节点 k3s 主机执行：
+
+```bash
+release_tag=vX.Y.Z # 替换为实际发布版本
+curl -fsSL "https://raw.githubusercontent.com/ranxi2001/sub2api/$release_tag/deploy/upgrade-k3s.sh" | sudo bash -s -- --version "$release_tag"
+```
+
+要求 root、Python 3.9+、curl 和 k3s；默认 namespace `tosky-canary`、Deployment `tosky-nerd`、容器 `sub2api`，可通过 `--namespace`、`--deployment`、`--container` 覆盖。仅支持已有单节点、单副本 Deployment，保留 Secret、PVC、资源、角色和更新策略。`--dry-run` 只读解析版本与工作负载，不拉镜像或更新 Deployment。
+
+脚本自动解析稳定 Release 的完整 commit、匹配架构的 GHCR digest，验证标签并预拉取。临时容器不挂载生产数据，只检查二进制；同镜像初始化容器及 `verify-runtime` 的二进制摘要一起更新。相同版本和校验值时只验收，不强制重启。
+
+原模板备份到 `/var/backups/sub2api-k3s/` 的受限目录；更新前做 server-side dry-run，更新和回滚均校验模板与 resourceVersion。rollout、readiness、运行 imageID 或版本校验失败会恢复旧模板；若其他人已修改模板则拒绝覆盖并报告备份路径。备份可能含部署配置，不应公开。
+
+脚本只更新执行所在的 k3s 工作负载，不修改主站、不发起模型请求、不升级独立 Worker。先阅读目标 Release 的迁移和 Worker 兼容说明；所有共享 Redis 的实例需统一更新，再跨周期重建检查候选成本。旧副机回滚可能重新引入缺字段问题。v2.9.6 及此前 tag 没有此入口，不回填历史 Release 的不可用脚本链接。
+
 本目录适用于包含 runtime.role 与 /readyz 的构建。旧版本（包括 2.9.4）不支持这些契约，不能只添加环境变量就作为 gateway 节点部署。示例镜像标签故意不可直接使用；部署前必须替换为经过验证、包含本次改动的 owner fork 镜像摘要。
 
 ## 部署职责

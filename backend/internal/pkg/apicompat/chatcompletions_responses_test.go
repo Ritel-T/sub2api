@@ -1898,3 +1898,16 @@ func TestBufferedResponseAccumulator_IgnoresNonFunctionCallItems(t *testing.T) {
 
 	assert.False(t, acc.HasContent())
 }
+
+func TestGPT61SolChatLegacyReasoningUsesLow(t *testing.T) {
+	for _, legacy := range []string{"none", "minimal"} {
+		req := &ChatCompletionsRequest{
+			Model: "gpt-6.1-sol", ReasoningEffort: legacy,
+			Messages: []ChatMessage{{Role: "user", Content: json.RawMessage(`"Hello"`)}},
+		}
+		resp, err := ChatCompletionsToResponses(req)
+		require.NoError(t, err)
+		require.NotNil(t, resp.Reasoning)
+		require.Equal(t, "low", resp.Reasoning.Effort)
+	}
+}

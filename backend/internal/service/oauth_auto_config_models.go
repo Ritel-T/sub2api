@@ -62,6 +62,7 @@ func applyOAuthModelMappings(input *CreateAccountInput, rules []OAuthModelMappin
 		// Do not silently replace a malformed, explicitly supplied mapping.
 		return false
 	}
+	hadExplicitMapping := len(mapping) > 0
 	applied := false
 	for _, rule := range rules {
 		from, to := strings.TrimSpace(rule.From), strings.TrimSpace(rule.To)
@@ -80,6 +81,13 @@ func applyOAuthModelMappings(input *CreateAccountInput, rules []OAuthModelMappin
 			input.Credentials = make(map[string]any)
 		}
 		input.Credentials["model_mapping"] = mapping
+		// Adding a convenience alias to an unrestricted OAuth account must not
+		// turn it into a one-model allowlist. Explicit import scopes stay intact.
+		if input.Platform == PlatformOpenAI && input.Type == AccountTypeOAuth && !hadExplicitMapping {
+			if _, explicitMode := input.Credentials[OpenAIModelMappingModeKey]; !explicitMode {
+				input.Credentials[OpenAIModelMappingModeKey] = "aliases"
+			}
+		}
 	}
 	return applied
 }

@@ -117,6 +117,11 @@ func (m *Manager) run() {
 		"SUB2API_BASE_URL=" + m.baseURL, "OPENAI_REAUTH_WORKER_TOKEN=" + m.token,
 		"OPENAI_REAUTH_WORKER_ID=managed-" + randomID(), "TOSUB2_ROOT=" + filepath.Join(dir, "tosub2"),
 		"TOSUB2_PYTHON=" + filepath.Join(dir, "python"), "NODE_EXECUTABLE=" + filepath.Join(dir, "node")}
+	// The managed child has a minimal environment. Explicitly pass the bounded
+	// concurrency setting; Python validates it before claiming anything.
+	if concurrency := os.Getenv("OPENAI_REAUTH_CONCURRENCY"); concurrency != "" {
+		cmd.Env = append(cmd.Env, "OPENAI_REAUTH_CONCURRENCY="+concurrency)
+	}
 	cmd.Dir = dir
 	// Worker/external runner output must never reach the application journal.
 	cmd.Stdout = io.Discard

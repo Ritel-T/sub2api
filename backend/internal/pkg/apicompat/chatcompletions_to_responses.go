@@ -18,6 +18,10 @@ type chatMessageContent struct {
 // true. store is always false and reasoning.encrypted_content is always
 // included so that the response translator has full context.
 func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest, error) {
+	effort := openai.NormalizeGPT61SolReasoningEffort(req.Model, req.ReasoningEffort)
+	if err := openai.ValidateGPT61SolReasoningEffort(req.Model, effort); err != nil {
+		return nil, err
+	}
 	input, err := convertChatMessagesToResponsesInput(req.Messages)
 	if err != nil {
 		return nil, err
@@ -66,9 +70,9 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 	}
 
 	// reasoning_effort → reasoning.effort + reasoning.summary="auto"
-	if req.ReasoningEffort != "" {
+	if effort != "" {
 		out.Reasoning = &ResponsesReasoning{
-			Effort:  req.ReasoningEffort,
+			Effort:  effort,
 			Summary: "auto",
 		}
 	}

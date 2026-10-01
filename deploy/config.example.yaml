@@ -557,6 +557,15 @@ gateway:
     # Max image requests waiting in this process when overflow_mode=wait, 0=unlimited
     # wait 模式当前进程允许排队等待的图片请求数，0=不限制
     max_waiting_requests: 100
+  # API Key concurrency wait queue. Global policy; no per-key database field.
+  # API Key 并发等待队列（全局策略，无逐 Key 数据库字段；进程启动时读取）。
+  api_key_queue:
+    # Extra waiting requests per API key with concurrency_limit>0; 0 disables key queueing.
+    # 每个受限 Key 允许额外等待的请求数；0 关闭 Key 排队（仍保留并发上限）。
+    max_waiting: 5
+    # Max wait budget per request in seconds (positive integer; 0 is rejected).
+    # 单个请求等待 Key 容量的最长秒数（正整数，0 会被拒绝）。
+    timeout_seconds: 30
   # SSE max line size in bytes (default: 40MB)
   # SSE 单行最大字节数（默认 40MB）
   max_line_size: 41943040
@@ -755,6 +764,19 @@ api_key_auth_cache:
     # Maximum tracked client identities per process; memory remains bounded.
     # 每进程最多跟踪的客户端身份数量，确保内存有界。
     capacity: 16384
+
+# =============================================================================
+# API Key Creation Limits
+# 用户创建 API Key 的防滥用限制（0 表示不限制）
+# =============================================================================
+api_key_create:
+  # Maximum non-deleted API keys per user
+  # 单个用户同时存在（未删除）的 API Key 上限
+  max_active_per_user: 200
+  # Maximum API key creations per user per hour (custom and generated keys).
+  # Deleting a key does not refund the count, which blocks delete/recreate loops.
+  # 单个用户每小时可创建的 API Key 次数（自定义与自动生成均计入）；删除 Key 不返还次数，阻断删建循环
+  max_per_user_per_hour: 60
 
 # =============================================================================
 # Dashboard Cache Configuration

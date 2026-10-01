@@ -4,6 +4,8 @@ on:
     paths:
       - 'tools/openai_oauth_reauth_worker.py'
       - 'tools/test_openai_oauth_reauth_worker.py'
+      - 'tools/test_openai_oauth_reauth_engines.py'
+      - 'tools/test_openai_oauth_reauth_runtime_controls.py'
       - 'tools/reauth-runtime/**'
       - 'backend/internal/reauthruntime/**'
       - '.github/workflows/reauth-runtime.yml'

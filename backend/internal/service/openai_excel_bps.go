@@ -114,6 +114,9 @@ func (s *OpenAIGatewayService) excelBPSImageRelayForSettings(settings ExcelBPSIm
 			dataDir = "./data"
 		}
 		s.excelBPSImages, err = basispoints.NewImageRelay(settings.BaseURL, filepath.Join(dataDir, "bps-images"))
+		if err == nil && s.settingService.Serverless != nil {
+			s.excelBPSImages.SetURLDecorator(s.settingService.Serverless.ImageOwnerURL)
+		}
 	}
 	if err == nil {
 		err = s.excelBPSImages.Configure(settings.BaseURL, settings.Limits)
@@ -286,12 +289,6 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 			return clientCanceled()
 		}
 		return fail(503, "basispoints_image_settings_unavailable", "Excel BPS image settings are unavailable")
-	}
-	if !imageSettings.Enabled && account.IsExcelBPSIgnoreImagesEnabled() {
-		body, err = basispoints.StripInputImages(body)
-		if err != nil {
-			return fail(400, "basispoints_request_invalid", err.Error())
-		}
 	}
 	if account.IsExcelBPSIgnoreEncryptedContentEnabled() {
 		body, err = basispoints.StripEncryptedContent(body)

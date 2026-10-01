@@ -91,6 +91,37 @@ async function submit(wrapper: ReturnType<typeof mountModal>) {
 
 const toggleSelector = '[data-testid="account-auto-bps-toggle"]'
 
+describe('EditAccountModal Prism OAuth switch', () => {
+  beforeEach(() => {
+    Object.values(mocks).forEach(mock => mock.mockReset())
+    mocks.updateAccount.mockImplementation(async (_id: number, payload: Record<string, unknown>) => ({ ...buildOAuthAccount(), ...payload }))
+    mocks.listByAccount.mockResolvedValue([])
+  })
+
+  it('persists the Prism switch while preserving unrelated extra fields', async () => {
+    const wrapper = mountModal(buildOAuthAccount({ extra: { fixture_flag: true } }))
+    await flushPromises()
+    await wrapper.get('[data-testid="openai-prism-browser-oauth-toggle"]').setValue(true)
+    await submit(wrapper)
+    expect(mocks.updateAccount).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAccount.mock.calls[0][1].extra).toMatchObject({ fixture_flag: true, openai_prism_browser: true })
+  })
+
+  it('removes the flag when disabled', async () => {
+    const wrapper = mountModal(buildOAuthAccount({ extra: { openai_prism_browser: true } }))
+    await flushPromises()
+    await wrapper.get('[data-testid="openai-prism-browser-oauth-toggle"]').setValue(false)
+    await submit(wrapper)
+    expect(mocks.updateAccount.mock.calls[0][1].extra.openai_prism_browser).toBeUndefined()
+  })
+
+  it('hides Prism for API-key accounts', async () => {
+    const wrapper = mountModal(buildOAuthAccount({ type: 'apikey' }))
+    await flushPromises()
+    expect(wrapper.find('[data-testid="openai-prism-browser-oauth-toggle"]').exists()).toBe(false)
+  })
+})
+
 describe('EditAccountModal auto BPS switch', () => {
   beforeEach(() => {
     Object.values(mocks).forEach(mock => mock.mockReset())
@@ -172,7 +203,7 @@ describe('EditAccountModal auto BPS switch', () => {
     const request = mocks.createPlan.mock.calls[0][0]
     expect(request).toMatchObject({ account_id: 7, model_id: 'gpt-6-astra', cron_expression: '*/2 * * * *', enabled: true })
     expect(request.pelican_config).toMatchObject({ question_kind: 'state_probe', quality: { action: 'enable_bps', auto_restore: true, bps: {
-      failure_threshold: 3, omit_unsupported_tools: false, ignore_images: false, ignore_encrypted_content: true, auto_disable_on_403: true,
+      failure_threshold: 3, omit_unsupported_tools: false, ignore_encrypted_content: true, auto_disable_on_403: true,
       auto_recover_on_403: false, auto_move_on_403: false, session_proxy: false, cache_creation_as_input: true,
     } } })
     expect(mocks.updatePlan).not.toHaveBeenCalled()
@@ -188,7 +219,6 @@ describe('EditAccountModal auto BPS switch', () => {
     await wrapper.get('[data-testid="quality-bps-auto_disable_on_403"]').setValue(false)
     await wrapper.get('[data-testid="quality-bps-cache_creation_as_input"]').setValue(false)
     await wrapper.get('[data-testid="quality-bps-omit_unsupported_tools"]').setValue(true)
-    await wrapper.get('[data-testid="quality-bps-ignore_images"]').setValue(true)
     await wrapper.get('[data-testid="quality-bps-auto_move_on_403"]').setValue(true)
     await wrapper.get('[data-testid="quality-bps-target-group"]').setValue('0')
     await wrapper.get('[data-testid="quality-bps-session_proxy"]').setValue(true)
@@ -198,7 +228,7 @@ describe('EditAccountModal auto BPS switch', () => {
     expect(mocks.updatePlan).toHaveBeenCalledWith(31, expect.objectContaining({
       cron_expression: '*/5 * * * *', pelican_config: expect.objectContaining({ quality: expect.objectContaining({ bps: expect.objectContaining({
         ignore_encrypted_content: false, auto_disable_on_403: false, cache_creation_as_input: false,
-        omit_unsupported_tools: true, ignore_images: true, auto_move_on_403: true, target_group_id: 0, session_proxy: true, proxy_source: 'ip_pool',
+        omit_unsupported_tools: true, auto_move_on_403: true, target_group_id: 0, session_proxy: true, proxy_source: 'ip_pool',
       }) }) }),
     }))
     expect(mocks.updateAccount.mock.calls[0][1].extra?.openai_excel_bps).not.toBe(true)

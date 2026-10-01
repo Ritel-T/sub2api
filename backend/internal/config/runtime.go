@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/serverless"
 	"time"
 )
 
@@ -13,7 +14,11 @@ const (
 // RuntimeConfig separates the primary's global jobs from request replicas.
 // Empty remains equivalent to full for programmatically constructed configs.
 type RuntimeConfig struct {
-	Role string `mapstructure:"role"`
+	Role               string `mapstructure:"role"`
+	ServerlessID       string `mapstructure:"serverless_id"`
+	ServerlessEndpoint string `mapstructure:"serverless_endpoint"`
+	ServerlessRegion   string `mapstructure:"serverless_region"`
+	ServerlessSecret   string `mapstructure:"serverless_secret"`
 }
 
 func (c *Config) RunsBackgroundJobs() bool {
@@ -21,6 +26,9 @@ func (c *Config) RunsBackgroundJobs() bool {
 }
 
 func (c *Config) validateRuntime() error {
+	if err := serverless.ValidateRuntime(serverless.Runtime{ID: c.Runtime.ServerlessID, Endpoint: c.Runtime.ServerlessEndpoint, Region: c.Runtime.ServerlessRegion, Secret: c.Runtime.ServerlessSecret, Gateway: c.Runtime.Role == RuntimeRoleGateway}); err != nil {
+		return err
+	}
 	switch c.Runtime.Role {
 	case "", RuntimeRoleFull, RuntimeRoleGateway:
 	default:

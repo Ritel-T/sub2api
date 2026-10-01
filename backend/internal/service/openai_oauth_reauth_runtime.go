@@ -16,11 +16,11 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/reauthruntime"
 )
 
-// This exact fork release uses the upstream v2.9.4 worker protocol. Keep other
-// build versions on the original release gate; review this mapping whenever the
-// fork version or upstream re-login protocol changes.
-const managedReauthRuntimeVersion = "2.9.4"
-const managedReauthForkVersion = "2.9.4.3-ritel"
+// Only releases reviewed against an upstream worker protocol are mapped to
+// its published runtime. Unknown fork/development versions keep the release
+// gate; update this list when the worker protocol or fork version changes.
+const managedReauthRuntimeVersion = "2.9.6"
+const managedReauthForkVersion = "2.9.6.1-ritel"
 
 func (s *OpenAIOAuthReauthService) configureWorker(cfg *config.Config, info BuildInfo) {
 	token := strings.TrimSpace(os.Getenv("OPENAI_REAUTH_WORKER_TOKEN"))
@@ -54,8 +54,11 @@ func (s *OpenAIOAuthReauthService) configureWorker(cfg *config.Config, info Buil
 		}
 	}
 	runtimeVersion := info.Version
-	if runtimeVersion == managedReauthForkVersion || runtimeVersion == "2.9.4.2-ritel" || runtimeVersion == "2.9.4.1-ritel" {
+	switch runtimeVersion {
+	case managedReauthForkVersion:
 		runtimeVersion = managedReauthRuntimeVersion
+	case "2.9.4.1-ritel", "2.9.4.2-ritel", "2.9.4.3-ritel":
+		runtimeVersion = "2.9.4"
 	}
 	s.worker = reauthruntime.New(filepath.Join(dir, "credential-worker"), runtimeVersion, "http://"+net.JoinHostPort(host, strconv.Itoa(port)), s.workerToken)
 }

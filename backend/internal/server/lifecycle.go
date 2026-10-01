@@ -15,6 +15,7 @@ import (
 // Lifecycle counts handlers, including hijacked WebSocket handlers, without
 // wrapping ResponseWriter and losing its streaming or hijacking interfaces.
 type Lifecycle struct {
+	onDrain  []func()
 	mu       sync.Mutex
 	draining bool
 	active   int
@@ -45,13 +46,18 @@ func ProvideLifecycle(db *sql.DB, cache *redis.Client) *Lifecycle {
 // configured shutdown deadline. Repeated signals are harmless.
 func (l *Lifecycle) BeginDrain() {
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	if l.draining {
+		l.mu.Unlock()
 		return
 	}
 	l.draining = true
 	if l.active == 0 {
 		close(l.idle)
+	}
+	callbacks := append([]func(){}, l.onDrain...)
+	l.mu.Unlock()
+	for _, stop := range callbacks {
+		stop()
 	}
 }
 

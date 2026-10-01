@@ -193,15 +193,26 @@ func (m *openAIAccountSchedulerMetrics) recordSwitch() {
 type openAIAccountRuntimeStats struct {
 	accounts     sync.Map
 	accountCount atomic.Int64
+	// Set once at construction; tests can supply a deterministic clock before use.
+	now func() time.Time
 }
 
 type openAIAccountRuntimeStat struct {
-	errorRateEWMABits atomic.Uint64
-	ttftEWMABits      atomic.Uint64
+	mu             sync.Mutex
+	errorRate      float64
+	ttft           float64
+	lastReportedAt time.Time
 }
 
 func newOpenAIAccountRuntimeStats() *openAIAccountRuntimeStats {
-	return &openAIAccountRuntimeStats{}
+	return &openAIAccountRuntimeStats{now: time.Now}
+}
+
+func (s *openAIAccountRuntimeStats) currentTime() time.Time {
+	if s != nil && s.now != nil {
+		return s.now()
+	}
+	return time.Now()
 }
 
 func (s *openAIAccountRuntimeStats) loadOrCreate(accountID int64) *openAIAccountRuntimeStat {
@@ -212,8 +223,7 @@ func (s *openAIAccountRuntimeStats) loadOrCreate(accountID int64) *openAIAccount
 		}
 	}
 
-	stat := &openAIAccountRuntimeStat{}
-	stat.ttftEWMABits.Store(math.Float64bits(math.NaN()))
+	stat := &openAIAccountRuntimeStat{ttft: math.NaN()}
 	actual, loaded := s.accounts.LoadOrStore(accountID, stat)
 	if !loaded {
 		s.accountCount.Add(1)
@@ -226,51 +236,55 @@ func (s *openAIAccountRuntimeStats) loadOrCreate(accountID int64) *openAIAccount
 	return stat
 }
 
-func updateEWMAAtomic(target *atomic.Uint64, sample float64, alpha float64) {
-	for {
-		oldBits := target.Load()
-		oldValue := math.Float64frombits(oldBits)
-		newValue := alpha*sample + (1-alpha)*oldValue
-		if target.CompareAndSwap(oldBits, math.Float64bits(newValue)) {
-			return
-		}
+const openAIErrorRateHalfLife = 2 * time.Minute
+
+func decayedOpenAIErrorRate(rate float64, last, now time.Time) float64 {
+	if !last.IsZero() && now.After(last) {
+		rate *= math.Exp2(-now.Sub(last).Seconds() / openAIErrorRateHalfLife.Seconds())
 	}
+	return clamp01(rate)
 }
 
 func (s *openAIAccountRuntimeStats) report(accountID int64, success bool, firstTokenMs *int) {
+	s.reportAt(accountID, success, firstTokenMs, s.currentTime())
+}
+
+func (s *openAIAccountRuntimeStats) reportAt(accountID int64, success bool, firstTokenMs *int, now time.Time) {
 	if s == nil || accountID <= 0 {
 		return
 	}
 	const alpha = 0.2
 	stat := s.loadOrCreate(accountID)
+	stat.mu.Lock()
+	defer stat.mu.Unlock()
+	// Reporters can capture their clock before another reporter gets the lock.
+	// Never move the observation timestamp backwards.
+	if now.Before(stat.lastReportedAt) {
+		now = stat.lastReportedAt
+	}
 
 	errorSample := 1.0
 	if success {
 		errorSample = 0.0
 	}
-	updateEWMAAtomic(&stat.errorRateEWMABits, errorSample, alpha)
+	stat.errorRate = alpha*errorSample + (1-alpha)*decayedOpenAIErrorRate(stat.errorRate, stat.lastReportedAt, now)
+	stat.lastReportedAt = now
 
 	if firstTokenMs != nil && *firstTokenMs > 0 {
 		ttft := float64(*firstTokenMs)
-		ttftBits := math.Float64bits(ttft)
-		for {
-			oldBits := stat.ttftEWMABits.Load()
-			oldValue := math.Float64frombits(oldBits)
-			if math.IsNaN(oldValue) {
-				if stat.ttftEWMABits.CompareAndSwap(oldBits, ttftBits) {
-					break
-				}
-				continue
-			}
-			newValue := alpha*ttft + (1-alpha)*oldValue
-			if stat.ttftEWMABits.CompareAndSwap(oldBits, math.Float64bits(newValue)) {
-				break
-			}
+		if math.IsNaN(stat.ttft) {
+			stat.ttft = ttft
+		} else {
+			stat.ttft = alpha*ttft + (1-alpha)*stat.ttft
 		}
 	}
 }
 
 func (s *openAIAccountRuntimeStats) snapshot(accountID int64) (errorRate float64, ttft float64, hasTTFT bool) {
+	return s.snapshotAt(accountID, s.currentTime())
+}
+
+func (s *openAIAccountRuntimeStats) snapshotAt(accountID int64, now time.Time) (errorRate float64, ttft float64, hasTTFT bool) {
 	if s == nil || accountID <= 0 {
 		return 0, 0, false
 	}
@@ -282,8 +296,10 @@ func (s *openAIAccountRuntimeStats) snapshot(accountID int64) (errorRate float64
 	if stat == nil {
 		return 0, 0, false
 	}
-	errorRate = clamp01(math.Float64frombits(stat.errorRateEWMABits.Load()))
-	ttftValue := math.Float64frombits(stat.ttftEWMABits.Load())
+	stat.mu.Lock()
+	defer stat.mu.Unlock()
+	errorRate = decayedOpenAIErrorRate(stat.errorRate, stat.lastReportedAt, now)
+	ttftValue := stat.ttft
 	if math.IsNaN(ttftValue) {
 		return errorRate, 0, false
 	}
@@ -572,13 +588,25 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	// native account. Do not let that old binding bypass the explicit BPS route
 	// while an eligible BPS account is available for this model.
 	if req.Platform == PlatformOpenAI && strings.TrimSpace(req.RequestedModel) != "" && !account.IsExcelBPSEnabledForModel(req.RequestedModel) {
-		if candidates, listErr := s.service.listSchedulableAccountsForRequest(ctx, req.GroupID, req.Platform, req.RequestedModel, req.RequireCompact, req.ExcludedIDs); listErr == nil {
-			for i := range candidates {
-				if candidates[i].ID != account.ID && candidates[i].IsExcelBPSEnabledForModel(req.RequestedModel) {
-					clearBinding()
-					return nil, false, nil
-				}
+		candidates, listErr := s.service.listSchedulableAccountsForRequest(ctx, req.GroupID, req.Platform, req.RequestedModel, req.RequireCompact, req.ExcludedIDs)
+		if listErr != nil {
+			return nil, false, listErr
+		}
+		inPool := false
+		preferBPS := false
+		for i := range candidates {
+			if candidates[i].ID == account.ID {
+				inPool = true
+			} else if candidates[i].IsExcelBPSEnabledForModel(req.RequestedModel) {
+				preferBPS = true
 			}
+		}
+		// The common candidate gate excludes native accounts from protected
+		// groups. Priority protocol balancing must not bypass that gate through
+		// a sticky binding created before protection was enabled.
+		if !inPool || (preferBPS && !s.service.balancesPriorityProtocols(req)) {
+			clearBinding()
+			return nil, false, nil
 		}
 	}
 	if account.IsOpenAIOAuth() {
@@ -614,6 +642,10 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		return nil, false, nil
 	}
 	escapeCfg := s.service.openAIStickyEscapeConfig()
+	if escapeCfg.enabled && s.shouldRebalancePrioritySticky(ctx, req, account) {
+		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "priority_capacity_imbalance")
+		return nil, true, nil
+	}
 	if reason, errorRate, ttft, shouldEscape := s.shouldEscapeStickyAccount(accountID, escapeCfg); shouldEscape && !req.DisableStickyEscape {
 		slog.Info("sticky_escape_triggered",
 			"account_id", accountID,
@@ -632,9 +664,10 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIWSSessionStickyTTL())
 		}
 		return attachSelectionProfitGate(ctx, &AccountSelectionResult{
-			Account:     account,
-			Acquired:    true,
-			ReleaseFunc: result.ReleaseFunc,
+			Account:          account,
+			Acquired:         true,
+			ReleaseFunc:      result.ReleaseFunc,
+			AccountRequestID: result.RequestID,
 		}), false, nil
 	}
 
@@ -692,10 +725,14 @@ func openAIAccountSchedulingPriority(account *Account) int {
 }
 
 func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int64, cfg openAIStickyEscapeConfig) (reason string, errorRate float64, ttft float64, shouldEscape bool) {
+	return s.shouldEscapeStickyAccountAt(accountID, time.Now(), cfg)
+}
+
+func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccountAt(accountID int64, now time.Time, cfg openAIStickyEscapeConfig) (reason string, errorRate float64, ttft float64, shouldEscape bool) {
 	if !cfg.enabled || s == nil || s.stats == nil || accountID <= 0 {
 		return "", 0, 0, false
 	}
-	errorRate, ttft, hasTTFT := s.stats.snapshot(accountID)
+	errorRate, ttft, hasTTFT := s.stats.snapshotAt(accountID, now)
 	if hasTTFT && ttft > cfg.ttftMs {
 		return "ttft", errorRate, ttft, true
 	}
@@ -706,17 +743,20 @@ func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int6
 }
 
 type openAIAccountCandidateScore struct {
-	account    *Account
-	loadInfo   *AccountLoadInfo
-	loadKnown  bool
-	score      float64
-	priority   int
-	errorRate  float64
-	ttft       float64
-	hasTTFT    bool
-	rpmCurrent int
-	rpmLimit   int
-	rpmEnabled bool
+	priorityLatencyFactor float64
+	priorityUnhealthy     bool
+	priorityExploration   bool
+	account               *Account
+	loadInfo              *AccountLoadInfo
+	loadKnown             bool
+	score                 float64
+	priority              int
+	errorRate             float64
+	ttft                  float64
+	hasTTFT               bool
+	rpmCurrent            int
+	rpmLimit              int
+	rpmEnabled            bool
 }
 
 type openAIAccountCandidateHeap []openAIAccountCandidateScore
@@ -1127,18 +1167,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 			return nil
 		}
 		if plan.priorityScheduling {
-			ranked := append([]openAIAccountCandidateScore(nil), pool...)
-			sort.SliceStable(ranked, func(i, j int) bool {
-				a, b := ranked[i], ranked[j]
-				if int(a.score/200) != int(b.score/200) {
-					return a.score > b.score
-				}
-				if openAIAccountSchedulingPriority(a.account) != openAIAccountSchedulingPriority(b.account) {
-					return openAIAccountSchedulingPriority(a.account) < openAIAccountSchedulingPriority(b.account)
-				}
-				return isOpenAIAccountCandidateBetter(a, b)
-			})
-			return ranked
+			return buildPrioritySelectionOrder(pool, req)
 		}
 		groupTopK := plan.topK
 		if groupTopK > len(pool) {
@@ -1211,6 +1240,9 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 	// acquired; Forward still enforces BPS whenever the selected account has it
 	// enabled.
 	buildBPSPreferredOrder := func(pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {
+		if s.service.balancesPriorityProtocols(req) {
+			return buildSelectionOrder(pool)
+		}
 		if req.Platform != PlatformOpenAI || strings.TrimSpace(req.RequestedModel) == "" || len(pool) < 2 {
 			return buildSelectionOrder(pool)
 		}
@@ -1365,9 +1397,10 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrderWithBudget
 			_ = s.service.bindOpenAIStickySessionDuringSelection(ctx, req.GroupID, req.SessionHash, fresh.ID)
 		}
 		return attachSelectionProfitGate(ctx, &AccountSelectionResult{
-			Account:     fresh,
-			Acquired:    true,
-			ReleaseFunc: result.ReleaseFunc,
+			Account:          fresh,
+			Acquired:         true,
+			ReleaseFunc:      result.ReleaseFunc,
+			AccountRequestID: result.RequestID,
 		}), compactBlocked, nil
 	}
 	return nil, compactBlocked, nil
@@ -1466,9 +1499,10 @@ func (s *defaultOpenAIAccountScheduler) tryFallbackToWeightedSticky(
 				_ = s.service.bindOpenAIStickySessionDuringSelection(ctx, req.GroupID, req.SessionHash, account.ID)
 			}
 			return attachSelectionProfitGate(ctx, &AccountSelectionResult{
-				Account:     account,
-				Acquired:    true,
-				ReleaseFunc: result.ReleaseFunc,
+				Account:          account,
+				Acquired:         true,
+				ReleaseFunc:      result.ReleaseFunc,
+				AccountRequestID: result.RequestID,
 			}), nil
 		}
 		if s.service.concurrencyService != nil {
@@ -1653,7 +1687,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 
 	// Preserve BPS preference across subscription/compact priority partitions,
 	// but try native capacity before committing a request to a BPS wait plan.
-	if req.Platform == PlatformOpenAI && strings.TrimSpace(req.RequestedModel) != "" {
+	if req.Platform == PlatformOpenAI && strings.TrimSpace(req.RequestedModel) != "" && !s.service.balancesPriorityProtocols(req) {
 		var bps, native []*Account
 		for _, account := range filtered {
 			if account.IsExcelBPSEnabledForModel(req.RequestedModel) {
@@ -2754,6 +2788,11 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 		return false
 	}
 	if len(requestedModels) > 0 && account.IsExcelBPSEnabledForModel(requestedModels[0]) {
+		return false
+	}
+	// Prism runs one HTTP turn per request; the WS entry would only close the
+	// session after selection, so keep WS clients on the other accounts.
+	if accountHasPrismBrowser(account) {
 		return false
 	}
 	if requiredTransport == OpenAIUpstreamTransportResponsesWebsocketV2Ingress {

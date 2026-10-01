@@ -493,6 +493,8 @@ class OpenAIOAuthReauthWorkerTest(unittest.TestCase):
                     return {"status": "succeeded"}
 
             def fake_run(command, **kwargs):
+                self.assertEqual(Path(kwargs["cwd"]), Path(command[command.index("--sub2api-out") + 1]).parent)
+                self.assertNotEqual(Path(kwargs["cwd"]), root)
                 self.assertEqual(kwargs["env"]["CHATGPT_LOGIN_PASSWORD"], "password-secret")
                 self.assertEqual(kwargs["env"]["CHATGPT_TOTP_SECRET"], "totp-secret")
                 output_path = Path(command[command.index("--sub2api-out") + 1])
@@ -527,7 +529,7 @@ class OpenAIOAuthReauthWorkerTest(unittest.TestCase):
                 process_claim(FakeAPI(), None, claim)
 
         stages = [event[2] for event in events if event[0] == "progress"]
-        self.assertEqual(stages, ["starting", "protocol_connecting", "password_submitted", "mfa_submitted"])
+        self.assertEqual(stages, ["starting", "protocol_connecting", "applying_credentials"])
         credential_event = next(event for event in events if event[0] == "credentials")
         self.assertEqual(credential_event[2]["access_token"], "access-secret")
         self.assertEqual(credential_event[3]["client_id"], "client-id")

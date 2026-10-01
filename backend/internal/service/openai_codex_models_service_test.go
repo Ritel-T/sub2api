@@ -3738,7 +3738,7 @@ func TestFetchCodexModelsManifestOAuthSharedAcrossGroupsWithIndependentFiltering
 }
 
 func TestGPT6SolLunaCatalogKeepsAuthoritativeCapabilities(t *testing.T) {
-	for _, id := range []string{"gpt-6-sol", "gpt-6-luna"} {
+	for _, id := range []string{"gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"} {
 		svc := &OpenAIGatewayService{}
 		manifest := &OpenAIModelsResponse{Body: []byte(`{"models":[{"slug":"` + id + `","supported_reasoning_levels":[{"effort":"ultra"}],"default_reasoning_level":"ultra","multi_agent_reasoning_effort":"xhigh","service_tiers":[{"id":"ultrafast"}],"context_window":300000,"max_context_window":900000,"supports_search_tool":false,"apply_patch_tool_type":null}]}`)}
 		account := newCodexModelsAPIKeyTestAccount("https://api.openai.com/v1")
@@ -3811,4 +3811,71 @@ func TestCodexGPTIdentityPatternsCoverBundledPrompts(t *testing.T) {
 		require.NotContains(t, tmpl, "GPT-", model)
 		require.True(t, strings.HasPrefix(tmpl, "You are Codex"), "%s: %.60q", model, tmpl)
 	}
+}
+
+func TestGPT61SolOfflineCodexCatalog(t *testing.T) {
+	body, err := BuildCodexModelsManifest([]string{"gpt-6.1-sol"})
+	require.NoError(t, err)
+	var catalog struct {
+		Models []map[string]any `json:"models"`
+	}
+	require.NoError(t, json.Unmarshal(body, &catalog))
+	require.Len(t, catalog.Models, 1)
+	m := catalog.Models[0]
+	require.Equal(t, "gpt-6.1-sol", m["slug"])
+	require.Equal(t, "low", m["default_reasoning_level"])
+	// Preserve the fork's previously verified client window over the smaller
+	// bundled upstream metadata snapshot.
+	require.EqualValues(t, configuredCodexGPT6AstraContext, m["context_window"])
+	require.EqualValues(t, configuredCodexGPT6AstraContext, m["max_context_window"])
+	require.Equal(t, "xhigh", m["multi_agent_reasoning_effort"])
+	require.Equal(t, "v2", m["multi_agent_version"])
+	require.Nil(t, m["default_service_tier"])
+	levels, ok := m["supported_reasoning_levels"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, levels)
+	last, ok := levels[len(levels)-1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "ultra", last["effort"])
+	tiers, ok := m["service_tiers"].([]any)
+	require.True(t, ok)
+	for _, tier := range tiers {
+		fields, ok := tier.(map[string]any)
+		require.True(t, ok)
+		require.NotEqual(t, "ultrafast", fields["id"])
+	}
+}
+
+func TestAstraUltrafastCatalogUsesAccountCapabilities(t *testing.T) {
+	for _, tc := range []struct {
+		accountType, base, model string
+		want                     bool
+	}{
+		{AccountTypeAPIKey, "https://api.openai.com", "gpt-6-astra", true},
+		{AccountTypeAPIKey, "https://api.openai.com", "gpt-6.1-sol", false},
+		{AccountTypeAPIKey, "https://proxy.example", "gpt-6-astra", false},
+		{AccountTypeOAuth, "https://chatgpt.com", "gpt-6-astra", false},
+	} {
+		account := &Account{Platform: PlatformOpenAI, Type: tc.accountType, Credentials: map[string]any{"base_url": tc.base, "plan_type": "promax"}}
+		caps := accountCodexToolCapabilities(account, tc.model)
+		require.Equal(t, tc.want, bytes.Contains(caps["service_tiers"], []byte("ultrafast")))
+	}
+	// Explicit native null/empty fields and account-provided tiers remain authoritative.
+	for _, raw := range []string{"null", "[]", `[{"id":"ultrafast","name":"Ultrafast"}]`} {
+		dst := map[string]json.RawMessage{"service_tiers": json.RawMessage(raw)}
+		require.False(t, applyCodexToolCapabilities(dst, map[string]json.RawMessage{"service_tiers": json.RawMessage(`[{"id":"priority"}]`)}, false))
+		require.JSONEq(t, raw, string(dst["service_tiers"]))
+	}
+}
+
+func TestGPT61SolAPIKeyCatalogUsesFullResponses(t *testing.T) {
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"base_url": "https://api.openai.com"}}
+	body, err := completeAPIKeyCodexModelsManifestMetadata([]byte(`{"models":[{"slug":"gpt-6.1-sol"}]}`), true, account)
+	require.NoError(t, err)
+	var catalog struct {
+		Models []map[string]any `json:"models"`
+	}
+	require.NoError(t, json.Unmarshal(body, &catalog))
+	require.Equal(t, false, catalog.Models[0]["use_responses_lite"])
+	require.Equal(t, "low", catalog.Models[0]["default_reasoning_level"])
 }

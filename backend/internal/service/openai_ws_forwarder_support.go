@@ -490,6 +490,27 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 	if accountID <= 0 || account == nil || store == nil {
 		return nil, nil
 	}
+	if groupID != nil && strings.TrimSpace(requestedModel) != "" && !account.IsExcelBPSEnabledForModel(requestedModel) {
+		// Response ownership bypasses the ordinary candidate loop. Recheck the
+		// common group BPS gate before retaining a native owner.
+		candidates, listErr := s.listSchedulableAccountsForRequest(ctx, groupID, PlatformOpenAI, requestedModel, requireCompact, excludedIDs)
+		if listErr != nil {
+			return nil, listErr
+		}
+		inPool := false
+		for i := range candidates {
+			if candidates[i].ID == account.ID {
+				inPool = true
+				break
+			}
+		}
+		if !inPool {
+			if !excelBPSPreviousResponseCanMove(ctx) {
+				return nil, errOpenAIRequiredResponseOwnerUnavailable
+			}
+			return nil, nil
+		}
+	}
 
 	result, acquireErr := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
 	if acquireErr == nil && result.Acquired {

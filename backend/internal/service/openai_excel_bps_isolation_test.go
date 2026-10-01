@@ -166,6 +166,103 @@ func TestExcelBPSIsolationForwardRoutes(t *testing.T) {
 	}
 }
 
+func TestExcelBPSIsolationPrismFlagCannotPreemptProtectedRoute(t *testing.T) {
+	wire := "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_isolation\",\"status\":\"completed\",\"model\":\"gpt-6.1-sol\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n"
+	upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(wire))}}
+	svc := openAIClientToolsTestService(upstream)
+	account := isolatedExcelAccount()
+	account.Extra["openai_prism_browser"] = true
+	c, _ := isolationForwardContext(16, "/v1/responses")
+	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-6.1-sol","input":"test","stream":true}`))
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "/basispoints/api/responses", upstream.lastReq.URL.Path)
+}
+
+func TestExcelBPSIsolationPrismAccountWithoutOwnPolicyUsesGroupBPS(t *testing.T) {
+	groupID := int64(16)
+	policyOwner := isolatedExcelAccount()
+	policyOwner.GroupIDs = []int64{groupID}
+	selected := excelAccount()
+	selected.ID = policyOwner.ID + 1
+	selected.GroupIDs = []int64{groupID}
+	selected.Extra["openai_prism_browser"] = true
+	wire := "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_mixed\",\"status\":\"completed\",\"model\":\"gpt-6-astra\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n"
+	upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(wire))}}
+	svc := openAIClientToolsTestService(upstream)
+	svc.accountRepo = schedulerTestOpenAIAccountRepo{accounts: []Account{*policyOwner, *selected}}
+	candidates, err := svc.listSchedulableAccountsForRequest(context.Background(), &groupID, PlatformOpenAI, "gpt-6-astra", false, nil)
+	require.NoError(t, err)
+	require.Len(t, candidates, 2, "the mixed account is eligible and must still send over BPS")
+	c, _ := isolationForwardContext(groupID, "/v1/responses")
+	_, err = svc.Forward(context.Background(), c, selected, []byte(`{"model":"gpt-6-astra","input":"test","stream":true}`))
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "/basispoints/api/responses", upstream.lastReq.URL.Path)
+}
+
+func TestExcelBPSIsolationCandidateGateRejectsNativeGroupOwner(t *testing.T) {
+	bps := isolatedExcelAccount()
+	bps.GroupIDs = []int64{16}
+	native := *isolatedExcelAccount()
+	native.ID = bps.ID + 1
+	native.GroupIDs = []int64{16}
+	native.Extra = map[string]any{}
+	native.Status = StatusActive
+	native.Schedulable = true
+	svc := &OpenAIGatewayService{accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{*bps, native}}}
+	groupID := int64(16)
+	accounts, err := svc.listSchedulableAccountsForRequest(context.Background(), &groupID, PlatformOpenAI, "gpt-6.1-sol", false, nil)
+	require.NoError(t, err)
+	require.Len(t, accounts, 1)
+	require.Equal(t, bps.ID, accounts[0].ID)
+}
+
+func TestExcelBPSIsolationMovablePreviousOwnerCannotUseNative(t *testing.T) {
+	accounts := encryptedMessageCapabilityAccounts()
+	accounts[0].Extra = isolatedExcelAccount().Extra
+	groupID := int64(16)
+	for i := range accounts {
+		accounts[i].GroupIDs = []int64{groupID}
+	}
+	var acquired, released []int64
+	svc := encryptedMessageCapabilityService(t, "advanced", accounts, &acquired, &released)
+	ctx := withExcelBPSPreviousResponseCanMove(context.Background(), true)
+	require.NoError(t, svc.getOpenAIWSStateStore().BindResponseAccount(ctx, groupID, "resp_native_owner", accounts[1].ID, time.Hour))
+	selection, err := svc.selectAccountByPreviousResponseIDForCapability(ctx, &groupID, "resp_native_owner", "gpt-6-astra", nil, OpenAIEndpointCapabilityResponses, false)
+	require.NoError(t, err)
+	require.Nil(t, selection)
+	require.NotContains(t, acquired, accounts[1].ID)
+	require.ElementsMatch(t, acquired, released)
+}
+
+func TestExcelBPSIsolationPriorityBalanceCannotReuseNativeSticky(t *testing.T) {
+	groupID := int64(16)
+	bps := isolatedExcelAccount()
+	bps.GroupIDs = []int64{groupID}
+	native := *isolatedExcelAccount()
+	native.ID = bps.ID + 1
+	native.GroupIDs = []int64{groupID}
+	native.Extra = map[string]any{}
+	cfg := DefaultPrioritySchedulingConfig()
+	cfg.Enabled = true
+	cfg.BalanceProtocols = true
+	cfg.GroupIDs = []int64{groupID}
+	cfg.Models = []string{"gpt-6-astra"}
+	svc := priorityGateway(cfg, &priorityReaderStub{})
+	svc.accountRepo = schedulerTestOpenAIAccountRepo{accounts: []Account{*bps, native}}
+	svc.cfg = newSchedulerTestOpenAIWSV2Config()
+	svc.cache = &schedulerTestGatewayCache{}
+	svc.concurrencyService = NewConcurrencyService(schedulerTestConcurrencyCache{})
+	require.NoError(t, svc.setStickySessionAccountID(context.Background(), &groupID, "protected-sticky", native.ID, time.Hour))
+	scheduler := &defaultOpenAIAccountScheduler{service: svc, stats: newOpenAIAccountRuntimeStats()}
+	req := OpenAIAccountScheduleRequest{Platform: PlatformOpenAI, GroupID: &groupID, SessionHash: "protected-sticky", StickyAccountID: native.ID, RequestedModel: "gpt-6-astra", UseUpstreamTokenCost: true}
+	require.True(t, svc.balancesPriorityProtocols(req), "exercise the new upstream balance mode")
+	selection, _, err := scheduler.selectBySessionHash(context.Background(), req)
+	require.NoError(t, err)
+	require.Nil(t, selection, "a native sticky binding cannot bypass the group BPS candidate gate")
+}
+
 func TestExcelBPSIsolationNativeOnlyRequestsCannotFallback(t *testing.T) {
 	for _, tools := range []string{`"tools":[{"type":"image_generation"}]`, `"tools":[{"type":"web_search","external_web_access":true}]`, `"tool_choice":{"type":"web_search"}`} {
 		upstream := &httpUpstreamRecorder{}
@@ -211,7 +308,7 @@ func TestExcelBPSIsolationLateAdmissionAndWS(t *testing.T) {
 	latest.Extra = maps.Clone(a.Extra)
 	svc := &OpenAIGatewayService{accountRepo: &turnAdmissionRepo{account: &latest}}
 	latest.Extra[ExcelBPSRequiredGroupIDsKey] = []any{float64(19)}
-	_, err := svc.admitOpenAITurnForGroup(context.Background(), 16, a, "gpt-6-astra")
+	_, err := svc.admitOpenAITurnForGroup(context.Background(), 16, true, a, "gpt-6-astra")
 	require.True(t, IsOpenAITurnAdmissionError(err))
 	require.NotEqual(t, openAITurnRouteFingerprint(a), openAITurnRouteFingerprint(&latest))
 	require.Error(t, svc.checkOpenAIWSBinding(a, "gpt-6-astra", svc.bindOpenAIWSHandshake(a, "gpt-6-astra", nil)))

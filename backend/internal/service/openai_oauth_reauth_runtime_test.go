@@ -81,11 +81,11 @@ func TestOpenAIOAuthReauthForkVersionUsesPinnedRuntimeRelease(t *testing.T) {
 		s.stopWorker()
 		http.DefaultTransport = originalTransport
 	}()
-	s.configureWorker(&config.Config{}, BuildInfo{Version: "2.9.4.3-ritel"})
+	s.configureWorker(&config.Config{}, BuildInfo{Version: "2.9.6.1-ritel"})
 	s.EnsureWorker()
 	select {
 	case got := <-requests:
-		require.Equal(t, "https://api.github.com/repos/ranxi2001/sub2api/releases/tags/v2.9.4", got)
+		require.Equal(t, "https://api.github.com/repos/ranxi2001/sub2api/releases/tags/v2.9.6", got)
 	case <-time.After(3 * time.Second):
 		t.Fatal("managed worker did not request the pinned upstream release")
 	}
@@ -94,7 +94,7 @@ func TestOpenAIOAuthReauthForkVersionUsesPinnedRuntimeRelease(t *testing.T) {
 }
 
 func TestOpenAIOAuthReauthOtherBuildsKeepReleaseGate(t *testing.T) {
-	for _, version := range []string{"dev", "2.9.4.2-custom", "2.9.5.1-ritel"} {
+	for _, version := range []string{"dev", "2.9.6.2-ritel", "2.9.6.1-custom", "2.9.5.1-ritel"} {
 		t.Run(version, func(t *testing.T) {
 			t.Setenv("OPENAI_REAUTH_WORKER_TOKEN", "")
 			t.Setenv("DATA_DIR", t.TempDir())

@@ -2596,6 +2596,8 @@ func normalizeOpenAIReasoningEffortForModel(raw, model string) string {
 		switch strings.ToLower(strings.TrimSpace(raw)) {
 		case "none", "minimal":
 			return "low"
+		case "ultra":
+			return "ultra"
 		}
 	}
 	if strings.EqualFold(strings.TrimSpace(raw), "none") && openai.IsGPT6SolOrLunaModelSpelling(model) {
@@ -2629,4 +2631,29 @@ func supportsOpenAIReasoningEffortMax(model string) bool {
 	default:
 		return false
 	}
+}
+
+// validateGPT61SolCompatRequest runs after model mapping. Legacy disabled
+// reasoning spellings are accepted here because the downstream compatibility
+// converters normalize them to low for GPT-6.1 Sol.
+func validateGPT61SolCompatRequest(body []byte, model string) error {
+	if !openai.IsGPT61SolModelSpelling(model) {
+		return nil
+	}
+	for _, path := range []string{"reasoning.effort", "reasoning_effort", "output_config.effort"} {
+		effort := normalizeOpenAIReasoningEffortForModel(gjson.GetBytes(body, path).String(), model)
+		if err := openai.ValidateGPT61SolReasoningEffort(model, effort); err != nil {
+			return err
+		}
+	}
+	if gjson.GetBytes(body, "thinking.type").String() == "disabled" {
+		return openai.ValidateGPT61SolReasoningEffort(model, "low")
+	}
+	requestedModel := gjson.GetBytes(body, "model").String()
+	for _, effort := range []string{"none", "minimal"} {
+		if strings.HasSuffix(strings.ToLower(requestedModel), "-"+effort) {
+			return openai.ValidateGPT61SolReasoningEffort(model, "low")
+		}
+	}
+	return nil
 }

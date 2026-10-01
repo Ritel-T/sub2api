@@ -15,9 +15,9 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 COPY tools/reauth-runtime/requirements.txt /build/requirements.txt
 RUN python -m pip install --no-cache-dir --only-binary=:all: -r /build/requirements.txt
 COPY tools/openai_oauth_reauth_worker.py /build/worker.py
-COPY tools/test_openai_oauth_reauth_worker.py /build/tools/test_openai_oauth_reauth_worker.py
+COPY tools/test_openai_oauth_reauth_worker.py tools/test_openai_oauth_reauth_engines.py tools/test_openai_oauth_reauth_runtime_controls.py /build/tools/
 RUN cp /build/worker.py /build/tools/openai_oauth_reauth_worker.py \
-    && cd /build && python -m unittest tools.test_openai_oauth_reauth_worker -q \
+    && cd /build && python -m unittest tools.test_openai_oauth_reauth_worker tools.test_openai_oauth_reauth_engines tools.test_openai_oauth_reauth_runtime_controls -q \
     && cd /build/tosub2 && node test/password-mfa-workspace-smoke.mjs
 COPY tools/reauth-runtime/package.py /build/package.py
 RUN python /build/package.py /out
