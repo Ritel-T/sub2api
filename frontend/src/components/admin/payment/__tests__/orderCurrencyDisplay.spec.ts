@@ -194,6 +194,37 @@ describe('admin immutable retail order amounts', () => {
     wrapper.unmount()
   })
 
+  it('labels new CNY-based site credit separately from cash principal and gateway currency', () => {
+    const wrapper = mount(AdminOrderDetail, {
+      props: { show: true, order: { ...order, retail_quote: { ...retailQuote, pricing_basis_currency: 'CNY', base_amount_cny: 10, base_amount_gbp: 1.05, total_amount_gbp: 1.36, included_cost_gbp: 0.31, pay_amount: 13.06 } } },
+      global: { stubs: { BaseDialog: BaseDialogStub } },
+    })
+    const text = wrapper.get('[data-testid="admin-retail-order-amounts"]').text()
+    expect(text).toContain('squarespaceProvider.order.creditedSite')
+    expect(text).toContain('squarespaceProvider.order.principalCNY')
+    expect(text).toContain('$10.00')
+    expect(text).not.toContain('$10.00 USD')
+    expect(text).toContain('¥10.00 CNY')
+    expect(text).toContain('£1.36 GBP')
+    expect(text).toContain('¥13.06 CNY')
+    wrapper.unmount()
+  })
+
+  it('shows CNY principal and site credit units in the shared user order table', () => {
+    const wrapper = mount(OrderTable, {
+      props: { orders: [{ ...order, currency: 'GBP', pay_amount: 1.36, retail_quote: { ...retailQuote, pricing_basis_currency: 'CNY', base_amount_cny: 10, base_amount_gbp: 1.05, total_amount_gbp: 1.36, included_cost_gbp: 0.31, pay_amount: 1.36, currency: 'GBP' } }], loading: false },
+      global: { stubs: { DataTable: DataTableStub, OrderStatusBadge: true } },
+    })
+    const text = wrapper.text()
+    expect(text).toContain('paymentRetail.siteCredit')
+    expect(text).toContain('paymentRetail.principalCNY')
+    expect(text).toContain('$10.00')
+    expect(text).not.toContain('$10.00 USD')
+    expect(text).toContain('¥10.00 CNY')
+    expect(text).toContain('£1.36 GBP')
+    wrapper.unmount()
+  })
+
   it('shows all four immutable snapshot values in the admin table for any payment method', () => {
     const wrapper = mount(AdminOrderTable, {
       props: { orders: [order], loading: false, page: 1, pageSize: 20, total: 1 },

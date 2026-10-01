@@ -14,12 +14,13 @@
     </template>
     <template #cell-pay_amount="{ value, row }">
       <div class="text-sm">
-        <span class="font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(row) }}{{ value.toFixed(2) }}<template v-if="row.retail_quote"> {{ row.retail_quote.currency }}</template></span>
+        <span class="font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(row) + value.toFixed(2) + (row.retail_quote ? ' ' + row.retail_quote.currency : '') }}</span>
         <span v-if="!row.retail_quote && row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
           ({{ t('payment.orders.fee') }} {{ row.fee_rate }}%)
         </span>
         <div v-if="row.retail_quote" class="space-y-1 text-xs text-gray-500">
-          <div>{{ t('paymentRetail.credited') }}: {{ creditedAmountSymbol }}{{ row.retail_quote.credited_amount_usd.toFixed(2) }} USD</div>
+          <div>{{ t(row.retail_quote.pricing_basis_currency === 'CNY' ? 'paymentRetail.siteCredit' : 'paymentRetail.credited') }}: {{ creditedAmountSymbol + row.retail_quote.credited_amount_usd.toFixed(2) + (row.retail_quote.pricing_basis_currency === 'CNY' ? '' : ' USD') }}</div>
+          <div v-if="row.retail_quote.pricing_basis_currency === 'CNY'">{{ t('paymentRetail.principalCNY') }}: ¥{{ row.retail_quote.base_amount_cny!.toFixed(2) }} CNY</div>
           <div>{{ t('paymentRetail.total') }}: £{{ row.retail_quote.total_amount_gbp.toFixed(2) }} GBP</div>
           <div>{{ t('paymentRetail.includedCost') }}: £{{ row.retail_quote.included_cost_gbp.toFixed(2) }} GBP</div>
         </div>

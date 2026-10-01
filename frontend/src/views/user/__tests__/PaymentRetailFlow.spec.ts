@@ -18,8 +18,8 @@ vi.mock('@/stores', () => ({ useAppStore: () => ({ cachedPublicSettings: { subsc
 vi.mock('@/utils/device', () => ({ isMobileDevice: () => true }))
 
 function quote(amount = 10, currency = 'GBP', ttl = 60000): RetailQuote {
-  return { credited_amount_usd: amount, base_amount_gbp: 8, included_cost_gbp: 0.42, total_amount_gbp: 8.42,
-    pay_amount: currency === 'GBP' ? 8.42 : 10.61, currency, fx: { GBP: 1, USD: 1.26, CNY: 9.2 },
+  return { pricing_basis_currency: 'CNY', base_amount_cny: amount, credited_amount_usd: amount, base_amount_gbp: 1.09, included_cost_gbp: 0.31, total_amount_gbp: 1.40,
+    pay_amount: currency === 'GBP' ? 1.40 : currency === 'USD' ? 1.77 : 12.88, currency, fx: { GBP: 1, USD: 1.26, CNY: 9.2 },
     fx_source: 'manual', fx_asof: new Date().toISOString(), issued_at: new Date().toISOString(),
     expires_at: new Date(Date.now() + ttl).toISOString(), checkout_reference: 'RYNEX-topup-test', product_id: '0123456789abcdef01234567', payment_claim_mode: 'receipt_otp' as const }
 }
@@ -75,8 +75,8 @@ describe('server-priced retail checkout', () => {
     wrapper.findComponent(PaymentMethodSelector).vm.$emit('select', 'squarespace')
     await setAmount(wrapper, 10)
     expect(api.quote).toHaveBeenLastCalledWith({ amount: 10, payment_type: 'squarespace', order_type: 'balance' })
-    expect(wrapper.text()).toContain('£8.42 GBP')
-    expect(wrapper.text()).toContain('£0.42 GBP')
+    expect(wrapper.text()).toContain('£1.40 GBP')
+    expect(wrapper.text()).toContain('£0.31 GBP')
     expect(wrapper.text()).not.toContain('99%')
     expect(wrapper.text()).not.toContain('9990')
     expect(wrapper.get('[data-test="create-recharge-order"]').attributes('disabled')).toBeDefined()
@@ -85,7 +85,68 @@ describe('server-priced retail checkout', () => {
     await flushPromises()
     expect(api.createOrder).toHaveBeenCalledWith(expect.objectContaining({ amount: 10, payment_type: 'squarespace', quote_token: 'quote-1', order_type: 'balance' }))
     expect(window.open).not.toHaveBeenCalled()
-    expect(wrapper.findComponent(PaymentStatusPanel).props('retailQuote')).toEqual(expect.objectContaining({ credited_amount_usd: 10, pay_amount: 8.42, currency: 'GBP', checkout_reference: 'RYNEX-topup-test' }))
+    expect(wrapper.findComponent(PaymentStatusPanel).props('retailQuote')).toEqual(expect.objectContaining({ credited_amount_usd: 10, pay_amount: 1.40, currency: 'GBP', checkout_reference: 'RYNEX-topup-test' }))
+    wrapper.unmount()
+  })
+
+  it('checks a channel minimum against quoted cash rather than site-credit units', async () => {
+    const checkout = await api.checkout()
+    api.checkout.mockResolvedValue({ data: { ...checkout.data, methods: {
+      squarespace: { ...checkout.data.methods.squarespace, single_min: .50 },
+    } } })
+    const small = { ...quote(1), fx: { GBP: 1, USD: 1.32, CNY: 8.90 }, base_amount_gbp: .12, included_cost_gbp: .27, total_amount_gbp: .39, pay_amount: .39 }
+    const boundary = { ...quote(2), fx: small.fx, base_amount_gbp: .23, included_cost_gbp: .27, total_amount_gbp: .50, pay_amount: .50 }
+    api.quote.mockResolvedValueOnce(response(small)).mockResolvedValueOnce(response(boundary, 'quote-boundary'))
+    const wrapper = await mountPage()
+    await setAmount(wrapper, 1)
+    await wrapper.get('[data-test="confirm-retail-quote"]').setValue(true)
+    expect(wrapper.text()).toContain('paymentRetail.cashAmountTooLow')
+    expect(wrapper.get('[data-test="create-recharge-order"]').attributes('disabled')).toBeDefined()
+    expect(api.createOrder).not.toHaveBeenCalled()
+    await setAmount(wrapper, 2)
+    await wrapper.get('[data-test="confirm-retail-quote"]').setValue(true)
+    expect(wrapper.text()).not.toContain('paymentRetail.cashAmountTooLow')
+    expect(wrapper.get('[data-test="create-recharge-order"]').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('rejects a fresh response using the historical USD policy and never enables creation', async () => {
+    const historical = quote()
+    delete historical.pricing_basis_currency
+    delete historical.base_amount_cny
+    api.quote.mockResolvedValue(response(historical))
+    const wrapper = await mountPage()
+    await setAmount(wrapper, 10)
+    expect(wrapper.text()).toContain('paymentRetail.unavailable')
+    expect(wrapper.find('[data-test="confirm-retail-quote"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="create-recharge-order"]').attributes('disabled')).toBeDefined()
+    expect(api.createOrder).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('rejects a CNY principal that differs from the requested site credit', async () => {
+    api.quote.mockResolvedValue(response({ ...quote(), base_amount_cny: 11 }))
+    const wrapper = await mountPage()
+    await setAmount(wrapper, 10)
+    expect(wrapper.text()).toContain('paymentRetail.unavailable')
+    expect(wrapper.get('[data-test="create-recharge-order"]').attributes('disabled')).toBeDefined()
+    expect(api.createOrder).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('rejects an order snapshot that changes the confirmed pricing basis', async () => {
+    const wrapper = await mountPage()
+    await setAmount(wrapper, 10)
+    const historical = quote()
+    delete historical.pricing_basis_currency
+    delete historical.base_amount_cny
+    api.createOrder.mockResolvedValueOnce(order(historical))
+    await wrapper.get('[data-test="confirm-retail-quote"]').setValue(true)
+    await wrapper.get('[data-test="create-recharge-order"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(PaymentStatusPanel).exists()).toBe(false)
+    expect(api.showError).toHaveBeenCalled()
+    expect(window.open).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -127,8 +188,8 @@ describe('server-priced retail checkout', () => {
     wrapper.findComponent(PaymentMethodSelector).vm.$emit('select', 'stripe')
     await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
-    expect(wrapper.text()).toContain('£8.42 GBP')
-    expect(wrapper.text()).toContain('$10.61 USD')
+    expect(wrapper.text()).toContain('£1.40 GBP')
+    expect(wrapper.text()).toContain('$1.77 USD')
     expect(wrapper.get('[data-test="confirm-retail-quote"]').element).toHaveProperty('checked', false)
     wrapper.unmount()
   })
@@ -206,10 +267,10 @@ describe('server-priced retail checkout', () => {
     wrapper.unmount()
   })
 
-  it('refreshes after the server rejects a stale token without silently creating another order', async () => {
+  it.each(['PAYMENT_QUOTE_EXPIRED', 'RETAIL_PRICING_CHANGED'])('refreshes after the server rejects %s without silently creating another order', async reason => {
     const wrapper = await mountPage()
     await setAmount(wrapper, 10)
-    api.createOrder.mockRejectedValueOnce({ reason: 'PAYMENT_QUOTE_EXPIRED' })
+    api.createOrder.mockRejectedValueOnce({ reason })
     await wrapper.get('[data-test="confirm-retail-quote"]').setValue(true)
     await wrapper.get('[data-test="create-recharge-order"]').trigger('click')
     await flushPromises()

@@ -91,6 +91,10 @@ export interface CheckoutInfoResponse {
 }
 
 export interface RetailQuote {
+  /** Absent for historical USD-based orders; new quotes price site credit in CNY. */
+  pricing_basis_currency?: 'CNY'
+  base_amount_cny?: number
+  /** Site credit displayed with a $ symbol, retained field name for old order snapshots. */
   credited_amount_usd: number
   base_amount_gbp: number
   included_cost_gbp: number

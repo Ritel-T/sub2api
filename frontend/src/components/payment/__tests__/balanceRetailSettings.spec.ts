@@ -60,8 +60,9 @@ describe('BalanceRetailSettings editing', () => {
 
   it('keeps USD/GBP and CNY/GBP directions explicit and emits edited numeric values', async () => {
     const wrapper = mount(BalanceRetailSettings, { props: { modelValue: valid } })
-    expect(wrapper.text()).toContain('USD per 1 GBP')
-    expect(wrapper.text()).toContain('CNY per 1 GBP')
+    expect(wrapper.text()).toContain('Actual USD per £1 (USD gateway settlement)')
+    expect(wrapper.text()).toContain('¥1 principal = $1 site credit')
+    expect(wrapper.text()).toContain('Actual CNY per £1 (principal pricing)')
     expect(wrapper.text()).toContain('Every payment method uses the same GBP retail price')
     await wrapper.get('#retail-fixed-cost').setValue('0')
     const value = wrapper.emitted('update:modelValue')?.[0]?.[0] as BalanceRetailSettingsValue

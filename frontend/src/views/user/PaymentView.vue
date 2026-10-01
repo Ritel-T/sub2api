@@ -701,6 +701,11 @@ const amountError = computed(() => {
   if (retailPricingEnabled.value) {
     if (globalMinAmount.value > 0 && validAmount.value < globalMinAmount.value) return t('payment.amountTooLow', { min: formatPaymentAmount(globalMinAmount.value, 'USD', localeCode.value) })
     if (globalMaxAmount.value > 0 && validAmount.value > globalMaxAmount.value) return t('payment.amountTooHigh', { max: formatPaymentAmount(globalMaxAmount.value, 'USD', localeCode.value) })
+    if (retailQuote.value && selectedLimit.value) {
+      const cash = retailQuote.value.pay_amount
+      if (selectedLimit.value.single_min > 0 && cash < selectedLimit.value.single_min) return t('paymentRetail.cashAmountTooLow', { min: formatSelectedPaymentAmount(selectedLimit.value.single_min), currency: selectedCurrency.value })
+      if (selectedLimit.value.single_max > 0 && cash > selectedLimit.value.single_max) return t('paymentRetail.cashAmountTooHigh', { max: formatSelectedPaymentAmount(selectedLimit.value.single_max), currency: selectedCurrency.value })
+    }
     return ''
   }
   // No method can handle this amount
@@ -881,6 +886,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       || result.amount !== confirmedQuote.credited_amount_usd
       || result.pay_amount !== confirmedQuote.pay_amount
       || result.currency !== confirmedQuote.currency
+      || result.retail_quote.pricing_basis_currency !== confirmedQuote.pricing_basis_currency
+      || result.retail_quote.base_amount_cny !== confirmedQuote.base_amount_cny
       || result.retail_quote.credited_amount_usd !== confirmedQuote.credited_amount_usd
       || result.retail_quote.total_amount_gbp !== confirmedQuote.total_amount_gbp
       || result.retail_quote.pay_amount !== confirmedQuote.pay_amount
@@ -1024,9 +1031,9 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     }
   } catch (err: unknown) {
     const apiErr = err as Record<string, unknown>
-    if (orderType === 'balance' && retailPricingEnabled.value && String(apiErr.reason || '').includes('QUOTE')) {
+    if (orderType === 'balance' && retailPricingEnabled.value && (String(apiErr.reason || '').includes('QUOTE') || apiErr.reason === 'RETAIL_PRICING_CHANGED')) {
       await refreshRetailQuote()
-      appStore.showWarning(t('paymentRetail.expired'))
+      appStore.showWarning(t(apiErr.reason === 'RETAIL_PRICING_CHANGED' ? 'paymentRetail.pricingChanged' : 'paymentRetail.expired'))
       return
     } else if (apiErr.reason === 'TOO_MANY_PENDING') {
       const metadata = apiErr.metadata as Record<string, unknown> | undefined

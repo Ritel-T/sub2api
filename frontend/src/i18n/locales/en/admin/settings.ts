@@ -798,7 +798,7 @@ export default {
         description: 'Configure payment system options',
         configGuide: 'Configuration Guide',
         enabled: 'Enable Payment',
-        enabledHint: 'Enable or disable the payment system',
+        enabledHint: 'Controls public payments. Merchant test accounts authorized by the server may test while this is off.',
         enabledPaymentTypes: 'Enabled Providers',
         enabledPaymentTypesHint: 'Disabling a provider will also disable its instances.',
         findProvider: 'Looking for a suitable EasyPay provider?',

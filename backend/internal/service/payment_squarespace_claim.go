@@ -216,7 +216,7 @@ func (s *SquarespaceClaimService) RequestChallenge(ctx context.Context, uid, loc
 		return nil, ErrSquarespaceClaimServiceUnavailable
 	}
 	quote := PaymentOrderRetailQuote(local)
-	body := fmt.Sprintf("<p>付款认领验证码 / Payment claim verification code: <strong>%s</strong></p><p>Squarespace receipt #%s · GBP %.2f · USD %.2f credit.</p><p>此验证码只用于将这笔付款充值到您的本站账户，10 分钟内有效。Only enter it in your signed-in payment page.</p>", html.EscapeString(code), html.EscapeString(number), quote.TotalAmountGBP, quote.CreditedAmountUSD)
+	body := fmt.Sprintf("<p>付款认领验证码 / Payment claim verification code: <strong>%s</strong></p><p>Squarespace receipt #%s · GBP %.2f · $%.2f site credit.</p><p>此验证码只用于将这笔付款充值到您的本站账户，10 分钟内有效。Only enter it in your signed-in payment page.</p>", html.EscapeString(code), html.EscapeString(number), quote.TotalAmountGBP, quote.CreditedAmountUSD)
 	if err := s.sendEmail(ctx, recipient, "付款认领验证码 / Payment claim code", body); err != nil {
 		s.discard(ctx, challengeKey, activeKey)
 		return nil, ErrSquarespaceClaimServiceUnavailable

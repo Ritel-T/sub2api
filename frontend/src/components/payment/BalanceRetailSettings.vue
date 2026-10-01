@@ -9,6 +9,7 @@
         @toggle="patch({ balance_retail_pricing_enabled: !modelValue.balance_retail_pricing_enabled })" />
     </div>
     <div v-if="modelValue.balance_retail_pricing_enabled" class="mt-4 space-y-3">
+      <p class="text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ t('squarespaceProvider.retail.creditPolicy') }}</p>
       <p class="rounded-lg theme-info-panel border p-3 text-xs leading-relaxed">{{ t('squarespaceProvider.retail.uniformPriceHint') }}</p>
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>

@@ -793,7 +793,7 @@ export default {
         description: '配置支付系统选项',
         configGuide: '支付配置指南',
         enabled: '启用支付',
-        enabledHint: '启用或禁用支付系统',
+        enabledHint: '控制公众支付；已获服务器授权的商户联调账户可在关闭时测试',
         enabledPaymentTypes: '启用的服务商',
         enabledPaymentTypesHint: '禁用服务商将同时禁用对应的实例。',
         findProvider: '正在寻找合适的易支付服务商？',

@@ -13,6 +13,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,22 +21,40 @@ func retailQuoteFixture(t *testing.T, currency string) *RetailQuote {
 	t.Helper()
 	now := time.Now().UTC().Truncate(time.Second)
 	cfg := &PaymentConfig{BalanceRetailCostRate: 2, BalanceRetailFixedCostGBP: .25, BalanceRetailQuoteTTLSeconds: 900}
-	quote, err := calculateRetailQuote(25, currency, cfg, &RetailFX{Rates: map[string]float64{"GBP": 1, "USD": 1.25, "CNY": 7}, Source: "manual", AsOf: now}, now)
+	quote, err := calculateRetailQuote(25, currency, cfg, &RetailFX{Rates: map[string]float64{"GBP": 1, "USD": 2, "CNY": 10}, Source: "manual", AsOf: now}, now)
 	require.NoError(t, err)
 	quote.CheckoutReference = "sub2_0123456789abcdef0123456789abcdef"
 	quote.ProductID = "0123456789abcdef01234567"
 	return quote
 }
 func TestRetailQuoteSameGBPProductPriceAcrossGateways(t *testing.T) {
-	for currency, pay := range map[string]float64{"GBP": 20.67, "USD": 25.84, "CNY": 144.69} {
+	for currency, pay := range map[string]float64{"GBP": 2.81, "USD": 5.62, "CNY": 28.10} {
 		q := retailQuoteFixture(t, currency)
 		require.Equal(t, 25.0, q.CreditedAmountUSD)
-		require.Equal(t, 20.0, q.BaseAmountGBP)
-		require.Equal(t, .67, q.IncludedCostGBP)
-		require.Equal(t, 20.67, q.TotalAmountGBP)
+		require.Equal(t, "CNY", q.PricingBasisCurrency)
+		require.Equal(t, 25.0, q.BaseAmountCNY)
+		require.Equal(t, 2.50, q.BaseAmountGBP)
+		require.Equal(t, .31, q.IncludedCostGBP)
+		require.Equal(t, 2.81, q.TotalAmountGBP)
 		require.Equal(t, pay, q.PayAmount)
 	}
 }
+func TestRetailCashRangeUsesGatewayMoneyInsteadOfSiteCredits(t *testing.T) {
+	q := &RetailQuote{CreditedAmountUSD: 100, PricingBasisCurrency: "CNY", BaseAmountCNY: 100, Currency: "GBP", PayAmount: .39}
+	limits := `{"squarespace":{"singleMin":0.5,"singleMax":20}}`
+	require.Error(t, validateRetailCashRange(limits, "squarespace", q))
+	q.PayAmount = .50
+	require.NoError(t, validateRetailCashRange(limits, "squarespace", q))
+	q.CreditedAmountUSD, q.BaseAmountCNY = 1, 1
+	require.NoError(t, validateRetailCashRange(limits, "squarespace", q))
+	q.PayAmount = 20.01
+	require.Error(t, validateRetailCashRange(limits, "squarespace", q))
+	require.Error(t, validateRetailCashRange(`{`, "squarespace", q))
+	require.Error(t, validateRetailCashRange(`{"squarespace":{"singleMin":-1}}`, "squarespace", q))
+	q.PayAmount = .39
+	require.NoError(t, validateRetailCashRange(`{}`, "squarespace", q))
+}
+
 func TestRetailQuoteRejectsInvalidMoneyAndCostPolicy(t *testing.T) {
 	now := time.Now()
 	fx := &RetailFX{Rates: map[string]float64{"GBP": 1, "USD": 1.25, "CNY": 7}}
@@ -64,9 +83,17 @@ func TestRetailQuoteTokenCannotCrossUserAmountMethodOrPurpose(t *testing.T) {
 	}
 	parts := strings.Split(token, ".")
 	raw, _ := base64.RawURLEncoding.DecodeString(parts[0])
-	tampered := strings.Replace(string(raw), "20.67", "20.68", 1)
+	tampered := strings.Replace(string(raw), "2.81", "2.82", 1)
 	_, err = s.parseRetailQuote(base64.RawURLEncoding.EncodeToString([]byte(tampered)) + "." + parts[1])
 	require.Error(t, err)
+	for _, replacement := range []string{
+		strings.Replace(string(raw), `"pricing_basis_currency":"CNY"`, `"pricing_basis_currency":"USD"`, 1),
+		strings.Replace(string(raw), `"base_amount_cny":25`, `"base_amount_cny":250`, 1),
+	} {
+		require.NotEqual(t, string(raw), replacement)
+		_, err = s.parseRetailQuote(base64.RawURLEncoding.EncodeToString([]byte(replacement)) + "." + parts[1])
+		require.Error(t, err)
+	}
 	claims.Purpose = "payment_resume"
 	other, err := s.signRetailQuote(claims)
 	require.NoError(t, err)
@@ -85,12 +112,12 @@ func TestRetailCheckoutReferencesUseCryptoEntropy(t *testing.T) {
 }
 func TestRetailOrderSnapshotAndExactPennyChecks(t *testing.T) {
 	q := retailQuoteFixture(t, "GBP")
-	o := &dbent.PaymentOrder{Amount: 25, PayAmount: q.PayAmount, ProviderKey: retailTestString("squarespace"), ProviderSnapshot: map[string]any{"provider_key":"squarespace","retail_quote": retailQuoteSnapshot(q), "currency": "GBP", "merchant_id": "website", "product_id": "0123456789abcdef01234567"}}
+	o := &dbent.PaymentOrder{Amount: 25, PayAmount: q.PayAmount, ProviderKey: retailTestString("squarespace"), ProviderSnapshot: map[string]any{"provider_key": "squarespace", "retail_quote": retailQuoteSnapshot(q), "currency": "GBP", "merchant_id": "website", "product_id": "0123456789abcdef01234567"}}
 	require.Equal(t, q, PaymentOrderRetailQuote(o))
-	require.True(t, paymentOrderAmountMatches(o, 20.67))
-	require.False(t, paymentOrderAmountMatches(o, 20.66))
-	require.False(t, paymentOrderAmountMatches(o, 20.68))
-	require.False(t, paymentOrderAmountMatches(o, 20.67001))
+	require.True(t, paymentOrderAmountMatches(o, 2.81))
+	require.False(t, paymentOrderAmountMatches(o, 2.80))
+	require.False(t, paymentOrderAmountMatches(o, 2.82))
+	require.False(t, paymentOrderAmountMatches(o, 2.81001))
 	meta := map[string]string{"website_id": "website", "product_id": "0123456789abcdef01234567", "currency": "GBP", "checkout_reference": q.CheckoutReference, "squarespace_paid_on": q.IssuedAt.Add(time.Minute).Format(time.RFC3339)}
 	require.NoError(t, validateSquarespaceRetailMetadata(o, meta))
 	meta["squarespace_paid_on"] = q.ExpiresAt.Add(time.Second).Format(time.RFC3339)
@@ -98,12 +125,18 @@ func TestRetailOrderSnapshotAndExactPennyChecks(t *testing.T) {
 	delete(meta, "squarespace_paid_on")
 	require.Error(t, validateSquarespaceRetailMetadata(o, meta))
 }
-func TestRetailQuotedOrderReplayReturnsSameOrderEvenAfterCompletion(t *testing.T) {
+func TestLegacyRetailQuotedOrderReplayReturnsSameQuantityEvenAfterCompletion(t *testing.T) {
 	ctx := context.Background()
 	client := newPaymentOrderLifecycleTestClient(t)
 	user, err := client.User.Create().SetEmail("retail-replay@example.com").SetPasswordHash("hash").SetUsername("retail").Save(ctx)
 	require.NoError(t, err)
 	q := retailQuoteFixture(t, "GBP")
+	// A persisted order retains its former cash-USD price after the CNY policy
+	// takes effect. Do not backfill new fields or rerun the current calculator.
+	q.PricingBasisCurrency = ""
+	q.BaseAmountCNY = 0
+	q.BaseAmountGBP, q.IncludedCostGBP, q.TotalAmountGBP, q.PayAmount = 20, .67, 20.67, 20.67
+	q.FX = map[string]float64{"GBP": 1, "USD": 1.25, "CNY": 7}
 	claims := retailQuoteClaims{Purpose: retailQuotePurpose, UserID: user.ID, PaymentType: "squarespace", ProviderInstanceID: "1", ProviderKey: "squarespace", Quote: q}
 	s := &PaymentService{entClient: client, resumeService: NewPaymentResumeService([]byte(strings.Repeat("k", 32)))}
 	token, err := s.signRetailQuote(claims)
@@ -121,6 +154,139 @@ func TestRetailQuotedOrderReplayReturnsSameOrderEvenAfterCompletion(t *testing.T
 	count, err := client.PaymentOrder.Query().Count(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
+	persisted, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, q, PaymentOrderRetailQuote(persisted))
+	require.Equal(t, 20.67, persisted.PayAmount)
+}
+
+func TestRetailQuotePricesCNYPrincipalIndependentlyOfCashUSDFXAndBalanceMultiplier(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	cfg := &PaymentConfig{BalanceRechargeMultiplier: 7, BalanceRetailCostRate: 4, BalanceRetailFixedCostGBP: .25, BalanceRetailQuoteTTLSeconds: 900}
+	for _, usdPerGBP := range []float64{2, 7} {
+		q, err := calculateRetailQuote(10, "GBP", cfg, &RetailFX{Rates: map[string]float64{"GBP": 1, "USD": usdPerGBP, "CNY": 10}, Source: "manual", AsOf: now}, now)
+		require.NoError(t, err)
+		require.Equal(t, 10.0, q.CreditedAmountUSD)
+		require.Equal(t, 10.0, q.BaseAmountCNY)
+		require.Equal(t, 1.0, q.BaseAmountGBP)
+		require.Equal(t, 1.31, q.TotalAmountGBP)
+		require.Equal(t, 1.31, q.PayAmount)
+	}
+	// GBP minor units round upwards before the existing cost-inclusive policy.
+	q, err := calculateRetailQuote(1, "GBP", cfg, &RetailFX{Rates: map[string]float64{"GBP": 1, "USD": 2, "CNY": 8}}, now)
+	require.NoError(t, err)
+	require.Equal(t, .13, q.BaseAmountGBP)
+	require.Equal(t, .40, q.PayAmount)
+}
+
+func TestRetailQuoteRequiresFiniteCNYPrincipalFX(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := &PaymentConfig{BalanceRetailQuoteTTLSeconds: 900}
+	for _, cny := range []float64{0, -1, math.NaN(), math.Inf(1)} {
+		for _, currency := range []string{"GBP", "USD", "CNY"} {
+			_, err := calculateRetailQuote(10, currency, cfg, &RetailFX{Rates: map[string]float64{"GBP": 1, "USD": 2, "CNY": cny}}, now)
+			require.Error(t, err)
+		}
+	}
+	_, err := calculateRetailQuote(10, "GBP", cfg, &RetailFX{Rates: map[string]float64{"GBP": 1, "USD": 2}}, now)
+	require.Error(t, err)
+}
+
+func TestUnusedLegacyRetailQuoteRequiresNewPriceWithoutCreatingOrder(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentOrderLifecycleTestClient(t)
+	s := &PaymentService{entClient: client, resumeService: NewPaymentResumeService([]byte(strings.Repeat("k", 32)))}
+	q := retailQuoteFixture(t, "GBP")
+	q.PricingBasisCurrency = ""
+	q.BaseAmountCNY = 0
+	claims := retailQuoteClaims{Purpose: retailQuotePurpose, UserID: 4, PaymentType: "squarespace", ProviderInstanceID: "1", ProviderKey: "squarespace", Quote: q}
+	token, err := s.signRetailQuote(claims)
+	require.NoError(t, err)
+	req := CreateOrderRequest{UserID: 4, Amount: 25, PaymentType: "squarespace", OrderType: "balance", QuoteToken: token}
+	_, err = s.createRetailQuotedOrder(ctx, req, &PaymentConfig{BalanceRetailPricingEnabled: true, MerchantTestUserIDs: []int64{4}}, &User{ID: 4})
+	require.Equal(t, "RETAIL_PRICING_CHANGED", infraerrors.Reason(err))
+	count, err := client.PaymentOrder.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, count)
+}
+
+func TestCurrentRetailQuotePricingBasisMustExpressOneCNYPerCredit(t *testing.T) {
+	q := retailQuoteFixture(t, "GBP")
+	require.NoError(t, validateCurrentRetailPricingBasis(q))
+	for _, change := range []func(*RetailQuote){
+		func(q *RetailQuote) { q.PricingBasisCurrency = "USD" },
+		func(q *RetailQuote) { q.BaseAmountCNY = 24 },
+		func(q *RetailQuote) { q.BaseAmountCNY = math.NaN() },
+		func(q *RetailQuote) { q.BaseAmountCNY = math.Inf(1) },
+	} {
+		bad := *q
+		change(&bad)
+		require.Error(t, validateCurrentRetailPricingBasis(&bad))
+	}
+}
+
+func TestCNYRetailQuoteFulfillmentAndRefundKeepOriginalCreditQuantity(t *testing.T) {
+	ctx := context.Background()
+	bridge, local, remote, docs, users := squarespaceBridgeDBFixture(t)
+	old := PaymentOrderRetailQuote(local)
+	q, err := calculateRetailQuote(20, "GBP", &PaymentConfig{BalanceRetailQuoteTTLSeconds: 900}, &RetailFX{Rates: map[string]float64{"GBP": 1, "USD": 100, "CNY": 2}, Source: "manual", AsOf: old.IssuedAt}, old.IssuedAt)
+	require.NoError(t, err)
+	q.CheckoutReference, q.ProductID, q.PaymentClaimMode = old.CheckoutReference, old.ProductID, old.PaymentClaimMode
+	require.Equal(t, 10.0, q.PayAmount)
+	local.ProviderSnapshot["retail_quote"] = retailQuoteSnapshot(q)
+	local, err = bridge.client.PaymentOrder.UpdateOneID(local.ID).SetProviderSnapshot(local.ProviderSnapshot).SetStatus(OrderStatusPaid).Save(ctx)
+	require.NoError(t, err)
+	proof, code := verifySquarespaceProof(remote, docs)
+	require.Empty(t, code)
+	ledger, err := bridge.observeOrder(ctx, "site_1", remote)
+	require.NoError(t, err)
+	ledger, err = squarespaceSeededTestBind(t, bridge, ctx, ledger, local, remote, proof, "reference")
+	require.NoError(t, err)
+	require.Equal(t, int64(20*squarespaceUSDScale), ledger.CreditedUsdUnits)
+
+	users.getByIDUser = &User{ID: local.UserID, Balance: 15}
+	users.updateBalanceFn = func(ctx context.Context, id int64, amount float64) error {
+		require.Equal(t, 20.0, amount, "cash USD FX must not price the credited quantity")
+		tx := dbent.TxFromContext(ctx)
+		require.NotNil(t, tx)
+		_, err := tx.User.UpdateOneID(id).AddBalance(amount).Save(ctx)
+		return err
+	}
+	codes := &paymentOrderLifecycleRedeemRepo{codesByCode: map[string]*RedeemCode{local.RechargeCode: {ID: 1, Code: local.RechargeCode, Type: RedeemTypeBalance, Value: 20, Status: StatusUnused}}}
+	bridge.payment.redeemService = NewRedeemService(codes, users, nil, nil, nil, bridge.client, nil, nil)
+	for i := 0; i < 2; i++ {
+		require.NoError(t, bridge.payment.ExecuteBalanceFulfillment(ctx, local.ID))
+	}
+	u, err := bridge.client.User.Get(ctx, local.UserID)
+	require.NoError(t, err)
+	require.Equal(t, 35.0, u.Balance)
+	require.Len(t, codes.useCalls, 1)
+
+	// Later cash FX/config changes cannot reprice the frozen ledger refund.
+	settings := bridge.config.settingRepo.(*paymentConfigSettingRepoStub).values
+	settings[SettingBalanceRetailFXSource] = "manual"
+	settings[SettingBalanceRetailFXUSDPerGBP] = "1"
+	settings[SettingBalanceRetailFXCNYPerGBP] = "200"
+	settings[SettingBalanceRetailFXAsOf] = time.Now().UTC().Format(time.RFC3339)
+	settings[SettingBalanceRechargeMult] = "99"
+	for _, cumulative := range []int64{200, 400, 400, 1000, 1000} {
+		copyProof := *proof
+		copyProof.Payments = append([]verifiedSquarespacePaymentProof(nil), proof.Payments...)
+		copyProof.Payments[0].RefundedMinor, copyProof.RefundedMinor = cumulative, cumulative
+		require.NoError(t, bridge.applyObservedRefund(ctx, ledger, &copyProof, "REFUNDED"))
+		ledger, err = bridge.client.PaymentExternalOrder.Get(ctx, ledger.ID)
+		require.NoError(t, err)
+	}
+	u, err = bridge.client.User.Get(ctx, local.UserID)
+	require.NoError(t, err)
+	require.Equal(t, 15.0, u.Balance)
+	require.Equal(t, int64(20*squarespaceUSDScale), ledger.RefundTargetUsdUnits)
+	require.Equal(t, int64(20*squarespaceUSDScale), ledger.RecoveredUsdUnits)
+	require.Zero(t, ledger.DebtUsdUnits)
+	persisted, err := bridge.client.PaymentOrder.Get(ctx, local.ID)
+	require.NoError(t, err)
+	require.Equal(t, 20.0, persisted.Amount)
+	require.Equal(t, q, PaymentOrderRetailQuote(persisted))
 }
 func TestPaymentProviderCredentialsEncryptedAndTamperingFailsClosed(t *testing.T) {
 	s := &PaymentConfigService{encryptionKey: []byte(strings.Repeat("k", 32))}

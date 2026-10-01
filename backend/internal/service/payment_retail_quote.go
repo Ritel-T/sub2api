@@ -27,29 +27,34 @@ import (
 const retailQuotePurpose = "sub2api-retail-quote-v1"
 const paymentRetailQuoteSigningKeyEnv = "PAYMENT_RETAIL_QUOTE_SIGNING_KEY"
 
-// RetailQuote is the immutable price of a USD balance product. Its GBP retail
-// price includes site costs identically for every method; currency conversion
-// changes only the gateway collection currency, never the credited USD quantity.
+// RetailQuote is the immutable price of site balance credits. The historical
+// credited_amount_usd name denotes displayed '$' credit units, not cash USD.
+// New products use one CNY of principal per credit unit. The GBP retail price
+// includes site costs identically for every method; cash currency conversion
+// never changes the credited quantity. Optional pricing fields remain absent
+// on historical USD-priced quotes so their stored JSON and proof hashes survive.
 type RetailQuote struct {
-	CreditedAmountUSD   float64            `json:"credited_amount_usd"`
-	BaseAmountGBP       float64            `json:"base_amount_gbp"`
-	IncludedCostGBP     float64            `json:"included_cost_gbp"`
-	TotalAmountGBP      float64            `json:"total_amount_gbp"`
-	PayAmount           float64            `json:"pay_amount"`
-	Currency            string             `json:"currency"`
-	FX                  map[string]float64 `json:"fx"`
-	FXSource            string             `json:"fx_source"`
-	FXAsOf              time.Time          `json:"fx_asof"`
-	IssuedAt            time.Time          `json:"issued_at"`
-	ExpiresAt           time.Time          `json:"expires_at"`
-	CheckoutReference   string             `json:"checkout_reference"`
-	CostRate            float64            `json:"cost_rate"`
-	FixedCostGBP        float64            `json:"fixed_cost_gbp"`
-	PaymentClaimMode    string             `json:"payment_claim_mode,omitempty"`
-	ProductID           string             `json:"product_id,omitempty"`
-	OrderScopeMode      string             `json:"order_scope_mode,omitempty"`
-	ExpectedServiceName string             `json:"expected_service_name,omitempty"`
-	Purpose             string             `json:"purpose,omitempty"`
+	CreditedAmountUSD    float64            `json:"credited_amount_usd"`
+	BaseAmountGBP        float64            `json:"base_amount_gbp"`
+	IncludedCostGBP      float64            `json:"included_cost_gbp"`
+	TotalAmountGBP       float64            `json:"total_amount_gbp"`
+	PayAmount            float64            `json:"pay_amount"`
+	Currency             string             `json:"currency"`
+	FX                   map[string]float64 `json:"fx"`
+	FXSource             string             `json:"fx_source"`
+	FXAsOf               time.Time          `json:"fx_asof"`
+	IssuedAt             time.Time          `json:"issued_at"`
+	ExpiresAt            time.Time          `json:"expires_at"`
+	CheckoutReference    string             `json:"checkout_reference"`
+	CostRate             float64            `json:"cost_rate"`
+	FixedCostGBP         float64            `json:"fixed_cost_gbp"`
+	PaymentClaimMode     string             `json:"payment_claim_mode,omitempty"`
+	ProductID            string             `json:"product_id,omitempty"`
+	OrderScopeMode       string             `json:"order_scope_mode,omitempty"`
+	ExpectedServiceName  string             `json:"expected_service_name,omitempty"`
+	Purpose              string             `json:"purpose,omitempty"`
+	PricingBasisCurrency string             `json:"pricing_basis_currency,omitempty"`
+	BaseAmountCNY        float64            `json:"base_amount_cny,omitempty"`
 }
 type RetailQuoteResponse struct {
 	QuoteToken  string       `json:"quote_token"`
@@ -83,7 +88,7 @@ func (s *PaymentService) QuotePayment(ctx context.Context, req CreateOrderReques
 	if _, err = s.validateOrderInput(ctx, req, cfg); err != nil {
 		return nil, err
 	}
-	if _, err = payment.AmountToMinorUnit(strconv.FormatFloat(req.Amount, 'f', -1, 64), "USD"); err != nil {
+	if _, err = payment.AmountToMinorUnit(strconv.FormatFloat(req.Amount, 'f', -1, 64), "CNY"); err != nil {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", err.Error())
 	}
 	user, err := s.userRepo.GetByID(ctx, req.UserID)
@@ -158,20 +163,20 @@ func (s *PaymentService) QuotePayment(ctx context.Context, req CreateOrderReques
 	return &RetailQuoteResponse{QuoteToken: token, RetailQuote: quote}, nil
 }
 
-func calculateRetailQuote(usd float64, currency string, cfg *PaymentConfig, fx *RetailFX, now time.Time) (*RetailQuote, error) {
+func calculateRetailQuote(credits float64, currency string, cfg *PaymentConfig, fx *RetailFX, now time.Time) (*RetailQuote, error) {
 	bad := func(message string) (*RetailQuote, error) {
 		return nil, infraerrors.BadRequest("INVALID_RETAIL_QUOTE", message)
 	}
-	if cfg == nil || fx == nil || usd <= 0 || math.IsNaN(usd) || math.IsInf(usd, 0) {
+	if cfg == nil || fx == nil || credits <= 0 || math.IsNaN(credits) || math.IsInf(credits, 0) {
 		return bad("invalid retail quote input")
 	}
-	if _, err := payment.AmountToMinorUnit(strconv.FormatFloat(usd, 'f', -1, 64), "USD"); err != nil {
+	if _, err := payment.AmountToMinorUnit(strconv.FormatFloat(credits, 'f', -1, 64), "CNY"); err != nil {
 		return bad(err.Error())
 	}
 	if currency != "GBP" && currency != "USD" && currency != "CNY" {
 		return bad("uniform retail pricing currently supports GBP, USD and CNY gateways")
 	}
-	if !validRetailNumber(fx.Rates["USD"]) || !validRetailNumber(fx.Rates[currency]) {
+	if fx.Rates["GBP"] != 1 || !validRetailNumber(fx.Rates["CNY"]) || !validRetailNumber(fx.Rates["USD"]) || !validRetailNumber(fx.Rates[currency]) {
 		return bad("FX conversion rate is unavailable")
 	}
 	rate, fixed := cfg.BalanceRetailCostRate, cfg.BalanceRetailFixedCostGBP
@@ -181,14 +186,14 @@ func calculateRetailQuote(usd float64, currency string, cfg *PaymentConfig, fx *
 	if cfg.BalanceRetailQuoteTTLSeconds < 60 || cfg.BalanceRetailQuoteTTLSeconds > 3600 {
 		return bad("invalid retail quote lifetime")
 	}
-	base := decimal.NewFromFloat(usd).Div(decimal.NewFromFloat(fx.Rates["USD"])).RoundUp(2)
+	base := decimal.NewFromFloat(credits).Div(decimal.NewFromFloat(fx.Rates["CNY"])).RoundUp(2)
 	total := base.Add(decimal.NewFromFloat(fixed)).Div(decimal.NewFromInt(1).Sub(decimal.NewFromFloat(rate).Div(decimal.NewFromInt(100)))).RoundUp(2)
 	pay := total.Mul(decimal.NewFromFloat(fx.Rates[currency])).RoundUp(2)
 	if pay.GreaterThan(decimal.NewFromInt(1000000000)) {
 		return bad("retail quote exceeds supported gateway amount")
 	}
 	copiedFX := map[string]float64{"GBP": 1, "USD": fx.Rates["USD"], "CNY": fx.Rates["CNY"]}
-	return &RetailQuote{CreditedAmountUSD: usd, BaseAmountGBP: base.InexactFloat64(), IncludedCostGBP: total.Sub(base).InexactFloat64(), TotalAmountGBP: total.InexactFloat64(), PayAmount: pay.InexactFloat64(), Currency: currency, FX: copiedFX, FXSource: fx.Source, FXAsOf: fx.AsOf, IssuedAt: now, ExpiresAt: now.Add(time.Duration(cfg.BalanceRetailQuoteTTLSeconds) * time.Second), CostRate: rate, FixedCostGBP: fixed}, nil
+	return &RetailQuote{CreditedAmountUSD: credits, PricingBasisCurrency: "CNY", BaseAmountCNY: credits, BaseAmountGBP: base.InexactFloat64(), IncludedCostGBP: total.Sub(base).InexactFloat64(), TotalAmountGBP: total.InexactFloat64(), PayAmount: pay.InexactFloat64(), Currency: currency, FX: copiedFX, FXSource: fx.Source, FXAsOf: fx.AsOf, IssuedAt: now, ExpiresAt: now.Add(time.Duration(cfg.BalanceRetailQuoteTTLSeconds) * time.Second), CostRate: rate, FixedCostGBP: fixed}, nil
 }
 func validRetailNumber(v float64) bool { return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0) }
 func newRetailCheckoutReference() (string, error) {
@@ -321,6 +326,12 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 	if !dbent.IsNotFound(err) {
 		return nil, err
 	}
+	// An already-created order keeps its original frozen price and can replay
+	// above. Unused quotes from the former cash-USD policy must be reissued;
+	// accepting them here would create a new order at the superseded price.
+	if err = validateCurrentRetailPricingBasis(claims.Quote); err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	if !now.Before(claims.Quote.ExpiresAt) || claims.Quote.IssuedAt.After(now.Add(time.Minute)) {
 		return nil, infraerrors.BadRequest("RETAIL_QUOTE_EXPIRED", "quote expired; request a new quote")
@@ -333,6 +344,19 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 		return nil, err
 	}
 	if err = s.validateSelectedCreateOrderInstance(ctx, req, sel); err != nil {
+		return nil, err
+	}
+	// Limits describe gateway cash, not site-credit units. Existing orders
+	// already replayed above preserve their original frozen price.
+	instanceID, err := strconv.ParseInt(sel.InstanceID, 10, 64)
+	if err != nil {
+		return nil, infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_CHANGED", "invalid quoted provider")
+	}
+	instance, err := s.entClient.PaymentProviderInstance.Get(ctx, instanceID)
+	if err != nil {
+		return nil, infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_CHANGED", "quoted payment provider unavailable")
+	}
+	if err = validateRetailCashRange(instance.Limits, req.PaymentType, claims.Quote); err != nil {
 		return nil, err
 	}
 	oauth, err := s.maybeBuildWeChatOAuthRequiredResponseForSelection(ctx, req, req.Amount, claims.Quote.PayAmount, 0, sel)
@@ -360,6 +384,39 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 	}
 	return result, nil
 }
+func validateCurrentRetailPricingBasis(quote *RetailQuote) error {
+	if quote == nil || quote.PricingBasisCurrency != "CNY" || !validRetailNumber(quote.BaseAmountCNY) || !validRetailNumber(quote.CreditedAmountUSD) || decimal.NewFromFloat(quote.BaseAmountCNY).Cmp(decimal.NewFromFloat(quote.CreditedAmountUSD)) != 0 {
+		return infraerrors.Conflict("RETAIL_PRICING_CHANGED", "balance product pricing changed; request a new quote")
+	}
+	return nil
+}
+func validateRetailCashRange(rawLimits, method string, quote *RetailQuote) error {
+	if quote == nil {
+		return infraerrors.BadRequest("INVALID_RETAIL_QUOTE", "missing payment quote")
+	}
+	if strings.TrimSpace(rawLimits) == "" {
+		return nil
+	}
+	var limits payment.InstanceLimits
+	if json.Unmarshal([]byte(rawLimits), &limits) != nil {
+		return infraerrors.ServiceUnavailable("PAYMENT_LIMITS_INVALID", "payment channel limits are invalid")
+	}
+	key := NormalizeVisibleMethod(method)
+	if strings.HasPrefix(key, "stripe") {
+		key = "stripe"
+	}
+	limit := limits[key]
+	if math.IsNaN(limit.SingleMin) || math.IsInf(limit.SingleMin, 0) || limit.SingleMin < 0 || math.IsNaN(limit.SingleMax) || math.IsInf(limit.SingleMax, 0) || limit.SingleMax < 0 {
+		return infraerrors.ServiceUnavailable("PAYMENT_LIMITS_INVALID", "payment channel limits are invalid")
+	}
+	if (limit.SingleMin > 0 && quote.PayAmount < limit.SingleMin) || (limit.SingleMax > 0 && quote.PayAmount > limit.SingleMax) {
+		return infraerrors.BadRequest("RETAIL_PAYMENT_OUT_OF_RANGE", "payment total is outside this channel's range").WithMetadata(map[string]string{
+			"currency": quote.Currency, "min": strconv.FormatFloat(limit.SingleMin, 'f', -1, 64), "max": strconv.FormatFloat(limit.SingleMax, 'f', -1, 64),
+		})
+	}
+	return nil
+}
+
 func (s *PaymentService) retailReplayResponse(ctx context.Context, order *dbent.PaymentOrder, req CreateOrderRequest, cfg *PaymentConfig) (*CreateOrderResponse, error) {
 	persisted := PaymentOrderRetailQuote(order)
 	expected, _ := json.Marshal(req.RetailQuote)
