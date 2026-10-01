@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -493,22 +494,41 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 	if groupID != nil && strings.TrimSpace(requestedModel) != "" && !account.IsExcelBPSEnabledForModel(requestedModel) {
 		// Response ownership bypasses the ordinary candidate loop. Recheck the
 		// common group BPS gate before retaining a native owner.
-		candidates, listErr := s.listSchedulableAccountsForRequest(ctx, groupID, PlatformOpenAI, requestedModel, requireCompact, excludedIDs)
-		if listErr != nil {
-			return nil, listErr
-		}
-		inPool := false
-		for i := range candidates {
-			if candidates[i].ID == account.ID {
-				inPool = true
-				break
-			}
-		}
-		if !inPool {
-			if !excelBPSPreviousResponseCanMove(ctx) {
+		if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
+			// Simple mode deliberately ignores account group membership. Read the
+			// platform pool to detect a protected request group without treating
+			// a valid cross-group owner as absent from a group snapshot.
+			if s.accountRepo == nil {
 				return nil, errOpenAIRequiredResponseOwnerUnavailable
 			}
-			return nil, nil
+			accounts, listErr := s.accountRepo.ListSchedulableByPlatform(ctx, PlatformOpenAI)
+			if listErr != nil {
+				return nil, listErr
+			}
+			if excelBPSGroupRequiresProtocol(accounts, groupID, requestedModel) {
+				if !excelBPSPreviousResponseCanMove(ctx) {
+					return nil, errOpenAIRequiredResponseOwnerUnavailable
+				}
+				return nil, nil
+			}
+		} else {
+			candidates, listErr := s.listSchedulableAccountsForRequest(ctx, groupID, PlatformOpenAI, requestedModel, requireCompact, excludedIDs)
+			if listErr != nil {
+				return nil, listErr
+			}
+			inPool := false
+			for i := range candidates {
+				if candidates[i].ID == account.ID {
+					inPool = true
+					break
+				}
+			}
+			if !inPool {
+				if !excelBPSPreviousResponseCanMove(ctx) {
+					return nil, errOpenAIRequiredResponseOwnerUnavailable
+				}
+				return nil, nil
+			}
 		}
 	}
 

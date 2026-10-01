@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -233,6 +234,39 @@ func TestExcelBPSIsolationMovablePreviousOwnerCannotUseNative(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, selection)
 	require.NotContains(t, acquired, accounts[1].ID)
+	require.ElementsMatch(t, acquired, released)
+}
+
+func TestExcelBPSIsolationSimpleModeOwnerOnlyBlocksProtectedGroup(t *testing.T) {
+	accounts := encryptedMessageCapabilityAccounts()
+	accounts[0].Extra = isolatedExcelAccount().Extra
+	accounts[0].GroupIDs = []int64{16}
+	accounts[1].GroupIDs = []int64{17}
+	var acquired, released []int64
+	svc := encryptedMessageCapabilityService(t, "advanced", accounts, &acquired, &released)
+	svc.cfg.RunMode = config.RunModeSimple
+	ctx := withExcelBPSPreviousResponseCanMove(context.Background(), true)
+	for _, tc := range []struct {
+		groupID int64
+		blocked bool
+	}{
+		{groupID: 16, blocked: true},
+		{groupID: 19, blocked: false},
+	} {
+		responseID := fmt.Sprintf("resp_simple_owner_%d", tc.groupID)
+		require.NoError(t, svc.getOpenAIWSStateStore().BindResponseAccount(ctx, tc.groupID, responseID, accounts[1].ID, time.Hour))
+		selection, err := svc.selectAccountByPreviousResponseIDForCapability(ctx, &tc.groupID, responseID, "gpt-6-astra", nil, OpenAIEndpointCapabilityResponses, false)
+		require.NoError(t, err)
+		if tc.blocked {
+			require.Nil(t, selection)
+		} else {
+			require.NotNil(t, selection)
+			require.Equal(t, accounts[1].ID, selection.Account.ID)
+			if selection.ReleaseFunc != nil {
+				selection.ReleaseFunc()
+			}
+		}
+	}
 	require.ElementsMatch(t, acquired, released)
 }
 
