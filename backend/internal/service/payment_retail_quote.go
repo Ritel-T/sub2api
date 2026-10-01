@@ -607,7 +607,7 @@ var squarespaceRetailProductIDPattern = regexp.MustCompile(`^[a-f0-9]{24}$`)
 func canonicalSquarespaceProductID(raw string) (string, error) {
 	canonical := strings.ToLower(strings.TrimSpace(raw))
 	if !squarespaceRetailProductIDPattern.MatchString(canonical) {
-		return "", fmt.Errorf("Pay Link product ID must be 24 hexadecimal characters")
+		return "", fmt.Errorf("pay link product ID must be 24 hexadecimal characters")
 	}
 	return canonical, nil
 }

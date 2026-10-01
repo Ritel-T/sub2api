@@ -37,18 +37,18 @@ func (s *PaymentService) FindSquarespaceReceiptOrder(ctx context.Context, localO
 	quote := PaymentOrderRetailQuote(localOrder)
 	snapshot := psOrderProviderSnapshot(localOrder)
 	if quote == nil || snapshot == nil || snapshot.ProviderKey != "squarespace" || snapshot.MerchantID == "" || quote.IssuedAt.IsZero() {
-		return nil, nil, errors.New("Squarespace quote unavailable")
+		return nil, nil, errors.New("squarespace quote unavailable")
 	}
 	instance, err := s.getOrderProviderInstance(ctx, localOrder)
 	if err != nil || instance == nil {
-		return nil, nil, errors.New("Squarespace provider instance unavailable")
+		return nil, nil, errors.New("squarespace provider instance unavailable")
 	}
 	cfg, err := s.configService.decryptConfig(instance.Config)
 	if err != nil {
 		return nil, nil, err
 	}
 	if cfg["websiteId"] != snapshot.MerchantID {
-		return nil, nil, errors.New("Squarespace website binding changed")
+		return nil, nil, errors.New("squarespace website binding changed")
 	}
 	client, err := s.configService.NewSquarespaceManagedClient(ctx, snapshot.MerchantID, cfg["referenceFieldLabel"])
 	if err != nil {

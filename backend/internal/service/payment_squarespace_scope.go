@@ -42,7 +42,7 @@ func frozenSquarespaceOrderScope(local *dbent.PaymentOrder) (map[string]string, 
 	quote := PaymentOrderRetailQuote(local)
 	snapshot := psOrderProviderSnapshot(local)
 	if quote == nil || snapshot == nil || snapshot.ProviderKey != "squarespace" || snapshot.MerchantID == "" {
-		return nil, errors.New("Squarespace frozen scope missing")
+		return nil, errors.New("squarespace frozen scope missing")
 	}
 	mode := quote.OrderScopeMode
 	if mode == "" {
@@ -52,7 +52,7 @@ func frozenSquarespaceOrderScope(local *dbent.PaymentOrder) (map[string]string, 
 	switch mode {
 	case provider.SquarespaceScopeFixedProduct:
 		if raw := psSnapshotStringValue(local.ProviderSnapshot["order_scope_mode"]); raw != "" && raw != mode {
-			return nil, errors.New("Squarespace frozen scope changed")
+			return nil, errors.New("squarespace frozen scope changed")
 		}
 		pid, err := squarespaceFrozenProductID(local)
 		if err != nil {
@@ -61,12 +61,12 @@ func frozenSquarespaceOrderScope(local *dbent.PaymentOrder) (map[string]string, 
 		cfg["productId"] = pid
 	case provider.SquarespaceScopeDedicatedSiteService:
 		if quote.Purpose != provider.SquarespaceBalanceTopupPurpose || quote.ExpectedServiceName != provider.SquarespaceExpectedServiceName || psSnapshotStringValue(local.ProviderSnapshot["order_scope_mode"]) != mode || psSnapshotStringValue(local.ProviderSnapshot["expected_service_name"]) != quote.ExpectedServiceName || psSnapshotStringValue(local.ProviderSnapshot["purpose"]) != quote.Purpose {
-			return nil, errors.New("Squarespace dedicated scope snapshot changed")
+			return nil, errors.New("squarespace dedicated scope snapshot changed")
 		}
 		cfg["paymentPurpose"] = quote.Purpose
 		cfg["expectedServiceName"] = quote.ExpectedServiceName
 	default:
-		return nil, errors.New("Squarespace order scope is unsupported")
+		return nil, errors.New("squarespace order scope is unsupported")
 	}
 	return cfg, nil
 }
@@ -81,7 +81,7 @@ func (s *PaymentService) squarespaceReceiptScope(ctx context.Context, local *dbe
 	// An old fixed-SKU invoice is never generally upgraded. A current explicit
 	// merchant review or a transactionally stored exact review is required.
 	if frozen["orderScopeMode"] != provider.SquarespaceScopeFixedProduct {
-		return nil, errors.New("Squarespace dedicated service proof mismatch")
+		return nil, errors.New("squarespace dedicated service proof mismatch")
 	}
 	if ledger != nil && ledger.BindingMethod == squarespaceLegacyScopeBinding {
 		evidence, err := s.loadSquarespaceLegacyScopeEvidence(ctx, local, ledger)
