@@ -107,6 +107,9 @@ export interface RetailQuote {
   checkout_reference: string
   payment_claim_mode?: PaymentClaimMode
   product_id?: string
+  order_scope_mode?: 'fixed_product' | 'dedicated_site_service'
+  expected_service_name?: string
+  purpose?: string
 }
 
 export interface PaymentQuoteRequest {

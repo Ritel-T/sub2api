@@ -157,7 +157,15 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
   ],
   squarespace: [
     { key: 'websiteId', label: '', labelKey: 'squarespaceProvider.field_websiteId', sensitive: false },
-    { key: 'productId', label: '', labelKey: 'squarespaceProvider.field_productId', sensitive: false, hintKey: 'squarespaceProvider.productIdHint' },
+    { key: 'orderScopeMode', label: '', labelKey: 'squarespaceProvider.field_orderScopeMode', sensitive: false, defaultValue: 'dedicated_site_service', hintKey: 'squarespaceProvider.orderScopeHint', options: [
+      { value: 'dedicated_site_service', label: '', labelKey: 'squarespaceProvider.scopeDedicated' },
+      { value: 'fixed_product', label: '', labelKey: 'squarespaceProvider.scopeFixedProduct' },
+    ] },
+    { key: 'paymentPurpose', label: '', labelKey: 'squarespaceProvider.field_paymentPurpose', sensitive: false, clearable: true, defaultValue: 'balance_topup_only', hintKey: 'squarespaceProvider.paymentPurposeHint', options: [
+      { value: 'balance_topup_only', label: '', labelKey: 'squarespaceProvider.purposeBalanceTopup' },
+    ] },
+    { key: 'expectedServiceName', label: '', labelKey: 'squarespaceProvider.field_expectedServiceName', sensitive: false, clearable: true, defaultValue: 'Pay', hintKey: 'squarespaceProvider.expectedServiceHint', options: [{ value: 'Pay', label: 'Pay' }] },
+    { key: 'productId', label: '', labelKey: 'squarespaceProvider.field_productId', sensitive: false, clearable: true, hintKey: 'squarespaceProvider.productIdHint' },
     { key: 'payLinkUrl', label: '', labelKey: 'squarespaceProvider.field_payLinkUrl', sensitive: false, hintKey: 'squarespaceProvider.payLinkHint' },
     { key: 'currency', label: '', labelKey: 'squarespaceProvider.field_currency', sensitive: false, defaultValue: 'GBP', hintKey: 'squarespaceProvider.currencyHint', options: [{ value: 'GBP', label: 'GBP' }] },
     { key: 'paymentClaimMode', label: '', labelKey: 'squarespaceProvider.field_paymentClaimMode', sensitive: false, defaultValue: 'receipt_otp', hintKey: 'squarespaceProvider.claimModeHint', options: [
@@ -254,8 +262,14 @@ export function isValidSquarespacePayLink(value: string): boolean {
 /** Receipt-email claims do not require a reference field on the Pay Link. */
 export function getVisibleProviderConfigFields(providerKey: string, config: Record<string, string>): ConfigFieldDef[] {
   const fields = PROVIDER_CONFIG_FIELDS[providerKey] || []
-  if (providerKey !== 'squarespace' || config.paymentClaimMode === 'reference') return fields
-  return fields.filter(field => field.key !== 'referenceFieldLabel')
+  if (providerKey !== 'squarespace') return fields
+  const scopeMode = config.orderScopeMode || 'dedicated_site_service'
+  return fields.filter(field => {
+    if (field.key === 'referenceFieldLabel') return config.paymentClaimMode === 'reference'
+    if (field.key === 'productId') return scopeMode === 'fixed_product'
+    if (field.key === 'paymentPurpose' || field.key === 'expectedServiceName') return scopeMode === 'dedicated_site_service'
+    return true
+  })
 }
 
 /** Bind claims to the verified Pay Link product, not just a website and amount. */

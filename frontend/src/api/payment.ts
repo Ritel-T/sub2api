@@ -62,10 +62,11 @@ export const paymentAPI = {
   },
 
   /** Request a code for an official receipt, bound to the current user and local order. */
-  requestSquarespaceClaimCode(localOrderId: number, receiptOrderNumber: string) {
+  requestSquarespaceClaimCode(localOrderId: number, receiptOrderNumber: string, payerEmail: string) {
     return apiClient.post<SquarespaceClaimChallenge>('/payment/squarespace/claim-challenge', {
       local_order_id: localOrderId,
       receipt_order_number: receiptOrderNumber,
+      payer_email: payerEmail,
     })
   },
 

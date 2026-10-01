@@ -320,6 +320,9 @@ func squarespacePGSourceSQL(t *testing.T, file, function, marker string) string 
 type squarespacePGSettings struct{ SettingRepository }
 
 func (squarespacePGSettings) GetValue(context.Context, string) (string, error) { return "true", nil }
+func (squarespacePGSettings) GetMultiple(context.Context, []string) (map[string]string, error) {
+	return map[string]string{SettingPaymentEnabled: "true"}, nil
+}
 
 type squarespacePGCache struct{}
 
@@ -436,7 +439,7 @@ func squarespacePGFixture(t *testing.T, ctx context.Context, client *dbent.Clien
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	u, err := client.User.Create().SetEmail(fmt.Sprintf("sq-pg-%d@example.test", sequence)).SetPasswordHash("test-only-hash").SetUsername("integration").SetBalance(balance).SetFrozenBalance(7).Save(ctx)
 	require.NoError(t, err)
-	inst, err := client.PaymentProviderInstance.Create().SetProviderKey("squarespace").SetConfig(`{"websiteId":"site_1","productId":"6abc2d02ac3ba7447cdc0752","referenceFieldLabel":"RynexAI top-up reference","payLinkUrl":"https://test.squarespace.com/pay","currency":"GBP"}`).SetSupportedTypes("squarespace").SetEnabled(true).Save(ctx)
+	inst, err := client.PaymentProviderInstance.Create().SetProviderKey("squarespace").SetConfig(`{"websiteId":"site_1","productId":"6abc2d02ac3ba7447cdc0752","referenceFieldLabel":"RynexAI top-up reference","payLinkUrl":"https://test.squarespace.com/pay","currency":"GBP","productionApproved":"true"}`).SetSupportedTypes("squarespace").SetEnabled(true).Save(ctx)
 	require.NoError(t, err)
 	no := false
 	money := func(value string) provider.SquarespaceMoney {
@@ -444,7 +447,7 @@ func squarespacePGFixture(t *testing.T, ctx context.Context, client *dbent.Clien
 	}
 	remote := &provider.SquarespaceOrder{ID: fmt.Sprintf("pg-external-%d", sequence), OrderNumber: strconv.FormatInt(sequence, 10), PaymentState: "PAID", TestMode: &no, GrandTotal: money("10.00"), RefundedTotal: money("0.00"), TopUpReference: fmt.Sprintf("sub2_%032x", sequence), ReferenceStatus: "valid", LineItems: []provider.SquarespaceLineItem{{ID: "line_1", ProductID: "6abc2d02ac3ba7447cdc0752"}}}
 	docs := []provider.SquarespaceTransactionDocument{{ID: fmt.Sprintf("pg-document-%d", sequence), SalesOrderID: remote.ID, Voided: &no, Total: money("10.00"), TotalNetPayment: money("9.55"), Payments: []provider.SquarespacePayment{{ID: fmt.Sprintf("pg-payment-%d", sequence), ExternalTransactionID: fmt.Sprintf("pg-charge-%d", sequence), Provider: "SQSP_PAYMENTS", PaidOn: now.Format(time.RFC3339Nano), Amount: money("10.00"), NetAmount: money("9.55"), RefundedAmount: money("0.00"), ProcessingFees: []provider.SquarespaceProcessingFee{{Amount: money("0.45"), NetAmount: money("0.45"), RefundedAmount: money("0.00")}}}}}}
-	quote := RetailQuote{ProductID: "6abc2d02ac3ba7447cdc0752", CreditedAmountUSD: 20, BaseAmountGBP: 9.5, IncludedCostGBP: .5, TotalAmountGBP: 10, PayAmount: 10, Currency: "GBP", FX: map[string]float64{"GBP": 1, "USD": 2, "CNY": 10}, FXSource: "integration", FXAsOf: now, IssuedAt: now.Add(-time.Minute), ExpiresAt: now.Add(time.Minute), CheckoutReference: remote.TopUpReference}
+	quote := RetailQuote{PaymentClaimMode: "reference", ProductID: "6abc2d02ac3ba7447cdc0752", CreditedAmountUSD: 20, BaseAmountGBP: 9.5, IncludedCostGBP: .5, TotalAmountGBP: 10, PayAmount: 10, Currency: "GBP", FX: map[string]float64{"GBP": 1, "USD": 2, "CNY": 10}, FXSource: "integration", FXAsOf: now, IssuedAt: now.Add(-time.Minute), ExpiresAt: now.Add(time.Minute), CheckoutReference: remote.TopUpReference}
 	raw, err := json.Marshal(quote)
 	require.NoError(t, err)
 	var quoteMap map[string]any
@@ -492,8 +495,18 @@ func (f *squarespacePGFixtureData) bind(t *testing.T, ctx context.Context) *dben
 	t.Helper()
 	ledger, err := f.bridge.observeOrder(ctx, "site_1", f.remote)
 	require.NoError(t, err)
+	prior, err := f.bridge.client.PaymentOrder.Get(ctx, f.local.ID)
+	require.NoError(t, err)
+	if prior.Status != OrderStatusPending && prior.Status != OrderStatusExpired {
+		_, err = f.bridge.client.PaymentOrder.UpdateOneID(f.local.ID).SetStatus(OrderStatusPending).Save(ctx)
+		require.NoError(t, err)
+	}
 	ledger, err = f.bridge.bindExternalOrder(ctx, ledger, f.local, f.remote, f.proof, "reference")
 	require.NoError(t, err)
+	if prior.Status != OrderStatusPending && prior.Status != OrderStatusExpired {
+		_, err = f.bridge.client.PaymentOrder.UpdateOneID(f.local.ID).SetStatus(prior.Status).Save(ctx)
+		require.NoError(t, err)
+	}
 	return ledger
 }
 func squarespacePGRefundProof(proof *verifiedSquarespaceProof, cumulative int64) *verifiedSquarespaceProof {

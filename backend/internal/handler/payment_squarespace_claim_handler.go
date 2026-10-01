@@ -15,12 +15,13 @@ func (h *PaymentHandler) RequestSquarespaceClaimChallenge(c *gin.Context) {
 	var req struct {
 		LocalOrderID       int64  `json:"local_order_id" binding:"required,gt=0"`
 		ReceiptOrderNumber string `json:"receipt_order_number" binding:"required,max=64"`
+		PayerEmail         string `json:"payer_email" binding:"required,max=255"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid receipt claim request")
 		return
 	}
-	result, err := h.paymentService.RequestSquarespaceClaimChallenge(c.Request.Context(), subject.UserID, req.LocalOrderID, req.ReceiptOrderNumber)
+	result, err := h.paymentService.RequestSquarespaceClaimChallenge(c.Request.Context(), subject.UserID, req.LocalOrderID, req.ReceiptOrderNumber, req.PayerEmail)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

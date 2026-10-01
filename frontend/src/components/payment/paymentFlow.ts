@@ -189,9 +189,13 @@ export function decidePaymentLaunch(
   }
 
   if (visibleMethod === 'squarespace') {
-    const ready = !!baseState.payUrl && isRetailQuote(baseState.retailQuote) && baseState.retailQuote.currency === 'GBP'
-      && !!baseState.retailQuote.checkout_reference
-      && /^[a-f0-9]{24}$/i.test(baseState.retailQuote.product_id || '')
+    const quote = baseState.retailQuote
+    const scopeMode = quote?.order_scope_mode || 'fixed_product'
+    const scopeReady = scopeMode === 'dedicated_site_service'
+      ? quote?.purpose === 'balance_topup_only' && quote?.expected_service_name === 'Pay'
+      : scopeMode === 'fixed_product' && /^[a-f0-9]{24}$/i.test(quote?.product_id || '')
+    const ready = !!baseState.payUrl && isRetailQuote(quote) && quote.currency === 'GBP'
+      && !!quote.checkout_reference && scopeReady
       && ['receipt_otp', 'reference'].includes(baseState.paymentClaimMode || '')
     return { kind: ready ? 'checkout_instructions' : 'unhandled', paymentState: baseState, recovery: baseState }
   }

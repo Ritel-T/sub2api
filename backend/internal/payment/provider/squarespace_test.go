@@ -558,6 +558,226 @@ func TestSquarespaceConfiguredProductIDCanonical24Hex(t *testing.T) {
 	}
 }
 
+func squarespaceDedicatedConfig() map[string]string {
+	return map[string]string{"websiteId": "site_1", "payLinkUrl": "https://ritelt.squarespace.com/pay-link/", "currency": "GBP", "orderScopeMode": SquarespaceScopeDedicatedSiteService, "paymentPurpose": SquarespaceBalanceTopupPurpose, "expectedServiceName": SquarespaceExpectedServiceName}
+}
+func squarespaceDedicatedOrder(t *testing.T) *SquarespaceOrder {
+	t.Helper()
+	var order SquarespaceOrder
+	raw := `{"id":"order_1","paymentState":"PAID","testmode":false,"grandTotal":{"currency":"GBP","value":"1.06"},"subtotal":{"currency":"GBP","value":"1.06"},"shippingTotal":{"currency":"GBP","value":"0.00"},"taxTotal":{"currency":"GBP","value":"0.00"},"discountTotal":{"currency":"GBP","value":"0.00"},"refundedTotal":{"currency":"GBP","value":"0.00"},"channel":"web","lineItems":[{"id":"line_1","productId":"0123456789abcdef01234567","variantId":null,"sku":null,"lineItemType":"SERVICE","productName":"Pay","quantity":1,"unitPricePaid":{"currency":"GBP","value":"1.06"},"customizations":[]}]}`
+	if err := json.Unmarshal([]byte(raw), &order); err != nil {
+		t.Fatal(err)
+	}
+	return &order
+}
+func TestSquarespaceDedicatedScopeExplicitBoundaryAndDynamicProduct(t *testing.T) {
+	cfg := squarespaceDedicatedConfig()
+	o := squarespaceDedicatedOrder(t)
+	if err := ValidateSquarespaceOrderScope(o, cfg); err != nil {
+		t.Fatal(err)
+	}
+	o.LineItems[0].ProductID = "fedcba9876543210fedcba98"
+	if err := ValidateSquarespaceOrderScope(o, cfg); err != nil {
+		t.Fatal("dedicated service incorrectly used a previous ephemeral inventory product")
+	}
+	fixed := map[string]string{"orderScopeMode": SquarespaceScopeFixedProduct, "productId": "0123456789abcdef01234567"}
+	if err := ValidateSquarespaceOrderScope(o, fixed); err == nil {
+		t.Fatal("fixed product protection widened")
+	}
+	configured, err := NewSquarespace("instance", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta := configured.MerchantIdentityMetadata()
+	if meta["order_scope_mode"] != SquarespaceScopeDedicatedSiteService || meta["payment_purpose"] != SquarespaceBalanceTopupPurpose || meta["expected_service_name"] != "Pay" || meta["product_id"] != "" {
+		t.Fatal("dedicated merchant snapshot silently claimed inventory identity")
+	}
+	for _, key := range []string{"orderScopeMode", "paymentPurpose", "expectedServiceName"} {
+		bad := squarespaceDedicatedConfig()
+		bad[key] = "unknown"
+		if _, err := NewSquarespace("instance", bad); err == nil {
+			t.Fatal("unknown dedicated contract accepted")
+		}
+	}
+	for _, key := range []string{"paymentPurpose", "expectedServiceName"} {
+		bad := squarespaceDedicatedConfig()
+		delete(bad, key)
+		if _, err := NewSquarespace("instance", bad); err == nil {
+			t.Fatal("missing explicit dedicated declaration inferred")
+		}
+	}
+}
+func TestSquarespaceDedicatedScopeRejectsNonTopupGoodsAndComponents(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		change func(*SquarespaceOrder)
+	}{
+		{"physical", func(o *SquarespaceOrder) { o.LineItems[0].LineItemType = "PHYSICAL" }},
+		{"digital", func(o *SquarespaceOrder) { o.LineItems[0].LineItemType = "DIGITAL" }},
+		{"different_service_name", func(o *SquarespaceOrder) { o.LineItems[0].ProductName = "Consulting" }},
+		{"name_case", func(o *SquarespaceOrder) { o.LineItems[0].ProductName = "pay" }},
+		{"quantity_two", func(o *SquarespaceOrder) { q := 2; o.LineItems[0].Quantity = &q }},
+		{"quantity_missing", func(o *SquarespaceOrder) { o.LineItems[0].Quantity = nil }},
+		{"variant", func(o *SquarespaceOrder) {
+			o.LineItems[0].VariantIsNull = false
+			o.LineItems[0].VariantID = "variant_1"
+		}},
+		{"sku", func(o *SquarespaceOrder) { o.LineItems[0].SKUIsNull = false }},
+		{"customizations", func(o *SquarespaceOrder) { o.LineItems[0].CustomizationsEmpty = false }},
+		{"shipping", func(o *SquarespaceOrder) { o.ShippingTotal.Value = "0.01" }},
+		{"tax", func(o *SquarespaceOrder) { o.TaxTotal.Value = "0.01" }},
+		{"discount", func(o *SquarespaceOrder) { o.DiscountTotal.Value = "0.01" }},
+		{"missing_component", func(o *SquarespaceOrder) { o.TaxTotal = SquarespaceMoney{} }},
+		{"subtotal", func(o *SquarespaceOrder) { o.Subtotal.Value = "1.00" }},
+		{"unit_price", func(o *SquarespaceOrder) { o.LineItems[0].UnitPricePaid.Value = "1.00" }},
+		{"currency", func(o *SquarespaceOrder) { o.LineItems[0].UnitPricePaid.Currency = "USD" }},
+		{"invalid_dynamic_product", func(o *SquarespaceOrder) { o.LineItems[0].ProductID = "invalid" }},
+		{"mixed_basket", func(o *SquarespaceOrder) { o.LineItems = append(o.LineItems, o.LineItems[0]) }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			o := squarespaceDedicatedOrder(t)
+			test.change(o)
+			if err := ValidateSquarespaceOrderScope(o, squarespaceDedicatedConfig()); err == nil {
+				t.Fatal("non-topup goods or component admitted")
+			}
+		})
+	}
+}
+func TestSquarespaceDedicatedMissingNullEvidenceDoesNotBecomeEmpty(t *testing.T) {
+	base := `{"id":"order_1","grandTotal":{"currency":"GBP","value":"1.06"},"subtotal":{"currency":"GBP","value":"1.06"},"shippingTotal":{"currency":"GBP","value":"0.00"},"taxTotal":{"currency":"GBP","value":"0.00"},"discountTotal":{"currency":"GBP","value":"0.00"},"lineItems":[{"id":"line_1","productId":"0123456789abcdef01234567","lineItemType":"SERVICE","productName":"Pay","quantity":1,"unitPricePaid":{"currency":"GBP","value":"1.06"}%s}]}`
+	for _, extra := range []string{`,"sku":null,"customizations":[]`, `,"variantId":null,"customizations":[]`, `,"variantId":null,"sku":null`, `,"variantId":null,"sku":null,"customizations":{}`, `,"variantId":null,"sku":"","customizations":[]`, `,"variantId":"","sku":null,"customizations":[]`, `,"variantId":null,"sku":null,"customizations":[{"value":"PRIVATE CUSTOMER NAME"}]`} {
+		var o SquarespaceOrder
+		if err := json.Unmarshal([]byte(fmt.Sprintf(base, extra)), &o); err != nil {
+			t.Fatal(err)
+		}
+		if err := ValidateSquarespaceOrderScope(&o, squarespaceDedicatedConfig()); err == nil {
+			t.Fatal("missing/null/empty distinctions lost")
+		}
+		encoded, _ := json.Marshal(o)
+		if strings.Contains(string(encoded), "PRIVATE CUSTOMER NAME") {
+			t.Fatal("customization customer text retained")
+		}
+	}
+}
+
+func TestSquarespaceDedicatedQueryMetadataRequiresWebsiteScopeAndFinancialProof(t *testing.T) {
+	provider, err := NewSquarespaceWithTokenSource("instance", squarespaceDedicatedConfig(), SquarespaceTokenSourceFunc(func(context.Context) (string, error) { return "MOCK_AT", nil }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := squarespaceDedicatedOrder(t)
+	// ProductName is deliberately omitted from report JSON, but must be present
+	// in the authenticated raw API order used for the business-purpose guard.
+	orderRaw := `{"id":"order_1","paymentState":"PAID","testmode":false,"grandTotal":{"currency":"GBP","value":"1.06"},"subtotal":{"currency":"GBP","value":"1.06"},"shippingTotal":{"currency":"GBP","value":"0"},"taxTotal":{"currency":"GBP","value":"0"},"discountTotal":{"currency":"GBP","value":"0"},"refundedTotal":{"currency":"GBP","value":"0"},"lineItems":[{"id":"line_1","productId":"0123456789abcdef01234567","variantId":null,"sku":null,"lineItemType":"SERVICE","productName":"Pay","quantity":1,"unitPricePaid":{"currency":"GBP","value":"1.06"},"customizations":[]}]}`
+	_, documents := squarespacePaidFixture()
+	documents[0].Total.Value = "1.06"
+	documents[0].TotalNetPayment.Value = "0.79"
+	documents[0].Payments[0].Amount.Value = "1.06"
+	documents[0].Payments[0].NetAmount.Value = "0.79"
+	docRaw, _ := json.Marshal(map[string]any{"documents": documents})
+	provider.client.httpClient = &http.Client{Transport: squarespaceTestTransport(func(r *http.Request) (*http.Response, error) {
+		if r.Method != "GET" || r.URL.Host != "api.squarespace.com" {
+			t.Fatal("nonofficial operation")
+		}
+		switch r.URL.Path {
+		case "/1.0/authorization/website":
+			return squarespaceTestResponse(200, `{"id":"site_1"}`), nil
+		case "/1.0/commerce/orders/order_1":
+			return squarespaceTestResponse(200, orderRaw), nil
+		case "/1.0/commerce/transactions":
+			return squarespaceTestResponse(200, string(docRaw)), nil
+		}
+		t.Fatal("unexpected endpoint")
+		return nil, nil
+	})}
+	proof, err := provider.QueryOrder(context.Background(), o.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proof.Status != payment.ProviderStatusPaid || proof.Amount != 1.06 || proof.Metadata["website_id"] != "site_1" || proof.Metadata["order_scope_mode"] != SquarespaceScopeDedicatedSiteService || proof.Metadata["payment_purpose"] != SquarespaceBalanceTopupPurpose || proof.Metadata["expected_service_name"] != "Pay" || proof.Metadata["actual_product_id"] != o.LineItems[0].ProductID || proof.Metadata["product_id"] != "" {
+		t.Fatal("merchant scope/financial proof metadata lost or inventory identity invented")
+	}
+	orderRaw = strings.Replace(orderRaw, `"productName":"Pay"`, `"productName":"Other goods"`, 1)
+	if _, err := provider.QueryOrder(context.Background(), o.ID); err == nil {
+		t.Fatal("same gross/website but non-topup goods accepted")
+	}
+}
+
+func TestSquarespaceVerifiedRealPay106DedicatedQueryAndNullableCustomization(t *testing.T) {
+	// One fresh server read proves the nullable SERVICE/Pay representation.
+	// Only IDs are pseudonymized; amounts/time/null semantics are preserved.
+	raw, err := os.ReadFile("testdata/squarespace_verified_service_pay_106.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Order      json.RawMessage                  `json:"order"`
+		Documents  []SquarespaceTransactionDocument `json:"documents"`
+		Provenance struct {
+			Source           string `json:"source"`
+			Pseudonymized    bool   `json:"identity_fields_pseudonymized"`
+			CustomersRemoved bool   `json:"customer_fields_removed"`
+			CustomNull       bool   `json:"confirmed_customizations_explicit_null"`
+		} `json:"provenance"`
+	}
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.Provenance.Source != "server_current_access_token_fresh_GET" || !fixture.Provenance.Pseudonymized || !fixture.Provenance.CustomersRemoved || !fixture.Provenance.CustomNull {
+		t.Fatal("golden fixture provenance incomplete")
+	}
+	var order SquarespaceOrder
+	if err := json.Unmarshal(fixture.Order, &order); err != nil {
+		t.Fatal(err)
+	}
+	if order.CustomerEmail != "" || !order.LineItems[0].CustomizationsEmpty || !order.LineItems[0].SKUIsNull || !order.LineItems[0].VariantIsNull {
+		t.Fatal("actual null/nonPII semantics lost")
+	}
+	if err := ValidateSquarespaceOrderScope(&order, squarespaceDedicatedConfig()); err != nil {
+		t.Fatalf("actual Pay service contract rejected: %v", err)
+	}
+	if err := ValidateSquarespaceTopupProduct(&order, "6abc2d02ac3ba7447cdc0752"); err == nil {
+		t.Fatal("old SKU accidentally proves a dynamic checkout inventory identity")
+	}
+	provider, err := NewSquarespaceWithTokenSource("instance", squarespaceDedicatedConfig(), SquarespaceTokenSourceFunc(func(context.Context) (string, error) { return "MOCK_AT", nil }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, _ := json.Marshal(map[string]any{"documents": fixture.Documents})
+	provider.client.httpClient = &http.Client{Transport: squarespaceTestTransport(func(req *http.Request) (*http.Response, error) {
+		if req.Method != "GET" || req.URL.Host != "api.squarespace.com" {
+			t.Fatal("nonofficial operation")
+		}
+		switch req.URL.Path {
+		case "/1.0/authorization/website":
+			return squarespaceTestResponse(200, `{"id":"site_1"}`), nil
+		case "/1.0/commerce/orders/verified_service_order":
+			return squarespaceTestResponse(200, string(fixture.Order)), nil
+		case "/1.0/commerce/transactions":
+			return squarespaceTestResponse(200, string(docs)), nil
+		}
+		t.Fatal("unexpected endpoint")
+		return nil, nil
+	})}
+	proof, err := provider.QueryOrder(context.Background(), order.ID)
+	if err != nil {
+		t.Fatalf("actual dedicated Query rejected: %v", err)
+	}
+	if proof.Status != payment.ProviderStatusPaid || proof.Amount != 1.06 || proof.Currency != "GBP" || proof.Metadata["gross_minor"] != "106" || proof.Metadata["processing_fee_minor"] != "28" || proof.Metadata["net_minor"] != "78" || proof.Metadata["refunded_minor"] != "0" || proof.Metadata["order_scope_mode"] != SquarespaceScopeDedicatedSiteService || proof.Metadata["actual_product_id"] != order.LineItems[0].ProductID || proof.Metadata["product_id"] != "" {
+		t.Fatal("actual dedicated financial/scope evidence not preserved")
+	}
+	// The other legitimate representation is explicit [], not missing/null
+	// inference. Nonempty arrays and objects remain blocked in the matrix.
+	arrayOrder := strings.Replace(string(fixture.Order), `"customizations": null`, `"customizations": []`, 1)
+	var emptyArray SquarespaceOrder
+	if err := json.Unmarshal([]byte(arrayOrder), &emptyArray); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateSquarespaceOrderScope(&emptyArray, squarespaceDedicatedConfig()); err != nil {
+		t.Fatal("explicit empty customization array rejected")
+	}
+}
+
 func TestSquarespaceConstrainedNonpaginatedFilteredTransactions(t *testing.T) {
 	for _, test := range []struct {
 		name, body, cursor string

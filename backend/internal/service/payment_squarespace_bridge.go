@@ -393,7 +393,7 @@ func (s *SquarespacePaymentBridge) processExternalOrder(ctx context.Context, ins
 		return s.anomaly(ctx, ledger.ID, "PAYMENT_TIME_IN_FUTURE")
 	}
 	if ledger.LocalOrderID == nil {
-		if !instance.Enabled || !s.config.IsPaymentEnabled(ctx) {
+		if !instance.Enabled {
 			return s.anomaly(ctx, ledger.ID, "AUTOMATIC_CREDIT_DISABLED")
 		}
 		if proof.RefundedMinor != 0 || remote.PaymentState != "PAID" {
@@ -405,6 +405,12 @@ func (s *SquarespacePaymentBridge) processExternalOrder(ctx context.Context, ins
 		}
 		if err != nil {
 			return err
+		}
+		if PaymentOrderClaimMode(local) != "reference" {
+			return s.anomaly(ctx, ledger.ID, "PAYER_OTP_REQUIRED")
+		}
+		if err := s.payment.validateSquarespaceOrderAccess(ctx, local.UserID, local); err != nil {
+			return s.anomaly(ctx, ledger.ID, "AUTOMATIC_CREDIT_DISABLED")
 		}
 		if code = validateSquarespaceQuoteProof(local, remote, proof, website); code != "" {
 			return s.anomaly(ctx, ledger.ID, code)
@@ -421,7 +427,14 @@ func (s *SquarespacePaymentBridge) processExternalOrder(ctx context.Context, ins
 	if loadErr != nil {
 		return loadErr
 	}
-	if code = validateSquarespaceFrozenTopupProduct(currentLocal, remote); code != "" {
+	grant, scopeErr := s.payment.squarespaceReceiptScope(ctx, currentLocal, remote, ledger)
+	if scopeErr != nil {
+		code := "ORDER_SCOPE_UNTRUSTED"
+		if ledger.BindingMethod != squarespaceLegacyScopeBinding {
+			if fixedCode := validateSquarespaceFrozenTopupProduct(currentLocal, remote); fixedCode != "" {
+				code = fixedCode
+			}
+		}
 		return s.anomaly(ctx, ledger.ID, code)
 	}
 	currentHash, hashErr := SquarespaceReceiptQuoteHash(currentLocal)
@@ -465,10 +478,13 @@ func (s *SquarespacePaymentBridge) processExternalOrder(ctx context.Context, ins
 	if local.Status == OrderStatusCompleted {
 		return s.client.PaymentExternalOrder.UpdateOneID(ledger.ID).SetStatus("CREDITED").SetAnomalyCode("").Exec(ctx)
 	}
-	if !instance.Enabled || !s.config.IsPaymentEnabled(ctx) {
+	if !instance.Enabled {
 		return s.anomaly(ctx, ledger.ID, "AUTOMATIC_CREDIT_DISABLED")
 	}
-	if ledger.BindingMethod == "receipt_otp" {
+	if err := s.payment.validateSquarespaceOrderAccess(ctx, local.UserID, local); err != nil {
+		return s.anomaly(ctx, ledger.ID, "AUTOMATIC_CREDIT_DISABLED")
+	}
+	if ledger.BindingMethod == "receipt_otp" || ledger.BindingMethod == squarespaceLegacyScopeBinding {
 		code = validateSquarespaceQuoteFinancialProof(local, proof, website)
 	} else {
 		code = validateSquarespaceQuoteProof(local, remote, proof, website)
@@ -477,16 +493,18 @@ func (s *SquarespacePaymentBridge) processExternalOrder(ctx context.Context, ins
 		return s.anomaly(ctx, ledger.ID, code)
 	}
 
-	productID, productErr := squarespaceFrozenProductID(local)
-	if productErr != nil {
-		return productErr
+	if grant.Config["orderScopeMode"] == provider.SquarespaceScopeDedicatedSiteService && !grant.AssistedLegacy {
+		grant.ActualProductID = strings.ToLower(remote.LineItems[0].ProductID)
 	}
 	allPaidTimes := make([]string, 0, len(proof.Payments))
 	for _, paid := range proof.Payments {
 		allPaidTimes = append(allPaidTimes, paid.PaidAt.Format(time.RFC3339Nano))
 	}
 	paidTimesJSON, _ := json.Marshal(allPaidTimes)
-	notification := &payment.PaymentNotification{OrderID: local.OutTradeNo, TradeNo: remote.ID, Amount: float64(proof.TotalMinor) / 100, Status: payment.NotificationStatusSuccess, Metadata: map[string]string{"website_id": website, "currency": "GBP", "product_id": productID, "checkout_reference": local.OutTradeNo, "squarespace_paid_on": proof.PaidAt.Format(time.RFC3339Nano), "upstream_paid_on": string(paidTimesJSON)}}
+	notification := &payment.PaymentNotification{OrderID: local.OutTradeNo, TradeNo: remote.ID, Amount: float64(proof.TotalMinor) / 100, Status: payment.NotificationStatusSuccess, Metadata: map[string]string{"website_id": website, "currency": "GBP", "checkout_reference": local.OutTradeNo, "squarespace_paid_on": proof.PaidAt.Format(time.RFC3339Nano), "upstream_paid_on": string(paidTimesJSON)}}
+	for key, value := range squarespaceScopeMetadata(grant) {
+		notification.Metadata[key] = value
+	}
 	if err = s.payment.HandlePaymentNotification(ctx, notification, "squarespace"); err != nil {
 		_ = s.anomaly(ctx, ledger.ID, "FULFILLMENT_RETRY")
 		return err
@@ -533,11 +551,39 @@ func (s *SquarespacePaymentBridge) bindExternalOrder(ctx context.Context, ledger
 		_ = tx.Rollback()
 		return current, nil
 	}
-	code := validateSquarespaceFrozenTopupProduct(lockedLocal, remote)
-	if code != "" {
-		return nil, errors.New(code)
+	if lockedLocal.Status != OrderStatusPending && lockedLocal.Status != OrderStatusExpired {
+		return nil, errors.New("local order cannot accept a new payment binding")
 	}
-	if bindingMethod == "receipt_otp" {
+	if bindingMethod == "reference" && PaymentOrderClaimMode(lockedLocal) != "reference" {
+		return nil, errors.New("receipt payment requires payer OTP authority")
+	}
+	if bindingMethod != "reference" && bindingMethod != "receipt_otp" && bindingMethod != squarespaceLegacyScopeBinding {
+		return nil, errors.New("unsupported payment binding method")
+	}
+	if bindingMethod == "receipt_otp" || bindingMethod == squarespaceLegacyScopeBinding {
+		if err := validateSquarespaceReceiptAuthority(ctx, lockedLocal, remote); err != nil {
+			return nil, err
+		}
+	}
+
+	transactionalPayment := *s.payment
+	transactionalPayment.entClient = tx.Client()
+	transactionalCfg := *s.config
+	transactionalCfg.entClient = tx.Client()
+	transactionalPayment.configService = &transactionalCfg
+	grant, scopeErr := transactionalPayment.squarespaceReceiptScope(ctx, lockedLocal, remote, nil)
+	if scopeErr != nil {
+		return nil, scopeErr
+	}
+	if grant.AssistedLegacy {
+		if bindingMethod != squarespaceLegacyScopeBinding {
+			return nil, errors.New("reviewed legacy scope requires explicit receipt binding")
+		}
+	} else if bindingMethod == squarespaceLegacyScopeBinding {
+		return nil, errors.New("unexpected legacy scope marker")
+	}
+	code := ""
+	if bindingMethod == "receipt_otp" || bindingMethod == squarespaceLegacyScopeBinding {
 		code = validateSquarespaceQuoteFinancialProof(lockedLocal, proof, ledger.WebsiteID)
 	} else {
 		code = validateSquarespaceQuoteProof(lockedLocal, remote, proof, ledger.WebsiteID)
@@ -563,6 +609,11 @@ func (s *SquarespacePaymentBridge) bindExternalOrder(ctx context.Context, ledger
 	result, err = tx.PaymentExternalOrder.UpdateOneID(ledger.ID).SetLocalOrderID(local.ID).SetBindingMethod(bindingMethod).SetQuoteHash(quoteHash).SetCheckoutReference(local.OutTradeNo).SetCurrency("GBP").SetTotalMinor(proof.TotalMinor).SetCreditedUsdUnits(credited).SetPaidAt(proof.PaidAt).SetStatus("BOUND").SetAnomalyCode("").Save(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if grant.AssistedLegacy {
+		if err = transactionalPayment.storeSquarespaceLegacyScopeAudit(ctx, tx.Client(), lockedLocal, remote, grant, quoteHash); err != nil {
+			return nil, err
+		}
 	}
 	for _, paid := range proof.Payments {
 		_, err = tx.PaymentExternalPayment.Create().SetProviderKey("squarespace").SetWebsiteID(ledger.WebsiteID).SetPaymentID(paid.ID).SetExternalOrderLedgerID(ledger.ID).SetCurrency("GBP").SetAmountMinor(paid.AmountMinor).SetPaidAt(paid.PaidAt).Save(ctx)

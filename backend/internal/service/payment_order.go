@@ -333,8 +333,18 @@ func buildPaymentOrderProviderSnapshot(sel *payment.InstanceSelection, req Creat
 	}
 	if providerKey == "squarespace" {
 		snapshot["merchant_id"] = strings.TrimSpace(sel.Config["websiteId"])
-		productID, _ := canonicalSquarespaceProductID(sel.Config["productId"])
-		snapshot["product_id"] = productID
+		scopeMode := strings.TrimSpace(sel.Config["orderScopeMode"])
+		if scopeMode == "" {
+			scopeMode = provider.SquarespaceScopeFixedProduct
+		}
+		snapshot["order_scope_mode"] = scopeMode
+		if scopeMode == provider.SquarespaceScopeDedicatedSiteService {
+			snapshot["expected_service_name"] = sel.Config["expectedServiceName"]
+			snapshot["purpose"] = sel.Config["paymentPurpose"]
+		} else {
+			productID, _ := canonicalSquarespaceProductID(sel.Config["productId"])
+			snapshot["product_id"] = productID
+		}
 		snapshot["currency"] = "GBP"
 		snapshot["pay_link_url"] = sel.Config["payLinkUrl"]
 		snapshot["reference_field_label"] = sel.Config["referenceFieldLabel"]

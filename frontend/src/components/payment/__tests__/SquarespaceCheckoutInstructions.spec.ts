@@ -34,10 +34,11 @@ describe('Squarespace checkout instructions', () => {
     expect(window.open).toHaveBeenCalledWith(payUrl, '_blank', 'noopener,noreferrer')
     wrapper.unmount()
   })
-  it('uses the account-email receipt workflow without claiming that a required reference field exists', async () => {
+  it('shows the separate balance account and actual-checkout-email receipt workflow without claiming that a required reference field exists', async () => {
     const wrapper = mount(SquarespaceCheckoutInstructions, { props: { quote: { ...quote, payment_claim_mode: 'receipt_otp' }, payUrl, orderNumber: 'order-42', orderId: 42, accountEmail: 'mine@example.com' } })
     expect(wrapper.text()).toContain('paymentRetail.receiptCheckoutHint')
     expect(wrapper.text()).toContain('mine@example.com')
+    expect(wrapper.text()).toContain('paymentRetail.balanceAccount')
     expect(wrapper.find('[data-test="checkout-reference"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('paymentRetail.checkoutHint')
     expect(wrapper.find('[data-test="start-receipt-claim"]').exists()).toBe(true)

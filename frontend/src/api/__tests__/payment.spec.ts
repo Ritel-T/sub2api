@@ -29,8 +29,8 @@ describe('payment api', () => {
   })
 
   it('uses a bound receipt challenge and verifies only the opaque challenge plus code', async () => {
-    await paymentAPI.requestSquarespaceClaimCode(42, '#1234')
-    expect(post).toHaveBeenCalledWith('/payment/squarespace/claim-challenge', { local_order_id: 42, receipt_order_number: '#1234' })
+    await paymentAPI.requestSquarespaceClaimCode(42, '#1234', 'actual-payer@example.com')
+    expect(post).toHaveBeenCalledWith('/payment/squarespace/claim-challenge', { local_order_id: 42, receipt_order_number: '#1234', payer_email: 'actual-payer@example.com' })
     await paymentAPI.claimSquarespacePayment('bound-token', '123456')
     expect(post).toHaveBeenCalledWith('/payment/squarespace/claim', { challenge_token: 'bound-token', code: '123456' })
   })

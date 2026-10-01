@@ -393,11 +393,11 @@ func applyPagination(pageSize, page int) (size, pg int) {
 func (s *PaymentService) SetSquarespaceClaimService(claims *SquarespaceClaimService) {
 	s.squarespaceClaims = claims
 }
-func (s *PaymentService) RequestSquarespaceClaimChallenge(ctx context.Context, userID, orderID int64, receipt string) (*SquarespaceClaimChallengeResponse, error) {
+func (s *PaymentService) RequestSquarespaceClaimChallenge(ctx context.Context, userID, orderID int64, receipt, payerEmail string) (*SquarespaceClaimChallengeResponse, error) {
 	if s.squarespaceClaims == nil {
 		return nil, infraerrors.ServiceUnavailable("SQUARESPACE_CLAIM_SERVICE_UNAVAILABLE", "receipt claim service is unavailable")
 	}
-	return s.squarespaceClaims.RequestChallenge(ctx, userID, orderID, receipt)
+	return s.squarespaceClaims.RequestChallenge(ctx, userID, orderID, receipt, payerEmail)
 }
 func (s *PaymentService) ClaimSquarespaceReceipt(ctx context.Context, userID int64, token, code string) (*dbent.PaymentOrder, error) {
 	if s.squarespaceClaims == nil {

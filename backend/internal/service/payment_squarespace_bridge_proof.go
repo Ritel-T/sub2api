@@ -96,11 +96,11 @@ func squarespaceFrozenProductID(local *dbent.PaymentOrder) (string, error) {
 	return expected, nil
 }
 func validateSquarespaceFrozenTopupProduct(local *dbent.PaymentOrder, remote *provider.SquarespaceOrder) string {
-	expected, err := squarespaceFrozenProductID(local)
+	scope, err := frozenSquarespaceOrderScope(local)
 	if err != nil {
 		return "TOPUP_PRODUCT_SNAPSHOT_INVALID"
 	}
-	if err = provider.ValidateSquarespaceTopupProduct(remote, expected); err != nil {
+	if err = provider.ValidateSquarespaceOrderScope(remote, scope); err != nil {
 		return "TOPUP_PRODUCT_MISMATCH"
 	}
 	return ""
@@ -111,7 +111,7 @@ func validateSquarespaceQuoteFinancialProof(local *dbent.PaymentOrder, proof *ve
 		return "LOCAL_ORDER_MISSING"
 	}
 	quote := PaymentOrderRetailQuote(local)
-	if _, err := squarespaceFrozenProductID(local); err != nil {
+	if _, err := frozenSquarespaceOrderScope(local); err != nil {
 		return "TOPUP_PRODUCT_SNAPSHOT_INVALID"
 	}
 	if quote == nil || quote.Currency != "GBP" || quote.IssuedAt.IsZero() || quote.ExpiresAt.IsZero() || !squarespaceCheckoutReferencePattern.MatchString(quote.CheckoutReference) || quote.CheckoutReference != local.OutTradeNo {
@@ -165,6 +165,13 @@ func ValidateSquarespaceReceiptClaimProof(local *dbent.PaymentOrder, remote *pro
 	return err
 }
 func verifiedSquarespaceReceiptClaimProof(local *dbent.PaymentOrder, remote *provider.SquarespaceOrder, docs []provider.SquarespaceTransactionDocument) (*verifiedSquarespaceProof, error) {
+	scope, err := frozenSquarespaceOrderScope(local)
+	if err != nil {
+		return nil, err
+	}
+	return verifiedSquarespaceReceiptClaimProofWithScope(local, remote, docs, scope)
+}
+func verifiedSquarespaceReceiptClaimProofWithScope(local *dbent.PaymentOrder, remote *provider.SquarespaceOrder, docs []provider.SquarespaceTransactionDocument, scope map[string]string) (*verifiedSquarespaceProof, error) {
 	if local == nil || remote == nil {
 		return nil, errors.New("receipt claim proof missing")
 	}
@@ -178,8 +185,8 @@ func verifiedSquarespaceReceiptClaimProof(local *dbent.PaymentOrder, remote *pro
 	if _, err := normalizeSquarespaceReceiptNumber(remote.OrderNumber); err != nil {
 		return nil, err
 	}
-	if code := validateSquarespaceFrozenTopupProduct(local, remote); code != "" {
-		return nil, errors.New(code)
+	if err := provider.ValidateSquarespaceOrderScope(remote, scope); err != nil {
+		return nil, err
 	}
 	proof, code := verifySquarespaceProof(remote, docs)
 	if code != "" {

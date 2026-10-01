@@ -94,7 +94,11 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 		})
 		return fmt.Errorf("provider mismatch: expected %s, got %s", expectedProviderKey, pk)
 	}
-	if err := validateProviderNotificationMetadata(o, pk, metadata); err != nil {
+	metadataErr := validateProviderNotificationMetadata(o, pk, metadata)
+	if pk == "squarespace" {
+		metadataErr = s.validateSquarespaceNotificationScope(ctx, o, tradeNo, metadata)
+	}
+	if err := metadataErr; err != nil {
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_PROVIDER_METADATA_MISMATCH", pk, map[string]any{
 			"detail":  err.Error(),
 			"tradeNo": tradeNo,
@@ -152,7 +156,7 @@ func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, trad
 	now := time.Now()
 	grace := now.Add(-paymentGraceMinutes * time.Minute)
 	expiredPredicate := paymentorder.And(paymentorder.StatusEQ(OrderStatusExpired), paymentorder.UpdatedAtGTE(grace))
-	if pk == "squarespace" && validateSquarespaceRetailMetadata(o, metadata) == nil {
+	if pk == "squarespace" && s.validateSquarespaceNotificationScope(ctx, o, tradeNo, metadata) == nil {
 		expiredPredicate = paymentorder.StatusEQ(OrderStatusExpired)
 	}
 	c, err := s.entClient.PaymentOrder.Update().Where(

@@ -11,6 +11,7 @@ async function form() {
   const wrapper = mount(SquarespaceReceiptClaim, { props: { orderId: 42, accountEmail: 'mine@example.com' } })
   await wrapper.get('[data-test="start-receipt-claim"]').trigger('click')
   await wrapper.get('[data-test="receipt-order-number"]').setValue('#1234')
+  await wrapper.get('[data-test="receipt-payer-email"]').setValue('payer@example.com')
   return wrapper
 }
 async function send(wrapper: Awaited<ReturnType<typeof form>>) {
@@ -25,11 +26,11 @@ describe('Squarespace receipt claim', () => {
     claim.mockReset().mockResolvedValue(order())
   })
   afterEach(() => { vi.useRealTimers() })
-  it('binds the receipt to the local order without an editable email and never exposes the challenge token', async () => {
+  it('binds the actual payment email and local order separately from the balance destination without exposing the challenge token', async () => {
     const wrapper = await form()
     await send(wrapper)
-    expect(requestCode).toHaveBeenCalledWith(42, '#1234')
-    expect(wrapper.find('input[type="email"]').exists()).toBe(false)
+    expect(requestCode).toHaveBeenCalledWith(42, '#1234', 'payer@example.com')
+    expect(wrapper.get('[data-test="receipt-payer-email"]').element).toHaveProperty('value', 'payer@example.com')
     expect(wrapper.text()).toContain('mine@example.com')
     expect(wrapper.text()).toContain('paymentRetail.claim.codeRequested')
     expect(wrapper.html()).not.toContain('opaque-owned-challenge')
@@ -41,6 +42,33 @@ describe('Squarespace receipt claim', () => {
     expect(wrapper.emitted('updated')?.[0]?.[0]).toEqual(order().data)
     wrapper.unmount()
   })
+  it('does not silently use the registered account email and requires an actual bare payment email', async () => {
+    const wrapper = mount(SquarespaceReceiptClaim, { props: { orderId: 42, accountEmail: 'mine@example.com' } })
+    await wrapper.get('[data-test="start-receipt-claim"]').trigger('click')
+    await wrapper.get('[data-test="receipt-order-number"]').setValue('#1234')
+    expect(wrapper.get('[data-test="receipt-payer-email"]').element).toHaveProperty('value', '')
+    expect(wrapper.get('[data-test="request-claim-code"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-test="receipt-payer-email"]').setValue('Payer <payer@example.com>')
+    expect(wrapper.get('[data-test="request-claim-code"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-test="receipt-payer-email"]').setValue('  payer@example.com  ')
+    await send(wrapper)
+    expect(requestCode).toHaveBeenCalledWith(42, '#1234', 'payer@example.com')
+    wrapper.unmount()
+  })
+
+  it('invalidates a challenge when the payment email changes and ignores a delayed prior-email challenge', async () => {
+    let resolve!: (value: ReturnType<typeof challenge>) => void
+    requestCode.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    const wrapper = await form()
+    await wrapper.get('[data-test="request-claim-code"]').trigger('click')
+    await wrapper.get('[data-test="receipt-payer-email"]').setValue('other-owned@example.com')
+    resolve(challenge())
+    await flushPromises()
+    expect(wrapper.find('[data-test="receipt-claim-code"]').exists()).toBe(false)
+    expect(claim).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it.each(['email mismatch', 'amount mismatch', 'paid outside quote', 'receipt already claimed', 'different product'])('shows the same safe failure for %s without upstream details', async cause => {
     requestCode.mockRejectedValueOnce({ reason: 'SQUARESPACE_CLAIM_UNAVAILABLE', message: `${cause}: someone-else@example.com paid GBP 999` })
     const wrapper = await form()

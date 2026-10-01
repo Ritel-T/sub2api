@@ -1,0 +1,117 @@
+{
+  "order": {
+    "id": "verified_service_order",
+    "orderNumber": "2",
+    "paymentState": "PAID",
+    "testmode": false,
+    "grandTotal": {
+      "currency": "GBP",
+      "value": "1.06"
+    },
+    "subtotal": {
+      "currency": "GBP",
+      "value": "1.06"
+    },
+    "shippingTotal": {
+      "currency": "GBP",
+      "value": "0.00"
+    },
+    "taxTotal": {
+      "currency": "GBP",
+      "value": "0.00"
+    },
+    "discountTotal": {
+      "currency": "GBP",
+      "value": "0.00"
+    },
+    "refundedTotal": {
+      "currency": "GBP",
+      "value": "0.00"
+    },
+    "createdOn": "2026-09-30T06:46:36.626Z",
+    "modifiedOn": "2026-09-30T06:46:41.769Z",
+    "lineItems": [
+      {
+        "id": "verified_service_line",
+        "productId": "89abcdef0123456789abcdef",
+        "variantId": null,
+        "lineItemType": "SERVICE",
+        "quantity": 1,
+        "unitPricePaid": {
+          "currency": "GBP",
+          "value": "1.06"
+        },
+        "sku": null,
+        "customizations": null,
+        "productName": "Pay"
+      }
+    ]
+  },
+  "documents": [
+    {
+      "id": "verified_service_document",
+      "salesOrderId": "verified_service_order",
+      "voided": false,
+      "paymentGatewayError": "",
+      "total": {
+        "currency": "GBP",
+        "value": "1.06"
+      },
+      "totalNetPayment": {
+        "currency": "GBP",
+        "value": "0.78"
+      },
+      "payments": [
+        {
+          "id": "verified_service_payment_1",
+          "externalTransactionId": "redacted_service_transaction_1",
+          "provider": "SQSP_PAYMENTS",
+          "paidOn": "2026-09-30T06:46:37.693Z",
+          "amount": {
+            "currency": "GBP",
+            "value": "1.06"
+          },
+          "netAmount": {
+            "currency": "GBP",
+            "value": "0.78"
+          },
+          "refundedAmount": {
+            "currency": "GBP",
+            "value": "0.00"
+          },
+          "processingFees": [
+            {
+              "amount": {
+                "currency": "GBP",
+                "value": "0.28"
+              },
+              "netAmount": {
+                "currency": "GBP",
+                "value": "0.28"
+              },
+              "refundedAmount": {
+                "currency": "GBP",
+                "value": "0.00"
+              },
+              "feeRefunds": []
+            }
+          ],
+          "refunds": []
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "source": "server_current_access_token_fresh_GET",
+    "capture_report": "receipt-00002-customizations-server-official.json",
+    "captured_at_utc": "2026-09-30T07:54:24.181079508Z",
+    "identity_fields_pseudonymized": true,
+    "customer_fields_removed": true,
+    "confirmed_product_name_pay": true,
+    "confirmed_sku_explicit_null": true,
+    "confirmed_variant_explicit_null": true,
+    "confirmed_customizations_explicit_null": true,
+    "credential_refresh_performed": false,
+    "credential_state_mutated": false
+  }
+}

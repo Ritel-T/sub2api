@@ -126,7 +126,7 @@ func squarespaceBridgeDBFixture(t *testing.T) (*SquarespacePaymentBridge, *dbent
 	require.NoError(t, err)
 	remote, docs := squarespaceBridgeProofFixture()
 	now := time.Now().UTC()
-	quote := RetailQuote{ProductID: "6abc2d02ac3ba7447cdc0752", CreditedAmountUSD: 20, BaseAmountGBP: 9.5, IncludedCostGBP: .5, TotalAmountGBP: 10, PayAmount: 10, Currency: "GBP", FX: map[string]float64{"GBP": 1, "USD": 2, "CNY": 10}, FXSource: "test", FXAsOf: now, IssuedAt: now.Add(-time.Minute), ExpiresAt: now.Add(time.Minute), CheckoutReference: remote.TopUpReference}
+	quote := RetailQuote{PaymentClaimMode: "reference", ProductID: "6abc2d02ac3ba7447cdc0752", CreditedAmountUSD: 20, BaseAmountGBP: 9.5, IncludedCostGBP: .5, TotalAmountGBP: 10, PayAmount: 10, Currency: "GBP", FX: map[string]float64{"GBP": 1, "USD": 2, "CNY": 10}, FXSource: "test", FXAsOf: now, IssuedAt: now.Add(-time.Minute), ExpiresAt: now.Add(time.Minute), CheckoutReference: remote.TopUpReference}
 	raw, _ := json.Marshal(quote)
 	var quoteMap map[string]any
 	require.NoError(t, json.Unmarshal(raw, &quoteMap))
@@ -163,17 +163,17 @@ func TestSquarespaceBridgeBindingEnforcesOneExternalPerLocalAndOnePayment(t *tes
 	require.Empty(t, code)
 	ledger, err := bridge.observeOrder(ctx, "site_1", remote)
 	require.NoError(t, err)
-	ledger, err = bridge.bindExternalOrder(ctx, ledger, local, remote, proof, "reference")
+	ledger, err = squarespaceSeededTestBind(t, bridge, ctx, ledger, local, remote, proof, "reference")
 	require.NoError(t, err)
 	require.Equal(t, local.ID, *ledger.LocalOrderID)
-	_, err = bridge.bindExternalOrder(ctx, ledger, local, remote, proof, "reference")
+	_, err = squarespaceSeededTestBind(t, bridge, ctx, ledger, local, remote, proof, "reference")
 	require.NoError(t, err)
 	other := *remote
 	other.ID = "external_order_2"
 	other.OrderNumber = "2"
 	ledger2, err := bridge.observeOrder(ctx, "site_1", &other)
 	require.NoError(t, err)
-	_, err = bridge.bindExternalOrder(ctx, ledger2, local, &other, proof, "reference")
+	_, err = squarespaceSeededTestBind(t, bridge, ctx, ledger2, local, &other, proof, "reference")
 	require.Error(t, err)
 	require.True(t, dbent.IsConstraintError(err))
 	reread, err := bridge.client.PaymentExternalOrder.Get(ctx, ledger2.ID)
@@ -191,7 +191,7 @@ func TestSquarespaceBridgeRefundsCumulativeDeltaAndDebt(t *testing.T) {
 	require.Empty(t, code)
 	ledger, err := bridge.observeOrder(ctx, "site_1", remote)
 	require.NoError(t, err)
-	ledger, err = bridge.bindExternalOrder(ctx, ledger, local, remote, proof, "reference")
+	ledger, err = squarespaceSeededTestBind(t, bridge, ctx, ledger, local, remote, proof, "reference")
 	require.NoError(t, err)
 	for _, cumulative := range []int64{200, 400, 400, 1000, 1000} {
 		copyProof := *proof
@@ -233,7 +233,7 @@ func TestSquarespaceBridgeRefundRollbackAndCacheRetry(t *testing.T) {
 		require.Empty(t, code)
 		ledger, err := bridge.observeOrder(ctx, "site_1", remote)
 		require.NoError(t, err)
-		ledger, err = bridge.bindExternalOrder(ctx, ledger, local, remote, proof, "reference")
+		ledger, err = squarespaceSeededTestBind(t, bridge, ctx, ledger, local, remote, proof, "reference")
 		require.NoError(t, err)
 		bridge.client.PaymentAuditLog.Use(func(next ent.Mutator) ent.Mutator {
 			return ent.MutateFunc(func(context.Context, ent.Mutation) (ent.Value, error) { return nil, errors.New("audit failed") })
@@ -255,7 +255,7 @@ func TestSquarespaceBridgeRefundRollbackAndCacheRetry(t *testing.T) {
 		require.Empty(t, code)
 		ledger, err := bridge.observeOrder(ctx, "site_1", remote)
 		require.NoError(t, err)
-		ledger, err = bridge.bindExternalOrder(ctx, ledger, local, remote, proof, "reference")
+		ledger, err = squarespaceSeededTestBind(t, bridge, ctx, ledger, local, remote, proof, "reference")
 		require.NoError(t, err)
 		cache := &squarespaceBridgeCacheStub{fail: true}
 		bridge.SetRefundCacheInvalidators(cache, nil)
@@ -341,7 +341,7 @@ func TestSquarespaceBridgeMultiplePaymentsPinEveryLegAndTime(t *testing.T) {
 	require.Empty(t, validateSquarespaceQuoteProof(local, remote, proof, "site_1"))
 	ledger, err := bridge.observeOrder(context.Background(), "site_1", remote)
 	require.NoError(t, err)
-	_, err = bridge.bindExternalOrder(context.Background(), ledger, local, remote, proof, "reference")
+	_, err = squarespaceSeededTestBind(t, bridge, context.Background(), ledger, local, remote, proof, "reference")
 	require.NoError(t, err)
 	count, err := bridge.client.PaymentExternalPayment.Query().Count(context.Background())
 	require.NoError(t, err)
@@ -523,7 +523,7 @@ func TestSquarespaceBoundRefundUsesOriginalProductAfterConfigChanges(t *testing.
 	require.Empty(t, code)
 	ledger, err := bridge.observeOrder(ctx, "site_1", remote)
 	require.NoError(t, err)
-	ledger, err = bridge.bindExternalOrder(ctx, ledger, local, remote, proof, "reference")
+	ledger, err = squarespaceSeededTestBind(t, bridge, ctx, ledger, local, remote, proof, "reference")
 	require.NoError(t, err)
 	instanceID, err := strconv.ParseInt(*local.ProviderInstanceID, 10, 64)
 	require.NoError(t, err)
@@ -562,4 +562,26 @@ func TestSquarespaceBoundRefundUsesOriginalProductAfterConfigChanges(t *testing.
 	journalCount, err := bridge.client.PaymentExternalRefundJournal.Query().Count(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, journalCount)
+}
+
+func squarespaceSeededTestBind(t *testing.T, bridge *SquarespacePaymentBridge, ctx context.Context, ledger *dbent.PaymentExternalOrder, local *dbent.PaymentOrder, remote *provider.SquarespaceOrder, proof *verifiedSquarespaceProof, method string) (*dbent.PaymentExternalOrder, error) {
+	t.Helper()
+	prior, err := bridge.client.PaymentOrder.Get(ctx, local.ID)
+	if err != nil {
+		return nil, err
+	}
+	if prior.Status != OrderStatusPending && prior.Status != OrderStatusExpired {
+		_, err = bridge.client.PaymentOrder.UpdateOneID(local.ID).SetStatus(OrderStatusPending).Save(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	bound, err := bridge.bindExternalOrder(ctx, ledger, local, remote, proof, method)
+	if prior.Status != OrderStatusPending && prior.Status != OrderStatusExpired {
+		_, restoreErr := bridge.client.PaymentOrder.UpdateOneID(local.ID).SetStatus(prior.Status).Save(ctx)
+		if err == nil {
+			err = restoreErr
+		}
+	}
+	return bound, err
 }

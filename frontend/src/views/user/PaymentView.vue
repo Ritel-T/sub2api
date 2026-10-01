@@ -885,7 +885,10 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       || result.retail_quote.total_amount_gbp !== confirmedQuote.total_amount_gbp
       || result.retail_quote.pay_amount !== confirmedQuote.pay_amount
       || result.retail_quote.currency !== confirmedQuote.currency
-      || result.retail_quote.product_id !== confirmedQuote.product_id)) {
+      || (confirmedQuote.order_scope_mode !== 'dedicated_site_service' && result.retail_quote.product_id !== confirmedQuote.product_id)
+      || result.retail_quote.order_scope_mode !== confirmedQuote.order_scope_mode
+      || result.retail_quote.expected_service_name !== confirmedQuote.expected_service_name
+      || result.retail_quote.purpose !== confirmedQuote.purpose)) {
       throw new Error(t('paymentRetail.unavailable'))
     }
     const openWindow = (url: string) => {

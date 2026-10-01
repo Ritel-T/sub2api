@@ -582,7 +582,7 @@ func (s *PaymentConfigService) DecryptPrivatePaymentData(stored string) (string,
 }
 
 func validateSquarespacePublicConfig(config map[string]string) error {
-	allowed := map[string]bool{"websiteId": true, "payLinkUrl": true, "currency": true, "referenceFieldLabel": true, "paymentClaimMode": true, "productId": true, "productionApproved": true}
+	allowed := map[string]bool{"websiteId": true, "payLinkUrl": true, "currency": true, "referenceFieldLabel": true, "paymentClaimMode": true, "productId": true, "productionApproved": true, "orderScopeMode": true, "paymentPurpose": true, "expectedServiceName": true, "reviewedLocalOrderId": true, "reviewedExternalOrderId": true, "reviewedCheckoutReference": true, "reviewedUserId": true}
 	for key := range config {
 		if !allowed[key] {
 			return infraerrors.BadRequest("INVALID_SQUARESPACE_PUBLIC_CONFIG", "Squarespace provider config only accepts public payment settings; use the OAuth import endpoint for credentials")
@@ -594,6 +594,35 @@ func validateSquarespacePublicConfig(config map[string]string) error {
 			return infraerrors.BadRequest("INVALID_SQUARESPACE_PUBLIC_CONFIG", err.Error())
 		}
 		config["productId"] = canonical
+	}
+	if mode := config["orderScopeMode"]; mode != "" && mode != provider.SquarespaceScopeFixedProduct && mode != provider.SquarespaceScopeDedicatedSiteService {
+		return infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "unsupported website business scope")
+	}
+	if config["orderScopeMode"] == provider.SquarespaceScopeDedicatedSiteService && (config["paymentPurpose"] != provider.SquarespaceBalanceTopupPurpose || config["expectedServiceName"] != provider.SquarespaceExpectedServiceName) {
+		return infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "dedicated website must explicitly declare balance-only sales and the service name")
+	}
+	reviewCount := 0
+	for _, key := range []string{"reviewedLocalOrderId", "reviewedExternalOrderId", "reviewedCheckoutReference", "reviewedUserId"} {
+		if config[key] != "" {
+			reviewCount++
+		}
+	}
+	if reviewCount != 0 && reviewCount != 4 {
+		return infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "legacy review requires a complete exact tuple")
+	}
+	if reviewCount == 4 {
+		for _, key := range []string{"reviewedLocalOrderId", "reviewedUserId"} {
+			id, err := strconv.ParseInt(config[key], 10, 64)
+			if err != nil || id <= 0 {
+				return infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "legacy review IDs must be exact positive numbers")
+			}
+		}
+		if _, err := canonicalSquarespaceProductID(config["reviewedExternalOrderId"]); err != nil {
+			return infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "legacy external ID is invalid")
+		}
+		if !squarespaceCheckoutReferencePattern.MatchString(config["reviewedCheckoutReference"]) {
+			return infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "legacy checkout reference is invalid")
+		}
 	}
 	if approval := config["productionApproved"]; approval != "" && approval != "true" && approval != "false" {
 		return infraerrors.BadRequest("INVALID_SQUARESPACE_PUBLIC_CONFIG", "production approval must be true or false")

@@ -157,6 +157,9 @@ func newSquarespaceClaimTestFixture(t *testing.T) *squarespaceClaimTestFixture {
 		}
 		return &remote, docs, nil
 	}
+	f.service.validateProof = func(_ context.Context, local *dbent.PaymentOrder, remote *provider.SquarespaceOrder, docs []provider.SquarespaceTransactionDocument) error {
+		return ValidateSquarespaceReceiptClaimProof(local, remote, docs)
+	}
 	f.service.ensureUnbound = func(context.Context, *dbent.PaymentOrder, *provider.SquarespaceOrder) error { return f.unboundErr }
 	f.service.bind = func(ctx context.Context, local *dbent.PaymentOrder, remote *provider.SquarespaceOrder, _ []provider.SquarespaceTransactionDocument) error {
 		authority, ok := ctx.Value(squarespaceVerifiedReceiptClaimKey{}).(squarespaceVerifiedReceiptClaimAuthority)
@@ -194,7 +197,7 @@ func requireSquarespaceClaimReason(t *testing.T, err error, reasons ...string) {
 }
 func (f *squarespaceClaimTestFixture) request(t *testing.T) string {
 	t.Helper()
-	challenge, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "#1")
+	challenge, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "#1", f.remote.CustomerEmail)
 	require.NoError(t, err)
 	require.NotNil(t, challenge)
 	require.NotEmpty(t, challenge.ChallengeToken)
@@ -205,6 +208,7 @@ func (f *squarespaceClaimTestFixture) request(t *testing.T) string {
 
 func TestSquarespaceClaimFreshMailboxProofAndPrivateCache(t *testing.T) {
 	f := newSquarespaceClaimTestFixture(t)
+	f.user.Email = "site-account@gmail.com"
 	token := f.request(t)
 	require.Equal(t, []string{f.remote.CustomerEmail}, f.recipients)
 	require.Contains(t, f.bodies[0], f.code)
@@ -214,11 +218,18 @@ func TestSquarespaceClaimFreshMailboxProofAndPrivateCache(t *testing.T) {
 		require.NoError(t, err)
 		require.NotContains(t, key, f.remote.CustomerEmail)
 		require.NotContains(t, value, f.remote.CustomerEmail)
+		require.NotContains(t, key, f.user.Email)
+		require.NotContains(t, value, f.user.Email)
 		require.NotContains(t, value, token)
 		require.NotContains(t, value, `"`+f.code+`"`)
 		var record map[string]any
 		if json.Unmarshal([]byte(value), &record) == nil && len(record) > 0 {
 			records++
+			key, err := f.service.signingKey()
+			require.NoError(t, err)
+			require.Equal(t, squarespaceClaimAuthEmailHash(key, f.user.Email), record["recipient_hash"])
+			require.Equal(t, squarespaceClaimMAC(key, "payer-recipient", f.remote.CustomerEmail), record["payer_email_hash"])
+			require.NotEqual(t, record["recipient_hash"], record["payer_email_hash"])
 		}
 	}
 	require.Positive(t, records, "challenge binding must be present before claim")
@@ -235,33 +246,45 @@ func TestSquarespaceClaimFreshMailboxProofAndPrivateCache(t *testing.T) {
 
 func TestSquarespaceClaimStrictBareMailboxIdentity(t *testing.T) {
 	cases := []struct {
-		name, account, payer string
-		accepted             bool
+		name, account, hint, payer string
+		accepted                   bool
 	}{
-		{"case and whitespace", " P.Ayer+Receipt@GMAIL.COM ", "p.ayer+receipt@gmail.com", true},
-		{"plus suffix stays significant", "p.ayer@gmail.com", "p.ayer+receipt@gmail.com", false},
-		{"Gmail dots stay significant", "payer+receipt@gmail.com", "p.ayer+receipt@gmail.com", false},
-		{"Gmail domain aliases stay significant", "p.ayer+receipt@googlemail.com", "p.ayer+receipt@gmail.com", false},
-		{"account display name rejected", "Buyer <p.ayer+receipt@gmail.com>", "p.ayer+receipt@gmail.com", false},
-		{"payer display name rejected", "p.ayer+receipt@gmail.com", "Buyer <p.ayer+receipt@gmail.com>", false},
-		{"multiple mailboxes rejected", "p.ayer+receipt@gmail.com", "p.ayer+receipt@gmail.com, other@gmail.com", false},
-		{"missing upstream mailbox", "p.ayer+receipt@gmail.com", "", false},
-		{"synthetic mailbox", "wechat-7@wechat-connect.invalid", "wechat-7@wechat-connect.invalid", false},
-		{"other account mailbox", "other@gmail.com", "p.ayer+receipt@gmail.com", false},
+		{"case and whitespace", " Site@GMAIL.COM ", " P.Ayer+Receipt@GMAIL.COM ", " p.ayer+Receipt@gmail.com ", true},
+		{"different account mailbox", "site@gmail.com", "p.ayer+receipt@gmail.com", "p.ayer+receipt@gmail.com", true},
+		{"legacy account placeholder", "wechat-7@wechat-connect.invalid", "p.ayer+receipt@gmail.com", "p.ayer+receipt@gmail.com", true},
+		{"plus suffix stays significant", "site@gmail.com", "p.ayer@gmail.com", "p.ayer+receipt@gmail.com", false},
+		{"Gmail dots stay significant", "site@gmail.com", "payer+receipt@gmail.com", "p.ayer+receipt@gmail.com", false},
+		{"Gmail domain aliases stay significant", "site@gmail.com", "p.ayer+receipt@googlemail.com", "p.ayer+receipt@gmail.com", false},
+		{"hint display name rejected", "site@gmail.com", "Buyer <p.ayer+receipt@gmail.com>", "p.ayer+receipt@gmail.com", false},
+		{"payer display name rejected", "site@gmail.com", "p.ayer+receipt@gmail.com", "Buyer <p.ayer+receipt@gmail.com>", false},
+		{"multiple hint mailboxes rejected", "site@gmail.com", "p.ayer+receipt@gmail.com, other@gmail.com", "p.ayer+receipt@gmail.com", false},
+		{"multiple official mailboxes rejected", "site@gmail.com", "p.ayer+receipt@gmail.com", "p.ayer+receipt@gmail.com, other@gmail.com", false},
+		{"missing mailbox hint", "site@gmail.com", "", "p.ayer+receipt@gmail.com", false},
+		{"missing upstream mailbox", "site@gmail.com", "p.ayer+receipt@gmail.com", "", false},
+		{"synthetic payer mailbox", "site@gmail.com", "wechat-7@wechat-connect.invalid", "wechat-7@wechat-connect.invalid", false},
+		{"arbitrary recipient rejected", "other@gmail.com", "other@gmail.com", "p.ayer+receipt@gmail.com", false},
+		{"newline hint rejected", "site@gmail.com", "p.ayer+receipt@gmail.com\n", "p.ayer+receipt@gmail.com", false},
+		{"oversize hint rejected", "site@gmail.com", strings.Repeat("a", 256) + "@gmail.com", "p.ayer+receipt@gmail.com", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newSquarespaceClaimTestFixture(t)
 			f.user.Email, f.remote.CustomerEmail = tc.account, tc.payer
-			challenge, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+			challenge, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", tc.hint)
 			if tc.accepted {
 				require.NoError(t, err)
 				require.NotNil(t, challenge)
-				require.Equal(t, []string{tc.payer}, f.recipients)
+				require.Equal(t, []string{strings.ToLower(strings.TrimSpace(tc.payer))}, f.recipients, "delivery must only use the official customerEmail")
+				_, err = f.service.Claim(context.Background(), f.user.ID, challenge.ChallengeToken, f.code)
+				require.NoError(t, err, "a different Auth.Email is not a payer-mailbox restriction")
+				require.Equal(t, int64(1), f.binds.Load())
 			} else {
 				requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_UNAVAILABLE")
 				require.Empty(t, f.recipients)
 				require.Zero(t, f.binds.Load())
+				for _, key := range f.redis.Keys() {
+					require.NotContains(t, key, ":challenge:", "a rejected hint must not cache a challenge")
+				}
 			}
 		})
 	}
@@ -284,7 +307,7 @@ func TestSquarespaceClaimRefusesUnownedOrUnavailableOrders(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := newSquarespaceClaimTestFixture(t)
 			change(f)
-			_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+			_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 			requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_UNAVAILABLE", "SQUARESPACE_CLAIM_SERVICE_UNAVAILABLE")
 			require.Empty(t, f.recipients)
 			require.Zero(t, f.binds.Load())
@@ -408,7 +431,7 @@ func TestSquarespaceClaimCorrectCodeConsumedExactlyOnce(t *testing.T) {
 func TestSquarespaceClaimResendRevokesOldChallenge(t *testing.T) {
 	f := newSquarespaceClaimTestFixture(t)
 	old := f.request(t)
-	_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+	_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 	requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_RATE_LIMITED")
 	require.Len(t, f.recipients, 1)
 	f.advance(61 * time.Second)
@@ -452,7 +475,7 @@ func TestSquarespaceClaimExpiryTamperingAndOtherUID(t *testing.T) {
 func TestSquarespaceClaimSMTPFailureCleansChallenge(t *testing.T) {
 	f := newSquarespaceClaimTestFixture(t)
 	f.sendErr = errors.New("SMTP rejected test delivery")
-	_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+	_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 	requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_SERVICE_UNAVAILABLE", "SQUARESPACE_CLAIM_UNAVAILABLE")
 	require.Zero(t, f.binds.Load())
 	for _, key := range f.redis.Keys() {
@@ -469,7 +492,7 @@ func TestSquarespaceClaimRedisOutageFailsClosed(t *testing.T) {
 	t.Run("request", func(t *testing.T) {
 		f := newSquarespaceClaimTestFixture(t)
 		f.cache.failed.Store(true)
-		_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+		_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 		requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_SERVICE_UNAVAILABLE")
 		require.Empty(t, f.recipients)
 		require.Zero(t, f.binds.Load())
@@ -485,7 +508,7 @@ func TestSquarespaceClaimRedisOutageFailsClosed(t *testing.T) {
 }
 
 func TestSquarespaceClaimPurposeAndCodeAuthorityCannotBeReused(t *testing.T) {
-	for _, change := range []string{"purpose", "recipient MAC as OTP", "different challenge token"} {
+	for _, change := range []string{"purpose", "recipient MAC as OTP", "payer MAC as OTP", "auth email hash", "payer email hash", "different challenge token"} {
 		t.Run(change, func(t *testing.T) {
 			f := newSquarespaceClaimTestFixture(t)
 			token := f.request(t)
@@ -501,6 +524,12 @@ func TestSquarespaceClaimPurposeAndCodeAuthorityCannotBeReused(t *testing.T) {
 				data.Purpose = "sub2api-retail-quote-v1"
 			case "recipient MAC as OTP":
 				data.CodeMAC = data.RecipientHash
+			case "payer MAC as OTP":
+				data.CodeMAC = data.PayerEmailHash
+			case "auth email hash":
+				data.RecipientHash = squarespaceClaimAuthEmailHash(signingKey, "other-account@gmail.com")
+			case "payer email hash":
+				data.PayerEmailHash = squarespaceClaimMAC(signingKey, "payer-recipient", "other-payer@gmail.com")
 			case "different challenge token":
 				f.advance(61 * time.Second)
 				token = f.request(t)
@@ -521,14 +550,14 @@ func TestSquarespaceClaimRateWindowsAreBounded(t *testing.T) {
 		f := newSquarespaceClaimTestFixture(t)
 		f.lookupErr = errors.New("receipt unavailable")
 		for range 10 {
-			_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+			_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 			requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_UNAVAILABLE")
 		}
-		_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+		_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 		requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_RATE_LIMITED")
 		require.Empty(t, f.recipients)
 		f.advance(time.Hour + time.Second)
-		_, err = f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+		_, err = f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 		requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_UNAVAILABLE")
 	})
 	t.Run("thirty submits per UID per ten minutes including malformed tokens", func(t *testing.T) {
@@ -575,7 +604,7 @@ func TestSquarespaceClaimRechecksAccountAfterOfficialLookup(t *testing.T) {
 			}
 			var err error
 			if phase == "issue" {
-				_, err = f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+				_, err = f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 				require.Empty(t, f.recipients)
 			} else {
 				_, err = f.service.Claim(context.Background(), f.user.ID, token, f.code)
@@ -590,7 +619,7 @@ func TestSquarespaceClaimRechecksAccountAfterOfficialLookup(t *testing.T) {
 func TestSquarespaceClaimDeniedChannelDoesNotQueryOrSend(t *testing.T) {
 	f := newSquarespaceClaimTestFixture(t)
 	f.service.validateAccess = func(context.Context, int64, *dbent.PaymentOrder) error { return ErrSquarespaceClaimUnavailable }
-	_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+	_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 	requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_UNAVAILABLE")
 	require.Zero(t, f.lookups.Load())
 	require.Empty(t, f.recipients)
@@ -662,7 +691,7 @@ func TestSquarespaceClaimRechecksOrderAndAccessAfterOfficialLookup(t *testing.T)
 				}
 				var err error
 				if phase == "issue" {
-					_, err = f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1")
+					_, err = f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", f.remote.CustomerEmail)
 					require.Empty(t, f.recipients, "a stale local order or revoked channel must not issue OTP")
 				} else {
 					_, err = f.service.Claim(context.Background(), f.user.ID, token, f.code)
@@ -699,10 +728,120 @@ func TestSquarespaceClaimRejectsWrongGoodsEvenWithExactMailboxAndMoney(t *testin
 			case "mixed-cart":
 				f.remote.LineItems = append(f.remote.LineItems, f.remote.LineItems[0])
 			}
-			_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, f.remote.OrderNumber)
+			_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, f.remote.OrderNumber, f.remote.CustomerEmail)
 			require.ErrorIs(t, err, ErrSquarespaceClaimUnavailable)
 			require.Empty(t, f.recipients)
 			require.Equal(t, int64(0), f.binds.Load())
 		})
 	}
+}
+
+// Fresh mailbox changes must fail before atomic OTP consume. Restoring the
+// authoritative state leaves the same code usable; no second delivery occurs.
+func TestSquarespaceClaimMailboxChangesPreserveUnconsumedOTP(t *testing.T) {
+	for _, kind := range []string{"Auth.Email", "official customerEmail", "both mailboxes"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newSquarespaceClaimTestFixture(t)
+			f.user.Email = "wechat-7@wechat-connect.invalid"
+			token := f.request(t)
+			key, err := f.service.signingKey()
+			require.NoError(t, err)
+			cacheKey := squarespaceClaimTokenKey(key, token)
+			originalChallenge, err := f.cache.Get(context.Background(), cacheKey)
+			require.NoError(t, err)
+			originalAuth, originalPayer := f.user.Email, f.remote.CustomerEmail
+			switch kind {
+			case "Auth.Email":
+				f.user.Email = "changed-site-account@gmail.com"
+			case "official customerEmail":
+				f.remote.CustomerEmail = "changed-official-payer@gmail.com"
+			case "both mailboxes":
+				f.user.Email = "changed-site-account@gmail.com"
+				f.remote.CustomerEmail = "changed-official-payer@gmail.com"
+			}
+			_, err = f.service.Claim(context.Background(), f.user.ID, token, f.code)
+			requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_UNAVAILABLE")
+			require.Zero(t, f.binds.Load())
+			require.Len(t, f.recipients, 1)
+			currentChallenge, err := f.cache.Get(context.Background(), cacheKey)
+			require.NoError(t, err)
+			require.Equal(t, originalChallenge, currentChallenge, "fresh mailbox rejection must not consume or count against the valid OTP")
+			f.user.Email, f.remote.CustomerEmail = originalAuth, originalPayer
+			_, err = f.service.Claim(context.Background(), f.user.ID, token, f.code)
+			require.NoError(t, err)
+			require.Equal(t, int64(1), f.binds.Load())
+		})
+	}
+}
+
+func TestSquarespaceClaimFreshMailboxHashesRejectSubstitution(t *testing.T) {
+	for _, kind := range []string{"Auth.Email hash", "payer email hash"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newSquarespaceClaimTestFixture(t)
+			f.user.Email = "site-account@gmail.com"
+			token := f.request(t)
+			key, err := f.service.signingKey()
+			require.NoError(t, err)
+			cacheKey := squarespaceClaimTokenKey(key, token)
+			originalChallenge, err := f.cache.Get(context.Background(), cacheKey)
+			require.NoError(t, err)
+			var data squarespaceClaimChallenge
+			require.NoError(t, json.Unmarshal([]byte(originalChallenge), &data))
+			switch kind {
+			case "Auth.Email hash":
+				data.RecipientHash = squarespaceClaimAuthEmailHash(key, "substituted-account@gmail.com")
+			case "payer email hash":
+				data.PayerEmailHash = squarespaceClaimMAC(key, "payer-recipient", "substituted-payer@gmail.com")
+			}
+			// Re-sign inside this fixture to isolate the fresh identity comparison
+			// from the independently tested OTP-MAC tampering protection.
+			data.CodeMAC = squarespaceClaimCodeMAC(key, cacheKey, &data, f.code)
+			encoded, err := json.Marshal(data)
+			require.NoError(t, err)
+			require.NoError(t, f.cache.Set(context.Background(), cacheKey, string(encoded), 10*time.Minute))
+			_, err = f.service.Claim(context.Background(), f.user.ID, token, f.code)
+			requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_UNAVAILABLE")
+			require.Zero(t, f.binds.Load())
+			currentChallenge, err := f.cache.Get(context.Background(), cacheKey)
+			require.NoError(t, err)
+			require.Equal(t, string(encoded), currentChallenge, "mismatched identity must be rejected before OTP consume")
+			require.NoError(t, f.cache.Set(context.Background(), cacheKey, originalChallenge, 10*time.Minute))
+			_, err = f.service.Claim(context.Background(), f.user.ID, token, f.code)
+			require.NoError(t, err)
+			require.Equal(t, int64(1), f.binds.Load())
+		})
+	}
+}
+
+func TestSquarespaceClaimHintComparedWithFreshOfficialMailbox(t *testing.T) {
+	f := newSquarespaceClaimTestFixture(t)
+	staleHint := f.remote.CustomerEmail
+	lookup := f.service.lookupReceipt
+	f.service.lookupReceipt = func(ctx context.Context, local *dbent.PaymentOrder, number string) (*provider.SquarespaceOrder, []provider.SquarespaceTransactionDocument, error) {
+		remote, docs, err := lookup(ctx, local, number)
+		if remote != nil {
+			remote.CustomerEmail = "fresh-official-payer@gmail.com"
+		}
+		return remote, docs, err
+	}
+	_, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", staleHint)
+	requireSquarespaceClaimReason(t, err, "SQUARESPACE_CLAIM_UNAVAILABLE")
+	require.Empty(t, f.recipients)
+	require.Zero(t, f.binds.Load())
+	challenge, err := f.service.RequestChallenge(context.Background(), f.user.ID, f.local.ID, "1", "fresh-official-payer@gmail.com")
+	require.NoError(t, err)
+	require.NotNil(t, challenge)
+	require.Equal(t, []string{"fresh-official-payer@gmail.com"}, f.recipients)
+}
+
+func TestSquarespaceClaimMailboxNormalizationDoesNotChangeBindings(t *testing.T) {
+	f := newSquarespaceClaimTestFixture(t)
+	f.user.Email = "site-account@gmail.com"
+	token := f.request(t)
+	f.user.Email = " SITE-ACCOUNT@GMAIL.COM "
+	f.remote.CustomerEmail = " P.AYER+RECEIPT@GMAIL.COM "
+	_, err := f.service.Claim(context.Background(), f.user.ID, token, f.code)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), f.binds.Load())
+	require.Equal(t, []string{"p.ayer+receipt@gmail.com"}, f.recipients)
 }

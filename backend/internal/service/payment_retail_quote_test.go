@@ -85,7 +85,7 @@ func TestRetailCheckoutReferencesUseCryptoEntropy(t *testing.T) {
 }
 func TestRetailOrderSnapshotAndExactPennyChecks(t *testing.T) {
 	q := retailQuoteFixture(t, "GBP")
-	o := &dbent.PaymentOrder{Amount: 25, PayAmount: q.PayAmount, ProviderKey: retailTestString("squarespace"), ProviderSnapshot: map[string]any{"retail_quote": retailQuoteSnapshot(q), "currency": "GBP", "merchant_id": "website", "product_id": "0123456789abcdef01234567"}}
+	o := &dbent.PaymentOrder{Amount: 25, PayAmount: q.PayAmount, ProviderKey: retailTestString("squarespace"), ProviderSnapshot: map[string]any{"provider_key":"squarespace","retail_quote": retailQuoteSnapshot(q), "currency": "GBP", "merchant_id": "website", "product_id": "0123456789abcdef01234567"}}
 	require.Equal(t, q, PaymentOrderRetailQuote(o))
 	require.True(t, paymentOrderAmountMatches(o, 20.67))
 	require.False(t, paymentOrderAmountMatches(o, 20.66))

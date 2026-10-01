@@ -2,7 +2,7 @@
   <div data-test="squarespace-instructions" class="card space-y-4 p-6">
     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('paymentRetail.checkoutTitle') }}</h3>
     <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">{{ t(claimMode === 'receipt_otp' ? 'paymentRetail.receiptCheckoutHint' : claimMode === 'reference' ? 'paymentRetail.checkoutHint' : 'paymentRetail.claim.serviceUnavailable') }}</p>
-    <p v-if="claimMode === 'receipt_otp' && accountEmail" class="break-all text-sm font-medium text-gray-900 dark:text-white">{{ accountEmail }}</p>
+    <p v-if="claimMode === 'receipt_otp' && accountEmail" class="break-all text-sm font-medium text-gray-900 dark:text-white">{{ t('paymentRetail.balanceAccount') }}: {{ accountEmail }}</p>
     <RetailQuoteSummary :quote="quote" />
     <div class="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-600">
       <div>

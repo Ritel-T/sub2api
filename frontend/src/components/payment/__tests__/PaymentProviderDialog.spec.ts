@@ -99,6 +99,7 @@ function mountDialog(options: { editing?: ProviderInstance | null } = {}) {
           template: '<div><slot /><slot name="footer" /></div>',
         },
         Select: {
+          name: 'Select',
           props: ['modelValue', 'options', 'disabled'],
           template: '<div />',
         },
@@ -339,10 +340,93 @@ describe('PaymentProviderDialog Squarespace', () => {
     expect(payload.config).toEqual({
       websiteId: 'site_123',
       productId: '0123456789abcdef01234567',
+      orderScopeMode: 'fixed_product',
+      paymentPurpose: '',
+      expectedServiceName: '',
       payLinkUrl: 'https://merchant.squarespace.com/pay-link/123',
       currency: 'GBP',
       paymentClaimMode: 'receipt_otp',
     })
+    wrapper.unmount()
+  })
+
+  it('creates an explicit dedicated-site service scope without a product ID or public approval flag', async () => {
+    const wrapper = mountDialog()
+    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('squarespace')
+    await nextTick()
+    await wrapper.find('form input[type="text"]').setValue('Card / Squarespace')
+    await wrapper.get('[data-config-field="websiteId"] input').setValue('site_123')
+    await wrapper.get('[data-config-field="payLinkUrl"] input').setValue('https://merchant.squarespace.com/pay-link/')
+    expect(wrapper.find('[data-config-field="productId"]').exists()).toBe(false)
+    expect(wrapper.find('[data-config-field="paymentPurpose"]').exists()).toBe(true)
+    expect(wrapper.find('[data-config-field="expectedServiceName"]').exists()).toBe(true)
+    await wrapper.find('form').trigger('submit.prevent')
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
+    expect(payload.config).toMatchObject({
+      orderScopeMode: 'dedicated_site_service',
+      paymentPurpose: 'balance_topup_only',
+      expectedServiceName: 'Pay',
+      productId: '',
+      paymentClaimMode: 'receipt_otp',
+      currency: 'GBP',
+    })
+    expect(payload.config).not.toHaveProperty('productionApproved')
+    wrapper.unmount()
+  })
+
+  it('requires an explicit scope change to move a legacy fixed product into dedicated-site service mode', async () => {
+    const provider = providerFactory({
+      provider_key: 'squarespace',
+      config: {
+        websiteId: 'site_123',
+        productId: '0123456789abcdef01234567',
+        payLinkUrl: 'https://merchant.squarespace.com/pay-link/',
+        currency: 'GBP',
+        productionApproved: 'false',
+      },
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    expect(wrapper.find('[data-config-field="productId"]').exists()).toBe(true)
+    expect(wrapper.find('[data-config-field="paymentPurpose"]').exists()).toBe(false)
+    const selector = wrapper.findAllComponents({ name: 'Select' }).find(component =>
+      (component.props('options') as Array<{ value: string }>).some(option => option.value === 'dedicated_site_service'),
+    )
+    if (!selector) throw new Error('Order scope selector missing')
+    selector.vm.$emit('update:modelValue', 'dedicated_site_service')
+    await nextTick()
+    expect(wrapper.find('[data-config-field="productId"]').exists()).toBe(false)
+    expect(wrapper.find('[data-config-field="paymentPurpose"]').exists()).toBe(true)
+    await wrapper.find('form').trigger('submit.prevent')
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
+    expect(payload.config.orderScopeMode).toBe('dedicated_site_service')
+    expect(payload.config.productId).toBe('')
+    expect(payload.config.paymentPurpose).toBe('balance_topup_only')
+    expect(payload.config.expectedServiceName).toBe('Pay')
+    expect(payload.config).not.toHaveProperty('productionApproved')
+    wrapper.unmount()
+  })
+
+  it.each([
+    { orderScopeMode: 'whole_store' },
+    { orderScopeMode: 'dedicated_site_service', paymentPurpose: 'general_goods', expectedServiceName: 'Pay' },
+    { orderScopeMode: 'dedicated_site_service', paymentPurpose: 'balance_topup_only', expectedServiceName: 'Other service' },
+  ])('rejects unsupported merchant scope identity %j', async identity => {
+    const provider = providerFactory({
+      provider_key: 'squarespace',
+      config: {
+        websiteId: 'site_123',
+        payLinkUrl: 'https://merchant.squarespace.com/pay-link/',
+        currency: 'GBP',
+        ...identity,
+      },
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    await wrapper.find('form').trigger('submit.prevent')
+    expect(wrapper.emitted('save')).toBeUndefined()
     wrapper.unmount()
   })
 

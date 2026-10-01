@@ -68,7 +68,8 @@ type squarespaceClaimChallenge struct {
 	WebsiteID       string `json:"website_id"`
 	ReceiptNumber   string `json:"receipt_number"`
 	QuoteHash       string `json:"quote_hash"`
-	RecipientHash   string `json:"recipient_hash"`
+	RecipientHash   string `json:"recipient_hash"` // Current Auth.Email fingerprint; never a delivery address.
+	PayerEmailHash  string `json:"payer_email_hash"`
 	CodeMAC         string `json:"code_mac"`
 	IssuedAtMS      int64  `json:"issued_at_ms"`
 	ExpiresAtMS     int64  `json:"expires_at_ms"`
@@ -85,6 +86,7 @@ type SquarespaceClaimService struct {
 	loadOrder      func(context.Context, int64, int64) (*dbent.PaymentOrder, error)
 	validateAccess func(context.Context, int64, *dbent.PaymentOrder) error
 	lookupReceipt  func(context.Context, *dbent.PaymentOrder, string) (*provider.SquarespaceOrder, []provider.SquarespaceTransactionDocument, error)
+	validateProof  func(context.Context, *dbent.PaymentOrder, *provider.SquarespaceOrder, []provider.SquarespaceTransactionDocument) error
 	ensureUnbound  func(context.Context, *dbent.PaymentOrder, *provider.SquarespaceOrder) error
 	bind           func(context.Context, *dbent.PaymentOrder, *provider.SquarespaceOrder, []provider.SquarespaceTransactionDocument) error
 	sendEmail      func(context.Context, string, string, string) error
@@ -123,6 +125,12 @@ func NewSquarespaceClaimService(payments *PaymentService, email *EmailService, c
 		}
 		return payments.FindSquarespaceReceiptOrder(ctx, local, number)
 	}
+	s.validateProof = func(ctx context.Context, local *dbent.PaymentOrder, remote *provider.SquarespaceOrder, docs []provider.SquarespaceTransactionDocument) error {
+		if payments == nil {
+			return ErrSquarespaceClaimServiceUnavailable
+		}
+		return payments.validateSquarespaceReceiptClaim(ctx, local, remote, docs)
+	}
 	s.ensureUnbound = s.checkUnbound
 	s.bind = func(ctx context.Context, local *dbent.PaymentOrder, remote *provider.SquarespaceOrder, docs []provider.SquarespaceTransactionDocument) error {
 		if payments == nil {
@@ -150,7 +158,7 @@ func NewSquarespaceClaimService(payments *PaymentService, email *EmailService, c
 	return s
 }
 
-func (s *SquarespaceClaimService) RequestChallenge(ctx context.Context, uid, localID int64, receiptNumber string) (*SquarespaceClaimChallengeResponse, error) {
+func (s *SquarespaceClaimService) RequestChallenge(ctx context.Context, uid, localID int64, receiptNumber, payerEmail string) (*SquarespaceClaimChallengeResponse, error) {
 	if !s.ready(ctx) {
 		return nil, ErrSquarespaceClaimServiceUnavailable
 	}
@@ -168,9 +176,15 @@ func (s *SquarespaceClaimService) RequestChallenge(ctx context.Context, uid, loc
 	if err != nil || len(key) < 16 {
 		return nil, ErrSquarespaceClaimServiceUnavailable
 	}
-	local, remote, _, recipient, hash, err := s.candidate(ctx, uid, localID, number)
+	local, remote, _, recipient, authEmailHash, hash, err := s.candidate(ctx, uid, localID, number, key)
 	if err != nil {
 		return nil, err
+	}
+	// The caller supplies a receipt hint, never an arbitrary delivery address.
+	// Only the fresh official customerEmail below may receive a claim code.
+	payerHint, err := squarespaceClaimBareEmail(payerEmail)
+	if err != nil || subtle.ConstantTimeCompare([]byte(payerHint), []byte(recipient)) != 1 {
+		return nil, ErrSquarespaceClaimUnavailable
 	}
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
@@ -182,7 +196,7 @@ func (s *SquarespaceClaimService) RequestChallenge(ctx context.Context, uid, loc
 		return nil, ErrSquarespaceClaimServiceUnavailable
 	}
 	now := s.now().UTC()
-	data := &squarespaceClaimChallenge{Purpose: squarespaceClaimPurpose, UserID: uid, LocalOrderID: localID, ExternalOrderID: remote.ID, WebsiteID: psOrderProviderSnapshot(local).MerchantID, ReceiptNumber: number, QuoteHash: hash, RecipientHash: squarespaceClaimMAC(key, "recipient", recipient), IssuedAtMS: now.UnixMilli(), ExpiresAtMS: now.Add(squarespaceClaimTTL).UnixMilli()}
+	data := &squarespaceClaimChallenge{Purpose: squarespaceClaimPurpose, UserID: uid, LocalOrderID: localID, ExternalOrderID: remote.ID, WebsiteID: psOrderProviderSnapshot(local).MerchantID, ReceiptNumber: number, QuoteHash: hash, RecipientHash: authEmailHash, PayerEmailHash: squarespaceClaimMAC(key, "payer-recipient", recipient), IssuedAtMS: now.UnixMilli(), ExpiresAtMS: now.Add(squarespaceClaimTTL).UnixMilli()}
 	challengeKey := squarespaceClaimTokenKey(key, token)
 	data.CodeMAC = squarespaceClaimCodeMAC(key, challengeKey, data, code)
 	encoded, err := json.Marshal(data)
@@ -268,11 +282,11 @@ func (s *SquarespaceClaimService) Claim(ctx context.Context, uid int64, token, c
 	if status != 1 {
 		return nil, ErrSquarespaceClaimServiceUnavailable
 	}
-	local, remote, docs, recipient, hash, err := s.candidate(ctx, uid, data.LocalOrderID, data.ReceiptNumber)
+	local, remote, docs, recipient, authEmailHash, hash, err := s.candidate(ctx, uid, data.LocalOrderID, data.ReceiptNumber, key)
 	if err != nil {
 		return nil, err
 	}
-	if remote.ID != data.ExternalOrderID || psOrderProviderSnapshot(local).MerchantID != data.WebsiteID || subtle.ConstantTimeCompare([]byte(hash), []byte(data.QuoteHash)) != 1 || subtle.ConstantTimeCompare([]byte(squarespaceClaimMAC(key, "recipient", recipient)), []byte(data.RecipientHash)) != 1 {
+	if remote.ID != data.ExternalOrderID || psOrderProviderSnapshot(local).MerchantID != data.WebsiteID || subtle.ConstantTimeCompare([]byte(hash), []byte(data.QuoteHash)) != 1 || subtle.ConstantTimeCompare([]byte(authEmailHash), []byte(data.RecipientHash)) != 1 || subtle.ConstantTimeCompare([]byte(squarespaceClaimMAC(key, "payer-recipient", recipient)), []byte(data.PayerEmailHash)) != 1 {
 		return nil, ErrSquarespaceClaimUnavailable
 	}
 	args[2], args[3] = s.now().UTC().UnixMilli(), "consume"
@@ -289,7 +303,7 @@ func (s *SquarespaceClaimService) Claim(ctx context.Context, uid int64, token, c
 	// Authority is created only after fresh official proof and atomic OTP consume.
 	// The binder's durable unique constraints remain authoritative across users,
 	// different challenges and crashes. A failure requires a new email challenge.
-	claimCtx := withVerifiedSquarespaceReceiptClaim(ctx, uid, local.ID, remote.ID, hash)
+	claimCtx := withVerifiedSquarespacePayerReceiptClaim(ctx, uid, local.ID, remote.ID, hash, data.PayerEmailHash, data.RecipientHash)
 	if err := s.bind(claimCtx, local, remote, docs); err != nil {
 		return nil, ErrSquarespaceClaimUnavailable
 	}
@@ -301,20 +315,18 @@ func (s *SquarespaceClaimService) Claim(ctx context.Context, uid int64, token, c
 }
 
 func (s *SquarespaceClaimService) ready(ctx context.Context) bool {
-	return s != nil && ctx != nil && ctx.Err() == nil && s.cache != nil && s.now != nil && s.signingKey != nil && s.loadUser != nil && s.loadOrder != nil && s.validateAccess != nil && s.lookupReceipt != nil && s.ensureUnbound != nil && s.bind != nil && s.sendEmail != nil && s.generateCode != nil
+	return s != nil && ctx != nil && ctx.Err() == nil && s.cache != nil && s.now != nil && s.signingKey != nil && s.loadUser != nil && s.loadOrder != nil && s.validateAccess != nil && s.lookupReceipt != nil && s.validateProof != nil && s.ensureUnbound != nil && s.bind != nil && s.sendEmail != nil && s.generateCode != nil
 }
 
-func (s *SquarespaceClaimService) candidate(ctx context.Context, uid, localID int64, number string) (*dbent.PaymentOrder, *provider.SquarespaceOrder, []provider.SquarespaceTransactionDocument, string, string, error) {
-	fail := func(err error) (*dbent.PaymentOrder, *provider.SquarespaceOrder, []provider.SquarespaceTransactionDocument, string, string, error) {
-		return nil, nil, nil, "", "", err
+func (s *SquarespaceClaimService) candidate(ctx context.Context, uid, localID int64, number string, key []byte) (*dbent.PaymentOrder, *provider.SquarespaceOrder, []provider.SquarespaceTransactionDocument, string, string, string, error) {
+	fail := func(err error) (*dbent.PaymentOrder, *provider.SquarespaceOrder, []provider.SquarespaceTransactionDocument, string, string, string, error) {
+		return nil, nil, nil, "", "", "", err
 	}
 	user, err := s.loadUser(ctx, uid)
 	if err != nil || user == nil || user.ID != uid || !user.IsActive() {
 		return fail(ErrSquarespaceClaimUnavailable)
 	}
-	if _, err := squarespaceClaimBareEmail(user.Email); err != nil {
-		return fail(ErrSquarespaceClaimUnavailable)
-	}
+	authEmailHash := squarespaceClaimAuthEmailHash(key, user.Email)
 	local, lookupQuoteHash, err := s.eligibleOrder(ctx, uid, localID)
 	if err != nil {
 		return fail(ErrSquarespaceClaimUnavailable)
@@ -336,7 +348,7 @@ func (s *SquarespaceClaimService) candidate(ctx context.Context, uid, localID in
 		return fail(ErrSquarespaceClaimUnavailable)
 	}
 	local = currentOrder
-	if err := ValidateSquarespaceReceiptClaimProof(local, remote, docs); err != nil {
+	if err := s.validateProof(ctx, local, remote, docs); err != nil {
 		return fail(ErrSquarespaceClaimUnavailable)
 	}
 	recipient, err := squarespaceClaimBareEmail(remote.CustomerEmail)
@@ -350,8 +362,8 @@ func (s *SquarespaceClaimService) candidate(ctx context.Context, uid, localID in
 	if err != nil || currentUser == nil || currentUser.ID != uid || !currentUser.IsActive() {
 		return fail(ErrSquarespaceClaimUnavailable)
 	}
-	userEmail, err := squarespaceClaimBareEmail(currentUser.Email)
-	if err != nil || subtle.ConstantTimeCompare([]byte(userEmail), []byte(recipient)) != 1 {
+	currentAuthEmailHash := squarespaceClaimAuthEmailHash(key, currentUser.Email)
+	if subtle.ConstantTimeCompare([]byte(authEmailHash), []byte(currentAuthEmailHash)) != 1 {
 		return fail(ErrSquarespaceClaimUnavailable)
 	}
 	if err := s.ensureUnbound(ctx, local, remote); err != nil {
@@ -360,7 +372,7 @@ func (s *SquarespaceClaimService) candidate(ctx context.Context, uid, localID in
 		}
 		return fail(ErrSquarespaceClaimServiceUnavailable)
 	}
-	return local, remote, docs, recipient, hash, nil
+	return local, remote, docs, recipient, currentAuthEmailHash, hash, nil
 }
 
 func (s *SquarespaceClaimService) eligibleOrder(ctx context.Context, uid, localID int64) (*dbent.PaymentOrder, string, error) {
@@ -398,6 +410,12 @@ func (s *SquarespaceClaimService) checkUnbound(ctx context.Context, local *dbent
 		return ErrSquarespaceClaimUnavailable
 	}
 	return nil
+}
+
+// Auth.Email remains an account-state binding even for legacy placeholder
+// mailboxes. It is not required to be deliverable and never selects an OTP target.
+func squarespaceClaimAuthEmailHash(key []byte, raw string) string {
+	return squarespaceClaimMAC(key, "recipient", strings.ToLower(strings.TrimSpace(raw)))
 }
 
 func squarespaceClaimBareEmail(raw string) (string, error) {
@@ -443,7 +461,7 @@ func squarespaceClaimActiveKey(uid, localID int64) string {
 	return squarespaceClaimPrefix + "active:" + strconv.FormatInt(uid, 10) + ":" + strconv.FormatInt(localID, 10)
 }
 func squarespaceClaimCodeMAC(key []byte, challengeKey string, data *squarespaceClaimChallenge, code string) string {
-	return squarespaceClaimMAC(key, "otp", challengeKey, data.Purpose, strconv.FormatInt(data.UserID, 10), strconv.FormatInt(data.LocalOrderID, 10), data.ExternalOrderID, data.WebsiteID, data.ReceiptNumber, data.QuoteHash, data.RecipientHash, strconv.FormatInt(data.IssuedAtMS, 10), strconv.FormatInt(data.ExpiresAtMS, 10), code)
+	return squarespaceClaimMAC(key, "otp", challengeKey, data.Purpose, strconv.FormatInt(data.UserID, 10), strconv.FormatInt(data.LocalOrderID, 10), data.ExternalOrderID, data.WebsiteID, data.ReceiptNumber, data.QuoteHash, data.RecipientHash, data.PayerEmailHash, strconv.FormatInt(data.IssuedAtMS, 10), strconv.FormatInt(data.ExpiresAtMS, 10), code)
 }
 
 func (s *SquarespaceClaimService) limit(ctx context.Context, suffix string, maximum int, window time.Duration) error {

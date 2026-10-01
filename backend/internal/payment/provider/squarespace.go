@@ -21,12 +21,16 @@ import (
 )
 
 const (
-	SquarespaceReferenceFieldLabel = "RynexAI top-up reference"
-	SquarespacePaymentGateway      = "SQSP_PAYMENTS"
-	squarespaceAPIBase             = "https://api.squarespace.com"
-	squarespaceUserAgent           = "RynexAI-Sub2API-Squarespace/1.0"
-	squarespaceMaxResponseBytes    = 8 << 20
-	squarespaceDefaultMaxPages     = 20
+	SquarespaceReferenceFieldLabel       = "RynexAI top-up reference"
+	SquarespacePaymentGateway            = "SQSP_PAYMENTS"
+	SquarespaceScopeFixedProduct         = "fixed_product"
+	SquarespaceScopeDedicatedSiteService = "dedicated_site_service"
+	SquarespaceBalanceTopupPurpose       = "balance_topup_only"
+	SquarespaceExpectedServiceName       = "Pay"
+	squarespaceAPIBase                   = "https://api.squarespace.com"
+	squarespaceUserAgent                 = "RynexAI-Sub2API-Squarespace/1.0"
+	squarespaceMaxResponseBytes          = 8 << 20
+	squarespaceDefaultMaxPages           = 20
 )
 
 var (
@@ -122,6 +126,10 @@ type SquarespaceOrder struct {
 	PaymentState    string                `json:"paymentState"`
 	TestMode        *bool                 `json:"testmode"`
 	GrandTotal      SquarespaceMoney      `json:"grandTotal"`
+	Subtotal        SquarespaceMoney      `json:"subtotal"`
+	ShippingTotal   SquarespaceMoney      `json:"shippingTotal"`
+	TaxTotal        SquarespaceMoney      `json:"taxTotal"`
+	DiscountTotal   SquarespaceMoney      `json:"discountTotal"`
 	RefundedTotal   SquarespaceMoney      `json:"refundedTotal"`
 	CreatedOn       string                `json:"createdOn"`
 	ModifiedOn      string                `json:"modifiedOn"`
@@ -133,9 +141,125 @@ type SquarespaceOrder struct {
 // Only non-customer item identifiers are decoded. Product names, descriptions,
 // customizations, and addresses are intentionally excluded from this model.
 type SquarespaceLineItem struct {
-	ID        string `json:"id"`
-	ProductID string `json:"productId"`
-	VariantID string `json:"variantId"`
+	ID                  string           `json:"id"`
+	ProductID           string           `json:"productId"`
+	VariantID           string           `json:"variantId"`
+	LineItemType        string           `json:"lineItemType"`
+	ProductName         string           `json:"-"`
+	Quantity            *int             `json:"quantity"`
+	UnitPricePaid       SquarespaceMoney `json:"unitPricePaid"`
+	VariantIsNull       bool             `json:"-"`
+	SKUIsNull           bool             `json:"-"`
+	CustomizationsEmpty bool             `json:"-"`
+}
+
+func (SquarespaceLineItem) String() string   { return "SquarespaceLineItem{free text redacted}" }
+func (SquarespaceLineItem) GoString() string { return "SquarespaceLineItem{free text redacted}" }
+
+func (item *SquarespaceLineItem) UnmarshalJSON(raw []byte) error {
+	var wire struct {
+		ID             string           `json:"id"`
+		ProductID      string           `json:"productId"`
+		VariantID      json.RawMessage  `json:"variantId"`
+		SKU            json.RawMessage  `json:"sku"`
+		LineItemType   string           `json:"lineItemType"`
+		ProductName    string           `json:"productName"`
+		Quantity       *int             `json:"quantity"`
+		UnitPricePaid  SquarespaceMoney `json:"unitPricePaid"`
+		Customizations json.RawMessage  `json:"customizations"`
+	}
+	if json.Unmarshal(raw, &wire) != nil {
+		return squarespaceError("invalid_line_item")
+	}
+	result := SquarespaceLineItem{ID: wire.ID, ProductID: wire.ProductID, LineItemType: wire.LineItemType,
+		ProductName: wire.ProductName, Quantity: wire.Quantity, UnitPricePaid: wire.UnitPricePaid}
+	result.VariantIsNull = string(wire.VariantID) == "null"
+	if len(wire.VariantID) > 0 && !result.VariantIsNull {
+		if json.Unmarshal(wire.VariantID, &result.VariantID) != nil {
+			return squarespaceError("invalid_variant_id")
+		}
+	}
+	result.SKUIsNull = string(wire.SKU) == "null"
+	// Customization values can contain customer data; inspect only emptiness,
+	// never decode or retain the contents.
+	if string(wire.Customizations) == "null" {
+		// The live Pay service order explicitly represents no customizations as
+		// null. Presence is required; a missing field is not inferred as empty.
+		result.CustomizationsEmpty = true
+	} else if len(wire.Customizations) > 0 {
+		var values []json.RawMessage
+		if json.Unmarshal(wire.Customizations, &values) == nil && len(values) == 0 {
+			result.CustomizationsEmpty = true
+		}
+	}
+	*item = result
+	return nil
+}
+
+func squarespaceOrderScopeConfig(cfg map[string]string) (map[string]string, error) {
+	mode := strings.TrimSpace(cfg["orderScopeMode"])
+	if mode == "" {
+		mode = SquarespaceScopeFixedProduct
+	}
+	result := map[string]string{"orderScopeMode": mode}
+	switch mode {
+	case SquarespaceScopeFixedProduct:
+		pid := strings.ToLower(strings.TrimSpace(cfg["productId"]))
+		if !squarespaceProductIDPattern.MatchString(pid) {
+			return nil, squarespaceError("invalid_topup_product_id")
+		}
+		result["productId"] = pid
+	case SquarespaceScopeDedicatedSiteService:
+		if strings.TrimSpace(cfg["paymentPurpose"]) != SquarespaceBalanceTopupPurpose || strings.TrimSpace(cfg["expectedServiceName"]) != SquarespaceExpectedServiceName {
+			return nil, squarespaceError("invalid_dedicated_site_scope")
+		}
+		result["paymentPurpose"] = SquarespaceBalanceTopupPurpose
+		result["expectedServiceName"] = SquarespaceExpectedServiceName
+	default:
+		return nil, squarespaceError("unsupported_order_scope_mode")
+	}
+	return result, nil
+}
+
+// ValidateSquarespaceOrderScope validates the explicit merchant business scope.
+// Dedicated-site authority is a user-approved merchant boundary, not proof that
+// a generic channel=web order originated from a particular Pay Link URL.
+func ValidateSquarespaceOrderScope(order *SquarespaceOrder, cfg map[string]string) error {
+	scope, err := squarespaceOrderScopeConfig(cfg)
+	if err != nil {
+		return err
+	}
+	if scope["orderScopeMode"] == SquarespaceScopeFixedProduct {
+		return ValidateSquarespaceTopupProduct(order, scope["productId"])
+	}
+	if order == nil || len(order.LineItems) != 1 {
+		return squarespaceError("dedicated_service_cart_invalid")
+	}
+	item := order.LineItems[0]
+	if !squarespaceIDPattern.MatchString(item.ID) || !squarespaceProductIDPattern.MatchString(strings.ToLower(item.ProductID)) ||
+		item.LineItemType != "SERVICE" || item.ProductName != SquarespaceExpectedServiceName || item.Quantity == nil || *item.Quantity != 1 ||
+		!item.VariantIsNull || !item.SKUIsNull || !item.CustomizationsEmpty {
+		return squarespaceError("dedicated_service_item_invalid")
+	}
+	grand, err := order.GrandTotal.MinorUnits("GBP")
+	if err != nil || grand <= 0 {
+		return squarespaceError("dedicated_service_grand_invalid")
+	}
+	subtotal, err := order.Subtotal.MinorUnits("GBP")
+	if err != nil || subtotal != grand {
+		return squarespaceError("dedicated_service_subtotal_invalid")
+	}
+	unit, err := item.UnitPricePaid.MinorUnits("GBP")
+	if err != nil || unit != grand {
+		return squarespaceError("dedicated_service_unit_price_invalid")
+	}
+	for _, component := range []SquarespaceMoney{order.ShippingTotal, order.TaxTotal, order.DiscountTotal} {
+		value, err := component.MinorUnits("GBP")
+		if err != nil || value != 0 {
+			return squarespaceError("dedicated_service_component_nonzero_or_missing")
+		}
+	}
+	return nil
 }
 
 // ValidateSquarespaceTopupProduct is a business-purpose check, separate from
@@ -629,9 +753,9 @@ func NewSquarespace(instanceID string, config map[string]string) (*Squarespace, 
 
 func NewSquarespaceWithTokenSource(instanceID string, config map[string]string, tokens SquarespaceTokenSource) (*Squarespace, error) {
 	websiteID := strings.TrimSpace(config["websiteId"])
-	productID := strings.ToLower(strings.TrimSpace(config["productId"]))
-	if !squarespaceProductIDPattern.MatchString(productID) {
-		return nil, squarespaceError("invalid_topup_product_id")
+	scope, err := squarespaceOrderScopeConfig(config)
+	if err != nil {
+		return nil, err
 	}
 	payURL, err := url.Parse(strings.TrimSpace(config["payLinkUrl"]))
 	if err != nil || payURL.Scheme != "https" || payURL.User != nil || payURL.Port() != "" ||
@@ -654,9 +778,11 @@ func NewSquarespaceWithTokenSource(instanceID string, config map[string]string, 
 	if err != nil {
 		return nil, err
 	}
-	return &Squarespace{instanceID: instanceID, config: map[string]string{
-		"websiteId": websiteID, "productId": productID, "payLinkUrl": payURL.String(), "currency": "GBP", "referenceFieldLabel": label,
-	}, client: client}, nil
+	cfg := map[string]string{"websiteId": websiteID, "payLinkUrl": payURL.String(), "currency": "GBP", "referenceFieldLabel": label}
+	for key, value := range scope {
+		cfg[key] = value
+	}
+	return &Squarespace{instanceID: instanceID, config: cfg, client: client}, nil
 }
 
 func (s *Squarespace) Name() string        { return "Squarespace Pay Links" }
@@ -665,7 +791,14 @@ func (s *Squarespace) SupportedTypes() []payment.PaymentType {
 	return []payment.PaymentType{payment.TypeSquarespace}
 }
 func (s *Squarespace) MerchantIdentityMetadata() map[string]string {
-	return map[string]string{"website_id": s.config["websiteId"], "product_id": s.config["productId"], "currency": "GBP"}
+	metadata := map[string]string{"website_id": s.config["websiteId"], "currency": "GBP", "order_scope_mode": s.config["orderScopeMode"]}
+	if s.config["orderScopeMode"] == SquarespaceScopeFixedProduct {
+		metadata["product_id"] = s.config["productId"]
+	} else {
+		metadata["payment_purpose"] = s.config["paymentPurpose"]
+		metadata["expected_service_name"] = s.config["expectedServiceName"]
+	}
+	return metadata
 }
 
 func (s *Squarespace) CreatePayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {
@@ -687,7 +820,7 @@ func (s *Squarespace) QueryOrder(ctx context.Context, orderID string) (*payment.
 	if err != nil {
 		return nil, err
 	}
-	if err := ValidateSquarespaceTopupProduct(order, s.config["productId"]); err != nil {
+	if err := ValidateSquarespaceOrderScope(order, s.config); err != nil {
 		return nil, err
 	}
 	documents, err := s.client.ListAllTransactionsForOrder(ctx, orderID, squarespaceDefaultMaxPages)
@@ -698,8 +831,12 @@ func (s *Squarespace) QueryOrder(ctx context.Context, orderID string) (*payment.
 	if err != nil {
 		return nil, err
 	}
-	result.Metadata["website_id"] = s.config["websiteId"]
-	result.Metadata["product_id"] = s.config["productId"]
+	for key, value := range s.MerchantIdentityMetadata() {
+		result.Metadata[key] = value
+	}
+	if s.config["orderScopeMode"] == SquarespaceScopeDedicatedSiteService {
+		result.Metadata["actual_product_id"] = strings.ToLower(order.LineItems[0].ProductID)
+	}
 	return result, nil
 }
 

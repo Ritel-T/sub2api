@@ -153,7 +153,7 @@
           {{ paymentGuide.summary }}
         </p>
         <div class="space-y-3">
-          <div v-for="field in resolvedFields" :key="field.key">
+          <div v-for="field in resolvedFields" :key="field.key" :data-config-field="field.key">
             <label class="input-label">
               {{ field.label }}
               <span v-if="field.optional" class="text-xs text-gray-400">({{ t('common.optional') }})</span>
@@ -305,7 +305,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, ref } from 'vue'
+import { reactive, computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -702,7 +702,16 @@ function handleSave() {
     }
   }
 
-  if (form.provider_key === 'squarespace' && !isValidSquarespaceProductId(config.productId || '')) {
+  if (form.provider_key === 'squarespace' && !['dedicated_site_service', 'fixed_product'].includes(config.orderScopeMode || 'dedicated_site_service')) {
+    emitValidationError(t('squarespaceProvider.validationScopeMode'))
+    return
+  }
+  if (form.provider_key === 'squarespace' && config.orderScopeMode === 'dedicated_site_service' &&
+      ((config.paymentPurpose || '').trim() !== 'balance_topup_only' || (config.expectedServiceName || '').trim() !== 'Pay')) {
+    emitValidationError(t('squarespaceProvider.validationDedicatedScope'))
+    return
+  }
+  if (form.provider_key === 'squarespace' && config.orderScopeMode === 'fixed_product' && !isValidSquarespaceProductId(config.productId || '')) {
     emitValidationError(t('squarespaceProvider.validationProductId'))
     return
   }
@@ -738,7 +747,16 @@ function handleSave() {
 
   if (form.provider_key === 'squarespace') {
     filteredConfig.currency = 'GBP'
-    filteredConfig.productId = (filteredConfig.productId || '').toLowerCase()
+    filteredConfig.orderScopeMode = config.orderScopeMode || 'dedicated_site_service'
+    if (filteredConfig.orderScopeMode === 'dedicated_site_service') {
+      filteredConfig.productId = ''
+      filteredConfig.paymentPurpose = 'balance_topup_only'
+      filteredConfig.expectedServiceName = 'Pay'
+    } else {
+      filteredConfig.productId = (filteredConfig.productId || '').toLowerCase()
+      filteredConfig.paymentPurpose = ''
+      filteredConfig.expectedServiceName = ''
+    }
     filteredConfig.paymentClaimMode = config.paymentClaimMode || 'receipt_otp'
     if (filteredConfig.paymentClaimMode === 'receipt_otp') delete filteredConfig.referenceFieldLabel
   }
@@ -824,6 +842,11 @@ function emitValidationError(msg: string) {
   import('@/stores').then(m => m.useAppStore().showError(msg))
 }
 
+// Apply defaults to newly visible identity fields after an explicit scope/mode choice.
+watch(() => [form.provider_key, config.orderScopeMode, config.paymentClaimMode], () => {
+  if (form.provider_key === 'squarespace') applyDefaults()
+})
+
 // --- Public API for parent to call ---
 function reset(defaultKey: string) {
   form.name = ''
@@ -874,6 +897,7 @@ function loadProvider(provider: ProviderInstance) {
       returnBaseUrl.value = extractBaseUrl(provider.config['returnUrl'], paths.returnUrl)
     }
   }
+  if (form.provider_key === 'squarespace' && !config.orderScopeMode) config.orderScopeMode = 'fixed_product'
   applyDefaults()
   if (form.provider_key === 'squarespace') config.currency = 'GBP'
   // Parse existing limits

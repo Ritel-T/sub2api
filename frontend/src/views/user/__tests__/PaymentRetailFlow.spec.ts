@@ -162,6 +162,23 @@ describe('server-priced retail checkout', () => {
     wrapper.unmount()
   })
 
+  it('accepts a dedicated balance-service quote without a fixed product ID and does not show internal scope to the payer', async () => {
+    const dedicated = { ...quote(), product_id: undefined, order_scope_mode: 'dedicated_site_service' as const, expected_service_name: 'Pay', purpose: 'balance_topup_only' }
+    api.quote.mockResolvedValue(response(dedicated))
+    api.createOrder.mockResolvedValue(order(dedicated))
+    const wrapper = await mountPage()
+    await setAmount(wrapper, 10)
+    await wrapper.get('[data-test="confirm-retail-quote"]').setValue(true)
+    await wrapper.get('[data-test="create-recharge-order"]').trigger('click')
+    await flushPromises()
+    expect(api.createOrder).toHaveBeenCalledTimes(1)
+    expect(wrapper.findComponent(PaymentStatusPanel).exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('dedicated_site_service')
+    expect(wrapper.text()).not.toContain('balance_topup_only')
+    expect(window.open).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('rejects a changed product snapshot without exposing the product ID to the payer', async () => {
     const wrapper = await mountPage()
     await setAmount(wrapper, 10)

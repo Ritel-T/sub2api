@@ -99,6 +99,10 @@ describe('decidePaymentLaunch', () => {
     expect(readPaymentRecoverySnapshot(JSON.stringify(decision.recovery))?.retailQuote).toEqual(retailQuote)
     expect(decidePaymentLaunch({ ...result, retail_quote: undefined }, context).kind).toBe('unhandled')
     expect(decidePaymentLaunch({ ...result, retail_quote: { ...retailQuote, product_id: undefined } }, context).kind).toBe('unhandled')
+    const dedicatedQuote = { ...retailQuote, product_id: undefined, order_scope_mode: 'dedicated_site_service' as const, expected_service_name: 'Pay', purpose: 'balance_topup_only' }
+    expect(decidePaymentLaunch({ ...result, retail_quote: dedicatedQuote }, context).kind).toBe('checkout_instructions')
+    expect(decidePaymentLaunch({ ...result, retail_quote: { ...dedicatedQuote, purpose: 'other-purpose' } }, context).kind).toBe('unhandled')
+    expect(decidePaymentLaunch({ ...result, retail_quote: { ...dedicatedQuote, expected_service_name: 'Unrelated item' } }, context).kind).toBe('unhandled')
     expect(decidePaymentLaunch({ ...result, retail_quote: { ...retailQuote, currency: 'USD' } }, context).kind).toBe('unhandled')
   })
 

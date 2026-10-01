@@ -19,6 +19,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/shopspring/decimal"
 )
@@ -30,22 +31,25 @@ const paymentRetailQuoteSigningKeyEnv = "PAYMENT_RETAIL_QUOTE_SIGNING_KEY"
 // price includes site costs identically for every method; currency conversion
 // changes only the gateway collection currency, never the credited USD quantity.
 type RetailQuote struct {
-	CreditedAmountUSD float64            `json:"credited_amount_usd"`
-	BaseAmountGBP     float64            `json:"base_amount_gbp"`
-	IncludedCostGBP   float64            `json:"included_cost_gbp"`
-	TotalAmountGBP    float64            `json:"total_amount_gbp"`
-	PayAmount         float64            `json:"pay_amount"`
-	Currency          string             `json:"currency"`
-	FX                map[string]float64 `json:"fx"`
-	FXSource          string             `json:"fx_source"`
-	FXAsOf            time.Time          `json:"fx_asof"`
-	IssuedAt          time.Time          `json:"issued_at"`
-	ExpiresAt         time.Time          `json:"expires_at"`
-	CheckoutReference string             `json:"checkout_reference"`
-	CostRate          float64            `json:"cost_rate"`
-	FixedCostGBP      float64            `json:"fixed_cost_gbp"`
-	PaymentClaimMode  string             `json:"payment_claim_mode,omitempty"`
-	ProductID         string             `json:"product_id,omitempty"`
+	CreditedAmountUSD   float64            `json:"credited_amount_usd"`
+	BaseAmountGBP       float64            `json:"base_amount_gbp"`
+	IncludedCostGBP     float64            `json:"included_cost_gbp"`
+	TotalAmountGBP      float64            `json:"total_amount_gbp"`
+	PayAmount           float64            `json:"pay_amount"`
+	Currency            string             `json:"currency"`
+	FX                  map[string]float64 `json:"fx"`
+	FXSource            string             `json:"fx_source"`
+	FXAsOf              time.Time          `json:"fx_asof"`
+	IssuedAt            time.Time          `json:"issued_at"`
+	ExpiresAt           time.Time          `json:"expires_at"`
+	CheckoutReference   string             `json:"checkout_reference"`
+	CostRate            float64            `json:"cost_rate"`
+	FixedCostGBP        float64            `json:"fixed_cost_gbp"`
+	PaymentClaimMode    string             `json:"payment_claim_mode,omitempty"`
+	ProductID           string             `json:"product_id,omitempty"`
+	OrderScopeMode      string             `json:"order_scope_mode,omitempty"`
+	ExpectedServiceName string             `json:"expected_service_name,omitempty"`
+	Purpose             string             `json:"purpose,omitempty"`
 }
 type RetailQuoteResponse struct {
 	QuoteToken  string       `json:"quote_token"`
@@ -116,9 +120,23 @@ func (s *PaymentService) QuotePayment(ctx context.Context, req CreateOrderReques
 		return nil, infraerrors.Conflict("PAYMENT_CURRENCY_CHANGED", "payment method currency changed; request a new quote")
 	}
 	if sel.ProviderKey == "squarespace" {
-		quote.ProductID, err = canonicalSquarespaceProductID(sel.Config["productId"])
-		if err != nil {
-			return nil, infraerrors.ServiceUnavailable("SQUARESPACE_PRODUCT_NOT_CONFIGURED", "the Pay Link product is not configured")
+		quote.OrderScopeMode = strings.TrimSpace(sel.Config["orderScopeMode"])
+		if quote.OrderScopeMode == "" {
+			quote.OrderScopeMode = provider.SquarespaceScopeFixedProduct
+		}
+		if quote.OrderScopeMode == provider.SquarespaceScopeDedicatedSiteService {
+			if sel.Config["paymentPurpose"] != provider.SquarespaceBalanceTopupPurpose || sel.Config["expectedServiceName"] != provider.SquarespaceExpectedServiceName {
+				return nil, infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "dedicated website purpose and service must be explicit")
+			}
+			quote.Purpose = sel.Config["paymentPurpose"]
+			quote.ExpectedServiceName = sel.Config["expectedServiceName"]
+		} else if quote.OrderScopeMode == provider.SquarespaceScopeFixedProduct {
+			quote.ProductID, err = canonicalSquarespaceProductID(sel.Config["productId"])
+			if err != nil {
+				return nil, infraerrors.ServiceUnavailable("SQUARESPACE_PRODUCT_NOT_CONFIGURED", "the payment product is not configured")
+			}
+		} else {
+			return nil, infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "unsupported payment website scope")
 		}
 		quote.PaymentClaimMode = strings.TrimSpace(sel.Config["paymentClaimMode"])
 		if quote.PaymentClaimMode == "" {
@@ -434,9 +452,21 @@ func validateSquarespaceRetailMetadata(order *dbent.PaymentOrder, metadata map[s
 	if quote == nil || snapshot == nil || snapshot.MerchantID == "" {
 		return fmt.Errorf("Squarespace payment requires a retail quote and pinned website")
 	}
-	productID := PaymentOrderSquarespaceProductID(order)
-	if productID == "" || quote.ProductID != productID || metadata["product_id"] != productID {
-		return fmt.Errorf("Squarespace payment product mismatch")
+	scope, err := frozenSquarespaceOrderScope(order)
+	if err != nil {
+		return err
+	}
+	if scope["orderScopeMode"] == provider.SquarespaceScopeFixedProduct {
+		if metadata["product_id"] != scope["productId"] {
+			return fmt.Errorf("Squarespace payment product mismatch")
+		}
+	} else {
+		if metadata["order_scope_mode"] != scope["orderScopeMode"] || metadata["payment_purpose"] != scope["paymentPurpose"] || metadata["expected_service_name"] != scope["expectedServiceName"] {
+			return fmt.Errorf("Squarespace dedicated payment scope mismatch")
+		}
+		if _, err := canonicalSquarespaceProductID(metadata["actual_product_id"]); err != nil {
+			return err
+		}
 	}
 	if metadata["website_id"] != snapshot.MerchantID || metadata["currency"] != "GBP" || quote.Currency != "GBP" || metadata["checkout_reference"] != quote.CheckoutReference {
 		return fmt.Errorf("Squarespace payment website, currency or checkout reference mismatch")
@@ -486,9 +516,9 @@ func PaymentOrderSquarespaceProductID(order *dbent.PaymentOrder) string {
 // quoted, even if the active provider is later repointed to another Pay Link.
 func (s *PaymentService) createHistoricalSquarespaceProvider(ctx context.Context, instance *dbent.PaymentProviderInstance, order *dbent.PaymentOrder) (payment.Provider, error) {
 	snapshot := psOrderProviderSnapshot(order)
-	productID := PaymentOrderSquarespaceProductID(order)
-	if snapshot == nil || snapshot.MerchantID == "" || productID == "" {
-		return nil, fmt.Errorf("Squarespace order has no frozen merchant and product")
+	scope, scopeErr := frozenSquarespaceOrderScope(order)
+	if snapshot == nil || snapshot.MerchantID == "" || scopeErr != nil {
+		return nil, fmt.Errorf("Squarespace order has no frozen merchant and scope")
 	}
 	config, err := s.loadBalancer.GetInstanceConfig(ctx, instance.ID)
 	if err != nil {
@@ -498,7 +528,9 @@ func (s *PaymentService) createHistoricalSquarespaceProvider(ctx context.Context
 		config = map[string]string{}
 	}
 	config["websiteId"] = snapshot.MerchantID
-	config["productId"] = productID
+	for key, value := range scope {
+		config[key] = value
+	}
 	config["currency"] = "GBP"
 	if original := psSnapshotStringValue(order.ProviderSnapshot["reference_field_label"]); original != "" {
 		config["referenceFieldLabel"] = original

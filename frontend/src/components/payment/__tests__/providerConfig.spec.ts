@@ -103,7 +103,7 @@ describe('Squarespace public provider configuration', () => {
   it('exposes only hosted-link metadata and restricts currency to GBP', () => {
     expect(PROVIDER_SUPPORTED_TYPES.squarespace).toEqual(['squarespace'])
     expect(PROVIDER_CONFIG_FIELDS.squarespace.map(field => field.key)).toEqual([
-      'websiteId', 'productId', 'payLinkUrl', 'currency', 'paymentClaimMode', 'referenceFieldLabel',
+      'websiteId', 'orderScopeMode', 'paymentPurpose', 'expectedServiceName', 'productId', 'payLinkUrl', 'currency', 'paymentClaimMode', 'referenceFieldLabel',
     ])
     expect(PROVIDER_CONFIG_FIELDS.squarespace.every(field => !field.sensitive)).toBe(true)
     expect(findField('squarespace', 'currency')?.options).toEqual([{ value: 'GBP', label: 'GBP' }])
@@ -112,6 +112,20 @@ describe('Squarespace public provider configuration', () => {
     expect(findField('squarespace', 'paymentClaimMode')?.defaultValue).toBe('receipt_otp')
     expect(findField('squarespace', 'productId')?.optional).toBeFalsy()
     expect(findField('squarespace', 'productId')?.defaultValue).toBeUndefined()
+    expect(findField('squarespace', 'orderScopeMode')?.defaultValue).toBe('dedicated_site_service')
+    expect(findField('squarespace', 'paymentPurpose')?.defaultValue).toBe('balance_topup_only')
+    expect(findField('squarespace', 'expectedServiceName')?.defaultValue).toBe('Pay')
+  })
+
+  it('exposes dedicated service identity without requiring a fixed product, and keeps fixed-product compatibility fields', () => {
+    const dedicated = getVisibleProviderConfigFields('squarespace', { orderScopeMode: 'dedicated_site_service' }).map(field => field.key)
+    expect(dedicated).toContain('paymentPurpose')
+    expect(dedicated).toContain('expectedServiceName')
+    expect(dedicated).not.toContain('productId')
+    const fixed = getVisibleProviderConfigFields('squarespace', { orderScopeMode: 'fixed_product' }).map(field => field.key)
+    expect(fixed).toContain('productId')
+    expect(fixed).not.toContain('paymentPurpose')
+    expect(fixed).not.toContain('expectedServiceName')
   })
 
   it('only requires the reference field when reference claim mode is selected', () => {

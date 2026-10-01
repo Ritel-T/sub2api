@@ -4,7 +4,7 @@
     <template v-else>
       <h3 class="font-semibold text-gray-900 dark:text-white">{{ t('paymentRetail.claim.title') }}</h3>
       <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">{{ t('paymentRetail.claim.hint') }}</p>
-      <p v-if="accountEmail" class="break-all text-sm font-medium">{{ accountEmail }}</p>
+      <p v-if="accountEmail" class="break-all text-sm font-medium">{{ t('paymentRetail.balanceAccount') }}: {{ accountEmail }}</p>
       <p class="text-xs leading-5 text-gray-500">{{ t('paymentRetail.claim.paidOnHint') }}</p>
       <div v-if="checking" class="space-y-2 text-sm text-gray-600 dark:text-gray-300" role="status">
         <p>{{ t('paymentRetail.creditProcessing') }}</p>
@@ -13,7 +13,10 @@
       <template v-else>
         <label :for="`receipt-number-${orderId}`" class="block text-sm font-medium">{{ t('paymentRetail.claim.receiptNumber') }}</label>
         <input :id="`receipt-number-${orderId}`" v-model="receiptNumber" data-test="receipt-order-number" class="input w-full" maxlength="64" autocomplete="off" :disabled="verifying" :placeholder="t('paymentRetail.claim.receiptPlaceholder')" />
-        <button data-test="request-claim-code" class="btn btn-secondary w-full" :disabled="requesting || verifying || cooldown > 0 || !receiptNumber.trim()" @click="requestCode">
+        <label :for="`payer-email-${orderId}`" class="block text-sm font-medium">{{ t('paymentRetail.claim.payerEmail') }}</label>
+        <input :id="`payer-email-${orderId}`" v-model="payerEmail" data-test="receipt-payer-email" type="email" class="input w-full" maxlength="254" autocomplete="email" :disabled="verifying" :placeholder="t('paymentRetail.claim.payerEmailPlaceholder')" />
+        <p class="text-xs leading-5 text-gray-500">{{ t('paymentRetail.claim.payerEmailHint') }}</p>
+        <button data-test="request-claim-code" class="btn btn-secondary w-full" :disabled="requesting || verifying || cooldown > 0 || !receiptNumber.trim() || !validPayerEmail" @click="requestCode">
           {{ requesting ? t('common.processing') : cooldown > 0 ? t('paymentRetail.claim.resendIn', { seconds: cooldown }) : t(challengeToken ? 'paymentRetail.claim.resend' : 'paymentRetail.claim.requestCode') }}
         </button>
         <p v-if="sent" class="text-xs leading-5 text-gray-500" role="status">{{ t('paymentRetail.claim.codeRequested') }}</p>
@@ -39,6 +42,8 @@ const emit = defineEmits<{ updated: [order: PaymentOrder]; refresh: [] }>()
 const { t } = useI18n()
 const expanded = ref(false)
 const receiptNumber = ref('')
+const payerEmail = ref('')
+const validPayerEmail = computed(() => /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(payerEmail.value.trim()))
 const code = ref('')
 const challengeToken = ref('')
 const challengeExpiresAt = ref(0)
@@ -63,7 +68,7 @@ function safeErrorKey(error: unknown): string {
   return 'paymentRetail.claim.serviceUnavailable'
 }
 
-watch([receiptNumber, () => props.orderId], () => {
+watch([receiptNumber, payerEmail, () => props.orderId, () => props.accountEmail], () => {
   ++revision
   challengeToken.value = ''
   challengeExpiresAt.value = 0
@@ -71,16 +76,16 @@ watch([receiptNumber, () => props.orderId], () => {
   sent.value = false
   errorKey.value = ''
   checking.value = false
-})
+}, { flush: 'sync' })
 
 async function requestCode() {
-  if (requesting.value || verifying.value || resendAt.value > Date.now() || !receiptNumber.value.trim() || props.orderId <= 0) return
+  if (requesting.value || verifying.value || resendAt.value > Date.now() || !receiptNumber.value.trim() || !validPayerEmail.value || props.orderId <= 0) return
   const currentRevision = revision
   const receipt = receiptNumber.value.trim()
   requesting.value = true
   errorKey.value = ''
   try {
-    const response = await paymentAPI.requestSquarespaceClaimCode(props.orderId, receipt)
+    const response = await paymentAPI.requestSquarespaceClaimCode(props.orderId, receipt, payerEmail.value.trim())
     if (currentRevision !== revision) return
     const challenge = response.data
     const expiry = Date.parse(challenge?.expires_at || '')

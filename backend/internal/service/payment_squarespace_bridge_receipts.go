@@ -127,12 +127,24 @@ func (s *PaymentService) FindSquarespaceReceiptOrder(ctx context.Context, localO
 
 type squarespaceVerifiedReceiptClaimKey struct{}
 type squarespaceVerifiedReceiptClaimAuthority struct {
-	userID, localOrderID       int64
-	externalOrderID, quoteHash string
+	userID, localOrderID          int64
+	externalOrderID, quoteHash    string
+	payerEmailHash, authEmailHash string
 }
 
 func withVerifiedSquarespaceReceiptClaim(ctx context.Context, userID, localOrderID int64, externalOrderID, quoteHash string) context.Context {
 	return context.WithValue(ctx, squarespaceVerifiedReceiptClaimKey{}, squarespaceVerifiedReceiptClaimAuthority{userID: userID, localOrderID: localOrderID, externalOrderID: externalOrderID, quoteHash: quoteHash})
+}
+func withVerifiedSquarespacePayerReceiptClaim(ctx context.Context, userID, localID int64, externalID, quoteHash, payerHash, authHash string) context.Context {
+	return context.WithValue(ctx, squarespaceVerifiedReceiptClaimKey{}, squarespaceVerifiedReceiptClaimAuthority{userID: userID, localOrderID: localID, externalOrderID: externalID, quoteHash: quoteHash, payerEmailHash: payerHash, authEmailHash: authHash})
+}
+func validateSquarespaceReceiptAuthority(ctx context.Context, local *dbent.PaymentOrder, remote *provider.SquarespaceOrder) error {
+	authority, ok := ctx.Value(squarespaceVerifiedReceiptClaimKey{}).(squarespaceVerifiedReceiptClaimAuthority)
+	hash, err := SquarespaceReceiptQuoteHash(local)
+	if !ok || err != nil || remote == nil || authority.userID != local.UserID || authority.localOrderID != local.ID || authority.externalOrderID != remote.ID || authority.quoteHash != hash {
+		return errors.New("payer OTP authority missing or changed")
+	}
+	return nil
 }
 func SquarespaceReceiptQuoteHash(local *dbent.PaymentOrder) (string, error) {
 	quote := PaymentOrderRetailQuote(local)
@@ -168,7 +180,11 @@ func (s *PaymentService) BindVerifiedReceiptClaim(ctx context.Context, localOrde
 	if current.UserID != authority.userID || hash != authority.quoteHash {
 		return errors.New("receipt claim authority does not match current quote")
 	}
-	proof, err := verifiedSquarespaceReceiptClaimProof(current, remote, docs)
+	grant, err := s.squarespaceReceiptScope(ctx, current, remote, nil)
+	if err != nil {
+		return err
+	}
+	proof, err := verifiedSquarespaceReceiptClaimProofWithScope(current, remote, docs, grant.Config)
 	if err != nil {
 		return err
 	}
@@ -177,8 +193,11 @@ func (s *PaymentService) BindVerifiedReceiptClaim(ctx context.Context, localOrde
 	if err != nil || instance == nil {
 		return errors.New("receipt claim provider instance missing")
 	}
-	if !instance.Enabled || !s.configService.IsPaymentEnabled(ctx) {
+	if !instance.Enabled {
 		return errors.New("automatic credit disabled")
+	}
+	if err = s.validateSquarespaceOrderAccess(ctx, current.UserID, current); err != nil {
+		return err
 	}
 	bridge := NewSquarespacePaymentBridge(s, nil, nil)
 	ledger, err := bridge.observeOrder(ctx, snapshot.MerchantID, remote)
@@ -188,7 +207,11 @@ func (s *PaymentService) BindVerifiedReceiptClaim(ctx context.Context, localOrde
 	if ledger.LocalOrderID != nil && *ledger.LocalOrderID != current.ID {
 		return errors.New("receipt already belongs to another local order")
 	}
-	ledger, err = bridge.bindExternalOrder(ctx, ledger, current, remote, proof, "receipt_otp")
+	bindingMethod := "receipt_otp"
+	if grant.AssistedLegacy {
+		bindingMethod = squarespaceLegacyScopeBinding
+	}
+	ledger, err = bridge.bindExternalOrder(ctx, ledger, current, remote, proof, bindingMethod)
 	if err != nil {
 		return err
 	}
@@ -205,7 +228,7 @@ func (s *PaymentService) ReconcileBoundSquarespaceReceipt(ctx context.Context, l
 	if snapshot == nil || snapshot.MerchantID == "" {
 		return false, errors.New("receipt website binding missing")
 	}
-	ledger, err := s.entClient.PaymentExternalOrder.Query().Where(paymentexternalorder.ProviderKeyEQ("squarespace"), paymentexternalorder.WebsiteIDEQ(snapshot.MerchantID), paymentexternalorder.LocalOrderIDEQ(local.ID), paymentexternalorder.ExternalOrderIDEQ(local.PaymentTradeNo), paymentexternalorder.BindingMethodEQ("receipt_otp")).Only(ctx)
+	ledger, err := s.entClient.PaymentExternalOrder.Query().Where(paymentexternalorder.ProviderKeyEQ("squarespace"), paymentexternalorder.WebsiteIDEQ(snapshot.MerchantID), paymentexternalorder.LocalOrderIDEQ(local.ID), paymentexternalorder.ExternalOrderIDEQ(local.PaymentTradeNo), paymentexternalorder.BindingMethodIn("receipt_otp", squarespaceLegacyScopeBinding)).Only(ctx)
 	if err != nil {
 		return false, errors.New("receipt has no verified ledger binding")
 	}
