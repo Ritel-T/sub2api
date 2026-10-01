@@ -17,8 +17,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 )
 
-var ErrSquarespaceReauthorizationRequired = errors.New("Squarespace OAuth reauthorization required")
-var ErrSquarespaceTokenRotationBusy = errors.New("Squarespace OAuth token rotation in progress")
+var ErrSquarespaceReauthorizationRequired = errors.New("squarespace OAuth reauthorization required")
+var ErrSquarespaceTokenRotationBusy = errors.New("squarespace OAuth token rotation in progress")
 
 type squarespaceRotationFailure struct{ code string }
 
@@ -111,20 +111,20 @@ func (s *PaymentConfigService) saveSquarespaceOAuthTokenPair(ctx context.Context
 		return err
 	}
 	if count != 1 {
-		return errors.New("Squarespace OAuth token writer changed")
+		return errors.New("squarespace OAuth token writer changed")
 	}
 	stored, version, err := s.LoadSquarespaceOAuthTokens(ctx, websiteID)
 	if err != nil || version != expectedVersion+1 || stored == nil || *stored != *pair {
-		return errors.New("Squarespace OAuth token persistence could not be verified")
+		return errors.New("squarespace OAuth token persistence could not be verified")
 	}
 	return nil
 }
 func (s *PaymentConfigService) validateSquarespaceTokenWriter(row *dbent.PaymentSyncState, clientID string, expectedVersion int64, pair *provider.SquarespaceOAuthTokenPair, owner *squarespaceRotationOwner) error {
 	if row == nil || row.TokenVersion != expectedVersion {
-		return errors.New("Squarespace OAuth token version changed")
+		return errors.New("squarespace OAuth token version changed")
 	}
 	if row.OauthClientID != "" && row.OauthClientID != clientID {
-		return errors.New("Squarespace website belongs to another OAuth client")
+		return errors.New("squarespace website belongs to another OAuth client")
 	}
 	if owner != nil {
 		if owner.Version != expectedVersion || row.RotationPhase != "request_in_flight" || row.RotationStartedAt == nil || !row.RotationStartedAt.Equal(owner.StartedAt) {
@@ -274,7 +274,7 @@ func (s *PaymentConfigService) SaveSquarespaceOAuthCredentials(ctx context.Conte
 		return err
 	}
 	if row.OauthClientID != "" && row.OauthClientID != clientID {
-		return errors.New("Squarespace website belongs to another OAuth client")
+		return errors.New("squarespace website belongs to another OAuth client")
 	}
 	plain, err := json.Marshal(squarespaceOAuthCredentials{ClientID: clientID, ClientSecret: clientSecret})
 	if err != nil {
@@ -289,7 +289,7 @@ func (s *PaymentConfigService) SaveSquarespaceOAuthCredentials(ctx context.Conte
 		return err
 	}
 	if count != 1 {
-		return errors.New("Squarespace OAuth client binding changed")
+		return errors.New("squarespace OAuth client binding changed")
 	}
 	return nil
 }

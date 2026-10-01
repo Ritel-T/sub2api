@@ -39,7 +39,7 @@ func (s *PaymentService) PaymentConfigForUser(ctx context.Context, cfg *PaymentC
 	out.Enabled = cfg.Enabled || out.MerchantTestAccess
 	types := make([]string, 0, len(cfg.EnabledTypes))
 	for _, method := range cfg.EnabledTypes {
-		if !cfg.Enabled && !(out.MerchantTestAccess && method == "squarespace") {
+		if !cfg.Enabled && (!out.MerchantTestAccess || method != "squarespace") {
 			continue
 		}
 		if method == "squarespace" && !out.MerchantTestAccess && !s.squarespaceApprovedAvailable(ctx) {
@@ -54,7 +54,7 @@ func (s *PaymentService) FilterPaymentMethodsForUser(ctx context.Context, cfg *P
 	out := map[string]MethodLimits{}
 	test := merchantTestUser(cfg, userID)
 	for method, limits := range methods {
-		if !cfg.Enabled && !(test && method == "squarespace") {
+		if !cfg.Enabled && (!test || method != "squarespace") {
 			continue
 		}
 		if method == "squarespace" && !test && !s.squarespaceApprovedAvailable(ctx) {

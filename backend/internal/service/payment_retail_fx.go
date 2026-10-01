@@ -202,7 +202,7 @@ func readECBWithClient(ctx context.Context, client *http.Client, endpoint string
 	if err != nil {
 		return nil, retailFXUnavailable("ECB reference request failed", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, retailFXUnavailable("ECB reference returned a non-success status", nil)
 	}

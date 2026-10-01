@@ -132,9 +132,6 @@ type squarespaceVerifiedReceiptClaimAuthority struct {
 	payerEmailHash, authEmailHash string
 }
 
-func withVerifiedSquarespaceReceiptClaim(ctx context.Context, userID, localOrderID int64, externalOrderID, quoteHash string) context.Context {
-	return context.WithValue(ctx, squarespaceVerifiedReceiptClaimKey{}, squarespaceVerifiedReceiptClaimAuthority{userID: userID, localOrderID: localOrderID, externalOrderID: externalOrderID, quoteHash: quoteHash})
-}
 func withVerifiedSquarespacePayerReceiptClaim(ctx context.Context, userID, localID int64, externalID, quoteHash, payerHash, authHash string) context.Context {
 	return context.WithValue(ctx, squarespaceVerifiedReceiptClaimKey{}, squarespaceVerifiedReceiptClaimAuthority{userID: userID, localOrderID: localID, externalOrderID: externalID, quoteHash: quoteHash, payerEmailHash: payerHash, authEmailHash: authHash})
 }

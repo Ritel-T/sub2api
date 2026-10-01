@@ -482,7 +482,7 @@ func (c *SquarespaceClient) fetchJSON(ctx context.Context, token, path string, q
 	if err != nil {
 		return squarespaceError("transport_failed")
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		kind := "upstream_rejected"
 		if res.StatusCode == 429 {

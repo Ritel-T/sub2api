@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	ErrSquarespaceClaimCacheMiss          = errors.New("Squarespace claim cache entry missing")
+	ErrSquarespaceClaimCacheMiss          = errors.New("squarespace claim cache entry missing")
 	ErrSquarespaceClaimUnavailable        = infraerrors.BadRequest("SQUARESPACE_CLAIM_UNAVAILABLE", "This payment cannot currently be claimed")
 	ErrSquarespaceClaimCodeInvalid        = infraerrors.BadRequest("SQUARESPACE_CLAIM_CODE_INVALID", "Invalid or expired payment claim code")
 	ErrSquarespaceClaimRateLimited        = infraerrors.TooManyRequests("SQUARESPACE_CLAIM_RATE_LIMITED", "Please wait before requesting or submitting another payment claim")

@@ -124,6 +124,7 @@ func TestResolveRetailFXManualRejectsInvalidConfiguration(t *testing.T) {
 	fx, err = ResolveRetailFX(context.Background(), retailFXTestManualConfig(now), time.Time{})
 	require.Nil(t, fx)
 	retailFXTestAssertUnavailable(t, err)
+	//nolint:staticcheck // Verify the resolver's documented defensive handling of a nil context.
 	fx, err = ResolveRetailFX(nil, retailFXTestManualConfig(now), now)
 	require.Nil(t, fx)
 	retailFXTestAssertUnavailable(t, err)
@@ -216,7 +217,12 @@ func TestReadECBRetailFXRejectsLargeResponses(t *testing.T) {
 			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if chunked {
-					w.(http.Flusher).Flush()
+					flusher, ok := w.(http.Flusher)
+					if !ok {
+						t.Error("test response writer does not support flushing")
+						return
+					}
+					flusher.Flush()
 				} else {
 					w.Header().Set("Content-Length", fmt.Sprint(retailFXMaxResponseSize+1))
 				}

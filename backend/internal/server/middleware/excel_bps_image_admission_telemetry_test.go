@@ -68,7 +68,7 @@ func TestBPSImageAdmissionRejectionLogsOnlyBoundedCapacityFields(t *testing.T) {
 	require.Equal(t, 3, logs.Len())
 	for i, entry := range logs.All() {
 		require.Equal(t, "image_relay_admission_rejected", entry.Message)
-		require.Equal(t, map[string]interface{}{
+		require.Equal(t, map[string]any{
 			"component": "image_admission", "stage": []string{"acquire", "read", "decode"}[i],
 			"reason": "byte_budget", "occupied_requests": int64(64), "occupied_bytes": int64(512 << 20),
 			"max_requests": int64(128), "limit_bytes": int64(1024 << 20),

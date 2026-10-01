@@ -182,7 +182,7 @@ func SquarespaceOfflineAuthorizeURL(clientID, redirectURI, state string) (string
 	}
 	parsed, err := url.Parse(redirectURI)
 	if err != nil || parsed.User != nil || parsed.Fragment != "" || parsed.Hostname() == "" ||
-		(parsed.Scheme != "https" && !(parsed.Scheme == "http" && parsed.Hostname() == "localhost")) {
+		(parsed.Scheme != "https" && (parsed.Scheme != "http" || parsed.Hostname() != "localhost")) {
 		return "", squarespaceError("invalid_oauth_redirect_uri")
 	}
 	query := url.Values{"client_id": {clientID}, "redirect_uri": {redirectURI}, "state": {state}, "scope": {SquarespaceOAuthReadScopes}, "access_type": {"offline"}}
@@ -221,7 +221,7 @@ func (c *SquarespaceOAuthClient) request(ctx context.Context, body url.Values) (
 	if err != nil {
 		return nil, squarespaceError("oauth_request_outcome_unknown")
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		kind := "oauth_request_rejected"
 		if res.StatusCode == 429 {

@@ -182,7 +182,10 @@ func (s *PaymentService) storeSquarespaceLegacyScopeAudit(ctx context.Context, c
 	if err := validateSquarespaceReceiptAuthority(ctx, local, remote); err != nil {
 		return err
 	}
-	authority := ctx.Value(squarespaceVerifiedReceiptClaimKey{}).(squarespaceVerifiedReceiptClaimAuthority)
+	authority, ok := ctx.Value(squarespaceVerifiedReceiptClaimKey{}).(squarespaceVerifiedReceiptClaimAuthority)
+	if !ok {
+		return errors.New("payer OTP authority missing or changed")
+	}
 	value.OTPVerified = true
 	value.OTPPurpose = squarespaceClaimPurpose
 	value.PayerEmailHash = authority.payerEmailHash

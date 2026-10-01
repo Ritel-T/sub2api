@@ -129,18 +129,19 @@ func (s *PaymentService) QuotePayment(ctx context.Context, req CreateOrderReques
 		if quote.OrderScopeMode == "" {
 			quote.OrderScopeMode = provider.SquarespaceScopeFixedProduct
 		}
-		if quote.OrderScopeMode == provider.SquarespaceScopeDedicatedSiteService {
+		switch quote.OrderScopeMode {
+		case provider.SquarespaceScopeDedicatedSiteService:
 			if sel.Config["paymentPurpose"] != provider.SquarespaceBalanceTopupPurpose || sel.Config["expectedServiceName"] != provider.SquarespaceExpectedServiceName {
 				return nil, infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "dedicated website purpose and service must be explicit")
 			}
 			quote.Purpose = sel.Config["paymentPurpose"]
 			quote.ExpectedServiceName = sel.Config["expectedServiceName"]
-		} else if quote.OrderScopeMode == provider.SquarespaceScopeFixedProduct {
+		case provider.SquarespaceScopeFixedProduct:
 			quote.ProductID, err = canonicalSquarespaceProductID(sel.Config["productId"])
 			if err != nil {
 				return nil, infraerrors.ServiceUnavailable("SQUARESPACE_PRODUCT_NOT_CONFIGURED", "the payment product is not configured")
 			}
-		} else {
+		default:
 			return nil, infraerrors.BadRequest("INVALID_SQUARESPACE_SCOPE", "unsupported payment website scope")
 		}
 		quote.PaymentClaimMode = strings.TrimSpace(sel.Config["paymentClaimMode"])
@@ -226,8 +227,8 @@ func (s *PaymentService) signRetailQuote(claims retailQuoteClaims) (string, erro
 		return "", err
 	}
 	mac := hmac.New(sha256.New, key)
-	mac.Write([]byte(retailQuotePurpose + "\x00"))
-	mac.Write(payload)
+	_, _ = mac.Write([]byte(retailQuotePurpose + "\x00"))
+	_, _ = mac.Write(payload)
 	return base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
 }
 func (s *PaymentService) parseRetailQuote(token string) (*retailQuoteClaims, error) {
@@ -254,8 +255,8 @@ func (s *PaymentService) parseRetailQuote(token string) (*retailQuoteClaims, err
 		return nil, err
 	}
 	mac := hmac.New(sha256.New, key)
-	mac.Write([]byte(retailQuotePurpose + "\x00"))
-	mac.Write(payload)
+	_, _ = mac.Write([]byte(retailQuotePurpose + "\x00"))
+	_, _ = mac.Write(payload)
 	if !hmac.Equal(sig, mac.Sum(nil)) {
 		return bad()
 	}
