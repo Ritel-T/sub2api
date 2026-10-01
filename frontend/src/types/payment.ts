@@ -23,6 +23,24 @@ export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' 
 
 export type OrderType = 'balance' | 'subscription'
 
+export interface BalanceSubscriptionRequest {
+  expected_user_id: number
+  plan_id: number
+  purchase_nonce: string
+  expected_price: number
+  expected_currency: 'CNY'
+  expected_group_id: number
+  expected_validity_days: number
+  expected_validity_unit: string
+}
+
+export interface BalanceSubscriptionResult {
+  order_id: number
+  status: 'COMPLETED'
+  site_credit_amount: number
+  renewed: boolean
+}
+
 export type PaymentClaimMode = 'receipt_otp' | 'reference'
 
 // ==================== Configuration ====================

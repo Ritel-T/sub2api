@@ -4,8 +4,9 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import subscriptionsAPI from '@/api/subscriptions'
+import { useAuthStore } from '@/stores/auth'
 import type { UserSubscription } from '@/types'
 
 // Cache TTL: 60 seconds
@@ -17,6 +18,7 @@ let requestGeneration = 0
 export const useSubscriptionStore = defineStore('subscriptions', () => {
   // State
   const activeSubscriptions = ref<UserSubscription[]>([])
+  const ownerUserId = ref<number | null>(null)
   const loading = ref(false)
   const loaded = ref(false)
   const lastFetchedAt = ref<number | null>(null)
@@ -82,6 +84,36 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     return activePromise
   }
 
+  // This path always fetches fresh data and never adopts another account's
+  // cache. Existing callers retain their original caching behavior.
+  async function fetchActiveSubscriptionsIfCurrent(expectedUserId: number): Promise<UserSubscription[]> {
+    const auth = useAuthStore()
+    const expectedToken = auth.token
+    if (!expectedToken || auth.user?.id !== expectedUserId) return []
+    if (ownerUserId.value !== expectedUserId) clear()
+    const generation = ++requestGeneration
+    let stale = false
+    const isCurrent = () => !stale && generation === requestGeneration
+      && auth.token === expectedToken && auth.user?.id === expectedUserId
+    const stop = watch([() => auth.token, () => auth.user?.id], () => {
+      stale = true
+      if (generation === requestGeneration) clear()
+    }, { flush: 'sync' })
+    loading.value = true
+    try {
+      const data = await subscriptionsAPI.getActiveSubscriptions()
+      if (!isCurrent() || data.some(sub => sub.user_id !== expectedUserId)) return []
+      activeSubscriptions.value = data
+      ownerUserId.value = expectedUserId
+      loaded.value = true
+      lastFetchedAt.value = Date.now()
+      return data
+    } finally {
+      if (generation === requestGeneration) loading.value = false
+      stop()
+    }
+  }
+
   /**
    * Start auto-refresh polling 
    */
@@ -113,6 +145,7 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     activePromise = null
     loading.value = false
     activeSubscriptions.value = []
+    ownerUserId.value = null
     loaded.value = false
     lastFetchedAt.value = null
     stopPolling()
@@ -128,11 +161,13 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
   return {
     // State
     activeSubscriptions,
+    ownerUserId,
     loading,
     hasActiveSubscriptions,
 
     // Actions
     fetchActiveSubscriptions,
+    fetchActiveSubscriptionsIfCurrent,
     startPolling,
     stopPolling,
     clear,

@@ -30,6 +30,7 @@ func RegisterPaymentRoutes(
 	authenticated.Use(panelRateLimiter.Global())
 	{
 		authenticated.POST("/quote", paymentHandler.QuotePayment)
+		authenticated.POST("/subscription/balance", paymentHandler.BuySubscriptionWithBalance)
 		authenticated.POST("/squarespace/claim-challenge", paymentHandler.RequestSquarespaceClaimChallenge)
 		authenticated.POST("/squarespace/claim", paymentHandler.ClaimSquarespaceReceipt)
 		authenticated.GET("/config", paymentHandler.GetPaymentConfig)

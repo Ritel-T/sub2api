@@ -57,6 +57,9 @@ func (s *PaymentService) getRefundOrderProviderInstance(ctx context.Context, o *
 	if s == nil || s.entClient == nil || o == nil {
 		return nil, nil
 	}
+	if psStringValue(o.ProviderKey) == internalBalanceProvider {
+		return nil, infraerrors.BadRequest("BALANCE_SUBSCRIPTION_REFUND_MANUAL", "site-credit subscription refunds require administrator handling")
+	}
 
 	if snapshot := psOrderProviderSnapshot(o); snapshot != nil {
 		return s.resolveSnapshotOrderProviderInstance(ctx, o, snapshot)
@@ -209,6 +212,9 @@ func (s *PaymentService) PrepareRefund(ctx context.Context, oid int64, amt float
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		return nil, nil, infraerrors.NotFound("NOT_FOUND", "order not found")
+	}
+	if psStringValue(o.ProviderKey) == internalBalanceProvider {
+		return nil, nil, infraerrors.BadRequest("BALANCE_SUBSCRIPTION_REFUND_MANUAL", "site-credit subscription refunds require administrator handling")
 	}
 	ok := []string{OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundPending, OrderStatusRefundFailed}
 	if !psSliceContains(ok, o.Status) {

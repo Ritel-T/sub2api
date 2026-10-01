@@ -227,7 +227,13 @@ func (s *SubscriptionService) assignOrExtendSubscription(ctx context.Context, in
 	if !group.IsSubscriptionType() {
 		return nil, false, ErrGroupNotSubscriptionType
 	}
+	return s.assignOrExtendSubscriptionTerm(ctx, input, deferCacheInvalidation)
+}
 
+// assignOrExtendSubscriptionTerm requires the caller to have validated the
+// subscription group. Transaction-owning callers can validate and lock the
+// group themselves without acquiring a second database connection here.
+func (s *SubscriptionService) assignOrExtendSubscriptionTerm(ctx context.Context, input *AssignSubscriptionInput, deferCacheInvalidation bool) (*UserSubscription, bool, error) {
 	// 查询是否已有订阅
 	existingSub, err := s.userSubRepo.GetByUserIDAndGroupID(ctx, input.UserID, input.GroupID)
 	if err != nil {

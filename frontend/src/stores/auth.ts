@@ -4,7 +4,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed, readonly } from 'vue'
+import { ref, computed, readonly, watch } from 'vue'
 import { authAPI, isTotp2FARequired, passkeyAPI, type LoginResponse } from '@/api'
 import type {
   User,
@@ -461,6 +461,30 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Used by balance purchases: a late response must never replace another
+  // account's state, even when identity changes away and back during the request.
+  async function refreshUserIfCurrent(expectedUserId: number): Promise<User | null> {
+    const expectedToken = token.value
+    if (!expectedToken || user.value?.id !== expectedUserId) return null
+    let stale = false
+    const stop = watch([() => token.value, () => user.value?.id], () => { stale = true }, { flush: 'sync' })
+    const isCurrent = () => !stale && token.value === expectedToken && user.value?.id === expectedUserId
+    try {
+      const response = await authAPI.getCurrentUser()
+      if (!isCurrent() || response.data.id !== expectedUserId) return null
+      if (response.data.run_mode) runMode.value = response.data.run_mode
+      const { run_mode: _run_mode, ...userData } = response.data
+      user.value = userData
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
+      return userData
+    } catch (error) {
+      if (isCurrent() && (error as { status?: number }).status === 401) {
+        clearAuth({ preservePendingAuthSession: pendingAuthSession.value !== null })
+      }
+      throw error
+    } finally { stop() }
+  }
+
   /**
    * Clear all authentication state
    * Internal helper function
@@ -515,6 +539,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     checkAuth,
     refreshUser,
+    refreshUserIfCurrent,
     setPendingAuthSession,
     clearPendingAuthSession
   }

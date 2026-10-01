@@ -366,6 +366,67 @@ describe('useAuthStore', () => {
     })
   })
 
+  describe('refreshUserIfCurrent', () => {
+    async function authenticated() {
+      mockLogin.mockResolvedValue(fakeAuthResponse)
+      const store = useAuthStore()
+      await store.login({ email: 'test@example.com', password: '123456' })
+      return store
+    }
+    it('updates only the captured authenticated user', async () => {
+      const store = await authenticated()
+      const updated = { ...fakeUser, balance: 42 }
+      mockGetCurrentUser.mockResolvedValueOnce({ data: updated })
+      expect(await store.refreshUserIfCurrent(1)).toEqual(updated)
+      expect(store.user?.balance).toBe(42)
+      expect(JSON.parse(localStorage.getItem('auth_user')!).balance).toBe(42)
+    })
+    it('does not request another user identity', async () => {
+      const store = await authenticated()
+      expect(await store.refreshUserIfCurrent(2)).toBeNull()
+      expect(mockGetCurrentUser).not.toHaveBeenCalled()
+    })
+    it('ignores a response whose subject differs from the captured user', async () => {
+      const store = await authenticated()
+      mockGetCurrentUser.mockResolvedValueOnce({ data: fakeAdminUser })
+      expect(await store.refreshUserIfCurrent(1)).toBeNull()
+      expect(store.user).toEqual(fakeUser)
+      expect(JSON.parse(localStorage.getItem('auth_user')!)).toEqual(fakeUser)
+    })
+    it('does not overwrite a switched account with a late response', async () => {
+      const store = await authenticated()
+      let resolve!: (value: unknown) => void
+      mockGetCurrentUser.mockReturnValueOnce(new Promise(r => { resolve = r }))
+      const pending = store.refreshUserIfCurrent(1)
+      store.token = 'other-token'; store.user = { ...fakeAdminUser }
+      resolve({ data: { ...fakeUser, balance: 42 } })
+      expect(await pending).toBeNull()
+      expect(store.user).toEqual(fakeAdminUser)
+      expect(store.token).toBe('other-token')
+    })
+    it('invalidates a request even when the same UID and token are restored in one tick', async () => {
+      const store = await authenticated()
+      let resolve!: (value: unknown) => void
+      mockGetCurrentUser.mockReturnValueOnce(new Promise(r => { resolve = r }))
+      const pending = store.refreshUserIfCurrent(1)
+      store.user = { ...fakeAdminUser }; store.user = { ...fakeUser }
+      resolve({ data: { ...fakeUser, balance: 42 } })
+      expect(await pending).toBeNull()
+      expect(store.user?.balance).toBe(100)
+    })
+    it('does not clear a new account for the old request 401', async () => {
+      const store = await authenticated()
+      let reject!: (error: unknown) => void
+      mockGetCurrentUser.mockReturnValueOnce(new Promise((_, r) => { reject = r }))
+      const pending = store.refreshUserIfCurrent(1)
+      store.token = 'other-token'; store.user = { ...fakeAdminUser }
+      reject({ status: 401 })
+      await expect(pending).rejects.toEqual({ status: 401 })
+      expect(store.user).toEqual(fakeAdminUser)
+      expect(store.token).toBe('other-token')
+    })
+  })
+
   // --- isSimpleMode ---
 
   describe('isSimpleMode', () => {

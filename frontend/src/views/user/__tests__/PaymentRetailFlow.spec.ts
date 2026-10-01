@@ -12,8 +12,8 @@ const routeState = vi.hoisted(() => ({ path: '/purchase', query: {} as Record<st
 vi.mock('vue-router', () => ({ useRoute: () => routeState, useRouter: () => ({ resolve: () => ({ href: '/payment/result' }), replace: vi.fn(), push: vi.fn() }) }))
 vi.mock('@/api/payment', () => ({ paymentAPI: { quote: api.quote, getCheckoutInfo: api.checkout } }))
 vi.mock('@/stores/payment', () => ({ usePaymentStore: () => ({ createOrder: api.createOrder }) }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { username: 'tester', balance: 0 }, refreshUser: vi.fn() }) }))
-vi.mock('@/stores/subscriptions', () => ({ useSubscriptionStore: () => ({ activeSubscriptions: [], fetchActiveSubscriptions: vi.fn().mockResolvedValue(undefined) }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { id: 7, username: 'tester', balance: 0 }, refreshUser: vi.fn() }) }))
+vi.mock('@/stores/subscriptions', () => ({ useSubscriptionStore: () => ({ activeSubscriptions: [], clear: vi.fn(), fetchActiveSubscriptionsIfCurrent: vi.fn().mockResolvedValue(undefined), fetchActiveSubscriptions: vi.fn().mockResolvedValue(undefined) }) }))
 vi.mock('@/stores', () => ({ useAppStore: () => ({ cachedPublicSettings: { subscription_enabled: false }, showError: api.showError, showWarning: api.showWarning, showInfo: vi.fn() }) }))
 vi.mock('@/utils/device', () => ({ isMobileDevice: () => true }))
 

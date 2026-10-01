@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './client'
+import type { BalanceSubscriptionRequest, BalanceSubscriptionResult } from '@/types/payment'
 import type {
   PaymentConfig,
   SubscriptionPlan,
@@ -39,6 +40,10 @@ export const paymentAPI = {
   /** Get available subscription plans */
   getPlans() {
     return apiClient.get<SubscriptionPlan[]>('/payment/plans')
+  },
+
+  buySubscriptionWithBalance(data: BalanceSubscriptionRequest) {
+    return apiClient.post<BalanceSubscriptionResult>('/payment/subscription/balance', data)
   },
 
   /** Get all checkout page data in a single call */

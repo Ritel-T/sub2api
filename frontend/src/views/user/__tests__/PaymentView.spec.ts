@@ -58,6 +58,7 @@ vi.mock('vue-i18n', async () => {
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     user: {
+      id: 7,
       username: 'demo-user',
       balance: 0,
     },
@@ -74,6 +75,9 @@ vi.mock('@/stores/payment', () => ({
 vi.mock('@/stores/subscriptions', () => ({
   useSubscriptionStore: () => ({
     activeSubscriptions: [],
+    ownerUserId: 7,
+    clear: vi.fn(),
+    fetchActiveSubscriptionsIfCurrent: fetchActiveSubscriptions,
     fetchActiveSubscriptions,
   }),
 }))

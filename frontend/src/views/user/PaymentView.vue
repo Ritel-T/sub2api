@@ -124,6 +124,8 @@
           </template>
           <!-- Subscribe Tab -->
           <template v-else-if="activeTab === 'subscription'">
+            <p v-if="balancePurchaseSuccess" class="rounded-lg theme-info-panel border p-4 text-sm" role="status">{{ balancePurchaseSuccess }}</p>
+            <p v-if="errorMessage && (!pendingBalancePurchase || errorMessage !== t('paymentRetail.balanceSubscription.pending'))" class="rounded-lg border border-amber-200 p-4 text-sm text-amber-700 dark:border-amber-800 dark:text-amber-300" role="alert">{{ errorMessage }}</p>
             <!-- Subscription confirm (inline, replaces plan list) -->
             <template v-if="selectedPlan">
               <div class="card p-5">
@@ -178,14 +180,24 @@
                   </div>
                 </div>
               </div>
-              <div v-if="enabledMethods.length >= 1" class="card p-6">
+              <div v-if="balanceSubscriptionPurchase" data-test="balance-subscription-summary" class="card space-y-3 p-6 text-sm">
+                <p>{{ t('paymentRetail.balanceSubscription.notice') }}</p>
+                <div class="flex justify-between"><span>{{ t('paymentRetail.balanceSubscription.available') }}</span><span>${{ (user?.balance ?? 0).toFixed(2) }}</span></div>
+                <div class="flex justify-between font-semibold"><span>{{ t('paymentRetail.balanceSubscription.debit') }}</span><span>${{ selectedPlan.price.toFixed(2) }}</span></div>
+                <p v-if="pendingBalancePurchase" role="status" class="text-amber-700 dark:text-amber-300">{{ t('paymentRetail.balanceSubscription.pending') }}</p>
+                <template v-else-if="!hasSubscriptionBalance">
+                  <p class="text-amber-700 dark:text-amber-300">{{ t('paymentRetail.balanceSubscription.insufficient') }}</p>
+                  <button class="btn btn-secondary" data-test="subscription-top-up" @click="topUpForSubscription">{{ t('paymentRetail.balanceSubscription.recharge') }}</button>
+                </template>
+              </div>
+              <div v-else-if="enabledMethods.length >= 1" class="card p-6">
                 <PaymentMethodSelector
                   :methods="subMethodOptions"
                   :selected="selectedMethod"
                   @select="selectedMethod = $event"
                 />
               </div>
-              <div v-if="feeRate > 0 && selectedPlan.price > 0" class="card p-6">
+              <div v-if="!balanceSubscriptionPurchase && feeRate > 0 && selectedPlan.price > 0" class="card p-6">
                 <div class="space-y-2 text-sm">
                   <div class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
@@ -201,14 +213,15 @@
                   </div>
                 </div>
               </div>
-              <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmitSubscription || submitting" @click="confirmSubscribe">
+              <button data-test="confirm-subscription" :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmitSubscription || submitting" @click="confirmSubscribe">
                 <span v-if="submitting" class="flex items-center justify-center gap-2">
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                   {{ t('common.processing') }}
                 </span>
+                <span v-else-if="balanceSubscriptionPurchase">{{ t(pendingBalancePurchase ? 'paymentRetail.balanceSubscription.retry' : 'paymentRetail.balanceSubscription.buy') }} ${{ selectedPlan.price.toFixed(2) }}</span>
                 <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
               </button>
-              <button class="btn btn-secondary w-full" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
+              <button class="btn btn-secondary w-full" :disabled="!!pendingBalancePurchase || submitting" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
             </template>
             <!-- Plan list -->
             <template v-else>
@@ -285,7 +298,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -322,6 +335,7 @@ import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import RetailQuoteSummary from '@/components/payment/RetailQuoteSummary.vue'
 import { useRetailQuote } from '@/components/payment/useRetailQuote'
 import { isRetailQuote } from '@/components/payment/retailQuote'
+import { newBalancePurchase, readBalancePurchase, saveBalancePurchase, clearBalancePurchase, type PendingBalancePurchase } from '@/components/payment/balanceSubscriptionPurchase'
 import Icon from '@/components/icons/Icon.vue'
 import { DEFAULT_PAYMENT_CURRENCY, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import { planValiditySuffix as validitySuffixOf } from '@/components/payment/validity'
@@ -339,7 +353,8 @@ const subscriptionStore = useSubscriptionStore()
 const appStore = useAppStore()
 
 const user = computed(() => authStore.user)
-const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
+const activeSubscriptions = computed(() => subscriptionStore.ownerUserId === user.value?.id
+  ? subscriptionStore.activeSubscriptions.filter(sub => sub.user_id === user.value?.id) : [])
 
 function getDaysRemaining(expiresAt: string): number {
   const diff = new Date(expiresAt).getTime() - Date.now()
@@ -362,6 +377,29 @@ const activeTab = ref<'recharge' | 'subscription'>('recharge')
 const amount = ref<number | null>(null)
 const selectedMethod = ref('')
 const selectedPlan = ref<SubscriptionPlan | null>(null)
+const pendingBalancePurchase = ref<PendingBalancePurchase | null>(null)
+const balancePurchaseSuccess = ref('')
+let sessionGeneration = 0
+let disposed = false
+const captureSession = () => ({ userId: user.value?.id ?? 0, token: authStore.token, generation: sessionGeneration })
+const isCurrentSession = (session: ReturnType<typeof captureSession>) => !disposed
+  && session.generation === sessionGeneration && user.value?.id === session.userId && authStore.token === session.token
+watch([() => user.value?.id, () => authStore.token], () => {
+  sessionGeneration++
+  pendingBalancePurchase.value = null
+  selectedPlan.value = null
+  balancePurchaseSuccess.value = ''
+  errorMessage.value = ''
+  errorHintMessage.value = ''
+  subscriptionStore.clear()
+  const session = captureSession()
+  queueMicrotask(() => {
+    if (isCurrentSession(session) && session.userId > 0 && session.token && !loading.value && subscriptionEnabled.value) {
+      subscriptionStore.fetchActiveSubscriptionsIfCurrent(session.userId).catch(() => {})
+    }
+  })
+}, { flush: 'sync' })
+onBeforeUnmount(() => { disposed = true; sessionGeneration++ })
 const previewImage = ref('')
 const retailWechatOpenid = ref('')
 
@@ -673,6 +711,7 @@ function formatSelectedPaymentAmount(value: number): string {
 }
 
 function formatSelectedSubscriptionPaymentAmount(value: number): string {
+  if (balanceSubscriptionPurchase.value) return formatPaymentAmount(value, 'CNY', localeCode.value)
   return formatSelectedPaymentAmount(subscriptionPaymentAmountForCurrency(value, selectedCurrency.value))
 }
 
@@ -771,11 +810,25 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
 })
 
 const canSubmitSubscription = computed(() =>
+  balanceSubscriptionPurchase.value
+    ? !!pendingBalancePurchase.value || hasSubscriptionBalance.value
+    :
   selectedPlan.value !== null
     && selectedMethod.value !== 'squarespace'
     && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
+
+const balanceSubscriptionPurchase = computed(() => retailPricingEnabled.value && selectedPlan.value?.currency === 'CNY')
+const hasSubscriptionBalance = computed(() => !!selectedPlan.value && (user.value?.balance ?? 0) >= selectedPlan.value.price)
+
+function topUpForSubscription() {
+  if (!selectedPlan.value || pendingBalancePurchase.value) return
+  amount.value = Math.ceil(Math.max(globalMinAmount.value, selectedPlan.value.price - (user.value?.balance ?? 0)) * 100) / 100
+  selectedPlan.value = null
+  activeTab.value = 'recharge'
+  selectedMethod.value = enabledMethods.value.includes('squarespace') ? 'squarespace' : enabledMethods.value[0] || ''
+}
 
 watch([activeTab, selectedPlan], () => {
   if (activeTab.value !== 'subscription' || selectedMethod.value !== 'squarespace') return
@@ -826,15 +879,17 @@ function planPeakRateLabel(plan: SubscriptionPlan): string {
 }
 
 function selectPlan(plan: SubscriptionPlan) {
-  selectedPlan.value = plan
+  balancePurchaseSuccess.value = ''
+  const pending = readBalancePurchase(user.value?.id ?? 0)
+  pendingBalancePurchase.value = pending
+  selectedPlan.value = pending?.plan ?? plan
   errorMessage.value = ''
 }
 
 function selectPlanFromModal(plan: SubscriptionPlan) {
   showRenewalModal.value = false
   renewGroupId.value = null
-  selectedPlan.value = plan
-  errorMessage.value = ''
+  selectPlan(plan)
 }
 
 function closeRenewalModal() {
@@ -855,7 +910,57 @@ async function handleSubmitRecharge() {
 }
 
 async function confirmSubscribe() {
-  if (!selectedPlan.value || submitting.value) return
+  if (!selectedPlan.value || submitting.value || !canSubmitSubscription.value) return
+  if (balanceSubscriptionPurchase.value) {
+    submitting.value = true
+    balancePurchaseSuccess.value = ''
+    errorMessage.value = ''
+    const session = captureSession()
+    try {
+      const pending = pendingBalancePurchase.value ?? newBalancePurchase(session.userId, selectedPlan.value)
+      if (pending.userId !== session.userId || pending.request.expected_user_id !== session.userId) return
+      if (!saveBalancePurchase(pending)) {
+        errorMessage.value = t('paymentRetail.balanceSubscription.storageUnavailable')
+        return
+      }
+      pendingBalancePurchase.value = pending
+      const response = await paymentAPI.buySubscriptionWithBalance(pending.request)
+      if (response.data.status !== 'COMPLETED' || response.data.site_credit_amount !== pending.request.expected_price || response.data.order_id <= 0) throw new Error('Unconfirmed purchase')
+      clearBalancePurchase(session.userId)
+      if (!isCurrentSession(session)) return
+      pendingBalancePurchase.value = null
+      selectedPlan.value = null
+      balancePurchaseSuccess.value = t(response.data.renewed ? 'paymentRetail.balanceSubscription.renewed' : 'paymentRetail.balanceSubscription.success')
+      await authStore.refreshUserIfCurrent(session.userId).catch(() => {})
+      if (!isCurrentSession(session)) return
+      await subscriptionStore.fetchActiveSubscriptionsIfCurrent(session.userId).catch(() => {})
+    } catch (err: unknown) {
+      const reason = (err as { reason?: string }).reason
+      if (!isCurrentSession(session)) return
+      if (['INSUFFICIENT_BALANCE', 'PLAN_PRICE_CHANGED', 'PLAN_NOT_AVAILABLE', 'GROUP_NOT_FOUND', 'PAYMENT_DISABLED', 'USER_INACTIVE', 'INVALID_INPUT', 'PURCHASE_NONCE_CONFLICT'].includes(reason || '')) {
+        clearBalancePurchase(session.userId)
+        pendingBalancePurchase.value = null
+        if (reason === 'PLAN_PRICE_CHANGED' || reason === 'PLAN_NOT_AVAILABLE' || reason === 'GROUP_NOT_FOUND') {
+          selectedPlan.value = null
+          try {
+            const res = await paymentAPI.getCheckoutInfo()
+            if (!isCurrentSession(session)) return
+            checkout.value = res.data
+          } catch { /* Keep the error visible. */ }
+          if (!isCurrentSession(session)) return
+          errorMessage.value = t('paymentRetail.balanceSubscription.changed')
+        } else {
+          errorMessage.value = reason === 'INSUFFICIENT_BALANCE' ? t('paymentRetail.balanceSubscription.insufficient') : t('common.error')
+        }
+        await authStore.refreshUserIfCurrent(session.userId).catch(() => {})
+      } else if (pendingBalancePurchase.value) {
+        errorMessage.value = t('paymentRetail.balanceSubscription.pending')
+      } else {
+        errorMessage.value = t('paymentRetail.balanceSubscription.storageUnavailable')
+      }
+    } finally { submitting.value = false }
+    return
+  }
   await createOrder(selectedPlan.value.price, 'subscription', selectedPlan.value.id)
 }
 
@@ -1225,8 +1330,10 @@ async function resumeWechatPaymentFromQuery() {
 }
 
 onMounted(async () => {
+  const session = captureSession()
   try {
     const res = await paymentAPI.getCheckoutInfo()
+    if (!isCurrentSession(session)) return
     checkout.value = res.data
     if (enabledMethods.value.length) {
       const order: readonly string[] = METHOD_ORDER
@@ -1263,6 +1370,7 @@ onMounted(async () => {
       }
     }
     await resumeWechatPaymentFromQuery()
+    if (!isCurrentSession(session)) return
     // balance_disabled → the tabs watcher above moves activeTab to the subscription tab (when enabled).
     // Handle renewal navigation: ?tab=subscription&group=123 (ignored when subscriptions are disabled)
     if (route.query.tab === 'subscription' && subscriptionEnabled.value) {
@@ -1278,11 +1386,20 @@ onMounted(async () => {
         }
       }
     }
-  } catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
-  finally { loading.value = false }
+  } catch (err: unknown) { if (isCurrentSession(session)) appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
+  finally { if (isCurrentSession(session)) loading.value = false }
+  if (!isCurrentSession(session)) return
+  const pending = readBalancePurchase(session.userId)
+  if (pending && subscriptionEnabled.value && retailPricingEnabled.value) {
+    pendingBalancePurchase.value = pending
+    selectedPlan.value = pending.plan
+    showRenewalModal.value = false
+    renewGroupId.value = null
+    activeTab.value = 'subscription'
+  }
   // Fetch active subscriptions (uses cache, non-blocking); skipped when the subscription feature is off
   if (subscriptionEnabled.value) {
-    subscriptionStore.fetchActiveSubscriptions().catch(() => {})
+    subscriptionStore.fetchActiveSubscriptionsIfCurrent(session.userId).catch(() => {})
   }
 })
 </script>
