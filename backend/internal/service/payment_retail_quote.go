@@ -284,7 +284,7 @@ func (s *PaymentService) retailQuoteSelection(ctx context.Context, claims *retai
 	if err != nil || !inst.Enabled || inst.ProviderKey != claims.ProviderKey {
 		return nil, infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_CHANGED", "quoted payment provider is unavailable")
 	}
-	if !(inst.ProviderKey == payment.TypeStripe && claims.PaymentType == payment.TypeStripe) && !payment.InstanceSupportsType(inst.SupportedTypes, claims.PaymentType) {
+	if (inst.ProviderKey != payment.TypeStripe || claims.PaymentType != payment.TypeStripe) && !payment.InstanceSupportsType(inst.SupportedTypes, claims.PaymentType) {
 		return nil, infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_CHANGED", "quoted provider no longer supports this method")
 	}
 	config, err := s.configService.decryptConfig(inst.Config)
@@ -508,7 +508,7 @@ func validateSquarespaceRetailMetadata(order *dbent.PaymentOrder, metadata map[s
 	quote := PaymentOrderRetailQuote(order)
 	snapshot := psOrderProviderSnapshot(order)
 	if quote == nil || snapshot == nil || snapshot.MerchantID == "" {
-		return fmt.Errorf("Squarespace payment requires a retail quote and pinned website")
+		return fmt.Errorf("squarespace payment requires a retail quote and pinned website")
 	}
 	scope, err := frozenSquarespaceOrderScope(order)
 	if err != nil {
@@ -516,18 +516,18 @@ func validateSquarespaceRetailMetadata(order *dbent.PaymentOrder, metadata map[s
 	}
 	if scope["orderScopeMode"] == provider.SquarespaceScopeFixedProduct {
 		if metadata["product_id"] != scope["productId"] {
-			return fmt.Errorf("Squarespace payment product mismatch")
+			return fmt.Errorf("squarespace payment product mismatch")
 		}
 	} else {
 		if metadata["order_scope_mode"] != scope["orderScopeMode"] || metadata["payment_purpose"] != scope["paymentPurpose"] || metadata["expected_service_name"] != scope["expectedServiceName"] {
-			return fmt.Errorf("Squarespace dedicated payment scope mismatch")
+			return fmt.Errorf("squarespace dedicated payment scope mismatch")
 		}
 		if _, err := canonicalSquarespaceProductID(metadata["actual_product_id"]); err != nil {
 			return err
 		}
 	}
 	if metadata["website_id"] != snapshot.MerchantID || metadata["currency"] != "GBP" || quote.Currency != "GBP" || metadata["checkout_reference"] != quote.CheckoutReference {
-		return fmt.Errorf("Squarespace payment website, currency or checkout reference mismatch")
+		return fmt.Errorf("squarespace payment website, currency or checkout reference mismatch")
 	}
 	return ValidateSquarespaceRetailPaymentTimes(quote, metadata)
 }
@@ -556,7 +556,7 @@ func ValidateSquarespaceRetailPaymentTimes(quote *RetailQuote, metadata map[stri
 	for _, timestamp := range times {
 		paidAt, err := time.Parse(time.RFC3339, timestamp)
 		if err != nil || paidAt.Before(quote.IssuedAt) || paidAt.After(quote.ExpiresAt) || paidAt.After(time.Now().Add(time.Minute)) {
-			return fmt.Errorf("Squarespace payment was not made within the quoted price validity window")
+			return fmt.Errorf("squarespace payment was not made within the quoted price validity window")
 		}
 	}
 	return nil
@@ -576,7 +576,7 @@ func (s *PaymentService) createHistoricalSquarespaceProvider(ctx context.Context
 	snapshot := psOrderProviderSnapshot(order)
 	scope, scopeErr := frozenSquarespaceOrderScope(order)
 	if snapshot == nil || snapshot.MerchantID == "" || scopeErr != nil {
-		return nil, fmt.Errorf("Squarespace order has no frozen merchant and scope")
+		return nil, fmt.Errorf("squarespace order has no frozen merchant and scope")
 	}
 	config, err := s.loadBalancer.GetInstanceConfig(ctx, instance.ID)
 	if err != nil {
