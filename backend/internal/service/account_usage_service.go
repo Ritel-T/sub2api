@@ -134,22 +134,24 @@ func NewUsageCache() *UsageCache {
 // WindowStats 窗口期统计
 //
 // cost: 既有账号统计口径（可含自定义定价和账号倍率）
-// api_equivalent_cost: 官方价格可核对部分的小计；缺价数非零时是下界。
+// api_equivalent_cost: 官方价格及 codex-auto-review 内部原价的小计；缺价数非零时是下界。
 // standard_cost: 标准费用（total_cost，不含倍率）
 // user_cost: 用户/API Key 口径费用（actual_cost，受分组倍率影响）
 type WindowStats struct {
-	Requests                      int64    `json:"requests"`
-	Tokens                        int64    `json:"tokens"`
-	Cost                          float64  `json:"cost"`
-	StandardCost                  float64  `json:"standard_cost"`
-	UserCost                      float64  `json:"user_cost"`
-	APIEquivalentCost             *float64 `json:"api_equivalent_cost"`
-	APIEquivalentUnpricedRequests int64    `json:"api_equivalent_unpriced_requests"`
+	Requests                            int64    `json:"requests"`
+	Tokens                              int64    `json:"tokens"`
+	Cost                                float64  `json:"cost"`
+	StandardCost                        float64  `json:"standard_cost"`
+	UserCost                            float64  `json:"user_cost"`
+	APIEquivalentCost                   *float64 `json:"api_equivalent_cost"`
+	APIEquivalentUnpricedRequests       int64    `json:"api_equivalent_unpriced_requests"`
+	APIEquivalentInternalPricedRequests int64    `json:"api_equivalent_internal_priced_requests"`
 	// Lifetime totals (no time filter); only populated by today-stats queries.
-	LifetimeTokens                        int64    `json:"lifetime_tokens,omitempty"`
-	LifetimeCost                          float64  `json:"lifetime_cost,omitempty"`
-	LifetimeAPIEquivalentCost             *float64 `json:"lifetime_api_equivalent_cost"`
-	LifetimeAPIEquivalentUnpricedRequests int64    `json:"lifetime_api_equivalent_unpriced_requests"`
+	LifetimeTokens                              int64    `json:"lifetime_tokens,omitempty"`
+	LifetimeCost                                float64  `json:"lifetime_cost,omitempty"`
+	LifetimeAPIEquivalentCost                   *float64 `json:"lifetime_api_equivalent_cost"`
+	LifetimeAPIEquivalentUnpricedRequests       int64    `json:"lifetime_api_equivalent_unpriced_requests"`
+	LifetimeAPIEquivalentInternalPricedRequests int64    `json:"lifetime_api_equivalent_internal_priced_requests"`
 }
 
 // UsageProgress 使用量进度
@@ -1491,13 +1493,14 @@ func windowStatsFromAccountStats(stats *usagestats.AccountStats) *WindowStats {
 		return &WindowStats{}
 	}
 	return &WindowStats{
-		Requests:                      stats.Requests,
-		Tokens:                        stats.Tokens,
-		Cost:                          stats.Cost,
-		StandardCost:                  stats.StandardCost,
-		UserCost:                      stats.UserCost,
-		APIEquivalentCost:             stats.APIEquivalentCost,
-		APIEquivalentUnpricedRequests: stats.APIEquivalentUnpricedRequests,
+		Requests:                            stats.Requests,
+		Tokens:                              stats.Tokens,
+		Cost:                                stats.Cost,
+		StandardCost:                        stats.StandardCost,
+		UserCost:                            stats.UserCost,
+		APIEquivalentCost:                   stats.APIEquivalentCost,
+		APIEquivalentUnpricedRequests:       stats.APIEquivalentUnpricedRequests,
+		APIEquivalentInternalPricedRequests: stats.APIEquivalentInternalPricedRequests,
 	}
 }
 
@@ -1509,6 +1512,7 @@ func attachLifetimeStats(ws *WindowStats, lifetime *usagestats.AccountStats) {
 	ws.LifetimeCost = lifetime.Cost
 	ws.LifetimeAPIEquivalentCost = lifetime.APIEquivalentCost
 	ws.LifetimeAPIEquivalentUnpricedRequests = lifetime.APIEquivalentUnpricedRequests
+	ws.LifetimeAPIEquivalentInternalPricedRequests = lifetime.APIEquivalentInternalPricedRequests
 }
 
 func buildCodexUsageProgressFromExtra(extra map[string]any, window string, now time.Time) *UsageProgress {

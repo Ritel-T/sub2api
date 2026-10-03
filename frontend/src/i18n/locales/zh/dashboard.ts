@@ -371,6 +371,7 @@ export default {
     accountBilled: '账号计费',
     apiEquivalentCost: 'API 原价等值',
     apiEquivalentCostTooltip: 'API 原价等值：按记录的模型、输入、缓存、输出 Token 和适用的长上下文规则，以官方 API 价格折算；不代表 Pro 订阅实际扣费。',
+    apiEquivalentInternalPriced: '其中 {count} 条 codex-auto-review 请求按 Sub2API 内部设定的原价计入。',
     apiEquivalentUnpriced: '未计价请求：{count}。',
     apiEquivalentPartial: '金额仅包含已计价请求。',
     apiEquivalentUnavailable: '暂无可用的 API 原价等值。',

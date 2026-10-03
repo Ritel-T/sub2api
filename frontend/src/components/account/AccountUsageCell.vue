@@ -544,6 +544,7 @@
             class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
             :cost="todayStats.api_equivalent_cost"
             :unpriced-requests="todayStats.api_equivalent_unpriced_requests"
+            :internal-priced-requests="todayStats.api_equivalent_internal_priced_requests"
           />
             <span
               v-if="todayStats.user_cost != null"
@@ -634,6 +635,7 @@
             class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
             :cost="todayStats.api_equivalent_cost"
             :unpriced-requests="todayStats.api_equivalent_unpriced_requests"
+            :internal-priced-requests="todayStats.api_equivalent_internal_priced_requests"
           />
           <span
             v-if="todayStats.user_cost != null"

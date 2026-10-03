@@ -299,6 +299,7 @@ func (r *usageLogRepository) GetAccountTodayStats(ctx context.Context, accountID
 		&stats.UserCost,
 		&stats.APIEquivalentCost,
 		&stats.APIEquivalentUnpricedRequests,
+		&stats.APIEquivalentInternalPricedRequests,
 	); err != nil {
 		return nil, err
 	}
@@ -330,6 +331,7 @@ func (r *usageLogRepository) GetAccountWindowStats(ctx context.Context, accountI
 		&stats.UserCost,
 		&stats.APIEquivalentCost,
 		&stats.APIEquivalentUnpricedRequests,
+		&stats.APIEquivalentInternalPricedRequests,
 	); err != nil {
 		return nil, err
 	}
@@ -373,6 +375,7 @@ func (r *usageLogRepository) GetAccountWindowStatsBatch(ctx context.Context, acc
 			&stats.UserCost,
 			&stats.APIEquivalentCost,
 			&stats.APIEquivalentUnpricedRequests,
+			&stats.APIEquivalentInternalPricedRequests,
 		); err != nil {
 			return nil, err
 		}

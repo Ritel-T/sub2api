@@ -1440,10 +1440,12 @@ export interface WindowStats {
   requests: number
   tokens: number
   cost: number // Account cost (account multiplier)
-  api_equivalent_cost?: number | null // Official API list-price equivalent; null when unavailable
+  api_equivalent_cost?: number | null // API list-price equivalent; codex-auto-review uses its recorded internal price
   api_equivalent_unpriced_requests?: number // Requests excluded because pricing or usage is unavailable
+  api_equivalent_internal_priced_requests?: number // codex-auto-review requests priced at the internal rate
   lifetime_api_equivalent_cost?: number | null
   lifetime_api_equivalent_unpriced_requests?: number
+  lifetime_api_equivalent_internal_priced_requests?: number
   standard_cost?: number
   user_cost?: number
   lifetime_tokens?: number // All-time totals (no time filter)

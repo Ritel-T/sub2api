@@ -34,6 +34,27 @@ describe('API list-price equivalent display', () => {
     expect(title).toContain(locale === 'zh' ? '不代表 Pro 订阅实际扣费' : 'does not represent actual Pro subscription charges')
   })
 
+  it.each(['zh', 'en'])('reports internal review pricing honestly in %s', (locale) => {
+    const wrapper = mount(ApiEquivalentCost, {
+      props: { cost: 1421.37971388, unpricedRequests: 0, internalPricedRequests: 2 },
+      global: { plugins: [i18n(locale)] }
+    })
+    expect(wrapper.text()).toBe('A $1421.38')
+    const title = wrapper.attributes('title')
+    expect(title).toContain(locale === 'zh'
+      ? '其中 2 条 codex-auto-review 请求按 Sub2API 内部设定的原价计入'
+      : 'Includes 2 codex-auto-review requests at the recorded Sub2API internal base price')
+    expect(title).not.toContain(locale === 'zh' ? '未计价请求' : 'Unpriced requests')
+  })
+
+  it('does not describe ordinary official-price rows as internally priced', () => {
+    const wrapper = mount(ApiEquivalentCost, {
+      props: { cost: .01, internalPricedRequests: 0 },
+      global: { plugins: [i18n()] }
+    })
+    expect(wrapper.attributes('title')).not.toContain('codex-auto-review')
+  })
+
   it('marks a known subtotal as partial and reports unpriced requests', () => {
     const wrapper = mount(ApiEquivalentCost, {
       props: { cost: 1421.375, unpricedRequests: 2 },
@@ -68,8 +89,8 @@ describe('API list-price equivalent display', () => {
         stats: {
           requests: 1700, tokens: 558800000,
           cost: 836, lifetime_cost: 940,
-          api_equivalent_cost: 1421.375, api_equivalent_unpriced_requests: 2,
-          lifetime_api_equivalent_cost: 2421.375, lifetime_api_equivalent_unpriced_requests: 3
+          api_equivalent_cost: 1421.375, api_equivalent_unpriced_requests: 2, api_equivalent_internal_priced_requests: 4,
+          lifetime_api_equivalent_cost: 2421.375, lifetime_api_equivalent_unpriced_requests: 3, lifetime_api_equivalent_internal_priced_requests: 5
         }
       },
       global: { plugins: [i18n()] }
@@ -80,6 +101,8 @@ describe('API list-price equivalent display', () => {
     expect(costs.map(cost => cost.text())).toEqual(['≥$1421.38', '≥$2421.38'])
     expect(costs[0].attributes('title')).toContain('未计价请求：2')
     expect(costs[1].attributes('title')).toContain('未计价请求：3')
+    expect(costs[0].attributes('title')).toContain('其中 4 条 codex-auto-review')
+    expect(costs[1].attributes('title')).toContain('其中 5 条 codex-auto-review')
     expect(wrapper.text()).not.toContain('$836')
     expect(wrapper.text()).not.toContain('$940')
   })

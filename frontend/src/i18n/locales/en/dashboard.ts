@@ -366,6 +366,7 @@ export default {
     accountBilled: 'Account billed',
     apiEquivalentCost: 'API list-price equivalent',
     apiEquivalentCostTooltip: 'API list-price equivalent: calculated from recorded models, input, cache and output tokens, including applicable long-context rates, at official API prices. It does not represent actual Pro subscription charges.',
+    apiEquivalentInternalPriced: 'Includes {count} codex-auto-review requests at the recorded Sub2API internal base price.',
     apiEquivalentUnpriced: 'Unpriced requests: {count}.',
     apiEquivalentPartial: 'The amount includes priced requests only.',
     apiEquivalentUnavailable: 'API list-price equivalent is unavailable.',

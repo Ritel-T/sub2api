@@ -33,6 +33,7 @@
           prefix=""
           :cost="props.stats.api_equivalent_cost"
           :unpriced-requests="props.stats.api_equivalent_unpriced_requests"
+          :internal-priced-requests="props.stats.api_equivalent_internal_priced_requests"
         />
       </div>
       <div class="flex items-center gap-1">
@@ -42,6 +43,7 @@
           prefix=""
           :cost="props.stats.lifetime_api_equivalent_cost"
           :unpriced-requests="props.stats.lifetime_api_equivalent_unpriced_requests"
+          :internal-priced-requests="props.stats.lifetime_api_equivalent_internal_priced_requests"
         />
       </div>
     </div>

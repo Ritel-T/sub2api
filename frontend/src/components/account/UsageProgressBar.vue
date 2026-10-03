@@ -16,6 +16,7 @@
           class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
           :cost="windowStats.api_equivalent_cost"
           :unpriced-requests="windowStats.api_equivalent_unpriced_requests"
+          :internal-priced-requests="windowStats.api_equivalent_internal_priced_requests"
         />
         <span
           v-if="windowStats?.user_cost != null"

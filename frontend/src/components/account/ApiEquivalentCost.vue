@@ -10,6 +10,7 @@ const props = withDefaults(
   defineProps<{
     cost?: number | null
     unpricedRequests?: number
+    internalPricedRequests?: number
     prefix?: string
   }>(),
   { prefix: 'A ' }
@@ -29,6 +30,10 @@ const displayCost = computed(() => {
 })
 const tooltip = computed(() => {
   const details = [t('usage.apiEquivalentCostTooltip')]
+  const internalPricedRequests = Math.max(0, Math.trunc(props.internalPricedRequests ?? 0))
+  if (internalPricedRequests > 0) {
+    details.push(t('usage.apiEquivalentInternalPriced', { count: internalPricedRequests }))
+  }
   if (unpricedRequests.value > 0) {
     details.push(t('usage.apiEquivalentUnpriced', { count: unpricedRequests.value }))
   }

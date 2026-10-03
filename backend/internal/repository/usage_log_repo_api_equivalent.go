@@ -22,7 +22,8 @@ import (
 // https://docs.x.ai/developers/pricing
 // https://api-docs.deepseek.com/quick_start/pricing/
 // DeepSeek entries are off-peak rates; request UTC time determines a 2x peak.
-// Unknown model, tier and media prices remain unpriced, never retail fallbacks.
+// Unknown model, tier and media prices remain unpriced. The operator-authorized
+// codex-auto-review exception uses its persisted pre-multiplier internal price.
 type apiEquivalentPrice struct {
 	model                                                         string
 	input, cachedInput, output, cacheWrite5m, cacheWrite1h        float64
@@ -101,17 +102,17 @@ func accountAPIEquivalentRowsCTE(where string) string {
  context_threshold, context_inclusive, context_input, context_output, priority, flex, batch, ultrafast, peak_utc) AS (VALUES ` + strings.Join(values, ",") + `),
  api_equivalent_rows AS (
  SELECT ul.*, CASE
+  WHEN validity.unsupported_usage THEN NULL
+  -- This exact internal model has no public price card. Use the price persisted
+  -- on the request, before user/group and account-statistics multipliers.
+  WHEN validity.internally_priced THEN ul.total_cost
+  WHEN recorded_model.name = 'codex-auto-review' THEN NULL
   -- Tokenless station per-request fees are not provider token consumption.
   WHEN input_tokens = 0 AND output_tokens = 0 AND cache_creation_tokens = 0
    AND cache_read_tokens = 0 AND image_input_tokens = 0 AND image_output_tokens = 0
    AND image_count = 0 AND video_count = 0
    AND COALESCE(billing_mode, '') NOT IN ('image', 'video') THEN 0::numeric
-  WHEN p.model IS NULL OR image_input_tokens <> 0 OR image_output_tokens <> 0
-   OR image_count <> 0 OR video_count <> 0 OR COALESCE(billing_mode, '') IN ('image', 'video')
-   OR input_tokens < 0 OR output_tokens < 0 OR cache_creation_tokens < 0 OR cache_read_tokens < 0
-   OR cache_creation_5m_tokens < 0 OR cache_creation_1h_tokens < 0
-   OR cache_creation_5m_tokens::bigint + cache_creation_1h_tokens > cache_creation_tokens
-   OR (cache_creation_tokens > 0 AND p.write5_price = 0) THEN NULL
+  WHEN p.model IS NULL OR (cache_creation_tokens > 0 AND p.write5_price = 0) THEN NULL
   ELSE (
    (input_tokens * p.input_price + (cache_creation_tokens - cache_creation_1h_tokens) * p.write5_price
      + cache_creation_1h_tokens * p.write1_price + cache_read_tokens * p.cache_price)
@@ -127,14 +128,25 @@ func accountAPIEquivalentRowsCTE(where string) string {
    AND (((ul.created_at AT TIME ZONE 'UTC')::time >= '01:00'::time AND (ul.created_at AT TIME ZONE 'UTC')::time < '04:00'::time)
     OR ((ul.created_at AT TIME ZONE 'UTC')::time >= '06:00'::time AND (ul.created_at AT TIME ZONE 'UTC')::time < '10:00'::time))
    THEN 2 ELSE 1 END
- END AS api_equivalent_row_cost
+ END AS api_equivalent_row_cost,
+ (NOT validity.unsupported_usage AND validity.internally_priced) AS api_equivalent_row_internal_priced
  FROM usage_logs ul
- CROSS JOIN LATERAL (SELECT REGEXP_REPLACE(REGEXP_REPLACE(
-  LOWER(COALESCE(NULLIF(TRIM(ul.upstream_response_model), ''), NULLIF(TRIM(ul.upstream_model), ''), TRIM(ul.model))),
+ CROSS JOIN LATERAL (SELECT LOWER(COALESCE(NULLIF(TRIM(ul.upstream_response_model), ''),
+  NULLIF(TRIM(ul.upstream_model), ''), TRIM(ul.model))) AS name) recorded_model
+ CROSS JOIN LATERAL (SELECT REGEXP_REPLACE(REGEXP_REPLACE(recorded_model.name,
   '-[0-9]{4}-?[0-9]{2}-?[0-9]{2}$', ''),
   '-(none|minimal|low|medium|high|xhigh|max|ultra)$', '') AS name) effective_model
  LEFT JOIN api_equivalent_pricing p ON p.model = CASE WHEN LEFT(effective_model.name, 7) = 'claude-'
   THEN REPLACE(effective_model.name, '.', '-') ELSE effective_model.name END
+ CROSS JOIN LATERAL (SELECT
+  (image_input_tokens <> 0 OR image_output_tokens <> 0 OR image_count <> 0 OR video_count <> 0
+   OR COALESCE(billing_mode, '') IN ('image', 'video')
+   OR input_tokens < 0 OR output_tokens < 0 OR cache_creation_tokens < 0 OR cache_read_tokens < 0
+   OR cache_creation_5m_tokens < 0 OR cache_creation_1h_tokens < 0
+   OR cache_creation_5m_tokens::bigint + cache_creation_1h_tokens > cache_creation_tokens) AS unsupported_usage,
+  (recorded_model.name = 'codex-auto-review' AND ul.total_cost >= 0
+   AND ul.total_cost NOT IN ('NaN'::numeric, 'Infinity'::numeric, '-Infinity'::numeric)) AS internally_priced
+ ) validity
  CROSS JOIN LATERAL (SELECT p.context_threshold > 0 AND (
    (input_tokens::bigint + cache_creation_tokens + cache_read_tokens) > p.context_threshold
    OR (p.context_inclusive AND (input_tokens::bigint + cache_creation_tokens + cache_read_tokens) = p.context_threshold)
@@ -149,4 +161,5 @@ func apiEquivalentNumber(value float64) string {
 
 const accountAPIEquivalentAggregate = `,
  CASE WHEN COUNT(*) = 0 THEN 0::numeric ELSE SUM(api_equivalent_row_cost) END AS api_equivalent_cost,
- COUNT(*) FILTER (WHERE api_equivalent_row_cost IS NULL) AS api_equivalent_unpriced_requests`
+ COUNT(*) FILTER (WHERE api_equivalent_row_cost IS NULL) AS api_equivalent_unpriced_requests,
+ COUNT(*) FILTER (WHERE api_equivalent_row_internal_priced) AS api_equivalent_internal_priced_requests`

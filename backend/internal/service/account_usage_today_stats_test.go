@@ -49,10 +49,10 @@ func TestGetTodayStatsIncludesLifetimeTotals(t *testing.T) {
 	t.Parallel()
 	repo := &todayStatsWindowRepoStub{
 		today: map[int64]*usagestats.AccountStats{
-			3: {Requests: 10, Tokens: 1000, Cost: 1.25, StandardCost: 1.25, UserCost: 1.25, APIEquivalentCost: &todayEquivalent, APIEquivalentUnpricedRequests: 1},
+			3: {Requests: 10, Tokens: 1000, Cost: 1.25, StandardCost: 1.25, UserCost: 1.25, APIEquivalentCost: &todayEquivalent, APIEquivalentUnpricedRequests: 1, APIEquivalentInternalPricedRequests: 3},
 		},
 		lifetime: map[int64]*usagestats.AccountStats{
-			3: {Requests: 50, Tokens: 800000000, Cost: 1904.56, StandardCost: 1904.56, UserCost: 1904.56, APIEquivalentCost: &lifetimeEquivalent, APIEquivalentUnpricedRequests: 2},
+			3: {Requests: 50, Tokens: 800000000, Cost: 1904.56, StandardCost: 1904.56, UserCost: 1904.56, APIEquivalentCost: &lifetimeEquivalent, APIEquivalentUnpricedRequests: 2, APIEquivalentInternalPricedRequests: 4},
 		},
 	}
 	svc := &AccountUsageService{usageLogRepo: repo}
@@ -64,7 +64,7 @@ func TestGetTodayStatsIncludesLifetimeTotals(t *testing.T) {
 	if got.Tokens != 1000 || got.Cost != 1.25 {
 		t.Fatalf("today stats = tokens %d cost %v, want 1000 / 1.25", got.Tokens, got.Cost)
 	}
-	if got.APIEquivalentCost == nil || *got.APIEquivalentCost != todayEquivalent || got.APIEquivalentUnpricedRequests != 1 || got.LifetimeAPIEquivalentCost == nil || *got.LifetimeAPIEquivalentCost != lifetimeEquivalent || got.LifetimeAPIEquivalentUnpricedRequests != 2 {
+	if got.APIEquivalentCost == nil || *got.APIEquivalentCost != todayEquivalent || got.APIEquivalentUnpricedRequests != 1 || got.APIEquivalentInternalPricedRequests != 3 || got.LifetimeAPIEquivalentCost == nil || *got.LifetimeAPIEquivalentCost != lifetimeEquivalent || got.LifetimeAPIEquivalentUnpricedRequests != 2 || got.LifetimeAPIEquivalentInternalPricedRequests != 4 {
 		t.Fatalf("API equivalent fields not propagated: %+v", got)
 	}
 	if got.LifetimeTokens != 800000000 || got.LifetimeCost != 1904.56 {
@@ -77,11 +77,11 @@ func TestGetTodayStatsBatchIncludesLifetimeTotals(t *testing.T) {
 	t.Parallel()
 	repo := &todayStatsWindowRepoStub{
 		today: map[int64]*usagestats.AccountStats{
-			3: {Tokens: 200, Cost: 2, APIEquivalentCost: &todayEquivalent, APIEquivalentUnpricedRequests: 1},
+			3: {Tokens: 200, Cost: 2, APIEquivalentCost: &todayEquivalent, APIEquivalentUnpricedRequests: 1, APIEquivalentInternalPricedRequests: 3},
 			8: {Tokens: 0, Cost: 0},
 		},
 		lifetime: map[int64]*usagestats.AccountStats{
-			3: {Tokens: 900, Cost: 9.5, APIEquivalentCost: &lifetimeEquivalent, APIEquivalentUnpricedRequests: 3},
+			3: {Tokens: 900, Cost: 9.5, APIEquivalentCost: &lifetimeEquivalent, APIEquivalentUnpricedRequests: 3, APIEquivalentInternalPricedRequests: 5},
 			8: {Tokens: 12, Cost: 0.4},
 		},
 	}
@@ -94,7 +94,7 @@ func TestGetTodayStatsBatchIncludesLifetimeTotals(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("got %d accounts, want 2", len(got))
 	}
-	if got[3].APIEquivalentCost == nil || *got[3].APIEquivalentCost != todayEquivalent || got[3].APIEquivalentUnpricedRequests != 1 || got[3].LifetimeAPIEquivalentCost == nil || *got[3].LifetimeAPIEquivalentCost != lifetimeEquivalent || got[3].LifetimeAPIEquivalentUnpricedRequests != 3 {
+	if got[3].APIEquivalentCost == nil || *got[3].APIEquivalentCost != todayEquivalent || got[3].APIEquivalentUnpricedRequests != 1 || got[3].APIEquivalentInternalPricedRequests != 3 || got[3].LifetimeAPIEquivalentCost == nil || *got[3].LifetimeAPIEquivalentCost != lifetimeEquivalent || got[3].LifetimeAPIEquivalentUnpricedRequests != 3 || got[3].LifetimeAPIEquivalentInternalPricedRequests != 5 {
 		t.Fatalf("API equivalent fields not propagated: %+v", got[3])
 	}
 	if got[3].Tokens != 200 || got[3].LifetimeTokens != 900 || got[3].LifetimeCost != 9.5 {

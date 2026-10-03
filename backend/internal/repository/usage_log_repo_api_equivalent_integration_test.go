@@ -46,8 +46,8 @@ func TestAccountAPIEquivalent_ReadSideHistoricalAndNewRows(t *testing.T) {
 		{name: "deepseek peak at start", log: service.UsageLog{Model: "deepseek-flash", InputTokens: 1000, CacheReadTokens: 1000, OutputTokens: 100, CreatedAt: peakDate.Add(time.Hour)}, want: .000426},
 		{name: "deepseek offpeak at end", log: service.UsageLog{Model: "deepseek-flash", InputTokens: 1000, CacheReadTokens: 1000, OutputTokens: 100, CreatedAt: peakDate.Add(4 * time.Hour)}, want: .000213},
 		{name: "unknown tokenless station fee", log: service.UsageLog{Model: "station-per-request"}, want: 0},
-		{name: "strict unknown codex model", log: service.UsageLog{Model: "codex-auto-review", InputTokens: 1000}, unpriced: true},
-		{name: "unknown observed model cannot use known requested", log: service.UsageLog{Model: "gpt-6-astra", UpstreamResponseModel: str("codex-auto-review"), InputTokens: 1000}, unpriced: true},
+		{name: "strict unrelated unknown model", log: service.UsageLog{Model: "codex-unknown-review", InputTokens: 1000}, unpriced: true},
+		{name: "unknown observed model cannot use known requested", log: service.UsageLog{Model: "gpt-6-astra", UpstreamResponseModel: str("codex-unknown-review"), InputTokens: 1000}, unpriced: true},
 		{name: "gpt55 priority not publicly verified", log: service.UsageLog{Model: "gpt-5.5", InputTokens: 1000, ServiceTier: str("priority")}, unpriced: true},
 		{name: "media billing without count is unpriced", log: service.UsageLog{Model: "gpt-6-astra", BillingMode: str("image")}, unpriced: true},
 		{name: "invalid cache breakdown", log: service.UsageLog{Model: "gpt-6-astra", CacheCreationTokens: 1000, CacheCreation1hTokens: 2000}, unpriced: true},
@@ -129,10 +129,112 @@ func TestAccountAPIEquivalent_AllUnpricedIsNull(t *testing.T) {
 	user := mustCreateUser(t, client, &service.User{Email: "api-unpriced@test.com"})
 	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-api-unpriced", Name: "test"})
 	account := mustCreateAccount(t, client, &service.Account{Name: "unpriced"})
-	_, err := repo.Create(ctx, &service.UsageLog{UserID: user.ID, APIKeyID: key.ID, AccountID: account.ID, Model: "codex-auto-review", InputTokens: 100, CreatedAt: time.Now().UTC()})
+	_, err := repo.Create(ctx, &service.UsageLog{UserID: user.ID, APIKeyID: key.ID, AccountID: account.ID, Model: "codex-unknown-review", InputTokens: 100, CreatedAt: time.Now().UTC()})
 	require.NoError(t, err)
 	stats, err := repo.GetAccountWindowStats(ctx, account.ID, time.Time{})
 	require.NoError(t, err)
 	require.Nil(t, stats.APIEquivalentCost)
 	require.Equal(t, int64(1), stats.APIEquivalentUnpricedRequests)
 }
+
+func TestAccountAPIEquivalent_InternalReviewPrice(t *testing.T) {
+	ctx := context.Background()
+	tx := testEntTx(t)
+	client := tx.Client()
+	repo := newUsageLogRepositoryWithSQL(client, tx)
+	user := mustCreateUser(t, client, &service.User{Email: "internal-review-price@test.com"})
+	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-internal-review-price", Name: "test"})
+	account := mustCreateAccount(t, client, &service.Account{Name: "internal-review-price", Platform: service.PlatformOpenAI})
+	str := func(v string) *string { return &v }
+	old := time.Now().UTC().Add(-48 * time.Hour)
+	logs := []struct {
+		name       string
+		log        service.UsageLog
+		storedCost *string
+		want       *float64
+		internal   bool
+	}{
+		{name: "historical review first", log: service.UsageLog{Model: "codex-auto-review", InputTokens: 1000, TotalCost: .00321164}, want: floatPtr(.00321164), internal: true},
+		{name: "historical review second", log: service.UsageLog{Model: "codex-auto-review", InputTokens: 1000, TotalCost: .00122528}, want: floatPtr(.00122528), internal: true},
+		{name: "tokenless review internal fee", log: service.UsageLog{Model: "codex-auto-review", TotalCost: .05}, want: floatPtr(.05), internal: true},
+		{name: "recorded zero price", log: service.UsageLog{Model: "codex-auto-review", InputTokens: 1000}, want: floatPtr(0), internal: true},
+		{name: "new observed review overrides requested", log: service.UsageLog{Model: "gpt-6-astra", UpstreamResponseModel: str("codex-auto-review"), InputTokens: 1000, TotalCost: .06, CreatedAt: time.Now().UTC()}, want: floatPtr(.06), internal: true},
+		{name: "official observed model overrides requested review", log: service.UsageLog{Model: "codex-auto-review", UpstreamResponseModel: str("gpt-6-astra"), InputTokens: 1000, TotalCost: .07}, want: floatPtr(.01)},
+		{name: "unrelated unknown retains missing price", log: service.UsageLog{Model: "unpriced-model", InputTokens: 1000, TotalCost: .08}},
+		{name: "review suffix is not the authorized exact model", log: service.UsageLog{Model: "codex-auto-review-high", InputTokens: 1000, TotalCost: .09}},
+		{name: "tokenless negative persisted price rejected", log: service.UsageLog{Model: "codex-auto-review", TotalCost: -.1}},
+		{name: "tokenless NaN persisted price rejected", log: service.UsageLog{Model: "codex-auto-review"}, storedCost: str("NaN")},
+		{name: "media guard retained", log: service.UsageLog{Model: "codex-auto-review", InputTokens: 1000, ImageCount: 1, TotalCost: .2}},
+		{name: "media billing guard retained", log: service.UsageLog{Model: "codex-auto-review", BillingMode: str("image"), TotalCost: .2}},
+		{name: "negative token guard retained", log: service.UsageLog{Model: "codex-auto-review", InputTokens: -1, TotalCost: .3}},
+		{name: "invalid cache guard retained", log: service.UsageLog{Model: "codex-auto-review", CacheCreationTokens: 100, CacheCreation1hTokens: 200, TotalCost: .4}},
+	}
+	var wantSum, standardSum float64
+	var internalCount, missingCount int64
+	statsPrice, multiplier := 123.0, 7.0
+	for i, tc := range logs {
+		tc.log.UserID, tc.log.APIKeyID, tc.log.AccountID = user.ID, key.ID, account.ID
+		tc.log.RequestID = fmt.Sprintf("internal-price-%d", i)
+		tc.log.ActualCost = 11
+		tc.log.AccountStatsCost, tc.log.AccountRateMultiplier = &statsPrice, &multiplier
+		if tc.log.CreatedAt.IsZero() {
+			tc.log.CreatedAt = old.Add(time.Duration(i) * time.Second)
+		}
+		_, err := repo.Create(ctx, &tc.log)
+		require.NoError(t, err, tc.name)
+		if tc.storedCost == nil {
+			standardSum += tc.log.TotalCost
+		}
+		if tc.storedCost != nil {
+			_, err = repo.sql.ExecContext(ctx, "UPDATE usage_logs SET total_cost=$1::numeric WHERE request_id=$2 AND api_key_id=$3", *tc.storedCost, tc.log.RequestID, key.ID)
+			require.NoError(t, err, tc.name)
+		}
+		var got *float64
+		var internal bool
+		require.NoError(t, scanSingleRow(ctx, repo.sql, accountAPIEquivalentRowsCTE("ul.request_id = $1 AND ul.api_key_id = $2")+"SELECT api_equivalent_row_cost, api_equivalent_row_internal_priced FROM api_equivalent_rows", []any{tc.log.RequestID, key.ID}, &got, &internal), tc.name)
+		require.Equal(t, tc.internal, internal, tc.name)
+		if tc.want == nil {
+			require.Nil(t, got, tc.name)
+			missingCount++
+		} else {
+			require.NotNil(t, got, tc.name)
+			require.InDelta(t, *tc.want, *got, 1e-10, tc.name)
+			wantSum += *tc.want
+		}
+		if tc.internal {
+			internalCount++
+		}
+	}
+	// Remove the synthetic NaN price from legacy financial SUMs after verifying
+	// their read-side guard. This is a test-only row in a rolled-back transaction.
+	_, err := repo.sql.ExecContext(ctx, "DELETE FROM usage_logs WHERE account_id=$1 AND total_cost IN ('NaN'::numeric,'Infinity'::numeric,'-Infinity'::numeric)", account.ID)
+	require.NoError(t, err)
+	missingCount--
+	const digest = "SELECT MD5(STRING_AGG(TO_JSONB(ul)::text, ',' ORDER BY id)) FROM usage_logs ul WHERE account_id=$1"
+	var before, after string
+	require.NoError(t, scanSingleRow(ctx, repo.sql, digest, []any{account.ID}, &before))
+	lifetime, err := repo.GetAccountWindowStats(ctx, account.ID, time.Time{})
+	require.NoError(t, err)
+	require.NotNil(t, lifetime.APIEquivalentCost)
+	require.InDelta(t, wantSum, *lifetime.APIEquivalentCost, 1e-10)
+	require.Equal(t, internalCount, lifetime.APIEquivalentInternalPricedRequests)
+	require.Equal(t, missingCount, lifetime.APIEquivalentUnpricedRequests)
+	require.InDelta(t, float64(len(logs)-1)*123*7, lifetime.Cost, 1e-9)
+	require.InDelta(t, float64(len(logs)-1)*11, lifetime.UserCost, 1e-9)
+	require.InDelta(t, standardSum, lifetime.StandardCost, 1e-10)
+	batch, err := repo.GetAccountWindowStatsBatch(ctx, []int64{account.ID}, time.Time{})
+	require.NoError(t, err)
+	require.Equal(t, lifetime, batch[account.ID])
+	today, err := repo.GetAccountTodayStats(ctx, account.ID)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), today.APIEquivalentInternalPricedRequests)
+	require.Zero(t, today.APIEquivalentUnpricedRequests)
+	require.InDelta(t, .06, *today.APIEquivalentCost, 1e-10)
+	window, err := repo.GetAccountWindowStats(ctx, account.ID, time.Now().UTC().Add(-time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, today, window)
+	require.NoError(t, scanSingleRow(ctx, repo.sql, digest, []any{account.ID}, &after))
+	require.Equal(t, before, after, "read-side calculation must not rewrite charges or historical rows")
+}
+
+func floatPtr(value float64) *float64 { return &value }
