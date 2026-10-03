@@ -748,6 +748,10 @@ const buildDefaultTodayStats = (): WindowStats => ({
   requests: 0,
   tokens: 0,
   cost: 0,
+  api_equivalent_cost: null,
+  api_equivalent_unpriced_requests: 0,
+  lifetime_api_equivalent_cost: null,
+  lifetime_api_equivalent_unpriced_requests: 0,
   standard_cost: 0,
   user_cost: 0
 })

@@ -1777,6 +1777,8 @@ export default {
         tokens: 'Tokens',
         lifetimeTokens: 'Total Tokens',
         lifetimeCost: 'Total Cost',
+        todayAPIEquivalentCost: 'Today API Equivalent',
+        lifetimeAPIEquivalentCost: 'Total API Equivalent',
         highestCostDay: 'Highest Cost Day',
         highestRequestDay: 'Highest Request Day',
         date: 'Date',

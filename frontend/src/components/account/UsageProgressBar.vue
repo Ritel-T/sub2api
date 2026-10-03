@@ -12,9 +12,11 @@
         <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
           {{ formatTokens }}
         </span>
-        <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-          A ${{ formatAccountCost }}
-        </span>
+        <ApiEquivalentCost
+          class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+          :cost="windowStats.api_equivalent_cost"
+          :unpriced-requests="windowStats.api_equivalent_unpriced_requests"
+        />
         <span
           v-if="windowStats?.user_cost != null"
           class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
@@ -67,6 +69,7 @@ import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import type { WindowStats } from '@/types'
 import { formatCompactNumber } from '@/utils/format'
+import ApiEquivalentCost from './ApiEquivalentCost.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -224,11 +227,6 @@ const formatRequests = computed(() => {
 const formatTokens = computed(() => {
   if (!props.windowStats) return ''
   return formatCompactNumber(props.windowStats.tokens)
-})
-
-const formatAccountCost = computed(() => {
-  if (!props.windowStats) return '0.00'
-  return props.windowStats.cost.toFixed(2)
 })
 
 const formatUserCost = computed(() => {

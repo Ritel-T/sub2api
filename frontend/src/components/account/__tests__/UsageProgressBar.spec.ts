@@ -204,3 +204,32 @@ describe('UsageProgressBar', () => {
     expect(percent.classes()).toContain('text-right')
   })
 })
+
+
+describe('UsageProgressBar API equivalent badge', () => {
+  it('uses official equivalent instead of account cost while keeping user billing', () => {
+    const wrapper = mount(UsageProgressBar, {
+      props: {
+        label: '7d', utilization: 12, color: 'emerald',
+        windowStats: { requests: 1700, tokens: 558800000, cost: 836, api_equivalent_cost: 1421.375, user_cost: 1394.83 }
+      }
+    })
+    expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A $1421.38')
+    expect(wrapper.text()).toContain('U $1394.83')
+    expect(wrapper.text()).not.toContain('A $836.00')
+    wrapper.unmount()
+  })
+
+  it('preserves unknown and partial equivalents instead of falling back to legacy account cost', async () => {
+    const stats = { requests: 1700, tokens: 558800000, cost: 836, user_cost: 1394.83 }
+    const wrapper = mount(UsageProgressBar, {
+      props: { label: '5h', utilization: 12, color: 'indigo', windowStats: stats }
+    })
+    expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A —')
+    expect(wrapper.text()).toContain('U $1394.83')
+    await wrapper.setProps({ windowStats: { ...stats, api_equivalent_cost: 1421.375, api_equivalent_unpriced_requests: 2 } })
+    expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A ≥$1421.38')
+    expect(wrapper.text()).toContain('U $1394.83')
+    wrapper.unmount()
+  })
+})

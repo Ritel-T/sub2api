@@ -27,16 +27,22 @@
         }}</span>
       </div>
       <div class="flex items-center gap-1">
-        <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.stats.todayCost') }}:</span>
-        <span class="font-medium text-emerald-600 dark:text-emerald-400">{{
-          formatCurrency(props.stats.cost)
-        }}</span>
+        <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.stats.todayAPIEquivalentCost') }}:</span>
+        <ApiEquivalentCost
+          class="font-medium text-emerald-600 dark:text-emerald-400"
+          prefix=""
+          :cost="props.stats.api_equivalent_cost"
+          :unpriced-requests="props.stats.api_equivalent_unpriced_requests"
+        />
       </div>
       <div class="flex items-center gap-1">
-        <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.stats.lifetimeCost') }}:</span>
-        <span class="font-medium text-gray-900 dark:text-gray-100">{{
-          formatCurrency(props.stats.lifetime_cost ?? 0)
-        }}</span>
+        <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.stats.lifetimeAPIEquivalentCost') }}:</span>
+        <ApiEquivalentCost
+          class="font-medium text-gray-900 dark:text-gray-100"
+          prefix=""
+          :cost="props.stats.lifetime_api_equivalent_cost"
+          :unpriced-requests="props.stats.lifetime_api_equivalent_unpriced_requests"
+        />
       </div>
     </div>
 
@@ -48,7 +54,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import type { WindowStats } from '@/types'
-import { formatCurrency } from '@/utils/format'
+import ApiEquivalentCost from './ApiEquivalentCost.vue'
 
 const props = withDefaults(
   defineProps<{

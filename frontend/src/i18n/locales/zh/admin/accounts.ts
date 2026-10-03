@@ -1864,6 +1864,8 @@ export default {
         tokens: 'Token',
         lifetimeTokens: '总计 Token',
         lifetimeCost: '总计费用',
+        todayAPIEquivalentCost: '今日 API 原价等值',
+        lifetimeAPIEquivalentCost: '累计 API 原价等值',
         highestCostDay: '最高费用日',
         highestRequestDay: '最高请求日',
         date: '日期',

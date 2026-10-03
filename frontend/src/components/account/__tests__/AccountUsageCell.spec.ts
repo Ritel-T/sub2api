@@ -130,6 +130,31 @@ describe('AccountUsageCell', () => {
     })
   })
 
+  it.each([
+    { platform: 'openai', type: 'apikey' },
+    { platform: 'gemini', type: 'service_account' }
+  ] as const)('shows API equivalent for $platform $type while preserving user cost', async ({ platform, type }) => {
+    getUsage.mockResolvedValue({})
+    const stats = { requests: 1700, tokens: 558800000, cost: 836, user_cost: 1394.83 }
+    const wrapper = mount(AccountUsageCell, {
+      props: { account: makeAccount({ platform, type }), todayStats: { ...stats, api_equivalent_cost: 1421.375 } },
+      global: { stubs: { UsageProgressBar: true, AccountQuotaInfo: true } }
+    })
+    await flushPromises()
+    expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A $1421.38')
+    expect(wrapper.text()).toContain('U $1394.83')
+    expect(wrapper.text()).not.toContain('A $836.00')
+
+    await wrapper.setProps({ todayStats: { ...stats, api_equivalent_cost: 1421.375, api_equivalent_unpriced_requests: 2 } })
+    expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A ≥$1421.38')
+    expect(wrapper.text()).toContain('U $1394.83')
+
+    await wrapper.setProps({ todayStats: stats })
+    expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A —')
+    expect(wrapper.text()).toContain('U $1394.83')
+    wrapper.unmount()
+  })
+
   it.each(['oauth', 'setup-token'] as const)('renders Codex ticket status for OpenAI %s accounts', async (type) => {
     getUsage.mockResolvedValue({})
     const wrapper = mount(AccountUsageCell, {
@@ -590,7 +615,7 @@ describe('AccountUsageCell', () => {
         utilization: 40,
         resets_at: null,
         remaining_seconds: 0,
-        window_stats: { requests: 2, tokens: 200, cost: 12 }
+        window_stats: { requests: 2, tokens: 200, cost: 8, api_equivalent_cost: 12 }
       }
     })
 
@@ -616,6 +641,31 @@ describe('AccountUsageCell', () => {
   })
 
   it.each([
+    { id: 6790, api_equivalent_cost: undefined, api_equivalent_unpriced_requests: 0 },
+    { id: 6791, api_equivalent_cost: null, api_equivalent_unpriced_requests: 2 },
+    { id: 6792, api_equivalent_cost: 12, api_equivalent_unpriced_requests: 2 }
+  ])('hides the weekly forecast when the API equivalent is incomplete (%o)', async ({ id, ...costStats }) => {
+    getUsage.mockResolvedValue({
+      seven_day: {
+        utilization: 40, resets_at: null, remaining_seconds: 0,
+        window_stats: { requests: 2, tokens: 200, cost: 8, ...costStats }
+      }
+    })
+    const wrapper = mount(AccountUsageCell, {
+      props: { account: makeAccount({ id, platform: 'openai', type: 'oauth' }) },
+      global: {
+        stubs: {
+          UsageProgressBar: { props: ['label', 'estimatedTotalCost'], template: '<div class="usage-bar">{{ label }}|{{ estimatedTotalCost ?? "none" }}</div>' },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('7d|none')
+    wrapper.unmount()
+  })
+
+  it.each([
     { id: 6801, utilization: 0, cost: 12 },
     { id: 6802, utilization: -1, cost: 12 },
     { id: 6803, utilization: Number.NaN, cost: 12 },
@@ -627,7 +677,7 @@ describe('AccountUsageCell', () => {
         utilization,
         resets_at: null,
         remaining_seconds: 0,
-        window_stats: { requests: 1, tokens: 100, cost }
+        window_stats: { requests: 1, tokens: 100, cost: 8, api_equivalent_cost: cost }
       }
     })
 
@@ -968,7 +1018,8 @@ describe('AccountUsageCell', () => {
 		    todayStats: {
 		      requests: 1_000_000,
 		      tokens: 1_000_000_000,
-		      cost: 12.345,
+		      cost: 9,
+		      api_equivalent_cost: 12.345,
 		      standard_cost: 12.345,
 		      user_cost: 6.789
 		    }
@@ -989,7 +1040,7 @@ describe('AccountUsageCell', () => {
 		expect(wrapper.text()).toContain('U $6.79')
 
 		const badges = wrapper.findAll('span[title]')
-		expect(badges.some(node => node.attributes('title') === 'usage.accountBilled')).toBe(true)
+		expect(badges.some(node => node.attributes('title') === 'usage.apiEquivalentCostTooltip')).toBe(true)
 		expect(badges.some(node => node.attributes('title') === 'usage.userBilled')).toBe(true)
   })
 
@@ -1661,6 +1712,7 @@ describe('AccountUsageCell', () => {
 		      requests: 0,
 		      tokens: 0,
 		      cost: 0,
+		      api_equivalent_cost: 0,
 		      standard_cost: 0,
 		      user_cost: 0
 		    }

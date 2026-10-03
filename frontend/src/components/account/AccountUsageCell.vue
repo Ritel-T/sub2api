@@ -540,9 +540,11 @@
             <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
               {{ formatKeyTokens }}
             </span>
-            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-              A ${{ formatKeyCost }}
-            </span>
+            <ApiEquivalentCost
+            class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+            :cost="todayStats.api_equivalent_cost"
+            :unpriced-requests="todayStats.api_equivalent_unpriced_requests"
+          />
             <span
               v-if="todayStats.user_cost != null"
               class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
@@ -628,9 +630,11 @@
           <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
             {{ formatKeyTokens }}
           </span>
-          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-            A ${{ formatKeyCost }}
-          </span>
+          <ApiEquivalentCost
+            class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+            :cost="todayStats.api_equivalent_cost"
+            :unpriced-requests="todayStats.api_equivalent_unpriced_requests"
+          />
           <span
             v-if="todayStats.user_cost != null"
             class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
@@ -689,6 +693,7 @@ import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
 import { formatCompactNumber } from '@/utils/format'
+import ApiEquivalentCost from './ApiEquivalentCost.vue'
 import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
@@ -841,8 +846,10 @@ function formatCodexTicketRemaining(seconds: number) {
 const openAISevenDayEstimatedTotalCost = computed(() => {
   const sevenDay = usageInfo.value?.seven_day
   const utilization = sevenDay?.utilization
-  const currentCost = sevenDay?.window_stats?.cost
+  const currentCost = sevenDay?.window_stats?.api_equivalent_cost
+  const unpricedRequests = sevenDay?.window_stats?.api_equivalent_unpriced_requests ?? 0
   if (
+    unpricedRequests > 0 ||
     typeof utilization !== 'number' ||
     typeof currentCost !== 'number' ||
     !Number.isFinite(utilization) ||
@@ -1626,11 +1633,6 @@ const formatKeyRequests = computed(() => {
 const formatKeyTokens = computed(() => {
   if (!props.todayStats) return ''
   return formatCompactNumber(props.todayStats.tokens)
-})
-
-const formatKeyCost = computed(() => {
-  if (!props.todayStats) return '0.00'
-  return props.todayStats.cost.toFixed(2)
 })
 
 const formatKeyUserCost = computed(() => {
