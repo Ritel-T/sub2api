@@ -2719,6 +2719,42 @@ func (h *AccountHandler) ClearRateLimit(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
+// ClearNativeRateLimit clears only the exact native cooldown observed by a
+// successful external probe; a stale observation is a successful no-op.
+// POST /api/v1/admin/accounts/:id/clear-native-rate-limit
+func (h *AccountHandler) ClearNativeRateLimit(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	var req struct {
+		RateLimitedAt     time.Time       `json:"observed_rate_limited_at" binding:"required"`
+		RateLimitResetAt  time.Time       `json:"observed_rate_limit_reset_at" binding:"required"`
+		ProxyID           json.RawMessage `json:"observed_proxy_id"`
+		AccessTokenSHA256 string          `json:"observed_access_token_sha256"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.ProxyID) == 0 {
+		response.BadRequest(c, "Invalid native rate-limit observation")
+		return
+	}
+	observed := service.NativeRateLimitClearObservation{
+		RateLimitedAt:     req.RateLimitedAt,
+		RateLimitResetAt:  req.RateLimitResetAt,
+		AccessTokenSHA256: req.AccessTokenSHA256,
+	}
+	if err := json.Unmarshal(req.ProxyID, &observed.ProxyID); err != nil {
+		response.BadRequest(c, "Invalid observed proxy ID")
+		return
+	}
+	cleared, err := h.rateLimitService.ClearNativeRateLimitIfObserved(c.Request.Context(), accountID, observed)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"id": accountID, "cleared": cleared})
+}
+
 // ResetQuota handles resetting account quota usage
 // POST /api/v1/admin/accounts/:id/reset-quota
 func (h *AccountHandler) ResetQuota(c *gin.Context) {
