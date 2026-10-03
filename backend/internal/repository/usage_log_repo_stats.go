@@ -276,15 +276,14 @@ func resolveUsageStatsTimezone() string {
 func (r *usageLogRepository) GetAccountTodayStats(ctx context.Context, accountID int64) (*usagestats.AccountStats, error) {
 	today := timezone.Today()
 
-	query := `
+	query := accountAPIEquivalentRowsCTE("account_id = $1 AND created_at >= $2") + `
 		SELECT
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
 			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as cost,
 			COALESCE(SUM(total_cost), 0) as standard_cost,
-			COALESCE(SUM(actual_cost), 0) as user_cost
-		FROM usage_logs
-		WHERE account_id = $1 AND created_at >= $2
+			COALESCE(SUM(actual_cost), 0) as user_cost` + accountAPIEquivalentAggregate + `
+		FROM api_equivalent_rows
 	`
 
 	stats := &usagestats.AccountStats{}
@@ -298,6 +297,8 @@ func (r *usageLogRepository) GetAccountTodayStats(ctx context.Context, accountID
 		&stats.Cost,
 		&stats.StandardCost,
 		&stats.UserCost,
+		&stats.APIEquivalentCost,
+		&stats.APIEquivalentUnpricedRequests,
 	); err != nil {
 		return nil, err
 	}
@@ -306,15 +307,14 @@ func (r *usageLogRepository) GetAccountTodayStats(ctx context.Context, accountID
 
 // GetAccountWindowStats 获取账号时间窗口内的统计
 func (r *usageLogRepository) GetAccountWindowStats(ctx context.Context, accountID int64, startTime time.Time) (*usagestats.AccountStats, error) {
-	query := `
+	query := accountAPIEquivalentRowsCTE("account_id = $1 AND created_at >= $2") + `
 		SELECT
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
 			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as cost,
 			COALESCE(SUM(total_cost), 0) as standard_cost,
-			COALESCE(SUM(actual_cost), 0) as user_cost
-		FROM usage_logs
-		WHERE account_id = $1 AND created_at >= $2
+			COALESCE(SUM(actual_cost), 0) as user_cost` + accountAPIEquivalentAggregate + `
+		FROM api_equivalent_rows
 	`
 
 	stats := &usagestats.AccountStats{}
@@ -328,6 +328,8 @@ func (r *usageLogRepository) GetAccountWindowStats(ctx context.Context, accountI
 		&stats.Cost,
 		&stats.StandardCost,
 		&stats.UserCost,
+		&stats.APIEquivalentCost,
+		&stats.APIEquivalentUnpricedRequests,
 	); err != nil {
 		return nil, err
 	}
@@ -342,16 +344,15 @@ func (r *usageLogRepository) GetAccountWindowStatsBatch(ctx context.Context, acc
 		return result, nil
 	}
 
-	query := `
+	query := accountAPIEquivalentRowsCTE("account_id = ANY($1) AND created_at >= $2") + `
 		SELECT
 			account_id,
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
 			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as cost,
 			COALESCE(SUM(total_cost), 0) as standard_cost,
-			COALESCE(SUM(actual_cost), 0) as user_cost
-		FROM usage_logs
-		WHERE account_id = ANY($1) AND created_at >= $2
+			COALESCE(SUM(actual_cost), 0) as user_cost` + accountAPIEquivalentAggregate + `
+		FROM api_equivalent_rows
 		GROUP BY account_id
 	`
 	rows, err := r.sql.QueryContext(ctx, query, pq.Array(accountIDs), startTime)
@@ -370,6 +371,8 @@ func (r *usageLogRepository) GetAccountWindowStatsBatch(ctx context.Context, acc
 			&stats.Cost,
 			&stats.StandardCost,
 			&stats.UserCost,
+			&stats.APIEquivalentCost,
+			&stats.APIEquivalentUnpricedRequests,
 		); err != nil {
 			return nil, err
 		}
@@ -381,7 +384,8 @@ func (r *usageLogRepository) GetAccountWindowStatsBatch(ctx context.Context, acc
 
 	for _, accountID := range accountIDs {
 		if _, ok := result[accountID]; !ok {
-			result[accountID] = &usagestats.AccountStats{}
+			zero := 0.0
+			result[accountID] = &usagestats.AccountStats{APIEquivalentCost: &zero}
 		}
 	}
 	return result, nil
