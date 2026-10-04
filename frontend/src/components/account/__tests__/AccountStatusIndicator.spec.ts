@@ -295,12 +295,12 @@ describe('Borrowing quality requirement labels', () => {
     const badges = w.findAll('[data-testid="borrow-required-badge"]')
     expect(badges).toHaveLength(1)
     expect(badges[0].text()).toContain('6.1 Sol')
-    expect(badges[0].attributes('title')).toBe('admin.astraGateway.borrowRequiredHint')
+    expect(badges[0].attributes('title')).toBe('admin.astraGateway.borrowRequiredDegradedHint')
     w.unmount()
   })
 
   it('recognizes model-specific native degraded evidence and aliases, without guessing from inconclusive results', () => {
-    const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { openai_gateway_borrow_models: ['gpt-6-sol'], quality_candy_models: { 'gpt-6-astra': { state: 'degraded' } } } }) }, global: { stubs: { Icon: true } } })
+    const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { openai_gateway_borrow_models: ['gpt-6-sol', 'gpt-6-astra'], quality_candy_models: { 'gpt-6-astra': { state: 'degraded' } } } }) }, global: { stubs: { Icon: true } } })
     expect(w.findAll('[data-testid="borrow-required-badge"]')).toHaveLength(2)
     w.unmount()
     const noRequirement = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { quality_candy_models: { 'gpt-6-astra': { state: 'inconclusive' }, 'gpt-6.1-sol': { state: 'healthy' } } } }) }, global: { stubs: { Icon: true } } })
@@ -311,6 +311,43 @@ describe('Borrowing quality requirement labels', () => {
   it('does not show OAuth borrowing labels on other account types', () => {
     const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', type: 'apikey', extra: { openai_gateway_borrow_models: ['gpt-6-astra'] } }) }, global: { stubs: { Icon: true } } })
     expect(w.find('[data-testid="borrow-required-badge"]').exists()).toBe(false)
+    w.unmount()
+  })
+})
+
+describe('Independent borrowing policy and route readiness', () => {
+  const expiry = '2099-01-01T00:00:00Z'
+  const routes = [
+    { account_id: 1, model: 'gpt-6-astra', state: 'ready', reason: 'target_probe_passed', expires_at: expiry, remaining_seconds: 100, active: true },
+    { account_id: 1, model: 'gpt-6.1-sol', state: 'failed', reason: 'target_quality_failed', retry_at: '2099-01-01T00:00:30Z', remaining_seconds: 0, active: false }
+  ]
+  it('does not label legacy unclassified policy as confirmed native degradation', () => {
+    const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { openai_gateway_borrow_models: ['gpt-6.1-sol'] } }) }, global: { stubs: { Icon: true } } })
+    expect(w.get('[data-testid="borrow-required-badge"]').attributes('title')).toBe('admin.astraGateway.borrowRequiredHint')
+    expect(w.get('[data-testid="borrow-route-badge"]').text()).toContain('routeStates.unknown')
+    w.unmount()
+  })
+  it('requires a policy marker instead of treating native quality evidence as configured borrowing', () => {
+    const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { quality_candy_models: { 'gpt-6-astra': { state: 'degraded' } } } }) }, global: { stubs: { Icon: true } } })
+    expect(w.find('[data-testid="borrow-required-badge"]').exists()).toBe(false)
+    w.unmount()
+  })
+  it('shows ready Astra and failed Sol separately and expires readiness without another request', async () => {
+    const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { openai_gateway_borrow_models: ['gpt-6-astra', 'gpt-6.1-sol'] } }), borrowRoutes: routes, borrowRuntimeLoaded: true, borrowNow: Date.parse('2098-12-31T23:59:59Z') }, global: { stubs: { Icon: true } } })
+    const badges = w.findAll('[data-testid="borrow-route-badge"]')
+    expect(badges[0].text()).toContain('routeStates.ready')
+    expect(badges[1].text()).toContain('routeStates.unavailable')
+    expect(badges[1].attributes('title')).toContain('testReasons.answerFailed')
+    expect(w.get('[data-testid="borrow-retry-at"]').text()).toContain('retryAt')
+    await w.setProps({ borrowNow: Date.parse(expiry) })
+    expect(w.findAll('[data-testid="borrow-route-badge"]')[0].text()).toContain('routeStates.expired')
+    await w.setProps({ borrowRuntimeError: true })
+    expect(w.findAll('[data-testid="borrow-route-badge"]')[0].text()).toContain('routeStates.unknown')
+    w.unmount()
+  })
+  it('does not borrow another account or model readiness', () => {
+    const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { openai_gateway_borrow_models: ['gpt-6.1-sol'] } }), borrowRoutes: [routes[0], { ...routes[0], account_id: 2, model: 'gpt-6.1-sol' }], borrowRuntimeLoaded: true, borrowNow: Date.parse('2098-12-31T23:59:59Z') }, global: { stubs: { Icon: true } } })
+    expect(w.get('[data-testid="borrow-route-badge"]').text()).toContain('routeStates.waiting')
     w.unmount()
   })
 })

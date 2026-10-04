@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,61 @@ type astraTargetRouteKey struct {
 	sourceID  int64
 	cookie    [32]byte
 }
+
+// Quota/auth rejection describes this credential and exit, not a routing
+// Cookie. Retain the quiet period across donor/Cookie and settings revisions.
+type astraTargetQuotaKey struct {
+	accountID int64
+	model     string
+	identity  [32]byte
+}
+type astraTargetQuotaBackoff struct {
+	until  time.Time
+	reason string
+}
+
+func targetBorrowQuietKeys(req *http.Request, id int64, model, proxy string, sourceID int64, profile *tlsfingerprint.Profile) (astraTargetQuotaKey, astraTargetQuotaKey) {
+	quotaIdentity, _ := json.Marshal([]string{proxy, req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID")})
+	negativeIdentity, _ := json.Marshal([]string{model, proxy, req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID"), req.Header.Get("User-Agent"), req.Header.Get("Originator"), req.Header.Get("Version"), strconv.FormatInt(sourceID, 10)})
+	profileIdentity, _ := json.Marshal(profile)
+	return astraTargetQuotaKey{id, model, sha256.Sum256(quotaIdentity)}, astraTargetQuotaKey{id, model, sha256.Sum256(append(negativeIdentity, profileIdentity...))}
+}
+
+func (s *astraRoutingUpstream) targetQuotaWait(key astraTargetQuotaKey, now time.Time) (astraTargetQuotaBackoff, bool) {
+	s.quotaMu.Lock()
+	defer s.quotaMu.Unlock()
+	for k, v := range s.quotaBackoff {
+		if !now.Before(v.until) {
+			delete(s.quotaBackoff, k)
+		}
+	}
+	v, ok := s.quotaBackoff[key]
+	return v, ok && now.Before(v.until)
+}
+
+func (s *astraRoutingUpstream) rememberTargetQuota(key astraTargetQuotaKey, reason string, until time.Time) {
+	s.quotaMu.Lock()
+	defer s.quotaMu.Unlock()
+	if s.quotaBackoff == nil {
+		s.quotaBackoff = map[astraTargetQuotaKey]astraTargetQuotaBackoff{}
+	}
+	for k, v := range s.quotaBackoff {
+		if !time.Now().Before(v.until) {
+			delete(s.quotaBackoff, k)
+		}
+	}
+	if len(s.quotaBackoff) >= 4096 {
+		for k := range s.quotaBackoff {
+			delete(s.quotaBackoff, k)
+			break
+		}
+	}
+	if prior, ok := s.quotaBackoff[key]; ok && time.Now().Before(prior.until) {
+		return
+	}
+	s.quotaBackoff[key] = astraTargetQuotaBackoff{until: until, reason: reason}
+}
+
 type autoBorrowRouteKey struct{}
 type autoBorrowRouteSelection struct {
 	sourceID int64
@@ -174,6 +230,12 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		req = astraFreshRequest(req)
 	}
 	identity := []string{model, cookie.Value, identityProxy, req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID"), req.Header.Get("User-Agent"), req.Header.Get("Originator"), req.Header.Get("Version"), req.Header.Get("X-Codex-Turn-State")}
+	quotaKey, negativeKey := targetBorrowQuietKeys(req, id, model, identityProxy, sourceID, profile)
+	if s.cfg.AstraRouting(req.Context()).AutoQuality {
+		if prior, waiting := s.targetQuotaWait(quotaKey, time.Now()); waiting {
+			return nil, zero, proxy, release, errors.New(prior.reason)
+		}
+	}
 	fingerprint, _ := json.Marshal(profile)
 	identity = append(identity, string(fingerprint))
 	key := sha256.Sum256([]byte(strings.Join(identity, "\x00")))
@@ -209,6 +271,11 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		}
 		if now.Before(old.retryAfter) {
 			return nil, key, proxy, release, errors.New(old.reason)
+		}
+	}
+	if s.cfg.AstraRouting(req.Context()).AutoQuality {
+		if prior, waiting := s.targetQuotaWait(negativeKey, time.Now()); waiting {
+			return nil, key, proxy, release, errors.New(prior.reason)
 		}
 	}
 	if s.cfg.AstraRouting(req.Context()).AutoQuality {
@@ -301,6 +368,9 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	retryDelay := 15 * time.Second
 	if result.Verdict == service.OpenAICodexStateDegraded || result.Failure == "quality_failed" {
 		retryDelay = 180 * time.Second
+		if s.cfg.AstraRouting(req.Context()).AutoQuality {
+			s.rememberTargetQuota(negativeKey, reason, time.Now().Add(retryDelay))
+		}
 	}
 	if result.Failure == service.OpenAICodexStateFailureRateLimited || result.Failure == service.OpenAICodexStateFailureAccountError {
 		retryDelay = 5 * time.Minute
@@ -308,6 +378,9 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 			reason = "target_probe_rate_limited"
 		} else {
 			reason = "target_probe_auth_failed"
+		}
+		if s.cfg.AstraRouting(req.Context()).AutoQuality {
+			s.rememberTargetQuota(quotaKey, reason, time.Now().Add(retryDelay))
 		}
 	}
 	check := astraTargetValidation{node: route.node, key: key, cookieFingerprint: sha256.Sum256([]byte(cookie.Value)), proxyFingerprint: sha256.Sum256([]byte(proxy)), passed: passed, checked: time.Now(), expires: expires, retryAfter: time.Now().Add(retryDelay), sourceID: sourceID, reason: reason, gateway: host}
@@ -361,6 +434,10 @@ func (s *astraRoutingUpstream) VerifyAstraGatewayTarget(ctx context.Context, req
 }
 
 func (s *astraRoutingUpstream) VerifyAstraGatewayTargetForModel(ctx context.Context, req *http.Request, proxy string, id int64, n int, model string) error {
+	return s.VerifyAstraGatewayTargetForModelWithTLS(ctx, req, proxy, id, n, model, nil)
+}
+
+func (s *astraRoutingUpstream) VerifyAstraGatewayTargetForModelWithTLS(ctx context.Context, req *http.Request, proxy string, id int64, n int, model string, profile *tlsfingerprint.Profile) error {
 	model = config.CanonicalGatewayBorrowModel(model)
 	if model == "" {
 		return errors.New("borrow_model_required")
@@ -369,7 +446,7 @@ func (s *astraRoutingUpstream) VerifyAstraGatewayTargetForModel(ctx context.Cont
 	body, _ := json.Marshal(map[string]string{"model": model})
 	req.Body = io.NopCloser(bytes.NewReader(body))
 	req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
-	_, _, _, release, err := s.targetRoute(req, proxy, id, n, nil)
+	_, _, _, release, err := s.targetRoute(req, proxy, id, n, profile)
 	release()
 	return err
 }

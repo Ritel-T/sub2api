@@ -51,6 +51,17 @@ func (s *AccountTestService) doOpenAIAccountTestUpstream(
 	account *Account,
 	useTLSFallback bool,
 ) (*http.Response, error) {
+	if _, required := GatewayBorrowRequiredModelFromContext(request.Context()); required {
+		if s.openaiGatewayService == nil {
+			return nil, denyOpenAITurn("gateway_borrow_unavailable")
+		}
+		latest, err := s.openaiGatewayService.admitOpenAIHTTPRequest(request, account)
+		if err != nil {
+			return nil, err
+		}
+		identity, _ := request.Context().Value(gatewayBorrowAccountTestIdentityKey{}).(gatewayBorrowAccountTestIdentity)
+		return s.httpUpstream.DoWithTLS(request, proxyURL, latest.ID, latest.Concurrency, identity.profile)
+	}
 	if s.pluginManager != nil {
 		response, handled, err := s.pluginManager.RoundTripOpenAIOAuth(request.Context(), request, proxyURL, account)
 		if handled {

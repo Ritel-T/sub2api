@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"encoding/json"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -125,7 +126,15 @@ func (s *AccountTestService) AstraGatewayStatus(ctx context.Context) AstraGatewa
 			a, err := s.accountRepo.GetByID(ctx, id)
 			if err != nil || a == nil || !a.IsOpenAIOAuthLike() {
 				row.State = "blocked"
-				row.Reason = "account_unavailable"
+				row.Reason = "target_account_unavailable"
+			} else if settings.AutoQuality {
+				if reason, retry := gatewayBorrowAccountBlock(a, model, time.Now()); reason != "" {
+					row.State = "blocked"
+					row.Reason = reason
+					row.RetryAt = retry
+					row.ExpiresAt = nil
+					row.RemainingSeconds = 0
+				}
 			} else if !a.IsModelSupported(model) && a.Extra["astra_model_disabled"] != true {
 				row.Reason = "astra_not_in_allowlist"
 			}
@@ -264,7 +273,15 @@ func (s *AccountTestService) verifyAstraGatewayTarget(ctx context.Context, id in
 func (s *AccountTestService) verifyGatewayBorrowTargetForModel(ctx context.Context, id int64, model string) error {
 	account, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil || account == nil || !account.IsOpenAIOAuthLike() || account.Status != StatusActive {
+		if s.cfg.AstraRouting(ctx).AutoQuality {
+			return errors.New("target_account_unavailable")
+		}
 		return errors.New("account_unavailable")
+	}
+	if s.cfg.AstraRouting(ctx).AutoQuality {
+		if reason, _ := gatewayBorrowAccountBlock(account, model, time.Now()); reason != "" {
+			return errors.New(reason)
+		}
 	}
 	if openAICodexStateProbeUnsupportedReason(account, model, false) != "" {
 		return errors.New("target_probe_unsupported")
@@ -274,19 +291,26 @@ func (s *AccountTestService) verifyGatewayBorrowTargetForModel(ctx context.Conte
 		return errors.New("target_validation_in_progress")
 	}
 	defer release()
-	token, _, err := s.openaiGatewayService.GetAccessToken(ctx, account)
-	if err != nil || strings.TrimSpace(token) == "" {
-		return errors.New("account_unavailable")
+	account, headers, profile, err := s.prepareGatewayBorrowAccountIdentity(ctx, account, model)
+	if err != nil {
+		return err
+	}
+	if s.cfg.AstraRouting(ctx).AutoQuality {
+		if reason, _ := gatewayBorrowAccountBlock(account, model, time.Now()); reason != "" {
+			return errors.New(reason)
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, chatgptCodexURL, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	if err = resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, req.Header, account); err != nil {
-		return errors.New("account_unavailable")
+	req.Host = "chatgpt.com"
+	req.Header = headers
+	if verifier, ok := s.httpUpstream.(interface {
+		VerifyAstraGatewayTargetForModelWithTLS(context.Context, *http.Request, string, int64, int, string, *tlsfingerprint.Profile) error
+	}); ok {
+		return verifier.VerifyAstraGatewayTargetForModelWithTLS(ctx, req, openAIAccountProxyURL(account), id, account.Concurrency, model, profile)
 	}
-	applyOpenAICodexTicketHarvestIdentity(req.Header, model)
 	if verifier, ok := s.httpUpstream.(interface {
 		VerifyAstraGatewayTargetForModel(context.Context, *http.Request, string, int64, int, string) error
 	}); ok {
@@ -401,7 +425,7 @@ func (s *AccountTestService) runAstraQuestionHTTP(ctx context.Context, id int64,
 	err = s.TestPelicanAccountConnection(c, id, "gpt-6-astra", q.Prompt, "medium")
 	output, msg := parseTestSSEOutput(w.Body.String())
 	if err != nil || msg != "" {
-		for _, code := range []string{"astra_rotation_cooling", "astra_rotation_unavailable", "astra_rotation_use_once", "astra_rotation_no_nodes", "astra_rotation_node_unavailable", "astra_rotation_exhausted", "target_probe_degraded", "target_route_changed", "target_probe_failed", "target_validation_in_progress", "preparation_in_progress", "source_probe_cooldown", "no_qualified_source_route", "configuration_changed"} {
+		for _, code := range []string{"astra_rotation_cooling", "astra_rotation_unavailable", "astra_rotation_use_once", "astra_rotation_no_nodes", "astra_rotation_node_unavailable", "astra_rotation_exhausted", "target_probe_degraded", "target_route_changed", "target_probe_failed", "target_quality_failed", "target_probe_rate_limited", "target_probe_auth_failed", "target_account_rate_limited", "target_account_unavailable", "borrow_route_expired", "target_validation_in_progress", "preparation_in_progress", "source_probe_cooldown", "no_qualified_source_route", "configuration_changed"} {
 			if strings.Contains(msg, code) || (err != nil && strings.Contains(err.Error(), code)) {
 				answer := ""
 				if provider, ok := s.httpUpstream.(AstraGatewayRuntimeProvider); ok {

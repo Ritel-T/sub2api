@@ -8,6 +8,7 @@ import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 
 const {
+  getBorrowRuntime,
   listAccounts,
   listWithEtag,
   getById,
@@ -22,6 +23,7 @@ const {
   showError,
   showWarning
 } = vi.hoisted(() => ({
+  getBorrowRuntime: vi.fn(),
   listAccounts: vi.fn(),
   listWithEtag: vi.fn(),
   getById: vi.fn(),
@@ -58,6 +60,8 @@ vi.mock('@/api/admin', () => ({
     groups: { getAll: getAllGroups }
   }
 }))
+
+vi.mock('@/api/admin/astraGateway', () => ({ getAstraGatewayRuntime: getBorrowRuntime }))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({ showError, showWarning, showSuccess: vi.fn(), showInfo: vi.fn() })
@@ -173,6 +177,7 @@ const fullAccount = {
 describe('admin AccountsView lite account list', () => {
   beforeEach(() => {
     localStorage.clear()
+    getBorrowRuntime.mockReset().mockResolvedValue({ targets: [] })
     listAccounts.mockReset().mockResolvedValue({ items: [listRow], total: 1, page: 1, page_size: 20, pages: 1 })
     listWithEtag.mockReset().mockResolvedValue({ notModified: true, etag: 'compact-etag', data: null })
     getById.mockReset().mockResolvedValue(fullAccount)
@@ -271,6 +276,24 @@ describe('admin AccountsView lite account list', () => {
     await flushPromises()
     expect(wrapper.find('[data-account-name]').exists()).toBe(true)
     expect(wrapper.find('progress').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shares one model-specific borrowing snapshot across all account status rows', async () => {
+    const policy = { openai_gateway_borrow_models: ['gpt-6-astra', 'gpt-6.1-sol'] }
+    listAccounts.mockResolvedValue({ items: [{ ...listRow, extra: policy }, { ...listRow, id: 109, extra: policy }], total: 2, page: 1, page_size: 20, pages: 1 })
+    getBorrowRuntime.mockResolvedValue({ targets: [
+      { account_id: 42, model: 'gpt-6-astra', state: 'ready', expires_at: '2099-01-01T00:00:00Z' },
+      { account_id: 42, model: 'gpt-6.1-sol', state: 'failed', reason: 'target_quality_failed' },
+      { account_id: 109, model: 'gpt-6-astra', state: 'waiting' }
+    ] })
+    const wrapper = mountView(); await flushPromises()
+    expect(getBorrowRuntime).toHaveBeenCalledTimes(1)
+    const indicators = wrapper.findAllComponents(AccountStatusIndicator)
+    expect(indicators).toHaveLength(2)
+    expect(indicators[0].props('borrowRoutes')).toHaveLength(2)
+    expect(indicators[0].props('borrowRuntimeLoaded')).toBe(true)
+    expect(indicators[1].props('borrowRoutes')).toEqual([expect.objectContaining({ account_id: 109, model: 'gpt-6-astra', state: 'waiting' })])
     wrapper.unmount()
   })
 

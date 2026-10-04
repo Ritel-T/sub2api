@@ -55,6 +55,7 @@ type TestEvent struct {
 	Model    string `json:"model,omitempty"`
 	Status   string `json:"status,omitempty"`
 	Code     string `json:"code,omitempty"`
+	Channel  string `json:"channel,omitempty"`
 	ImageURL string `json:"image_url,omitempty"`
 	// AudioURL / VideoURL are data: or https URLs for in-browser media players.
 	AudioURL string `json:"audio_url,omitempty"`
@@ -883,6 +884,9 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	// /responses wire and does NOT apply the legacy compact-only mapping
 	// (post-#5641 semantics: compact_model_mapping is /responses/compact-only).
 	testModelID = account.GetMappedModel(testModelID)
+	if account.RequiresGatewayBorrowUpstream(testModelID) {
+		return s.testGatewayBorrowAccountConnection(c, account, normalizeOpenAIModelForUpstream(account, testModelID), mode)
+	}
 	if mode == AccountTestModeCompact {
 		return s.testOpenAICompactConnection(c, account, testModelID)
 	}
@@ -3510,6 +3514,9 @@ func (s *AccountTestService) testExcelBPSImages(c *gin.Context, ctx context.Cont
 }
 
 func (s *AccountTestService) sendEvent(c *gin.Context, event TestEvent) {
+	if AccountTestUsedGatewayBorrow(c) {
+		event.Channel = "gateway_borrow"
+	}
 	if event.Type == "test_start" && event.Model != "" && c.Request != nil {
 		if usage := pelicanUsageFromContext(c.Request.Context()); usage != nil {
 			usage.model = event.Model
@@ -3532,6 +3539,9 @@ func (s *AccountTestService) sendEvent(c *gin.Context, event TestEvent) {
 
 // sendErrorAndEnd sends an error event and ends the stream
 func (s *AccountTestService) sendErrorAndEnd(c *gin.Context, errorMsg string) error {
+	if AccountTestUsedGatewayBorrow(c) {
+		return s.sendGatewayBorrowTestError(c, errors.New(errorMsg))
+	}
 	log.Printf("Account test error: %s", errorMsg)
 	s.sendEvent(c, TestEvent{Type: "error", Error: errorMsg})
 	return fmt.Errorf("%s", errorMsg)

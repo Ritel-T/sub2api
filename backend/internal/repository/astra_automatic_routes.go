@@ -56,6 +56,19 @@ func (s *astraRoutingUpstream) automaticTargetRoute(req *http.Request, proxy str
 		if time.Until(route.expires) < 90*time.Second {
 			continue
 		}
+		effectiveProxy := proxy
+		if pool.config.IPAffinity {
+			effectiveProxy = route.proxy
+		}
+		quotaKey, negativeKey := targetBorrowQuietKeys(req, id, model, effectiveProxy, source, profile)
+		if prior, waiting := s.targetQuotaWait(quotaKey, time.Now()); waiting {
+			last = errors.New(prior.reason)
+			continue
+		}
+		if prior, waiting := s.targetQuotaWait(negativeKey, time.Now()); waiting {
+			last = errors.New(prior.reason)
+			continue
+		}
 		attempts++
 		if attempts > 3 {
 			break

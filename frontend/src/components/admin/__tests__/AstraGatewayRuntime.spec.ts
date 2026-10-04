@@ -27,7 +27,7 @@ describe('Astra gateway runtime', () => {
     expect(w.get('[data-testid="probe-hint"]').text()).toContain('admin.astraGateway.probeHint')
     await w.findAll('button').find(b => b.text() === 'admin.astraGateway.verifyTarget')!.trigger('click'); await flushPromises()
     expect(mocks.test).toHaveBeenCalledWith('verify', 300, 'state_probe')
-    expect(w.find('[role="status"]').text()).toContain('target_probe_degraded'); w.unmount()
+    expect(w.find('[role="status"]').text()).toContain('admin.astraGateway.testReasons.ticketChanged'); w.unmount()
   })
   it('shows route lifetime, blocks invalid WS and refreshes status', async () => {
     const w = mount(AstraGatewayRuntime, { props: { settings, dirty: false } }); await flushPromises()

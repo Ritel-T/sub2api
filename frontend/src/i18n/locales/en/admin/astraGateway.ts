@@ -1,5 +1,22 @@
 export default {
   astraGateway: {
+    testPreparing: 'Test started; preparing the route. Upstream connection success is not confirmed yet.',
+    testIncomplete: 'The test stream ended without a complete successful result.',
+    retryAt: 'Next verification: {time}',
+    routeStates: { ready: 'Borrowed route ready now', expired: 'Borrowed route expired', waiting: 'Awaiting route verification', unavailable: 'Borrowed route unavailable', unknown: 'Route status not verified' },
+    routeReadyHint: 'This account and model have a validated, unexpired route. This does not establish another model readiness or lasting recovery.',
+    routeUnavailableHint: 'Borrowing remains required. No currently valid route for this account and model has been confirmed.',
+    borrowRequiredDegradedHint: 'Native degradation evidence requires a valid borrowed route for this model. Current route readiness is shown separately.',
+    testReasons: {
+      accountUnavailable: 'The account is paused, expired or unavailable and cannot currently borrow a route.', modelMismatch: 'No complete successful result was received, or the upstream response model differs from the tested model.',
+      stateUnknown: 'The latest account state could not be verified. The borrowing test was not sent.',
+      requestFailed: 'The borrowing request did not complete. Check runtime status and retry shortly.', changed: 'Borrowing settings changed. Verify the route again.', testing: 'The borrowed route is verified. Sending the model test and awaiting its complete result.',
+      ticketChanged: 'The target ticket or upstream route changed. Borrowing was not verified.', answerFailed: 'The target answer check failed. The borrowed route is unavailable.',
+      rateLimited: 'Upstream rate limit or quota exhaustion (429) prevented verification.', authFailed: 'Upstream authentication failed (401). Check the target account authorization.',
+      busy: 'Borrowing verification is in progress. Retry shortly.', expired: 'The borrowed route expired. Acquire and verify another route.',
+      notReady: 'Borrowing is not ready for this account and model.', verificationFailed: 'Target verification did not complete. The borrowed route is unavailable.',
+      noSource: 'No validated source route is currently available. Retry shortly.', compactUnsupported: 'The borrowing route does not currently support compact tests.', ticketMissing: 'Upstream returned no usable routing ticket.'
+    },
     probeHint: 'Run two short requests using each actual Sol / Astra model. Both must complete with the correct model and a stable continuation ticket, followed by four complete candy answers using the same Cookie, with at least three correct. A new ticket, failure, changed route or insufficient correct answers is not usable. Results describe this validation only, not permanent model recovery.',
     borrowTitle: 'Gateway borrowing',
     borrowDescription: 'Acquire a gateway route and verify each target separately for Sol / Astra before borrowing it within its lifetime.',
@@ -14,7 +31,7 @@ export default {
     autoRuntimeHint: 'Sol and Astra are verified separately for each account. A pass on one model does not establish readiness for another. Borrowing verification requires two stable-ticket requests and four complete answers with the same Cookie, with at least three correct. Native recovery requires quality checks that bypass borrowing.',
     models: 'Manual borrowing models', chooseModels: 'Select at least one borrowing model.',
     borrowRequired: 'Borrowing required',
-    borrowRequiredHint: 'Native quality is confirmed degraded for this model. Generation requires a valid borrowed route. This label does not establish current route availability.',
+    borrowRequiredHint: 'Policy requires borrowing for this model; native quality may still be unclassified. This label does not establish native degradation or current route readiness.',
     expand: 'Configuration and status', collapse: 'Collapse', configuration: 'Borrowing configuration',
     schedulingLog: 'Last 3 scheduling changes',
     schedulingLogHint: 'Actual changes only; refreshes every 5 seconds. Cleared on instance restart.',

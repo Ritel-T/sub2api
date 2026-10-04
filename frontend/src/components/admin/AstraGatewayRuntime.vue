@@ -59,6 +59,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { gatewayBorrowReasonKey } from '@/utils/gatewayBorrowStatus'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getAstraGatewayRuntime, testAstraGateway, type AstraGatewayRuntime, type AstraGatewaySettings } from '@/api/admin/astraGateway'
@@ -76,7 +77,7 @@ let poll: ReturnType<typeof setInterval> | undefined
 let tick: ReturnType<typeof setInterval> | undefined
 let alive = true
 let refreshing = false
-function reason(code: string) { const key = `${p}.reasons.${code}`; return te(key) ? t(key) : code }
+function reason(code: string) { const readable = gatewayBorrowReasonKey(code); if (readable) return t(readable); const key = `${p}.reasons.${code}`; return te(key) ? t(key) : code }
 function routeLifetime(row: { state?: string; expires_at?: string }) { return row.state === 'ready' && row.expires_at && remaining(row.expires_at) > 0 ? `${remaining(row.expires_at)} s` : '—' }
 function clock(value?: string) { return value ? new Date(value).toLocaleString() : '—' }
 function remaining(expiry?: string) { return expiry ? Math.max(0, Math.ceil((Date.parse(expiry) - now.value) / 1000)) : 0 }

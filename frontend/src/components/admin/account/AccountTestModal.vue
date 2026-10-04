@@ -375,6 +375,7 @@ import { useClipboard } from '@/composables/useClipboard'
 import { buildApiUrl } from '@/api/client'
 import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
 import { adminAPI } from '@/api/admin'
+import { gatewayBorrowReasonKey } from '@/utils/gatewayBorrowStatus'
 import type { Account, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
@@ -926,6 +927,13 @@ const startTest = async () => {
         }
       }
     }
+    if (buffer.startsWith('data: ')) {
+      try { handleEvent(JSON.parse(buffer.slice(6).trim())) } catch { /* Incomplete final SSE data is a failed test below. */ }
+    }
+    if (status.value === 'connecting') {
+      status.value = 'error'
+      errorMessage.value = t('admin.astraGateway.testIncomplete')
+    }
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       status.value = 'idle'
@@ -933,8 +941,9 @@ const startTest = async () => {
     }
     status.value = 'error'
     const msg = error instanceof Error ? error.message : t('common.unknownError')
-    errorMessage.value = msg
-    addLine(t('admin.accounts.errorPrefix', { message: msg }), 'text-red-400')
+    const reason = gatewayBorrowReasonKey('', msg)
+    errorMessage.value = reason ? t(reason) : msg
+    addLine(t('admin.accounts.errorPrefix', { message: errorMessage.value }), 'text-red-400')
   }
 }
 
@@ -944,14 +953,17 @@ const handleEvent = (event: {
   model?: string
   success?: boolean
   error?: string
+  code?: string
+  channel?: string
   image_url?: string
   audio_url?: string
   video_url?: string
   mime_type?: string
 }) => {
+  const failure = () => { const key = gatewayBorrowReasonKey(event.code, event.error); return key ? t(key) : event.channel === 'gateway_borrow' ? t('admin.astraGateway.testReasons.requestFailed') : event.error || t('admin.accounts.testFailed') }
   switch (event.type) {
     case 'test_start':
-      addLine(t('admin.accounts.connectedToApi'), 'text-green-400')
+      addLine(t('admin.astraGateway.testPreparing'), 'text-blue-400')
       if (event.model) {
         addLine(t('admin.accounts.usingModel', { model: event.model }), 'text-cyan-400')
       }
@@ -1018,7 +1030,8 @@ const handleEvent = (event: {
 
     case 'status':
       if (event.text) {
-        addLine(event.text, 'text-cyan-300')
+        const key = gatewayBorrowReasonKey(event.code)
+        addLine(key ? t(key) : event.text, 'text-cyan-300')
       }
       break
 
@@ -1029,16 +1042,16 @@ const handleEvent = (event: {
         streamingContent.value = ''
       }
       if (event.success) {
-        status.value = 'success'
+        if (status.value !== 'error') status.value = 'success'
       } else {
         status.value = 'error'
-        errorMessage.value = event.error || t('admin.accounts.testFailed')
+        errorMessage.value = failure()
       }
       break
 
     case 'error':
       status.value = 'error'
-      errorMessage.value = event.error || t('common.unknownError')
+      errorMessage.value = failure()
       if (streamingContent.value) {
         addLine(streamingContent.value, 'text-green-300')
         streamingContent.value = ''

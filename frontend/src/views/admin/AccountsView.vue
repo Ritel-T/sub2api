@@ -289,7 +289,7 @@
           </template>
           <template #cell-status="{ row }">
             <div class="flex items-center gap-1.5">
-              <AccountStatusIndicator :account="row" @show-temp-unsched="handleShowTempUnsched" />
+              <AccountStatusIndicator :account="row" :borrow-routes="borrowRuntimeByAccount[String(row.id)] || []" :borrow-now="borrowRuntimeNow" :borrow-runtime-loaded="borrowRuntimeLoaded" :borrow-runtime-error="borrowRuntimeFailed" @show-temp-unsched="handleShowTempUnsched" />
             </div>
           </template>
           <template #cell-schedulable="{ row }">
@@ -499,6 +499,8 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
+import { useGatewayBorrowRuntime } from '@/composables/useGatewayBorrowRuntime'
+import { requiredBorrowModels } from '@/utils/gatewayBorrowStatus'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -1382,7 +1384,11 @@ watch(loading, (isLoading, wasLoading) => {
   }
 })
 
+const visibleBorrowRequired = computed(() => accounts.value.some(account => requiredBorrowModels(account).length > 0))
+const { byAccount: borrowRuntimeByAccount, now: borrowRuntimeNow, loaded: borrowRuntimeLoaded, failed: borrowRuntimeFailed, refresh: refreshBorrowRuntime } = useGatewayBorrowRuntime(visibleBorrowRequired)
+
 watch(accounts, (rows) => {
+  void refreshBorrowRuntime()
   const visibleIDs = new Set(rows.map((row) => String(row.id)))
   usageBatchByAccountId.value = Object.fromEntries(
     Object.entries(usageBatchByAccountId.value).filter(([key]) => visibleIDs.has(key))

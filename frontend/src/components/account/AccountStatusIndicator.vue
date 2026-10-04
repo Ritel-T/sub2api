@@ -6,7 +6,11 @@
       class="inline-flex items-center rounded bg-[#217346] px-1.5 py-0.5 text-[10px] font-semibold leading-3 text-white"
       :title="t('admin.accounts.openai.excelBPS')"
     >bps</span>
-    <span v-for="model in borrowRequiredModels" :key="model" data-testid="borrow-required-badge" class="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" :title="t('admin.astraGateway.borrowRequiredHint')">{{ model === 'gpt-6-astra' ? 'Astra' : '6.1 Sol' }} · {{ t('admin.astraGateway.borrowRequired') }}</span>
+    <div v-for="model in borrowRequiredModels" :key="model" class="flex flex-col items-start gap-1">
+      <span data-testid="borrow-required-badge" class="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" :title="t(nativeBorrowQuality(account, model) === 'degraded' ? 'admin.astraGateway.borrowRequiredDegradedHint' : 'admin.astraGateway.borrowRequiredHint')">{{ model === 'gpt-6-astra' ? 'Astra' : '6.1 Sol' }} · {{ t('admin.astraGateway.borrowRequired') }}</span>
+      <span data-testid="borrow-route-badge" class="text-[10px]" :class="routeState(model) === 'ready' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'" :title="routeHint(model)">{{ t(`admin.astraGateway.routeStates.${routeState(model)}`) }}</span>
+      <span v-if="retryAt(model)" data-testid="borrow-retry-at" class="text-[10px] text-gray-500 dark:text-gray-400">{{ t('admin.astraGateway.retryAt', { time: formatDateTime(retryAt(model)) }) }}</span>
+    </div>
   <div class="flex flex-wrap items-center gap-2">
     <!-- OpenAI OAuth RPM Display - keep the pause reason explicit -->
     <div v-if="isRPMPaused" class="flex flex-col items-center gap-1">
@@ -181,12 +185,18 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import ExcelBPSCooldownBadge from './ExcelBPSCooldownBadge.vue'
 import type { Account } from '@/types'
+import type { AstraRouteStatus } from '@/api/admin/astraGateway'
+import { borrowingRouteState, canonicalBorrowModel, gatewayBorrowReasonKey, nativeBorrowQuality, requiredBorrowModels } from '@/utils/gatewayBorrowStatus'
 import { formatCountdown, formatDateTime, formatDateTimeToMinute, formatCountdownWithSuffix, formatTime } from '@/utils/format'
 
 const { t } = useI18n()
 
 const props = defineProps<{
   account: Account
+  borrowRoutes?: AstraRouteStatus[]
+  borrowNow?: number
+  borrowRuntimeLoaded?: boolean
+  borrowRuntimeError?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -207,19 +217,21 @@ const isExcelBPSEnabled = computed(() => {
     !isPAT(credential('auth_mode')) && !isPAT(credential('openai_auth_mode'))
 })
 
-// This is a quality requirement, not a claim that a currently usable ticket exists.
-const borrowRequiredModels = computed(() => {
-  const account = props.account
-  if (account.platform !== 'openai' || account.type !== 'oauth') return []
-  const configured = account.extra?.openai_gateway_borrow_models
-  const models = Array.isArray(configured) ? configured : []
-  const quality = account.extra?.quality_candy_models as Record<string, unknown> | undefined
-  return ['gpt-6-astra', 'gpt-6.1-sol'].filter(model => {
-    if (models.includes(model) || (model === 'gpt-6.1-sol' && models.includes('gpt-6-sol'))) return true
-    const result = quality?.[model] ?? (model === 'gpt-6.1-sol' ? quality?.['gpt-6-sol'] : undefined)
-    return result === 'degraded' || (typeof result === 'object' && result !== null && 'state' in result && result.state === 'degraded')
-  })
-})
+// Required policy and current readiness are independent, especially for legacy models without quality evidence.
+const borrowRequiredModels = computed(() => requiredBorrowModels(props.account))
+function routeFor(model: string) { return props.borrowRoutes?.find(row => row.account_id === props.account.id && canonicalBorrowModel(row.model) === model) }
+function routeState(model: string) {
+  if (props.borrowRuntimeError) return 'unknown'
+  if (!props.borrowRuntimeLoaded) return 'unknown'
+  return borrowingRouteState(routeFor(model), props.borrowNow ?? Date.now())
+}
+function retryAt(model: string) { const retry = routeFor(model)?.retry_at; return retry && Date.parse(retry) > (props.borrowNow ?? Date.now()) && routeState(model) !== 'ready' ? retry : undefined }
+function routeHint(model: string) {
+  const row = routeFor(model)
+  if (routeState(model) === 'ready') return t('admin.astraGateway.routeReadyHint')
+  const key = gatewayBorrowReasonKey(row?.reason)
+  return t(key || 'admin.astraGateway.routeUnavailableHint')
+}
 
 // Computed: is rate limited (429)
 const isRateLimited = computed(() => {

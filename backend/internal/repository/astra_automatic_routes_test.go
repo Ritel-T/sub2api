@@ -54,12 +54,18 @@ func TestAutomaticBorrowRejectsBadDonorAndKeepsOldProof(t *testing.T) {
 	_ = resp.Body.Close()
 	require.True(t, wrapper.CodexGatewayPinWSBindingValidForModel(t.Context(), 300, "gpt-6-astra", "old"))
 	add(299, "bad")
+	require.Error(t, wrapper.VerifyAstraGatewayTarget(t.Context(), request(t.Context()), "target", 300, 1), "replacement candidate from same source must fail and enter source backoff")
+	before := business
+	retained, retainErr := wrapper.Do(request(t.Context()), "target", 300, 1)
+	require.NoError(t, retainErr, "replacement failure cannot block exact old verified Cookie until its own deadline")
+	_ = retained.Body.Close()
+	require.Equal(t, before+1, business, "old pass sends only the business request without revalidation")
 	add(298, "good")
 	require.True(t, wrapper.CodexGatewayPinWSBindingValidForModel(t.Context(), 300, "gpt-6-astra", "old"), "source candidate replacement cannot revoke an unexpired proof")
 	require.NoError(t, wrapper.VerifyAstraGatewayTarget(t.Context(), request(t.Context()), "target", 300, 1), "bad source must not prevent next configured donor validation")
 	require.True(t, wrapper.CodexGatewayPinWSBindingValidForModel(t.Context(), 300, "gpt-6-astra", "good"))
 	require.True(t, wrapper.CodexGatewayPinWSBindingValidForModel(t.Context(), 300, "gpt-6-astra", "old"), "good replacement preserves old response proof until its deadline")
-	require.Equal(t, 1, business, "candidate comparisons never dispatch a business request")
+	require.Equal(t, 2, business, "candidate comparisons never dispatch a business request")
 	pool.targetMu.Lock()
 	check, _ := pool.targetCheck(300, "gpt-6-astra")
 	check.expires = time.Now().Add(-time.Second)
@@ -91,4 +97,46 @@ func TestAutomaticPrepareVisitsAllDonorsBounded(t *testing.T) {
 	require.Equal(t, []int64{1, 2, 3}, calls, "available first donor cannot stop preparing bounded backups")
 	require.NoError(t, wrapper.PrepareAstraGateway(t.Context()))
 	require.Equal(t, []int64{1, 2, 3, 4}, calls, "fresh donors do not consume another probe budget")
+}
+
+func TestAutomaticBorrowBackoffDoesNotConsumeFourthDonorBudget(t *testing.T) {
+	settings := config.AstraRoutingSettings{AutoQuality: true, Revision: "one", CookiePool: config.CodexGatewayPinConfig{Enabled: true, SourceAccountIDs: []int64{1, 2, 3, 4}, TargetAccountIDs: []int64{300}}}
+	cfg := &config.Config{}
+	cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
+	shots := 0
+	wrapper := &astraRoutingUpstream{cfg: cfg, delegate: gatewayPinDelegate{call: func(req *http.Request, _ string, _ int64, _ int, _ *tlsfingerprint.Profile) (*http.Response, error) {
+		shots++
+		cookie, err := req.Cookie("__oailb")
+		require.NoError(t, err)
+		require.Equal(t, "fourth", cookie.Value, "backoff donors may not send even one probe")
+		return pinResponse(""), nil
+	}}}
+	wrapper.SetAstraGatewayPreparer(func(context.Context, int64) error {
+		t.Fatal("fresh prepared candidates must not mint again")
+		return nil
+	})
+	pool := wrapper.current(t.Context())
+	now := time.Now()
+	r, _ := http.NewRequestWithContext(t.Context(), "POST", "https://chatgpt.com/backend-api/codex/responses", strings.NewReader(`{"model":"gpt-6-astra"}`))
+	r.Header.Set("Authorization", "Bearer target")
+	for _, id := range []int64{1, 2, 3, 4} {
+		value := "bad"
+		if id == 4 {
+			value = "fourth"
+		}
+		route := codexGatewayRouteFromResponse(pinResponse("__oailb="+value+"; Path=/; Secure; Max-Age=230"), "/backend-api/codex/responses", now)
+		pool.recordSource(id, now, route, true)
+		if id != 4 {
+			_, key := targetBorrowQuietKeys(r, 300, "gpt-6-astra", "target", id, nil)
+			wrapper.rememberTargetQuota(key, "target_probe_degraded", now.Add(180*time.Second))
+		}
+	}
+	response, err := wrapper.Do(r, "target", 300, 1)
+	require.NoError(t, err)
+	_ = response.Body.Close()
+	require.Equal(t, 7, shots, "only fourth donor's six probes and one business request are emitted")
+	response, err = wrapper.Do(r, "target", 300, 1)
+	require.NoError(t, err)
+	_ = response.Body.Close()
+	require.Equal(t, 8, shots, "cached pass avoids all donor validation repeats")
 }

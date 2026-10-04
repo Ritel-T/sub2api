@@ -24,6 +24,8 @@ import (
 // Each settings revision gets a fresh pool. In-flight requests finish against
 // their snapshot; removed candidates cannot re-populate the new pool.
 type astraRoutingUpstream struct {
+	quotaMu         sync.Mutex
+	quotaBackoff    map[astraTargetQuotaKey]astraTargetQuotaBackoff
 	rotationCache   astraRotationCache
 	listNodes       func() ([]mihomo.AstraNode, error)
 	pinNode         func(context.Context, mihomo.AstraNode) (string, func(), error)

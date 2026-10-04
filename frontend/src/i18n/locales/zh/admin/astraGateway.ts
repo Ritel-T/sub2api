@@ -1,5 +1,22 @@
 export default {
   astraGateway: {
+    testPreparing: '测试已开始，正在准备通道；尚未确认上游连接成功。',
+    testIncomplete: '测试流已结束，但未收到完整成功结果。',
+    retryAt: '下次复验：{time}',
+    routeStates: { ready: '当前借票可用', expired: '借票已过期', waiting: '等待借票复验', unavailable: '当前借票不可用', unknown: '借票状态未核验' },
+    routeReadyHint: '该账号、该模型当前路由验证通过且未过期；不代表其他模型可用或永久恢复。',
+    routeUnavailableHint: '借票要求仍保留；没有本账号、本模型当前有效路由的证明。',
+    borrowRequiredDegradedHint: '该模型有原生降智证据，策略要求有效借票才能生成；当前是否可用见下一行运行状态。',
+    testReasons: {
+      accountUnavailable: '账号已暂停、到期或不可用，当前不能参与借票。', modelMismatch: '未收到完整成功结果，或上游响应模型与测试模型不符。',
+      stateUnknown: '无法核验账号最新状态，借票测试未发送。',
+      requestFailed: '借票通道请求未完成，请查看运行状态并稍后重试。', changed: '借票配置已改变，需要重新验证。', testing: '借票已验证，正在发送模型测试；等待完整结果。',
+      ticketChanged: '目标门票异常或上游改变路由，借票未通过。', answerFailed: '目标答题验收未通过，借票不可用。',
+      rateLimited: '上游限流或额度不足（429），本次无法完成验证。', authFailed: '上游鉴权失败（401），请检查目标账号授权。',
+      busy: '借票复验正在进行，请稍后重试。', expired: '借票已过期，需要重新获取并验证。',
+      notReady: '该账号、该模型的借票尚不可用。', verificationFailed: '目标复验请求未完成，借票不可用。',
+      noSource: '暂无验证通过的来源路由，请稍后重试。', compactUnsupported: '借票通道暂不支持 compact 测试。', ticketMissing: '上游未返回有效路由门票。'
+    },
     probeHint: 'Sol / Astra 分别按实际模型执行两轮短请求，完整成功、模型正确且续接不换票后，再用同一 Cookie 完成四题糖果检测，至少三题正确才可借用。换票、生成失败、路由改变或正确数不足均不可用。结果仅反映本次验证，不代表模型能力永久恢复。',
     borrowTitle: '网关借票',
     borrowDescription: '从来源账号获取网关路由，按 Sol / Astra 分别验证目标账号，在有效期内借用。',
@@ -14,7 +31,7 @@ export default {
     autoRuntimeHint: '同一账号的 Sol 与 Astra 独立验证；某一模型通过不代表另一模型可用。借票复验包含两轮稳票和同一 Cookie 的四题检测，完整结束且至少三题正确才可用；原生恢复以质量任务绕过借票的答题结果为准。',
     models: '手工借票模型', chooseModels: '请选择至少一个借票模型。',
     borrowRequired: '需要借票',
-    borrowRequiredHint: '该模型原生质量已确认降智，需要有效借票才能参与生成；标签不代表借票当前可用。',
+    borrowRequiredHint: '该模型的策略要求借票；原生质量可能尚未分类。此标签不代表已确认降智，也不代表借票当前可用。',
     expand: '配置与运行状态', collapse: '收起', configuration: '借票配置',
     schedulingLog: '最近 3 条调度记录',
     schedulingLogHint: '仅记录实际开关变更，每 5 秒刷新；当前实例保存，重启后清空。',

@@ -221,3 +221,60 @@ describe('AccountTestModal', () => {
     })
   })
 })
+
+describe('Borrowing account test results', () => {
+  async function run(lines: string[]) {
+    getAvailableModels.mockResolvedValue([{ id: 'gpt-6-astra', display_name: 'Astra' }])
+    global.fetch = vi.fn().mockResolvedValue(createStreamResponse(lines))
+    const w = mountModal({ id: 34, name: 'Borrow target', platform: 'openai', type: 'oauth', status: 'active' })
+    await w.setProps({ show: true }); await flushPromises()
+    await w.findAll('button').find(button => button.text().includes('admin.accounts.startTest'))!.trigger('click')
+    await flushPromises(); await flushPromises()
+    return w
+  }
+  afterEach(() => vi.unstubAllGlobals())
+  it('does not claim connection success when preparing borrowing, and fails an unterminated test', async () => {
+    const w = await run(['data: {"type":"test_start","model":"gpt-6-astra","channel":"gateway_borrow"}\n'])
+    expect(w.text()).toContain('admin.astraGateway.testPreparing')
+    expect(w.text()).not.toContain('admin.accounts.connectedToApi')
+    expect(w.text()).toContain('admin.astraGateway.testIncomplete')
+    expect(w.text()).not.toContain('admin.accounts.testCompleted')
+    w.unmount()
+  })
+  it.each([
+    ['target_probe_degraded', 'ticketChanged'], ['target_quality_failed', 'answerFailed'],
+    ['target_probe_rate_limited', 'rateLimited'], ['target_probe_auth_failed', 'authFailed'],
+    ['target_validation_in_progress', 'busy'], ['borrow_route_expired', 'expired']
+  ])('shows a readable %s result without claiming success', async (code, reason) => {
+    const w = await run([
+      'data: {"type":"test_start","model":"gpt-6-astra"}\n',
+      `data: ${JSON.stringify({ type: 'error', code, channel: 'gateway_borrow', error: 'internal detail' })}\n`
+    ])
+    expect(w.text()).toContain(`admin.astraGateway.testReasons.${reason}`)
+    expect(w.text()).not.toContain('admin.accounts.testCompleted')
+    expect(w.text()).not.toContain('internal detail')
+    w.unmount()
+  })
+  it('translates the verified-route status while waiting for the full model test', async () => {
+    const w = await run(['data: {"type":"status","code":"gateway_borrow_testing","channel":"gateway_borrow","text":"Testing the verified gateway borrow route"}\n'])
+    expect(w.text()).toContain('admin.astraGateway.testReasons.testing')
+    expect(w.text()).toContain('admin.astraGateway.testIncomplete')
+    expect(w.text()).not.toContain('admin.accounts.testCompleted')
+    w.unmount()
+  })
+  it('keeps a reported verification error even if a later terminal event incorrectly claims success', async () => {
+    const w = await run([
+      'data: {"type":"error","code":"target_quality_failed","error":"internal detail"}\n',
+      'data: {"type":"test_complete","success":true}\n'
+    ])
+    expect(w.text()).toContain('admin.astraGateway.testReasons.answerFailed')
+    expect(w.text()).not.toContain('admin.accounts.testCompleted')
+    w.unmount()
+  })
+  it('accepts only the explicit successful terminal result, including final data without a newline', async () => {
+    const w = await run(['data: {"type":"test_start","model":"gpt-6-astra"}\n', 'data: {"type":"test_complete","success":true}'])
+    expect(w.text()).toContain('admin.accounts.testCompleted')
+    expect(w.text()).not.toContain('admin.accounts.connectedToApi')
+    w.unmount()
+  })
+})

@@ -232,6 +232,8 @@ func astraSetupError(err error) string {
 	switch err.Error() {
 	case "astra_rotation_cooling", "astra_rotation_unavailable", "astra_rotation_use_once", "astra_rotation_no_nodes", "astra_rotation_node_unavailable", "astra_rotation_exhausted", "answer_mismatch", "upstream_test_failed", "no_qualified_source_route", "source_probe_cooldown", "configuration_changed", "cookie_pool_disabled", "target_probe_degraded", "target_route_changed", "target_probe_failed", "target_validation_in_progress", "preparation_in_progress":
 		return err.Error()
+	case "target_quality_failed", "target_probe_rate_limited", "target_probe_auth_failed", "target_account_rate_limited", "target_account_unavailable", "borrow_route_expired":
+		return err.Error()
 	}
 	if err == context.Canceled || err == context.DeadlineExceeded {
 		return "setup_cancelled"

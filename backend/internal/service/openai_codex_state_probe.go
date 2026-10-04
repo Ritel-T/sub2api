@@ -17,6 +17,7 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
 )
 
 // OpenAICodexStateVerdict 是门票（state）探针对账号智力档位的结论。
@@ -91,6 +92,7 @@ type openAICodexStateShot struct {
 	detail         string
 	text           string
 	completedModel string
+	failureCode    string
 }
 
 // ProbeOpenAICodexState 用两发极小请求判断账号是否降智：
@@ -281,6 +283,10 @@ func (r *OpenAICodexStateProbeResult) shotUsable(ctx context.Context, step strin
 	switch {
 	case shot.status == http.StatusOK:
 		if shot.streamErr != nil {
+			if shot.failureCode == "usage_limit_reached" || shot.failureCode == "rate_limit_exceeded" || shot.failureCode == "rate_limit_error" {
+				r.fail(OpenAICodexStateFailureRateLimited, step+"回复流报告额度或限流，本次无法判断", shot.detail)
+				return false
+			}
 			r.fail(OpenAICodexStateFailureStreamError, step+"返回 200 但回复流没有正常结束（上游过载或额度用尽等），本次无法判断", shot.detail)
 			return false
 		}
@@ -436,7 +442,15 @@ func fireOpenAICodexProbeShotRequest(ctx context.Context, headers http.Header, m
 		}
 	}
 	if out.streamErr = validateCodexProbeResponse(data); out.streamErr != nil {
-		out.detail = openAICodexStateDetail(openAICodexStateStreamErrorPayload(data))
+		payload := openAICodexStateStreamErrorPayload(data)
+		out.detail = openAICodexStateDetail(payload)
+		for _, path := range []string{"error.code", "error.type", "response.error.code", "response.error.type"} {
+			code := gjson.GetBytes(payload, path).String()
+			if code == "usage_limit_reached" || code == "rate_limit_exceeded" || code == "rate_limit_error" {
+				out.failureCode = code
+				break
+			}
+		}
 	}
 	return out, nil
 }
