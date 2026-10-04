@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -14,6 +15,55 @@ type astraSetupUpstream struct {
 	HTTPUpstream
 	prepare  func(context.Context) error
 	snapshot AstraGatewayRuntime
+}
+
+func TestAutomaticBorrowWarmOnlyExpiredModelsAndHonorsRetry(t *testing.T) {
+	now := time.Now()
+	expires := now.Add(time.Minute)
+	retry := now.Add(5 * time.Minute)
+	snapshot := AstraGatewayRuntime{Targets: []AstraRouteStatus{
+		{AccountID: 1, Model: "gpt-6-astra", State: "ready", ExpiresAt: &expires},
+		{AccountID: 1, Model: "gpt-6.1-sol", State: "rejected", RetryAt: &retry},
+	}}
+	require.False(t, borrowModelNeedsWarm(snapshot, 1, "gpt-6-astra", now))
+	require.False(t, borrowModelNeedsWarm(snapshot, 1, "gpt-6.1-sol", now))
+	require.True(t, borrowModelNeedsWarm(snapshot, 1, "gpt-6-astra", now.Add(45*time.Second)))
+	require.True(t, borrowModelNeedsWarm(snapshot, 1, "gpt-6.1-sol", now.Add(6*time.Minute)))
+	require.True(t, borrowModelNeedsWarm(snapshot, 2, "gpt-6-astra", now))
+}
+
+func TestAutomaticBorrowReadyCycleDoesNotProbeAgain(t *testing.T) {
+	now := time.Now()
+	expiry := now.Add(2 * time.Minute)
+	settings := config.AstraRoutingSettings{AutoQuality: true, Revision: "fixture", CookiePool: config.CodexGatewayPinConfig{Enabled: true, SourceAccountIDs: []int64{299}, TargetAccountIDs: []int64{300}}}
+	cfg := &config.Config{}
+	cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
+	provider := &astraSetupUpstream{snapshot: AstraGatewayRuntime{Revision: settings.Revision,
+		Sources: []AstraRouteStatus{{AccountID: 299, State: "ready", ExpiresAt: &expiry}},
+		Targets: []AstraRouteStatus{{AccountID: 300, Model: "gpt-6-astra", State: "ready", ExpiresAt: &expiry}},
+	}, prepare: func(context.Context) error { t.Fatal("fresh route should not trigger source generation"); return nil }}
+	svc := &AccountTestService{cfg: cfg, httpUpstream: provider, astraSetupStatus: AstraSetupStatus{Revision: settings.Revision}}
+	ctx, cancel := context.WithCancel(t.Context())
+	svc.runAstraAutomaticSetup(ctx, cancel, settings)
+	require.Equal(t, "ready", svc.astraSetupStatus.State)
+}
+
+func TestAutomaticBorrowRestartStartsPersistedWarm(t *testing.T) {
+	settings := config.AstraRoutingSettings{AutoQuality: true, Revision: "persisted", CookiePool: config.CodexGatewayPinConfig{Enabled: true}}
+	raw, _ := json.Marshal(settings)
+	repo := &astraSettingsRepo{codexPolicyMigrationRepoStub: &codexPolicyMigrationRepoStub{values: map[string]string{astraRoutingSettingKey: string(raw)}}}
+	cfg := &config.Config{}
+	setting := NewSettingService(repo, cfg)
+	started := make(chan struct{}, 1)
+	provider := &astraSetupUpstream{prepare: func(context.Context) error { started <- struct{}{}; return errors.New("astra_source_required") }}
+	svc := &AccountTestService{cfg: cfg, settingService: setting, httpUpstream: provider}
+	require.NoError(t, svc.StartPersistedAutomaticGatewayBorrow())
+	defer svc.StopAstraAutomaticSetup()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("persisted automatic settings never started route warm")
+	}
 }
 
 func (s *astraSetupUpstream) PrepareAstraGateway(ctx context.Context) error              { return s.prepare(ctx) }

@@ -641,6 +641,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	body []byte,
 	token string,
 ) (*http.Request, error) {
+	ctx = withOpenAIFinalSendScope(ctx, c, body)
 	defer requesttiming.Observe(ctx, "build_upstream_request")()
 	if account.excelBPSRequiredUpstreamModel(gjson.GetBytes(body, "model").String()) {
 		return nil, denyOpenAITurn("basispoints_required_use_responses")

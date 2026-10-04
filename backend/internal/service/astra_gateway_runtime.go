@@ -18,6 +18,8 @@ import (
 // Public runtime DTOs intentionally contain no cookie, credential, response ID,
 // client session identity or generated content.
 type AstraRouteStatus struct {
+	Model            string     `json:"model,omitempty"`
+	RetryAt          *time.Time `json:"retry_at,omitempty"`
 	ProxyNode        string     `json:"proxy_node,omitempty"`
 	ProxyCountry     string     `json:"proxy_country,omitempty"`
 	Answer           string     `json:"answer,omitempty"`
@@ -108,25 +110,27 @@ func (s *AccountTestService) AstraGatewayStatus(ctx context.Context) AstraGatewa
 	existingTargets := result.Targets
 	result.Targets = []AstraRouteStatus{}
 	for _, id := range settings.CookiePool.TargetAccountIDs {
-		row := AstraRouteStatus{AccountID: id, State: "waiting", Reason: "target_not_verified"}
-		for _, r := range existingTargets {
-			if r.AccountID == id {
-				row = r
-				break
+		for _, model := range settings.CookiePool.ModelsForTarget(id) {
+			row := AstraRouteStatus{AccountID: id, Model: model, State: "waiting", Reason: "target_not_verified"}
+			for _, r := range existingTargets {
+				if r.AccountID == id && (r.Model == model || (r.Model == "" && model == "gpt-6-astra")) {
+					row = r
+					break
+				}
 			}
+			if !settings.CookiePool.Enabled {
+				row.State = "disabled"
+				row.Reason = "disabled"
+			}
+			a, err := s.accountRepo.GetByID(ctx, id)
+			if err != nil || a == nil || !a.IsOpenAIOAuthLike() {
+				row.State = "blocked"
+				row.Reason = "account_unavailable"
+			} else if !a.IsModelSupported(model) && a.Extra["astra_model_disabled"] != true {
+				row.Reason = "astra_not_in_allowlist"
+			}
+			result.Targets = append(result.Targets, row)
 		}
-		if !settings.CookiePool.Enabled {
-			row.State = "disabled"
-			row.Reason = "disabled"
-		}
-		a, err := s.accountRepo.GetByID(ctx, id)
-		if err != nil || a == nil || !a.IsOpenAIOAuthLike() {
-			row.State = "blocked"
-			row.Reason = "account_unavailable"
-		} else if !a.IsModelSupported("gpt-6-astra") && a.Extra["astra_model_disabled"] != true {
-			row.Reason = "astra_not_in_allowlist"
-		}
-		result.Targets = append(result.Targets, row)
 	}
 	for _, id := range settings.WSSession.AccountIDs {
 		row := AstraWSStatus{AccountID: id, Reason: "disabled"}
@@ -199,14 +203,13 @@ func (s *AccountTestService) TestAstraGateway(ctx context.Context, action string
 		err = provider.PrepareAstraGateway(ctx)
 		if err == nil {
 			for _, target := range settings.CookiePool.TargetAccountIDs {
-				err = s.verifyAstraGatewayTarget(ctx, target)
-				if err != nil {
-					break
+				if targetErr := s.verifyAstraGatewayTarget(ctx, target); targetErr != nil && err == nil {
+					err = targetErr
 				}
 			}
 		}
 		if err == nil {
-			if _, ready := astraTargetsReady(ctx, provider, settings.CookiePool.TargetAccountIDs); !ready {
+			if _, ready := astraTargetsReadyForModels(ctx, provider, settings.CookiePool); !ready {
 				err = errors.New("target_not_verified")
 			}
 		}
@@ -246,17 +249,24 @@ func (s *AccountTestService) TestAstraGateway(ctx context.Context, action string
 
 // Verify against target credentials without sending an additional business request.
 func (s *AccountTestService) verifyAstraGatewayTarget(ctx context.Context, id int64) error {
-	verifier, ok := s.httpUpstream.(interface {
-		VerifyAstraGatewayTarget(context.Context, *http.Request, string, int64, int) error
-	})
-	if !ok || s.accountRepo == nil || s.openaiGatewayService == nil {
+	if s.accountRepo == nil || s.openaiGatewayService == nil {
 		return errors.New("runtime_unavailable")
 	}
+	var firstErr error
+	for _, model := range s.cfg.AstraRouting(ctx).CookiePool.ModelsForTarget(id) {
+		if err := s.verifyGatewayBorrowTargetForModel(ctx, id, model); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func (s *AccountTestService) verifyGatewayBorrowTargetForModel(ctx context.Context, id int64, model string) error {
 	account, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil || account == nil || !account.IsOpenAIOAuthLike() || account.Status != StatusActive {
 		return errors.New("account_unavailable")
 	}
-	if openAICodexStateProbeUnsupportedReason(account, "gpt-6-astra", false) != "" {
+	if openAICodexStateProbeUnsupportedReason(account, model, false) != "" {
 		return errors.New("target_probe_unsupported")
 	}
 	release, ok := s.beginOpenAICodexStateProbe(id)
@@ -276,8 +286,20 @@ func (s *AccountTestService) verifyAstraGatewayTarget(ctx context.Context, id in
 	if err = resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, req.Header, account); err != nil {
 		return errors.New("account_unavailable")
 	}
-	applyOpenAICodexTicketHarvestIdentity(req.Header, "gpt-6-astra")
-	return verifier.VerifyAstraGatewayTarget(ctx, req, openAIAccountProxyURL(account), id, account.Concurrency)
+	applyOpenAICodexTicketHarvestIdentity(req.Header, model)
+	if verifier, ok := s.httpUpstream.(interface {
+		VerifyAstraGatewayTargetForModel(context.Context, *http.Request, string, int64, int, string) error
+	}); ok {
+		return verifier.VerifyAstraGatewayTargetForModel(ctx, req, openAIAccountProxyURL(account), id, account.Concurrency, model)
+	}
+	if model == "gpt-6-astra" {
+		if verifier, ok := s.httpUpstream.(interface {
+			VerifyAstraGatewayTarget(context.Context, *http.Request, string, int64, int) error
+		}); ok {
+			return verifier.VerifyAstraGatewayTarget(ctx, req, openAIAccountProxyURL(account), id, account.Concurrency)
+		}
+	}
+	return errors.New("runtime_unavailable")
 }
 
 func (s *AccountTestService) testAstraWS(ctx context.Context, id, adminID int64, question astraQuestion) (string, error) {

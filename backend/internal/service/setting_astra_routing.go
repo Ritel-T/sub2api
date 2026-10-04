@@ -51,6 +51,10 @@ func (s *SettingService) SetAstraRouting(ctx context.Context, value config.Astra
 		s.astraRoutingMu.Unlock()
 		return value, readErr
 	}
+	if (value.AutoQuality || previous.AutoQuality || value.Revision != "") && value.Revision != previous.Revision {
+		s.astraRoutingMu.Unlock()
+		return value, fmt.Errorf("astra_configuration_changed")
+	}
 	schedulingOnly := config.AstraRouteSettingsEqual(previous, value)
 	value.Revision = uuid.NewString()
 	if schedulingOnly {

@@ -26,6 +26,9 @@ func (s *OpenAIGatewayService) boundCodexTicketFromHeader(ctx context.Context, h
 		return nil
 	}
 	for _, model := range s.openAICodexTicketConfig().Models {
+		if account.RequiresGatewayBorrowUpstream(model) {
+			continue
+		}
 		ticket := s.lookupOpenAICodexTicket(account, model)
 		if ticket != nil && ticket.State == sent && !ticket.Revoked {
 			return ticket

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"slices"
@@ -68,19 +69,53 @@ func (s *astraRoutingUpstream) Do(r *http.Request, p string, a int64, n int) (*h
 	return s.DoWithTLS(r, p, a, n, nil)
 }
 func (s *astraRoutingUpstream) DoWithTLS(r *http.Request, p string, a int64, n int, f *tlsfingerprint.Profile) (*http.Response, error) {
+	model := ""
+	if r != nil {
+		model = codexGatewayPinModel(r)
+	}
+	if r != nil && model == "" {
+		if wire, known := service.GatewayBorrowWireModelFromContext(r.Context()); known {
+			model = wire
+		}
+	}
+	if r != nil {
+		if required, ok := service.GatewayBorrowRequiredModelFromContext(r.Context()); ok {
+			pool := s.current(r.Context())
+			if pool == nil || !codexGatewayPinRequest(r) || required != model || !pool.config.TargetRequiresModel(a, required) {
+				return nil, errors.New("borrow_required_route_unavailable")
+			}
+		}
+	}
 	if r != nil && !service.IsOpenAICodexStateProbeRequest(r.Context()) && codexGatewayPinRequest(r) {
 		if pool := s.current(r.Context()); pool != nil {
-			if slices.Contains(pool.config.TargetAccountIDs, a) && codexGatewayPinAstra(r) {
+			if slices.Contains(pool.config.TargetAccountIDs, a) && model == "" {
+				return nil, errors.New("borrow_request_model_unavailable")
+			}
+			if pool.config.TargetRequiresModel(a, model) {
 				cookie, _, effectiveProxy, release, err := s.targetRoute(r, p, a, n, f)
 				if err != nil {
 					return nil, err
 				}
 				if cookie == nil {
 					release()
-					return s.delegate.DoWithTLS(r, p, a, n, f)
+					return nil, errCodexGatewayPinUnavailable
+				}
+				if expected := service.GatewayBorrowExpectedCookieFromContext(r.Context()); expected != "" && expected != cookie.Value {
+					release()
+					return nil, errors.New("borrow_response_owner_route_changed")
+				}
+				if witness := service.GatewayBorrowRequestWitnessFromContext(r.Context()); witness != nil {
+					pool.targetMu.Lock()
+					check, _ := pool.targetCheck(a, model)
+					pool.targetMu.Unlock()
+					witness.Confirm(a, model, cookie.Value, s.cfg.AstraRouting(r.Context()).Revision, check.expires)
 				}
 				r = r.Clone(service.WithHTTPUpstreamRedirectsDisabled(r.Context()))
 				replaceCodexGatewayCookie(r, cookie)
+				pool.targetMu.Lock()
+				verifiedRoute, _ := pool.targetCheck(a, model)
+				pool.targetMu.Unlock()
+				slog.Info("gateway_borrow_applied", "account_id", a, "model", model, "source_account_id", verifiedRoute.sourceID, "revision", s.cfg.AstraRouting(r.Context()).Revision, "expires_at", verifiedRoute.expires)
 				if pool.config.RotateNodes {
 					r = astraFreshRequest(r)
 				}
@@ -127,6 +162,9 @@ func (s *astraRoutingUpstream) PrepareAstraGateway(ctx context.Context) error {
 	pool := s.current(ctx)
 	if pool == nil {
 		return errors.New("cookie_pool_disabled")
+	}
+	if len(pool.config.SourceAccountIDs) == 0 {
+		return errors.New("astra_source_required")
 	}
 	if pool.config.RotateNodes {
 		return s.prepareRotatedSource(ctx, pool)
@@ -198,38 +236,44 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 	readySource := map[int64]time.Time{}
 	failedSource := map[int64]bool{}
 	for _, id := range settings.CookiePool.TargetAccountIDs {
-		row := service.AstraRouteStatus{AccountID: id, State: "waiting", Reason: "target_not_verified"}
-		if check, ok := pool.targetChecks[id]; ok {
-			checked := check.checked
-			row.CheckedAt = &checked
-			row.Gateway = check.gateway
-			row.ProxyNode = check.node.Name
-			row.ProxyCountry = check.node.Country
-			route, exists := pool.routes[check.sourceID]
-			current := exists && sha256.Sum256([]byte(route.cookie.Value)) == check.cookieFingerprint && now.Before(route.expires) && now.Before(check.expires) && (!pool.config.RotateNodes || route.node.Identity == check.node.Identity) && (!pool.config.IPAffinity || pool.config.RotateNodes || check.proxyFingerprint == sha256.Sum256([]byte(route.proxy)))
-			if current && check.passed {
-				expiry := check.expires
-				if route.expires.Before(expiry) {
-					expiry = route.expires
+		for _, model := range pool.config.ModelsForTarget(id) {
+			row := service.AstraRouteStatus{AccountID: id, Model: model, State: "waiting", Reason: "target_not_verified"}
+			if check, ok := pool.targetCheck(id, model); ok {
+				if !check.passed && now.Before(check.retryAfter) {
+					retry := check.retryAfter
+					row.RetryAt = &retry
 				}
-				row.State = "ready"
-				row.Reason = "target_probe_passed"
-				row.ExpiresAt = &expiry
-				row.RemainingSeconds = max(0, int64(expiry.Sub(now).Seconds()))
-				if old, ok := readySource[check.sourceID]; !ok || expiry.Before(old) {
-					readySource[check.sourceID] = expiry
+				checked := check.checked
+				row.CheckedAt = &checked
+				row.Gateway = check.gateway
+				row.ProxyNode = check.node.Name
+				row.ProxyCountry = check.node.Country
+				route, exists := pool.routes[check.sourceID]
+				current := exists && sha256.Sum256([]byte(route.cookie.Value)) == check.cookieFingerprint && now.Before(route.expires) && now.Before(check.expires) && (!pool.config.RotateNodes || route.node.Identity == check.node.Identity) && (!pool.config.IPAffinity || pool.config.RotateNodes || check.proxyFingerprint == sha256.Sum256([]byte(route.proxy)))
+				if current && check.passed {
+					expiry := check.expires
+					if route.expires.Before(expiry) {
+						expiry = route.expires
+					}
+					row.State = "ready"
+					row.Reason = "target_probe_passed"
+					row.ExpiresAt = &expiry
+					row.RemainingSeconds = max(0, int64(expiry.Sub(now).Seconds()))
+					if old, ok := readySource[check.sourceID]; !ok || expiry.Before(old) {
+						readySource[check.sourceID] = expiry
+					}
+				} else if current {
+					row.State = "rejected"
+					row.Answer = check.answer
+					row.Reason = check.reason
+					failedSource[check.sourceID] = true
+				} else {
+					row.State = "waiting"
+					row.Reason = "target_not_verified"
 				}
-			} else if current {
-				row.State = "rejected"
-				row.Answer = check.answer
-				row.Reason = check.reason
-				failedSource[check.sourceID] = true
-			} else {
-				row.State = "waiting"
-				row.Reason = "target_not_verified"
 			}
+			result.Targets = append(result.Targets, row)
 		}
-		result.Targets = append(result.Targets, row)
 	}
 	for _, id := range pool.config.SourceAccountIDs {
 		row := service.AstraRouteStatus{AccountID: id, State: "waiting", Reason: "not_tested"}

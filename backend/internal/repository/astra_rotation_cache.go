@@ -17,6 +17,7 @@ type astraRotationCache struct {
 }
 type astraRotationCacheKey struct {
 	target      int64
+	model       string
 	kind, value string
 }
 type astraNodeHost struct {
@@ -55,6 +56,10 @@ func (c *astraRotationCache) observe(node, host string, now time.Time) {
 	c.hosts[node] = astraNodeHost{host: host, expires: now.Add(24 * time.Hour)}
 }
 func (c *astraRotationCache) reject(target int64, node, host string, until, now time.Time) {
+	c.rejectForModel(target, "gpt-6-astra", node, host, until, now)
+}
+
+func (c *astraRotationCache) rejectForModel(target int64, model, node, host string, until, now time.Time) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.prune(now)
@@ -65,7 +70,7 @@ func (c *astraRotationCache) reject(target int64, node, host string, until, now 
 		if value == "" {
 			continue
 		}
-		k := astraRotationCacheKey{target: target, kind: kind, value: value}
+		k := astraRotationCacheKey{target: target, model: model, kind: kind, value: value}
 		// A late duplicate observation must not slide an existing quiet window.
 		if _, exists := c.blocked[k]; exists {
 			continue
@@ -80,20 +85,28 @@ func (c *astraRotationCache) reject(target int64, node, host string, until, now 
 	}
 }
 func (c *astraRotationCache) blockedUntil(target int64, node, host string, now time.Time) time.Time {
+	return c.blockedUntilForModel(target, "gpt-6-astra", node, host, now)
+}
+
+func (c *astraRotationCache) blockedUntilForModel(target int64, model, node, host string, now time.Time) time.Time {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.prune(now)
 	if host == "" {
 		host = c.hosts[node].host
 	}
-	a := c.blocked[astraRotationCacheKey{target: target, kind: "node", value: node}]
-	b := c.blocked[astraRotationCacheKey{target: target, kind: "host", value: host}]
+	a := c.blocked[astraRotationCacheKey{target: target, model: model, kind: "node", value: node}]
+	b := c.blocked[astraRotationCacheKey{target: target, model: model, kind: "host", value: host}]
 	if b.After(a) {
 		return b
 	}
 	return a
 }
 func (p *codexGatewayPinUpstream) nodeCooling(node mihomo.AstraNode, host string, target int64, now time.Time) bool {
+	return p.nodeCoolingForModel(node, host, target, "gpt-6-astra", now)
+}
+
+func (p *codexGatewayPinUpstream) nodeCoolingForModel(node mihomo.AstraNode, host string, target int64, model string, now time.Time) bool {
 	if p.rotationCache == nil {
 		return false
 	}
@@ -105,7 +118,7 @@ func (p *codexGatewayPinUpstream) nodeCooling(node mihomo.AstraNode, host string
 		return false
 	}
 	for _, id := range ids {
-		if !now.Before(p.rotationCache.blockedUntil(id, node.Identity, host, now)) {
+		if !now.Before(p.rotationCache.blockedUntilForModel(id, model, node.Identity, host, now)) {
 			return false
 		}
 	}
@@ -120,7 +133,11 @@ func (p *codexGatewayPinUpstream) rememberTargetFailure(id int64, check astraTar
 		seconds = 3600
 	}
 	now := time.Now()
-	p.rotationCache.reject(id, check.node.Identity, check.gateway, now.Add(time.Duration(seconds)*time.Second), now)
+	model := check.model
+	if model == "" {
+		model = "gpt-6-astra"
+	}
+	p.rotationCache.rejectForModel(id, model, check.node.Identity, check.gateway, now.Add(time.Duration(seconds)*time.Second), now)
 }
 func (c *astraRotationCache) snapshot(ids []int64, now time.Time) []service.AstraRotationCooldown {
 	c.mu.Lock()

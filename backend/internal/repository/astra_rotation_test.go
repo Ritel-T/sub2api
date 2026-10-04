@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func rotationFixture(t *testing.T, limit int, successNode string) (*astraRoutingUpstream, *[]string, *int) {
@@ -51,6 +52,17 @@ func rotationFixture(t *testing.T, limit int, successNode string) (*astraRouting
 		}
 		require.Equal(t, int64(300), id)
 		require.Equal(t, "Bearer target-only", r.Header.Get("Authorization"))
+		raw, readErr := io.ReadAll(r.Body)
+		require.NoError(t, readErr)
+		text := gjson.GetBytes(raw, "input.0.content.0.text").String()
+		switch text {
+		case "Reply with OK.":
+			require.Equal(t, "gpt-6-astra", gjson.GetBytes(raw, "model").String())
+		case service.GatewayBorrowCandyPrompt:
+			require.Equal(t, "medium", gjson.GetBytes(raw, "reasoning.effort").String())
+		default:
+			require.JSONEq(t, `{"model":"gpt-6-astra"}`, string(raw), "business payload remains unchanged")
+		}
 		cookie, err := r.Cookie("__oailb")
 		require.NoError(t, err)
 		require.Equal(t, node, cookie.Value)
@@ -85,7 +97,7 @@ func TestAstraGatewayRotationRejectsBadNodeAndPinsSuccessfulNode(t *testing.T) {
 	require.Equal(t, 1, *leases, "actual response still owns node lease")
 	consumeAffinityResponse(t, resp, err)
 	require.Zero(t, *leases)
-	require.Equal(t, []string{"bad:299", "bad:300", "bad:300", "good:299", "good:300", "good:300", "good:300"}, *calls)
+	require.Equal(t, []string{"bad:299", "bad:300", "bad:300", "good:299", "good:300", "good:300", "good:300", "good:300"}, *calls)
 	snapshot := s.AstraGatewaySnapshot(t.Context())
 	require.Equal(t, 1, snapshot.ReadyRoutes)
 	require.Equal(t, "SG", snapshot.Targets[0].ProxyCountry)
@@ -93,7 +105,7 @@ func TestAstraGatewayRotationRejectsBadNodeAndPinsSuccessfulNode(t *testing.T) {
 	// A new private listener for the same node must reuse qualification, not credentials.
 	resp, err = s.Do(rotationTarget(t), "target-original", 300, 1)
 	consumeAffinityResponse(t, resp, err)
-	require.Len(t, *calls, 8)
+	require.Len(t, *calls, 9)
 	cookie, proxy, release, err := s.CodexGatewayPinWSRequest(t.Context(), rotationTarget(t).Header, "target-original", 300, 1)
 	require.NoError(t, err)
 	require.Equal(t, "good", cookie)
@@ -101,7 +113,7 @@ func TestAstraGatewayRotationRejectsBadNodeAndPinsSuccessfulNode(t *testing.T) {
 	require.Equal(t, 1, *leases)
 	release()
 	require.Zero(t, *leases)
-	require.Len(t, *calls, 8, "WS reuses node qualification while owning its own dial lease")
+	require.Len(t, *calls, 9, "WS reuses node qualification while owning its own dial lease")
 	// Expiration picks the next eligible exit rather than extending old Cookie lifetime.
 	pool := s.current(t.Context())
 	route := pool.routes[299]

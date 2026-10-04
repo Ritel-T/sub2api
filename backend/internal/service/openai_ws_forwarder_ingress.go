@@ -1450,6 +1450,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				)
 				return nil, err
 			}
+			if err := s.checkGatewayBorrowWSHeaders(factoryCtx, latest, firstRoutingFields[0].String(), headers); err != nil {
+				return nil, err
+			}
 			return s.refreshOpenAIAgentIdentityHeaders(factoryCtx, account, headers)
 		},
 		BindHandshake: func(headers http.Header) *openAIWSTurnBinding {
@@ -1559,8 +1562,16 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			acquireCancel()
 			return nil, pinErr
 		}
-		req.ProxyURL = proxyURL
+		borrowScope, borrowProxy, releaseBorrow, borrowErr := s.prepareGatewayBorrowWS(acquireCtx, account, firstRoutingFields[0].String(), req.Headers, proxyURL)
+		if borrowErr != nil {
+			releaseHarvest()
+			acquireCancel()
+			return nil, borrowErr
+		}
+		req.AnchorScope = borrowScope
+		req.ProxyURL = borrowProxy
 		lease, acquireErr := pool.Acquire(acquireCtx, req)
+		releaseBorrow()
 		releaseHarvest()
 		acquireCancel()
 		var dialErr *openAIWSDialError

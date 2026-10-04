@@ -29,6 +29,7 @@ type codexGatewayPinUpstream struct {
 	targetMu              sync.Mutex
 	targetProbeMu         sync.Mutex
 	targetChecks          map[int64]astraTargetValidation
+	targetModelChecks     map[astraTargetModelKey]astraTargetValidation
 	delegate              service.HTTPUpstream
 	config                config.CodexGatewayPinConfig
 	mu                    sync.Mutex
@@ -57,7 +58,12 @@ func (s *codexGatewayPinUpstream) Do(req *http.Request, proxy string, accountID 
 func (s *codexGatewayPinUpstream) DoWithTLS(req *http.Request, proxy string, accountID int64, concurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
 	source := slices.Contains(s.config.SourceAccountIDs, accountID)
 	target := slices.Contains(s.config.TargetAccountIDs, accountID)
-	if !s.config.Enabled || (!source && !target) || !codexGatewayPinRequest(req) || !codexGatewayPinAstra(req) {
+	model := codexGatewayPinModel(req)
+	if s.config.Enabled && target && codexGatewayPinRequest(req) && model == "" {
+		return nil, errors.New("borrow_request_model_unavailable")
+	}
+	if !s.config.Enabled || (!source && !target) || !codexGatewayPinRequest(req) ||
+		(source && model != "gpt-6-astra") || (target && !s.config.TargetRequiresModel(accountID, model)) || model == "" {
 		return s.delegate.DoWithTLS(req, proxy, accountID, concurrency, profile)
 	}
 	if err := s.config.Validate(); err != nil {
@@ -125,20 +131,33 @@ func codexGatewayPinRequest(req *http.Request) bool {
 	return req.URL.Path == "/backend-api/codex/responses" || req.URL.Path == "/backend-api/codex/responses/lite"
 }
 
-func codexGatewayPinAstra(req *http.Request) bool {
+func codexGatewayPinModel(req *http.Request) string {
 	// Requests built by the application have GetBody. Never consume a caller's
 	// non-replayable request body just to participate in this experiment.
 	if req.GetBody == nil {
-		return false
+		if wire, known := service.GatewayBorrowWireModelFromContext(req.Context()); known {
+			return wire
+		}
+		return ""
 	}
 	r, err := req.GetBody()
 	if err != nil {
-		return false
+		return ""
 	}
 	defer func() { _ = r.Close() }()
 	const limit = 4 << 20
 	body, err := io.ReadAll(io.LimitReader(r, limit+1))
-	return err == nil && len(body) <= limit && gjson.ValidBytes(body) && gjson.GetBytes(body, "model").String() == "gpt-6-astra"
+	if err != nil || len(body) > limit || !gjson.ValidBytes(body) {
+		if wire, known := service.GatewayBorrowWireModelFromContext(req.Context()); known {
+			return wire
+		}
+		return ""
+	}
+	model := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	if canonical := config.CanonicalGatewayBorrowModel(model); canonical != "" {
+		return canonical
+	}
+	return model
 }
 
 func codexGatewayCookiePathMatches(path, scope string) bool {

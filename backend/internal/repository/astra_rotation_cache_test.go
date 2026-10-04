@@ -51,7 +51,7 @@ func TestAstraRotationCacheFiltersWithoutSpendingAttemptBudget(t *testing.T) {
 	s.rotationCache.reject(300, "bad", "", now.Add(time.Hour), now)
 	resp, err := s.Do(rotationTarget(t), "target", 300, 1)
 	consumeAffinityResponse(t, resp, err)
-	require.Equal(t, []string{"good:299", "good:300", "good:300", "good:300"}, *calls)
+	require.Equal(t, []string{"good:299", "good:300", "good:300", "good:300", "good:300"}, *calls)
 	require.Zero(t, *leases)
 }
 func TestAstraRotationCacheRejectsMappedHostBeforeTargetProbe(t *testing.T) {

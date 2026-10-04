@@ -45,6 +45,13 @@ func prismBrowserResponsesURL(baseURL string) string {
 
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (result *OpenAIForwardResult, resultErr error) {
+	ctx, borrowWitness := WithGatewayBorrowRequestWitness(ctx)
+	defer func() {
+		if resultErr == nil && result != nil && result.ResponseID != "" {
+			s.recordGatewayBorrowHTTPResponse(ctx, account, result.ResponseID, getAPIKeyIDFromContext(c), getOpenAIGroupIDFromContext(c), borrowWitness)
+		}
+	}()
+
 	defer func() {
 		outcome := "success"
 		if resultErr != nil {
@@ -1716,6 +1723,7 @@ func shouldAdaptDeepSeekResponsesClientTools(account *Account, body []byte, comp
 }
 
 func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool) (*http.Request, error) {
+	ctx = withOpenAIFinalSendScope(ctx, c, body)
 	defer requesttiming.Observe(ctx, "build_upstream_request")()
 	if account.excelBPSRequiredUpstreamModel(gjson.GetBytes(body, "model").String()) {
 		return nil, denyOpenAITurn("basispoints_required_use_responses")

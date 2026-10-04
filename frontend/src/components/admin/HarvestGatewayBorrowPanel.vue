@@ -31,18 +31,32 @@
       <div v-if="loading && !draft" class="flex justify-center py-16"><LoadingSpinner /></div>
       <form v-if="draft" id="astra-gateway-form" class="space-y-6" @submit.prevent="save">
         <fieldset :disabled="saving || loading" class="space-y-6">
+          <section class="rounded-xl border border-primary-200 bg-primary-50 p-4 dark:border-primary-800 dark:bg-primary-900/20" data-testid="auto-quality-section">
+            <div class="flex items-start justify-between gap-4">
+              <div><h2 class="text-sm font-semibold">{{ t(`${p}.autoQuality`) }}</h2><p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ t(`${p}.autoQualityHint`) }}</p></div>
+              <Toggle :model-value="draft.auto_quality ?? false" :disabled="saved?.auto_quality" @update:model-value="setAutoQuality" data-testid="auto-quality-toggle" :aria-label="t(`${p}.autoQuality`)" />
+            </div>
+            <p v-if="saved?.auto_quality" class="mt-3 text-xs leading-6 text-gray-500" data-testid="auto-managed-hint">{{ t(`${p}.autoManagedHint`) }}</p>
+            <p v-if="draft.auto_quality" class="mt-3 text-xs text-gray-500" data-testid="auto-model-scope">{{ t(`${p}.autoModelScope`) }}</p>
+          </section>
           <section class="card p-5 sm:p-6" aria-labelledby="astra-cookie-title">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h2 id="astra-cookie-title" class="font-semibold text-gray-900 dark:text-white">{{ t(`${p}.cookieTitle`) }}</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t(`${p}.cookieDescription`) }}</p>
               </div>
-              <Toggle v-model="draft.cookie_pool.enabled" data-testid="cookie-toggle" :aria-label="t(`${p}.cookieTitle`)" />
+              <Toggle v-model="draft.cookie_pool.enabled" :disabled="draft.auto_quality" data-testid="cookie-toggle" :aria-label="t(`${p}.cookieTitle`)" />
             </div>
             <p class="mt-3 text-xs text-gray-500">{{ t(`${p}.savedState`) }}：{{ t(saved?.cookie_pool.enabled ? `${p}.enabled` : `${p}.disabled`) }}</p>
-            <div class="mt-5 grid gap-4 md:grid-cols-2">
+            <div v-if="draft.auto_quality" class="mt-5 grid gap-4 md:grid-cols-2" data-testid="automatic-accounts">
+              <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"><h3 class="text-sm font-medium">{{ t(`${p}.sources`) }}</h3><p class="mt-2 text-xs text-gray-500">{{ draft.cookie_pool.source_account_ids.map(id => `#${id}`).join(', ') || t(`${p}.autoAwaitingSources`) }}</p></div>
+              <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"><h3 class="text-sm font-medium">{{ t(`${p}.targets`) }}</h3><p v-if="!automaticTargets.length" class="mt-2 text-xs text-gray-500">{{ t(`${p}.autoNoTargets`) }}</p><p v-for="row in automaticTargets" :key="row.id" class="mt-2 text-xs text-gray-500">#{{ row.id }} · {{ row.models.join(' / ') }}</p></div>
+              <p class="text-xs text-gray-500 md:col-span-2">{{ t(`${p}.autoSelectionHint`) }}</p>
+            </div>
+            <div v-else class="mt-5 grid gap-4 md:grid-cols-2" data-testid="manual-accounts">
               <AstraAccountPicker v-model="draft.cookie_pool.source_account_ids" :label="t(`${p}.sources`)" :accounts="accounts" :disabled="saving" />
               <AstraAccountPicker v-model="draft.cookie_pool.target_account_ids" :label="t(`${p}.targets`)" :accounts="accounts" :disabled="saving" />
+              <fieldset class="space-y-2 md:col-span-2" data-testid="borrow-models"><legend class="text-sm font-medium">{{ t(`${p}.models`) }}</legend><label v-for="model in borrowModels" :key="model" class="mr-4 inline-flex items-center gap-2 text-sm"><input v-model="draft.cookie_pool.models" type="checkbox" :value="model" />{{ model }}</label></fieldset>
             </div>
             <div class="mt-4 flex items-start justify-between gap-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
               <div>
@@ -63,7 +77,7 @@
             <label class="mt-4 flex items-center gap-3 text-sm">{{ t(`${p}.cookieTTL`) }}<input v-model.number="draft.cookie_pool.ttl_seconds" class="input w-28" type="number" min="30" max="240" required /> s</label>
             <p class="mt-4 text-xs leading-6 text-gray-500 dark:text-gray-400">{{ t(`${p}.cookieHint`) }}</p>
           </section>
-          <section class="card p-5 sm:p-6">
+          <section v-if="!draft.auto_quality" class="card p-5 sm:p-6" data-testid="manual-scheduling">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h2 class="font-semibold">{{ t(`${p}.accountScheduling`) }}</h2>
@@ -101,7 +115,7 @@
               </ul>
             </div>
           </section>
-          <section class="card p-5 sm:p-6" aria-labelledby="astra-ws-title">
+          <section v-if="!draft.auto_quality" class="card p-5 sm:p-6" aria-labelledby="astra-ws-title">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h2 id="astra-ws-title" class="font-semibold text-gray-900 dark:text-white">{{ t(`${p}.wsTitle`) }}</h2>
@@ -140,6 +154,7 @@ import { list } from '@/api/admin/accounts'
 import { getAstraGateway, saveAstraGateway, normalizeAstraGateway, resolveAstraDependencies, type AstraGatewaySettings } from '@/api/admin/astraGateway'
 const schedulingRecords = ref<{ checked_at: string; account_id: number; schedulable: boolean; reason: string; mode?: string }[]>([])
 const p = 'admin.astraGateway'
+const borrowModels = ['gpt-6-astra', 'gpt-6.1-sol']
 const { t, te } = useI18n()
 const expanded = ref(false)
 const historyExpanded = ref(false)
@@ -156,23 +171,30 @@ watch(() => draft.value?.scheduling_mode, async mode => {
  try { groups.value = await getAllIncludingInactive(); groupsError.value = '' } catch { groupsError.value = t(`${p}.loadError`) }
 })
 const accounts = ref<{ id: number; name: string }[]>([])
+const automaticTargets = computed(() => draft.value?.cookie_pool.target_account_ids.map(id => ({ id, models: draft.value?.cookie_pool.target_models?.[String(id)] || draft.value?.cookie_pool.models || [] })) || [])
 const dirty = computed(() => JSON.stringify(draft.value) !== JSON.stringify(saved.value))
 const validation = computed(() => {
   if (!draft.value) return ''
   const value = resolveAstraDependencies(draft.value)
-  if (value.account_scheduling && value.scheduling_mode === 'groups' && !value.scheduling_group_ids?.length) return t(`${p}.chooseSchedulingGroups`)
+  if (!value.auto_quality && value.account_scheduling && value.scheduling_mode === 'groups' && !value.scheduling_group_ids?.length) return t(`${p}.chooseSchedulingGroups`)
   if (value.cookie_pool.rotate_nodes && (!Number.isInteger(draft.value.cookie_pool.node_cooldown_seconds) || draft.value.cookie_pool.node_cooldown_seconds! < 60 || draft.value.cookie_pool.node_cooldown_seconds! > 86400)) return t(`${p}.nodeCooldownInvalid`)
   if (value.cookie_pool.rotate_nodes && (!Number.isInteger(draft.value.cookie_pool.max_node_attempts) || draft.value.cookie_pool.max_node_attempts! < 1 || draft.value.cookie_pool.max_node_attempts! > 10)) return t(`${p}.nodeAttemptsInvalid`)
   if (!Number.isInteger(value.cookie_pool.ttl_seconds) || value.cookie_pool.ttl_seconds! < 30 || value.cookie_pool.ttl_seconds! > 240 || !Number.isInteger(value.ws_session.ttl_seconds) || value.ws_session.ttl_seconds! < 60 || value.ws_session.ttl_seconds! > 3600) return t(`${p}.ttlInvalid`)
-  if (value.cookie_pool.enabled) {
+  if (value.cookie_pool.enabled && !value.cookie_pool.models?.length) return t(`${p}.chooseModels`)
+  if (value.cookie_pool.enabled && !value.auto_quality) {
     if (!value.cookie_pool.source_account_ids.length || !value.cookie_pool.target_account_ids.length) return t(`${p}.chooseBoth`)
     if (value.cookie_pool.source_account_ids.some(id => value.cookie_pool.target_account_ids.includes(id))) return t(`${p}.overlap`)
   }
-  if (value.ws_session.enabled && !value.ws_session.account_ids.length) return t(`${p}.chooseWS`)
+  if (!value.auto_quality && value.ws_session.enabled && !value.ws_session.account_ids.length) return t(`${p}.chooseWS`)
   const enabledIDs = [...(value.cookie_pool.enabled ? [...value.cookie_pool.source_account_ids, ...value.cookie_pool.target_account_ids] : []), ...(value.ws_session.enabled ? value.ws_session.account_ids : [])]
-  if (enabledIDs.some(id => !accounts.value.some(a => a.id === id))) return t(`${p}.missingAccounts`)
+  if (!value.auto_quality && enabledIDs.some(id => !accounts.value.some(a => a.id === id))) return t(`${p}.missingAccounts`)
   return ''
 })
+function setAutoQuality(enabled: boolean) {
+  if (!draft.value || saved.value?.auto_quality) return
+  draft.value.auto_quality = enabled
+  if (enabled) { draft.value.cookie_pool.enabled = true; draft.value.cookie_pool.models = [...borrowModels] }
+}
 function setAffinity(enabled: boolean) {
   if (!draft.value) return
   draft.value.cookie_pool.ip_affinity = enabled

@@ -1,20 +1,24 @@
 import { apiClient } from '../client'
 
 export interface AstraGatewaySettings {
+  auto_quality?: boolean
   account_scheduling?: boolean
   scheduling_mode?: 'account' | 'model' | 'groups'
   scheduling_group_ids?: number[]
-  cookie_pool: { node_cooldown_seconds?: number; rotate_nodes?: boolean; max_node_attempts?: number; ip_affinity?: boolean; ttl_seconds?: number; enabled: boolean; source_account_ids: number[]; target_account_ids: number[] }
+  cookie_pool: { models?: string[]; target_models?: Record<string, string[]>; node_cooldown_seconds?: number; rotate_nodes?: boolean; max_node_attempts?: number; ip_affinity?: boolean; ttl_seconds?: number; enabled: boolean; source_account_ids: number[]; target_account_ids: number[] }
   ws_session: { ttl_seconds?: number; enabled: boolean; account_ids: number[] }
   revision: string
 }
 export function normalizeAstraGateway(value: AstraGatewaySettings): AstraGatewaySettings {
   return {
+    auto_quality: value.auto_quality ?? false,
     account_scheduling: value.account_scheduling ?? false,
     scheduling_mode: value.scheduling_mode || 'account',
     scheduling_group_ids: [...(value.scheduling_group_ids || [])],
     cookie_pool: {
       enabled: value.cookie_pool.enabled,
+      models: [...(value.cookie_pool.models ?? ['gpt-6-astra'])],
+      target_models: Object.fromEntries(Object.entries(value.cookie_pool.target_models || {}).map(([id, models]) => [id, [...models]])),
       ip_affinity: value.cookie_pool.ip_affinity ?? false,
       rotate_nodes: value.cookie_pool.rotate_nodes ?? false,
       max_node_attempts: value.cookie_pool.max_node_attempts || 3,
@@ -37,7 +41,7 @@ export async function saveAstraGateway(value: AstraGatewaySettings): Promise<Ast
 }
 
 export interface AstraRouteStatus {
-  account_id: number; state: string; reason: string; proxy_node?: string; proxy_country?: string; checked_at?: string
+  account_id: number; model?: string; state: string; reason: string; proxy_node?: string; proxy_country?: string; checked_at?: string
   expires_at?: string; remaining_seconds: number; gateway?: string; active: boolean; answer?: string
 }
 export interface AstraWSStatus {
@@ -77,6 +81,11 @@ export async function testAstraGateway(action: 'prepare' | 'verify' | 'ws', acco
 
 export function resolveAstraDependencies(value: AstraGatewaySettings): AstraGatewaySettings {
   const next = normalizeAstraGateway(value)
+  if (next.auto_quality) {
+    next.cookie_pool.enabled = true
+    next.cookie_pool.models = ['gpt-6-astra', 'gpt-6.1-sol']
+    return next
+  }
   if (next.cookie_pool.rotate_nodes) next.cookie_pool.ip_affinity = true
   if (next.ws_session.enabled) {
     next.cookie_pool.enabled = true

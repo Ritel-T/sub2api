@@ -320,6 +320,9 @@ func ProvideAccountTestService(
 			})
 		}
 	}
+	if err := service.StartPersistedAutomaticGatewayBorrow(); err != nil {
+		logger.L().Warn("automatic gateway borrowing startup state unavailable")
+	}
 	stopScheduling := service.startAstraAccountScheduling()
 	openAIGatewayService.stopAstraSetup = func() {
 		stopScheduling()

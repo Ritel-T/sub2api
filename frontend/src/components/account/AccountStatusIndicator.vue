@@ -6,6 +6,7 @@
       class="inline-flex items-center rounded bg-[#217346] px-1.5 py-0.5 text-[10px] font-semibold leading-3 text-white"
       :title="t('admin.accounts.openai.excelBPS')"
     >bps</span>
+    <span v-for="model in borrowRequiredModels" :key="model" data-testid="borrow-required-badge" class="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" :title="t('admin.astraGateway.borrowRequiredHint')">{{ model === 'gpt-6-astra' ? 'Astra' : '6.1 Sol' }} · {{ t('admin.astraGateway.borrowRequired') }}</span>
   <div class="flex flex-wrap items-center gap-2">
     <!-- OpenAI OAuth RPM Display - keep the pause reason explicit -->
     <div v-if="isRPMPaused" class="flex flex-col items-center gap-1">
@@ -204,6 +205,20 @@ const isExcelBPSEnabled = computed(() => {
   const isPAT = (mode: string) => mode === 'personalaccesstoken' || mode === 'personal_access_token'
   return credential('plan_type') !== 'free' && credential('auth_mode') !== 'agentidentity' &&
     !isPAT(credential('auth_mode')) && !isPAT(credential('openai_auth_mode'))
+})
+
+// This is a quality requirement, not a claim that a currently usable ticket exists.
+const borrowRequiredModels = computed(() => {
+  const account = props.account
+  if (account.platform !== 'openai' || account.type !== 'oauth') return []
+  const configured = account.extra?.openai_gateway_borrow_models
+  const models = Array.isArray(configured) ? configured : []
+  const quality = account.extra?.quality_candy_models as Record<string, unknown> | undefined
+  return ['gpt-6-astra', 'gpt-6.1-sol'].filter(model => {
+    if (models.includes(model) || (model === 'gpt-6.1-sol' && models.includes('gpt-6-sol'))) return true
+    const result = quality?.[model] ?? (model === 'gpt-6.1-sol' ? quality?.['gpt-6-sol'] : undefined)
+    return result === 'degraded' || (typeof result === 'object' && result !== null && 'state' in result && result.state === 'degraded')
+  })
 })
 
 // Computed: is rate limited (429)

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import HarvestGatewayBorrowPanel from '../HarvestGatewayBorrowPanel.vue'
 import AstraGatewayRuntime from '@/components/admin/AstraGatewayRuntime.vue'
-import { normalizeAstraGateway } from '@/api/admin/astraGateway'
+import { normalizeAstraGateway, resolveAstraDependencies } from '@/api/admin/astraGateway'
 const mocks = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn(), list: vi.fn() }))
 vi.mock('@/api/admin/astraGateway', async importOriginal => ({ ...await importOriginal<typeof import('@/api/admin/astraGateway')>(), getAstraGateway: mocks.get, saveAstraGateway: mocks.save }))
 vi.mock('@/components/admin/AstraGatewayRuntime.vue', () => ({ default: { template: '<section />' } }))
@@ -143,5 +143,92 @@ describe('Astra gateway configuration', () => {
   it('normalizes null account arrays without sharing draft arrays', () => {
     const v = value(); const cloned = normalizeAstraGateway(v); cloned.cookie_pool.source_account_ids.push(1)
     expect(v.cookie_pool.source_account_ids).toEqual([299])
+  })
+})
+
+describe('Automatic quality borrowing settings', () => {
+  it('preserves per-model targets and independent draft arrays when settings are normalized', () => {
+    const data = { ...value(), auto_quality: true, cookie_pool: { ...value().cookie_pool, models: ['gpt-6-astra', 'gpt-6.1-sol'], target_models: { '300': ['gpt-6.1-sol'] } } }
+    const draft = normalizeAstraGateway(data)
+    expect(draft.auto_quality).toBe(true)
+    draft.cookie_pool.models!.push('other')
+    draft.cookie_pool.target_models!['300'].push('gpt-6-astra')
+    expect(data.cookie_pool.models).toEqual(['gpt-6-astra', 'gpt-6.1-sol'])
+    expect(data.cookie_pool.target_models['300']).toEqual(['gpt-6.1-sol'])
+  })
+
+  it('saves automatic fields without exposing legacy account or group scheduling controls', async () => {
+    const data = { ...value(), auto_quality: true, account_scheduling: true, scheduling_mode: 'groups', scheduling_group_ids: [7], cookie_pool: { ...value().cookie_pool, enabled: true, models: ['gpt-6-astra', 'gpt-6.1-sol'], target_models: { '300': ['gpt-6.1-sol'] } } }
+    mocks.get.mockResolvedValue(data)
+    const w = render(); await flushPromises()
+    expect(w.get('[data-testid="automatic-accounts"]').text()).toContain('#300 · gpt-6.1-sol')
+    expect(w.find('[data-testid="manual-accounts"]').exists()).toBe(false)
+    expect(w.find('[data-testid="manual-scheduling"]').exists()).toBe(false)
+    expect(w.find('[data-testid="ws-toggle"]').exists()).toBe(false)
+    expect(w.get('[data-testid="cookie-toggle"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-testid="ip-affinity-toggle"]').trigger('click')
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ auto_quality: true, account_scheduling: true, scheduling_group_ids: [7], cookie_pool: expect.objectContaining({ models: ['gpt-6-astra', 'gpt-6.1-sol'], target_models: { '300': ['gpt-6.1-sol'] }, source_account_ids: [299], target_account_ids: [300] }) }))
+    w.unmount()
+  })
+
+  it('can enable automatic mode before quality checks have populated any sources or targets', async () => {
+    mocks.get.mockResolvedValue({ ...value(), cookie_pool: { enabled: false, source_account_ids: [], target_account_ids: [] } })
+    const w = render(); await flushPromises()
+    await w.get('[data-testid="auto-quality-toggle"]').trigger('click')
+    expect(w.get('[data-testid="auto-model-scope"]').text()).toContain('autoModelScope')
+    expect(w.get('[data-testid="save"]').attributes('disabled')).toBeUndefined()
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ auto_quality: true, cookie_pool: expect.objectContaining({ enabled: true, models: ['gpt-6-astra', 'gpt-6.1-sol'], source_account_ids: [], target_account_ids: [] }) }))
+    w.unmount()
+  })
+
+  it('does not merge hidden legacy WS participants into automatic targets', () => {
+    const data = { ...value(), auto_quality: true, ws_session: { enabled: true, account_ids: [301] } }
+    const resolved = resolveAstraDependencies(data)
+    expect(resolved.cookie_pool.target_account_ids).toEqual([300])
+    expect(resolved.ws_session.account_ids).toEqual([301])
+  })
+
+  it('requires a selected manual model instead of silently reverting to Astra', async () => {
+    const data = normalizeAstraGateway(value()); data.cookie_pool.enabled = true
+    mocks.get.mockResolvedValue(data)
+    const w = render(); await flushPromises()
+    await w.get('[data-testid="borrow-models"] input').setValue(false)
+    expect(w.text()).toContain('chooseModels')
+    await w.get('form').trigger('submit'); expect(mocks.save).not.toHaveBeenCalled()
+    w.unmount()
+  })
+})
+
+describe('Scheduled quality task ownership', () => {
+  it('keeps saved automatic quality mode read-only and preserves protected model scopes', async () => {
+    mocks.get.mockResolvedValue({ ...value(), auto_quality: true, cookie_pool: { ...value().cookie_pool, enabled: true, models: ['gpt-6-astra', 'gpt-6.1-sol'], target_models: { '300': ['gpt-6.1-sol'] } } })
+    const w = render(); await flushPromises()
+    const toggle = w.get('[data-testid="auto-quality-toggle"]')
+    expect(toggle.attributes('disabled')).toBeDefined()
+    expect(w.get('[data-testid="auto-managed-hint"]').text()).toContain('autoManagedHint')
+    await toggle.trigger('click'); await flushPromises()
+    expect(toggle.attributes('aria-checked')).toBe('true')
+    expect(w.find('[data-testid="manual-accounts"]').exists()).toBe(false)
+    await w.get('[data-testid="ip-affinity-toggle"]').trigger('click')
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(mocks.save).toHaveBeenLastCalledWith(expect.objectContaining({ auto_quality: true, cookie_pool: expect.objectContaining({ target_models: { '300': ['gpt-6.1-sol'] } }) }))
+    w.unmount()
+  })
+
+  it('allows enabling an unsaved manual mode, then locks it once automatic settings are saved', async () => {
+    const w = render(); await flushPromises()
+    const toggle = w.get('[data-testid="auto-quality-toggle"]')
+    expect(toggle.attributes('disabled')).toBeUndefined()
+    await toggle.trigger('click'); await flushPromises()
+    expect(toggle.attributes('aria-checked')).toBe('true')
+    expect(toggle.attributes('disabled')).toBeUndefined()
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(toggle.attributes('disabled')).toBeDefined()
+    await toggle.trigger('click'); await flushPromises()
+    expect(toggle.attributes('aria-checked')).toBe('true')
+    expect(mocks.save).toHaveBeenCalledTimes(1)
+    w.unmount()
   })
 })

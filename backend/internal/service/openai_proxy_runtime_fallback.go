@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
+	"io"
 	"net/http"
 	"net/http/httptrace"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -131,6 +134,11 @@ func runtimeProxyErrorAttribution(account *Account, err error) (*int64, string) 
 // Keep plugin routing inside each attempt, including a preselected healthy
 // egress. No request is sent to both a plugin and the native transport.
 func (s *OpenAIGatewayService) doOpenAIProxyAttempt(req *http.Request, account *Account, target runtimeProxyEgress) (resp *http.Response, err error) {
+	latest, admissionErr := s.admitOpenAIHTTPRequest(req, account)
+	if admissionErr != nil {
+		return nil, admissionErr
+	}
+	account = latest
 	if err := s.acquireOpenAIRPMForSend(req.Context(), account); err != nil {
 		return nil, err
 	}
@@ -141,7 +149,23 @@ func (s *OpenAIGatewayService) doOpenAIProxyAttempt(req *http.Request, account *
 			err = &runtimeProxyEgressError{error: err, target: target}
 		}
 	}()
-	if s.pluginManager != nil && !s.codexTicketRequestBound(req, account) {
+	borrowModel, borrowRequired, modelErr := gatewayBorrowRequiredUpstreamRequest(req, account)
+	if modelErr != nil {
+		return nil, modelErr
+	}
+	if borrowRequired {
+		next := WithGatewayBorrowRequiredModel(req.Context(), borrowModel)
+		scope, _ := req.Context().Value(openAIFinalSendScopeKey{}).(openAIFinalSendScope)
+		if scope.previousID != "" {
+			cookie, proofErr := s.gatewayBorrowHTTPContinuation(next, account, borrowModel, scope.previousID, scope.keyID, scope.groupID)
+			if proofErr != nil {
+				return nil, proofErr
+			}
+			next = context.WithValue(next, gatewayBorrowExpectedCookieContextKey{}, cookie)
+		}
+		req = req.WithContext(next)
+	}
+	if s.pluginManager != nil && !borrowRequired && !s.codexTicketRequestBound(req, account) {
 		resp, handled, err := s.pluginManager.RoundTripOpenAIOAuth(req.Context(), req, target.url, account)
 		if handled {
 			return markOpenAIResponseEgress(resp, req, target.proxyID), err
@@ -261,4 +285,41 @@ func cloneUpstreamRequestForRetry(ctx context.Context, req *http.Request) (*http
 	clone := req.Clone(ctx)
 	clone.Body = body
 	return clone, nil
+}
+
+// Only requests with a readable complete outbound model can use a plugin when
+// the account owns a protected borrow policy. Missing/large bodies fail closed.
+func gatewayBorrowRequiredUpstreamRequest(req *http.Request, a *Account) (string, bool, error) {
+	if !a.gatewayBorrowPolicyActive() {
+		return "", false, nil
+	}
+	if model, required := GatewayBorrowRequiredModelFromContext(req.Context()); required {
+		return model, true, nil
+	}
+	if scope, ok := req.Context().Value(openAIFinalSendScopeKey{}).(openAIFinalSendScope); ok && scope.model != "" {
+		if !a.RequiresGatewayBorrowUpstream(scope.model) {
+			return "", false, nil
+		}
+		return config.CanonicalGatewayBorrowModel(normalizeExcelBPSIsolationModel(scope.model)), true, nil
+	}
+	if req.GetBody == nil {
+		return "", false, denyOpenAITurn("gateway_borrow_request_model_unavailable")
+	}
+	body, err := req.GetBody()
+	if err != nil {
+		return "", false, denyOpenAITurn("gateway_borrow_request_model_unavailable")
+	}
+	defer func() { _ = body.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(body, (4<<20)+1))
+	if err != nil || len(raw) > 4<<20 || !gjson.ValidBytes(raw) {
+		return "", false, denyOpenAITurn("gateway_borrow_request_model_unavailable")
+	}
+	model := gjson.GetBytes(raw, "model")
+	if model.Type != gjson.String || strings.TrimSpace(model.String()) == "" {
+		return "", false, denyOpenAITurn("gateway_borrow_request_model_unavailable")
+	}
+	if !a.RequiresGatewayBorrowUpstream(model.String()) {
+		return "", false, nil
+	}
+	return config.CanonicalGatewayBorrowModel(normalizeExcelBPSIsolationModel(model.String())), true, nil
 }

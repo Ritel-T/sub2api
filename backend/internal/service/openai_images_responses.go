@@ -1869,6 +1869,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	upstreamReq = upstreamReq.WithContext(withOpenAIFinalSendModel(upstreamReq.Context(), c, upstreamModel))
 	upstreamStart := time.Now()
 	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())

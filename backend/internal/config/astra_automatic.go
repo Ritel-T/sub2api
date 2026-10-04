@@ -11,6 +11,14 @@ func ResolveAstraDependencies(value AstraRoutingSettings) (AstraRoutingSettings,
 	value.SchedulingGroupIDs = append([]int64(nil), value.SchedulingGroupIDs...)
 	value.CookiePool.SourceAccountIDs = append([]int64(nil), value.CookiePool.SourceAccountIDs...)
 	value.CookiePool.TargetAccountIDs = append([]int64(nil), value.CookiePool.TargetAccountIDs...)
+	value.CookiePool.Models = append([]string(nil), value.CookiePool.Models...)
+	if value.CookiePool.TargetModels != nil {
+		models := make(map[string][]string, len(value.CookiePool.TargetModels))
+		for id, scope := range value.CookiePool.TargetModels {
+			models[id] = append([]string(nil), scope...)
+		}
+		value.CookiePool.TargetModels = models
+	}
 	value.WSSession.AccountIDs = append([]int64(nil), value.WSSession.AccountIDs...)
 	if value.WSSession.Enabled {
 		value.CookiePool.Enabled = true
@@ -29,7 +37,7 @@ func ResolveAstraDependencies(value AstraRoutingSettings) (AstraRoutingSettings,
 			}
 		}
 	}
-	if value.CookiePool.Enabled && len(value.CookiePool.SourceAccountIDs) == 0 {
+	if value.CookiePool.Enabled && len(value.CookiePool.SourceAccountIDs) == 0 && !value.AutoQuality {
 		return value, fmt.Errorf("astra_source_required")
 	}
 	return value, value.Validate()

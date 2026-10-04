@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/google/uuid"
@@ -86,8 +87,10 @@ type openAICodexStateShot struct {
 	cookies []string
 	model   string
 	// streamErr 非空表示 200 但回复流没有完整跑完（上游过载、额度用尽等流内失败）。
-	streamErr error
-	detail    string
+	streamErr      error
+	detail         string
+	text           string
+	completedModel string
 }
 
 // ProbeOpenAICodexState 用两发极小请求判断账号是否降智：
@@ -201,7 +204,12 @@ func runOpenAICodexStateProbe(ctx context.Context, result *OpenAICodexStateProbe
 // credentials. Both shots use the same leased exit and __oailb cookie. This
 // bypasses the borrowing wrapper to avoid recursive validation; tickets stay local.
 func ProbeOpenAICodexStateRoute(ctx context.Context, upstream HTTPUpstream, template *http.Request, proxy string, accountID int64, concurrency int, profile *tlsfingerprint.Profile) *OpenAICodexStateProbeResult {
-	result := &OpenAICodexStateProbeResult{AccountID: accountID, Model: OpenAICodexStateProbeDefaultModel, Verdict: OpenAICodexStateInconclusive, StartedAt: time.Now()}
+	return ProbeOpenAICodexStateRouteForModel(ctx, upstream, template, proxy, accountID, concurrency, profile, OpenAICodexStateProbeDefaultModel)
+}
+
+func ProbeOpenAICodexStateRouteForModel(ctx context.Context, upstream HTTPUpstream, template *http.Request, proxy string, accountID int64, concurrency int, profile *tlsfingerprint.Profile, model string) *OpenAICodexStateProbeResult {
+	model = config.CanonicalGatewayBorrowModel(model)
+	result := &OpenAICodexStateProbeResult{AccountID: accountID, Model: model, Verdict: OpenAICodexStateInconclusive, StartedAt: time.Now()}
 	defer func() {
 		result.FinishedAt = time.Now()
 		result.LatencyMs = result.FinishedAt.Sub(result.StartedAt).Milliseconds()
@@ -209,6 +217,10 @@ func ProbeOpenAICodexStateRoute(ctx context.Context, upstream HTTPUpstream, temp
 			result.Reason = openAICodexStateVerdictReason(result.Verdict)
 		}
 	}()
+	if model == "" {
+		result.fail(OpenAICodexStateFailureUnsupported, "borrow_model_quality_validation_unavailable", "")
+		return result
+	}
 	if upstream == nil || template == nil {
 		result.fail(OpenAICodexStateFailureUnsupported, "缺少网关探针请求", "")
 		return result
@@ -341,11 +353,18 @@ func IsOpenAICodexStateProbeRequest(ctx context.Context) bool {
 }
 
 func fireOpenAICodexStateShotRequest(ctx context.Context, headers http.Header, model, turnState, cookie string, send func(*http.Request) (*http.Response, error)) (openAICodexStateShot, error) {
+	return fireOpenAICodexProbeShotRequest(ctx, headers, model, turnState, cookie, "", send)
+}
+
+func fireOpenAICodexProbeShotRequest(ctx context.Context, headers http.Header, model, turnState, cookie, candyPrompt string, send func(*http.Request) (*http.Response, error)) (openAICodexStateShot, error) {
 	var out openAICodexStateShot
 	ctx = context.WithValue(ctx, openAICodexStateProbeContextKey{}, true)
 	shotCtx, cancel := context.WithTimeout(ctx, openAICodexStateProbeShotTimeout)
 	defer cancel()
 	body := []byte(`{"model":` + jsonString(model) + `,"instructions":"Reply with OK.","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Reply with OK."}]}],"stream":true,"store":false,"parallel_tool_calls":true,"include":["reasoning.encrypted_content"]}`)
+	if candyPrompt != "" {
+		body = []byte(`{"model":` + jsonString(model) + `,"instructions":"","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":` + jsonString(candyPrompt) + `}]}],"stream":true,"store":false,"tools":[],"reasoning":{"effort":"medium"}}`)
+	}
 	req, err := http.NewRequestWithContext(shotCtx, http.MethodPost, chatgptCodexURL, bytes.NewReader(body))
 	if err != nil {
 		return out, err
@@ -404,6 +423,18 @@ func fireOpenAICodexStateShotRequest(ctx context.Context, headers http.Header, m
 		return out, nil
 	}
 	out.model = openAICodexStateStreamModel(data)
+	out.text = gatewayBorrowProbeText(data)
+	for _, event := range openAICodexStateStreamEvents(data) {
+		var terminal struct {
+			Type     string `json:"type"`
+			Response struct {
+				Model string `json:"model"`
+			} `json:"response"`
+		}
+		if json.Unmarshal(event, &terminal) == nil && terminal.Type == "response.completed" {
+			out.completedModel = terminal.Response.Model
+		}
+	}
 	if out.streamErr = validateCodexProbeResponse(data); out.streamErr != nil {
 		out.detail = openAICodexStateDetail(openAICodexStateStreamErrorPayload(data))
 	}

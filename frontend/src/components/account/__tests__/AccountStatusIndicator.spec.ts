@@ -288,3 +288,29 @@ describe('AccountStatusIndicator', () => {
     expect(wrapper.text()).toContain('admin.accounts.status.creditsExhausted')
   })
 })
+
+describe('Borrowing quality requirement labels', () => {
+  it('shows only models requiring borrowing and does not imply current route readiness', () => {
+    const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { openai_gateway_borrow_models: ['gpt-6.1-sol'], quality_candy_models: { 'gpt-6-astra': { state: 'healthy' }, 'gpt-6.1-sol': { state: 'degraded' } } } }) }, global: { stubs: { Icon: true } } })
+    const badges = w.findAll('[data-testid="borrow-required-badge"]')
+    expect(badges).toHaveLength(1)
+    expect(badges[0].text()).toContain('6.1 Sol')
+    expect(badges[0].attributes('title')).toBe('admin.astraGateway.borrowRequiredHint')
+    w.unmount()
+  })
+
+  it('recognizes model-specific native degraded evidence and aliases, without guessing from inconclusive results', () => {
+    const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { openai_gateway_borrow_models: ['gpt-6-sol'], quality_candy_models: { 'gpt-6-astra': { state: 'degraded' } } } }) }, global: { stubs: { Icon: true } } })
+    expect(w.findAll('[data-testid="borrow-required-badge"]')).toHaveLength(2)
+    w.unmount()
+    const noRequirement = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { quality_candy_models: { 'gpt-6-astra': { state: 'inconclusive' }, 'gpt-6.1-sol': { state: 'healthy' } } } }) }, global: { stubs: { Icon: true } } })
+    expect(noRequirement.find('[data-testid="borrow-required-badge"]').exists()).toBe(false)
+    noRequirement.unmount()
+  })
+
+  it('does not show OAuth borrowing labels on other account types', () => {
+    const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', type: 'apikey', extra: { openai_gateway_borrow_models: ['gpt-6-astra'] } }) }, global: { stubs: { Icon: true } } })
+    expect(w.find('[data-testid="borrow-required-badge"]').exists()).toBe(false)
+    w.unmount()
+  })
+})

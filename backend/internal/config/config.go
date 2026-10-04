@@ -1061,17 +1061,23 @@ func strictConfigInt(value any) (int, error) {
 // CodexGatewayPinConfig controls the private HTTP routing experiment.
 // Cookie values are learned from completed Astra responses, never configured.
 type CodexGatewayPinConfig struct {
-	NodeCooldownSeconds int     `mapstructure:"node_cooldown_seconds" json:"node_cooldown_seconds"`
-	RotateNodes         bool    `mapstructure:"rotate_nodes" json:"rotate_nodes"`
-	MaxNodeAttempts     int     `mapstructure:"max_node_attempts" json:"max_node_attempts"`
-	IPAffinity          bool    `mapstructure:"ip_affinity" json:"ip_affinity"`
-	TTLSeconds          int     `mapstructure:"ttl_seconds" json:"ttl_seconds"`
-	Enabled             bool    `mapstructure:"enabled" json:"enabled"`
-	SourceAccountIDs    []int64 `mapstructure:"source_account_ids" json:"source_account_ids"`
-	TargetAccountIDs    []int64 `mapstructure:"target_account_ids" json:"target_account_ids"`
+	// Empty scopes preserve the historical Astra-only manual experiment.
+	Models              []string            `mapstructure:"models" json:"models,omitempty"`
+	TargetModels        map[string][]string `mapstructure:"target_models" json:"target_models,omitempty"`
+	NodeCooldownSeconds int                 `mapstructure:"node_cooldown_seconds" json:"node_cooldown_seconds"`
+	RotateNodes         bool                `mapstructure:"rotate_nodes" json:"rotate_nodes"`
+	MaxNodeAttempts     int                 `mapstructure:"max_node_attempts" json:"max_node_attempts"`
+	IPAffinity          bool                `mapstructure:"ip_affinity" json:"ip_affinity"`
+	TTLSeconds          int                 `mapstructure:"ttl_seconds" json:"ttl_seconds"`
+	Enabled             bool                `mapstructure:"enabled" json:"enabled"`
+	SourceAccountIDs    []int64             `mapstructure:"source_account_ids" json:"source_account_ids"`
+	TargetAccountIDs    []int64             `mapstructure:"target_account_ids" json:"target_account_ids"`
 }
 
 func (c CodexGatewayPinConfig) Validate() error {
+	if err := c.validateModelScopes(); err != nil {
+		return err
+	}
 	if c.NodeCooldownSeconds != 0 && (c.NodeCooldownSeconds < 60 || c.NodeCooldownSeconds > 86400) {
 		return fmt.Errorf("astra node cooldown must be 60–86400 seconds")
 	}
@@ -1094,6 +1100,78 @@ func (c CodexGatewayPinConfig) Validate() error {
 				return fmt.Errorf("gateway.codex_gateway_pin account IDs must be positive, unique and disjoint")
 			}
 			seen[id] = true
+		}
+	}
+	return nil
+}
+
+func CanonicalGatewayBorrowModel(model string) string {
+	model = strings.TrimSpace(strings.TrimPrefix(strings.ToLower(model), "openai/"))
+	switch model {
+	case "gpt-6-astra", "gpt-6.1-sol":
+		return model
+	case "gpt-6-sol":
+		return "gpt-6.1-sol"
+	}
+	return ""
+}
+
+func (c CodexGatewayPinConfig) EffectiveModels() []string {
+	if len(c.Models) == 0 {
+		return []string{"gpt-6-astra"}
+	}
+	return append([]string(nil), c.Models...)
+}
+
+func (c CodexGatewayPinConfig) ModelsForTarget(id int64) []string {
+	if models, ok := c.TargetModels[strconv.FormatInt(id, 10)]; ok {
+		return append([]string(nil), models...)
+	}
+	return c.EffectiveModels()
+}
+
+func (c CodexGatewayPinConfig) TargetRequiresModel(id int64, model string) bool {
+	if !c.Enabled || CanonicalGatewayBorrowModel(model) == "" {
+		return false
+	}
+	for _, target := range c.TargetAccountIDs {
+		if target == id {
+			for _, candidate := range c.ModelsForTarget(id) {
+				if candidate == CanonicalGatewayBorrowModel(model) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (c CodexGatewayPinConfig) validateModelScopes() error {
+	allowed := map[string]bool{}
+	for _, model := range c.EffectiveModels() {
+		if CanonicalGatewayBorrowModel(model) != model || allowed[model] {
+			return fmt.Errorf("borrow models must be unique canonical Astra or 6.1 Sol")
+		}
+		allowed[model] = true
+	}
+	for rawID, models := range c.TargetModels {
+		id, err := strconv.ParseInt(rawID, 10, 64)
+		if err != nil || id <= 0 || rawID != strconv.FormatInt(id, 10) {
+			return fmt.Errorf("invalid borrow target model account ID")
+		}
+		found := false
+		for _, target := range c.TargetAccountIDs {
+			found = found || target == id
+		}
+		if !found || len(models) == 0 {
+			return fmt.Errorf("borrow target models require a configured target and nonempty scope")
+		}
+		seen := map[string]bool{}
+		for _, model := range models {
+			if !allowed[model] || seen[model] {
+				return fmt.Errorf("invalid borrow target model scope")
+			}
+			seen[model] = true
 		}
 	}
 	return nil
@@ -2638,6 +2716,8 @@ func setDefaults() {
 	viper.SetDefault("gateway.codex_gateway_pin.enabled", false)
 	viper.SetDefault("gateway.codex_gateway_pin.source_account_ids", []int64{})
 	viper.SetDefault("gateway.codex_gateway_pin.target_account_ids", []int64{})
+	viper.SetDefault("gateway.codex_gateway_pin.models", []string{"gpt-6-astra"})
+	viper.SetDefault("gateway.codex_gateway_pin.target_models", map[string][]string{})
 	viper.SetDefault("gateway.disable_codex_identity_enforcement", false)
 	viper.SetDefault("gateway.disable_codex_originator_normalization", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)

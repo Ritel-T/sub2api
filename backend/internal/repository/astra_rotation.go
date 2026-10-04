@@ -252,6 +252,11 @@ func (s *astraRoutingUpstream) targetRoute(req *http.Request, proxy string, id i
 		if s.current(ctx) != pool {
 			return nil, key, proxy, func() {}, errors.New("configuration_changed")
 		}
+		if s.cfg.AstraRouting(ctx).AutoQuality && (err.Error() == "target_probe_degraded" || err.Error() == "target_route_changed" || err.Error() == "target_probe_failed") {
+			// Automatic per-model failures must not discard a shared source and
+			// revoke a different model's still-valid route witness.
+			return nil, key, proxy, func() {}, err
+		}
 		if err.Error() == "astra_rotation_cooling" && priorCookie == nil {
 			return nil, key, proxy, func() {}, err
 		}
@@ -265,7 +270,7 @@ func (s *astraRoutingUpstream) targetRoute(req *http.Request, proxy string, id i
 			pool.mu.Unlock()
 		case "astra_rotation_cooling", "target_probe_degraded", "target_route_changed", "target_probe_failed":
 			pool.targetMu.Lock()
-			check := pool.targetChecks[id]
+			check, _ := pool.targetCheck(id, codexGatewayPinModel(req))
 			pool.mu.Lock()
 			if route, ok := pool.routes[check.sourceID]; ok && sha256.Sum256([]byte(route.cookie.Value)) == check.cookieFingerprint && route.node.Identity == check.node.Identity {
 				delete(pool.routes, check.sourceID)

@@ -223,7 +223,13 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		return nil, wrapOpenAIWSFallback("codex_ticket_unavailable", pinErr)
 	}
 	defer releaseHarvest()
-	if anchor != nil && anchor.connID == "" {
+	borrowScope, borrowProxy, releaseBorrow, borrowErr := s.prepareGatewayBorrowWS(ctx, account, mappedModel, wsHeaders, proxyURL)
+	if borrowErr != nil {
+		return nil, borrowErr
+	}
+	defer releaseBorrow()
+	proxyURL = borrowProxy
+	if anchor != nil && !account.RequiresGatewayBorrowUpstream(mappedModel) && anchor.connID == "" {
 		if pool, ok := s.httpUpstream.(interface {
 			CodexGatewayPinWSRequest(context.Context, http.Header, string, int64, int) (string, string, func(), error)
 		}); ok {
@@ -241,7 +247,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}
 
 	if anchor != nil {
-		if anchor.connID != "" {
+		if anchor.connID != "" && !account.RequiresGatewayBorrowUpstream(mappedModel) {
 			proxyURL = anchor.proxyURL
 		} else {
 			anchor.proxyURL = proxyURL
@@ -251,6 +257,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	anchorScope := ""
 	if anchor != nil {
 		anchorScope = anchor.scope
+	}
+	if borrowScope != "" {
+		anchorScope += ":" + borrowScope
 	}
 	lease, err := s.getOpenAIWSConnPool().Acquire(acquireCtx, openAIWSAcquireRequest{
 		AnchorScope: anchorScope,
@@ -281,8 +290,13 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 				)
 				return nil, err
 			}
-			if anchor != nil && anchor.cookie != "" {
+			if account.RequiresGatewayBorrowUpstream(mappedModel) {
+				replaceCodexWSAnchorCookie(headers, gatewayBorrowCookie(wsHeaders))
+			} else if anchor != nil && anchor.cookie != "" {
 				replaceCodexWSAnchorCookie(headers, anchor.cookie)
+			}
+			if err := s.checkGatewayBorrowWSHeaders(factoryCtx, latest, mappedModel, headers); err != nil {
+				return nil, err
 			}
 			return s.refreshOpenAIAgentIdentityHeaders(factoryCtx, account, headers)
 		},

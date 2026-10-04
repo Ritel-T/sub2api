@@ -2012,6 +2012,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	if account == nil {
 		return false, "account_nil"
 	}
+	if reason := s.service.gatewayBorrowPolicyReason(ctx, account, req.RequestedModel, req.RequireCompact); reason != "" {
+		return false, reason
+	}
 	if forward, ok := openAIForwardModelFromContext(ctx); ok && forward.model != "" && !account.excelBPSModelAllowedInGroup(req.GroupID, forward.model) {
 		return false, "model_not_allowed_in_group"
 	}

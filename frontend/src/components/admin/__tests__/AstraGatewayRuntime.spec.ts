@@ -44,3 +44,21 @@ describe('Astra gateway runtime', () => {
     await w.setProps({ dirty: true }); expect(w.get('[data-testid="prepare"]').attributes('disabled')).toBeDefined(); w.unmount()
   })
 })
+
+describe('Per-model borrowing runtime', () => {
+  it('renders Sol and Astra independently for the same target account', async () => {
+    mocks.get.mockResolvedValue({ ...snapshot(), targets: [
+      { account_id: 300, model: 'gpt-6-astra', state: 'ready', reason: 'target_probe_passed', expires_at: new Date(Date.now() + 120000).toISOString() },
+      { account_id: 300, model: 'gpt-6.1-sol', state: 'failed', reason: 'answer_mismatch' }
+    ] })
+    const w = mount(AstraGatewayRuntime, { props: { settings: { ...settings, auto_quality: true }, dirty: false } }); await flushPromises()
+    expect(w.text()).toContain('gpt-6-astra')
+    expect(w.text()).toContain('gpt-6.1-sol')
+    const targets = w.findAll('div.rounded-xl').filter(row => row.text().includes('admin.astraGateway.targets #300'))
+    expect(targets).toHaveLength(2)
+    expect(targets[0].text()).toContain('120 s')
+    expect(targets[1].text()).not.toContain('120 s')
+    expect(w.get('[data-testid="auto-runtime-hint"]').text()).toContain('autoRuntimeHint')
+    w.unmount()
+  })
+})

@@ -672,6 +672,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if err != nil {
 		return nil, err
 	}
+	upstreamCtx = withOpenAIFinalSendModel(upstreamCtx, c, upstreamModel)
 	upstreamReq, err := s.buildOpenAIImagesRequest(upstreamCtx, c, account, forwardBody, forwardContentType, token, parsed.Endpoint)
 	if err != nil {
 		return nil, err

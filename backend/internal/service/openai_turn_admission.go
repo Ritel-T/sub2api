@@ -188,7 +188,7 @@ func openAITurnRouteFingerprint(a *Account) [32]byte {
 	for _, key := range []string{
 		codexFingerprintSeedExtraKey, codexFingerprintModeExtraKey,
 		"openai_passthrough", "openai_oauth_passthrough", "openai_excel_bps", "openai_excel_bps_models", "openai_excel_bps_mihomo",
-		ExcelBPSRequiredGroupIDsKey, ExcelBPSRequiredModelsKey, ExcelBPSOmitUnsupportedToolsKey, "openai_prism_browser", PrismBrowserModelsKey,
+		ExcelBPSRequiredGroupIDsKey, ExcelBPSRequiredModelsKey, ExcelBPSOmitUnsupportedToolsKey, GatewayBorrowModelsKey, "openai_prism_browser", PrismBrowserModelsKey,
 		"openai_oauth_responses_websockets_v2_mode", "openai_apikey_responses_websockets_v2_mode",
 		"openai_oauth_responses_websockets_v2_enabled", "openai_apikey_responses_websockets_v2_enabled",
 		"responses_websockets_v2_enabled", "openai_ws_enabled", "openai_ws_force_http",
@@ -321,6 +321,9 @@ func (s *OpenAIGatewayService) latestOpenAITurnAccountForGroup(
 // Check every actual send, including retries and skipBeforeTurn paths. This is
 // an admission point, not an atomic transaction spanning SQL and network I/O.
 func (s *OpenAIGatewayService) admitOpenAITurn(ctx context.Context, c *gin.Context, selected *Account, outboundModel string) (*Account, error) {
+	if c != nil && c.Request != nil && c.Request.URL != nil && strings.HasSuffix(strings.TrimRight(c.Request.URL.Path, "/"), "/responses/compact") && selected.RequiresGatewayBorrow(outboundModel) {
+		return nil, denyOpenAITurn("gateway_borrow_compact_unavailable")
+	}
 	groupID, enforceGroup := openAITurnAdmissionGroupFromContext(c)
 	return s.admitOpenAITurnWithGroup(ctx, selected, outboundModel, groupID, enforceGroup)
 }
@@ -359,6 +362,9 @@ func (s *OpenAIGatewayService) admitOpenAITurnWithGroup(
 	if !latest.IsOpenAI() {
 		return latest, nil
 	}
+	if reason := s.gatewayBorrowPolicyReason(ctx, latest, outboundModel, false); reason != "" {
+		return nil, denyOpenAITurn(reason)
+	}
 	if openAITurnRouteFingerprint(latest) != openAITurnRouteFingerprint(selected) {
 		return nil, denyOpenAITurn("account_binding_changed")
 	}
@@ -379,14 +385,27 @@ func (s *OpenAIGatewayService) admitOpenAITurnWithGroup(
 // A connection is bound to the ticket actually sent at handshake, not the
 // response's turn-state header and not the most recently harvested standby.
 type openAIWSTurnBinding struct {
-	model       string
-	ticket      *openAICodexTicket
-	fingerprint [32]byte
-	createdAt   time.Time
+	model                       string
+	ticket                      *openAICodexTicket
+	fingerprint                 [32]byte
+	createdAt                   time.Time
+	borrowCookie                string
+	borrowCredentialFingerprint [32]byte
+	borrowRevision              string
+	borrowExpires               time.Time
 }
 
 func (s *OpenAIGatewayService) bindOpenAIWSHandshake(account *Account, model string, headers http.Header) *openAIWSTurnBinding {
 	b := &openAIWSTurnBinding{model: strings.TrimSpace(model), fingerprint: openAITurnRouteFingerprint(account), createdAt: time.Now()}
+	if account.RequiresGatewayBorrowUpstream(model) {
+		b.borrowCredentialFingerprint = gatewayBorrowCredentialFingerprint(account)
+		b.borrowCookie = gatewayBorrowCookie(headers)
+		if s != nil && s.cfg != nil {
+			b.borrowRevision = s.cfg.AstraRouting(context.Background()).Revision
+		}
+		b.borrowExpires = s.gatewayBorrowBindingExpiry(context.Background(), account, model)
+		return b
+	}
 	ticket := s.lookupOpenAICodexTicket(account, b.model)
 	if ticket != nil && ticket.State == headers.Get(openAICodexTurnStateHeader) {
 		copy := *ticket
@@ -406,6 +425,26 @@ func (s *OpenAIGatewayService) checkOpenAIWSBinding(account *Account, model stri
 	if b == nil || openAITurnRouteFingerprint(account) != b.fingerprint ||
 		time.Since(b.createdAt) >= openAIWSConnMaxAge {
 		return denyOpenAITurn("connection_binding_expired")
+	}
+	if b.borrowCookie != "" && (!account.RequiresGatewayBorrowUpstream(model) || config.CanonicalGatewayBorrowModel(normalizeExcelBPSIsolationModel(model)) != config.CanonicalGatewayBorrowModel(normalizeExcelBPSIsolationModel(b.model))) {
+		return denyOpenAITurn("connection_borrow_model_changed")
+	}
+	if account.RequiresGatewayBorrowUpstream(model) {
+		ctx := context.Background()
+		if reason := s.gatewayBorrowUpstreamPolicyReason(ctx, account, model, false); reason != "" {
+			return denyOpenAITurn(reason)
+		}
+		if b.borrowCredentialFingerprint != gatewayBorrowCredentialFingerprint(account) || b.model != strings.TrimSpace(model) || b.borrowCookie == "" || !time.Now().Before(b.borrowExpires) || b.borrowRevision != s.cfg.AstraRouting(ctx).Revision {
+			return denyOpenAITurn("connection_borrow_expired")
+		}
+		provider, ok := s.httpUpstream.(gatewayBorrowWSProvider)
+		if !ok {
+			return denyOpenAITurn("gateway_borrow_provider_unavailable")
+		}
+		if !provider.CodexGatewayPinWSBindingValidForModel(ctx, account.ID, config.CanonicalGatewayBorrowModel(normalizeExcelBPSIsolationModel(model)), b.borrowCookie) {
+			return denyOpenAITurn("connection_borrow_revoked")
+		}
+		return nil
 	}
 	if !isOpenAICodexTicketAccount(account) || !s.openAICodexTicketEnabled() ||
 		!s.openAICodexTicketConfig().FailClosed || !s.openAICodexTicketGatedModel(model) {

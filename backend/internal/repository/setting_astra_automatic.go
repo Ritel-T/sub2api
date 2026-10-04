@@ -29,11 +29,11 @@ func (r *settingRepository) SetAstraRoutingWithAccounts(ctx context.Context, key
 	}
 
 	ids := []int64{}
-	if value.CookiePool.Enabled {
+	if value.CookiePool.Enabled && !value.AutoQuality {
 		ids = append(ids, value.CookiePool.SourceAccountIDs...)
 		ids = append(ids, value.CookiePool.TargetAccountIDs...)
 	}
-	if value.WSSession.Enabled {
+	if value.WSSession.Enabled && !value.AutoQuality {
 		ids = append(ids, value.WSSession.AccountIDs...)
 	}
 	rows, readErr := tx.Client().QueryContext(ctx, `SELECT value FROM settings WHERE key=$1`, key)

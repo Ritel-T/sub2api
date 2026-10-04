@@ -1442,6 +1442,8 @@ const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
     current.extra?.openai_excel_bps !== next.extra?.openai_excel_bps ||
     current.extra?.openai_excel_bps_rate_limit_reset_at !== next.extra?.openai_excel_bps_rate_limit_reset_at ||
     current.extra?.openai_excel_bps_rate_limit_reason !== next.extra?.openai_excel_bps_rate_limit_reason ||
+    JSON.stringify(current.extra?.openai_gateway_borrow_models) !== JSON.stringify(next.extra?.openai_gateway_borrow_models) ||
+    JSON.stringify(current.extra?.quality_candy_models) !== JSON.stringify(next.extra?.quality_candy_models) ||
     current.overload_until !== next.overload_until ||
     current.temp_unschedulable_until !== next.temp_unschedulable_until ||
     buildOpenAIUsageRefreshKey(current) !== buildOpenAIUsageRefreshKey(next) ||
