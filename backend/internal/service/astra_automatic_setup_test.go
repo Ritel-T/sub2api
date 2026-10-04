@@ -19,7 +19,7 @@ type astraSetupUpstream struct {
 
 func TestAutomaticBorrowWarmOnlyExpiredModelsAndHonorsRetry(t *testing.T) {
 	now := time.Now()
-	expires := now.Add(time.Minute)
+	expires := now.Add(2 * time.Minute)
 	retry := now.Add(5 * time.Minute)
 	snapshot := AstraGatewayRuntime{Targets: []AstraRouteStatus{
 		{AccountID: 1, Model: "gpt-6-astra", State: "ready", ExpiresAt: &expires},

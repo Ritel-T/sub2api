@@ -64,6 +64,7 @@ func (a *Account) RequiresGatewayBorrowUpstream(model string) bool {
 type gatewayBorrowWSProvider interface {
 	CodexGatewayPinWSRequestForModel(context.Context, http.Header, string, int64, int, string) (string, string, func(), error)
 	CodexGatewayPinWSBindingValidForModel(context.Context, int64, string, string) bool
+	CodexGatewayPinWSBindingExpiryForModel(context.Context, int64, string, string) time.Time
 }
 
 func (s *OpenAIGatewayService) gatewayBorrowPolicyReason(ctx context.Context, a *Account, model string, compact bool) string {
@@ -153,7 +154,11 @@ func (s *OpenAIGatewayService) prepareGatewayBorrowWS(ctx context.Context, a *Ac
 	replaceCodexWSAnchorCookie(headers, cookie)
 	policy := s.cfg.AstraRouting(ctx)
 	fingerprint := openAITurnRouteFingerprint(a)
-	expiry := s.gatewayBorrowBindingExpiry(ctx, a, model)
+	expiry := provider.CodexGatewayPinWSBindingExpiryForModel(ctx, a.ID, mapped, cookie)
+	if expiry.IsZero() || !time.Now().Before(expiry) {
+		release()
+		return "", proxy, func() {}, denyOpenAITurn("gateway_borrow_route_expired")
+	}
 	scope := fmt.Sprintf("gateway-borrow:%x", sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%s:%x:%x:%d:%s", policy.Revision, a.ID, mapped, fingerprint, gatewayBorrowCredentialFingerprint(a), expiry.UnixNano(), cookie))))
 	return scope, effectiveProxy, release, nil
 }

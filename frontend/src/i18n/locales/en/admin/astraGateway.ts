@@ -1,6 +1,6 @@
 export default {
   astraGateway: {
-    probeHint: 'Run two short requests using each actual Sol / Astra model. Both must complete with the correct model and a stable continuation ticket, followed by a correct candy answer using the same Cookie. A new ticket, failure, changed route or wrong answer is not usable. Results describe this validation only, not permanent model recovery.',
+    probeHint: 'Run two short requests using each actual Sol / Astra model. Both must complete with the correct model and a stable continuation ticket, followed by four complete candy answers using the same Cookie, with at least three correct. A new ticket, failure, changed route or insufficient correct answers is not usable. Results describe this validation only, not permanent model recovery.',
     borrowTitle: 'Gateway borrowing',
     borrowDescription: 'Acquire a gateway route and verify each target separately for Sol / Astra before borrowing it within its lifetime.',
     borrowSummary: '{sources} source accounts · {targets} target accounts · Verified per model',
@@ -11,7 +11,7 @@ export default {
     autoSelectionHint: 'Quality checks manage sources, targets and each target model scope. These selections are read-only. Refresh settings to see the latest targets.',
     autoAwaitingSources: 'Waiting for quality checks to confirm a source',
     autoNoTargets: 'No targets currently require borrowing',
-    autoRuntimeHint: 'Sol and Astra are verified separately for each account. A pass on one model does not establish readiness for another. Borrowing verification requires two stable-ticket requests and one correct answer with the same Cookie. It describes this validation only; native recovery requires quality checks that bypass borrowing.',
+    autoRuntimeHint: 'Sol and Astra are verified separately for each account. A pass on one model does not establish readiness for another. Borrowing verification requires two stable-ticket requests and four complete answers with the same Cookie, with at least three correct. Native recovery requires quality checks that bypass borrowing.',
     models: 'Manual borrowing models', chooseModels: 'Select at least one borrowing model.',
     borrowRequired: 'Borrowing required',
     borrowRequiredHint: 'Native quality is confirmed degraded for this model. Generation requires a valid borrowed route. This label does not establish current route availability.',

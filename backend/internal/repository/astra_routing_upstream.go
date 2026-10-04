@@ -106,15 +106,19 @@ func (s *astraRoutingUpstream) DoWithTLS(r *http.Request, p string, a int64, n i
 				}
 				if witness := service.GatewayBorrowRequestWitnessFromContext(r.Context()); witness != nil {
 					pool.targetMu.Lock()
-					check, _ := pool.targetCheck(a, model)
+					check, _ := pool.targetCheckForCookie(a, model, cookie.Value)
 					pool.targetMu.Unlock()
 					witness.Confirm(a, model, cookie.Value, s.cfg.AstraRouting(r.Context()).Revision, check.expires)
 				}
 				r = r.Clone(service.WithHTTPUpstreamRedirectsDisabled(r.Context()))
 				replaceCodexGatewayCookie(r, cookie)
 				pool.targetMu.Lock()
-				verifiedRoute, _ := pool.targetCheck(a, model)
+				verifiedRoute, _ := pool.targetCheckForCookie(a, model, cookie.Value)
 				pool.targetMu.Unlock()
+				if !time.Now().Before(verifiedRoute.expires) {
+					release()
+					return nil, errors.New("borrow_route_expired")
+				}
 				slog.Info("gateway_borrow_applied", "account_id", a, "model", model, "source_account_id", verifiedRoute.sourceID, "revision", s.cfg.AstraRouting(r.Context()).Revision, "expires_at", verifiedRoute.expires)
 				if pool.config.RotateNodes {
 					r = astraFreshRequest(r)
@@ -165,6 +169,9 @@ func (s *astraRoutingUpstream) PrepareAstraGateway(ctx context.Context) error {
 	}
 	if len(pool.config.SourceAccountIDs) == 0 {
 		return errors.New("astra_source_required")
+	}
+	if s.cfg.AstraRouting(ctx).AutoQuality && !pool.config.RotateNodes {
+		return s.prepareAutomaticSources(ctx, pool)
 	}
 	if pool.config.RotateNodes {
 		return s.prepareRotatedSource(ctx, pool)
@@ -242,6 +249,19 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 				if !check.passed && now.Before(check.retryAfter) {
 					retry := check.retryAfter
 					row.RetryAt = &retry
+					if settings.AutoQuality {
+						for _, source := range pool.config.SourceAccountIDs {
+							route, found := pool.routes[source]
+							if !found || !now.Before(route.expires) {
+								continue
+							}
+							failed, known := pool.targetRouteFailures[astraTargetRouteKey{id, model, source, sha256.Sum256([]byte(route.cookie.Value))}]
+							if !known || !now.Before(failed.retryAfter) {
+								row.RetryAt = nil
+								break
+							}
+						}
+					}
 				}
 				checked := check.checked
 				row.CheckedAt = &checked
@@ -249,6 +269,10 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 				row.ProxyNode = check.node.Name
 				row.ProxyCountry = check.node.Country
 				route, exists := pool.routes[check.sourceID]
+				if settings.AutoQuality && check.route.cookie.Value != "" {
+					route = check.route
+					exists = true
+				}
 				current := exists && sha256.Sum256([]byte(route.cookie.Value)) == check.cookieFingerprint && now.Before(route.expires) && now.Before(check.expires) && (!pool.config.RotateNodes || route.node.Identity == check.node.Identity) && (!pool.config.IPAffinity || pool.config.RotateNodes || check.proxyFingerprint == sha256.Sum256([]byte(route.proxy)))
 				if current && check.passed {
 					expiry := check.expires

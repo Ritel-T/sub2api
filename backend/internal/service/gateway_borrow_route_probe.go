@@ -56,26 +56,36 @@ func ProbeOpenAICodexBorrowQualityRoute(ctx context.Context, upstream HTTPUpstre
 		return result
 	}
 	changed := false
-	shot, err := fireOpenAICodexProbeShotRequest(ctx, template.Header, result.Model, "", pinned.String(), GatewayBorrowCandyPrompt, func(req *http.Request) (*http.Response, error) {
-		req = req.WithContext(WithHTTPUpstreamRedirectsDisabled(req.Context()))
-		response, err := upstream.DoWithTLS(req, proxy, accountID, concurrency, profile)
-		if response != nil {
-			for _, cookie := range response.Cookies() {
-				if cookie.Name == "__oailb" && (cookie.Value != pinned.Value || cookie.MaxAge < 0 || (!cookie.Expires.IsZero() && !time.Now().Before(cookie.Expires))) {
-					changed = true
+	correct := 0
+	for attempt := 0; attempt < 4; attempt++ {
+		shot, err := fireOpenAICodexProbeShotRequest(ctx, template.Header, result.Model, "", pinned.String(), GatewayBorrowCandyPrompt, func(req *http.Request) (*http.Response, error) {
+			req = req.WithContext(WithHTTPUpstreamRedirectsDisabled(req.Context()))
+			response, err := upstream.DoWithTLS(req, proxy, accountID, concurrency, profile)
+			if response != nil {
+				for _, cookie := range response.Cookies() {
+					if cookie.Name == "__oailb" && (cookie.Value != pinned.Value || cookie.MaxAge < 0 || (!cookie.Expires.IsZero() && !time.Now().Before(cookie.Expires))) {
+						changed = true
+					}
 				}
 			}
+			return response, err
+		})
+		if changed {
+			result.fail("route_changed", "target_route_changed", "")
+			return result
 		}
-		return response, err
-	})
-	if changed {
-		result.fail("route_changed", "target_route_changed", "")
-		return result
+		if !result.shotUsable(ctx, "borrow quality", shot, err) {
+			return result
+		}
+		if shot.completedModel != result.Model {
+			result.fail("quality_failed", "target_quality_failed", "")
+			return result
+		}
+		if shot.text == "21" {
+			correct++
+		}
 	}
-	if !result.shotUsable(ctx, "borrow quality", shot, err) {
-		return result
-	}
-	if shot.completedModel != result.Model || shot.text != "21" {
+	if correct < 3 {
 		result.fail("quality_failed", "target_quality_failed", "")
 		return result
 	}

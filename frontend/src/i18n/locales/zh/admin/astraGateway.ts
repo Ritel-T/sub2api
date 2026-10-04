@@ -1,6 +1,6 @@
 export default {
   astraGateway: {
-    probeHint: 'Sol / Astra 分别按实际模型执行两轮短请求，完整成功、模型正确且续接不换票后，再用同一 Cookie 答对一题糖果题才可借用。换票、失败、路由改变或答错均不计为可用。结果仅反映本次验证，不代表模型能力永久恢复。',
+    probeHint: 'Sol / Astra 分别按实际模型执行两轮短请求，完整成功、模型正确且续接不换票后，再用同一 Cookie 完成四题糖果检测，至少三题正确才可借用。换票、生成失败、路由改变或正确数不足均不可用。结果仅反映本次验证，不代表模型能力永久恢复。',
     borrowTitle: '网关借票',
     borrowDescription: '从来源账号获取网关路由，按 Sol / Astra 分别验证目标账号，在有效期内借用。',
     borrowSummary: '来源账号 {sources} 个 · 目标账号 {targets} 个 · 按模型验证',
@@ -11,7 +11,7 @@ export default {
     autoSelectionHint: '来源、目标与每个目标的模型范围由质量任务维护；这里仅查看。刷新配置可查看最新目标。',
     autoAwaitingSources: '等待质量任务确认可用来源',
     autoNoTargets: '暂无需要借票的目标',
-    autoRuntimeHint: '同一账号的 Sol 与 Astra 独立验证；某一模型通过不代表另一模型可用。借票复验包含两轮稳票和同一 Cookie 的一题答题，仅反映本次验证；原生恢复以质量任务绕过借票的答题结果为准。',
+    autoRuntimeHint: '同一账号的 Sol 与 Astra 独立验证；某一模型通过不代表另一模型可用。借票复验包含两轮稳票和同一 Cookie 的四题检测，完整结束且至少三题正确才可用；原生恢复以质量任务绕过借票的答题结果为准。',
     models: '手工借票模型', chooseModels: '请选择至少一个借票模型。',
     borrowRequired: '需要借票',
     borrowRequiredHint: '该模型原生质量已确认降智，需要有效借票才能参与生成；标签不代表借票当前可用。',

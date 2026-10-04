@@ -30,6 +30,10 @@ type codexGatewayPinUpstream struct {
 	targetProbeMu         sync.Mutex
 	targetChecks          map[int64]astraTargetValidation
 	targetModelChecks     map[astraTargetModelKey]astraTargetValidation
+	targetRouteFailures   map[astraTargetRouteKey]astraTargetValidation
+	targetRoutePasses     map[astraTargetRouteKey]astraTargetValidation
+	autoProbeSlots        chan struct{}
+	autoProbeLocks        map[astraTargetModelKey]*sync.Mutex
 	delegate              service.HTTPUpstream
 	config                config.CodexGatewayPinConfig
 	mu                    sync.Mutex

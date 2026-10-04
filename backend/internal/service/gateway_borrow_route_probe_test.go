@@ -30,6 +30,9 @@ func TestBorrowRouteQualityRequiresSameRouteModelAndCorrectCandy(t *testing.T) {
 		{"Astra correct", "gpt-6-astra", "21", "gpt-6-astra", 200, true},
 		{"Sol correct", "gpt-6.1-sol", "21", "gpt-6.1-sol", 200, true},
 		{"wrong answer", "gpt-6.1-sol", "29", "gpt-6.1-sol", 200, false},
+		{"two of four", "gpt-6.1-sol", "two_correct", "gpt-6.1-sol", 200, false},
+		{"three of four", "gpt-6.1-sol", "three_correct", "gpt-6.1-sol", 200, true},
+		{"last quota after three correct", "gpt-6-astra", "last_quota", "gpt-6-astra", 200, false},
 		{"created model is not terminal", "gpt-6.1-sol", "21", "gpt-6-luna", 200, false},
 		{"quota rejected", "gpt-6-astra", "", "gpt-6-astra", 429, false},
 	} {
@@ -46,9 +49,27 @@ func TestBorrowRouteQualityRequiresSameRouteModelAndCorrectCandy(t *testing.T) {
 					h.Del("X-Codex-Turn-State")
 				}
 				answer, terminal, status := "OK", test.model, 200
-				if shots == 3 {
+				if shots >= 3 {
 					require.Contains(t, string(raw), "只输出最终整数")
 					answer, terminal, status = test.answer, test.terminal, test.status
+					if test.answer == "two_correct" {
+						answer = "29"
+						if shots <= 4 {
+							answer = "21"
+						}
+					}
+					if test.answer == "three_correct" {
+						answer = "21"
+						if shots == 6 {
+							answer = "29"
+						}
+					}
+					if test.answer == "last_quota" {
+						answer = "21"
+						if shots == 6 {
+							status = 429
+						}
+					}
 				}
 				wire := `data: {"type":"response.created","response":{"model":"` + test.model + `"}}` + "\n\n" +
 					`data: {"type":"response.completed","response":{"model":"` + terminal + `","status":"completed","output":[{"content":[{"type":"output_text","text":"` + answer + `"}]}]}}` + "\n\n"
@@ -61,7 +82,11 @@ func TestBorrowRouteQualityRequiresSameRouteModelAndCorrectCandy(t *testing.T) {
 			req.Header.Set("Authorization", "Bearer fixture-target")
 			req.Header.Set("Cookie", "__oailb=fixture-route")
 			result := ProbeOpenAICodexBorrowQualityRoute(t.Context(), upstream, req, "fixture-proxy", 300, 1, nil, test.model)
-			require.Equal(t, 3, shots)
+			wantShots := 6
+			if test.status == 429 || test.terminal != test.model {
+				wantShots = 3
+			}
+			require.Equal(t, wantShots, shots)
 			require.Equal(t, test.pass, result.Verdict == OpenAICodexStateHealthy)
 		})
 	}

@@ -226,6 +226,9 @@ func (s *astraRoutingUpstream) prepareRotatedSource(ctx context.Context, pool *c
 
 func (s *astraRoutingUpstream) targetRoute(req *http.Request, proxy string, id int64, n int, profile *tlsfingerprint.Profile) (*http.Cookie, [32]byte, string, func(), error) {
 	pool := s.current(req.Context())
+	if pool != nil && s.cfg.AstraRouting(req.Context()).AutoQuality && !pool.config.RotateNodes {
+		return s.automaticTargetRoute(req, proxy, id, n, profile, pool)
+	}
 	if pool == nil || !pool.config.RotateNodes {
 		return s.targetRouteOnce(req, proxy, id, n, profile)
 	}

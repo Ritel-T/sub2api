@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -116,7 +117,7 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 		set("failed", "source", 0, "runtime_unavailable")
 		return
 	}
-	if !settings.AutoQuality || !borrowSourceStillWarm(provider.AstraGatewaySnapshot(ctx), time.Now()) {
+	if !settings.AutoQuality || !borrowSourceStillWarm(provider.AstraGatewaySnapshot(ctx), time.Now()) || borrowAnyModelNeedsWarm(provider.AstraGatewaySnapshot(ctx), settings.CookiePool, time.Now()) {
 		if err := prepareAstraForSetup(ctx, provider); err != nil {
 			set("failed", "source", 0, astraSetupError(err))
 			return
@@ -124,28 +125,62 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 	}
 	var firstTargetError error
 	var firstFailedTarget int64
-	for _, id := range settings.CookiePool.TargetAccountIDs {
-		if ctx.Err() != nil || s.cfg.AstraRouting(ctx).Revision != settings.Revision {
-			set("failed", "target", id, "configuration_changed")
-			return
-		}
-		set("running", "target", id, "")
-		// The shared state probe verifies target credentials on the borrowed route.
-		var err error
-		if settings.AutoQuality {
-			for _, model := range settings.CookiePool.ModelsForTarget(id) {
-				if !borrowModelNeedsWarm(provider.AstraGatewaySnapshot(ctx), id, model, time.Now()) {
-					continue
-				}
-				if modelErr := s.verifyGatewayBorrowTargetForModel(ctx, id, model); modelErr != nil && err == nil {
-					err = modelErr
-				}
+	if settings.AutoQuality {
+		var wait sync.WaitGroup
+		var resultMu sync.Mutex
+		slots := make(chan struct{}, 2)
+		for _, id := range settings.CookiePool.TargetAccountIDs {
+			select {
+			case slots <- struct{}{}:
+			case <-ctx.Done():
 			}
-		} else {
-			err = s.verifyAstraGatewayTarget(ctx, id)
+			if ctx.Err() != nil {
+				break
+			}
+			wait.Add(1)
+			go func(id int64) {
+				defer wait.Done()
+				defer func() { <-slots }()
+				for _, model := range settings.CookiePool.ModelsForTarget(id) {
+					if !borrowModelNeedsWarm(provider.AstraGatewaySnapshot(ctx), id, model, time.Now()) {
+						continue
+					}
+					err := s.verifyGatewayBorrowTargetForModel(ctx, id, model)
+					if err != nil {
+						resultMu.Lock()
+						if firstTargetError == nil {
+							firstTargetError, firstFailedTarget = err, id
+						}
+						resultMu.Unlock()
+					}
+				}
+			}(id)
 		}
-		if err != nil && firstTargetError == nil {
-			firstTargetError, firstFailedTarget = err, id
+		wait.Wait()
+	} else {
+		for _, id := range settings.CookiePool.TargetAccountIDs {
+			if ctx.Err() != nil || s.cfg.AstraRouting(ctx).Revision != settings.Revision {
+				set("failed", "target", id, "configuration_changed")
+				return
+			}
+			set("running", "target", id, "")
+			// The shared state probe verifies target credentials on the borrowed route.
+			var err error
+			if settings.AutoQuality {
+				for _, model := range settings.CookiePool.ModelsForTarget(id) {
+					if !borrowModelNeedsWarm(provider.AstraGatewaySnapshot(ctx), id, model, time.Now()) {
+						continue
+					}
+					if modelErr := s.verifyGatewayBorrowTargetForModel(ctx, id, model); modelErr != nil && err == nil {
+						err = modelErr
+					}
+				}
+			} else {
+				err = s.verifyAstraGatewayTarget(ctx, id)
+			}
+			if err != nil && firstTargetError == nil {
+				firstTargetError, firstFailedTarget = err, id
+			}
 		}
 	}
 	if firstTargetError != nil {
@@ -161,6 +196,17 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 	set("ready", "complete", 0, "")
 }
 
+func borrowAnyModelNeedsWarm(snapshot AstraGatewayRuntime, pool config.CodexGatewayPinConfig, now time.Time) bool {
+	for _, id := range pool.TargetAccountIDs {
+		for _, model := range pool.ModelsForTarget(id) {
+			if borrowModelNeedsWarm(snapshot, id, model, now) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func borrowModelNeedsWarm(snapshot AstraGatewayRuntime, id int64, model string, now time.Time) bool {
 	for _, row := range snapshot.Targets {
 		if row.AccountID != id || row.Model != model {
@@ -169,7 +215,7 @@ func borrowModelNeedsWarm(snapshot AstraGatewayRuntime, id int64, model string, 
 		if row.RetryAt != nil && now.Before(*row.RetryAt) {
 			return false
 		}
-		return row.State != "ready" || row.ExpiresAt == nil || !now.Add(30*time.Second).Before(*row.ExpiresAt)
+		return row.State != "ready" || row.ExpiresAt == nil || !now.Add(90*time.Second).Before(*row.ExpiresAt)
 	}
 	return true
 }

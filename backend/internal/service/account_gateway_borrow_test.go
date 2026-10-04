@@ -17,10 +17,11 @@ import (
 
 type borrowSafetyProvider struct {
 	HTTPUpstream
-	cookie   string
-	snapshot AstraGatewayRuntime
-	valid    bool
-	calls    int
+	cookie        string
+	snapshot      AstraGatewayRuntime
+	valid         bool
+	calls         int
+	cookieExpires map[string]time.Time
 }
 
 func (p *borrowSafetyProvider) CodexGatewayPinWSRequestForModel(_ context.Context, h http.Header, proxy string, id int64, n int, model string) (string, string, func(), error) {
@@ -31,7 +32,27 @@ func (p *borrowSafetyProvider) CodexGatewayPinWSRequestForModel(_ context.Contex
 	return p.cookie, "http://borrow-exit.invalid:80", func() {}, nil
 }
 func (p *borrowSafetyProvider) CodexGatewayPinWSBindingValidForModel(_ context.Context, id int64, model, cookie string) bool {
-	return p.valid && cookie == p.cookie
+	if !p.valid {
+		return false
+	}
+	if expires, ok := p.cookieExpires[cookie]; ok {
+		return time.Now().Before(expires)
+	}
+	return cookie == p.cookie
+}
+func (p *borrowSafetyProvider) CodexGatewayPinWSBindingExpiryForModel(_ context.Context, id int64, model, cookie string) time.Time {
+	if expiry, ok := p.cookieExpires[cookie]; ok {
+		return expiry
+	}
+	if cookie != p.cookie {
+		return time.Time{}
+	}
+	for _, row := range p.snapshot.Targets {
+		if row.AccountID == id && row.Model == model && row.ExpiresAt != nil {
+			return *row.ExpiresAt
+		}
+	}
+	return time.Time{}
 }
 func (p *borrowSafetyProvider) AstraGatewaySnapshot(context.Context) AstraGatewayRuntime {
 	return p.snapshot
@@ -256,4 +277,28 @@ func TestGatewayBorrowMultipartCannotUseProtectedTextRoute(t *testing.T) {
 	req = req.WithContext(withOpenAIFinalSendModel(req.Context(), c, "gpt-6-astra"))
 	_, err := s.admitOpenAIHTTPRequest(req, a)
 	require.ErrorContains(t, err, "gateway_borrow_endpoint_unavailable")
+}
+
+func TestGatewayBorrowWSRotatedSourceDoesNotExtendOldCookie(t *testing.T) {
+	s, a, p := borrowSafetyService()
+	oldExpiry := time.Now().Add(time.Minute)
+	newExpiry := time.Now().Add(4 * time.Minute)
+	p.cookieExpires = map[string]time.Time{p.cookie: oldExpiry}
+	headers := http.Header{}
+	_, _, release, err := s.prepareGatewayBorrowWS(t.Context(), a, "gpt-6-astra", headers, "")
+	require.NoError(t, err)
+	defer release()
+	oldCookie := p.cookie
+	p.cookie = "new-source-cookie"
+	p.cookieExpires[p.cookie] = newExpiry
+	p.snapshot.Targets[0].ExpiresAt = &newExpiry
+	// Handshake can happen after another source is promoted; it still binds
+	// the original acquired cookie and its own earlier deadline.
+	b := s.bindOpenAIWSHandshake(a, "gpt-6-astra", headers)
+	require.Equal(t, oldCookie, b.borrowCookie)
+	require.Equal(t, oldExpiry, b.borrowExpires)
+	require.NoError(t, s.checkOpenAIWSBinding(a, "gpt-6-astra", b), "old verified route remains valid before its own expiry")
+	b.borrowExpires = time.Now().Add(-time.Second)
+	require.ErrorContains(t, s.checkOpenAIWSBinding(a, "gpt-6-astra", b), "connection_borrow_expired")
+	require.True(t, time.Now().Before(newExpiry), "new source TTL must not renew the old WS binding")
 }

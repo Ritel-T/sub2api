@@ -403,7 +403,11 @@ func (s *OpenAIGatewayService) bindOpenAIWSHandshake(account *Account, model str
 		if s != nil && s.cfg != nil {
 			b.borrowRevision = s.cfg.AstraRouting(context.Background()).Revision
 		}
-		b.borrowExpires = s.gatewayBorrowBindingExpiry(context.Background(), account, model)
+		if s != nil {
+			if provider, ok := s.httpUpstream.(gatewayBorrowWSProvider); ok {
+				b.borrowExpires = provider.CodexGatewayPinWSBindingExpiryForModel(context.Background(), account.ID, config.CanonicalGatewayBorrowModel(normalizeExcelBPSIsolationModel(model)), b.borrowCookie)
+			}
+		}
 		return b
 	}
 	ticket := s.lookupOpenAICodexTicket(account, b.model)
