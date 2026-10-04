@@ -102,7 +102,7 @@ type RelayTraceEvent struct {
 type relayState struct {
 	usage                   Usage
 	turnUsage               Usage
-	turnWroteDownstream     atomic.Bool
+	turnWroteDownstream     atomic.Pointer[atomic.Bool]
 	requestModelMu          sync.RWMutex
 	requestModel            string
 	pendingTurnStart        atomic.Pointer[time.Time]
@@ -181,6 +181,7 @@ func Relay(
 	}
 	startAt := nowFn()
 	state := &relayState{requestModel: result.RequestModel}
+	state.turnWroteDownstream.Store(&atomic.Bool{})
 	if isClientResponseCreateFrame(firstMessageType, firstClientMessage) {
 		firstTurnStartedAt := options.FirstTurnStartedAt
 		if firstTurnStartedAt.IsZero() {
@@ -206,6 +207,7 @@ func Relay(
 	}
 	writeClientFrameUpstream := func(msgType coderws.MessageType, payload []byte) error {
 		isResponseCreate := isClientResponseCreateFrame(msgType, payload)
+		var turnWroteDownstream *atomic.Bool
 		if isResponseCreate {
 			state.setRequestModel(strings.TrimSpace(gjson.GetBytes(payload, "model").String()))
 			turnStartedAt := time.Time{}
@@ -219,13 +221,16 @@ func Relay(
 			// The policy-enforcing client connection has accepted this turn.
 			// Reset before the write so an immediate upstream response cannot race
 			// with the transport returning from WriteFrame.
-			state.turnWroteDownstream.Store(false)
+			// Give each turn its own flag: the previous downstream write may
+			// still be returning after the client has received its terminal.
+			turnWroteDownstream = &atomic.Bool{}
+			state.turnWroteDownstream.Store(turnWroteDownstream)
 		}
 		err := writeUpstream(msgType, payload)
 		if err != nil && isResponseCreate {
 			// The relay exits on this error, but retain the previous turn's state
 			// for accurate diagnostics while the two relay goroutines settle.
-			state.turnWroteDownstream.Store(true)
+			turnWroteDownstream.Store(true)
 		}
 		return err
 	}
@@ -575,10 +580,16 @@ func runUpstreamToClient(
 			return
 		}
 		markActivity()
+		// Keep this frame's turn identity across callbacks and WriteFrame. A
+		// new response.create must not receive the prior turn's completion.
+		var turnWroteDownstream *atomic.Bool
+		if state != nil {
+			turnWroteDownstream = state.turnWroteDownstream.Load()
+		}
 		if beforeWriteClient != nil {
 			wroteDownstreamInTurn := wroteDownstream
 			if state != nil {
-				wroteDownstreamInTurn = state.turnWroteDownstream.Load()
+				wroteDownstreamInTurn = turnWroteDownstream != nil && turnWroteDownstream.Load()
 			}
 			if err := beforeWriteClient(msgType, payload, wroteDownstreamInTurn); err != nil {
 				emitRelayTrace(onTrace, RelayTraceEvent{
@@ -658,8 +669,8 @@ func runUpstreamToClient(
 			return
 		}
 		wroteDownstream = true
-		if state != nil {
-			state.turnWroteDownstream.Store(true)
+		if turnWroteDownstream != nil {
+			turnWroteDownstream.Store(true)
 		}
 		if afterWriteClient != nil {
 			afterWriteClient(msgType, payload)

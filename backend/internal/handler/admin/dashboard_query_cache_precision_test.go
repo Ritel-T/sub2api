@@ -48,8 +48,9 @@ func TestMinuteRangeAllInnerCacheKeys(t *testing.T) {
 		_, hit, err = h.getAPIKeyUsageTrendCached(ctx, start, end, "hour", 12)
 		require.NoError(t, err)
 		require.True(t, hit)
-		dashboardUsersTrendCache.Set(entityKey, []usagestats.UserUsageTrendPoint{})
-		_, hit, err = h.getUserUsageTrendCached(ctx, start, end, "hour", 12)
+		userEntityKey := mustMarshalDashboardCacheKey(dashboardEntityTrendCacheKey{StartTime: startText, EndTime: endText, Granularity: "hour", Limit: 12, Metric: "tokens"})
+		dashboardUsersTrendCache.Set(userEntityKey, []usagestats.UserUsageTrendPoint{})
+		_, hit, err = h.getUserUsageTrendCached(ctx, start, end, "hour", 12, "tokens")
 		require.NoError(t, err)
 		require.True(t, hit)
 		for _, route := range []gin.HandlerFunc{h.GetModelStats, h.GetGroupStats, h.GetAPIKeyUsageTrend, h.GetUserUsageTrend} {

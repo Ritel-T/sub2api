@@ -1067,6 +1067,89 @@ func TestRelay_BeforeWriteClientTracksDownstreamPerTurn(t *testing.T) {
 	}
 }
 
+func TestRelay_PreviousTurnWriteCannotMarkNextTurnStarted(t *testing.T) {
+	t.Parallel()
+
+	clientConn := newPassthroughTestFrameConn(nil, false)
+	upstreamConn := newPassthroughTestFrameConn(nil, false)
+	ctx, cancel := context.WithCancel(context.Background())
+	firstWritePending := make(chan struct{})
+	releaseFirstWrite := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseFirstWrite) }) }
+	wroteStates := make(chan bool, 2)
+	done := make(chan *RelayExit, 1)
+	stopped := make(chan struct{})
+	t.Cleanup(func() {
+		release()
+		cancel()
+		select {
+		case <-stopped:
+		case <-time.After(5 * time.Second):
+			t.Error("relay did not stop")
+		}
+	})
+	stopErr := errors.New("reject second-turn error before output")
+	go func() {
+		defer close(stopped)
+		_, relayExit := Relay(ctx, clientConn, upstreamConn,
+			[]byte(`{"type":"response.create","model":"gpt-5.3-codex","input":[]}`),
+			RelayOptions{
+				BeforeWriteClient: func(_ coderws.MessageType, payload []byte, wroteDownstream bool) error {
+					wroteStates <- wroteDownstream
+					if strings.Contains(string(payload), `"type":"error"`) {
+						return stopErr
+					}
+					return nil
+				},
+				AfterClientWrite: func(_ coderws.MessageType, _ []byte, _ error) {
+					// The client has received the terminal, but relay accounting has
+					// not finished. Let it submit the next turn in this exact window.
+					close(firstWritePending)
+					<-releaseFirstWrite
+				},
+			},
+		)
+		done <- relayExit
+	}()
+
+	require.Eventually(t, func() bool { return len(upstreamConn.Writes()) == 1 }, 5*time.Second, time.Millisecond)
+	upstreamConn.readCh <- passthroughTestFrame{
+		msgType: coderws.MessageText,
+		payload: []byte(`{"type":"response.completed","response":{"id":"resp_first","usage":{"input_tokens":1,"output_tokens":1}}}`),
+	}
+	select {
+	case <-firstWritePending:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first downstream write did not reach its completion boundary")
+	}
+	require.False(t, <-wroteStates)
+	clientConn.readCh <- passthroughTestFrame{
+		msgType: coderws.MessageText,
+		payload: []byte(`{"type":"response.create","model":"gpt-5.3-codex","input":[]}`),
+	}
+	require.Eventually(t, func() bool { return len(upstreamConn.Writes()) == 2 }, 5*time.Second, time.Millisecond)
+	release()
+	upstreamConn.readCh <- passthroughTestFrame{
+		msgType: coderws.MessageText,
+		payload: []byte(`{"type":"error","error":{"type":"usage_limit_reached"}}`),
+	}
+	select {
+	case wrote := <-wroteStates:
+		require.False(t, wrote, "a completed write from the prior turn must not mark the next turn as started")
+	case <-time.After(5 * time.Second):
+		t.Fatal("second-turn error was not observed")
+	}
+	select {
+	case relayExit := <-done:
+		require.NotNil(t, relayExit)
+		require.ErrorIs(t, relayExit.Err, stopErr)
+		require.True(t, relayExit.WroteDownstream, "connection diagnostics retain the completed first turn")
+	case <-time.After(5 * time.Second):
+		t.Fatal("relay did not return the rejected event")
+	}
+}
+
 func TestRelay_BinaryFramePassthrough(t *testing.T) {
 	t.Parallel()
 

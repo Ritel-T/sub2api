@@ -37,6 +37,12 @@ func (s *PaymentService) PaymentConfigForUser(ctx context.Context, cfg *PaymentC
 	out.MerchantTestUserIDs = nil
 	out.MerchantTestAccess = merchantTestUser(cfg, userID)
 	out.Enabled = cfg.Enabled || out.MerchantTestAccess
+	// Signed retail quotes define CNY principal and site-credit units one-to-one.
+	// Legacy gateway promotions do not apply to that frozen financial contract.
+	if cfg.BalanceRetailPricingEnabled {
+		out.RechargeBonusTiers = []RechargeBonusTier{}
+		out.RechargeBonusNotice = ""
+	}
 	types := make([]string, 0, len(cfg.EnabledTypes))
 	for _, method := range cfg.EnabledTypes {
 		if !cfg.Enabled && (!out.MerchantTestAccess || method != "squarespace") {

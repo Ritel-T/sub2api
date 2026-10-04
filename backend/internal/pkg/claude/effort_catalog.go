@@ -19,6 +19,7 @@ var effortFamilies = []struct {
 	{family: "claude-mythos-5", levels: effortLowMediumHighXHighMax},
 	{family: "claude-fable-5", levels: effortLowMediumHighXHighMax},
 	{family: "claude-sonnet-4-6", levels: effortLowMediumHighMax},
+	{family: "claude-sonnet-5-5", levels: effortLowMediumHighXHighMax},
 	{family: "claude-sonnet-5", levels: effortLowMediumHighXHighMax},
 	{family: "claude-opus-4-8", levels: effortLowMediumHighXHighMax},
 	{family: "claude-opus-4-7", levels: effortLowMediumHighXHighMax},
@@ -40,9 +41,25 @@ func EffortLevelsForModel(model string) []string {
 	return nil
 }
 
+// SupportsAdaptiveThinking reports whether a model accepts thinking.type=adaptive.
+// Every model in the effort catalog does except Claude Opus 4.5, which takes
+// output_config.effort but still enables thinking with a token budget.
+func SupportsAdaptiveThinking(model string) bool {
+	id := normalizeEffortModelID(model)
+	if id == "claude-opus-4-5" || strings.HasPrefix(id, "claude-opus-4-5-") {
+		return false
+	}
+	return EffortLevelsForModel(model) != nil
+}
+
 // IsOpus55 identifies the fixed Opus 5.5 ID after provider/local suffix normalization.
 func IsOpus55(model string) bool {
 	return normalizeEffortModelID(model) == "claude-opus-5-5"
+}
+
+// IsSonnet55 identifies the fixed Sonnet 5.5 ID after provider/local suffix normalization.
+func IsSonnet55(model string) bool {
+	return normalizeEffortModelID(model) == "claude-sonnet-5-5"
 }
 
 func normalizeEffortModelID(model string) string {
@@ -51,12 +68,18 @@ func normalizeEffortModelID(model string) string {
 	if slash := strings.IndexByte(id, '/'); slash >= 0 {
 		id = strings.TrimPrefix(strings.TrimSpace(id[slash+1:]), "models/")
 	}
+	for _, prefix := range []string{"us.", "eu.", "apac.", "jp.", "au.", "us-gov.", "global."} {
+		id = strings.TrimPrefix(id, prefix)
+	}
 	id = strings.TrimPrefix(id, "anthropic.")
 	id = strings.TrimSuffix(id, "-thinking")
-	// OpenRouter uses a dotted minor version for this exact Opus 5.5 ID.
-	// Normalize it before effort, thinking, and billing family lookups.
+	// OpenRouter uses dotted minor versions for some models. Normalize them
+	// before effort, thinking, and billing family lookups.
 	if id == "claude-opus-5.5" {
 		id = "claude-opus-5-5"
+	}
+	if id == "claude-sonnet-5.5" {
+		id = "claude-sonnet-5-5"
 	}
 	if mapped, ok := ModelIDReverseOverrides[id]; ok {
 		id = mapped

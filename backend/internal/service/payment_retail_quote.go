@@ -369,7 +369,9 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 		oauth.Currency = claims.Quote.Currency
 		return oauth, nil
 	}
-	order, err := s.createOrderInTx(ctx, req, user, nil, cfg, req.Amount, req.Amount, 0, claims.Quote.PayAmount, sel)
+	// Retail credits and cash remain exactly as signed; gateway promotion tiers
+	// cannot add credits or discount a frozen quote during creation or replay.
+	order, err := s.createOrderInTx(ctx, req, user, nil, cfg, req.Amount, req.Amount, 0, claims.Quote.PayAmount, 0, sel)
 	if err != nil {
 		// A concurrent replay may have committed the unique checkout reference.
 		existing, lookupErr := s.entClient.PaymentOrder.Query().Where(paymentorder.OutTradeNo(claims.Quote.CheckoutReference)).Only(ctx)

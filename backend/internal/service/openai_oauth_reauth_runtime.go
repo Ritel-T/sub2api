@@ -19,8 +19,8 @@ import (
 // Only releases reviewed against an upstream worker protocol are mapped to
 // its published runtime. Unknown fork/development versions keep the release
 // gate; update this list when the worker protocol or fork version changes.
-const managedReauthRuntimeVersion = "2.9.6"
-const managedReauthForkVersion = "2.9.6.1-ritel"
+const managedReauthRuntimeVersion = "2.9.8"
+const managedReauthForkVersion = "2.9.8.1-ritel"
 
 func (s *OpenAIOAuthReauthService) configureWorker(cfg *config.Config, info BuildInfo) {
 	token := strings.TrimSpace(os.Getenv("OPENAI_REAUTH_WORKER_TOKEN"))
@@ -57,6 +57,8 @@ func (s *OpenAIOAuthReauthService) configureWorker(cfg *config.Config, info Buil
 	switch runtimeVersion {
 	case managedReauthForkVersion:
 		runtimeVersion = managedReauthRuntimeVersion
+	case "2.9.6.1-ritel":
+		runtimeVersion = "2.9.6"
 	case "2.9.4.1-ritel", "2.9.4.2-ritel", "2.9.4.3-ritel":
 		runtimeVersion = "2.9.4"
 	}

@@ -91,6 +91,35 @@ func TestExcelBPSIsolationSchedulersHonorChannelMapping(t *testing.T) {
 	}
 }
 
+func TestExcelBPSIsolationCompositeOwnershipDoesNotOverrideGroupPolicy(t *testing.T) {
+	account := isolatedExcelAccount()
+	account.Credentials["model_mapping"] = map[string]any{"public-sol": "gpt-6.1-sol"}
+	ctx := WithCompositeRouteDecision(context.Background(), CompositeRouteDecision{
+		Matched: true, Source: CompositeRouteSourceAccount,
+		PublicModel: "public-sol", TargetPlatform: PlatformOpenAI, UpstreamModel: "public-sol",
+	})
+	ctx = WithOpenAIForwardModel(ctx, "gpt-6.1-sol", false)
+	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{}}
+	for _, groupID := range []int64{15, 16} {
+		allowed, reason := scheduler.isAccountRequestCompatibleReason(ctx, account, OpenAIAccountScheduleRequest{
+			GroupID: &groupID, Platform: PlatformOpenAI, RequestedModel: "public-sol",
+		})
+		if groupID == 16 {
+			require.True(t, allowed, reason)
+		} else {
+			require.False(t, allowed)
+			require.Equal(t, "model_not_allowed_in_group", reason)
+		}
+	}
+	account.Credentials["model_mapping"] = map[string]any{"other-sol": "gpt-6.1-sol"}
+	groupID := int64(16)
+	allowed, reason := scheduler.isAccountRequestCompatibleReason(ctx, account, OpenAIAccountScheduleRequest{
+		GroupID: &groupID, Platform: PlatformOpenAI, RequestedModel: "gpt-6.1-sol",
+	})
+	require.False(t, allowed)
+	require.Equal(t, "account_model_not_owned", reason)
+}
+
 func TestExcelBPSIsolationStickyAndPreviousOwners(t *testing.T) {
 	for _, engine := range encryptedMessageCapabilityEngines {
 		for _, kind := range []string{"pool", "sticky", "required_owner", "movable_owner"} {
@@ -178,6 +207,40 @@ func TestExcelBPSIsolationPrismFlagCannotPreemptProtectedRoute(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "/basispoints/api/responses", upstream.lastReq.URL.Path)
+}
+
+func TestExcelBPSIsolationNativeAstraGatewayCannotChangeBPSRoute(t *testing.T) {
+	wire := "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_bps_astra\",\"status\":\"completed\",\"model\":\"gpt-6-astra\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n"
+	upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(wire))}}
+	svc := openAIClientToolsTestService(upstream)
+	account := isolatedExcelAccount()
+	svc.cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings {
+		return config.AstraRoutingSettings{
+			AccountScheduling: true,
+			CookiePool:        config.CodexGatewayPinConfig{Enabled: true, TargetAccountIDs: []int64{account.ID}},
+			WSSession:         config.CodexWSAnchorConfig{Enabled: true, AccountIDs: []int64{account.ID}},
+		}
+	})
+	c, _ := isolationForwardContext(16, "/v1/responses")
+	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-6-astra","input":"test","stream":true}`))
+	require.NoError(t, err, "native Astra readiness and WS anchors must not run on the BPS branch")
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "/basispoints/api/responses", upstream.lastReq.URL.Path)
+	require.True(t, account.Schedulable)
+}
+
+func TestExcelBPSIsolationPrismScopeLeavesLunaNative(t *testing.T) {
+	wire := "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_luna_native\",\"status\":\"completed\",\"model\":\"gpt-6-luna\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n"
+	upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(wire))}}
+	svc := openAIClientToolsTestService(upstream)
+	account := isolatedExcelAccount()
+	account.Extra["openai_prism_browser"] = true
+	account.Extra[PrismBrowserModelsKey] = []string{"gpt-6.1-sol"}
+	c, _ := isolationForwardContext(16, "/v1/responses")
+	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-6-luna","input":"test","stream":true}`))
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "/backend-api/codex/responses", upstream.lastReq.URL.Path)
 }
 
 func TestExcelBPSIsolationPrismAccountWithoutOwnPolicyUsesGroupBPS(t *testing.T) {

@@ -39,6 +39,32 @@ func TestRetailQuoteSameGBPProductPriceAcrossGateways(t *testing.T) {
 		require.Equal(t, pay, q.PayAmount)
 	}
 }
+
+func TestRetailPromotionsDoNotAlterFrozenCNYCreditContract(t *testing.T) {
+	now := time.Now().UTC()
+	fx := &RetailFX{Rates: map[string]float64{"GBP": 1, "USD": 2, "CNY": 10}, Source: "manual", AsOf: now}
+	for _, mode := range []string{RechargeBonusModeBonus, RechargeBonusModeDiscount} {
+		cfg := &PaymentConfig{Enabled: true, BalanceRetailPricingEnabled: true, BalanceRetailQuoteTTLSeconds: 900,
+			BalanceRechargeMultiplier: 99, RechargeBonusMode: mode,
+			RechargeBonusTiers: []RechargeBonusTier{{MinAmount: 0, BonusPercent: 25}}, RechargeBonusNotice: "legacy gateway promotion"}
+		q, err := calculateRetailQuote(100, "GBP", cfg, fx, now)
+		require.NoError(t, err)
+		require.Equal(t, 100.0, q.BaseAmountCNY)
+		require.Equal(t, 100.0, q.CreditedAmountUSD)
+		require.Equal(t, 10.0, q.PayAmount)
+		require.NoError(t, validateCurrentRetailPricingBasis(q))
+		svc := &PaymentService{}
+		effective := svc.PaymentConfigForUser(context.Background(), cfg, 1)
+		require.Empty(t, effective.RechargeBonusTiers)
+		require.Empty(t, effective.RechargeBonusNotice)
+		require.Len(t, cfg.RechargeBonusTiers, 1, "public filtering must not change stored admin settings")
+		require.NotEmpty(t, cfg.RechargeBonusNotice)
+		cfg.BalanceRetailPricingEnabled = false
+		effective = svc.PaymentConfigForUser(context.Background(), cfg, 1)
+		require.Equal(t, cfg.RechargeBonusTiers, effective.RechargeBonusTiers)
+		require.Equal(t, cfg.RechargeBonusNotice, effective.RechargeBonusNotice)
+	}
+}
 func TestRetailCashRangeUsesGatewayMoneyInsteadOfSiteCredits(t *testing.T) {
 	q := &RetailQuote{CreditedAmountUSD: 100, PricingBasisCurrency: "CNY", BaseAmountCNY: 100, Currency: "GBP", PayAmount: .39}
 	limits := `{"squarespace":{"singleMin":0.5,"singleMax":20}}`
@@ -145,9 +171,10 @@ func TestLegacyRetailQuotedOrderReplayReturnsSameQuantityEvenAfterCompletion(t *
 	require.NoError(t, err)
 	req := CreateOrderRequest{UserID: user.ID, Amount: 25, PaymentType: "squarespace", OrderType: "balance", QuoteToken: token}
 	for i := 0; i < 3; i++ {
-		result, err := s.createRetailQuotedOrder(ctx, req, &PaymentConfig{BalanceRetailPricingEnabled: true, MerchantTestUserIDs: []int64{user.ID}}, &User{ID: user.ID})
+		result, err := s.createRetailQuotedOrder(ctx, req, &PaymentConfig{BalanceRetailPricingEnabled: true, MerchantTestUserIDs: []int64{user.ID}, RechargeBonusMode: RechargeBonusModeDiscount, RechargeBonusTiers: []RechargeBonusTier{{MinAmount: 0, BonusPercent: 50}}}, &User{ID: user.ID})
 		require.NoError(t, err)
 		require.Equal(t, order.ID, result.OrderID)
+		require.Zero(t, result.BonusAmount)
 		require.Equal(t, OrderStatusCompleted, result.Status)
 		require.Equal(t, 25.0, result.Amount)
 	}
@@ -269,6 +296,8 @@ func TestCNYRetailQuoteFulfillmentAndRefundKeepOriginalCreditQuantity(t *testing
 	settings[SettingBalanceRetailFXCNYPerGBP] = "200"
 	settings[SettingBalanceRetailFXAsOf] = time.Now().UTC().Format(time.RFC3339)
 	settings[SettingBalanceRechargeMult] = "99"
+	settings[SettingRechargeBonusMode] = RechargeBonusModeBonus
+	settings[SettingRechargeBonusTiers] = `[{"min_amount":0,"bonus_percent":100}]`
 	for _, cumulative := range []int64{200, 400, 400, 1000, 1000} {
 		copyProof := *proof
 		copyProof.Payments = append([]verifiedSquarespacePaymentProof(nil), proof.Payments...)
@@ -286,6 +315,7 @@ func TestCNYRetailQuoteFulfillmentAndRefundKeepOriginalCreditQuantity(t *testing
 	persisted, err := bridge.client.PaymentOrder.Get(ctx, local.ID)
 	require.NoError(t, err)
 	require.Equal(t, 20.0, persisted.Amount)
+	require.Zero(t, persisted.BonusAmount, "new promotion settings must not retroactively change a retail order")
 	require.Equal(t, q, PaymentOrderRetailQuote(persisted))
 }
 func TestPaymentProviderCredentialsEncryptedAndTamperingFailsClosed(t *testing.T) {

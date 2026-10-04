@@ -103,6 +103,29 @@ describe('server-priced retail checkout', () => {
     wrapper.unmount()
   })
 
+  it('keeps promotional fields out of frozen retail quotes and credit promises', async () => {
+    const checkout = await api.checkout()
+    api.checkout.mockResolvedValueOnce({ data: { ...checkout.data,
+      recharge_bonus_tiers: [{ min_amount: 0, bonus_percent: 50 }],
+      recharge_bonus_mode: 'discount', recharge_bonus_notice: '**Limited promotion**',
+    } })
+    const wrapper = await mountPage()
+    wrapper.findComponent(PaymentMethodSelector).vm.$emit('select', 'squarespace')
+    await setAmount(wrapper, 10)
+    expect(wrapper.find('[data-testid="recharge-bonus-notice"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="recharge-discount-row"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="recharge-bonus-row"]').exists()).toBe(false)
+    expect(wrapper.findComponent(AmountInput).props('bonusTiers')).toEqual([])
+    expect(api.quote).toHaveBeenLastCalledWith({ amount: 10, payment_type: 'squarespace', order_type: 'balance' })
+    expect(wrapper.text()).toContain('£1.40 GBP')
+    await wrapper.get('[data-test="confirm-retail-quote"]').setValue(true)
+    await wrapper.get('[data-test="create-recharge-order"]').trigger('click')
+    await flushPromises()
+    expect(api.createOrder).toHaveBeenCalledWith(expect.objectContaining({ amount: 10, quote_token: 'quote-1' }))
+    expect(wrapper.findComponent(PaymentStatusPanel).props('retailQuote')).toEqual(expect.objectContaining({ credited_amount_usd: 10, pay_amount: 1.40 }))
+    wrapper.unmount()
+  })
+
   it('checks a channel minimum against quoted cash rather than site-credit units', async () => {
     const checkout = await api.checkout()
     api.checkout.mockResolvedValue({ data: { ...checkout.data, methods: {

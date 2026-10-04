@@ -117,6 +117,23 @@ func TestAccountRepositoryCodexProbeUsageConcurrentWriter(t *testing.T) {
 				Credentials: map[string]any{"access_token": "observed-token"},
 				Extra:       map[string]any{"codex_usage_updated_at": previous, "codex_5h_used_percent": float64(100), "bps_enabled": true},
 			})
+			// Unlike the compare-and-merge test, overlapping transactions need
+			// a committed fixture. Remove it and its outbox after both writers
+			// have stopped so later suites see the original shared database.
+			t.Cleanup(func() {
+				cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cleanupCancel()
+				_, err := integrationDB.ExecContext(cleanupCtx, "DELETE FROM scheduler_outbox WHERE account_id=$1", a.ID)
+				require.NoError(t, err)
+				_, err = integrationDB.ExecContext(cleanupCtx, "DELETE FROM accounts WHERE id=$1", a.ID)
+				require.NoError(t, err)
+				var remaining int
+				err = integrationDB.QueryRowContext(cleanupCtx, `SELECT
+				 (SELECT COUNT(*) FROM accounts WHERE id=$1) +
+				 (SELECT COUNT(*) FROM scheduler_outbox WHERE account_id=$1)`, a.ID).Scan(&remaining)
+				require.NoError(t, err)
+				require.Zero(t, remaining, "committed quota-probe fixture must not leak")
+			})
 			tx := testTx(t)
 			var err error
 			if mode == "newer normal response" {
@@ -131,7 +148,17 @@ func TestAccountRepositoryCodexProbeUsageConcurrentWriter(t *testing.T) {
 				err     error
 			}
 			done := make(chan result, 1)
+			finished := make(chan struct{})
+			t.Cleanup(func() {
+				cancel()
+				select {
+				case <-finished:
+				case <-time.After(5 * time.Second):
+					t.Error("quota-probe writer did not stop before fixture cleanup")
+				}
+			})
 			go func() {
+				defer close(finished)
 				updated, err := repo.UpdateCodexUsageSnapshotIfObserved(ctx, a.ID, service.CodexProbeUsageObservation{
 					ObservedAt: observed, AccessTokenSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("observed-token"))),
 				}, &previous, map[string]any{"codex_usage_updated_at": observed.Format(time.RFC3339), "codex_5h_used_percent": float64(2)})

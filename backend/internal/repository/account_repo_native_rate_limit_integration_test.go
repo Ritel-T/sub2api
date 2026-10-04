@@ -160,6 +160,22 @@ func TestAccountRepositoryClearNativeRateLimitConcurrent429(t *testing.T) {
 		Name: "native-concurrent-recovery", Platform: service.PlatformOpenAI,
 		Type: service.AccountTypeOAuth, Credentials: map[string]any{"access_token": "concurrent-test"},
 	})
+	// This fixture must be committed for the overlapping connection to see it.
+	// Clean only its ID after the writers stop; the shared harness is reused.
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_, err := integrationDB.ExecContext(cleanupCtx, "DELETE FROM scheduler_outbox WHERE account_id=$1", a.ID)
+		require.NoError(t, err)
+		_, err = integrationDB.ExecContext(cleanupCtx, "DELETE FROM accounts WHERE id=$1", a.ID)
+		require.NoError(t, err)
+		var remaining int
+		err = integrationDB.QueryRowContext(cleanupCtx, `SELECT
+		 (SELECT COUNT(*) FROM accounts WHERE id=$1) +
+		 (SELECT COUNT(*) FROM scheduler_outbox WHERE account_id=$1)`, a.ID).Scan(&remaining)
+		require.NoError(t, err)
+		require.Zero(t, remaining, "committed rate-limit fixture must not leak")
+	})
 	limited := time.Now().UTC().Truncate(time.Microsecond)
 	reset := limited.Add(time.Hour)
 	_, err := client.Account.UpdateOneID(a.ID).SetRateLimitedAt(limited).SetRateLimitResetAt(reset).Save(ctx)
@@ -173,7 +189,17 @@ func TestAccountRepositoryClearNativeRateLimitConcurrent429(t *testing.T) {
 		err     error
 	}
 	done := make(chan result, 1)
+	finished := make(chan struct{})
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-finished:
+		case <-time.After(5 * time.Second):
+			t.Error("rate-limit writer did not stop before fixture cleanup")
+		}
+	})
 	go func() {
+		defer close(finished)
 		cleared, err := repo.ClearNativeRateLimitIfObserved(ctx, a.ID, service.NativeRateLimitClearObservation{RateLimitedAt: limited, RateLimitResetAt: reset})
 		done <- result{cleared, err}
 	}()

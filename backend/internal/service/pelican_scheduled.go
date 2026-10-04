@@ -31,6 +31,8 @@ const (
 	pelicanErrEmptyOutput  = "Model returned empty output"
 	pelicanErrCaptureLimit = "Response exceeds 4 MiB capture limit"
 	pelicanErrHistoryLimit = "Output exceeds 2 MiB history limit"
+	pelicanErrMaxTokens    = "Model output hit max_tokens before finishing"
+	pelicanErrRefused      = "Model refused the request"
 )
 
 func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID int64, model string, cfg *PelicanTestConfig) (*ScheduledTestResult, error) {

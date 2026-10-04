@@ -1,6 +1,9 @@
 .PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical
 
 FRONTEND_CRITICAL_VITEST := \
+	src/components/admin/__tests__/HarvestGatewayBorrowPanel.spec.ts \
+	src/components/admin/__tests__/AstraGatewayRuntime.spec.ts \
+	src/components/admin/__tests__/AstraGatewayHistory.spec.ts \
 	src/views/admin/ops/__tests__/TokenGuardV2View.spec.ts \
 	src/features/channel-monitor-v2/__tests__/MonitorCandySettings.spec.ts \
 	src/features/channel-monitor-v2/__tests__/MonitorStatusCards.spec.ts \
@@ -10,6 +13,8 @@ FRONTEND_CRITICAL_VITEST := \
 	src/utils/__tests__/qualityRulePatch.spec.ts \
 	src/utils/__tests__/accountAutoBPS.spec.ts \
 	src/components/admin/operations/__tests__/QualityProbeSchedule.spec.ts \
+	src/components/admin/operations/__tests__/SmartOpsNav.spec.ts \
+	src/components/layout/__tests__/AppSidebar.spec.ts \
 	src/components/account/__tests__/CreateAccountModal.autoBPS.spec.ts \
 	src/components/account/__tests__/EditAccountModal.autoBPS.spec.ts \
 	src/stores/__tests__/accountQuality.spec.ts \

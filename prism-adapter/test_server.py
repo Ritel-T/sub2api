@@ -19,6 +19,59 @@ spec.loader.exec_module(adapter)
 
 
 class AdapterTests(unittest.TestCase):
+    def test_codex_optional_reasoning_on_all_text_models(self):
+        for model in adapter.MODELS:
+            payload = {'model': model, 'input': 'hi', 'include': ['reasoning.encrypted_content'],
+                       'reasoning': {'effort': 'high', 'summary': 'auto'}}
+            self.assertEqual(adapter.parse_prompt(payload), ('[user]\nhi', False))
+        for fields in ({'include': ['web_search_call.action.sources']},
+                       {'reasoning': {'summary': 'detailed'}},
+                       {'input': [{'type': 'reasoning', 'encrypted_content': 'fixture'}]}):
+            with self.assertRaises(adapter.AdapterError):
+                adapter.parse_prompt({'model': adapter.MODEL, 'input': 'hi', **fields})
+
+    def test_client_tools_enabled_by_default_with_explicit_opt_out(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = adapter.State(directory)
+            with mock.patch.dict('os.environ', {}, clear=True):
+                self.assertIsNotNone(adapter.configure_client_tools(state))
+            with mock.patch.dict('os.environ', {'PRISM_ADAPTER_CLIENT_TOOLS_ENABLED': 'false'}):
+                self.assertIsNone(adapter.configure_client_tools(state))
+            with mock.patch.dict('os.environ', {'PRISM_ADAPTER_CLIENT_TOOLS_ENABLED': 'invalid'}):
+                with self.assertRaises(SystemExit):
+                    adapter.configure_client_tools(state)
+
+    def test_four_models_and_efforts_are_preserved_without_aliases(self):
+        for model in adapter.MODELS:
+            for effort in adapter.EFFORTS:
+                with self.subTest(model=model, effort=effort):
+                    self.assertEqual(adapter.parse_prompt({"model":model,"reasoning":{"effort":effort},"input":"hi"}),
+                                     ("[user]\nhi", False))
+                    response = adapter.response_payload("fixture", "answer", model, effort)
+                    self.assertEqual((response["model"], response["reasoning"]["effort"]), (model, effort))
+                    gate = adapter.StartGate(model, effort)
+                    gate.armed = True
+                    self.assertTrue(gate.accept({"metadata":{"model":model,"reasoning_effort":effort}}))
+                    self.assertFalse(gate.accept({"metadata":{"model":model,"reasoning_effort":effort}}))
+        for value in (None, [], {}, 42, "6.1-sol", "gpt-6-astra"):
+            with self.subTest(invalid_model=value), self.assertRaises(adapter.AdapterError) as raised:
+                adapter.parse_prompt({"model":value,"input":"hi"})
+            self.assertEqual(raised.exception.code, "unsupported_model")
+
+    def test_valid_other_model_or_effort_cannot_replace_requested_options(self):
+        for model in adapter.MODELS:
+            for other in adapter.MODELS:
+                if model == other:
+                    continue
+                gate = adapter.StartGate(model, "xhigh")
+                gate.armed = True
+                self.assertFalse(gate.accept({"metadata":{"model":other,"reasoning_effort":"xhigh"}}))
+                self.assertFalse(gate.sent)
+            gate = adapter.StartGate(model, "xhigh")
+            gate.armed = True
+            self.assertFalse(gate.accept({"metadata":{"model":model,"reasoning_effort":"medium"}}))
+            self.assertFalse(gate.sent)
+
     def test_text_request_keeps_model_and_stream(self):
         prompt, stream = adapter.parse_prompt({
             "model": "gpt-5.6-sol", "stream": True,
@@ -30,7 +83,7 @@ class AdapterTests(unittest.TestCase):
 
     def test_unsupported_features_fail_closed(self):
         for change in ({"model": "gpt-6-astra"}, {"tools": [{"type": "function", "name": "x"}]},
-                       {"previous_response_id": "resp_1"}, {"reasoning": {"effort": "high"}}):
+                       {"previous_response_id": "resp_1"}, {"reasoning": {"effort": "unsupported"}}):
             request = {"model": "gpt-5.6-sol", "input": "hi", **change}
             with self.assertRaises(adapter.AdapterError):
                 adapter.parse_prompt(request)
@@ -54,8 +107,8 @@ class AdapterTests(unittest.TestCase):
 
     def test_http_boundary_uses_real_terminal_without_usage(self):
         class FakeBrowser:
-            def run(self, account_id, token, prompt):
-                self.assert_values = (account_id, token, prompt)
+            def run(self, account_id, token, prompt, session_id=None, model=adapter.MODEL, effort="medium"):
+                self.assert_values = (account_id, token, prompt, session_id, model, effort)
                 return "prism-123", "21"
 
         fake = FakeBrowser()
@@ -66,12 +119,14 @@ class AdapterTests(unittest.TestCase):
         worker.start()
         try:
             url = f"http://127.0.0.1:{server.server_port}/v1/responses"
-            data = json.dumps({"model": "gpt-5.6-sol", "input": "candy"}).encode()
+            data = json.dumps({"model": "gpt-6.1-sol", "reasoning":{"effort":"xhigh"}, "input": "candy"}).encode()
             headers = {"Authorization": "Bearer test-key", "X-Prism-Account-ID": "300",
-                       "X-Prism-OAuth-Token": "oauth-token", "Content-Type": "application/json"}
+                       "X-Prism-OAuth-Token": "oauth-token", "X-Prism-Session-ID": "a" * 64,
+                       "Content-Type": "application/json"}
             with urlopen(Request(url, data=data, headers=headers), timeout=5) as response:
                 body = json.load(response)
-            self.assertEqual(fake.assert_values, ("300", "oauth-token", "[user]\ncandy"))
+            self.assertEqual(fake.assert_values, ("300", "oauth-token", "[user]\ncandy", "a" * 64, "gpt-6.1-sol", "xhigh"))
+            self.assertEqual((body["model"], body["reasoning"]["effort"]), ("gpt-6.1-sol", "xhigh"))
             self.assertEqual(body["output"][0]["content"][0]["text"], "21")
             self.assertIsNone(body["usage"])
             with self.assertRaises(HTTPError) as denied:
@@ -125,7 +180,7 @@ class AdapterTests(unittest.TestCase):
 
 
 PROJECT = "0123abcd-0000-4000-8000-00000000abcd"
-VALID_START = {"metadata": {"model": adapter.MODEL, "reasoning_effort": "medium"}}
+VALID_START = {"metadata": {"model": adapter.MODEL, "reasoning_effort": "medium", "projectId": PROJECT}}
 
 
 class FakeRoute:
@@ -147,20 +202,25 @@ class FakeMessage:
         self.url = adapter.BASE + path
         self.post_data_json = body
         self.status = status
+        self.request = self
 
     def json(self):
         return self.post_data_json
 
 
 class FakeControl:
-    def __init__(self, page):
+    def __init__(self, page, name=None):
         self.page = page
+        self.name = name
 
     def click(self, **_kwargs):
-        pass
+        self.page.clicks.append(self.name)
 
     def wait_for(self, **_kwargs):
         pass
+
+    def inner_text(self):
+        return "5.6 Sol\nMedium"
 
     def fill(self, _text):
         pass
@@ -179,6 +239,8 @@ class FakePage:
         self.route_handler = None
         self.listeners = {}
         self.clock = 0.0
+        self.requests = {}
+        self.clicks = []
 
     def set_default_timeout(self, _timeout):
         pass
@@ -192,8 +254,11 @@ class FakePage:
     def wait_for_function(self, _expression, **_kwargs):
         self.url = adapter.BASE + "/?u=" + PROJECT
 
+    def evaluate(self, _expression):
+        return True
+
     def get_by_role(self, *_args, **_kwargs):
-        return FakeControl(self)
+        return FakeControl(self, _kwargs.get("name"))
 
     def locator(self, _selector):
         return FakeControl(self)
@@ -207,20 +272,25 @@ class FakePage:
     def browser_request(self, path, body):
         """The page issues a request; it passes the listener and the route gate."""
         request = FakeMessage(path, body)
-        self.listeners["request"](request)
+        self.requests[path] = request
         route = FakeRoute(request)
         self.route_handler(route)
         return route
 
-    def server_response(self, path, body, status=200):
-        self.listeners["response"](FakeMessage(path, body, status))
+    def server_response(self, path, body, status=200, request=None):
+        response = FakeMessage(path, body, status)
+        response.request = request or self.requests[path]
+        self.listeners["response"](response)
 
 
 class FakeBrowser:
     def __init__(self, page):
         self.page = page
+        self.contexts = []
+        self.closed = False
 
     def new_context(self, **_kwargs):
+        self.contexts.append(self)
         return self
 
     def add_cookies(self, _cookies):
@@ -230,7 +300,7 @@ class FakeBrowser:
         return self.page
 
     def close(self):
-        pass
+        self.closed = True
 
 
 def run_turn(state, on_submit):

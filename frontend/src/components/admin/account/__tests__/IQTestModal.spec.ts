@@ -104,6 +104,18 @@ describe('IQTestModal', () => {
     expect(localStorage.getItem('sub2api-pelican-test:42')).toContain('gpt-6-astra')
   })
 
+  it('starts Claude accounts on a Claude model and other accounts on the OpenAI default', async () => {
+    const wrapper = mountModal({ platform: 'anthropic', name: 'Claude account' })
+    await (wrapper.vm as any).startTest()
+    await flushPromises()
+
+    const body = JSON.parse((global.fetch as any).mock.calls[0][1].body)
+    expect(body.model_id).toBe('claude-opus-5-5')
+
+    await wrapper.setProps({ account: { id: 43, name: 'Astra account', platform: 'openai', type: 'oauth', status: 'active' } as any })
+    expect((wrapper.vm as any).modelId).toBe('gpt-6-astra')
+  })
+
   it('keeps non-HTML output visible but marks it as failed', async () => {
     global.fetch = vi.fn(() => Promise.resolve(streamResponse([
       { type: 'content', text: 'I cannot provide HTML.' },

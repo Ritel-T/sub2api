@@ -61,6 +61,8 @@ func TestBalanceSubscriptionPostgres(t *testing.T) {
 	settings := &balancePurchaseSettings{values: map[string]string{
 		service.SettingPaymentEnabled: "true", service.SettingBalanceRetailPricingEnabled: "true",
 		service.SettingKeySubscriptionEnabled: "true",
+		service.SettingRechargeBonusMode:      service.RechargeBonusModeDiscount,
+		service.SettingRechargeBonusTiers:     `[{"min_amount":0,"bonus_percent":25}]`,
 	}}
 	cfg := service.NewPaymentConfigService(client, settings, nil)
 	groups := repository.NewGroupRepository(client, db)
@@ -117,6 +119,7 @@ func TestBalanceSubscriptionPostgres(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "COMPLETED", o.Status)
 		require.Equal(t, 0.0, o.PayAmount, "site credit spending must not count as new cash revenue")
+		require.Zero(t, o.BonusAmount, "gateway recharge promotions cannot alter site-credit subscription purchases")
 		require.Empty(t, o.RechargeCode)
 		require.Equal(t, "internal_balance", *o.ProviderKey)
 		count, err := client.PaymentOrder.Query().Where(paymentorder.UserIDEQ(u.ID)).Count(ctx)

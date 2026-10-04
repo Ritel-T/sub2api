@@ -147,7 +147,7 @@ func (s *PaymentService) BuySubscriptionWithBalance(ctx context.Context, userID 
 		"currency": "USD", "purpose": "subscription_purchase_with_site_credit", "plan_currency": "CNY",
 		"plan_price": plan.Price, "site_credit_units": plan.Price, "plan_name": plan.Name}
 	o, err := client.PaymentOrder.Create().SetUserID(userID).SetUserEmail(u.Email).SetUserName(u.Username).
-		SetAmount(plan.Price).SetPayAmount(0).SetFeeRate(0).SetRechargeCode("").
+		SetAmount(plan.Price).SetPayAmount(0).SetFeeRate(0).SetBonusAmount(0).SetRechargeCode("").
 		SetOutTradeNo(reference).SetPaymentType("balance").SetPaymentTradeNo(reference).
 		SetProviderKey(internalBalanceProvider).SetProviderSnapshot(snapshot).
 		SetOrderType(payment.OrderTypeSubscription).SetPlanID(plan.ID).
