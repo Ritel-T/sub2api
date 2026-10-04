@@ -164,6 +164,7 @@ func (s *OpenAIGatewayService) doOpenAIProxyAttempt(req *http.Request, account *
 			next = context.WithValue(next, gatewayBorrowExpectedCookieContextKey{}, cookie)
 		}
 		req = req.WithContext(next)
+		req = s.withGatewayBorrowFinalSendCheck(req, account, borrowModel)
 	}
 	if s.pluginManager != nil && !borrowRequired && !s.codexTicketRequestBound(req, account) {
 		resp, handled, err := s.pluginManager.RoundTripOpenAIOAuth(req.Context(), req, target.url, account)

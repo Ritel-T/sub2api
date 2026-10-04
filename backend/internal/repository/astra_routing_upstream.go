@@ -106,20 +106,26 @@ func (s *astraRoutingUpstream) DoWithTLS(r *http.Request, p string, a int64, n i
 					release()
 					return nil, errors.New("borrow_response_owner_route_changed")
 				}
-				if witness := service.GatewayBorrowRequestWitnessFromContext(r.Context()); witness != nil {
-					pool.targetMu.Lock()
-					check, _ := pool.targetCheckForCookie(a, model, cookie.Value)
-					pool.targetMu.Unlock()
-					witness.Confirm(a, model, cookie.Value, s.cfg.AstraRouting(r.Context()).Revision, check.expires)
-				}
 				r = r.Clone(service.WithHTTPUpstreamRedirectsDisabled(r.Context()))
 				replaceCodexGatewayCookie(r, cookie)
+				if err := service.CheckGatewayBorrowFinalSend(r); err != nil {
+					release()
+					return nil, err
+				}
+				if s.current(r.Context()) != pool || !s.cfg.AstraRouting(r.Context()).CookiePool.TargetRequiresModel(a, model) {
+					release()
+					return nil, errors.New("borrow_required_route_unavailable")
+				}
 				pool.targetMu.Lock()
-				verifiedRoute, _ := pool.targetCheckForCookie(a, model, cookie.Value)
+				verifiedRoute, verified := pool.targetCheckForCookie(a, model, cookie.Value)
 				pool.targetMu.Unlock()
-				if !time.Now().Before(verifiedRoute.expires) {
+				if !verified || !verifiedRoute.passed || !time.Now().Before(verifiedRoute.expires) ||
+					!s.CodexGatewayPinWSBindingValidForModel(r.Context(), a, model, cookie.Value) {
 					release()
 					return nil, errors.New("borrow_route_expired")
+				}
+				if witness := service.GatewayBorrowRequestWitnessFromContext(r.Context()); witness != nil {
+					witness.Confirm(a, model, cookie.Value, s.cfg.AstraRouting(r.Context()).Revision, verifiedRoute.expires)
 				}
 				slog.Info("gateway_borrow_applied", "account_id", a, "model", model, "source_account_id", verifiedRoute.sourceID, "revision", s.cfg.AstraRouting(r.Context()).Revision, "expires_at", verifiedRoute.expires)
 				if pool.config.RotateNodes {

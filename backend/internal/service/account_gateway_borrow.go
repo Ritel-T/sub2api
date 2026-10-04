@@ -223,6 +223,49 @@ func (s *OpenAIGatewayService) checkGatewayBorrowWSHeaders(ctx context.Context, 
 
 type gatewayBorrowRequiredModelContextKey struct{}
 
+type gatewayBorrowFinalSendCheckKey struct{}
+type gatewayBorrowFinalSendCheck func(*http.Request) error
+
+// WithGatewayBorrowFinalSendCheck installs an internal admission callback for
+// the actual business send after potentially slow route verification.
+func WithGatewayBorrowFinalSendCheck(ctx context.Context, check func(*http.Request) error) context.Context {
+	return context.WithValue(ctx, gatewayBorrowFinalSendCheckKey{}, gatewayBorrowFinalSendCheck(check))
+}
+
+// CheckGatewayBorrowFinalSend never probes, consumes RPM or writes state.
+// Probe requests use their own bounded validation and cannot invoke this hook.
+func CheckGatewayBorrowFinalSend(req *http.Request) error {
+	if req == nil {
+		return denyOpenAITurn("request_model_unavailable")
+	}
+	if IsOpenAICodexStateProbeRequest(req.Context()) {
+		return nil
+	}
+	check, ok := req.Context().Value(gatewayBorrowFinalSendCheckKey{}).(gatewayBorrowFinalSendCheck)
+	if !ok || check == nil {
+		return nil
+	}
+	return check(req)
+}
+
+func (s *OpenAIGatewayService) withGatewayBorrowFinalSendCheck(req *http.Request, selected *Account, model string) *http.Request {
+	route := openAITurnRouteFingerprint(selected)
+	credential := gatewayBorrowCredentialFingerprint(selected)
+	ctx := WithGatewayBorrowFinalSendCheck(req.Context(), func(actual *http.Request) error {
+		latest, err := s.admitOpenAIHTTPRequest(actual, selected)
+		if err != nil {
+			return err
+		}
+		if !latest.RequiresGatewayBorrowUpstream(model) || openAITurnRouteFingerprint(latest) != route ||
+			gatewayBorrowCredentialFingerprint(latest) != credential ||
+			actual.Header.Get("Authorization") != "Bearer "+latest.GetOpenAIAccessToken() {
+			return denyOpenAITurn("account_binding_changed")
+		}
+		return nil
+	})
+	return req.WithContext(ctx)
+}
+
 // WithGatewayBorrowRequiredModel carries the canonical, service-owned outbound
 // model into the shared upstream transport. It is not a client header.
 func WithGatewayBorrowRequiredModel(ctx context.Context, model string) context.Context {
