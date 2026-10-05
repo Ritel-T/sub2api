@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -126,37 +127,18 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 	var firstTargetError error
 	var firstFailedTarget int64
 	if settings.AutoQuality {
-		var wait sync.WaitGroup
-		var resultMu sync.Mutex
-		slots := make(chan struct{}, 2)
-		for _, id := range settings.CookiePool.TargetAccountIDs {
-			select {
-			case slots <- struct{}{}:
-			case <-ctx.Done():
+		// A complete initial inventory can take longer than one routing Cookie.
+		// Return within a bounded target window so the next cycle can renew the
+		// routes that succeeded early rather than waiting behind slow failures.
+		snapshot := s.AstraGatewayStatus(ctx)
+		warmCtx, stopWarm := context.WithTimeout(ctx, automaticBorrowTargetWarmBudget)
+		defer stopWarm()
+		firstFailedTarget, firstTargetError = runAutomaticBorrowWarmTargets(warmCtx, snapshot, settings.CookiePool, time.Now(), func(callCtx context.Context, id int64, model string) error {
+			if s.cfg.AstraRouting(callCtx).Revision != settings.Revision {
+				return context.Canceled
 			}
-			if ctx.Err() != nil {
-				break
-			}
-			wait.Add(1)
-			go func(id int64) {
-				defer wait.Done()
-				defer func() { <-slots }()
-				for _, model := range settings.CookiePool.ModelsForTarget(id) {
-					if !borrowModelNeedsWarm(provider.AstraGatewaySnapshot(ctx), id, model, time.Now()) {
-						continue
-					}
-					err := s.verifyGatewayBorrowTargetForModel(ctx, id, model)
-					if err != nil {
-						resultMu.Lock()
-						if firstTargetError == nil {
-							firstTargetError, firstFailedTarget = err, id
-						}
-						resultMu.Unlock()
-					}
-				}
-			}(id)
-		}
-		wait.Wait()
+			return s.verifyGatewayBorrowTargetForModel(callCtx, id, model)
+		})
 	} else {
 		for _, id := range settings.CookiePool.TargetAccountIDs {
 			if ctx.Err() != nil || s.cfg.AstraRouting(ctx).Revision != settings.Revision {
@@ -196,6 +178,128 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 	set("ready", "complete", 0, "")
 }
 
+const automaticBorrowTargetWarmBudget = 120 * time.Second
+
+type automaticBorrowWarmModel struct {
+	model    string
+	priority int
+	expires  time.Time
+	checked  time.Time
+	order    int
+}
+type automaticBorrowWarmAccount struct {
+	id     int64
+	models []automaticBorrowWarmModel
+	order  int
+}
+
+func automaticBorrowWarmLess(a, b automaticBorrowWarmModel) bool {
+	if a.priority != b.priority {
+		return a.priority < b.priority
+	}
+	if a.priority < 2 && !a.expires.Equal(b.expires) {
+		return a.expires.Before(b.expires)
+	}
+	if a.priority == 2 && !a.checked.Equal(b.checked) {
+		return a.checked.Before(b.checked)
+	}
+	return a.order < b.order
+}
+
+// Plan from one immutable snapshot, never perform network work while sorting.
+// A failed/missing witness is not upgraded to previously passed by a deadline.
+func automaticBorrowWarmPlan(snapshot AstraGatewayRuntime, pool config.CodexGatewayPinConfig, now time.Time) []automaticBorrowWarmAccount {
+	plan := make([]automaticBorrowWarmAccount, 0, len(pool.TargetAccountIDs))
+	for accountOrder, id := range pool.TargetAccountIDs {
+		account := automaticBorrowWarmAccount{id: id, order: accountOrder}
+		for modelOrder, model := range pool.ModelsForTarget(id) {
+			if !borrowModelNeedsWarm(snapshot, id, model, now) {
+				continue
+			}
+			item := automaticBorrowWarmModel{model: model, priority: 2, order: modelOrder}
+			for _, row := range snapshot.Targets {
+				if row.AccountID != id || row.Model != model {
+					continue
+				}
+				if row.CheckedAt != nil {
+					item.checked = *row.CheckedAt
+				}
+				if row.ExpiresAt != nil {
+					item.expires = *row.ExpiresAt
+					if row.Reason == "target_probe_passed" {
+						item.priority = 1
+						if now.Before(item.expires) {
+							item.priority = 0
+						}
+					}
+				}
+				break
+			}
+			account.models = append(account.models, item)
+		}
+		if len(account.models) > 0 {
+			sort.SliceStable(account.models, func(i, j int) bool { return automaticBorrowWarmLess(account.models[i], account.models[j]) })
+			plan = append(plan, account)
+		}
+	}
+	sort.SliceStable(plan, func(i, j int) bool {
+		a, b := plan[i].models[0], plan[j].models[0]
+		if a.priority != b.priority {
+			return a.priority < b.priority
+		}
+		if a.priority < 2 && !a.expires.Equal(b.expires) {
+			return a.expires.Before(b.expires)
+		}
+		if a.priority == 2 && !a.checked.Equal(b.checked) {
+			return a.checked.Before(b.checked)
+		}
+		return plan[i].order < plan[j].order
+	})
+	// At most two account probes per cycle. Retry/cold ordering prevents repeated
+	// slow initial failures consuming every renewal window.
+	if len(plan) > 2 {
+		plan = plan[:2]
+	}
+	return plan
+}
+
+func runAutomaticBorrowWarmTargets(ctx context.Context, snapshot AstraGatewayRuntime, pool config.CodexGatewayPinConfig, now time.Time, verify func(context.Context, int64, string) error) (int64, error) {
+	plan := automaticBorrowWarmPlan(snapshot, pool, now)
+	var wait sync.WaitGroup
+	var resultMu sync.Mutex
+	var firstID int64
+	var firstErr error
+	for _, account := range plan {
+		wait.Add(1)
+		go func(account automaticBorrowWarmAccount) {
+			defer wait.Done()
+			for _, model := range account.models {
+				if ctx.Err() != nil {
+					break
+				}
+				// A queued model may still be under negative cooldown. Compare against
+				// the current wall clock, but retain this run's witness ordering.
+				if !borrowModelNeedsWarm(snapshot, account.id, model.model, time.Now()) {
+					continue
+				}
+				err := verify(ctx, account.id, model.model)
+				if err != nil {
+					resultMu.Lock()
+					if firstErr == nil {
+						firstID, firstErr = account.id, err
+					}
+					resultMu.Unlock()
+				}
+			}
+		}(account)
+	}
+	wait.Wait()
+	if ctx.Err() != nil {
+		return firstID, ctx.Err()
+	}
+	return firstID, firstErr
+}
+
 func borrowAnyModelNeedsWarm(snapshot AstraGatewayRuntime, pool config.CodexGatewayPinConfig, now time.Time) bool {
 	for _, id := range pool.TargetAccountIDs {
 		for _, model := range pool.ModelsForTarget(id) {
@@ -212,10 +316,13 @@ func borrowModelNeedsWarm(snapshot AstraGatewayRuntime, id int64, model string, 
 		if row.AccountID != id || row.Model != model {
 			continue
 		}
+		if row.State == "blocked" && row.Reason == "target_account_unavailable" {
+			return false
+		}
 		if row.RetryAt != nil && now.Before(*row.RetryAt) {
 			return false
 		}
-		return row.State != "ready" || row.ExpiresAt == nil || !now.Add(90*time.Second).Before(*row.ExpiresAt)
+		return row.State != "ready" || row.ExpiresAt == nil || !now.Add(120*time.Second).Before(*row.ExpiresAt)
 	}
 	return true
 }

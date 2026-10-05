@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,7 +20,7 @@ type astraSetupUpstream struct {
 
 func TestAutomaticBorrowWarmOnlyExpiredModelsAndHonorsRetry(t *testing.T) {
 	now := time.Now()
-	expires := now.Add(2 * time.Minute)
+	expires := now.Add(2*time.Minute + time.Second)
 	retry := now.Add(5 * time.Minute)
 	snapshot := AstraGatewayRuntime{Targets: []AstraRouteStatus{
 		{AccountID: 1, Model: "gpt-6-astra", State: "ready", ExpiresAt: &expires},
@@ -34,7 +35,7 @@ func TestAutomaticBorrowWarmOnlyExpiredModelsAndHonorsRetry(t *testing.T) {
 
 func TestAutomaticBorrowReadyCycleDoesNotProbeAgain(t *testing.T) {
 	now := time.Now()
-	expiry := now.Add(2 * time.Minute)
+	expiry := now.Add(2*time.Minute + time.Second)
 	settings := config.AstraRoutingSettings{AutoQuality: true, Revision: "fixture", CookiePool: config.CodexGatewayPinConfig{Enabled: true, SourceAccountIDs: []int64{299}, TargetAccountIDs: []int64{300}}}
 	cfg := &config.Config{}
 	cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
@@ -42,7 +43,7 @@ func TestAutomaticBorrowReadyCycleDoesNotProbeAgain(t *testing.T) {
 		Sources: []AstraRouteStatus{{AccountID: 299, State: "ready", ExpiresAt: &expiry}},
 		Targets: []AstraRouteStatus{{AccountID: 300, Model: "gpt-6-astra", State: "ready", ExpiresAt: &expiry}},
 	}, prepare: func(context.Context) error { t.Fatal("fresh route should not trigger source generation"); return nil }}
-	svc := &AccountTestService{cfg: cfg, httpUpstream: provider, astraSetupStatus: AstraSetupStatus{Revision: settings.Revision}}
+	svc := &AccountTestService{cfg: cfg, httpUpstream: provider, accountRepo: &astraWarmAccountRepo{}, astraSetupStatus: AstraSetupStatus{Revision: settings.Revision}}
 	ctx, cancel := context.WithCancel(t.Context())
 	svc.runAstraAutomaticSetup(ctx, cancel, settings)
 	require.Equal(t, "ready", svc.astraSetupStatus.State)
@@ -122,4 +123,125 @@ func TestAstraSetupWaitsForConcurrentPreparation(t *testing.T) {
 	cancel()
 	require.ErrorIs(t, prepareAstraForSetup(ctx, provider), context.Canceled)
 	require.Equal(t, 2, calls)
+}
+
+func TestAutomaticBorrowWarmPrioritizesExactModelExpiry(t *testing.T) {
+	now := time.Now()
+	early := now.Add(25 * time.Second)
+	later := now.Add(100 * time.Second)
+	expired := now.Add(-time.Second)
+	checked := now.Add(-time.Hour)
+	pool := config.CodexGatewayPinConfig{TargetAccountIDs: []int64{34, 88, 109, 140}, Models: []string{"gpt-6.1-sol", "gpt-6-astra"}}
+	snapshot := AstraGatewayRuntime{Targets: []AstraRouteStatus{
+		{AccountID: 34, Model: "gpt-6.1-sol", State: "rejected", CheckedAt: &checked},
+		{AccountID: 88, Model: "gpt-6-astra", State: "ready", Reason: "target_probe_passed", ExpiresAt: &early},
+		{AccountID: 109, Model: "gpt-6.1-sol", State: "ready", Reason: "target_probe_passed", ExpiresAt: &later},
+		{AccountID: 140, Model: "gpt-6-astra", State: "expired", Reason: "target_probe_passed", ExpiresAt: &expired},
+	}}
+	plan := automaticBorrowWarmPlan(snapshot, pool, now)
+	require.Len(t, plan, 2)
+	require.Equal(t, int64(88), plan[0].id)
+	require.Equal(t, "gpt-6-astra", plan[0].models[0].model)
+	require.Equal(t, int64(109), plan[1].id)
+	require.Equal(t, "gpt-6.1-sol", plan[1].models[0].model)
+	pool.TargetAccountIDs = []int64{34, 140}
+	plan = automaticBorrowWarmPlan(snapshot, pool, now)
+	require.Equal(t, int64(140), plan[0].id, "expired passed witness precedes first/failed probes")
+	require.Equal(t, "gpt-6-astra", plan[0].models[0].model, "account's expired passed model precedes unverified Sol")
+}
+
+func TestAutomaticBorrowTargetWarmFreshRetryAndOldInitialFairness(t *testing.T) {
+	now := time.Now()
+	fresh := now.Add(121 * time.Second)
+	boundary := now.Add(120 * time.Second)
+	retry := now.Add(time.Minute)
+	old := now.Add(-time.Hour)
+	recent := now.Add(-time.Second)
+	snapshot := AstraGatewayRuntime{Targets: []AstraRouteStatus{
+		{AccountID: 34, Model: "gpt-6-astra", State: "rejected", CheckedAt: &recent},
+		{AccountID: 88, Model: "gpt-6-astra", State: "ready", Reason: "target_probe_passed", ExpiresAt: &fresh},
+		{AccountID: 109, Model: "gpt-6-astra", State: "rejected", RetryAt: &retry},
+		{AccountID: 140, Model: "gpt-6-astra", State: "rejected", CheckedAt: &old},
+	}}
+	pool := config.CodexGatewayPinConfig{TargetAccountIDs: []int64{34, 88, 109, 140, 111}, Models: []string{"gpt-6-astra"}}
+	require.False(t, borrowModelNeedsWarm(snapshot, 88, "gpt-6-astra", now))
+	snapshot.Targets[1].ExpiresAt = &boundary
+	require.True(t, borrowModelNeedsWarm(snapshot, 88, "gpt-6-astra", now))
+	snapshot.Targets[1].ExpiresAt = &fresh
+	plan := automaticBorrowWarmPlan(snapshot, pool, now)
+	require.Len(t, plan, 2)
+	require.Equal(t, int64(111), plan[0].id, "untried account precedes recently failed one")
+	require.Equal(t, int64(140), plan[1].id, "oldest attempted initial model next")
+}
+
+func TestAutomaticBorrowSlowInitialFailureCannotDelayReadyRenewals(t *testing.T) {
+	now := time.Now()
+	expiry := now.Add(30 * time.Second)
+	snapshot := AstraGatewayRuntime{Targets: []AstraRouteStatus{
+		{AccountID: 88, Model: "gpt-6-astra", State: "ready", Reason: "target_probe_passed", ExpiresAt: &expiry},
+		{AccountID: 109, Model: "gpt-6-astra", State: "ready", Reason: "target_probe_passed", ExpiresAt: &expiry},
+	}}
+	pool := config.CodexGatewayPinConfig{TargetAccountIDs: []int64{34, 88, 109}, Models: []string{"gpt-6.1-sol", "gpt-6-astra"}}
+	var mu sync.Mutex
+	calls := map[int64][]string{}
+	_, err := runAutomaticBorrowWarmTargets(t.Context(), snapshot, pool, now, func(_ context.Context, id int64, model string) error {
+		mu.Lock()
+		calls[id] = append(calls[id], model)
+		mu.Unlock()
+		if id == 34 {
+			t.Error("slow first target must not occupy the two renewal slots")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotContains(t, calls, int64(34))
+	require.Equal(t, []string{"gpt-6-astra", "gpt-6.1-sol"}, calls[88])
+	require.Equal(t, []string{"gpt-6-astra", "gpt-6.1-sol"}, calls[109])
+}
+
+func TestAutomaticBorrowTargetBudgetReturnsAfterPartialRenewal(t *testing.T) {
+	now := time.Now()
+	expiry := now.Add(30 * time.Second)
+	snapshot := AstraGatewayRuntime{Targets: []AstraRouteStatus{{AccountID: 88, Model: "gpt-6-astra", State: "ready", Reason: "target_probe_passed", ExpiresAt: &expiry}}}
+	pool := config.CodexGatewayPinConfig{TargetAccountIDs: []int64{88, 34, 140}, Models: []string{"gpt-6.1-sol", "gpt-6-astra"}}
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	var mu sync.Mutex
+	calls := map[int64][]string{}
+	started := time.Now()
+	_, err := runAutomaticBorrowWarmTargets(ctx, snapshot, pool, now, func(callCtx context.Context, id int64, model string) error {
+		mu.Lock()
+		calls[id] = append(calls[id], model)
+		mu.Unlock()
+		if id == 88 && model == "gpt-6-astra" {
+			return nil
+		}
+		<-callCtx.Done()
+		return callCtx.Err()
+	})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Less(t, time.Since(started), time.Second)
+	require.Equal(t, "gpt-6-astra", calls[88][0])
+	require.NotContains(t, calls, int64(140), "no third account or extra retry in this window")
+	require.Equal(t, 120*time.Second, automaticBorrowTargetWarmBudget)
+}
+
+func TestAutomaticBorrowWarmSkipsUnavailableAndQuotaAccounts(t *testing.T) {
+	now := time.Now()
+	retry := now.Add(time.Hour)
+	snapshot := AstraGatewayRuntime{Targets: []AstraRouteStatus{
+		{AccountID: 34, Model: "gpt-6-astra", State: "blocked", Reason: "target_account_unavailable"},
+		{AccountID: 111, Model: "gpt-6-astra", State: "blocked", Reason: "target_account_rate_limited", RetryAt: &retry},
+	}}
+	pool := config.CodexGatewayPinConfig{TargetAccountIDs: []int64{34, 111, 88, 140}, Models: []string{"gpt-6-astra"}}
+	plan := automaticBorrowWarmPlan(snapshot, pool, now)
+	require.Len(t, plan, 2)
+	require.Equal(t, int64(88), plan[0].id)
+	require.Equal(t, int64(140), plan[1].id)
+}
+
+type astraWarmAccountRepo struct{ AccountRepository }
+
+func (r *astraWarmAccountRepo) GetByID(_ context.Context, id int64) (*Account, error) {
+	return &Account{ID: id, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true}, nil
 }
