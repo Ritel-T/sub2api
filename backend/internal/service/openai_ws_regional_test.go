@@ -74,6 +74,36 @@ func TestRegionalWebSocketPayloadAndExplicitProxy(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, pd.upstreamRoutes)
 }
+
+func TestRegionalWebSocketAccountScope(t *testing.T) {
+	var direct, regional atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		direct.Add(1)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+		require.NoError(t, err)
+		_ = conn.CloseNow()
+	}))
+	defer upstream.Close()
+	u, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+	forward := httputil.NewSingleHostReverseProxy(u)
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		regional.Add(1)
+		forward.ServeHTTP(w, r)
+	}))
+	defer proxy.Close()
+	cfg := regionalWSConfig(t, proxy.URL, "127.0.0.1")
+	cfg.Gateway.UpstreamRouting.Rules[0].AccountIDs = []int64{101}
+	dialer := newConfiguredOpenAIWSClientDialer(cfg)
+	for _, id := range []int64{101, 102} {
+		ctx := upstreamroute.WithAccountID(t.Context(), id)
+		conn, _, _, err := dialer.Dial(ctx, "ws"+strings.TrimPrefix(upstream.URL, "http"), nil, "")
+		require.NoError(t, err)
+		require.NoError(t, conn.Close())
+	}
+	require.EqualValues(t, 2, direct.Load())
+	require.EqualValues(t, 1, regional.Load())
+}
 func TestRegionalWebSocketRejectsRedirectAndNeverFallsBack(t *testing.T) {
 	var targetHits, proxyHits atomic.Int32
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { targetHits.Add(1); w.WriteHeader(204) }))

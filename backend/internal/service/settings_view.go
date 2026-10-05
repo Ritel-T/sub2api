@@ -209,6 +209,10 @@ type SystemSettings struct {
 	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
 	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
 	ChannelMonitorHideUserRanking        bool   `json:"channel_monitor_hide_user_ranking"`
+	PrismBrowserEnabled                  bool   `json:"prism_browser_enabled"`
+	PrismBrowserBaseURL                  string `json:"prism_browser_base_url"`
+	PrismBrowserAPIKeyConfigured         bool   `json:"prism_browser_api_key_configured"`
+	PrismBrowserAPIKey                   string `json:"-"`
 
 	// Grok model mapping policy (admin settings; empty mapping falls back to these).
 	GrokDefaultTextModel           string `json:"grok_default_text_model"`

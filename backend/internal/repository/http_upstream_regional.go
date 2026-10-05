@@ -44,7 +44,7 @@ func (t *regionalUpstreamTransport) RoundTrip(req *http.Request) (*http.Response
 	if err := t.service.validateRequestHost(req); err != nil {
 		return nil, err
 	}
-	proxy, region := t.service.upstreamRoutes.Match(req.URL)
+	proxy, region := t.service.upstreamRoutes.MatchForAccount(req.URL, t.accountID)
 	var entry *upstreamClientEntry
 	var err error
 	if t.fingerprint != nil && req.URL.Scheme == "https" {

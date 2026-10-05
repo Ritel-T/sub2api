@@ -25,6 +25,7 @@ type pelicanTestOptions struct {
 }
 
 func withPelicanTestOptions(ctx context.Context, options pelicanTestOptions) context.Context {
+	ctx = context.WithValue(ctx, qualityProbeContextKey{}, true)
 	return context.WithValue(ctx, pelicanTestContextKey{}, options)
 }
 

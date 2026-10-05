@@ -20,6 +20,7 @@ gateway:
     rules:
       - domain: api.vendor.example
         region: us
+        account_ids: [123] # 可选：仅指定上游账号 ID，非客户 API Key ID
       - domain: "*.us.vendor.example"
         region: us
       - domain: api.eu.vendor.example
@@ -31,6 +32,8 @@ gateway:
 支持 `http://`、`https://`、`socks5://`、`socks5h://` 代理 origin，可在受限环境变量中附带代理认证。`socks5` 统一按 `socks5h` 使用。代理负责解析和连接目标地址，现有安全 URL 检查仍适用；已启用的公网目标检查不会被地区路由绕过。
 
 域名精确匹配优先于 `*.domain`；多个后缀匹配时最长者优先。忽略域名大小写、尾点和目标端口；`*.example.com` 不匹配根域 `example.com` 或 `notexample.com`。支持精确 IP，国际化域名请写 ASCII/Punycode。规则最多 256 条、地区最多 64 个，每个地区固定一个出口；部署多个出口时用不同地区 ID 显式指定，不自动切换出口。
+
+规则可设置 `account_ids` 限定已选中的上游账号，其他账号不会命中该规则。同一域名可配置一条通用规则和多条账号规则；相同域名下账号规则优先于通用规则，账号 ID 不得重复。账号规则仍须匹配目标域名，不能把 Nerd 的 Serverless HTTP endpoint 当作出口代理。配置后在需要处理该账号的所有网关节点启用同一规则和可达的代理地址；账号当前所在节点、账号专属代理和已有 WS 连接不会被此规则自动迁移。
 
 ## 在美国节点准备出口
 

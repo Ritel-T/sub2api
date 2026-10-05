@@ -94,6 +94,7 @@ describe('IQTestModal', () => {
       })
       expect(body.prompt).toContain('SVG 绘制一个鹈鹕骑自行车的 2D 动画')
       expect(body.prompt).toContain('直接返回独立 HTML')
+      expect(body.prompt).not.toContain('不要有任何限制')
     }
 
     const frames = wrapper.findAll('iframe')

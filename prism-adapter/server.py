@@ -102,6 +102,51 @@ def parse_prompt(payload):
     return prompt, payload.get("stream", False)
 
 
+def terminal_failure_reason(data):
+    # Values are official reason enums. Never expose arbitrary upstream text.
+    if not isinstance(data, dict):
+        return 'unknown'
+    response = data.get('response')
+    payload = response.get('payload') if isinstance(response, dict) else None
+    reason = payload.get('reason') if isinstance(payload, dict) else None
+    return reason if reason in ('sandbox_reconnecting', 'conversation_too_large',
+                                'project_edit_access_required') else 'unknown'
+
+
+def terminal_failure_diagnostics(data):
+    if not isinstance(data, dict):
+        return {}
+    response = data.get('response')
+    payload = response.get('payload') if isinstance(response, dict) else None
+    if not isinstance(payload, dict):
+        return {}
+    details = payload.get('diagnostics')
+    result = {}
+    text = ' '.join(str(payload.get(key, ''))[:4096].lower() for key in ('message', 'rootCause'))
+    hints = [label for label, words in (
+        ('rate_limit', ('rate limit', 'rate_limit', 'too many')),
+        ('quota', ('quota', 'usage limit')),
+        ('sandbox', ('sandbox', 'runtime')),
+        ('sync', ('synchron', 'sync_', 'sync ')),
+        ('timeout', ('timeout', 'timed out')),
+        ('connection', ('connect', 'network', 'fetch failed')),
+        ('context', ('context length', 'conversation too')),
+    ) if any(word in text for word in words)]
+    if hints:
+        result['upstream_hints'] = hints
+    if not isinstance(details, dict):
+        return result
+    if details.get('code') in ('server_error', 'sandbox_disconnected', 'timeout',
+                              'workspace_sync_timeout', 'workspace_sync_unavailable'):
+        result['upstream_code'] = details['code']
+    if details.get('operation') in ('start', 'check_status', 'stop', 'process'):
+        result['upstream_operation'] = details['operation']
+    status = details.get('httpStatus')
+    if type(status) is int and 400 <= status <= 599:
+        result['upstream_status'] = status
+    return result
+
+
 def terminal_text(data):
     if not isinstance(data, dict):
         return None
@@ -113,6 +158,13 @@ def terminal_text(data):
     if not isinstance(response, dict) or response.get("status") not in ("success", "failed", "error"):
         return None
     if response.get("status") in ("failed", "error"):
+        reason = terminal_failure_reason(data)
+        if reason == 'sandbox_reconnecting':
+            return AdapterError(503, 'sandbox_reconnecting', 'Prism project runtime is reconnecting')
+        if reason == 'project_edit_access_required':
+            return AdapterError(403, 'project_edit_access_required', 'Prism project edit access is required')
+        if reason == 'conversation_too_large':
+            return AdapterError(422, 'conversation_too_large', 'Prism conversation exceeds the upstream limit')
         return AdapterError(502, "prism_failed", "Prism turn failed")
     output = (response.get("payload") or {}).get("output") or []
     texts = [part.get("text", "") for item in output if isinstance(item, dict) and item.get("type") == "message"
@@ -203,6 +255,8 @@ class State:
                 "start_count": start_count, "status_count": status_count, "completed_at": int(time.time()),
                 "status": "failed" if isinstance(result, AdapterError) else "completed", "usage_source": "unavailable",
                 "session_cache_hit": cache_hit}
+        if isinstance(result, AdapterError):
+            data['error_code'] = result.code
         if isinstance(result, str):
             data["answer_sha256"] = hashlib.sha256(result.encode()).hexdigest()
             data["answer_chars"] = len(result)
@@ -764,7 +818,10 @@ def main():
             queued=queued, bootstrap=bootstrap, idle_seconds=idle_seconds), api)
     else:
         raise SystemExit("PRISM_ADAPTER_MODE must be browser or multiplex")
-    server = ThreadingHTTPServer(("127.0.0.1", 8319), Handler)
+    port = int(os.environ.get("PRISM_ADAPTER_PORT", "8319"))
+    if not 1024 <= port <= 65535:
+        raise SystemExit("PRISM_ADAPTER_PORT must be 1024..65535")
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     server.daemon_threads = True
     try:
         server.serve_forever()

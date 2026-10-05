@@ -149,3 +149,28 @@ python3 prism-adapter/smoke_browser.py --chrome /absolute/path/to/chromium
 该脚本验证三次不同模型/强度的 start、同会话一次缓存命中、两个独立项目以及新聊天不重复提交历史。`smoke_multiplex.py` 按四模型与四档强度混合发送请求，同时核对实际 start、响应和回执参数。这些脚本验证浏览器机制，不能替代真实账号糖果测试或证明模型能力。
 
 项目会保留在账号的 Prism 工作区内，本版不自动批量删除项目。大规模使用前仍需项目回收、账号代理、动态模型目录、计费策略、真实 Codex 客户端和长时间工具会话的独立验收。默认保持总开关关闭；真实用户流量应等待这些边界完善。
+
+## Multiplex 内存与项目启动压力
+
+`PRISM_ADAPTER_ACCOUNT_MAX_INFLIGHT` 和 `PRISM_ADAPTER_MAX_INFLIGHT` 是准入上限，不保证部署内存或上游项目运行环境可以承载相同并发。准备页面关闭后会请求 Chromium 回收已分离的编辑器上下文；下一次准备若仍超过 750 MiB，则最多等待 30 秒恢复，仍不足时返回 `resource_pressure`，不会绕过保护提交。systemd 的硬内存上限仍由部署方保留。
+
+multiplex 日志记录 `prism_prepare_start/end`、`prism_poll_start/end`、完成和失败事件，包含本地请求标识、模型/强度、阶段、在途/排队/轮询数量和 cgroup 内存；不包含提示词、账号凭据、Cookie 或 turn-state。只有上游任务的执行区间确实重叠，才算实际并发。
+
+页面显示“项目运行环境的启动请求受到限流”或项目创建接口返回 429 时，会以 `project_runtime_rate_limited` 拒绝后续准备，并对该账号暂停新的启动至少 60 秒（当前进程内）。这是最短保护窗口，不代表上游冷却已经结束；页面给出的更晚时间应优先遵守。已有上游请求继续收尾，未知结局保留，不自动重放。仅调高并发配置不能解除上游限流。
+
+客户端应保留自己的稳定会话/线程标识。同一会话可以复用原项目并新建 chat tab，减少项目反复创建；不同 API Key、账号或会话仍独立。无会话标识的请求不能安全地共用项目，保持新建。工具回传继续遵守原有独立项目规则。
+
+本地 5 并发三轮 smoke（真实浏览器、模拟上游，不能代替生产验收）：
+
+```sh
+python prism-adapter/smoke_multiplex.py --chrome /path/to/chrome \
+  --concurrency 5 --model gpt-6.1-sol --effort xhigh --rounds 3
+```
+
+systemd 部署还需注意环境变量优先级：`EnvironmentFile` 中的值会覆盖 `Environment=`。若已有环境文件配置了并发，应更新对应文件，或在 drop-in 中追加最后读取的专用 `EnvironmentFile`；重启后必须核对进程实际环境，不能只看 drop-in 文本。Docker Compose 则在适配器服务的 `environment:` 下设置变量。
+
+### 项目环境重连与真实失败
+
+multiplex 识别官方 start 返回的明确 `completed / response.status=error / payload.reason=sandbox_reconnecting`。此时保持准备页面，让官方页面等待自己的 `ensureSandboxConnection` 后继续提交，而不是立刻关闭页面。仅允许同一输入、previousResponseId、conversationId、项目、模型和强度；sandbox 元数据由官方页面刷新。每轮最多 3 次 start 尝试，仍受请求总时限限制。未知结果、一般 HTTP/网络错误、其他终态失败都不能重新放行 start。
+
+日志记录重连次数；回执 `start_count` 如实包含这类明确环境重连尝试。`conversation_too_large`、`project_edit_access_required` 与 `sandbox_reconnecting` 分别报告，不再全部掩盖为 `prism_failed`；其他未知失败保持通用错误，且不输出上游任意报错文本。

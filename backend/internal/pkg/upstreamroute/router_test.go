@@ -35,6 +35,35 @@ func TestDomainRoutingSpecificityAndBoundaries(t *testing.T) {
 	proxy, _ := r.Match(u)
 	require.Equal(t, "socks5h://127.0.0.1:1081", proxy, "existing connections and route policy must not rotate on environment changes")
 }
+
+func TestAccountScopedRouting(t *testing.T) {
+	t.Setenv("TEST_EGRESS_US", "http://127.0.0.1:1081")
+	t.Setenv("TEST_EGRESS_EU", "http://127.0.0.1:1082")
+	c := Config{Enabled: true,
+		Regions: []Region{{ID: "us", ProxyURLEnv: "TEST_EGRESS_US"}, {ID: "eu", ProxyURLEnv: "TEST_EGRESS_EU"}},
+		Rules: []Rule{
+			{Domain: "api.example.com", Region: "eu"},
+			{Domain: "api.example.com", Region: "us", AccountIDs: []int64{101}},
+			{Domain: "*.example.com", Region: "us", AccountIDs: []int64{102}},
+		},
+	}
+	r, err := New(c)
+	require.NoError(t, err)
+	exact, _ := url.Parse("https://api.example.com/v1/responses")
+	other, _ := url.Parse("https://other.example.com/v1/responses")
+	_, region := r.MatchForAccount(exact, 101)
+	require.Equal(t, "us", region)
+	_, region = r.MatchForAccount(exact, 102)
+	require.Equal(t, "eu", region, "an exact global rule takes precedence over a scoped wildcard")
+	_, region = r.MatchForAccount(exact, 103)
+	require.Equal(t, "eu", region)
+	_, region = r.Match(exact)
+	require.Equal(t, "eu", region)
+	_, region = r.MatchForAccount(other, 102)
+	require.Equal(t, "us", region)
+	_, region = r.MatchForAccount(other, 101)
+	require.Empty(t, region)
+}
 func TestInvalidRoutingNeverDisclosesSecrets(t *testing.T) {
 	for _, raw := range []string{"", "http://test-user:private-secret@[::bad", "file://test-user:private-secret@host", "http://test-user:private-secret@host/path", "http://host:65536", "http://host?private-secret", "http://host#private-secret"} {
 		t.Run(fmt.Sprint(len(raw), raw == ""), func(t *testing.T) {
@@ -60,6 +89,19 @@ func TestValidateRoutingRules(t *testing.T) {
 	c.Rules = append(c.Rules, Rule{Domain: "api.example.com", Region: "us"})
 	_, err := New(c)
 	require.Error(t, err)
+	for _, ids := range [][]int64{{0}, {-1}, {101, 101}} {
+		c = configForTest()
+		c.Rules[0].AccountIDs = ids
+		_, err = New(c)
+		require.Error(t, err)
+	}
+	c = configForTest()
+	c.Rules = append(c.Rules, Rule{Domain: "api.example.com", Region: "us", AccountIDs: []int64{101}})
+	_, err = New(c)
+	require.NoError(t, err, "global and scoped rules may share a domain")
+	c.Rules = append(c.Rules, Rule{Domain: "api.example.com", Region: "eu", AccountIDs: []int64{101}})
+	_, err = New(c)
+	require.Error(t, err, "an account must not have two rules for the same domain")
 	c = configForTest()
 	c.Rules[0].Region = "missing"
 	_, err = New(c)

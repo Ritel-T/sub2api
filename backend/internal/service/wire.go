@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/qualityqueue"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
@@ -565,9 +566,16 @@ func ProvideRateLimitService(
 	tokenCacheInvalidator TokenCacheInvalidator,
 	ollamaCloudUsage *OllamaCloudUsageService,
 	accountOps *AccountOpsService,
+	rdb *redis.Client,
 ) *RateLimitService {
 	svc := NewRateLimitService(accountRepo, usageRepo, cfg, geminiQuotaService, tempUnschedCache)
 	svc.accountOps = accountOps
+	if rdb != nil {
+		svc.qualityTrigger = &quality5xxTrigger{queue: qualityqueue.NewRedis(rdb)}
+	}
+	if svc.qualityTrigger != nil {
+		svc.qualityTrigger.immediate, _ = accountRepo.(quality5xxImmediateRepository)
+	}
 	if healthCache, ok := tempUnschedCache.(OpenAIAPIKeyHealthCache); ok {
 		svc.SetOpenAIAPIKeyHealthCache(healthCache)
 	}
@@ -702,9 +710,14 @@ func ProvideScheduledTestService(
 	planRepo ScheduledTestPlanRepository,
 	resultRepo ScheduledTestResultRepository,
 	templateRepo QualityRuleTemplateRepository,
+	accountTests *AccountTestService,
 ) *ScheduledTestService {
 	svc := NewScheduledTestService(planRepo, resultRepo)
 	svc.templateRepo = templateRepo
+	svc.accountTests = accountTests
+	if accountTests != nil {
+		svc.qualityModels = svc.accountQualityModels
+	}
 	return svc
 }
 
@@ -716,10 +729,14 @@ func ProvideScheduledTestRunnerService(
 	rateLimitSvc *RateLimitService,
 	cfg *config.Config,
 	judge *QualityJudgeService,
+	rdb *redis.Client,
 	groupTests *PelicanGroupTestService,
 	monitor *ChannelMonitorV2Service,
 ) *ScheduledTestRunnerService {
 	svc := NewScheduledTestRunnerService(planRepo, scheduledSvc, accountTestSvc, rateLimitSvc, cfg)
+	if rdb != nil {
+		svc.qualityTrigger = &quality5xxTrigger{queue: qualityqueue.NewRedis(rdb)}
+	}
 	svc.judgeQuality = judge.Judge
 	svc.groupTests = groupTests
 	svc.candyMonitor = monitor.candy
@@ -1055,6 +1072,7 @@ var ProviderSet = wire.NewSet(
 	NewChannelMonitorQuotaFetcher,
 	ProvideChannelMonitorV2Service,
 	ProvideChannelMonitorV2Aggregator,
+	ProvideChannelMonitorV3Service,
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
 )
@@ -1141,6 +1159,12 @@ func ProvideChannelMonitorV2Service(repo ChannelMonitorV2Repository, settingServ
 	svc.SetRuntimeReader(settingService)
 	svc.candy = newChannelMonitorV2CandyService(repo, groups, settingService)
 	return svc
+}
+
+// ProvideChannelMonitorV3Service wires the component status page. It reads
+// the V2 passive aggregates, which the V2 aggregator keeps in v2 and v3 mode.
+func ProvideChannelMonitorV3Service(repo ChannelMonitorV3Repository, groupRepo GroupRepository) *ChannelMonitorV3Service {
+	return NewChannelMonitorV3Service(repo, groupRepo)
 }
 
 // ProvideChannelMonitorV2Aggregator starts the passive minute-rollup worker.

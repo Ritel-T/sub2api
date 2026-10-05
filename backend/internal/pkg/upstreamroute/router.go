@@ -25,12 +25,14 @@ type Region struct {
 	ProxyURLEnv string `mapstructure:"proxy_url_env"`
 }
 type Rule struct {
-	Domain string `mapstructure:"domain"`
-	Region string `mapstructure:"region"`
+	Domain     string  `mapstructure:"domain"`
+	Region     string  `mapstructure:"region"`
+	AccountIDs []int64 `mapstructure:"account_ids"`
 }
 type route struct {
 	host, region, proxy string
 	wildcard            bool
+	accounts            map[int64]bool
 }
 
 // Router is immutable after construction, including resolved proxy secrets.
@@ -76,20 +78,38 @@ func New(c Config) (*Router, error) {
 		regions[r.ID] = p.String()
 	}
 	result := &Router{}
-	seen := make(map[string]bool)
+	seen := make(map[string]map[int64]bool)
 	for i, rule := range c.Rules {
 		domain := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(rule.Domain)), ".")
 		wildcard := strings.HasPrefix(domain, "*.")
 		host := strings.TrimPrefix(domain, "*.")
-		if !validHost(host) || (wildcard && (net.ParseIP(host) != nil || !strings.Contains(host, "."))) || seen[domain] {
+		if !validHost(host) || (wildcard && (net.ParseIP(host) != nil || !strings.Contains(host, "."))) || len(rule.AccountIDs) > 256 {
 			return nil, fmt.Errorf("upstream domain rule %d is invalid or repeated", i)
 		}
 		proxy, ok := regions[rule.Region]
 		if !ok {
 			return nil, fmt.Errorf("upstream domain rule %d references an unknown region", i)
 		}
-		seen[domain] = true
-		result.routes = append(result.routes, route{host: host, region: rule.Region, proxy: proxy, wildcard: wildcard})
+		if seen[domain] == nil {
+			seen[domain] = make(map[int64]bool)
+		}
+		accounts := make(map[int64]bool, len(rule.AccountIDs))
+		if len(rule.AccountIDs) == 0 {
+			accounts[0] = true
+		}
+		for _, id := range rule.AccountIDs {
+			if id <= 0 || accounts[id] {
+				return nil, fmt.Errorf("upstream domain rule %d has an invalid or repeated account ID", i)
+			}
+			accounts[id] = true
+		}
+		for id := range accounts {
+			if seen[domain][id] {
+				return nil, fmt.Errorf("upstream domain rule %d repeats a domain and account ID", i)
+			}
+			seen[domain][id] = true
+		}
+		result.routes = append(result.routes, route{host: host, region: rule.Region, proxy: proxy, wildcard: wildcard, accounts: accounts})
 	}
 	if !c.Enabled {
 		return nil, nil
@@ -102,6 +122,9 @@ func New(c Config) (*Router, error) {
 		a, b := result.routes[i], result.routes[j]
 		if a.wildcard != b.wildcard {
 			return !a.wildcard
+		}
+		if a.host == b.host {
+			return !a.accounts[0] && b.accounts[0]
 		}
 		return len(a.host) > len(b.host)
 	})
@@ -125,11 +148,20 @@ func validHost(host string) bool {
 // Match uses the outgoing URL, never client headers, IP location or model name.
 // A miss retains the direct path; a match must never silently fall back to it.
 func (r *Router) Match(target *url.URL) (proxy, region string) {
+	return r.MatchForAccount(target, 0)
+}
+
+// MatchForAccount applies account-scoped rules only to the selected upstream
+// account. A missing account ID can match global rules but not scoped rules.
+func (r *Router) MatchForAccount(target *url.URL, accountID int64) (proxy, region string) {
 	if r == nil || target == nil || (target.Scheme != "http" && target.Scheme != "https" && target.Scheme != "ws" && target.Scheme != "wss") {
 		return "", ""
 	}
 	host := strings.TrimSuffix(strings.ToLower(target.Hostname()), ".")
 	for _, rule := range r.routes {
+		if !rule.accounts[0] && !rule.accounts[accountID] {
+			continue
+		}
 		if (!rule.wildcard && host == rule.host) || (rule.wildcard && strings.HasSuffix(host, "."+rule.host)) {
 			return rule.proxy, rule.region
 		}

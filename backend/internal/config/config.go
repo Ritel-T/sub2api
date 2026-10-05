@@ -1783,6 +1783,9 @@ type GatewaySchedulingConfig struct {
 	DbFallbackTimeoutSeconds int `mapstructure:"db_fallback_timeout_seconds"`
 	// 受控回源限流（实例级 QPS），0 表示不限制
 	DbFallbackMaxQPS int `mapstructure:"db_fallback_max_qps"`
+	// OpenAI 请求发送前账户快照的进程内缓存 TTL（秒），0 表示关闭。
+	// 启用后账户停用、换组或代理变更最坏可延迟该时长生效。
+	OpenAITurnAdmissionCacheTTLSeconds int `mapstructure:"openai_turn_admission_cache_ttl_seconds"`
 
 	// Outbox 轮询与滞后阈值配置
 	// Outbox 轮询周期（秒）
@@ -2860,6 +2863,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.scheduling.db_fallback_enabled", true)
 	viper.SetDefault("gateway.scheduling.db_fallback_timeout_seconds", 0)
 	viper.SetDefault("gateway.scheduling.db_fallback_max_qps", 0)
+	viper.SetDefault("gateway.scheduling.openai_turn_admission_cache_ttl_seconds", 0)
 	viper.SetDefault("gateway.scheduling.outbox_poll_interval_seconds", 1)
 	viper.SetDefault("gateway.scheduling.outbox_lag_warn_seconds", 5)
 	viper.SetDefault("gateway.scheduling.outbox_lag_rebuild_seconds", 10)
@@ -4027,6 +4031,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.Scheduling.DbFallbackMaxQPS < 0 {
 		return fmt.Errorf("gateway.scheduling.db_fallback_max_qps must be non-negative")
+	}
+	if c.Gateway.Scheduling.OpenAITurnAdmissionCacheTTLSeconds < 0 {
+		return fmt.Errorf("gateway.scheduling.openai_turn_admission_cache_ttl_seconds must be non-negative")
 	}
 	if c.Gateway.Scheduling.OutboxPollIntervalSeconds <= 0 {
 		return fmt.Errorf("gateway.scheduling.outbox_poll_interval_seconds must be positive")

@@ -145,6 +145,7 @@ func RegisterAdminRoutes(
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h, settingService)
 		registerChannelMonitorV2Routes(admin, h, settingService)
+		registerChannelMonitorV3Routes(admin, h, settingService)
 
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
@@ -990,6 +991,29 @@ func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers,
 	}
 }
 
+// registerChannelMonitorV3Routes keeps editing and previewing available in any
+// mode so a site can be prepared before switching. The preview has data
+// whenever the passive aggregation runs (v2 or v3).
+func registerChannelMonitorV3Routes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
+	admin.PUT("/channel-monitor-mode", h.ChannelMonitorV3.SetMode)
+
+	monitor := admin.Group("/channel-monitor-v3")
+	monitor.Use(channelMonitorAdminFeatureGuard(settingService))
+	{
+		monitor.GET("/settings", h.ChannelMonitorV3.GetSettings)
+		monitor.PUT("/config", h.ChannelMonitorV3.UpdateConfig)
+		monitor.POST("/categories", h.ChannelMonitorV3.CreateCategory)
+		monitor.PUT("/categories/:id", h.ChannelMonitorV3.UpdateCategory)
+		monitor.DELETE("/categories/:id", h.ChannelMonitorV3.DeleteCategory)
+		monitor.POST("/components", h.ChannelMonitorV3.CreateComponent)
+		monitor.PUT("/components/:id", h.ChannelMonitorV3.UpdateComponent)
+		monitor.DELETE("/components/:id", h.ChannelMonitorV3.DeleteComponent)
+		monitor.POST("/reorder", h.ChannelMonitorV3.Reorder)
+		monitor.GET("/status", h.ChannelMonitorV3.Status)
+		monitor.GET("/incidents", h.ChannelMonitorV3.Incidents)
+	}
+}
+
 func channelMonitorAdminFeatureGuard(settingService *service.SettingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if settingService != nil && settingService.GetChannelMonitorRuntime(c.Request.Context()).Enabled {
@@ -1003,6 +1027,15 @@ func channelMonitorAdminFeatureGuard(settingService *service.SettingService) gin
 
 // channelMonitorModeV2Guard requires feature enabled and channel_monitor_mode=v2.
 func channelMonitorModeV2Guard(settingService *service.SettingService) gin.HandlerFunc {
+	return channelMonitorModeGuard(settingService, service.ChannelMonitorRuntime.V2Active)
+}
+
+// channelMonitorModeV3Guard requires feature enabled and channel_monitor_mode=v3.
+func channelMonitorModeV3Guard(settingService *service.SettingService) gin.HandlerFunc {
+	return channelMonitorModeGuard(settingService, service.ChannelMonitorRuntime.V3Active)
+}
+
+func channelMonitorModeGuard(settingService *service.SettingService, allowed func(service.ChannelMonitorRuntime) bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if settingService == nil {
 			response.ErrorFrom(c, service.ErrChannelMonitorDisabled)
@@ -1015,7 +1048,7 @@ func channelMonitorModeV2Guard(settingService *service.SettingService) gin.Handl
 			c.Abort()
 			return
 		}
-		if !rt.PassiveAggregationAllowed() {
+		if !allowed(rt) {
 			response.ErrorFrom(c, service.ErrChannelMonitorModeMismatch)
 			c.Abort()
 			return

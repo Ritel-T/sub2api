@@ -148,7 +148,7 @@ func (d *coderOpenAIWSClientDialer) Dial(
 		if err != nil {
 			return nil, 0, nil, errors.New("invalid websocket upstream URL")
 		}
-		proxyURL, region = d.upstreamRoutes.Match(parsed)
+		proxyURL, region = d.upstreamRoutes.MatchForAccount(parsed, upstreamroute.AccountIDFromContext(ctx))
 	}
 
 	wrapped := &coderOpenAIWSClientConn{}
@@ -179,7 +179,7 @@ func (d *coderOpenAIWSClientDialer) Dial(
 		clone.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			// Also guard a direct first hop redirecting into a regional rule:
 			// it must not silently use the original direct transport.
-			_, nextRegion := d.upstreamRoutes.Match(req.URL)
+			_, nextRegion := d.upstreamRoutes.MatchForAccount(req.URL, upstreamroute.AccountIDFromContext(ctx))
 			if region != "" || nextRegion != "" {
 				return http.ErrUseLastResponse
 			}
@@ -201,7 +201,7 @@ func (d *coderOpenAIWSClientDialer) Dial(
 		if resp != nil {
 			status = resp.StatusCode
 		}
-		logger.FromContext(ctx).Info("upstream.region_route", zap.String("transport", "websocket"), zap.String("upstream_host", parsed.Hostname()), zap.String("region", region), zap.Int("status_code", status), zap.Bool("transport_error", err != nil))
+		logger.FromContext(ctx).Info("upstream.region_route", zap.String("transport", "websocket"), zap.Int64("account_id", upstreamroute.AccountIDFromContext(ctx)), zap.String("upstream_host", parsed.Hostname()), zap.String("region", region), zap.Int("status_code", status), zap.Bool("transport_error", err != nil))
 	}
 	if err != nil {
 		status := 0

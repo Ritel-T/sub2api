@@ -729,6 +729,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 	}
 	upstreamStart := time.Now()
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	s.rateLimitService.observeQualityResponse(upstreamReq.Context(), account, resp, err)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
@@ -832,6 +833,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	}
 	upstreamStart := time.Now()
 	statusResp, err := s.httpUpstream.Do(statusReq, proxyURL, account.ID, account.Concurrency)
+	s.rateLimitService.observeQualityResponse(statusReq.Context(), account, statusResp, err)
 	if err != nil {
 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
@@ -891,6 +893,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	}
 
 	contentResp, err := s.httpUpstream.Do(contentReq, proxyURL, account.ID, account.Concurrency)
+	s.rateLimitService.observeQualityResponse(contentReq.Context(), account, contentResp, err)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
@@ -1262,7 +1265,7 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 	body := s.readUpstreamErrorBody(resp)
 	// Reconcile readiness before configurable passthrough branches can return;
 	// otherwise a Grok 429 can remain schedulable.
-	s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body)
+	s.handleGrokAccountUpstreamError(withGrokTeamRateLimitModel(ctx, requestedModel), account, resp.StatusCode, resp.Header, body)
 	upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(body)))
 	if upstreamMsg == "" {
 		upstreamMsg = fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode)
@@ -1293,7 +1296,7 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 		})
 		MarkResponseCommitted(c)
 		writeGrokMediaErrorResponse(c, http.StatusForbidden, "invalid_request_error", clientMsg)
-		return nil, fmt.Errorf("grok content policy rejection: %s", clientMsg)
+		return nil, &grokContentPolicyError{message: clientMsg}
 	}
 
 	if status, errType, errMsg, matched := applyErrorPassthroughRule(
@@ -1346,7 +1349,7 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 	})
 	if kind == "failover" {
 		retryable, retryDelay, retryDeadline, retryMax := grokSameAccountRetryMetadata(account, resp.StatusCode, body)
-		return nil, &UpstreamFailoverError{
+		return nil, (&UpstreamFailoverError{
 			StatusCode:               resp.StatusCode,
 			ResponseBody:             body,
 			ResponseHeaders:          resp.Header.Clone(),
@@ -1355,7 +1358,7 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 			SameAccountRetryDelay:    retryDelay,
 			SameAccountRetryDeadline: retryDeadline,
 			SameAccountRetryMax:      retryMax,
-		}
+		}).WithGrokForbiddenPolicy(account)
 	}
 
 	MarkResponseCommitted(c)

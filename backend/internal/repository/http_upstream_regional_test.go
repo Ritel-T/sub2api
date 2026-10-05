@@ -53,6 +53,43 @@ func TestRegionalHTTPPreservesPayloadAndExplicitProxy(t *testing.T) {
 	require.EqualValues(t, 1, us.Load())
 	require.EqualValues(t, 1, explicit.Load())
 }
+
+func TestRegionalHTTPAccountScope(t *testing.T) {
+	var direct, regional, explicit atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		direct.Add(1)
+		w.WriteHeader(204)
+	}))
+	defer upstream.Close()
+	regionalProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		regional.Add(1)
+		w.WriteHeader(201)
+	}))
+	defer regionalProxy.Close()
+	accountProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		explicit.Add(1)
+		w.WriteHeader(202)
+	}))
+	defer accountProxy.Close()
+	cfg := regionalHTTPConfig(t, regionalProxy.URL, "127.0.0.1")
+	cfg.Gateway.UpstreamRouting.Rules[0].AccountIDs = []int64{101}
+	up := NewHTTPUpstream(cfg)
+	for _, tc := range []struct {
+		accountID int64
+		proxy     string
+		status    int
+	}{{101, "", 201}, {102, "", 204}, {101, accountProxy.URL, 202}} {
+		req, err := http.NewRequestWithContext(t.Context(), "GET", upstream.URL, nil)
+		require.NoError(t, err)
+		resp, err := up.Do(req, tc.proxy, tc.accountID, 2)
+		require.NoError(t, err)
+		require.Equal(t, tc.status, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	}
+	require.EqualValues(t, 1, direct.Load())
+	require.EqualValues(t, 1, regional.Load())
+	require.EqualValues(t, 1, explicit.Load())
+}
 func TestRegionalHTTPRedirectChangesEgressAndStripsCredentials(t *testing.T) {
 	var us, eu atomic.Int32
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

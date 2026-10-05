@@ -21,12 +21,13 @@ func TestLoadUpstreamRouting(t *testing.T) {
     rules:
       - domain: api.example.com
         region: us
+        account_ids: [101]
 `), 0600))
 	t.Setenv("CONFIG_FILE", path)
 	c, err := Load()
 	require.NoError(t, err)
 	require.True(t, c.Gateway.UpstreamRouting.Enabled)
-	require.Equal(t, []upstreamroute.Rule{{Domain: "api.example.com", Region: "us"}}, c.Gateway.UpstreamRouting.Rules)
+	require.Equal(t, []upstreamroute.Rule{{Domain: "api.example.com", Region: "us", AccountIDs: []int64{101}}}, c.Gateway.UpstreamRouting.Rules)
 	t.Setenv("TEST_REGIONAL_PROXY", "")
 	_, err = Load()
 	require.ErrorContains(t, err, "gateway.upstream_routing")
