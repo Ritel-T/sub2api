@@ -93,6 +93,9 @@ type AstraGatewayRuntimeProvider interface {
 }
 
 func (s *AccountTestService) prepareAstraGatewaySource(ctx context.Context, id int64) error {
+	if s.cfg.AstraRouting(ctx).AutoQuality {
+		return s.prepareAutomaticGatewayBorrowSource(ctx, id)
+	}
 	account, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil || account == nil || !account.IsOpenAIOAuthLike() || account.Status != StatusActive {
 		return errors.New("source_account_unavailable")
@@ -108,6 +111,20 @@ func (s *AccountTestService) AstraGatewayStatus(ctx context.Context) AstraGatewa
 		result = provider.AstraGatewaySnapshot(ctx)
 	}
 	result.SchedulingRecords = astraRecentScheduling.snapshot()
+	if settings.AutoQuality {
+		for i := range result.Sources {
+			row := &result.Sources[i]
+			account, err := s.accountRepo.GetByID(ctx, row.AccountID)
+			reason, retry := s.gatewayBorrowSourceBlock(account, time.Now())
+			if err != nil {
+				reason, retry = "source_account_unavailable", nil
+			}
+			if reason != "" {
+				row.State, row.Reason, row.RetryAt = "blocked", reason, retry
+				row.ExpiresAt, row.RemainingSeconds, row.Active = nil, 0, false
+			}
+		}
+	}
 	existingTargets := result.Targets
 	result.Targets = []AstraRouteStatus{}
 	for _, id := range settings.CookiePool.TargetAccountIDs {

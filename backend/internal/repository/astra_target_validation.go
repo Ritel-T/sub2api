@@ -54,8 +54,17 @@ type astraTargetQuotaKey struct {
 	identity  [32]byte
 }
 type astraTargetQuotaBackoff struct {
-	until  time.Time
-	reason string
+	until       time.Time
+	reason      string
+	failures    int
+	lastFailure time.Time
+}
+
+func (v astraTargetQuotaBackoff) discardAt() time.Time {
+	if v.failures > 0 {
+		return v.lastFailure.Add(time.Hour)
+	}
+	return v.until
 }
 
 func targetBorrowQuietKeys(req *http.Request, id int64, model, proxy string, sourceID int64, profile *tlsfingerprint.Profile) (astraTargetQuotaKey, astraTargetQuotaKey) {
@@ -69,7 +78,7 @@ func (s *astraRoutingUpstream) targetQuotaWait(key astraTargetQuotaKey, now time
 	s.quotaMu.Lock()
 	defer s.quotaMu.Unlock()
 	for k, v := range s.quotaBackoff {
-		if !now.Before(v.until) {
+		if !now.Before(v.discardAt()) {
 			delete(s.quotaBackoff, k)
 		}
 	}
@@ -84,7 +93,7 @@ func (s *astraRoutingUpstream) rememberTargetQuota(key astraTargetQuotaKey, reas
 		s.quotaBackoff = map[astraTargetQuotaKey]astraTargetQuotaBackoff{}
 	}
 	for k, v := range s.quotaBackoff {
-		if !time.Now().Before(v.until) {
+		if !time.Now().Before(v.discardAt()) {
 			delete(s.quotaBackoff, k)
 		}
 	}
@@ -98,6 +107,42 @@ func (s *astraRoutingUpstream) rememberTargetQuota(key astraTargetQuotaKey, reas
 		return
 	}
 	s.quotaBackoff[key] = astraTargetQuotaBackoff{until: until, reason: reason}
+}
+
+// Only settled quality failures increase the tier; cache reads and quota/auth
+// rejections do not. Expired quiet periods retain their count for one hour.
+func (s *astraRoutingUpstream) rememberTargetQualityFailure(key astraTargetQuotaKey, reason string, now time.Time) time.Time {
+	s.quotaMu.Lock()
+	defer s.quotaMu.Unlock()
+	if s.quotaBackoff == nil {
+		s.quotaBackoff = map[astraTargetQuotaKey]astraTargetQuotaBackoff{}
+	}
+	for k, v := range s.quotaBackoff {
+		if !now.Before(v.discardAt()) {
+			delete(s.quotaBackoff, k)
+		}
+	}
+	prior := s.quotaBackoff[key]
+	if now.Before(prior.until) {
+		return prior.until
+	}
+	count := min(prior.failures+1, 4)
+	delay := min(time.Duration(180*(1<<(count-1)))*time.Second, 15*time.Minute)
+	if len(s.quotaBackoff) >= 4096 {
+		for k := range s.quotaBackoff {
+			delete(s.quotaBackoff, k)
+			break
+		}
+	}
+	until := now.Add(delay)
+	s.quotaBackoff[key] = astraTargetQuotaBackoff{until: until, reason: reason, failures: count, lastFailure: now}
+	return until
+}
+
+func (s *astraRoutingUpstream) resetTargetQualityFailure(key astraTargetQuotaKey) {
+	s.quotaMu.Lock()
+	defer s.quotaMu.Unlock()
+	delete(s.quotaBackoff, key)
 }
 
 type autoBorrowRouteKey struct{}
@@ -369,7 +414,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	if result.Verdict == service.OpenAICodexStateDegraded || result.Failure == "quality_failed" {
 		retryDelay = 180 * time.Second
 		if s.cfg.AstraRouting(req.Context()).AutoQuality {
-			s.rememberTargetQuota(negativeKey, reason, time.Now().Add(retryDelay))
+			retryDelay = time.Until(s.rememberTargetQualityFailure(negativeKey, reason, time.Now()))
 		}
 	}
 	if result.Failure == service.OpenAICodexStateFailureRateLimited || result.Failure == service.OpenAICodexStateFailureAccountError {
@@ -382,6 +427,9 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		if s.cfg.AstraRouting(req.Context()).AutoQuality {
 			s.rememberTargetQuota(quotaKey, reason, time.Now().Add(retryDelay))
 		}
+	}
+	if passed && s.cfg.AstraRouting(req.Context()).AutoQuality {
+		s.resetTargetQualityFailure(negativeKey)
 	}
 	check := astraTargetValidation{node: route.node, key: key, cookieFingerprint: sha256.Sum256([]byte(cookie.Value)), proxyFingerprint: sha256.Sum256([]byte(proxy)), passed: passed, checked: time.Now(), expires: expires, retryAfter: time.Now().Add(retryDelay), sourceID: sourceID, reason: reason, gateway: host}
 	check.route = route

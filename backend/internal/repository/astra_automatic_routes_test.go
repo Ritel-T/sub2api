@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -76,6 +77,11 @@ func TestAutomaticBorrowRejectsBadDonorAndKeepsOldProof(t *testing.T) {
 	}
 	pool.targetMu.Unlock()
 	require.False(t, wrapper.CodexGatewayPinWSBindingValidForModel(t.Context(), 300, "gpt-6-astra", "old"))
+	snapshot := wrapper.AstraGatewaySnapshot(t.Context())
+	require.Equal(t, "expired", snapshot.Targets[0].State)
+	require.Equal(t, "target_probe_passed", snapshot.Targets[0].Reason)
+	require.NotNil(t, snapshot.Targets[0].ExpiresAt, "expired successful witness retains its old deadline for renewal priority")
+	require.False(t, time.Now().Before(*snapshot.Targets[0].ExpiresAt))
 	_ = service.OpenAICodexStateHealthy
 }
 
@@ -97,6 +103,54 @@ func TestAutomaticPrepareVisitsAllDonorsBounded(t *testing.T) {
 	require.Equal(t, []int64{1, 2, 3}, calls, "available first donor cannot stop preparing bounded backups")
 	require.NoError(t, wrapper.PrepareAstraGateway(t.Context()))
 	require.Equal(t, []int64{1, 2, 3, 4}, calls, "fresh donors do not consume another probe budget")
+}
+
+func TestAutomaticPrepareFailedSlowDonorsCannotStarveFourth(t *testing.T) {
+	settings := config.AstraRoutingSettings{AutoQuality: true, CookiePool: config.CodexGatewayPinConfig{Enabled: true, SourceAccountIDs: []int64{1, 2, 3, 4}, TargetAccountIDs: []int64{300}}}
+	cfg := &config.Config{}
+	cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
+	wrapper := &astraRoutingUpstream{cfg: cfg}
+	pool := wrapper.current(t.Context())
+	var calls []int64
+	wrapper.SetAstraGatewayPreparer(func(context.Context, int64) error { return nil })
+	wrapper.SetAstraGatewayPreparer(func(ctx context.Context, id int64) error {
+		calls = append(calls, id)
+		return errors.New("fixture refusal")
+	})
+	require.Error(t, wrapper.PrepareAstraGateway(t.Context()))
+	require.Equal(t, []int64{1, 2, 3}, calls)
+	// Model a slow failed cycle without a 20-second sleep. Every previous
+	// donor is eligible again; the never-tried fourth must nevertheless win.
+	pool.mu.Lock()
+	for id, row := range pool.statuses {
+		at := time.Now().Add(-21 * time.Second)
+		row.CheckedAt = &at
+		pool.statuses[id] = row
+	}
+	pool.mu.Unlock()
+	require.Error(t, wrapper.PrepareAstraGateway(t.Context()))
+	require.Equal(t, int64(4), calls[3])
+	require.Len(t, calls, 6, "each preparation retains its three-generation budget")
+}
+
+func TestAutomaticExistingCandidateDoesNotMintMissingBackup(t *testing.T) {
+	settings := config.AstraRoutingSettings{AutoQuality: true, CookiePool: config.CodexGatewayPinConfig{Enabled: true, SourceAccountIDs: []int64{1, 2}, TargetAccountIDs: []int64{300}}}
+	cfg := &config.Config{}
+	cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
+	wrapper := &astraRoutingUpstream{cfg: cfg, delegate: gatewayPinDelegate{call: func(*http.Request, string, int64, int, *tlsfingerprint.Profile) (*http.Response, error) {
+		return pinResponse(""), nil
+	}}}
+	wrapper.SetAstraGatewayPreparer(func(context.Context, int64) error {
+		t.Fatal("target must use existing qualified candidate; stage prewarm explores backups")
+		return nil
+	})
+	now := time.Now()
+	route := codexGatewayRouteFromResponse(pinResponse("__oailb=fixture; Path=/; Secure; Max-Age=230"), "/backend-api/codex/responses", now)
+	wrapper.current(t.Context()).recordSource(1, now, route, true)
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", "https://chatgpt.com/backend-api/codex/responses", strings.NewReader(`{"model":"gpt-6-astra"}`))
+	resp, err := wrapper.Do(req, "target", 300, 1)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
 }
 
 func TestAutomaticBorrowBackoffDoesNotConsumeFourthDonorBudget(t *testing.T) {

@@ -8,6 +8,8 @@ export default {
     routeUnavailableHint: '借票要求仍保留；没有本账号、本模型当前有效路由的证明。',
     borrowRequiredDegradedHint: '该模型有原生降智证据，策略要求有效借票才能生成；当前是否可用见下一行运行状态。',
     testReasons: {
+      partiallyReady: '部分账号与模型已有有效借票，其余目标继续验证。',
+      budgetPending: '本轮验证尚未完成，下一轮继续。', explorationCooling: '来源探索正在冷却，稍后继续验证。',
       accountUnavailable: '账号已暂停、到期或不可用，当前不能参与借票。', modelMismatch: '未收到完整成功结果，或上游响应模型与测试模型不符。',
       stateUnknown: '无法核验账号最新状态，借票测试未发送。',
       requestFailed: '借票通道请求未完成，请查看运行状态并稍后重试。', changed: '借票配置已改变，需要重新验证。', testing: '借票已验证，正在发送模型测试；等待完整结果。',
@@ -86,7 +88,8 @@ export default {
     automaticStatus: "自动配置与准备",
     automaticHint: "借票仍使用目标账号自己的凭据与额度。保存后按所选模型准备和验证；手工 WS 固定会话仍仅用于 Astra。自动质量模式按模型判断，无有效借票时拒绝已确认降智的模型请求。",
     globalBlocked: "服务器全局 WS 已禁用，未更改账号或保存配置。",
-    setupStates: {"queued": "排队中", "running": "验证中", "ready": "本轮准备完成", "failed": "未就绪", "disabled": "已关闭"},
+    setupCounts: '按账号与模型：可用 {ready} · 待验证 {pending} · 暂不可验证 {blocked}',
+    setupStates: {"partial": "部分模型借票可用，继续验证其余目标", "waiting": "等待下一轮验证", "queued": "排队中", "running": "验证中", "ready": "本轮准备完成", "failed": "未就绪", "disabled": "已关闭"},
     setupPhases: {"source": "来源 Cookie 获取", "target": "目标门票与答题验证", "complete": "完成"},
 
     expected: "标准值",

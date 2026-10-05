@@ -62,3 +62,26 @@ describe('Per-model borrowing runtime', () => {
     w.unmount()
   })
 })
+
+describe('Incomplete preparation status', () => {
+  it.each(['partial', 'waiting'])('shows %s preparation and a readable continuation reason', async state => {
+    mocks.get.mockResolvedValue({ ...snapshot(), setup: { state, phase: 'target', account_id: 300, reason: 'warm_budget_exhausted', ready: state === 'partial' ? 1 : 0, pending: 2, blocked: 1 } })
+    const w = mount(AstraGatewayRuntime, { props: { settings, dirty: false } }); await flushPromises()
+    const status = w.get('[data-testid="setup-status"]').text()
+    expect(status).toContain(`admin.astraGateway.setupStates.${state}`)
+    expect(status).toContain('admin.astraGateway.testReasons.budgetPending')
+    expect(status).not.toContain('setupStates.failed')
+    expect(w.get('[data-testid="setup-counts"]').text()).toContain('admin.astraGateway.setupCounts')
+    w.unmount()
+  })
+  it('shows an expired source instead of its historical passed reason', async () => {
+    const data = snapshot(); data.sources[0].state = 'expired'; data.sources[0].reason = 'target_probe_passed'
+    mocks.get.mockResolvedValue(data)
+    const w = mount(AstraGatewayRuntime, { props: { settings, dirty: false } }); await flushPromises()
+    const source = w.find('tbody').text()
+    expect(source).toContain('admin.astraGateway.testReasons.expired')
+    expect(source).not.toContain('target_probe_passed')
+    expect(source).not.toContain('120 s')
+    w.unmount()
+  })
+})

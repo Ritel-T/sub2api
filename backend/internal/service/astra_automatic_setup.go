@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -17,6 +18,9 @@ type AstraSetupStatus struct {
 	Reason     string     `json:"reason"`
 	StartedAt  time.Time  `json:"started_at"`
 	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	Ready      int        `json:"ready,omitempty"`
+	Pending    int        `json:"pending,omitempty"`
+	Blocked    int        `json:"blocked,omitempty"`
 }
 
 func (s *AccountTestService) StartPersistedAutomaticGatewayBorrow() error {
@@ -92,7 +96,12 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 		s.astraSetupStatus.Phase = phase
 		s.astraSetupStatus.AccountID = id
 		s.astraSetupStatus.Reason = reason
-		if state == "failed" || state == "ready" {
+		if state == "running" && phase == "source" {
+			s.astraSetupStatus.StartedAt = time.Now()
+			s.astraSetupStatus.FinishedAt = nil
+			s.astraSetupStatus.Ready, s.astraSetupStatus.Pending, s.astraSetupStatus.Blocked = 0, 0, 0
+		}
+		if state == "failed" || state == "ready" || state == "partial" || state == "waiting" {
 			now := time.Now()
 			s.astraSetupStatus.FinishedAt = &now
 		}
@@ -118,9 +127,20 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 		set("failed", "source", 0, "runtime_unavailable")
 		return
 	}
-	if !settings.AutoQuality || !borrowSourceStillWarm(provider.AstraGatewaySnapshot(ctx), time.Now()) || borrowAnyModelNeedsWarm(provider.AstraGatewaySnapshot(ctx), settings.CookiePool, time.Now()) {
+	if settings.AutoQuality {
+		snapshot := s.AstraGatewayStatus(ctx)
+		if len(automaticBorrowWarmPlan(snapshot, settings.CookiePool, time.Now())) == 0 {
+			s.finishAutomaticBorrowCycle(settings, snapshot, nil, ctx.Err())
+			return
+		}
+	}
+	if !settings.AutoQuality || !borrowSourceStillWarm(provider.AstraGatewaySnapshot(ctx), time.Now()) || borrowAnyModelNeedsWarm(s.AstraGatewayStatus(ctx), settings.CookiePool, time.Now()) {
 		if err := prepareAstraForSetup(ctx, provider); err != nil {
-			set("failed", "source", 0, astraSetupError(err))
+			if settings.AutoQuality && automaticBorrowSourceWaitingReason(err) != "" {
+				s.finishAutomaticBorrowSourceWait(settings, s.AstraGatewayStatus(ctx), automaticBorrowSourceWaitingReason(err), ctx.Err())
+			} else {
+				set("failed", "source", 0, astraSetupError(err))
+			}
 			return
 		}
 	}
@@ -165,6 +185,10 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 			}
 		}
 	}
+	if settings.AutoQuality {
+		s.finishAutomaticBorrowCycle(settings, s.AstraGatewayStatus(ctx), firstTargetError, ctx.Err())
+		return
+	}
 	if firstTargetError != nil {
 		set("failed", "target", firstFailedTarget, astraSetupError(firstTargetError))
 		return
@@ -176,6 +200,103 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 		}
 	}
 	set("ready", "complete", 0, "")
+}
+
+// Partial model validation is not a failed system, and cancelled/budget-limited
+// preparation is never an IQ verdict or authorization to clear account gates.
+func (s *AccountTestService) finishAutomaticBorrowCycle(settings config.AstraRoutingSettings, snapshot AstraGatewayRuntime, targetErr, parentErr error) {
+	status := automaticBorrowCycleStatus(snapshot, settings.CookiePool, time.Now(), targetErr, parentErr)
+	s.publishAutomaticBorrowCycleStatus(settings, status, "target")
+}
+
+// Only known source shortage/cooldown is a wait. Runtime, missing preparer and
+// unknown fetch errors keep the existing failed state; no exception creates a pass.
+func automaticBorrowSourceWaitingReason(err error) string {
+	if err == nil {
+		return ""
+	}
+	switch err.Error() {
+	case "no_qualified_source_route", "source_probe_cooldown", "preparation_in_progress", "source_account_rate_limited", "source_account_unavailable":
+		return err.Error()
+	}
+	return ""
+}
+func (s *AccountTestService) finishAutomaticBorrowSourceWait(settings config.AstraRoutingSettings, snapshot AstraGatewayRuntime, reason string, parentErr error) {
+	status := automaticBorrowCycleStatus(snapshot, settings.CookiePool, time.Now(), errors.New(reason), parentErr)
+	if parentErr == nil {
+		status.State = "waiting"
+		if status.Ready > 0 {
+			status.State = "partial"
+		}
+		status.Reason = reason
+	}
+	s.publishAutomaticBorrowCycleStatus(settings, status, "source")
+}
+func (s *AccountTestService) publishAutomaticBorrowCycleStatus(settings config.AstraRoutingSettings, status AstraSetupStatus, phase string) {
+	s.astraSetupMu.Lock()
+	defer s.astraSetupMu.Unlock()
+	if s.astraSetupStatus.Revision != settings.Revision {
+		return
+	}
+	s.astraSetupStatus.State = status.State
+	s.astraSetupStatus.Phase = phase
+	s.astraSetupStatus.AccountID = 0
+	s.astraSetupStatus.Reason = status.Reason
+	s.astraSetupStatus.Ready, s.astraSetupStatus.Pending, s.astraSetupStatus.Blocked = status.Ready, status.Pending, status.Blocked
+	finished := time.Now()
+	s.astraSetupStatus.FinishedAt = &finished
+}
+func automaticBorrowCycleStatus(snapshot AstraGatewayRuntime, pool config.CodexGatewayPinConfig, now time.Time, targetErr, parentErr error) AstraSetupStatus {
+	result := AstraSetupStatus{State: "waiting", Reason: "target_not_verified"}
+	for _, id := range pool.TargetAccountIDs {
+		for _, model := range pool.ModelsForTarget(id) {
+			matched := false
+			for _, row := range snapshot.Targets {
+				if row.AccountID != id || row.Model != model {
+					continue
+				}
+				matched = true
+				switch {
+				case row.State == "ready" && row.ExpiresAt != nil && now.Before(*row.ExpiresAt):
+					result.Ready++
+				case row.State == "blocked" || (row.RetryAt != nil && now.Before(*row.RetryAt)):
+					result.Blocked++
+				default:
+					result.Pending++
+				}
+				break
+			}
+			if !matched {
+				result.Pending++
+			}
+		}
+	}
+	if parentErr != nil {
+		result.State = "failed"
+		result.Reason = "setup_cancelled"
+		return result
+	}
+	if errors.Is(targetErr, context.DeadlineExceeded) {
+		result.Reason = "warm_budget_exhausted"
+		return result
+	}
+	if errors.Is(targetErr, context.Canceled) {
+		result.State = "failed"
+		result.Reason = "setup_cancelled"
+		return result
+	}
+	if result.Pending == 0 && result.Blocked == 0 && result.Ready > 0 && targetErr == nil {
+		result.State = "ready"
+		result.Reason = ""
+		return result
+	}
+	if result.Ready > 0 {
+		result.State = "partial"
+		result.Reason = "target_partially_ready"
+	} else if result.Blocked > 0 && result.Pending == 0 {
+		result.Reason = "exploration_cooling"
+	}
+	return result
 }
 
 const automaticBorrowTargetWarmBudget = 120 * time.Second

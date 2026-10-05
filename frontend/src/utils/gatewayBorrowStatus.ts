@@ -23,6 +23,8 @@ export function nativeBorrowQuality(account: Pick<Account, 'extra'>, model: stri
 }
 
 const reasonKeys: Record<string, string> = {
+  source_account_rate_limited: 'rateLimited', source_account_unavailable: 'accountUnavailable',
+  warm_budget_exhausted: 'budgetPending', exploration_cooling: 'explorationCooling', target_partially_ready: 'partiallyReady',
   target_account_rate_limited: 'rateLimited', target_account_unavailable: 'accountUnavailable', gateway_borrow_response_model_mismatch: 'modelMismatch',
   target_probe_degraded: 'ticketChanged', target_route_changed: 'ticketChanged',
   target_quality_failed: 'answerFailed', target_quality_degraded: 'answerFailed', answer_mismatch: 'answerFailed',
@@ -50,6 +52,6 @@ export function borrowingRouteState(row: AstraRouteStatus | undefined, now: numb
   if (!row) return 'waiting'
   const expiry = row.expires_at ? Date.parse(row.expires_at) : NaN
   if (row.state === 'ready' && Number.isFinite(expiry) && expiry > now) return 'ready'
-  if (row.state === 'ready' || row.reason === 'route_expired' || row.reason === 'borrow_route_expired') return 'expired'
+  if (row.state === 'ready' || row.state === 'expired' || row.reason === 'route_expired' || row.reason === 'borrow_route_expired') return 'expired'
   return ['waiting', 'preparing', 'validating'].includes(row.state) || row.reason === 'target_validation_in_progress' ? 'waiting' : 'unavailable'
 }

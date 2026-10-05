@@ -258,16 +258,26 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 					retry := check.retryAfter
 					row.RetryAt = &retry
 					if settings.AutoQuality {
+						var earliest *time.Time
+						available := false
 						for _, source := range pool.config.SourceAccountIDs {
 							route, found := pool.routes[source]
-							if !found || !now.Before(route.expires) {
+							if !found || now.Add(90*time.Second).After(route.expires) {
 								continue
 							}
 							failed, known := pool.targetRouteFailures[astraTargetRouteKey{id, model, source, sha256.Sum256([]byte(route.cookie.Value))}]
+							available = true
 							if !known || !now.Before(failed.retryAfter) {
 								row.RetryAt = nil
 								break
 							}
+							if earliest == nil || failed.retryAfter.Before(*earliest) {
+								retry := failed.retryAfter
+								earliest = &retry
+							}
+						}
+						if available && row.RetryAt != nil && earliest != nil {
+							row.RetryAt = earliest
 						}
 					}
 				}
@@ -294,6 +304,12 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 					if old, ok := readySource[check.sourceID]; !ok || expiry.Before(old) {
 						readySource[check.sourceID] = expiry
 					}
+				} else if check.passed && !now.Before(check.expires) {
+					expiry := check.expires
+					row.State = "expired"
+					row.Reason = "target_probe_passed"
+					row.ExpiresAt = &expiry
+					row.RemainingSeconds = 0
 				} else if current {
 					row.State = "rejected"
 					row.Answer = check.answer

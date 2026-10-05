@@ -8,6 +8,8 @@ export default {
     routeUnavailableHint: 'Borrowing remains required. No currently valid route for this account and model has been confirmed.',
     borrowRequiredDegradedHint: 'Native degradation evidence requires a valid borrowed route for this model. Current route readiness is shown separately.',
     testReasons: {
+      partiallyReady: 'Some account/model pairs have valid borrowed routes; remaining targets will continue verification.',
+      budgetPending: 'This verification round is incomplete; continue in the next round.', explorationCooling: 'Source exploration is cooling down; verification will continue later.',
       accountUnavailable: 'The account is paused, expired or unavailable and cannot currently borrow a route.', modelMismatch: 'No complete successful result was received, or the upstream response model differs from the tested model.',
       stateUnknown: 'The latest account state could not be verified. The borrowing test was not sent.',
       requestFailed: 'The borrowing request did not complete. Check runtime status and retry shortly.', changed: 'Borrowing settings changed. Verify the route again.', testing: 'The borrowed route is verified. Sending the model test and awaiting its complete result.',
@@ -86,7 +88,8 @@ export default {
     automaticStatus: "Automatic setup",
     automaticHint: "Borrowing uses the target account credentials and quota. Saving prepares and validates the selected models. Manual pinned WS sessions remain Astra-only. Automatic quality mode rejects a degraded model when no valid borrowed route is available.",
     globalBlocked: "Server-wide WS is disabled. No accounts or settings were changed.",
-    setupStates: {"queued": "Queued", "running": "Validating", "ready": "Preparation completed", "failed": "Not ready", "disabled": "Disabled"},
+    setupCounts: 'Account/model pairs: ready {ready} · pending {pending} · temporarily blocked {blocked}',
+    setupStates: {"partial": "Some borrowed routes are ready; validating remaining targets", "waiting": "Waiting for the next verification round", "queued": "Queued", "running": "Validating", "ready": "Preparation completed", "failed": "Not ready", "disabled": "Disabled"},
     setupPhases: {"source": "Source Cookie acquisition", "target": "Target ticket and answer check", "complete": "Complete"},
 
     expected: "Reference",

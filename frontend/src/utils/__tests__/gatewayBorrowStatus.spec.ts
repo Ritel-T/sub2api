@@ -3,7 +3,12 @@ import { borrowingRouteState, gatewayBorrowReasonKey } from '../gatewayBorrowSta
 
 describe('Gateway borrowing presentation', () => {
   it('maps structured codes and older embedded reasons, including HTTP failures', () => {
+    expect(gatewayBorrowReasonKey('target_partially_ready')).toContain('partiallyReady')
+    expect(gatewayBorrowReasonKey('warm_budget_exhausted')).toContain('budgetPending')
+    expect(gatewayBorrowReasonKey('exploration_cooling')).toContain('explorationCooling')
     expect(gatewayBorrowReasonKey('target_probe_degraded')).toContain('ticketChanged')
+    expect(gatewayBorrowReasonKey('source_account_rate_limited')).toContain('rateLimited')
+    expect(gatewayBorrowReasonKey('source_account_unavailable')).toContain('accountUnavailable')
     expect(gatewayBorrowReasonKey('target_account_rate_limited')).toContain('rateLimited')
     expect(gatewayBorrowReasonKey('target_account_unavailable')).toContain('accountUnavailable')
     expect(gatewayBorrowReasonKey('gateway_borrow_response_model_mismatch')).toContain('modelMismatch')
@@ -17,6 +22,7 @@ describe('Gateway borrowing presentation', () => {
   it('never accepts a ready marker without a valid future expiry', () => {
     const row = { account_id: 34, state: 'ready', reason: 'target_probe_passed', remaining_seconds: 100, active: true }
     expect(borrowingRouteState(row, Date.now())).toBe('expired')
+    expect(borrowingRouteState({ ...row, state: 'expired', expires_at: '2099-01-01T00:00:00Z' }, Date.now())).toBe('expired')
     expect(borrowingRouteState({ ...row, expires_at: 'invalid' }, Date.now())).toBe('expired')
   })
 })

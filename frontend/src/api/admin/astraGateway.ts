@@ -56,7 +56,7 @@ export interface AstraGatewayRuntime {
   scheduling_records?: { checked_at: string; account_id: number; schedulable: boolean; reason: string; mode?: string }[]
   cooldowns?: { account_id: number; gateway: string; retry_at: string; remaining_seconds: number }[]
   gateways?: AstraGatewayObservation[]; unknown_gateway_samples?: number
-  setup?: { revision: string; state: string; phase: string; account_id: number; reason: string; started_at: string; finished_at?: string }
+  setup?: { revision: string; state: string; phase: string; account_id: number; reason: string; started_at: string; finished_at?: string; ready?: number; pending?: number; blocked?: number }
   generated_at: string; revision: string; sources: AstraRouteStatus[]; targets: AstraRouteStatus[]
   ws: AstraWSStatus[]; ready_routes: number; preparing: boolean; last_test?: AstraTestResult
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -41,8 +42,10 @@ func (s *astraRoutingUpstream) automaticTargetRoute(req *http.Request, proxy str
 	if expected != "" {
 		return nil, [32]byte{}, proxy, func() {}, errors.New("borrow_response_owner_route_expired")
 	}
-	if err := s.PrepareAstraGateway(req.Context()); err != nil && err.Error() != "source_probe_cooldown" && err.Error() != "preparation_in_progress" {
-		return nil, [32]byte{}, proxy, func() {}, err
+	if !s.hasAutomaticBorrowCandidate(req, proxy, id, model, profile, pool) {
+		if err := s.PrepareAstraGateway(req.Context()); err != nil && err.Error() != "source_probe_cooldown" && err.Error() != "preparation_in_progress" {
+			return nil, [32]byte{}, proxy, func() {}, err
+		}
 	}
 	var last error
 	attempts := 0
@@ -93,6 +96,30 @@ func (s *astraRoutingUpstream) automaticTargetRoute(req *http.Request, proxy str
 	return nil, [32]byte{}, proxy, func() {}, last
 }
 
+func (s *astraRoutingUpstream) hasAutomaticBorrowCandidate(req *http.Request, proxy string, id int64, model string, profile *tlsfingerprint.Profile, pool *codexGatewayPinUpstream) bool {
+	for _, source := range pool.config.SourceAccountIDs {
+		pool.mu.Lock()
+		route, exists := pool.routes[source]
+		pool.mu.Unlock()
+		if !exists || route.cookie.Value == "" || time.Until(route.expires) < 90*time.Second {
+			continue
+		}
+		effectiveProxy := proxy
+		if pool.config.IPAffinity {
+			effectiveProxy = route.proxy
+		}
+		quota, negative := targetBorrowQuietKeys(req, id, model, effectiveProxy, source, profile)
+		if _, waiting := s.targetQuotaWait(quota, time.Now()); waiting {
+			continue
+		}
+		if _, waiting := s.targetQuotaWait(negative, time.Now()); waiting {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func (s *astraRoutingUpstream) prepareAutomaticSources(ctx context.Context, pool *codexGatewayPinUpstream) error {
 	if s.preparer == nil {
 		return errors.New("source_preparer_unavailable")
@@ -101,7 +128,35 @@ func (s *astraRoutingUpstream) prepareAutomaticSources(ctx context.Context, pool
 	defer s.preparing.Store(false)
 	available := false
 	attempts := 0
-	for _, id := range pool.config.SourceAccountIDs {
+	// Keep renewals of verified routes ahead of exploration, but make never-
+	// attempted/oldest donors fair independently of configuration order.
+	ids := append([]int64(nil), pool.config.SourceAccountIDs...)
+	checked := map[int64]time.Time{}
+	verified := map[int64]bool{}
+	pool.targetMu.Lock()
+	for _, id := range pool.config.TargetAccountIDs {
+		for _, model := range pool.config.ModelsForTarget(id) {
+			if check, ok := pool.targetCheck(id, model); ok && check.passed && time.Now().Before(check.expires) {
+				verified[check.sourceID] = true
+			}
+		}
+	}
+	pool.targetMu.Unlock()
+	pool.mu.Lock()
+	for _, id := range ids {
+		if prior := pool.statuses[id]; prior.CheckedAt != nil {
+			checked[id] = *prior.CheckedAt
+		}
+	}
+	pool.mu.Unlock()
+	sort.SliceStable(ids, func(i, j int) bool {
+		a, b := ids[i], ids[j]
+		if verified[a] != verified[b] {
+			return verified[a]
+		}
+		return checked[a].Before(checked[b])
+	})
+	for _, id := range ids {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}

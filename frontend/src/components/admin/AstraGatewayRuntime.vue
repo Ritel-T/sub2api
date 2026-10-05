@@ -14,6 +14,7 @@
         <span v-if="runtime.setup.phase"> · {{ t(`${p}.setupPhases.${runtime.setup.phase}`) }}</span>
         <span v-if="runtime.setup.account_id"> #{{ runtime.setup.account_id }}</span>
         <span v-if="runtime.setup.reason"> · {{ reason(runtime.setup.reason) }}</span>
+        <p v-if="runtime.setup.ready !== undefined || runtime.setup.pending !== undefined || runtime.setup.blocked !== undefined" class="mt-2 text-xs text-gray-500" data-testid="setup-counts">{{ t(`${p}.setupCounts`, { ready: runtime.setup.ready || 0, pending: runtime.setup.pending || 0, blocked: runtime.setup.blocked || 0 }) }}</p>
       </div>
       <p class="text-sm" :class="runtime.ready_routes ? 'text-emerald-600' : 'text-amber-600'">{{ t(`${p}.readyRoutes`, { n: runtime.ready_routes }) }} · {{ t(runtime.preparing ? `${p}.preparing` : `${p}.idle`) }}</p>
       <div v-if="runtime.cooldowns?.length" class="rounded-xl border p-3 text-sm dark:border-dark-600" data-testid="rotation-cooldowns">
@@ -36,7 +37,7 @@
       <div class="overflow-x-auto">
         <table class="min-w-[640px] w-full text-left text-sm">
           <thead><tr class="border-b dark:border-dark-600"><th class="p-2">{{ t(`${p}.account`) }}</th><th class="p-2">{{ t(`${p}.model`) }}</th><th class="p-2">{{ t(`${p}.state`) }}</th><th class="p-2">{{ t(`${p}.gateway`) }}</th><th class="p-2">{{ t(`${p}.remaining`) }}</th><th class="p-2">{{ t(`${p}.checked`) }}</th></tr></thead>
-          <tbody><tr v-for="row in runtime.sources" :key="`${row.account_id}:${row.model || 'gpt-6-astra'}`" class="border-b dark:border-dark-600"><td class="p-2">#{{ row.account_id }}</td><td class="p-2 font-mono text-xs">{{ row.model || 'gpt-6-astra' }}</td><td class="p-2">{{ reason(row.reason) }}</td><td class="p-2 font-mono text-xs">{{ row.gateway || '—' }}<span v-if="row.proxy_node" class="mt-1 block font-sans">{{ row.proxy_country || '—' }} · {{ row.proxy_node }}</span></td><td class="p-2">{{ routeLifetime(row) }}</td><td class="p-2">{{ clock(row.checked_at) }}</td></tr></tbody>
+          <tbody><tr v-for="row in runtime.sources" :key="`${row.account_id}:${row.model || 'gpt-6-astra'}`" class="border-b dark:border-dark-600"><td class="p-2">#{{ row.account_id }}</td><td class="p-2 font-mono text-xs">{{ row.model || 'gpt-6-astra' }}</td><td class="p-2">{{ reason(row.state === 'expired' ? 'route_expired' : row.reason) }}</td><td class="p-2 font-mono text-xs">{{ row.gateway || '—' }}<span v-if="row.proxy_node" class="mt-1 block font-sans">{{ row.proxy_country || '—' }} · {{ row.proxy_node }}</span></td><td class="p-2">{{ routeLifetime(row) }}</td><td class="p-2">{{ clock(row.checked_at) }}</td></tr></tbody>
         </table>
       </div>
       <div class="grid gap-3 md:grid-cols-2">
