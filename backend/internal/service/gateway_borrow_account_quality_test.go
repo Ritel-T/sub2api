@@ -107,7 +107,8 @@ func TestGatewayBorrowAccountQualityMatchingSingleOnlyRefreshesEvidence(t *testi
 	o := GatewayBorrowPolicyObservation{PolicyMode: GatewayBorrowAccountQualityMode, CredentialSHA256: GatewayBorrowCredentialSHA256(a.Credentials), BorrowModels: []string{}, ModelResults: map[string]GatewayBorrowModelResult{"gpt-6-astra": borrowResult("gpt-6-astra", "healthy", 1, 1, now)}}
 	u, _, err := BuildGatewayBorrowPolicyUpdates(a.Extra, o)
 	require.NoError(t, err)
-	r := u["quality_candy"].(map[string]any)
+	r, recordOK := u["quality_candy"].(map[string]any)
+	require.True(t, recordOK)
 	require.Equal(t, old["checked_at"], r["checked_at"])
 	require.Equal(t, old["correct"], r["correct"])
 	require.Equal(t, float64(4), r["total"])

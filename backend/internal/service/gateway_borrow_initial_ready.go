@@ -102,10 +102,11 @@ func (s *RateLimitService) MarkGatewayBorrowInitialReady(ctx context.Context, id
 	}
 	var previous float64
 	for _, v := range groups {
-		if !integer(v, 1, 2147483647) || v.(float64) <= previous {
+		n, isNumber := v.(float64)
+		if !isNumber || !integer(n, 1, 2147483647) || n <= previous {
 			return invalid()
 		}
-		previous = v.(float64)
+		previous = n
 	}
 	if c["model_mapping"] != nil {
 		mapping, ok := c["model_mapping"].(map[string]any)
