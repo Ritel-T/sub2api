@@ -49,6 +49,7 @@ func (s *astraRoutingUpstream) SetAstraGatewayHistoryRecorder(fn func(service.As
 
 func (s *astraRoutingUpstream) current(ctx context.Context) *codexGatewayPinUpstream {
 	settings := s.cfg.AstraRouting(ctx)
+	settings.CookiePool.QualityMode = settings.QualityMode
 	poolSettings := settings
 	poolSettings.AccountScheduling = false // Scheduling does not invalidate verified routes.
 	poolSettings.SchedulingMode = ""
@@ -265,7 +266,7 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 							if !found || now.Add(90*time.Second).After(route.expires) {
 								continue
 							}
-							failed, known := pool.targetRouteFailures[astraTargetRouteKey{id, model, source, sha256.Sum256([]byte(route.cookie.Value))}]
+							failed, known := pool.targetRouteFailures[astraTargetRouteKey{id, pool.qualityModel(model), source, sha256.Sum256([]byte(route.cookie.Value))}]
 							available = true
 							if !known || !now.Before(failed.retryAfter) {
 								row.RetryAt = nil

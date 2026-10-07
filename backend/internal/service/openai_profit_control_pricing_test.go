@@ -134,8 +134,7 @@ func TestProfitControl_ResponsesCapabilityUsesTextGateAtScheduler(t *testing.T) 
 	require.Nil(t, selection)
 }
 
-// 账号倍率缺失一律视为非法保守拒绝；手工或同步维护了倍率的任意账号类型都按
-// 同一阈值判断（OAuth 与 API Key 无差别）。
+// API Key 保留倍率准入；OpenAI OAuth 不参与任何倍率利润门。
 func TestProfitControl_AccountRateSemantics(t *testing.T) {
 	now := time.Now()
 	missing := upstreamCostTestOAuthAccount(2)
@@ -150,8 +149,8 @@ func TestProfitControl_AccountRateSemantics(t *testing.T) {
 	gateCtx := context.WithValue(base, openAIProfitControlGateCtxKey{}, gate)
 
 	vetoed, reason := openAIProfitControlVetoReason(gateCtx, missing)
-	require.True(t, vetoed, "缺失账号倍率必须保守拒绝")
-	require.Equal(t, openAIProfitFilterReasonInvalidAccountRate, reason)
+	require.False(t, vetoed, "OAuth 缺失倍率也不参与利润门")
+	require.Empty(t, reason)
 
 	vetoed, _ = openAIProfitControlVetoReason(gateCtx, manualOAuth)
 	require.False(t, vetoed, "手工维护的 OAuth 倍率应正常准入")

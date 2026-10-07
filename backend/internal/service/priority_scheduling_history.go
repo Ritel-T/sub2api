@@ -224,26 +224,6 @@ func (s *OpenAIGatewayService) priorityHistory(req OpenAIAccountScheduleRequest,
 	return h
 }
 
-// Optional sticky balancing must not schedule SQL or consume refresh workers.
-// It may consult recent evidence already loaded by freely routed requests.
-func (s *OpenAIGatewayService) cachedPriorityHistory(req OpenAIAccountScheduleRequest, c PrioritySchedulingConfig, accounts []openAIAccountCandidateScore) priorityHistoryResult {
-	key := priorityHistoryKey(req, c)
-	state := &s.priorityScheduling
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	h := priorityHistoryResult{signals: make(map[int64]PrioritySchedulingSignal)}
-	e := state.entries[key]
-	if e == nil || e.observed.IsZero() || time.Since(e.observed) > priorityHistoryMaxAge {
-		return h
-	}
-	for _, item := range accounts {
-		if signal, exists := e.signals[item.account.ID]; exists {
-			h.signals[item.account.ID] = signal
-		}
-	}
-	return h
-}
-
 func priorityHistoryKey(req OpenAIAccountScheduleRequest, c PrioritySchedulingConfig) string {
 	return fmt.Sprintf("%q/%d/%t/%d/%d", req.RequestedModel, derefGroupID(req.GroupID), req.GroupID != nil, c.WindowMinutes, c.QualityMaxAgeHours)
 }

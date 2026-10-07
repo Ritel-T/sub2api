@@ -33,6 +33,12 @@ func TestGatewayBorrowPolicyHandler(t *testing.T) {
 		code   int
 	}{
 		{"valid retire only", func(map[string]any) {}, 200},
+		{"account mode reusable classification", func(b map[string]any) {
+			b["policy_mode"] = service.GatewayBorrowAccountQualityMode
+			b["retire_bps"] = false
+			b["model_results"] = map[string]any{}
+		}, 200},
+		{"unknown account mode", func(b map[string]any) { b["policy_mode"] = "unknown" }, 400},
 		{"missing proxy", func(b map[string]any) { delete(b, "expected_proxy_id") }, 400},
 		{"null borrow models", func(b map[string]any) { b["borrow_models"] = nil }, 400},
 		{"unknown extra write", func(b map[string]any) { b["expected_policy"] = map[string]any{"codex_7d_used_percent": 0} }, 400},

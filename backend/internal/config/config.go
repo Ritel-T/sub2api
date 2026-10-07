@@ -1061,6 +1061,7 @@ func strictConfigInt(value any) (int, error) {
 // CodexGatewayPinConfig controls the private HTTP routing experiment.
 // Cookie values are learned from completed Astra responses, never configured.
 type CodexGatewayPinConfig struct {
+	QualityMode string `mapstructure:"quality_mode" json:"quality_mode,omitempty"`
 	// Empty scopes preserve the historical Astra-only manual experiment.
 	Models              []string            `mapstructure:"models" json:"models,omitempty"`
 	TargetModels        map[string][]string `mapstructure:"target_models" json:"target_models,omitempty"`
@@ -1075,6 +1076,9 @@ type CodexGatewayPinConfig struct {
 }
 
 func (c CodexGatewayPinConfig) Validate() error {
+	if c.QualityMode != "" && c.QualityMode != GatewayBorrowAccountQualityMode {
+		return fmt.Errorf("invalid borrow quality mode")
+	}
 	if err := c.validateModelScopes(); err != nil {
 		return err
 	}
@@ -2712,6 +2716,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.api_key_queue.timeout_seconds", defaultAPIKeyQueueTimeoutSeconds)
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.codex_ws_anchor.ttl_seconds", 3600)
+	viper.SetDefault("gateway.codex_gateway_pin.quality_mode", "")
 	viper.SetDefault("gateway.codex_gateway_pin.ttl_seconds", 230)
 	viper.SetDefault("gateway.codex_gateway_pin.node_cooldown_seconds", 3600)
 	viper.SetDefault("gateway.codex_gateway_pin.rotate_nodes", false)

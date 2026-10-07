@@ -73,9 +73,9 @@ func TestPriorityOAuthQuotaEvidenceAndCapacity(t *testing.T) {
 			bad := false
 			s.LatestQualityPassed = &bad
 		}, 0},
-		{"bad_average", func(_ *PrioritySchedulingConfig, _ *openAIAccountCandidateScore, s *PrioritySchedulingSignal) {
+		{"confirmed_recovery_overrides_bad_average", func(_ *PrioritySchedulingConfig, _ *openAIAccountCandidateScore, s *PrioritySchedulingSignal) {
 			s.QualityPassed = 1
-		}, 0},
+		}, 8},
 		{"latency", func(_ *PrioritySchedulingConfig, _ *openAIAccountCandidateScore, s *PrioritySchedulingSignal) {
 			s.P90TTFTMs = 9999
 		}, 0},
@@ -214,13 +214,13 @@ func TestPriorityOAuthQuotaConfigCompatibility(t *testing.T) {
 	}
 }
 
-func TestPriorityOAuthQuotaStickyEscapeRespectsOwnershipAndScope(t *testing.T) {
+func TestPriorityOAuthQuotaDoesNotMigrateStickyOwner(t *testing.T) {
 	for _, tc := range []struct {
 		name                                    string
 		preserve, disable, previous, otherGroup bool
 		want                                    bool
 	}{
-		{name: "movable_api", want: true}, {name: "hard_binding", preserve: true}, {name: "escape_disabled", disable: true}, {name: "previous_response", previous: true}, {name: "other_group", otherGroup: true},
+		{name: "movable_api"}, {name: "hard_binding", preserve: true}, {name: "escape_disabled", disable: true}, {name: "previous_response", previous: true}, {name: "other_group", otherGroup: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, oauth, signal := quotaPriorityFixture(time.Now())

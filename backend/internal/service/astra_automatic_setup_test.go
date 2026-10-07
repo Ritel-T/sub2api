@@ -377,3 +377,26 @@ func TestAutomaticBorrowSourceShortageRetainsExistingRoutesAsPartial(t *testing.
 	require.Equal(t, 1, svc.astraSetupStatus.Ready)
 	require.Equal(t, expiry, *provider.snapshot.Targets[0].ExpiresAt, "source failure cannot clear or extend the retained route")
 }
+
+func TestAccountQualityWarmPlanOnlyAstraOncePerAccount(t *testing.T) {
+	now := time.Now()
+	pool := config.CodexGatewayPinConfig{QualityMode: config.GatewayBorrowAccountQualityMode, TargetAccountIDs: []int64{88, 109}, Models: []string{"gpt-6-astra", "gpt-6.1-sol"}}
+	snapshot := AstraGatewayRuntime{}
+	plan := automaticBorrowWarmPlan(snapshot, pool, now)
+	require.Len(t, plan, 2)
+	for _, account := range plan {
+		require.Len(t, account.models, 1)
+		require.Equal(t, "gpt-6-astra", account.models[0].model)
+	}
+	calls := map[int64]string{}
+	var mu sync.Mutex
+	_, err := runAutomaticBorrowWarmTargets(t.Context(), snapshot, pool, now, func(_ context.Context, id int64, model string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		require.Empty(t, calls[id], "an account cannot warm twice for the same snapshot")
+		calls[id] = model
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, map[int64]string{88: "gpt-6-astra", 109: "gpt-6-astra"}, calls)
+}

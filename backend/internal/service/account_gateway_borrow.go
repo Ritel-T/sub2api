@@ -78,6 +78,9 @@ func (s *OpenAIGatewayService) gatewayBorrowPolicyReason(ctx context.Context, a 
 }
 
 func (s *OpenAIGatewayService) gatewayBorrowUpstreamPolicyReason(ctx context.Context, a *Account, model string, compact bool) string {
+	if a.IsOpenAIGatewayAccountQualityPendingForUpstreamModel(model) {
+		return "gateway_borrow_initial_quality_pending"
+	}
 	requires := a.RequiresGatewayBorrowUpstream(model)
 	if compact && a != nil {
 		requires = requires || a.RequiresGatewayBorrowUpstream(resolveOpenAIAccountUpstreamModelForRequest(a, model, true))
@@ -112,6 +115,9 @@ func (s *OpenAIGatewayService) gatewayBorrowUpstreamPolicyReason(ctx context.Con
 }
 
 func gatewayBorrowEligibilityReason(ctx context.Context, a *Account, model string, compact bool) string {
+	if a.IsOpenAIGatewayAccountQualityPendingForModel(model) {
+		return "gateway_borrow_initial_quality_pending"
+	}
 	if !a.RequiresGatewayBorrow(model) {
 		return ""
 	}
@@ -323,7 +329,7 @@ func (s *OpenAIGatewayService) admitOpenAIHTTPRequest(req *http.Request, a *Acco
 		return a, nil
 	}
 	_, hasReader := s.accountRepo.(OpenAITurnAdmissionReader)
-	if !hasReader && !s.requireLatestTurnAdmission && !a.gatewayBorrowPolicyActive() {
+	if !hasReader && !s.requireLatestTurnAdmission && !a.gatewayBorrowPolicyActive() && !a.gatewayBorrowAccountQualityPending() {
 		return a, nil
 	}
 	if req == nil {

@@ -13,7 +13,8 @@ import (
 const prioritySchedulingSettingKey = "priority_scheduling_v1"
 
 // PrioritySchedulingConfig only controls freely selectable OpenAI text requests.
-// Account eligibility, continuity, profit gates and concurrency acquisition stay authoritative.
+// Account eligibility, continuity and concurrency acquisition stay authoritative.
+// OAuth quality/capacity never uses estimated account economics.
 type PrioritySchedulingConfig struct {
 	OAuthQuotaPriority  bool     `json:"oauth_quota_priority"`
 	OAuthQuotaThreshold int      `json:"oauth_quota_threshold"`
@@ -240,16 +241,39 @@ type PrioritySchedulingSnapshot struct {
 	Candidates        []PrioritySchedulingScore `json:"candidates"`
 }
 
-func scorePriorityCandidate(c PrioritySchedulingConfig, item openAIAccountCandidateScore, signal PrioritySchedulingSignal, _ time.Time) PrioritySchedulingScore {
-	rate := item.account.CostMultiplier()
-	theoreticalCost := signal.BaseCost * rate
-	out := PrioritySchedulingScore{Rate: &rate, TheoreticalCost: theoreticalCost, AccountID: item.account.ID, AccountName: item.account.Name, Priority: openAIAccountSchedulingPriority(item.account), Concurrency: item.account.Concurrency, LoadFactor: item.account.EffectiveLoadFactor(), Tier: "eligible", Reasons: []string{}, PrioritySchedulingSignal: signal}
+func scorePriorityCandidate(c PrioritySchedulingConfig, item openAIAccountCandidateScore, signal PrioritySchedulingSignal, now time.Time) PrioritySchedulingScore {
+	isOAuth := item.account.IsOpenAIOAuth()
+	rate, theoreticalCost := 0.0, 0.0
+	var ratePointer *float64
+	if !isOAuth {
+		rate = item.account.CostMultiplier()
+		theoreticalCost = signal.BaseCost * rate
+		ratePointer = &rate
+	}
+	out := PrioritySchedulingScore{Rate: ratePointer, TheoreticalCost: theoreticalCost, AccountID: item.account.ID, AccountName: item.account.Name, Priority: openAIAccountSchedulingPriority(item.account), Concurrency: item.account.Concurrency, LoadFactor: item.account.EffectiveLoadFactor(), Tier: "eligible", Reasons: []string{}, PrioritySchedulingSignal: signal}
 	if item.loadInfo != nil {
 		out.Waiting = max(0, item.loadInfo.WaitingCount)
 	}
 	quality, latency, load, cost := 0.5, 0.5, 0.5, 0.5
 	degraded, unknown := false, false
-	if signal.QualitySamples > 0 {
+	if isOAuth {
+		passed, known := priorityOAuthQuality(item, signal, now, time.Duration(c.QualityMaxAgeHours)*time.Hour)
+		out.LatestQualityPassed = nil
+		out.QualityPassed, out.QualitySamples = 0, 0
+		if known {
+			out.LatestQualityPassed = &passed
+			out.QualitySamples = 1
+			if passed {
+				quality, out.QualityPassed = 1, 1
+			} else {
+				quality, degraded = 0, true
+				out.Reasons = append(out.Reasons, "quality_below_target")
+			}
+		} else {
+			unknown = true
+			out.Reasons = append(out.Reasons, "quality_unknown")
+		}
+	} else if signal.QualitySamples > 0 {
 		quality = clamp01(float64(signal.QualityPassed) / float64(signal.QualitySamples))
 		if quality*100 < float64(c.MinQualityPercent) {
 			degraded = true
@@ -286,7 +310,12 @@ func scorePriorityCandidate(c PrioritySchedulingConfig, item openAIAccountCandid
 		unknown = true
 		out.Reasons = append(out.Reasons, "load_unknown")
 	}
-	if signal.ProfitSamples >= c.MinSamples && signal.Revenue >= 0 && theoreticalCost >= 0 && signal.Revenue+theoreticalCost > 0 {
+	if isOAuth {
+		// Subscription account multipliers and usage rows do not describe
+		// marginal OAuth cost. Do not let them affect any routing cohort.
+		out.EconomicsSource = "not_applicable"
+		out.Revenue, out.BaseCost, out.ProfitSamples = 0, 0, 0
+	} else if signal.ProfitSamples >= c.MinSamples && signal.Revenue >= 0 && theoreticalCost >= 0 && signal.Revenue+theoreticalCost > 0 {
 		// Round the multiplication before subtracting, matching the displayed
 		// cost even on architectures that fuse multiply/subtract. Decimal money
 		// can still differ by a few ulps at break-even; that is not loss evidence.
@@ -322,7 +351,14 @@ func scorePriorityCandidate(c PrioritySchedulingConfig, item openAIAccountCandid
 		out.Reasons = append(out.Reasons, "recent_errors")
 	}
 	w := c.weights()
+	if isOAuth {
+		w[3] = 0
+	}
 	sum := w[0] + w[1] + w[2] + w[3]
+	if sum <= 0 {
+		// A cost-only custom profile remains neutral for OAuth.
+		w, sum = [4]float64{1, 1, 1, 0}, 3
+	}
 	out.Score = 100 * (w[0]*quality + w[1]*latency + w[2]*load + w[3]*cost) / sum * (1 - clamp01(item.errorRate))
 	if degraded {
 		out.Tier = "degraded"
@@ -340,6 +376,7 @@ func (s *defaultOpenAIAccountScheduler) applyPriorityScheduling(req OpenAIAccoun
 	history := s.service.priorityHistory(req, c, plan.candidates)
 	now := time.Now()
 	for i := range plan.candidates {
+		s.service.capturePriorityOAuthQuality(req, &plan.candidates[i], now, time.Duration(c.QualityMaxAgeHours)*time.Hour)
 		applyPriorityCandidate(c, &plan.candidates[i], history.signals[plan.candidates[i].account.ID], now)
 	}
 	plan.priorityScheduling = true
@@ -383,7 +420,7 @@ func applyPriorityCandidate(c PrioritySchedulingConfig, item *openAIAccountCandi
 	}
 	item.score = offset + score.Score
 	item.priorityExploration = item.account.IsOpenAIOAuth() && score.Tier == "insufficient" &&
-		(score.ProfitSamples < c.MinSamples || score.Samples < c.MinSamples) &&
+		(score.LatestQualityPassed == nil || score.Samples < c.MinSamples) &&
 		item.loadKnown && score.LoadPercent != nil && *score.LoadPercent < c.MaxLoadPercent
 	item.priorityOAuthSpare = priorityOAuthQuotaSpare(c, *item, score, now)
 	item.priorityAPIStandby = false

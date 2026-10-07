@@ -771,6 +771,7 @@ func lockAndMergeAccountProbeExtra(
 		}
 	}
 	extra := service.MergeOpenAICodexTicketExtra(copyJSONMap(normalizeJSONMap(account.Extra)), currentExtra)
+	extra = service.MergeOpenAIGatewayAccountQualityExtra(extra, currentExtra)
 	extra = service.MergeExcelBPS403Marker(extra, currentExtra)
 	// Only ExtendExcelBPSRateLimit owns these runtime keys. Account edits can
 	// carry a snapshot from before a concurrent 429; merge the locked row's
@@ -2140,6 +2141,16 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 	} else {
 		// 已处于外部事务中（ErrTxStarted），复用当前 client
 		txClient = r.client
+	}
+	// Initial-defaults readiness and first quality classification take this
+	// same parent-row lock before observing group bindings. Bindings must not
+	// change while either narrow CAS endpoint validates its snapshot.
+	var lockedAccountID int64
+	if err := scanSingleRow(ctx, txClient, "SELECT id FROM accounts WHERE id=$1 AND deleted_at IS NULL FOR UPDATE", []any{accountID}, &lockedAccountID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return service.ErrAccountNotFound
+		}
+		return err
 	}
 	if err := lockLiveGroups(ctx, txClient, groupIDs); err != nil {
 		return err

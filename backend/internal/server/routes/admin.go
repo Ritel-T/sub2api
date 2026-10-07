@@ -453,6 +453,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/:id/clear-native-rate-limit", h.Admin.Account.ClearNativeRateLimit)
 		accounts.POST("/:id/codex-usage-snapshot", h.Admin.Account.UpdateCodexUsageSnapshot)
 		accounts.POST("/:id/gateway-borrow-policy", h.Admin.Account.UpdateGatewayBorrowPolicy)
+		accounts.POST("/:id/gateway-borrow-initial-ready", h.Admin.Account.MarkGatewayBorrowInitialReady)
 		accounts.POST("/:id/reset-quota", h.Admin.Account.ResetQuota)
 		accounts.GET("/:id/temp-unschedulable", h.Admin.Account.GetTempUnschedulable)
 		accounts.DELETE("/:id/temp-unschedulable", h.Admin.Account.ClearTempUnschedulable)

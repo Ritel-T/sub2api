@@ -67,7 +67,7 @@ func TestPrioritySnapshotRefreshesWithoutAnotherSelection(t *testing.T) {
 	require.Equal(t, 9, last.Candidates[0].Samples)
 }
 
-func TestPriorityExplorationCanFinishPartialEvidence(t *testing.T) {
+func TestPriorityExplorationCanFinishMissingQualityEvidence(t *testing.T) {
 	c := DefaultPrioritySchedulingConfig()
 	c.Enabled = true
 	r := &priorityReaderStub{signal: map[int64]PrioritySchedulingSignal{1: {Samples: 6, P90TTFTMs: 100, ProfitSamples: 2}}}
@@ -191,7 +191,7 @@ func TestPriorityStickyDoesNotEscapeToKnownRisk(t *testing.T) {
 	g.priorityScheduling.mu.Lock()
 	g.priorityScheduling.entries[priorityHistoryKey(req, c)].signals[2] = PrioritySchedulingSignal{QualityPassed: 10, QualitySamples: 10}
 	g.priorityScheduling.mu.Unlock()
-	require.True(t, scheduler.shouldRebalancePrioritySticky(context.Background(), req, &accounts[0]), "the same compatible idle peer may attract traffic once its known risk is gone")
+	require.False(t, scheduler.shouldRebalancePrioritySticky(context.Background(), req, &accounts[0]), "free-selection priority must never migrate an existing healthy binding")
 }
 
 func TestPrioritySelectionWeightRejectsNonFiniteQuota(t *testing.T) {

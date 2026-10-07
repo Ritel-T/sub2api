@@ -48,6 +48,8 @@ func (r *accountRepository) updateGatewayBorrowPolicyInTx(ctx context.Context, i
 	err := scanSingleRow(ctx, client, `SELECT jsonb_build_object(
  'credentials',credentials,'extra',extra,'proxy_id',proxy_id,
  'status',status,'schedulable',schedulable,'platform',platform,'type',type,
+ 'concurrency',concurrency,'priority',priority,'load_factor',load_factor,
+ 'group_ids',(SELECT COALESCE(jsonb_agg(group_id ORDER BY group_id),'[]'::jsonb) FROM account_groups WHERE account_id=$1),
  'parent_account_id',parent_account_id)::text
  FROM accounts WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, []any{id}, &raw)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -65,6 +67,10 @@ func (r *accountRepository) updateGatewayBorrowPolicyInTx(ctx context.Context, i
 		Platform    string         `json:"platform"`
 		Type        string         `json:"type"`
 		ParentID    *int64         `json:"parent_account_id"`
+		Concurrency int            `json:"concurrency"`
+		Priority    int            `json:"priority"`
+		LoadFactor  *int           `json:"load_factor"`
+		GroupIDs    []int64        `json:"group_ids"`
 	}
 	if err = json.Unmarshal([]byte(raw), &row); err != nil {
 		return service.GatewayBorrowPolicyResult{}, err
@@ -74,6 +80,12 @@ func (r *accountRepository) updateGatewayBorrowPolicyInTx(ctx context.Context, i
 	}
 	if row.Status != service.StatusActive || !row.Schedulable {
 		return skipped("paused_or_inactive")
+	}
+	if mode, _ := row.Extra[service.GatewayBorrowAccountQualityModeKey].(string); mode != "" && mode != o.PolicyMode {
+		return skipped("policy_mode_changed")
+	}
+	if o.PolicyMode == service.GatewayBorrowAccountQualityMode && row.Extra[service.GatewayBorrowAccountQualityPendingKey] == true && row.Extra[service.GatewayBorrowInitialReadyKey] != true {
+		return skipped("initial_defaults_not_ready")
 	}
 	if time.Since(o.ObservedAt) > 10*time.Minute {
 		return skipped("stale_observation")
@@ -98,6 +110,9 @@ func (r *accountRepository) updateGatewayBorrowPolicyInTx(ctx context.Context, i
 	}
 	if token, ok := row.Credentials["access_token"].(string); !ok || token == "" {
 		return skipped("account_unavailable")
+	}
+	if o.PolicyMode == service.GatewayBorrowAccountQualityMode && row.Extra[service.GatewayBorrowAccountQualityPendingKey] == true && !service.GatewayBorrowInitialReadyMatchesCurrent(&service.Account{Credentials: row.Credentials, Extra: row.Extra, ProxyID: row.ProxyID, Concurrency: row.Concurrency, Priority: row.Priority, LoadFactor: row.LoadFactor, GroupIDs: row.GroupIDs}) {
+		return skipped("initial_configuration_changed")
 	}
 	updates, reason, err := service.BuildGatewayBorrowPolicyUpdates(row.Extra, o)
 	if err != nil {

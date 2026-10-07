@@ -1205,7 +1205,7 @@ func reconcileCRSUpstreamBillingProbeExtra(
 }
 
 func mergeCRSOpenAILongContextBillingExtra(existing, updates map[string]any) (map[string]any, error) {
-	return normalizeOpenAILongContextBillingExtra(PlatformOpenAI, mergeMap(existing, updates))
+	return normalizeOpenAILongContextBillingExtra(PlatformOpenAI, MergeOpenAIGatewayAccountQualityExtra(mergeMap(existing, updates), existing))
 }
 
 func (s *CRSSyncService) mapOrCreateProxy(ctx context.Context, enabled bool, cached *[]Proxy, src *crsProxy, defaultName string) (*int64, error) {
@@ -1603,6 +1603,7 @@ func (s *CRSSyncService) createSyncedAccount(ctx context.Context, a *Account) er
 		a.Credentials = input.Credentials
 		groups = input.GroupIDs
 	}
+	prepareGatewayBorrowAccountQualityForCreate(a)
 	if err := s.accountRepo.Create(ctx, a); err != nil {
 		return err
 	}

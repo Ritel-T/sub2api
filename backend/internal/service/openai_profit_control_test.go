@@ -152,8 +152,8 @@ func TestOpenAIProfitControlVetoReason(t *testing.T) {
 		require.Equal(t, openAIProfitFilterReasonThreshold, reason)
 	})
 
-	t.Run("missing account rate is invalid", func(t *testing.T) {
-		vetoed, reason := openAIProfitControlVetoReason(gateCtx(0.7), upstreamCostTestOAuthAccount(1))
+	t.Run("missing API account rate is invalid", func(t *testing.T) {
+		vetoed, reason := openAIProfitControlVetoReason(gateCtx(0.7), &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey})
 		require.True(t, vetoed)
 		require.Equal(t, openAIProfitFilterReasonInvalidAccountRate, reason)
 	})
@@ -172,7 +172,7 @@ func TestOpenAIProfitControlVetoReason(t *testing.T) {
 
 	t.Run("negative and non-finite rates are invalid", func(t *testing.T) {
 		for _, rate := range []float64{-1, math.NaN(), math.Inf(1)} {
-			account := profitControlTestAccountWithRate(upstreamCostTestOAuthAccount(1), rate)
+			account := profitControlTestAccountWithRate(&Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, rate)
 			vetoed, reason := openAIProfitControlVetoReason(gateCtx(0.7), account)
 			require.True(t, vetoed)
 			require.Equal(t, openAIProfitFilterReasonInvalidAccountRate, reason)
@@ -202,7 +202,7 @@ func TestProfitControlSchedulerFiltersCandidates(t *testing.T) {
 	}}
 	cfg := &config.Config{}
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{*cheap, *expensive, *oauth}},
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{*cheap, *expensive}},
 		cfg:                cfg,
 		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
 		concurrencyService: NewConcurrencyService(cache),
@@ -210,7 +210,7 @@ func TestProfitControlSchedulerFiltersCandidates(t *testing.T) {
 	groupID := int64(7)
 
 	t.Run("unprofitable and invalid-rate accounts never win", func(t *testing.T) {
-		// margin 0.5 → 阈值 0.5：expensive(0.8) 超阈值、oauth 倍率缺失，仅 cheap 可选。
+		// API Key 池中 expensive(0.8) 超阈值，仅 cheap 可选。
 		ctx := profitControlTestCtx(profitControlTestGroup(groupID, 0.5, 0))
 		for i := 0; i < 5; i++ {
 			selection, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-test", nil, OpenAIUpstreamTransportAny, false)
@@ -224,19 +224,19 @@ func TestProfitControlSchedulerFiltersCandidates(t *testing.T) {
 	})
 
 	t.Run("all excluded surfaces standard no-available error with profit reasons", func(t *testing.T) {
-		// margin+buffer 0.8 → 阈值 0.2：cheap/expensive 超阈值，oauth 倍率非法。
+		// API Key 池中 cheap/expensive 均超阈值。
 		ctx := profitControlTestCtx(profitControlTestGroup(groupID, 0.7, 0.1))
 		selection, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-test", nil, OpenAIUpstreamTransportAny, false)
 		require.Nil(t, selection)
 		require.Error(t, err)
 		require.True(t, errors.Is(err, ErrNoAvailableAccounts))
 		require.Contains(t, err.Error(), openAIProfitFilterReasonThreshold+"=2")
-		require.Contains(t, err.Error(), openAIProfitFilterReasonInvalidAccountRate+"=1")
+		require.NotContains(t, err.Error(), openAIProfitFilterReasonInvalidAccountRate)
 	})
 
-	t.Run("manually rated oauth account is admitted", func(t *testing.T) {
-		// 阈值 0.2 排除两个 API Key；OAuth 手工倍率 0.1 可参与调度。
-		profitControlTestAccountWithRate(oauth, 0.1)
+	t.Run("unrated oauth account is admitted", func(t *testing.T) {
+		// 阈值 0.2 排除两个 API Key；OAuth 无需倍率即可参与调度。
+		require.Nil(t, oauth.RateMultiplier)
 		svc.accountRepo = schedulerTestOpenAIAccountRepo{accounts: []Account{*cheap, *expensive, *oauth}}
 		ctx := profitControlTestCtx(profitControlTestGroup(groupID, 0.7, 0.1))
 		selection, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-test", nil, OpenAIUpstreamTransportAny, false)

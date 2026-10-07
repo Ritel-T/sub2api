@@ -20,7 +20,7 @@ const GatewayBorrowQualityKey = "quality_candy_models"
 const GatewayBorrowCandyAlgorithm = "ranxi-candy-sequential-four-v1"
 const GatewayBorrowCandyPromptSHA256 = "df1a06950b3883d44cb2f1046164281bd7e6ba09c6792c3042e6658dfbb30eb5"
 
-var GatewayBorrowPolicyKeys = []string{GatewayBorrowModelsKey, GatewayBorrowQualityKey, "quality_candy", "openai_excel_bps", ExcelBPSRequiredGroupIDsKey, ExcelBPSRequiredModelsKey}
+var GatewayBorrowPolicyKeys = []string{GatewayBorrowModelsKey, GatewayBorrowQualityKey, "quality_candy", "openai_excel_bps", ExcelBPSRequiredGroupIDsKey, ExcelBPSRequiredModelsKey, GatewayBorrowAccountQualityModeKey, GatewayBorrowAccountQualityPendingKey, GatewayBorrowInitialReadyKey, GatewayBorrowInitialReadyFingerprintKey}
 var gatewayBorrowRunPattern = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}Z-[a-zA-Z0-9_-]{1,64}$`)
 
 type GatewayBorrowModelResult struct {
@@ -36,6 +36,7 @@ type GatewayBorrowModelResult struct {
 	PromptSHA256    string    `json:"prompt_sha256"`
 }
 type GatewayBorrowPolicyObservation struct {
+	PolicyMode       string                              `json:"policy_mode,omitempty"`
 	ObservedAt       time.Time                           `json:"observed_at"`
 	ExpectedProxyID  *int64                              `json:"expected_proxy_id"`
 	CredentialSHA256 string                              `json:"credential_sha256"`
@@ -96,7 +97,8 @@ func (s *RateLimitService) UpdateGatewayBorrowPolicyFromProbe(ctx context.Contex
 	result := GatewayBorrowPolicyResult{Skipped: true, Reason: "stale_observation"}
 	now := time.Now().UTC()
 	_, offset := o.ObservedAt.Zone()
-	if id <= 0 || o.ObservedAt.IsZero() || offset != 0 || o.ObservedAt.After(now.Add(30*time.Second)) || !nativeRateLimitTokenHashPattern.MatchString(o.CredentialSHA256) || (o.ExpectedProxyID != nil && *o.ExpectedProxyID <= 0) || o.ExpectedPolicy == nil || o.BorrowModels == nil || len(o.ModelResults) > 3 || (len(o.ModelResults) == 0 && !o.RetireBPS) {
+	accountMode := o.PolicyMode == GatewayBorrowAccountQualityMode
+	if (o.PolicyMode != "" && !accountMode) || id <= 0 || o.ObservedAt.IsZero() || offset != 0 || o.ObservedAt.After(now.Add(30*time.Second)) || !nativeRateLimitTokenHashPattern.MatchString(o.CredentialSHA256) || (o.ExpectedProxyID != nil && *o.ExpectedProxyID <= 0) || o.ExpectedPolicy == nil || o.BorrowModels == nil || len(o.ModelResults) > 3 || (len(o.ModelResults) == 0 && !o.RetireBPS && !accountMode) {
 		return result, invalidGatewayBorrowPolicy()
 	}
 	for key := range o.ExpectedPolicy {
@@ -113,6 +115,9 @@ func (s *RateLimitService) UpdateGatewayBorrowPolicyFromProbe(ctx context.Contex
 	}
 	for model, r := range o.ModelResults {
 		_, off := r.CheckedAt.Zone()
+		if accountMode && (model != "gpt-6-astra" || r.ReasoningEffort != "medium") {
+			return result, invalidGatewayBorrowPolicy()
+		}
 		if !gatewayBorrowCanonicalModel(model) || r.Model != model || r.Algorithm != GatewayBorrowCandyAlgorithm || r.PromptSHA256 != GatewayBorrowCandyPromptSHA256 || r.ExpectedAnswer != "21" || !slices.Contains([]string{"low", "medium", "high", "xhigh"}, r.ReasoningEffort) || !gatewayBorrowRunPattern.MatchString(r.RunID) || r.CheckedAt.IsZero() || off != 0 || r.CheckedAt.After(now.Add(30*time.Second)) || r.Total < 1 || r.Total > 4 || r.Correct < 0 || r.Correct > r.Total {
 			return result, invalidGatewayBorrowPolicy()
 		}
@@ -144,6 +149,15 @@ func (s *RateLimitService) UpdateGatewayBorrowPolicyFromProbe(ctx context.Contex
 // Build under the repository's row lock; metadata refreshes never change a
 // classification or route from a single probe, and errors never erase evidence.
 func BuildGatewayBorrowPolicyUpdates(extra map[string]any, o GatewayBorrowPolicyObservation) (map[string]any, string, error) {
+	if o.PolicyMode != "" && o.PolicyMode != GatewayBorrowAccountQualityMode {
+		return nil, "invalid_policy_mode", nil
+	}
+	if mode, _ := extra[GatewayBorrowAccountQualityModeKey].(string); mode != "" && mode != o.PolicyMode {
+		return nil, "policy_mode_changed", nil
+	}
+	if o.PolicyMode == GatewayBorrowAccountQualityMode {
+		return buildGatewayBorrowAccountQualityUpdates(extra, o)
+	}
 	raw, err := json.Marshal(extra)
 	if err != nil {
 		return nil, "", err

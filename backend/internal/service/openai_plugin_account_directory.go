@@ -87,8 +87,8 @@ func accountToPluginInfo(account *Account) PluginAccountInfo {
 
 // accountReadableSnapshotJSON marshals the account's readable field set to JSON.
 // It is a DENYLIST on purpose: any non-secret field added to the account model
-// later flows through automatically with no host change. Only two categories are
-// stripped:
+// later flows through automatically with no host change. Sensitive credentials,
+// internal scheduling state and cyclic relational graphs are stripped:
 //
 //   - Credentials: holds the refresh_token (and possibly api_key), a long-lived
 //     credential that ResolveOutboundIdentity does NOT hand out (that channel only
@@ -96,6 +96,8 @@ func accountToPluginInfo(account *Account) PluginAccountInfo {
 //     credential surface exactly what the outbound-identity channel already
 //     exposes. (Extra and the proxy — including its password, which is already
 //     handed out via the resolved ProxyURL — are intentionally NOT stripped.)
+//   - SchedulerCredentialSHA256 / InitialQualityPlan: internal admission and
+//     creation-only state, not part of the plugin metadata contract.
 //   - Groups / AccountGroups: relational graphs with *Group/*Account
 //     back-references. encoding/json does NOT detect reference cycles and would
 //     recurse into a stack-overflow panic if the reverse relation is ever
@@ -110,6 +112,7 @@ func accountReadableSnapshotJSON(account *Account) []byte {
 	clone := *account
 	// Creation-only quality policy is not part of the plugin account directory.
 	clone.InitialQualityPlan = nil
+	clone.SchedulerCredentialSHA256 = ""
 	clone.Credentials = nil
 	clone.Groups = nil
 	clone.AccountGroups = nil

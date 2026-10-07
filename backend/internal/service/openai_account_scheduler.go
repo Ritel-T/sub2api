@@ -642,10 +642,8 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		return nil, false, nil
 	}
 	escapeCfg := s.service.openAIStickyEscapeConfig()
-	if escapeCfg.enabled && s.shouldRebalancePrioritySticky(ctx, req, account) {
-		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "priority_capacity_imbalance")
-		return nil, true, nil
-	}
+	// Priority scheduling improves free selections only. Preserve existing
+	// session bindings and the pre-existing error/latency/full-slot escape rules.
 	if reason, errorRate, ttft, shouldEscape := s.shouldEscapeStickyAccount(accountID, escapeCfg); shouldEscape && !req.DisableStickyEscape {
 		slog.Info("sticky_escape_triggered",
 			"account_id", accountID,
@@ -743,22 +741,25 @@ func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccountAt(accountID in
 }
 
 type openAIAccountCandidateScore struct {
-	priorityOAuthSpare    int
-	priorityAPIStandby    bool
-	priorityLatencyFactor float64
-	priorityUnhealthy     bool
-	priorityExploration   bool
-	account               *Account
-	loadInfo              *AccountLoadInfo
-	loadKnown             bool
-	score                 float64
-	priority              int
-	errorRate             float64
-	ttft                  float64
-	hasTTFT               bool
-	rpmCurrent            int
-	rpmLimit              int
-	rpmEnabled            bool
+	priorityQualityCaptured bool
+	priorityQualityPassed   *bool
+	priorityQualityExpires  time.Time
+	priorityOAuthSpare      int
+	priorityAPIStandby      bool
+	priorityLatencyFactor   float64
+	priorityUnhealthy       bool
+	priorityExploration     bool
+	account                 *Account
+	loadInfo                *AccountLoadInfo
+	loadKnown               bool
+	score                   float64
+	priority                int
+	errorRate               float64
+	ttft                    float64
+	hasTTFT                 bool
+	rpmCurrent              int
+	rpmLimit                int
+	rpmEnabled              bool
 }
 
 type openAIAccountCandidateHeap []openAIAccountCandidateScore
@@ -2017,6 +2018,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	ctx = withOpenAIProxyQuarantineTransport(ctx, req.RequiredTransport)
 	if account == nil {
 		return false, "account_nil"
+	}
+	if account.IsOpenAIGatewayAccountQualityPendingForModel(req.RequestedModel) {
+		return false, "gateway_account_quality_pending"
 	}
 	if reason := s.service.gatewayBorrowPolicyReason(ctx, account, req.RequestedModel, req.RequireCompact); reason != "" {
 		return false, reason

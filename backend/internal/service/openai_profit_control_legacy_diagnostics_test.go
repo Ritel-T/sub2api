@@ -44,7 +44,7 @@ func TestSelectAccountWithScheduler_LegacyProfitDiagnostics(t *testing.T) {
 	})
 
 	t.Run("missing account rate reports invalid rate", func(t *testing.T) {
-		account := upstreamCostTestOAuthAccount(53132)
+		account := &Account{ID: 53132, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
 		account.Status = StatusActive
 		account.Schedulable = true
 		account.Concurrency = 1

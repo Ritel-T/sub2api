@@ -46,34 +46,28 @@ func TestAccountCostMultiplierRejectsInvalidWritesBeforeRepositoryAccess(t *test
 	require.ErrorContains(t, s.UpdateAccountExtra(ctx, 1, extra), "cost_multiplier")
 }
 
-func TestPriorityCostMultiplierReestimatesProfitWithoutChangingBilling(t *testing.T) {
+func TestPriorityOAuthCostChangesLeaveRoutingAndBillingSeparate(t *testing.T) {
 	c := DefaultPrioritySchedulingConfig()
 	item := priorityCandidate(402, 1, 20)
 	item.account.Type = AccountTypeOAuth
 	item.account.Credentials = map[string]any{"plan_type": "self_serve_business_prolite"}
 	item.account.Extra = map[string]any{"priority_teams_first_used_at": time.Now().Format(time.RFC3339)}
-	signal := PrioritySchedulingSignal{Samples: 93, P90TTFTMs: 1000, QualityPassed: 10, QualitySamples: 10, ProfitSamples: 93, Revenue: 2.8177, BaseCost: 10.8098}
+	healthy := true
+	signal := PrioritySchedulingSignal{Samples: 93, P90TTFTMs: 1000, QualityPassed: 10, QualitySamples: 10, LatestQualityPassed: &healthy, ProfitSamples: 93, Revenue: 2.8177, BaseCost: 10.8098}
 	score := scorePriorityCandidate(c, item, signal, time.Now())
-	require.Equal(t, 0.1, *score.Rate)
-	require.Equal(t, "usage", score.EconomicsSource)
-	require.InDelta(t, 1.08098, score.TheoreticalCost, 0.000001)
-	require.InDelta(t, 1.73672, *score.Profit, 0.000001)
-	require.NotContains(t, score.Reasons, "historical_loss")
-
-	// Account billing can already be 0.1; procurement estimates must not apply it twice.
+	require.Nil(t, score.Rate)
+	require.Nil(t, score.Profit)
+	require.Equal(t, "not_applicable", score.EconomicsSource)
 	otherBilling := 0.1
 	item.account.RateMultiplier = &otherBilling
-	again := scorePriorityCandidate(c, item, signal, time.Now())
-	require.Equal(t, score.TheoreticalCost, again.TheoreticalCost)
-	item.account.Extra[AccountCostMultiplierExtraKey] = 0.2
-	again = scorePriorityCandidate(c, item, signal, time.Now())
-	require.InDelta(t, 2.16196, again.TheoreticalCost, 0.000001, "cached base costs can be revalued immediately")
-	require.Equal(t, 0.1, item.account.BillingRateMultiplier())
-	item.account.Extra[AccountCostMultiplierExtraKey] = 0.0
-	again = scorePriorityCandidate(c, item, signal, time.Now())
-	require.Zero(t, again.TheoreticalCost)
-	require.Equal(t, signal.Revenue, *again.Profit)
-	require.Equal(t, 10.8098, signal.BaseCost, "cached source signals are immutable")
+	for _, cost := range []float64{0.0, 0.2, 1e6} {
+		item.account.Extra[AccountCostMultiplierExtraKey] = cost
+		require.Equal(t, score, scorePriorityCandidate(c, item, signal, time.Now()))
+		require.Equal(t, 0.1, item.account.BillingRateMultiplier())
+		require.Equal(t, cost, item.account.CostMultiplier(), "stored procurement field stays unchanged")
+	}
+	require.Equal(t, 10.8098, signal.BaseCost, "cached financial history is unchanged")
+	require.Equal(t, 2.8177, signal.Revenue)
 }
 
 func TestPriorityConfigIgnoresRetiredPurchaseWindow(t *testing.T) {
@@ -88,8 +82,8 @@ func TestPriorityConfigIgnoresRetiredPurchaseWindow(t *testing.T) {
 	item.account.Credentials = map[string]any{"plan_type": "team"}
 	item.account.Extra = nil
 	score := scorePriorityCandidate(c, item, PrioritySchedulingSignal{ProfitSamples: 5, Revenue: 10, BaseCost: 20}, time.Now())
-	require.Equal(t, "usage", score.EconomicsSource)
-	require.Equal(t, 8.0, *score.Profit)
+	require.Equal(t, "not_applicable", score.EconomicsSource)
+	require.Nil(t, score.Profit)
 	require.NotContains(t, score.Reasons, "teams_window_unavailable")
 }
 

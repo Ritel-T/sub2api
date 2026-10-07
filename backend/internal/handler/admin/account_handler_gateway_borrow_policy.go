@@ -24,7 +24,7 @@ func (h *AccountHandler) UpdateGatewayBorrowPolicy(c *gin.Context) {
 	}
 	for key := range raw {
 		switch key {
-		case "observed_at", "expected_proxy_id", "credential_sha256", "expected_policy", "borrow_models", "model_results", "retire_bps":
+		case "observed_at", "expected_proxy_id", "credential_sha256", "expected_policy", "borrow_models", "model_results", "retire_bps", "policy_mode":
 		default:
 			response.BadRequest(c, "Invalid gateway borrow policy observation")
 			return

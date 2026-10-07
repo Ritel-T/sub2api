@@ -28,7 +28,7 @@ export interface PriorityCandidate {
   bound_groups?: number
   profit: number | null
   margin: number | null
-  economics_source: 'usage' | 'rate' | 'unknown'
+  economics_source: 'usage' | 'rate' | 'unknown' | 'not_applicable'
   revenue: number
   theoretical_cost: number
   profit_samples: number

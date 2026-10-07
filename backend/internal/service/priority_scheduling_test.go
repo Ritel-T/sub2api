@@ -258,32 +258,38 @@ func TestPriorityExplicitPriorityWithinExperienceTier(t *testing.T) {
 	require.Equal(t, int64(3), got[2].account.ID)
 }
 
-func TestPriorityOAuthProfitUsesUserChargeAndTheoreticalCost(t *testing.T) {
+func TestPriorityOAuthEconomicsNeverAffectRouting(t *testing.T) {
 	c := DefaultPrioritySchedulingConfig()
 	c.Mode = "profit"
 	a := priorityCandidate(1, 0.001, 0)
 	a.account.Type = AccountTypeOAuth
-	a.account.Extra[AccountCostMultiplierExtraKey] = 0.1
-	signal := PrioritySchedulingSignal{Samples: 20, P90TTFTMs: 500, QualityPassed: 10, QualitySamples: 10, ProfitSamples: 10, Revenue: 10, BaseCost: 60}
-	score := scorePriorityCandidate(c, a, signal, time.Now())
-	require.Equal(t, "usage", score.EconomicsSource)
-	require.Equal(t, 4.0, *score.Profit)
-	require.InDelta(t, 0.4, *score.Margin, 0.0001)
-	differentRate := 10.0
-	a.account.RateMultiplier = &differentRate
-	require.Equal(t, score.Score, scorePriorityCandidate(c, a, signal, time.Now()).Score, "OAuth profit must not be inferred from current account multiplier")
-	signal.BaseCost = 120
-	loss := scorePriorityCandidate(c, a, signal, time.Now())
-	require.Equal(t, -2.0, *loss.Profit)
-	require.Equal(t, "degraded", loss.Tier)
-	signal.Revenue = 0
-	zero := scorePriorityCandidate(c, a, signal, time.Now())
-	require.Nil(t, zero.Margin)
-	require.Equal(t, -12.0, *zero.Profit)
-	require.False(t, math.IsNaN(zero.Score))
-	signal.ProfitSamples = 0
-	unknown := scorePriorityCandidate(c, a, signal, time.Now())
-	require.Equal(t, "unknown", unknown.EconomicsSource)
-	require.Nil(t, unknown.Profit)
-	require.Equal(t, "insufficient", unknown.Tier)
+	healthy := true
+	signal := PrioritySchedulingSignal{Samples: 20, P90TTFTMs: 500, QualityPassed: 10, QualitySamples: 10, LatestQualityPassed: &healthy, ProfitSamples: 10, Revenue: 10, BaseCost: 60}
+	initial := applyPriorityCandidate(c, &a, signal, time.Now())
+	initialCandidate := a
+	for _, mutate := range []func(){
+		func() { a.account.Extra[AccountCostMultiplierExtraKey] = 1e9 },
+		func() { signal.BaseCost = 1e12; signal.Revenue = 0 },
+		func() { signal.ProfitSamples = 0 },
+		func() { differentRate := 1e12; a.account.RateMultiplier = &differentRate },
+	} {
+		mutate()
+		score := applyPriorityCandidate(c, &a, signal, time.Now())
+		require.Equal(t, initial, score)
+		require.Equal(t, initialCandidate.score, a.score)
+		require.Equal(t, initialCandidate.priorityUnhealthy, a.priorityUnhealthy)
+		require.Equal(t, initialCandidate.priorityExploration, a.priorityExploration)
+		require.Equal(t, initialCandidate.priorityOAuthSpare, a.priorityOAuthSpare)
+	}
+	require.Equal(t, "not_applicable", initial.EconomicsSource)
+	require.Equal(t, "eligible", initial.Tier)
+	require.Nil(t, initial.Rate)
+	require.Nil(t, initial.Profit)
+	require.Nil(t, initial.Margin)
+	require.NotContains(t, initial.Reasons, "historical_loss")
+	require.NotContains(t, initial.Reasons, "profit_insufficient")
+	// Even a custom cost-only profile cannot produce NaN or use OAuth cost.
+	c.Mode = "custom"
+	c.QualityWeight, c.LatencyWeight, c.LoadWeight, c.CostWeight = 0, 0, 0, 100
+	require.False(t, math.IsNaN(scorePriorityCandidate(c, a, signal, time.Now()).Score))
 }

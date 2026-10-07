@@ -78,3 +78,21 @@ func TestAstraGatewaySaveTriggersSetupOnlyAfterCommit(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, 1, calls)
 }
+
+func TestAstraAccountQualityModeSurvivesOlderClientSave(t *testing.T) {
+	repo := &astraSettingsRepo{codexPolicyMigrationRepoStub: &codexPolicyMigrationRepoStub{values: map[string]string{}}}
+	svc := NewSettingService(repo, &config.Config{})
+	initial := config.AstraRoutingSettings{QualityMode: config.GatewayBorrowAccountQualityMode, AutoQuality: true, CookiePool: config.CodexGatewayPinConfig{Enabled: true, SourceAccountIDs: []int64{299}, TargetAccountIDs: []int64{300}, Models: []string{"gpt-6-astra", "gpt-6.1-sol"}}}
+	saved, err := svc.SetAstraRouting(t.Context(), initial)
+	require.NoError(t, err)
+	saved.QualityMode, saved.CookiePool.QualityMode = "", "" // Old client type drops both fields.
+	saved.AccountScheduling = true
+	updated, err := svc.SetAstraRouting(t.Context(), saved)
+	require.NoError(t, err)
+	require.Equal(t, config.GatewayBorrowAccountQualityMode, updated.QualityMode)
+	require.Equal(t, config.GatewayBorrowAccountQualityMode, updated.CookiePool.QualityMode)
+	require.Equal(t, saved.Revision, updated.Revision, "scheduling-only saves preserve the verified pool")
+	readback, err := svc.GetAstraRouting(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, updated, readback)
+}

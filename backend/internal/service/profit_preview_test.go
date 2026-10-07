@@ -36,7 +36,7 @@ func TestPreviewProfitAdmissionUsesAccountRatesAndPreinitializesModels(t *testin
 	)
 	expensive.Name = "expensive"
 
-	invalid := upstreamCostTestOAuthAccount(4)
+	invalid := &Account{ID: 4, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
 	invalid.Name = "invalid"
 
 	reports := PreviewProfitAdmission([]ProfitPreviewGroupInput{{

@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"slices"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
 )
 
 // Store only scoring inputs, never credentials, request bodies or session IDs.
@@ -26,7 +28,22 @@ func newPrioritySnapshotInput(req OpenAIAccountScheduleRequest, c PrioritySchedu
 	for _, item := range pool[:min(len(pool), priorityHistoryMaxAccounts)] {
 		a := item.account
 		factor := a.EffectiveLoadFactor()
+		if a.IsOpenAIOAuth() && a.Extra[GatewayBorrowAccountQualityModeKey] == GatewayBorrowAccountQualityMode && !item.priorityQualityCaptured {
+			item.priorityQualityCaptured = true
+			if quality, known := GatewayBorrowAccountQuality(a, at, time.Duration(c.QualityMaxAgeHours)*time.Hour); known && GatewayBorrowAccountQualityLinkedModel(config.CanonicalGatewayBorrowModel(normalizeExcelBPSIsolationModel(a.GetMappedModel(req.RequestedModel)))) {
+				passed := quality.State == "healthy"
+				item.priorityQualityPassed = &passed
+				item.priorityQualityExpires = quality.LatestProbeAt.Add(time.Duration(c.QualityMaxAgeHours) * time.Hour)
+			}
+		}
+		if item.priorityQualityPassed != nil {
+			passed := *item.priorityQualityPassed
+			item.priorityQualityPassed = &passed
+		}
 		projection := &Account{ID: a.ID, Name: a.Name, Platform: a.Platform, Type: a.Type, Priority: a.Priority, Concurrency: a.Concurrency, LoadFactor: &factor, Extra: map[string]any{AccountCostMultiplierExtraKey: a.CostMultiplier()}}
+		if a.IsOpenAIOAuth() {
+			projection.Extra = nil
+		}
 		// Retain binding IDs without retaining mutable group objects.
 		projection.GroupIDs = slices.Clone(a.GroupIDs)
 		for _, binding := range a.AccountGroups {

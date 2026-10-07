@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"encoding/json"
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -279,7 +280,12 @@ func (s *AccountTestService) verifyAstraGatewayTarget(ctx context.Context, id in
 		return errors.New("runtime_unavailable")
 	}
 	var firstErr error
-	for _, model := range s.cfg.AstraRouting(ctx).CookiePool.ModelsForTarget(id) {
+	settings := s.cfg.AstraRouting(ctx)
+	models := settings.CookiePool.ModelsForTarget(id)
+	if settings.QualityMode == config.GatewayBorrowAccountQualityMode {
+		models = []string{"gpt-6-astra"}
+	}
+	for _, model := range models {
 		if err := s.verifyGatewayBorrowTargetForModel(ctx, id, model); err != nil && firstErr == nil {
 			firstErr = err
 		}
@@ -288,6 +294,9 @@ func (s *AccountTestService) verifyAstraGatewayTarget(ctx context.Context, id in
 }
 
 func (s *AccountTestService) verifyGatewayBorrowTargetForModel(ctx context.Context, id int64, model string) error {
+	if s.cfg.AstraRouting(ctx).QualityMode == config.GatewayBorrowAccountQualityMode {
+		model = "gpt-6-astra"
+	}
 	account, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil || account == nil || !account.IsOpenAIOAuthLike() || account.Status != StatusActive {
 		if s.cfg.AstraRouting(ctx).AutoQuality {

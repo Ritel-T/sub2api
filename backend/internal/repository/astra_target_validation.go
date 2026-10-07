@@ -151,9 +151,18 @@ type autoBorrowRouteSelection struct {
 	route    codexGatewayRoute
 }
 
-// Call under targetMu. Keep the legacy Astra map for backwards-compatible
-// diagnostics/tests, while every other model has its own independent witness.
+// Quality keys collapse to Astra in the explicitly activated account policy.
+// Transport, quota and response-owner checks retain the requested wire model.
+func (p *codexGatewayPinUpstream) qualityModel(model string) string {
+	if p.config.QualityMode == config.GatewayBorrowAccountQualityMode && config.CanonicalGatewayBorrowModel(model) != "" {
+		return "gpt-6-astra"
+	}
+	return model
+}
+
+// Call under targetMu. Legacy pools preserve independent per-model witnesses.
 func (p *codexGatewayPinUpstream) targetCheck(id int64, model string) (astraTargetValidation, bool) {
+	model = p.qualityModel(model)
 	if model == "gpt-6-astra" {
 		check, exists := p.targetChecks[id]
 		return check, exists
@@ -163,6 +172,7 @@ func (p *codexGatewayPinUpstream) targetCheck(id int64, model string) (astraTarg
 }
 
 func (p *codexGatewayPinUpstream) setTargetCheck(id int64, model string, check astraTargetValidation) {
+	model = p.qualityModel(model)
 	check.model = model
 	if model == "gpt-6-astra" {
 		if p.targetChecks == nil {
@@ -178,6 +188,7 @@ func (p *codexGatewayPinUpstream) setTargetCheck(id int64, model string, check a
 }
 
 func (p *codexGatewayPinUpstream) targetCheckForCookie(id int64, model, cookie string) (astraTargetValidation, bool) {
+	model = p.qualityModel(model)
 	check, exists := p.targetCheck(id, model)
 	fp := sha256.Sum256([]byte(cookie))
 	if exists && check.cookieFingerprint == fp {
@@ -192,7 +203,7 @@ func (p *codexGatewayPinUpstream) targetCheckForCookie(id int64, model, cookie s
 }
 
 // Source success is only a candidate. Validate the borrowed route with the
-// existing two-shot state probe and the target credentials on the actual exit.
+// selected quality policy and the target credentials on the actual exit.
 func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, id int64, n int, profile *tlsfingerprint.Profile) (resultCookie *http.Cookie, resultKey [32]byte, resultProxy string, release func(), resultErr error) {
 	release = func() {}
 	defer func() {
@@ -215,6 +226,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	if pool == nil {
 		return nil, zero, proxy, release, errCodexGatewayPinUnavailable
 	}
+	qualityModel := pool.qualityModel(model)
 	if !pool.config.TargetRequiresModel(id, model) {
 		return nil, zero, proxy, release, errors.New("borrow_target_model_not_configured")
 	}
@@ -249,7 +261,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	if route.cookie.Value != cookie.Value || !time.Now().Before(expires) {
 		return nil, zero, proxy, release, errors.New("configuration_changed")
 	}
-	if pool.config.RotateNodes && pool.nodeCoolingForModel(route.node, astraRoutingHost(cookie.Value), id, model, time.Now()) {
+	if pool.config.RotateNodes && pool.nodeCoolingForModel(route.node, astraRoutingHost(cookie.Value), id, qualityModel, time.Now()) {
 		pool.targetMu.Lock()
 		if pool.targetChecks == nil {
 			pool.targetChecks = map[int64]astraTargetValidation{}
@@ -274,8 +286,12 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		identityProxy = route.node.Identity
 		req = astraFreshRequest(req)
 	}
-	identity := []string{model, cookie.Value, identityProxy, req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID"), req.Header.Get("User-Agent"), req.Header.Get("Originator"), req.Header.Get("Version"), req.Header.Get("X-Codex-Turn-State")}
-	quotaKey, negativeKey := targetBorrowQuietKeys(req, id, model, identityProxy, sourceID, profile)
+	identity := []string{qualityModel, cookie.Value, strconv.FormatInt(sourceID, 10), identityProxy, req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID"), req.Header.Get("User-Agent"), req.Header.Get("Originator"), req.Header.Get("Version"), req.Header.Get("X-Codex-Turn-State")}
+	if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
+		identity[len(identity)-1] = ""
+	}
+	quotaKey, _ := targetBorrowQuietKeys(req, id, model, identityProxy, sourceID, profile)
+	_, negativeKey := targetBorrowQuietKeys(req, id, qualityModel, identityProxy, sourceID, profile)
 	if s.cfg.AstraRouting(req.Context()).AutoQuality {
 		if prior, waiting := s.targetQuotaWait(quotaKey, time.Now()); waiting {
 			return nil, zero, proxy, release, errors.New(prior.reason)
@@ -284,25 +300,35 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	fingerprint, _ := json.Marshal(profile)
 	identity = append(identity, string(fingerprint))
 	key := sha256.Sum256([]byte(strings.Join(identity, "\x00")))
+	pairIdentity := append([]string{strconv.FormatInt(id, 10)}, identity...)
+	pairIdentity[2] = "" // New Cookies inherit only the short-test strategy, never a quality pass.
+	pairKey := sha256.Sum256([]byte(strings.Join(pairIdentity, "\x00")))
 	now := time.Now()
 	pool.targetMu.Lock()
 	old, exists := pool.targetCheck(id, model)
 	if hasSelection && old.key != key {
-		if prior, found := pool.targetRoutePasses[astraTargetRouteKey{id, model, sourceID, sha256.Sum256([]byte(cookie.Value))}]; found && prior.key == key {
+		if prior, found := pool.targetRoutePasses[astraTargetRouteKey{id, qualityModel, sourceID, sha256.Sum256([]byte(cookie.Value))}]; found && prior.key == key {
 			old = prior
 			exists = true
 		}
 	}
 	if s.cfg.AstraRouting(req.Context()).AutoQuality {
-		failure, failed := pool.targetRouteFailures[astraTargetRouteKey{id, model, sourceID, sha256.Sum256([]byte(cookie.Value))}]
+		failure, failed := pool.targetRouteFailures[astraTargetRouteKey{id, qualityModel, sourceID, sha256.Sum256([]byte(cookie.Value))}]
 		if failed && failure.key == key && now.Before(failure.retryAfter) {
 			pool.targetMu.Unlock()
 			return nil, key, proxy, release, errors.New(failure.reason)
 		}
 	}
 	pool.targetMu.Unlock()
+	if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode && exists &&
+		old.cookieFingerprint == sha256.Sum256([]byte(cookie.Value)) && old.sourceID == sourceID && old.expires.Before(expires) {
+		expires = old.expires
+		if !now.Before(expires) {
+			return nil, key, proxy, release, errors.New("borrow_route_expired")
+		}
+	}
 	force, _ := req.Context().Value(astraForceProbeKey{}).(bool)
-	if exists && old.key == key && now.Before(old.expires) && !force {
+	if exists && old.key == key && now.Before(old.expires) && (!force || pool.config.QualityMode == config.GatewayBorrowAccountQualityMode) {
 		if old.passed {
 			current, currentSource := pool.currentCookie(req.URL.Path, time.Now())
 			if hasSelection {
@@ -319,6 +345,12 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		}
 	}
 	if s.cfg.AstraRouting(req.Context()).AutoQuality {
+		if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
+			probeQuotaKey, _ := targetBorrowQuietKeys(req, id, qualityModel, identityProxy, sourceID, profile)
+			if prior, waiting := s.targetQuotaWait(probeQuotaKey, time.Now()); waiting {
+				return nil, key, proxy, release, errors.New(prior.reason)
+			}
+		}
 		if prior, waiting := s.targetQuotaWait(negativeKey, time.Now()); waiting {
 			return nil, key, proxy, release, errors.New(prior.reason)
 		}
@@ -329,10 +361,10 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 			pool.autoProbeSlots = make(chan struct{}, 2)
 			pool.autoProbeLocks = map[astraTargetModelKey]*sync.Mutex{}
 		}
-		lock := pool.autoProbeLocks[astraTargetModelKey{id, model}]
+		lock := pool.autoProbeLocks[astraTargetModelKey{id, qualityModel}]
 		if lock == nil {
 			lock = &sync.Mutex{}
-			pool.autoProbeLocks[astraTargetModelKey{id, model}] = lock
+			pool.autoProbeLocks[astraTargetModelKey{id, qualityModel}] = lock
 		}
 		pool.targetMu.Unlock()
 		if !lock.TryLock() {
@@ -356,7 +388,15 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	defer cancel()
 	probe := req.Clone(service.WithHTTPUpstreamRedirectsDisabled(ctx))
 	replaceCodexGatewayCookie(probe, cookie)
-	result := service.ProbeOpenAICodexBorrowQualityRoute(ctx, s.delegate, probe, proxy, id, n, profile, model)
+	var result *service.OpenAICodexStateProbeResult
+	if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
+		pool.targetMu.Lock()
+		provenPair := pool.targetPairPasses[pairKey]
+		pool.targetMu.Unlock()
+		result = service.ProbeOpenAICodexBorrowAccountQualityRoute(ctx, s.delegate, probe, proxy, id, n, profile, provenPair)
+	} else {
+		result = service.ProbeOpenAICodexBorrowQualityRoute(ctx, s.delegate, probe, proxy, id, n, profile, model)
+	}
 	passed := result.Verdict == service.OpenAICodexStateHealthy
 	if passed && !time.Now().Before(expires) {
 		passed = false
@@ -408,6 +448,18 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	}
 	if passed {
 		reason = "target_probe_passed"
+		if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
+			if pool.targetPairPasses == nil {
+				pool.targetPairPasses = map[[32]byte]bool{}
+			}
+			if len(pool.targetPairPasses) < 4096 {
+				pool.targetPairPasses[pairKey] = true
+			}
+		}
+	}
+	// Revalidating an identical Cookie must not advance its proven deadline.
+	if exists && old.cookieFingerprint == sha256.Sum256([]byte(cookie.Value)) && old.sourceID == sourceID && old.expires.Before(expires) {
+		expires = old.expires
 	}
 	host := astraRoutingHost(cookie.Value)
 	retryDelay := 15 * time.Second
@@ -425,7 +477,11 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 			reason = "target_probe_auth_failed"
 		}
 		if s.cfg.AstraRouting(req.Context()).AutoQuality {
-			s.rememberTargetQuota(quotaKey, reason, time.Now().Add(retryDelay))
+			probeQuotaKey := quotaKey
+			if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
+				probeQuotaKey, _ = targetBorrowQuietKeys(req, id, qualityModel, identityProxy, sourceID, profile)
+			}
+			s.rememberTargetQuota(probeQuotaKey, reason, time.Now().Add(retryDelay))
 		}
 	}
 	if passed && s.cfg.AstraRouting(req.Context()).AutoQuality {
@@ -442,8 +498,12 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 				delete(pool.targetRouteFailures, k)
 			}
 		}
-		pool.targetRouteFailures[astraTargetRouteKey{id, model, sourceID, check.cookieFingerprint}] = check
-		if !exists || !old.passed || !time.Now().Before(old.expires) {
+		pool.targetRouteFailures[astraTargetRouteKey{id, qualityModel, sourceID, check.cookieFingerprint}] = check
+		if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode && result.Failure == "quality_failed" {
+			delete(pool.targetRoutePasses, astraTargetRouteKey{id, qualityModel, sourceID, check.cookieFingerprint})
+		}
+		if !exists || !old.passed || !time.Now().Before(old.expires) ||
+			(pool.config.QualityMode == config.GatewayBorrowAccountQualityMode && result.Failure == "quality_failed" && old.cookieFingerprint == check.cookieFingerprint && old.sourceID == sourceID) {
 			pool.setTargetCheck(id, model, check)
 		}
 	} else {
@@ -457,7 +517,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 					delete(pool.targetRoutePasses, k)
 				}
 			}
-			pool.targetRoutePasses[astraTargetRouteKey{id, model, sourceID, check.cookieFingerprint}] = check
+			pool.targetRoutePasses[astraTargetRouteKey{id, qualityModel, sourceID, check.cookieFingerprint}] = check
 		}
 	}
 	pool.mu.Lock()
@@ -467,7 +527,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		nodeStore.MarkTarget(cookie.Value, id, passed, reason, time.Now(), expires, time.Now().Add(15*time.Second))
 	}
 	if !passed {
-		check.model = model
+		check.model = qualityModel
 		pool.rememberTargetFailure(id, check)
 		return nil, key, proxy, release, errors.New(reason)
 	}
@@ -540,7 +600,7 @@ func (s *astraRoutingUpstream) CodexGatewayPinWSBindingValidForModel(ctx context
 	check, exists := pool.targetCheck(id, model)
 	if s.cfg.AstraRouting(ctx).AutoQuality && (!exists || check.cookieFingerprint != sha256.Sum256([]byte(cookie))) {
 		for k, v := range pool.targetRoutePasses {
-			if k.accountID == id && k.model == model && v.cookieFingerprint == sha256.Sum256([]byte(cookie)) {
+			if k.accountID == id && k.model == pool.qualityModel(model) && v.cookieFingerprint == sha256.Sum256([]byte(cookie)) {
 				check = v
 				exists = true
 				break

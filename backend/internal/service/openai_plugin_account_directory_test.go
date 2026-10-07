@@ -90,9 +90,10 @@ func TestAccountReadableSnapshot_DenylistTripwire(t *testing.T) {
 	// Fields the snapshot intentionally strips. Credentials = long-lived secret
 	// (refresh_token) not handed out by ResolveOutboundIdentity. Groups/AccountGroups
 	// = relational graphs with back-references that would cycle under encoding/json.
-	// InitialQualityPlan = internal creation-only policy, not readable plugin metadata.
+	// InitialQualityPlan / SchedulerCredentialSHA256 = internal admission state,
+	// not readable plugin metadata.
 	stripped := map[string]struct{}{
-		"Credentials": {}, "Groups": {}, "AccountGroups": {}, "InitialQualityPlan": {},
+		"Credentials": {}, "Groups": {}, "AccountGroups": {}, "InitialQualityPlan": {}, "SchedulerCredentialSHA256": {},
 	}
 	// Fields intentionally exposed as readable metadata (incl. Extra and Proxy —
 	// the proxy password is already handed out via ResolveOutboundIdentity's URL).
@@ -126,10 +127,11 @@ func TestAccountReadableSnapshot_DenylistTripwire(t *testing.T) {
 	// The raw Credentials blob must never serialize; Extra and the proxy ARE released.
 	acct := &Account{
 		ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive,
-		InitialQualityPlan: &ScheduledTestPlan{PelicanConfig: &PelicanTestConfig{Prompt: "PRIVATE-INITIAL-QUALITY-PROMPT"}},
-		Credentials:        map[string]any{"access_token": "AT", "refresh_token": "LEAK-REFRESH"},
-		Extra:              map[string]any{"opaque": "extra-released", "codex_turn_ticket:gpt-6-astra": map[string]any{"state": "private-ticket-state"}},
-		Proxy:              &Proxy{Host: "host", Port: 1, Username: "user", Password: "pw-released"},
+		SchedulerCredentialSHA256: "PRIVATE-SCHEDULER-CREDENTIAL-HASH",
+		InitialQualityPlan:        &ScheduledTestPlan{PelicanConfig: &PelicanTestConfig{Prompt: "PRIVATE-INITIAL-QUALITY-PROMPT"}},
+		Credentials:               map[string]any{"access_token": "AT", "refresh_token": "LEAK-REFRESH"},
+		Extra:                     map[string]any{"opaque": "extra-released", "codex_turn_ticket:gpt-6-astra": map[string]any{"state": "private-ticket-state"}},
+		Proxy:                     &Proxy{Host: "host", Port: 1, Username: "user", Password: "pw-released"},
 	}
 	snap := accountReadableSnapshotJSON(acct)
 	require.NotNil(t, snap)
@@ -138,6 +140,9 @@ func TestAccountReadableSnapshot_DenylistTripwire(t *testing.T) {
 	assert.NotContains(t, string(snap), "LEAK-REFRESH", "raw Credentials must never appear in metadata")
 	assert.NotContains(t, string(snap), "private-ticket-state")
 	assert.NotContains(t, m, "InitialQualityPlan")
+	assert.NotContains(t, m, "scheduler_credential_sha256")
+	assert.NotContains(t, string(snap), "PRIVATE-SCHEDULER-CREDENTIAL-HASH")
+	assert.Equal(t, "PRIVATE-SCHEDULER-CREDENTIAL-HASH", acct.SchedulerCredentialSHA256, "redaction must not mutate internal identity binding")
 	assert.NotContains(t, string(snap), "PRIVATE-INITIAL-QUALITY-PROMPT")
 	require.NotNil(t, acct.InitialQualityPlan, "snapshot must not mutate creation-only policy")
 	assert.Equal(t, "PRIVATE-INITIAL-QUALITY-PROMPT", acct.InitialQualityPlan.PelicanConfig.Prompt)

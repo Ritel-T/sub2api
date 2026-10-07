@@ -420,7 +420,7 @@ func normalizeOpenAILongContextBillingUpdateExtra(account *Account, input *Updat
 			normalized[openAILongContextBillingEnabledKey] = current
 		}
 	}
-	return normalized, nil
+	return MergeOpenAIGatewayAccountQualityExtra(normalized, account.Extra), nil
 }
 
 // Grok media eligibility helpers live in account_grok_media_eligibility.go.
@@ -454,6 +454,7 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 		Status:             StatusActive,
 		Schedulable:        true,
 	}
+	prepareGatewayBorrowAccountQualityForCreate(account)
 	if input.ProbeEnabled != nil && *input.ProbeEnabled {
 		if !isUpstreamBillingProbeAccount(account) {
 			return nil, ErrUpstreamBillingProbeAccountInvalid
@@ -992,6 +993,18 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 // UpdateAccountExtra 仅对 Extra JSONB 做 key 级合并，避免覆盖其它运行态键
 // （如 model_rate_limits / passive_usage_* 等）。
 func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+	protectClassification := false
+	for _, key := range []string{"quality_candy", GatewayBorrowQualityKey, GatewayBorrowModelsKey} {
+		if _, exists := updates[key]; exists {
+			account, err := s.accountRepo.GetByID(ctx, id)
+			if err != nil {
+				return err
+			}
+			protectClassification = account.Extra[GatewayBorrowAccountQualityModeKey] == GatewayBorrowAccountQualityMode
+			break
+		}
+	}
+	updates = stripGatewayBorrowAccountQualityManagedExtraUpdates(updates, protectClassification)
 	if err := ValidateAccountCostMultiplierExtra(updates); err != nil {
 		return err
 	}
@@ -1046,6 +1059,7 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		return nil, err
 	}
 	// Managed probe/session state may only enter through dedicated typed endpoints.
+	input.Extra = stripGatewayBorrowAccountQualityManagedExtraUpdates(input.Extra, true)
 	input.Extra = MergeOpenAICodexTicketExtra(input.Extra, nil)
 	input.Extra = sanitizedCodexFingerprintExtraUpdates(input.Extra)
 	input.Extra = stripOpenAIAutoResetCreditManagedExtra(input.Extra, true)

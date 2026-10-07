@@ -19,6 +19,7 @@ package service
 //   - U（上游成本倍率）取 accounts.rate_multiplier。倍率可以由运营者手工维护，
 //     也可以由上游倍率探测同步写回；利润门不再耦合探测协议、新鲜度或账号类型。
 //     0 是合法的免费上游倍率；nil、负数、NaN、Inf 属于非法数据并保守拒绝。
+//     OpenAI OAuth 不参与此利润门，账号倍率不代表其边际成本。
 //
 // 装门点（gate 随 ctx 传播，请求内复用，覆盖等待/重试/failover/抢槽后终检）：
 //   - handler 各文本入口经 WithOpenAIRequestPricingContext 在请求开始统一装门并
@@ -298,10 +299,11 @@ func ContextWithSelectionProfitGate(ctx context.Context, sel *AccountSelectionRe
 }
 
 // openAIProfitControlVetoReason 报告利润门是否否决该账号。ctx 中没有门
-// （分组未启用利润控制或本请求跳门）或账号为 nil 时一律放行。
+// （分组未启用利润控制或本请求跳门）、账号为 nil 或 OpenAI OAuth 时放行。
+// OAuth 倍率不是边际成本，不能成为候选或最终准入条件。
 func openAIProfitControlVetoReason(ctx context.Context, account *Account) (bool, string) {
 	gate, _ := ctx.Value(openAIProfitControlGateCtxKey{}).(*openAIProfitControlGate)
-	if gate == nil || account == nil {
+	if gate == nil || account == nil || account.IsOpenAIOAuth() {
 		return false, ""
 	}
 	if account.RateMultiplier == nil ||

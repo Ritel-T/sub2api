@@ -6,7 +6,10 @@ import (
 	"reflect"
 )
 
+const GatewayBorrowAccountQualityMode = "astra_controls_sol_v2"
+
 type AstraRoutingSettings struct {
+	QualityMode        string                `json:"quality_mode,omitempty"`
 	AutoQuality        bool                  `json:"auto_quality"`
 	SchedulingMode     string                `json:"scheduling_mode"`
 	SchedulingGroupIDs []int64               `json:"scheduling_group_ids"`
@@ -29,9 +32,12 @@ func (c *Config) AstraRouting(ctx context.Context) AstraRoutingSettings {
 	if loader := c.astraRoutingLoader.Load(); loader != nil {
 		return loader.load(ctx)
 	}
-	return AstraRoutingSettings{CookiePool: c.Gateway.CodexGatewayPin, WSSession: c.Gateway.CodexWSAnchor}
+	return AstraRoutingSettings{QualityMode: c.Gateway.CodexGatewayPin.QualityMode, CookiePool: c.Gateway.CodexGatewayPin, WSSession: c.Gateway.CodexWSAnchor}
 }
 func (s AstraRoutingSettings) Validate() error {
+	if s.QualityMode != "" && s.QualityMode != GatewayBorrowAccountQualityMode {
+		return fmt.Errorf("invalid borrow quality mode")
+	}
 	if s.AutoQuality {
 		seen := map[int64]bool{}
 		for _, ids := range [][]int64{s.CookiePool.SourceAccountIDs, s.CookiePool.TargetAccountIDs} {

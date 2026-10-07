@@ -94,3 +94,65 @@ func ProbeOpenAICodexBorrowQualityRoute(ctx context.Context, upstream HTTPUpstre
 	result.Reason = "target_probe_passed"
 	return result
 }
+
+// Account intelligence is classified using Astra only. Turn-state re-signing is
+// not a separate quality verdict. A proven target/source identity checks each
+// replacement Cookie with one shot, expanding to four after a wrong answer.
+func ProbeOpenAICodexBorrowAccountQualityRoute(ctx context.Context, upstream HTTPUpstream, template *http.Request, proxy string, accountID int64, concurrency int, profile *tlsfingerprint.Profile, provenPair bool) *OpenAICodexStateProbeResult {
+	result := &OpenAICodexStateProbeResult{AccountID: accountID, Model: "gpt-6-astra", Verdict: OpenAICodexStateInconclusive, StartedAt: time.Now()}
+	defer func() {
+		result.FinishedAt = time.Now()
+		result.LatencyMs = result.FinishedAt.Sub(result.StartedAt).Milliseconds()
+	}()
+	if upstream == nil || template == nil {
+		result.fail(OpenAICodexStateFailureUnsupported, "borrow_quality_request_unavailable", "")
+		return result
+	}
+	pinned, err := template.Cookie("__oailb")
+	if err != nil || pinned.Value == "" {
+		result.fail("route_changed", "target_route_changed", "")
+		return result
+	}
+	correct := 0
+	quickPass := false
+	for attempt := 0; attempt < 4; attempt++ {
+		changed := false
+		shot, err := fireOpenAICodexProbeShotRequest(ctx, template.Header, result.Model, "", pinned.String(), GatewayBorrowCandyPrompt, func(req *http.Request) (*http.Response, error) {
+			req = req.WithContext(WithHTTPUpstreamRedirectsDisabled(req.Context()))
+			response, err := upstream.DoWithTLS(req, proxy, accountID, concurrency, profile)
+			if response != nil {
+				for _, cookie := range response.Cookies() {
+					if cookie.Name == "__oailb" && (cookie.Value != pinned.Value || cookie.MaxAge < 0 || (!cookie.Expires.IsZero() && !time.Now().Before(cookie.Expires))) {
+						changed = true
+					}
+				}
+			}
+			return response, err
+		})
+		if changed {
+			result.fail("route_changed", "target_route_changed", "")
+			return result
+		}
+		if !result.shotUsable(ctx, "borrow quality", shot, err) {
+			return result
+		}
+		if shot.completedModel != result.Model {
+			result.fail("quality_failed", "target_quality_failed", "")
+			return result
+		}
+		if shot.text == "21" {
+			correct++
+			if attempt == 0 && provenPair {
+				quickPass = true
+				break
+			}
+		}
+	}
+	if correct >= 3 || quickPass {
+		result.Verdict = OpenAICodexStateHealthy
+		result.Reason = "target_probe_passed"
+	} else {
+		result.fail("quality_failed", "target_quality_failed", "")
+	}
+	return result
+}

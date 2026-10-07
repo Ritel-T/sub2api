@@ -1,0 +1,12 @@
+[Unit]
+Description=Complete new OAuth account Astra classification after defaults
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /srv/vm-la-production/rootfs/home/ritel/sub2api/quality-monitor/oauth_candy_cycle.py --route-mode borrow --pending-only --apply --state-dir /srv/vm-la-production/rootfs/home/ritel/sub2api/quality-monitor
+TimeoutStartSec=12min
+UMask=0077
+Nice=10
+

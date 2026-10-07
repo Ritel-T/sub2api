@@ -19,7 +19,7 @@ func (s *SettingService) GetAstraRouting(ctx context.Context) (config.AstraRouti
 		if s.cfg == nil {
 			return config.AstraRoutingSettings{}, nil
 		}
-		return config.AstraRoutingSettings{CookiePool: s.cfg.Gateway.CodexGatewayPin, WSSession: s.cfg.Gateway.CodexWSAnchor}, nil
+		return config.AstraRoutingSettings{QualityMode: s.cfg.Gateway.CodexGatewayPin.QualityMode, CookiePool: s.cfg.Gateway.CodexGatewayPin, WSSession: s.cfg.Gateway.CodexWSAnchor}, nil
 	}
 	if err != nil {
 		return config.AstraRoutingSettings{}, err
@@ -55,6 +55,12 @@ func (s *SettingService) SetAstraRouting(ctx context.Context, value config.Astra
 		s.astraRoutingMu.Unlock()
 		return value, fmt.Errorf("astra_configuration_changed")
 	}
+	// Older clients omit this field. Saving unrelated routing settings must
+	// not silently restore independent Sol intelligence probing.
+	if value.QualityMode == "" && previous.QualityMode == config.GatewayBorrowAccountQualityMode {
+		value.QualityMode = previous.QualityMode
+	}
+	value.CookiePool.QualityMode = value.QualityMode
 	schedulingOnly := config.AstraRouteSettingsEqual(previous, value)
 	value.Revision = uuid.NewString()
 	if schedulingOnly {

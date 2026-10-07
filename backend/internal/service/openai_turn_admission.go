@@ -370,6 +370,9 @@ func (s *OpenAIGatewayService) admitOpenAITurnWithGroup(
 	if !latest.IsOpenAI() {
 		return latest, nil
 	}
+	if latest.IsOpenAIGatewayAccountQualityPendingForUpstreamModel(outboundModel) {
+		return nil, denyOpenAITurn("gateway_borrow_initial_quality_pending")
+	}
 	if reason := s.gatewayBorrowPolicyReason(ctx, latest, outboundModel, false); reason != "" {
 		return nil, denyOpenAITurn(reason)
 	}
@@ -428,6 +431,9 @@ func (s *OpenAIGatewayService) bindOpenAIWSHandshake(account *Account, model str
 }
 
 func (s *OpenAIGatewayService) checkOpenAIWSBinding(account *Account, model string, b *openAIWSTurnBinding) error {
+	if account.IsOpenAIGatewayAccountQualityPendingForUpstreamModel(model) {
+		return denyOpenAITurn("gateway_borrow_initial_quality_pending")
+	}
 	if account.isPrismBrowserUpstreamModelEnabled(model) {
 		return denyOpenAITurn("prism_requires_http")
 	}

@@ -163,6 +163,11 @@ func previewAccountProfitAdmission(
 		Platform:   account.Platform,
 		RateSource: ProfitPreviewRateSourceManual,
 	}
+	if account.IsOpenAIOAuth() {
+		verdict.RateSource = "not_applicable"
+		verdict.Class = ProfitPreviewClassAdmitted
+		return verdict
+	}
 	if enabled, _ := account.Extra[UpstreamBillingRateSyncEnabledExtraKey].(bool); enabled {
 		verdict.RateSource = ProfitPreviewRateSourceUpstreamProbe
 		verdict.Warnings = append(verdict.Warnings, profitPreviewProbeWarnings(account, evalAt)...)

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"net/http"
@@ -24,7 +25,7 @@ func (s *astraRoutingUpstream) automaticTargetRoute(req *http.Request, proxy str
 	if expected != "" {
 		pool.targetMu.Lock()
 		for k, check := range pool.targetRoutePasses {
-			if k.accountID == id && k.model == model && check.route.cookie.Value == expected && time.Now().Before(check.expires) {
+			if k.accountID == id && k.model == pool.qualityModel(model) && check.route.cookie.Value == expected && time.Now().Before(check.expires) {
 				old = check
 				exists = true
 				break
@@ -63,7 +64,8 @@ func (s *astraRoutingUpstream) automaticTargetRoute(req *http.Request, proxy str
 		if pool.config.IPAffinity {
 			effectiveProxy = route.proxy
 		}
-		quotaKey, negativeKey := targetBorrowQuietKeys(req, id, model, effectiveProxy, source, profile)
+		quotaKey, _ := targetBorrowQuietKeys(req, id, model, effectiveProxy, source, profile)
+		_, negativeKey := targetBorrowQuietKeys(req, id, pool.qualityModel(model), effectiveProxy, source, profile)
 		if prior, waiting := s.targetQuotaWait(quotaKey, time.Now()); waiting {
 			last = errors.New(prior.reason)
 			continue
@@ -108,7 +110,8 @@ func (s *astraRoutingUpstream) hasAutomaticBorrowCandidate(req *http.Request, pr
 		if pool.config.IPAffinity {
 			effectiveProxy = route.proxy
 		}
-		quota, negative := targetBorrowQuietKeys(req, id, model, effectiveProxy, source, profile)
+		quota, _ := targetBorrowQuietKeys(req, id, model, effectiveProxy, source, profile)
+		_, negative := targetBorrowQuietKeys(req, id, pool.qualityModel(model), effectiveProxy, source, profile)
 		if _, waiting := s.targetQuotaWait(quota, time.Now()); waiting {
 			continue
 		}
@@ -169,7 +172,11 @@ func (s *astraRoutingUpstream) prepareAutomaticSources(ctx context.Context, pool
 		pool.mu.Unlock()
 		if exists && route.cookie.Value != "" && time.Now().Before(route.expires) {
 			available = true
-			if time.Until(route.expires) > 90*time.Second {
+			renewWindow := 90 * time.Second
+			if verified[id] && pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
+				renewWindow = 120 * time.Second
+			}
+			if time.Until(route.expires) > renewWindow {
 				continue
 			}
 		}

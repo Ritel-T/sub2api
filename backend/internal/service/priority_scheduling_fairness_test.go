@@ -206,14 +206,14 @@ func TestPriorityOAuthGroupCompetitionKeepsAllAccountsActive(t *testing.T) {
 	require.Equal(t, 1, priorityAccountGroupCount(pool[3].account), "unknown bindings must remain neutral")
 }
 
-func TestPriorityStickyRebalancesWithoutChangingBinding(t *testing.T) {
+func TestPriorityStickyKeepsExistingBinding(t *testing.T) {
 	for _, test := range []struct {
 		name                        string
 		preserve, disable, previous bool
 		otherGroup                  int64
 		expectEscape                bool
 	}{
-		{name: "movable", expectEscape: true},
+		{name: "movable"},
 		{name: "task_owner", preserve: true},
 		{name: "escape_disabled", disable: true},
 		{name: "response_owner", previous: true},

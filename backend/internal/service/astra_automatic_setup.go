@@ -85,6 +85,7 @@ func (s *AccountTestService) StartAstraAutomaticSetup(settings config.AstraRouti
 	}()
 }
 func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel context.CancelFunc, settings config.AstraRoutingSettings) {
+	settings.CookiePool.QualityMode = settings.QualityMode
 	defer cancel()
 	set := func(state, phase string, id int64, reason string) {
 		s.astraSetupMu.Lock()
@@ -333,7 +334,12 @@ func automaticBorrowWarmPlan(snapshot AstraGatewayRuntime, pool config.CodexGate
 	plan := make([]automaticBorrowWarmAccount, 0, len(pool.TargetAccountIDs))
 	for accountOrder, id := range pool.TargetAccountIDs {
 		account := automaticBorrowWarmAccount{id: id, order: accountOrder}
-		for modelOrder, model := range pool.ModelsForTarget(id) {
+		models := pool.ModelsForTarget(id)
+		if pool.QualityMode == config.GatewayBorrowAccountQualityMode {
+			// One account classification warms the shared Astra/Sol proof.
+			models = []string{"gpt-6-astra"}
+		}
+		for modelOrder, model := range models {
 			if !borrowModelNeedsWarm(snapshot, id, model, now) {
 				continue
 			}
