@@ -57,28 +57,29 @@ def previous_record(account, model):
     extra = account.get('extra') or {}
     if model not in DETECTION_MODELS:
         return None
-    if extra.get('openai_gateway_borrow_quality_mode') == QUALITY_MODE:
-        prior = extra.get('quality_candy')
-    else:
-        prior = (extra.get('quality_candy_models') or {}).get(model)
-        if not prior:
-            prior = extra.get('quality_candy')
-    if not isinstance(prior, dict):
-        return None
-    return prior
+    candidates = [extra.get('quality_candy')]
+    if extra.get('openai_gateway_borrow_quality_mode') != QUALITY_MODE:
+        candidates.append((extra.get('quality_candy_models') or {}).get(model))
+    valid = [record for record in candidates if isinstance(record, dict)
+             and matching_classification(account, record, model, 'medium', '21', fresh=True)]
+    # Match the backend: latest confirmed classification wins; a later single
+    # refresh breaks ties, and account record wins an exact tie.
+    return max(valid, key=lambda record: (candy.timestamp(record['checked_at']),
+               candy.timestamp(record['latest_probe_at'])), default=None)
 
 
 def matching_classification(account, prior, model, reasoning, answer, *, fresh=False):
     if not classified(prior, model, reasoning, answer):
         return False
-    if (prior.get('latest_probe_credential_sha256') != identity(account)['credential_sha256']
+    if ('latest_probe_proxy_id' not in prior
+            or prior.get('latest_probe_credential_sha256') != identity(account)['credential_sha256']
             or prior.get('latest_probe_proxy_id') != account.get('proxy_id')):
         return False
     if fresh:
-        observed = candy.timestamp(prior.get('latest_probe_at') or prior.get('checked_at'))
+        observed = candy.timestamp(prior.get('latest_probe_at'))
         confirmed = candy.timestamp(prior.get('checked_at'))
         if (observed is None or confirmed is None or observed < confirmed
-                or not 0 <= (datetime.now(timezone.utc) - observed).total_seconds() <= 24 * 3600):
+                or not -30 <= (datetime.now(timezone.utc) - observed).total_seconds() <= 24 * 3600):
             return False
     return True
 
@@ -102,10 +103,12 @@ def reusable_classification(account, reasoning, answer, run_id):
 
 
 def classified(prior, model, reasoning, answer):
-    return bool(prior and prior.get('algorithm') == candy.ALGORITHM
+    return bool(isinstance(prior, dict) and type(prior.get('version')) is int and prior['version'] == 1
+        and re.fullmatch(r'[0-9]{8}T[0-9]{6}Z-[-_a-zA-Z0-9]{1,64}', str(prior.get('run_id') or ''))
+        and prior.get('algorithm') == candy.ALGORITHM
         and prior.get('prompt_sha256') == candy.PROMPT_SHA256 and prior.get('model') == model
         and prior.get('reasoning_effort') == reasoning and prior.get('expected_answer') == answer
-        and prior.get('total') == 4 and type(prior.get('correct')) is int
+        and type(prior.get('total')) is int and prior['total'] == 4 and type(prior.get('correct')) is int
         and 0 <= prior['correct'] <= 4
         and prior.get('state') == ('healthy' if prior['correct'] >= 3 else 'degraded'))
 

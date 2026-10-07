@@ -532,23 +532,30 @@ func TestOpenAILegacyUpstreamRateOrderIgnoresNonOpenAIPlatforms(t *testing.T) {
 	require.Positive(t, mixed.compare(grokCheap, openAIExpensive))
 }
 
-func TestOpenAISchedulingRatePlacesOAuthAtConfiguredReference(t *testing.T) {
+func TestOpenAISchedulingRateExcludesOAuthFromCostOrdering(t *testing.T) {
 	now := time.Now()
 	cheap := upstreamCostTestAccount(1, UpstreamBillingProbeStatusOK, 0.02, now.Add(-time.Minute), 30*time.Minute)
 	oauth := upstreamCostTestOAuthAccount(2)
 	expensive := upstreamCostTestAccount(3, UpstreamBillingProbeStatusOK, 0.12, now.Add(-time.Minute), 30*time.Minute)
 
 	order := newOpenAILegacyUpstreamRateOrder([]*Account{cheap, oauth, expensive}, now, floatPtr(0.05))
-	require.True(t, order.enabled)
-	require.Negative(t, order.compare(cheap, oauth))
-	require.Negative(t, order.compare(oauth, expensive))
+	require.False(t, order.enabled)
+	require.Zero(t, order.compare(cheap, oauth))
+	require.Zero(t, order.compare(oauth, expensive))
+	require.Zero(t, order.compare(cheap, expensive))
+	pureAPI := newOpenAILegacyUpstreamRateOrder([]*Account{cheap, expensive}, now, nil)
+	require.True(t, pureAPI.enabled)
+	require.Negative(t, pureAPI.compare(cheap, expensive))
+	require.NotContains(t, order.rates, oauth.ID)
 
 	factors := openAIUpstreamCostFactors([]*Account{cheap, oauth, expensive}, now, floatPtr(0.05))
-	require.Greater(t, factors[cheap.ID], factors[oauth.ID])
-	require.Greater(t, factors[oauth.ID], factors[expensive.ID])
+	require.Equal(t, openAIUpstreamCostNeutralFactor, factors[oauth.ID])
+	apiOnly := openAIUpstreamCostFactors([]*Account{cheap, expensive}, now, nil)
+	require.Equal(t, apiOnly[cheap.ID], factors[cheap.ID])
+	require.Equal(t, apiOnly[expensive.ID], factors[expensive.ID])
 }
 
-func TestOpenAIGatewayServiceLegacyLowRatePriorityUsesConfiguredOAuthReference(t *testing.T) {
+func TestOpenAIGatewayServiceLegacyMixedPoolUsesNormalPriorityWithoutOAuthCost(t *testing.T) {
 	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
 
@@ -579,9 +586,9 @@ func TestOpenAIGatewayServiceLegacyLowRatePriorityUsesConfiguredOAuthReference(t
 
 	first, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, "", "", "gpt-test", nil, OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
-	require.Equal(t, cheap.ID, first.Account.ID)
+	require.Equal(t, expensive.ID, first.Account.ID, "mixed pool retains normal account priority, not an OAuth reference price")
 
-	second, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, "", "", "gpt-test", map[int64]struct{}{cheap.ID: {}}, OpenAIUpstreamTransportAny, false)
+	second, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, "", "", "gpt-test", map[int64]struct{}{expensive.ID: {}}, OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
 	require.Equal(t, oauth.ID, second.Account.ID)
 }

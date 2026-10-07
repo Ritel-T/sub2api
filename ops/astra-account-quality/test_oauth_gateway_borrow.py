@@ -40,7 +40,7 @@ class AccountQualityTests(unittest.TestCase):
     def classified_account(self, account=None, state='healthy', new_mode=True):
         account = account or self.account()
         r = self.result(account, ['21' if state == 'healthy' else '29'] * 4)
-        record = m.evidence(r) | {
+        record = m.evidence(r) | {'version': 1, 'run_id': '20261007T192000Z-test',
             'latest_probe_at': r['checked_at'],
             'latest_probe_credential_sha256': m.identity(account)['credential_sha256'],
             'latest_probe_proxy_id': account['proxy_id']}
@@ -200,6 +200,35 @@ class AccountQualityTests(unittest.TestCase):
         a = self.classified_account(new_mode=False)
         m.previous_record(a, 'gpt-6-astra')['checked_at'] = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
         self.assertIsNotNone(m.reusable_classification(a, 'medium', '21', 'test'))
+
+    def test_legacy_migration_uses_newest_valid_account_or_model_classification(self):
+        a = self.classified_account(new_mode=False)
+        old = a['extra']['quality_candy_models']['gpt-6-astra']
+        old['checked_at'] = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+        old['latest_probe_at'] = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+        newest = copy.deepcopy(old)
+        newest.update(state='degraded', correct=0,
+            checked_at=(datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat(),
+            latest_probe_at=(datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat())
+        a['extra']['quality_candy'] = newest
+        result = m.reusable_classification(a, 'medium', '21', 'run')
+        self.assertIs(m.previous_record(a, 'gpt-6-astra'), newest)
+        self.assertEqual(result['state'], 'degraded')
+        self.assertEqual(m.desired_borrow(a, [result]), list(m.BORROW_MODELS))
+        # Identity-mismatched and incomplete newer rows never overrule a valid one.
+        for edit in ('identity', 'run_id', 'version', 'proxy_key'):
+            changed = copy.deepcopy(newest)
+            if edit == 'identity': changed['latest_probe_credential_sha256'] = 'other'
+            if edit == 'run_id': changed['run_id'] = 'malformed'
+            if edit == 'version': changed['version'] = None
+            if edit == 'proxy_key': changed.pop('latest_probe_proxy_id')
+            a['extra']['quality_candy'] = changed
+            self.assertIs(m.previous_record(a, 'gpt-6-astra'), old)
+        # Equal confirmed times select the more recent real same-state refresh.
+        newest['checked_at'] = old['checked_at']
+        newest['latest_probe_at'] = candy.utcnow()
+        a['extra']['quality_candy'] = newest
+        self.assertIs(m.previous_record(a, 'gpt-6-astra'), newest)
 
     def test_narrow_policy_payload_only_astra_and_independent_limits_unchanged(self):
         a = self.account()

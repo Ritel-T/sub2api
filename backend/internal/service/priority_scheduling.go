@@ -373,6 +373,17 @@ func (s *defaultOpenAIAccountScheduler) applyPriorityScheduling(req OpenAIAccoun
 	if req.Platform != PlatformOpenAI || req.RequiredImageCapability != "" || !req.UseUpstreamTokenCost || !c.applies(req.GroupID, req.RequestedModel) {
 		return false
 	}
+	// Existing soft bindings retain their original weighted TopK, sticky-first
+	// and ticket-yield behavior. Priority capacity balancing applies only to
+	// free selection, never reintroducing a bound account removed by admission.
+	if req.StickyWeighted {
+		for _, item := range plan.candidates {
+			if item.account != nil && (req.StickyAccountID > 0 && item.account.ID == req.StickyAccountID ||
+				req.PreviousResponseCanMove && req.StickyPreviousAccountID > 0 && item.account.ID == req.StickyPreviousAccountID) {
+				return false
+			}
+		}
+	}
 	history := s.service.priorityHistory(req, c, plan.candidates)
 	now := time.Now()
 	for i := range plan.candidates {

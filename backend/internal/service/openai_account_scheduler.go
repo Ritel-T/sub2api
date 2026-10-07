@@ -3227,7 +3227,7 @@ func openAIUpstreamCostFactors(accounts []*Account, now time.Time, oauthScheduli
 			continue
 		}
 		factors[account.ID] = openAIUpstreamCostNeutralFactor
-		if !account.IsOpenAIApiKey() && !account.IsOpenAIOAuthLike() {
+		if !account.IsOpenAIApiKey() {
 			continue
 		}
 		eligibleCount++
@@ -3281,6 +3281,14 @@ type openAILegacyUpstreamRateOrder struct {
 }
 
 func newOpenAILegacyUpstreamRateOrder(accounts []*Account, now time.Time, oauthSchedulingRateMultiplier *float64) openAILegacyUpstreamRateOrder {
+	// A shared monetary ordering cannot compare OAuth subscriptions with paid
+	// API keys. Disable it for mixed pools rather than assigning OAuth a made-up
+	// rate or treating "unknown" as last. Pure API-key behavior stays unchanged.
+	for _, account := range accounts {
+		if account != nil && account.IsOpenAIOAuthLike() {
+			return openAILegacyUpstreamRateOrder{}
+		}
+	}
 	rates := make(map[int64]float64, len(accounts))
 	var first float64
 	distinct := false
@@ -3308,15 +3316,13 @@ func newOpenAILegacyUpstreamRateOrder(accounts []*Account, now time.Time, oauthS
 	return openAILegacyUpstreamRateOrder{enabled: len(rates) >= 2 && distinct, rates: rates}
 }
 
-func openAISchedulingRate(account *Account, now time.Time, oauthSchedulingRateMultiplier *float64) (float64, bool) {
-	if account == nil || (!account.IsOpenAIApiKey() && !account.IsOpenAIOAuthLike()) {
+func openAISchedulingRate(account *Account, now time.Time, _ *float64) (float64, bool) {
+	// OAuth subscription and billing multipliers do not represent marginal
+	// procurement cost. Neither weighted nor legacy ordering may use them.
+	if account == nil || !account.IsOpenAIApiKey() {
 		return 0, false
 	}
-	if account.IsOpenAIOAuthLike() {
-		if rate := oauthSchedulingRateMultiplier; rate != nil && *rate >= 0 && !math.IsNaN(*rate) && !math.IsInf(*rate, 0) {
-			return *rate, true
-		}
-	} else if rate, ok := openAIFreshUpstreamBillingRate(account, now); ok {
+	if rate, ok := openAIFreshUpstreamBillingRate(account, now); ok {
 		return rate, true
 	}
 	rate := account.BillingRateMultiplier()

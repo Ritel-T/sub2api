@@ -51,6 +51,10 @@ func TestOpenAISchedulingRateFallback(t *testing.T) {
 			} {
 				account.RateMultiplier = tt.configured
 				rate, ok := openAISchedulingRate(account, now, nil)
+				if accountType == AccountTypeOAuth {
+					require.False(t, ok, "OAuth never supplies cost evidence")
+					continue
+				}
 				require.Equal(t, tt.known, ok)
 				if ok {
 					require.Equal(t, tt.want, rate)
@@ -61,15 +65,11 @@ func TestOpenAISchedulingRateFallback(t *testing.T) {
 
 	oauth := upstreamCostTestOAuthAccount(1)
 	oauth.RateMultiplier = floatPtr(0.3)
-	for _, override := range []float64{0, 0.7} {
+	for _, override := range []float64{0, 0.7, -1, math.NaN(), math.Inf(1)} {
 		rate, ok := openAISchedulingRate(oauth, now, &override)
-		require.True(t, ok)
-		require.Equal(t, override, rate)
-	}
-	for _, override := range []float64{-1, math.NaN(), math.Inf(1)} {
-		rate, ok := openAISchedulingRate(oauth, now, &override)
-		require.True(t, ok)
-		require.Equal(t, 0.3, rate)
+		require.False(t, ok)
+		require.Zero(t, rate)
+		require.Equal(t, 0.3, *oauth.RateMultiplier, "stored billing metadata is unchanged")
 	}
 	_, ok := openAISchedulingRate(nil, now, nil)
 	require.False(t, ok)
@@ -83,15 +83,16 @@ func TestOpenAISchedulingRateFallbackSharedByBothModes(t *testing.T) {
 			expensive := &Account{ID: 2, Platform: PlatformOpenAI, Type: accountType, RateMultiplier: floatPtr(0.8)}
 			accounts := []*Account{cheap, expensive}
 			order := newOpenAILegacyUpstreamRateOrder(accounts, now, nil)
-			require.True(t, order.enabled)
-			require.Negative(t, order.compare(cheap, expensive))
 			factors := openAIUpstreamCostFactors(accounts, now, nil)
-			require.Greater(t, factors[cheap.ID], factors[expensive.ID])
 			if accountType == AccountTypeOAuth {
-				order = newOpenAILegacyUpstreamRateOrder(accounts, now, floatPtr(0.7))
 				require.False(t, order.enabled)
-				factors = openAIUpstreamCostFactors(accounts, now, floatPtr(0.7))
-				require.Equal(t, factors[cheap.ID], factors[expensive.ID])
+				require.Zero(t, order.compare(cheap, expensive))
+				require.Equal(t, openAIUpstreamCostNeutralFactor, factors[cheap.ID])
+				require.Equal(t, openAIUpstreamCostNeutralFactor, factors[expensive.ID])
+			} else {
+				require.True(t, order.enabled)
+				require.Negative(t, order.compare(cheap, expensive))
+				require.Greater(t, factors[cheap.ID], factors[expensive.ID])
 			}
 		})
 	}
