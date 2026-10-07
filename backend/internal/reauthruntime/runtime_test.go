@@ -104,6 +104,9 @@ func TestPrepareVerifiesDigestBeforeExecutingAndReusesCache(t *testing.T) {
 }
 
 func TestStopCancelsPreparationAndCannotRestart(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux runtime preparation")
+	}
 	m := New(t.TempDir(), "1.2.3", "http://127.0.0.1:4040", strings.Repeat("x", 64))
 	entered := make(chan struct{})
 	m.client = &http.Client{Transport: transportFunc(func(req *http.Request) (*http.Response, error) {
@@ -138,8 +141,15 @@ func TestManagedProcessGetsOnlyWorkerEnvironmentAndStops(t *testing.T) {
 	m := New(root, "1.2.3", "http://127.0.0.1:4040", "synthetic-worker-token")
 	m.Ensure()
 	defer m.Stop()
-	require.Eventually(t, func() bool { _, err := os.Stat(filepath.Join(dir, "unrelated-secret")); return err == nil }, time.Second, 10*time.Millisecond)
-	require.Equal(t, "running", m.Status().State)
+	// Child output can precede the parent's running status update after Start.
+	// Wait for both independently, including the last environment file write.
+	require.Eventually(t, func() bool {
+		return m.Status().State == "running"
+	}, 5*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		got, err := os.ReadFile(filepath.Join(dir, "concurrency"))
+		return err == nil && string(got) == "4"
+	}, 5*time.Second, 10*time.Millisecond)
 	got, err := os.ReadFile(filepath.Join(dir, "worker-token"))
 	require.NoError(t, err)
 	require.Equal(t, "synthetic-worker-token", string(got))

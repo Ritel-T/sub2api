@@ -7,6 +7,10 @@ import model_selection as selection
 
 
 class SelectorTests(unittest.IsolatedAsyncioTestCase):
+    def test_capability_registry_detects_images_and_continuation(self):
+        request = {'previous_response_id': 'r', 'input': [{'type': 'input_image'}]}
+        self.assertEqual(selection.request_capabilities(request), {'continuation', 'images'})
+
     async def test_catalog_failure_stops_before_selecting_or_submitting(self):
         page = mock.Mock(wait_for_function=mock.AsyncMock(), evaluate=mock.AsyncMock(return_value=False))
         with self.assertRaises(adapter.AdapterError) as raised:

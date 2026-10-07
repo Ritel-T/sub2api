@@ -40,9 +40,12 @@
           {{ t('admin.accounts.pelicanTest.probe.unsupported') }}
         </div>
         <div class="max-w-sm">
-          <Input
+          <Select
             v-model="modelId"
             :label="t('admin.accounts.pelicanTest.probe.model')"
+            :options="modelOptions"
+            searchable
+            creatable
             :disabled="running"
             :hint="t('admin.accounts.pelicanTest.probe.modelHint')"
           />
@@ -130,9 +133,12 @@
           :hint="t('admin.accounts.pelicanTest.promptHint')"
         />
         <div class="space-y-3">
-          <Input
+          <Select
             v-model="modelId"
             :label="t('admin.accounts.pelicanTest.model')"
+            :options="modelOptions"
+            searchable
+            creatable
             :disabled="running"
             :hint="t('admin.accounts.pelicanTest.modelHint', { model: defaultModel })"
           />
@@ -287,7 +293,7 @@ import Select from '@/components/common/Select.vue'
 import { Icon } from '@/components/icons'
 import { buildApiUrl } from '@/api/client'
 import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
-import { probeOpenAICodexState, type OpenAICodexStateProbeResult, type OpenAICodexStateVerdict } from '@/api/admin/accounts'
+import { getAvailableModels, getModelReasoning, probeOpenAICodexState, type OpenAICodexStateProbeResult, type OpenAICodexStateVerdict } from '@/api/admin/accounts'
 import type { Account, AccountListItem, PelicanTestConfig, ScheduledTestResult } from '@/types'
 import ScheduledTestsPanel from './ScheduledTestsPanel.vue'
 import PelicanRecordsDashboard from './PelicanRecordsDashboard.vue'
@@ -338,6 +344,9 @@ const prompt = ref(questionPrompt('candy'))
 const defaultModel = computed(() => props.account?.platform === 'anthropic' ? 'claude-opus-5-5' : 'gpt-6-astra')
 const modelId = ref(defaultModel.value)
 const reasoningEffort = ref('medium')
+const reasoningLevels = ref<string[]>(['low', 'medium', 'high'])
+const availableModels = ref<Array<{ id: string; display_name?: string }>>([])
+const modelOptions = computed(() => availableModels.value.map((model) => ({ value: model.id, label: model.display_name || model.id })))
 const parallelCount = ref<string | number>(1)
 const activeTab = ref<'results' | 'history' | 'schedule'>('results')
 const running = ref(false)
@@ -358,17 +367,52 @@ function selectQuestion(value: string | number | boolean | null) {
   questionKind.value = value
   prompt.value = questionPrompt(value)
 }
-const reasoningOptions = computed(() => [
-  { value: 'low', label: t('admin.accounts.pelicanTest.reasoningLow') },
-  { value: 'medium', label: t('admin.accounts.pelicanTest.reasoningMedium') },
-  { value: 'high', label: t('admin.accounts.pelicanTest.reasoningHigh') },
-  { value: 'xhigh', label: 'xhigh' },
-  { value: 'max', label: 'max' }
-])
+const reasoningOptions = computed(() => reasoningLevels.value.map((value) => ({
+  value,
+  label: ({ low: t('admin.accounts.pelicanTest.reasoningLow'), medium: t('admin.accounts.pelicanTest.reasoningMedium'), high: t('admin.accounts.pelicanTest.reasoningHigh'), none: t('admin.accounts.pelicanTest.reasoningNone'), minimal: t('admin.accounts.pelicanTest.reasoningMinimal'), xhigh: t('admin.accounts.pelicanTest.reasoningXHigh'), max: t('admin.accounts.pelicanTest.reasoningMax'), ultra: t('admin.accounts.pelicanTest.reasoningUltra') } as Record<string, string>)[value] || value
+})))
 const canStart = computed(() => Boolean(props.account && prompt.value.trim() && modelId.value.trim() && normalizeCount() > 0))
 const hasDownloadable = computed(() => runs.value.some((run) => Boolean(run.output)))
 const probeSupported = computed(() => props.account?.platform === 'openai' && (props.account.type === 'oauth' || props.account.type === 'setup-token'))
 const canStartProbe = computed(() => Boolean(props.account && probeSupported.value))
+
+let modelLoadToken = 0
+async function loadModels() {
+  const accountID = props.account?.id
+  if (!props.show || accountID == null) return
+  const token = ++modelLoadToken
+  const current = () => token === modelLoadToken && props.show && props.account?.id === accountID
+  try {
+    const models = await getAvailableModels(accountID)
+    if (!current()) return
+    availableModels.value = models.map((model: any) => ({ id: model.id, display_name: model.display_name }))
+    if (!availableModels.value.some((model) => model.id === modelId.value) && availableModels.value.length > 0) {
+      modelId.value = availableModels.value[0].id
+    }
+  } catch {
+    if (!current()) return
+    availableModels.value = []
+  }
+}
+let reasoningLoadToken = 0
+async function loadReasoning() {
+  const accountID = props.account?.id
+  const requestedModel = modelId.value.trim()
+  if (!props.show || accountID == null || !requestedModel) return
+  const token = ++reasoningLoadToken
+  const current = () => token === reasoningLoadToken && props.show && props.account?.id === accountID && modelId.value.trim() === requestedModel
+  try {
+    const result = await getModelReasoning(accountID, requestedModel)
+    if (!current()) return
+    // An empty capability list means upstream default, not support for effort=none.
+    reasoningLevels.value = [...result.supported_reasoning_levels]
+    reasoningEffort.value = reasoningLevels.value.includes(result.default_reasoning_level) ? result.default_reasoning_level : reasoningLevels.value[0] || ''
+  } catch {
+    if (!current()) return
+    reasoningLevels.value = ['low', 'medium', 'high']
+    if (!reasoningLevels.value.includes(reasoningEffort.value)) reasoningEffort.value = 'medium'
+  }
+}
 
 function selectMode(mode: TestMode) {
   if (running.value) return
@@ -489,6 +533,8 @@ function loadRecord(record: TestRecord) {
 }
 
 function handleClose() {
+  modelLoadToken++
+  reasoningLoadToken++
   for (const controller of controllers.values()) controller.abort()
   controllers.clear()
   running.value = false
@@ -507,7 +553,7 @@ async function consumeRun(run: TestRun, signal: AbortSignal) {
       model_id: modelId.value.trim(),
       prompt: `${prompt.value.trim()}\n\n${deliveryContract.value}`,
       mode: 'default',
-      reasoning_effort: reasoningEffort.value
+      ...(reasoningEffort.value ? { reasoning_effort: reasoningEffort.value } : {})
     }),
     signal
   })
@@ -637,9 +683,13 @@ function downloadAll() {
   runs.value.filter((run) => run.output).forEach((run) => downloadHtml(run))
 }
 
-onBeforeUnmount(() => { for (const controller of controllers.values()) controller.abort() })
+onBeforeUnmount(() => { modelLoadToken++; reasoningLoadToken++; for (const controller of controllers.values()) controller.abort() })
+
+watch(modelId, () => { if (props.show) loadReasoning() })
 
 watch(() => [props.show, props.account?.id] as const, ([show]) => {
+  modelLoadToken++
+  reasoningLoadToken++
   if (show) {
     readRecords()
     activeTab.value = 'results'
@@ -655,6 +705,8 @@ watch(() => [props.show, props.account?.id] as const, ([show]) => {
     testMode.value = 'question'
     probeResults.value = []
     probeError.value = ''
+    void loadModels()
+    void loadReasoning()
   } else {
     for (const controller of controllers.values()) controller.abort()
     controllers.clear()

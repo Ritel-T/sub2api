@@ -13,6 +13,25 @@ MODELS = {
     'gpt-5.6-terra': '5.6 Terra',
     'gpt-6-luna': '6 Luna',
 }
+CAPABILITIES = {model: frozenset(('text', 'function_tools', 'custom_tools')) for model in MODELS}
+
+def request_capabilities(payload):
+    capabilities = set()
+    if payload.get('previous_response_id') or payload.get('conversation'):
+        capabilities.add('continuation')
+    if payload.get('text', {}).get('format', {'type': 'text'}).get('type') != 'text':
+        capabilities.add('structured_output')
+    stack = [payload.get('input', []), payload.get('messages', [])]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, list): stack.extend(item)
+        elif isinstance(item, dict):
+            if item.get('type') in ('input_image', 'image_url', 'input_file'): capabilities.add('images')
+            if item.get('type') in ('custom_tool_call', 'custom_tool_call_output', 'additional_tools'): capabilities.add('custom_tools')
+            stack.extend(item.values())
+    if payload.get('tools') or payload.get('additional_tools'):
+        capabilities.add('function_tools')
+    return capabilities
 EFFORTS = {
     'low': r'(?:Low|低)',
     'medium': r'(?:Medium|中|中等)',

@@ -345,6 +345,13 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 func (s *RateLimitService) handleUpstreamErrorAfterStreakReset(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) (shouldDisable bool) {
 	ctx = s.observeAccountOps(ctx, account, statusCode, headers, responseBody)
 	ctx = withTempUnschedulableModel(ctx, requestedModel)
+	// Anthropic's safeguard block is scoped to this conversation. It is not
+	// evidence that the account credentials or entitlement are invalid, so it
+	// must not reach custom error policies or account scheduling side effects.
+	if isAnthropicSafeguardPolicy403(account, statusCode, responseBody) {
+		slog.Info("anthropic_safeguard_policy_403_skips_account_penalty", "account_id", account.ID)
+		return false
+	}
 	// Team 联动熔断必须先于池模式/自定义错误码/临时不可调度的各类早退；
 	// 同请求内与 fastpath 调用点的重复触发由方法内去重吸收。
 	s.maybeHandleOpenAITeamLinkedError(ctx, account, statusCode, responseBody)
@@ -1122,6 +1129,18 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 func isCloudflareBotBlockResponse(body []byte) bool {
 	normalized := strings.ToLower(strings.TrimSpace(string(body)))
 	return strings.Contains(normalized, "error code: 1010")
+}
+
+// isAnthropicSafeguardPolicy403 identifies a request-level safety rejection.
+// Keep this deliberately narrow: other Anthropic 403 responses can still
+// indicate an account access or entitlement problem.
+func isAnthropicSafeguardPolicy403(account *Account, statusCode int, body []byte) bool {
+	if account == nil || account.Platform != PlatformAnthropic || statusCode != http.StatusForbidden {
+		return false
+	}
+	normalized := strings.ToLower(string(body))
+	return strings.Contains(normalized, "this request was blocked by safe guard policy") ||
+		strings.Contains(normalized, "this request was blocked by safeguard policy")
 }
 
 // handleAntigravity403 处理 Antigravity 平台的 403 错误

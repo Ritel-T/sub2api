@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import IQTestModal from '../IQTestModal.vue'
 
-const { probeOpenAICodexState } = vi.hoisted(() => ({ probeOpenAICodexState: vi.fn() }))
+const { getAvailableModels, getModelReasoning, probeOpenAICodexState } = vi.hoisted(() => ({
+  getAvailableModels: vi.fn(), getModelReasoning: vi.fn(), probeOpenAICodexState: vi.fn()
+}))
 
 vi.mock('@/api/admin/accounts', async () => {
   const actual = await vi.importActual<typeof import('@/api/admin/accounts')>('@/api/admin/accounts')
-  return { ...actual, probeOpenAICodexState }
+  return { ...actual, getAvailableModels, getModelReasoning, probeOpenAICodexState }
 })
 
 vi.mock('vue-i18n', async () => {
@@ -59,6 +61,16 @@ function mountModal(account: Record<string, unknown> = {}) {
     }
   })
 }
+
+// Capability lookups are part of opening the dialog. Never make real Admin API requests.
+beforeEach(() => {
+  getAvailableModels.mockReset().mockResolvedValue([
+    { id: 'gpt-6-astra', display_name: 'Astra' },
+    { id: 'gpt-6.1-sol', display_name: 'Sol' },
+    { id: 'claude-opus-5-5', display_name: 'Claude' }
+  ])
+  getModelReasoning.mockReset().mockResolvedValue({ supported_reasoning_levels: ['low', 'medium', 'high'], default_reasoning_level: 'medium' })
+})
 
 describe('IQTestModal', () => {
   beforeEach(() => {
@@ -361,5 +373,106 @@ describe('IQTestModal state probe mode', () => {
     expect((wrapper.vm as any).probeResults).toHaveLength(0)
     expect((wrapper.vm as any).running).toBe(false)
     wrapper.unmount()
+  })
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => { resolve = resolvePromise; reject = rejectPromise })
+  return { promise, resolve, reject }
+}
+
+describe('IQTestModal account model capabilities', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    global.fetch = vi.fn().mockResolvedValue(streamResponse([{ type: 'content', text: '21' }, { type: 'test_complete', success: true }]))
+  })
+
+  it('uses account-specific model efforts, rejects an unsupported none default and leaves empty capabilities unset', async () => {
+    getAvailableModels.mockImplementation(async (id: number) => id === 42
+      ? [{ id: 'gpt-6-astra', display_name: 'Astra' }, { id: 'gpt-6.1-sol', display_name: 'Sol' }, { id: 'unknown-model', display_name: 'Unknown' }]
+      : [{ id: 'claude-opus-5-5', display_name: 'Claude' }])
+    getModelReasoning.mockImplementation(async (_id: number, model: string) => model === 'gpt-6.1-sol'
+      ? { supported_reasoning_levels: ['none', 'low', 'xhigh'], default_reasoning_level: 'xhigh' }
+      : model === 'unknown-model'
+        ? { supported_reasoning_levels: [], default_reasoning_level: '' }
+        : model === 'claude-opus-5-5'
+          ? { supported_reasoning_levels: ['low', 'max'], default_reasoning_level: 'max' }
+          : { supported_reasoning_levels: ['low', 'medium', 'high'], default_reasoning_level: 'none' })
+    const wrapper = mountModal()
+    try {
+      await flushPromises()
+      const vm = wrapper.vm as any
+      expect(getAvailableModels).toHaveBeenCalledWith(42)
+      expect(vm.reasoningOptions.map((option: { value: string }) => option.value)).toEqual(['low', 'medium', 'high'])
+      expect(vm.reasoningEffort).toBe('low')
+      vm.modelId = 'gpt-6.1-sol'; await flushPromises()
+      expect(getModelReasoning).toHaveBeenLastCalledWith(42, 'gpt-6.1-sol')
+      expect(vm.reasoningOptions.map((option: { value: string }) => option.value)).toEqual(['none', 'low', 'xhigh'])
+      expect(vm.reasoningEffort).toBe('xhigh')
+      vm.modelId = 'unknown-model'; await flushPromises()
+      expect(vm.reasoningOptions).toEqual([])
+      expect(vm.reasoningEffort).toBe('')
+      await vm.startTest(); await flushPromises()
+      expect(JSON.parse(vi.mocked(global.fetch).mock.calls[0][1]!.body as string)).not.toHaveProperty('reasoning_effort')
+      await wrapper.setProps({ account: { id: 43, name: 'Claude', platform: 'anthropic', type: 'oauth', status: 'active' } as any })
+      await flushPromises()
+      expect(getAvailableModels).toHaveBeenLastCalledWith(43)
+      expect(vm.modelId).toBe('claude-opus-5-5')
+      expect(vm.reasoningOptions.map((option: { value: string }) => option.value)).toEqual(['low', 'max'])
+      expect(vm.reasoningEffort).toBe('max')
+    } finally { wrapper.unmount() }
+  })
+
+  it('ignores older account capability successes and failures after switching accounts', async () => {
+    for (const outcome of ['resolve', 'reject'] as const) {
+      const oldModels = deferred<Array<{ id: string; display_name: string }>>()
+      const oldReasoning = deferred<{ supported_reasoning_levels: string[]; default_reasoning_level: string }>()
+      getAvailableModels.mockImplementation((id: number) => id === 42 ? oldModels.promise : Promise.resolve([{ id: 'gpt-6.1-sol', display_name: 'Sol' }]))
+      getModelReasoning.mockImplementation((id: number) => id === 42 ? oldReasoning.promise : Promise.resolve({ supported_reasoning_levels: ['low', 'xhigh'], default_reasoning_level: 'xhigh' }))
+      const wrapper = mountModal()
+      try {
+        await wrapper.setProps({ account: { id: 43, name: 'Sol account', platform: 'openai', type: 'oauth', status: 'active' } as any })
+        await flushPromises()
+        if (outcome === 'resolve') {
+          oldModels.resolve([{ id: 'stale-model', display_name: 'Stale' }])
+          oldReasoning.resolve({ supported_reasoning_levels: ['none'], default_reasoning_level: 'none' })
+        } else {
+          oldModels.reject(new Error('older account lookup failed'))
+          oldReasoning.reject(new Error('older account lookup failed'))
+        }
+        await flushPromises()
+        const vm = wrapper.vm as any
+        expect(vm.modelOptions.map((option: { value: string }) => option.value)).toEqual(['gpt-6.1-sol'])
+        expect(vm.modelId).toBe('gpt-6.1-sol')
+        expect(vm.reasoningOptions.map((option: { value: string }) => option.value)).toEqual(['low', 'xhigh'])
+        expect(vm.reasoningEffort).toBe('xhigh')
+      } finally { wrapper.unmount() }
+    }
+  })
+
+  it('does not update model or effort choices when lookups finish after closing the dialog', async () => {
+    for (const outcome of ['resolve', 'reject'] as const) {
+      const pendingModels = deferred<Array<{ id: string; display_name: string }>>()
+      const pendingReasoning = deferred<{ supported_reasoning_levels: string[]; default_reasoning_level: string }>()
+      getAvailableModels.mockReturnValue(pendingModels.promise)
+      getModelReasoning.mockReturnValue(pendingReasoning.promise)
+      const wrapper = mountModal()
+      try {
+        await wrapper.setProps({ show: false })
+        const vm = wrapper.vm as any
+        const before = { model: vm.modelId, models: [...vm.modelOptions], efforts: [...vm.reasoningOptions], effort: vm.reasoningEffort }
+        if (outcome === 'resolve') {
+          pendingModels.resolve([{ id: 'closed-model', display_name: 'Closed' }])
+          pendingReasoning.resolve({ supported_reasoning_levels: ['none'], default_reasoning_level: 'none' })
+        } else {
+          pendingModels.reject(new Error('closed dialog lookup failed'))
+          pendingReasoning.reject(new Error('closed dialog lookup failed'))
+        }
+        await flushPromises()
+        expect({ model: vm.modelId, models: [...vm.modelOptions], efforts: [...vm.reasoningOptions], effort: vm.reasoningEffort }).toEqual(before)
+      } finally { wrapper.unmount() }
+    }
   })
 })

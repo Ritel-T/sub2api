@@ -1595,6 +1595,7 @@ func (s *CRSSyncService) createSyncedAccount(ctx context.Context, a *Account) er
 		if err := s.autoConfigure(ctx, input); err != nil {
 			return err
 		}
+		a.InitialQualityPlan = input.InitialQualityPlan
 		a.Priority = input.Priority
 		a.Concurrency = input.Concurrency
 		a.LoadFactor = input.LoadFactor

@@ -18,7 +18,9 @@ type chatMessageContent struct {
 // true. store is always false and reasoning.encrypted_content is always
 // included so that the response translator has full context.
 func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest, error) {
-	effort := openai.NormalizeGPT61SolReasoningEffort(req.Model, req.ReasoningEffort)
+	// Nested reasoning takes precedence over the flat Chat alias; normalize the
+	// effective value using the Fork's GPT-6.1 Sol compatibility policy.
+	effort := openai.NormalizeGPT61SolReasoningEffort(req.Model, req.EffectiveReasoningEffort())
 	if err := openai.ValidateGPT61SolReasoningEffort(req.Model, effort); err != nil {
 		return nil, err
 	}
@@ -45,7 +47,7 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 
 	// Reasoning models (gpt-5.x) do not accept sampling parameters.
 	// See isReasoningModel in anthropic_to_responses.go.
-	if !isReasoningModel(req.Model) || (openai.IsGPT6SolOrLunaModelSpelling(req.Model) && req.ReasoningEffort == "none") {
+	if !isReasoningModel(req.Model) || (openai.IsGPT6SolOrLunaModelSpelling(req.Model) && effort == "none") {
 		out.Temperature = req.Temperature
 		out.TopP = req.TopP
 	}

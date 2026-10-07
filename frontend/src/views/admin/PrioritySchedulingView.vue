@@ -11,6 +11,11 @@
         <fieldset :disabled="saving" class="min-w-0 space-y-5">
           <label class="flex items-center gap-3 font-medium"><input v-model="draft.enabled" data-testid="enabled" type="checkbox" role="switch" />{{ t('priorityScheduling.enabled') }}</label>
           <label class="block text-sm"><span class="flex items-center gap-3"><input v-model="draft.balance_protocols" data-testid="balance-protocols" type="checkbox" />{{ t('priorityScheduling.balanceProtocols') }}</span><small class="mt-1 block text-gray-500">{{ t('priorityScheduling.balanceProtocolsHint') }}</small></label>
+          <section class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
+            <label class="flex items-center gap-3 font-medium"><input v-model="draft.oauth_quota_priority" data-testid="oauth-quota-priority" type="checkbox" role="switch" />{{ t('priorityScheduling.oauthQuotaPriority') }}</label>
+            <p class="mt-2 text-sm leading-6 text-gray-500">{{ t('priorityScheduling.oauthQuotaHint') }}</p>
+            <label v-if="draft.oauth_quota_priority" class="mt-3 block max-w-xs"><span class="field-title">{{ t('priorityScheduling.oauthQuotaThreshold') }}</span><input v-model.number="draft.oauth_quota_threshold" data-testid="oauth-quota-threshold" type="number" min="1" max="100" step="1" required class="input w-full" /></label>
+          </section>
           <div class="grid gap-5 lg:grid-cols-2">
             <section class="min-w-0 space-y-4">
               <label class="block"><span class="field-title">{{ t('priorityScheduling.strategy') }}</span><select v-model="draft.mode" class="input w-full" data-testid="mode"><option v-for="mode in modes" :key="mode" :value="mode">{{ t(`priorityScheduling.modes.${mode}`) }}</option></select></label>
@@ -31,8 +36,11 @@
         <p v-if="!snapshot" class="py-8 text-center text-sm text-gray-500">{{ t('priorityScheduling.empty') }}</p>
         <template v-else>
           <p class="mb-4 text-sm text-gray-500">{{ new Date(snapshot.at).toLocaleString() }} · {{ t('priorityScheduling.model') }}: {{ snapshot.model }} · {{ t('priorityScheduling.group') }}: {{ snapshot.group_id ?? '—' }} · {{ t(`priorityScheduling.modes.${snapshot.mode}`) }}</p>
-          <p v-if="!snapshot.history_ready" class="text-sm text-amber-600">{{ t('priorityScheduling.historyPending') }}</p>
-          <div v-if="snapshot.candidates.length" class="overflow-x-auto"><table class="w-full whitespace-nowrap text-left text-sm"><thead><tr><th v-for="key in ['account','tier','priority','score','quality','latency','load','rate','profit']" :key="key" class="px-3 py-3 text-xs font-medium text-gray-500">{{ t(`priorityScheduling.${key}`) }}</th></tr></thead><tbody><tr v-for="row in snapshot.candidates" :key="row.account_id" class="border-t border-gray-100 dark:border-dark-700"><td class="px-3 py-4"><strong class="font-medium">{{ row.account_name }}</strong><small class="block text-gray-400">#{{ row.account_id }}</small><small v-if="row.bound_groups != null" class="block text-gray-400">{{ t('priorityScheduling.boundGroups') }}: {{ row.bound_groups }}</small></td><td class="px-3 py-4"><span :class="row.tier === 'eligible' ? 'text-emerald-600' : row.tier === 'degraded' ? 'text-amber-600' : 'text-gray-500'">{{ t(`priorityScheduling.tiers.${row.tier}`) }}</span><small v-for="reason in row.reasons" :key="reason" class="block text-gray-400">{{ t(`priorityScheduling.reasons.${reason}`) }}</small></td><td class="px-3 py-4 tabular-nums">{{ row.priority }}</td><td class="px-3 py-4 tabular-nums">{{ row.score.toFixed(1) }}<small v-if="row.selection_weight != null" class="block text-gray-400">{{ t('priorityScheduling.selectionWeight') }}: {{ row.selection_weight.toFixed(2) }}</small><small v-if="row.exploration_eligible" class="block text-gray-400">{{ t('priorityScheduling.explorationEligible') }}</small></td><td class="px-3 py-4">{{ row.quality_samples ? `${row.quality_passed}/${row.quality_samples}` : '—' }}</td><td class="px-3 py-4">{{ row.samples ? `${Math.round(row.p90_ttft_ms)} ms` : '—' }}<small class="block text-gray-400">{{ row.samples }} {{ t('priorityScheduling.samples') }}</small></td><td class="px-3 py-4">{{ row.load_percent == null ? '—' : `${row.load_percent}%` }}</td><td class="px-3 py-4">{{ row.rate == null ? '—' : `${row.rate.toFixed(3)}×` }}</td><td class="px-3 py-4"><template v-if="row.economics_source === 'usage'"><span :class="(row.profit ?? 0) < 0 ? 'text-red-600' : 'text-emerald-600'">${{ row.profit?.toFixed(4) }} · {{ row.margin == null ? '—' : `${(row.margin * 100).toFixed(1)}%` }}</span><small class="block text-gray-400">${{ row.revenue.toFixed(4) }} − ${{ row.theoretical_cost.toFixed(4) }}</small></template><span v-else class="text-xs text-gray-500">{{ t(`priorityScheduling.economics.${row.economics_source || 'unknown'}`) }}</span></td></tr></tbody></table></div>
+          <p v-if="snapshot.history_status && snapshot.history_status !== 'ready'" role="status" class="text-sm text-amber-600">{{ t(`priorityScheduling.historyStates.${snapshot.history_status}`) }}</p>
+          <p v-else-if="!snapshot.history_ready" class="text-sm text-amber-600">{{ t('priorityScheduling.historyPending') }}</p>
+          <p v-if="snapshot.history_error && snapshot.history_ready" class="text-sm text-amber-600">{{ t('priorityScheduling.historyRetry') }}</p>
+          <p v-if="snapshot.evaluated_at" class="mb-3 text-xs text-gray-500">{{ t('priorityScheduling.evaluatedAt') }}: {{ new Date(snapshot.evaluated_at).toLocaleString() }}<template v-if="snapshot.history_observed_at"> · {{ t('priorityScheduling.historyObservedAt') }}: {{ new Date(snapshot.history_observed_at).toLocaleString() }}</template></p>
+          <div v-if="snapshot.candidates.length" class="overflow-x-auto"><table class="w-full whitespace-nowrap text-left text-sm"><thead><tr><th v-for="key in ['account','tier','priority','score','quality','latency','load','rate','profit']" :key="key" class="px-3 py-3 text-xs font-medium text-gray-500">{{ t(`priorityScheduling.${key}`) }}</th></tr></thead><tbody><tr v-for="row in snapshot.candidates" :key="row.account_id" class="border-t border-gray-100 dark:border-dark-700"><td class="px-3 py-4"><strong class="font-medium">{{ row.account_name }}</strong><small class="block text-gray-400">#{{ row.account_id }}</small><small v-if="row.bound_groups != null" class="block text-gray-400">{{ t('priorityScheduling.boundGroups') }}: {{ row.bound_groups }}</small></td><td class="px-3 py-4"><span :class="row.tier === 'eligible' ? 'text-emerald-600' : row.tier === 'degraded' ? 'text-amber-600' : 'text-gray-500'">{{ t(`priorityScheduling.tiers.${row.tier}`) }}</span><small v-if="row.oauth_quota_role" class="block font-medium text-primary-600">{{ t(`priorityScheduling.oauthQuotaRoles.${row.oauth_quota_role}`) }}</small><small v-if="row.history_status && row.history_status !== 'ready'" class="block text-amber-600">{{ t(`priorityScheduling.historyStates.${row.history_status}`) }}</small><small v-for="reason in row.reasons" :key="reason" class="block text-gray-400">{{ t(`priorityScheduling.reasons.${reason}`) }}</small></td><td class="px-3 py-4 tabular-nums">{{ row.priority }}</td><td class="px-3 py-4 tabular-nums">{{ row.score.toFixed(1) }}<small v-if="row.selection_weight != null" class="block text-gray-400">{{ t('priorityScheduling.selectionWeight') }}: {{ row.selection_weight.toFixed(2) }}</small><small v-if="row.exploration_eligible" class="block text-gray-400">{{ t('priorityScheduling.explorationEligible') }}</small></td><td class="px-3 py-4">{{ row.quality_samples ? `${row.quality_passed}/${row.quality_samples}` : '—' }}</td><td class="px-3 py-4">{{ row.samples ? `${Math.round(row.p90_ttft_ms)} ms` : '—' }}<small class="block text-gray-400">{{ row.samples }} {{ t('priorityScheduling.samples') }}</small></td><td class="px-3 py-4">{{ row.load_percent == null ? '—' : `${row.load_percent}%` }}</td><td class="px-3 py-4">{{ row.rate == null ? '—' : `${row.rate.toFixed(3)}×` }}</td><td class="px-3 py-4"><template v-if="row.economics_source === 'usage'"><span :class="(row.profit ?? 0) < 0 ? 'text-red-600' : 'text-emerald-600'">${{ row.profit?.toFixed(4) }} · {{ row.margin == null ? '—' : `${(row.margin * 100).toFixed(1)}%` }}</span><small class="block text-gray-400">${{ row.revenue.toFixed(4) }} − ${{ row.theoretical_cost.toFixed(4) }}</small></template><span v-else class="text-xs text-gray-500">{{ t(`priorityScheduling.economics.${row.economics_source || 'unknown'}`) }}</span></td></tr></tbody></table></div>
         </template>
       </section>
     </div>
@@ -58,6 +66,8 @@ const fields = [
   { key: 'min_samples', min: 1, max: 1000 }, { key: 'quality_max_age_hours', min: 1, max: 168 }
 ] as const
 let alive = true, generation = 0
+let historyTimer: ReturnType<typeof setTimeout> | undefined
+function stopHistoryRefresh() { clearTimeout(historyTimer); historyTimer = undefined }
 const active = (version: number) => alive && generation === version
 async function load() {
   if (loading.value) return
@@ -66,7 +76,7 @@ async function load() {
     const config = await getPriorityConfig()
     if (!active(version)) return
     const { teams: _legacyTeams, ...currentConfig } = config as PrioritySchedulingConfig & { teams?: unknown }
-    draft.value = { ...currentConfig, balance_protocols: currentConfig.balance_protocols ?? true }; groups.value = (config.group_ids ?? []).join(', '); modelsText.value = (config.models ?? []).join('\n')
+    draft.value = { ...currentConfig, balance_protocols: currentConfig.balance_protocols ?? true, oauth_quota_priority: currentConfig.oauth_quota_priority ?? false, oauth_quota_threshold: currentConfig.oauth_quota_threshold ?? 90 }; groups.value = (config.group_ids ?? []).join(', '); modelsText.value = (config.models ?? []).join('\n')
   } catch { if (active(version)) error.value = t('priorityScheduling.error') }
   finally { if (active(version)) loading.value = false }
 }
@@ -82,15 +92,29 @@ async function save() {
   finally { if (active(version)) saving.value = false }
 }
 async function refresh() {
+  stopHistoryRefresh()
+  await loadSnapshot(0)
+}
+async function loadSnapshot(attempt: number) {
   if (refreshing.value) return
   const version = generation; refreshing.value = true; snapshotError.value = ''
-  try { const value = await getPrioritySnapshot(); if (active(version)) snapshot.value = value }
+  try {
+    const value = await getPrioritySnapshot()
+    if (active(version)) {
+      snapshot.value = value
+      // A bounded follow-up picks up the asynchronous result without requiring
+      // another billable request. Unmount/logout cancels further reads.
+      if ((value?.history_refreshing || value?.history_status === 'loading' || value?.history_status === 'partial') && attempt < 3) {
+        historyTimer = setTimeout(() => { if (active(version)) void loadSnapshot(attempt + 1) }, 1000)
+      }
+    }
+  }
   catch { if (active(version)) snapshotError.value = t('priorityScheduling.error') }
   finally { if (active(version)) refreshing.value = false }
 }
-watch(() => auth.user ? `${auth.user.id}:${auth.user.role}` : '', () => { generation++; draft.value = null; snapshot.value = null; groups.value = modelsText.value = error.value = notice.value = snapshotError.value = ''; loading.value = saving.value = refreshing.value = false }, { flush: 'sync' })
+watch(() => auth.user ? `${auth.user.id}:${auth.user.role}` : '', () => { stopHistoryRefresh(); generation++; draft.value = null; snapshot.value = null; groups.value = modelsText.value = error.value = notice.value = snapshotError.value = ''; loading.value = saving.value = refreshing.value = false }, { flush: 'sync' })
 onMounted(() => { void load(); void refresh() })
-onBeforeUnmount(() => { alive = false; generation++ })
+onBeforeUnmount(() => { stopHistoryRefresh(); alive = false; generation++ })
 </script>
 <style scoped>
 .card { @apply rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
