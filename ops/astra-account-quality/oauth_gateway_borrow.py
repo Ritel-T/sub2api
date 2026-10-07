@@ -4,9 +4,10 @@ No account/group PUT, cookie probe, quota refresh, or reset-credit use occurs.
 """
 import concurrent.futures
 import copy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -24,6 +25,8 @@ if 'candy' not in globals():
         candy_spec.loader.exec_module(candy)
 
 SOURCE_POOL_LIMIT = 12
+PENDING_RETRY_SECONDS = 300
+PENDING_MAX_RETRY_SECONDS = 7 * 24 * 3600
 
 QUALITY_MODE = 'astra_controls_sol_v2'
 DETECTION_MODELS = ('gpt-6-astra',)
@@ -190,6 +193,11 @@ def assess_model(account, model, *, initial, reasoning, expected_answer, run_id,
         if sample.get('curl_exit') == 0 and sample.get('http_status') == '401':
             result['stopped'] = sample.get('failure_kind') or 'credential_rejected'
             break
+        if sample['class'] == 'inconclusive':
+            # Any incomplete attempt makes this confirmation round unusable.
+            # Remaining attempts cannot establish a classification, so stop.
+            result['stopped'] = 'incomplete_native_sample'
+            break
         if target == 1 and sample['class'] in ('healthy', 'degraded') and sample['class'] != previous:
             target = 4
     complete = all(s['class'] != 'inconclusive' for s in result['samples'])
@@ -281,6 +289,45 @@ def complete_native(result):
         for sample in samples)
 
 
+def pending_retry_record(account, results, *, now=None):
+    """Bound minute retries without changing account quality or cooldowns."""
+    now = now or datetime.now(timezone.utc)
+    retry_at = now + timedelta(seconds=PENDING_RETRY_SECONDS)
+    reason = 'initial_classification_not_verified'
+    reset_times = []
+    for result in results:
+        for sample in result.get('samples') or []:
+            if sample.get('curl_exit') != 0 or sample.get('http_status') != '429':
+                continue
+            headers = sample.get('quota_headers') or {}
+            observed = candy.timestamp(sample.get('quota_observed_at'))
+            if observed is None or not -30 <= (now - observed).total_seconds() <= 600:
+                continue
+            for window in ('primary', 'secondary'):
+                try:
+                    used = float(headers.get('x-codex-' + window + '-used-percent', '-1'))
+                    seconds = float(headers.get('x-codex-' + window + '-reset-after-seconds', '0'))
+                    if not (math.isfinite(used) and used == 100 and math.isfinite(seconds) and seconds > 0):
+                        continue
+                    reset = observed + timedelta(seconds=min(seconds, PENDING_MAX_RETRY_SECONDS))
+                    if reset > now:
+                        reset_times.append(reset)
+                except (ValueError, TypeError, OverflowError):
+                    continue
+    if reset_times:
+        retry_at = min(max(reset_times), now + timedelta(seconds=PENDING_MAX_RETRY_SECONDS))
+        reason = 'observed_quota_exhausted'
+    return {**identity(account), 'retry_after': retry_at.isoformat(), 'reason': reason}
+
+
+def pending_retry_active(account, record, *, now=None):
+    if not isinstance(record, dict) or any(record.get(key) != value for key, value in identity(account).items()):
+        return False
+    until = candy.timestamp(record.get('retry_after'))
+    now = now or datetime.now(timezone.utc)
+    return until is not None and 0 < (until - now).total_seconds() <= PENDING_MAX_RETRY_SECONDS
+
+
 def source_history_scores(items):
     """Rank actual target success and attributable failures; never infer model readiness."""
     by_source = {}
@@ -312,9 +359,12 @@ def source_history_scores(items):
     return scores
 
 
-def routing_payload(current, accounts, results, history_items=(), *, pending_only=False):
+def routing_payload(current, accounts, results, history_items=(), *, pending_only=False, partial=False,
+                    observed_account_ids=None):
     by_id = {a['id']: a for a in accounts}
     by_model = {(r['id'], r['model']): r for r in results}
+    observed_ids = set(observed_account_ids if observed_account_ids is not None else
+                       (r['id'] for r in results if r.get('samples')))
     targets = {}
     for account in accounts:
         owned = (account.get('extra') or {}).get('openai_gateway_borrow_models') or []
@@ -338,7 +388,7 @@ def routing_payload(current, accounts, results, history_items=(), *, pending_onl
                 and candy.timestamp(r['checked_at']) is not None
                 and 0 <= (datetime.now(timezone.utc) - candy.timestamp(r['checked_at'])).total_seconds() <= 600):
             sources.append((r['checked_at'], account_id))
-        elif preserve_registered and account_id in (
+        elif account_id not in observed_ids and (preserve_registered or (partial and r is None)) and account_id in (
                 (current.get('cookie_pool') or {}).get('source_account_ids') or []):
             # The minute pending run must not empty a live source pool just because
             # it deliberately does not re-probe established accounts.
@@ -368,7 +418,8 @@ def routing_payload(current, accounts, results, history_items=(), *, pending_onl
     return desired
 
 
-def update_routing(accounts, results, key, backup_dir, *, pending_only=False):
+def update_routing(accounts, results, key, backup_dir, *, pending_only=False, partial=False,
+                   observed_account_ids=None):
     current = candy.legacy.admin('GET', '/admin/settings/astra-routing', key)
     # The bounded read contains no credentials and is advisory only; failure keeps fresh-native ordering.
     try:
@@ -381,7 +432,8 @@ def update_routing(accounts, results, key, backup_dir, *, pending_only=False):
             history_items.extend((history.get('items') or [])[:20])
     except Exception:
         history_items = []
-    desired = routing_payload(current, accounts, results, history_items, pending_only=pending_only)
+    desired = routing_payload(current, accounts, results, history_items, pending_only=pending_only, partial=partial,
+                              observed_account_ids=observed_account_ids)
     candy.legacy.save_private(backup_dir / 'astra-routing-before.json', current)
     fresh = candy.legacy.admin('GET', '/admin/settings/astra-routing', key)
     if fresh != current:
@@ -443,22 +495,27 @@ def run_borrow(*, state_dir, initial=False, apply=False, account_ids=(), reasoni
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            if not pending_only:
-                raise
-            output = {'route_mode': 'borrow', 'pending_only': True, 'skipped': 'cycle_busy'}
+            output = {'route_mode': 'borrow', 'pending_only': pending_only, 'skipped': 'cycle_busy'}
             print(json.dumps(output, sort_keys=True), flush=True)
             return output
         accounts = candy.inventory()
         selected = [a for a in accounts if not account_ids or a['id'] in account_ids]
+        retry_path = state_dir / 'pending-retry.json'
+        pending_retries = json.loads(retry_path.read_text()) if retry_path.exists() else {}
+        if not isinstance(pending_retries, dict):
+            raise ValueError('invalid initial-classification retry state')
         if pending_only:
             selected = [a for a in selected
                 if (a.get('extra') or {}).get('openai_gateway_borrow_quality_pending') is True
                 and (a.get('extra') or {}).get('openai_gateway_borrow_initial_ready') is True
                 and a.get('status') == 'active' and a.get('schedulable') is True
                 and model_supported(a, DETECTION_MODELS[0])]
+            ready_count = len(selected)
+            selected = [a for a in selected if not pending_retry_active(a, pending_retries.get(str(a['id'])))]
         if not selected:
             if pending_only:
-                output = {'route_mode': 'borrow', 'pending_only': True, 'skipped': 'no_ready_pending_accounts'}
+                output = {'route_mode': 'borrow', 'pending_only': True,
+                          'skipped': 'pending_retry_deferred' if ready_count else 'no_ready_pending_accounts'}
                 print(json.dumps(output, sort_keys=True), flush=True)
                 return output
             raise ValueError('empty OAuth inventory')
@@ -492,6 +549,13 @@ def run_borrow(*, state_dir, initial=False, apply=False, account_ids=(), reasoni
                 change = {'id': account['id'], 'error': type(exc).__name__}
             summary['changes'].append(change)
             verified = change.get('applied') or change.get('skipped') == 'unchanged'
+            retry_key = str(account['id'])
+            if verified and retry_key in pending_retries:
+                pending_retries.pop(retry_key)
+                candy.legacy.save_private(retry_path, pending_retries)
+            elif pending_only and not verified and any(r.get('total', 0) > 0 for r in results):
+                pending_retries[retry_key] = pending_retry_record(account, results)
+                candy.legacy.save_private(retry_path, pending_retries)
             for result in results:
                 # Quota headers have their own token/proxy/freshness CAS and do not
                 # depend on generation completion or a quality-policy mutation.
@@ -521,7 +585,8 @@ def run_borrow(*, state_dir, initial=False, apply=False, account_ids=(), reasoni
                 verified_ids = {c['id'] for c in summary['changes'] if c.get('applied') or c.get('skipped') == 'unchanged'}
                 routing_results = [r for r in summary['results'] if r['id'] in verified_ids]
                 summary['routing'] = update_routing(candy.inventory(), routing_results, key, run_dir,
-                                                   pending_only=pending_only)
+                                                   pending_only=pending_only, partial=bool(account_ids),
+                                                   observed_account_ids={r['id'] for r in summary['results'] if r.get('samples')})
             except Exception as exc:
                 summary['routing'] = {'updated': False, 'error': type(exc).__name__}
         summary['completed_at'] = candy.utcnow()

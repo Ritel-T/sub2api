@@ -17,6 +17,12 @@ import oauth_gateway_borrow as m
 
 
 class AccountQualityTests(unittest.TestCase):
+    def setUp(self):
+        # A missing scoped mock must fail locally, never call a live Admin API.
+        guard = mock.patch.object(candy.legacy, 'admin', side_effect=AssertionError('unmocked Admin API'))
+        guard.start()
+        self.addCleanup(guard.stop)
+
     def account(self, account_id=1):
         return {'id': account_id, 'platform': 'openai', 'type': 'oauth', 'status': 'active',
                 'schedulable': True, 'proxy_id': 7,
@@ -29,12 +35,12 @@ class AccountQualityTests(unittest.TestCase):
         return {'completed': True, 'http_status': '200', 'curl_exit': 0,
                 'response_model': 'gpt-6-astra', 'text': text, **fields}
 
-    def result(self, account, answers=None, initial=True, on_sample=None):
+    def result(self, account, answers=None, initial=True, on_sample=None, expected_calls=None):
         answers = ['21'] * 4 if answers is None else answers
         probe = mock.Mock(side_effect=[self.sample(a) if isinstance(a, str) else a for a in answers])
         result = m.assess_model(account, 'gpt-6-astra', initial=initial, reasoning='medium',
             expected_answer='21', run_id='test-run', probe_fn=probe, on_sample=on_sample)
-        self.assertEqual(probe.call_count, len(answers))
+        self.assertEqual(probe.call_count, len(answers) if expected_calls is None else expected_calls)
         return result
 
     def classified_account(self, account=None, state='healthy', new_mode=True):
@@ -59,7 +65,7 @@ class AccountQualityTests(unittest.TestCase):
         return after
 
     def run_fake(self, account=None, *, pending_only=False, initial=False, answers=None,
-                 apply_error=False, routing_error=False, on_probe=None):
+                 apply_error=False, routing_error=False, on_probe=None, account_ids=()):
         account = account or self.account()
         answers = ['21'] * 4 if answers is None else answers
         samples = iter(self.sample(answer) if isinstance(answer, str) else answer for answer in answers)
@@ -88,9 +94,11 @@ class AccountQualityTests(unittest.TestCase):
                     side_effect=RuntimeError('routing failed') if routing_error else None) as routing:
                 if apply_error or routing_error:
                     with self.assertRaisesRegex(RuntimeError, 'need reconciliation'):
-                        m.run_borrow(state_dir=folder, apply=True, initial=initial, pending_only=pending_only, workers=1)
+                        m.run_borrow(state_dir=folder, apply=True, initial=initial, pending_only=pending_only,
+                                     workers=1, account_ids=account_ids)
                 else:
-                    m.run_borrow(state_dir=folder, apply=True, initial=initial, pending_only=pending_only, workers=1)
+                    m.run_borrow(state_dir=folder, apply=True, initial=initial, pending_only=pending_only,
+                                 workers=1, account_ids=account_ids)
             result_file = 'pending-last-run.json' if pending_only else 'last-run.json'
             summary = json.loads((state_dir / result_file).read_text())
             return summary, calls, quota.call_count, recovery.call_count, routing.call_args, \
@@ -149,7 +157,7 @@ class AccountQualityTests(unittest.TestCase):
             r = self.result(a, [sample], initial=False)
             self.assertEqual(r['state'], 'inconclusive')
             self.assertEqual(m.desired_borrow(a, [r]), list(m.BORROW_MODELS))
-        r = self.result(a, ['21', '21', self.sample(completed=False), '21'], initial=False)
+        r = self.result(a, ['21', '21', self.sample(completed=False), '21'], initial=False, expected_calls=3)
         self.assertEqual(r['state'], 'inconclusive')
         self.assertEqual(m.desired_borrow(a, [r]), list(m.BORROW_MODELS))
 
@@ -416,8 +424,117 @@ class AccountQualityTests(unittest.TestCase):
                     output = m.run_borrow(state_dir=folder, pending_only=True)
                 self.assertEqual(output['skipped'], 'cycle_busy')
                 inventory.assert_not_called()
-                with self.assertRaises(BlockingIOError):
-                    m.run_borrow(state_dir=folder)
+                with mock.patch.object(candy, 'inventory') as inventory:
+                    output = m.run_borrow(state_dir=folder)
+                self.assertEqual(output['skipped'], 'cycle_busy')
+                self.assertFalse(output['pending_only'])
+                inventory.assert_not_called()
+                self.assertFalse(Path(folder, 'last-run.json').exists())
+
+    def test_initial_inconclusive_stops_remaining_requests_without_classifying(self):
+        a = self.account()
+        for fields in ({'http_status': '403', 'error': 'forbidden'}, {'completed': False},
+                       {'curl_exit': 28, 'error': 'timeout'}, {'response_model': 'gpt-6.1-sol'}):
+            r = self.result(a, [self.sample(**fields)], initial=True)
+            self.assertEqual((r['state'], r['total'], r['stopped']),
+                             ('inconclusive', 1, 'incomplete_native_sample'))
+
+    def test_pending_retry_fallback_and_identity_or_proxy_change(self):
+        a = self.account(); now = datetime.now(timezone.utc)
+        record = m.pending_retry_record(a, [{'samples': [self.sample(http_status='401')]}], now=now)
+        self.assertEqual((candy.timestamp(record['retry_after']) - now).total_seconds(), 300)
+        self.assertTrue(m.pending_retry_active(a, record, now=now))
+        self.assertFalse(m.pending_retry_active(a, record, now=now + timedelta(minutes=5)))
+        changed = copy.deepcopy(a); changed['credentials']['access_token'] = 'new'
+        self.assertFalse(m.pending_retry_active(changed, record, now=now))
+        changed = copy.deepcopy(a); changed['proxy_id'] = 8
+        self.assertFalse(m.pending_retry_active(changed, record, now=now))
+        self.assertNotIn('test-token', json.dumps(record))
+        self.assertNotIn('test-account', json.dumps(record))
+
+    def test_pending_retry_uses_only_fresh_actual_exhausted_reset_headers(self):
+        a = self.account(); now = datetime.now(timezone.utc)
+        fields = {'http_status': '429', 'quota_observed_at': now.isoformat(),
+                  'quota_headers': {'x-codex-primary-used-percent': '100',
+                                    'x-codex-primary-reset-after-seconds': '60'}}
+        record = m.pending_retry_record(a, [{'samples': [self.sample(**fields)]}], now=now)
+        self.assertEqual((candy.timestamp(record['retry_after']) - now).total_seconds(), 60)
+        self.assertEqual(record['reason'], 'observed_quota_exhausted')
+        fields['quota_headers']['x-codex-secondary-used-percent'] = '100'
+        fields['quota_headers']['x-codex-secondary-reset-after-seconds'] = '3600'
+        record = m.pending_retry_record(a, [{'samples': [self.sample(**fields)]}], now=now)
+        self.assertEqual((candy.timestamp(record['retry_after']) - now).total_seconds(), 3600)
+        fields['quota_headers']['x-codex-secondary-reset-after-seconds'] = '99999999999999'
+        record = m.pending_retry_record(a, [{'samples': [self.sample(**fields)]}], now=now)
+        self.assertEqual((candy.timestamp(record['retry_after']) - now).total_seconds(), 7 * 24 * 3600)
+        for changed in (dict(fields, http_status='200'),
+                        dict(fields, quota_observed_at=(now - timedelta(minutes=11)).isoformat()),
+                        dict(fields, quota_headers={'x-codex-primary-used-percent': '90',
+                             'x-codex-primary-reset-after-seconds': '3600'}),
+                        dict(fields, quota_headers={'x-codex-primary-used-percent': '100',
+                             'x-codex-primary-reset-after-seconds': 'NaN'})):
+            record = m.pending_retry_record(a, [{'samples': [self.sample(**changed)]}], now=now)
+            self.assertEqual((candy.timestamp(record['retry_after']) - now).total_seconds(), 300)
+
+    def test_pending_failure_is_deferred_until_expiry_then_success_clears_local_retry(self):
+        a = self.account()
+        a['extra'].update(openai_gateway_borrow_quality_pending=True, openai_gateway_borrow_initial_ready=True)
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder); (state / 'admin-key').write_text('test-key')
+            (state / 'last-run.json').write_text('{"old":1}')
+            with mock.patch.object(candy, 'inventory', return_value=[a]), \
+                 mock.patch.object(candy, 'probe', return_value=self.sample(http_status='403', error='forbidden')) as probe, \
+                 mock.patch.object(m, 'apply_account', return_value={'id': 1, 'applied': False, 'skipped': 'incomplete_probe_set'}), \
+                 mock.patch.object(m, 'update_routing', return_value={'updated': True}), \
+                 mock.patch.object(candy, 'persist_quota_one', return_value={'id': 1, 'updated': False}):
+                summary = m.run_borrow(state_dir=state, pending_only=True, apply=True, workers=1)
+                self.assertEqual(summary['results'][0]['state'], 'inconclusive')
+                self.assertEqual(probe.call_count, 1)
+                self.assertTrue((state / 'pending-retry.json').exists())
+                skipped = m.run_borrow(state_dir=state, pending_only=True, apply=True, workers=1)
+                self.assertEqual(skipped['skipped'], 'pending_retry_deferred')
+                self.assertEqual(probe.call_count, 1)
+            retries = json.loads((state / 'pending-retry.json').read_text())
+            retries['1']['retry_after'] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+            (state / 'pending-retry.json').write_text(json.dumps(retries))
+            with mock.patch.object(candy, 'inventory', return_value=[a]), \
+                 mock.patch.object(candy, 'probe', return_value=self.sample()) as probe, \
+                 mock.patch.object(m, 'apply_account', return_value={'id': 1, 'applied': True}), \
+                 mock.patch.object(m, 'update_routing', return_value={'updated': True}), \
+                 mock.patch.object(candy, 'recover_one', return_value={'id': 1, 'recovered': False}), \
+                 mock.patch.object(candy, 'persist_quota_one', return_value={'id': 1, 'updated': False}):
+                summary = m.run_borrow(state_dir=state, pending_only=True, apply=True, workers=1)
+            self.assertEqual(probe.call_count, 4)
+            self.assertEqual(summary['results'][0]['state'], 'healthy')
+            self.assertEqual(json.loads((state / 'pending-retry.json').read_text()), {})
+            self.assertEqual(json.loads((state / 'last-run.json').read_text()), {'old': 1})
+
+    def test_scoped_routing_preserves_other_registered_valid_sources(self):
+        selected = self.account(168)
+        other = self.classified_account(self.account(169))
+        result = self.result(selected)
+        current = {'cookie_pool': {'source_account_ids': [168, 169]}}
+        desired = m.routing_payload(current, [selected, other], [result], partial=True)
+        self.assertEqual(desired['cookie_pool']['source_account_ids'], [168, 169])
+        self.assertEqual(m.routing_payload(current, [selected, other], [result])['cookie_pool']['source_account_ids'], [168])
+        failed = copy.deepcopy(result); failed.update(state='inconclusive')
+        failed['samples'][0].update(http_status='401', error='auth')
+        self.assertEqual(m.routing_payload(current, [selected, other], [failed], partial=True)['cookie_pool']['source_account_ids'], [169])
+        other['extra']['quality_candy']['latest_probe_at'] = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        self.assertEqual(m.routing_payload(current, [selected, other], [result], partial=True)['cookie_pool']['source_account_ids'], [168])
+
+    def test_scoped_run_does_not_retain_observed_source_filtered_by_policy_apply(self):
+        selected = self.classified_account(self.account(168))
+        other = self.classified_account(self.account(169))
+        summary, _, _, _, call, *_ = self.run_fake(selected, answers=[self.sample(completed=False)],
+                                                   apply_error=True, account_ids={168})
+        self.assertEqual(summary['results'][0]['state'], 'inconclusive')
+        self.assertEqual(call.args[1], [])
+        self.assertEqual(call.kwargs['observed_account_ids'], {168})
+        current = {'cookie_pool': {'source_account_ids': [168, 169]}}
+        # Exercise the actual worker's filtered-results + observed-ID call shape.
+        desired = m.routing_payload(current, [selected, other], call.args[1], **call.kwargs)
+        self.assertEqual(desired['cookie_pool']['source_account_ids'], [169])
 
     def test_settings_cas_and_readback_no_partial_routing(self):
         a = self.account()
