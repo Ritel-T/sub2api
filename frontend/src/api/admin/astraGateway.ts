@@ -42,7 +42,7 @@ export async function saveAstraGateway(value: AstraGatewaySettings): Promise<Ast
 
 export interface AstraRouteStatus {
   account_id: number; model?: string; state: string; reason: string; proxy_node?: string; proxy_country?: string; checked_at?: string
-  expires_at?: string; retry_at?: string; remaining_seconds: number; gateway?: string; active: boolean; answer?: string
+  expires_at?: string; retry_at?: string; remaining_seconds: number; gateway?: string; active: boolean; answer?: string; failure_code?: string; attempts?: number; correct?: number
 }
 export interface AstraWSStatus {
   account_id: number; ready: boolean; reason: string; active_sessions: number

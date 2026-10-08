@@ -16,6 +16,19 @@ export function requiredBorrowModels(account: Pick<Account, 'platform' | 'type' 
 }
 
 export function nativeBorrowQuality(account: Pick<Account, 'extra'>, model: string): string | undefined {
+  if (account.extra?.openai_gateway_borrow_quality_mode === 'astra_controls_sol_v2') {
+    if (account.extra.openai_gateway_borrow_quality_pending === true || !gatewayBorrowModels.includes(canonicalBorrowModel(model) as typeof gatewayBorrowModels[number])) return undefined
+    const record = account.extra.quality_candy as Record<string, unknown> | undefined
+    if (!record || typeof record !== 'object' || record.version !== 1 || record.model !== 'gpt-6-astra' || record.reasoning_effort !== 'medium' || record.expected_answer !== '21' || record.total !== 4 ||
+      record.algorithm !== 'ranxi-candy-sequential-four-v1' || record.prompt_sha256 !== 'df1a06950b3883d44cb2f1046164281bd7e6ba09c6792c3042e6658dfbb30eb5' ||
+      typeof record.correct !== 'number' || !Number.isInteger(record.correct) || record.correct < 0 || record.correct > 4 ||
+      typeof record.checked_at !== 'string' || typeof record.latest_probe_at !== 'string' || typeof record.run_id !== 'string' || !/^\d{8}T\d{6}Z-[a-zA-Z0-9_-]{1,64}$/.test(record.run_id)) return undefined
+    const checked = Date.parse(record.checked_at), latest = Date.parse(record.latest_probe_at)
+    if (!Number.isFinite(checked) || !Number.isFinite(latest) || latest < checked) return undefined
+    if (record.correct >= 3 && record.state === 'healthy') return 'healthy'
+    if (record.correct < 3 && record.state === 'degraded') return 'degraded'
+    return undefined
+  }
   const records = account.extra?.quality_candy_models as Record<string, unknown> | undefined
   const record = records?.[model] ?? (model === 'gpt-6.1-sol' ? records?.['gpt-6-sol'] : undefined)
   if (typeof record !== 'object' || record === null || !('state' in record)) return undefined

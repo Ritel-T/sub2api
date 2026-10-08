@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { borrowingRouteState, gatewayBorrowReasonKey } from '../gatewayBorrowStatus'
+import { borrowingRouteState, gatewayBorrowReasonKey, nativeBorrowQuality } from '../gatewayBorrowStatus'
 
 describe('Gateway borrowing presentation', () => {
   it('maps structured codes and older embedded reasons, including HTTP failures', () => {
@@ -24,5 +24,31 @@ describe('Gateway borrowing presentation', () => {
     expect(borrowingRouteState(row, Date.now())).toBe('expired')
     expect(borrowingRouteState({ ...row, state: 'expired', expires_at: '2099-01-01T00:00:00Z' }, Date.now())).toBe('expired')
     expect(borrowingRouteState({ ...row, expires_at: 'invalid' }, Date.now())).toBe('expired')
+  })
+})
+
+const completeAstra = {
+  version: 1, state: 'degraded', model: 'gpt-6-astra', reasoning_effort: 'medium', expected_answer: '21', correct: 1, total: 4,
+  algorithm: 'ranxi-candy-sequential-four-v1', prompt_sha256: 'df1a06950b3883d44cb2f1046164281bd7e6ba09c6792c3042e6658dfbb30eb5',
+  checked_at: '2026-10-07T20:00:00Z', latest_probe_at: '2026-10-07T20:30:00Z', run_id: '20261007T200000Z-ui'
+}
+describe('Account quality presentation', () => {
+  it('uses complete Astra classification for both models and ignores stale independent Sol results', () => {
+    const account = { extra: { openai_gateway_borrow_quality_mode: 'astra_controls_sol_v2', quality_candy: completeAstra, quality_candy_models: { 'gpt-6.1-sol': { state: 'healthy' } } } }
+    for (const model of ['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol']) expect(nativeBorrowQuality(account, model)).toBe('degraded')
+    expect(nativeBorrowQuality(account, 'gpt-6-luna')).toBeUndefined()
+    account.extra.quality_candy = { ...completeAstra, state: 'healthy', correct: 3 }
+    expect(nativeBorrowQuality(account, 'gpt-6.1-sol')).toBe('healthy')
+  })
+  it.each([
+    { total: 1 }, { correct: 5 }, { correct: 1.5 }, { correct: 3, state: 'degraded' }, { model: 'gpt-6.1-sol' },
+    { checked_at: 'invalid' }, { latest_probe_at: '2026-10-07T19:00:00Z' }, { run_id: 'invalid' }, { prompt_sha256: 'other' }
+  ])('does not invent classification from invalid or partial evidence %o', changes => {
+    const account = { extra: { openai_gateway_borrow_quality_mode: 'astra_controls_sol_v2', quality_candy: { ...completeAstra, ...changes }, quality_candy_models: { 'gpt-6.1-sol': { state: 'degraded' } } } }
+    expect(nativeBorrowQuality(account, 'gpt-6.1-sol')).toBeUndefined()
+  })
+  it('keeps pending unknown and retains legacy display compatibility', () => {
+    expect(nativeBorrowQuality({ extra: { openai_gateway_borrow_quality_mode: 'astra_controls_sol_v2', openai_gateway_borrow_quality_pending: true, quality_candy: completeAstra } }, 'gpt-6.1-sol')).toBeUndefined()
+    expect(nativeBorrowQuality({ extra: { quality_candy_models: { 'gpt-6-sol': { state: 'degraded' } } } }, 'gpt-6.1-sol')).toBe('degraded')
   })
 })

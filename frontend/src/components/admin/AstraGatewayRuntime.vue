@@ -16,7 +16,7 @@
         <span v-if="runtime.setup.reason"> · {{ reason(runtime.setup.reason) }}</span>
         <p v-if="runtime.setup.ready !== undefined || runtime.setup.pending !== undefined || runtime.setup.blocked !== undefined" class="mt-2 text-xs text-gray-500" data-testid="setup-counts">{{ t(`${p}.setupCounts`, { ready: runtime.setup.ready || 0, pending: runtime.setup.pending || 0, blocked: runtime.setup.blocked || 0 }) }}</p>
       </div>
-      <p class="text-sm" :class="runtime.ready_routes ? 'text-emerald-600' : 'text-amber-600'">{{ t(`${p}.readyRoutes`, { n: runtime.ready_routes }) }} · {{ t(runtime.preparing ? `${p}.preparing` : `${p}.idle`) }}</p>
+      <p class="text-sm" data-testid="route-counts" :class="runtime.ready_routes ? 'text-emerald-600' : 'text-amber-600'">{{ t(`${p}.readyRoutes`, { n: runtime.ready_routes }) }} · {{ t(`${p}.readyTargets`, { n: readyTargetCount }) }} · {{ t(`${p}.readyModels`, { n: readyModelCount }) }} · {{ t(runtime.preparing ? `${p}.preparing` : `${p}.idle`) }}</p>
       <div v-if="runtime.cooldowns?.length" class="rounded-xl border p-3 text-sm dark:border-dark-600" data-testid="rotation-cooldowns">
         <h3 class="font-medium">{{ t(`${p}.cooldownTitle`) }}</h3>
         <p v-for="row in runtime.cooldowns" :key="`${row.account_id}:${row.gateway}`" class="mt-2 break-all">#{{ row.account_id }} · {{ row.gateway }} · {{ remaining(row.retry_at) }} s</p>
@@ -41,12 +41,14 @@
         </table>
       </div>
       <div class="grid gap-3 md:grid-cols-2">
-        <div v-for="row in runtime.targets" :key="`target-${row.account_id}-${row.model || 'gpt-6-astra'}`" class="rounded-xl border p-3 dark:border-dark-600">
+        <div v-for="row in runtime.targets" data-testid="target-route" :key="`target-${row.account_id}-${row.model || 'gpt-6-astra'}`" class="rounded-xl border p-3 dark:border-dark-600">
           <p class="text-sm font-medium">{{ t(`${p}.targets`) }} #{{ row.account_id }} <span class="ml-2 font-mono text-xs text-gray-500">{{ row.model || 'gpt-6-astra' }}</span></p><p class="my-2 text-xs text-gray-500">{{ reason(row.reason) }} · {{ routeLifetime(row) }}</p>
           <p class="mb-2 break-all font-mono text-xs">{{ row.gateway || t(`${p}.unknownGateway`) }}</p>
           <p v-if="row.proxy_node" class="mb-2 text-xs">{{ row.proxy_country || '—' }} · {{ row.proxy_node }}</p>
-          <p v-if="row.answer" class="mb-2 text-xs">{{ t(`${p}.actual`) }}: {{ row.answer }}</p>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || setupBusy || dirty || !settings?.cookie_pool.enabled" :title="t(`${p}.verifyTargetHint`)" @click="run('verify', row.account_id)">{{ t(`${p}.verifyTarget`) }}</button>
+          <p v-if="integerAnswer(row.answer)" class="mb-2 text-xs" data-testid="target-answer">{{ t(`${p}.actual`) }}: {{ integerAnswer(row.answer) }}</p>
+          <p v-if="row.attempts && row.attempts > 0" class="mb-2 text-xs" data-testid="target-probe-counts">{{ t(`${p}.probeCounts`, { correct: row.correct ?? 0, attempts: row.attempts }) }}</p>
+          <p v-if="row.retry_at" class="mb-2 text-xs" data-testid="target-retry">{{ t(`${p}.retryAt`, { time: clock(row.retry_at) }) }}</p>
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || setupBusy || dirty || !settings?.cookie_pool.enabled" :title="t(settings?.auto_quality ? `${p}.verifyTargetHint` : `${p}.verifyManualTargetHint`)" @click="run('verify', row.account_id)">{{ t(`${p}.verifyTarget`) }}</button>
         </div>
         <div v-for="row in settings?.auto_quality ? [] : runtime.ws" :key="`ws-${row.account_id}`" class="rounded-xl border p-3 dark:border-dark-600">
           <p class="text-sm font-medium">WS #{{ row.account_id }}</p><p class="my-2 text-xs text-gray-500">{{ reason(row.reason) }} · {{ t(`${p}.sessions`, { n: row.active_sessions }) }} · {{ remaining(row.expires_at) }} s</p>
@@ -74,12 +76,16 @@ const error = ref('')
 const busy = ref(false)
 const setupBusy = computed(() => ['queued', 'running'].includes(runtime.value?.setup?.state || ''))
 const now = ref(Date.now())
+const readyTargets = computed(() => runtime.value?.targets.filter(row => row.state === 'ready' && row.reason === 'target_probe_passed' && remaining(row.expires_at) > 0) || [])
+const readyTargetCount = computed(() => new Set(readyTargets.value.map(row => row.account_id)).size)
+const readyModelCount = computed(() => readyTargets.value.length)
 let poll: ReturnType<typeof setInterval> | undefined
 let tick: ReturnType<typeof setInterval> | undefined
 let alive = true
 let refreshing = false
 function reason(code: string) { const readable = gatewayBorrowReasonKey(code); if (readable) return t(readable); const key = `${p}.reasons.${code}`; return te(key) ? t(key) : code }
 function routeLifetime(row: { state?: string; expires_at?: string }) { return row.state === 'ready' && row.expires_at && remaining(row.expires_at) > 0 ? `${remaining(row.expires_at)} s` : '—' }
+function integerAnswer(value?: string) { return typeof value === 'string' && /^\d{1,6}$/.test(value) ? value : '' }
 function clock(value?: string) { return value ? new Date(value).toLocaleString() : '—' }
 function remaining(expiry?: string) { return expiry ? Math.max(0, Math.ceil((Date.parse(expiry) - now.value) / 1000)) : 0 }
 async function refresh() {
