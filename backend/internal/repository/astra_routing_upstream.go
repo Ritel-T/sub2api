@@ -255,35 +255,10 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 		for _, model := range pool.config.ModelsForTarget(id) {
 			row := service.AstraRouteStatus{AccountID: id, Model: model, State: "waiting", Reason: "target_not_verified"}
 			if check, ok := pool.targetCheck(id, model); ok {
-				if !check.passed && now.Before(check.retryAfter) {
-					retry := check.retryAfter
-					row.RetryAt = &retry
-					if settings.AutoQuality {
-						var earliest *time.Time
-						available := false
-						for _, source := range pool.config.SourceAccountIDs {
-							route, found := pool.routes[source]
-							if !found || now.Add(90*time.Second).After(route.expires) {
-								continue
-							}
-							failed, known := pool.targetRouteFailures[astraTargetRouteKey{id, pool.qualityModel(model), source, sha256.Sum256([]byte(route.cookie.Value))}]
-							available = true
-							if !known || !now.Before(failed.retryAfter) {
-								row.RetryAt = nil
-								break
-							}
-							if earliest == nil || failed.retryAfter.Before(*earliest) {
-								retry := failed.retryAfter
-								earliest = &retry
-							}
-						}
-						if available && row.RetryAt != nil && earliest != nil {
-							row.RetryAt = earliest
-						}
-					}
-				}
 				checked := check.checked
 				row.CheckedAt = &checked
+				row.Answer, row.FailureCode = check.answer, check.failureCode
+				row.Attempts, row.Correct = check.attempts, check.correct
 				row.Gateway = check.gateway
 				row.ProxyNode = check.node.Name
 				row.ProxyCountry = check.node.Country
@@ -300,6 +275,11 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 					}
 					row.State = "ready"
 					row.Reason = "target_probe_passed"
+					if settings.AutoQuality {
+						if retry := s.readyTargetQuota(check, model, now); now.Before(retry.until) {
+							row.State, row.Reason, row.RetryAt = "blocked", retry.reason, &retry.until
+						}
+					}
 					row.ExpiresAt = &expiry
 					row.RemainingSeconds = max(0, int64(expiry.Sub(now).Seconds()))
 					if old, ok := readySource[check.sourceID]; !ok || expiry.Before(old) {
@@ -319,6 +299,17 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 				} else {
 					row.State = "waiting"
 					row.Reason = "target_not_verified"
+				}
+				if settings.AutoQuality && row.State != "ready" && row.State != "blocked" {
+					if retry := s.targetRetryDeadline(pool, check, id, model, now); now.Before(retry.until) {
+						row.RetryAt = &retry.until
+						if !check.passed {
+							row.Reason = retry.reason
+						}
+					}
+				} else if !check.passed && now.Before(check.retryAfter) {
+					retry := check.retryAfter
+					row.RetryAt = &retry
 				}
 			}
 			result.Targets = append(result.Targets, row)

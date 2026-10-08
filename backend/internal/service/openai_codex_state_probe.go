@@ -66,7 +66,10 @@ type OpenAICodexStateProbeResult struct {
 	Reason    string                  `json:"reason"`
 	Failure   string                  `json:"failure,omitempty"`
 	// Detail 是脱敏截断后的上游报错原文，便于看出「模型不支持」之类的具体原因。
-	Detail string `json:"detail,omitempty"`
+	Detail   string `json:"detail,omitempty"`
+	Attempts int    `json:"attempts,omitempty"`
+	Correct  int    `json:"correct,omitempty"`
+	Answer   string `json:"answer,omitempty"`
 
 	MintStatus     int  `json:"mint_status"`
 	ContinueStatus int  `json:"continue_status"`

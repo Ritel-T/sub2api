@@ -44,7 +44,7 @@ func (s *astraRoutingUpstream) automaticTargetRoute(req *http.Request, proxy str
 		return nil, [32]byte{}, proxy, func() {}, errors.New("borrow_response_owner_route_expired")
 	}
 	if !s.hasAutomaticBorrowCandidate(req, proxy, id, model, profile, pool) {
-		if err := s.PrepareAstraGateway(req.Context()); err != nil && err.Error() != "source_probe_cooldown" && err.Error() != "preparation_in_progress" {
+		if err := s.PrepareAstraGateway(targetPreparationContext(req, proxy, id, model, profile)); err != nil && err.Error() != "source_probe_cooldown" && err.Error() != "preparation_in_progress" {
 			return nil, [32]byte{}, proxy, func() {}, err
 		}
 	}
@@ -131,6 +131,7 @@ func (s *astraRoutingUpstream) prepareAutomaticSources(ctx context.Context, pool
 	defer s.preparing.Store(false)
 	available := false
 	attempts := 0
+	waiting := false
 	// Keep renewals of verified routes ahead of exploration, but make never-
 	// attempted/oldest donors fair independently of configuration order.
 	ids := append([]int64(nil), pool.config.SourceAccountIDs...)
@@ -180,6 +181,10 @@ func (s *astraRoutingUpstream) prepareAutomaticSources(ctx context.Context, pool
 				continue
 			}
 		}
+		if !s.sourceHasTargetDemand(ctx, pool, id, route, time.Now()) {
+			waiting = true
+			continue
+		}
 		if prior.CheckedAt != nil && time.Since(*prior.CheckedAt) < 20*time.Second {
 			continue
 		}
@@ -197,6 +202,9 @@ func (s *astraRoutingUpstream) prepareAutomaticSources(ctx context.Context, pool
 		available = available || (exists && route.cookie.Value != "" && time.Now().Before(route.expires))
 	}
 	if !available {
+		if waiting {
+			return errors.New("source_probe_cooldown")
+		}
 		return errors.New("no_qualified_source_route")
 	}
 	return nil

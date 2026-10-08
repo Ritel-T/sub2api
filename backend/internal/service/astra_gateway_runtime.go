@@ -25,6 +25,9 @@ type AstraRouteStatus struct {
 	ProxyNode        string     `json:"proxy_node,omitempty"`
 	ProxyCountry     string     `json:"proxy_country,omitempty"`
 	Answer           string     `json:"answer,omitempty"`
+	FailureCode      string     `json:"failure_code,omitempty"`
+	Attempts         int        `json:"attempts,omitempty"`
+	Correct          int        `json:"correct,omitempty"`
 	AccountID        int64      `json:"account_id"`
 	State            string     `json:"state"`
 	Reason           string     `json:"reason"`

@@ -31,6 +31,9 @@ type astraTargetValidation struct {
 	sourceID                     int64
 	reason                       string
 	answer                       string
+	failureCode                  string
+	attempts, correct            int
+	quotaKey, negativeKey        astraTargetQuotaKey
 	gateway                      string
 }
 
@@ -52,6 +55,8 @@ type astraTargetQuotaKey struct {
 	accountID int64
 	model     string
 	identity  [32]byte
+	proxy     [32]byte
+	sourceID  int64
 }
 type astraTargetQuotaBackoff struct {
 	until       time.Time
@@ -68,10 +73,12 @@ func (v astraTargetQuotaBackoff) discardAt() time.Time {
 }
 
 func targetBorrowQuietKeys(req *http.Request, id int64, model, proxy string, sourceID int64, profile *tlsfingerprint.Profile) (astraTargetQuotaKey, astraTargetQuotaKey) {
-	quotaIdentity, _ := json.Marshal([]string{proxy, req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID")})
-	negativeIdentity, _ := json.Marshal([]string{model, proxy, req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID"), req.Header.Get("User-Agent"), req.Header.Get("Originator"), req.Header.Get("Version"), strconv.FormatInt(sourceID, 10)})
+	quotaIdentity, _ := json.Marshal([]string{req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID")})
+	negativeIdentity, _ := json.Marshal([]string{req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID"), req.Header.Get("User-Agent"), req.Header.Get("Originator"), req.Header.Get("Version")})
 	profileIdentity, _ := json.Marshal(profile)
-	return astraTargetQuotaKey{id, model, sha256.Sum256(quotaIdentity)}, astraTargetQuotaKey{id, model, sha256.Sum256(append(negativeIdentity, profileIdentity...))}
+	proxyFingerprint := sha256.Sum256([]byte(proxy))
+	return astraTargetQuotaKey{accountID: id, model: model, identity: sha256.Sum256(quotaIdentity), proxy: proxyFingerprint},
+		astraTargetQuotaKey{accountID: id, model: model, identity: sha256.Sum256(append(negativeIdentity, profileIdentity...)), proxy: proxyFingerprint, sourceID: sourceID}
 }
 
 func (s *astraRoutingUpstream) targetQuotaWait(key astraTargetQuotaKey, now time.Time) (astraTargetQuotaBackoff, bool) {
@@ -238,7 +245,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		cookie = &copyCookie
 	}
 	if cookie == nil {
-		if err := s.PrepareAstraGateway(req.Context()); err != nil {
+		if err := s.PrepareAstraGateway(targetPreparationContext(req, proxy, id, model, profile)); err != nil {
 			return nil, zero, proxy, release, err
 		}
 		pool = s.current(req.Context())
@@ -440,7 +447,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	defer func() {
 		pool.targetMu.Unlock()
 		if pool.historyRecorder != nil {
-			pool.historyRecorder(service.AstraGatewayHistoryRecord{Gateway: astraRoutingHost(cookie.Value), SourceAccountID: sourceID, TargetAccountID: id, LastSeen: time.Now(), LastReason: reason}, passed)
+			pool.historyRecorder(service.AstraGatewayHistoryRecord{Gateway: astraRoutingHost(cookie.Value), SourceAccountID: sourceID, TargetAccountID: id, LastSeen: time.Now(), LastReason: reason, LastAnswer: result.Answer}, passed)
 		}
 	}()
 	if pool.targetChecks == nil {
@@ -487,7 +494,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	if passed && s.cfg.AstraRouting(req.Context()).AutoQuality {
 		s.resetTargetQualityFailure(negativeKey)
 	}
-	check := astraTargetValidation{node: route.node, key: key, cookieFingerprint: sha256.Sum256([]byte(cookie.Value)), proxyFingerprint: sha256.Sum256([]byte(proxy)), passed: passed, checked: time.Now(), expires: expires, retryAfter: time.Now().Add(retryDelay), sourceID: sourceID, reason: reason, gateway: host}
+	check := astraTargetValidation{node: route.node, key: key, cookieFingerprint: sha256.Sum256([]byte(cookie.Value)), proxyFingerprint: sha256.Sum256([]byte(proxy)), passed: passed, checked: time.Now(), expires: expires, retryAfter: time.Now().Add(retryDelay), sourceID: sourceID, reason: reason, gateway: host, quotaKey: quotaKey, negativeKey: negativeKey, failureCode: result.Failure, attempts: result.Attempts, correct: result.Correct, answer: result.Answer}
 	check.route = route
 	if !passed && s.cfg.AstraRouting(req.Context()).AutoQuality {
 		if pool.targetRouteFailures == nil {

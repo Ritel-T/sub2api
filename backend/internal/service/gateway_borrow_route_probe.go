@@ -58,6 +58,7 @@ func ProbeOpenAICodexBorrowQualityRoute(ctx context.Context, upstream HTTPUpstre
 	changed := false
 	correct := 0
 	for attempt := 0; attempt < 4; attempt++ {
+		result.Attempts++
 		shot, err := fireOpenAICodexProbeShotRequest(ctx, template.Header, result.Model, "", pinned.String(), GatewayBorrowCandyPrompt, func(req *http.Request) (*http.Response, error) {
 			req = req.WithContext(WithHTTPUpstreamRedirectsDisabled(req.Context()))
 			response, err := upstream.DoWithTLS(req, proxy, accountID, concurrency, profile)
@@ -81,8 +82,13 @@ func ProbeOpenAICodexBorrowQualityRoute(ctx context.Context, upstream HTTPUpstre
 			result.fail("quality_failed", "target_quality_failed", "")
 			return result
 		}
+		result.Answer = ""
+		if shot.text != "" && len(shot.text) <= 6 && strings.Trim(shot.text, "0123456789") == "" {
+			result.Answer = shot.text
+		}
 		if shot.text == "21" {
 			correct++
+			result.Correct = correct
 		}
 	}
 	if correct < 3 {
@@ -117,6 +123,7 @@ func ProbeOpenAICodexBorrowAccountQualityRoute(ctx context.Context, upstream HTT
 	quickPass := false
 	for attempt := 0; attempt < 4; attempt++ {
 		changed := false
+		result.Attempts++
 		shot, err := fireOpenAICodexProbeShotRequest(ctx, template.Header, result.Model, "", pinned.String(), GatewayBorrowCandyPrompt, func(req *http.Request) (*http.Response, error) {
 			req = req.WithContext(WithHTTPUpstreamRedirectsDisabled(req.Context()))
 			response, err := upstream.DoWithTLS(req, proxy, accountID, concurrency, profile)
@@ -140,8 +147,13 @@ func ProbeOpenAICodexBorrowAccountQualityRoute(ctx context.Context, upstream HTT
 			result.fail("quality_failed", "target_quality_failed", "")
 			return result
 		}
+		result.Answer = ""
+		if shot.text != "" && len(shot.text) <= 6 && strings.Trim(shot.text, "0123456789") == "" {
+			result.Answer = shot.text
+		}
 		if shot.text == "21" {
 			correct++
+			result.Correct = correct
 			if attempt == 0 && provenPair {
 				quickPass = true
 				break

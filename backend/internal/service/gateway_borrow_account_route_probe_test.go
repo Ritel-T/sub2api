@@ -67,6 +67,11 @@ func TestBorrowAccountQualityAstraOnlyAndOnePlusThree(t *testing.T) {
 			req.Header.Set("Cookie", "__oailb=fixture")
 			result := ProbeOpenAICodexBorrowAccountQualityRoute(t.Context(), upstream, req, "fixture-proxy", 300, 1, nil, tc.prior)
 			require.Equal(t, tc.want, calls)
+			require.Equal(t, tc.want, result.Attempts)
+			if tc.pass {
+				require.GreaterOrEqual(t, result.Correct, 1)
+				require.Equal(t, "21", result.Answer)
+			}
 			require.Equal(t, tc.pass, result.Verdict == OpenAICodexStateHealthy)
 			require.Equal(t, "gpt-6-astra", result.Model)
 			require.False(t, result.FinishedAt.IsZero())
