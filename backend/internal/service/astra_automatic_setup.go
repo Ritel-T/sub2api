@@ -128,15 +128,22 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 		set("failed", "source", 0, "runtime_unavailable")
 		return
 	}
+	sourceCtx := ctx
 	if settings.AutoQuality {
 		snapshot := s.AstraGatewayStatus(ctx)
-		if len(automaticBorrowWarmPlan(snapshot, settings.CookiePool, time.Now())) == 0 {
+		plan := automaticBorrowWarmPlan(snapshot, settings.CookiePool, time.Now())
+		if len(plan) == 0 {
 			s.finishAutomaticBorrowCycle(settings, snapshot, nil, ctx.Err())
 			return
 		}
+		ids := make([]int64, 0, len(plan))
+		for _, account := range plan {
+			ids = append(ids, account.id)
+		}
+		sourceCtx = WithAstraSourceTargetDemand(ctx, ids)
 	}
 	if !settings.AutoQuality || !borrowSourceStillWarm(provider.AstraGatewaySnapshot(ctx), time.Now()) || borrowAnyModelNeedsWarm(s.AstraGatewayStatus(ctx), settings.CookiePool, time.Now()) {
-		if err := prepareAstraForSetup(ctx, provider); err != nil {
+		if err := prepareAstraForSetup(sourceCtx, provider); err != nil {
 			if settings.AutoQuality && automaticBorrowSourceWaitingReason(err) != "" {
 				s.finishAutomaticBorrowSourceWait(settings, s.AstraGatewayStatus(ctx), automaticBorrowSourceWaitingReason(err), ctx.Err())
 			} else {
@@ -525,4 +532,17 @@ func prepareAstraForSetup(ctx context.Context, provider AstraGatewayRuntimeProvi
 		case <-time.After(200 * time.Millisecond):
 		}
 	}
+}
+
+// Internal source preparation scope from the already validated warm snapshot.
+// Missing scope preserves manual preparation; an empty scope authorizes no work.
+type astraSourceTargetDemandKey struct{}
+
+func WithAstraSourceTargetDemand(ctx context.Context, ids []int64) context.Context {
+	return context.WithValue(ctx, astraSourceTargetDemandKey{}, append([]int64(nil), ids...))
+}
+
+func AstraSourceTargetDemandFromContext(ctx context.Context) ([]int64, bool) {
+	ids, scoped := ctx.Value(astraSourceTargetDemandKey{}).([]int64)
+	return ids, scoped
 }

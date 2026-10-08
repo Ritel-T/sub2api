@@ -400,3 +400,21 @@ func TestAccountQualityWarmPlanOnlyAstraOncePerAccount(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, map[int64]string{88: "gpt-6-astra", 109: "gpt-6-astra"}, calls)
 }
+
+func TestAutomaticBorrowSourcePreparationUsesEligibleWarmTargetsOnly(t *testing.T) {
+	settings := config.AstraRoutingSettings{AutoQuality: true, Revision: "mixed-source", CookiePool: config.CodexGatewayPinConfig{Enabled: true, SourceAccountIDs: []int64{299}, TargetAccountIDs: []int64{300, 140}}}
+	cfg := &config.Config{}
+	cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
+	until := time.Now().Add(time.Hour)
+	provider := &astraSetupUpstream{snapshot: AstraGatewayRuntime{Revision: settings.Revision, Targets: []AstraRouteStatus{{AccountID: 300, Model: "gpt-6-astra", State: "waiting"}, {AccountID: 140, Model: "gpt-6-astra", State: "blocked", Reason: "target_account_rate_limited", RetryAt: &until}}}, prepare: func(ctx context.Context) error {
+		ids, scoped := AstraSourceTargetDemandFromContext(ctx)
+		require.True(t, scoped)
+		require.Equal(t, []int64{300}, ids)
+		return errors.New("source_probe_cooldown")
+	}}
+	svc := &AccountTestService{cfg: cfg, httpUpstream: provider, accountRepo: &astraWarmAccountRepo{}, astraSetupStatus: AstraSetupStatus{Revision: settings.Revision}}
+	ctx, cancel := context.WithCancel(t.Context())
+	svc.runAstraAutomaticSetup(ctx, cancel, settings)
+	require.Equal(t, "waiting", svc.astraSetupStatus.State)
+	require.Equal(t, "source_probe_cooldown", svc.astraSetupStatus.Reason)
+}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"time"
 )
 
@@ -102,7 +103,14 @@ func (s *astraRoutingUpstream) sourceHasTargetDemand(ctx context.Context, pool *
 	defer pool.targetMu.Unlock()
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
-	for _, id := range pool.config.TargetAccountIDs {
+	ids, scoped := service.AstraSourceTargetDemandFromContext(ctx)
+	if !scoped {
+		ids = pool.config.TargetAccountIDs
+	}
+	if currentIdentity {
+		ids = []int64{scope.accountID}
+	}
+	for _, id := range ids {
 		seen := map[string]bool{}
 		for _, model := range pool.config.ModelsForTarget(id) {
 			model = pool.qualityModel(model)

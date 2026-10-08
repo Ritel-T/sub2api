@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -249,4 +250,37 @@ func TestAccountBorrowNewProbeQuotaDoesNotBlockOtherModelOldProof(t *testing.T) 
 	response, err := wrapper.Do(accountBorrowRequest(t, "gpt-6.1-sol", ""), "exit", 300, 2)
 	require.NoError(t, err)
 	_ = response.Body.Close()
+}
+
+func TestAccountBorrowMixedBlockedUnknownTargetCannotDriveSourcePreparation(t *testing.T) {
+	wrapper, pool := accountBorrowFixture(t)
+	wrapper.delegate = gatewayPinDelegate{call: func(*http.Request, string, int64, int, *tlsfingerprint.Profile) (*http.Response, error) {
+		return accountBorrowResponse("gpt-6-astra", "29"), nil
+	}}
+	accountBorrowAdd(t, pool, 299, "failed", 220*time.Second)
+	accountBorrowAdd(t, pool, 298, "other-failed", 220*time.Second)
+	require.Error(t, wrapper.VerifyAstraGatewayTarget(t.Context(), accountBorrowRequest(t, "gpt-6-astra", ""), "exit", 300, 2))
+	// This unseen target is blocked in the service snapshot. It remains configured
+	// but cannot qualify a source solely because it has never run a target probe.
+	pool.config.TargetAccountIDs = append(pool.config.TargetAccountIDs, 140)
+	pool.mu.Lock()
+	pool.routes = nil
+	for id, status := range pool.statuses {
+		at := time.Now().Add(-time.Minute)
+		status.CheckedAt = &at
+		pool.statuses[id] = status
+	}
+	pool.mu.Unlock()
+	calls := 0
+	wrapper.SetAstraGatewayPreparer(func(context.Context, int64) error { calls++; return nil })
+	ctx := service.WithAstraSourceTargetDemand(t.Context(), []int64{300})
+	require.EqualError(t, wrapper.prepareAutomaticSources(ctx, pool), "source_probe_cooldown")
+	require.Zero(t, calls, "the unseen blocked target must not bypass every cooled donor")
+	req := accountBorrowRequest(t, "gpt-6-astra", "")
+	ctx = targetPreparationContext(req, "exit", 300, "gpt-6-astra", nil)
+	require.EqualError(t, wrapper.prepareAutomaticSources(ctx, pool), "source_probe_cooldown")
+	require.Zero(t, calls, "on-demand preparation only considers its caller")
+	// Manual unscoped preparation retains its existing all-target exploration.
+	require.EqualError(t, wrapper.prepareAutomaticSources(t.Context(), pool), "no_qualified_source_route")
+	require.Equal(t, 2, calls)
 }
