@@ -80,6 +80,14 @@ func ReadRequestBodyWithPreallocLimit(req *http.Request, maxDecodedBytes int64) 
 // Stage is "read" for wire bytes and "decode" for decoding allocations.
 type RequestBodyReadBudget func(stage string, bytes int64) error
 
+// RequestBodyBudgetLimitError optionally reports the retained-byte ceiling at
+// a failed reservation. The reader can retry a smaller bounded allocation;
+// every retry still reserves against the live budget before allocating.
+type RequestBodyBudgetLimitError interface {
+	error
+	RequestBodyBudgetLimit() int64
+}
+
 // ReadRequestBodyWithPreallocLimitAndBudget additionally meters compressed
 // requests during reading and decoding. A nil budget preserves the existing
 // reader behavior. Budget errors retain their identity through decode errors.
@@ -151,18 +159,52 @@ func readRequestBodyChunks(reader io.Reader, initialCapacity int, contentLength 
 		if remaining := contentLength - int64(total); remaining >= 0 && remaining < int64(chunkCapacity) {
 			chunkCapacity = int(remaining) + 1
 		}
+		var saturatedBudgetErr error
 		if budget != nil {
-			if err := budget(int64(total) + int64(chunkCapacity)); err != nil {
+			for {
+				err := budget(int64(total) + int64(chunkCapacity))
+				if err == nil {
+					break
+				}
+				var limited RequestBodyBudgetLimitError
+				if !errors.As(err, &limited) {
+					return nil, err
+				}
+				remaining := limited.RequestBodyBudgetLimit() - int64(total)
+				if remaining > 0 && remaining < int64(chunkCapacity) {
+					chunkCapacity = int(remaining)
+					continue
+				}
+				if remaining == 0 && total > 0 {
+					// At an exact retained-body boundary, EOF must not require
+					// another retained chunk. One fixed scratch byte distinguishes
+					// EOF from overflow; overflow is never appended or accepted.
+					saturatedBudgetErr = err
+					break
+				}
 				return nil, err
 			}
 		}
-		chunk := make([]byte, chunkCapacity)
+		var chunk []byte
 		n := 0
 		var err error
-		for n < len(chunk) && err == nil {
-			var read int
-			read, err = reader.Read(chunk[n:])
-			n += read
+		if saturatedBudgetErr != nil {
+			var probe [1]byte
+			read, readErr := reader.Read(probe[:])
+			if read > 0 {
+				return nil, saturatedBudgetErr
+			}
+			if readErr == nil {
+				return nil, io.ErrNoProgress
+			}
+			err = readErr
+		} else {
+			chunk = make([]byte, chunkCapacity)
+			for n < len(chunk) && err == nil {
+				var read int
+				read, err = reader.Read(chunk[n:])
+				n += read
+			}
 		}
 		if err != nil && err != io.EOF {
 			return nil, err

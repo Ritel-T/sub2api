@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/service/basispoints"
 	"github.com/gin-gonic/gin"
@@ -344,14 +345,13 @@ func TestExcelBPSImageAdmissionUnknownBodyStopsBeforeBudgetOverflow(t *testing.T
 	require.True(t, ok)
 	defer second.release()
 	var reads atomic.Int32
-	body := &bpsImageBudgetedBody{
-		ReadCloser:  &bpsImageCountingBody{reads: &reads, reader: strings.NewReader("content")},
-		reservation: second,
-		maxBody:     bpsImageMaxBodyBytes,
-	}
-	_, err := body.Read(make([]byte, 2<<20))
+	req := httptest.NewRequest(http.MethodPost, "/responses", nil)
+	req.ContentLength = -1
+	req.Body = &bpsImageCountingBody{reads: &reads, reader: strings.NewReader(strings.Repeat("x", (1<<20)+1))}
+	_, err := httputil.ReadRequestBodyWithPreallocLimitAndBudget(req, bpsImageMaxBodyBytes, second.readBudget(bpsImageMaxBodyBytes))
 	require.ErrorIs(t, err, errBPSImageRequestBusy)
-	require.Zero(t, reads.Load(), "body must not be read after the reservation fails")
+	require.Positive(t, reads.Load(), "only the bytes covered by the reservation and one fixed overflow probe may be read")
+	require.Equal(t, int64(512<<20), budget.bytes, "failed growth cannot overdraw the shared budget")
 }
 
 func TestExcelBPSImageAdmissionReleasesAfterCancellation(t *testing.T) {

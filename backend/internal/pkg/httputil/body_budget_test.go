@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
@@ -160,5 +162,62 @@ func TestReadRequestBodyZstdBudgetRejectsMalformedFrames(t *testing.T) {
 	} {
 		_, err := ReadRequestBodyWithPreallocLimitAndBudget(newRequestWithBody(t, wire, "zstd"), 64<<20, func(string, int64) error { return nil })
 		require.Error(t, err)
+	}
+}
+
+type retainedBodyBudgetError struct{ limit int64 }
+
+func (e *retainedBodyBudgetError) Error() string                 { return "retained body budget exceeded" }
+func (e *retainedBodyBudgetError) RequestBodyBudgetLimit() int64 { return e.limit }
+
+func TestReadRequestBodyBudgetAdaptsWithoutRetainingOverflow(t *testing.T) {
+	const allowed = 1 << 20
+	for _, tc := range []struct {
+		name     string
+		size     int
+		accepted bool
+	}{
+		{"below boundary", allowed - 1, true},
+		{"exact boundary", allowed, true},
+		{"one byte above", allowed + 1, false},
+		{"larger overflow", allowed + (1 << 20), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := bytes.Repeat([]byte{'x'}, tc.size)
+			request := newRequestWithBody(t, body, "")
+			request.ContentLength = -1
+			denied := &retainedBodyBudgetError{limit: allowed}
+			var largestSuccessful int64
+			got, err := ReadRequestBodyWithPreallocLimitAndBudget(request, 64<<20, func(_ string, size int64) error {
+				if size > allowed {
+					return denied
+				}
+				largestSuccessful = max(largestSuccessful, size)
+				return nil
+			})
+			require.LessOrEqual(t, largestSuccessful, int64(allowed), "no retained buffer can bypass successful reservation")
+			if tc.accepted {
+				require.NoError(t, err)
+				require.Equal(t, body, got)
+			} else {
+				require.ErrorIs(t, err, denied)
+				require.Nil(t, got)
+			}
+		})
+	}
+}
+
+func TestReadRequestBodyBudgetBoundaryPreservesEndErrors(t *testing.T) {
+	for _, sourceErr := range []error{io.ErrUnexpectedEOF, context.Canceled} {
+		request := newRequestWithBody(t, nil, "")
+		request.ContentLength = -1
+		request.Body = io.NopCloser(io.MultiReader(bytes.NewReader(bytes.Repeat([]byte{'x'}, 1<<20)), iotest.ErrReader(sourceErr)))
+		_, err := ReadRequestBodyWithPreallocLimitAndBudget(request, 64<<20, func(_ string, size int64) error {
+			if size > 1<<20 {
+				return &retainedBodyBudgetError{limit: 1 << 20}
+			}
+			return nil
+		})
+		require.ErrorIs(t, err, sourceErr, "one-byte EOF check cannot hide a truncated or cancelled source")
 	}
 }

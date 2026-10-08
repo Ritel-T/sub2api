@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -135,12 +134,28 @@ func (r *bpsImageReservation) release() {
 var errBPSImageRequestBusy = errors.New("image relay request capacity is busy")
 
 type bpsImageAdmissionBusyError struct {
-	stage     string
-	rejection *bpsImageAdmissionRejection
+	stage         string
+	rejection     *bpsImageAdmissionRejection
+	retainedLimit int64
 }
 
-func (e *bpsImageAdmissionBusyError) Error() string { return errBPSImageRequestBusy.Error() }
-func (e *bpsImageAdmissionBusyError) Unwrap() error { return errBPSImageRequestBusy }
+func (e *bpsImageAdmissionBusyError) Error() string                 { return errBPSImageRequestBusy.Error() }
+func (e *bpsImageAdmissionBusyError) Unwrap() error                 { return errBPSImageRequestBusy }
+func (e *bpsImageAdmissionBusyError) RequestBodyBudgetLimit() int64 { return e.retainedLimit }
+
+// A rejection snapshot and this request's unchanged reservation give the
+// maximum size that could fit at that decision. Retrying still rechecks the
+// shared budget, so competing readers cannot overdraw it.
+func (r *bpsImageReservation) readBudget(maxBody int64) httputil.RequestBodyReadBudget {
+	return func(stage string, size int64) error {
+		size = min(size, maxBody)
+		size = max(size, int64(bpsImageMinBodyBytes))
+		if rejection := r.resizeWithRejection(size * bpsImageBodyMultiplier); rejection != nil {
+			return &bpsImageAdmissionBusyError{stage: stage, rejection: rejection, retainedLimit: max(int64(0), (rejection.limitBytes-rejection.bytes+r.weight)/bpsImageBodyMultiplier)}
+		}
+		return nil
+	}
+}
 
 func bpsImageAdmissionEncoding(encoding string) string {
 	switch strings.ToLower(strings.TrimSpace(encoding)) {
@@ -173,29 +188,6 @@ func bpsImageAdmissionLogRejection(log *zap.Logger, stage, encoding string, wire
 		zap.String("content_encoding", bpsImageAdmissionEncoding(encoding)),
 		zap.Int64("wire_content_length", wireLength),
 	)
-}
-
-type bpsImageBudgetedBody struct {
-	io.ReadCloser
-	reservation *bpsImageReservation
-	read        int64
-	maxBody     int64
-}
-
-func (b *bpsImageBudgetedBody) Read(p []byte) (int, error) {
-	anticipated := b.read + int64(len(p))
-	if anticipated > b.maxBody {
-		anticipated = b.maxBody
-	}
-	if anticipated < bpsImageMinBodyBytes {
-		anticipated = bpsImageMinBodyBytes
-	}
-	if rejection := b.reservation.resizeWithRejection(anticipated * bpsImageBodyMultiplier); rejection != nil {
-		return 0, &bpsImageAdmissionBusyError{stage: "read", rejection: rejection}
-	}
-	n, err := b.ReadCloser.Read(p)
-	b.read += int64(n)
-	return n, err
 }
 
 // ExcelBPSImageAdmission must be shared across the gateway route aliases.
@@ -270,25 +262,7 @@ func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax 
 		defer reservation.release()
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, readLimit)
 		if length <= 0 || compressed {
-			if !compressed {
-				c.Request.Body = &bpsImageBudgetedBody{ReadCloser: c.Request.Body, reservation: reservation, maxBody: maxBody}
-			}
-			var readBudget httputil.RequestBodyReadBudget
-			if compressed {
-				readBudget = func(stage string, size int64) error {
-					if size > maxBody {
-						size = maxBody
-					}
-					if size < bpsImageMinBodyBytes {
-						size = bpsImageMinBodyBytes
-					}
-					if rejection := reservation.resizeWithRejection(size * bpsImageBodyMultiplier); rejection != nil {
-						return &bpsImageAdmissionBusyError{stage: stage, rejection: rejection}
-					}
-					return nil
-				}
-			}
-			body, err := httputil.ReadRequestBodyWithPreallocLimitAndBudget(c.Request, maxBody, readBudget)
+			body, err := httputil.ReadRequestBodyWithPreallocLimitAndBudget(c.Request, maxBody, reservation.readBudget(maxBody))
 			_ = c.Request.Body.Close()
 			if err != nil {
 				switch {
