@@ -383,34 +383,43 @@ def main():
         groups = proxies = None
         # Reconcile model drift for existing accounts without reapplying defaults.
         for item in targets:
-            if item['id'] not in state['completed']:
-                continue
-            if str(item['id']) in ready_pending or initial_quality_pending(item):
-                # A pending initial classification is coordinated below. Do not
-                # turn a missing ready marker into a second defaults writer.
-                continue
-            plan = normalize_plan(item['credentials'].get('plan_type'))
-            template = config['templates'].get(plan)
-            if not template:
-                continue
-            desired = desired_model_mapping(template, model_exclusions_for(config, item['id'], item.get('extra')))
-            if item['credentials'].get('model_mapping') == desired:
-                continue
             id = item['id']
-            live = api('GET', f'/admin/accounts/{id}')
-            if normalize_plan(live['credentials'].get('plan_type')) != plan:
+            if id not in state['completed']:
                 continue
-            desired = desired_model_mapping(template, model_exclusions_for(config, id, live.get('extra')))
-            if live['credentials'].get('model_mapping') == desired:
-                continue
-            credentials = dict(live['credentials'])
-            credentials['model_mapping'] = desired
-            api('PUT', f'/admin/accounts/{id}', {'credentials':credentials})
-            after = api('GET', f'/admin/accounts/{id}')
-            assert after['credentials'] == credentials, 'Model repair readback mismatch'
-            for field in ('schedulable','concurrency','load_factor','priority','proxy_id','group_ids'):
-                assert after.get(field) == live.get(field), 'Unrelated setting changed'
-            print(json.dumps({'models_repaired':id,'plan':plan,'models':len(desired)}),flush=True)
+            try:
+                if str(id) in ready_pending or initial_quality_pending(item):
+                    # A pending initial classification is coordinated below. Do not
+                    # turn a missing ready marker into a second defaults writer.
+                    continue
+                plan = normalize_plan(item['credentials'].get('plan_type'))
+                template = config['templates'].get(plan)
+                if not template:
+                    continue
+                desired = desired_model_mapping(template, model_exclusions_for(config, id, item.get('extra')))
+                if item['credentials'].get('model_mapping') == desired:
+                    continue
+                live = api('GET', f'/admin/accounts/{id}')
+                if normalize_plan(live['credentials'].get('plan_type')) != plan:
+                    continue
+                desired = desired_model_mapping(template, model_exclusions_for(config, id, live.get('extra')))
+                if live['credentials'].get('model_mapping') == desired:
+                    continue
+                credentials = dict(live['credentials'])
+                credentials['model_mapping'] = desired
+                try:
+                    api('PUT', f'/admin/accounts/{id}', {'credentials':credentials})
+                except (RuntimeError, subprocess.TimeoutExpired):
+                    # A committed write can lose its response. Resolve it with
+                    # independent GET; never resend the PUT in this attempt.
+                    pass
+                after = api('GET', f'/admin/accounts/{id}')
+                assert after['credentials'] == credentials, 'Model repair readback mismatch'
+                for field in ('schedulable','concurrency','load_factor','priority','proxy_id','group_ids'):
+                    assert after.get(field) == live.get(field), 'Unrelated setting changed'
+                print(json.dumps({'models_repaired':id,'plan':plan,'models':len(desired)}),flush=True)
+            except Exception as exc:
+                failures.append(id)
+                print(json.dumps({'models_repair_failed':id,'error':str(exc)[:160]}),flush=True)
         for item in targets:
             id = item['id']
             key = str(id)
@@ -452,6 +461,7 @@ def main():
                 save(state_path, state)
             print(json.dumps({'pending':0}))
             if failures:
+                print(json.dumps({'failed_accounts':sorted(set(failures))}),flush=True)
                 raise SystemExit(1)
             return
         # Legacy TEST memberships remain; borrowing uses shared business pools.
@@ -522,6 +532,8 @@ def main():
         if state_changed:
             save(state_path, state)
         if failures or new_unsupported:
+            print(json.dumps({'failed_accounts':sorted(set(failures)),
+                              'new_unsupported_accounts':sorted(set(new_unsupported))}),flush=True)
             raise SystemExit(1)
 
 if __name__=='__main__':

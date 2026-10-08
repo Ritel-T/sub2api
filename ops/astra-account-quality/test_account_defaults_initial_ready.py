@@ -325,5 +325,128 @@ class InitialReadyTests(unittest.TestCase):
                 self.assertEqual(defaults.initial_fingerprint(target), expected)
 
 
+class ModelRepairEnvironment(Environment):
+    """Two existing accounts precede a new account in the real main loop."""
+    def __init__(self, *, include_new=True):
+        super().__init__(account())
+        self.include_new = include_new
+        self.existing = {}
+        self.repair_behaviour = {}
+        self.repair_written = set()
+        for account_id in (902, 903):
+            target = account(pending=False, configured=True)
+            target['id'] = account_id
+            target['credentials']['model_mapping'] = {}
+            self.existing[account_id] = target
+        defaults.save(self.root / 'account-defaults-state.json', {'completed': [902, 903]})
+
+    def listing(self, path):
+        if path == '/admin/accounts':
+            targets = list(self.existing.values()) + ([self.target] if self.include_new else [])
+            return copy.deepcopy(targets)
+        return super().listing(path)
+
+    def api(self, method, path, body=None):
+        account_id = int(path.rsplit('/', 1)[-1]) if path.rsplit('/', 1)[-1].isdigit() else None
+        if account_id not in self.existing:
+            return super().api(method, path, body)
+        self.calls.append((method, path, copy.deepcopy(body)))
+        target = self.existing[account_id]
+        behaviour = self.repair_behaviour.get(account_id)
+        if method == 'GET':
+            if behaviour == 'get_failed' or (behaviour == 'readback_failed' and account_id in self.repair_written):
+                raise RuntimeError('Mock model-repair read unavailable')
+            return copy.deepcopy(target)
+        if method == 'PUT':
+            self.repair_written.add(account_id)
+            if behaviour not in ('unknown_unapplied', 'readback_mismatch'):
+                target.update(copy.deepcopy(body))
+            if behaviour == 'unrelated_changed':
+                target['priority'] += 1
+            if behaviour in ('unknown_applied', 'unknown_unapplied'):
+                raise RuntimeError('Mock model-repair write response unknown')
+            if behaviour == 'timeout_applied':
+                raise defaults.subprocess.TimeoutExpired('mock-adminctl', 90)
+            return copy.deepcopy(target)
+        raise AssertionError((method, path))
+
+    def calls_for(self, account_id, method):
+        path = f'/admin/accounts/{account_id}'
+        return sum(m == method and p == path for m, p, _ in self.calls)
+
+
+class ModelRepairIsolationTests(unittest.TestCase):
+    def environment(self, **kwargs):
+        env = ModelRepairEnvironment(**kwargs)
+        self.addCleanup(env.close)
+        return env
+
+    def test_old_account_get_failure_does_not_block_new_defaults_or_other_repair(self):
+        env = self.environment()
+        env.repair_behaviour[902] = 'get_failed'
+        code, output = env.run()
+        self.assertEqual(code, 1)
+        self.assertEqual(env.calls_for(902, 'PUT'), 0)
+        self.assertEqual(env.calls_for(903, 'PUT'), 1)
+        self.assertIn(901, env.state()['completed'])
+        self.assertTrue(defaults.initial_ready_matches(env.target))
+        self.assertIn('"failed_accounts": [902]', output)
+
+    def test_unknown_applied_model_repair_reads_back_once_and_succeeds(self):
+        env = self.environment()
+        env.repair_behaviour[902] = 'unknown_applied'
+        self.assertEqual(env.run()[0], 0)
+        self.assertEqual(env.calls_for(902, 'PUT'), 1)
+        self.assertEqual(env.calls_for(902, 'GET'), 2)
+        self.assertIn(901, env.state()['completed'])
+
+    def test_timeout_applied_model_repair_reads_back_without_repeat_put(self):
+        env = self.environment()
+        env.repair_behaviour[902] = 'timeout_applied'
+        self.assertEqual(env.run()[0], 0)
+        self.assertEqual(env.calls_for(902, 'PUT'), 1)
+        self.assertEqual(env.calls_for(902, 'GET'), 2)
+
+    def test_unknown_unapplied_model_repair_fails_after_readback_without_repeat_put(self):
+        env = self.environment()
+        env.repair_behaviour[902] = 'unknown_unapplied'
+        code, output = env.run()
+        self.assertEqual(code, 1)
+        self.assertEqual(env.calls_for(902, 'PUT'), 1)
+        self.assertEqual(env.calls_for(902, 'GET'), 2)
+        self.assertEqual(env.calls_for(903, 'PUT'), 1)
+        self.assertIn(901, env.state()['completed'])
+        self.assertIn('"failed_accounts": [902]', output)
+
+    def test_model_repair_readback_failure_does_not_block_new_account(self):
+        env = self.environment()
+        env.repair_behaviour[902] = 'readback_failed'
+        code, output = env.run()
+        self.assertEqual(code, 1)
+        self.assertEqual(env.calls_for(902, 'PUT'), 1)
+        self.assertIn(901, env.state()['completed'])
+        self.assertIn('"failed_accounts": [902]', output)
+
+    def test_model_repair_unrelated_change_keeps_validation_and_processes_new_account(self):
+        env = self.environment()
+        env.repair_behaviour[902] = 'unrelated_changed'
+        code, output = env.run()
+        self.assertEqual(code, 1)
+        self.assertEqual(env.calls_for(902, 'PUT'), 1)
+        self.assertIn(901, env.state()['completed'])
+        self.assertIn('Unrelated setting changed', output)
+        self.assertNotIn('mock-secret', output)
+        self.assertNotIn('mock-owner', output)
+
+    def test_no_new_account_still_exits_failed_with_failed_account_summary(self):
+        env = self.environment(include_new=False)
+        env.repair_behaviour[902] = 'get_failed'
+        env.repair_behaviour[903] = 'get_failed'
+        code, output = env.run()
+        self.assertEqual(code, 1)
+        self.assertEqual(env.count('PUT'), 0)
+        self.assertIn('"failed_accounts": [902, 903]', output)
+
+
 if __name__ == '__main__':
     unittest.main()
