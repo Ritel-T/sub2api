@@ -79,7 +79,7 @@ func (t *regionalUpstreamTransport) RoundTrip(req *http.Request) (*http.Response
 		}
 		return nil, err
 	}
-	t.service.recordOpenAIHTTP2Success(t.profile, entry.protocolMode, entry.proxyKey)
+	t.service.wrapOpenAIHTTP2Feedback(req, resp, t.profile, entry)
 	resp.Body = wrapTrackedBody(resp.Body, finished)
 	return resp, nil
 }

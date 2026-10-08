@@ -266,9 +266,9 @@ func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID i
 		atomic.StoreInt64(&entry.lastUsed, time.Now().UnixNano())
 		return nil, err
 	}
-	s.recordOpenAIHTTP2Success(profile, entry.protocolMode, entry.proxyKey)
+	s.wrapOpenAIHTTP2Feedback(req, resp, profile, entry)
 	if bpsTrace != nil && bpsTrace.NegotiatedHTTP2() {
-		resp.Body = &bpsFeedbackBody{ReadCloser: resp.Body, trace: bpsTrace, failed: func(err error) {
+		resp.Body = &http2FeedbackBody{ReadCloser: resp.Body, trace: bpsTrace, failed: func(err error) {
 			s.recordBPSHTTP2Failure(req.Context(), entry.proxyKey, bpsTrace, err)
 		}}
 	}
@@ -1183,14 +1183,28 @@ func isHTTPProxyKey(proxyKey string) bool {
 }
 
 func isOpenAIHTTP2CompatibilityError(err error) bool {
-	if err == nil {
+	if err == nil || errors.Is(err, context.Canceled) {
 		return false
 	}
 	if isUpstreamTimeoutError(err) {
 		return false
 	}
+	var streamErr http2.StreamError
+	if errors.As(err, &streamErr) {
+		return streamErr.Code != http2.ErrCodeCancel
+	}
+	var connectionErr http2.ConnectionError
+	var goAwayErr http2.GoAwayError
+	if errors.As(err, &connectionErr) || errors.As(err, &goAwayErr) {
+		return true
+	}
 	msg := strings.ToLower(err.Error())
 	if msg == "" {
+		return false
+	}
+	// net/http's bundled H2 types are distinct from x/net/http2. Preserve
+	// cancellation exclusion for their string-form stream error as well.
+	if strings.Contains(msg, "stream error") && strings.Contains(msg, "; cancel") {
 		return false
 	}
 	markers := []string{

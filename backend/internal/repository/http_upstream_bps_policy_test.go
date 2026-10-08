@@ -80,12 +80,12 @@ func (b bpsErrorBody) Read([]byte) (int, error) { return 0, b.err }
 func (b bpsErrorBody) Close() error             { return nil }
 func TestBPSFeedbackBodyDoesNotTreatNormalEOFAsFailure(t *testing.T) {
 	calls := 0
-	b := &bpsFeedbackBody{ReadCloser: io.NopCloser(strings.NewReader("done")), failed: func(error) { calls++ }}
+	b := &http2FeedbackBody{ReadCloser: io.NopCloser(strings.NewReader("done")), failed: func(error) { calls++ }}
 	_, err := io.ReadAll(b)
 	require.NoError(t, err)
 	require.Zero(t, calls)
 	require.NoError(t, b.Close())
-	b = &bpsFeedbackBody{ReadCloser: bpsErrorBody{io.ErrUnexpectedEOF}, failed: func(error) { calls++ }}
+	b = &http2FeedbackBody{ReadCloser: bpsErrorBody{io.ErrUnexpectedEOF}, failed: func(error) { calls++ }}
 	_, _ = b.Read(make([]byte, 1))
 	_, _ = b.Read(make([]byte, 1))
 	require.Equal(t, 1, calls)
