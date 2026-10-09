@@ -22,6 +22,31 @@ func (r *CompositeRouteResolver) SetModelOwnershipResolver(resolver CompositeMod
 	}
 }
 
+// ListExactPublicModels returns enabled, concrete route IDs suitable for a model catalog.
+func (r *CompositeRouteResolver) ListExactPublicModels(ctx context.Context, groupID int64, endpoint string) ([]string, error) {
+	if r == nil || r.repo == nil || groupID <= 0 {
+		return nil, nil
+	}
+	routes, err := r.repo.ListByGroup(ctx, groupID, false)
+	if err != nil {
+		return nil, err
+	}
+	models := make([]string, 0, len(routes))
+	for _, route := range routes {
+		// TypeSafe routes serve only System One, including legacy any routes.
+		if route.TargetPlatform == PlatformTypeSafe && endpoint != "" {
+			continue
+		}
+		if route.Enabled && route.MatchType == CompositeRouteMatchExact &&
+			(endpoint == "" || normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointAny || normalizeCompositeRouteEndpoint(route.Endpoint) == endpoint) {
+			if model := strings.TrimSpace(route.PublicModel); model != "" {
+				models = append(models, model)
+			}
+		}
+	}
+	return models, nil
+}
+
 func (r *CompositeRouteResolver) Resolve(ctx context.Context, groupID int64, model, endpoint string) (CompositeRouteDecision, error) {
 	model = strings.TrimSpace(model)
 	endpoint = normalizeCompositeRouteEndpoint(endpoint)

@@ -430,8 +430,16 @@ func applyPriorityCandidate(c PrioritySchedulingConfig, item *openAIAccountCandi
 		offset = 200
 	}
 	item.score = offset + score.Score
-	item.priorityExploration = item.account.IsOpenAIOAuth() && score.Tier == "insufficient" &&
-		(score.LatestQualityPassed == nil || score.Samples < c.MinSamples) &&
+	qualityReady := score.QualitySamples > 0 &&
+		float64(score.QualityPassed)/float64(score.QualitySamples)*100 >= float64(c.MinQualityPercent)
+	// OAuth cost/profit samples are deliberately absent. Preserve its bounded
+	// quality/latency cold start without treating absent economics as demand.
+	explorationMissing := item.account.IsOpenAIOAuth() &&
+		(score.LatestQualityPassed == nil || score.Samples < c.MinSamples)
+	if item.account.IsOpenAIApiKey() {
+		explorationMissing = qualityReady && (score.ProfitSamples < c.MinSamples || score.Samples < c.MinSamples)
+	}
+	item.priorityExploration = score.Tier == "insufficient" && explorationMissing &&
 		item.loadKnown && score.LoadPercent != nil && *score.LoadPercent < c.MaxLoadPercent
 	item.priorityOAuthSpare = priorityOAuthQuotaSpare(c, *item, score, now)
 	item.priorityAPIStandby = false

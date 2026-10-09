@@ -346,6 +346,30 @@ class WorkerAPI:
             raise WorkerError("invalid worker concurrency from server")
         return value
 
+    def totp_phase(self, task_id, phase, secret=""):
+        return self._post(f"/api/v1/internal/openai-reauth/{task_id}/totp-phase",
+                          {"worker_id": self.config.worker_id, "phase": phase, "secret": secret})
+
+    def totp_finish(self, task_id, success, error_code=""):
+        return self._post(f"/api/v1/internal/openai-reauth/{task_id}/totp-finish",
+                          {"worker_id": self.config.worker_id, "success": success, "error_code": error_code})
+
+    def totp_recover(self, task_id, secret):
+        return self._post(f"/api/v1/internal/openai-reauth/{task_id}/totp-recover", {"secret": secret})
+
+    def claim_totp(self):
+        if self.config.tosub2_root is None or not os.getenv("OPENAI_TOTP_JOURNAL_DIR"):
+            return None
+        try:
+            from .openai_totp_rotation import Journal
+        except ImportError:
+            from openai_totp_rotation import Journal
+        journal = Journal()
+        if time.monotonic() >= getattr(self, "_next_totp_recovery", 0):
+            journal.recover(self)
+            self._next_totp_recovery = time.monotonic() + 60
+        return self._post("/api/v1/internal/openai-reauth/totp-claim", {"worker_id": self.config.worker_id})
+
     def claim(self) -> dict[str, Any] | None:
         data = self._post(
             "/api/v1/internal/openai-reauth/claim",
@@ -1025,7 +1049,12 @@ def process_session_studio_claim(api: WorkerAPI, claim: dict[str, Any]) -> None:
 
 
 def process_password_claim(api: WorkerAPI, claim: dict[str, Any]) -> None:
+    oauth_profile = str(claim.get("oauth_profile") or "codex")
+    if oauth_profile not in {"codex", "excel"}:
+        raise WorkerError("unsupported OAuth login profile")
     engine = str(claim.get("engine") or "local_worker")
+    if oauth_profile == "excel" and engine != "local_worker":
+        raise WorkerError("Excel OAuth requires the local password/TOTP worker")
     if engine == "session_studio":
         process_session_studio_claim(api, claim)
         return
@@ -1055,6 +1084,15 @@ def process_password_claim(api: WorkerAPI, claim: dict[str, Any]) -> None:
     _best_effort_progress(api, task_id, "protocol_connecting")
     with tempfile.TemporaryDirectory(prefix="sub2api-reauth-") as temp_dir:
         output_path = Path(temp_dir) / "oauth.json"
+        if oauth_profile == "excel":
+            try:
+                from .openai_excel_oauth_adapter import prepare_excel_runtime
+            except ImportError:
+                from openai_excel_oauth_adapter import prepare_excel_runtime
+            try:
+                script = prepare_excel_runtime(root.resolve(), Path(temp_dir))
+            except ValueError as exc:
+                raise WorkerError(str(exc)) from None
         command = [
             node_executable,
             str(script),
@@ -1071,6 +1109,15 @@ def process_password_claim(api: WorkerAPI, claim: dict[str, Any]) -> None:
             command.extend(("--proxy", proxy_url))
         child_env = os.environ.copy()
         child_env.pop("OPENAI_REAUTH_WORKER_TOKEN", None)
+        if oauth_profile == "excel":
+            # One bounded fixed-exit attempt. Never rotate proxies to retry a rejected login.
+            child_env["CHATGPT_PROXY_MAX_ATTEMPTS"] = "1"
+            child_env.pop("CHATGPT_BASE", None)
+            child_env.pop("AUTH_BASE", None)
+            child_env.pop("CHATGPT_PROXY_URL", None)
+            child_env.pop("OPENAI_EXCEL_EXPECTED_WORKSPACE", None)
+            if claim.get("expected_workspace"):
+                child_env["OPENAI_EXCEL_EXPECTED_WORKSPACE"] = str(claim["expected_workspace"])
         child_env["CHATGPT_LOGIN_PASSWORD"] = password
         if totp_secret:
             child_env["CHATGPT_TOTP_SECRET"] = totp_secret
@@ -1084,13 +1131,33 @@ def process_password_claim(api: WorkerAPI, claim: dict[str, Any]) -> None:
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
-                timeout=25 * 60,
+                timeout=10 * 60 if oauth_profile == "excel" else 25 * 60,
                 check=False,
             )
         except subprocess.TimeoutExpired:
             raise WorkerError("password/TOTP protocol timed out") from None
+        if oauth_profile == "excel" and callable(getattr(api, "private_protocol_diagnostics", None)):
+            # Only the explicit isolated CLI implements this hook. The queue API
+            # cannot select a path or persist raw external-runner output.
+            api.private_protocol_diagnostics(result.stdout, result.stderr)
         if result.returncode != 0:
             # The external runner may echo unlabeled secrets that regexes cannot redact.
+            if oauth_profile == "excel":
+                private_output = result.stdout + "\n" + result.stderr
+                stage = "web_login"
+                for marker, label in (("Password accepted", "password_accepted"), ("TOTP 2FA challenge reached", "mfa_challenge"),
+                                      ("2FA verification accepted", "mfa_accepted"), ("Start Codex OAuth flow", "excel_authorize"),
+                                      ("Convert OAuth callback", "excel_token_exchange")):
+                    if marker in private_output:
+                        stage = label
+                reasons = [label for marker, label in (("security-check", "security_check"), ("PROXY_RISK_CONTROL", "security_check"),
+                           ("EXCEL_ADDITIONAL_VERIFICATION_REQUIRED", "additional_verification"),
+                           ("EXCEL_CALLBACK_STATE_MISMATCH", "callback_state_mismatch"),
+                           ("EXCEL_EXPECTED_WORKSPACE_NOT_LISTED", "workspace_not_listed"),
+                           ("Password was rejected", "password_rejected"), ("2FA key was rejected", "totp_rejected"),
+                           ("SESSION_SELECTION_INVALID", "session_selection"), ("CLIENT_ID", "client_id")) if marker in private_output]
+                reason = ",".join(sorted(set(reasons))) or "protocol_error"
+                raise WorkerError(f"Excel password/TOTP login failed (stage={stage}, reason={reason}, exit={result.returncode})")
             raise WorkerError(f"password/TOTP protocol failed (exit {result.returncode})")
         try:
             payload = json.loads(output_path.read_text(encoding="utf-8"))
@@ -1106,6 +1173,15 @@ def process_password_claim(api: WorkerAPI, claim: dict[str, Any]) -> None:
         for key in ("access_token", "refresh_token", "id_token")
     ):
         raise WorkerError("password/TOTP protocol returned incomplete OAuth credentials")
+    if oauth_profile == "excel":
+        try:
+            from .openai_excel_oauth_adapter import validate_excel_credentials
+        except ImportError:
+            from openai_excel_oauth_adapter import validate_excel_credentials
+        try:
+            validate_excel_credentials(credentials, email, claim.get("expected_workspace"))
+        except ValueError as exc:
+            raise WorkerError(str(exc)) from None
     _best_effort_progress(api, task_id, "applying_credentials")
     result = api.credentials(task_id, credentials, extra if isinstance(extra, dict) else {})
     if not result or result.get("status") != "succeeded":
@@ -1114,6 +1190,18 @@ def process_password_claim(api: WorkerAPI, claim: dict[str, Any]) -> None:
 
 
 def run_once(api: WorkerAPI, protocol: SimpleNamespace | None) -> bool:
+    if callable(getattr(api, "claim_totp", None)):
+        try:
+            rotation = api.claim_totp()
+        except Exception:
+            rotation = None  # Older APIs and unavailable recovery storage do not disrupt re-login.
+        if rotation:
+            try:
+                from .openai_totp_rotation import rotate
+            except ImportError:
+                from openai_totp_rotation import rotate
+            rotate(api, rotation)
+            return True
     try:
         claim = api.claim()
     except WorkerError as exc:

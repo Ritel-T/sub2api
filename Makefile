@@ -11,6 +11,11 @@ FRONTEND_CRITICAL_VITEST := \
 	src/features/channel-monitor-v3/__tests__/monitorV3.spec.ts \
 	src/features/channel-monitor-v3/__tests__/StatusPage.spec.ts \
 	src/features/channel-monitor-v3/__tests__/V3SettingsPanel.spec.ts \
+	src/features/support-tickets/__tests__/supportTickets.spec.ts \
+	src/features/support-tickets/__tests__/TicketComponents.spec.ts \
+	src/views/user/__tests__/SupportTicketsViews.spec.ts \
+	src/views/admin/__tests__/SupportTicketsAdmin.spec.ts \
+	src/stores/__tests__/supportTickets.spec.ts \
 	src/views/admin/__tests__/ChannelMonitorView.modeSwitch.spec.ts \
 	src/views/admin/__tests__/AccountQualityView.spec.ts \
 	src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts \
@@ -28,6 +33,9 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/user/__tests__/UsageEntryView.spec.ts \
 	src/components/admin/usage/__tests__/UsageFilters.spec.ts \
 	src/components/admin/usage/__tests__/UsageTimingDialog.spec.ts \
+	src/components/admin/usage/__tests__/UsageTable.spec.ts \
+	src/views/user/__tests__/PelicanShowcaseView.spec.ts \
+	src/utils/__tests__/usageTps.spec.ts \
 	src/views/admin/ops/components/__tests__/OpsErrorDetailModal.spec.ts \
 	src/router/__tests__/feature-access.spec.ts \
 	src/api/admin/__tests__/requestCaptures.spec.ts \
@@ -42,8 +50,13 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/account/__tests__/OpenAIReferralCell.transport.spec.ts \
 	src/components/account/__tests__/OpenAIQuotaResetCell.spark_shadow.spec.ts \
 	src/components/account/__tests__/ExcelBPS403Badge.spec.ts \
-	src/components/account/__tests__/EditAccountModal.spec.ts \
 	src/components/account/__tests__/BulkEditAccountModal.spec.ts \
+	src/constants/__tests__/platforms.spec.ts \
+	src/components/account/__tests__/credentialsBuilder.platformCatalog.spec.ts \
+	src/components/account/__tests__/CreateAccountModal.spec.ts \
+	src/components/account/__tests__/EditAccountModal.spec.ts \
+	src/components/account/__tests__/credentialsBuilder.spec.ts \
+	src/components/account/__tests__/OpenCodeGoProtocolRulesEditor.spec.ts \
 	src/components/keys/__tests__/BulkEditKeysModal.spec.ts \
 	src/components/admin/user/__tests__/UserPlatformQuotaModal.spec.ts \
 	src/components/admin/user/__tests__/UserEditModal.spec.ts \
@@ -56,13 +69,15 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/user/__tests__/ChannelStatusView.mode.spec.ts \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
 	src/components/settings/ServerlessSettings.spec.ts \
+	src/components/user/profile/__tests__/ProfileIdentityBindingsSection.spec.ts \
 	src/views/admin/__tests__/SettingsView.spec.ts \
 	src/views/admin/__tests__/HarvestFlowView.spec.ts \
 	src/views/admin/settings/MihomoSettings.spec.ts \
 	src/views/admin/settings/MihomoCountryFilter.spec.ts \
 	src/features/channel-monitor-v2/__tests__/designSystem.structure.spec.ts \
 	src/features/channel-monitor-v2/__tests__/monitorFormat.spec.ts \
-	src/features/channel-monitor-v2/__tests__/monitorZoom.spec.ts
+	src/features/channel-monitor-v2/__tests__/monitorZoom.spec.ts \
+	src/components/admin/channel/__tests__/PricingEntryCard.modelDefaultPrice.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend

@@ -33,18 +33,63 @@ func (r *opsRepository) GetDashboardOverview(ctx context.Context, filter *servic
 		mode = service.OpsQueryModeRaw
 	}
 
+	var overview *service.OpsDashboardOverview
+	var err error
 	switch mode {
 	case service.OpsQueryModePreagg:
-		return r.getDashboardOverviewPreaggregated(ctx, filter)
+		overview, err = r.getDashboardOverviewPreaggregated(ctx, filter)
 	case service.OpsQueryModeAuto:
-		out, err := r.getDashboardOverviewPreaggregated(ctx, filter)
-		if err != nil && errors.Is(err, service.ErrOpsPreaggregatedNotPopulated) {
-			return r.getDashboardOverviewRaw(ctx, filter)
+		overview, err = r.getDashboardOverviewPreaggregated(ctx, filter)
+		if errors.Is(err, service.ErrOpsPreaggregatedNotPopulated) {
+			overview, err = r.getDashboardOverviewRaw(ctx, filter)
 		}
-		return out, err
 	default:
-		return r.getDashboardOverviewRaw(ctx, filter)
+		overview, err = r.getDashboardOverviewRaw(ctx, filter)
 	}
+	if err != nil {
+		return nil, err
+	}
+	// Percentiles must use individual rates over the entire window, even in
+	// preagg mode: hourly percentiles cannot be averaged into window percentiles.
+	rateCtx, cancelRate := context.WithTimeout(ctx, opsRawLatencyQueryTimeout)
+	defer cancelRate()
+	overview.OutputTPS, err = r.queryOutputTPS(rateCtx, filter)
+	if err != nil && !isQueryTimeoutErr(err) {
+		return nil, err
+	}
+	return overview, nil
+}
+
+func (r *opsRepository) queryOutputTPS(ctx context.Context, filter *service.OpsDashboardFilter) (*service.OpsOutputTPS, error) {
+	join, where, args, _ := buildUsageWhere(filter, filter.StartTime.UTC(), filter.EndTime.UTC(), 1)
+	query := `
+SELECT
+ percentile_cont(0.05) WITHIN GROUP (ORDER BY output_tps),
+ percentile_cont(0.10) WITHIN GROUP (ORDER BY output_tps),
+ percentile_cont(0.50) WITHIN GROUP (ORDER BY output_tps),
+ AVG(output_tps),
+ COUNT(*)
+FROM (
+ SELECT ul.output_tokens * 1000.0 / NULLIF(ul.duration_ms, 0) AS output_tps
+ FROM usage_logs ul
+ ` + join + `
+ ` + where + `
+ AND ul.output_tokens > 0 AND ul.duration_ms > 0
+ AND ul.image_count = 0 AND ul.image_output_tokens = 0
+ AND COALESCE(ul.billing_mode, '') <> 'image'
+ ` + fmt.Sprintf("AND ul.request_type IN (%d, %d, %d, %d)",
+		service.RequestTypeSync, service.RequestTypeStream, service.RequestTypeWSV2, service.RequestTypeCyberBlocked) + `
+) rates`
+	var stats service.OpsOutputTPS
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&stats.P5, &stats.P10, &stats.P50, &stats.Avg, &stats.SampleCount); err != nil {
+		// lib/pq reports query cancellation without wrapping the context error.
+		// Preserve deadline vs caller cancellation for the overview's timeout policy.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		return nil, err
+	}
+	return &stats, nil
 }
 
 func (r *opsRepository) getDashboardOverviewRaw(ctx context.Context, filter *service.OpsDashboardFilter) (*service.OpsDashboardOverview, error) {
@@ -881,13 +926,12 @@ func (r *opsRepository) queryErrorCounts(ctx context.Context, filter *service.Op
 	q := `
 SELECT
   COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400), 0) AS error_total,
-  COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400 AND is_business_limited), 0) AS business_limited,
-  COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400 AND NOT is_business_limited AND error_type <> 'client_canceled'), 0) AS error_sla,
-  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT is_business_limited AND COALESCE(upstream_status_code, status_code, 0) NOT IN (429, 529)), 0) AS upstream_excl,
-  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT is_business_limited AND COALESCE(upstream_status_code, status_code, 0) = 429), 0) AS upstream_429,
-  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT is_business_limited AND COALESCE(upstream_status_code, status_code, 0) = 529), 0) AS upstream_529
-FROM ops_error_logs
-` + where
+  COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400 AND effective_business_limited), 0) AS business_limited,
+  COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400 AND NOT effective_business_limited AND error_type <> 'client_canceled'), 0) AS error_sla,
+  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT effective_business_limited AND COALESCE(upstream_status_code, status_code, 0) NOT IN (429, 529)), 0) AS upstream_excl,
+  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT effective_business_limited AND COALESCE(upstream_status_code, status_code, 0) = 429), 0) AS upstream_429,
+  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT effective_business_limited AND COALESCE(upstream_status_code, status_code, 0) = 529), 0) AS upstream_529
+FROM ` + opsMetricErrorRowsSQL(where)
 
 	if err := r.db.QueryRowContext(ctx, q, args...).Scan(
 		&errorTotal,

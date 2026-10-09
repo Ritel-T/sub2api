@@ -541,6 +541,13 @@ const loadingResults = ref(false)
 const plans = ref<ScheduledTestPlan[]>([])
 const results = ref<ScheduledTestResult[]>([])
 const expandedPlanId = ref<number | null>(null)
+let resultsRequestId = 0
+watch(expandedPlanId, () => {
+  resultsRequestId++
+  results.value = []
+  loadingResults.value = false
+}, { flush: 'sync' })
+onBeforeUnmount(() => { resultsRequestId++ })
 const expandedResultIds = reactive(new Set<number>())
 const showAddForm = ref(false)
 const showDeleteConfirm = ref(false)
@@ -704,14 +711,16 @@ const expandPlan = async (planId: number) => {
   expandedPlanId.value = planId
   expandedResultIds.clear()
   loadingResults.value = true
+  const requestId = resultsRequestId
   try {
     const data = await adminAPI.scheduledTests.listResults(planId, 20, !props.pelicanConfig)
-    if (alive && props.show && props.accountId === accountId && expandedPlanId.value === planId) { results.value = data; emit('history', data) }
+    if (requestId === resultsRequestId && alive && props.show && props.accountId === accountId && expandedPlanId.value === planId) { results.value = data; emit('history', data) }
   } catch (error: any) {
+    if (requestId !== resultsRequestId) return
     appStore.showError(error?.message || 'Failed to load results')
     results.value = []
   } finally {
-    loadingResults.value = false
+    if (requestId === resultsRequestId) loadingResults.value = false
   }
 }
 
@@ -762,10 +771,11 @@ const refreshTimer = setInterval(async () => {
   if (!props.show || !props.pelicanConfig || loading.value || creating.value || updating.value) return
   await loadPlans()
   const id = expandedPlanId.value
+  const requestId = resultsRequestId
   if (!id) return
   try {
     const data = await adminAPI.scheduledTests.listResults(id, 20, false)
-    if (alive && props.show && expandedPlanId.value === id) results.value = data
+    if (requestId === resultsRequestId && alive && props.show && expandedPlanId.value === id) results.value = data
   } catch { /* Manual expansion still surfaces errors. */ }
 }, 15000)
 onBeforeUnmount(() => { alive = false; clearInterval(refreshTimer) })

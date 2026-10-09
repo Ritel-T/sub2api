@@ -153,6 +153,8 @@ var auditActionOverrides = map[string]string{
 // 这类 body 的凭证内嵌在普通字符串值里，键级脱敏无法覆盖，整体不入库。
 var auditBodyOmittedRoutes = map[string]struct{}{
 	"POST /api/v1/admin/payment/squarespace/oauth/import":       {},
+	"PUT /api/v1/admin/account-ops/webhooks/:id":                {},
+	"PUT /api/v1/admin/account-ops/config":                      {},
 	"POST /api/v1/admin/account-ops/token-guard/two-fa-login":   {},
 	"POST /api/v1/auth/passkey/login/finish":                    {},
 	"POST /api/v1/user/passkeys/register/finish":                {},

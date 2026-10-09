@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -89,4 +90,55 @@ func TestExcelBPSManualTestReportsRateLimit(t *testing.T) {
 	require.EqualError(t, err, excelBPSRateLimitedClientMessage)
 	require.NotContains(t, rec.Body.String(), "PRIVATE_UPSTREAM")
 	require.Len(t, upstream.requests, 1)
+}
+
+func TestRequiredExcelBPSAccountTestCannotFallBackWhenGlobalProtocolDisabled(t *testing.T) {
+	for _, model := range []string{"gpt-6-astra", "gpt-image-2"} {
+		t.Run(model, func(t *testing.T) {
+			upstream := &httpUpstreamRecorder{}
+			gateway := openAIClientToolsTestService(upstream)
+			gateway.settingService = NewSettingService(&excelBPSImageSettingsRepo{values: map[string]string{SettingKeyExcelBPSEnabled: "false"}}, gateway.cfg)
+			svc := &AccountTestService{openaiGatewayService: gateway}
+			account := excelAccount()
+			account.Extra[ExcelBPSRequiredGroupIDsKey] = []int64{15}
+			account.Extra[ExcelBPSRequiredModelsKey] = []string{model}
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest("POST", "/api/v1/admin/accounts/300/test", nil)
+			err := svc.testOpenAIAccountConnection(c, account, model, "Reply OK", AccountTestModeDefault)
+			require.ErrorContains(t, err, "native fallback is disabled")
+			require.Nil(t, upstream.lastReq, "a protected model cannot reach native transport")
+			require.NotContains(t, recorder.Body.String(), `"success":true`)
+		})
+	}
+}
+
+type requiredBPSAccountTestRepo struct {
+	AccountRepository
+	account *Account
+}
+
+func (r *requiredBPSAccountTestRepo) GetByID(context.Context, int64) (*Account, error) {
+	return r.account, nil
+}
+
+func TestRequiredExcelBPSGlobalDisableCannotUsePrismAccountTest(t *testing.T) {
+	upstream := &httpUpstreamRecorder{}
+	gateway := openAIClientToolsTestService(upstream)
+	gateway.cfg.Gateway.PrismBrowser.Enabled = true
+	gateway.settingService = NewSettingService(&excelBPSImageSettingsRepo{values: map[string]string{
+		SettingKeyExcelBPSEnabled: "false", SettingKeyPrismBrowserEnabled: "true",
+	}}, gateway.cfg)
+	account := excelAccount()
+	account.Extra[ExcelBPSRequiredGroupIDsKey] = []int64{15}
+	account.Extra[ExcelBPSRequiredModelsKey] = []string{"gpt-6-astra"}
+	account.Extra["openai_prism_browser"] = true
+	svc := &AccountTestService{accountRepo: &requiredBPSAccountTestRepo{account: account}, openaiGatewayService: gateway}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest("POST", "/api/v1/admin/accounts/300/test", nil)
+	err := svc.TestAccountConnection(c, account.ID, "gpt-6-astra", "Reply OK", AccountTestModeDefault)
+	require.ErrorContains(t, err, "native fallback is disabled")
+	require.Nil(t, upstream.lastReq)
+	require.NotContains(t, recorder.Body.String(), "prism_")
 }

@@ -107,7 +107,7 @@ func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, acc
 		if resp.StatusCode == http.StatusTooManyRequests {
 			s.recordExcelBPSRateLimit(ctx, account, resp.Header, raw)
 		}
-		s.handleExcelBPSUnauthorized(ctx, account, resp.StatusCode, resp.Header, raw)
+		s.handleExcelBPSUnauthorized(ctx, account, resp.StatusCode, resp.Header, raw, token)
 		status := resp.StatusCode
 		if status < 400 || status > 599 {
 			status = http.StatusBadGateway

@@ -189,3 +189,23 @@ func TestPriorityAccountQualityScopeMapsOnceAndDoesNotInventLunaEvidence(t *test
 		}
 	}
 }
+
+func TestPriorityOAuthExplorationIgnoresProfitSamples(t *testing.T) {
+	cfg := DefaultPrioritySchedulingConfig()
+	now := time.Now()
+	for _, samples := range []int{0, cfg.MinSamples} {
+		for _, passed := range []*bool{nil, boolPtr(true), boolPtr(false)} {
+			candidate := priorityCandidate(1, .1, 0)
+			candidate.account.Type = AccountTypeOAuth
+			signal := PrioritySchedulingSignal{Samples: samples, P90TTFTMs: 100, LatestQualityPassed: passed}
+			applyPriorityCandidate(cfg, &candidate, signal, now)
+			expected := candidate.priorityExploration
+			for _, profitSamples := range []int{0, cfg.MinSamples, cfg.MinSamples * 10} {
+				signal.ProfitSamples, signal.Revenue, signal.BaseCost = profitSamples, 1, 1e12
+				candidate.account.Extra[AccountCostMultiplierExtraKey] = 1e9
+				applyPriorityCandidate(cfg, &candidate, signal, now)
+				require.Equal(t, expected, candidate.priorityExploration, "OAuth exploration cannot depend on economics")
+			}
+		}
+	}
+}
