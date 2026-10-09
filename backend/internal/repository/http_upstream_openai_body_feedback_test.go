@@ -126,7 +126,7 @@ func TestOpenAIHTTP2CompatibilityClassificationIsNarrow(t *testing.T) {
 		{"typed connection protocol", http2.ConnectionError(http2.ErrCodeProtocol), true},
 		{"typed stream protocol", http2.StreamError{Code: http2.ErrCodeProtocol}, true},
 		{"typed stream cancel", http2.StreamError{Code: http2.ErrCodeCancel}, false},
-		{"typed GOAWAY", http2.GoAwayError{ErrCode: http2.ErrCodeProtocol}, true},
+		{"typed GOAWAY", http2.GoAwayError{ErrCode: http2.ErrCodeProtocol}, true}, //nolint:staticcheck // x/net transport still emits this legacy error; retain its regression coverage.
 		{"wrapped internal error", fmt.Errorf("body read: %w", http2.StreamError{Code: http2.ErrCodeInternal}), true},
 		{"Go net/http string stream error", errors.New("stream error: stream ID 5; INTERNAL_ERROR; received from peer"), true},
 		{"Go net/http cancelled stream", errors.New("stream error: stream ID 5; CANCEL; received from peer"), false},
