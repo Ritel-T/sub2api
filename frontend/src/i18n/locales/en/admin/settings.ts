@@ -565,6 +565,8 @@ export default {
         grokCrossClientMapHint: 'Enabled by default for client compatibility. GPT, Codex, o-series, and Claude model IDs are routed to the default Grok text model above. Disable this to require Grok model IDs.',
         grokDefaultBaseURLMode: 'Default Grok upstream',
         grokDefaultBaseURLModeHint: 'Used only when a Grok account has no explicit base URL. Media and voice endpoints continue to use their official API hosts.',
+        grokVideoSourceURL: 'Return Grok video source URL',
+        grokVideoSourceURLHint: 'When enabled, completed video status responses also include video.source_url, the validated xAI temporary media URL that downloads without credentials, so trusted downstream services can copy it directly. video.url stays the authenticated proxy on this site. xAI URLs usually expire within a day. When disabled, the field is omitted and any upstream value is removed.',
         grokBaseURLModeCLI: 'CLI chat proxy',
         grokBaseURLModeAPI: 'Public API',
         grokBaseURLModeUSEast1: 'Regional API (us-east-1)',
@@ -627,6 +629,8 @@ export default {
         claudeCodeVersionAutoSyncHint: 'Fetches the latest Claude Code client version from the official release channel every hour, so you never need to upgrade this service just to keep the version current. When disabled, fetching stops but the previously synced version remains available. The manual version above always takes priority.',
         claudeCodeVersionSyncedValue: 'Currently synced: {version}',
         codexHardeningTitle: "Codex Settings",
+        requestTimezoneEnabled: 'Bind request timezone',
+        requestTimezoneEnabledDesc: 'Use each OpenAI account’s timezone (Asia/Singapore by default) for existing environment context and web search timezone fields. Dates and ordinary text remain unchanged. Disabled means no timezone rewriting. This does not guarantee improved model quality.',
         codexTicketEnabled: "780 ticket harvest",
         codexTicketEnabledDesc:
           "When off, the gateway neither harvests nor injects x-codex-turn-state and forwards traffic as usual. When on, it harvests tickets in the background and overwrites that header on production requests.",

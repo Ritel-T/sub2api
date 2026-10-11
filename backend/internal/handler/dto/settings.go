@@ -224,6 +224,7 @@ type SystemSettings struct {
 	OpenAICodexClientVersion                string   `json:"openai_codex_client_version"`
 	OpenAICodexClientVersionSynced          string   `json:"openai_codex_client_version_synced"`
 	OpenAICodexVersionAutoSyncEnabled       bool     `json:"openai_codex_version_auto_sync_enabled"`
+	OpenAIRequestTimezoneEnabled            bool     `json:"openai_request_timezone_enabled"`
 	OpenAICodexTicketEnabled                bool     `json:"openai_codex_ticket_enabled"`
 	OpenAICodexTicketHarvestProxyURL        string   `json:"openai_codex_ticket_harvest_proxy_url"`
 	OpenAICodexTicketStaticProxyURL         string   `json:"openai_codex_ticket_static_proxy_url,omitempty"`
@@ -334,6 +335,7 @@ type SystemSettings struct {
 	GrokDefaultTextModel           string `json:"grok_default_text_model"`
 	GrokCrossClientModelMapEnabled bool   `json:"grok_cross_client_model_map_enabled"`
 	GrokDefaultBaseURLMode         string `json:"grok_default_base_url_mode"`
+	GrokVideoSourceURLEnabled      bool   `json:"grok_video_source_url_enabled"`
 
 	// Available Channels feature switch (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`

@@ -1320,12 +1320,12 @@ func IsOpenAICodexTicketExtraKey(key string) bool {
 func MergeOpenAICodexTicketExtra(extra, current map[string]any) map[string]any {
 	result := maps.Clone(extra)
 	for key := range result {
-		if IsOpenAICodexTicketExtraKey(key) {
+		if IsOpenAICodexTicketExtraKey(key) || key == ExcelBPSCredentialStateExtraKey {
 			delete(result, key)
 		}
 	}
 	for key, value := range current {
-		if IsOpenAICodexTicketExtraKey(key) {
+		if IsOpenAICodexTicketExtraKey(key) || key == ExcelBPSCredentialStateExtraKey {
 			if result == nil {
 				result = make(map[string]any)
 			}

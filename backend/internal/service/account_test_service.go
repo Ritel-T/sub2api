@@ -50,13 +50,17 @@ const (
 
 // TestEvent represents a SSE event for account testing
 type TestEvent struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	Model    string `json:"model,omitempty"`
-	Status   string `json:"status,omitempty"`
-	Code     string `json:"code,omitempty"`
-	Channel  string `json:"channel,omitempty"`
-	ImageURL string `json:"image_url,omitempty"`
+	UpstreamStatus    int    `json:"upstream_status,omitempty"`
+	UpstreamModel     string `json:"upstream_model,omitempty"`
+	RequestID         string `json:"request_id,omitempty"`
+	UpstreamErrorCode string `json:"upstream_error_code,omitempty"`
+	Type              string `json:"type"`
+	Text              string `json:"text,omitempty"`
+	Model             string `json:"model,omitempty"`
+	Status            string `json:"status,omitempty"`
+	Code              string `json:"code,omitempty"`
+	Channel           string `json:"channel,omitempty"`
+	ImageURL          string `json:"image_url,omitempty"`
 	// AudioURL / VideoURL are data: or https URLs for in-browser media players.
 	AudioURL string `json:"audio_url,omitempty"`
 	VideoURL string `json:"video_url,omitempty"`
@@ -369,10 +373,20 @@ func createTestPayload(modelID string) (map[string]any, error) {
 // modelID is optional - if empty, defaults to claude.DefaultTestModel
 // mode is optional - "compact" routes OpenAI accounts to the /responses/compact probe path
 // opts is optional media (image/audio data URLs for real generation / STT).
-func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string, opts ...AccountTestOptions) error {
+func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string, opts ...AccountTestOptions) (testErr error) {
 	initAccountTestLogger(c, accountID, modelID, mode)
 	ctx := context.WithValue(c.Request.Context(), qualityProbeContextKey{}, true)
 	c.Request = c.Request.WithContext(ctx)
+	// 测试可能在响应头或正文到来前长时间等待；所有协议共用同一段下游保活生命周期。
+	stopKeepalive := startAccountTestSSEKeepalive(c, 10*time.Second)
+	defer func() {
+		// 即使完成事件写入失败，也不能把已断开的请求判成成功测试。
+		if testErr == nil {
+			testErr = c.Request.Context().Err()
+		}
+		stopKeepalive()
+	}()
+	ctx = c.Request.Context()
 	testOpts := firstAccountTestOptions(opts)
 
 	// Get account
@@ -890,6 +904,11 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		(s.openaiGatewayService == nil || !s.openaiGatewayService.excelBPSGloballyEnabled(ctx)) {
 		return s.sendErrorAndEnd(c, "Required Excel BPS is disabled globally; native fallback is disabled")
 	}
+	if account.IsExcelOAuth() {
+		if s.openaiGatewayService == nil || s.openaiGatewayService.validateExcelOAuthRoute(ctx, account, routeModel) != nil {
+			return s.sendErrorAndEnd(c, errExcelOAuthRouteUnavailable.Error())
+		}
+	}
 
 	// Excel/BPS accounts must use the same gateway path as user Responses
 	// requests. The legacy account-test probe hard-codes ChatGPT Codex and
@@ -946,6 +965,9 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		credentialAccount = resolved
 	}
 
+	if credentialAccount.IsExcelOAuth() {
+		return s.sendErrorAndEnd(c, errExcelOAuthRouteUnavailable.Error())
+	}
 	// Determine authentication method and API URL
 	var authToken string
 	var apiURL string
@@ -1119,7 +1141,7 @@ func (s *AccountTestService) testExcelBPSAccountConnection(c *gin.Context, accou
 
 	probe := httptest.NewRecorder()
 	probeCtx, _ := gin.CreateTestContext(probe)
-	probeCtx.Request = c.Request.Clone(c.Request.Context())
+	probeCtx.Request = c.Request.Clone(s.withBPSTestEvidence(c.Request.Context(), c))
 	if probeCtx.Request.Header == nil {
 		probeCtx.Request.Header = make(http.Header)
 	}
@@ -1136,6 +1158,17 @@ func (s *AccountTestService) testExcelBPSAccountConnection(c *gin.Context, accou
 		var failover *UpstreamFailoverError
 		if errors.As(err, &failover) && failover.ClientMessage != "" {
 			return s.sendErrorAndEnd(c, failover.ClientMessage)
+		}
+		var local *excelBPSForwardError
+		if errors.As(err, &local) && strings.HasPrefix(local.code, "basispoints_auth_") {
+			var payload struct {
+				Error struct {
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			if json.Unmarshal(probe.Body.Bytes(), &payload) == nil && payload.Error.Message != "" {
+				return s.sendErrorAndEnd(c, local.Error()+": "+payload.Error.Message)
+			}
 		}
 		return s.sendErrorAndEnd(c, err.Error())
 	}
@@ -2430,6 +2463,9 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 		credentialAccount = resolved
 	}
 
+	if credentialAccount.IsExcelOAuth() {
+		return s.sendErrorAndEnd(c, errExcelOAuthRouteUnavailable.Error())
+	}
 	authToken := ""
 	apiURL := ""
 	isOAuth := false
@@ -3422,6 +3458,9 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 		if handled, err := s.testExcelBPSImages(c, ctx, account, parsed, upstreamModel); handled {
 			return err
 		}
+	}
+	if credentialAccount.IsExcelOAuth() {
+		return s.sendErrorAndEnd(c, errExcelOAuthRouteUnavailable.Error())
 	}
 	responsesBody, targetURL, err := buildOpenAIImagesOAuthPayload(parsed, upstreamModel)
 	if err != nil {

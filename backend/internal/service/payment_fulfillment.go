@@ -582,6 +582,10 @@ func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, 
 
 	recoveredFromNote := false
 	if !alreadyAssigned {
+		renewalMode, normalizeErr := NormalizeSubscriptionRenewalMode(o.SubscriptionRenewalMode)
+		if normalizeErr != nil {
+			return fmt.Errorf("normalize subscription renewal mode: %w", normalizeErr)
+		}
 		orderNote := paymentSubscriptionOrderNote(o.ID)
 		existing, lookupErr := s.subscriptionSvc.userSubRepo.GetByUserIDAndGroupID(txCtx, o.UserID, groupID)
 		switch {
@@ -590,13 +594,13 @@ func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, 
 		case lookupErr != nil && !errors.Is(lookupErr, ErrSubscriptionNotFound):
 			return fmt.Errorf("check existing subscription assignment: %w", lookupErr)
 		default:
-			if _, _, err := s.subscriptionSvc.assignOrExtendSubscription(txCtx, &AssignSubscriptionInput{
+			if _, _, err := s.subscriptionSvc.assignOrRenewPaidSubscription(txCtx, &AssignSubscriptionInput{
 				UserID:       o.UserID,
 				GroupID:      groupID,
 				ValidityDays: days,
 				AssignedBy:   0,
 				Notes:        orderNote,
-			}, true); err != nil {
+			}, renewalMode, true); err != nil {
 				return fmt.Errorf("assign subscription: %w", err)
 			}
 		}
@@ -604,6 +608,7 @@ func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, 
 		detail, _ := json.Marshal(map[string]any{
 			"groupID":           groupID,
 			"validityDays":      days,
+			"renewalMode":       renewalMode,
 			"recoveredFromNote": recoveredFromNote,
 		})
 		if _, err := txClient.PaymentAuditLog.Create().

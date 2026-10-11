@@ -199,6 +199,51 @@
                   </div>
                 </div>
               </div>
+              <div
+                v-if="selectedActiveSubscription && !balanceSubscriptionPurchase"
+                class="card bg-white p-6 dark:bg-dark-800"
+                data-test="renewal-mode-selector"
+              >
+                <div class="mb-3">
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('payment.renewalMode.title') }}</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('payment.renewalMode.currentExpiry', { date: formatDateTimeToMinute(selectedActiveSubscription.expires_at) }) }}
+                  </p>
+                </div>
+                <div class="grid grid-cols-2 gap-3" role="radiogroup" :aria-label="t('payment.renewalMode.title')">
+                  <button
+                    type="button"
+                    role="radio"
+                    :aria-checked="renewalMode === 'restart'"
+                    :class="[
+                      'min-h-[60px] min-w-0 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
+                      renewalMode === 'restart'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200'
+                    ]"
+                    @click="renewalMode = 'restart'"
+                  >
+                    {{ t('payment.renewalMode.restart') }}
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    :aria-checked="renewalMode === 'extend'"
+                    :class="[
+                      'min-h-[60px] min-w-0 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
+                      renewalMode === 'extend'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200'
+                    ]"
+                    @click="renewalMode = 'extend'"
+                  >
+                    {{ t('payment.renewalMode.extend') }}
+                  </button>
+                </div>
+                <p class="mt-3 text-xs leading-relaxed" :class="renewalMode === 'restart' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'">
+                  {{ t(`payment.renewalMode.${renewalMode}Hint`) }}
+                </p>
+              </div>
               <div v-if="balanceSubscriptionPurchase" data-test="balance-subscription-summary" class="card space-y-3 p-6 text-sm">
                 <p>{{ t('paymentRetail.balanceSubscription.notice') }}</p>
                 <div class="flex justify-between"><span>{{ t('paymentRetail.balanceSubscription.available') }}</span><span>${{ (user?.balance ?? 0).toFixed(2) }}</span></div>
@@ -332,7 +377,7 @@ import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType, PaymentQuoteRequest } from '@/types/payment'
+import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType, PaymentQuoteRequest, SubscriptionRenewalMode } from '@/types/payment'
 import { formatRechargeBonusNumber, normalizeRechargeBonusMode, normalizeRechargeBonusTiers, quoteRechargeBonus } from '@/utils/rechargeBonus'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
@@ -359,6 +404,7 @@ import { newBalancePurchase, readBalancePurchase, saveBalancePurchase, clearBala
 import Icon from '@/components/icons/Icon.vue'
 import { DEFAULT_PAYMENT_CURRENCY, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import { planValiditySuffix as validitySuffixOf } from '@/components/payment/validity'
+import { formatDateTimeToMinute } from '@/utils/format'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
@@ -420,8 +466,16 @@ watch([() => user.value?.id, () => authStore.token], () => {
   })
 }, { flush: 'sync' })
 onBeforeUnmount(() => { disposed = true; sessionGeneration++ })
+const renewalMode = ref<SubscriptionRenewalMode>('restart')
 const previewImage = ref('')
 const retailWechatOpenid = ref('')
+
+const selectedActiveSubscription = computed(() => {
+  if (!selectedPlan.value) return null
+  return activeSubscriptions.value.find(subscription =>
+    subscription.group_id === selectedPlan.value?.group_id && subscription.status === 'active'
+  ) ?? null
+})
 
 const paymentPhase = ref<'select' | 'paying'>('select')
 
@@ -432,6 +486,7 @@ interface CreateOrderOptions {
   isResume?: boolean
   mobileQrFallbackAttempted?: boolean
   quoteToken?: string
+  renewalMode?: SubscriptionRenewalMode
 }
 
 interface WeixinJSBridgeLike {
@@ -537,7 +592,7 @@ async function redirectToPaymentResult(state: PaymentRecoverySnapshot): Promise<
 
 function buildWechatOAuthAuthorizeUrl(
   authorizeUrl: string,
-  context: { paymentType: string; orderType: OrderType; planId?: number; orderAmount: number },
+  context: { paymentType: string; orderType: OrderType; planId?: number; orderAmount: number; renewalMode?: SubscriptionRenewalMode },
 ): string {
   const normalizedUrl = authorizeUrl.trim()
   if (!normalizedUrl || typeof window === 'undefined') {
@@ -557,6 +612,12 @@ function buildWechatOAuthAuthorizeUrl(
       redirectUrl.searchParams.set('plan_id', String(context.planId))
     } else {
       redirectUrl.searchParams.delete('plan_id')
+    }
+
+    if (context.orderType === 'subscription' && context.renewalMode) {
+      redirectUrl.searchParams.set('renewal_mode', context.renewalMode)
+    } else {
+      redirectUrl.searchParams.delete('renewal_mode')
     }
 
     if (context.orderAmount > 0) {
@@ -928,6 +989,7 @@ function selectPlan(plan: SubscriptionPlan) {
   const pending = readBalancePurchase(user.value?.id ?? 0)
   pendingBalancePurchase.value = pending
   selectedPlan.value = pending?.plan ?? plan
+  renewalMode.value = 'restart'
   errorMessage.value = ''
 }
 
@@ -1006,7 +1068,7 @@ async function confirmSubscribe() {
     } finally { submitting.value = false }
     return
   }
-  await createOrder(selectedPlan.value.price, 'subscription', selectedPlan.value.id)
+  await createOrder(selectedPlan.value.price, 'subscription', selectedPlan.value.id, { renewalMode: renewalMode.value })
 }
 
 async function createOrder(orderAmount: number, orderType: OrderType, planId?: number, options: CreateOrderOptions = {}) {
@@ -1014,6 +1076,9 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
   errorMessage.value = ''
   errorHintMessage.value = ''
   const requestType = normalizeVisibleMethod(options.paymentType || selectedMethod.value) || options.paymentType || selectedMethod.value
+  const effectiveRenewalMode = orderType === 'subscription'
+    ? (options.renewalMode ?? renewalMode.value)
+    : undefined
   try {
     const payload = buildCreateOrderPayload({
       amount: orderAmount,
@@ -1021,6 +1086,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       orderType,
       planId,
       quoteToken: options.quoteToken,
+      renewalMode: effectiveRenewalMode,
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: isMobileDevice(),
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
@@ -1109,6 +1175,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
         orderType,
         planId,
         orderAmount,
+        renewalMode: effectiveRenewalMode,
       })
       return
     }
@@ -1149,6 +1216,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
               orderAmount,
               orderType,
               planId,
+              renewalMode: effectiveRenewalMode,
               paymentType: visibleMethod,
               attempted: options.mobileQrFallbackAttempted === true,
             },
@@ -1167,6 +1235,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
           orderAmount,
           orderType,
           planId,
+          renewalMode: effectiveRenewalMode,
           paymentType: visibleMethod,
           attempted: options.mobileQrFallbackAttempted === true,
         })
@@ -1200,6 +1269,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       orderAmount,
       orderType,
       planId,
+      renewalMode: effectiveRenewalMode,
       paymentType: requestType,
       attempted: options.mobileQrFallbackAttempted === true,
     })) {
@@ -1227,6 +1297,7 @@ interface MobileQrFallbackContext {
   orderAmount: number
   orderType: OrderType
   planId?: number
+  renewalMode?: SubscriptionRenewalMode
   paymentType: string
   attempted: boolean
 }
@@ -1277,6 +1348,7 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       paymentType: visibleMethod,
       orderType: context.orderType,
       planId: context.planId,
+      renewalMode: context.renewalMode,
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: false,
       isWechatBrowser: false,
@@ -1348,6 +1420,7 @@ async function resumeWechatPaymentFromQuery() {
   }
   if (resume.orderType === 'subscription' && resume.planId) {
     selectedPlan.value = checkout.value.plans.find(plan => plan.id === resume.planId) ?? null
+    renewalMode.value = resume.renewalMode ?? 'restart'
   }
 
   await router.replace({ path: route.path, query: stripWechatResumeQuery(route.query) })
@@ -1357,6 +1430,7 @@ async function resumeWechatPaymentFromQuery() {
       wechatResumeToken: resume.wechatResumeToken,
       paymentType: resume.paymentType,
       isResume: true,
+      renewalMode: resume.renewalMode,
     })
     return
   }
@@ -1370,6 +1444,7 @@ async function resumeWechatPaymentFromQuery() {
       openid: resume.openid,
       paymentType: resume.paymentType,
       isResume: true,
+      renewalMode: resume.renewalMode,
     })
   }
 }

@@ -6,6 +6,18 @@
     @close="handleClose"
   >
     <div class="space-y-4">
+      <div v-if="account?.extra?.openai_excel_bps_authorization_pending === true" role="status" class="text-sm text-amber-700 dark:text-amber-300">
+        {{ t('admin.accounts.bpsAuthorizing') }}
+        <a href="/admin/token-guard-v2" target="_blank" rel="noopener noreferrer" class="ml-2 underline">{{ t('admin.accounts.openCredentialOperations') }}</a>
+      </div>
+      <div v-if="modelLoadError" role="alert" class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+        <p>{{ modelLoadError }}</p>
+        <div class="mt-2 flex gap-4">
+          <button type="button" :disabled="loadingModels" class="underline" @click="loadAvailableModels">{{ t('admin.accounts.retryModels') }}</button>
+          <a v-if="modelAuthError" href="/admin/token-guard-v2" target="_blank" rel="noopener noreferrer" class="underline">{{ t('admin.accounts.openCredentialOperations') }}</a>
+        </div>
+      </div>
+      <AccountTestEvidence v-if="upstreamEvidence" :evidence="upstreamEvidence" />
       <!-- Account Info Card -->
       <div
         v-if="account"
@@ -246,6 +258,8 @@ import { computed, ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
+import AccountTestEvidence from './AccountTestEvidence.vue'
+import type { AccountTestUpstreamEvidence } from '@/types/accountTestEvidence'
 import TextArea from '@/components/common/TextArea.vue'
 import { Icon } from '@/components/icons'
 import { useClipboard } from '@/composables/useClipboard'
@@ -274,8 +288,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'tested'): void
 }>()
 
+let reportedTestCompletion = false
+const notifyTestComplete = () => { if (!reportedTestCompletion) { reportedTestCompletion = true; emit('tested') } }
+const upstreamEvidence = ref<AccountTestUpstreamEvidence | null>(null)
 const terminalRef = ref<HTMLElement | null>(null)
 const status = ref<'idle' | 'connecting' | 'success' | 'error'>('idle')
 const outputLines = ref<OutputLine[]>([])
@@ -285,12 +303,15 @@ const availableModels = ref<ClaudeModel[]>([])
 const selectedModelId = ref('')
 const testPrompt = ref('')
 const loadingModels = ref(false)
+const modelLoadError = ref('')
+const modelAuthError = ref(false)
+let modelLoadGeneration = 0
 let abortController: AbortController | null = null
 const generatedImages = ref<PreviewImage[]>([])
 const testMode = ref<'default' | 'compact' | 'bps_tools'>('default')
 const isOpenAIAccount = computed(() => props.account?.platform === 'openai')
 const isBPSAccount = computed(() =>
-  isOpenAIAccount.value && props.account?.type === 'oauth' && props.account?.extra?.openai_excel_bps === true
+  isOpenAIAccount.value && props.account?.type === 'oauth' && props.account?.extra?.openai_excel_bps === true && props.account?.extra?.openai_excel_bps_authorization_pending !== true
 )
 const openAITestModeOptions = computed(() => isBPSAccount.value
   ? [
@@ -331,14 +352,17 @@ const sortTestModels = (models: ClaudeModel[]) => {
 
 // Load available models when modal opens
 watch(
-  () => props.show,
-  async (newVal) => {
+  () => [props.show, props.account?.id] as const,
+  async ([newVal]) => {
     if (newVal && props.account) {
       testPrompt.value = ''
       testMode.value = 'default'
       resetState()
       await loadAvailableModels()
     } else {
+      ++modelLoadGeneration
+      modelLoadError.value = ''
+      modelAuthError.value = false
       abortStream()
     }
   }
@@ -353,10 +377,15 @@ watch(selectedModelId, () => {
 const loadAvailableModels = async () => {
   if (!props.account) return
 
+  const generation = ++modelLoadGeneration
   loadingModels.value = true
+  modelLoadError.value = ''
+  modelAuthError.value = false
+  availableModels.value = []
   selectedModelId.value = '' // Reset selection before loading
   try {
     const models = await adminAPI.accounts.getAvailableModels(props.account.id)
+    if (generation !== modelLoadGeneration) return
     availableModels.value = props.account.platform === 'gemini' || props.account.platform === 'antigravity'
       ? sortTestModels(models)
       : models
@@ -371,16 +400,23 @@ const loadAvailableModels = async () => {
       }
     }
   } catch (error) {
-    console.error('Failed to load available models:', error)
+    if (generation !== modelLoadGeneration) return
+    const reason = typeof error === 'object' && error !== null && 'reason' in error ? String(error.reason) : ''
+    modelAuthError.value = reason.startsWith('OPENAI_EXCEL_AUTH_')
+    const key = 'admin.accounts.excelAuthErrors.' + reason
+    const authReasons = ['OPENAI_EXCEL_AUTH_PENDING', 'OPENAI_EXCEL_AUTH_FAILED', 'OPENAI_EXCEL_AUTH_VERIFICATION_REQUIRED', 'OPENAI_EXCEL_AUTH_CONFIG_REQUIRED', 'OPENAI_EXCEL_AUTH_REQUIRED', 'OPENAI_EXCEL_AUTH_UNAVAILABLE']
+    modelLoadError.value = authReasons.includes(reason) ? t(key) : t('admin.accounts.modelsLoadFailed')
     // Fallback to empty list
     availableModels.value = []
     selectedModelId.value = ''
   } finally {
-    loadingModels.value = false
+    if (generation === modelLoadGeneration) loadingModels.value = false
   }
 }
 
 const resetState = () => {
+  reportedTestCompletion = false
+  upstreamEvidence.value = null
   status.value = 'idle'
   outputLines.value = []
   streamingContent.value = ''
@@ -509,11 +545,15 @@ const handleEvent = (event: {
   channel?: string
   image_url?: string
   mime_type?: string
+  upstream_status?: number
+  upstream_model?: string
+  request_id?: string
+  upstream_error_code?: string
 }) => {
   const failure = () => { const key = gatewayBorrowReasonKey(event.code, event.error); return key ? t(key) : event.channel === 'gateway_borrow' ? t('admin.astraGateway.testReasons.requestFailed') : event.error || t('admin.accounts.testFailed') }
   switch (event.type) {
     case 'test_start':
-      addLine(t('admin.astraGateway.testPreparing'), 'text-blue-400')
+      addLine(event.channel === 'gateway_borrow' ? t('admin.astraGateway.testPreparing') : t('admin.accounts.testRequestStarted'), event.channel === 'gateway_borrow' ? 'text-blue-400' : 'text-gray-400')
       if (event.model) {
         addLine(t('admin.accounts.usingModel', { model: event.model }), 'text-cyan-400')
       }
@@ -525,6 +565,12 @@ const handleEvent = (event: {
       )
       addLine('', 'text-gray-300')
       addLine(t('admin.accounts.response'), 'text-yellow-400')
+      break
+
+    case 'upstream_response':
+      if (event.upstream_status && event.upstream_status >= 100 && event.upstream_status <= 599) {
+        upstreamEvidence.value = { status: event.upstream_status, model: event.upstream_model, requestId: event.request_id, errorCode: event.upstream_error_code }
+      }
       break
 
     case 'content':
@@ -552,6 +598,7 @@ const handleEvent = (event: {
       break
 
     case 'test_complete':
+      notifyTestComplete()
       // Move streaming content to output lines
       if (streamingContent.value) {
         addLine(streamingContent.value, 'text-green-300')
@@ -566,6 +613,7 @@ const handleEvent = (event: {
       break
 
     case 'error':
+      notifyTestComplete()
       status.value = 'error'
       errorMessage.value = failure()
       if (streamingContent.value) {

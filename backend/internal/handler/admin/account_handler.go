@@ -2998,6 +2998,13 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			if models, fetchErr := h.accountTestService.FetchOpenAIAccountModels(c.Request.Context(), account); fetchErr == nil {
 				response.Success(c, models)
 				return
+			} else if account.IsExcelBPSEnabled() {
+				if service.IsExcelAuthorizationError(fetchErr) {
+					response.ErrorFrom(c, fetchErr)
+					return
+				}
+				response.Error(c, http.StatusBadGateway, "Excel BPS model discovery is unavailable")
+				return
 			}
 		}
 		// OpenAI 自动透传会绕过常规模型改写，测试/模型列表也应回落到默认模型集。
@@ -3561,4 +3568,9 @@ func sanitizeExtraBaseRPM(extra map[string]any) {
 		v = 10000
 	}
 	extra["base_rpm"] = v
+}
+
+// GetOpenAIRequestTimezones returns the supported account request timezone catalog.
+func (h *AccountHandler) GetOpenAIRequestTimezones(c *gin.Context) {
+	response.Success(c, gin.H{"default": service.DefaultOpenAIRequestTimezone, "timezones": service.OpenAIRequestTimezoneOptions()})
 }

@@ -558,6 +558,8 @@ export default {
         grokCrossClientMapHint: '为兼容客户端，默认开启。GPT、Codex、o 系列和 Claude 模型 ID 会路由到左侧默认 Grok 文本模型；关闭后必须使用 Grok 模型 ID。',
         grokDefaultBaseURLMode: '默认 Grok 上游',
         grokDefaultBaseURLModeHint: '仅用于 Grok 账号未配置显式 base URL 的文本请求；媒体和语音仍使用官方 API 主机。',
+        grokVideoSourceURL: '返回 Grok 视频原始地址',
+        grokVideoSourceURLHint: '开启后，已完成的视频状态会额外返回 video.source_url（经校验的 xAI 临时媒体地址，可匿名下载），供可信下游直接转存；video.url 仍是需要鉴权的本站代理地址。xAI 地址通常在一天内失效。关闭时不返回该字段，并移除上游带来的同名字段。',
         grokBaseURLModeCLI: 'CLI 聊天代理',
         grokBaseURLModeAPI: '公共 API',
         grokBaseURLModeUSEast1: '区域 API（us-east-1）',
@@ -620,6 +622,8 @@ export default {
         claudeCodeVersionAutoSyncHint: '每小时从官方发布渠道获取最新版本的 Claude Code 客户端版本号，无需为了跟版本而升级本服务。关闭后停止获取新版本，已同步的版本仍可使用；上方手填版本始终优先。',
         claudeCodeVersionSyncedValue: '当前同步到：{version}',
         codexHardeningTitle: 'Codex 设置',
+        requestTimezoneEnabled: '请求时区绑定',
+        requestTimezoneEnabledDesc: '开启后，按 OpenAI 账号配置替换环境上下文和网页搜索工具中已有的时区，默认 Asia/Singapore。保留日期和普通对话原文；关闭后不改写时区。此功能不保证改善模型表现。',
         codexTicketEnabled: '780 打票',
         codexTicketEnabledDesc:
           '关闭后不打票、不注入 x-codex-turn-state，按原链路转发。开启后后台打票，并在业务请求中覆盖该头。',

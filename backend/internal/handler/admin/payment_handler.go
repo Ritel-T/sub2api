@@ -159,6 +159,7 @@ type AdminPaymentOrderResult struct {
 	SrcURL              *string              `json:"src_url,omitempty"`
 	CreatedAt           time.Time            `json:"created_at"`
 	UpdatedAt           time.Time            `json:"updated_at"`
+	RenewalMode         string               `json:"renewal_mode,omitempty"`
 }
 
 func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*AdminPaymentOrderResult {
@@ -198,6 +199,7 @@ func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *AdminPayme
 		PlanID:              order.PlanID,
 		SubscriptionGroupID: order.SubscriptionGroupID,
 		SubscriptionDays:    order.SubscriptionDays,
+		RenewalMode:         order.SubscriptionRenewalMode,
 		ProviderInstanceID:  order.ProviderInstanceID,
 		ProviderKey:         order.ProviderKey,
 		Status:              order.Status,

@@ -137,6 +137,9 @@ func ProvideOpenAIOAuthReauthService(
 	credentialUpdater, _ := accountRepo.(OpenAIOAuthReauthCredentialUpdater)
 	svc := NewOpenAIOAuthReauthService(repo, adminService, credentialUpdater, openaiOAuthService, secretEncryptor, cfg != nil && cfg.Totp.EncryptionKeyConfigured, tokenCacheInvalidator, runtimeBlocker)
 	svc.settings = settings
+	if admin, ok := adminService.(*adminServiceImpl); ok {
+		admin.excelOAuthReauth = svc
+	}
 	svc.configureWorker(cfg, buildInfo)
 	if gateway, ok := runtimeBlocker.(*OpenAIGatewayService); ok {
 		gateway.excelOAuthReauth = svc
@@ -1185,8 +1188,9 @@ func ProvideChannelMonitorV2Aggregator(repo ChannelMonitorV2Repository, db *sql.
 	return aggregator
 }
 
-func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsRepository, email *EmailService, accounts AccountRepository, groups GroupRepository, cfg *config.Config, encryptor SecretEncryptor, usageCache *UsageCache, usageLogs UsageLogRepository, geminiQuota *GeminiQuotaService) *AccountOpsService {
+func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsRepository, email *EmailService, accounts AccountRepository, groups GroupRepository, cfg *config.Config, encryptor SecretEncryptor, usageCache *UsageCache, usageLogs UsageLogRepository, geminiQuota *GeminiQuotaService, newAPI NewAPIAuthorizationRepository) *AccountOpsService {
 	svc := NewAccountOpsService(settings, repo, email)
+	svc.SetNewAPIGroupReader(newAPI)
 	svc.SetNotificationDependencies(accounts, encryptor, cfg.Totp.EncryptionKeyConfigured, cfg.Timezone)
 	svc.SetNotificationUsageCache(usageCache)
 	svc.SetNotificationQuotaReaders(usageLogs, geminiQuota)

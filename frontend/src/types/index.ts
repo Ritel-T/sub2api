@@ -1314,7 +1314,16 @@ export interface OpenCodeGoUsageSettings {
   debounce_minutes: number
 }
 
+export interface ExcelBPSCredentialState {
+ status: string
+ expires_at?: string
+ observed_at?: string
+ error_code?: string
+ requires_manual_resume?: boolean
+}
+
 export interface Account {
+ excel_bps_credential_state?: ExcelBPSCredentialState
   id: number
   name: string
   notes?: string | null

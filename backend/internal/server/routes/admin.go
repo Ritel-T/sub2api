@@ -390,6 +390,7 @@ func registerGroupRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth middleware.StepUpAuthMiddleware) {
 	accounts := admin.Group("/accounts")
 	{
+		accounts.GET("/openai-request-timezones", h.Admin.Account.GetOpenAIRequestTimezones)
 		accounts.GET("", h.Admin.Account.List)
 		accounts.GET("/management-capabilities", h.Admin.Setting.GetAccountManagementCapabilities)
 		accounts.GET("/upstream-billing-rates", h.Admin.Account.GetUpstreamBillingRates)
@@ -842,6 +843,8 @@ func registerScheduledTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.GET("/account-ops/alerts", h.Admin.AccountOps.List)
 	admin.GET("/account-ops/balance-accounts", h.Admin.AccountOps.BalanceAccounts)
 	admin.GET("/account-ops/threshold-accounts", h.Admin.AccountOps.ThresholdAccounts)
+	admin.GET("/account-ops/groups", h.Admin.AccountOps.Groups)
+	admin.PUT("/account-ops/groups", h.Admin.AccountOps.SaveGroups)
 	admin.POST("/account-ops/webhooks/:id/test", h.Admin.AccountOps.TestWebhook)
 	// 智能运维 → 凭证守护：账号令牌巡检 / 自动重登 / 错误态自愈
 	admin.GET("/account-ops/token-guard/status", h.Admin.AccountTokenGuard.Status)

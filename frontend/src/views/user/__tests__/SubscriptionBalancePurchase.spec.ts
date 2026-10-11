@@ -56,6 +56,15 @@ describe('subscription purchase using site credit', () => {
     expect(wrapper.text()).toContain('paymentRetail.balanceSubscription.success')
     expect(readBalancePurchase(7)).toBeNull(); wrapper.unmount()
   })
+  it('keeps balance renewal on the existing site-credit path without external renewal modes', async () => {
+    state.subscriptions = [{ id: 11, user_id: 7, group_id: 3, status: 'active', expires_at: '2099-10-01T00:00:00Z' }]
+    const wrapper = await mountPage(); await select(wrapper)
+    expect(wrapper.find('[data-test="renewal-mode-selector"]').exists()).toBe(false)
+    await wrapper.get('[data-test="confirm-subscription"]').trigger('click'); await flushPromises()
+    expect(api.buy).toHaveBeenCalledTimes(1)
+    expect(api.buy.mock.calls[0][0]).not.toHaveProperty('renewal_mode')
+    expect(api.create).not.toHaveBeenCalled(); wrapper.unmount()
+  })
   it('does not submit when balance is insufficient and offers top-up', async () => {
     state.auth.user.balance = 10
     const wrapper = await mountPage(); await select(wrapper)
