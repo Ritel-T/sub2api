@@ -23,7 +23,7 @@ func TestBorrowedRouteReusesStateProbeVerdict(t *testing.T) {
 		{"new ticket", stateProbeMint("mint-secret"), stateProbeReply{status: 200, state: "new-secret", body: stateProbeCompletedStream}, OpenAICodexStateDegraded, "", 2},
 		{"missing ticket", stateProbeReply{status: 200, body: stateProbeCompletedStream}, stateProbeReply{}, OpenAICodexStateInconclusive, OpenAICodexStateFailureNoTicket, 1},
 		{"rate limited", stateProbeMint("mint-secret"), stateProbeReply{status: 429, body: `{"error":{"message":"limited"}}`}, OpenAICodexStateInconclusive, OpenAICodexStateFailureRateLimited, 2},
-		{"stream failed", stateProbeMint("mint-secret"), stateProbeReply{status: 200, state: "new-secret", body: stateProbeFailedStream}, OpenAICodexStateInconclusive, OpenAICodexStateFailureStreamError, 2},
+		{"stream failed", stateProbeMint("mint-secret"), stateProbeReply{status: 200, state: "new-secret", body: stateProbeFailedStream}, OpenAICodexStateInconclusive, OpenAICodexStateFailureOverloaded, 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// The source Cookie stays fixed; the target's own mint supplies __cflb.

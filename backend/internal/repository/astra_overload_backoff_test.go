@@ -76,11 +76,11 @@ func TestAutomaticBorrowOverloadQuietAcrossSourceCookieAndRevision(t *testing.T)
 func TestBorrowOverloadClassificationUsesOnlyExactProviderCode(t *testing.T) {
 	for _, code := range []string{"server_is_overloaded", "server_error", "internal_error", "server_is_overloaded_other"} {
 		t.Run(code, func(t *testing.T) {
-			wrapper, pool := accountBorrowFixture(t)
+			wrapper, _ := accountBorrowFixture(t)
 			settings := wrapper.cfg.AstraRouting(t.Context())
 			settings.CookiePool.SourceAccountIDs = []int64{299}
 			wrapper.cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
-			pool = wrapper.current(t.Context())
+			pool := wrapper.current(t.Context())
 			calls := 0
 			wrapper.delegate = gatewayPinDelegate{call: func(*http.Request, string, int64, int, *tlsfingerprint.Profile) (*http.Response, error) {
 				calls++
@@ -131,11 +131,11 @@ func TestBorrowOverloadHTTPStatusAndCodeBoundaries(t *testing.T) {
 		{401, "server_is_overloaded", service.OpenAICodexStateFailureAccountError},
 	} {
 		t.Run(fmt.Sprintf("%d-%s", tc.status, tc.code), func(t *testing.T) {
-			wrapper, pool := accountBorrowFixture(t)
+			wrapper, _ := accountBorrowFixture(t)
 			settings := wrapper.cfg.AstraRouting(t.Context())
 			settings.CookiePool.SourceAccountIDs = []int64{299}
 			wrapper.cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
-			pool = wrapper.current(t.Context())
+			pool := wrapper.current(t.Context())
 			wrapper.delegate = gatewayPinDelegate{call: func(*http.Request, string, int64, int, *tlsfingerprint.Profile) (*http.Response, error) {
 				return &http.Response{StatusCode: tc.status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"error":{"code":%q,"message":"private provider message"}}`, tc.code)))}, nil
 			}}

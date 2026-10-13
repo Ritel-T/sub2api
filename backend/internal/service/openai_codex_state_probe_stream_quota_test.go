@@ -23,7 +23,7 @@ func TestCodexStateProbe200StreamQuotaIsRateLimited(t *testing.T) {
 			require.False(t, result.shotUsable(context.Background(), "fixture", shot, err))
 			want := OpenAICodexStateFailureRateLimited
 			if code == "server_is_overloaded" {
-				want = OpenAICodexStateFailureStreamError
+				want = OpenAICodexStateFailureOverloaded
 			}
 			require.Equal(t, want, result.Failure)
 			require.Equal(t, OpenAICodexStateInconclusive, result.Verdict)

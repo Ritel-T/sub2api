@@ -216,9 +216,10 @@ func TestProbeOpenAICodexStateFailedStreamIsNotDegraded(t *testing.T) {
 		stateProbeReply{status: http.StatusOK, state: "ticket-2", body: stateProbeFailedStream},
 	)
 	require.Equal(t, OpenAICodexStateInconclusive, result.Verdict)
-	require.Equal(t, OpenAICodexStateFailureStreamError, result.Failure)
+	require.Equal(t, OpenAICodexStateFailureOverloaded, result.Failure)
 	require.False(t, result.NewTicket)
-	require.Contains(t, result.Detail, "overloaded")
+	require.Equal(t, "target_probe_overloaded", result.Reason)
+	require.Empty(t, result.Detail, "provider details are not needed for the exact overload code")
 }
 
 func TestProbeOpenAICodexStateNetworkError(t *testing.T) {
