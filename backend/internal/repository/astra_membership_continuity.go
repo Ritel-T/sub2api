@@ -109,6 +109,14 @@ func carryAstraSurvivingProofs(old, next *codexGatewayPinUpstream, now time.Time
 			next.targetSourceAttempts[key] = at
 		}
 	}
+	for key, at := range old.targetSourcePreferences {
+		if scopeUnchanged(key.accountID) && slices.Contains(next.config.SourceAccountIDs, key.sourceID) && now.Before(at.Add(time.Hour)) {
+			if next.targetSourcePreferences == nil {
+				next.targetSourcePreferences = map[astraTargetQuotaKey]time.Time{}
+			}
+			next.targetSourcePreferences[key] = at
+		}
+	}
 	if slices.Contains(next.config.SourceAccountIDs, old.activeSource) {
 		next.activeSource = old.activeSource
 	}

@@ -131,6 +131,9 @@ func TestAutomaticBorrowSourceOrderRejectsStaleProvenIdentity(t *testing.T) {
 	request := accountBorrowRequest(t, "gpt-6-astra", "")
 	_, oldKey := targetBorrowQuietKeys(request, 300, "gpt-6-astra", "exit", 298, nil)
 	old := astraTargetValidation{passed: true, sourceID: 298, negativeKey: oldKey}
+	pool.targetMu.Lock()
+	pool.rememberTargetSourcePreferenceLocked(oldKey, time.Now())
+	pool.targetMu.Unlock()
 	require.Equal(t, []int64{298, 299}, wrapper.automaticTargetSourceOrder(request, "exit", 300, "gpt-6-astra", nil, pool, old, true))
 	pool.config.IPAffinity = true
 	pool.routes[299] = codexGatewayRoute{cookie: pool.routes[299].cookie, proxy: "native-source-exit", expires: pool.routes[299].expires}

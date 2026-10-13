@@ -36,9 +36,36 @@ func (p *codexGatewayPinUpstream) rememberTargetSourceAttempt(key astraTargetQuo
 		delete(p.targetSourceAttempts, oldest)
 	}
 	p.targetSourceAttempts[key] = now
+	// A replacement attempt may fail while the old business proof stays live.
+	// Rank preference follows the latest actual result, never the old proof.
+	delete(p.targetSourcePreferences, key)
 }
 
-func (s *astraRoutingUpstream) automaticTargetSourceOrder(req *http.Request, proxy string, id int64, model string, profile *tlsfingerprint.Profile, pool *codexGatewayPinUpstream, old astraTargetValidation, exists bool) []int64 {
+// Caller holds targetMu. Only a settled, complete current IQ success restores
+// preference; quiet reads, admission errors and cancellation before send do not.
+func (p *codexGatewayPinUpstream) rememberTargetSourcePreferenceLocked(key astraTargetQuotaKey, now time.Time) {
+	if p.targetSourcePreferences == nil {
+		p.targetSourcePreferences = map[astraTargetQuotaKey]time.Time{}
+	}
+	for k, at := range p.targetSourcePreferences {
+		if !now.Before(at.Add(time.Hour)) {
+			delete(p.targetSourcePreferences, k)
+		}
+	}
+	if _, exists := p.targetSourcePreferences[key]; !exists && len(p.targetSourcePreferences) >= 4096 {
+		var oldest astraTargetQuotaKey
+		var oldestAt time.Time
+		for k, at := range p.targetSourcePreferences {
+			if oldestAt.IsZero() || at.Before(oldestAt) {
+				oldest, oldestAt = k, at
+			}
+		}
+		delete(p.targetSourcePreferences, oldest)
+	}
+	p.targetSourcePreferences[key] = now
+}
+
+func (s *astraRoutingUpstream) automaticTargetSourceOrder(req *http.Request, proxy string, id int64, model string, profile *tlsfingerprint.Profile, pool *codexGatewayPinUpstream, _ astraTargetValidation, _ bool) []int64 {
 	ids := append([]int64(nil), pool.config.SourceAccountIDs...)
 	attempted := map[int64]time.Time{}
 	proven := map[int64]bool{}
@@ -57,11 +84,11 @@ func (s *astraRoutingUpstream) automaticTargetSourceOrder(req *http.Request, pro
 		if at := pool.targetSourceAttempts[key]; now.Before(at.Add(time.Hour)) {
 			attempted[source] = at
 		}
-		// A prior same-identity successful pair influences rank only, including
-		// renewal after expiry. The actual Cookie still requires fresh IQ.
-		// This helper belongs to non-rotating automatic routes; affinity uses
-		// this candidate's current exit, never another target's or donor's rank.
-		proven[source] = exists && old.passed && old.sourceID == source && old.negativeKey == key
+		// A bounded last-success preference survives failures on other donors,
+		// but the first actual attempt on this exact key revokes it until pass.
+		// It influences rank only: Cookie/proof expiry and 1+3 remain unchanged.
+		preferredAt := pool.targetSourcePreferences[key]
+		proven[source] = !preferredAt.IsZero() && now.Before(preferredAt.Add(time.Hour))
 	}
 	sort.SliceStable(ids, func(i, j int) bool {
 		a, b := ids[i], ids[j]

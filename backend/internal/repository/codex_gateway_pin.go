@@ -25,31 +25,32 @@ var errCodexGatewayPinUnavailable = errors.New("codex gateway pin: no qualified 
 // covers account tests. Only __oailb is shared; credentials and turn state stay
 // owned by the selected account. All routes are process-local and bounded.
 type codexGatewayPinUpstream struct {
-	rotationCache         *astraRotationCache
-	nodeCursor            int
-	rotationRetryAfter    time.Time
-	targetMu              sync.Mutex
-	targetProbeMu         astraContextMutex
-	targetChecks          map[int64]astraTargetValidation
-	targetModelChecks     map[astraTargetModelKey]astraTargetValidation
-	targetRouteFailures   map[astraTargetRouteKey]astraTargetValidation
-	targetRoutePasses     map[astraTargetRouteKey]astraTargetValidation
-	targetPairPasses      map[[32]byte]bool
-	targetSourceAttempts  map[astraTargetQuotaKey]time.Time
-	autoProbeSlots        chan struct{}
-	autoProbeLocks        map[astraTargetModelKey]*sync.Mutex
-	delegate              service.HTTPUpstream
-	config                config.CodexGatewayPinConfig
-	routingSettings       config.AstraRoutingSettings
-	mu                    sync.Mutex
-	routes                map[int64]codexGatewayRoute
-	observations          map[int64]time.Time
-	activeSource          int64
-	statuses              map[int64]service.AstraRouteStatus
-	nodeStore             *AstraNodeStore
-	gateways              map[string]*service.AstraGatewayObservation
-	unknownGatewaySamples int64
-	historyRecorder       func(service.AstraGatewayHistoryRecord, bool)
+	rotationCache           *astraRotationCache
+	nodeCursor              int
+	rotationRetryAfter      time.Time
+	targetMu                sync.Mutex
+	targetProbeMu           astraContextMutex
+	targetChecks            map[int64]astraTargetValidation
+	targetModelChecks       map[astraTargetModelKey]astraTargetValidation
+	targetRouteFailures     map[astraTargetRouteKey]astraTargetValidation
+	targetRoutePasses       map[astraTargetRouteKey]astraTargetValidation
+	targetPairPasses        map[[32]byte]bool
+	targetSourceAttempts    map[astraTargetQuotaKey]time.Time
+	targetSourcePreferences map[astraTargetQuotaKey]time.Time
+	autoProbeSlots          chan struct{}
+	autoProbeLocks          map[astraTargetModelKey]*sync.Mutex
+	delegate                service.HTTPUpstream
+	config                  config.CodexGatewayPinConfig
+	routingSettings         config.AstraRoutingSettings
+	mu                      sync.Mutex
+	routes                  map[int64]codexGatewayRoute
+	observations            map[int64]time.Time
+	activeSource            int64
+	statuses                map[int64]service.AstraRouteStatus
+	nodeStore               *AstraNodeStore
+	gateways                map[string]*service.AstraGatewayObservation
+	unknownGatewaySamples   int64
+	historyRecorder         func(service.AstraGatewayHistoryRecord, bool)
 }
 
 type codexGatewayRoute struct {

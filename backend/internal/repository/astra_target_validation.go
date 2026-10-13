@@ -532,6 +532,9 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		pool.targetChecks = make(map[int64]astraTargetValidation)
 	}
 	if passed {
+		if s.cfg.AstraRouting(req.Context()).AutoQuality {
+			pool.rememberTargetSourcePreferenceLocked(negativeKey, time.Now())
+		}
 		reason = "target_probe_passed"
 		if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
 			if pool.targetPairPasses == nil {
