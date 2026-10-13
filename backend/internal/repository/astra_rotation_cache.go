@@ -125,7 +125,7 @@ func (p *codexGatewayPinUpstream) nodeCoolingForModel(node mihomo.AstraNode, hos
 	return true
 }
 func (p *codexGatewayPinUpstream) rememberTargetFailure(id int64, check astraTargetValidation) {
-	if !p.config.RotateNodes || p.rotationCache == nil || check.node.Identity == "" {
+	if check.reason == "target_probe_overloaded" || !p.config.RotateNodes || p.rotationCache == nil || check.node.Identity == "" {
 		return
 	}
 	seconds := p.config.NodeCooldownSeconds

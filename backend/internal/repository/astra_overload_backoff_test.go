@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/mihomo"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
@@ -104,6 +105,48 @@ func TestBorrowOverloadClassificationUsesOnlyExactProviderCode(t *testing.T) {
 			}
 			require.NotContains(t, err.Error(), "private")
 			require.Zero(t, check.correct)
+		})
+	}
+}
+
+func TestBorrowOverloadDoesNotCreateLongRotationBan(t *testing.T) {
+	pool := &codexGatewayPinUpstream{config: config.CodexGatewayPinConfig{RotateNodes: true}, rotationCache: &astraRotationCache{}}
+	check := astraTargetValidation{node: mihomo.AstraNode{Identity: "exit-one"}, gateway: "gateway-one", model: "gpt-6-astra", reason: "target_probe_overloaded"}
+	pool.rememberTargetFailure(300, check)
+	require.Empty(t, pool.rotationCache.snapshot([]int64{300}, time.Now()), "explicit overload uses only the target's 60-second quiet period")
+	check.reason = "target_quality_failed"
+	pool.rememberTargetFailure(300, check)
+	rows := pool.rotationCache.snapshot([]int64{300}, time.Now())
+	require.NotEmpty(t, rows, "a real quality failure keeps the existing rotation ban")
+	require.Greater(t, rows[0].RemainingSeconds, int64(3500))
+}
+
+func TestBorrowOverloadHTTPStatusAndCodeBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		status        int
+		code, failure string
+	}{
+		{503, "server_is_overloaded", service.OpenAICodexStateFailureOverloaded},
+		{503, "server_error", service.OpenAICodexStateFailureUpstreamError},
+		{401, "server_is_overloaded", service.OpenAICodexStateFailureAccountError},
+	} {
+		t.Run(fmt.Sprintf("%d-%s", tc.status, tc.code), func(t *testing.T) {
+			wrapper, pool := accountBorrowFixture(t)
+			settings := wrapper.cfg.AstraRouting(t.Context())
+			settings.CookiePool.SourceAccountIDs = []int64{299}
+			wrapper.cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
+			pool = wrapper.current(t.Context())
+			wrapper.delegate = gatewayPinDelegate{call: func(*http.Request, string, int64, int, *tlsfingerprint.Profile) (*http.Response, error) {
+				return &http.Response{StatusCode: tc.status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"error":{"code":%q,"message":"private provider message"}}`, tc.code)))}, nil
+			}}
+			accountBorrowAdd(t, pool, 299, "candidate", 220*time.Second)
+			err := wrapper.VerifyAstraGatewayTarget(t.Context(), accountBorrowRequest(t, "gpt-6-astra", ""), "exit", 300, 1)
+			require.Error(t, err)
+			pool.targetMu.Lock()
+			check, _ := pool.targetCheck(300, "gpt-6-astra")
+			pool.targetMu.Unlock()
+			require.Equal(t, tc.failure, check.failureCode)
+			require.NotContains(t, err.Error(), "private")
 		})
 	}
 }

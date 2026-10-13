@@ -446,6 +446,9 @@ func fireOpenAICodexShotBodyRequest(ctx context.Context, headers http.Header, mo
 	}
 	if out.status != http.StatusOK {
 		out.detail = openAICodexStateDetail(data)
+		if out.status >= 500 && out.status <= 599 {
+			out.failureCode = openAICodexProbeFailureCode(data)
+		}
 		return out, nil
 	}
 	out.answer = astraCandyStreamAnswer(data)
@@ -465,15 +468,23 @@ func fireOpenAICodexShotBodyRequest(ctx context.Context, headers http.Header, mo
 	if out.streamErr = validateCodexProbeResponse(data); out.streamErr != nil {
 		payload := openAICodexStateStreamErrorPayload(data)
 		out.detail = openAICodexStateDetail(payload)
-		for _, path := range []string{"error.code", "error.type", "response.error.code", "response.error.type"} {
-			code := gjson.GetBytes(payload, path).String()
-			if code == "usage_limit_reached" || code == "rate_limit_exceeded" || code == "rate_limit_error" || code == "server_is_overloaded" {
-				out.failureCode = code
-				break
-			}
-		}
+		out.failureCode = openAICodexProbeFailureCode(payload)
 	}
 	return out, nil
+}
+
+func openAICodexProbeFailureCode(payload []byte) string {
+	if !gjson.ValidBytes(payload) {
+		return ""
+	}
+	for _, path := range []string{"error.code", "error.type", "response.error.code", "response.error.type"} {
+		code := gjson.GetBytes(payload, path).String()
+		switch code {
+		case "usage_limit_reached", "rate_limit_exceeded", "rate_limit_error", "server_is_overloaded":
+			return code
+		}
+	}
+	return ""
 }
 
 // openAICodexStateRouteCookies 只留两枚负载均衡路由 Cookie；门票要搭配它们续接才有意义。
