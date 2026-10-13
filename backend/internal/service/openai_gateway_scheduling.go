@@ -392,7 +392,11 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 	if account == nil {
 		return "account_nil"
 	}
-	if reason := gatewayBorrowEligibilityReason(ctx, account, requestedModel, requireCompact); reason != "" {
+	if requiredCapability == OpenAIEndpointCapabilityAlphaSearch {
+		if !accountSupportsOpenAICapabilitiesForRequestContext(ctx, account, requestedModel, requiredCapability, "") {
+			return "capability_mismatch"
+		}
+	} else if reason := gatewayBorrowEligibilityReason(ctx, account, requestedModel, requireCompact); reason != "" {
 		return reason
 	}
 	// account_model composite routes publish an alias that only accounts with an

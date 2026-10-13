@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -116,6 +117,8 @@ func TestIsUpstreamModelRestrictedByChannel_CompactMappingMatchesForwardPath(t *
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			// Each parallel case owns its lazily populated model-mapping cache.
+			account := &Account{Platform: account.Platform, Type: account.Type, Credentials: account.Credentials, Extra: account.Extra}
 			t.Parallel()
 
 			channelSvc := newTestChannelService(makeStandardRepo(Channel{
@@ -185,6 +188,8 @@ func TestIsUpstreamModelRestrictedByChannel_PassthroughMatchesForwardPath(t *tes
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			// Each parallel case owns its lazily populated model-mapping cache.
+			account := &Account{Platform: account.Platform, Type: account.Type, Credentials: account.Credentials, Extra: account.Extra}
 			t.Parallel()
 
 			channelSvc := newTestChannelService(makeStandardRepo(Channel{
@@ -242,6 +247,8 @@ func TestIsUpstreamModelRestrictedByChannel_PassthroughFlagWithRawChatFallbackMa
 			name = "legacy compact"
 		}
 		t.Run(name, func(t *testing.T) {
+			// Each parallel case owns its lazily populated model-mapping cache.
+			account := &Account{Platform: account.Platform, Type: account.Type, Credentials: account.Credentials, Extra: account.Extra}
 			t.Parallel()
 
 			channelSvc := newTestChannelService(makeStandardRepo(Channel{
@@ -357,4 +364,40 @@ func TestOpenAISelectAccountForModelWithExclusions_StickyRestrictedUpstreamFalls
 	require.Equal(t, int64(2), account.ID)
 	require.Equal(t, 1, cache.deletedSessions["openai:sticky-session"])
 	require.Equal(t, int64(2), cache.sessionBindings["openai:sticky-session"])
+}
+
+func TestAlphaSearchChannelUpstreamRestrictionMatchesPassthroughWire(t *testing.T) {
+	for _, advanced := range []bool{false, true} {
+		for _, allowed := range []string{"gpt-6-luna", "channel-alpha-alias"} {
+			t.Run(map[bool]string{false: "legacy", true: "advanced"}[advanced]+"/"+allowed, func(t *testing.T) {
+				resetOpenAIAdvancedSchedulerSettingCacheForTest()
+				groupID := int64(501)
+				channelSvc := newTestChannelService(makeStandardRepo(Channel{ID: 1, Status: StatusActive, GroupIDs: []int64{groupID}, RestrictModels: true, BillingModelSource: BillingModelSourceUpstream,
+					ModelPricing: []ChannelModelPricing{{Platform: PlatformOpenAI, Models: []string{allowed}}},
+					ModelMapping: map[string]map[string]string{PlatformOpenAI: {"public-alpha": "channel-alpha-alias"}},
+				}, map[int64]string{groupID: PlatformOpenAI}))
+				account := Account{ID: 902, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, GroupIDs: []int64{groupID}, Extra: map[string]any{"openai_passthrough": true}, Credentials: map[string]any{"model_mapping": map[string]any{"public-alpha": "public-alpha", "channel-alpha-alias": "gpt-6-luna"}}}
+				svc := &OpenAIGatewayService{accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{account}}, cfg: &config.Config{}, cache: &schedulerTestGatewayCache{}, concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}), channelService: channelSvc}
+				svc.cfg.Gateway.Scheduling.LoadBatchEnabled = false
+				if advanced {
+					svc.rateLimitService = newOpenAIAdvancedSchedulerRateLimitService("true", "false")
+				}
+				mapping := channelSvc.ResolveChannelMapping(t.Context(), groupID, "public-alpha")
+				require.True(t, mapping.Mapped)
+				ctx := WithOpenAIAlphaSearchForwardModel(t.Context(), mapping.MappedModel)
+				require.Equal(t, allowed != "gpt-6-luna", svc.isUpstreamModelRestrictedByChannel(ctx, groupID, &account, "public-alpha", false), "alpha passthrough always account-maps body model once, unlike generic passthrough")
+				selection, _, err := svc.SelectAccountWithSchedulerForCapability(ctx, &groupID, "", "", "public-alpha", nil, OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityAlphaSearch, false, false, false)
+				if allowed == "gpt-6-luna" {
+					require.NoError(t, err)
+					require.NotNil(t, selection)
+					if selection.ReleaseFunc != nil {
+						selection.ReleaseFunc()
+					}
+				} else {
+					require.Error(t, err)
+					require.Nil(t, selection)
+				}
+			})
+		}
+	}
 }

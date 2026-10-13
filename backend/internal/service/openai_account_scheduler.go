@@ -2023,10 +2023,14 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	if account == nil {
 		return false, "account_nil"
 	}
-	if account.IsOpenAIGatewayAccountQualityPendingForModel(req.RequestedModel) {
+	if req.RequiredCapability != OpenAIEndpointCapabilityAlphaSearch && account.IsOpenAIGatewayAccountQualityPendingForModel(req.RequestedModel) {
 		return false, "gateway_account_quality_pending"
 	}
-	if reason := s.service.gatewayBorrowPolicyReason(ctx, account, req.RequestedModel, req.RequireCompact); reason != "" {
+	if req.RequiredCapability == OpenAIEndpointCapabilityAlphaSearch {
+		if !accountSupportsOpenAICapabilitiesForRequestContext(ctx, account, req.RequestedModel, req.RequiredCapability, req.RequiredImageCapability) {
+			return false, "capability_mismatch"
+		}
+	} else if reason := s.service.gatewayBorrowPolicyReason(ctx, account, req.RequestedModel, req.RequireCompact); reason != "" {
 		return false, reason
 	}
 	if forward, ok := openAIForwardModelFromContext(ctx); ok && forward.model != "" && !account.excelBPSModelAllowedInGroup(req.GroupID, forward.model) {
@@ -2088,7 +2092,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 		s.service.isUpstreamModelRestrictedByChannel(ctx, *req.GroupID, account, req.RequestedModel, req.RequireCompact) {
 		return false, "channel_upstream_restricted"
 	}
-	if !accountSupportsOpenAICapabilitiesForRequest(account, req.RequestedModel, req.RequiredCapability, req.RequiredImageCapability) {
+	if !accountSupportsOpenAICapabilitiesForRequestContext(ctx, account, req.RequestedModel, req.RequiredCapability, req.RequiredImageCapability) {
 		return false, "capability_mismatch"
 	}
 	// 分组利润控制：不合格账号在候选过滤与抢槽后终检阶段即被排除，
@@ -2689,7 +2693,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 				if selection == nil || selection.Account == nil {
 					return selection, decision, nil
 				}
-				if accountSupportsOpenAICapabilitiesForRequest(selection.Account, requestedModel, requiredCapability, requiredImageCapability) {
+				if accountSupportsOpenAICapabilitiesForRequestContext(ctx, selection.Account, requestedModel, requiredCapability, requiredImageCapability) {
 					applyLegacySelectionDecision(&decision, selection)
 					return selection, decision, nil
 				}
@@ -2716,7 +2720,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 				return selection, decision, nil
 			}
 			if s.isOpenAIAccountTransportCompatible(selection.Account, requiredTransport, requestedModel) &&
-				accountSupportsOpenAICapabilitiesForRequest(selection.Account, requestedModel, requiredCapability, requiredImageCapability) {
+				accountSupportsOpenAICapabilitiesForRequestContext(ctx, selection.Account, requestedModel, requiredCapability, requiredImageCapability) {
 				applyLegacySelectionDecision(&decision, selection)
 				return selection, decision, nil
 			}
@@ -2784,7 +2788,24 @@ func accountSupportsOpenAICapabilities(account *Account, requiredCapability Open
 		account.SupportsOpenAIImageCapability(requiredImageCapability)
 }
 
+// Alpha search always account-maps the channel-forwarded body model once.
+// Keep public-model ACL, billing and sticky semantics separate from that wire.
+func accountSupportsOpenAICapabilitiesForRequestContext(ctx context.Context, account *Account, requestedModel string, requiredCapability OpenAIEndpointCapability, requiredImageCapability OpenAIImagesCapability) bool {
+	if requiredCapability == OpenAIEndpointCapabilityAlphaSearch {
+		if forward, ok := openAIForwardModelFromContext(ctx); ok && forward.model != "" {
+			requestedModel = forward.model
+		}
+	}
+	return accountSupportsOpenAICapabilitiesForRequest(account, requestedModel, requiredCapability, requiredImageCapability)
+}
+
 func accountSupportsOpenAICapabilitiesForRequest(account *Account, requestedModel string, requiredCapability OpenAIEndpointCapability, requiredImageCapability OpenAIImagesCapability) bool {
+	if account != nil && requiredCapability == OpenAIEndpointCapabilityAlphaSearch {
+		wireModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(requestedModel))
+		if account.IsOpenAIGatewayAccountQualityPendingForUpstreamModel(wireModel) || account.RequiresGatewayBorrowUpstream(wireModel) {
+			return false
+		}
+	}
 	if account != nil && requiredImageCapability == "" && account.IsExcelBPSEnabledForModel(requestedModel) {
 		switch requiredCapability {
 		case OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityResponses, OpenAIEndpointCapabilityResponsesCompact:

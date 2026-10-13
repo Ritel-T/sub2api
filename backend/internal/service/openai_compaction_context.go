@@ -5,8 +5,9 @@ import "context"
 type openAIForwardModelContextKey struct{}
 
 type openAIForwardModel struct {
-	model                  string
-	useCompactModelMapping bool
+	model                      string
+	useCompactModelMapping     bool
+	useAlphaSearchModelMapping bool
 }
 
 // WithOpenAIForwardModel records the model present in the forwarded request
@@ -21,6 +22,15 @@ func WithOpenAIForwardModel(ctx context.Context, forwardModel string, useCompact
 		model:                  forwardModel,
 		useCompactModelMapping: useCompactModelMapping,
 	})
+}
+
+// Alpha search account-maps its forwarded body even for passthrough accounts.
+// The marker is service-owned and applies only to that endpoint's ACL chain.
+func WithOpenAIAlphaSearchForwardModel(ctx context.Context, forwardModel string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, openAIForwardModelContextKey{}, openAIForwardModel{model: forwardModel, useAlphaSearchModelMapping: true})
 }
 
 func openAIForwardModelFromContext(ctx context.Context) (openAIForwardModel, bool) {
