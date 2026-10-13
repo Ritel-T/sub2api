@@ -11,6 +11,89 @@ import (
 	"time"
 )
 
+// Only actual IQ attempts influence candidate exploration. This process-local
+// scope uses the same target identity, wire-quality model and actual exit as
+// validation/quiet keys; source collection recency and business costs do not.
+func (p *codexGatewayPinUpstream) rememberTargetSourceAttempt(key astraTargetQuotaKey, now time.Time) {
+	p.targetMu.Lock()
+	defer p.targetMu.Unlock()
+	if p.targetSourceAttempts == nil {
+		p.targetSourceAttempts = map[astraTargetQuotaKey]time.Time{}
+	}
+	for k, at := range p.targetSourceAttempts {
+		if !now.Before(at.Add(time.Hour)) {
+			delete(p.targetSourceAttempts, k)
+		}
+	}
+	if _, exists := p.targetSourceAttempts[key]; !exists && len(p.targetSourceAttempts) >= 4096 {
+		var oldest astraTargetQuotaKey
+		var oldestAt time.Time
+		for k, at := range p.targetSourceAttempts {
+			if oldestAt.IsZero() || at.Before(oldestAt) {
+				oldest, oldestAt = k, at
+			}
+		}
+		delete(p.targetSourceAttempts, oldest)
+	}
+	p.targetSourceAttempts[key] = now
+}
+
+func (s *astraRoutingUpstream) automaticTargetSourceOrder(req *http.Request, proxy string, id int64, model string, profile *tlsfingerprint.Profile, pool *codexGatewayPinUpstream, old astraTargetValidation, exists bool) []int64 {
+	ids := append([]int64(nil), pool.config.SourceAccountIDs...)
+	attempted := map[int64]time.Time{}
+	proven := map[int64]bool{}
+	now := time.Now()
+	pool.targetMu.Lock()
+	defer pool.targetMu.Unlock()
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	for _, source := range ids {
+		route := pool.routes[source]
+		effectiveProxy := proxy
+		if pool.config.IPAffinity {
+			effectiveProxy = route.proxy
+		}
+		_, key := targetBorrowQuietKeys(req, id, pool.qualityModel(model), effectiveProxy, source, profile)
+		if at := pool.targetSourceAttempts[key]; now.Before(at.Add(time.Hour)) {
+			attempted[source] = at
+		}
+		// A prior same-identity successful pair influences rank only, including
+		// renewal after expiry. The actual Cookie still requires fresh IQ.
+		// This helper belongs to non-rotating automatic routes; affinity uses
+		// this candidate's current exit, never another target's or donor's rank.
+		proven[source] = exists && old.passed && old.sourceID == source && old.negativeKey == key
+	}
+	sort.SliceStable(ids, func(i, j int) bool {
+		a, b := ids[i], ids[j]
+		if proven[a] != proven[b] {
+			return proven[a]
+		}
+		return attempted[a].Before(attempted[b])
+	})
+	return ids
+}
+
+// Recording is deferred to the first actual probe send. A cached witness,
+// admission rejection or active quiet window cannot consume exploration order.
+type astraTargetAttemptUpstream struct {
+	delegate service.HTTPUpstream
+	onSend   func()
+}
+
+func (u *astraTargetAttemptUpstream) Do(r *http.Request, proxy string, id int64, n int) (*http.Response, error) {
+	return u.DoWithTLS(r, proxy, id, n, nil)
+}
+func (u *astraTargetAttemptUpstream) DoWithTLS(r *http.Request, proxy string, id int64, n int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	if err := r.Context().Err(); err != nil {
+		return nil, err
+	}
+	if u.onSend != nil {
+		u.onSend()
+		u.onSend = nil
+	}
+	return u.delegate.DoWithTLS(r, proxy, id, n, profile)
+}
+
 func (s *astraRoutingUpstream) automaticTargetRoute(req *http.Request, proxy string, id int64, n int, profile *tlsfingerprint.Profile, pool *codexGatewayPinUpstream) (*http.Cookie, [32]byte, string, func(), error) {
 	model := codexGatewayPinModel(req)
 	if model == "" {
@@ -50,7 +133,7 @@ func (s *astraRoutingUpstream) automaticTargetRoute(req *http.Request, proxy str
 	}
 	var last error
 	attempts := 0
-	for _, source := range pool.config.SourceAccountIDs {
+	for _, source := range s.automaticTargetSourceOrder(req, proxy, id, model, profile, pool, old, exists) {
 		pool.mu.Lock()
 		route, valid := pool.routes[source]
 		pool.mu.Unlock()

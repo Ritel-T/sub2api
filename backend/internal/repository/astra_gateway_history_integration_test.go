@@ -59,6 +59,13 @@ func TestAstraGatewayHistoryPersistsAndFilters(t *testing.T) {
 	page, err = fresh.ListAstraGateways(t.Context(), "%", false, 0, 20)
 	require.NoError(t, err)
 	require.Empty(t, page.Items)
+	row.LastSeen = now.Add(2 * time.Second)
+	row.LastReason = "target_probe_overloaded"
+	row.LastAnswer = ""
+	require.NoError(t, repo.RecordAstraGateway(t.Context(), row, false))
+	page, err = fresh.ListAstraGateways(t.Context(), host, true, 0, 20)
+	require.NoError(t, err)
+	require.Equal(t, "target_probe_overloaded", page.Items[0].LastReason, "controlled provider overload remains distinguishable from IQ failure")
 	row.Gateway = "secret-cookie-value"
 	require.Error(t, repo.RecordAstraGateway(t.Context(), row, true))
 }

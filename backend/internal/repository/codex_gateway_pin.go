@@ -35,6 +35,7 @@ type codexGatewayPinUpstream struct {
 	targetRouteFailures   map[astraTargetRouteKey]astraTargetValidation
 	targetRoutePasses     map[astraTargetRouteKey]astraTargetValidation
 	targetPairPasses      map[[32]byte]bool
+	targetSourceAttempts  map[astraTargetQuotaKey]time.Time
 	autoProbeSlots        chan struct{}
 	autoProbeLocks        map[astraTargetModelKey]*sync.Mutex
 	delegate              service.HTTPUpstream

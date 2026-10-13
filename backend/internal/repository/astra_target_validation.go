@@ -464,16 +464,20 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 
 	probe := req.Clone(service.WithHTTPUpstreamRedirectsDisabled(ctx))
 	replaceCodexGatewayCookie(probe, cookie)
+	probeUpstream := s.delegate
+	if s.cfg.AstraRouting(ctx).AutoQuality {
+		probeUpstream = &astraTargetAttemptUpstream{delegate: s.delegate, onSend: func() { pool.rememberTargetSourceAttempt(negativeKey, time.Now()) }}
+	}
 	var result *service.OpenAICodexStateProbeResult
 	if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
 		pool.targetMu.Lock()
 		provenPair := pool.targetPairPasses[pairKey]
 		pool.targetMu.Unlock()
-		result = service.ProbeOpenAICodexBorrowAccountQualityRoute(ctx, s.delegate, probe, proxy, id, n, profile, provenPair)
+		result = service.ProbeOpenAICodexBorrowAccountQualityRoute(ctx, probeUpstream, probe, proxy, id, n, profile, provenPair)
 	} else if strict {
-		result = service.ProbeOpenAICodexBorrowQualityRoute(ctx, s.delegate, probe, proxy, id, n, profile, model)
+		result = service.ProbeOpenAICodexBorrowQualityRoute(ctx, probeUpstream, probe, proxy, id, n, profile, model)
 	} else {
-		result = service.ProbeOpenAICodexStateRoute(ctx, s.delegate, probe, proxy, id, n, profile)
+		result = service.ProbeOpenAICodexStateRoute(ctx, probeUpstream, probe, proxy, id, n, profile)
 	}
 	passed := result.Verdict == service.OpenAICodexStateHealthy
 	if passed && !time.Now().Before(expires) {
