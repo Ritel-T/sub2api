@@ -12,8 +12,8 @@ import (
 
 type compatibleBorrowRevisionProvider struct {
 	*borrowSafetyProvider
-	revision, previous string
-	compatible         bool
+	previous   string
+	compatible bool
 }
 
 func (p *compatibleBorrowRevisionProvider) CodexGatewayPinWSBindingValidForRevision(_ context.Context, id int64, model, cookie, revision string) bool {
