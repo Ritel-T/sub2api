@@ -47,6 +47,9 @@ func (m *astraContextMutex) Unlock() { <-m.token }
 
 type astraTargetValidation struct {
 	route                        codexGatewayRoute
+	pairKey                      [32]byte
+	revision                     string
+	compatibleRevisions          map[string]time.Time
 	model                        string
 	node                         mihomo.AstraNode
 	key                          [32]byte
@@ -582,6 +585,11 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	}
 	check := astraTargetValidation{node: route.node, key: key, cookieFingerprint: sha256.Sum256([]byte(cookie.Value)), proxyFingerprint: sha256.Sum256([]byte(proxy)), passed: passed, checked: time.Now(), expires: expires, retryAfter: time.Now().Add(retryDelay), sourceID: sourceID, reason: reason, gateway: host, quotaKey: quotaKey, negativeKey: negativeKey, failureCode: result.Failure, attempts: result.Attempts, correct: result.Correct, answer: result.Answer}
 	check.route = route
+	check.pairKey = pairKey
+	check.revision = pool.routingSettings.Revision
+	if exists && old.key == key && old.passed && check.passed {
+		check.compatibleRevisions = cloneAstraProofRevisions(old.compatibleRevisions, time.Now())
+	}
 	if !passed && s.cfg.AstraRouting(req.Context()).AutoQuality {
 		if pool.targetRouteFailures == nil {
 			pool.targetRouteFailures = map[astraTargetRouteKey]astraTargetValidation{}

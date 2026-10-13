@@ -138,6 +138,7 @@ type SettingService struct {
 	requestCapture                     *requestcapture.Manager
 	astraRoutingMu                     sync.Mutex
 	astraRoutingOnSaved                func(config.AstraRoutingSettings)
+	astraRoutingOnPublished            func(config.AstraRoutingSettings, config.AstraRoutingSettings)
 	astraRoutingCache                  *config.AstraRoutingSettings
 	astraRoutingExpires                time.Time
 	settingRepo                        SettingRepository

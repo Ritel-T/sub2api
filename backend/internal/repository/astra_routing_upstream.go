@@ -24,24 +24,25 @@ import (
 // Each settings revision gets a fresh pool. In-flight requests finish against
 // their snapshot; removed candidates cannot re-populate the new pool.
 type astraRoutingUpstream struct {
-	quotaMu         sync.Mutex
-	quotaBackoff    map[astraTargetQuotaKey]astraTargetQuotaBackoff
-	tickets         service.AstraTicketLifecycle
-	rotationCache   astraRotationCache
-	listNodes       func() ([]mihomo.AstraNode, error)
-	pinNode         func(context.Context, mihomo.AstraNode) (string, func(), error)
-	prepareCallMu   sync.Mutex
-	prepareCall     *astraPreparation
-	prepareMu       sync.Mutex
-	preparer        func(context.Context, int64) error
-	retryAfter      time.Time
-	preparing       atomic.Bool
-	delegate        service.HTTPUpstream
-	cfg             *config.Config
-	mu              sync.Mutex
-	revision        string
-	pool            *codexGatewayPinUpstream
-	historyRecorder func(service.AstraGatewayHistoryRecord, bool)
+	quotaMu           sync.Mutex
+	quotaBackoff      map[astraTargetQuotaKey]astraTargetQuotaBackoff
+	tickets           service.AstraTicketLifecycle
+	rotationCache     astraRotationCache
+	listNodes         func() ([]mihomo.AstraNode, error)
+	pinNode           func(context.Context, mihomo.AstraNode) (string, func(), error)
+	prepareCallMu     sync.Mutex
+	prepareCall       *astraPreparation
+	prepareMu         sync.Mutex
+	preparer          func(context.Context, int64) error
+	retryAfter        time.Time
+	preparing         atomic.Bool
+	delegate          service.HTTPUpstream
+	cfg               *config.Config
+	mu                sync.Mutex
+	revision          string
+	pool              *codexGatewayPinUpstream
+	publishedSettings atomic.Pointer[astraRoutingPublication]
+	historyRecorder   func(service.AstraGatewayHistoryRecord, bool)
 }
 
 func (s *astraRoutingUpstream) SetAstraTicketLifecycle(provider service.AstraTicketLifecycle) {
@@ -74,28 +75,62 @@ func (s *astraRoutingUpstream) SetAstraGatewayHistoryRecorder(fn func(service.As
 	s.historyRecorder = fn
 }
 
+type astraRoutingPublication struct {
+	previousRevision string
+	settings         config.AstraRoutingSettings
+}
+
 func (s *astraRoutingUpstream) current(ctx context.Context) *codexGatewayPinUpstream {
 	settings := s.cfg.AstraRouting(ctx)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	publication := s.publishedSettings.Load()
+	carry := publication == nil
+	// A delayed config read cannot roll back a publication. Skipping an
+	// intermediate revision never authorizes carry-over across a removal.
+	if publication != nil {
+		settings = publication.settings
+		carry = s.pool != nil && s.pool.routingSettings.Revision == publication.previousRevision
+	}
+	return s.currentSettingsLocked(settings, carry)
+}
+
+// Publication is ordered by the settings service lock and only stores an
+// immutable value. It never takes pool locks or calls back into settings.
+func (s *astraRoutingUpstream) ApplyAstraRoutingSettings(previous, settings config.AstraRoutingSettings) {
+	encoded, _ := json.Marshal(settings)
+	var immutable config.AstraRoutingSettings
+	_ = json.Unmarshal(encoded, &immutable)
+	s.publishedSettings.Store(&astraRoutingPublication{previousRevision: previous.Revision, settings: immutable})
+}
+
+func (s *astraRoutingUpstream) currentSettingsLocked(settings config.AstraRoutingSettings, carry bool) *codexGatewayPinUpstream {
 	settings.CookiePool.QualityMode = settings.QualityMode
 	poolSettings := settings
-	poolSettings.AccountScheduling = false // Scheduling does not invalidate verified routes.
+	poolSettings.AccountScheduling = false
 	poolSettings.TicketPoolScheduling = false
 	poolSettings.SchedulingMode = ""
 	poolSettings.SchedulingGroupIDs = nil
 	encoded, _ := json.Marshal(poolSettings)
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if !settings.CookiePool.Enabled {
 		s.pool = nil
 		s.revision = ""
 		return nil
 	}
 	if s.pool == nil || s.revision != string(encoded) {
+		old := s.pool
+		var immutable config.AstraRoutingSettings
+		_ = json.Unmarshal(encoded, &immutable)
+		next := &codexGatewayPinUpstream{rotationCache: &s.rotationCache, delegate: s.delegate, config: immutable.CookiePool, routingSettings: immutable, historyRecorder: s.historyRecorder}
+		if carry {
+			carryAstraSurvivingProofs(old, next, time.Now())
+		}
 		s.revision = string(encoded)
-		s.pool = &codexGatewayPinUpstream{rotationCache: &s.rotationCache, delegate: s.delegate, config: settings.CookiePool, historyRecorder: s.historyRecorder}
+		s.pool = next
 	}
 	return s.pool
 }
+
 func (s *astraRoutingUpstream) Do(r *http.Request, p string, a int64, n int) (*http.Response, error) {
 	return s.DoWithTLS(r, p, a, n, nil)
 }

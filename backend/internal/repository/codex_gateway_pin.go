@@ -40,6 +40,7 @@ type codexGatewayPinUpstream struct {
 	autoProbeLocks        map[astraTargetModelKey]*sync.Mutex
 	delegate              service.HTTPUpstream
 	config                config.CodexGatewayPinConfig
+	routingSettings       config.AstraRoutingSettings
 	mu                    sync.Mutex
 	routes                map[int64]codexGatewayRoute
 	observations          map[int64]time.Time

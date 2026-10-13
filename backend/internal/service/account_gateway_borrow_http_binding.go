@@ -114,7 +114,7 @@ func (s *OpenAIGatewayService) gatewayBorrowHTTPContinuation(ctx context.Context
 	gatewayBorrowHTTPBindings.Lock()
 	proof, ok := gatewayBorrowHTTPBindings.services[s][responseID]
 	gatewayBorrowHTTPBindings.Unlock()
-	if !ok || s == nil || s.cfg == nil || proof.accountID != a.ID || proof.model != model || proof.keyID != keyID || proof.groupID != groupID || proof.credential != gatewayBorrowCredentialFingerprint(a) || !time.Now().Before(proof.expires) || proof.revision != s.cfg.AstraRouting(ctx).Revision {
+	if !ok || s == nil || s.cfg == nil || proof.accountID != a.ID || proof.model != model || proof.keyID != keyID || proof.groupID != groupID || proof.credential != gatewayBorrowCredentialFingerprint(a) || !time.Now().Before(proof.expires) || !s.gatewayBorrowRevisionCompatible(ctx, a.ID, model, proof.cookie, proof.revision) {
 		return "", denyOpenAITurn("gateway_borrow_continuation_unverified")
 	}
 	provider, ok := s.httpUpstream.(gatewayBorrowWSProvider)

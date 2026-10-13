@@ -61,6 +61,21 @@ func (a *Account) RequiresGatewayBorrowUpstream(model string) bool {
 	return false
 }
 
+// Previous revisions are accepted only for a concrete still-valid proof that
+// the transport explicitly migrated; absent support preserves fail-closed.
+func (s *OpenAIGatewayService) gatewayBorrowRevisionCompatible(ctx context.Context, id int64, model, cookie, revision string) bool {
+	if s == nil || s.cfg == nil {
+		return false
+	}
+	if revision == s.cfg.AstraRouting(ctx).Revision {
+		return true
+	}
+	provider, ok := s.httpUpstream.(interface {
+		CodexGatewayPinWSBindingValidForRevision(context.Context, int64, string, string, string) bool
+	})
+	return ok && provider.CodexGatewayPinWSBindingValidForRevision(ctx, id, config.CanonicalGatewayBorrowModel(normalizeExcelBPSIsolationModel(model)), cookie, revision)
+}
+
 type gatewayBorrowWSProvider interface {
 	CodexGatewayPinWSRequestForModel(context.Context, http.Header, string, int64, int, string) (string, string, func(), error)
 	CodexGatewayPinWSBindingValidForModel(context.Context, int64, string, string) bool

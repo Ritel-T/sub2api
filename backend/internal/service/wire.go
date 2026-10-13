@@ -312,6 +312,11 @@ func ProvideAccountTestService(
 	if p, ok := httpUpstream.(AstraGatewayRuntimeProvider); ok {
 		p.SetAstraGatewayPreparer(service.prepareAstraGatewaySource)
 	}
+	if publisher, ok := httpUpstream.(interface {
+		ApplyAstraRoutingSettings(config.AstraRoutingSettings, config.AstraRoutingSettings)
+	}); ok {
+		settingService.SetAstraRoutingOnPublished(publisher.ApplyAstraRoutingSettings)
+	}
 	settingService.SetAstraRoutingOnSaved(service.StartAstraAutomaticSetup)
 	if recorder, ok := httpUpstream.(AstraGatewayHistoryRecorder); ok {
 		if history, ok := settingService.settingRepo.(AstraGatewayHistoryRepository); ok {

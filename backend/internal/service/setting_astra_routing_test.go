@@ -96,3 +96,34 @@ func TestAstraAccountQualityModeSurvivesOlderClientSave(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, updated, readback)
 }
+
+func TestAstraSettingsPublicationIsOrderedAfterDurableSaveAndBeforeSetup(t *testing.T) {
+	repo := &astraSettingsRepo{codexPolicyMigrationRepoStub: &codexPolicyMigrationRepoStub{values: map[string]string{}}}
+	svc := NewSettingService(repo, &config.Config{})
+	var events []string
+	var lastRevision string
+	svc.SetAstraRoutingOnPublished(func(previous, next config.AstraRoutingSettings) {
+		require.Equal(t, lastRevision, previous.Revision)
+		require.Equal(t, next.Revision, svc.astraRoutingCache.Revision)
+		lastRevision = next.Revision
+		events = append(events, "published")
+	})
+	svc.SetAstraRoutingOnSaved(func(config.AstraRoutingSettings) { events = append(events, "setup") })
+	settings := config.AstraRoutingSettings{AutoQuality: true, QualityMode: config.GatewayBorrowAccountQualityMode, CookiePool: config.CodexGatewayPinConfig{Enabled: true, SourceAccountIDs: []int64{299, 298}, TargetAccountIDs: []int64{300}}}
+	a, err := svc.SetAstraRouting(t.Context(), settings)
+	require.NoError(t, err)
+	b := a
+	b.CookiePool.SourceAccountIDs = []int64{298}
+	b, err = svc.SetAstraRouting(t.Context(), b)
+	require.NoError(t, err)
+	c := b
+	c.CookiePool.SourceAccountIDs = []int64{299, 298}
+	_, err = svc.SetAstraRouting(t.Context(), c)
+	require.NoError(t, err)
+	require.Equal(t, []string{"published", "setup", "published", "setup", "published", "setup"}, events)
+	repo.failure = errors.New("save failed")
+	c.Revision = lastRevision
+	_, err = svc.SetAstraRouting(t.Context(), c)
+	require.Error(t, err)
+	require.Len(t, events, 6, "unknown or failed writes never publish a runtime transition")
+}

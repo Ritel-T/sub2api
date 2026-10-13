@@ -83,6 +83,9 @@ func (s *SettingService) SetAstraRouting(ctx context.Context, value config.Astra
 	}
 	s.astraRoutingCache = &value
 	s.astraRoutingExpires = time.Now().Add(5 * time.Second)
+	if s.astraRoutingOnPublished != nil {
+		s.astraRoutingOnPublished(previous, value)
+	}
 	callback := s.astraRoutingOnSaved
 	s.astraRoutingMu.Unlock()
 	if callback != nil && !schedulingOnly {
@@ -90,6 +93,16 @@ func (s *SettingService) SetAstraRouting(ctx context.Context, value config.Astra
 	}
 	return value, nil
 }
+
+// The observer is process-local, bounded, and must not read this service or
+// perform network/database work. Holding the save lock orders every transition;
+// its immutable previous/current pair fences skipped removal-and-readd changes.
+func (s *SettingService) SetAstraRoutingOnPublished(callback func(config.AstraRoutingSettings, config.AstraRoutingSettings)) {
+	s.astraRoutingMu.Lock()
+	defer s.astraRoutingMu.Unlock()
+	s.astraRoutingOnPublished = callback
+}
+
 func (s *SettingService) SetAstraRoutingOnSaved(callback func(config.AstraRoutingSettings)) {
 	s.astraRoutingMu.Lock()
 	defer s.astraRoutingMu.Unlock()

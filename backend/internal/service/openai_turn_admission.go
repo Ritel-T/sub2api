@@ -467,7 +467,7 @@ func (s *OpenAIGatewayService) checkOpenAIWSBinding(account *Account, model stri
 		if reason := s.gatewayBorrowUpstreamPolicyReason(ctx, account, model, false); reason != "" {
 			return denyOpenAITurn(reason)
 		}
-		if b.borrowCredentialFingerprint != gatewayBorrowCredentialFingerprint(account) || b.model != strings.TrimSpace(model) || b.borrowCookie == "" || !time.Now().Before(b.borrowExpires) || b.borrowRevision != s.cfg.AstraRouting(ctx).Revision {
+		if b.borrowCredentialFingerprint != gatewayBorrowCredentialFingerprint(account) || b.model != strings.TrimSpace(model) || b.borrowCookie == "" || !time.Now().Before(b.borrowExpires) || !s.gatewayBorrowRevisionCompatible(ctx, account.ID, model, b.borrowCookie, b.borrowRevision) {
 			return denyOpenAITurn("connection_borrow_expired")
 		}
 		provider, ok := s.httpUpstream.(gatewayBorrowWSProvider)
