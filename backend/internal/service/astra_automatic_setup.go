@@ -315,7 +315,7 @@ func automaticBorrowCycleStatus(snapshot AstraGatewayRuntime, pool config.CodexG
 	return result
 }
 
-const automaticBorrowTargetWarmBudget = 120 * time.Second
+const automaticBorrowTargetWarmBudget = GatewayBorrowAccountQualityRoundBudget + 5*time.Second
 
 type automaticBorrowWarmModel struct {
 	model    string

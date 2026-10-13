@@ -223,7 +223,7 @@ func TestAutomaticBorrowTargetBudgetReturnsAfterPartialRenewal(t *testing.T) {
 	require.Less(t, time.Since(started), time.Second)
 	require.Equal(t, "gpt-6-astra", calls[88][0])
 	require.NotContains(t, calls, int64(140), "no third account or extra retry in this window")
-	require.Equal(t, 120*time.Second, automaticBorrowTargetWarmBudget)
+	require.Equal(t, 185*time.Second, automaticBorrowTargetWarmBudget)
 }
 
 func TestAutomaticBorrowWarmSkipsUnavailableAndQuotaAccounts(t *testing.T) {

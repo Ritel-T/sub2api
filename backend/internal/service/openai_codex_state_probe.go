@@ -49,9 +49,11 @@ const (
 const (
 	OpenAICodexStateProbeDefaultModel = "gpt-6-astra"
 
-	openAICodexStateProbeShotTimeout   = 45 * time.Second
-	openAICodexStateProbeMaxBody       = 1 << 20
-	openAICodexStateProbeMaxDetailByte = 300
+	openAICodexStateProbeShotTimeout = 45 * time.Second
+	// The linked account policy may need the full four-shot Astra decision.
+	GatewayBorrowAccountQualityRoundBudget = 4 * openAICodexStateProbeShotTimeout
+	openAICodexStateProbeMaxBody           = 1 << 20
+	openAICodexStateProbeMaxDetailByte     = 300
 )
 
 // OpenAICodexStateProbeLimitation 是探针判据的适用范围说明，展示结果时应一并给出。

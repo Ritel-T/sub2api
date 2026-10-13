@@ -235,6 +235,20 @@ func (p *codexGatewayPinUpstream) targetCheckForCookie(id int64, model, cookie s
 	return astraTargetValidation{}, false
 }
 
+// The linked account policy allows four existing 45-second shots. The
+// request's own deadline and the real source lease always remain upper bounds.
+func astraTargetProbeContext(ctx context.Context, expires time.Time, qualityMode string) (context.Context, context.CancelFunc) {
+	budget := 90 * time.Second
+	if qualityMode == config.GatewayBorrowAccountQualityMode {
+		budget = service.GatewayBorrowAccountQualityRoundBudget
+	}
+	deadline := time.Now().Add(budget)
+	if expires.Before(deadline) {
+		deadline = expires
+	}
+	return context.WithDeadline(ctx, deadline)
+}
+
 // Source success is only a candidate. Validate the borrowed route with the
 // selected quality policy and the target credentials on the actual exit.
 func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, id int64, n int, profile *tlsfingerprint.Profile) (resultCookie *http.Cookie, resultKey [32]byte, resultProxy string, release func(), resultErr error) {
@@ -331,7 +345,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	if !force && !strict {
 		return cookie, zero, proxy, release, nil
 	}
-	ctx, cancel := context.WithTimeout(req.Context(), 90*time.Second)
+	ctx, cancel := astraTargetProbeContext(req.Context(), expires, pool.config.QualityMode)
 	defer cancel()
 	identity := []string{qualityModel, cookie.Value, strconv.FormatInt(sourceID, 10), identityProxy, req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID"), req.Header.Get("User-Agent"), req.Header.Get("Originator"), req.Header.Get("Version"), req.Header.Get("X-Codex-Turn-State")}
 	if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
