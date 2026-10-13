@@ -367,14 +367,17 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		}
 	}
 	pool.targetMu.Unlock()
-	if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode && exists &&
-		old.cookieFingerprint == sha256.Sum256([]byte(cookie.Value)) && old.sourceID == sourceID && old.expires.Before(expires) {
+	// A later controlled acquisition permits new IQ evidence, never an
+	// extension of the cached proof or an existing user's connection deadline.
+	freshAcquisition := exists && !route.acquiredAt.IsZero() && route.acquiredAt.After(old.route.acquiredAt) && expires.After(old.expires)
+	if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode && exists && !freshAcquisition &&
+		old.key == key && old.cookieFingerprint == sha256.Sum256([]byte(cookie.Value)) && old.sourceID == sourceID && old.expires.Before(expires) {
 		expires = old.expires
 		if !now.Before(expires) {
 			return nil, key, proxy, release, errors.New("borrow_route_expired")
 		}
 	}
-	if exists && old.key == key && now.Before(old.expires) && (!force || pool.config.QualityMode == config.GatewayBorrowAccountQualityMode) {
+	if exists && old.key == key && now.Before(old.expires) && (!force || pool.config.QualityMode == config.GatewayBorrowAccountQualityMode) && (!force || !freshAcquisition) {
 		if old.passed {
 			current, currentSource := pool.currentCookie(req.URL.Path, time.Now())
 			if hasSelection {
@@ -519,7 +522,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		}
 	}
 	// Revalidating an identical Cookie must not advance its proven deadline.
-	if exists && old.cookieFingerprint == sha256.Sum256([]byte(cookie.Value)) && old.sourceID == sourceID && old.expires.Before(expires) {
+	if exists && !freshAcquisition && old.key == key && old.cookieFingerprint == sha256.Sum256([]byte(cookie.Value)) && old.sourceID == sourceID && old.expires.Before(expires) {
 		expires = old.expires
 	}
 	host := astraRoutingHost(cookie.Value)
@@ -543,6 +546,17 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 				probeQuotaKey, _ = targetBorrowQuietKeys(req, id, qualityModel, identityProxy, sourceID, profile)
 			}
 			s.rememberTargetQuota(probeQuotaKey, reason, time.Now().Add(retryDelay))
+		}
+	}
+	if result.Failure == service.OpenAICodexStateFailureOverloaded {
+		reason = "target_probe_overloaded"
+		retryDelay = 60 * time.Second
+		if s.cfg.AstraRouting(req.Context()).AutoQuality {
+			// Provider overload is transient and independent of donor/Cookie.
+			// It never changes account quota, scheduling or quality penalty tiers.
+			quietKey := quotaKey
+			quietKey.model = qualityModel
+			s.rememberTargetQuota(quietKey, reason, time.Now().Add(retryDelay))
 		}
 	}
 	if passed && s.cfg.AstraRouting(req.Context()).AutoQuality {

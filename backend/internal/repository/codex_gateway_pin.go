@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -51,9 +53,10 @@ type codexGatewayPinUpstream struct {
 type codexGatewayRoute struct {
 	node mihomo.AstraNode
 	// Process-local only: this may contain proxy credentials. Never expose it.
-	proxy   string
-	cookie  http.Cookie
-	expires time.Time
+	proxy      string
+	cookie     http.Cookie
+	expires    time.Time
+	acquiredAt time.Time // Set only after a complete controlled source response.
 }
 
 func (s *codexGatewayPinUpstream) Do(req *http.Request, proxy string, accountID int64, concurrency int) (*http.Response, error) {
@@ -107,6 +110,7 @@ func (s *codexGatewayPinUpstream) DoWithTLS(req *http.Request, proxy string, acc
 			received := time.Now()
 			route := codexGatewayRouteFromResponse(resp, req.URL.Path, received, s.config.TTLSeconds)
 			if route != nil {
+				route.acquiredAt = received
 				route.proxy = proxy
 				route.node = egress.node
 			}
@@ -169,6 +173,25 @@ func codexGatewayCookiePathMatches(path, scope string) bool {
 	return path == scope || (strings.HasPrefix(path, scope) && (strings.HasSuffix(scope, "/") || strings.HasPrefix(strings.TrimPrefix(path, scope), "/")))
 }
 
+// JWT claims are not identity evidence; exp only shortens a source lease.
+func codexGatewayCookieExpiry(value string) time.Time {
+	parts := strings.Split(value, ".")
+	if len(parts) != 3 {
+		return time.Time{}
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return time.Time{}
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if json.Unmarshal(raw, &claims) != nil || claims.Exp <= 0 || claims.Exp >= 4102444800 {
+		return time.Time{}
+	}
+	return time.Unix(claims.Exp, 0)
+}
+
 func codexGatewayRouteFromResponse(resp *http.Response, path string, now time.Time, configuredTTL ...int) *codexGatewayRoute {
 	ttl := 230
 	if len(configuredTTL) > 0 && configuredTTL[0] >= 30 && configuredTTL[0] <= 240 {
@@ -199,6 +222,15 @@ func codexGatewayRouteFromResponse(resp *http.Response, path string, now time.Ti
 			if cookie.Expires.Before(expires) {
 				expires = cookie.Expires
 			}
+		}
+		if !cookie.Expires.IsZero() && cookie.Expires.Before(expires) {
+			expires = cookie.Expires
+		}
+		if absolute := codexGatewayCookieExpiry(cookie.Value); !absolute.IsZero() && absolute.Before(expires) {
+			expires = absolute
+		}
+		if !now.Before(expires) {
+			return &codexGatewayRoute{}
 		}
 		route = &codexGatewayRoute{cookie: *cookie, expires: expires}
 	}
@@ -261,15 +293,18 @@ func (s *codexGatewayPinUpstream) recordSourceReason(id int64, started time.Time
 	if s.routes == nil {
 		s.routes = make(map[int64]codexGatewayRoute)
 	}
-	// A newly qualified route replaces the prior sample; an identical cookie
-	// must never gain lifetime from being replayed.
+	// Only a newly completed source acquisition may replace an identical
+	// Cookie's lease. Replay keeps its deadline; fresh acquisition still needs
+	// a new target IQ result before it can publish a new quality witness.
 	if old, ok := s.routes[id]; ok && time.Now().Before(old.expires) && old.cookie.Value == route.cookie.Value {
-		if (!s.config.IPAffinity || old.proxy == route.proxy) && old.node.Identity == route.node.Identity {
-			return
-		}
-		// A changed egress needs revalidation without extending Cookie life.
-		if old.expires.Before(route.expires) {
-			route.expires = old.expires
+		fresh := !route.acquiredAt.IsZero() && route.acquiredAt.After(old.acquiredAt)
+		if !fresh {
+			if (!s.config.IPAffinity || old.proxy == route.proxy) && old.node.Identity == route.node.Identity {
+				return
+			}
+			if old.expires.Before(route.expires) {
+				route.expires = old.expires
+			}
 		}
 	}
 	s.routes[id] = *route

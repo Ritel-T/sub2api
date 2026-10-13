@@ -39,6 +39,7 @@ const (
 	OpenAICodexStateFailureRateLimited      = "rate_limited"
 	OpenAICodexStateFailureModelUnsupported = "model_unsupported"
 	OpenAICodexStateFailureUpstreamError    = "upstream_error"
+	OpenAICodexStateFailureOverloaded       = "upstream_overloaded"
 	OpenAICodexStateFailureNetworkError     = "network_error"
 	OpenAICodexStateFailureStreamError      = "stream_error"
 	OpenAICodexStateFailureNoTicket         = "no_ticket"
@@ -284,6 +285,10 @@ func (r *OpenAICodexStateProbeResult) shotUsable(ctx context.Context, step strin
 		r.fail(OpenAICodexStateFailureNetworkError, step+"请求失败（网络或代理异常）", SanitizeUpstreamErrorMessage(truncateString(err.Error(), openAICodexStateProbeMaxDetailByte)))
 		return false
 	}
+	if shot.failureCode == "server_is_overloaded" {
+		r.fail(OpenAICodexStateFailureOverloaded, "target_probe_overloaded", "")
+		return false
+	}
 	switch {
 	case shot.status == http.StatusOK:
 		if shot.streamErr != nil {
@@ -462,7 +467,7 @@ func fireOpenAICodexShotBodyRequest(ctx context.Context, headers http.Header, mo
 		out.detail = openAICodexStateDetail(payload)
 		for _, path := range []string{"error.code", "error.type", "response.error.code", "response.error.type"} {
 			code := gjson.GetBytes(payload, path).String()
-			if code == "usage_limit_reached" || code == "rate_limit_exceeded" || code == "rate_limit_error" {
+			if code == "usage_limit_reached" || code == "rate_limit_exceeded" || code == "rate_limit_error" || code == "server_is_overloaded" {
 				out.failureCode = code
 				break
 			}

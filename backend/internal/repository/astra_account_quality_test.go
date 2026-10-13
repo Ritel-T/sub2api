@@ -220,9 +220,8 @@ func TestAccountBorrowReissuedSameCookieNeverExtendsExpiredWitness(t *testing.T)
 	pool.routes[299] = route
 	pool.mu.Unlock()
 	req := accountBorrowRequest(t, "gpt-6.1-sol", "")
-	req.Header.Set("Authorization", "Bearer refreshed-target")
 	_, err = wrapper.Do(req, "exit", 300, 2)
-	require.EqualError(t, err, "borrow_route_expired")
+	require.EqualError(t, err, "borrow_route_expired", "manually sliding a source deadline is not a fresh acquisition")
 	require.False(t, wrapper.CodexGatewayPinWSBindingValidForModel(t.Context(), 300, "gpt-6.1-sol", "fixed"))
 }
 

@@ -122,6 +122,93 @@ func TestGatewayBorrowAccountQualityMatchingSingleOnlyRefreshesEvidence(t *testi
 	require.Equal(t, "single_probe_requires_matching_classification", reason)
 }
 
+func TestGatewayBorrowAccountQualityHistoricalBaselineRequiresFreshMatchingSample(t *testing.T) {
+	now := time.Now().UTC()
+	for _, state := range []string{"healthy", "degraded"} {
+		t.Run(state, func(t *testing.T) {
+			a, old := accountQualityFixture(now, state)
+			old["latest_probe_at"] = now.Add(-25 * time.Hour).Format(time.RFC3339Nano)
+			models, correct := []string{}, 1
+			if state == "degraded" {
+				models, correct = []string{"gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol"}, 0
+			}
+			a.Extra[GatewayBorrowModelsKey] = models
+			_, fresh := GatewayBorrowAccountQuality(a, now, 24*time.Hour)
+			require.False(t, fresh, "historical evidence cannot admit a source")
+			o := GatewayBorrowPolicyObservation{PolicyMode: GatewayBorrowAccountQualityMode, CredentialSHA256: GatewayBorrowCredentialSHA256(a.Credentials), BorrowModels: models}
+			u, reason, err := BuildGatewayBorrowPolicyUpdates(a.Extra, o)
+			require.NoError(t, err)
+			require.Nil(t, u)
+			require.Equal(t, "account_classification_required", reason, "migration needs fresh evidence")
+			o.ModelResults = map[string]GatewayBorrowModelResult{"gpt-6-astra": borrowResult("gpt-6-astra", state, 1, correct, now)}
+			u, reason, err = BuildGatewayBorrowPolicyUpdates(a.Extra, o)
+			require.NoError(t, err)
+			require.Equal(t, "account_quality_applied", reason)
+			r, ok := u["quality_candy"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, old["checked_at"], r["checked_at"])
+			require.Equal(t, old["correct"], r["correct"])
+			require.Equal(t, float64(4), r["total"])
+			require.Equal(t, now.Format(time.RFC3339Nano), r["latest_probe_at"])
+			require.Equal(t, now.Add(-25*time.Hour).Format(time.RFC3339Nano), old["latest_probe_at"])
+			for k, v := range u {
+				a.Extra[k] = v
+			}
+			_, fresh = GatewayBorrowAccountQuality(a, now, 24*time.Hour)
+			require.True(t, fresh, "only the completed matching sample refreshes source evidence")
+		})
+	}
+}
+
+func TestGatewayBorrowAccountQualityHistoricalSingleRejectsChangedBaseline(t *testing.T) {
+	now := time.Now().UTC()
+	for _, tc := range []struct {
+		name string
+		edit func(*Account, map[string]any, *GatewayBorrowPolicyObservation)
+	}{
+		{"new credential", func(a *Account, _ map[string]any, o *GatewayBorrowPolicyObservation) {
+			a.Credentials["access_token"] = "new"
+			o.CredentialSHA256 = GatewayBorrowCredentialSHA256(a.Credentials)
+		}},
+		{"new proxy", func(_ *Account, _ map[string]any, o *GatewayBorrowPolicyObservation) {
+			id := int64(7)
+			o.ExpectedProxyID = &id
+		}},
+		{"partial confirmation", func(_ *Account, r map[string]any, _ *GatewayBorrowPolicyObservation) { r["total"] = float64(1) }},
+		{"different effort", func(_ *Account, r map[string]any, _ *GatewayBorrowPolicyObservation) { r["reasoning_effort"] = "high" }},
+		{"different prompt", func(_ *Account, r map[string]any, _ *GatewayBorrowPolicyObservation) { r["prompt_sha256"] = "changed" }},
+		{"pending", func(a *Account, _ map[string]any, _ *GatewayBorrowPolicyObservation) {
+			a.Extra[GatewayBorrowAccountQualityPendingKey] = true
+			a.Extra[GatewayBorrowInitialReadyKey] = true
+		}},
+		{"owned policy mismatch", func(a *Account, _ map[string]any, _ *GatewayBorrowPolicyObservation) {
+			a.Extra[GatewayBorrowModelsKey] = []string{}
+		}},
+		{"malformed policy", func(a *Account, _ map[string]any, _ *GatewayBorrowPolicyObservation) {
+			a.Extra[GatewayBorrowModelsKey] = "invalid"
+		}},
+		{"opposite single", func(_ *Account, _ map[string]any, o *GatewayBorrowPolicyObservation) {
+			o.BorrowModels = []string{}
+			o.ModelResults["gpt-6-astra"] = borrowResult("gpt-6-astra", "healthy", 1, 1, now)
+		}},
+		{"incomplete single", func(_ *Account, _ map[string]any, o *GatewayBorrowPolicyObservation) {
+			o.ModelResults["gpt-6-astra"] = borrowResult("gpt-6-astra", "inconclusive", 1, 0, now)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, old := accountQualityFixture(now, "degraded")
+			old["latest_probe_at"] = now.Add(-25 * time.Hour).Format(time.RFC3339Nano)
+			a.Extra[GatewayBorrowModelsKey] = []string{"gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol"}
+			o := GatewayBorrowPolicyObservation{PolicyMode: GatewayBorrowAccountQualityMode, CredentialSHA256: GatewayBorrowCredentialSHA256(a.Credentials), BorrowModels: []string{"gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol"}, ModelResults: map[string]GatewayBorrowModelResult{"gpt-6-astra": borrowResult("gpt-6-astra", "degraded", 1, 0, now)}}
+			tc.edit(a, old, &o)
+			u, _, err := BuildGatewayBorrowPolicyUpdates(a.Extra, o)
+			require.NoError(t, err)
+			require.Nil(t, u)
+			require.Equal(t, now.Add(-25*time.Hour).Format(time.RFC3339Nano), old["latest_probe_at"])
+		})
+	}
+}
+
 func TestGatewayBorrowAccountQualityMigrationReusesBoundCompleteAstraOnly(t *testing.T) {
 	now := time.Now().UTC()
 	a, r := accountQualityFixture(now, "healthy")

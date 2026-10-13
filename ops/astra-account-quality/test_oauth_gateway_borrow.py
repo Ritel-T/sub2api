@@ -161,15 +161,76 @@ class AccountQualityTests(unittest.TestCase):
         self.assertEqual(r['state'], 'inconclusive')
         self.assertEqual(m.desired_borrow(a, [r]), list(m.BORROW_MODELS))
 
-    def test_changed_identity_proxy_or_stale_evidence_bootstraps(self):
-        for field in ('token', 'proxy', 'stale'):
+    def test_changed_identity_proxy_or_invalid_time_bootstraps(self):
+        for field in ('token', 'proxy', 'invalid_time'):
             a = self.classified_account()
             if field == 'token': a['credentials']['access_token'] = 'changed'
             if field == 'proxy': a['proxy_id'] = 9
-            if field == 'stale': a['extra']['quality_candy']['latest_probe_at'] = (
+            if field == 'invalid_time': a['extra']['quality_candy']['latest_probe_at'] = (
                 datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
             r = self.result(a, initial=False)
             self.assertEqual((r['total'], r['sampling_mode']), (4, 'bootstrap'))
+
+    def test_stale_matching_classification_takes_one_fresh_sample(self):
+        for state, answer in (('healthy', '21'), ('degraded', '29')):
+            with self.subTest(state=state):
+                a = self.classified_account(state=state)
+                a['extra']['openai_gateway_borrow_models'] = (
+                    list(m.BORROW_MODELS) if state == 'degraded' else [])
+                prior = a['extra']['quality_candy']
+                prior['checked_at'] = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+                prior['latest_probe_at'] = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+                original = copy.deepcopy(prior)
+                r = self.result(a, [answer], initial=False)
+                self.assertEqual((r['total'], r['sampling_mode'], r['state']), (1, 'periodic', state))
+                self.assertEqual(prior, original, 'a fresh sample cannot mutate stored confirmation')
+                self.assertIsNone(m.previous_record(a, 'gpt-6-astra'), 'unrefreshed source evidence stays stale')
+                self.assertIsNone(m.reusable_classification(a, 'medium', '21', 'test'))
+
+    def test_stale_classification_changed_sample_confirms_four_before_policy_change(self):
+        a = self.classified_account(state='degraded')
+        a['extra']['openai_gateway_borrow_models'] = list(m.BORROW_MODELS)
+        prior = a['extra']['quality_candy']
+        prior['checked_at'] = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        prior['latest_probe_at'] = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        seen = []
+        r = self.result(a, ['21', '21', '29', '21'], initial=False,
+            on_sample=lambda result: seen.append((len(result['samples']), list(a['extra']['openai_gateway_borrow_models']))))
+        self.assertEqual((r['total'], r['state'], r['sampling_mode']), (4, 'healthy', 'periodic'))
+        self.assertEqual(seen, [(n, list(m.BORROW_MODELS)) for n in range(1, 5)])
+
+    def test_stale_baseline_still_requires_identity_complete_round_and_owned_policy(self):
+        for field in ('token', 'proxy', 'policy', 'malformed_policy', 'pending', 'partial', 'effort', 'prompt'):
+            with self.subTest(field=field):
+                a = self.classified_account(state='degraded')
+                a['extra']['openai_gateway_borrow_models'] = list(m.BORROW_MODELS)
+                prior = a['extra']['quality_candy']
+                prior['checked_at'] = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+                prior['latest_probe_at'] = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+                if field == 'token': a['credentials']['access_token'] = 'changed'
+                if field == 'proxy': a['proxy_id'] = 9
+                if field == 'policy': a['extra']['openai_gateway_borrow_models'] = []
+                if field == 'malformed_policy': a['extra']['openai_gateway_borrow_models'] = 'invalid'
+                if field == 'pending':
+                    a['extra']['openai_gateway_borrow_quality_pending'] = True
+                    a['extra']['openai_gateway_borrow_initial_ready'] = True
+                if field == 'partial': prior['total'] = 1
+                if field == 'effort': prior['reasoning_effort'] = 'high'
+                if field == 'prompt': prior['prompt_sha256'] = 'wrong'
+                r = self.result(a, ['29'] * 4, initial=False)
+                self.assertEqual((r['total'], r['sampling_mode']), (4, 'bootstrap'))
+
+    def test_stale_baseline_incomplete_sample_does_not_refresh_or_change_policy(self):
+        a = self.classified_account(state='degraded')
+        a['extra']['openai_gateway_borrow_models'] = list(m.BORROW_MODELS)
+        prior = a['extra']['quality_candy']
+        prior['checked_at'] = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        prior['latest_probe_at'] = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        original = copy.deepcopy(a['extra'])
+        r = self.result(a, [self.sample(completed=False)], initial=False)
+        self.assertEqual((r['total'], r['state']), (1, 'inconclusive'))
+        self.assertEqual(a['extra'], original)
+        self.assertEqual(m.desired_borrow(a, [r]), list(m.BORROW_MODELS))
 
     def test_pending_defaults_must_finish_before_initial_probes(self):
         a = self.account()

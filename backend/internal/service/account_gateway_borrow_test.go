@@ -302,3 +302,25 @@ func TestGatewayBorrowWSRotatedSourceDoesNotExtendOldCookie(t *testing.T) {
 	require.ErrorContains(t, s.checkOpenAIWSBinding(a, "gpt-6-astra", b), "connection_borrow_expired")
 	require.True(t, time.Now().Before(newExpiry), "new source TTL must not renew the old WS binding")
 }
+
+func TestGatewayBorrowSameCookieRenewalCannotExtendOldWSConnection(t *testing.T) {
+	s, account, provider := borrowSafetyService()
+	oldExpiry := time.Now().Add(time.Minute)
+	newExpiry := time.Now().Add(4 * time.Minute)
+	provider.cookieExpires = map[string]time.Time{provider.cookie: oldExpiry}
+	headers := http.Header{}
+	_, _, release, err := s.prepareGatewayBorrowWS(t.Context(), account, "gpt-6-astra", headers, "")
+	require.NoError(t, err)
+	defer release()
+	binding := s.bindOpenAIWSHandshake(account, "gpt-6-astra", headers)
+	require.Equal(t, oldExpiry, binding.borrowExpires)
+	// A new target IQ result may publish a fresh lease for the identical cookie.
+	provider.cookieExpires[provider.cookie] = newExpiry
+	provider.snapshot.Targets[0].ExpiresAt = &newExpiry
+	require.NoError(t, s.checkOpenAIWSBinding(account, "gpt-6-astra", binding))
+	require.Equal(t, oldExpiry, binding.borrowExpires, "a new proof never mutates an old handshake")
+	binding.borrowExpires = time.Now().Add(-time.Second)
+	require.ErrorContains(t, s.checkOpenAIWSBinding(account, "gpt-6-astra", binding), "connection_borrow_expired")
+	fresh := s.bindOpenAIWSHandshake(account, "gpt-6-astra", headers)
+	require.Equal(t, newExpiry, fresh.borrowExpires, "a new connection binds the independently proven new deadline")
+}

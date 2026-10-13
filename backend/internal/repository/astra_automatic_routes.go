@@ -85,7 +85,7 @@ func (s *astraRoutingUpstream) automaticTargetRoute(req *http.Request, proxy str
 		}
 		release()
 		last = err
-		if err.Error() == "target_probe_rate_limited" || err.Error() == "target_probe_auth_failed" {
+		if err.Error() == "target_probe_rate_limited" || err.Error() == "target_probe_auth_failed" || err.Error() == "target_probe_overloaded" {
 			break
 		}
 		if req.Context().Err() != nil || s.current(req.Context()) != pool {

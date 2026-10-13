@@ -456,7 +456,7 @@ func (s *AccountTestService) runAstraQuestionHTTP(ctx context.Context, id int64,
 	err = s.TestPelicanAccountConnection(c, id, "gpt-6-astra", q.Prompt, "medium")
 	output, msg := parseTestSSEOutput(w.Body.String())
 	if err != nil || msg != "" {
-		for _, code := range []string{"astra_rotation_cooling", "astra_rotation_unavailable", "astra_rotation_use_once", "astra_rotation_no_nodes", "astra_rotation_node_unavailable", "astra_rotation_exhausted", "target_probe_degraded", "target_route_changed", "target_probe_failed", "target_quality_failed", "target_probe_rate_limited", "target_probe_auth_failed", "target_account_rate_limited", "target_account_unavailable", "borrow_route_expired", "target_validation_in_progress", "preparation_in_progress", "source_probe_cooldown", "no_qualified_source_route", "configuration_changed"} {
+		for _, code := range []string{"astra_rotation_cooling", "astra_rotation_unavailable", "astra_rotation_use_once", "astra_rotation_no_nodes", "astra_rotation_node_unavailable", "astra_rotation_exhausted", "target_probe_degraded", "target_route_changed", "target_probe_failed", "target_quality_failed", "target_probe_overloaded", "target_probe_rate_limited", "target_probe_auth_failed", "target_account_rate_limited", "target_account_unavailable", "borrow_route_expired", "target_validation_in_progress", "preparation_in_progress", "source_probe_cooldown", "no_qualified_source_route", "configuration_changed"} {
 			if strings.Contains(msg, code) || (err != nil && strings.Contains(err.Error(), code)) {
 				answer := ""
 				if provider, ok := s.httpUpstream.(AstraGatewayRuntimeProvider); ok {

@@ -81,9 +81,10 @@ func TestAstraGatewayIPAffinityRevalidatesChangedEgress(t *testing.T) {
 	cfg.Gateway.CodexGatewayPin.IPAffinity = true
 	wrapper := &astraRoutingUpstream{cfg: cfg}
 	var proxies []string
+	absoluteExpiry := time.Now().Truncate(time.Second).Add(200 * time.Second)
 	wrapper.delegate = gatewayPinDelegate{call: func(_ *http.Request, p string, id int64, _ int, _ *tlsfingerprint.Profile) (*http.Response, error) {
 		if id == 299 {
-			return pinResponse("__oailb=same-cookie; Path=/; Secure; Max-Age=230"), nil
+			return pinResponse("__oailb=same-cookie; Path=/; Secure; Max-Age=230; Expires=" + absoluteExpiry.UTC().Format(http.TimeFormat)), nil
 		}
 		proxies = append(proxies, p)
 		return pinResponse(""), nil

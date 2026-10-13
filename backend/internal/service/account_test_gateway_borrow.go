@@ -95,7 +95,7 @@ func gatewayBorrowAccountTestErrorCode(err error) string {
 	if errors.As(err, &admission) {
 		return admission.Reason
 	}
-	for _, reason := range []string{"target_validation_in_progress", "preparation_in_progress", "target_probe_degraded", "target_quality_failed", "target_probe_rate_limited", "target_probe_auth_failed", "target_probe_failed", "target_route_changed", "borrow_route_expired", "no_qualified_source_route", "source_probe_cooldown", "borrow_required_route_unavailable", "configuration_changed"} {
+	for _, reason := range []string{"target_validation_in_progress", "preparation_in_progress", "target_probe_degraded", "target_quality_failed", "target_probe_overloaded", "target_probe_rate_limited", "target_probe_auth_failed", "target_probe_failed", "target_route_changed", "borrow_route_expired", "no_qualified_source_route", "source_probe_cooldown", "borrow_required_route_unavailable", "configuration_changed"} {
 		if err != nil && strings.Contains(err.Error(), reason) {
 			return reason
 		}

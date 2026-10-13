@@ -56,7 +56,7 @@ def model_supported(account, model):
     return isinstance(mapping, dict) and model in mapping and mapping[model] == model
 
 
-def previous_record(account, model):
+def previous_record(account, model, *, fresh=True):
     extra = account.get('extra') or {}
     if model not in DETECTION_MODELS:
         return None
@@ -64,7 +64,7 @@ def previous_record(account, model):
     if extra.get('openai_gateway_borrow_quality_mode') != QUALITY_MODE:
         candidates.append((extra.get('quality_candy_models') or {}).get(model))
     valid = [record for record in candidates if isinstance(record, dict)
-             and matching_classification(account, record, model, 'medium', '21', fresh=True)]
+             and matching_classification(account, record, model, 'medium', '21', fresh=fresh)]
     # Match the backend: latest confirmed classification wins; a later single
     # refresh breaks ties, and account record wins an exact tie.
     return max(valid, key=lambda record: (candy.timestamp(record['checked_at']),
@@ -78,13 +78,37 @@ def matching_classification(account, prior, model, reasoning, answer, *, fresh=F
             or prior.get('latest_probe_credential_sha256') != identity(account)['credential_sha256']
             or prior.get('latest_probe_proxy_id') != account.get('proxy_id')):
         return False
-    if fresh:
-        observed = candy.timestamp(prior.get('latest_probe_at'))
-        confirmed = candy.timestamp(prior.get('checked_at'))
-        if (observed is None or confirmed is None or observed < confirmed
-                or not -30 <= (datetime.now(timezone.utc) - observed).total_seconds() <= 24 * 3600):
-            return False
+    observed = candy.timestamp(prior.get('latest_probe_at'))
+    confirmed = candy.timestamp(prior.get('checked_at'))
+    age = (datetime.now(timezone.utc) - observed).total_seconds() if observed else None
+    if (observed is None or confirmed is None or observed < confirmed or age < -30
+            or (fresh and age > 24 * 3600)):
+        return False
     return True
+
+
+def sampling_classification(account, model, reasoning, answer):
+    """Historical confirmation selects 1+3 sampling; it never admits a source."""
+    extra = account.get('extra') or {}
+    account_mode = extra.get('openai_gateway_borrow_quality_mode') == QUALITY_MODE
+    prior = previous_record(account, model, fresh=not account_mode)
+    if not matching_classification(account, prior, model, reasoning, answer, fresh=not account_mode):
+        return None
+    if account_mode:
+        if extra.get('openai_gateway_borrow_quality_pending') is True:
+            return None
+        owned = extra.get('openai_gateway_borrow_models')
+        if owned is not None and not isinstance(owned, list):
+            return None
+        aliases = {'gpt-6-astra': 'gpt-6-astra', 'gpt-6.1-sol': 'gpt-6.1-sol',
+                   'gpt-6-sol': 'gpt-6.1-sol'}
+        if any(not isinstance(name, str) or name not in aliases for name in (owned or [])):
+            return None
+        scope = {aliases[name] for name in (owned or [])}
+        expected = set(ROUTE_MODELS) if prior['state'] == 'degraded' else set()
+        if scope != expected:
+            return None
+    return prior
 
 
 def reusable_classification(account, reasoning, answer, run_id):
@@ -154,8 +178,8 @@ def probe_skip_reason(account):
 
 def assess_model(account, model, *, initial, reasoning, expected_answer, run_id,
                  probe_fn=None, on_sample=None, skip_reason=None):
-    prior = previous_record(account, model)
-    valid_prior = matching_classification(account, prior, model, reasoning, expected_answer, fresh=True)
+    prior = sampling_classification(account, model, reasoning, expected_answer)
+    valid_prior = prior is not None
     previous = prior['state'] if valid_prior else None
     bootstrap = not valid_prior
     result = {'id': account['id'], 'previous_state': previous,

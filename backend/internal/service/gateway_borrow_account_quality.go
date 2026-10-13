@@ -44,6 +44,16 @@ func GatewayBorrowAccountQuality(a *Account, now time.Time, maxAge time.Duration
 }
 
 func gatewayBorrowAccountQualityRecord(record map[string]any, credentialHash string, proxyID *int64, now time.Time, maxAge time.Duration) (GatewayBorrowAccountQualityClassification, bool) {
+	classification, ok := gatewayBorrowAccountQualityBaselineRecord(record, credentialHash, proxyID, now)
+	if !ok || maxAge <= 0 || now.Sub(classification.LatestProbeAt) > maxAge {
+		return GatewayBorrowAccountQualityClassification{}, false
+	}
+	return classification, true
+}
+
+// A historical confirmation can select 1+3 sampling when identity still matches.
+// Fresh-source admission continues to use gatewayBorrowAccountQualityRecord.
+func gatewayBorrowAccountQualityBaselineRecord(record map[string]any, credentialHash string, proxyID *int64, now time.Time) (GatewayBorrowAccountQualityClassification, bool) {
 	// Normalize numbers and proxy pointers just as JSON persistence does.
 	b, err := json.Marshal(record)
 	if err != nil {
@@ -66,7 +76,7 @@ func gatewayBorrowAccountQualityRecord(record map[string]any, credentialHash str
 		return GatewayBorrowAccountQualityClassification{}, false
 	}
 	latest, err := time.Parse(time.RFC3339Nano, stringField(normalized, "latest_probe_at"))
-	if err != nil || latest.Before(checked) || checked.After(now.Add(30*time.Second)) || latest.After(now.Add(30*time.Second)) || maxAge <= 0 || now.Sub(latest) > maxAge {
+	if err != nil || latest.Before(checked) || checked.After(now.Add(30*time.Second)) || latest.After(now.Add(30*time.Second)) {
 		return GatewayBorrowAccountQualityClassification{}, false
 	}
 	correct, ok := normalized["correct"].(float64)
@@ -74,6 +84,32 @@ func gatewayBorrowAccountQualityRecord(record map[string]any, credentialHash str
 		return GatewayBorrowAccountQualityClassification{}, false
 	}
 	return GatewayBorrowAccountQualityClassification{State: stringField(normalized, "state"), CheckedAt: checked, LatestProbeAt: latest, Correct: int(correct), Total: 4}, true
+}
+
+func gatewayBorrowSamplingPolicyMatches(extra map[string]any, state string) bool {
+	if extra[GatewayBorrowAccountQualityModeKey] != GatewayBorrowAccountQualityMode || extra[GatewayBorrowAccountQualityPendingKey] == true {
+		return false
+	}
+	models := []string{}
+	if raw := extra[GatewayBorrowModelsKey]; raw != nil {
+		encoded, err := json.Marshal(raw)
+		if err != nil || json.Unmarshal(encoded, &models) != nil {
+			return false
+		}
+	}
+	canonical := map[string]bool{}
+	for _, model := range models {
+		switch model {
+		case "gpt-6-astra":
+			canonical["gpt-6-astra"] = true
+		case "gpt-6-sol", "gpt-6.1-sol":
+			canonical["gpt-6.1-sol"] = true
+		default:
+			return false
+		}
+	}
+	return (state == "healthy" && len(canonical) == 0) ||
+		(state == "degraded" && len(canonical) == 2 && canonical["gpt-6-astra"] && canonical["gpt-6.1-sol"])
 }
 
 func stringField(m map[string]any, key string) string {
@@ -129,6 +165,16 @@ func buildGatewayBorrowAccountQualityUpdates(extra map[string]any, o GatewayBorr
 	if provided && r.State == "inconclusive" {
 		return nil, "inconclusive_account_quality", nil
 	}
+	if provided && r.Total == 1 && current[GatewayBorrowAccountQualityModeKey] == GatewayBorrowAccountQualityMode {
+		// A real matching sample renews evidence, not the original confirmation.
+		// Historical evidence alone still cannot migrate or admit a source.
+		baseline, _ := current["quality_candy"].(map[string]any)
+		classification, valid := gatewayBorrowAccountQualityBaselineRecord(baseline, o.CredentialSHA256, o.ExpectedProxyID, now)
+		hasPrevious = valid && gatewayBorrowSamplingPolicyMatches(current, classification.State)
+		if hasPrevious {
+			previous = baseline
+		}
+	}
 	if !provided {
 		if !hasPrevious {
 			return nil, "account_classification_required", nil
@@ -136,7 +182,7 @@ func buildGatewayBorrowAccountQualityUpdates(extra map[string]any, o GatewayBorr
 		record = previous
 	} else {
 		if hasPrevious {
-			prior, _ := gatewayBorrowAccountQualityRecord(previous, o.CredentialSHA256, o.ExpectedProxyID, now, gatewayBorrowAccountQualityReuseAge)
+			prior, _ := gatewayBorrowAccountQualityBaselineRecord(previous, o.CredentialSHA256, o.ExpectedProxyID, now)
 			if !r.CheckedAt.After(prior.LatestProbeAt) {
 				return nil, "stale_model_result", nil
 			}

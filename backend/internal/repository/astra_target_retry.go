@@ -149,5 +149,9 @@ func (s *astraRoutingUpstream) readyTargetQuota(check astraTargetValidation, mod
 	if prior, waiting := s.targetQuotaWait(quota, now); waiting {
 		return prior
 	}
+	quota.model = check.model
+	if prior, waiting := s.targetQuotaWait(quota, now); waiting && prior.reason == "target_probe_overloaded" {
+		return prior // Account-linked IQ probes share only this transient overload.
+	}
 	return astraTargetQuotaBackoff{}
 }
