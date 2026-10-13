@@ -83,7 +83,8 @@ func TestAlphaSearchBorrowCapabilityUsesActualChannelAndAccountMapping(t *testin
 			if tc.forward != "" {
 				ctx = WithOpenAIForwardModel(ctx, tc.forward, false)
 			}
-			scheduler := newDefaultOpenAIAccountScheduler(svc, nil).(*defaultOpenAIAccountScheduler)
+			scheduler, ok := newDefaultOpenAIAccountScheduler(svc, nil).(*defaultOpenAIAccountScheduler)
+			require.True(t, ok)
 			compatible, _ := scheduler.isAccountRequestCompatibleReason(ctx, account, OpenAIAccountScheduleRequest{RequestedModel: tc.requested, RequiredCapability: OpenAIEndpointCapabilityAlphaSearch, RequiredTransport: OpenAIUpstreamTransportHTTPSSE})
 			require.Equal(t, tc.compatible, compatible)
 		})
@@ -156,7 +157,8 @@ func TestAlphaSearchInitialQualityPendingUsesActualWireModel(t *testing.T) {
 				ctx = WithOpenAIForwardModel(ctx, tc.forward, false)
 			}
 			svc := &OpenAIGatewayService{}
-			scheduler := newDefaultOpenAIAccountScheduler(svc, nil).(*defaultOpenAIAccountScheduler)
+			scheduler, ok := newDefaultOpenAIAccountScheduler(svc, nil).(*defaultOpenAIAccountScheduler)
+			require.True(t, ok)
 			advanced, _ := scheduler.isAccountRequestCompatibleReason(ctx, account, OpenAIAccountScheduleRequest{RequestedModel: tc.requested, RequiredCapability: OpenAIEndpointCapabilityAlphaSearch, RequiredTransport: OpenAIUpstreamTransportHTTPSSE})
 			require.Equal(t, tc.compatible, advanced)
 			legacyReason := openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx, account, nil, PlatformOpenAI, tc.requested, false, OpenAIEndpointCapabilityAlphaSearch)
