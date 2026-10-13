@@ -2,6 +2,7 @@ import { apiClient } from '../client'
 
 export interface AstraGatewaySettings {
   auto_quality?: boolean
+  ticket_pool_scheduling?: boolean
   account_scheduling?: boolean
   scheduling_mode?: 'account' | 'model' | 'groups'
   scheduling_group_ids?: number[]
@@ -13,6 +14,7 @@ export function normalizeAstraGateway(value: AstraGatewaySettings): AstraGateway
   return {
     auto_quality: value.auto_quality ?? false,
     account_scheduling: value.account_scheduling ?? false,
+    ticket_pool_scheduling: value.ticket_pool_scheduling ?? false,
     scheduling_mode: value.scheduling_mode || 'account',
     scheduling_group_ids: [...(value.scheduling_group_ids || [])],
     cookie_pool: {
@@ -58,6 +60,7 @@ export interface AstraGatewayRuntime {
   gateways?: AstraGatewayObservation[]; unknown_gateway_samples?: number
   setup?: { revision: string; state: string; phase: string; account_id: number; reason: string; started_at: string; finished_at?: string; ready?: number; pending?: number; blocked?: number }
   generated_at: string; revision: string; sources: AstraRouteStatus[]; targets: AstraRouteStatus[]
+  route_expires_at?: string // Transport ticket expiry only; not quality readiness.
   ws: AstraWSStatus[]; ready_routes: number; preparing: boolean; last_test?: AstraTestResult
 }
 export interface AstraGatewayObservation {

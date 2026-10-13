@@ -86,6 +86,7 @@ type OpenAICodexStateProbeResult struct {
 }
 
 type openAICodexStateShot struct {
+	answer  string
 	status  int
 	state   string
 	cookies []string
@@ -362,17 +363,28 @@ func IsOpenAICodexStateProbeRequest(ctx context.Context) bool {
 }
 
 func fireOpenAICodexStateShotRequest(ctx context.Context, headers http.Header, model, turnState, cookie string, send func(*http.Request) (*http.Response, error)) (openAICodexStateShot, error) {
-	return fireOpenAICodexProbeShotRequest(ctx, headers, model, turnState, cookie, "", send)
+	return fireOpenAICodexPromptShotRequest(ctx, headers, model, turnState, cookie, "Reply with OK.", "Reply with OK.", send)
+}
+
+func fireOpenAICodexPromptShotRequest(ctx context.Context, headers http.Header, model, turnState, cookie, instructions, prompt string, send func(*http.Request) (*http.Response, error)) (openAICodexStateShot, error) {
+	return fireOpenAICodexShotBodyRequest(ctx, headers, model, turnState, cookie, instructions, prompt, false, send)
 }
 
 func fireOpenAICodexProbeShotRequest(ctx context.Context, headers http.Header, model, turnState, cookie, candyPrompt string, send func(*http.Request) (*http.Response, error)) (openAICodexStateShot, error) {
+	if candyPrompt == "" {
+		return fireOpenAICodexStateShotRequest(ctx, headers, model, turnState, cookie, send)
+	}
+	return fireOpenAICodexShotBodyRequest(ctx, headers, model, turnState, cookie, "", candyPrompt, true, send)
+}
+
+func fireOpenAICodexShotBodyRequest(ctx context.Context, headers http.Header, model, turnState, cookie, instructions, prompt string, accountQuality bool, send func(*http.Request) (*http.Response, error)) (openAICodexStateShot, error) {
 	var out openAICodexStateShot
 	ctx = context.WithValue(ctx, openAICodexStateProbeContextKey{}, true)
 	shotCtx, cancel := context.WithTimeout(ctx, openAICodexStateProbeShotTimeout)
 	defer cancel()
-	body := []byte(`{"model":` + jsonString(model) + `,"instructions":"Reply with OK.","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Reply with OK."}]}],"stream":true,"store":false,"parallel_tool_calls":true,"include":["reasoning.encrypted_content"]}`)
-	if candyPrompt != "" {
-		body = []byte(`{"model":` + jsonString(model) + `,"instructions":"","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":` + jsonString(candyPrompt) + `}]}],"stream":true,"store":false,"tools":[],"reasoning":{"effort":"medium"}}`)
+	body := []byte(`{"model":` + jsonString(model) + `,"instructions":` + jsonString(instructions) + `,"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":` + jsonString(prompt) + `}]}],"stream":true,"store":false,"parallel_tool_calls":true,"include":["reasoning.encrypted_content"]}`)
+	if accountQuality {
+		body = []byte(`{"model":` + jsonString(model) + `,"instructions":"","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":` + jsonString(prompt) + `}]}],"stream":true,"store":false,"tools":[],"reasoning":{"effort":"medium"}}`)
 	}
 	req, err := http.NewRequestWithContext(shotCtx, http.MethodPost, chatgptCodexURL, bytes.NewReader(body))
 	if err != nil {
@@ -431,6 +443,7 @@ func fireOpenAICodexProbeShotRequest(ctx context.Context, headers http.Header, m
 		out.detail = openAICodexStateDetail(data)
 		return out, nil
 	}
+	out.answer = astraCandyStreamAnswer(data)
 	out.model = openAICodexStateStreamModel(data)
 	out.text = gatewayBorrowProbeText(data)
 	for _, event := range openAICodexStateStreamEvents(data) {

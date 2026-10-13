@@ -1,5 +1,10 @@
 export default {
   astraGateway: {
+    manualProbeHint: '普通复用门票探针：两次短请求完整成功且续接不换票，仅证明本次门票状态，不证明账号质量恢复。',
+    manualBorrowDescription: '普通模式优先复用已入库来源票，缺票时回退到自采；目标探针通过后写入统一门票库。',
+    manualBorrowSummary: '来源账号 {sources} 个 · 目标账号 {targets} 个 · 与普通后台打票共用票库',
+    manualCookieHint: '普通业务仅复用已有路由，不触发或等待探针。没有可用借用路由时按账号原配置转发；已要求借票的受保护账号仍须通过质量验证。',
+    manualAutomaticHint: '普通模式准备门票和固定会话；探针只核验门票状态。已由质量任务要求借票的账号仍按原质量门槛保护，不因普通门票入库恢复。',
     testPreparing: '测试已开始，正在准备通道；尚未确认上游连接成功。',
     testIncomplete: '测试流已结束，但未收到完整成功结果。',
     retryAt: '下次复验：{time}',
@@ -47,7 +52,8 @@ export default {
     groupsRemoved: '已移出分组',
     chooseSchedulingGroups: '请选择至少一个分组',
     accountScheduling: '号池调度',
-    accountSchedulingHint: '目标探针通过且路由有效时，分组模式自动加入所有勾选分组，账号原先不在分组也会加入；失败、过期或无路由时移出。其他分组不变。模型与账号模式仅恢复本功能禁用的状态。每秒同步，不额外测试；人工修改冲突时不覆盖。切换模式或所选分组时先撤销原接管动作，关闭开关则停止接管并保留当前状态。',
+    ticketPoolSchedulingHint: '对自动打票范围内的账号生效，普通打票和快速复用共用同一门票库。有有效票据时加入勾选分组或恢复状态，无有效票据时移出分组或禁用；模型模式只判断 Astra 票据。其他分组不变，人工修改不覆盖。每秒同步，不额外发起探测。关闭后停止接管并保留当前状态。',
+    accountSchedulingHint: '必借账号的调度仍以质量任务和有效借票验收为准；普通复用探针不替代质量判定，也不清除保护。',
     nodeCooldown: "失败节点 / host 冷却",
     nodeCooldownHint: "默认 3600 秒是避让策略，不是已测得的上游缓存寿命。同一目标在冷却期内跳过失败节点及已知指向该 host 的节点；保存配置不会清除冷却，进程重启会清除。全部冷却时停止测试，不自动退回直连。",
     nodeCooldownInvalid: "冷却时间须为 60–86400 秒的整数。",

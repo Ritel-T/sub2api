@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CANDY_HISTORY_LIMIT, candyDisplayState, candyHistorySlots, hasMonitorSamples, monitorCardTimeline, monitorRefreshSeconds } from '../monitorCards'
+import { CANDY_HISTORY_LIMIT, CANDY_HISTORY_LIMIT_MIN, candyDisplayState, candyHistoryLimit, candyHistorySlots, hasMonitorSamples, MONITOR_CARD_SLOT_COUNT, monitorCandyHistories, monitorCardTimeline, monitorRefreshSeconds } from '../monitorCards'
 import type { MonitorCandyHistory, MonitorCoverage, MonitorMatrixRow, MonitorMetric } from '@/api/channelMonitorV2'
 
 describe('monitor card data semantics', () => {
@@ -28,6 +28,24 @@ describe('monitor card data semantics', () => {
     expect(monitorRefreshSeconds(300, [row(0), row(Number.NaN)], false)).toBe(300)
     expect(monitorRefreshSeconds(30, [row(0.5)], false)).toBe(60)
     expect(monitorRefreshSeconds(300, [row(1)], true)).toBe(10)
+    const multi = { candy_checks: [{ interval_minutes: 5 }, { interval_minutes: 1 }] } as MonitorMatrixRow
+    expect(monitorRefreshSeconds(300, [multi], false)).toBe(60)
+    expect(monitorCandyHistories(multi)).toHaveLength(2)
+    expect(monitorCandyHistories({ candy: { interval_minutes: 2 } } as MonitorMatrixRow)).toHaveLength(1)
+  })
+  it('uses a configured history limit and falls back to 100', () => {
+    const results: MonitorCandyHistory['results'] = Array.from({ length: 40 }, (_, index) => ({ checked_at: new Date(Date.UTC(2026, 8, 29, 0, index)).toISOString(), verdict: 'correct', latency_ms: index }))
+    const history: MonitorCandyHistory = { model: 'demo', reasoning_effort: 'medium', interval_minutes: 1, history_limit: 30, results }
+    expect(candyHistoryLimit(history)).toBe(30)
+    expect(candyHistorySlots(history)).toHaveLength(30)
+    expect(candyHistorySlots(history).at(-1)).toBe(results.at(-1))
+    expect(CANDY_HISTORY_LIMIT_MIN).toBe(15)
+    expect(candyHistoryLimit({ history_limit: 15 })).toBe(15)
+    expect(candyHistoryLimit({ history_limit: 14 })).toBe(CANDY_HISTORY_LIMIT)
+    expect(candyHistoryLimit({ history_limit: 12 })).toBe(CANDY_HISTORY_LIMIT)
+    expect(candyHistoryLimit({ history_limit: 101 })).toBe(CANDY_HISTORY_LIMIT)
+    expect(candyHistoryLimit({ history_limit: 100 })).toBe(100)
+    expect(candyHistorySlots({ ...history, history_limit: undefined })).toHaveLength(100)
   })
   it('does not infer successful traffic from redacted zero counters', () => {
     expect(hasMonitorSamples({ request_count: 0, has_samples: false } as MonitorMetric)).toBe(false)
@@ -42,7 +60,7 @@ describe('monitor card data semantics', () => {
       { bucket_start: '2026-09-28T00:12:00Z', metrics: { ...metric, has_samples: false }, health: { overall: 'healthy' } },
     ] } as MonitorMatrixRow
     const bars = monitorCardTimeline(row, { requested_start: '2026-09-28T00:00:00Z', requested_end: '2026-09-28T01:30:00Z' } as MonitorCoverage)
-    expect(bars).toHaveLength(18)
+    expect(bars).toHaveLength(MONITOR_CARD_SLOT_COUNT)
     expect(bars[0]).toMatchObject({ state: 'unknown', observed: false })
     expect(bars[1]).toMatchObject({ state: 'warning', observed: true })
     expect(bars[2]).toMatchObject({ state: 'unknown', observed: false })
@@ -60,6 +78,25 @@ describe('monitor card data semantics', () => {
     expect(bars[1].state).toBe('warning')
     expect(row.buckets[0]).toBe(late)
     expect(bars.flatMap(bar => bar.buckets)).toHaveLength(2)
+  })
+  it('can show the latest observed samples instead of empty time windows', () => {
+    const metric = { request_count: 1, has_samples: true } as MonitorMetric
+    const buckets = Array.from({ length: 22 }, (_, index) => ({
+      bucket_start: new Date(Date.UTC(2026, 8, 28, 0, index)).toISOString(),
+      metrics: index === 3 ? { ...metric, has_samples: false, request_count: 0 } : metric,
+      health: { overall: index === 21 ? 'critical' : 'healthy' },
+    }))
+    const row = { buckets } as MonitorMatrixRow
+    const coverage = { requested_start: '2026-09-28T00:00:00Z', requested_end: '2026-09-28T01:00:00Z', bucket_seconds: 60 } as MonitorCoverage
+    const samples = monitorCardTimeline(row, coverage, 'samples')
+    expect(samples).toHaveLength(18)
+    expect(samples[0].buckets[0].bucket_start).toBe(buckets[4].bucket_start)
+    expect(samples.at(-1)?.state).toBe('critical')
+    expect(samples.every(bar => bar.observed && bar.buckets.length === 1)).toBe(true)
+    expect(samples[0].end - samples[0].start).toBe(60_000)
+    expect(row.buckets).toBe(buckets)
+    expect(monitorCardTimeline(row, coverage)).toHaveLength(18)
+    expect(monitorCardTimeline({ buckets: [] } as unknown as MonitorMatrixRow, coverage, 'samples')).toEqual([])
   })
   it('distinguishes a wrong answer, failed probe, missing history and stale result', () => {
     const history: MonitorCandyHistory = { model: 'test', reasoning_effort: 'medium', interval_minutes: 1, results: [] }

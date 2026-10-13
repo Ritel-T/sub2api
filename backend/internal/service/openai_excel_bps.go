@@ -276,7 +276,20 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 		}
 		return nil, newExcelBPSRateLimitedFailoverError(retryAfter)
 	}
-	var err error
+	imageSettings, err := s.settingService.GetExcelBPSImageRelaySettings(ctx)
+	if err != nil {
+		if isExcelBPSClientCancellation(c, err) {
+			return clientCanceled()
+		}
+		return fail(503, "basispoints_image_settings_unavailable", "Excel BPS image settings are unavailable")
+	}
+	// Reserve before the body is rewritten or converted. A rejection has not
+	// written anything yet, so the handler may switch to another account.
+	releaseImageAdmission, err := s.admitExcelBPSImageRequest(c, imageSettings, len(body))
+	if err != nil {
+		return nil, err
+	}
+	defer releaseImageAdmission()
 	body, err = sjson.SetBytes(body, "model", model)
 	if err != nil {
 		return fail(400, "basispoints_request_invalid", "Invalid model request")
@@ -312,13 +325,6 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 	scope := fmt.Sprintf("account:%d/key:%d/thread:%s", account.ID, getAPIKeyIDFromContext(c), identity)
 	if transient {
 		scope = "transient:" + scope
-	}
-	imageSettings, err := s.settingService.GetExcelBPSImageRelaySettings(ctx)
-	if err != nil {
-		if isExcelBPSClientCancellation(c, err) {
-			return clientCanceled()
-		}
-		return fail(503, "basispoints_image_settings_unavailable", "Excel BPS image settings are unavailable")
 	}
 	if err = basispoints.ValidateNewAgentMessage(body); err != nil {
 		return fail(400, "basispoints_request_invalid", err.Error())

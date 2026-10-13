@@ -1,6 +1,8 @@
 .PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical
 
 FRONTEND_CRITICAL_VITEST := \
+	src/api/__tests__/groupCacheTest.spec.ts \
+	src/views/admin/__tests__/GroupCacheTestView.spec.ts \
 	src/components/account/__tests__/OpenAIRequestTimezoneField.spec.ts \
 	src/components/admin/__tests__/HarvestGatewayBorrowPanel.spec.ts \
 	src/components/admin/__tests__/AstraGatewayRuntime.spec.ts \
@@ -12,6 +14,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/features/channel-monitor-v3/__tests__/monitorV3.spec.ts \
 	src/features/channel-monitor-v3/__tests__/StatusPage.spec.ts \
 	src/features/channel-monitor-v3/__tests__/V3SettingsPanel.spec.ts \
+	src/features/channel-monitor-v3/__tests__/IdleProbeSettings.spec.ts \
 	src/features/support-tickets/__tests__/supportTickets.spec.ts \
 	src/features/support-tickets/__tests__/TicketComponents.spec.ts \
 	src/views/user/__tests__/SupportTicketsViews.spec.ts \

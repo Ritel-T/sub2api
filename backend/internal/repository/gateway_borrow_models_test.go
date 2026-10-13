@@ -52,7 +52,7 @@ func TestGatewayBorrowModelsNeverReuseAstraWitnessForSol(t *testing.T) {
 	route := codexGatewayRouteFromResponse(pinResponse("__oailb=fixture; Path=/; Secure; Max-Age=230"), "/backend-api/codex/responses", now)
 	pool.recordSource(299, now, route, true)
 	send := func(model string) error {
-		r, _ := http.NewRequestWithContext(t.Context(), "POST", "https://chatgpt.com/backend-api/codex/responses", strings.NewReader(`{"model":"`+model+`","input":"business"}`))
+		r, _ := http.NewRequestWithContext(service.WithGatewayBorrowRequiredModel(t.Context(), model), "POST", "https://chatgpt.com/backend-api/codex/responses", strings.NewReader(`{"model":"`+model+`","input":"business"}`))
 		r.Header.Set("Authorization", "Bearer fixture-target")
 		r.Header.Set("ChatGPT-Account-ID", "fixture-id")
 		response, err := wrapper.Do(r, "target-proxy", 300, 1)
@@ -69,7 +69,7 @@ func TestGatewayBorrowModelsNeverReuseAstraWitnessForSol(t *testing.T) {
 	require.Equal(t, 2, business, "failed Sol validation must not dispatch a user request")
 	require.NoError(t, send("gpt-6-astra"), "Sol rejection must retain independent Astra pass")
 	require.Equal(t, 2, shots["gpt-6-astra"])
-	pool.targetProbeMu.Lock()
+	require.NoError(t, pool.targetProbeMu.Lock(t.Context()))
 	require.NoError(t, send("gpt-6-astra"), "another slow target probe must not block a cached valid Astra route")
 	pool.targetProbeMu.Unlock()
 	largeCtx := service.WithGatewayBorrowWireModel(t.Context(), "gpt-6-astra")

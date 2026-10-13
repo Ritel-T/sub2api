@@ -176,3 +176,22 @@ func TestAutomaticBorrowSourceRuntimeHidesBlockedCandidate(t *testing.T) {
 	require.Zero(t, status.Sources[0].RemainingSeconds)
 	require.NotNil(t, status.Sources[0].RetryAt)
 }
+
+func TestAutomaticBorrowSourceSeparatesInheritedTargetPolicy(t *testing.T) {
+	s, repo, upstream := newBorrowSourceTest(t)
+	checks := 0
+	ctx := WithGatewayBorrowRequiredModel(t.Context(), "gpt-6.1-sol")
+	ctx = WithGatewayBorrowFinalSendCheck(ctx, func(*http.Request) error { checks++; return nil })
+	require.NoError(t, s.prepareAutomaticGatewayBorrowSource(ctx, repo.account.ID))
+	require.Equal(t, 1, upstream.calls)
+	id, bound := AstraSourceAcquisitionAccountFromContext(upstream.request.Context())
+	require.True(t, bound)
+	require.Equal(t, repo.account.ID, id)
+	_, required := GatewayBorrowRequiredModelFromContext(upstream.request.Context())
+	require.False(t, required)
+	require.NoError(t, CheckGatewayBorrowFinalSend(upstream.request))
+	require.Zero(t, checks)
+	model, parentRequired := GatewayBorrowRequiredModelFromContext(ctx)
+	require.True(t, parentRequired)
+	require.Equal(t, "gpt-6.1-sol", model)
+}

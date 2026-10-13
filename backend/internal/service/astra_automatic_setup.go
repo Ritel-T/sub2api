@@ -152,6 +152,14 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 			return
 		}
 	}
+	if !settings.AutoQuality && !settings.AccountScheduling && settings.QualityMode != config.GatewayBorrowAccountQualityMode {
+		if ctx.Err() != nil || s.cfg.AstraRouting(ctx).Revision != settings.Revision {
+			set("failed", "source", 0, "configuration_changed")
+			return
+		}
+		set("ready", "complete", 0, "")
+		return
+	}
 	var firstTargetError error
 	var firstFailedTarget int64
 	if settings.AutoQuality {

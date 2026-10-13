@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -223,4 +224,35 @@ func TestAccountBorrowReissuedSameCookieNeverExtendsExpiredWitness(t *testing.T)
 	_, err = wrapper.Do(req, "exit", 300, 2)
 	require.EqualError(t, err, "borrow_route_expired")
 	require.False(t, wrapper.CodexGatewayPinWSBindingValidForModel(t.Context(), 300, "gpt-6.1-sol", "fixed"))
+}
+
+func TestUnifiedReadyTicketStillRequiresAstraAccountQuality(t *testing.T) {
+	wrapper, _ := accountBorrowFixture(t)
+	settings := wrapper.cfg.AstraRouting(t.Context())
+	settings.CookiePool.SourceAccountIDs = []int64{299}
+	wrapper.cfg.SetAstraRoutingLoader(func(context.Context) config.AstraRoutingSettings { return settings })
+	pool := wrapper.current(t.Context())
+	provider := &unifiedAstraProvider{enabled: true}
+	wrapper.SetAstraTicketLifecycle(provider)
+	accountBorrowAdd(t, pool, 299, "candidate", 220*time.Second)
+	probes, business := 0, 0
+	wrapper.delegate = gatewayPinDelegate{call: func(req *http.Request, _ string, _ int64, _ int, _ *tlsfingerprint.Profile) (*http.Response, error) {
+		if service.IsOpenAICodexStateProbeRequest(req.Context()) {
+			probes++
+			return accountBorrowResponse("gpt-6-astra", "29"), nil
+		}
+		business++
+		return accountBorrowResponse("gpt-6.1-sol", "OK"), nil
+	}}
+	request := accountBorrowRequest(t, "gpt-6.1-sol", "business-state")
+	request = request.WithContext(service.WithGatewayBorrowRequiredModel(request.Context(), "gpt-6.1-sol"))
+	_, err := wrapper.Do(request, "target-exit", 300, 1)
+	require.ErrorContains(t, err, "target_quality_failed")
+	require.Equal(t, 4, probes, "Astra result is settled before the shared Sol decision")
+	require.Zero(t, business)
+	require.Zero(t, provider.calls)
+	require.Zero(t, wrapper.AstraGatewaySnapshot(t.Context()).ReadyRoutes)
+	require.Zero(t, provider.snapshots)
+	require.False(t, wrapper.CodexGatewayPinWSBindingValidForModel(t.Context(), 300, "gpt-6-astra", "candidate"))
+	require.False(t, wrapper.CodexGatewayPinWSBindingValidForModel(t.Context(), 300, "gpt-6.1-sol", "candidate"))
 }

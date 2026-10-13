@@ -3,10 +3,15 @@ package repository
 import (
 	"context"
 	"encoding/base64"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/mihomo"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,15 +28,23 @@ func TestAstraRotationCacheHostIsolationAndDeadline(t *testing.T) {
 	require.Equal(t, until, c.blockedUntil(300, "node-a", "", now.Add(time.Minute)), "duplicate failure does not slide quiet window")
 	require.True(t, c.blockedUntil(300, "node-b", "", until.Add(time.Second)).IsZero())
 }
+
+// These regressions exercise mandatory route quality, rather than an
+// optional upstream transport diagnostic. The request scope is service-owned.
+func requiredRotationTarget(t *testing.T) *http.Request {
+	req := rotationTarget(t)
+	return req.WithContext(service.WithGatewayBorrowRequiredModel(req.Context(), "gpt-6-astra"))
+}
+
 func TestAstraRotationCacheSurvivesSaveAndSuppressesNetwork(t *testing.T) {
 	s, calls, leases := rotationFixture(t, 3, "never")
-	_, err := s.Do(rotationTarget(t), "target", 300, 1)
+	_, err := s.Do(requiredRotationTarget(t), "target", 300, 1)
 	require.ErrorContains(t, err, "astra_rotation_exhausted")
 	require.Len(t, *calls, 9)
 	require.Zero(t, *leases)
 	// Any new revision drops Cookies but must keep retry decisions.
 	s.cfg.Gateway.CodexGatewayPin.TTLSeconds = 200
-	_, err = s.Do(rotationTarget(t), "target", 300, 1)
+	_, err = s.Do(requiredRotationTarget(t), "target", 300, 1)
 	require.ErrorContains(t, err, "astra_rotation_cooling")
 	require.Len(t, *calls, 9)
 	require.Zero(t, *leases)
@@ -41,7 +54,7 @@ func TestAstraRotationCacheSurvivesSaveAndSuppressesNetwork(t *testing.T) {
 		s.rotationCache.blocked[key] = time.Now().Add(-time.Second)
 	}
 	s.rotationCache.mu.Unlock()
-	_, err = s.Do(rotationTarget(t), "target", 300, 1)
+	_, err = s.Do(requiredRotationTarget(t), "target", 300, 1)
 	require.ErrorContains(t, err, "astra_rotation_exhausted")
 	require.Len(t, *calls, 18)
 }
@@ -49,7 +62,7 @@ func TestAstraRotationCacheFiltersWithoutSpendingAttemptBudget(t *testing.T) {
 	s, calls, leases := rotationFixture(t, 1, "good")
 	now := time.Now()
 	s.rotationCache.reject(300, "bad", "", now.Add(time.Hour), now)
-	resp, err := s.Do(rotationTarget(t), "target", 300, 1)
+	resp, err := s.Do(requiredRotationTarget(t), "target", 300, 1)
 	consumeAffinityResponse(t, resp, err)
 	require.Equal(t, append([]string{"good:299"}, repeatedProxy("good:300", 7)...), *calls)
 	require.Zero(t, *leases)
@@ -60,7 +73,7 @@ func TestAstraRotationCacheRejectsMappedHostBeforeTargetProbe(t *testing.T) {
 	s.rotationCache.observe("bad", "blocked-host", now)
 	s.rotationCache.reject(300, "other-node", "blocked-host", now.Add(time.Hour), now)
 	s.listNodes = func() ([]mihomo.AstraNode, error) { return []mihomo.AstraNode{{ID: "bad", Identity: "bad"}}, nil }
-	require.ErrorContains(t, s.PrepareAstraGateway(context.Background()), "astra_rotation_cooling")
+	require.ErrorContains(t, s.PrepareAstraGateway(context.WithValue(context.Background(), astraForceProbeKey{}, true)), "astra_rotation_cooling")
 	require.Empty(t, *calls)
 	require.Zero(t, *leases)
 	rows := s.rotationCache.snapshot([]int64{300}, now)
@@ -127,7 +140,7 @@ func TestRepeatedCoolingHostPausesSourceNetworkAcrossSaves(t *testing.T) {
 		s.current(ctx).recordSource(id, time.Now(), route, true)
 		return nil
 	})
-	ctx := context.WithValue(t.Context(), astraRotationTargetKey{}, int64(300))
+	ctx := context.WithValue(context.WithValue(t.Context(), astraForceProbeKey{}, true), astraRotationTargetKey{}, int64(300))
 	require.ErrorContains(t, s.PrepareAstraGateway(ctx), "astra_rotation_cooling")
 	require.Equal(t, 1, calls, "stop scanning other exits after duplicate cooling host")
 	require.Zero(t, *leases)
@@ -146,4 +159,63 @@ func TestSourceSearchPauseDoesNotSlide(t *testing.T) {
 	require.True(t, c.sourceSearchPaused(300, now.Add(4*time.Minute)))
 	require.False(t, c.sourceSearchPaused(300, now.Add(5*time.Minute)))
 	require.False(t, c.sourceSearchPaused(343, now))
+}
+
+func TestBoundSourceAcquisitionKeepsTargetBorrowScopeIndependent(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.CodexGatewayPin = pinConfig()
+	wrapper := &astraRoutingUpstream{cfg: cfg}
+	calls, targetChecks := 0, 0
+	parent := service.WithGatewayBorrowRequiredModel(t.Context(), "gpt-6-astra")
+	parent = service.WithGatewayBorrowFinalSendCheck(parent, func(*http.Request) error {
+		targetChecks++
+		return nil
+	})
+	wrapper.delegate = gatewayPinDelegate{call: func(req *http.Request, proxy string, id int64, _ int, _ *tlsfingerprint.Profile) (*http.Response, error) {
+		calls++
+		require.Equal(t, int64(299), id)
+		require.Equal(t, "source-native-exit", proxy)
+		require.Equal(t, "Bearer source-native-token", req.Header.Get("Authorization"))
+		_, required := service.GatewayBorrowRequiredModelFromContext(req.Context())
+		require.False(t, required)
+		require.NoError(t, service.CheckGatewayBorrowFinalSend(req))
+		return pinResponse("__oailb=independent-source; Path=/; Secure; Max-Age=230"), nil
+	}}
+	req := pinRequest(t).WithContext(service.WithAstraSourceAcquisitionForAccount(parent, 299))
+	req.Header.Set("Authorization", "Bearer source-native-token")
+	response, err := wrapper.Do(req, "source-native-exit", 299, 1)
+	consumeAffinityResponse(t, response, err)
+	require.Equal(t, 1, calls)
+	require.Zero(t, targetChecks, "source must not run target final-send admission")
+	cookie, source := wrapper.current(t.Context()).currentCookie("/backend-api/codex/responses", time.Now())
+	require.NotNil(t, cookie)
+	require.Equal(t, int64(299), source)
+	model, required := service.GatewayBorrowRequiredModelFromContext(parent)
+	require.True(t, required)
+	require.Equal(t, "gpt-6-astra", model, "the original target context is immutable")
+	require.NoError(t, service.CheckGatewayBorrowFinalSend(pinRequest(t).WithContext(parent)))
+	require.Equal(t, 1, targetChecks)
+	for _, tc := range []struct {
+		name          string
+		bound, actual int64
+		model         string
+	}{
+		{"wrong_account", 299, 300, "gpt-6-astra"},
+		{"unconfigured_source", 999, 999, "gpt-6-astra"},
+		{"target_as_source", 300, 300, "gpt-6-astra"},
+		{"wrong_model", 299, 299, "gpt-6.1-sol"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := service.WithAstraSourceAcquisitionForAccount(parent, tc.bound)
+			invalid, createErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://chatgpt.com/backend-api/codex/responses", strings.NewReader(`{"model":"`+tc.model+`"}`))
+			require.NoError(t, createErr)
+			_, requestErr := wrapper.Do(invalid, "source-native-exit", tc.actual, 1)
+			require.ErrorContains(t, requestErr, "source_acquisition_route_unavailable")
+			require.Equal(t, 1, calls, "only the exact configured source gets independent native admission")
+		})
+	}
+	unbound := pinRequest(t).WithContext(service.WithAstraSourceAcquisition(parent))
+	_, err = wrapper.Do(unbound, "source-native-exit", 299, 1)
+	require.ErrorContains(t, err, "borrow_required_route_unavailable", "the old bool marker cannot exempt a required target scope")
+	require.Equal(t, 1, calls)
 }

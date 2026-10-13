@@ -230,7 +230,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}
 	defer releaseBorrow()
 	proxyURL = borrowProxy
-	if anchor != nil && !account.RequiresGatewayBorrowUpstream(mappedModel) && anchor.connID == "" {
+	// A bound native/self-harvest ticket already pins its complete bundle.
+	if anchor != nil && !account.RequiresGatewayBorrowUpstream(mappedModel) && anchor.connID == "" &&
+		(!s.UnifiedAstraTicketsEnabled(ctx) || s.boundCodexTicketFromHeader(ctx, wsHeaders, account) == nil) {
 		if pool, ok := s.httpUpstream.(interface {
 			CodexGatewayPinWSRequest(context.Context, http.Header, string, int64, int) (string, string, func(), error)
 		}); ok {

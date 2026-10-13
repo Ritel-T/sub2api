@@ -17,6 +17,10 @@ func (s *OpenAIGatewayService) astraRouteFailover(ctx context.Context, account *
 	if err == nil || ctx.Err() != nil || errors.Is(err, context.Canceled) {
 		return err
 	}
+	settings := s.cfg.AstraRouting(ctx)
+	if account == nil || (!settings.AccountScheduling && !account.gatewayBorrowPolicyActive()) {
+		return err // Optional transport probes cannot evict ordinary accounts.
+	}
 	disable := true
 	switch err.Error() {
 	case "astra_rotation_unavailable", "astra_rotation_use_once", "astra_rotation_no_nodes", "astra_rotation_node_unavailable", "astra_rotation_exhausted", "astra_rotation_cooling", "target_probe_degraded", "target_route_changed", "target_probe_failed", "target_not_verified", "no_qualified_source_route", "source_probe_cooldown", "astra_route_not_ready":
@@ -25,7 +29,6 @@ func (s *OpenAIGatewayService) astraRouteFailover(ctx context.Context, account *
 	default:
 		return err
 	}
-	settings := s.cfg.AstraRouting(ctx)
 	if account == nil || (!settings.CookiePool.Enabled && !settings.AccountScheduling) || !slices.Contains(settings.CookiePool.TargetAccountIDs, account.ID) {
 		return err
 	}

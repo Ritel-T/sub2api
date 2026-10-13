@@ -63,7 +63,7 @@ func (s *AccountTestService) prepareAutomaticGatewayBorrowSource(ctx context.Con
 	if reason, _ := s.gatewayBorrowSourceBlock(account, time.Now()); reason != "" {
 		return errors.New(reason)
 	}
-	ctx, cancel := context.WithTimeout(WithAstraSourceAcquisition(ctx), 50*time.Second)
+	ctx, cancel := context.WithTimeout(WithAstraSourceAcquisitionForAccount(ctx, id), 50*time.Second)
 	defer cancel()
 	body, err := json.Marshal(createPelicanOpenAIPayload("gpt-6-astra", true, "Reply with OK only.", "medium"))
 	if err != nil {
@@ -110,7 +110,7 @@ func (s *AccountTestService) prepareAutomaticGatewayBorrowSource(ctx context.Con
 		// internal to source acquisition because SetModelRateLimit would replace
 		// an administrator's concurrent longer model cooldown.
 		if reason, _ := gatewayBorrowSourceAccountBlock(fresh, time.Now()); reason == "" {
-			s.reconcileOpenAI429State(ctx, fresh, response.Header, quotaPayload)
+			s.reconcileProviderOpenAI429State(ctx, fresh, response.Header, quotaPayload)
 		}
 		s.gatewayBorrowSourceRetry.Store(id, gatewayBorrowSourceRetry{credential: gatewayBorrowCredentialFingerprint(fresh), until: time.Now().Add(5 * time.Minute)})
 		return errors.New("source_account_rate_limited")

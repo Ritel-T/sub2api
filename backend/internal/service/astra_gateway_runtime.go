@@ -62,9 +62,11 @@ type AstraGatewayRuntime struct {
 	Sources               []AstraRouteStatus        `json:"sources"`
 	Targets               []AstraRouteStatus        `json:"targets"`
 	WS                    []AstraWSStatus           `json:"ws"`
-	ReadyRoutes           int                       `json:"ready_routes"`
-	Preparing             bool                      `json:"preparing"`
-	LastTest              *AstraGatewayTestResult   `json:"last_test,omitempty"`
+	// RouteExpiresAt describes transport availability, independent of diagnostic results.
+	RouteExpiresAt *time.Time              `json:"route_expires_at,omitempty"`
+	ReadyRoutes    int                     `json:"ready_routes"`
+	Preparing      bool                    `json:"preparing"`
+	LastTest       *AstraGatewayTestResult `json:"last_test,omitempty"`
 }
 type AstraGatewayObservation struct {
 	Gateway          string    `json:"gateway"`
@@ -105,7 +107,7 @@ func (s *AccountTestService) prepareAstraGatewaySource(ctx context.Context, id i
 		return errors.New("source_account_unavailable")
 	}
 	question := astraQuestion{Prompt: "Reply with OK only."}
-	_, err = s.runAstraQuestionHTTP(WithAstraSourceAcquisition(ctx), id, question)
+	_, err = s.runAstraQuestionHTTP(WithAstraSourceAcquisitionForAccount(ctx, id), id, question)
 	return err
 }
 func (s *AccountTestService) AstraGatewayStatus(ctx context.Context) AstraGatewayRuntime {

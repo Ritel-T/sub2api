@@ -206,7 +206,9 @@ backend/internal/service/data/bps-images/
 
 !docs/harvest-gateway-borrow.md
 !docs/screenshots/harvest-gateway-borrow/
+!docs/screenshots/harvest-settings-cleanup/
 !docs/screenshots/channel-monitor-v3/
+!docs/screenshots/channel-monitor-v3-idle-probe/
 !docs/screenshots/monitor-client-rejections/
 !docs/screenshots/usage-tps-single-token/
 !docs/screenshots/support-tickets/
@@ -216,3 +218,6 @@ backend/internal/service/data/bps-images/
 !docs/screenshots/2fa-rotation/
 **/totp-recovery/
 **/*.sealed
+
+!docs/astra-candy-beta.md
+!docs/screenshots/astra-candy-beta/

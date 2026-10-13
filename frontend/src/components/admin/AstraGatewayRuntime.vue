@@ -6,7 +6,7 @@
     </div>
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
     <p v-if="dirty" class="text-sm text-amber-600">{{ t(`${p}.saveFirst`) }}</p>
-    <p class="text-xs text-gray-500" data-testid="probe-hint">{{ t(`${p}.probeHint`) }}</p>
+    <p class="text-xs text-gray-500" data-testid="probe-hint">{{ t(settings?.auto_quality ? `${p}.probeHint` : `${p}.manualProbeHint`) }}</p>
     <p v-if="settings?.auto_quality" class="text-xs text-gray-500" data-testid="auto-runtime-hint">{{ t(`${p}.autoRuntimeHint`) }}</p>
     <template v-if="runtime">
       <div v-if="runtime.setup?.state" class="rounded-xl border p-3 text-sm dark:border-dark-600" data-testid="setup-status">

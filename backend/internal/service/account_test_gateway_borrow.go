@@ -141,7 +141,7 @@ func (s *AccountTestService) testGatewayBorrowAccountConnection(c *gin.Context, 
 	req.Header = headers
 	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
 	s.sendEvent(c, TestEvent{Type: "status", Code: "gateway_borrow_testing", Channel: "gateway_borrow", Text: "Testing the verified gateway borrow route"})
-	resp, err := s.doOpenAIAccountTestUpstream(req, openAIAccountProxyURL(account), account, true)
+	resp, err := s.doOpenAIAccountTestUpstream(req, openAIAccountProxyURL(account), account, true, body)
 	if err != nil {
 		return s.sendGatewayBorrowTestError(c, err)
 	}

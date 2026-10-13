@@ -24,14 +24,15 @@ import (
 
 // UpdateSettingsRequest 更新设置请求
 type UpdateSettingsRequest struct {
-	ExcelBPSEnabled                 *bool                            `json:"excel_bps_enabled"`
-	OpenAICodexTicketHarvestScope   *service.CodexTicketHarvestScope `json:"openai_codex_ticket_harvest_scope"`
-	OpenAICodexTicketStrictResponse *bool                            `json:"openai_codex_ticket_strict_response"`
-	OpenAICodexTicketFailClosed     *bool                            `json:"openai_codex_ticket_fail_closed"`
-	OpenAICodexTicketStrategy       *string                          `json:"openai_codex_ticket_strategy"`
-	PrismBrowserEnabled             bool                             `json:"prism_browser_enabled"`
-	PrismBrowserBaseURL             string                           `json:"prism_browser_base_url"`
-	PrismBrowserAPIKey              string                           `json:"prism_browser_api_key"`
+	ExcelBPSEnabled                   *bool                            `json:"excel_bps_enabled"`
+	OpenAICodexTicketHarvestScope     *service.CodexTicketHarvestScope `json:"openai_codex_ticket_harvest_scope"`
+	OpenAICodexTicketStrictResponse   *bool                            `json:"openai_codex_ticket_strict_response"`
+	OpenAICodexTicketCandyObservation *bool                            `json:"openai_codex_ticket_candy_observation"`
+	OpenAICodexTicketFailClosed       *bool                            `json:"openai_codex_ticket_fail_closed"`
+	OpenAICodexTicketStrategy         *string                          `json:"openai_codex_ticket_strategy"`
+	PrismBrowserEnabled               bool                             `json:"prism_browser_enabled"`
+	PrismBrowserBaseURL               string                           `json:"prism_browser_base_url"`
+	PrismBrowserAPIKey                string                           `json:"prism_browser_api_key"`
 	// 注册设置
 	RegistrationEnabled                 bool                         `json:"registration_enabled"`
 	EmailVerifyEnabled                  bool                         `json:"email_verify_enabled"`
@@ -2057,6 +2058,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAICodexTicketStrictResponse
 		}(),
+		OpenAICodexTicketCandyObservation: func() bool {
+			if req.OpenAICodexTicketCandyObservation != nil {
+				return *req.OpenAICodexTicketCandyObservation
+			}
+			return previousSettings.OpenAICodexTicketCandyObservation
+		}(),
 		OpenAICodexTicketFailClosed: func() bool {
 			if req.OpenAICodexTicketFailClosed != nil {
 				return *req.OpenAICodexTicketFailClosed
@@ -2699,6 +2706,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OpenAICodexTicketHarvestScope:                          updatedSettings.OpenAICodexTicketHarvestScope,
 		OpenAICodexTicketStrategy:                              updatedSettings.OpenAICodexTicketStrategy,
 		OpenAICodexTicketStrictResponse:                        updatedSettings.OpenAICodexTicketStrictResponse,
+		OpenAICodexTicketCandyObservation:                      updatedSettings.OpenAICodexTicketCandyObservation,
 		OpenAICodexTicketFailClosed:                            updatedSettings.OpenAICodexTicketFailClosed,
 		OpenAICodexTicketHarvestProxyConfigured:                strings.TrimSpace(updatedSettings.OpenAICodexTicketHarvestProxyURL) != "",
 		OpenAICodexTicketModels:                                updatedSettings.OpenAICodexTicketModels,

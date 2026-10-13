@@ -73,7 +73,7 @@ func rotationFixture(t *testing.T, limit int, successNode string) (*astraRouting
 		return resp, nil
 	}}
 	wrapper.SetAstraGatewayPreparer(func(ctx context.Context, id int64) error {
-		req := pinRequest(t).WithContext(service.WithAstraSourceAcquisition(ctx))
+		req := pinRequest(t).WithContext(service.WithAstraSourceAcquisitionForAccount(ctx, id))
 		resp, err := wrapper.Do(req, "account-proxy", id, 1)
 		if err != nil {
 			return err
@@ -87,6 +87,11 @@ func rotationFixture(t *testing.T, limit int, successNode string) (*astraRouting
 func rotationTarget(t *testing.T) *http.Request {
 	r := pinRequest(t)
 	r.Header.Set("Authorization", "Bearer target-only")
+	return forceAstraProbe(r)
+}
+func rotationBusinessTarget(t *testing.T) *http.Request {
+	r := pinRequest(t)
+	r.Header.Set("Authorization", "Bearer target-only")
 	return r
 }
 
@@ -97,15 +102,15 @@ func TestAstraGatewayRotationRejectsBadNodeAndPinsSuccessfulNode(t *testing.T) {
 	require.Equal(t, 1, *leases, "actual response still owns node lease")
 	consumeAffinityResponse(t, resp, err)
 	require.Zero(t, *leases)
-	require.Equal(t, append([]string{"bad:299", "bad:300", "bad:300", "good:299"}, repeatedProxy("good:300", 7)...), *calls)
+	require.Equal(t, append([]string{"bad:299", "bad:300", "bad:300", "good:299"}, repeatedProxy("good:300", 3)...), *calls)
 	snapshot := s.AstraGatewaySnapshot(t.Context())
 	require.Equal(t, 1, snapshot.ReadyRoutes)
 	require.Equal(t, "SG", snapshot.Targets[0].ProxyCountry)
 	require.Equal(t, "SG fixture", snapshot.Targets[0].ProxyNode)
 	// A new private listener for the same node must reuse qualification, not credentials.
-	resp, err = s.Do(rotationTarget(t), "target-original", 300, 1)
+	resp, err = s.Do(rotationBusinessTarget(t), "target-original", 300, 1)
 	consumeAffinityResponse(t, resp, err)
-	require.Len(t, *calls, 12)
+	require.Len(t, *calls, 8)
 	cookie, proxy, release, err := s.CodexGatewayPinWSRequest(t.Context(), rotationTarget(t).Header, "target-original", 300, 1)
 	require.NoError(t, err)
 	require.Equal(t, "good", cookie)
@@ -113,7 +118,7 @@ func TestAstraGatewayRotationRejectsBadNodeAndPinsSuccessfulNode(t *testing.T) {
 	require.Equal(t, 1, *leases)
 	release()
 	require.Zero(t, *leases)
-	require.Len(t, *calls, 12, "WS reuses node qualification while owning its own dial lease")
+	require.Len(t, *calls, 8, "WS reuses node qualification while owning its own dial lease")
 	// Expiration picks the next eligible exit rather than extending old Cookie lifetime.
 	pool := s.current(t.Context())
 	route := pool.routes[299]

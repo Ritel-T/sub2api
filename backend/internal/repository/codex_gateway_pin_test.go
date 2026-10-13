@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 type gatewayPinDelegate struct {
@@ -252,8 +253,9 @@ func TestAstraGatewayRuntimeRevisionClearsPool(t *testing.T) {
 	settings.Revision = "two"
 	second := wrapper.current(t.Context())
 	require.NotSame(t, first, second)
-	_, err = wrapper.CodexGatewayPinWSHeader(300)
-	require.Error(t, err)
+	cookie, err = wrapper.CodexGatewayPinWSHeader(300)
+	require.NoError(t, err)
+	require.Empty(t, cookie)
 	settings.CookiePool.Enabled = false
 	require.Nil(t, wrapper.current(t.Context()))
 	cookie, err = wrapper.CodexGatewayPinWSHeader(300)
@@ -351,9 +353,18 @@ func TestAstraGatewayTargetPreparesSourceBeforeForwarding(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Gateway.CodexGatewayPin = pinConfig()
 	wrapper := &astraRoutingUpstream{cfg: cfg}
-	calls := 0
+	calls, candy, business := 0, 0, 0
 	wrapper.delegate = gatewayPinDelegate{call: func(r *http.Request, _ string, id int64, _ int, _ *tlsfingerprint.Profile) (*http.Response, error) {
 		calls++
+		raw, readErr := io.ReadAll(r.Body)
+		require.NoError(t, readErr)
+		if service.IsOpenAICodexStateProbeRequest(r.Context()) {
+			if gjson.GetBytes(raw, "input.0.content.0.text").String() == service.GatewayBorrowCandyPrompt {
+				candy++
+			}
+		} else {
+			business++
+		}
 		require.Equal(t, int64(300), id)
 		require.Equal(t, "__oailb=ready", r.Header.Get("Cookie"))
 		return pinResponse(""), nil
@@ -363,10 +374,14 @@ func TestAstraGatewayTargetPreparesSourceBeforeForwarding(t *testing.T) {
 		wrapper.current(t.Context()).recordSource(id, now, &codexGatewayRoute{cookie: http.Cookie{Name: "__oailb", Value: "ready", Path: "/"}, expires: now.Add(time.Minute)}, true)
 		return nil
 	})
-	resp, err := wrapper.Do(pinRequest(t), "", 300, 1)
+	req := pinRequest(t)
+	req = req.WithContext(service.WithGatewayBorrowRequiredModel(req.Context(), "gpt-6-astra"))
+	resp, err := wrapper.Do(req, "", 300, 1)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, 7, calls)
+	require.Equal(t, 4, candy, "mandatory legacy path validates route quality before the first send")
+	require.Equal(t, 1, business, "exactly one business request follows the settled probe")
 }
 
 func TestTrustedSourceAcquisitionDoesNotRequireCandyAnswer(t *testing.T) {

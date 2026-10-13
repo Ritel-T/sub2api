@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,31 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
+
+// astraContextMutex bounds admission waits without spawning a goroutine per
+// waiter. Its zero value is ready to use; cancellation never acquires a lease.
+type astraContextMutex struct {
+	once  sync.Once
+	token chan struct{}
+}
+
+func (m *astraContextMutex) Lock(ctx context.Context) error {
+	m.once.Do(func() { m.token = make(chan struct{}, 1) })
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case m.token <- struct{}{}:
+		if err := ctx.Err(); err != nil {
+			m.Unlock()
+			return err
+		}
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+func (m *astraContextMutex) Unlock() { <-m.token }
 
 type astraTargetValidation struct {
 	route                        codexGatewayRoute
@@ -220,6 +246,10 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		}
 	}()
 	var zero [32]byte
+	force, _ := req.Context().Value(astraForceProbeKey{}).(bool)
+	if err := req.Context().Err(); err != nil {
+		return nil, zero, proxy, release, err
+	}
 	model := codexGatewayPinModel(req)
 	if model == "" {
 		if wire, known := service.GatewayBorrowWireModelFromContext(req.Context()); known {
@@ -243,6 +273,10 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		sourceID = selected.sourceID
 		copyCookie := selected.route.cookie
 		cookie = &copyCookie
+	}
+	strict := s.strictBorrowRoute(req.Context(), id, model)
+	if cookie == nil && !force && !strict {
+		return nil, zero, proxy, release, nil
 	}
 	if cookie == nil {
 		if err := s.PrepareAstraGateway(targetPreparationContext(req, proxy, id, model, profile)); err != nil {
@@ -268,7 +302,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	if route.cookie.Value != cookie.Value || !time.Now().Before(expires) {
 		return nil, zero, proxy, release, errors.New("configuration_changed")
 	}
-	if pool.config.RotateNodes && pool.nodeCoolingForModel(route.node, astraRoutingHost(cookie.Value), id, qualityModel, time.Now()) {
+	if (force || strict) && pool.config.RotateNodes && pool.nodeCoolingForModel(route.node, astraRoutingHost(cookie.Value), id, qualityModel, time.Now()) {
 		pool.targetMu.Lock()
 		if pool.targetChecks == nil {
 			pool.targetChecks = map[int64]astraTargetValidation{}
@@ -293,6 +327,12 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		identityProxy = route.node.Identity
 		req = astraFreshRequest(req)
 	}
+	// Ordinary forwarding consumes a route without adding quality probes.
+	if !force && !strict {
+		return cookie, zero, proxy, release, nil
+	}
+	ctx, cancel := context.WithTimeout(req.Context(), 90*time.Second)
+	defer cancel()
 	identity := []string{qualityModel, cookie.Value, strconv.FormatInt(sourceID, 10), identityProxy, req.Header.Get("Authorization"), req.Header.Get("ChatGPT-Account-ID"), req.Header.Get("User-Agent"), req.Header.Get("Originator"), req.Header.Get("Version"), req.Header.Get("X-Codex-Turn-State")}
 	if pool.config.QualityMode == config.GatewayBorrowAccountQualityMode {
 		identity[len(identity)-1] = ""
@@ -334,7 +374,6 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 			return nil, key, proxy, release, errors.New("borrow_route_expired")
 		}
 	}
-	force, _ := req.Context().Value(astraForceProbeKey{}).(bool)
 	if exists && old.key == key && now.Before(old.expires) && (!force || pool.config.QualityMode == config.GatewayBorrowAccountQualityMode) {
 		if old.passed {
 			current, currentSource := pool.currentCookie(req.URL.Path, time.Now())
@@ -385,14 +424,27 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 			return nil, key, proxy, release, errors.New("target_validation_in_progress")
 		}
 	} else {
-		if !pool.targetProbeMu.TryLock() {
-			return nil, key, proxy, release, errors.New("target_validation_in_progress")
+		if err := pool.targetProbeMu.Lock(ctx); err != nil {
+			return nil, key, proxy, release, err
 		}
 		defer pool.targetProbeMu.Unlock()
 	}
+	// Cancellation, route replacement and expiry may occur during admission.
+	if s.current(ctx) != pool {
+		return nil, key, proxy, release, errors.New("configuration_changed")
+	}
+	current, currentID := pool.currentCookie(req.URL.Path, time.Now())
+	pool.mu.Lock()
+	currentRoute := pool.routes[sourceID]
+	pool.mu.Unlock()
+	if hasSelection {
+		current, currentID, currentRoute = cookie, sourceID, route
+	}
+	if current == nil || current.Value != cookie.Value || currentID != sourceID || !time.Now().Before(expires) ||
+		(pool.config.IPAffinity && !pool.config.RotateNodes && currentRoute.proxy != route.proxy) || currentRoute.node.Identity != route.node.Identity {
+		return nil, key, proxy, release, errors.New("configuration_changed")
+	}
 
-	ctx, cancel := context.WithTimeout(req.Context(), 90*time.Second)
-	defer cancel()
 	probe := req.Clone(service.WithHTTPUpstreamRedirectsDisabled(ctx))
 	replaceCodexGatewayCookie(probe, cookie)
 	var result *service.OpenAICodexStateProbeResult
@@ -401,8 +453,10 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		provenPair := pool.targetPairPasses[pairKey]
 		pool.targetMu.Unlock()
 		result = service.ProbeOpenAICodexBorrowAccountQualityRoute(ctx, s.delegate, probe, proxy, id, n, profile, provenPair)
-	} else {
+	} else if strict {
 		result = service.ProbeOpenAICodexBorrowQualityRoute(ctx, s.delegate, probe, proxy, id, n, profile, model)
+	} else {
+		result = service.ProbeOpenAICodexStateRoute(ctx, s.delegate, probe, proxy, id, n, profile)
 	}
 	passed := result.Verdict == service.OpenAICodexStateHealthy
 	if passed && !time.Now().Before(expires) {
@@ -423,7 +477,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 	if s.current(req.Context()) != pool {
 		return nil, key, proxy, release, errors.New("configuration_changed")
 	}
-	current, currentID := pool.currentCookie(req.URL.Path, time.Now())
+	current, currentID = pool.currentCookie(req.URL.Path, time.Now())
 	if hasSelection {
 		current = cookie
 		currentID = sourceID
@@ -432,7 +486,7 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		return nil, key, proxy, release, errors.New("configuration_changed")
 	}
 	pool.mu.Lock()
-	currentRoute := pool.routes[sourceID]
+	currentRoute = pool.routes[sourceID]
 	if hasSelection {
 		currentRoute = route
 	}
@@ -557,6 +611,9 @@ func (s *astraRoutingUpstream) VerifyAstraGatewayTargetForModelWithTLS(ctx conte
 	if model == "" {
 		return errors.New("borrow_model_required")
 	}
+	if s.unifiedTickets(ctx) && !s.strictBorrowRoute(ctx, id, model) {
+		return s.tickets.VerifyStoredAstraTarget(ctx, id)
+	}
 	req = req.Clone(context.WithValue(ctx, astraForceProbeKey{}, true))
 	body, _ := json.Marshal(map[string]string{"model": model})
 	req.Body = io.NopCloser(bytes.NewReader(body))
@@ -571,9 +628,29 @@ func (s *astraRoutingUpstream) CodexGatewayPinWSRequest(ctx context.Context, hea
 
 func (s *astraRoutingUpstream) CodexGatewayPinWSRequestForModel(ctx context.Context, headers http.Header, proxy string, id int64, n int, model string) (string, string, func(), error) {
 	model = config.CanonicalGatewayBorrowModel(model)
+	if s.unifiedTickets(ctx) && !s.strictBorrowRoute(ctx, id, model) {
+		if !slices.Contains(s.cfg.AstraRouting(ctx).CookiePool.TargetAccountIDs, id) || model != "gpt-6-astra" {
+			return "", proxy, func() {}, nil
+		}
+		borrowed := headers.Clone()
+		effective, release, err := s.tickets.ApplyStoredAstraTarget(ctx, borrowed, id, "websocket")
+		if err != nil {
+			if release != nil {
+				release()
+			}
+			return "", proxy, func() {}, ctx.Err()
+		}
+		for key := range headers {
+			delete(headers, key)
+		}
+		for key, values := range borrowed {
+			headers[key] = values
+		}
+		return "", effective, release, nil
+	}
 	pool := s.current(ctx)
 	if pool == nil {
-		if s.cfg.AstraRouting(ctx).CookiePool.TargetRequiresModel(id, model) {
+		if s.strictBorrowRoute(ctx, id, model) {
 			return "", proxy, func() {}, errCodexGatewayPinUnavailable
 		}
 		return "", proxy, func() {}, nil

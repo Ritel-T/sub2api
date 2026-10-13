@@ -768,6 +768,7 @@ func registerSystemRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		system.PUT("/mihomo/download-mode", h.Admin.System.SetMihomoDownloadMode)
 		system.POST("/mihomo/nodes/:name/test", h.Admin.System.TestMihomoNode)
 		system.POST("/mihomo/nodes/:name/quality-check", h.Admin.System.CheckMihomoNodeQuality)
+		system.POST("/mihomo/nodes/static-proxies", h.Admin.System.AddMihomoNodesAsStaticProxies)
 		system.GET("/check-updates", h.Admin.System.CheckUpdates)
 		system.GET("/rollback-versions", h.Admin.System.GetRollbackVersions)
 		system.POST("/update", h.Admin.System.PerformUpdate)
@@ -1055,6 +1056,7 @@ func registerChannelMonitorV3Routes(admin *gin.RouterGroup, h *handler.Handlers,
 	{
 		monitor.GET("/settings", h.ChannelMonitorV3.GetSettings)
 		monitor.PUT("/config", h.ChannelMonitorV3.UpdateConfig)
+		monitor.PUT("/idle-probe", h.ChannelMonitorV3.UpdateIdleProbe)
 		monitor.POST("/categories", h.ChannelMonitorV3.CreateCategory)
 		monitor.PUT("/categories/:id", h.ChannelMonitorV3.UpdateCategory)
 		monitor.DELETE("/categories/:id", h.ChannelMonitorV3.DeleteCategory)

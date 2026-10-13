@@ -24,7 +24,7 @@ describe('Astra gateway runtime', () => {
     mocks.test.mockResolvedValue({ action: 'verify', account_id: 300, test_kind: 'state_probe', success: false, reason: 'target_probe_degraded', duration_ms: 2000 })
     const w = mount(AstraGatewayRuntime, { props: { settings, dirty: false } }); await flushPromises()
     expect(w.find('[data-testid="test-kind"]').exists()).toBe(false)
-    expect(w.get('[data-testid="probe-hint"]').text()).toContain('admin.astraGateway.probeHint')
+    expect(w.get('[data-testid="probe-hint"]').text()).toContain('admin.astraGateway.manualProbeHint')
     await w.findAll('button').find(b => b.text() === 'admin.astraGateway.verifyTarget')!.trigger('click'); await flushPromises()
     expect(mocks.test).toHaveBeenCalledWith('verify', 300, 'state_probe')
     expect(w.find('[role="status"]').text()).toContain('admin.astraGateway.testReasons.ticketChanged'); w.unmount()
@@ -46,6 +46,12 @@ describe('Astra gateway runtime', () => {
 })
 
 describe('Model route availability with shared account quality', () => {
+  it('keeps automatic quality criteria distinct from normal ticket observations', async () => {
+    const w = mount(AstraGatewayRuntime, { props: { settings: { ...settings, auto_quality: true }, dirty: false } }); await flushPromises()
+    expect(w.get('[data-testid="probe-hint"]').text()).toContain('admin.astraGateway.probeHint')
+    expect(w.get('[data-testid="probe-hint"]').text()).not.toContain('manualProbeHint')
+    w.unmount()
+  })
   it('renders separate model admission states for the same target account', async () => {
     mocks.get.mockResolvedValue({ ...snapshot(), targets: [
       { account_id: 300, model: 'gpt-6-astra', state: 'ready', reason: 'target_probe_passed', expires_at: new Date(Date.now() + 120000).toISOString() },

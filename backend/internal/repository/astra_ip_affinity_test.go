@@ -9,9 +9,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
-	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func consumeAffinityResponse(t *testing.T, resp *http.Response, err error) {
@@ -53,14 +51,7 @@ func TestAstraGatewayIPAffinity(t *testing.T) {
 				calls++
 				raw, readErr := io.ReadAll(r.Body)
 				require.NoError(t, readErr)
-				switch calls {
-				case 1, 2:
-					require.Contains(t, string(raw), "Reply with OK.")
-				case 3, 4, 5, 6:
-					require.Equal(t, service.GatewayBorrowCandyPrompt, gjson.GetBytes(raw, "input.0.content.0.text").String())
-				case 7:
-					require.JSONEq(t, `{"model":"gpt-6-astra"}`, string(raw))
-				}
+				require.JSONEq(t, `{"model":"gpt-6-astra"}`, string(raw), "ordinary forwarding adds no diagnostics")
 				return pinResponse(""), nil
 			}}
 			resp, err := wrapper.Do(pinRequest(t), tc.source, 299, 1)
@@ -70,13 +61,13 @@ func TestAstraGatewayIPAffinity(t *testing.T) {
 			target.Header.Set("ChatGPT-Account-ID", "target-account")
 			resp, err = wrapper.Do(target, "http://target.invalid:80", 300, 1)
 			consumeAffinityResponse(t, resp, err)
-			require.Equal(t, 7, calls, "two state shots, four candy validations and actual request must share egress")
+			require.Equal(t, 1, calls, "ordinary forwarding sends the business request once")
 			cookie, proxy, release, err := wrapper.CodexGatewayPinWSRequest(t.Context(), target.Header, "http://target.invalid:80", 300, 1)
 			require.NoError(t, err)
 			release()
 			require.Equal(t, "source-route", cookie)
 			require.Equal(t, tc.want, proxy, "WS must dial the validated egress")
-			require.Equal(t, 7, calls, "HTTP and WS can reuse the same validated identity")
+			require.Equal(t, 1, calls, "WS adds no quality probe")
 			raw, err := json.Marshal(wrapper.AstraGatewaySnapshot(t.Context()))
 			require.NoError(t, err)
 			require.NotContains(t, string(raw), "source.invalid")
@@ -99,7 +90,7 @@ func TestAstraGatewayIPAffinityRevalidatesChangedEgress(t *testing.T) {
 	}}
 	resp, err := wrapper.Do(pinRequest(t), "old-source", 299, 1)
 	consumeAffinityResponse(t, resp, err)
-	resp, err = wrapper.Do(pinRequest(t), "target", 300, 1)
+	resp, err = wrapper.Do(forceAstraProbe(pinRequest(t)), "target", 300, 1)
 	consumeAffinityResponse(t, resp, err)
 	pool := wrapper.current(t.Context())
 	expiry := pool.routes[299].expires
@@ -108,24 +99,24 @@ func TestAstraGatewayIPAffinityRevalidatesChangedEgress(t *testing.T) {
 	consumeAffinityResponse(t, resp, err)
 	require.Equal(t, expiry, pool.routes[299].expires)
 	require.Equal(t, "waiting", wrapper.AstraGatewaySnapshot(t.Context()).Targets[0].State)
-	resp, err = wrapper.Do(pinRequest(t), "target", 300, 1)
+	resp, err = wrapper.Do(forceAstraProbe(pinRequest(t)), "target", 300, 1)
 	consumeAffinityResponse(t, resp, err)
-	require.Equal(t, append(repeatedProxy("old-source", 7), repeatedProxy("new-source", 7)...), proxies)
+	require.Equal(t, append(repeatedProxy("old-source", 3), repeatedProxy("new-source", 3)...), proxies)
 	// A backup source must bring its own egress along with its Cookie.
 	backup := codexGatewayRoute{cookie: http.Cookie{Name: "__oailb", Value: "backup", Path: "/"}, proxy: "backup-source", expires: time.Now().Add(time.Minute)}
 	pool.recordSource(298, time.Now(), &backup, true)
 	pool.recordSource(299, time.Now(), nil, false)
-	resp, err = wrapper.Do(pinRequest(t), "target", 300, 1)
+	resp, err = wrapper.Do(forceAstraProbe(pinRequest(t)), "target", 300, 1)
 	consumeAffinityResponse(t, resp, err)
-	require.Equal(t, repeatedProxy("backup-source", 7), proxies[14:])
+	require.Equal(t, repeatedProxy("backup-source", 3), proxies[6:])
 	// Turning affinity off publishes a fresh pool without stale source proxies.
 	cfg.Gateway.CodexGatewayPin.IPAffinity = false
 	require.NotSame(t, pool, wrapper.current(t.Context()))
 	resp, err = wrapper.Do(pinRequest(t), "new-source", 299, 1)
 	consumeAffinityResponse(t, resp, err)
-	resp, err = wrapper.Do(pinRequest(t), "target", 300, 1)
+	resp, err = wrapper.Do(forceAstraProbe(pinRequest(t)), "target", 300, 1)
 	consumeAffinityResponse(t, resp, err)
-	require.Equal(t, repeatedProxy("target", 7), proxies[21:])
+	require.Equal(t, repeatedProxy("target", 3), proxies[9:])
 }
 
 func repeatedProxy(value string, count int) []string {
@@ -151,10 +142,10 @@ func TestAstraGatewayIPAffinityRejectsFailedTarget(t *testing.T) {
 	}}}
 	resp, err := wrapper.Do(pinRequest(t), "source", 299, 1)
 	consumeAffinityResponse(t, resp, err)
-	_, err = wrapper.Do(pinRequest(t), "target", 300, 1)
+	_, err = wrapper.Do(forceAstraProbe(pinRequest(t)), "target", 300, 1)
 	require.Error(t, err)
 	require.Equal(t, 1, calls, "do not forward actual target request after failure")
 	_, _, _, err = wrapper.CodexGatewayPinWSRequest(t.Context(), http.Header{}, "target", 300, 1)
-	require.Error(t, err)
-	require.Equal(t, 1, calls, "failed validation stays in cooldown")
+	require.NoError(t, err)
+	require.Equal(t, 1, calls, "WS forwarding does not add a production probe")
 }

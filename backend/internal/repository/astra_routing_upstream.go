@@ -26,9 +26,12 @@ import (
 type astraRoutingUpstream struct {
 	quotaMu         sync.Mutex
 	quotaBackoff    map[astraTargetQuotaKey]astraTargetQuotaBackoff
+	tickets         service.AstraTicketLifecycle
 	rotationCache   astraRotationCache
 	listNodes       func() ([]mihomo.AstraNode, error)
 	pinNode         func(context.Context, mihomo.AstraNode) (string, func(), error)
+	prepareCallMu   sync.Mutex
+	prepareCall     *astraPreparation
 	prepareMu       sync.Mutex
 	preparer        func(context.Context, int64) error
 	retryAfter      time.Time
@@ -39,6 +42,30 @@ type astraRoutingUpstream struct {
 	revision        string
 	pool            *codexGatewayPinUpstream
 	historyRecorder func(service.AstraGatewayHistoryRecord, bool)
+}
+
+func (s *astraRoutingUpstream) SetAstraTicketLifecycle(provider service.AstraTicketLifecycle) {
+	s.tickets = provider
+}
+func (s *astraRoutingUpstream) unifiedTickets(ctx context.Context) bool {
+	if _, required := service.GatewayBorrowRequiredModelFromContext(ctx); required {
+		return false
+	}
+	// The unified adapter verifies transport tickets, not the account IQ witness.
+	// Automatic/linked-quality borrowing keeps its own route lifecycle.
+	settings := s.cfg.AstraRouting(ctx)
+	return !settings.AutoQuality && !settings.AccountScheduling && settings.QualityMode != config.GatewayBorrowAccountQualityMode && s.tickets != nil && s.tickets.UnifiedAstraTicketsEnabled(ctx)
+}
+
+// A service-owned mandatory scope is strict even if routing settings changed.
+// Ordinary configured targets retain upstream's optional ticket-only behavior.
+func (s *astraRoutingUpstream) strictBorrowRoute(ctx context.Context, id int64, model string) bool {
+	if _, required := service.GatewayBorrowRequiredModelFromContext(ctx); required {
+		return true
+	}
+	settings := s.cfg.AstraRouting(ctx)
+	return (settings.AutoQuality || settings.AccountScheduling || settings.QualityMode == config.GatewayBorrowAccountQualityMode) &&
+		((model == "" && slices.Contains(settings.CookiePool.TargetAccountIDs, id)) || settings.CookiePool.TargetRequiresModel(id, model))
 }
 
 func (s *astraRoutingUpstream) SetAstraGatewayHistoryRecorder(fn func(service.AstraGatewayHistoryRecord, bool)) {
@@ -52,6 +79,7 @@ func (s *astraRoutingUpstream) current(ctx context.Context) *codexGatewayPinUpst
 	settings.CookiePool.QualityMode = settings.QualityMode
 	poolSettings := settings
 	poolSettings.AccountScheduling = false // Scheduling does not invalidate verified routes.
+	poolSettings.TicketPoolScheduling = false
 	poolSettings.SchedulingMode = ""
 	poolSettings.SchedulingGroupIDs = nil
 	encoded, _ := json.Marshal(poolSettings)
@@ -82,6 +110,16 @@ func (s *astraRoutingUpstream) DoWithTLS(r *http.Request, p string, a int64, n i
 		}
 	}
 	if r != nil {
+		if sourceID, acquisition := service.AstraSourceAcquisitionAccountFromContext(r.Context()); acquisition {
+			pool := s.current(r.Context())
+			if pool == nil || sourceID <= 0 || sourceID != a || !codexGatewayPinRequest(r) || model != "gpt-6-astra" ||
+				!slices.Contains(pool.config.SourceAccountIDs, sourceID) || slices.Contains(pool.config.TargetAccountIDs, sourceID) {
+				return nil, errors.New("source_acquisition_route_unavailable")
+			}
+			// Only a configured, ID-bound source uses independent native traffic;
+			// the original target request retains its mandatory route context.
+			return pool.DoWithTLS(r, p, a, n, f)
+		}
 		if required, ok := service.GatewayBorrowRequiredModelFromContext(r.Context()); ok {
 			pool := s.current(r.Context())
 			if pool == nil || !codexGatewayPinRequest(r) || required != model || !pool.config.TargetRequiresModel(a, required) {
@@ -89,7 +127,34 @@ func (s *astraRoutingUpstream) DoWithTLS(r *http.Request, p string, a int64, n i
 			}
 		}
 	}
+	if r != nil && service.IsBoundAstraTicketRequest(r.Context()) && !s.strictBorrowRoute(r.Context(), a, model) {
+		return s.delegate.DoWithTLS(r, p, a, n, f)
+	}
 	if r != nil && !service.IsOpenAICodexStateProbeRequest(r.Context()) && codexGatewayPinRequest(r) {
+		if s.unifiedTickets(r.Context()) && !s.strictBorrowRoute(r.Context(), a, model) {
+			settings := s.cfg.AstraRouting(r.Context())
+			if slices.Contains(settings.CookiePool.TargetAccountIDs, a) && model == "gpt-6-astra" {
+				borrowed := r.Clone(r.Context())
+				proxy, release, err := s.tickets.ApplyStoredAstraTarget(r.Context(), borrowed.Header, a, "sse")
+				if err != nil {
+					if release != nil {
+						release()
+					}
+					if r.Context().Err() != nil {
+						return nil, r.Context().Err()
+					}
+					return s.delegate.DoWithTLS(r, p, a, n, f)
+				}
+				r = astraFreshRequest(borrowed.Clone(service.WithHTTPUpstreamRedirectsDisabled(r.Context())))
+				r.Close = true
+				resp, err := s.delegate.DoWithTLS(r, proxy, a, n, f)
+				if resp != nil {
+					resp.Request = r
+				}
+				return attachAstraLease(resp, err, release)
+			}
+			return s.delegate.DoWithTLS(r, p, a, n, f)
+		}
 		if pool := s.current(r.Context()); pool != nil {
 			if slices.Contains(pool.config.TargetAccountIDs, a) && model == "" {
 				return nil, errors.New("borrow_request_model_unavailable")
@@ -99,9 +164,23 @@ func (s *astraRoutingUpstream) DoWithTLS(r *http.Request, p string, a int64, n i
 				if err != nil {
 					return nil, err
 				}
+				force, _ := r.Context().Value(astraForceProbeKey{}).(bool)
+				strict := s.strictBorrowRoute(r.Context(), a, model) || force
 				if cookie == nil {
 					release()
+					if !strict {
+						return s.delegate.DoWithTLS(r, p, a, n, f)
+					}
 					return nil, errCodexGatewayPinUnavailable
+				}
+				if !strict {
+					r = r.Clone(service.WithHTTPUpstreamRedirectsDisabled(r.Context()))
+					replaceCodexGatewayCookie(r, cookie)
+					if pool.config.RotateNodes {
+						r = astraFreshRequest(r)
+					}
+					resp, err := s.delegate.DoWithTLS(r, effectiveProxy, a, n, f)
+					return attachAstraLease(resp, err, release)
 				}
 				if expected := service.GatewayBorrowExpectedCookieFromContext(r.Context()); expected != "" && expected != cookie.Value {
 					release()
@@ -143,19 +222,9 @@ func (s *astraRoutingUpstream) DoWithTLS(r *http.Request, p string, a int64, n i
 func (s *astraRoutingUpstream) CodexGatewayPinWSHeader(a int64) (string, error) {
 	if pool := s.current(context.Background()); pool != nil {
 		value, err := pool.CodexGatewayPinWSHeader(a)
-		if err != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
-			defer cancel()
-			if e := s.PrepareAstraGateway(ctx); e != nil {
-				return "", e
-			}
-			pool = s.current(ctx)
-			if pool == nil {
-				return "", nil
-			}
-			return pool.CodexGatewayPinWSHeader(a)
+		if err == nil {
+			return value, nil
 		}
-		return value, nil
 	}
 	return "", nil
 }
@@ -165,13 +234,60 @@ func (s *astraRoutingUpstream) SetAstraGatewayPreparer(fn func(context.Context, 
 	s.preparer = fn
 	s.prepareMu.Unlock()
 }
+
+// Concurrent requests share one preparation, including its failure, instead of
+// launching another source scan or failing merely because a scan is running.
+type astraPreparation struct {
+	done chan struct{}
+	pool *codexGatewayPinUpstream
+	err  error
+}
+
 func (s *astraRoutingUpstream) PrepareAstraGateway(ctx context.Context) error {
-	if !s.prepareMu.TryLock() {
-		return errors.New("preparation_in_progress")
+	if s.unifiedTickets(ctx) {
+		return s.tickets.PrepareStoredAstraSources(ctx)
 	}
-	defer s.prepareMu.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	pool := s.current(ctx)
+	s.prepareCallMu.Lock()
+	if call := s.prepareCall; call != nil {
+		s.prepareCallMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-call.done:
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if call.pool != pool || s.current(ctx) != pool {
+				return errors.New("configuration_changed")
+			}
+			return call.err
+		}
+	}
+	call := &astraPreparation{done: make(chan struct{}), pool: pool}
+	s.prepareCall = call
+	s.prepareCallMu.Unlock()
+	defer func() {
+		s.prepareCallMu.Lock()
+		s.prepareCall = nil
+		close(call.done)
+		s.prepareCallMu.Unlock()
+	}()
+	call.err = s.prepareAstraGateway(ctx)
+	return call.err
+}
+
+func (s *astraRoutingUpstream) prepareAstraGateway(ctx context.Context) error {
+	s.prepareMu.Lock()
+	defer s.prepareMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	pool := s.current(ctx)
 	if pool == nil {
 		return errors.New("cookie_pool_disabled")
@@ -230,6 +346,9 @@ func (s *astraRoutingUpstream) PrepareAstraGateway(ctx context.Context) error {
 	return errors.New("no_qualified_source_route")
 }
 func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service.AstraGatewayRuntime {
+	if s.unifiedTickets(ctx) {
+		return s.tickets.StoredAstraSnapshot(ctx)
+	}
 	settings := s.cfg.AstraRouting(ctx)
 	result := service.AstraGatewayRuntime{GeneratedAt: time.Now(), Revision: settings.Revision, Sources: []service.AstraRouteStatus{}, Targets: []service.AstraRouteStatus{}, WS: []service.AstraWSStatus{}, Preparing: s.preparing.Load()}
 	pool := s.current(ctx)
@@ -240,12 +359,17 @@ func (s *astraRoutingUpstream) AstraGatewaySnapshot(ctx context.Context) service
 		return result
 	}
 	now := time.Now()
+	cookie, sourceID := pool.currentCookie("/backend-api/codex/responses", now)
 	// Never hold a lock for the duration of a network validation. Snapshot a
 	// coherent route/check pair; only an exact current Cookie can be ready.
 	pool.targetMu.Lock()
 	pool.mu.Lock()
 	defer pool.targetMu.Unlock()
 	defer pool.mu.Unlock()
+	if route, ok := pool.routes[sourceID]; ok && cookie != nil && route.cookie.Value == cookie.Value && now.Before(route.expires) {
+		expires := route.expires
+		result.RouteExpiresAt = &expires
+	}
 	result.Cooldowns = s.rotationCache.snapshot(settings.CookiePool.TargetAccountIDs, now)
 	result.Gateways = pool.gatewayObservations()
 	result.UnknownGatewaySamples = pool.unknownGatewaySamples
