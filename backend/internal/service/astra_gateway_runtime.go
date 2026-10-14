@@ -331,6 +331,7 @@ func (s *AccountTestService) verifyGatewayBorrowTargetForModel(ctx context.Conte
 			return errors.New(reason)
 		}
 	}
+	ctx = s.withAutomaticBorrowTargetQuotaObserver(ctx, account, headers)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, chatgptCodexURL, nil)
 	if err != nil {
 		return err

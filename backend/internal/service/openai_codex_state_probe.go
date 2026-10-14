@@ -69,10 +69,11 @@ type OpenAICodexStateProbeResult struct {
 	Reason    string                  `json:"reason"`
 	Failure   string                  `json:"failure,omitempty"`
 	// Detail 是脱敏截断后的上游报错原文，便于看出「模型不支持」之类的具体原因。
-	Detail   string `json:"detail,omitempty"`
-	Attempts int    `json:"attempts,omitempty"`
-	Correct  int    `json:"correct,omitempty"`
-	Answer   string `json:"answer,omitempty"`
+	Detail                string     `json:"detail,omitempty"`
+	Attempts              int        `json:"attempts,omitempty"`
+	Correct               int        `json:"correct,omitempty"`
+	Answer                string     `json:"answer,omitempty"`
+	ConfirmedQuotaResetAt *time.Time `json:"-"`
 
 	MintStatus     int  `json:"mint_status"`
 	ContinueStatus int  `json:"continue_status"`
@@ -95,11 +96,12 @@ type openAICodexStateShot struct {
 	cookies []string
 	model   string
 	// streamErr 非空表示 200 但回复流没有完整跑完（上游过载、额度用尽等流内失败）。
-	streamErr      error
-	detail         string
-	text           string
-	completedModel string
-	failureCode    string
+	streamErr             error
+	detail                string
+	text                  string
+	completedModel        string
+	failureCode           string
+	confirmedQuotaResetAt *time.Time
 }
 
 // ProbeOpenAICodexState 用两发极小请求判断账号是否降智：
@@ -295,6 +297,7 @@ func (r *OpenAICodexStateProbeResult) shotUsable(ctx context.Context, step strin
 	case shot.status == http.StatusOK:
 		if shot.streamErr != nil {
 			if shot.failureCode == "usage_limit_reached" || shot.failureCode == "rate_limit_exceeded" || shot.failureCode == "rate_limit_error" {
+				r.ConfirmedQuotaResetAt = shot.confirmedQuotaResetAt
 				r.fail(OpenAICodexStateFailureRateLimited, step+"回复流报告额度或限流，本次无法判断", shot.detail)
 				return false
 			}
@@ -305,6 +308,7 @@ func (r *OpenAICodexStateProbeResult) shotUsable(ctx context.Context, step strin
 	case shot.status == http.StatusUnauthorized || shot.status == http.StatusForbidden:
 		r.fail(OpenAICodexStateFailureAccountError, fmt.Sprintf("%s被上游拒绝（HTTP %d），账号令牌可能失效或被封", step, shot.status), shot.detail)
 	case shot.status == http.StatusTooManyRequests:
+		r.ConfirmedQuotaResetAt = shot.confirmedQuotaResetAt
 		r.fail(OpenAICodexStateFailureRateLimited, step+"被上游限流（HTTP 429），请稍后再试", shot.detail)
 	case shot.status == http.StatusBadRequest && strings.Contains(strings.ToLower(shot.detail), "not supported"):
 		r.fail(OpenAICodexStateFailureModelUnsupported, "该账号的套餐不支持这个模型（HTTP 400），请换一个模型再测", shot.detail)
@@ -426,6 +430,7 @@ func fireOpenAICodexShotBodyRequest(ctx context.Context, headers http.Header, mo
 	if resp == nil {
 		return out, errors.New("nil upstream response")
 	}
+	observedAt := time.Now().UTC()
 	out.status = resp.StatusCode
 	out.state = strings.TrimSpace(extractOpenAICodexTurnState(resp.Header))
 	out.cookies = openAICodexStateRouteCookies(resp)
@@ -446,6 +451,7 @@ func fireOpenAICodexShotBodyRequest(ctx context.Context, headers http.Header, mo
 		out.streamErr = errors.New("probe response too large")
 		return out, nil
 	}
+	out.confirmedQuotaResetAt = observeAutomaticBorrowTargetQuota(shotCtx, req, out.status, resp.Header, data, observedAt)
 	if out.status != http.StatusOK {
 		out.detail = openAICodexStateDetail(data)
 		if out.status >= 500 && out.status <= 599 {

@@ -561,6 +561,9 @@ func (s *astraRoutingUpstream) targetRouteOnce(req *http.Request, proxy string, 
 		retryDelay = 5 * time.Minute
 		if result.Failure == service.OpenAICodexStateFailureRateLimited {
 			reason = "target_probe_rate_limited"
+			if until := result.ConfirmedQuotaResetAt; until != nil && until.After(time.Now()) {
+				retryDelay = time.Until(*until)
+			}
 		} else {
 			reason = "target_probe_auth_failed"
 		}

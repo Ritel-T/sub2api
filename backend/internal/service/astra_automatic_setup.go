@@ -173,7 +173,7 @@ func (s *AccountTestService) runAstraAutomaticSetup(ctx context.Context, cancel 
 			if s.cfg.AstraRouting(callCtx).Revision != settings.Revision {
 				return context.Canceled
 			}
-			return s.verifyGatewayBorrowTargetForModel(callCtx, id, model)
+			return s.verifyGatewayBorrowTargetForModel(automaticBorrowTargetContext(callCtx), id, model)
 		})
 	} else {
 		for _, id := range settings.CookiePool.TargetAccountIDs {
