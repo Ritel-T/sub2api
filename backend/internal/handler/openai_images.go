@@ -230,6 +230,9 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		sessionHash = ensureOpenAIPoolModeSessionHash(sessionHash, account)
 		reqLog.Debug("openai.images.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
 		setOpsSelectedAccount(c, account.ID, account.Platform)
+		if h.handleOpenAIImagesSelectedCountValidation(c, selection, parsed, channelMapping.MappedModel) {
+			return
+		}
 
 		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, parsed.Stream, &streamStarted, reqLog)
 		if slotResult == openAISlotAcquireProfitVetoed {
@@ -269,6 +272,9 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			return h.gatewayService.ForwardImages(rpmAdmission.forwardContext(requestCtx, account), c, account, body, parsed, channelMapping.MappedModel)
 		}()
 		if h.handleOpenAIRPMForwardError(c, err, streamStarted, false) {
+			return
+		}
+		if h.handleOpenAIImagesRequestValidationError(c, err, streamStarted) {
 			return
 		}
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
@@ -460,4 +466,52 @@ func (h *OpenAIGatewayHandler) openAIImagesJSONKeepaliveInterval() time.Duration
 
 func isMultipartImagesContentType(contentType string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "multipart/form-data")
+}
+
+// Local request validation never feeds account scheduling, cooldown or failover.
+func (h *OpenAIGatewayHandler) handleOpenAIImagesRequestValidationError(c *gin.Context, err error, streamStarted bool) bool {
+	var validationErr *service.OpenAIImagesRequestValidationError
+	if !errors.As(err, &validationErr) {
+		return false
+	}
+	jsonCommitted := service.StopOpenAIImagesJSONKeepaliveCommitted(c)
+	service.MarkOpsStreamErrorValue(c, service.OpsStreamError{
+		ErrType: "invalid_request_error", Code: validationErr.Code,
+		Message: validationErr.Message, IntendedStatus: http.StatusBadRequest,
+		RequestScoped: true, NonStream: jsonCommitted || !streamStarted,
+	})
+	status := http.StatusBadRequest
+	if jsonCommitted {
+		// A prior native endpoint attempt may have emitted JSON whitespace.
+		// Preserve its committed status and put the terminal error in the body.
+		status = c.Writer.Status()
+	} else if streamStarted {
+		c.SSEvent("error", gin.H{"error": gin.H{
+			"type": "invalid_request_error", "code": validationErr.Code,
+			"param": validationErr.Param, "message": validationErr.Message,
+		}})
+		c.Writer.Flush()
+		return true
+	}
+	c.JSON(status, gin.H{"error": gin.H{
+		"type": "invalid_request_error", "code": validationErr.Code,
+		"param": validationErr.Param, "message": validationErr.Message,
+	}})
+	return true
+}
+
+func (h *OpenAIGatewayHandler) handleOpenAIImagesSelectedCountValidation(c *gin.Context, selection *service.AccountSelectionResult, parsed *service.OpenAIImagesRequest, channelMappedModel string) bool {
+	if selection == nil {
+		return false
+	}
+	err := service.ValidateOpenAIImagesRequestCount(selection.Account, parsed, channelMappedModel)
+	if err == nil {
+		return false
+	}
+	// The scheduler may already own a slot before account-slot acquisition.
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+		selection.ReleaseFunc = nil
+	}
+	return h.handleOpenAIImagesRequestValidationError(c, err, parsed.Stream && c.Writer.Written())
 }

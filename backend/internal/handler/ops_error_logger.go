@@ -1143,6 +1143,16 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		}
 
 		status := c.Writer.Status()
+		// Local Images count validation is terminal even after a prior attempt or
+		// heartbeat. Keep its request attribution separate from provider telemetry.
+		if streamErrors := service.GetOpsStreamErrors(c); len(streamErrors) == 1 &&
+			streamErrors[0].RequestScoped && streamErrors[0].Code == "unsupported_image_count" {
+			logOpsStreamError(c, ops, status)
+			// The 2xx provider-health row records earlier failed attempts only; the
+			// local validation row above owns the final request's logical HTTP 400.
+			logOpsUpstreamAttemptTelemetry(c, ops, http.StatusOK, false)
+			return
+		}
 		body := w.capturedBytes()
 		parsed := parseOpsErrorResponse(body)
 		if !parsed.StreamFailure {
@@ -1315,6 +1325,10 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 }
 
 func logOpsRecoveredUpstream(c *gin.Context, ops *service.OpsService, finalStatus int) {
+	logOpsUpstreamAttemptTelemetry(c, ops, finalStatus, true)
+}
+
+func logOpsUpstreamAttemptTelemetry(c *gin.Context, ops *service.OpsService, finalStatus int, recovered bool) {
 	if c == nil || ops == nil || finalStatus >= 400 {
 		return
 	}
@@ -1369,9 +1383,15 @@ func logOpsRecoveredUpstream(c *gin.Context, ops *service.OpsService, finalStatu
 	entry.IsCountTokens = isCountTokensRequest(c)
 	entry.CreatedAt = time.Now()
 	entry.ErrorMessage = "Recovered upstream error"
+	if !recovered {
+		entry.ErrorMessage = "Prior upstream error before local request rejection"
+	}
 	if lastStage == string(service.GatewayFailureStageAccountAuth) {
 		entry.ErrorPhase = string(service.GatewayFailureStageAccountAuth)
 		entry.ErrorMessage = "Recovered account authentication failure"
+		if !recovered {
+			entry.ErrorMessage = "Prior account authentication failure before local request rejection"
+		}
 	} else if lastStatus > 0 {
 		entry.ErrorMessage += " " + strconv.Itoa(lastStatus)
 	}

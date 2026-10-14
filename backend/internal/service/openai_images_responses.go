@@ -31,6 +31,45 @@ type openAIResponsesImageResult struct {
 	Model         string
 }
 
+// OpenAIImagesRequestValidationError describes a local unsupported request.
+// It must not be retried or recorded as account/upstream health feedback.
+type OpenAIImagesRequestValidationError struct {
+	Code    string
+	Param   string
+	Message string
+}
+
+func (e *OpenAIImagesRequestValidationError) Error() string { return e.Message }
+
+func validateOpenAIImagesResponsesCount(parsed *OpenAIImagesRequest) error {
+	if parsed != nil && parsed.N > 1 {
+		return &OpenAIImagesRequestValidationError{
+			Code: "unsupported_image_count", Param: "n",
+			Message: "The current image endpoint for this model supports only n=1. Set n to 1.",
+		}
+	}
+	return nil
+}
+
+// ValidateOpenAIImagesRequestCount applies after channel and account mapping.
+// API-key passthrough and the explicit native Images models keep their n contract.
+func ValidateOpenAIImagesRequestCount(account *Account, parsed *OpenAIImagesRequest, channelMappedModel string) error {
+	if account == nil || parsed == nil || (account.Type != AccountTypeOAuth && account.Type != AccountTypeSetupToken) {
+		return nil
+	}
+	model := strings.TrimSpace(parsed.Model)
+	if mapped := strings.TrimSpace(channelMappedModel); mapped != "" {
+		model = mapped
+	}
+	if model == "" {
+		model = "gpt-image-2"
+	}
+	if usesCodexDirectImages(account.GetMappedModel(model)) {
+		return nil
+	}
+	return validateOpenAIImagesResponsesCount(parsed)
+}
+
 type OpenAIImagesUpstreamError struct {
 	StatusCode        int
 	ErrorType         string
@@ -360,6 +399,9 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
+	if err := validateOpenAIImagesResponsesCount(parsed); err != nil {
+		return nil, err
+	}
 	prompt := strings.TrimSpace(parsed.Prompt)
 	if prompt == "" {
 		return nil, fmt.Errorf("prompt is required")
@@ -402,9 +444,6 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 	tool := []byte(`{"type":"image_generation","action":"","model":""}`)
 	tool, _ = sjson.SetBytes(tool, "action", action)
 	tool, _ = sjson.SetBytes(tool, "model", strings.TrimSpace(toolModel))
-	if shouldPassOpenAIImagesN(toolModel, parsed.N) {
-		tool, _ = sjson.SetBytes(tool, "n", parsed.N)
-	}
 
 	for _, field := range []struct {
 		path  string
@@ -443,13 +482,6 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 	req, _ = sjson.SetRawBytes(req, "tools", []byte(`[]`))
 	req, _ = sjson.SetRawBytes(req, "tools.-1", tool)
 	return req, nil
-}
-
-func shouldPassOpenAIImagesN(model string, n int) bool {
-	if n <= 1 {
-		return false
-	}
-	return !strings.EqualFold(strings.TrimSpace(model), "dall-e-3")
 }
 
 func extractOpenAIImagesFromResponsesCompleted(payload []byte) ([]openAIResponsesImageResult, int64, []byte, openAIResponsesImageResult, error) {
@@ -1804,6 +1836,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		return nil, err
 	}
 	direct := usesCodexDirectImages(upstreamModel) && !isOpenAIImagesForceResponses(ctx)
+	if !direct {
+		if err := validateOpenAIImagesResponsesCount(parsed); err != nil {
+			return nil, err
+		}
+	}
 	beginUpstreamResponseModelObservation(c)
 	SetOpsUpstreamModel(c, upstreamModel)
 	logger.LegacyPrintf(
