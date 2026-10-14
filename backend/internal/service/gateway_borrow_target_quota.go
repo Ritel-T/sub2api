@@ -90,7 +90,7 @@ func observeAutomaticBorrowTargetQuota(ctx context.Context, req *http.Request, s
 		payload = openAICodexStateStreamErrorPayload(body)
 	}
 	code := openAICodexProbeFailureCode(payload)
-	if status != http.StatusTooManyRequests && !(status == http.StatusOK && (code == "usage_limit_reached" || code == "rate_limit_exceeded" || code == "rate_limit_error")) {
+	if status != http.StatusTooManyRequests && (status != http.StatusOK || (code != "usage_limit_reached" && code != "rate_limit_exceeded" && code != "rate_limit_error")) {
 		return nil
 	}
 	filtered := map[string]string{}
