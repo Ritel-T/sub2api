@@ -103,6 +103,15 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if resultErr != nil {
 			outcome = "failed"
 		}
+		// A WS terminal can be an upstream failure with a nil transport error.
+		// Correct only the opt-in HTTP acceleration diagnostic; return values,
+		// scheduling, billing, and native WS behavior remain unchanged.
+		if c != nil && c.GetString("openai_ws_transport_reason") == openAIOAuthWSSSEAccelerationReason && result != nil && !result.SucceededForScheduling() {
+			outcome = "failed"
+			if result.UpstreamTerminalEvent == "response.cancelled" {
+				outcome = "canceled"
+			}
+		}
 		disconnected := result != nil && result.ClientDisconnect
 		if disconnected {
 			outcome = "client_disconnected"

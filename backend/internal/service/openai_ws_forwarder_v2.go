@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -69,6 +70,12 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 
 	payload := s.buildOpenAIWSCreatePayload(reqBody, account)
 	accelerateHTTPSSE := decision.Reason == openAIOAuthWSSSEAccelerationReason
+	if accelerateHTTPSSE {
+		// Reuse the HTTP request-local collector; this marks entry, including a
+		// possible pre-send handshake fallback, not proof of a completed WS turn.
+		requesttiming.Mark(ctx, openAIOAuthWSSSEAccelerationReason)
+		requesttiming.Mode(ctx, s.openAITTFTMode(ctx))
+	}
 	payloadStrategy, removedKeys := applyOpenAIWSRetryPayloadStrategy(payload, attempt)
 	turnState := ""
 	turnMetadata := ""
@@ -664,6 +671,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			}
 		}
 		flusher.Flush()
+		if accelerateHTTPSSE {
+			requesttiming.OutputFlushed(ctx)
+		}
 		pendingFlushEvents = 0
 		lastFlushAt = time.Now()
 	}
@@ -814,6 +824,17 @@ readLoop:
 			firstEventType = eventType
 		}
 		lastEventType = eventType
+		if accelerateHTTPSSE {
+			terminal := timingTerminal(eventType)
+			if eventType == "response.cancelled" || eventType == "response.canceled" {
+				terminal = "canceled"
+			}
+			// The same classifiers as HTTP SSE distinguish usable text/tool
+			// output from preamble. Observed terminal is separate from wire 200.
+			data := string(message)
+			requesttiming.Output(ctx, openAIStreamDataStartsSemanticTTFT(data, eventType),
+				openAIStreamDataStartsVisibleOutput(data, eventType), terminal)
+		}
 
 		if responseID == "" && eventResponseID != "" {
 			responseID = eventResponseID
