@@ -7922,6 +7922,43 @@
                 </p>
               </div>
 
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label for="affiliate-first-recharge-bonus" class="input-label">
+                    {{ t('admin.settings.features.affiliate.firstRechargeBonus') }}
+                  </label>
+                  <input
+                    id="affiliate-first-recharge-bonus"
+                    v-model.number="form.affiliate_first_recharge_bonus"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1000"
+                    class="input"
+                  />
+                  <p class="mt-1 text-xs text-gray-400">
+                    {{ t('admin.settings.features.affiliate.firstRechargeBonusHint') }}
+                  </p>
+                </div>
+                <div>
+                  <label for="affiliate-first-recharge-min-amount" class="input-label">
+                    {{ t('admin.settings.features.affiliate.firstRechargeMinAmount') }}
+                  </label>
+                  <input
+                    id="affiliate-first-recharge-min-amount"
+                    v-model.number="form.affiliate_first_recharge_min_amount"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100000000"
+                    class="input"
+                  />
+                  <p class="mt-1 text-xs text-gray-400">
+                    {{ t('admin.settings.features.affiliate.firstRechargeMinAmountHint') }}
+                  </p>
+                </div>
+              </div>
+
               <div class="flex items-center justify-between">
                 <div>
                   <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -10214,6 +10251,8 @@ const form = reactive<SettingsForm>({
   affiliate_rebate_duration_days: 0,
   affiliate_rebate_per_invitee_cap: 0,
   affiliate_signup_bonus: 0,
+  affiliate_first_recharge_bonus: 0,
+  affiliate_first_recharge_min_amount: 0,
   affiliate_admin_recharge_enabled: false,
   default_concurrency: 1,
   default_subscriptions: [],
@@ -11969,6 +12008,16 @@ async function saveSettings() {
       return;
     }
 
+    const firstRechargeBonus = Number(form.affiliate_first_recharge_bonus);
+    const firstRechargeMinAmount = Number(form.affiliate_first_recharge_min_amount);
+    if (
+      !Number.isFinite(firstRechargeBonus) || firstRechargeBonus < 0 ||
+      !Number.isFinite(firstRechargeMinAmount) || firstRechargeMinAmount < 0
+    ) {
+      appStore.showError(t("admin.settings.features.affiliate.firstRechargeAmountInvalid"));
+      return;
+    }
+
     const payload: UpdateSettingsRequest = {
       prism_browser_enabled: form.prism_browser_enabled,
       excel_bps_enabled: form.excel_bps_enabled,
@@ -12007,6 +12056,8 @@ async function saveSettings() {
       affiliate_rebate_duration_days: Math.max(0, Math.min(3650, Math.floor(Number(form.affiliate_rebate_duration_days) || 0))),
       affiliate_rebate_per_invitee_cap: Math.max(0, Number(form.affiliate_rebate_per_invitee_cap) || 0),
       affiliate_signup_bonus: Math.max(0, Math.min(1000, Number(form.affiliate_signup_bonus) || 0)),
+      affiliate_first_recharge_bonus: Math.min(1000, firstRechargeBonus),
+      affiliate_first_recharge_min_amount: Math.min(100000000, firstRechargeMinAmount),
       affiliate_admin_recharge_enabled: form.affiliate_admin_recharge_enabled,
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,

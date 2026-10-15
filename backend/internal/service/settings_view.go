@@ -182,6 +182,8 @@ type SystemSettings struct {
 	AffiliateRebateDurationDays       int
 	AffiliateRebatePerInviteeCap      float64
 	AffiliateSignupBonus              float64
+	AffiliateFirstRechargeBonus       float64
+	AffiliateFirstRechargeMinAmount   float64
 	AdminRechargeRebateEnabled        bool
 	DefaultUserRPMLimit               int
 	DefaultSubscriptions              []DefaultSubscriptionSetting
@@ -472,8 +474,10 @@ type PublicSettings struct {
 	SupportTicketEnabled bool `json:"support_ticket_enabled"`
 
 	// Affiliate (邀请返利) feature toggle
-	AffiliateEnabled     bool    `json:"affiliate_enabled"`
-	AffiliateSignupBonus float64 `json:"affiliate_signup_bonus"`
+	AffiliateEnabled                bool    `json:"affiliate_enabled"`
+	AffiliateSignupBonus            float64 `json:"affiliate_signup_bonus"`
+	AffiliateFirstRechargeBonus     float64 `json:"affiliate_first_recharge_bonus"`
+	AffiliateFirstRechargeMinAmount float64 `json:"affiliate_first_recharge_min_amount"`
 
 	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`

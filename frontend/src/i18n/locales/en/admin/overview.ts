@@ -734,6 +734,7 @@ export default {
       typeBalance: 'Balance (Redeem)',
       typeAffiliateBalance: 'Balance (Affiliate Transfer)',
       typeAffiliateSignupBonus: 'Balance (Invited Signup Bonus)',
+      typeAffiliateFirstRechargeBonus: 'Balance (Inviter First-Recharge Gift)',
       typeAdminBalance: 'Balance (Admin)',
       typeConcurrency: 'Concurrency (Redeem)',
       typeAdminConcurrency: 'Concurrency (Admin)',

@@ -448,6 +448,20 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAffiliateRebatePerInviteeCap] = strconv.FormatFloat(settings.AffiliateRebatePerInviteeCap, 'f', 8, 64)
 	settings.AffiliateSignupBonus = clampAffiliateSignupBonus(settings.AffiliateSignupBonus)
 	updates[SettingKeyAffiliateSignupBonus] = strconv.FormatFloat(settings.AffiliateSignupBonus, 'f', 8, 64)
+	for _, field := range []struct {
+		key     string
+		value   *float64
+		maximum float64
+	}{
+		{SettingKeyAffiliateFirstRechargeBonus, &settings.AffiliateFirstRechargeBonus, AffiliateFirstRechargeBonusMax},
+		{SettingKeyAffiliateFirstRechargeMinAmount, &settings.AffiliateFirstRechargeMinAmount, AffiliateFirstRechargeMinAmountMax},
+	} {
+		if math.IsNaN(*field.value) || math.IsInf(*field.value, 0) || *field.value < 0 {
+			return nil, fmt.Errorf("%s must be a finite nonnegative amount", field.key)
+		}
+		*field.value = math.Min(*field.value, field.maximum)
+		updates[field.key] = strconv.FormatFloat(*field.value, 'f', 8, 64)
+	}
 	updates[SettingKeyAffiliateAdminRechargeEnabled] = strconv.FormatBool(settings.AdminRechargeRebateEnabled)
 	updates[SettingKeyDefaultUserRPMLimit] = strconv.Itoa(settings.DefaultUserRPMLimit)
 	defaultSubsJSON, err := json.Marshal(settings.DefaultSubscriptions)

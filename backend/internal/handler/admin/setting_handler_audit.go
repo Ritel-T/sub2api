@@ -373,6 +373,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.AffiliateRebatePerInviteeCap != after.AffiliateRebatePerInviteeCap {
 		changed = append(changed, "affiliate_rebate_per_invitee_cap")
 	}
+	if before.AffiliateFirstRechargeBonus != after.AffiliateFirstRechargeBonus {
+		changed = append(changed, "affiliate_first_recharge_bonus")
+	}
+	if before.AffiliateFirstRechargeMinAmount != after.AffiliateFirstRechargeMinAmount {
+		changed = append(changed, "affiliate_first_recharge_min_amount")
+	}
 	if before.AffiliateSignupBonus != after.AffiliateSignupBonus {
 		changed = append(changed, "affiliate_signup_bonus")
 	}

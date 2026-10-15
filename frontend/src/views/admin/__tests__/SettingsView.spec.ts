@@ -1722,6 +1722,47 @@ describe("admin SettingsView payment visible method controls", () => {
     );
   });
 
+  it("round-trips first-recharge gift settings independently of signup gifts and regular rebates", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse, affiliate_enabled: true,
+      affiliate_signup_bonus: 5, affiliate_rebate_rate: 10,
+      affiliate_first_recharge_bonus: 5, affiliate_first_recharge_min_amount: 10,
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    expect((wrapper.find('#affiliate-first-recharge-bonus').element as HTMLInputElement).value).toBe('5');
+    expect((wrapper.find('#affiliate-first-recharge-min-amount').element as HTMLInputElement).value).toBe('10');
+    await wrapper.find('#affiliate-first-recharge-bonus').setValue('7.25');
+    await wrapper.find('#affiliate-first-recharge-min-amount').setValue('12.50');
+    updateSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse, affiliate_enabled: true,
+      affiliate_signup_bonus: 5, affiliate_rebate_rate: 10,
+      affiliate_first_recharge_bonus: 7.25, affiliate_first_recharge_min_amount: 12.5,
+    });
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({
+      affiliate_first_recharge_bonus: 7.25, affiliate_first_recharge_min_amount: 12.5,
+      affiliate_signup_bonus: 5, affiliate_rebate_rate: 10,
+    }));
+    expect((wrapper.find('#affiliate-first-recharge-bonus').element as HTMLInputElement).value).toBe('7.25');
+    expect((wrapper.find('#affiliate-first-recharge-min-amount').element as HTMLInputElement).value).toBe('12.5');
+  });
+
+  it.each(['affiliate-first-recharge-bonus', 'affiliate-first-recharge-min-amount'])("rejects a negative %s without saving", async (id) => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse, affiliate_enabled: true,
+      affiliate_first_recharge_bonus: 5, affiliate_first_recharge_min_amount: 10,
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find(`#${id}`).setValue('-1');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalledWith('admin.settings.features.affiliate.firstRechargeAmountInvalid');
+  });
+
   it("submits Anthropic cache TTL injection gateway setting", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,

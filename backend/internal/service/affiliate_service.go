@@ -97,6 +97,8 @@ type AffiliateDetail struct {
 	// 优先用户自己的专属比例（aff_rebate_rate_percent），否则回退到全局比例。
 	// 用于在用户的 /affiliate 页面直观展示「分享后能拿到多少」。
 	EffectiveRebateRatePercent float64            `json:"effective_rebate_rate_percent"`
+	FirstRechargeBonus         float64            `json:"first_recharge_bonus"`
+	FirstRechargeMinAmount     float64            `json:"first_recharge_min_amount"`
 	Invitees                   []AffiliateInvitee `json:"invitees"`
 }
 
@@ -286,6 +288,11 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 	if err != nil {
 		return nil, err
 	}
+	var firstRechargeBonus, firstRechargeMinAmount float64
+	if s.settingService != nil {
+		firstRechargeBonus = s.settingService.GetAffiliateFirstRechargeBonus(ctx)
+		firstRechargeMinAmount = s.settingService.GetAffiliateFirstRechargeMinAmount(ctx)
+	}
 	return &AffiliateDetail{
 		UserID:                     summary.UserID,
 		AffCode:                    summary.AffCode,
@@ -295,6 +302,8 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 		AffFrozenQuota:             summary.AffFrozenQuota,
 		AffHistoryQuota:            summary.AffHistoryQuota,
 		EffectiveRebateRatePercent: s.resolveRebateRatePercent(ctx, summary),
+		FirstRechargeBonus:         firstRechargeBonus,
+		FirstRechargeMinAmount:     firstRechargeMinAmount,
 		Invitees:                   invitees,
 	}, nil
 }

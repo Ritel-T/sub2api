@@ -381,6 +381,8 @@ export const useAppStore = defineStore('app', () => {
         service_quota_enabled: false,
         affiliate_enabled: false,
         affiliate_signup_bonus: 0,
+        affiliate_first_recharge_bonus: 0,
+        affiliate_first_recharge_min_amount: 0,
         allow_user_view_error_requests: false,
         usage_show_long_context_badge: true,
         usage_show_cache_rate: true,

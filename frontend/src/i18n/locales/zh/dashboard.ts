@@ -830,6 +830,12 @@ export default {
   },
 
   affiliate: {
+    firstRecharge: {
+      title: '受邀用户首充，你额外获赠 {bonus}',
+      withMinimum: '受邀用户首笔余额充值本金达到 {minimum}，你即获赠 {bonus} 站内余额，同时享有原有 {rate} 充值返佣。',
+      withoutMinimum: '受邀用户完成首笔正额余额充值，你即获赠 {bonus} 站内余额，同时享有原有 {rate} 充值返佣。',
+      eligibility: '每位受邀用户仅奖励一次，在线余额充值和余额兑换码均可。充值赠送额度不计门槛，多笔不累计，首笔不足则后续不补。管理员赠送、订阅购买及既有充值不计入。',
+    },
     title: '邀请返利',
     description: '邀请新用户注册，并将返利额度转入账户余额',
     yourCode: '我的邀请码',

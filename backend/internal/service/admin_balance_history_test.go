@@ -95,6 +95,7 @@ func TestMergeBalanceHistoryCodesIncludesSignupGiftWithoutCallingItRecharge(t *t
 	require.Equal(t, RedeemTypeAffiliateSignupBonus, got[0].Type)
 	require.Equal(t, 5.0, got[0].Value)
 	require.Equal(t, "signup_bonus", affiliateBalanceHistoryAction([]string{RedeemTypeAffiliateSignupBonus}))
+	require.Equal(t, "first_recharge_bonus", affiliateBalanceHistoryAction([]string{RedeemTypeAffiliateFirstRechargeBonus}))
 	require.Equal(t, "transfer", affiliateBalanceHistoryAction([]string{RedeemTypeAffiliateBalance}))
 	require.Empty(t, affiliateBalanceHistoryAction(nil))
 }

@@ -394,10 +394,7 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 	case redeemActionRedeem:
 		// Code exists but unused — skip creation, proceed to redeem
 	}
-	redeemCtx := ctx
-	if psStringValue(o.ProviderKey) == "squarespace" {
-		redeemCtx = context.WithValue(ctx, paymentRedeemGuardKey{}, paymentRedeemGuard{OrderID: o.ID, LeaseVersion: lease.version})
-	}
+	redeemCtx := context.WithValue(ctx, paymentRedeemGuardKey{}, paymentRedeemGuard{OrderID: o.ID, LeaseVersion: lease.version})
 	if _, err := s.redeemService.redeemForPaymentFulfillment(redeemCtx, o.UserID, o.RechargeCode); err != nil {
 		return fmt.Errorf("redeem balance: %w", err)
 	}

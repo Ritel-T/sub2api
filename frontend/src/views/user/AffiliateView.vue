@@ -48,6 +48,26 @@
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.title') }}</h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.description') }}</p>
 
+          <div
+            v-if="firstRechargeBonus > 0"
+            data-testid="first-recharge-bonus"
+            class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-900/20"
+          >
+            <p class="font-medium text-emerald-800 dark:text-emerald-200">
+              {{ t('affiliate.firstRecharge.title', { bonus: formatCurrency(firstRechargeBonus) }) }}
+            </p>
+            <p class="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+              {{ t(firstRechargeMinAmount > 0 ? 'affiliate.firstRecharge.withMinimum' : 'affiliate.firstRecharge.withoutMinimum', {
+                minimum: formatCurrency(firstRechargeMinAmount),
+                bonus: formatCurrency(firstRechargeBonus),
+                rate: `${formattedRebateRate}%`,
+              }) }}
+            </p>
+            <p class="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+              {{ t('affiliate.firstRecharge.eligibility') }}
+            </p>
+          </div>
+
           <div class="mt-5 grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
               <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('affiliate.yourCode') }}</p>
@@ -160,6 +180,8 @@ const { copyToClipboard } = useClipboard()
 const loading = ref(true)
 const transferring = ref(false)
 const detail = ref<UserAffiliateDetail | null>(null)
+const firstRechargeBonus = computed(() => detail.value?.first_recharge_bonus ?? 0)
+const firstRechargeMinAmount = computed(() => detail.value?.first_recharge_min_amount ?? 0)
 
 const inviteLink = computed(() => {
   if (!detail.value) return ''

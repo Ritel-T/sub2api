@@ -25,18 +25,22 @@ const (
 
 // Affiliate rebate settings
 const (
-	AffiliateRebateRateDefault          = 20.0
-	AffiliateRebateRateMin              = 0.0
-	AffiliateRebateRateMax              = 100.0
-	AffiliateEnabledDefault             = false // 邀请返利总开关默认关闭
-	AffiliateRebateFreezeHoursDefault   = 0     // 0 = 不冻结（向后兼容）
-	AffiliateRebateFreezeHoursMax       = 720   // 最大 30 天
-	AffiliateRebateDurationDaysDefault  = 0     // 0 = 永久有效
-	AffiliateRebateDurationDaysMax      = 3650  // ~10 年
-	AffiliateRebatePerInviteeCapDefault = 0.0   // 0 = 无上限
-	AffiliateSignupBonusDefault         = 0.0   // 邀请注册赠送站内额度，0 = 不赠送
-	AffiliateSignupBonusMax             = 1000.0
-	AdminRechargeRebateEnabledDefault   = false // 管理员充值默认不产生返利
+	AffiliateRebateRateDefault             = 20.0
+	AffiliateRebateRateMin                 = 0.0
+	AffiliateRebateRateMax                 = 100.0
+	AffiliateEnabledDefault                = false // 邀请返利总开关默认关闭
+	AffiliateRebateFreezeHoursDefault      = 0     // 0 = 不冻结（向后兼容）
+	AffiliateRebateFreezeHoursMax          = 720   // 最大 30 天
+	AffiliateRebateDurationDaysDefault     = 0     // 0 = 永久有效
+	AffiliateRebateDurationDaysMax         = 3650  // ~10 年
+	AffiliateRebatePerInviteeCapDefault    = 0.0   // 0 = 无上限
+	AffiliateSignupBonusDefault            = 0.0   // 邀请注册赠送站内额度，0 = 不赠送
+	AffiliateSignupBonusMax                = 1000.0
+	AffiliateFirstRechargeBonusDefault     = 0.0
+	AffiliateFirstRechargeBonusMax         = 1000.0
+	AffiliateFirstRechargeMinAmountDefault = 0.0
+	AffiliateFirstRechargeMinAmountMax     = 100000000.0
+	AdminRechargeRebateEnabledDefault      = false // 管理员充值默认不产生返利
 )
 
 // Platform constants
@@ -171,12 +175,13 @@ const (
 
 // Redeem type constants
 const (
-	RedeemTypeBalance              = domain.RedeemTypeBalance
-	RedeemTypeConcurrency          = domain.RedeemTypeConcurrency
-	RedeemTypeSubscription         = domain.RedeemTypeSubscription
-	RedeemTypeInvitation           = domain.RedeemTypeInvitation
-	RedeemTypeAffiliateBalance     = "affiliate_balance"
-	RedeemTypeAffiliateSignupBonus = "affiliate_signup_bonus"
+	RedeemTypeBalance                     = domain.RedeemTypeBalance
+	RedeemTypeConcurrency                 = domain.RedeemTypeConcurrency
+	RedeemTypeSubscription                = domain.RedeemTypeSubscription
+	RedeemTypeInvitation                  = domain.RedeemTypeInvitation
+	RedeemTypeAffiliateBalance            = "affiliate_balance"
+	RedeemTypeAffiliateSignupBonus        = "affiliate_signup_bonus"
+	RedeemTypeAffiliateFirstRechargeBonus = "affiliate_first_recharge_bonus"
 )
 
 // PromoCode status constants
@@ -227,16 +232,18 @@ const (
 	// 白名单非空时，是否放行非白名单域名按主域名限量注册（每域名 1 个账户）。
 	// 默认 false：非白名单域名直接拒绝（白名单严格模式）。
 	SettingKeyRegistrationEmailDomainQuotaEnabled = "registration_email_domain_quota_enabled"
-	SettingKeyPromoCodeEnabled                    = "promo_code_enabled"                    // 是否启用优惠码功能
-	SettingKeyPasswordResetEnabled                = "password_reset_enabled"                // 是否启用忘记密码功能（需要先开启邮件验证）
-	SettingKeyFrontendURL                         = "frontend_url"                          // 前端基础URL，用于生成邮件中的重置密码链接
-	SettingKeyInvitationCodeEnabled               = "invitation_code_enabled"               // 是否启用邀请码注册
-	SettingKeyAffiliateEnabled                    = "affiliate_enabled"                     // 邀请返利功能总开关
-	SettingKeyAffiliateRebateRate                 = "affiliate_rebate_rate"                 // 邀请返利比例（百分比，0-100）
-	SettingKeyAffiliateRebateFreezeHours          = "affiliate_rebate_freeze_hours"         // 返利冻结期（小时，0=不冻结）
-	SettingKeyAffiliateRebateDurationDays         = "affiliate_rebate_duration_days"        // 返利有效期（天，0=永久）
-	SettingKeyAffiliateRebatePerInviteeCap        = "affiliate_rebate_per_invitee_cap"      // 单人返利上限（0=无上限）
-	SettingKeyAffiliateSignupBonus                = "affiliate_signup_bonus"                // 邀请注册赠送站内额度
+	SettingKeyPromoCodeEnabled                    = "promo_code_enabled"               // 是否启用优惠码功能
+	SettingKeyPasswordResetEnabled                = "password_reset_enabled"           // 是否启用忘记密码功能（需要先开启邮件验证）
+	SettingKeyFrontendURL                         = "frontend_url"                     // 前端基础URL，用于生成邮件中的重置密码链接
+	SettingKeyInvitationCodeEnabled               = "invitation_code_enabled"          // 是否启用邀请码注册
+	SettingKeyAffiliateEnabled                    = "affiliate_enabled"                // 邀请返利功能总开关
+	SettingKeyAffiliateRebateRate                 = "affiliate_rebate_rate"            // 邀请返利比例（百分比，0-100）
+	SettingKeyAffiliateRebateFreezeHours          = "affiliate_rebate_freeze_hours"    // 返利冻结期（小时，0=不冻结）
+	SettingKeyAffiliateRebateDurationDays         = "affiliate_rebate_duration_days"   // 返利有效期（天，0=永久）
+	SettingKeyAffiliateRebatePerInviteeCap        = "affiliate_rebate_per_invitee_cap" // 单人返利上限（0=无上限）
+	SettingKeyAffiliateSignupBonus                = "affiliate_signup_bonus"           // 邀请注册赠送站内额度
+	SettingKeyAffiliateFirstRechargeBonus         = "affiliate_first_recharge_bonus"
+	SettingKeyAffiliateFirstRechargeMinAmount     = "affiliate_first_recharge_min_amount"
 	SettingKeyAffiliateAdminRechargeEnabled       = "affiliate_admin_recharge_enabled"      // 管理员充值是否产生返利
 	SettingKeyRiskControlEnabled                  = "risk_control_enabled"                  // 是否启用风控中心入口与审计链路
 	SettingKeyContentModerationConfig             = "content_moderation_config"             // 内容审计配置（JSON）

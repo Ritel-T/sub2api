@@ -52,6 +52,27 @@ describe('UserBalanceHistoryModal request ordering', () => {
     expect(mocks.getUserBalanceHistory).toHaveBeenLastCalledWith(1, 1, 15, 'affiliate_signup_bonus')
   })
 
+  it('shows inviter first-recharge gifts separately from recharge totals and supports their filter', async () => {
+    mocks.getUserBalanceHistory.mockResolvedValue({
+      items: [{ id: -2, code: 'AFF-FIRST-2', type: 'affiliate_first_recharge_bonus', value: 5, notes: '' }],
+      total: 1,
+      total_recharged: 0
+    });
+    const wrapper = await openDialog();
+    await flushPromises();
+    expect(wrapper.text()).toContain('admin.users.typeAffiliateFirstRechargeBonus');
+    expect(wrapper.text()).toContain('+$5.00');
+    const select = wrapper.findComponent({ name: 'Select' });
+    expect(select.props('options')).toEqual(expect.arrayContaining([
+      { value: 'affiliate_first_recharge_bonus', label: 'admin.users.typeAffiliateFirstRechargeBonus' }
+    ]));
+    select.vm.$emit('update:modelValue', 'affiliate_first_recharge_bonus');
+    await flushPromises();
+    select.vm.$emit('change', 'affiliate_first_recharge_bonus');
+    await flushPromises();
+    expect(mocks.getUserBalanceHistory).toHaveBeenLastCalledWith(1, 1, 15, 'affiliate_first_recharge_bonus');
+  });
+
   it('keeps the new user history when an old response finishes later', async () => {
     const old = deferred()
     mocks.getUserBalanceHistory.mockReturnValueOnce(old.promise).mockResolvedValueOnce(result(20))

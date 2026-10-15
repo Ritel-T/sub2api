@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -188,6 +189,8 @@ type UpdateSettingsRequest struct {
 	AffiliateRebateDurationDays               *int                              `json:"affiliate_rebate_duration_days"`
 	AffiliateRebatePerInviteeCap              *float64                          `json:"affiliate_rebate_per_invitee_cap"`
 	AffiliateSignupBonus                      *float64                          `json:"affiliate_signup_bonus"`
+	AffiliateFirstRechargeBonus               *float64                          `json:"affiliate_first_recharge_bonus"`
+	AffiliateFirstRechargeMinAmount           *float64                          `json:"affiliate_first_recharge_min_amount"`
 	AdminRechargeRebateEnabled                *bool                             `json:"affiliate_admin_recharge_enabled"`
 	DefaultUserRPMLimit                       int                               `json:"default_user_rpm_limit"`
 	DefaultSubscriptions                      []dto.DefaultSubscriptionSetting  `json:"default_subscriptions"`
@@ -734,6 +737,26 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if affiliateSignupBonus > service.AffiliateSignupBonusMax {
 		affiliateSignupBonus = service.AffiliateSignupBonusMax
+	}
+	affiliateFirstRechargeBonus := previousSettings.AffiliateFirstRechargeBonus
+	affiliateFirstRechargeMinAmount := previousSettings.AffiliateFirstRechargeMinAmount
+	for _, field := range []struct {
+		key       string
+		requested *float64
+		value     *float64
+		maximum   float64
+	}{
+		{service.SettingKeyAffiliateFirstRechargeBonus, req.AffiliateFirstRechargeBonus, &affiliateFirstRechargeBonus, service.AffiliateFirstRechargeBonusMax},
+		{service.SettingKeyAffiliateFirstRechargeMinAmount, req.AffiliateFirstRechargeMinAmount, &affiliateFirstRechargeMinAmount, service.AffiliateFirstRechargeMinAmountMax},
+	} {
+		if field.requested == nil {
+			continue
+		}
+		if math.IsNaN(*field.requested) || math.IsInf(*field.requested, 0) || *field.requested < 0 {
+			response.BadRequest(c, field.key+" must be a finite nonnegative amount")
+			return
+		}
+		*field.value = math.Min(*field.requested, field.maximum)
 	}
 	adminRechargeRebateEnabled := previousSettings.AdminRechargeRebateEnabled
 	if req.AdminRechargeRebateEnabled != nil {
@@ -1794,6 +1817,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AffiliateRebateDurationDays:            affiliateRebateDurationDays,
 		AffiliateRebatePerInviteeCap:           affiliateRebatePerInviteeCap,
 		AffiliateSignupBonus:                   affiliateSignupBonus,
+		AffiliateFirstRechargeBonus:            affiliateFirstRechargeBonus,
+		AffiliateFirstRechargeMinAmount:        affiliateFirstRechargeMinAmount,
 		AdminRechargeRebateEnabled:             adminRechargeRebateEnabled,
 		DefaultUserRPMLimit:                    req.DefaultUserRPMLimit,
 		DefaultSubscriptions:                   defaultSubscriptions,
@@ -2694,6 +2719,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AffiliateRebateDurationDays:                            updatedSettings.AffiliateRebateDurationDays,
 		AffiliateRebatePerInviteeCap:                           updatedSettings.AffiliateRebatePerInviteeCap,
 		AffiliateSignupBonus:                                   updatedSettings.AffiliateSignupBonus,
+		AffiliateFirstRechargeBonus:                            updatedSettings.AffiliateFirstRechargeBonus,
+		AffiliateFirstRechargeMinAmount:                        updatedSettings.AffiliateFirstRechargeMinAmount,
 		AdminRechargeRebateEnabled:                             updatedSettings.AdminRechargeRebateEnabled,
 		DefaultUserRPMLimit:                                    updatedSettings.DefaultUserRPMLimit,
 		DefaultSubscriptions:                                   updatedDefaultSubscriptions,

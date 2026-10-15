@@ -37,7 +37,7 @@ vi.mock('vue-i18n', async (importOriginal) => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key,
+      t: (key: string, values?: Record<string, unknown>) => `${key}${values ? ' ' + Object.values(values).join(' ') : ''}`,
     }),
   }
 })
@@ -60,6 +60,31 @@ describe('AffiliateView', () => {
       invitees: [],
     })
   })
+
+  it.each([10, 0])('shows the configured extra gift alongside regular rebates for minimum %s', async (minimum) => {
+    const current = await getAffiliateDetail();
+    getAffiliateDetail.mockResolvedValueOnce({ ...current, first_recharge_bonus: 5, first_recharge_min_amount: minimum });
+    const wrapper = mount(AffiliateView, {
+      global: { stubs: { AppLayout: { template: '<main><slot /></main>' }, Icon: true } },
+    });
+    await flushPromises();
+    const gift = wrapper.find('[data-testid="first-recharge-bonus"]');
+    expect(gift.exists()).toBe(true);
+    expect(gift.text()).toContain('$5.00');
+    expect(gift.text()).toContain('10%');
+    expect(gift.text()).toContain(minimum > 0 ? 'affiliate.firstRecharge.withMinimum' : 'affiliate.firstRecharge.withoutMinimum');
+    if (minimum > 0) expect(gift.text()).toContain('$10.00');
+    expect(gift.text()).toContain('affiliate.firstRecharge.eligibility');
+  });
+
+  it('does not advertise a first-recharge gift when disabled or unavailable', async () => {
+    const wrapper = mount(AffiliateView, {
+      global: { stubs: { AppLayout: { template: '<main><slot /></main>' }, Icon: true } },
+    });
+    await flushPromises();
+    expect(wrapper.find('[data-testid="first-recharge-bonus"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('10');
+  });
 
   it('stacks long values and copy controls on mobile while retaining desktop rows', async () => {
     const wrapper = mount(AffiliateView, {

@@ -492,6 +492,7 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 	}
 
 	// 执行兑换逻辑（兑换码已被锁定，此时可安全操作）
+	var firstRechargeReward *AffiliateFirstRechargeResult
 	switch redeemCode.Type {
 	case RedeemTypeBalance:
 		amount := redeemCode.Value
@@ -504,6 +505,23 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 			}
 		} else if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
 			return nil, fmt.Errorf("update user balance: %w", err)
+		}
+		if amount > 0 && s.affiliateService != nil {
+			recharge := AffiliateFirstRecharge{InviteeUserID: userID, RedeemCodeID: redeemCode.ID, Amount: amount}
+			if guard, ok := txCtx.Value(paymentRedeemGuardKey{}).(paymentRedeemGuard); ok {
+				order, err := tx.PaymentOrder.Get(txCtx, guard.OrderID)
+				if err != nil {
+					return nil, fmt.Errorf("read first recharge order: %w", err)
+				}
+				recharge.SourceOrderID = &order.ID
+				recharge.Amount = paymentOrderAmountWithoutBonus(order)
+			}
+			if recharge.Amount > 0 {
+				firstRechargeReward, err = s.affiliateService.recordFirstRecharge(txCtx, recharge)
+				if err != nil {
+					return nil, fmt.Errorf("apply inviter first recharge bonus: %w", err)
+				}
+			}
 		}
 
 	case RedeemTypeConcurrency:
@@ -553,6 +571,9 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 
 	// 事务提交成功后失效缓存
 	s.invalidateRedeemCaches(ctx, userID, redeemCode)
+	if firstRechargeReward != nil && firstRechargeReward.Amount > 0 {
+		s.affiliateService.invalidateAffiliateCaches(ctx, firstRechargeReward.InviterUserID)
+	}
 
 	// 余额类正数兑换码触发邀请返利（best-effort，失败不影响兑换结果）
 	if redeemCode.Type == RedeemTypeBalance && redeemCode.Value > 0 {

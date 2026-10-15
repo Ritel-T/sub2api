@@ -826,6 +826,12 @@ export default {
   },
 
   affiliate: {
+    firstRecharge: {
+      title: 'Earn an extra {bonus} on your invitee’s first recharge',
+      withMinimum: 'When an invitee’s first balance recharge is at least {minimum} in principal, you receive {bonus} directly in site balance, plus the regular {rate} rebate.',
+      withoutMinimum: 'When an invitee completes a positive first balance recharge, you receive {bonus} directly in site balance, plus the regular {rate} rebate.',
+      eligibility: 'One bonus per invitee. Online balance payments and balance redemption codes qualify. Promotional credit does not count toward the minimum; separate recharges do not add up. If the first recharge is below the minimum, later recharges do not qualify. Admin gifts, subscription purchases, and earlier recharges are excluded.',
+    },
     title: 'Affiliate Rebates',
     description: 'Invite new users and convert your rebate quota into account balance',
     yourCode: 'Your Affiliate Code',

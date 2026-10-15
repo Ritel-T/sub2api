@@ -141,6 +141,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAffiliateRebateDurationDays:               strconv.Itoa(AffiliateRebateDurationDaysDefault),
 		SettingKeyAffiliateRebatePerInviteeCap:              strconv.FormatFloat(AffiliateRebatePerInviteeCapDefault, 'f', 2, 64),
 		SettingKeyAffiliateSignupBonus:                      strconv.FormatFloat(AffiliateSignupBonusDefault, 'f', 2, 64),
+		SettingKeyAffiliateFirstRechargeBonus:               strconv.FormatFloat(AffiliateFirstRechargeBonusDefault, 'f', 2, 64),
+		SettingKeyAffiliateFirstRechargeMinAmount:           strconv.FormatFloat(AffiliateFirstRechargeMinAmountDefault, 'f', 2, 64),
 		SettingKeyDefaultUserRPMLimit:                       "0",
 		SettingKeyDefaultSubscriptions:                      "[]",
 		SettingKeyAuthSourceDefaultEmailBalance:             "0",
@@ -475,6 +477,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	} else {
 		result.AffiliateSignupBonus = AffiliateSignupBonusDefault
 	}
+	result.AffiliateFirstRechargeBonus = parseAffiliateFirstRechargeAmount(settings[SettingKeyAffiliateFirstRechargeBonus], AffiliateFirstRechargeBonusDefault, AffiliateFirstRechargeBonusMax)
+	result.AffiliateFirstRechargeMinAmount = parseAffiliateFirstRechargeAmount(settings[SettingKeyAffiliateFirstRechargeMinAmount], AffiliateFirstRechargeMinAmountDefault, AffiliateFirstRechargeMinAmountMax)
 	result.AdminRechargeRebateEnabled = settings[SettingKeyAffiliateAdminRechargeEnabled] == "true"
 	result.DefaultSubscriptions = parseDefaultSubscriptions(settings[SettingKeyDefaultSubscriptions])
 
@@ -1183,6 +1187,14 @@ func clampAffiliateSignupBonus(value float64) float64 {
 	}
 	if value > AffiliateSignupBonusMax {
 		return AffiliateSignupBonusMax
+	}
+	return value
+}
+
+func parseAffiliateFirstRechargeAmount(raw string, defaultValue, maximum float64) float64 {
+	value, err := strictFirstRechargeSetting(raw, maximum)
+	if err != nil {
+		return defaultValue
 	}
 	return value
 }

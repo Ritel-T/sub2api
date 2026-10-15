@@ -164,6 +164,8 @@ export interface UserAffiliateDetail {
   aff_history_quota: number
   /** 当前用户作为邀请人时实际生效的返利比例（专属覆盖全局）。0-100。 */
   effective_rebate_rate_percent: number
+  first_recharge_bonus?: number
+  first_recharge_min_amount?: number
   invitees: AffiliateInvitee[]
 }
 
@@ -294,6 +296,8 @@ export interface PublicSettings {
   service_quota_enabled: boolean
   affiliate_enabled: boolean
   affiliate_signup_bonus?: number
+  affiliate_first_recharge_bonus?: number
+  affiliate_first_recharge_min_amount?: number
   allow_user_view_error_requests?: boolean
   /** Usage 表中长上下文计费 x2 徽标的展示开关（后端默认开启，缺失时按开启处理） */
   usage_show_long_context_badge?: boolean

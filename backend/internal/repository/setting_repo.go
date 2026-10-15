@@ -89,7 +89,7 @@ func (r *settingRepository) GetMultiple(ctx context.Context, keys []string) (map
 	if len(keys) == 0 {
 		return map[string]string{}, nil
 	}
-	settings, err := r.client.Setting.Query().Where(setting.KeyIn(keys...)).All(ctx)
+	settings, err := clientFromContext(ctx, r.client).Setting.Query().Where(setting.KeyIn(keys...)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
