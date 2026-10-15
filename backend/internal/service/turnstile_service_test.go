@@ -4,9 +4,12 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -21,6 +24,17 @@ type turnstileResultVerifier struct {
 func (v *turnstileResultVerifier) VerifyToken(context.Context, string, string, string) (*TurnstileVerifyResponse, error) {
 	v.calls++
 	return v.result, v.err
+}
+
+type turnstileReplayStoreStub struct {
+	claimed bool
+	err     error
+	hash    string
+}
+
+func (s *turnstileReplayStoreStub) ClaimToken(_ context.Context, tokenHash string) (bool, error) {
+	s.hash = tokenHash
+	return s.claimed, s.err
 }
 
 func TestTurnstileService_VerifyTokenWithSecret(t *testing.T) {
@@ -49,7 +63,7 @@ func TestTurnstileService_VerifyTokenWithSecret(t *testing.T) {
 		},
 		{
 			name: "strict context matching proof", strict: true, hostnames: []string{"app.example.com"}, token: "token",
-			result: &TurnstileVerifyResponse{Success: true, Hostname: "app.example.com", Action: "auth"}, wantCalls: 1,
+			result: &TurnstileVerifyResponse{Success: true, Hostname: "app.example.com", Action: "auth", ChallengeTS: time.Now().UTC().Format(time.RFC3339)}, wantCalls: 1,
 		},
 		{
 			name: "strict context still requires auth action", strict: true, hostnames: []string{"app.example.com"}, token: "token",
@@ -116,6 +130,12 @@ func TestTurnstileService_VerifyTokenWithSecret(t *testing.T) {
 			name: "blank token", token: " \t", wantErr: ErrTurnstileVerificationFailed,
 		},
 		{
+			name: "leading whitespace cannot change replay digest", token: " token", wantErr: ErrTurnstileVerificationFailed,
+		},
+		{
+			name: "trailing whitespace cannot change replay digest", token: "token\n", wantErr: ErrTurnstileVerificationFailed,
+		},
+		{
 			name: "oversized token", token: strings.Repeat("x", 2049), wantErr: ErrTurnstileVerificationFailed,
 		},
 		{
@@ -127,7 +147,8 @@ func TestTurnstileService_VerifyTokenWithSecret(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			verifier := &turnstileResultVerifier{result: tt.result, err: tt.verifyErr}
 			settings := &SettingService{cfg: &config.Config{Turnstile: config.TurnstileConfig{StrictContext: tt.strict, ExpectedHostnames: tt.hostnames}}}
-			svc := NewTurnstileService(settings, verifier)
+			store := &turnstileReplayStoreStub{claimed: true}
+			svc := NewTurnstileServiceWithReplayStore(settings, verifier, store)
 			err := svc.VerifyTokenWithSecret(context.Background(), "secret", tt.token, "192.0.2.1")
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -135,6 +156,9 @@ func TestTurnstileService_VerifyTokenWithSecret(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, tt.wantCalls, verifier.calls)
+			if tt.wantCalls == 0 {
+				require.Empty(t, store.hash, "invalid input or configuration must not reach the replay store")
+			}
 		})
 	}
 }
@@ -194,6 +218,71 @@ func TestTurnstileService_ValidateSecretKey(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.ErrorIs(t, err, tt.want)
+			}
+			require.Equal(t, 1, verifier.calls)
+		})
+	}
+}
+
+func TestTurnstileService_StrictReplayDependencyAndFailure(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		store *turnstileReplayStoreStub
+		want  error
+	}{
+		{name: "missing dependency", want: ErrTurnstileNotConfigured},
+		{name: "claimed by previous request", store: &turnstileReplayStoreStub{}, want: ErrTurnstileVerificationFailed},
+		{name: "store error", store: &turnstileReplayStoreStub{err: errors.New("redis unavailable")}, want: ErrServiceUnavailable},
+		{name: "first claim", store: &turnstileReplayStoreStub{claimed: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			settings := &SettingService{cfg: &config.Config{Turnstile: config.TurnstileConfig{StrictContext: true, ExpectedHostnames: []string{"app.example.com"}}}}
+			verifier := &turnstileResultVerifier{result: &TurnstileVerifyResponse{Success: true, Hostname: "app.example.com", Action: "auth", ChallengeTS: time.Now().UTC().Format(time.RFC3339)}}
+			svc := NewTurnstileService(settings, verifier)
+			if test.store != nil {
+				svc = NewTurnstileServiceWithReplayStore(settings, verifier, test.store)
+			}
+			err := svc.VerifyTokenWithSecret(context.Background(), "secret", "private-token", "")
+			if test.want == nil {
+				require.NoError(t, err)
+				require.Equal(t, 1, verifier.calls)
+			} else {
+				require.ErrorIs(t, err, test.want)
+				require.Zero(t, verifier.calls)
+			}
+			if test.store != nil {
+				digest := sha256.Sum256([]byte("private-token"))
+				require.Equal(t, hex.EncodeToString(digest[:]), test.store.hash)
+			}
+		})
+	}
+}
+
+func TestTurnstileService_StrictContextChallengeTime(t *testing.T) {
+	now := time.Date(2026, 10, 15, 8, 0, 0, 0, time.UTC)
+	for _, test := range []struct {
+		name string
+		ts   string
+		ok   bool
+	}{
+		{name: "fresh", ts: now.Add(-time.Minute).Format(time.RFC3339), ok: true},
+		{name: "exact maximum age", ts: now.Add(-5 * time.Minute).Format(time.RFC3339), ok: true},
+		{name: "expired", ts: now.Add(-5*time.Minute - time.Nanosecond).Format(time.RFC3339Nano)},
+		{name: "missing"},
+		{name: "malformed", ts: "not-a-time"},
+		{name: "within future clock skew", ts: now.Add(time.Minute).Format(time.RFC3339), ok: true},
+		{name: "too far in future", ts: now.Add(time.Minute + time.Nanosecond).Format(time.RFC3339Nano)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			settings := &SettingService{cfg: &config.Config{Turnstile: config.TurnstileConfig{StrictContext: true, ExpectedHostnames: []string{"app.example.com"}}}}
+			verifier := &turnstileResultVerifier{result: &TurnstileVerifyResponse{Success: true, Hostname: "app.example.com", Action: "auth", ChallengeTS: test.ts}}
+			svc := NewTurnstileServiceWithReplayStore(settings, verifier, &turnstileReplayStoreStub{claimed: true})
+			svc.now = func() time.Time { return now }
+			err := svc.VerifyTokenWithSecret(context.Background(), "secret", "token", "")
+			if test.ok {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, ErrTurnstileVerificationFailed)
 			}
 			require.Equal(t, 1, verifier.calls)
 		})

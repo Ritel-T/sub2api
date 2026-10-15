@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -41,7 +42,7 @@ func newAuthServiceForRegisterTurnstileTest(settings map[string]string, verifier
 	}
 
 	settingService := NewSettingService(&settingRepoStub{values: settings}, cfg)
-	turnstileService := NewTurnstileService(settingService, verifier)
+	turnstileService := NewTurnstileServiceWithReplayStore(settingService, verifier, &turnstileReplayStoreStub{claimed: true})
 
 	return NewAuthService(
 		nil, // entClient
@@ -102,7 +103,7 @@ func TestAuthService_VerifyTurnstileForRegister_NoSkipWhenEmailVerifyDisabled(t 
 
 func TestAuthService_VerifyTurnstileForRegister_StrictContextRequiresFreshProofWithEmailCode(t *testing.T) {
 	verifier := &turnstileVerifierSpy{result: &TurnstileVerifyResponse{
-		Success: true, Hostname: "app.example.com", Action: "auth",
+		Success: true, Hostname: "app.example.com", Action: "auth", ChallengeTS: time.Now().UTC().Format(time.RFC3339),
 	}}
 	svc := newAuthServiceForRegisterTurnstileTest(map[string]string{
 		SettingKeyEmailVerifyEnabled: "true",

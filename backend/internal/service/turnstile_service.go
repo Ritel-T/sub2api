@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -22,10 +25,18 @@ type TurnstileVerifier interface {
 	VerifyToken(ctx context.Context, secretKey, token, remoteIP string) (*TurnstileVerifyResponse, error)
 }
 
+// TurnstileReplayStore atomically claims a SHA-256 token digest across instances.
+// A claim is retained even when verification fails or its outcome is unknown.
+type TurnstileReplayStore interface {
+	ClaimToken(ctx context.Context, tokenHash string) (bool, error)
+}
+
 // TurnstileService Turnstile 验证服务
 type TurnstileService struct {
 	settingService *SettingService
 	verifier       TurnstileVerifier
+	replayStore    TurnstileReplayStore
+	now            func() time.Time
 }
 
 // TurnstileVerifyResponse Cloudflare Turnstile 验证响应
@@ -43,7 +54,16 @@ func NewTurnstileService(settingService *SettingService, verifier TurnstileVerif
 	return &TurnstileService{
 		settingService: settingService,
 		verifier:       verifier,
+		now:            time.Now,
 	}
+}
+
+// NewTurnstileServiceWithReplayStore is the production Wire constructor. Strict
+// deployments also reject requests at runtime if this dependency is missing.
+func NewTurnstileServiceWithReplayStore(settingService *SettingService, verifier TurnstileVerifier, replayStore TurnstileReplayStore) *TurnstileService {
+	svc := NewTurnstileService(settingService, verifier)
+	svc.replayStore = replayStore
+	return svc
 }
 
 // VerifyToken 验证 Turnstile token
@@ -70,8 +90,8 @@ func (s *TurnstileService) VerifyTokenWithSecret(ctx context.Context, secretKey,
 
 	// Cloudflare accepts tokens up to 2048 characters. Reject invalid input
 	// before making the external verification request.
-	if strings.TrimSpace(token) == "" || len(token) > 2048 {
-		logger.LegacyPrintf("service.turnstile", "%s", "[Turnstile] Token is empty or too long")
+	if token == "" || token != strings.TrimSpace(token) || len(token) > 2048 {
+		logger.LegacyPrintf("service.turnstile", "%s", "[Turnstile] Token has invalid length or surrounding whitespace")
 		return ErrTurnstileVerificationFailed
 	}
 
@@ -83,6 +103,24 @@ func (s *TurnstileService) VerifyTokenWithSecret(ctx context.Context, secretKey,
 	if err != nil {
 		return err
 	}
+	if s.replayStore == nil {
+		if s.settingService.cfg.Turnstile.StrictContext {
+			return ErrTurnstileNotConfigured
+		}
+	} else {
+		digest := sha256.Sum256([]byte(token))
+		claimed, err := s.replayStore.ClaimToken(ctx, hex.EncodeToString(digest[:]))
+		if err != nil {
+			logger.LegacyPrintf("service.turnstile", "%s", "[Turnstile] Replay protection unavailable")
+			return ErrServiceUnavailable
+		}
+		if !claimed {
+			logger.LegacyPrintf("service.turnstile", "%s", "[Turnstile] Token was already used")
+			return ErrTurnstileVerificationFailed
+		}
+	}
+	// Never release the claim: a timed-out upstream request may have consumed
+	// the token, and a failed business operation must obtain a fresh proof.
 	result, err := s.verifier.VerifyToken(ctx, secretKey, token, remoteIP)
 	if err != nil {
 		logger.LegacyPrintf("service.turnstile", "[Turnstile] Request failed: %v", err)
@@ -101,9 +139,22 @@ func (s *TurnstileService) VerifyTokenWithSecret(ctx context.Context, secretKey,
 		logger.LegacyPrintf("service.turnstile", "%s", "[Turnstile] Verification hostname or action did not match")
 		return ErrTurnstileVerificationFailed
 	}
+	if s.settingService.cfg.Turnstile.StrictContext && !isTurnstileChallengeFresh(result.ChallengeTS, s.now()) {
+		logger.LegacyPrintf("service.turnstile", "%s", "[Turnstile] Verification challenge time is invalid or expired")
+		return ErrTurnstileVerificationFailed
+	}
 
 	logger.LegacyPrintf("service.turnstile", "%s", "[Turnstile] Verification successful")
 	return nil
+}
+
+func isTurnstileChallengeFresh(raw string, now time.Time) bool {
+	challengedAt, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return false
+	}
+	age := now.Sub(challengedAt)
+	return age >= -time.Minute && age <= 5*time.Minute
 }
 
 // expectedContextHostnames permits legacy verification only when StrictContext
