@@ -2983,7 +2983,7 @@ func (r *oauthPendingFlowRedeemCodeRepo) Delete(context.Context, int64) error {
 }
 
 func (r *oauthPendingFlowRedeemCodeRepo) Use(ctx context.Context, id, userID int64) error {
-	affected, err := r.client.RedeemCode.Update().
+	affected, err := oauthPendingFlowClient(ctx, r.client).RedeemCode.Update().
 		Where(redeemcode.IDEQ(id), redeemcode.StatusEQ(service.StatusUnused)).
 		SetStatus(service.StatusUsed).
 		SetUsedBy(userID).
@@ -3103,7 +3103,7 @@ type oauthPendingFlowUserRepoOptions struct {
 }
 
 func (r *oauthPendingFlowUserRepo) Create(ctx context.Context, user *service.User) error {
-	entity, err := r.client.User.Create().
+	entity, err := oauthPendingFlowClient(ctx, r.client).User.Create().
 		SetEmail(user.Email).
 		SetUsername(user.Username).
 		SetNotes(user.Notes).
@@ -3145,7 +3145,7 @@ func (r *oauthPendingFlowUserRepo) CountUsersByEmailDomain(ctx context.Context, 
 	if domain == "" {
 		return 0, nil
 	}
-	emails, err := r.client.User.Query().Select(dbuser.FieldEmail).Strings(ctx)
+	emails, err := oauthPendingFlowClient(ctx, r.client).User.Query().Select(dbuser.FieldEmail).Strings(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -3170,7 +3170,7 @@ func (r *oauthPendingFlowUserRepo) CreateWithEmailAliasGuardAndDomainLimit(ctx c
 }
 
 func (r *oauthPendingFlowUserRepo) GetByID(ctx context.Context, id int64) (*service.User, error) {
-	entity, err := r.client.User.Get(ctx, id)
+	entity, err := oauthPendingFlowClient(ctx, r.client).User.Get(ctx, id)
 	if err != nil {
 		if dbent.IsNotFound(err) {
 			return nil, service.ErrUserNotFound
@@ -3386,7 +3386,7 @@ func (r *oauthPendingFlowUserRepo) ExistsByEmail(ctx context.Context, email stri
 
 func (r *oauthPendingFlowUserRepo) ExistsByEmailAlias(ctx context.Context, email string) (bool, error) {
 	identity := service.NormalizeEmailForAliasDedup(email)
-	emails, err := r.client.User.Query().Select(dbuser.FieldEmail).Strings(ctx)
+	emails, err := oauthPendingFlowClient(ctx, r.client).User.Query().Select(dbuser.FieldEmail).Strings(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -3609,4 +3609,11 @@ func (s *oauthPendingFlowEmailCacheStub) IncrNotifyVerifyCodeAttempts(context.Co
 
 func (s *oauthPendingFlowEmailCacheStub) ConsumePasswordResetToken(context.Context, string, string) (bool, error) {
 	return false, nil
+}
+
+func oauthPendingFlowClient(ctx context.Context, client *dbent.Client) *dbent.Client {
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		return tx.Client()
+	}
+	return client
 }

@@ -29,6 +29,7 @@ const publicSettings = {
   promo_code_enabled: false,
   invitation_code_enabled: false,
   affiliate_enabled: true,
+  affiliate_signup_bonus: 0,
   turnstile_enabled: true,
   turnstile_site_key: 'site-key',
   site_name: 'Sub2API',
@@ -107,6 +108,22 @@ describe('RegisterView', () => {
     verifyActionMock.mockResolvedValue({ token: 'ticket', randstr: 'randstr' })
     getPublicSettingsMock.mockResolvedValue(publicSettings)
     registerMock.mockResolvedValue({})
+  })
+
+  it.each([
+    [true, 5, true],
+    [true, 0, false],
+    [false, 5, false]
+  ])('shows the signup bonus only while enabled (%s, %s)', async (enabled, bonus, visible) => {
+    getPublicSettingsMock.mockResolvedValueOnce({
+      ...publicSettings,
+      affiliate_enabled: enabled,
+      affiliate_signup_bonus: bonus
+    })
+    const wrapper = mountRegister()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="affiliate-signup-bonus"]').exists()).toBe(visible)
   })
 
   it('does not flash the promo-code field before disabled settings finish loading', async () => {

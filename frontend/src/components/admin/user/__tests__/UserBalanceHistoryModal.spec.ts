@@ -29,6 +29,29 @@ async function openDialog() {
 }
 
 describe('UserBalanceHistoryModal request ordering', () => {
+  it('shows signup gifts as balance and supports the dedicated filter', async () => {
+    mocks.getUserBalanceHistory.mockResolvedValue({
+      items: [{ id: -1, code: 'AFF-SIGNUP-1', type: 'affiliate_signup_bonus', value: 5, notes: '' }],
+      total: 1,
+      total_recharged: 0
+    })
+    const wrapper = await openDialog()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.users.typeAffiliateSignupBonus')
+    expect(wrapper.text()).toContain('+$5.00')
+    expect(wrapper.find('.text-emerald-600').exists()).toBe(true)
+    const select = wrapper.findComponent({ name: 'Select' })
+    expect(select.props('options')).toEqual(expect.arrayContaining([
+      { value: 'affiliate_signup_bonus', label: 'admin.users.typeAffiliateSignupBonus' }
+    ]))
+    select.vm.$emit('update:modelValue', 'affiliate_signup_bonus')
+    await flushPromises()
+    select.vm.$emit('change', 'affiliate_signup_bonus')
+    await flushPromises()
+    expect(mocks.getUserBalanceHistory).toHaveBeenLastCalledWith(1, 1, 15, 'affiliate_signup_bonus')
+  })
+
   it('keeps the new user history when an old response finishes later', async () => {
     const old = deferred()
     mocks.getUserBalanceHistory.mockReturnValueOnce(old.promise).mockResolvedValueOnce(result(20))

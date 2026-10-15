@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -97,4 +98,85 @@ func TestAuthService_VerifyTurnstileForRegister_NoSkipWhenEmailVerifyDisabled(t 
 	require.NoError(t, err)
 	require.Equal(t, 1, verifier.called)
 	require.Equal(t, "turnstile-token", verifier.lastToken)
+}
+
+func TestAuthService_VerifyTurnstileForRegister_StrictContextRequiresFreshProofWithEmailCode(t *testing.T) {
+	verifier := &turnstileVerifierSpy{result: &TurnstileVerifyResponse{
+		Success: true, Hostname: "app.example.com", Action: "auth",
+	}}
+	svc := newAuthServiceForRegisterTurnstileTest(map[string]string{
+		SettingKeyEmailVerifyEnabled: "true",
+		SettingKeyTurnstileEnabled:   "true",
+		SettingKeyTurnstileSecretKey: "secret",
+	}, verifier)
+	svc.cfg.Turnstile.StrictContext = true
+	svc.cfg.Turnstile.ExpectedHostnames = []string{"app.example.com"}
+
+	// Email codes may originate from another flow, so supplying one alone must
+	// not bypass the final registration's independent Turnstile validation.
+	err := svc.VerifyTurnstileForRegister(context.Background(), "", "192.0.2.1", "123456")
+	require.ErrorIs(t, err, ErrTurnstileVerificationFailed)
+	require.Zero(t, verifier.called)
+
+	err = svc.VerifyTurnstileForRegister(context.Background(), "fresh-registration-token", "192.0.2.1", "123456")
+	require.NoError(t, err)
+	require.Equal(t, 1, verifier.called)
+	require.Equal(t, "fresh-registration-token", verifier.lastToken)
+}
+
+func TestAuthService_VerifyCaptchaForRegister_StrictContextRejectsReplayedProofWithEmailCode(t *testing.T) {
+	verifier := &turnstileVerifierSpy{result: &TurnstileVerifyResponse{
+		Success: false, ErrorCodes: []string{"timeout-or-duplicate"},
+	}}
+	svc := newAuthServiceForRegisterTurnstileTest(map[string]string{
+		SettingKeyEmailVerifyEnabled: "true",
+		SettingKeyTurnstileEnabled:   "true",
+		SettingKeyTurnstileSecretKey: "secret",
+	}, verifier)
+	svc.cfg.Turnstile.StrictContext = true
+	svc.cfg.Turnstile.ExpectedHostnames = []string{"app.example.com"}
+
+	err := svc.VerifyCaptchaForRegister(context.Background(), CaptchaProof{TurnstileToken: "send-code-token"}, "192.0.2.1", "123456")
+	require.ErrorIs(t, err, ErrTurnstileVerificationFailed)
+	require.Equal(t, 1, verifier.called)
+}
+
+func TestAuthService_VerifyCaptchaForRegister_StrictRequiredRejectsDisabledProviderWithEmailCode(t *testing.T) {
+	verifier := &turnstileVerifierSpy{}
+	svc := newAuthServiceForRegisterTurnstileTest(map[string]string{
+		SettingKeyEmailVerifyEnabled: "true",
+		SettingKeyTurnstileEnabled:   "false",
+	}, verifier)
+	svc.cfg.Turnstile.StrictContext = true
+	svc.cfg.Turnstile.ExpectedHostnames = []string{"app.example.com"}
+
+	err := svc.VerifyCaptchaForRegister(context.Background(), CaptchaProof{}, "192.0.2.1", "123456")
+	require.ErrorIs(t, err, ErrTurnstileNotConfigured)
+	require.Zero(t, verifier.called)
+}
+
+type registerCaptchaProviderErrorRepo struct {
+	*settingRepoStub
+}
+
+func (r *registerCaptchaProviderErrorRepo) GetMultiple(context.Context, []string) (map[string]string, error) {
+	return nil, errors.New("provider settings unavailable")
+}
+
+func TestAuthService_VerifyCaptchaForRegister_StrictContextRejectsProviderReadFailureWithEmailCode(t *testing.T) {
+	verifier := &turnstileVerifierSpy{}
+	svc := newAuthServiceForRegisterTurnstileTest(map[string]string{
+		SettingKeyEmailVerifyEnabled: "true",
+		SettingKeyTurnstileEnabled:   "true",
+		SettingKeyTurnstileSecretKey: "secret",
+	}, verifier)
+	svc.cfg.Turnstile.StrictContext = true
+	svc.cfg.Turnstile.ExpectedHostnames = []string{"app.example.com"}
+	svc.settingService.settingRepo = &registerCaptchaProviderErrorRepo{
+		settingRepoStub: &settingRepoStub{values: map[string]string{SettingKeyEmailVerifyEnabled: "true"}},
+	}
+
+	err := svc.VerifyCaptchaForRegister(context.Background(), CaptchaProof{TurnstileToken: "fresh-token"}, "192.0.2.1", "123456")
+	require.ErrorIs(t, err, ErrServiceUnavailable)
+	require.Zero(t, verifier.called)
 }

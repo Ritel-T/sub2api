@@ -113,6 +113,20 @@ func (s *SettingService) GetAffiliateRebateRatePercent(ctx context.Context) floa
 	return clampAffiliateRebateRate(rate)
 }
 
+// GetAffiliateSignupBonus returns the amount awarded to a new user who binds
+// a valid affiliate code, in site credit units. Invalid or missing values fall back to zero.
+func (s *SettingService) GetAffiliateSignupBonus(ctx context.Context) float64 {
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateSignupBonus)
+	if err != nil {
+		return AffiliateSignupBonusDefault
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return AffiliateSignupBonusDefault
+	}
+	return clampAffiliateSignupBonus(value)
+}
+
 // GetAffiliateRebateFreezeHours 返回返利冻结期（小时）。
 // 返回 0 表示不冻结（向后兼容）。
 func (s *SettingService) GetAffiliateRebateFreezeHours(ctx context.Context) int {

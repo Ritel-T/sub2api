@@ -34,6 +34,8 @@ const (
 	AffiliateRebateDurationDaysDefault  = 0     // 0 = 永久有效
 	AffiliateRebateDurationDaysMax      = 3650  // ~10 年
 	AffiliateRebatePerInviteeCapDefault = 0.0   // 0 = 无上限
+	AffiliateSignupBonusDefault         = 0.0   // 邀请注册赠送站内额度，0 = 不赠送
+	AffiliateSignupBonusMax             = 1000.0
 	AdminRechargeRebateEnabledDefault   = false // 管理员充值默认不产生返利
 )
 
@@ -169,11 +171,12 @@ const (
 
 // Redeem type constants
 const (
-	RedeemTypeBalance          = domain.RedeemTypeBalance
-	RedeemTypeConcurrency      = domain.RedeemTypeConcurrency
-	RedeemTypeSubscription     = domain.RedeemTypeSubscription
-	RedeemTypeInvitation       = domain.RedeemTypeInvitation
-	RedeemTypeAffiliateBalance = "affiliate_balance"
+	RedeemTypeBalance              = domain.RedeemTypeBalance
+	RedeemTypeConcurrency          = domain.RedeemTypeConcurrency
+	RedeemTypeSubscription         = domain.RedeemTypeSubscription
+	RedeemTypeInvitation           = domain.RedeemTypeInvitation
+	RedeemTypeAffiliateBalance     = "affiliate_balance"
+	RedeemTypeAffiliateSignupBonus = "affiliate_signup_bonus"
 )
 
 // PromoCode status constants
@@ -233,6 +236,7 @@ const (
 	SettingKeyAffiliateRebateFreezeHours          = "affiliate_rebate_freeze_hours"         // 返利冻结期（小时，0=不冻结）
 	SettingKeyAffiliateRebateDurationDays         = "affiliate_rebate_duration_days"        // 返利有效期（天，0=永久）
 	SettingKeyAffiliateRebatePerInviteeCap        = "affiliate_rebate_per_invitee_cap"      // 单人返利上限（0=无上限）
+	SettingKeyAffiliateSignupBonus                = "affiliate_signup_bonus"                // 邀请注册赠送站内额度
 	SettingKeyAffiliateAdminRechargeEnabled       = "affiliate_admin_recharge_enabled"      // 管理员充值是否产生返利
 	SettingKeyRiskControlEnabled                  = "risk_control_enabled"                  // 是否启用风控中心入口与审计链路
 	SettingKeyContentModerationConfig             = "content_moderation_config"             // 内容审计配置（JSON）

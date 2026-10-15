@@ -1270,6 +1270,14 @@ turnstile:
   # Require Turnstile in release mode (when enabled, login/register will fail if not configured)
   # 在 release 模式下要求 Turnstile 验证（启用后，若未配置则登录/注册会失败）
   required: false
+  # Enable with TURNSTILE_STRICT_CONTEXT=true in production. An absent or blank
+  # expected_hostnames list then fails closed instead of using legacy validation.
+  strict_context: false
+  # Exact frontend hostnames accepted by Siteverify; also requires action "auth".
+  # Set TURNSTILE_EXPECTED_HOSTNAMES as a comma-separated list for env deployments.
+  # Keep development hosts out of production. Empty preserves legacy verification
+  # only when strict_context is false.
+  expected_hostnames: []
 
 # =============================================================================
 # Gemini OAuth (Required for Gemini accounts)

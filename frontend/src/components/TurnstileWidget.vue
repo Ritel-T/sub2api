@@ -11,12 +11,14 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+<script lang="ts">
+// All instances wait for the same SDK load so a second widget cannot replace
+// the first widget's completion callback while the script is still loading.
+let turnstileScriptPromise: Promise<void> | null = null
 
 interface TurnstileRenderOptions {
   sitekey: string
+  action: string
   callback: (token: string) => void
   'expired-callback'?: () => void
   'error-callback'?: () => void
@@ -36,6 +38,11 @@ declare global {
     onTurnstileLoad?: () => void
   }
 }
+</script>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(
   defineProps<{
@@ -62,20 +69,32 @@ const widgetId = ref<string | null>(null)
 const scriptLoaded = ref(false)
 
 const loadScript = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    if (window.turnstile) {
-      scriptLoaded.value = true
-      resolve()
-      return
-    }
+  if (window.turnstile) {
+    scriptLoaded.value = true
+    return Promise.resolve()
+  }
 
-    // Check if script is already loading
-    const existingScript = document.querySelector('script[src*="turnstile"]')
+  const existingScript = document.querySelector<HTMLScriptElement>('script[src*="turnstile"]')
+  if (turnstileScriptPromise && existingScript) {
+    return turnstileScriptPromise.then(() => {
+      scriptLoaded.value = true
+    })
+  }
+
+  turnstileScriptPromise = new Promise((resolve, reject) => {
+    // Adopt an SDK load already initiated elsewhere on the page.
     if (existingScript) {
       window.onTurnstileLoad = () => {
-        scriptLoaded.value = true
         resolve()
       }
+      existingScript.addEventListener('load', () => {
+        if (window.turnstile) resolve()
+      }, { once: true })
+      existingScript.addEventListener('error', () => {
+        turnstileScriptPromise = null
+        existingScript.remove()
+        reject(new Error('Failed to load Turnstile script'))
+      }, { once: true })
       return
     }
 
@@ -85,15 +104,20 @@ const loadScript = (): Promise<void> => {
     script.defer = true
 
     window.onTurnstileLoad = () => {
-      scriptLoaded.value = true
       resolve()
     }
 
     script.onerror = () => {
+      turnstileScriptPromise = null
+      script.remove()
       reject(new Error('Failed to load Turnstile script'))
     }
 
     document.head.appendChild(script)
+  })
+  return turnstileScriptPromise.then(() => {
+    turnstileScriptPromise = null
+    scriptLoaded.value = true
   })
 }
 
@@ -117,6 +141,7 @@ const renderWidget = () => {
 
   widgetId.value = window.turnstile.render(containerRef.value, {
     sitekey: props.siteKey,
+    action: 'auth',
     callback: (token: string) => {
       emit('verify', token)
     },

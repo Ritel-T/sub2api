@@ -1704,6 +1704,24 @@ describe("admin SettingsView payment visible method controls", () => {
     );
   });
 
+  it("submits the affiliate signup bonus independently of the default balance", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      affiliate_enabled: true,
+      affiliate_signup_bonus: 5,
+      default_balance: 2,
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ affiliate_signup_bonus: 5, default_balance: 2 }),
+    );
+  });
+
   it("submits Anthropic cache TTL injection gateway setting", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,

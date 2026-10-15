@@ -7904,6 +7904,24 @@
             </div>
 
             <div v-if="form.affiliate_enabled" class="space-y-6">
+              <div>
+                <label for="affiliate-signup-bonus" class="input-label">
+                  {{ t('admin.settings.features.affiliate.signupBonus') }}
+                </label>
+                <input
+                  id="affiliate-signup-bonus"
+                  v-model.number="form.affiliate_signup_bonus"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1000"
+                  class="input"
+                />
+                <p class="mt-1 text-xs text-gray-400">
+                  {{ t('admin.settings.features.affiliate.signupBonusHint') }}
+                </p>
+              </div>
+
               <div class="flex items-center justify-between">
                 <div>
                   <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -10195,6 +10213,7 @@ const form = reactive<SettingsForm>({
   affiliate_rebate_freeze_hours: 0,
   affiliate_rebate_duration_days: 0,
   affiliate_rebate_per_invitee_cap: 0,
+  affiliate_signup_bonus: 0,
   affiliate_admin_recharge_enabled: false,
   default_concurrency: 1,
   default_subscriptions: [],
@@ -11987,6 +12006,7 @@ async function saveSettings() {
       affiliate_rebate_freeze_hours: Math.max(0, Math.min(720, Number(form.affiliate_rebate_freeze_hours) || 0)),
       affiliate_rebate_duration_days: Math.max(0, Math.min(3650, Math.floor(Number(form.affiliate_rebate_duration_days) || 0))),
       affiliate_rebate_per_invitee_cap: Math.max(0, Number(form.affiliate_rebate_per_invitee_cap) || 0),
+      affiliate_signup_bonus: Math.max(0, Math.min(1000, Number(form.affiliate_signup_bonus) || 0)),
       affiliate_admin_recharge_enabled: form.affiliate_admin_recharge_enabled,
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,

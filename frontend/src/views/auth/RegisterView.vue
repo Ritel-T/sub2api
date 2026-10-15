@@ -187,6 +187,14 @@
           </div>
         </div>
 
+        <p
+          v-if="affiliateEnabled && affiliateSignupBonus > 0"
+          data-testid="affiliate-signup-bonus"
+          class="text-sm text-primary-600 dark:text-primary-400"
+        >
+          {{ t('auth.affiliateSignupBonusHint', { amount: affiliateSignupBonus }) }}
+        </p>
+
         <!-- Promo Code Input (Optional) -->
         <div v-if="promoCodeEnabled">
           <label for="promo_code" class="input-label">
@@ -431,6 +439,7 @@ const promoCodeEnabled = ref<boolean>(
 )
 const invitationCodeEnabled = ref<boolean>(false)
 const affiliateEnabled = ref<boolean>(false)
+const affiliateSignupBonus = ref<number>(0)
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
 const tencentCaptchaEnabled = ref<boolean>(false)
@@ -568,6 +577,7 @@ onMounted(async () => {
     promoCodeEnabled.value = settings.promo_code_enabled
     invitationCodeEnabled.value = settings.invitation_code_enabled
     affiliateEnabled.value = settings.affiliate_enabled
+    affiliateSignupBonus.value = settings.affiliate_signup_bonus || 0
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     tencentCaptchaEnabled.value = settings.tencent_captcha_enabled === true

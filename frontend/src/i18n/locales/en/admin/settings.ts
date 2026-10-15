@@ -162,6 +162,8 @@ export default {
           adminRechargeRebateHint: 'When enabled, balance added through User Management > Deposit generates affiliate rebates. Setting a balance or withdrawing funds does not.',
           rebateRate: 'Global Rebate Rate',
           rebateRateHint: 'Default percentage given back to the inviter on recharges (0-100, e.g. 10 = 10%).',
+          signupBonus: 'Invited signup bonus (site credit)',
+          signupBonusHint: 'New users registering with a valid affiliate code receive a one-time site credit bonus. This bonus does not earn recharge rebates. 0 = disabled; maximum 1,000 site credit units.',
           freezeHours: 'Rebate Freeze Period (hours)',
           freezeHoursDesc: 'New rebates will be frozen for this period before becoming available for withdrawal. 0 = no freeze.',
           durationDays: 'Rebate Duration (days)',

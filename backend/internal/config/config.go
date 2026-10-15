@@ -1995,6 +1995,13 @@ type TotpConfig struct {
 
 type TurnstileConfig struct {
 	Required bool `mapstructure:"required"`
+	// StrictContext requires a non-empty hostname allowlist, so production cannot
+	// silently fall back to legacy verification after a configuration omission.
+	StrictContext bool `mapstructure:"strict_context"`
+	// ExpectedHostnames enables strict hostname and auth-action verification when
+	// non-empty. Configure only this deployment's frontend hostnames; production
+	// must not include localhost or other development hosts.
+	ExpectedHostnames []string `mapstructure:"expected_hostnames"`
 }
 
 type DefaultConfig struct {
@@ -2460,6 +2467,8 @@ func setDefaults() {
 
 	// Turnstile
 	viper.SetDefault("turnstile.required", false)
+	viper.SetDefault("turnstile.strict_context", false)
+	viper.SetDefault("turnstile.expected_hostnames", []string{})
 
 	// LinuxDo Connect OAuth 登录
 	viper.SetDefault("linuxdo_connect.enabled", false)

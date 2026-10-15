@@ -607,6 +607,116 @@ describe('EmailVerifyView', () => {
     expect(registerMock).not.toHaveBeenCalled()
   })
 
+  it('requires a fresh turnstile token for ordinary email registration instead of reusing the send-code token', async () => {
+    getPublicSettingsMock.mockResolvedValue({
+      turnstile_enabled: true,
+      turnstile_site_key: 'site-key',
+      site_name: 'Sub2API',
+      registration_email_suffix_whitelist: [],
+    })
+    sessionStorage.setItem('register_data', JSON.stringify({
+      email: 'fresh@example.com',
+      password: 'secret-123',
+      turnstile_token: 'send-code-token',
+    }))
+    registerMock.mockResolvedValue({})
+
+    const wrapper = mount(EmailVerifyView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: true,
+          TurnstileWidget: {
+            template: '<button type="button" data-testid="create-turnstile" @click="$emit(\'verify\', \'fresh-create-token\')">verify</button>',
+            methods: { reset: createTurnstileResetMock },
+          },
+          transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(sendVerifyCodeMock).toHaveBeenCalledWith(expect.objectContaining({
+      turnstile_token: 'send-code-token',
+    }))
+    await wrapper.get('#code').setValue('123456')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(registerMock).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-testid="create-turnstile"]').trigger('click')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(registerMock).toHaveBeenCalledOnce()
+    expect(registerMock).toHaveBeenCalledWith(expect.objectContaining({
+      email: 'fresh@example.com',
+      verify_code: '123456',
+      turnstile_token: 'fresh-create-token',
+    }))
+    wrapper.unmount()
+  })
+
+  it('invalidates expired create-account tokens and requires a new token after a failed email registration', async () => {
+    getPublicSettingsMock.mockResolvedValue({
+      turnstile_enabled: true,
+      turnstile_site_key: 'site-key',
+      site_name: 'Sub2API',
+      registration_email_suffix_whitelist: [],
+    })
+    sessionStorage.setItem('register_data', JSON.stringify({
+      email: 'fresh@example.com',
+      password: 'secret-123',
+      turnstile_token: 'send-code-token',
+    }))
+    registerMock.mockRejectedValueOnce(new Error('invalid email verification code'))
+    registerMock.mockResolvedValueOnce({})
+    const CaptchaStub = defineComponent({
+      emits: ['verify', 'expire'],
+      setup(_, { expose }) {
+        expose({ reset: createTurnstileResetMock })
+        return () => h('div', { 'data-testid': 'create-turnstile' })
+      },
+    })
+    const wrapper = mount(EmailVerifyView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: true,
+          TurnstileWidget: CaptchaStub,
+          transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    const captcha = wrapper.getComponent(CaptchaStub)
+    await wrapper.get('#code').setValue('123456')
+    captcha.vm.$emit('verify', 'expired-token')
+    captcha.vm.$emit('expire')
+    await flushPromises()
+    await wrapper.get('form').trigger('submit.prevent')
+    expect(registerMock).not.toHaveBeenCalled()
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+
+    captcha.vm.$emit('verify', 'first-create-token')
+    await flushPromises()
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(registerMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ turnstile_token: 'first-create-token' }))
+    expect(createTurnstileResetMock).toHaveBeenCalledOnce()
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('form').trigger('submit.prevent')
+    expect(registerMock).toHaveBeenCalledOnce()
+
+    captcha.vm.$emit('verify', 'second-create-token')
+    await flushPromises()
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(registerMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ turnstile_token: 'second-create-token' }))
+    wrapper.unmount()
+  })
+
   it('requires and submits a fresh turnstile token for pending oauth account creation', async () => {
     authStoreState.pendingAuthSession = {
       token: 'pending-token-3',

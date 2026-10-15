@@ -36,7 +36,10 @@ describe('TurnstileWidget', () => {
     window.onTurnstileLoad?.()
     await flushPromises()
 
-    expect(render).toHaveBeenCalledWith(container, expect.objectContaining({ sitekey: 'site-key' }))
+    expect(render).toHaveBeenCalledWith(
+      container,
+      expect.objectContaining({ sitekey: 'site-key', action: 'auth' })
+    )
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
     expect(wrapper.get('.turnstile-container').element).toBe(container)
   })
@@ -47,11 +50,56 @@ describe('TurnstileWidget', () => {
     await flushPromises()
 
     expect(render).toHaveBeenCalledOnce()
+    expect(render.mock.calls[0]![1].action).toBe('auth')
     expect(document.querySelector(scriptSelector)).toBeNull()
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
 
     render.mock.calls[0]![1].callback('verified-token')
     expect(wrapper.emitted('verify')).toEqual([['verified-token']])
+  })
+
+  it('initializes both concurrent widgets after one shared SDK load', async () => {
+    wrapper = mount(TurnstileWidget, { props: { siteKey: 'site-key' } })
+    const secondWrapper = mount(TurnstileWidget, { props: { siteKey: 'site-key' } })
+    try {
+      expect(document.querySelectorAll(scriptSelector)).toHaveLength(1)
+      expect(wrapper.find('[role="status"]').exists()).toBe(true)
+      expect(secondWrapper.find('[role="status"]').exists()).toBe(true)
+
+      const render = installSDK()
+      window.onTurnstileLoad?.()
+      await flushPromises()
+
+      expect(render).toHaveBeenCalledTimes(2)
+      expect(render.mock.calls.map(([container]) => container)).toEqual([
+        wrapper.get('.turnstile-container').element,
+        secondWrapper.get('.turnstile-container').element,
+      ])
+      expect(wrapper.find('[role="status"]').exists()).toBe(false)
+      expect(secondWrapper.find('[role="status"]').exists()).toBe(false)
+    } finally {
+      secondWrapper.unmount()
+    }
+  })
+
+  it('lets concurrent widgets adopt an existing SDK script that is still loading', async () => {
+    const script = document.createElement('script')
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+    document.head.appendChild(script)
+    wrapper = mount(TurnstileWidget, { props: { siteKey: 'site-key' } })
+    const secondWrapper = mount(TurnstileWidget, { props: { siteKey: 'site-key' } })
+    try {
+      expect(document.querySelectorAll(scriptSelector)).toHaveLength(1)
+      const render = installSDK()
+      script.dispatchEvent(new Event('load'))
+      await flushPromises()
+
+      expect(render).toHaveBeenCalledTimes(2)
+      expect(wrapper.find('[role="status"]').exists()).toBe(false)
+      expect(secondWrapper.find('[role="status"]').exists()).toBe(false)
+    } finally {
+      secondWrapper.unmount()
+    }
   })
 
   it('ends loading and reports a script load failure', async () => {

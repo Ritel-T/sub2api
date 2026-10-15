@@ -244,6 +244,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyPluginManagementEnabled,
 		SettingKeySupportTicketEnabled,
 		SettingKeyAffiliateEnabled,
+		SettingKeyAffiliateSignupBonus,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
 		SettingKeyUsageShowLongContextBadge,
@@ -384,6 +385,13 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SupportTicketEnabled:    settings[SettingKeySupportTicketEnabled] == "true",
 
 		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
+		AffiliateSignupBonus: func() float64 {
+			bonus, err := strconv.ParseFloat(settings[SettingKeyAffiliateSignupBonus], 64)
+			if err != nil {
+				return AffiliateSignupBonusDefault
+			}
+			return clampAffiliateSignupBonus(bonus)
+		}(),
 
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
 
@@ -683,21 +691,22 @@ type PublicSettingsInjectionPayload struct {
 	// monitors; fail-closed (absent/false = hidden). Admin UI always shows it.
 	// ChannelMonitorHideUserRanking hides the user ranking tab and /users payload
 	// from non-admin channel-monitor v2 viewers; default false (visible).
-	ChannelMonitorHideUserRanking bool `json:"channel_monitor_hide_user_ranking"`
-	ChannelMonitorShowQuota       bool `json:"channel_monitor_show_quota"`
-	AvailableChannelsEnabled      bool `json:"available_channels_enabled"`
-	PelicanShowcaseEnabled        bool `json:"pelican_showcase_enabled"`
-	SubscriptionEnabled           bool `json:"subscription_enabled"`
-	ModelPlazaEnabled             bool `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth         bool `json:"model_plaza_require_auth"`
-	PluginManagementEnabled       bool `json:"plugin_management_enabled"`
-	SupportTicketEnabled          bool `json:"support_ticket_enabled"`
-	AffiliateEnabled              bool `json:"affiliate_enabled"`
-	RiskControlEnabled            bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests    bool `json:"allow_user_view_error_requests"`
-	UsageShowLongContextBadge     bool `json:"usage_show_long_context_badge"`
-	UsageShowCacheRate            bool `json:"usage_show_cache_rate"`
-	UsageShowCacheRateToUsers     bool `json:"usage_show_cache_rate_to_users"`
+	ChannelMonitorHideUserRanking bool    `json:"channel_monitor_hide_user_ranking"`
+	ChannelMonitorShowQuota       bool    `json:"channel_monitor_show_quota"`
+	AvailableChannelsEnabled      bool    `json:"available_channels_enabled"`
+	PelicanShowcaseEnabled        bool    `json:"pelican_showcase_enabled"`
+	SubscriptionEnabled           bool    `json:"subscription_enabled"`
+	ModelPlazaEnabled             bool    `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth         bool    `json:"model_plaza_require_auth"`
+	PluginManagementEnabled       bool    `json:"plugin_management_enabled"`
+	SupportTicketEnabled          bool    `json:"support_ticket_enabled"`
+	AffiliateEnabled              bool    `json:"affiliate_enabled"`
+	AffiliateSignupBonus          float64 `json:"affiliate_signup_bonus"`
+	RiskControlEnabled            bool    `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests    bool    `json:"allow_user_view_error_requests"`
+	UsageShowLongContextBadge     bool    `json:"usage_show_long_context_badge"`
+	UsageShowCacheRate            bool    `json:"usage_show_cache_rate"`
+	UsageShowCacheRateToUsers     bool    `json:"usage_show_cache_rate_to_users"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -784,6 +793,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		PluginManagementEnabled:              settings.PluginManagementEnabled,
 		SupportTicketEnabled:                 settings.SupportTicketEnabled,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
+		AffiliateSignupBonus:                 settings.AffiliateSignupBonus,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
 		UsageShowLongContextBadge:            settings.UsageShowLongContextBadge,

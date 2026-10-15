@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -120,6 +121,14 @@ type AffiliateRepository interface {
 	ListAffiliateRebateRecords(ctx context.Context, filter AffiliateRecordFilter) ([]AffiliateRebateRecord, int64, error)
 	ListAffiliateTransferRecords(ctx context.Context, filter AffiliateRecordFilter) ([]AffiliateTransferRecord, int64, error)
 	GetAffiliateUserOverview(ctx context.Context, userID int64) (*AffiliateUserOverview, error)
+}
+
+// AffiliateSignupBonusBinder is implemented by repositories that can bind an
+// invitee and grant the one-time signup bonus in the same database transaction.
+// It is optional so lightweight test repositories and external integrations can
+// continue to implement AffiliateRepository without taking on signup funding.
+type AffiliateSignupBonusBinder interface {
+	BindInviterWithSignupBonus(ctx context.Context, userID, inviterID int64, amount float64) (bool, error)
 }
 
 // AffiliateAdminFilter 列表筛选条件
@@ -298,8 +307,14 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 	if s == nil || s.repo == nil {
 		return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
 	}
-	// 总开关关闭时，注册阶段静默忽略 aff 参数（不报错，避免阻断注册流程）
-	if !s.IsEnabled(ctx) {
+	// Read the signup policy once and fail on storage errors. Treating a
+	// temporary read failure as a zero bonus would permanently bind an invitee
+	// without the gift that was promised at registration.
+	enabled, bonus, err := s.signupBonusPolicy(ctx)
+	if err != nil {
+		return err
+	}
+	if !enabled {
 		return nil
 	}
 	if !isValidAffiliateCodeFormat(code) {
@@ -325,7 +340,16 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 		return ErrAffiliateCodeInvalid
 	}
 
-	bound, err := s.repo.BindInviter(ctx, userID, inviterSummary.UserID)
+	var bound bool
+	if bonus > 0 {
+		if binder, ok := s.repo.(AffiliateSignupBonusBinder); ok {
+			bound, err = binder.BindInviterWithSignupBonus(ctx, userID, inviterSummary.UserID, bonus)
+		} else {
+			return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "atomic affiliate signup bonus is unavailable")
+		}
+	} else {
+		bound, err = s.repo.BindInviter(ctx, userID, inviterSummary.UserID)
+	}
 	if err != nil {
 		return err
 	}
@@ -333,6 +357,28 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 		return ErrAffiliateAlreadyBound
 	}
 	return nil
+}
+
+func (s *AffiliateService) signupBonusPolicy(ctx context.Context) (bool, float64, error) {
+	if s == nil || s.settingService == nil {
+		return false, 0, nil
+	}
+	values, err := s.settingService.settingRepo.GetMultiple(ctx, []string{SettingKeyAffiliateEnabled, SettingKeyAffiliateSignupBonus})
+	if err != nil {
+		return false, 0, err
+	}
+	if values[SettingKeyAffiliateEnabled] != "true" {
+		return false, 0, nil
+	}
+	raw := strings.TrimSpace(values[SettingKeyAffiliateSignupBonus])
+	if raw == "" {
+		return true, 0, nil
+	}
+	amount, err := strconv.ParseFloat(raw, 64)
+	if err != nil || math.IsNaN(amount) || math.IsInf(amount, 0) || amount < 0 || amount > AffiliateSignupBonusMax {
+		return false, 0, infraerrors.ServiceUnavailable("AFFILIATE_SIGNUP_BONUS_INVALID", "invalid affiliate signup bonus configuration")
+	}
+	return true, amount, nil
 }
 
 func (s *AffiliateService) AccrueInviteRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64) (float64, error) {

@@ -86,7 +86,7 @@
           />
         </div>
 
-        <div v-if="pendingOAuthCreateCaptchaEnabled" class="space-y-2">
+        <div v-if="createAccountCaptchaEnabled" class="space-y-2">
           <TurnstileWidget
             ref="createAccountTurnstileRef"
             :site-key="turnstileSiteKey"
@@ -108,7 +108,7 @@
         <!-- Submit Button -->
         <button
           type="submit"
-          :disabled="isLoading || !verifyCode || (pendingOAuthCreateTurnstileRequired && !createAccountTurnstileToken)"
+          :disabled="isLoading || !verifyCode || (createAccountTurnstileRequired && !createAccountTurnstileToken)"
           class="btn btn-primary w-full"
         >
           <svg
@@ -308,11 +308,9 @@ const errors = ref({
 const validationToastMessage = computed(
   () => errors.value.code || errors.value.turnstile || ''
 )
-const pendingOAuthCreateTurnstileRequired = computed(
-  () => isPendingOAuthFlow() && turnstileEnabled.value
-)
-const pendingOAuthCreateCaptchaEnabled = computed(
-  () => isPendingOAuthFlow() && captchaEnabled.value
+const createAccountTurnstileRequired = computed(() => turnstileEnabled.value)
+const createAccountCaptchaEnabled = computed(
+  () => turnstileEnabled.value || (isPendingOAuthFlow() && captchaEnabled.value)
 )
 
 watch(validationToastMessage, (value, previousValue) => {
@@ -666,6 +664,11 @@ async function handleVerify(): Promise<void> {
     return
   }
 
+  if (createAccountTurnstileRequired.value && !createAccountTurnstileToken.value) {
+    errors.value.turnstile = t('auth.completeVerification')
+    return
+  }
+
   if (!(await acquireCreateAccountActionProof())) {
     return
   }
@@ -724,9 +727,9 @@ async function handleVerify(): Promise<void> {
         password: password.value,
         verify_code: verifyCode.value.trim(),
         turnstile_token:
-          turnstileEnabled.value || aliyunCaptchaEnabled.value
-            ? initialTurnstileToken.value || undefined
-            : undefined,
+          turnstileEnabled.value
+            ? createAccountTurnstileToken.value || undefined
+            : aliyunCaptchaEnabled.value ? initialTurnstileToken.value || undefined : undefined,
         tencent_captcha_ticket: tencentCaptchaEnabled.value ? initialTurnstileToken.value || undefined : undefined,
         tencent_captcha_randstr: tencentCaptchaEnabled.value ? initialTencentCaptchaRandstr.value || undefined : undefined,
         promo_code: promoCode.value || undefined,
@@ -751,7 +754,7 @@ async function handleVerify(): Promise<void> {
   } finally {
     initialTurnstileToken.value = ''
     initialTencentCaptchaRandstr.value = ''
-    if (pendingOAuthCreateCaptchaEnabled.value) {
+    if (createAccountCaptchaEnabled.value) {
       resetCreateAccountTurnstile()
     }
     isLoading.value = false

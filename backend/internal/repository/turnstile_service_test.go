@@ -32,9 +32,7 @@ func (s *TurnstileServiceSuite) SetupTest() {
 
 func (s *TurnstileServiceSuite) setupTransport(handler http.HandlerFunc) {
 	s.verifier.verifyURL = "http://in-process/turnstile"
-	s.verifier.httpClient = &http.Client{
-		Transport: newInProcessTransport(handler, nil),
-	}
+	s.verifier.httpClient.Transport = newInProcessTransport(handler, nil)
 }
 
 func (s *TurnstileServiceSuite) TestVerifyToken_SendsFormAndDecodesJSON() {
@@ -134,6 +132,55 @@ func (s *TurnstileServiceSuite) TestVerifyToken_SuccessFalse() {
 	require.NotNil(s.T(), resp)
 	require.False(s.T(), resp.Success)
 	require.Contains(s.T(), resp.ErrorCodes, "invalid-input-response")
+}
+
+func (s *TurnstileServiceSuite) TestVerifyToken_RejectsNonSuccessStatus() {
+	for _, status := range []int{http.StatusMovedPermanently, http.StatusForbidden, http.StatusTooManyRequests, http.StatusInternalServerError} {
+		s.setupTransport(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+			_, _ = io.WriteString(w, `{"success":true,"hostname":"app.example.com","action":"auth"}`)
+		}))
+
+		resp, err := s.verifier.VerifyToken(s.ctx, "sk", "token", "")
+		require.Error(s.T(), err, "status %d must reject even a success body", status)
+		require.Nil(s.T(), resp)
+	}
+}
+
+func (s *TurnstileServiceSuite) TestVerifyToken_DoesNotFollowRedirect() {
+	requests := 0
+	s.setupTransport(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Path == "/turnstile" {
+			w.Header().Set("Location", "/redirected")
+			w.WriteHeader(http.StatusTemporaryRedirect)
+			return
+		}
+		_, _ = io.WriteString(w, `{"success":true}`)
+	}))
+
+	resp, err := s.verifier.VerifyToken(s.ctx, "sk", "token", "")
+	require.Error(s.T(), err)
+	require.Nil(s.T(), resp)
+	require.Equal(s.T(), 1, requests, "secret and token must not be resent to a redirect target")
+}
+
+func (s *TurnstileServiceSuite) TestVerifyToken_RejectsInvalidResponseBodies() {
+	for _, body := range []string{
+		`null`,
+		`{"success":"true"}`,
+		`{"success":true} {"success":false}`,
+		`{"success":true} trailing`,
+		`{"success":true,"cdata":"` + strings.Repeat("x", 64*1024) + `"}`,
+	} {
+		s.setupTransport(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.WriteString(w, body)
+		}))
+
+		resp, err := s.verifier.VerifyToken(s.ctx, "sk", "token", "")
+		require.Error(s.T(), err)
+		require.Nil(s.T(), resp)
+	}
 }
 
 func TestTurnstileServiceSuite(t *testing.T) {

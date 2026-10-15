@@ -766,8 +766,8 @@ func (s *adminServiceImpl) GetUserUsageStats(ctx context.Context, userID int64, 
 // GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
 func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]RedeemCode, int64, float64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
-	if codeType == RedeemTypeAffiliateBalance {
-		codes, total, err := s.listAffiliateBalanceHistory(ctx, userID, params)
+	if codeType == RedeemTypeAffiliateBalance || codeType == RedeemTypeAffiliateSignupBonus {
+		codes, total, err := s.listAffiliateBalanceHistory(ctx, userID, params, codeType)
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -874,21 +874,23 @@ func (s *adminServiceImpl) listAffiliateBalanceHistoryForMerge(ctx context.Conte
 	return out, total, nil
 }
 
-func (s *adminServiceImpl) listAffiliateBalanceHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]RedeemCode, int64, error) {
+func (s *adminServiceImpl) listAffiliateBalanceHistory(ctx context.Context, userID int64, params pagination.PaginationParams, codeTypes ...string) ([]RedeemCode, int64, error) {
 	if s == nil || s.entClient == nil || userID <= 0 {
 		return nil, 0, nil
 	}
 
 	rows, err := s.entClient.QueryContext(ctx, `
 SELECT id,
+       action,
        amount::double precision,
        created_at
 FROM user_affiliate_ledger
 WHERE user_id = $1
-  AND action = 'transfer'
+  AND action IN ('transfer', 'signup_bonus')
+  AND ($4 = '' OR action = $4)
 ORDER BY created_at DESC, id DESC
 OFFSET $2
-LIMIT $3`, userID, params.Offset(), params.Limit())
+LIMIT $3`, userID, params.Offset(), params.Limit(), affiliateBalanceHistoryAction(codeTypes))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -898,16 +900,21 @@ LIMIT $3`, userID, params.Offset(), params.Limit())
 	for rows.Next() {
 		var id int64
 		var amount float64
+		var action string
 		var createdAt time.Time
-		if err := rows.Scan(&id, &amount, &createdAt); err != nil {
+		if err := rows.Scan(&id, &action, &amount, &createdAt); err != nil {
 			return nil, 0, err
+		}
+		codeType, codePrefix := RedeemTypeAffiliateBalance, "AFF"
+		if action == "signup_bonus" {
+			codeType, codePrefix = RedeemTypeAffiliateSignupBonus, "AFF-SIGNUP"
 		}
 		usedBy := userID
 		usedAt := createdAt
 		codes = append(codes, RedeemCode{
 			ID:        -id,
-			Code:      fmt.Sprintf("AFF-%d", id),
-			Type:      RedeemTypeAffiliateBalance,
+			Code:      fmt.Sprintf("%s-%d", codePrefix, id),
+			Type:      codeType,
 			Value:     amount,
 			Status:    StatusUsed,
 			UsedBy:    &usedBy,
@@ -919,19 +926,20 @@ LIMIT $3`, userID, params.Offset(), params.Limit())
 		return nil, 0, err
 	}
 
-	total, err := countAffiliateBalanceHistory(ctx, s.entClient, userID)
+	total, err := countAffiliateBalanceHistory(ctx, s.entClient, userID, codeTypes...)
 	if err != nil {
 		return nil, 0, err
 	}
 	return codes, total, nil
 }
 
-func countAffiliateBalanceHistory(ctx context.Context, client *dbent.Client, userID int64) (int64, error) {
+func countAffiliateBalanceHistory(ctx context.Context, client *dbent.Client, userID int64, codeTypes ...string) (int64, error) {
 	rows, err := client.QueryContext(ctx, `
 SELECT COUNT(*)
 FROM user_affiliate_ledger
 WHERE user_id = $1
-  AND action = 'transfer'`, userID)
+  AND action IN ('transfer', 'signup_bonus')
+  AND ($2 = '' OR action = $2)`, userID, affiliateBalanceHistoryAction(codeTypes))
 	if err != nil {
 		return 0, err
 	}
@@ -950,6 +958,18 @@ WHERE user_id = $1
 		return 0, nil
 	}
 	return total.Int64, nil
+}
+
+func affiliateBalanceHistoryAction(codeTypes []string) string {
+	if len(codeTypes) > 0 {
+		switch codeTypes[0] {
+		case RedeemTypeAffiliateBalance:
+			return "transfer"
+		case RedeemTypeAffiliateSignupBonus:
+			return "signup_bonus"
+		}
+	}
+	return ""
 }
 
 func mergeBalanceHistoryCodes(redeemCodes, affiliateCodes []RedeemCode, params pagination.PaginationParams) []RedeemCode {

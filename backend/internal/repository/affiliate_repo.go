@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -77,6 +78,19 @@ func (r *affiliateRepository) GetAffiliateByCode(ctx context.Context, code strin
 }
 
 func (r *affiliateRepository) BindInviter(ctx context.Context, userID, inviterID int64) (bool, error) {
+	return r.BindInviterWithSignupBonus(ctx, userID, inviterID, 0)
+}
+
+// BindInviterWithSignupBonus credits only the first successful inviter binding.
+// Binding, inviter count, invitee balance and the audit entry share a transaction;
+// a retry or concurrent binding cannot grant another signup bonus.
+func (r *affiliateRepository) BindInviterWithSignupBonus(ctx context.Context, userID, inviterID int64, amount float64) (bool, error) {
+	if userID <= 0 || inviterID <= 0 || userID == inviterID {
+		return false, service.ErrAffiliateCodeInvalid
+	}
+	if amount < 0 || math.IsNaN(amount) || math.IsInf(amount, 0) || amount > service.AffiliateSignupBonusMax {
+		return false, service.ErrBalanceNegative
+	}
 	var bound bool
 	err := r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
 		if _, err := ensureUserAffiliateWithClient(txCtx, txClient, userID); err != nil {
@@ -97,6 +111,37 @@ func (r *affiliateRepository) BindInviter(ctx context.Context, userID, inviterID
 		if affected == 0 {
 			bound = false
 			return nil
+		}
+
+		if amount > 0 {
+			// Signup credit is a gift, not recharge: leave total_recharged and the
+			// inviter's rebate quota unchanged.
+			res, err = txClient.ExecContext(txCtx,
+				"UPDATE users SET balance = balance + $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL",
+				amount, userID,
+			)
+			if err != nil {
+				return fmt.Errorf("credit affiliate signup bonus: %w", err)
+			}
+			if affected, err := res.RowsAffected(); err != nil || affected != 1 {
+				return service.ErrUserNotFound
+			}
+			snapshot, err := queryAffiliateTransferSnapshot(txCtx, txClient, userID)
+			if err != nil {
+				return err
+			}
+			if _, err = txClient.ExecContext(txCtx, `
+INSERT INTO user_affiliate_ledger (
+    user_id, action, amount, source_user_id, balance_after,
+    aff_quota_after, aff_frozen_quota_after, aff_history_quota_after,
+    created_at, updated_at
+)
+VALUES ($1, 'signup_bonus', $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
+				userID, amount, inviterID, snapshot.BalanceAfter,
+				snapshot.AvailableQuotaAfter, snapshot.FrozenQuotaAfter, snapshot.HistoryQuotaAfter,
+			); err != nil {
+				return fmt.Errorf("record affiliate signup bonus: %w", err)
+			}
 		}
 
 		if _, err = txClient.ExecContext(txCtx,

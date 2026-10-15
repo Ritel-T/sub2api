@@ -309,6 +309,7 @@ export default {
     promoCodeValidating: '优惠码正在验证中，请稍候',
     promoCodeInvalidCannotRegister: '优惠码无效，请检查后重试或清空优惠码',
     invitationCodeLabel: '邀请码',
+    affiliateSignupBonusHint: '通过有效邀请码注册，即赠 \u0024{amount} 初始余额。',
     invitationCodePlaceholder: '请输入邀请码',
     invitationCodeRequired: '请输入邀请码',
     invitationCodeValid: '邀请码有效',
