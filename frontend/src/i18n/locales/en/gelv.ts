@@ -1,0 +1,18 @@
+export default {
+  name: 'WeChat Mini Program',
+  productIds: 'Shared product IDs (comma-separated)',
+  sharedProducts: 'Use existing mini-program products. Only this site’s partner orders are credited; no new mini-program entry is needed.',
+  creditConfigHint: 'Fees are 1% for Android and 12% for Apple IAP. Credit is based on the server-verified payment channel.',
+  creditLabel: 'Receive {amount} credits',
+  cashLabel: 'Payment amount (CNY)',
+  pickTier: 'Choose the payment amount and review both Android and iOS credit amounts.',
+  android: 'Android credit',
+  ios: 'iOS credit',
+  androidCredit: 'Android: ${amount}',
+  iosCredit: 'iOS: ${amount}',
+  feeRates: 'Android 1% / iOS 12%',
+  channelRule: 'Credit follows the actual payment channel, regardless of the ordering device. Unverified payments wait for channel confirmation.',
+  scanTitle: 'Scan with WeChat to pay in the mini program',
+  scanHint: 'Review the product and amount in the mini program. This site will confirm payment automatically.',
+  manualRefund: 'Contact the administrator for a refund reconciled with the payment channel.',
+}

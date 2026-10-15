@@ -1,3 +1,4 @@
+import gelv from './gelv'
 import paymentRetail from './paymentRetail'
 import squarespaceProvider from './squarespaceProvider'
 import priorityScheduling from './priorityScheduling'
@@ -22,6 +23,7 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  gelv,
   paymentRetail,
   squarespaceProvider,
   autoConfig,

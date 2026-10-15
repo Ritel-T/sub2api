@@ -127,6 +127,9 @@ func expectedNotificationProviderKeyForOrder(registry *payment.Registry, order *
 }
 
 func validateProviderSnapshotMetadata(order *dbent.PaymentOrder, providerKey string, metadata map[string]string) error {
+	if providerKey == payment.TypeGelv {
+		return validateGelvMetadata(order, metadata)
+	}
 	if providerKey == "squarespace" {
 		return validateSquarespaceRetailMetadata(order, metadata)
 	}

@@ -21,9 +21,10 @@ const VISIBLE_METHOD_ALIASES = {
   stripe: 'stripe',
   airwallex: 'airwallex',
   squarespace: 'squarespace',
+  gelv: 'gelv',
 } as const
 
-export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex' | 'squarespace'
+export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex' | 'squarespace' | 'gelv'
 export type StripeVisibleMethod = 'alipay' | 'wechat_pay'
 export type PaymentLaunchKind =
   | 'order_result'

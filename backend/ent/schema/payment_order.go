@@ -192,6 +192,10 @@ func (PaymentOrder) Edges() []ent.Edge {
 
 func (PaymentOrder) Indexes() []ent.Index {
 	return []ent.Index{
+		// A shared upstream product never authorizes claiming one source order
+		// for two local users, even under concurrent create/recovery requests.
+		index.Fields("provider_instance_id", "payment_trade_no").Unique().StorageKey("paymentorder_gelv_external_order").
+			Annotations(entsql.IndexWhere("provider_key = 'gelv' AND payment_trade_no <> ''")),
 		index.Fields("out_trade_no").
 			Unique().
 			Annotations(entsql.IndexWhere("out_trade_no <> ''")),

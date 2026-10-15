@@ -1,0 +1,18 @@
+export default {
+  name: '微信小程序',
+  productIds: '共用商品 ID（逗号分隔）',
+  sharedProducts: '沿用小程序已有商品；仅处理本站来源订单，不新增小程序入口。',
+  creditConfigHint: '安卓按 1%、Apple IAP 按 12% 扣除手续费，按服务端核验的实际支付渠道入账。',
+  creditLabel: '到账 {amount} 额度',
+  cashLabel: '充值金额（人民币）',
+  pickTier: '选择实付金额；安卓与 iOS 的到账额度不同，请核对两种金额。',
+  android: '安卓到账',
+  ios: 'iOS 到账',
+  androidCredit: '安卓到账 ${amount}',
+  iosCredit: 'iOS 到账 ${amount}',
+  feeRates: '安卓 1% / iOS 12%',
+  channelRule: '最终按实际付款渠道入账，与下单设备无关；渠道未确认时暂缓入账。',
+  scanTitle: '微信扫码进入小程序付款',
+  scanHint: '请在小程序中核对商品与金额后付款。付款结果由本站自动确认。',
+  manualRefund: '退款需联系管理员，与渠道核对后处理。',
+}

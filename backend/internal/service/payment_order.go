@@ -45,6 +45,9 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if !paymentRequestEnabled(cfg, req) {
 		return nil, infraerrors.Forbidden("PAYMENT_DISABLED", "payment system is disabled")
 	}
+	if req.PaymentType == payment.TypeGelv && (req.OrderType != payment.OrderTypeBalance || !cfg.BalanceRetailPricingEnabled) {
+		return nil, infraerrors.BadRequest("GELV_QUOTE_REQUIRED", "mini-program payments require a balance quote")
+	}
 	if req.PaymentType == "squarespace" && !cfg.BalanceRetailPricingEnabled {
 		return nil, infraerrors.Forbidden("RETAIL_PRICING_DISABLED", "Squarespace requires a signed uniform retail quote")
 	}
@@ -150,7 +153,7 @@ func (s *PaymentService) validateOrderInput(ctx context.Context, req CreateOrder
 	if math.IsNaN(req.Amount) || math.IsInf(req.Amount, 0) || req.Amount <= 0 {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "amount must be a positive number")
 	}
-	if (cfg.MinAmount > 0 && req.Amount < cfg.MinAmount) || (cfg.MaxAmount > 0 && req.Amount > cfg.MaxAmount) {
+	if req.PaymentType != payment.TypeGelv && ((cfg.MinAmount > 0 && req.Amount < cfg.MinAmount) || (cfg.MaxAmount > 0 && req.Amount > cfg.MaxAmount)) {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "amount out of range").
 			WithMetadata(map[string]string{"min": fmt.Sprintf("%.2f", cfg.MinAmount), "max": fmt.Sprintf("%.2f", cfg.MaxAmount)})
 	}
@@ -207,6 +210,12 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		}
 	}
 	providerSnapshot := buildPaymentOrderProviderSnapshot(sel, req)
+	if sel != nil && sel.ProviderKey == payment.TypeGelv {
+		miniExpiry := time.Now().Add(15 * time.Minute)
+		if miniExpiry.Before(exp) {
+			exp = miniExpiry
+		}
+	}
 	selectedInstanceID := ""
 	selectedProviderKey := ""
 	if sel != nil {
@@ -325,6 +334,13 @@ func buildPaymentOrderProviderSnapshot(sel *payment.InstanceSelection, req Creat
 			snapshot["merchant_id"] = merchantID
 		}
 		snapshot["currency"] = payment.DefaultPaymentCurrency
+	}
+	if providerKey == payment.TypeGelv {
+		snapshot["merchant_id"] = sel.Config["partnerId"]
+		snapshot["currency"] = "CNY"
+		snapshot["gelv_product_ids"] = sel.Config["productIds"]
+		snapshot["gelv_android_fee_bps"] = 100
+		snapshot["gelv_ios_fee_bps"] = 1200
 	}
 	if providerKey == payment.TypeAlipay {
 		if merchantAppID := strings.TrimSpace(sel.Config["appId"]); merchantAppID != "" {
@@ -524,6 +540,9 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		return nil, classifyCreatePaymentError(req, sel.ProviderKey, err)
 	}
 	sanitizeCreatePaymentResponseDetails(pr)
+	if sel.ProviderKey == payment.TypeGelv && pr.QRCode == "" {
+		pr.QRCode = psStringValue(order.QrCode)
+	}
 	_, err = s.entClient.PaymentOrder.UpdateOneID(order.ID).
 		SetNillablePaymentTradeNo(psNilIfEmpty(pr.TradeNo)).
 		SetNillablePayURL(psNilIfEmpty(pr.PayURL)).

@@ -5,7 +5,8 @@
         {{ qrUrl ? scanTitle : t('payment.qr.payInNewWindow') }}
       </h2>
       <div v-if="qrUrl" class="rounded-2xl bg-white p-6 shadow-lg dark:bg-dark-800">
-        <canvas ref="qrCanvas" class="mx-auto"></canvas>
+        <img v-if="miniProgramImage" :src="qrUrl" :alt="t('gelv.scanTitle')" class="mx-auto h-64 w-64 object-contain" />
+        <canvas v-else ref="qrCanvas" class="mx-auto"></canvas>
       </div>
       <!-- Scan prompt for QR code -->
       <p v-if="qrUrl && !expired && scanHint" class="text-center text-sm text-gray-500 dark:text-gray-400">
@@ -43,6 +44,7 @@ import { extractI18nErrorMessage } from '@/utils/apiError'
 import { useAppStore } from '@/stores'
 import { isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import QRCode from 'qrcode'
+import { isMiniProgramImage } from '@/components/payment/miniProgramImage'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
 
@@ -60,6 +62,7 @@ const remainingSeconds = ref(0)
 const expired = ref(false)
 const cancelling = ref(false)
 const paymentType = ref('')
+const miniProgramImage = computed(() => isMiniProgramImage(paymentType.value, qrUrl.value))
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
@@ -74,12 +77,14 @@ const isAlipay = computed(() => isBuiltInAlipayMethod(paymentType.value))
 const isWxpay = computed(() => isBuiltInWxpayMethod(paymentType.value))
 
 const scanTitle = computed(() => {
+  if (paymentType.value === 'gelv') return t('gelv.scanTitle')
   if (isAlipay.value) return t('payment.qr.scanAlipay')
   if (isWxpay.value) return t('payment.qr.scanWxpay')
   return t('payment.qr.scanToPay')
 })
 
 const scanHint = computed(() => {
+  if (paymentType.value === 'gelv') return t('gelv.scanHint')
   if (isAlipay.value) return t('payment.qr.scanAlipayHint')
   if (isWxpay.value) return t('payment.qr.scanWxpayHint')
   return ''
@@ -92,6 +97,7 @@ function getLogoForType(): string | null {
 }
 
 async function renderQR() {
+  if (miniProgramImage.value) return
   await nextTick()
   if (!qrCanvas.value || !qrUrl.value) return
 

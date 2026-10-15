@@ -20,10 +20,17 @@
           ({{ t('payment.orders.fee') }} {{ row.fee_rate }}%)
         </span>
         <div v-if="row.retail_quote" class="space-y-1 text-xs text-gray-500">
-          <div>{{ t(row.retail_quote.pricing_basis_currency === 'CNY' ? 'paymentRetail.siteCredit' : 'paymentRetail.credited') }}: {{ creditedAmountSymbol + row.retail_quote.credited_amount_usd.toFixed(2) + (row.retail_quote.pricing_basis_currency === 'CNY' ? '' : ' USD') }}</div>
+          <template v-if="row.retail_quote.pricing_mode === 'gelv_channel_cny' && !row.paid_at">
+            <div>{{ t('gelv.androidCredit', { amount: row.retail_quote.credit_by_channel!.wechat_virtual.toFixed(2) }) }}</div>
+            <div>{{ t('gelv.iosCredit', { amount: row.retail_quote.credit_by_channel!.apple_iap.toFixed(2) }) }}</div>
+          </template>
+          <div v-else>{{ t(row.retail_quote.pricing_basis_currency === 'CNY' ? 'paymentRetail.siteCredit' : 'paymentRetail.credited') }}: {{ creditedAmountSymbol + row.amount.toFixed(2) + (row.retail_quote.pricing_basis_currency === 'CNY' ? '' : ' USD') }}</div>
           <div v-if="row.retail_quote.pricing_basis_currency === 'CNY'">{{ t('paymentRetail.principalCNY') }}: ¥{{ row.retail_quote.base_amount_cny!.toFixed(2) }} CNY</div>
-          <div>{{ t('paymentRetail.total') }}: £{{ row.retail_quote.total_amount_gbp.toFixed(2) }} GBP</div>
-          <div>{{ t('paymentRetail.includedCost') }}: £{{ row.retail_quote.included_cost_gbp.toFixed(2) }} GBP</div>
+          <template v-if="row.retail_quote.pricing_mode !== 'gelv_channel_cny'">
+            <div>{{ t('paymentRetail.total') }}: £{{ row.retail_quote.total_amount_gbp.toFixed(2) }} GBP</div>
+            <div>{{ t('paymentRetail.includedCost') }}: £{{ row.retail_quote.included_cost_gbp.toFixed(2) }} GBP</div>
+          </template>
+          <div v-else>{{ t('gelv.feeRates') }}</div>
         </div>
         <div v-else-if="row.payment_type !== 'balance' && (row.amount !== row.pay_amount || (row.bonus_amount ?? 0) > 0)" class="text-xs text-gray-500">
           {{ t('payment.orders.creditedAmount') }}: {{ creditedAmountSymbol }}{{ row.amount.toFixed(2) }}
@@ -34,7 +41,7 @@
       </div>
     </template>
     <template #cell-payment_type="{ value }">
-      <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('payment.methods.' + value, value) }}</span>
+      <span class="text-sm text-gray-700 dark:text-gray-300">{{ t(value === 'gelv' ? 'gelv.name' : 'payment.methods.' + value, value) }}</span>
     </template>
     <template #cell-status="{ value }">
       <OrderStatusBadge :status="value" />

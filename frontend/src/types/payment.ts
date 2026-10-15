@@ -19,7 +19,7 @@ export type OrderStatus =
   | 'REFUNDED'
   | 'REFUND_FAILED'
 
-export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex' | 'squarespace'
+export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex' | 'squarespace' | 'gelv'
 
 export type OrderType = 'balance' | 'subscription'
 export type SubscriptionRenewalMode = 'restart' | 'extend'
@@ -74,6 +74,7 @@ export interface PaymentConfig {
 }
 
 export interface MethodLimit {
+  topup_options?: { cash_cny: number; credits: number; android_credits: number; ios_credits: number }[]
   currency?: string
   display_name?: string
   daily_limit: number
@@ -122,6 +123,8 @@ export interface CheckoutInfoResponse {
 }
 
 export interface RetailQuote {
+  pricing_mode?: 'gelv_channel_cny'
+  credit_by_channel?: { wechat_virtual: number; apple_iap: number }
   /** Absent for historical USD-based orders; new quotes price site credit in CNY. */
   pricing_basis_currency?: 'CNY'
   base_amount_cny?: number

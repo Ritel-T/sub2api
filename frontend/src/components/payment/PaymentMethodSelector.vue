@@ -88,6 +88,7 @@ const sortedMethods = computed(() => {
 })
 
 function methodIcon(type: string): string {
+  if (type === 'gelv') return METHOD_ICONS.wxpay
   if (isBuiltInAlipayMethod(type)) return METHOD_ICONS.alipay
   if (isBuiltInWxpayMethod(type)) return METHOD_ICONS.wxpay
   if (type === 'airwallex') return METHOD_ICONS.airwallex
@@ -95,6 +96,7 @@ function methodIcon(type: string): string {
 }
 
 function methodLabel(method: PaymentMethodOption): string {
+  if (method.type === 'gelv') return t('gelv.name')
   return method.display_name || t(`payment.methods.${method.type}`, method.type)
 }
 

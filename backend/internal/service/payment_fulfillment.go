@@ -98,6 +98,9 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 	if pk == "squarespace" {
 		metadataErr = s.validateSquarespaceNotificationScope(ctx, o, tradeNo, metadata)
 	}
+	if pk == payment.TypeGelv {
+		_, metadataErr = gelvFinalCredit(o, metadata)
+	}
 	if err := metadataErr; err != nil {
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_PROVIDER_METADATA_MISMATCH", pk, map[string]any{
 			"detail":  err.Error(),
@@ -159,14 +162,32 @@ func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, trad
 	if pk == "squarespace" && s.validateSquarespaceNotificationScope(ctx, o, tradeNo, metadata) == nil {
 		expiredPredicate = paymentorder.StatusEQ(OrderStatusExpired)
 	}
-	c, err := s.entClient.PaymentOrder.Update().Where(
+	if pk == payment.TypeGelv && validateGelvMetadata(o, metadata) == nil {
+		expiredPredicate = paymentorder.StatusEQ(OrderStatusExpired)
+	}
+	paidUpdate := s.entClient.PaymentOrder.Update().Where(
 		paymentorder.IDEQ(o.ID),
 		paymentorder.Or(
 			paymentorder.StatusEQ(OrderStatusPending),
 			paymentorder.StatusEQ(OrderStatusCancelled),
 			expiredPredicate,
 		),
-	).SetStatus(OrderStatusPaid).SetPayAmount(paid).SetPaymentTradeNo(tradeNo).SetPaidAt(now).ClearFailedAt().ClearFailedReason().Save(ctx)
+	).SetStatus(OrderStatusPaid).SetPayAmount(paid).SetPaymentTradeNo(tradeNo).SetPaidAt(now).ClearFailedAt().ClearFailedReason()
+	if pk == payment.TypeGelv {
+		credit, creditErr := gelvFinalCredit(o, metadata)
+		if creditErr != nil {
+			return creditErr
+		}
+		snapshot := make(map[string]any, len(o.ProviderSnapshot)+2)
+		for k, v := range o.ProviderSnapshot {
+			snapshot[k] = v
+		}
+		snapshot["gelv_payment_channel"] = metadata["payment_channel"]
+		snapshot["gelv_wx_order_id"] = metadata["wx_order_id"]
+		snapshot["gelv_final_credit"] = credit
+		paidUpdate.SetAmount(credit).SetProviderSnapshot(snapshot)
+	}
+	c, err := paidUpdate.Save(ctx)
 	if err != nil {
 		return fmt.Errorf("update to PAID: %w", err)
 	}

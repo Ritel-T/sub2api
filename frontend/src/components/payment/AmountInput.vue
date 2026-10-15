@@ -34,7 +34,11 @@
               <span class="h-1 w-1 shrink-0 rounded-full bg-white"></span>
             </span>
           </span>
-          <span class="block">{{ amt }}</span>
+          <span class="block">{{ fixedOptions?.length ? '¥' + fixedOptions.find(option => option.credits === amt)?.cash_cny : amt }}</span>
+          <template v-if="fixedOptions?.length">
+            <span class="mt-1 block text-xs">{{ t('gelv.androidCredit', { amount: fixedOptions.find(option => option.credits === amt)?.android_credits }) }}</span>
+            <span class="mt-1 block text-xs">{{ t('gelv.iosCredit', { amount: fixedOptions.find(option => option.credits === amt)?.ios_credits }) }}</span>
+          </template>
           <!-- 配置了优惠阶梯时，所有按钮都显示第二行，保持高度一致：赠金显示到账 USD，折扣显示折后实付 -->
           <span
             v-if="showSecondLine"
@@ -49,7 +53,7 @@
     </div>
 
     <!-- Custom Amount Input -->
-    <div>
+    <div v-if="!fixedOptions?.length">
       <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {{ t('payment.customAmount') }}
       </label>
@@ -79,6 +83,7 @@ import { formatPaymentAmount } from './currency'
 
 const props = withDefaults(defineProps<{
   amounts?: number[]
+  fixedOptions?: { cash_cny: number; credits: number; android_credits: number; ios_credits: number }[]
   modelValue: number | null
   min?: number
   max?: number

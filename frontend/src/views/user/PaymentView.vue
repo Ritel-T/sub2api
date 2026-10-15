@@ -55,8 +55,8 @@
             <template v-else>
             <div class="card p-6">
               <p v-if="retailPricingEnabled && selectedMethod === 'squarespace'" data-test="gbp-payment-notice" class="mb-4 text-sm text-gray-600 dark:text-gray-300">{{ t('paymentRetail.gbpPaymentNotice') }}</p>
-              <p v-if="retailPricingEnabled" class="mb-2 text-sm font-medium">{{ t('paymentRetail.amountLabel') }}</p>
-              <p v-if="retailPricingEnabled" class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('paymentRetail.amountHint') }}</p>
+              <p v-if="retailPricingEnabled" class="mb-2 text-sm font-medium">{{ t(selectedMethod === 'gelv' ? 'gelv.cashLabel' : 'paymentRetail.amountLabel') }}</p>
+              <p v-if="retailPricingEnabled" class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t(selectedMethod === 'gelv' ? 'gelv.pickTier' : 'paymentRetail.amountHint') }}</p>
               <!-- 充值赠送活动文案（后台 Markdown 配置，空则不渲染） -->
               <div
                 v-if="renderedBonusNotice"
@@ -66,7 +66,8 @@
               ></div>
               <AmountInput
                 v-model="amount"
-                :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
+                :amounts="selectedMethod === 'gelv' ? (selectedLimit?.topup_options || []).map(option => option.credits) : [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
+                :fixed-options="selectedMethod === 'gelv' ? selectedLimit?.topup_options : undefined"
                 :min="globalMinAmount"
                 :max="globalMaxAmount"
                 :bonus-tiers="rechargeBonusTiers"
@@ -743,6 +744,7 @@ function amountFitsMethod(amt: number, methodType: string): boolean {
 
 // Visible methods decide the amount range shown to users.
 const globalMinAmount = computed(() => {
+  if (selectedMethod.value === 'gelv') return selectedLimit.value?.topup_options?.[0]?.credits || 0
   if (retailPricingEnabled.value) return checkout.value.global_min
   const limits = Object.values(visibleMethods.value)
   if (limits.length === 0) return 0
@@ -750,6 +752,7 @@ const globalMinAmount = computed(() => {
   return Math.min(...limits.map(limit => limit.single_min))
 })
 const globalMaxAmount = computed(() => {
+  if (selectedMethod.value === 'gelv') return selectedLimit.value?.topup_options?.at(-1)?.credits || 0
   if (retailPricingEnabled.value) return checkout.value.global_max
   const limits = Object.values(visibleMethods.value)
   if (limits.length === 0) return 0
@@ -759,6 +762,9 @@ const globalMaxAmount = computed(() => {
 
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
+watch(() => [selectedMethod.value, selectedLimit.value?.topup_options] as const, ([method, options]) => {
+  if (method === 'gelv' && options?.length && !options.some(option => option.credits === amount.value)) amount.value = options[0].credits
+})
 const selectedCurrency = computed(() => normalizePaymentCurrency(selectedLimit.value?.currency))
 const localeCode = computed(() => {
   const raw = i18n.locale as unknown
@@ -910,7 +916,7 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
       type,
       display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
-      available: type !== 'squarespace' && ml?.available !== false && amountFitsMethod(subscriptionTotalAmountForCurrency(price, currency), type),
+      available: !['squarespace', 'gelv'].includes(type) && ml?.available !== false && amountFitsMethod(subscriptionTotalAmountForCurrency(price, currency), type),
     }
   })
 })
@@ -920,7 +926,7 @@ const canSubmitSubscription = computed(() =>
     ? !!pendingBalancePurchase.value || hasSubscriptionBalance.value
     :
   selectedPlan.value !== null
-    && selectedMethod.value !== 'squarespace'
+    && !['squarespace', 'gelv'].includes(selectedMethod.value)
     && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
@@ -937,7 +943,7 @@ function topUpForSubscription() {
 }
 
 watch([activeTab, selectedPlan], () => {
-  if (activeTab.value !== 'subscription' || selectedMethod.value !== 'squarespace') return
+  if (activeTab.value !== 'subscription' || !['squarespace', 'gelv'].includes(selectedMethod.value)) return
   selectedMethod.value = subMethodOptions.value.find(method => method.available)?.type || ''
 })
 
@@ -1103,7 +1109,12 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     const confirmedQuote = orderType === 'balance' && options.quoteToken ? retailQuote.value : null
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
     if (confirmedQuote && (!isRetailQuote(result.retail_quote)
-      || result.amount !== confirmedQuote.credited_amount_usd
+      || (confirmedQuote.pricing_mode === 'gelv_channel_cny'
+        ? !Object.values(confirmedQuote.credit_by_channel || {}).includes(result.amount)
+        : result.amount !== confirmedQuote.credited_amount_usd)
+      || result.retail_quote.pricing_mode !== confirmedQuote.pricing_mode
+      || result.retail_quote.credit_by_channel?.wechat_virtual !== confirmedQuote.credit_by_channel?.wechat_virtual
+      || result.retail_quote.credit_by_channel?.apple_iap !== confirmedQuote.credit_by_channel?.apple_iap
       || result.pay_amount !== confirmedQuote.pay_amount
       || result.currency !== confirmedQuote.currency
       || result.retail_quote.pricing_basis_currency !== confirmedQuote.pricing_basis_currency

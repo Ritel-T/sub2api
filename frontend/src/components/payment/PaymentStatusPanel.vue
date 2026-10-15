@@ -193,9 +193,10 @@
         <div class="flex flex-col items-center space-y-4">
           <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ scanTitle }}</p>
           <div :class="['relative rounded-lg border-2 p-4', qrBorderClass]">
-            <canvas ref="qrCanvas" class="mx-auto"></canvas>
+            <img v-if="miniProgramImage" :src="qrUrl" :alt="t('gelv.scanTitle')" class="mx-auto h-64 w-64 object-contain" data-test="mini-program-code" />
+            <canvas v-else ref="qrCanvas" class="mx-auto"></canvas>
             <!-- Brand logo overlay -->
-            <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div v-if="!miniProgramImage" class="pointer-events-none absolute inset-0 flex items-center justify-center">
               <span :class="['rounded-full p-2 shadow ring-2 ring-white', qrLogoBgClass]">
                 <img :src="qrLogoIcon" alt="" class="h-5 w-5 brightness-0 invert" />
               </span>
@@ -253,6 +254,7 @@ import Icon from '@/components/icons/Icon.vue'
 import SquarespaceCheckoutInstructions from './SquarespaceCheckoutInstructions.vue'
 import SquarespaceReceiptClaim from './SquarespaceReceiptClaim.vue'
 import QRCode from 'qrcode'
+import { isMiniProgramImage } from './miniProgramImage'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
 import paymentIcon from '@/assets/icons/payment.svg'
@@ -324,6 +326,7 @@ const VERIFY_RETRY_MAX_ATTEMPTS = 6
 
 const isAlipay = computed(() => isBuiltInAlipayMethod(props.paymentType))
 const isWxpay = computed(() => isBuiltInWxpayMethod(props.paymentType))
+const miniProgramImage = computed(() => isMiniProgramImage(props.paymentType, qrUrl.value))
 const isMobileAlipayDeepLink = computed(() => props.mobileAlipayDeepLink === true && isAlipay.value && !!qrUrl.value)
 const showQRCode = computed(() => !!qrUrl.value && (!isMobileAlipayDeepLink.value || deepLinkFallbackVisible.value))
 
@@ -346,12 +349,14 @@ const qrLogoIcon = computed(() => {
 })
 
 const scanTitle = computed(() => {
+  if (props.paymentType === 'gelv') return t('gelv.scanTitle')
   if (isAlipay.value) return t('payment.qr.scanAlipay')
   if (isWxpay.value) return t('payment.qr.scanWxpay')
   return t('payment.qr.scanToPay')
 })
 
 const scanHint = computed(() => {
+  if (props.paymentType === 'gelv') return t('gelv.scanHint')
   if (isAlipay.value) return t('payment.qr.scanAlipayHint')
   if (isWxpay.value) return t('payment.qr.scanWxpayHint')
   return ''
@@ -393,6 +398,7 @@ function setOutcome(next: PaymentOutcome) {
 }
 
 async function renderQR() {
+  if (miniProgramImage.value) return
   await nextTick()
   if (!showQRCode.value || !qrCanvas.value || !qrUrl.value) return
   await QRCode.toCanvas(qrCanvas.value, qrUrl.value, {

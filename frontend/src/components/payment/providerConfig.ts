@@ -45,13 +45,14 @@ export const PROVIDER_SUPPORTED_TYPES: Record<string, string[]> = {
   stripe: ['card', 'alipay', 'wxpay', 'link'],
   airwallex: ['airwallex'],
   squarespace: ['squarespace'],
+  gelv: ['gelv'],
 }
 
 /** Available payment modes for EasyPay providers. */
 export const EASYPAY_PAYMENT_MODES = ['qrcode', 'popup'] as const
 
 /** Fixed display order for user-facing payment methods */
-export const METHOD_ORDER = ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct', 'squarespace', 'stripe', 'airwallex'] as const
+export const METHOD_ORDER = ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct', 'gelv', 'squarespace', 'stripe', 'airwallex'] as const
 
 export function isBuiltInAlipayMethod(type: string): boolean {
   return type === 'alipay' || type === 'alipay_direct'
@@ -128,6 +129,11 @@ export const PROVIDER_CALLBACK_PATHS: Record<string, CallbackPaths> = {
 
 /** Per-provider config fields (excludes notifyUrl/returnUrl which are handled separately). */
 export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
+  gelv: [
+    { key: 'partnerId', label: 'Partner ID', sensitive: false },
+    { key: 'partnerSecret', label: 'Partner Secret', sensitive: true },
+    { key: 'productIds', label: '', labelKey: 'gelv.productIds', hintKey: 'gelv.sharedProducts', sensitive: false },
+  ],
   easypay: [
     { key: 'pid', label: 'PID', sensitive: false },
     { key: 'pkey', label: 'PKey', sensitive: true },

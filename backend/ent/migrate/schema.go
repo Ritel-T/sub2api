@@ -1308,6 +1308,14 @@ var (
 		},
 		Indexes: []*schema.Index{
 			{
+				Name:    "paymentorder_gelv_external_order",
+				Unique:  true,
+				Columns: []*schema.Column{PaymentOrdersColumns[20], PaymentOrdersColumns[11]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "provider_key = 'gelv' AND payment_trade_no <> ''",
+				},
+			},
+			{
 				Name:    "paymentorder_out_trade_no",
 				Unique:  true,
 				Columns: []*schema.Column{PaymentOrdersColumns[9]},

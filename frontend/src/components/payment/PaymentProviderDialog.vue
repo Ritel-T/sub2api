@@ -435,7 +435,7 @@ const providerWebhookHint = computed(() =>
 const callbackPaths = computed(() => PROVIDER_CALLBACK_PATHS[form.provider_key] || null)
 
 const supportsPaymentMode = computed(() => providerSupportsPaymentMode(form.provider_key))
-const supportsRefund = computed(() => form.provider_key !== 'squarespace')
+const supportsRefund = computed(() => !['squarespace', 'gelv'].includes(form.provider_key))
 
 const paymentModeOptions = computed(() => {
   if (form.provider_key === 'alipay') {

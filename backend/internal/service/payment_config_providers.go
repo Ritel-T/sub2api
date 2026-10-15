@@ -111,6 +111,7 @@ var pendingOrderStatuses = []string{
 // Key matching is case-insensitive. Non-listed keys (e.g. appId, notifyUrl,
 // stripe publishableKey) are returned in plaintext by the admin GET API.
 var providerSensitiveConfigFields = map[string]map[string]struct{}{
+	payment.TypeGelv:      {"partnersecret": {}},
 	payment.TypeEasyPay:   {"pkey": {}},
 	payment.TypeAlipay:    {"privatekey": {}, "publickey": {}, "alipaypublickey": {}},
 	payment.TypeWxpay:     {"privatekey": {}, "apiv3key": {}, "publickey": {}},
@@ -124,6 +125,7 @@ var providerSensitiveConfigFields = map[string]map[string]struct{}{
 // all provider identity fields that are snapshotted into orders or used by
 // webhook/refund verification.
 var providerPendingOrderProtectedConfigFields = map[string]map[string]struct{}{
+	payment.TypeGelv:      {"partnerid": {}, "partnersecret": {}, "productids": {}},
 	payment.TypeEasyPay:   {"pkey": {}, "pid": {}},
 	payment.TypeAlipay:    {"privatekey": {}, "publickey": {}, "alipaypublickey": {}, "appid": {}},
 	payment.TypeWxpay:     {"privatekey": {}, "apiv3key": {}, "publickey": {}, "appid": {}, "mpappid": {}, "mchid": {}, "publickeyid": {}, "certserial": {}},
@@ -180,6 +182,7 @@ func (s *PaymentConfigService) countPendingOrdersByPlan(ctx context.Context, pla
 }
 
 var validProviderKeys = map[string]bool{
+	payment.TypeGelv:    true,
 	payment.TypeEasyPay: true, payment.TypeAlipay: true, payment.TypeWxpay: true, payment.TypeStripe: true, payment.TypeAirwallex: true, "squarespace": true,
 }
 
@@ -202,6 +205,9 @@ func (s *PaymentConfigService) CreateProviderInstance(ctx context.Context, req C
 		return nil, err
 	}
 	if req.Enabled {
+		if err := s.validateGelvInstance(ctx, 0, req.ProviderKey, typesStr, req.RefundEnabled); err != nil {
+			return nil, err
+		}
 		if err := s.validateProviderConfig(req.ProviderKey, req.Config); err != nil {
 			return nil, err
 		}
@@ -379,6 +385,13 @@ func (s *PaymentConfigService) UpdateProviderInstance(ctx context.Context, id in
 		finalEnabled = *req.Enabled
 	}
 	if finalEnabled {
+		refundEnabled := current.RefundEnabled
+		if req.RefundEnabled != nil {
+			refundEnabled = *req.RefundEnabled
+		}
+		if err := s.validateGelvInstance(ctx, id, current.ProviderKey, nextSupportedTypes, refundEnabled); err != nil {
+			return nil, err
+		}
 		if err := s.validateProviderConfig(current.ProviderKey, configToValidate); err != nil {
 			return nil, err
 		}

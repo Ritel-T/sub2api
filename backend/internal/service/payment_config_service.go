@@ -11,6 +11,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
@@ -154,13 +155,14 @@ type UpdatePaymentConfigRequest struct {
 
 // MethodLimits holds per-payment-type limits.
 type MethodLimits struct {
-	PaymentType string  `json:"payment_type"`
-	DisplayName string  `json:"display_name,omitempty"`
-	Currency    string  `json:"currency"`
-	FeeRate     float64 `json:"fee_rate"`
-	DailyLimit  float64 `json:"daily_limit"`
-	SingleMin   float64 `json:"single_min"`
-	SingleMax   float64 `json:"single_max"`
+	TopupOptions []provider.GelvCreditOption `json:"topup_options,omitempty"`
+	PaymentType  string                      `json:"payment_type"`
+	DisplayName  string                      `json:"display_name,omitempty"`
+	Currency     string                      `json:"currency"`
+	FeeRate      float64                     `json:"fee_rate"`
+	DailyLimit   float64                     `json:"daily_limit"`
+	SingleMin    float64                     `json:"single_min"`
+	SingleMax    float64                     `json:"single_max"`
 }
 
 // MethodLimitsResponse is the full response for the user-facing /limits API.

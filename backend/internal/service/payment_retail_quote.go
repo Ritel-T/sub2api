@@ -34,6 +34,8 @@ const paymentRetailQuoteSigningKeyEnv = "PAYMENT_RETAIL_QUOTE_SIGNING_KEY"
 // never changes the credited quantity. Optional pricing fields remain absent
 // on historical USD-priced quotes so their stored JSON and proof hashes survive.
 type RetailQuote struct {
+	PricingMode          string             `json:"pricing_mode,omitempty"`
+	CreditByChannel      map[string]float64 `json:"credit_by_channel,omitempty"`
 	CreditedAmountUSD    float64            `json:"credited_amount_usd"`
 	BaseAmountGBP        float64            `json:"base_amount_gbp"`
 	IncludedCostGBP      float64            `json:"included_cost_gbp"`
@@ -97,6 +99,9 @@ func (s *PaymentService) QuotePayment(ctx context.Context, req CreateOrderReques
 	}
 	if user.Status != payment.EntityStatusActive {
 		return nil, infraerrors.Forbidden("USER_INACTIVE", "user account is disabled")
+	}
+	if req.PaymentType == payment.TypeGelv {
+		return s.quoteGelvPayment(ctx, req, cfg)
 	}
 	currency, err := s.configService.ValidateMethodCurrencyConsistency(ctx, req.PaymentType)
 	if err != nil {
@@ -360,6 +365,9 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 	if err = validateRetailCashRange(instance.Limits, req.PaymentType, claims.Quote); err != nil {
 		return nil, err
 	}
+	if sel.ProviderKey == payment.TypeGelv && ((cfg.MinAmount > 0 && claims.Quote.PayAmount < cfg.MinAmount) || (cfg.MaxAmount > 0 && claims.Quote.PayAmount > cfg.MaxAmount)) {
+		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "cash denomination is outside the configured range")
+	}
 	oauth, err := s.maybeBuildWeChatOAuthRequiredResponseForSelection(ctx, req, req.Amount, claims.Quote.PayAmount, 0, sel)
 	if err != nil {
 		return nil, err
@@ -371,7 +379,17 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 	}
 	// Retail credits and cash remain exactly as signed; gateway promotion tiers
 	// cannot add credits or discount a frozen quote during creation or replay.
-	order, err := s.createOrderInTx(ctx, req, user, nil, cfg, req.Amount, req.Amount, 0, claims.Quote.PayAmount, 0, sel)
+	limitAmount := req.Amount
+	if sel.ProviderKey == payment.TypeGelv {
+		// Before the paying device is known, enforce the largest possible
+		// credit amount rather than letting the iOS lower bound bypass limits.
+		for _, credit := range claims.Quote.CreditByChannel {
+			if credit > limitAmount {
+				limitAmount = credit
+			}
+		}
+	}
+	order, err := s.createOrderInTx(ctx, req, user, nil, cfg, req.Amount, limitAmount, 0, claims.Quote.PayAmount, 0, sel)
 	if err != nil {
 		// A concurrent replay may have committed the unique checkout reference.
 		existing, lookupErr := s.entClient.PaymentOrder.Query().Where(paymentorder.OutTradeNo(claims.Quote.CheckoutReference)).Only(ctx)
@@ -382,7 +400,9 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 	}
 	result, err := s.invokeProvider(ctx, order, req, cfg, req.Amount, payment.FormatAmountForCurrency(claims.Quote.PayAmount, claims.Quote.Currency), claims.Quote.PayAmount, nil, sel)
 	if err != nil {
-		_, _ = s.entClient.PaymentOrder.UpdateOneID(order.ID).SetStatus(OrderStatusFailed).Save(ctx)
+		if sel.ProviderKey != payment.TypeGelv {
+			_, _ = s.entClient.PaymentOrder.UpdateOneID(order.ID).SetStatus(OrderStatusFailed).Save(ctx)
+		}
 		return nil, err
 	}
 	return result, nil

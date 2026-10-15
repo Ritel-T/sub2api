@@ -13161,6 +13161,7 @@ const retailPricingSettings = computed<BalanceRetailSettingsValue>({
 // ==================== Provider Management ====================
 
 const allPaymentTypes = computed(() => [
+  { value: "gelv", label: t("gelv.name") },
   { value: "easypay", label: t("payment.methods.easypay") },
   { value: "alipay", label: t("payment.methods.alipay") },
   { value: "wxpay", label: t("payment.methods.wxpay") },
@@ -13219,6 +13220,7 @@ const providerDialogRef = ref<InstanceType<
 > | null>(null);
 
 const providerKeyOptions = computed(() => [
+  { value: "gelv", label: t("gelv.name") },
   { value: "easypay", label: t("admin.settings.payment.providerEasypay") },
   { value: "alipay", label: t("admin.settings.payment.providerAlipay") },
   { value: "wxpay", label: t("admin.settings.payment.providerWxpay") },

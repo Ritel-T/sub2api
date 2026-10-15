@@ -9,6 +9,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
@@ -34,6 +35,23 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 		ml := pcAggregateMethodLimits(pt, insts)
 		ml.DisplayName = s.pcAggregateMethodDisplayName(pt, insts)
 		ml.Currency = currency
+		if pt == payment.TypeGelv {
+			if len(insts) != 1 {
+				continue
+			}
+			config, configErr := s.decryptConfig(insts[0].Config)
+			if configErr != nil {
+				continue
+			}
+			if _, configErr = provider.NewGelv("", config); configErr != nil {
+				continue
+			}
+			ml.TopupOptions, configErr = provider.GelvCreditOptions(config)
+			if configErr != nil {
+				continue
+			}
+			ml.DisplayName = "WeChat Mini Program"
+		}
 		resp.Methods[ml.PaymentType] = ml
 	}
 	resp.GlobalMin, resp.GlobalMax = pcComputeGlobalRange(resp.Methods)

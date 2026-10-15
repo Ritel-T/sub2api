@@ -19,8 +19,11 @@ const { t } = useI18n()
 const items = computed(() => [
   { key: 'credit', label: props.quote.pricing_basis_currency === 'CNY' ? 'squarespaceProvider.order.creditedSite' : 'squarespaceProvider.order.creditedUSD', amount: props.quote.credited_amount_usd, currency: props.quote.pricing_basis_currency === 'CNY' ? '' : 'USD' },
   ...(props.quote.pricing_basis_currency === 'CNY' ? [{ key: 'principal', label: 'squarespaceProvider.order.principalCNY', amount: props.quote.base_amount_cny!, currency: 'CNY' }] : []),
-  { key: 'total', label: 'squarespaceProvider.order.totalGBP', amount: props.quote.total_amount_gbp, currency: 'GBP' },
-  { key: 'cost', label: 'squarespaceProvider.order.includedCostGBP', amount: props.quote.included_cost_gbp, currency: 'GBP' },
+  ...(props.quote.pricing_mode === 'gelv_channel_cny'
+    ? [{ key: 'android', label: 'gelv.android', amount: props.quote.credit_by_channel!.wechat_virtual, currency: '' },
+      { key: 'ios', label: 'gelv.ios', amount: props.quote.credit_by_channel!.apple_iap, currency: '' }]
+    : [{ key: 'total', label: 'squarespaceProvider.order.totalGBP', amount: props.quote.total_amount_gbp, currency: 'GBP' },
+      { key: 'cost', label: 'squarespaceProvider.order.includedCostGBP', amount: props.quote.included_cost_gbp, currency: 'GBP' }]),
   { key: 'paid', label: 'squarespaceProvider.order.gatewayPaid', amount: props.quote.pay_amount, currency: props.quote.currency },
 ])
 </script>
