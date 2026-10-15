@@ -212,7 +212,8 @@ func TestGelvFormalProviderFixtureUsesStringProductAndPreservesUnknownFees(t *te
 	o := document.Order
 	g := newGelvTest(t)
 	g.client.Transport = gelvTransport(func(*http.Request) (*http.Response, error) { return gelvJSONResponse(t, 200, document), nil })
-	id := o["id"].(string)
+	id, ok := o["id"].(string)
+	require.True(t, ok)
 	result, err := g.QueryOrder(context.Background(), id)
 	require.NoError(t, err)
 	require.Equal(t, payment.ProviderStatusRefunded, result.Status)

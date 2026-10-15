@@ -333,7 +333,7 @@ func (g *Gelv) post(ctx context.Context, route string, body any, out any) error 
 	if err != nil {
 		return gelvError("transport_result_unknown")
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return &GelvError{Kind: "upstream_rejected", HTTPStatus: resp.StatusCode}
 	}
