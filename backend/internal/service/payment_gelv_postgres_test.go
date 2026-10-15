@@ -45,7 +45,7 @@ func TestGelvPostgresLedgerAndConcurrentRecovery(t *testing.T) {
 	defer client.Close()
 	require.NoError(t, client.Schema.Create(ctx))
 	// Exercise the actual production migration as well as the generated Ent index.
-	migration, err := os.ReadFile("../../migrations/286_gelv_external_order_identity.sql")
+	migration, err := os.ReadFile("../../migrations/288_gelv_external_order_identity.sql")
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, string(migration))
 	require.NoError(t, err)
@@ -66,11 +66,16 @@ func TestGelvPostgresLedgerAndConcurrentRecovery(t *testing.T) {
 			reference := "sub2_pg_gelv_" + strconv.FormatInt(usr.ID, 10)
 			instanceID := strconv.FormatInt(inst.ID, 10)
 			externalID := fmt.Sprintf("%024x", usr.ID)
-			quote := map[string]any{"pricing_mode": "gelv_channel_cny", "credit_by_channel": map[string]float64{"wechat_virtual": 9.9, "apple_iap": 8.8}, "credited_amount_usd": 8.8, "pricing_basis_currency": "CNY", "base_amount_cny": 8.8, "pay_amount": 10, "currency": "CNY", "checkout_reference": reference}
-			snapshot := map[string]any{"schema_version": 2, "provider_key": payment.TypeGelv, "provider_instance_id": instanceID, "merchant_id": "test-partner", "currency": "CNY", "gelv_product_ids": "3,4", "retail_quote": quote}
+			quote := map[string]any{"product_id": "3", "pricing_mode": "gelv_channel_cny", "credit_by_channel": map[string]float64{"wechat_virtual": 9.9, "apple_iap": 8.8}, "credited_amount_usd": 8.8, "pricing_basis_currency": "CNY", "base_amount_cny": 8.8, "pay_amount": 10, "currency": "CNY", "checkout_reference": reference}
+			snapshot := map[string]any{"gelv_product_id": "3", "schema_version": 2, "provider_key": payment.TypeGelv, "provider_instance_id": instanceID, "merchant_id": "test-partner", "currency": "CNY", "gelv_product_ids": "3,4", "retail_quote": quote, "gelv_android_fee_bps": 100, "gelv_ios_fee_bps": 1200}
 			order, err := client.PaymentOrder.Create().SetUserID(usr.ID).SetUserEmail(usr.Email).SetUserName(usr.Username).SetAmount(8.8).SetPayAmount(10).SetFeeRate(0).SetRechargeCode("GELV-PG-" + reference).SetOutTradeNo(reference).SetPaymentType(payment.TypeGelv).SetProviderKey(payment.TypeGelv).SetProviderInstanceID(instanceID).SetProviderSnapshot(snapshot).SetPaymentTradeNo(externalID).SetOrderType(payment.OrderTypeBalance).SetStatus(payment.OrderStatusPending).SetExpiresAt(time.Now().Add(time.Minute)).SetClientIP("127.0.0.1").SetSrcHost("test.example.invalid").Save(ctx)
 			require.NoError(t, err)
 			n := &payment.PaymentNotification{OrderID: reference, TradeNo: externalID, Amount: 10, Status: payment.NotificationStatusSuccess, Metadata: map[string]string{"partner_id": "test-partner", "partner_order_id": reference, "gelv_order_id": externalID, "product_id": "3", "currency": "CNY", "amount_minor": "1000", "gelv_status": "paid", "wx_order_id": "test-wx-" + externalID, "refunded_minor": "0", "payment_channel": tc.channel, "channel_verified": "true"}}
+			n.Metadata["channel_verification_status"] = "verified"
+			n.Metadata["fee_rate_bps"] = "100"
+			if tc.channel == "apple_iap" {
+				n.Metadata["fee_rate_bps"] = "1200"
+			}
 			// Reject the real balance UPDATE to prove redeem-code use rolls back.
 			_, err = db.ExecContext(ctx, fmt.Sprintf(`CREATE OR REPLACE FUNCTION gelv_test_reject_balance() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id = %d AND NEW.balance > OLD.balance THEN RAISE EXCEPTION 'isolated injected balance failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER gelv_test_reject_balance BEFORE UPDATE OF balance ON users FOR EACH ROW EXECUTE FUNCTION gelv_test_reject_balance();`, usr.ID))
 			require.NoError(t, err)
@@ -100,6 +105,20 @@ func TestGelvPostgresLedgerAndConcurrentRecovery(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, payment.OrderStatusCompleted, savedOrder.Status)
 			require.Equal(t, tc.want, savedOrder.Amount)
+			// Settlement can arrive after credit. Persist exact known evidence,
+			// with compare-and-swap on JSON, without changing the credited amount.
+			n.Metadata["settlement_state"] = "2"
+			n.Metadata["platform_fee_fen"] = "0"
+			n.Metadata["cps_fee_fen"] = "0"
+			n.Metadata["settled_at"] = "1792176378793"
+			require.NoError(t, svc.HandlePaymentNotification(ctx, n, payment.TypeGelv))
+			savedOrder, err = client.PaymentOrder.Get(ctx, order.ID)
+			require.NoError(t, err)
+			require.Equal(t, "2", savedOrder.ProviderSnapshot["gelv_settlement_state"])
+			require.Equal(t, "0", savedOrder.ProviderSnapshot["gelv_platform_fee_fen"])
+			savedUser, err = client.User.Get(ctx, usr.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, savedUser.Balance)
 			// Simulate a crash after the transactional credit but before COMPLETED.
 			_, err = client.PaymentOrder.UpdateOneID(order.ID).SetStatus(payment.OrderStatusRecharging).SetUpdatedAt(time.Now().Add(-10 * time.Minute)).Save(ctx)
 			require.NoError(t, err)

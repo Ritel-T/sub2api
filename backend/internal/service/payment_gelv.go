@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"entgo.io/ent/dialect"
+	entsql "entgo.io/ent/dialect/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -91,6 +93,7 @@ func (s *PaymentService) quoteGelvPayment(ctx context.Context, req CreateOrderRe
 	android, _ := provider.GelvCredits(minor, "wechat_virtual")
 	ios, _ := provider.GelvCredits(minor, "apple_iap")
 	quote := &RetailQuote{PricingMode: "gelv_channel_cny", CreditByChannel: map[string]float64{"wechat_virtual": android, "apple_iap": ios}, CreditedAmountUSD: req.Amount, PricingBasisCurrency: "CNY", BaseAmountCNY: req.Amount, PayAmount: cash, Currency: "CNY", FX: map[string]float64{}, FXSource: "fixed_cny", FXAsOf: now, IssuedAt: now, ExpiresAt: now.Add(time.Duration(ttl) * time.Second), CheckoutReference: reference}
+	quote.ProductID, _ = provider.GelvProductForMinor(minor)
 	claims := retailQuoteClaims{Purpose: retailQuotePurpose, UserID: req.UserID, PaymentType: payment.TypeGelv, ProviderInstanceID: sel.InstanceID, ProviderKey: sel.ProviderKey, ProviderIdentity: buildPaymentOrderProviderSnapshot(sel, CreateOrderRequest{}), Quote: quote}
 	token, err := s.signRetailQuote(claims)
 	if err != nil {
@@ -114,7 +117,7 @@ func validateGelvMetadata(o *dbent.PaymentOrder, m map[string]string) error {
 		}
 	}
 	minor, err := payment.AmountToMinorUnit(payment.FormatAmountForCurrency(o.PayAmount, "CNY"), "CNY")
-	if !matched || err != nil || m["amount_minor"] != strconv.FormatInt(minor, 10) {
+	if !matched || err != nil || m["amount_minor"] != strconv.FormatInt(minor, 10) || m["product_id"] != psSnapshotStringValue(o.ProviderSnapshot["gelv_product_id"]) {
 		return bad()
 	}
 	return nil
@@ -124,8 +127,15 @@ func gelvFinalCredit(o *dbent.PaymentOrder, m map[string]string) (float64, error
 	if err := validateGelvMetadata(o, m); err != nil {
 		return 0, err
 	}
-	if m["gelv_status"] != "paid" || strings.TrimSpace(m["wx_order_id"]) == "" || m["refunded_minor"] != "0" || m["channel_verified"] != "true" {
+	if m["gelv_status"] != "paid" || strings.TrimSpace(m["wx_order_id"]) == "" || m["refunded_minor"] != "0" || m["channel_verified"] != "true" || m["channel_verification_status"] != "verified" {
 		return 0, fmt.Errorf("gelv payment channel is not verified")
+	}
+	expectedRate := psSnapshotIntValue(o.ProviderSnapshot["gelv_android_fee_bps"])
+	if m["payment_channel"] == "apple_iap" {
+		expectedRate = psSnapshotIntValue(o.ProviderSnapshot["gelv_ios_fee_bps"])
+	}
+	if expectedRate <= 0 || m["fee_rate_bps"] != strconv.Itoa(expectedRate) {
+		return 0, fmt.Errorf("gelv payment fee does not match frozen pricing")
 	}
 	if resolved := psSnapshotStringValue(o.ProviderSnapshot["gelv_payment_channel"]); resolved != "" && resolved != m["payment_channel"] {
 		return 0, fmt.Errorf("gelv settled payment channel changed")
@@ -142,6 +152,76 @@ func gelvFinalCredit(o *dbent.PaymentOrder, m map[string]string) (float64, error
 		return 0, fmt.Errorf("gelv payment channel has no frozen credit amount")
 	}
 	return credit, nil
+}
+
+// Preserve missing settlement values as unknown. These are reconciliation
+// evidence, never inputs for selecting the Android/Apple fee or granting credit.
+func copyGelvEvidence(snapshot map[string]any, metadata map[string]string) bool {
+	changed := false
+	for _, key := range []string{"channel_verification_status", "channel_verified_at", "fee_rate_bps", "settlement_state", "platform_fee_fen", "cps_fee_fen", "settled_at"} {
+		value, known := metadata[key]
+		if !known || value == "" {
+			continue
+		}
+		if key == "settlement_state" && psSnapshotStringValue(snapshot["gelv_settlement_state"]) == "2" && value != "2" {
+			continue
+		}
+		if key == "settled_at" {
+			oldTime, _ := strconv.ParseInt(psSnapshotStringValue(snapshot["gelv_settled_at"]), 10, 64)
+			newTime, err := strconv.ParseInt(value, 10, 64)
+			if err != nil || newTime < oldTime {
+				continue
+			}
+		}
+		if psSnapshotStringValue(snapshot["gelv_"+key]) != value {
+			snapshot["gelv_"+key] = value
+			changed = true
+		}
+	}
+	return changed
+}
+
+func (s *PaymentService) syncGelvEvidence(ctx context.Context, o *dbent.PaymentOrder, metadata map[string]string) error {
+	if metadata["channel_verification_status"] != "verified" || metadata["channel_verified"] != "true" {
+		return nil
+	}
+	expectedRate := 0
+	switch metadata["payment_channel"] {
+	case "wechat_virtual":
+		expectedRate = psSnapshotIntValue(o.ProviderSnapshot["gelv_android_fee_bps"])
+	case "apple_iap":
+		expectedRate = psSnapshotIntValue(o.ProviderSnapshot["gelv_ios_fee_bps"])
+	}
+	wrongChannel := psSnapshotStringValue(o.ProviderSnapshot["gelv_payment_channel"])
+	wrongWX := psSnapshotStringValue(o.ProviderSnapshot["gelv_wx_order_id"])
+	if expectedRate <= 0 || metadata["fee_rate_bps"] != strconv.Itoa(expectedRate) || (wrongChannel != "" && wrongChannel != metadata["payment_channel"]) || (wrongWX != "" && wrongWX != metadata["wx_order_id"]) {
+		s.recordGelvReview(ctx, o, "GELV_CHANNEL_REVIEW_REQUIRED", map[string]any{"reason": "settlement_identity_or_fee_mismatch", "detail": "Keep original payment evidence; reconcile updated channel data manually"})
+		return nil
+	}
+	snapshot := make(map[string]any, len(o.ProviderSnapshot)+7)
+	for key, value := range o.ProviderSnapshot {
+		snapshot[key] = value
+	}
+	if !copyGelvEvidence(snapshot, metadata) {
+		return nil
+	}
+	before, err := json.Marshal(o.ProviderSnapshot)
+	if err != nil {
+		return err
+	}
+	// Compare the actual JSON evidence and state rather than a timestamp whose
+	// representation/precision differs between SQL drivers. A concurrent writer
+	// changes the snapshot or state, so its newer evidence cannot be overwritten.
+	_, err = s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(o.ID), paymentorder.StatusEQ(o.Status), paymentorder.StatusNEQ(OrderStatusRecharging), func(sel *entsql.Selector) {
+		if sel.Dialect() == dialect.SQLite {
+			sel.Where(entsql.P(func(b *entsql.Builder) {
+				b.WriteString("CAST(").Ident(sel.C(paymentorder.FieldProviderSnapshot)).WriteString(" AS TEXT) = ").Arg(string(before))
+			}))
+		} else {
+			sel.Where(entsql.EQ(sel.C(paymentorder.FieldProviderSnapshot), string(before)))
+		}
+	}).SetProviderSnapshot(snapshot).Save(ctx)
+	return err
 }
 
 // ReconcileGelvOrders polls durable local orders, independently of the browser.
@@ -188,8 +268,8 @@ func (s *PaymentService) reconcileGelvOrder(ctx context.Context, o *dbent.Paymen
 	if err != nil {
 		slog.Warn("[PaymentOrderExpiry] mini-program order requires reconciliation", "orderID", o.ID, "error", err)
 		var upstreamErr *provider.GelvError
-		if errors.As(err, &upstreamErr) && upstreamErr.Kind == "paid_channel_unverified" {
-			s.recordGelvReview(ctx, o, "GELV_CHANNEL_REVIEW_REQUIRED", map[string]any{"detail": "Paid order needs server-verified paymentChannel before crediting"})
+		if errors.As(err, &upstreamErr) && (upstreamErr.Kind == "paid_channel_unverified" || upstreamErr.Kind == "paid_channel_conflict" || upstreamErr.Kind == "paid_fee_rule_mismatch") {
+			s.recordGelvReview(ctx, o, "GELV_CHANNEL_REVIEW_REQUIRED", map[string]any{"reason": upstreamErr.Kind, "detail": "Payment channel or fee requires review before crediting"})
 		}
 	}
 	return recovered
@@ -234,9 +314,18 @@ func (s *PaymentService) reconcileGelvOrderWithProvider(ctx context.Context, o *
 	if err = validateGelvMetadata(o, resp.Metadata); err != nil {
 		return false, err
 	}
+	if resp.Metadata["channel_verification_status"] == "conflict" {
+		s.recordGelvReview(ctx, o, "GELV_CHANNEL_REVIEW_REQUIRED", map[string]any{"reason": "paid_channel_conflict", "detail": "Channel conflict retained; no automatic re-credit"})
+		if resp.Status == payment.ProviderStatusPaid {
+			return false, fmt.Errorf("gelv payment channel conflict")
+		}
+	}
 	if resp.Status == payment.ProviderStatusPaid {
+		if _, err = gelvFinalCredit(o, resp.Metadata); err != nil {
+			return false, err
+		}
 		if o.Status == OrderStatusCompleted {
-			return false, nil
+			return false, s.syncGelvEvidence(ctx, o, resp.Metadata)
 		}
 		if err = s.confirmPayment(ctx, o.ID, o.PaymentTradeNo, resp.Amount, payment.TypeGelv, resp.Metadata); err != nil {
 			return false, err
@@ -244,6 +333,9 @@ func (s *PaymentService) reconcileGelvOrderWithProvider(ctx context.Context, o *
 		return true, nil
 	}
 	if resp.Status == payment.ProviderStatusRefunded {
+		if err = s.syncGelvEvidence(ctx, o, resp.Metadata); err != nil {
+			return false, err
+		}
 		s.recordGelvReview(ctx, o, "GELV_REFUND_REVIEW_REQUIRED", map[string]any{"refunded_minor": resp.Metadata["refunded_minor"], "detail": "Channel refund observed; reconcile site credit and affiliate commission manually"})
 	}
 	return false, nil

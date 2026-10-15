@@ -120,6 +120,9 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_AMOUNT_MISMATCH", pk, map[string]any{"expected": o.PayAmount, "paid": paid, "tradeNo": tradeNo})
 		return fmt.Errorf("amount mismatch: expected %s, got %s", strconv.FormatFloat(o.PayAmount, 'f', -1, 64), strconv.FormatFloat(paid, 'f', -1, 64))
 	}
+	if pk == payment.TypeGelv && o.Status == OrderStatusCompleted {
+		return s.syncGelvEvidence(ctx, o, metadata)
+	}
 	return s.toPaid(ctx, o, tradeNo, paid, pk, metadata)
 }
 
@@ -185,6 +188,7 @@ func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, trad
 		snapshot["gelv_payment_channel"] = metadata["payment_channel"]
 		snapshot["gelv_wx_order_id"] = metadata["wx_order_id"]
 		snapshot["gelv_final_credit"] = credit
+		copyGelvEvidence(snapshot, metadata)
 		paidUpdate.SetAmount(credit).SetProviderSnapshot(snapshot)
 	}
 	c, err := paidUpdate.Save(ctx)

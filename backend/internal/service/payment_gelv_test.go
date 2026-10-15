@@ -21,7 +21,7 @@ func gelvServiceOrder(t *testing.T, status string) (*PaymentService, *dbent.Paym
 	client := newPaymentOrderLifecycleTestClient(t)
 	u, err := client.User.Create().SetEmail("gelv-test@example.com").SetPasswordHash("hash").SetUsername("gelv-test").Save(ctx)
 	require.NoError(t, err)
-	q := &RetailQuote{PricingMode: "gelv_channel_cny", CreditByChannel: map[string]float64{"wechat_virtual": 9.9, "apple_iap": 8.8}, CreditedAmountUSD: 8.8, PricingBasisCurrency: "CNY", BaseAmountCNY: 8.8, PayAmount: 10, Currency: "CNY", CheckoutReference: "sub2_gelv_service_test"}
+	q := &RetailQuote{ProductID: "3", PricingMode: "gelv_channel_cny", CreditByChannel: map[string]float64{"wechat_virtual": 9.9, "apple_iap": 8.8}, CreditedAmountUSD: 8.8, PricingBasisCurrency: "CNY", BaseAmountCNY: 8.8, PayAmount: 10, Currency: "CNY", CheckoutReference: "sub2_gelv_service_test"}
 	sel := &payment.InstanceSelection{InstanceID: "1", ProviderKey: payment.TypeGelv, PaymentMode: "qrcode", Config: map[string]string{"partnerId": "partner-test", "productIds": "3,4"}}
 	snap := buildPaymentOrderProviderSnapshot(sel, CreateOrderRequest{RetailQuote: q})
 	o, err := client.PaymentOrder.Create().SetUserID(u.ID).SetUserEmail(u.Email).SetUserName(u.Username).SetAmount(8.8).SetPayAmount(10).SetFeeRate(0).SetRechargeCode("GELV-TEST-RECHARGE").SetOutTradeNo(q.CheckoutReference).SetPaymentType(payment.TypeGelv).SetPaymentTradeNo("0123456789abcdef01234567").SetProviderKey(payment.TypeGelv).SetProviderInstanceID("1").SetProviderSnapshot(snap).SetOrderType(payment.OrderTypeBalance).SetStatus(status).SetExpiresAt(time.Now().Add(-time.Hour)).SetClientIP("127.0.0.1").SetSrcHost("site.example.com").Save(ctx)
@@ -38,7 +38,11 @@ func gelvServiceOrder(t *testing.T, status string) (*PaymentService, *dbent.Paym
 }
 
 func gelvServiceMetadata(o *dbent.PaymentOrder, channel string) map[string]string {
-	return map[string]string{"partner_id": "partner-test", "partner_order_id": o.OutTradeNo, "gelv_order_id": o.PaymentTradeNo, "product_id": "3", "currency": "CNY", "amount_minor": "1000", "gelv_status": "paid", "wx_order_id": "wx-paid-test", "refunded_minor": "0", "payment_channel": channel, "channel_verified": "true"}
+	rate := "100"
+	if channel == "apple_iap" {
+		rate = "1200"
+	}
+	return map[string]string{"partner_id": "partner-test", "partner_order_id": o.OutTradeNo, "gelv_order_id": o.PaymentTradeNo, "product_id": "3", "currency": "CNY", "amount_minor": "1000", "gelv_status": "paid", "wx_order_id": "wx-paid-test", "refunded_minor": "0", "payment_channel": channel, "channel_verified": "true", "channel_verification_status": "verified", "fee_rate_bps": rate}
 }
 
 func TestGelvActualChannelResolvesFrozenCreditOnceAfterExpiry(t *testing.T) {
@@ -68,7 +72,7 @@ func TestGelvActualChannelResolvesFrozenCreditOnceAfterExpiry(t *testing.T) {
 }
 
 func TestGelvUnverifiedOrForeignPaymentCannotCredit(t *testing.T) {
-	for _, tc := range []struct{ key, value string }{{"payment_channel", "android"}, {"payment_channel", ""}, {"channel_verified", "false"}, {"partner_order_id", "other_order_123"}, {"partner_id", "other-partner"}, {"product_id", "999"}, {"amount_minor", "999"}, {"refunded_minor", "100"}, {"wx_order_id", ""}} {
+	for _, tc := range []struct{ key, value string }{{"payment_channel", "android"}, {"payment_channel", ""}, {"channel_verified", "false"}, {"channel_verification_status", "conflict"}, {"fee_rate_bps", "1200"}, {"fee_rate_bps", ""}, {"partner_order_id", "other_order_123"}, {"partner_id", "other-partner"}, {"product_id", "999"}, {"amount_minor", "999"}, {"refunded_minor", "100"}, {"wx_order_id", ""}} {
 		t.Run(tc.key+tc.value, func(t *testing.T) {
 			s, o, users, codes := gelvServiceOrder(t, OrderStatusPending)
 			m := gelvServiceMetadata(o, "wechat_virtual")
@@ -163,11 +167,16 @@ func TestGelvExternalOrderUniqueAndRefundReviewDoesNotMutateCredit(t *testing.T)
 	require.Equal(t, 9.9, users.getByIDUser.Balance)
 	m["gelv_status"] = "refunded"
 	m["refunded_minor"] = "1000"
+	m["channel_verification_status"] = "conflict"
+	m["channel_verified"] = "false"
 	_, err = s.reconcileGelvOrderWithProvider(ctx, o, p)
 	require.NoError(t, err)
 	count, err = s.entClient.PaymentAuditLog.Query().Where(paymentauditlog.OrderIDEQ(strconv.FormatInt(o.ID, 10)), paymentauditlog.ActionEQ("GELV_REFUND_REVIEW_REQUIRED")).Count(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 2, count)
+	conflicts, err := s.entClient.PaymentAuditLog.Query().Where(paymentauditlog.OrderIDEQ(strconv.FormatInt(o.ID, 10)), paymentauditlog.ActionEQ("GELV_CHANNEL_REVIEW_REQUIRED")).Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, conflicts)
 }
 
 func TestGelvProviderConfigSecretsAndCapabilityGuards(t *testing.T) {
@@ -218,4 +227,43 @@ func TestGelvQuoteFreezesBothChannelCreditsAndCashLimits(t *testing.T) {
 	cfg.MinAmount = 30
 	_, err = s.quoteGelvPayment(ctx, CreateOrderRequest{UserID: 1, PaymentType: payment.TypeGelv, Amount: 8.8}, cfg)
 	require.Error(t, err)
+}
+
+func TestGelvSettlementOnlyUpdatesEvidenceAndNeverRecredits(t *testing.T) {
+	s, o, users, codes := gelvServiceOrder(t, OrderStatusPending)
+	ctx := context.Background()
+	m := gelvServiceMetadata(o, "wechat_virtual")
+	m["settlement_state"] = "3"
+	m["channel_verified_at"] = "1792089978793"
+	require.NoError(t, s.confirmPayment(ctx, o.ID, o.PaymentTradeNo, 10, payment.TypeGelv, m))
+	o, err := s.entClient.PaymentOrder.Get(ctx, o.ID)
+	require.NoError(t, err)
+	require.Equal(t, "100", o.ProviderSnapshot["gelv_fee_rate_bps"])
+	_, exists := o.ProviderSnapshot["gelv_platform_fee_fen"]
+	require.False(t, exists)
+	m["settlement_state"] = "2"
+	m["platform_fee_fen"] = "10"
+	m["cps_fee_fen"] = "0"
+	m["settled_at"] = "1792176378793"
+	p := &paymentOrderLifecycleQueryProvider{key: payment.TypeGelv, resp: &payment.QueryOrderResponse{TradeNo: o.PaymentTradeNo, Status: payment.ProviderStatusPaid, Amount: 10, Metadata: m}}
+	for i := 0; i < 2; i++ {
+		recovered, pollErr := s.reconcileGelvOrderWithProvider(ctx, o, p)
+		require.NoError(t, pollErr)
+		require.False(t, recovered)
+		o, err = s.entClient.PaymentOrder.Get(ctx, o.ID)
+		require.NoError(t, err)
+	}
+	require.Equal(t, "10", o.ProviderSnapshot["gelv_platform_fee_fen"])
+	require.Equal(t, "0", o.ProviderSnapshot["gelv_cps_fee_fen"])
+	require.Equal(t, 9.9, users.getByIDUser.Balance)
+	require.Len(t, codes.useCalls, 1)
+	delete(m, "platform_fee_fen")
+	delete(m, "cps_fee_fen")
+	m["settlement_state"] = "3"
+	_, err = s.reconcileGelvOrderWithProvider(ctx, o, p)
+	require.NoError(t, err)
+	o, err = s.entClient.PaymentOrder.Get(ctx, o.ID)
+	require.NoError(t, err)
+	require.Equal(t, "2", o.ProviderSnapshot["gelv_settlement_state"])
+	require.Equal(t, "10", o.ProviderSnapshot["gelv_platform_fee_fen"])
 }

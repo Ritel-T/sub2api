@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,7 +31,7 @@ func gelvTestConfig() map[string]string {
 	return map[string]string{"partnerId": "site-test", "partnerSecret": strings.Repeat("fake-test-secret-", 3), "productIds": "3,4,5,6,7,8", "credit10": "9.60", "credit30": "28.80", "credit50": "48", "credit100": "96", "credit200": "192", "credit500": "480"}
 }
 func gelvTestOrder() map[string]any {
-	return map[string]any{"id": gelvTestID, "partnerOrderId": gelvTestReference, "amount": 1000, "productId": 3, "status": "pending", "refunded": 0, "paymentChannel": "wechat_virtual", "channelVerified": true}
+	return map[string]any{"id": gelvTestID, "partnerOrderId": gelvTestReference, "amount": 1000, "currency": "CNY", "productId": "3", "status": "pending", "refunded": 0, "paymentChannel": "wechat_virtual", "channelVerified": true, "channelVerificationStatus": "verified", "feeRateBps": 100}
 }
 func gelvJSONResponse(t *testing.T, status int, body any) *http.Response {
 	t.Helper()
@@ -92,6 +93,8 @@ func TestGelvRejectsWrongSourceProductMoneyAndUnsafeImages(t *testing.T) {
 		{"foreign_reference", func(o map[string]any) { o["partnerOrderId"] = "other_order_123" }, gelvTestPNG},
 		{"wrong_amount", func(o map[string]any) { o["amount"] = 3000 }, gelvTestPNG},
 		{"wrong_product", func(o map[string]any) { o["productId"] = 999 }, gelvTestPNG},
+		{"wrong_allowed_tier", func(o map[string]any) { o["productId"] = "4" }, gelvTestPNG},
+		{"numeric_product_id", func(o map[string]any) { o["productId"] = 3 }, gelvTestPNG},
 		{"wrong_currency", func(o map[string]any) { o["currency"] = "USD" }, gelvTestPNG},
 		{"fractional_minor", func(o map[string]any) { o["amount"] = 1000.1 }, gelvTestPNG},
 		{"no_refund_evidence", func(o map[string]any) { delete(o, "refunded") }, gelvTestPNG},
@@ -121,6 +124,9 @@ func TestGelvQueryRequiresCompletePaidEvidenceAndKeepsRefundSeparate(t *testing.
 			o["wxOrderId"] = "wx-test-transaction"
 			if strings.Contains(status, "refunded") {
 				o["refunded"] = 500
+			}
+			if status == "refunded" {
+				o["refunded"] = 1000
 			}
 			g.client.Transport = gelvTransport(func(r *http.Request) (*http.Response, error) {
 				require.Equal(t, "/api/partner/v1/order", r.URL.Path)
@@ -194,4 +200,51 @@ func TestGelvPaidChannelMustComeFromVerifiedUpstreamNotDeviceHint(t *testing.T) 
 			require.Contains(t, err.Error(), "paid_channel_unverified")
 		})
 	}
+}
+
+func TestGelvFormalProviderFixtureUsesStringProductAndPreservesUnknownFees(t *testing.T) {
+	raw, err := os.ReadFile("testdata/gelv_formal_refunded.json")
+	require.NoError(t, err)
+	var document struct {
+		Order map[string]any `json:"order"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &document))
+	o := document.Order
+	g := newGelvTest(t)
+	g.client.Transport = gelvTransport(func(*http.Request) (*http.Response, error) { return gelvJSONResponse(t, 200, document), nil })
+	id := o["id"].(string)
+	result, err := g.QueryOrder(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, payment.ProviderStatusRefunded, result.Status)
+	require.Equal(t, "3", result.Metadata["product_id"])
+	require.Equal(t, "1000", result.Metadata["refunded_minor"])
+	require.Equal(t, "100", result.Metadata["fee_rate_bps"])
+	require.Equal(t, "verified", result.Metadata["channel_verification_status"])
+	_, exists := result.Metadata["platform_fee_fen"]
+	require.False(t, exists, "unknown settlement fee must not become zero")
+	// These are isolated fixture mutations, not additional live payments.
+	o["status"] = "paid"
+	o["refunded"] = 0
+	result, err = g.QueryOrder(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, payment.ProviderStatusPaid, result.Status)
+	o["feeRateBps"] = 1200
+	_, err = g.QueryOrder(context.Background(), id)
+	require.ErrorContains(t, err, "paid_fee_rule_mismatch")
+	o["paymentChannel"] = "apple_iap"
+	result, err = g.QueryOrder(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, "1200", result.Metadata["fee_rate_bps"])
+	o["channelVerificationStatus"] = "conflict"
+	o["channelVerified"] = false
+	_, err = g.QueryOrder(context.Background(), id)
+	require.ErrorContains(t, err, "paid_channel_conflict")
+	o["status"] = "refunded"
+	o["refunded"] = 1000
+	result, err = g.QueryOrder(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, payment.ProviderStatusRefunded, result.Status)
+	delete(o, "currency")
+	_, err = g.QueryOrder(context.Background(), id)
+	require.Error(t, err)
 }

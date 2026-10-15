@@ -27,10 +27,11 @@ import (
 const GelvAPIBase = "https://alar1c.cn"
 
 var (
-	ErrGelvUnsupported   = errors.New("gelv: operation unsupported; use channel manual refund")
-	gelvOrderIDPattern   = regexp.MustCompile(`^[a-f0-9]{24}$`)
-	gelvReferencePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,80}$`)
-	gelvPartnerPattern   = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
+	ErrGelvUnsupported         = errors.New("gelv: operation unsupported; use channel manual refund")
+	gelvOrderIDPattern         = regexp.MustCompile(`^[a-f0-9]{24}$`)
+	gelvReferencePattern       = regexp.MustCompile(`^[A-Za-z0-9_-]{8,80}$`)
+	gelvPartnerPattern         = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
+	gelvPlatformPaymentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{6,128}$`)
 )
 
 // GelvError intentionally excludes upstream bodies, credentials and signed headers.
@@ -45,7 +46,7 @@ func gelvError(kind string) error  { return &GelvError{Kind: kind} }
 type Gelv struct {
 	partnerID string
 	secret    string
-	products  map[int64]bool
+	products  map[string]bool
 	client    *http.Client
 }
 
@@ -54,13 +55,13 @@ func NewGelv(_ string, config map[string]string) (*Gelv, error) {
 	if !gelvPartnerPattern.MatchString(id) || len(secret) < 32 || strings.Contains(strings.ToUpper(secret), "REPLACE") || id == "local-topup-test" {
 		return nil, gelvError("invalid_partner_credentials")
 	}
-	products := map[int64]bool{}
+	products := map[string]bool{}
 	for _, raw := range strings.Split(config["productIds"], ",") {
 		id, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
-		if err != nil || id <= 0 || products[id] {
+		if err != nil || id <= 0 || products[strconv.FormatInt(id, 10)] {
 			return nil, gelvError("invalid_product_allowlist")
 		}
-		products[id] = true
+		products[strconv.FormatInt(id, 10)] = true
 	}
 	if len(products) == 0 || len(products) > 100 {
 		return nil, gelvError("invalid_product_allowlist")
@@ -129,34 +130,58 @@ func GelvAmountMinor(amount string) (int64, error) {
 	return 0, gelvError("unsupported_denomination")
 }
 
+func GelvProductForMinor(amount int64) (string, error) {
+	product, ok := map[int64]string{1000: "3", 3000: "4", 5000: "5", 10000: "6", 20000: "7", 50000: "8"}[amount]
+	if !ok {
+		return "", gelvError("unsupported_denomination")
+	}
+	return product, nil
+}
+
 type GelvOrder struct {
-	ID              string `json:"id"`
-	PartnerOrderID  string `json:"partnerOrderId"`
-	Amount          int64  `json:"amount"`
-	Currency        string `json:"currency"`
-	ProductID       int64  `json:"productId"`
-	Status          string `json:"status"`
-	Refunded        *int64 `json:"refunded"`
-	WxOrderID       string `json:"wxOrderId"`
-	MerchantOrderID string `json:"merchantOrderId"`
-	PaymentChannel  string `json:"paymentChannel"`
-	ChannelVerified bool   `json:"channelVerified"`
+	ID                        string `json:"id"`
+	PartnerOrderID            string `json:"partnerOrderId"`
+	Amount                    int64  `json:"amount"`
+	Currency                  string `json:"currency"`
+	ProductID                 string `json:"productId"`
+	Status                    string `json:"status"`
+	Refunded                  *int64 `json:"refunded"`
+	WxOrderID                 string `json:"wxOrderId"`
+	MerchantOrderID           string `json:"merchantOrderId"`
+	PaymentChannel            string `json:"paymentChannel"`
+	ChannelVerified           bool   `json:"channelVerified"`
+	ChannelVerificationStatus string `json:"channelVerificationStatus"`
+	ChannelVerifiedAt         *int64 `json:"channelVerifiedAt"`
+	FeeRateBps                *int64 `json:"feeRateBps"`
+	SettlementState           *int64 `json:"settlementState"`
+	PlatformFeeFen            *int64 `json:"platformFeeFen"`
+	CPSFeeFen                 *int64 `json:"cpsFeeFen"`
+	SettledAt                 *int64 `json:"settledAt"`
 }
 
 func (g *Gelv) validateOrder(o *GelvOrder) error {
-	if !gelvOrderIDPattern.MatchString(o.ID) || !gelvReferencePattern.MatchString(o.PartnerOrderID) || !g.products[o.ProductID] || o.Amount <= 0 || o.Refunded == nil || *o.Refunded < 0 || *o.Refunded > o.Amount || (o.Currency != "" && o.Currency != "CNY") {
+	if !gelvOrderIDPattern.MatchString(o.ID) || !gelvReferencePattern.MatchString(o.PartnerOrderID) || !g.products[o.ProductID] || o.Amount <= 0 || o.Refunded == nil || *o.Refunded < 0 || *o.Refunded > o.Amount || o.Currency != "CNY" {
 		return gelvError("invalid_order_scope_or_amount")
 	}
 	if _, err := GelvAmountMinor(decimal.NewFromInt(o.Amount).Shift(-2).String()); err != nil {
 		return err
+	}
+	// The shared products have a documented, exact cash-to-product mapping.
+	// An allowed product of the wrong tier is still a different purchase.
+	expectedProduct, _ := GelvProductForMinor(o.Amount)
+	if o.ProductID != expectedProduct {
+		return gelvError("product_denomination_mismatch")
 	}
 	switch o.Status {
 	case "pending", "paid", "partially_refunded", "refunded", "closed":
 	default:
 		return gelvError("unknown_order_status")
 	}
-	if o.Status == "paid" && (strings.TrimSpace(o.WxOrderID) == "" || *o.Refunded != 0) {
+	if o.Status == "paid" && (!gelvPlatformPaymentPattern.MatchString(o.WxOrderID) || *o.Refunded != 0) {
 		return gelvError("incomplete_paid_evidence")
+	}
+	if (o.Status == "partially_refunded" && (*o.Refunded <= 0 || *o.Refunded >= o.Amount)) || (o.Status == "refunded" && *o.Refunded != o.Amount) {
+		return gelvError("inconsistent_refund_state")
 	}
 	return nil
 }
@@ -212,8 +237,20 @@ func (g *Gelv) QueryOrder(ctx context.Context, id string) (*payment.QueryOrderRe
 	if o.ID != id {
 		return nil, gelvError("queried_order_mismatch")
 	}
-	if o.Status == "paid" && (!o.ChannelVerified || (o.PaymentChannel != "wechat_virtual" && o.PaymentChannel != "apple_iap")) {
+	if o.Status == "paid" && o.ChannelVerificationStatus == "conflict" {
+		return nil, gelvError("paid_channel_conflict")
+	}
+	if o.Status == "paid" && (!o.ChannelVerified || o.ChannelVerificationStatus != "verified" || (o.PaymentChannel != "wechat_virtual" && o.PaymentChannel != "apple_iap")) {
 		return nil, gelvError("paid_channel_unverified")
+	}
+	if o.Status == "paid" {
+		expectedRate := int64(100)
+		if o.PaymentChannel == "apple_iap" {
+			expectedRate = 1200
+		}
+		if o.FeeRateBps == nil || *o.FeeRateBps != expectedRate {
+			return nil, gelvError("paid_fee_rule_mismatch")
+		}
 	}
 	status := payment.ProviderStatusPending
 	switch o.Status {
@@ -224,12 +261,19 @@ func (g *Gelv) QueryOrder(ctx context.Context, id string) (*payment.QueryOrderRe
 	case "closed":
 		status = payment.ProviderStatusFailed
 	}
-	return &payment.QueryOrderResponse{TradeNo: o.ID, Status: status, Amount: float64(o.Amount) / 100, Currency: "CNY", Metadata: map[string]string{
+	metadata := map[string]string{
 		"partner_id": g.partnerID, "partner_order_id": o.PartnerOrderID, "gelv_order_id": o.ID,
-		"product_id": strconv.FormatInt(o.ProductID, 10), "currency": "CNY", "wx_order_id": o.WxOrderID,
+		"product_id": o.ProductID, "currency": "CNY", "wx_order_id": o.WxOrderID,
 		"gelv_status": o.Status, "amount_minor": strconv.FormatInt(o.Amount, 10), "refunded_minor": strconv.FormatInt(*o.Refunded, 10),
 		"payment_channel": o.PaymentChannel, "channel_verified": strconv.FormatBool(o.ChannelVerified),
-	}}, nil
+		"channel_verification_status": o.ChannelVerificationStatus,
+	}
+	for key, value := range map[string]*int64{"fee_rate_bps": o.FeeRateBps, "channel_verified_at": o.ChannelVerifiedAt, "settlement_state": o.SettlementState, "platform_fee_fen": o.PlatformFeeFen, "cps_fee_fen": o.CPSFeeFen, "settled_at": o.SettledAt} {
+		if value != nil {
+			metadata[key] = strconv.FormatInt(*value, 10)
+		}
+	}
+	return &payment.QueryOrderResponse{TradeNo: o.ID, Status: status, Amount: float64(o.Amount) / 100, Currency: "CNY", Metadata: metadata}, nil
 }
 
 func (*Gelv) VerifyNotification(context.Context, string, map[string]string) (*payment.PaymentNotification, error) {

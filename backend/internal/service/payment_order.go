@@ -339,6 +339,9 @@ func buildPaymentOrderProviderSnapshot(sel *payment.InstanceSelection, req Creat
 		snapshot["merchant_id"] = sel.Config["partnerId"]
 		snapshot["currency"] = "CNY"
 		snapshot["gelv_product_ids"] = sel.Config["productIds"]
+		if req.RetailQuote != nil {
+			snapshot["gelv_product_id"] = req.RetailQuote.ProductID
+		}
 		snapshot["gelv_android_fee_bps"] = 100
 		snapshot["gelv_ios_fee_bps"] = 1200
 	}

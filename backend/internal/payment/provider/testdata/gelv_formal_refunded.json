@@ -1,0 +1,23 @@
+{
+  "order": {
+    "id": "aaaaaaaaaaaaaaaaaaaaaaa1",
+    "partnerOrderId": "sub2_redacted_formal_1",
+    "merchantOrderId": "Paaaaaaaaaaaaaaaaaaaaaaa1",
+    "wxOrderId": "wx-redacted-formal-1",
+    "amount": 1000,
+    "currency": "CNY",
+    "productId": "3",
+    "status": "refunded",
+    "refunded": 1000,
+    "appleAvailable": true,
+    "paymentChannel": "wechat_virtual",
+    "channelVerified": true,
+    "channelVerificationStatus": "verified",
+    "channelVerifiedAt": 1792089978793,
+    "feeRateBps": 100,
+    "settlementState": 3,
+    "platformFeeFen": null,
+    "cpsFeeFen": null,
+    "settledAt": null
+  }
+}
