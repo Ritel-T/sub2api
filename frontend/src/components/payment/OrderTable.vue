@@ -25,12 +25,12 @@
             <div>{{ t('gelv.iosCredit', { amount: row.retail_quote.credit_by_channel!.apple_iap.toFixed(2) }) }}</div>
           </template>
           <div v-else>{{ t(row.retail_quote.pricing_basis_currency === 'CNY' ? 'paymentRetail.siteCredit' : 'paymentRetail.credited') }}: {{ creditedAmountSymbol + row.amount.toFixed(2) + (row.retail_quote.pricing_basis_currency === 'CNY' ? '' : ' USD') }}</div>
-          <div v-if="row.retail_quote.pricing_basis_currency === 'CNY'">{{ t('paymentRetail.principalCNY') }}: ¥{{ row.retail_quote.base_amount_cny!.toFixed(2) }} CNY</div>
+          <div v-if="row.retail_quote.pricing_mode !== 'gelv_channel_cny' && row.retail_quote.pricing_basis_currency === 'CNY'">{{ t('paymentRetail.principalCNY') }}: ¥{{ row.retail_quote.base_amount_cny!.toFixed(2) }} CNY</div>
           <template v-if="row.retail_quote.pricing_mode !== 'gelv_channel_cny'">
             <div>{{ t('paymentRetail.total') }}: £{{ row.retail_quote.total_amount_gbp.toFixed(2) }} GBP</div>
             <div>{{ t('paymentRetail.includedCost') }}: £{{ row.retail_quote.included_cost_gbp.toFixed(2) }} GBP</div>
           </template>
-          <div v-else>{{ t('gelv.feeRates') }}</div>
+          <div v-else-if="!row.paid_at">{{ t('gelv.feeRates') }}</div>
         </div>
         <div v-else-if="row.payment_type !== 'balance' && (row.amount !== row.pay_amount || (row.bonus_amount ?? 0) > 0)" class="text-xs text-gray-500">
           {{ t('payment.orders.creditedAmount') }}: {{ creditedAmountSymbol }}{{ row.amount.toFixed(2) }}
