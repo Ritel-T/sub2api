@@ -52,7 +52,7 @@ func (w *wsSSETimingWriter) Flush() {
 	w.collector.Written(start, 0, nil, true)
 }
 
-func wsSSETimingLoopback(t *testing.T, events []string, accelerate, failWrites bool) (*OpenAIForwardResult, error, requesttiming.Snapshot, string) {
+func wsSSETimingLoopback(t *testing.T, events []string, accelerate, failWrites bool) (*OpenAIForwardResult, requesttiming.Snapshot, string, error) {
 	t.Helper()
 	var submissions atomic.Int32
 	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
@@ -62,7 +62,7 @@ func wsSSETimingLoopback(t *testing.T, events []string, accelerate, failWrites b
 			t.Errorf("loopback upgrade: %v", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		var payload map[string]any
 		if err = conn.ReadJSON(&payload); err != nil {
 			t.Errorf("loopback payload: %v", err)
@@ -108,7 +108,7 @@ func wsSSETimingLoopback(t *testing.T, events []string, accelerate, failWrites b
 	collector.WhenFinished(func(v requesttiming.Snapshot) { data = v })
 	require.EqualValues(t, 1, submissions.Load(), "observations must never add/replay a response.create")
 	require.Nil(t, upstream.lastReq, "a sent WS turn must not fall back to HTTP")
-	return result, err, data, rec.Body.String()
+	return result, data, rec.Body.String(), err
 }
 
 func TestOpenAIWSSSEAccelerationRequestTimingLoopback(t *testing.T) {
@@ -138,7 +138,7 @@ func TestOpenAIWSSSEAccelerationRequestTimingLoopback(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err, data, body := wsSSETimingLoopback(t, tc.events, true, false)
+			result, data, body, err := wsSSETimingLoopback(t, tc.events, true, false)
 			if tc.wantError {
 				require.Error(t, err)
 			} else {
@@ -175,7 +175,7 @@ func TestOpenAIWSSSEAccelerationRequestTimingLoopback(t *testing.T) {
 }
 
 func TestOpenAIWSSSEAccelerationTimingDoesNotAffectNativeWS(t *testing.T) {
-	result, err, data, _ := wsSSETimingLoopback(t, []string{
+	result, data, _, err := wsSSETimingLoopback(t, []string{
 		`{"type":"response.output_text.delta","delta":"hello"}`,
 		`{"type":"response.completed","response":{"id":"resp_native","usage":{"input_tokens":1,"output_tokens":1}}}`,
 	}, false, false)
@@ -191,7 +191,7 @@ func TestOpenAIWSSSEAccelerationTimingDoesNotAffectNativeWS(t *testing.T) {
 }
 
 func TestOpenAIWSSSEAccelerationTimingDoesNotClaimFailedFlush(t *testing.T) {
-	result, err, data, body := wsSSETimingLoopback(t, []string{
+	result, data, body, err := wsSSETimingLoopback(t, []string{
 		`{"type":"response.created","response":{"id":"resp_closed"}}`,
 		`{"type":"response.output_text.delta","delta":"hello"}`,
 		`{"type":"response.completed","response":{"id":"resp_closed","usage":{"input_tokens":1,"output_tokens":1}}}`,
