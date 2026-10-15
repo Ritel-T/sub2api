@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 )
@@ -55,19 +56,16 @@ func (s *OpenAIGatewayService) DiagnoseModelAvailabilityForPlatform(
 		return ModelAvailabilityDiagnosis{HasAccountsInPool: true, HasModelSupport: true}
 	}
 
-	diag := ModelAvailabilityDiagnosis{}
+	diag := ModelAvailabilityDiagnosis{Complete: true}
+	now := time.Now()
 	for i := range accounts {
-		diag.HasAccountsInPool = true
 		// Mirrors the per-candidate filter used during account selection
 		// (openai_account_scheduler.isAccountRequestCompatible): empty
 		// model_mapping accepts everything; otherwise the explicit / wildcard
 		// mapping must match, and the account's allowlist for this group (if
 		// any) must admit the model.
-		if accounts[i].IsModelSupportedInGroup(groupID, requestedModel) &&
-			!accounts[i].modelCapabilityRejectedForRequest(ctx, requestedModel) {
-			diag.HasModelSupport = true
-			return diag
-		}
+		diag.recordAccount(&accounts[i], accounts[i].IsModelSupportedInGroup(groupID, requestedModel) &&
+			!accounts[i].modelCapabilityRejectedForRequest(ctx, requestedModel), now)
 	}
 	return diag
 }

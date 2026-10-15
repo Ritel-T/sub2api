@@ -245,7 +245,15 @@ func newSchedulerCacheWithChunkSizes(rdb *redis.Client, mgetChunkSize, writeChun
 
 func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket service.SchedulerBucket) ([]*service.Account, bool, error) {
 	readyKey := schedulerBucketKey(schedulerReadyPrefix, bucket)
-	readyVal, err := c.rdb.Get(ctx, readyKey).Result()
+	activeKey := schedulerBucketKey(schedulerActivePrefix, bucket)
+	// Preserve GET's type/error semantics while fetching independent control
+	// keys in one round trip. A reader that captured an active generation may
+	// finish against its grace-period snapshot, as before.
+	pipe := c.rdb.Pipeline()
+	readyCmd := pipe.Get(ctx, readyKey)
+	activeCmd := pipe.Get(ctx, activeKey)
+	_, _ = pipe.Exec(ctx)
+	readyVal, err := readyCmd.Result()
 	if err == redis.Nil {
 		return nil, false, nil
 	}
@@ -255,9 +263,7 @@ func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket service.Schedul
 	if readyVal != "1" {
 		return nil, false, nil
 	}
-
-	activeKey := schedulerBucketKey(schedulerActivePrefix, bucket)
-	activeVal, err := c.rdb.Get(ctx, activeKey).Result()
+	activeVal, err := activeCmd.Result()
 	if err == redis.Nil {
 		return nil, false, nil
 	}
@@ -282,11 +288,7 @@ func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket service.Schedul
 		keys = append(keys, schedulerAccountMetaKey(id))
 		lastUsedKeys = append(lastUsedKeys, schedulerLastUsedKey(id))
 	}
-	values, err := c.mgetChunked(ctx, keys)
-	if err != nil {
-		return nil, false, err
-	}
-	lastUsedValues, err := c.mgetChunked(ctx, lastUsedKeys)
+	values, lastUsedValues, err := c.mgetSnapshotFields(ctx, keys, lastUsedKeys)
 	if err != nil {
 		return nil, false, err
 	}
@@ -880,6 +882,33 @@ func marshalSchedulerCacheAccount(account service.Account) ([]byte, []byte, erro
 	return fullPayload, metaPayload, nil
 }
 
+// mgetSnapshotFields pipelines metadata and the independently updated LRU
+// side keys. Each command retains the configured key limit; only one pair
+// is in flight at a time to bound the queued reply size.
+func (c *schedulerCache) mgetSnapshotFields(ctx context.Context, keys, lastUsedKeys []string) ([]any, []any, error) {
+	if len(keys) != len(lastUsedKeys) {
+		return nil, nil, fmt.Errorf("scheduler snapshot field count mismatch")
+	}
+	values := make([]any, 0, len(keys))
+	lastUsed := make([]any, 0, len(keys))
+	chunkSize := c.mgetChunkSize
+	if chunkSize <= 0 {
+		chunkSize = defaultSchedulerSnapshotMGetChunkSize
+	}
+	for start := 0; start < len(keys); start += chunkSize {
+		end := min(start+chunkSize, len(keys))
+		pipe := c.rdb.Pipeline()
+		metaCmd := pipe.MGet(ctx, keys[start:end]...)
+		lastUsedCmd := pipe.MGet(ctx, lastUsedKeys[start:end]...)
+		if _, err := pipe.Exec(ctx); err != nil {
+			return nil, nil, err
+		}
+		values = append(values, metaCmd.Val()...)
+		lastUsed = append(lastUsed, lastUsedCmd.Val()...)
+	}
+	return values, lastUsed, nil
+}
+
 func (c *schedulerCache) mgetChunked(ctx context.Context, keys []string) ([]any, error) {
 	if len(keys) == 0 {
 		return []any{}, nil
@@ -1003,7 +1032,11 @@ func filterSchedulerCredentials(credentials map[string]any) map[string]any {
 	}
 	// Candidate-list admission evaluates the account override before hydrating
 	// the full account. Dropping it silently falls back to the platform threshold.
-	keys := []string{"model_mapping", "model_mapping_mode", "compact_model_mapping", "api_key", "project_id", "oauth_type", "plan_type", "account_scheduling_threshold"}
+	keys := []string{"model_mapping", "model_mapping_mode", "compact_model_mapping", "api_key", "project_id", "oauth_type", "plan_type", "account_scheduling_threshold",
+		// Gemini 显式缓存的候选过滤（GeminiExplicitCacheExclusions）读本投影判定账号是否支持显式缓存：
+		// 官方地址、Vertex 认证方式与上游网关的显式缓存声明。缺这几个键时只能按类型粗筛，
+		// 不支持的账号要逐个选中后才被剔除。
+		"base_url", "auth_mode", service.GeminiExplicitCacheUpstreamCredentialKey, service.GeminiExplicitCacheUpstreamMaxTTLCredentialKey}
 	filtered := make(map[string]any)
 	for _, key := range keys {
 		if value, ok := credentials[key]; ok && value != nil {

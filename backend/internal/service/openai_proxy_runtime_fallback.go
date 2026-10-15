@@ -139,6 +139,12 @@ func (s *OpenAIGatewayService) doOpenAIProxyAttempt(req *http.Request, account *
 		return nil, admissionErr
 	}
 	account = latest
+	if err := regionalMeterHTTPRequest(req); err != nil {
+		return nil, err
+	}
+	if err := regionalMeterBeforeSend(req.Context()); err != nil {
+		return nil, err
+	}
 	if err := s.acquireOpenAIRPMForSend(req.Context(), account); err != nil {
 		return nil, err
 	}

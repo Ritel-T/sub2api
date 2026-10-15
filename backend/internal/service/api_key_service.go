@@ -131,6 +131,8 @@ type apiKeyAllByUserIDLister interface {
 
 // APIKeyRateLimitData holds rate limit usage and window state for an API key.
 type APIKeyRateLimitData struct {
+	// QuotaUsed 是总额度已用量（quota_used）。
+	QuotaUsed     float64
 	Usage5h       float64
 	Usage1d       float64
 	Usage7d       float64
@@ -289,6 +291,8 @@ type RateLimitCacheInvalidator interface {
 }
 
 type APIKeyService struct {
+	localAuth                 *RegionalAuthReader
+	regionalAuthRuntime       *regionalSchedulerRuntime
 	apiKeyRepo                APIKeyRepository
 	userRepo                  UserRepository
 	groupRepo                 GroupRepository
@@ -762,6 +766,12 @@ func (s *APIKeyService) GetByID(ctx context.Context, id int64) (*APIKey, error) 
 
 // GetByKey 根据Key字符串获取API Key（用于认证）
 func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, error) {
+	if s.localAuth != nil {
+		return s.localAuth.GetByKey(ctx, key)
+	}
+	if s.cfg != nil && s.cfg.Runtime.Role == config.RuntimeRoleGateway && s.cfg.Runtime.RegionalAuthFile != "" {
+		return nil, ErrRegionalAuthUnavailable
+	}
 	if len(key) == 0 || len(key) > MaxAPIKeyCredentialBytes {
 		return nil, ErrAPIKeyNotFound
 	}
@@ -821,6 +831,12 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 // not a prerequisite for revocation. The normal auth lookup concurrency bound
 // and the caller's admission timeout still apply.
 func (s *APIKeyService) GetByKeyUncached(ctx context.Context, key string) (*APIKey, error) {
+	if s.localAuth != nil {
+		return s.localAuth.GetByKey(ctx, key)
+	}
+	if s.cfg != nil && s.cfg.Runtime.Role == config.RuntimeRoleGateway && s.cfg.Runtime.RegionalAuthFile != "" {
+		return nil, ErrRegionalAuthUnavailable
+	}
 	if len(key) == 0 || len(key) > MaxAPIKeyCredentialBytes {
 		return nil, ErrAPIKeyNotFound
 	}

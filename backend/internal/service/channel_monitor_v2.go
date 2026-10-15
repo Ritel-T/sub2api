@@ -34,6 +34,8 @@ const (
 
 // ChannelMonitorV2FactoryPlatforms are the six platforms seeded by migration 194.
 // They stay in every saved config. Operators can disable them, but not remove them.
+// A platforms list that omits one restores it disabled. A missing platforms field
+// keeps the stored rows instead of replacing them.
 var ChannelMonitorV2FactoryPlatforms = []string{
 	"anthropic", "openai", "grok", "kiro", "gemini", "antigravity",
 }
@@ -48,8 +50,8 @@ type ChannelMonitorV2PlatformConfig struct {
 
 // ChannelMonitorV2Config is the saved operator document.
 // Platforms keeps submitted array order, which is the display order for filters,
-// cards, and the matrix. Factory platforms are restored if omitted. The model
-// ranking table stays ordered by request volume.
+// cards, and the matrix. Factory platforms missing from a submitted list are
+// appended disabled. The model ranking table stays ordered by request volume.
 type ChannelMonitorV2Config struct {
 	CandyProbes []ChannelMonitorV2CandyProbe `json:"candy_probes,omitempty"`
 	// CandyHistoryLimit is how many recent checks each model shows on a card.
@@ -457,16 +459,22 @@ func (s *ChannelMonitorV2Service) getEnabledConfig(ctx context.Context) (*Channe
 }
 
 func (s *ChannelMonitorV2Service) UpdateConfig(ctx context.Context, cfg ChannelMonitorV2Config, expectedVersion int, actorID int64) (*ChannelMonitorV2Config, error) {
-	// Older admin bundles omit this field. Keep the stored limit instead of
-	// resetting a custom value back to the default on an unrelated save.
-	if cfg.CandyHistoryLimit == 0 && s.repo != nil {
-		current, err := s.repo.GetConfig(ctx)
+	// Older admin bundles omit candy_history_limit. A JSON object that omits
+	// platforms is also not a new platform list. Read once when either field is
+	// absent so a partial save cannot reset the other.
+	var current *ChannelMonitorV2Config
+	if s.repo != nil && (cfg.CandyHistoryLimit == 0 || cfg.Platforms == nil) {
+		loaded, err := s.repo.GetConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
-		if current != nil {
-			cfg.CandyHistoryLimit = current.CandyHistoryLimit
-		}
+		current = loaded
+	}
+	if cfg.CandyHistoryLimit == 0 && current != nil {
+		cfg.CandyHistoryLimit = current.CandyHistoryLimit
+	}
+	if cfg.Platforms == nil && current != nil {
+		cfg.Platforms = append([]ChannelMonitorV2PlatformConfig(nil), current.Platforms...)
 	}
 	if err := normalizeChannelMonitorV2Config(&cfg); err != nil {
 		return nil, err
@@ -850,6 +858,8 @@ func validChannelMonitorV2Platform(platform string) bool {
 	return true
 }
 
+// Factory platforms missing from the submitted list are appended disabled.
+// Rows included in that list keep the submitted enabled flag and model list.
 func ensureChannelMonitorV2FactoryPlatforms(cfg *ChannelMonitorV2Config) {
 	present := make(map[string]struct{}, len(cfg.Platforms))
 	for _, item := range cfg.Platforms {
@@ -861,7 +871,7 @@ func ensureChannelMonitorV2FactoryPlatforms(cfg *ChannelMonitorV2Config) {
 		}
 		cfg.Platforms = append(cfg.Platforms, ChannelMonitorV2PlatformConfig{
 			Platform: id,
-			Enabled:  true,
+			Enabled:  false,
 			Models:   []string{},
 		})
 	}
