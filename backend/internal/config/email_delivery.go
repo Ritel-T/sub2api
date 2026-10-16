@@ -49,7 +49,7 @@ func validRecipientAliasDomain(domain string) bool {
 			return false
 		}
 		for _, b := range []byte(label) {
-			if !(b >= 'a' && b <= 'z' || b >= '0' && b <= '9' || b == '-') {
+			if (b < 'a' || b > 'z') && (b < '0' || b > '9') && b != '-' {
 				return false
 			}
 		}
