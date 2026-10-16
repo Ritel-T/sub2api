@@ -50,6 +50,17 @@ func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, b
 	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
 }
 
+// ProvideEmailService configures delivery aliases without changing stored identities.
+func ProvideEmailService(settingRepo SettingRepository, cache EmailCache, cfg *config.Config) (*EmailService, error) {
+	aliases, err := cfg.EmailDelivery.RecipientAliases()
+	if err != nil {
+		return nil, err
+	}
+	svc := NewEmailService(settingRepo, cache)
+	svc.recipientDomainAliases = aliases
+	return svc, nil
+}
+
 // ProvideEmailQueueService creates EmailQueueService with default worker count
 func ProvideEmailQueueService(emailService *EmailService) *EmailQueueService {
 	return NewEmailQueueService(emailService, 3)
@@ -1066,7 +1077,7 @@ var ProviderSet = wire.NewSet(
 	ProvideAccountOpsService,
 	ProvideAccountTokenGuardService,
 	ProvideAccountTokenGuardV2Service,
-	NewEmailService,
+	ProvideEmailService,
 	NewNotificationEmailService,
 	ProvideEmailQueueService,
 	NewTurnstileServiceWithReplayStore,

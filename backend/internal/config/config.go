@@ -76,6 +76,7 @@ type Config struct {
 	Security                SecurityConfig                `mapstructure:"security"`
 	Billing                 BillingConfig                 `mapstructure:"billing"`
 	Turnstile               TurnstileConfig               `mapstructure:"turnstile"`
+	EmailDelivery           EmailDeliveryConfig           `mapstructure:"email_delivery"`
 	Database                DatabaseConfig                `mapstructure:"database"`
 	Redis                   RedisConfig                   `mapstructure:"redis"`
 	Ops                     OpsConfig                     `mapstructure:"ops"`
@@ -2350,6 +2351,7 @@ func configureConfigSource(setConfigFile, addConfigPath func(string)) {
 }
 
 func setDefaults() {
+	viper.SetDefault("email_delivery.recipient_domain_aliases", []string{})
 	viper.SetDefault("gateway.upstream_routing.enabled", false)
 	viper.SetDefault("runtime.role", RuntimeRoleFull)
 	viper.SetDefault("runtime.regional_scheduler_file", "")
@@ -3072,6 +3074,9 @@ func setEnvReachableDefaults() {
 }
 
 func (c *Config) Validate() error {
+	if _, err := c.EmailDelivery.RecipientAliases(); err != nil {
+		return fmt.Errorf("email_delivery.recipient_domain_aliases: %w", err)
+	}
 	if _, err := upstreamroute.New(c.Gateway.UpstreamRouting); err != nil {
 		return fmt.Errorf("gateway.upstream_routing: %w", err)
 	}

@@ -55,7 +55,10 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	proxyRepository := repository.NewProxyRepository(client, db)
 	settingService := service.ProvideSettingService(settingRepository, groupRepository, proxyRepository, configConfig)
 	emailCache := repository.NewEmailCache(redisClient)
-	emailService := service.NewEmailService(settingRepository, emailCache)
+	emailService, err := service.ProvideEmailService(settingRepository, emailCache, configConfig)
+	if err != nil {
+		return nil, err
+	}
 	turnstileVerifier := repository.NewTurnstileVerifier()
 	turnstileReplayStore := repository.NewTurnstileReplayStore(redisClient)
 	turnstileService := service.NewTurnstileServiceWithReplayStore(settingService, turnstileVerifier, turnstileReplayStore)

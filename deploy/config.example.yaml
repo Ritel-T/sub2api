@@ -1398,3 +1398,12 @@ image_storage:
   presign_expiry_hours: 24
   # 当上游返回的是图片 url 时，下载该图片再转存的字节上限（默认 32MB）
   max_download_bytes: 33554432
+
+# SMTP recipient delivery aliases (disabled by default). Does not rename users,
+# grant domain trust, alter verification/cache keys, or change email templates.
+# Use only after configuring the destination domain's inbound mail routing.
+# Environment alternative: EMAIL_DELIVERY_RECIPIENT_DOMAIN_ALIASES=old.example=new.example
+email_delivery:
+  recipient_domain_aliases: []
+  # recipient_domain_aliases:
+  #   - "old.example=new.example"
