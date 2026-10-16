@@ -30,6 +30,7 @@ type firstRechargeFixture struct {
 func newFirstRechargeFixture(t *testing.T) *firstRechargeFixture {
 	t.Helper()
 	f := &firstRechargeFixture{client: testEntClient(t)}
+
 	f.users = NewUserRepository(f.client, integrationDB)
 	f.codes = NewRedeemCodeRepository(f.client)
 	f.affiliate = NewAffiliateRepository(f.client, integrationDB)
@@ -70,6 +71,10 @@ func (f *firstRechargeFixture) code(t *testing.T, amount float64) *service.Redee
 	t.Helper()
 	code := &service.RedeemCode{Code: fmt.Sprintf("FIRST-%d", time.Now().UnixNano()), Type: service.RedeemTypeBalance, Value: amount, Status: service.StatusUnused}
 	require.NoError(t, f.codes.Create(context.Background(), code))
+	t.Cleanup(func() {
+		_, err := integrationDB.ExecContext(context.Background(), "DELETE FROM redeem_codes WHERE id=$1", code.ID)
+		require.NoError(t, err)
+	})
 	return code
 }
 
@@ -98,6 +103,8 @@ func (f *firstRechargeFixture) order(t *testing.T, userID int64, amount, bonus f
 	o, err := b.Save(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(func() {
+		_, err := integrationDB.ExecContext(context.Background(), "DELETE FROM redeem_codes WHERE code=$1", o.RechargeCode)
+		require.NoError(t, err)
 		_, _ = integrationDB.ExecContext(context.Background(), "DELETE FROM payment_orders WHERE id=$1", o.ID)
 	})
 	return o
@@ -150,8 +157,12 @@ func TestAffiliateFirstRechargePostgres_IneligibleFirstNeverBecomesLaterEligible
 				f.order(t, invitee.ID, 20, 0, service.OrderStatusRefunded, true)
 			case "admin_and_signup_only":
 				require.NoError(t, f.users.UpdateBalance(ctx, invitee.ID, 100))
-				_, err := f.client.RedeemCode.Create().SetCode(fmt.Sprintf("ADMIN-%d", time.Now().UnixNano())).SetType("admin_balance").SetValue(100).SetStatus("used").SetUsedBy(invitee.ID).SetUsedAt(time.Now()).Save(ctx)
+				adminCode, err := f.client.RedeemCode.Create().SetCode(fmt.Sprintf("ADMIN-%d", time.Now().UnixNano())).SetType("admin_balance").SetValue(100).SetStatus("used").SetUsedBy(invitee.ID).SetUsedAt(time.Now()).Save(ctx)
 				require.NoError(t, err)
+				t.Cleanup(func() {
+					_, err := integrationDB.ExecContext(context.Background(), "DELETE FROM redeem_codes WHERE id=$1", adminCode.ID)
+					require.NoError(t, err)
+				})
 				wantGift = true
 			case "uncredited_refund":
 				f.order(t, invitee.ID, 20, 0, service.OrderStatusRefunded, false)
@@ -279,8 +290,12 @@ func TestAffiliateFirstRechargePostgres_HistoricalMigrationNeverMintsGifts(t *te
 	uncredited := f.invited(t, inviter)
 	f.order(t, uncredited.ID, 20, 0, service.OrderStatusRefunded, false)
 	adminOnly := f.invited(t, inviter)
-	_, err := f.client.RedeemCode.Create().SetCode(fmt.Sprintf("BASE-ADM-%d", time.Now().UnixNano())).SetType("admin_balance").SetValue(100).SetStatus("used").SetUsedBy(adminOnly.ID).Save(ctx)
+	adminCode, err := f.client.RedeemCode.Create().SetCode(fmt.Sprintf("BASE-ADM-%d", time.Now().UnixNano())).SetType("admin_balance").SetValue(100).SetStatus("used").SetUsedBy(adminOnly.ID).Save(ctx)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := integrationDB.ExecContext(context.Background(), "DELETE FROM redeem_codes WHERE id=$1", adminCode.ID)
+		require.NoError(t, err)
+	})
 	migration, err := os.ReadFile("../../migrations/287_affiliate_first_recharge.sql")
 	require.NoError(t, err)
 	_, err = f.client.ExecContext(ctx, string(migration))
