@@ -2,6 +2,9 @@
  * Core Type Definitions for Sub2API Frontend
  */
 
+import type { CcsImportConfig } from './ccswitch'
+export type { CcsImportApp, CcsImportConfig, CcsImportParameterValue, CcsImportPlatform, CcsImportProfile } from './ccswitch'
+
 // ==================== Common Types ====================
 
 export interface SelectOption {
@@ -246,6 +249,7 @@ export interface PublicSettings {
   home_content: string
   compact_home_enabled: boolean
   hide_ccs_import_button: boolean
+  ccs_import_config?: CcsImportConfig
   payment_enabled: boolean
   risk_control_enabled: boolean
   table_default_page_size: number

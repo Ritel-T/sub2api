@@ -14,7 +14,7 @@ function paramsFromDeeplink(deeplink: string): URLSearchParams {
 
 describe('ccswitchImport utils', () => {
   it('defaults OpenAI CC Switch imports to the current Codex model', () => {
-    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-5.5')
+    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-6-astra')
   })
 
   it('defaults Grok Build imports to the current Grok model', () => {
@@ -29,8 +29,8 @@ describe('ccswitchImport utils', () => {
   }
 
   it.each([
-    ['https://api.example.com', 'https://api.example.com'],
-    ['https://api.example.com/', 'https://api.example.com'],
+    ['https://api.example.com', 'https://api.example.com/v1'],
+    ['https://api.example.com/', 'https://api.example.com/v1'],
     ['https://api.example.com/v1', 'https://api.example.com/v1'],
     ['https://api.example.com/v1/', 'https://api.example.com/v1']
   ])('keeps Codex imports on the configured endpoint for base URL %s', (baseUrl, endpoint) => {
@@ -115,7 +115,9 @@ describe('CC Switch usage script', () => {
     'https://api.example.com',
     'https://api.example.com/',
     'https://api.example.com/v1',
-    'https://api.example.com/v1/'
+    'https://api.example.com/v1/',
+    'https://api.example.com/v1beta',
+    'https://api.example.com/v1beta/'
   ])('queries exactly one /v1/usage for base URL %s', (baseUrl) => {
     expect(usageUrlFor(baseUrl)).toBe('https://api.example.com/v1/usage')
   })

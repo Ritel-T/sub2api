@@ -408,6 +408,21 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyHomeContent] = settings.HomeContent
 	updates[SettingKeyCompactHomeEnabled] = strconv.FormatBool(settings.CompactHomeEnabled)
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
+	ccsImportConfig := settings.CCSImportConfig
+	// Older internal callers construct SystemSettings directly without new fields.
+	if ccsImportConfig.Profiles == nil {
+		ccsImportConfig = DefaultCCSImportConfig()
+	}
+	ccsImportConfig, err = NormalizeCCSImportConfig(ccsImportConfig)
+	if err != nil {
+		return nil, infraerrors.BadRequest("INVALID_CCS_IMPORT_CONFIG", err.Error())
+	}
+	ccsImportJSON, err := json.Marshal(ccsImportConfig)
+	if err != nil {
+		return nil, fmt.Errorf("marshal CCS import config: %w", err)
+	}
+	settings.CCSImportConfig = ccsImportConfig
+	updates[SettingKeyCCSImportConfig] = string(ccsImportJSON)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)
 	tableDefaultPageSize, tablePageSizeOptions := normalizeTablePreferences(

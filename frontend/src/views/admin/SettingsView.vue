@@ -6846,6 +6846,7 @@
                 </div>
                 <Toggle v-model="form.hide_ccs_import_button" />
               </div>
+              <CcsImportSettings ref="ccsImportSettings" v-model="form.ccs_import_config" />
             </div>
           </div>
 
@@ -9446,12 +9447,15 @@ import type {
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
+  CcsImportConfig,
   LoginAgreementDocument,
   NotifyEmailEntry,
   Proxy,
 } from "@/types";
 import type { ProviderInstance } from "@/types/payment";
 import AppLayout from "@/components/layout/AppLayout.vue";
+import CcsImportSettings from "@/components/admin/CcsImportSettings.vue";
+import { createDefaultCcSwitchImportConfig } from "@/utils/ccswitchImport";
 import Icon from "@/components/icons/Icon.vue";
 import {
   SUPPORT_TICKET_CATEGORY_MAX,
@@ -10156,6 +10160,8 @@ type SettingsForm = Omit<
   | "wechat_connect_mobile_enabled"
   | "openai_oauth_scheduling_rate_multiplier"
 > & BalanceRetailSettingsValue & {
+  /** Old settings responses may omit CCS profiles; the editor always binds defaults. */
+  ccs_import_config: CcsImportConfig;
   /** Form always binds a concrete boolean (SystemSettings marks this optional). */
   channel_monitor_hide_throughput: boolean;
   channel_monitor_show_quota: boolean;
@@ -10206,6 +10212,7 @@ type SettingsForm = Omit<
 };
 
 const schedulingThresholdPlatforms = SCHEDULING_THRESHOLD_PLATFORMS;
+const ccsImportSettings = ref<InstanceType<typeof CcsImportSettings> | null>(null);
 
 // The stored monitor mode; the save payload omits an unchanged mode so a switch
 // made on the monitor page is not overwritten by this page's older copy.
@@ -10268,6 +10275,7 @@ const form = reactive<SettingsForm>({
   compact_home_enabled: false,
   backend_mode_enabled: false,
   hide_ccs_import_button: false,
+  ccs_import_config: createDefaultCcSwitchImportConfig(),
   payment_enabled: false,
   risk_control_enabled: false,
   cyber_policy_user_allowlist: "",
@@ -11808,6 +11816,11 @@ const siteBillingModeHint = computed(() =>
 async function saveSettings() {
   saving.value = true;
   try {
+    const ccsImportError = ccsImportSettings.value?.validate();
+    if (ccsImportError) {
+      appStore.showError(ccsImportError);
+      return;
+    }
     const retailError = validateBalanceRetailSettings(retailPricingSettings.value);
     if (retailError) {
       appStore.showError(t(retailError));
@@ -12073,6 +12086,7 @@ async function saveSettings() {
       compact_home_enabled: form.compact_home_enabled,
       backend_mode_enabled: form.backend_mode_enabled,
       hide_ccs_import_button: form.hide_ccs_import_button,
+      ccs_import_config: form.ccs_import_config,
       table_default_page_size: form.table_default_page_size,
       table_page_size_options: form.table_page_size_options,
       custom_menu_items: form.custom_menu_items,

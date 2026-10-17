@@ -173,6 +173,8 @@ type SystemSettings struct {
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
+	CCSImportConfig service.CCSImportConfig `json:"ccs_import_config"`
+
 	DefaultConcurrency              int                          `json:"default_concurrency"`
 	DefaultBalance                  float64                      `json:"default_balance"`
 	AffiliateRebateRate             float64                      `json:"affiliate_rebate_rate"`
@@ -447,6 +449,7 @@ type PublicSettings struct {
 	HomeContent                         string                   `json:"home_content"`
 	CompactHomeEnabled                  bool                     `json:"compact_home_enabled"`
 	HideCcsImportButton                 bool                     `json:"hide_ccs_import_button"`
+	CCSImportConfig                     service.CCSImportConfig  `json:"ccs_import_config"`
 	PurchaseSubscriptionEnabled         bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL             string                   `json:"purchase_subscription_url"`
 	TableDefaultPageSize                int                      `json:"table_default_page_size"`

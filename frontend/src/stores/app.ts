@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Toast, ToastType, PublicSettings } from '@/types'
+import { createDefaultCcSwitchImportConfig } from '@/utils/ccswitchImport'
 import { i18n } from '@/i18n'
 import {
   checkUpdates as checkUpdatesAPI,
@@ -348,6 +349,7 @@ export const useAppStore = defineStore('app', () => {
         home_content: '',
         compact_home_enabled: false,
         hide_ccs_import_button: false,
+        ccs_import_config: createDefaultCcSwitchImportConfig(),
         payment_enabled: false,
         table_default_page_size: 20,
         table_page_size_options: [10, 20, 50, 100],

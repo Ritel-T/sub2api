@@ -348,6 +348,54 @@ describe('user KeysView column settings', () => {
     isCurrentStep.mockReturnValue(false)
   })
 
+  it('hides CCS import when the administrator removes all platform profiles', async () => {
+    getPublicSettings.mockResolvedValue({ ccs_import_config: { profiles: [] } })
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-testid="ccs-import-1"]').exists()).toBe(false)
+  })
+
+  it('imports the clicked key using the saved model and metadata templates', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    getPublicSettings.mockResolvedValue({
+      api_base_url: 'https://api.example.com', site_name: 'Ritel SI',
+      ccs_import_config: { profiles: [{
+        id: 'my-claude', label: 'Claude Code', platform: 'anthropic', app: 'claude',
+        parameters: { model: 'configured-model', name: '{{siteName}} / {{keyName}}', usageAutoInterval: 0 }
+      }] }
+    })
+    const wrapper = await mountView()
+    await wrapper.get('[data-testid="ccs-import-1"]').trigger('click')
+    expect(open).toHaveBeenCalledOnce()
+    const params = new URL(String(open.mock.calls[0]?.[0])).searchParams
+    expect(params.get('model')).toBe('configured-model')
+    expect(params.get('name')).toBe('Ritel SI / test-key')
+    expect(params.get('apiKey')).toBe('sk-test-key')
+    expect(params.get('usageAutoInterval')).toBe('0')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('lets the user choose among matching saved profiles and uses that choice', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    getPublicSettings.mockResolvedValue({
+      ccs_import_config: { profiles: [
+        { id: 'claude', label: 'Claude Code', platform: 'anthropic', app: 'claude', parameters: {} },
+        { id: 'opencode', label: 'OpenCode', platform: 'anthropic', app: 'opencode', parameters: { model: 'model-b' } },
+        { id: 'other-platform', label: 'Codex', platform: 'openai', app: 'codex', parameters: {} }
+      ] }
+    })
+    const wrapper = await mountView()
+    await wrapper.get('[data-testid="ccs-import-1"]').trigger('click')
+    expect(open).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="ccs-profile-other-platform"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="ccs-profile-opencode"]').trigger('click')
+    const params = new URL(String(open.mock.calls[0]?.[0])).searchParams
+    expect(params.get('app')).toBe('opencode')
+    expect(params.get('model')).toBe('model-b')
+    expect(params.get('apiKey')).toBe('sk-test-key')
+    expect(params.get('apiFormat')).toBe('anthropic')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
   it.each([
     { initialStatus: 'quota_exhausted', status: 'active', formStatus: 'active' },
     { initialStatus: 'inactive', status: 'inactive', formStatus: 'inactive' },

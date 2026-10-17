@@ -133,6 +133,7 @@ deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
 docs/*
+!docs/ccs-import-settings.md
 !docs/gelv-miniapp-payments.md
 !docs/openai-ws-sse-acceleration.md
 !docs/openai-outbound-identity.md

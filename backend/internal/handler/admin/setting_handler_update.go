@@ -181,6 +181,8 @@ type UpdateSettingsRequest struct {
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
 
+	CCSImportConfig *service.CCSImportConfig `json:"ccs_import_config"`
+
 	// 默认配置
 	DefaultConcurrency                        int                               `json:"default_concurrency"`
 	DefaultBalance                            float64                           `json:"default_balance"`
@@ -552,6 +554,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if raw, sent := sentFields[service.SettingKeyCCSImportConfig]; sent {
+		if string(raw) == "null" || req.CCSImportConfig == nil {
+			response.BadRequest(c, "ccs_import_config must be an object; use profiles: [] to disable imports")
+			return
+		}
+		normalized, err := service.NormalizeCCSImportConfig(*req.CCSImportConfig)
+		if err != nil {
+			response.BadRequest(c, "Invalid CCS import configuration: "+err.Error())
+			return
+		}
+		req.CCSImportConfig = &normalized
+	}
 	if req.OpenAICodexTicketHarvestScope != nil && req.OpenAICodexTicketHarvestScope.Mode == "" {
 		response.BadRequest(c, "harvest scope mode is required")
 		return
@@ -625,6 +639,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	auditReq := settingsAuditRequest(req)
 	omitted := omittedSettingKeys(sentFields)
+	if req.CCSImportConfig == nil {
+		omitted[service.SettingKeyCCSImportConfig] = struct{}{}
+	}
 
 	previousSettings, err := h.settingService.GetAllSettings(c.Request.Context())
 	if err != nil {
@@ -635,6 +652,11 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+
+	ccsImportConfig := previousSettings.CCSImportConfig
+	if req.CCSImportConfig != nil {
+		ccsImportConfig = *req.CCSImportConfig
 	}
 
 	// 两个安全开关的请求字段为指针：省略字段=保持现值，避免旧客户端/脚本
@@ -1804,6 +1826,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		HomeContent:                            req.HomeContent,
 		CompactHomeEnabled:                     req.CompactHomeEnabled,
 		HideCcsImportButton:                    req.HideCcsImportButton,
+		CCSImportConfig:                        ccsImportConfig,
 		PurchaseSubscriptionEnabled:            purchaseEnabled,
 		PurchaseSubscriptionURL:                purchaseURL,
 		TableDefaultPageSize:                   req.TableDefaultPageSize,
@@ -2706,6 +2729,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		HomeContent:                                            updatedSettings.HomeContent,
 		CompactHomeEnabled:                                     updatedSettings.CompactHomeEnabled,
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,
+		CCSImportConfig:                                        updatedSettings.CCSImportConfig,
 		PurchaseSubscriptionEnabled:                            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                updatedSettings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:                                   updatedSettings.TableDefaultPageSize,

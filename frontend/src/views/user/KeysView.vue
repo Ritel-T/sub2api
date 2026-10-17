@@ -457,8 +457,9 @@
               </button>
               <!-- Import to CC Switch Button -->
               <button
-                v-if="!publicSettings?.hide_ccs_import_button"
+                v-if="!publicSettings?.hide_ccs_import_button && getCcSwitchImportProfiles(row.group?.platform, publicSettings?.ccs_import_config).length > 0"
                 @click="importToCcswitch(row)"
+                :data-testid="`ccs-import-${row.id}`"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 theme-action-button transition-colors"
               >
                 <Icon name="upload" size="sm" />
@@ -1167,7 +1168,7 @@
       @close="closeCodexQuickConfigModal"
     />
 
-    <!-- CCS Client Selection Dialog for Antigravity -->
+    <!-- One profile launches directly; multiple profiles let the user choose. -->
     <BaseDialog
       :show="showCcsClientSelect"
       :title="t('keys.ccsClientSelect.title')"
@@ -1177,33 +1178,20 @@
       <div class="space-y-4">
         <p class="text-sm text-gray-600 dark:text-gray-400">
           {{ t('keys.ccsClientSelect.description') }}
-	        </p>
-	        <div class="grid grid-cols-2 gap-3">
-	          <button
-	            @click="handleCcsClientSelect('claude')"
-	            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
-	          >
-	            <Icon name="terminal" size="xl" class="text-gray-600 dark:text-gray-400" />
-	            <span class="font-medium text-gray-900 dark:text-white">{{
-	              t('keys.ccsClientSelect.claudeCode')
-	            }}</span>
-	            <span class="text-xs text-gray-500 dark:text-gray-400">{{
-	              t('keys.ccsClientSelect.claudeCodeDesc')
-	            }}</span>
-	          </button>
-	          <button
-	            @click="handleCcsClientSelect('gemini')"
-	            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
-	          >
-	            <Icon name="sparkles" size="xl" class="text-gray-600 dark:text-gray-400" />
-	            <span class="font-medium text-gray-900 dark:text-white">{{
-	              t('keys.ccsClientSelect.geminiCli')
-	            }}</span>
-	            <span class="text-xs text-gray-500 dark:text-gray-400">{{
-	              t('keys.ccsClientSelect.geminiCliDesc')
-	            }}</span>
-	          </button>
-	        </div>
+        </p>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            v-for="profile in ccsProfileOptions"
+            :key="profile.id"
+            :data-testid="`ccs-profile-${profile.id}`"
+            @click="handleCcsClientSelect(profile)"
+            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+          >
+            <Icon :name="profile.app === 'gemini' ? 'sparkles' : 'terminal'" size="xl" class="text-gray-600 dark:text-gray-400" />
+            <span class="font-medium text-gray-900 dark:text-white">{{ profile.label }}</span>
+            <span v-if="profile.parameters.model" class="text-xs text-gray-500 dark:text-gray-400">{{ profile.parameters.model }}</span>
+          </button>
+        </div>
 	      </div>
       <template #footer>
         <div class="flex justify-end">
@@ -1320,10 +1308,10 @@ import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { platformBadgeLightClass } from '@/utils/platformColors'
 import { KEY_GROUP_PROVIDERS, KEY_GROUP_PROVIDER_ICONS, getKeyGroupProvider, type KeyGroupProvider } from '@/utils/keyGroupProviders'
 import {
-  CC_SWITCH_USAGE_SCRIPT,
   buildCcSwitchImportDeeplink,
-  type CcSwitchClientType
+  getCcSwitchImportProfiles
 } from '@/utils/ccswitchImport'
+import type { CcsImportProfile } from '@/types/ccswitch'
 import { isCodexQuickConfigPlatform } from '@/utils/codexQuickConfig'
 
 // Helper to format date for datetime-local input
@@ -1591,6 +1579,10 @@ const selectedCodexQuickConfigPlatform = computed(() => {
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
+const ccsProfileOptions = computed(() => getCcSwitchImportProfiles(
+  pendingCcsRow.value?.group?.platform,
+  publicSettings.value?.ccs_import_config
+))
 const dropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
@@ -2230,32 +2222,28 @@ const resetRateLimitUsage = async () => {
 }
 
 const importToCcswitch = (row: ApiKey) => {
-  const platform = row.group?.platform || 'anthropic'
-
-  // For antigravity platform, show client selection dialog
-  if (platform === 'antigravity') {
+  const profiles = getCcSwitchImportProfiles(row.group?.platform, publicSettings.value?.ccs_import_config)
+  if (profiles.length > 1) {
     pendingCcsRow.value = row
     showCcsClientSelect.value = true
     return
   }
-
-  // For other platforms, execute directly
-  executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'claude')
+  if (profiles[0]) executeCcsImport(row, profiles[0])
 }
 
-const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
+const executeCcsImport = (row: ApiKey, profile: CcsImportProfile) => {
   const baseUrl = publicSettings.value?.api_base_url || window.location.origin
   const platform = row.group?.platform || 'anthropic'
-
-  const usageScript = CC_SWITCH_USAGE_SCRIPT
   const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
   const deeplink = buildCcSwitchImportDeeplink({
     baseUrl,
     platform,
-    clientType,
+    profile,
+    settings: publicSettings.value?.ccs_import_config,
     providerName,
     apiKey: row.key,
-    usageScript
+    keyName: row.name,
+    userId: row.user_id
   })
 
   try {
@@ -2273,9 +2261,9 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
   }
 }
 
-const handleCcsClientSelect = (clientType: CcSwitchClientType) => {
+const handleCcsClientSelect = (profile: CcsImportProfile) => {
   if (pendingCcsRow.value) {
-    executeCcsImport(pendingCcsRow.value, clientType)
+    executeCcsImport(pendingCcsRow.value, profile)
   }
   showCcsClientSelect.value = false
   pendingCcsRow.value = null

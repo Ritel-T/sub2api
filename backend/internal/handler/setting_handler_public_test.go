@@ -241,6 +241,7 @@ func TestSettingHandler_GetPublicSettings_MatchesInjectionPayload(t *testing.T) 
 		fallback: "true",
 		values: map[string]string{
 			service.SettingKeyCustomEndpoints: `[{"name":"Primary","endpoint":"https://api.example.com","description":"Main entry"}]`,
+			service.SettingKeyCCSImportConfig: `{"profiles":[{"id":"configured","label":"Configured import","platform":"openai","app":"codex","parameters":{"model":"gpt-6-astra","usageEnabled":false,"usageAutoInterval":0,"configFormat":"json","config":"{\"literal\":\"{{apiKey}}\"}"}}]}`,
 		},
 	}
 	settingService := service.NewSettingService(repo, &config.Config{})
