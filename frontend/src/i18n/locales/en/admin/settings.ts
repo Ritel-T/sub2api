@@ -637,7 +637,11 @@ export default {
         claudeCodeVersionSyncedValue: 'Currently synced: {version}',
         codexHardeningTitle: "Codex Settings",
         requestTimezoneEnabled: 'Bind request timezone',
-        requestTimezoneEnabledDesc: 'Use each OpenAI account’s timezone (Asia/Singapore by default) for existing environment context and web search timezone fields. Dates and ordinary text remain unchanged. Disabled means no timezone rewriting. This does not guarantee improved model quality.',
+        requestTimezoneEnabledDesc: 'Off until enabled. Existing manual account timezones are preserved; automatic egress IP detection is opt-in. When enabled, rewrites existing environment context, web search timezone fields and supported timezone headers. Dates and ordinary text stay unchanged. Disabled means no rewriting. This does not guarantee improved model quality.',
+        requestTimezoneMode: 'Timezone source',
+        requestTimezoneManual: 'Manual: account setting',
+        requestTimezoneAuto: 'Automatic: egress IP',
+        requestTimezoneModeDesc: 'Manual mode defaults to Asia/Singapore. Automatic mode detects the timezone through the request egress and resolves again after proxy changes; failed detection preserves the original request. Dates and ordinary text stay unchanged. This does not guarantee improved model quality.',
         codexTicketEnabled: "Automatic ticket harvesting",
         codexTicketEnabledDesc:
           "Controls background harvesting and ticket injection into model requests. Manual harvesting is started separately on this page.",

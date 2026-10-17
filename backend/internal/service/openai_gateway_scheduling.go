@@ -421,6 +421,9 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 	if isOpenAIExcelBPSCooldownBlocked(ctx, account, requestedModel) {
 		return openAIExcelBPSCooldownReason
 	}
+	if reason := openAIImageRequestRejection(ctx, account, requestedModel); reason != "" {
+		return reason
+	}
 	if !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
 		if account.IsSchedulable() {
 			return "model_rate_limited"
@@ -457,8 +460,11 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 			return "quota_auto_pause"
 		}
 	}
-	if requestedModel != "" && !account.IsModelSupported(requestedModel) {
+	if requestedModel != "" && !supportsOpenAIRequestModel(account, requestedModel, requireCompact) {
 		return "model_not_supported"
+	}
+	if requestedModel != "" && !pelicanGroupTestModelAllowed(ctx, account, requestedModel) {
+		return "model_not_selected_for_pelican"
 	}
 	if requestedModel != "" && !account.IsModelAllowedInGroup(groupID, requestedModel) {
 		return "model_not_allowed_in_group"

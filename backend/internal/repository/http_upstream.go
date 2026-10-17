@@ -240,6 +240,10 @@ func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID i
 	if s.useRegionalEgress(proxyURL, accountID, profile) {
 		return s.doRegionalEgress(req, accountID, accountConcurrency, profile, nil)
 	}
+	req, bindErr := service.BindOpenAIRequestTimezone(req, proxyURL)
+	if bindErr != nil {
+		return nil, bindErr
+	}
 	entry, err := s.acquireClientWithProfile(proxyURL, accountID, accountConcurrency, profile)
 	if err != nil {
 		requestcapture.FromContext(req.Context()).SelectionFailed(accountID, 0, nil, nil, err)
@@ -325,6 +329,10 @@ func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, acco
 
 	if s.useRegionalEgress(proxyURL, accountID, upstreamProfile) {
 		return s.doRegionalEgress(req, accountID, accountConcurrency, upstreamProfile, profile)
+	}
+	req, bindErr := service.BindOpenAIRequestTimezone(req, proxyURL)
+	if bindErr != nil {
+		return nil, bindErr
 	}
 	entry, err := s.acquireClientWithTLS(proxyURL, accountID, accountConcurrency, profile, upstreamProfile)
 	if err != nil {

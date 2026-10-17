@@ -200,7 +200,7 @@ func validateCCSImportFormats(profile CCSImportProfile) error {
 	if profile.App == "pi" {
 		model, _ := profile.Parameters["model"].(string)
 		if strings.TrimSpace(model) == "" {
-			return fmt.Errorf("Pi requires a nonempty model parameter")
+			return fmt.Errorf("pi requires a nonempty model parameter")
 		}
 	}
 	if config != "" {
@@ -241,7 +241,7 @@ func validateCCSImportAPIFormat(profile CCSImportProfile) error {
 		// Additive Hermes imports infer the group platform. Gemini Native is
 		// not a Hermes protocol, so an explicit supported format is required.
 		if profile.App == "hermes" && profile.Platform == "gemini" {
-			return fmt.Errorf("Hermes with the Gemini platform requires an explicit supported apiFormat")
+			return fmt.Errorf("hermes with the Gemini platform requires an explicit supported apiFormat")
 		}
 		return nil
 	}
@@ -249,7 +249,7 @@ func validateCCSImportAPIFormat(profile CCSImportProfile) error {
 		return fmt.Errorf("unsupported apiFormat")
 	}
 	if profile.App == "gemini" && format != "gemini_native" {
-		return fmt.Errorf("Gemini CLI only supports gemini_native apiFormat")
+		return fmt.Errorf("gemini CLI only supports gemini_native apiFormat")
 	}
 	if format == "gemini_native" && (profile.App == "codex" || profile.App == "grokbuild" || profile.App == "hermes") {
 		return fmt.Errorf("%s does not support gemini_native apiFormat", profile.App)

@@ -37,6 +37,7 @@ vi.mock('@/stores', () => ({
   useAppStore: () => appState,
   useAdminSettingsStore: () => adminState,
   useOnboardingStore: () => ({ isCurrentStep: () => false }),
+  useSupportTicketStore: () => ({ userUnread: 0, adminPending: 0 }),
 }))
 vi.mock('@/composables/useBatchImageAccess', () => ({
   useBatchImageAccess: () => ({ canUseBatchImage: computed(() => false), refreshBatchImageAccess: vi.fn() }),

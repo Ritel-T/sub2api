@@ -2682,7 +2682,7 @@ export interface QualityBPSPolicy {
 export interface QualityPolicy {
   judge?: QualityJudgeConfig
   expected_answer: string
-  action: 'remove_groups' | 'remove_models' | 'disable_scheduling' | 'enable_bps' | 'observe_only'
+  action: 'isolate_models' | 'remove_groups' | 'remove_models' | 'disable_scheduling' | 'enable_bps' | 'observe_only'
   remove_group_ids: number[]
   remove_models?: string[]
   recovery_concurrency?: number
@@ -2695,7 +2695,9 @@ export interface PelicanTestConfig {
   quality_model_actions?: Record<string, string>
   trigger_source?: string
   quality?: QualityPolicy
-  question_kind?: 'candy' | 'pelican' | 'state_probe'
+  question_kind?: 'candy' | 'pelican' | 'state_probe' | 'random_reasoning'
+  // Result-only identity of a runtime-generated question.
+  random_question?: { id: string; family: 'paths' | 'weighted_xor'; version: string }
   test_channel?: 'account' | 'bps'
   prompt: string
   reasoning_effort: string

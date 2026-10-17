@@ -14,6 +14,11 @@ import (
 const (
 	ChannelMonitorV2OtherModel      = "__other__"
 	ChannelMonitorV2TaxonomyVersion = 1
+	// Card "recent samples" are the newest 5-minute buckets that had traffic.
+	// They are not the 18 equal windows of the selected 90m/24h/7d/30d range.
+	// Five-minute rollups are retained for 7 days, which is the lookback limit.
+	ChannelMonitorV2RecentSampleLimit  = 18
+	ChannelMonitorV2RecentSampleBucket = 5 * time.Minute
 )
 
 var (
@@ -106,6 +111,9 @@ type ChannelMonitorV2Filter struct {
 	Start           time.Time
 	End             time.Time
 	Bucket          time.Duration
+	// IncludeRecentSamples attaches the latest sampled buckets per group.
+	// Those buckets ignore Start and use the 5-minute history, not this range.
+	IncludeRecentSamples bool
 }
 
 type ChannelMonitorV2Metric struct {
@@ -276,6 +284,10 @@ type ChannelMonitorV2MatrixRow struct {
 	Metrics             ChannelMonitorV2Metric         `json:"metrics"`
 	Health              ChannelMonitorV2Health         `json:"health"`
 	Buckets             []ChannelMonitorV2TrendPoint   `json:"buckets"`
+	// SampleBuckets is the newest sampled 5-minute buckets for this group,
+	// independent of the selected range. Nil means the request did not ask for
+	// them. A non-nil empty slice means history was searched and had no traffic.
+	SampleBuckets *[]ChannelMonitorV2TrendPoint `json:"sample_buckets,omitempty"`
 }
 
 type ChannelMonitorV2Matrix struct {
@@ -583,6 +595,11 @@ func (s *ChannelMonitorV2Service) Matrix(ctx context.Context, filter ChannelMoni
 			redactChannelMonitorV2Metric(&matrix.Items[i].Metrics, hideTP)
 			for j := range matrix.Items[i].Buckets {
 				redactChannelMonitorV2Metric(&matrix.Items[i].Buckets[j].Metrics, hideTP)
+			}
+			if buckets := matrix.Items[i].SampleBuckets; buckets != nil {
+				for j := range *buckets {
+					redactChannelMonitorV2Metric(&(*buckets)[j].Metrics, hideTP)
+				}
 			}
 		}
 	}

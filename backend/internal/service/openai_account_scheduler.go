@@ -2084,8 +2084,11 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	}) {
 		return false, "shadow_parent_unhealthy"
 	}
-	if req.RequestedModel != "" && !account.IsModelSupported(req.RequestedModel) {
+	if req.RequestedModel != "" && !supportsOpenAIRequestModel(account, req.RequestedModel, req.RequireCompact) {
 		return false, "model_not_supported"
+	}
+	if req.RequestedModel != "" && !pelicanGroupTestModelAllowed(ctx, account, req.RequestedModel) {
+		return false, "model_not_selected_for_pelican"
 	}
 	if req.RequestedModel != "" && !account.IsModelAllowedInGroup(req.GroupID, req.RequestedModel) {
 		return false, "model_not_allowed_in_group"
@@ -2418,6 +2421,7 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForImages(
 	excludedIDs map[int64]struct{},
 	requiredCapability OpenAIImagesCapability,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	ctx = WithOpenAIImagesEndpoint(WithOpenAIImageGenerationIntent(ctx))
 	selection, decision, err := s.selectAccountWithScheduler(ctx, groupID, "", sessionHash, requestedModel, excludedIDs, OpenAIUpstreamTransportHTTPSSE, "", requiredCapability, false, PlatformOpenAI, false, false)
 	if err == nil && selection != nil && selection.Account != nil {
 		return selection, decision, nil
@@ -2794,6 +2798,9 @@ func accountSupportsOpenAICapabilities(account *Account, requiredCapability Open
 // Alpha search always account-maps the channel-forwarded body model once.
 // Keep public-model ACL, billing and sticky semantics separate from that wire.
 func accountSupportsOpenAICapabilitiesForRequestContext(ctx context.Context, account *Account, requestedModel string, requiredCapability OpenAIEndpointCapability, requiredImageCapability OpenAIImagesCapability) bool {
+	if openAIImageRequestRejection(ctx, account, requestedModel) != "" {
+		return false
+	}
 	if requiredCapability == OpenAIEndpointCapabilityAlphaSearch {
 		if forward, ok := openAIForwardModelFromContext(ctx); ok && forward.model != "" {
 			requestedModel = forward.model

@@ -191,6 +191,9 @@ func (s *AuthService) createEmailOAuthUser(ctx context.Context, email, username,
 		SignupSource: providerType,
 	}
 	if err := s.createSignupUser(ctx, user, invitationRedeemCode, affiliateCode, true); err != nil {
+		if errors.Is(err, ErrRegistrationIPLimit) {
+			return nil, ErrRegistrationIPLimit
+		}
 		if errors.Is(err, ErrEmailExists) {
 			existing, loadErr := s.userRepo.GetByEmail(ctx, email)
 			if loadErr != nil {

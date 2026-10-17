@@ -139,6 +139,9 @@ func (s *OpenAIGatewayService) doOpenAIProxyAttempt(req *http.Request, account *
 		return nil, admissionErr
 	}
 	account = latest
+	if req != nil {
+		req = req.WithContext(s.withRequestTimezoneEgress(req.Context(), account))
+	}
 	if err := regionalMeterHTTPRequest(req); err != nil {
 		return nil, err
 	}

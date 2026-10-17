@@ -170,7 +170,7 @@ func denyOpenAITurn(reason string) error { return &OpenAITurnAdmissionError{Reas
 // from other admission failures (credentials, capacity, tickets, or DB reads).
 func IsOpenAIModelCapabilityRejection(err error) bool {
 	var denied *OpenAITurnAdmissionError
-	return errors.As(err, &denied) && denied.Reason == "model_not_supported"
+	return errors.As(err, &denied) && (denied.Reason == "model_not_supported" || denied.Reason == "image_model_not_supported")
 }
 
 func denyOpenAITicket() error {
@@ -347,9 +347,12 @@ func (s *OpenAIGatewayService) latestOpenAITurnAccountForGroup(
 
 // Check every actual send, including retries and skipBeforeTurn paths. This is
 // an admission point, not an atomic transaction spanning SQL and network I/O.
-func (s *OpenAIGatewayService) admitOpenAITurn(ctx context.Context, c *gin.Context, selected *Account, outboundModel string) (*Account, error) {
+func (s *OpenAIGatewayService) admitOpenAITurn(ctx context.Context, c *gin.Context, selected *Account, outboundModel string, payload ...[]byte) (*Account, error) {
 	if c != nil && c.Request != nil && c.Request.URL != nil && strings.HasSuffix(strings.TrimRight(c.Request.URL.Path, "/"), "/responses/compact") && selected.RequiresGatewayBorrow(outboundModel) {
 		return nil, denyOpenAITurn("gateway_borrow_compact_unavailable")
+	}
+	if len(payload) > 0 {
+		ctx = WithOpenAIImageGenerationRequest(ctx, outboundModel, payload[0])
 	}
 	groupID, enforceGroup := openAITurnAdmissionGroupFromContext(c)
 	return s.admitOpenAITurnWithGroup(ctx, selected, outboundModel, groupID, enforceGroup)
@@ -367,7 +370,11 @@ func (s *OpenAIGatewayService) admitOpenAITurnForGroup(
 	enforceGroup bool,
 	selected *Account,
 	outboundModel string,
+	payload ...[]byte,
 ) (*Account, error) {
+	if len(payload) > 0 {
+		ctx = WithOpenAIImageGenerationRequest(ctx, outboundModel, payload[0])
+	}
 	return s.admitOpenAITurnWithGroup(ctx, selected, outboundModel, groupID, enforceGroup)
 }
 
@@ -403,8 +410,14 @@ func (s *OpenAIGatewayService) admitOpenAITurnWithGroup(
 	}
 	// Preserve the cause of a model-not-found cooldown before the generic
 	// runtime/rate-limit checks erase it.
+	if latest.qualityModelBlocked(ctx, outboundModel) {
+		return nil, denyOpenAITurn("model_runtime_blocked")
+	}
 	if latest.modelCapabilityRejected(outboundModel) {
 		return nil, denyOpenAITurn("model_not_supported")
+	}
+	if reason := openAIImageRequestRejection(ctx, latest, outboundModel); reason != "" {
+		return nil, denyOpenAITurn(reason)
 	}
 	if s.getOpenAIAccountModelTransientState().isBlocked(latest.ID, openAIAccountModelTransientModel(outboundModel), time.Now()) {
 		return nil, denyOpenAITurn("model_runtime_blocked")

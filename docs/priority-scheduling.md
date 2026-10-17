@@ -118,9 +118,9 @@ OAuth 分流权重 = 可用槽位 × 评分偏好 × 额度偏好 × 延迟因�
 
 页面对照使用本地 mock API 和虚构账号，截图中的权重、样本及金额仅用于展示验证，不是线上测量：
 
-- [变更前，桌面](screenshots/priority-scheduling-fairness/before-desktop.png)
-- [变更后，桌面](screenshots/priority-scheduling-fairness/after-desktop.png)
-- [变更后，手机](screenshots/priority-scheduling-fairness/after-mobile.png)；宽表在容器内横向滚动，页面无横向溢出。
+- [变更前，桌面](https://github.com/ranxi2001/sub2api/blob/297e9201a2f6d6fe70073b370a5b71f49579accf/docs/screenshots/priority-scheduling-fairness/before-desktop.png)
+- [变更后，桌面](https://github.com/ranxi2001/sub2api/blob/297e9201a2f6d6fe70073b370a5b71f49579accf/docs/screenshots/priority-scheduling-fairness/after-desktop.png)
+- [变更后，手机](https://github.com/ranxi2001/sub2api/blob/297e9201a2f6d6fe70073b370a5b71f49579accf/docs/screenshots/priority-scheduling-fairness/after-mobile.png)；宽表在容器内横向滚动，页面无横向溢出。
 
 ## 验证
 

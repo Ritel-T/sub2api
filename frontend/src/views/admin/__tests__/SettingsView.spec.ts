@@ -8,7 +8,6 @@ import enSettings from "@/i18n/locales/en/admin/settings";
 import zhCommon from "@/i18n/locales/zh/common";
 import zhSettings from "@/i18n/locales/zh/admin/settings";
 import SettingsView from "../SettingsView.vue";
-import { apiClient } from "@/api/client";
 
 enableAutoUnmount(afterEach);
 
@@ -1181,6 +1180,33 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
+  it('keeps absent timezone settings off and enables manual mode without opting into egress detection', async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      openai_request_timezone_enabled: undefined,
+      openai_request_timezone_auto: undefined,
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    const toggle = wrapper.get<HTMLInputElement>('#request-timezone-enabled');
+    expect(toggle.element.checked).toBe(false);
+    expect(wrapper.find('#request-timezone-mode').exists()).toBe(false);
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
+      openai_request_timezone_enabled: false,
+      openai_request_timezone_auto: false,
+    }));
+    await toggle.setValue(true);
+    expect(wrapper.get<HTMLSelectElement>('#request-timezone-mode').element.value).toBe('manual');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
+      openai_request_timezone_enabled: true,
+      openai_request_timezone_auto: false,
+    }));
+  });
+
   it.each([false, true])("loads and toggles request timezone binding from %s", async (enabled) => {
     getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, openai_request_timezone_enabled: enabled });
     const wrapper = mountView();
@@ -1191,6 +1217,18 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0].openai_request_timezone_enabled).toBe(!enabled);
+  });
+
+  it.each([false, true])("loads and saves timezone source from %s", async (auto) => {
+    getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, openai_request_timezone_enabled: true, openai_request_timezone_auto: auto });
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.get<HTMLSelectElement>('#request-timezone-mode').element.value).toBe(auto ? 'auto' : 'manual');
+    await wrapper.get('#request-timezone-mode').setValue(auto ? 'manual' : 'auto');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings.mock.calls[0]?.[0].openai_request_timezone_auto).toBe(!auto);
+    wrapper.unmount();
   });
 
   it("keeps harvest policy and exit settings in their dedicated pages", async () => {
