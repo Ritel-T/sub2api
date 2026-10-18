@@ -137,7 +137,7 @@ const fieldGroups: Array<{ id: string; zh: string; en: string; fields: Parameter
       { key: 'endpoint', zh: 'API 地址 / 多地址', en: 'API endpoint / multiple endpoints', placeholder: '{{baseUrl}}', hintZh: '多个地址使用英文逗号分隔；具体 API 路径按客户端要求填写。', hintEn: 'Separate multiple endpoints with commas. Include the API path required by the selected client.' },
       { key: 'homepage', zh: '提供商主页', en: 'Provider homepage', placeholder: '{{baseUrl}}' },
       { key: 'apiFormat', zh: 'API 协议格式', en: 'API format', hintZh: '留空使用站点 / 客户端默认值。', hintEn: 'Leave blank for the site / application default.' },
-      { key: 'enabled', zh: '导入后启用 / 切换', en: 'Enable / switch after import', boolean: true },
+      { key: 'enabled', zh: '导入后启用 / 切换', en: 'Enable / switch after import', boolean: true, hintZh: '显示 CCS 导入确认框的默认选项；用户仍可在导入时调整。', hintEn: 'Shows the default in the CCS import confirmation. Users can change it during import.' },
       { key: 'haikuModel', zh: 'Claude Haiku 模型别名', en: 'Claude Haiku model alias' },
       { key: 'sonnetModel', zh: 'Claude Sonnet 模型别名', en: 'Claude Sonnet model alias' },
       { key: 'opusModel', zh: 'Claude Opus 模型别名', en: 'Claude Opus model alias' },
@@ -154,8 +154,8 @@ const fieldGroups: Array<{ id: string; zh: string; en: string; fields: Parameter
     id: 'usage', zh: '用量查询', en: 'Usage query', fields: [
       { key: 'usageEnabled', zh: '启用用量查询', en: 'Enable usage query', boolean: true, hintZh: '留空使用站点默认值：启用。', hintEn: 'Site default when omitted: enabled.' },
       { key: 'usageAutoInterval', zh: '自动查询间隔（分钟）', en: 'Query interval (minutes)', number: true, placeholder: '30', hintZh: '留空使用站点默认 30 分钟；0 关闭自动查询。', hintEn: 'Site default: 30 minutes. 0 disables automatic queries.' },
-      { key: 'usageApiKey', zh: '查询 Key 模板（公开）', en: 'Query key template (public)', placeholder: '{{apiKey}}' },
-      { key: 'usageBaseUrl', zh: '查询地址模板', en: 'Query base URL template', placeholder: '{{baseUrl}}' },
+      { key: 'usageApiKey', zh: '查询 Key 模板（公开）', en: 'Query key template (public)', placeholder: '{{apiKey}}', hintZh: '未自定义时继承提供商当前 Key。', hintEn: 'Inherits the current provider key when not customized.' },
+      { key: 'usageBaseUrl', zh: '查询地址模板', en: 'Query base URL template', placeholder: '{{baseUrl}}', hintZh: '未自定义时跟随提供商当前地址。', hintEn: 'Follows the current provider endpoint when not customized.' },
       { key: 'usageAccessToken', zh: '查询令牌模板（公开）', en: 'Query token template (public)' },
       { key: 'usageUserId', zh: '查询用户 ID 模板', en: 'Query user ID template', placeholder: '{{userId}}' },
       { key: 'usageScript', zh: '原始用量查询脚本', en: 'Raw usage query script', multiline: true, hintZh: '留空使用站点内置余额脚本；自定义脚本在生成链接时自动编码。', hintEn: 'Leave blank for the built-in site balance script. Custom scripts are encoded when generating the link.' },
@@ -190,7 +190,7 @@ function updateProfile(patch: Partial<CcsImportProfile>) {
 function parameterText(key: string): string {
   const value = selectedProfile.value?.parameters[key] ?? parameterDefaults.value[key]
   // These empty strings are accepted by the API and inherit the current default.
-  if (value === '' && ['name', 'homepage', 'endpoint', 'apiFormat', 'configFormat'].includes(key)) return String(parameterDefaults.value[key] ?? '')
+  if (value === '' && ['name', 'homepage', 'endpoint', 'apiFormat', 'configFormat', 'usageApiKey', 'usageBaseUrl'].includes(key)) return String(parameterDefaults.value[key] ?? '')
   return value === undefined ? '' : String(value)
 }
 

@@ -32,11 +32,13 @@ describe('CcsImportSettings', () => {
       name: '{{siteName}}', homepage: '{{baseUrl}}', endpoint: 'https://api.example.test/v1',
       apiFormat: 'openai_responses', configFormat: 'json', usageEnabled: 'true',
       usageAutoInterval: '30', usageScript: CC_SWITCH_USAGE_SCRIPT, model: 'gpt-6-astra',
+      enabled: 'false', usageApiKey: '{{apiKey}}', usageBaseUrl: 'https://api.example.test/v1',
     }
     for (const [key, expected] of Object.entries(fields)) {
       expect((wrapper.get(`[data-testid="ccs-param-${key}"]`).element as HTMLInputElement).value, key).toBe(expected)
     }
     expect((wrapper.get('[data-testid="ccs-param-config"]').element as HTMLTextAreaElement).value).toBe('')
+    expect((wrapper.get('[data-testid="ccs-param-usageUserId"]').element as HTMLInputElement).value).toBe('')
     await wrapper.get('[data-testid="ccs-label"]').setValue('Renamed')
     expect(value.value.profiles[0]?.parameters).toEqual({ model: 'gpt-6-astra' })
   })
@@ -57,6 +59,7 @@ describe('CcsImportSettings', () => {
   it('updates inherited endpoints with site and protocol edits while retaining overrides', async () => {
     const { wrapper, value, baseUrl } = mountEditor()
     await wrapper.get('[data-testid="ccs-app"]').setValue('opencode')
+    expect((wrapper.get('[data-testid="ccs-param-enabled"]').element as HTMLSelectElement).value).toBe('true')
     await wrapper.get('[data-testid="ccs-platform"]').setValue('gemini')
     expect((wrapper.get('[data-testid="ccs-param-apiFormat"]').element as HTMLSelectElement).value).toBe('gemini_native')
     expect((wrapper.get('[data-testid="ccs-param-endpoint"]').element as HTMLInputElement).value).toBe('https://api.example.test/v1beta')
@@ -69,15 +72,17 @@ describe('CcsImportSettings', () => {
     await wrapper.get('[data-testid="ccs-param-endpoint"]').setValue('')
     expect((wrapper.get('[data-testid="ccs-param-endpoint"]').element as HTMLInputElement).value).toBe('https://new.example.test/v1')
     expect(value.value.profiles[0]?.parameters).not.toHaveProperty('endpoint')
+    expect((wrapper.get('[data-testid="ccs-param-usageBaseUrl"]').element as HTMLInputElement).value).toBe('https://new.example.test/v1')
+    expect(value.value.profiles[0]?.parameters).not.toHaveProperty('usageBaseUrl')
   })
 
   it('fills inherited defaults for empty metadata and format strings loaded from the API', () => {
     const { wrapper } = mountEditor({ profiles: [{ ...openaiProfile(), parameters: {
-      name: '', homepage: '', endpoint: '', apiFormat: '', configFormat: '', usageScript: '',
+      name: '', homepage: '', endpoint: '', apiFormat: '', configFormat: '', usageScript: '', usageApiKey: '', usageBaseUrl: '',
     } }] })
     const fields: Record<string, string> = {
       name: '{{siteName}}', homepage: '{{baseUrl}}', endpoint: 'https://api.example.test/v1',
-      apiFormat: 'openai_responses', configFormat: 'json', usageScript: '',
+      apiFormat: 'openai_responses', configFormat: 'json', usageScript: '', usageApiKey: '{{apiKey}}', usageBaseUrl: 'https://api.example.test/v1',
     }
     for (const [key, expected] of Object.entries(fields)) {
       expect((wrapper.get(`[data-testid="ccs-param-${key}"]`).element as HTMLInputElement).value, key).toBe(expected)

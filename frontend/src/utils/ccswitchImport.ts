@@ -174,7 +174,11 @@ export function getCcSwitchImportParameterDefaults(profile: CcsImportProfile, ba
   const defaults: Record<string, string | boolean | number> = {
     ...DEFAULT_IMPORT_PARAMETERS,
     endpoint: defaultProfileEndpoint({ baseUrl, platform: profile.platform }, profile, apiFormat),
+    enabled: ['opencode', 'openclaw', 'hermes', 'pi'].includes(profile.app),
+    usageApiKey: '{{apiKey}}',
   }
+  // CCS inherits its provider's current first endpoint when no query URL is set.
+  defaults.usageBaseUrl = String(profile.parameters.endpoint || defaults.endpoint).split(',')[0]!.trim().replace(/\/+$/, '')
   // Gemini / Hermes requires an explicit compatible format, not an implicit native default.
   if (!(profile.app === 'hermes' && apiFormat === 'gemini_native')) defaults.apiFormat = apiFormat
   return defaults

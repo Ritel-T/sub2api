@@ -75,6 +75,6 @@ CCS v4.0.10+ retains the extended Codex/Grok configuration allowlists and custom
 
 ## Editing inherited defaults
 
-The administrator editor fills inherited provider metadata, endpoint, API format, JSON format, usage-query enablement, 30-minute interval, and the complete built-in usage script into the controls. The endpoint follows the current site API base URL and selected protocol/application. Editing a value creates an override; clearing it restores inheritance. Viewing or saving another field does not persist these inherited values as overrides. Optional fields without defaults remain empty.
+The administrator editor fills inherited provider metadata, endpoint, API format, JSON format, CCS import activation defaults, inherited query key/address, usage-query enablement, 30-minute interval, and the complete built-in usage script into the controls. The endpoint follows the current site API base URL and selected protocol/application. Editing a value creates an override; clearing it restores inheritance. Viewing or saving another field does not persist these inherited values as overrides. Optional fields without defaults remain empty.
 
 The built-in usage script currently shows subscription plan names and the smallest remaining allowance among configured daily, weekly, and monthly limits. It does not show individual subscription period progress or expiry. API keys with their own quota/rate limits use the API-key quota response instead of the subscription response; the current script reads total key quotas but does not yet read `rate_limits` windows.
