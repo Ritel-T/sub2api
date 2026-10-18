@@ -54,7 +54,6 @@
         <div v-else class="card p-5">
           <TicketReplyBox v-model="reply" :placeholder="t('supportTickets.detail.replyPlaceholder')" :sending="busy" @submit="send" />
         </div>
-        <p class="text-center text-xs text-gray-400">{{ t('supportTickets.detail.autoRefresh') }}</p>
       </template>
     </div>
 
@@ -110,10 +109,14 @@ async function load(quiet = false) {
     loading.value = true
     loadError.value = ''
   }
+  const id = ticketId.value
   try {
-    detail.value = await getMyTicket(ticketId.value)
+    const response = await getMyTicket(id)
+    if (ticketId.value !== id) return
+    detail.value = response
     if (!quiet) ticketStore.refresh(true)
   } catch (err) {
+    if (ticketId.value !== id) return
     if (!quiet) loadError.value = supportTicketErrorMessage(err, t, 'supportTickets.loadFailed')
   } finally {
     loading.value = false
@@ -122,8 +125,11 @@ async function load(quiet = false) {
 
 async function run(action: () => Promise<SupportTicketDetail>, successKey: string) {
   busy.value = true
+  const id = ticketId.value
   try {
-    detail.value = await action()
+    const response = await action()
+    if (ticketId.value !== id) return false
+    detail.value = response
     appStore.showSuccess(t(successKey))
     ticketStore.refresh(true)
     return true
@@ -154,6 +160,8 @@ function poll() {
 
 watch(ticketId, () => {
   detail.value = null
+  reply.value = ''
+  confirmClose.value = false
   load()
 })
 

@@ -1,6 +1,7 @@
 <template>
   <AppLayout>
     <div class="space-y-4">
+      <ConsoleObjectLinks v-if="contextUserId" kind="user" :id="contextUserId" context />
       <!-- Filters -->
       <div class="card p-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -117,7 +118,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { objectQueryId } from '../objectContext'
+import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
@@ -146,6 +150,9 @@ interface AuditLog {
 const { t } = useI18n()
 const appStore = useAppStore()
 
+const route = useRoute()
+const contextUserId = computed(() => objectQueryId(route?.query?.user_id))
+watch(contextUserId, () => { orderPagination.page = 1; void loadOrders() })
 const ordersLoading = ref(false)
 const orders = ref<PaymentOrder[]>([])
 const orderSearch = ref('')
@@ -176,6 +183,7 @@ async function loadOrders() {
   try {
     const res = await adminPaymentAPI.getOrders({
       page: orderPagination.page, page_size: orderPagination.page_size,
+      user_id: contextUserId.value,
       keyword: orderSearch.value || undefined, status: orderFilters.status || undefined,
       payment_type: orderFilters.payment_type || undefined, order_type: orderFilters.order_type || undefined,
     })

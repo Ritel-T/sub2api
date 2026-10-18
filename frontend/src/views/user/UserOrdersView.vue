@@ -1,6 +1,7 @@
 <template>
   <AppLayout>
     <div class="space-y-4">
+      <BillingNavigation current="orders" :settings="appStore.cachedPublicSettings" />
       <!-- Filters -->
       <div class="card p-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -9,7 +10,7 @@
             <button @click="fetchOrders" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
-            <button class="btn btn-primary" @click="router.push('/purchase')">{{ t('payment.result.backToRecharge') }}</button>
+            <button class="btn btn-primary" @click="router.push('/purchase')">{{ bt('billing.purchase') }}</button>
           </div>
         </div>
       </div>
@@ -18,9 +19,9 @@
       <OrderTable :orders="orders" :loading="loading">
         <template #actions="{ row }">
           <div class="flex items-center gap-2">
-            <button v-if="row.payment_type === 'squarespace' && (row.retail_quote?.payment_claim_mode || row.payment_claim_mode) === 'receipt_otp'" data-test="open-square-order" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:text-primary-400" @click="router.push({ path: '/payment/result', query: { order_id: String(row.id) } })">
-              {{ t(['PENDING', 'EXPIRED'].includes(row.status) ? 'paymentRetail.claim.openOrder' : 'paymentRetail.claim.viewResult') }}
-            </button>
+            <button v-if="row.payment_type === 'squarespace' && (row.retail_quote?.payment_claim_mode || row.payment_claim_mode) === 'receipt_otp'" data-test="open-square-order" class="btn btn-secondary btn-sm" @click="router.push({ path: '/payment/result', query: { order_id: String(row.id) } })">{{ t(['PENDING', 'EXPIRED'].includes(row.status) ? 'paymentRetail.claim.openOrder' : 'paymentRetail.claim.viewResult') }}</button>
+            <button v-else type="button" data-test="view-original-order" class="btn btn-secondary btn-sm" @click="router.push({ path: '/payment/result', query: { order_id: String(row.id) } })">{{ t('paymentRetail.claim.viewResult') }}</button>
+            <router-link v-if="canContactSupport" class="text-sm underline" :to="{ path: '/support-tickets', query: { order_id: String(row.id) } }">{{ bt('billing.support') }}</router-link>
             <button v-if="row.status === 'PENDING'" @click="handleCancel(row.id)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-yellow-600 hover:bg-yellow-50 dark:text-yellow-400 dark:hover:bg-yellow-900/20">
               <Icon name="x" size="sm" />
               <span>{{ t('payment.orders.cancel') }}</span>
@@ -88,10 +89,14 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores'
+import { useAuthStore } from '@/stores/auth'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
+import { billingMessages } from '@/components/user/billingNavigation'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { PaymentOrder } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import BillingNavigation from '@/components/user/BillingNavigation.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -99,8 +104,11 @@ import Icon from '@/components/icons/Icon.vue'
 import OrderTable from '@/components/payment/OrderTable.vue'
 
 const { t } = useI18n()
+const { t: bt } = useI18n({ useScope: 'local', messages: billingMessages })
 const router = useRouter()
 const appStore = useAppStore()
+const authStore = useAuthStore()
+const canContactSupport = computed(() => authStore.user?.role === 'user' && resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.supportTickets))
 
 const loading = ref(false)
 const actionLoading = ref(false)

@@ -1,7 +1,15 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
-      <UsageStatsCards :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
+      <header class="flex flex-wrap items-end justify-between gap-4">
+        <h1 class="text-3xl">{{ consoleCopy[usageView] }}</h1>
+        <nav :aria-label="consoleCopy.views" class="flex gap-2">
+          <button type="button" class="btn btn-secondary" :aria-current="usageView === 'analysis' ? 'page' : undefined" @click="setUsageView('analysis')">{{ consoleCopy.analysis }}</button>
+          <button type="button" class="btn btn-secondary" :aria-current="usageView === 'records' ? 'page' : undefined" @click="setUsageView('records')">{{ consoleCopy.records }}</button>
+        </nav>
+      </header>
+      <div v-if="usageView === 'analysis' && analyticsErrors.size" role="alert" class="flex items-center justify-between gap-4 border border-red-500 p-4"><span>{{ t('usage.failedToLoad') }}</span><button type="button" class="btn btn-secondary" @click="refreshData">{{ t('common.refresh') }}</button></div>
+      <UsageStatsCards v-if="usageView === 'analysis'" :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
 
       <div class="space-y-4">
         <div class="card p-4">
@@ -17,13 +25,13 @@
             <div class="ml-auto flex items-center gap-2">
               <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
               <div class="w-28">
-                <Select v-model="granularity" :options="granularityOptions" @change="loadChartData" />
+                <Select v-model="granularity" :options="granularityOptions" @change="onGranularityChange" />
               </div>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div v-if="usageView === 'analysis'" class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ModelDistributionChart
             v-model:metric="modelDistributionMetric"
             :model-stats="requestedModelStats"
@@ -47,7 +55,7 @@
           />
         </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div v-if="usageView === 'analysis'" class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <EndpointDistributionChart
             v-model:source="endpointDistributionSource"
             v-model:metric="endpointDistributionMetric"
@@ -103,6 +111,9 @@
               <label class="input-label">{{ t('usage.model') }}</label>
               <Select v-model="filters.model" :options="modelOptions" searchable @change="applyFilters" />
             </div>
+            <details class="w-full" :open="hasAdvancedFilters || undefined">
+              <summary class="cursor-pointer py-2">{{ consoleCopy.advanced }}</summary>
+              <div class="flex flex-wrap items-end gap-4 pt-3">
             <div class="w-full sm:w-auto sm:min-w-[200px]">
               <label class="input-label">{{ t('admin.usage.group') }}</label>
               <Select v-model="filters.group_id" :options="groupOptions" searchable @change="applyFilters" />
@@ -123,6 +134,8 @@
               <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
               <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
             </div>
+              </div>
+            </details>
           </div>
 
           <div class="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
@@ -132,7 +145,7 @@
             <button type="button" @click="resetFilters" class="btn btn-secondary">
               {{ t('common.reset') }}
             </button>
-            <div class="relative" ref="columnDropdownRef">
+            <div v-if="usageView === 'records'" class="relative" ref="columnDropdownRef">
               <button
                 type="button"
                 data-testid="usage-column-settings"
@@ -160,15 +173,15 @@
                 </button>
               </div>
             </div>
-            <button v-if="activeTab !== 'errors'" type="button" @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
+            <button v-if="usageView === 'records' && activeTab !== 'errors'" type="button" @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
               {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
             </button>
           </div>
         </div>
       </div>
 
-      <div v-if="errorViewEnabled" class="flex gap-2 border-b border-gray-200 dark:border-dark-700">
-        <button class="tab" :class="{ 'tab-active': activeTab === 'usage' }" @click="activeTab = 'usage'">
+      <div v-if="usageView === 'records' && errorViewEnabled" class="flex gap-2 border-b border-gray-200 dark:border-dark-700">
+        <button class="tab" :class="{ 'tab-active': activeTab === 'usage' }" @click="switchToUsage">
           {{ t('usage.tabs.usage') }}
         </button>
         <button class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
@@ -176,7 +189,7 @@
         </button>
       </div>
 
-      <template v-if="activeTab === 'usage'">
+      <template v-if="usageView === 'records' && activeTab === 'usage'">
         <UsageTable
           :data="usageLogs"
           :loading="loading"
@@ -185,8 +198,9 @@
           :show-account-billing="false"
           :show-upstream-endpoint="false"
           cache-rate-audience="user"
-          default-sort-key="created_at"
-          default-sort-order="desc"
+          :default-sort-key="sortState.sort_by"
+          :default-sort-order="sortState.sort_order"
+          @row-details="openRequestDetail"
           @sort="handleSort"
           @ipGeoBatchFailed="handleIpGeoBatchFailed"
         />
@@ -202,18 +216,22 @@
       </template>
 
       <UserErrorRequestsTable
-        v-else-if="errorViewEnabled"
+        v-else-if="usageView === 'records' && errorViewEnabled"
         :rows="errorRows"
         :total="errorTotal"
         :loading="errorLoading"
         :page="errorPage"
         :page-size="errorPageSize"
         :visible-column-keys="errVisibleColumnKeys"
+        :support-enabled="supportEnabled"
+        :sort-by="errorSortBy"
+        :sort-order="errorSortOrder"
         @sort="onErrorSort"
         @update:page="onErrorPage"
         @update:pageSize="onErrorPageSize"
         @ipGeoBatchFailed="handleIpGeoBatchFailed"
       />
+      <UserUsageRequestDetail :record="selectedRequest" :support-enabled="supportEnabled" @close="closeRequestDetail" />
     </div>
   </AppLayout>
 
@@ -221,8 +239,12 @@
 
 <script setup lang="ts">
 import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { routeLocationKey, routerKey } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { parseUsageLocation, usageLocationQuery } from './usageLocation'
+import UserUsageRequestDetail from '@/components/user/UserUsageRequestDetail.vue'
 import { useAppStore } from '@/stores/app'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
@@ -258,8 +280,15 @@ import type {
 import type { Column } from '@/components/common/types'
 import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const route = inject(routeLocationKey, undefined)
+const router = inject(routerKey, undefined)
+const authStore = useAuthStore()
+const selectedRequest = ref<UsageLog | null>(null)
+const usageView = ref<'analysis' | 'records'>('records')
+const consoleCopy = computed(() => locale?.value === 'en' ? {analysis:'Usage analytics', records:'Request records', views:'Usage views', advanced:'More filters'} : locale?.value === 'zh' ? {analysis:'用量分析', records:'请求记录', views:'用量视图', advanced:'更多筛选'} : {analysis:'用量分析', records:'請求記錄', views:'用量檢視', advanced:'更多篩選'})
 const appStore = useAppStore()
+const supportEnabled = computed(() => !authStore.isAdmin && !authStore.isObserver && resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.supportTickets))
 
 type DistributionMetric = 'tokens' | 'actual_cost'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
@@ -273,6 +302,7 @@ const inboundEndpointStats = ref<EndpointStat[]>([])
 const upstreamEndpointStats = ref<EndpointStat[]>([])
 const endpointPathStats = ref<EndpointStat[]>([])
 
+const analyticsErrors = reactive(new Set<string>())
 const loading = ref(false)
 const chartsLoading = ref(false)
 const modelStatsLoading = ref(false)
@@ -326,6 +356,7 @@ const errorStatusOptions = computed<SelectOption[]>(() => [
 
 const applyErrorFilters = () => {
   errorPage.value = 1
+  syncLocation()
   void loadErrors()
 }
 
@@ -416,6 +447,8 @@ const modelOptions = computed<SelectOption[]>(() => [
   ...modelOptionValues.value.map((model) => ({ value: model, label: model })),
 ])
 
+const hasAdvancedFilters = computed(() => filters.value.group_id != null || !!filters.value.request_type || filters.value.native_compaction_v2 != null || filters.value.billing_type != null || !!filters.value.billing_mode)
+
 const normalizedFilters = computed<UsageQueryParams>(() => {
   const requestType = filters.value.request_type
   const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
@@ -450,6 +483,8 @@ const loadLogs = async () => {
     }
   } catch (error: any) {
     if (error?.name !== 'AbortError' && error?.code !== 'ERR_CANCELED') {
+      usageLogs.value = []
+      pagination.total = 0
       appStore.showError(t('usage.failedToLoad'))
     }
   } finally {
@@ -459,6 +494,7 @@ const loadLogs = async () => {
 
 const loadStats = async () => {
   const seq = ++statsReqSeq
+  analyticsErrors.delete('stats')
   endpointStatsLoading.value = true
   try {
     const stats = await usageAPI.getStats(normalizedFilters.value)
@@ -469,6 +505,8 @@ const loadStats = async () => {
     endpointPathStats.value = []
   } catch (error) {
     if (seq !== statsReqSeq) return
+    usageStats.value = null
+    analyticsErrors.add('stats')
     console.error('Failed to load usage stats:', error)
     inboundEndpointStats.value = []
     upstreamEndpointStats.value = []
@@ -480,6 +518,7 @@ const loadStats = async () => {
 
 const loadModelStats = async () => {
   const seq = ++modelStatsReqSeq
+  analyticsErrors.delete('model')
   modelStatsLoading.value = true
   try {
     const response = await usageAPI.getDashboardModels({
@@ -491,6 +530,7 @@ const loadModelStats = async () => {
     refreshModelOptions(response.models || [])
   } catch (error) {
     if (seq !== modelStatsReqSeq) return
+    analyticsErrors.add('model')
     console.error('Failed to load model stats:', error)
     requestedModelStats.value = []
   } finally {
@@ -500,6 +540,7 @@ const loadModelStats = async () => {
 
 const loadChartData = async () => {
   const seq = ++chartReqSeq
+  analyticsErrors.delete('chart')
   chartsLoading.value = true
   try {
     const snapshot = await usageAPI.getDashboardSnapshotV2({
@@ -514,6 +555,7 @@ const loadChartData = async () => {
     groupStats.value = snapshot.groups || []
   } catch (error) {
     if (seq !== chartReqSeq) return
+    analyticsErrors.add('chart')
     console.error('Failed to load chart data:', error)
     trendData.value = []
     groupStats.value = []
@@ -534,12 +576,16 @@ const refreshModelOptions = (models: ModelStat[]) => {
 
 const applyFilters = () => {
   pagination.page = 1
+  errorPage.value = 1
+  syncLocation()
   void loadLogs()
   void loadStats()
   void loadModelStats()
   void loadChartData()
   resetErrorRows()
 }
+
+const onGranularityChange = () => { syncLocation(); void loadChartData() }
 
 const refreshData = () => {
   const range = selectedPreset.value ? getDatePresetRange(selectedPreset.value) : null
@@ -549,6 +595,7 @@ const refreshData = () => {
     filters.value.start_date = range.start
     filters.value.end_date = range.end
   }
+  syncLocation()
   void loadLogs()
   void loadStats()
   void loadModelStats()
@@ -589,12 +636,14 @@ const onDateRangeChange = (range: { startDate: string; endDate: string; preset: 
 
 const handlePageChange = (page: number) => {
   pagination.page = page
+  syncLocation()
   void loadLogs()
 }
 
 const handlePageSizeChange = (pageSize: number) => {
   pagination.page_size = pageSize
   pagination.page = 1
+  syncLocation()
   void loadLogs()
 }
 
@@ -602,6 +651,7 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.sort_by = key
   sortState.sort_order = order
   pagination.page = 1
+  syncLocation()
   void loadLogs()
 }
 
@@ -730,6 +780,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'cost', label: t('usage.cost'), sortable: false },
   { key: 'latency', label: t('usage.latency'), sortable: false },
   { key: 'created_at', label: t('usage.time'), sortable: true },
+  { key: 'request_details', label: t('common.view'), sortable: false },
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
 ])
 
@@ -853,7 +904,9 @@ const resetErrorRows = () => {
   }
 }
 
+let errorReqSeq = 0
 const loadErrors = async () => {
+  const seq = ++errorReqSeq
   errorLoading.value = true
   try {
     const resp = await usageAPI.listMyErrorRequests({
@@ -868,13 +921,17 @@ const loadErrors = async () => {
       sort_by: errorSortBy.value,
       sort_order: errorSortOrder.value,
     })
+    if (seq !== errorReqSeq) return
     errorRows.value = resp.items
     errorTotal.value = resp.total
   } catch (error) {
+    if (seq !== errorReqSeq) return
+    errorRows.value = []
+    errorTotal.value = 0
     console.error('[UsageView] loadErrors failed:', error)
     appStore.showError(t('usage.errors.failedToLoad'))
   } finally {
-    errorLoading.value = false
+    if (seq === errorReqSeq) errorLoading.value = false
   }
 }
 
@@ -882,35 +939,152 @@ const onErrorSort = (sortBy: string, sortOrder: 'asc' | 'desc') => {
   errorSortBy.value = sortBy
   errorSortOrder.value = sortOrder
   errorPage.value = 1
+  syncLocation()
   void loadErrors()
 }
 
 const onErrorPage = (page: number) => {
   errorPage.value = page
+  syncLocation()
   void loadErrors()
 }
 
 const onErrorPageSize = (pageSize: number) => {
   errorPageSize.value = pageSize
   errorPage.value = 1
+  syncLocation()
   void loadErrors()
 }
 
 const switchToErrors = () => {
+  errorFilter.value.api_key_id = filters.value.api_key_id ?? null
+  errorFilter.value.model = filters.value.model ?? ''
   activeTab.value = 'errors'
+  syncLocation()
   if (errorRows.value.length === 0) void loadErrors()
 }
 
+let pendingQuery = ''
+const syncLocation = () => {
+  if (!router) return
+  const errors = activeTab.value === 'errors'
+  const query = usageLocationQuery({
+    usageId: selectedRequest.value?.id, view: usageView.value, tab: activeTab.value, start: startDate.value, end: endDate.value, customRange: true,
+    page: errors ? errorPage.value : pagination.page, pageSize: errors ? errorPageSize.value : pagination.page_size,
+    granularity: granularity.value, sortBy: errors ? errorSortBy.value : sortState.sort_by,
+    sortOrder: errors ? errorSortOrder.value : sortState.sort_order,
+    filters: errors ? { api_key_id: errorFilter.value.api_key_id ?? undefined, model: errorFilter.value.model || undefined } : filters.value,
+    category: errorFilter.value.category, statusCode: errorFilter.value.status_code,
+  })
+  pendingQuery = JSON.stringify(router.resolve({ path: '/usage', query }).query)
+  void router.push({ path: '/usage', query })
+}
+let detailReqSeq = 0
+const openRequestDetail = (record: UsageLog) => {
+  ++detailReqSeq
+  selectedRequest.value = record
+  syncLocation()
+}
+const closeRequestDetail = () => {
+  ++detailReqSeq
+  selectedRequest.value = null
+  syncLocation()
+}
+const restoreRequestDetail = async (id?: number) => {
+  const seq = ++detailReqSeq
+  selectedRequest.value = null
+  if (!id) return
+  try {
+    const result = await usageAPI.getById(id)
+    if (seq === detailReqSeq) selectedRequest.value = result
+  } catch {
+    if (seq === detailReqSeq) appStore.showError(t('usage.failedToLoad'))
+  }
+}
+const restoreLocation = () => {
+  const state = parseUsageLocation(route?.query ?? {}, {start: defaultRange.start, end: defaultRange.end, pageSize: getPersistedPageSize()})
+  void restoreRequestDetail(state.usageId)
+  usageView.value = state.view as 'analysis' | 'records'
+  activeTab.value = state.view !== 'analysis' && state.tab === 'errors' && errorViewEnabled.value ? 'errors' : 'usage'
+  startDate.value = state.start
+  endDate.value = state.end
+  selectedPreset.value = state.customRange ? null : 'last24Hours'
+  granularity.value = state.granularity ?? getGranularityForRange(state.start, state.end)
+  filters.value = {...state.filters, start_date: state.start, end_date: state.end}
+  errorFilter.value = {api_key_id: state.filters.api_key_id ?? null, model: state.filters.model ?? '', category: state.category, status_code: state.statusCode}
+  refreshModelOptions([])
+  pagination.page = state.page
+  pagination.page_size = state.pageSize
+  errorPage.value = state.page
+  errorPageSize.value = state.pageSize
+  sortState.sort_by = state.sortBy
+  sortState.sort_order = state.sortOrder
+  errorSortBy.value = state.sortBy
+  errorSortOrder.value = state.sortOrder
+}
+const reloadCurrentData = () => {
+  void loadLogs()
+  void loadStats()
+  void loadModelStats()
+  void loadChartData()
+  if (activeTab.value === 'errors') void loadErrors()
+}
+const setUsageView = (view: 'analysis' | 'records') => {
+  usageView.value = view
+  if (view === 'analysis') {
+    if (activeTab.value === 'errors') {
+      filters.value.api_key_id = errorFilter.value.api_key_id ?? undefined
+      filters.value.model = errorFilter.value.model || undefined
+    }
+    activeTab.value = 'usage'
+    void loadStats()
+    void loadModelStats()
+    void loadChartData()
+  }
+  syncLocation()
+}
+const switchToUsage = () => {
+  filters.value.api_key_id = errorFilter.value.api_key_id ?? undefined
+  filters.value.model = errorFilter.value.model || undefined
+  activeTab.value = 'usage'
+  syncLocation()
+  void loadLogs()
+}
+watch(() => route?.query, () => {
+  const current = JSON.stringify(route?.query ?? {})
+  if (current === pendingQuery) { pendingQuery = ''; return }
+  restoreLocation()
+  reloadCurrentData()
+})
+watch(errorViewEnabled, (enabled) => {
+  if (enabled && (route?.query.tab === 'errors' || route?.query.view === 'errors' || route?.query.status === 'failed')) {
+    restoreLocation()
+    if (activeTab.value === 'errors') void loadErrors()
+  }
+  if (!enabled && activeTab.value === 'errors') {
+    ++errorReqSeq
+    activeTab.value = 'usage'
+    errorRows.value = []
+    errorTotal.value = 0
+    syncLocation()
+  }
+})
 onMounted(() => {
+  restoreLocation()
   loadSavedColumns()
   loadSavedErrColumns()
   document.addEventListener('click', handleColumnClickOutside)
   void loadFilterOptions()
-  refreshData()
+  reloadCurrentData()
 })
 
 onUnmounted(() => {
   abortController?.abort()
+  ++errorReqSeq
+  ++detailReqSeq
+  ++chartReqSeq
+  ++statsReqSeq
+  ++modelStatsReqSeq
   document.removeEventListener('click', handleColumnClickOutside)
 })
 

@@ -4,6 +4,8 @@ import { defineComponent, ref } from 'vue'
 
 import UsageView from '../UsageView.vue'
 
+vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))
+
 const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, routeQuery, aoaToSheet, sheetAddAoa, saveAs, xlsxWrite } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
@@ -235,6 +237,27 @@ describe('admin UsageView route filters', () => {
     expect(list).toHaveBeenLastCalledWith(expect.objectContaining({
       start_date: '2026-09-08T04:37:00.000Z', end_date: '2026-09-09T04:37:00.000Z'
     }), expect.anything())
+    wrapper.unmount()
+  })
+
+  it('scopes upstream request records, statistics and chart requests to the exact account', async () => {
+    routeQuery.account_id = '84'
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({ account_id: 84 }), expect.anything())
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ account_id: 84 }))
+    expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({ account_id: 84 }))
+    wrapper.unmount()
+  })
+
+  it('ignores malformed object identifiers rather than silently narrowing to a different ID', async () => {
+    routeQuery.user_id = '42.5'
+    routeQuery.account_id = '-1'
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({ user_id: undefined, account_id: undefined }), expect.anything())
     wrapper.unmount()
   })
 

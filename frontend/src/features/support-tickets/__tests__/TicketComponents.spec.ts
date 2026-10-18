@@ -93,6 +93,26 @@ describe('create ticket dialog', () => {
     unread_count: 0, open_count: 1, max_open: 5, categories: ['账户与充值', '其他'], notice: '工作时间 9–21 点', ...extra,
   })
 
+  it('prefills editable references and sends only after explicit submission', async () => {
+    mocks.createTicket.mockResolvedValue({ ticket: { id: 9 }, messages: [] })
+    const wrapper = mount(CreateTicketDialog, { props: { show: true, summary: summary({ categories: [] }), initialDraft: { body: 'request_id: req_123\norder_id: 42\n\n' } }, global: { stubs } })
+    expect((wrapper.get('[data-testid="ticket-body"]').element as HTMLTextAreaElement).value).toContain('request_id: req_123')
+    expect(mocks.createTicket).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('supportTickets.form.secretWarning')
+    expect(wrapper.find('[data-testid="ticket-body-counter"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="ticket-title"]').setValue('Please check')
+    await wrapper.get('[data-testid="ticket-body"]').setValue('request_id: req_123\norder_id: 42\nI was charged twice.')
+    await wrapper.get('form').trigger('submit'); await flushPromises()
+    expect(mocks.createTicket).toHaveBeenCalledWith({ category: '', title: 'Please check', body: 'request_id: req_123\norder_id: 42\nI was charged twice.' })
+  })
+
+  it('waits for the real summary before permitting submission', async () => {
+    const wrapper = mount(CreateTicketDialog, { props: { show: true, summary: null, initialDraft: { title: 'help', body: 'order_id: 42' } }, global: { stubs } })
+    expect(wrapper.get('[data-testid="ticket-submit"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('form').trigger('submit')
+    expect(mocks.createTicket).not.toHaveBeenCalled()
+  })
+
   it('needs a category, title and body, then submits trimmed values', async () => {
     const detail = { ticket: { id: 9 }, messages: [] }
     mocks.createTicket.mockResolvedValue(detail)

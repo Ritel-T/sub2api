@@ -6,7 +6,7 @@ import type { SupportTicket, SupportTicketDetail } from '@/api/supportTickets'
 
 const mocks = vi.hoisted(() => ({
   listMyTickets: vi.fn(), getMySummary: vi.fn(), getMyTicket: vi.fn(), replyMyTicket: vi.fn(), closeMyTicket: vi.fn(), reopenMyTicket: vi.fn(),
-  push: vi.fn(), route: { params: { id: '7' } }, success: vi.fn(), error: vi.fn(), setUserUnread: vi.fn(), refresh: vi.fn(),
+  push: vi.fn(), route: { params: { id: '7' }, query: {} as Record<string, string> }, success: vi.fn(), error: vi.fn(), setUserUnread: vi.fn(), refresh: vi.fn(),
 }))
 vi.mock('vue-i18n', async () => ({
   ...(await vi.importActual<typeof import('vue-i18n')>('vue-i18n')),
@@ -28,7 +28,7 @@ vi.mock('@/api/supportTickets', async (importOriginal) => ({
 const stubs = {
   AppLayout: { template: '<div><slot /></div>' },
   RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
-  CreateTicketDialog: { props: ['show', 'summary'], emits: ['close', 'created'], template: '<div v-if="show" data-testid="create-dialog" />' },
+  CreateTicketDialog: { props: ['show', 'summary', 'initialDraft'], emits: ['close', 'created'], template: '<div v-if="show" data-testid="create-dialog" />' },
   ConfirmDialog: {
     props: ['show', 'message'],
     emits: ['confirm', 'cancel'],
@@ -53,6 +53,7 @@ const detail = (extra: Partial<SupportTicket> = {}): SupportTicketDetail => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.route.query = {}
   mocks.getMySummary.mockResolvedValue({ unread_count: 2, open_count: 1, max_open: 5, categories: ['其他'], notice: '' })
   mocks.listMyTickets.mockResolvedValue({ items: [ticket(3, { user_unread: true, status: 'replied' }), ticket(2)], total: 2, page: 1, page_size: 20, pages: 1 })
   mocks.getMyTicket.mockResolvedValue(detail())
@@ -63,6 +64,18 @@ afterEach(() => {
 })
 
 describe('my tickets', () => {
+  it('opens an editable request or order draft without reading a thread or creating it', async () => {
+    mocks.route.query = { request_id: 'req_123', order_id: '42' }
+    const wrapper = mount(SupportTicketsView, { global: { stubs } })
+    await flushPromises()
+    const dialog = wrapper.findComponent(stubs.CreateTicketDialog)
+    expect(dialog.props('show')).toBe(true)
+    expect(dialog.props('initialDraft')).toEqual({ body: 'request_id: req_123\norder_id: 42\n\n' })
+    expect(mocks.getMyTicket).not.toHaveBeenCalled()
+    expect(mocks.push).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('lists tickets with unread marks and keeps the badge in sync', async () => {
     const wrapper = mount(SupportTicketsView, { global: { stubs } })
     await flushPromises()

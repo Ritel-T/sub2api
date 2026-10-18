@@ -1,32 +1,32 @@
 <template>
   <AppLayout>
+    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="mb-4" />
     <div class="quality-workspace">
-      <SmartOpsNav />
       <div class="workspace-heading">
         <div><p class="workspace-eyebrow">{{ t('qualityOps.workspaceLabel') }}</p><h2>{{ t('qualityOps.workspaceTitle') }}</h2><p class="workspace-subtitle">{{ t('qualityOps.workspaceHint') }}</p></div>
         <div class="heading-actions"><span class="updated-label" aria-live="polite">{{ store.updatedAt ? t('qualityOps.updatedAt', { time: clock(store.updatedAt) }) : t('qualityOps.loading') }}</span><button class="btn btn-secondary" :disabled="refreshing" @click="load"><Icon name="refresh" size="sm" :class="{ 'animate-spin': refreshing }" />{{ t('qualityOps.refresh') }}</button><button class="btn btn-primary" @click="newPlan"><Icon name="plus" size="sm" />{{ t('qualityOps.create') }}</button></div>
       </div>
       <div v-if="error || notice" class="workspace-message" :class="error ? 'message-error' : 'message-success'" :role="error ? 'alert' : 'status'">{{ error || notice }}<button :aria-label="t('qualityOps.dismiss')" @click="error = ''; notice = ''"><Icon name="x" size="sm" /></button></div>
       <div class="workspace-summary">
-        <div class="summary-cell"><span class="summary-icon"><Icon name="users" size="md" /></span><div><span>{{ t('qualityOps.rulesTotal') }}</span><strong>{{ store.rulesLoaded ? plans.length : '—' }}</strong></div></div>
-        <div class="summary-cell"><span class="summary-icon is-teal"><Icon name="play" size="md" /></span><div><span>{{ t('qualityOps.rulesActive') }}</span><strong>{{ store.rulesLoaded ? enabledCount : '—' }}<small v-if="store.rulesLoaded"> / {{ plans.length }}</small></strong></div></div>
+        <div class="summary-cell"><span class="summary-icon"><Icon name="users" size="md" /></span><div><span>{{ t('qualityOps.rulesTotal') }}</span><strong>{{ store.rulesLoaded ? contextPlans.length : '—' }}</strong></div></div>
+        <div class="summary-cell"><span class="summary-icon is-teal"><Icon name="play" size="md" /></span><div><span>{{ t('qualityOps.rulesActive') }}</span><strong>{{ store.rulesLoaded ? enabledCount : '—' }}<small v-if="store.rulesLoaded"> / {{ contextPlans.length }}</small></strong></div></div>
         <div class="summary-cell"><span class="summary-icon is-amber"><Icon name="exclamationCircle" size="md" /></span><div><span>{{ t('qualityOps.latestAttention') }}</span><strong>{{ store.operationsLoaded ? attentionCount : '—' }}</strong></div><button v-if="attentionCount" class="summary-link" @click="store.selectedPlanId = null; store.operationFilter = 'attention'">{{ t('qualityOps.view') }}<Icon name="arrowRight" size="xs" /></button></div>
-        <div class="summary-cell"><span class="summary-icon"><Icon name="document" size="md" /></span><div><span>{{ t('qualityOps.loadedRounds') }}</span><strong>{{ store.operationsLoaded ? operations.length : '—' }}</strong></div></div>
+        <div class="summary-cell"><span class="summary-icon"><Icon name="document" size="md" /></span><div><span>{{ t('qualityOps.loadedRounds') }}</span><strong>{{ store.operationsLoaded ? contextOperations.length : '—' }}</strong></div></div>
       </div>
       <div class="workspace-columns">
         <section class="workspace-panel rules-panel" aria-labelledby="quality-rules-heading">
-          <header class="panel-heading"><div><h3 id="quality-rules-heading">{{ t('qualityOps.ruleLibrary') }}<span class="count-label">{{ plans.length }}</span></h3><p>{{ t('qualityOps.ruleLibraryHint') }}</p></div></header>
+          <header class="panel-heading"><div><h3 id="quality-rules-heading">{{ t('qualityOps.ruleLibrary') }}<span class="count-label">{{ contextPlans.length }}</span></h3><p>{{ t('qualityOps.ruleLibraryHint') }}</p></div></header>
           <div class="rule-search"><Icon name="search" size="sm" /><input v-model="store.search" :aria-label="t('qualityOps.search')" :placeholder="t('qualityOps.searchRule')" /><button v-if="store.search" :aria-label="t('qualityOps.clearSearch')" @click="store.search = ''"><Icon name="x" size="sm" /></button></div>
           <div class="rule-selection-toolbar">
             <label class="rule-check-all"><input type="checkbox" data-testid="quality-select-rules" :checked="allFilteredSelected" :indeterminate="someFilteredSelected && !allFilteredSelected" :disabled="!filteredPlans.length || busy" @change="toggleFilteredSelection" />{{ t('qualityOps.selectFilteredRules') }}</label>
             <span aria-live="polite">{{ t('qualityOps.rulesSelected', { count: selectedRuleIds.length }) }}</span>
             <button v-if="selectedRuleIds.length" :disabled="busy" data-testid="quality-clear-rules" @click="selectedRuleIds = []">{{ t('qualityOps.clearAccountSelection') }}</button>
             <div class="rule-bulk-actions">
-              <button class="btn btn-primary bulk-edit-button" data-testid="quality-bulk-edit" :disabled="!plans.length || busy || selectedRulesPending" @click="editSelectedRules"><Icon name="edit" size="sm" />{{ t('qualityOps.bulkEdit') }}</button>
+              <button class="btn btn-primary bulk-edit-button" data-testid="quality-bulk-edit" :disabled="!contextPlans.length || busy || selectedRulesPending" @click="editSelectedRules"><Icon name="edit" size="sm" />{{ t('qualityOps.bulkEdit') }}</button>
               <button class="btn bulk-delete-button" data-testid="quality-bulk-delete" :disabled="!selectedRuleIds.length || busy || selectedRulesPending" @click="requestDelete(selectedRuleIds)">{{ t('qualityOps.bulkDelete') }}</button>
             </div>
           </div>
-          <button class="all-accounts" :class="{ selected: store.selectedPlanId === null }" :aria-pressed="store.selectedPlanId === null" @click="store.selectedPlanId = null"><Icon name="users" size="sm" />{{ t('qualityOps.allAccounts') }}<span>{{ plans.length }}</span></button>
+          <button class="all-accounts" :class="{ selected: store.selectedPlanId === null }" :aria-pressed="store.selectedPlanId === null" @click="store.selectedPlanId = null"><Icon name="users" size="sm" />{{ t('qualityOps.allAccounts') }}<span>{{ contextPlans.length }}</span></button>
           <div class="rules-scroll" data-testid="rules-scroll" :aria-busy="store.rulesLoading">
             <div v-if="store.rulesError" class="panel-error" role="alert">{{ store.rulesError }}<button @click="store.refreshRules(true)">{{ t('qualityOps.retry') }}</button></div>
             <div v-if="!store.rulesLoaded && store.rulesLoading" class="skeleton-stack" role="status" :aria-label="t('qualityOps.loading')"><div v-for="n in 4" :key="n" class="rule-skeleton"><span /><span /><span /></div></div>
@@ -47,7 +47,7 @@
               <div v-if="!isProbePlan(plan) && !plan.pelican_config?.quality?.judge" class="rule-warning">{{ t('qualityOps.configureJudge') }}</div>
               <footer class="rule-actions"><button @click="history(plan)"><Icon name="document" size="xs" />{{ t('qualityOps.historyShort') }}</button><button :disabled="!!pending[plan.id]" @click="edit(plan)">{{ t('qualityOps.editShort') }}</button><button :disabled="!!pending[plan.id] || !plan.enabled || running(plan)" @click="run(plan)"><Icon name="play" size="xs" />{{ pending[plan.id] === 'run' ? t('qualityOps.submitting') : t('qualityOps.runShort') }}</button></footer>
             </article>
-            <div v-if="store.rulesLoaded && !filteredPlans.length && (plans.length || !templates.length)" class="panel-empty"><Icon name="inbox" size="lg" /><p>{{ plans.length ? t('qualityOps.noMatchingRules') : t('qualityOps.empty') }}</p><button v-if="!plans.length" class="btn btn-secondary" @click="newPlan">{{ t('qualityOps.create') }}</button></div>
+            <div v-if="store.rulesLoaded && !filteredPlans.length && (contextPlans.length || !templates.length)" class="panel-empty"><Icon name="inbox" size="lg" /><p>{{ contextPlans.length ? t('qualityOps.noMatchingRules') : t('qualityOps.empty') }}</p><button v-if="!contextPlans.length" class="btn btn-secondary" @click="newPlan">{{ t('qualityOps.create') }}</button></div>
           </div>
         </section>
         <section class="workspace-panel operations-panel" aria-labelledby="quality-operations-heading">
@@ -67,7 +67,7 @@
             </tbody></table>
             <div v-if="store.operationsLoaded && !filteredOperations.length" class="panel-empty"><Icon name="document" size="lg" /><h4>{{ t('qualityOps.noResults') }}</h4><p>{{ t('qualityOps.filteredEmptyHint') }}</p></div>
           </div>
-          <footer class="operations-footer"><span>{{ t('qualityOps.showingLoaded', { shown: filteredOperations.length, loaded: operations.length }) }}</span><button v-if="store.cursor" :disabled="store.moreLoading || store.operationsLoading" @click="moreOperations">{{ store.moreLoading ? t('qualityOps.loading') : t('qualityOps.loadMore') }}<Icon name="arrowDown" size="xs" /></button><span v-else>{{ t('qualityOps.loadedEnd') }}</span></footer>
+          <footer class="operations-footer"><span>{{ t('qualityOps.showingLoaded', { shown: filteredOperations.length, loaded: contextOperations.length }) }}</span><button v-if="store.cursor" :disabled="store.moreLoading || store.operationsLoading" @click="moreOperations">{{ store.moreLoading ? t('qualityOps.loading') : t('qualityOps.loadMore') }}<Icon name="arrowDown" size="xs" /></button><span v-else>{{ t('qualityOps.loadedEnd') }}</span></footer>
         </section>
       </div>
     </div>
@@ -222,13 +222,17 @@
 </template>
 
 <script setup lang="ts">
+const contextRoute = useRoute()
+const contextAccountId = computed(() => objectQueryId(contextRoute?.query?.account_id))
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
+import { objectQueryId } from './objectContext'
+import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import QualityAccountSelector from '@/components/admin/operations/QualityAccountSelector.vue'
-import SmartOpsNav from '@/components/admin/operations/SmartOpsNav.vue'
 import Icon from '@/components/icons/Icon.vue'
 import QualityBPSSettings from '@/components/admin/operations/QualityBPSSettings.vue'
 import QualityBPSRestoreOptions from '@/components/admin/operations/QualityBPSRestoreOptions.vue'
@@ -325,22 +329,25 @@ const detailsLoading = ref(false), answerLoading = ref(false), detailsError = re
 const loadedAnswers = new Map<number, ScheduledTestResult>()
 const identity = () => auth.user ? `${auth.user.id}:${auth.user.role}` : ''
 const refreshing = computed(() => store.rulesLoading || store.operationsLoading)
-const enabledCount = computed(() => plans.value.filter(p => p.enabled).length)
+const enabledCount = computed(() => contextPlans.value.filter(p => p.enabled).length)
 // 开 BPS 被 403 记录挡住或账号不支持 BPS 时，规则无法自动处理，也列为待处理。
 const attentionActions = new Set(['restore_conflict', 'action_conflict', 'action_error', 'bps_blocked_403', 'bps_unsupported'])
 const attentionCount = computed(() => {
   const latest = new Map<number, QualityOperation>()
-  for (const operation of operations.value) if (!latest.has(operation.plan_id)) latest.set(operation.plan_id, operation)
+  for (const operation of contextOperations.value) if (!latest.has(operation.plan_id)) latest.set(operation.plan_id, operation)
   return [...latest.values()].filter(op => attentionActions.has(op.quality_action || '')).length
 })
+const contextPlans = computed(() => plans.value.filter(plan => !contextAccountId.value || plan.account_id === contextAccountId.value))
+const contextOperations = computed(() => operations.value.filter(operation => !contextAccountId.value || operation.account_id === contextAccountId.value))
 const selectedPlan = computed(() => plans.value.find(p => p.id === store.selectedPlanId))
 const filteredPlans = computed(() => {
   const query = store.search.trim().toLowerCase()
-  return plans.value.filter(p => !query || `${name(p)} ${p.account_id} ${p.id} ${p.model_id}`.toLowerCase().includes(query))
+  return plans.value.filter(p => (!contextAccountId.value || p.account_id === contextAccountId.value) && (!query || `${name(p)} ${p.account_id} ${p.id} ${p.model_id}`.toLowerCase().includes(query)))
 })
 const allFilteredSelected = computed(() => filteredPlans.value.length > 0 && filteredPlans.value.every(plan => selectedRuleIds.value.includes(plan.id)))
 const someFilteredSelected = computed(() => filteredPlans.value.some(plan => selectedRuleIds.value.includes(plan.id)))
 const selectedRulesPending = computed(() => selectedRuleIds.value.some(id => !!pending.value[id]))
+watch(contextAccountId, () => { store.selectedPlanId = null; selectedRuleIds.value = [] })
 watch(plans, (current) => {
   const ids = new Set(current.map(plan => plan.id))
   selectedRuleIds.value = selectedRuleIds.value.filter(id => ids.has(id))
@@ -354,6 +361,7 @@ function toggleFilteredSelection() {
 }
 function editsField(field: QualityRuleField) { return !bulkEditing.value || bulkFields.value.includes(field) }
 const filteredOperations = computed(() => operations.value.filter(op => {
+  if (contextAccountId.value && op.account_id !== contextAccountId.value) return false
   if (store.selectedPlanId !== null && op.plan_id !== store.selectedPlanId) return false
   if (store.operationFilter === 'attention') return attentionActions.has(op.quality_action || '')
   if (store.operationFilter === 'passed') return allPassed(op)
@@ -901,6 +909,7 @@ function retryDetails() {
 function navigateOperation(offset: number) { const next = filteredOperations.value[operationIndex.value + offset]; if (next) void operationDetails(next) }
 watch(() => identity(), () => { error.value = notice.value = ''; closeDetails(); showForm.value = false; discardPrompt.value = false; deleteTargets.value = []; deleteError.value = deleteProgress.value = ''; editingTemplate.value = null; templateDeleteTarget.value = null; templatePending.value = {}; accounts.value = []; knownAccounts.clear(); selectedRuleIds.value = []; bulkRuleIds.value = []; bulkEditing.value = false; accountRequest++; judgeModelsRequest++ })
 onMounted(() => {
+  if (contextAccountId.value) { store.selectedPlanId = null; store.search = '' }
   void load()
   poll = setInterval(() => { if (document.visibilityState === 'visible' && !refreshing.value && !deleting.value) { void store.refreshRules(); void store.refreshOperations() } }, 30_000)
 })

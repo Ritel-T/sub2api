@@ -916,6 +916,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { objectQueryId } from './objectContext'
 import MihomoSettings from './settings/MihomoSettings.vue'
 import HarvestProxySettings from '@/components/admin/HarvestProxySettings.vue'
 import { useI18n } from 'vue-i18n'
@@ -1998,7 +1999,17 @@ function closeCopyMenu() {
   copyMenuProxyId.value = null
 }
 
+async function openRouteProxy() {
+  const id = objectQueryId(route?.query?.proxy_id)
+  if (!id) return
+  try {
+    const proxy = await adminAPI.proxies.getById(id)
+    if (objectQueryId(route?.query?.proxy_id) === id) await openAccountsModal(proxy)
+  } catch { appStore.showError(t('admin.proxies.accountsFailed')) }
+}
+watch(() => route?.query?.proxy_id, () => { void openRouteProxy() })
 onMounted(() => {
+  void openRouteProxy()
   loadProxies()
   loadBackupProxyOptions()
   document.addEventListener('click', closeCopyMenu)

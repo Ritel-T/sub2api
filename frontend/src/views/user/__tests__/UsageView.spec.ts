@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
+import {createRouter, createMemoryHistory, type Router} from 'vue-router'
 import UsageView from '../UsageView.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
@@ -8,6 +9,7 @@ import UsageTable from '@/components/admin/usage/UsageTable.vue'
 
 const {
   query,
+  getById,
   getStats,
   getDashboardModels,
   getDashboardSnapshotV2,
@@ -20,6 +22,7 @@ const {
   showInfo,
 } = vi.hoisted(() => ({
   query: vi.fn(),
+  getById: vi.fn(),
   getStats: vi.fn(),
   getDashboardModels: vi.fn(),
   getDashboardSnapshotV2: vi.fn(),
@@ -75,9 +78,12 @@ const messages: Record<string, string> = {
   'common.reset': 'Reset',
 }
 
+vi.mock('@/stores/auth', () => ({useAuthStore: () => ({isAdmin: false,isObserver:false})}))
+
 vi.mock('@/api', () => ({
   usageAPI: {
     query,
+    getById,
     getStats,
     getDashboardModels,
     getDashboardSnapshotV2,
@@ -149,9 +155,10 @@ const usageLog = {
   native_compaction_v2: false,
 }
 
-function mountUsageView() {
+function mountUsageView(router?: Router) {
   return mount(UsageView, {
     global: {
+      plugins: router ? [router] : [],
       stubs: {
         AppLayout: simpleStub,
         Pagination: true,
@@ -172,6 +179,8 @@ function mountUsageView() {
 
 describe('user UsageView', () => {
   beforeEach(() => {
+    getById.mockReset()
+    getById.mockResolvedValue({...usageLog,id:42})
     query.mockReset()
     getStats.mockReset()
     getDashboardModels.mockReset()
@@ -214,6 +223,60 @@ describe('user UsageView', () => {
     listMyErrorRequests.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
     list.mockResolvedValue({ items: [{ id: 1, name: 'demo-key' }], total: 1, page: 1, page_size: 100, pages: 1 })
     getAvailable.mockResolvedValue([{ id: 1, name: 'default' }])
+  })
+
+
+  it('restores error filters on refresh, supports successful records and restores browser back', async () => {
+    const router = createRouter({history:createMemoryHistory(), routes:[{path:'/usage',component:{template:'<div />'}}]})
+    await router.push('/usage?view=records&tab=errors&api_key_id=1&model=gpt-6&status_code=429&category=rate_limit&page=3&page_size=50&start_date=2026-10-10&end_date=2026-10-12')
+    await router.isReady()
+    const wrapper = mountUsageView(router)
+    await flushPromises()
+    expect(listMyErrorRequests).toHaveBeenLastCalledWith(expect.objectContaining({api_key_id:1,model:'gpt-6',status_code:429,category:'rate_limit',page:3,page_size:50,start_date:'2026-10-10'}))
+    const button=wrapper.findAll('button').find(b=>b.text()==='Usage records')!
+    await button.trigger('click'); await flushPromises()
+    expect(router.currentRoute.value.query).toMatchObject({view:'records',tab:'usage',api_key_id:'1',model:'gpt-6'})
+    expect(query).toHaveBeenLastCalledWith(expect.objectContaining({api_key_id:1,model:'gpt-6'}),expect.anything())
+    router.back(); await flushPromises()
+    expect(listMyErrorRequests).toHaveBeenLastCalledWith(expect.objectContaining({page:3,status_code:429}))
+    wrapper.unmount()
+  })
+  it('opens billed-usage analysis without a request table and restores a real requested detail', async () => {
+    const router = createRouter({history:createMemoryHistory(), routes:[{path:'/usage',component:{template:'<div />'}}]})
+    await router.push('/usage?view=analysis&key=1')
+    await router.isReady()
+    const wrapper=mountUsageView(router); await flushPromises()
+    expect(wrapper.findComponent(UsageTable).exists()).toBe(false)
+    expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining({api_key_id:1}))
+    await router.push('/usage?view=records&usage_id=42'); await flushPromises()
+    expect(getById).toHaveBeenCalledWith(42)
+    expect(wrapper.findComponent({name:'UserUsageRequestDetail'}).props('record')).toMatchObject({id:42})
+    wrapper.unmount()
+  })
+
+  it('keeps current error results when an older page finishes last', async () => {
+    let oldResolve!: (result: unknown) => void
+    let newResolve!: (result: unknown) => void
+    listMyErrorRequests.mockReturnValueOnce(new Promise(resolve => oldResolve=resolve)).mockReturnValueOnce(new Promise(resolve => newResolve=resolve))
+    const wrapper=mountUsageView(); await flushPromises()
+    await wrapper.findAll('button').find(b=>b.text()==='Error records')!.trigger('click')
+    ;(wrapper.vm as unknown as {onErrorPage:(page:number)=>void}).onErrorPage(2)
+    newResolve({items:[{id:2,model:'latest'}],total:1}); await flushPromises()
+    oldResolve({items:[{id:1,model:'obsolete'}],total:10}); await flushPromises()
+    expect((wrapper.vm as unknown as {errorRows:{model:string}[]}).errorRows).toEqual([{id:2,model:'latest'}])
+    wrapper.unmount()
+  })
+  it('shows an analysis error and reloads the real endpoints on retry', async () => {
+    vi.spyOn(console,'error').mockImplementation(()=>{})
+    getStats.mockRejectedValueOnce(new Error('unavailable'))
+    const router = createRouter({history:createMemoryHistory(), routes:[{path:'/usage',component:{template:'<div />'}}]})
+    await router.push('/usage?view=analysis'); await router.isReady()
+    const wrapper=mountUsageView(router); await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+    await wrapper.find('[role="alert"] button').trigger('click'); await flushPromises()
+    expect(getStats).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it('loads logs, stats, model stats, and snapshot on first render', async () => {

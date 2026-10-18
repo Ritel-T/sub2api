@@ -113,6 +113,56 @@ describe('admin DashboardView', () => {
     })
   })
 
+  const mountDashboard = () => mount(DashboardView, {
+    global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
+      Icon: true, DateRangePicker: true, Select: true, ModelDistributionChart: true,
+      TokenUsageTrend: true, Line: true
+    } }
+  })
+
+  it('shows a persistent failure with recovery and prevents duplicate snapshot requests while retrying', async () => {
+    getSnapshotV2.mockRejectedValueOnce(new Error('Unavailable'))
+    const wrapper = mountDashboard()
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('admin.dashboard.failedToLoad')
+    expect(wrapper.findAll('.ritel-metric-card')).toHaveLength(0)
+    let resolveRetry!: (value: unknown) => void
+    getSnapshotV2.mockImplementationOnce(() => new Promise(resolve => { resolveRetry = resolve }))
+    await wrapper.get('[data-testid="dashboard-retry"]').trigger('click')
+    expect(wrapper.findComponent({ name: 'LoadingSpinner' }).exists()).toBe(true)
+    await (wrapper.vm as any).loadDashboardStats()
+    expect(getSnapshotV2).toHaveBeenCalledTimes(2)
+    resolveRetry({ stats: createDashboardStats(), trend: [], models: [] })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="dashboard-load-error"]').exists()).toBe(false)
+    expect(wrapper.findAll('.ritel-metric-card').length).toBeGreaterThan(0)
+    wrapper.unmount()
+  })
+
+  it('keeps previous statistics visible when a refresh fails and clears the error after recovery', async () => {
+    const wrapper = mountDashboard()
+    await flushPromises()
+    const count = wrapper.findAll('.ritel-metric-card').length
+    getSnapshotV2.mockRejectedValueOnce(new Error('Unavailable'))
+    await (wrapper.vm as any).loadDashboardStats()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="dashboard-load-error"]').text()).toContain('admin.dashboard.failedToLoad')
+    expect(wrapper.findAll('.ritel-metric-card')).toHaveLength(count)
+    await wrapper.get('[data-testid="dashboard-retry"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="dashboard-load-error"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows recovery when a statistics snapshot omits its required statistics', async () => {
+    getSnapshotV2.mockResolvedValueOnce({ trend: [], models: [] })
+    const wrapper = mountDashboard()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="dashboard-retry"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('switches metrics and ignores a stale tokens response', async () => {
     let resolveTokens!: (value: any) => void
     getUserUsageTrend.mockImplementationOnce(() => new Promise(resolve => { resolveTokens = resolve }))

@@ -3,6 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { PaymentOrder, RetailQuote } from '@/types/payment'
 import AdminOrdersView from '../AdminOrdersView.vue'
 
+const routeState = vi.hoisted(() => ({ query: {} as Record<string, string> }))
+vi.mock('vue-router', () => ({ useRoute: () => routeState }))
+vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))
 const { getOrders, getOrder, showError, showSuccess } = vi.hoisted(() => ({
   getOrders: vi.fn(), getOrder: vi.fn(), showError: vi.fn(), showSuccess: vi.fn(),
 }))
@@ -42,10 +45,19 @@ function mountView() {
 
 describe('real admin orders route retail snapshots', () => {
   beforeEach(() => {
+    Object.keys(routeState.query).forEach(key => delete routeState.query[key])
     getOrders.mockResolvedValue({ data: { items: [order], total: 1 } })
     getOrder.mockResolvedValue({ data: { order, audit_logs: [] } })
     showError.mockReset()
     showSuccess.mockReset()
+  })
+
+  it('passes an exact routed user_id to the real paginated order API', async () => {
+    routeState.query.user_id = '42'
+    const wrapper = mountView()
+    await flushPromises()
+    expect(getOrders).toHaveBeenLastCalledWith(expect.objectContaining({ user_id: 42, page: 1 }))
+    wrapper.unmount()
   })
 
   it('shows all frozen monetary values and hides the legacy fee in the actual route detail', async () => {

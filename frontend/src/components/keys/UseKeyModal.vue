@@ -23,22 +23,17 @@
 
       <!-- Platform-specific content -->
       <template v-else>
-        <!-- Description -->
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-          {{ platformDescription }}
-        </p>
-
         <!-- Client Tabs -->
         <div v-if="clientTabs.length" class="overflow-x-auto border-b border-gray-200 dark:border-dark-700">
-          <nav class="-mb-px flex min-w-max gap-4 sm:gap-6" aria-label="Client">
+          <nav class="-mb-px flex min-w-max gap-4 sm:gap-6" :aria-label="kc.application">
             <button
-              v-for="tab in clientTabs"
+              v-for="tab in applicationTabs"
               :key="tab.id"
               type="button"
               @click="activeClientTab = tab.id"
               :class="[
                 'whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm transition-colors',
-                activeClientTab === tab.id
+                (activeClientTab === tab.id || (tab.id === 'codex' && activeClientTab === 'codex-ws'))
                   ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
               ]"
@@ -50,6 +45,13 @@
             </button>
           </nav>
         </div>
+
+        <fieldset v-if="platform === 'openai' && (activeClientTab === 'codex' || activeClientTab === 'codex-ws')" class="space-y-2" data-testid="codex-transport">
+          <legend class="input-label">{{ kc.connectionMethod }}</legend>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="transport in ['codex', 'codex-ws']" :key="transport" type="button" :aria-pressed="activeClientTab === transport" :class="activeClientTab === transport ? 'btn btn-primary' : 'btn btn-secondary'" @click="activeClientTab = transport">{{ transport === 'codex' ? 'HTTPS' : t('keys.useKeyModal.cliTabs.codexCliWs') }}</button>
+          </div>
+        </fieldset>
 
         <!-- Codex Authentication Mode -->
         <div
@@ -269,6 +271,7 @@
 <script setup lang="ts">
 import { ref, computed, h, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useKeyConnectionCopy } from './keyConnectionCopy'
 import { saveAs } from 'file-saver'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -311,6 +314,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const { t } = useI18n()
+const kc = useKeyConnectionCopy()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const copiedIndex = ref<number | null>(null)
@@ -527,6 +531,8 @@ const openaiTabs: TabConfig[] = [
   { id: 'windows', label: 'Windows', icon: WindowsIcon }
 ]
 
+const applicationTabs = computed(() => clientTabs.value.filter(tab => tab.id !== 'codex-ws'))
+
 const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
 
 const showCodexAuthMode = computed(() =>
@@ -542,51 +548,7 @@ const currentTabs = computed(() => {
   return shellTabs
 })
 
-const platformDescription = computed(() => {
-  if (activeClientTab.value === 'codex' &&
-    props.platform !== 'openai' &&
-    props.platform !== 'grok' &&
-    props.platform !== 'deepseek' &&
-    props.platform !== 'minimax' &&
-    props.platform !== 'composite') {
-    return t('keys.useKeyModal.routedCodex.description')
-  }
-  switch (props.platform) {
-    case 'openai':
-      if (activeClientTab.value === 'claude') {
-        return t('keys.useKeyModal.description')
-      }
-      return t('keys.useKeyModal.openai.description')
-    case 'gemini':
-      return t('keys.useKeyModal.gemini.description')
-    case 'antigravity':
-      return t('keys.useKeyModal.antigravity.description')
-    case 'grok':
-      if (activeClientTab.value === 'claude') {
-        return t('keys.useKeyModal.grok.claudeDescription')
-      }
-      if (activeClientTab.value === 'codex') {
-        return t('keys.useKeyModal.grok.codexDescription')
-      }
-      return t('keys.useKeyModal.grok.description')
-    case 'deepseek':
-      return activeClientTab.value === 'codex'
-        ? t('keys.useKeyModal.deepseek.codexDescription')
-        : t('keys.useKeyModal.deepseek.description')
-    case 'minimax':
-      return activeClientTab.value === 'codex'
-        ? t('keys.useKeyModal.minimax.codexDescription')
-        : t('keys.useKeyModal.minimax.description')
-    case 'composite':
-      return activeClientTab.value === 'codex'
-        ? t('keys.useKeyModal.composite.codexDescription')
-        : t('keys.useKeyModal.composite.description')
-    case 'typesafe':
-      return t('keys.useKeyModal.typesafe.description')
-    default:
-      return t('keys.useKeyModal.description')
-  }
-})
+
 
 const platformNote = computed(() => {
   if (activeClientTab.value === 'codex' &&

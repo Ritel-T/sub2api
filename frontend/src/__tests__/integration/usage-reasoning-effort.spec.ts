@@ -138,8 +138,13 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: {} }),
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return { ...actual, useRoute: () => ({ query: {} }) }
+})
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({ isAdmin: false, isObserver: false }),
 }))
 
 const layoutStub = { template: '<div><slot /></div>' }

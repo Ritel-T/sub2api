@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterView, useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
@@ -12,6 +13,7 @@ import { updateFavicon, BRAND_NAME, BRAND_FAVICON } from '@/utils/branding'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 
+const { locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const appStore = useAppStore()
@@ -29,6 +31,7 @@ function updateDocumentTitle() {
   ]
   document.title = resolveRouteDocumentTitle(route, BRAND_NAME, customMenuItems, {
     billingMode: resolveSiteBillingMode(appStore.cachedPublicSettings),
+    observer: authStore.isObserver,
   })
 }
 
@@ -46,6 +49,7 @@ watch(
 watch(
   [
     () => route.fullPath,
+    () => locale.value,
     () => route.meta.title,
     () => route.meta.titleKey,
     () => appStore.siteName,

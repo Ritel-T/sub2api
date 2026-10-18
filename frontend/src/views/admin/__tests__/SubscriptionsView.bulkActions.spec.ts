@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import SubscriptionsView from '../SubscriptionsView.vue'
 
+const routeState = vi.hoisted(() => ({ query: {} as Record<string, string> }))
+vi.mock('vue-router', () => ({ useRoute: () => routeState }))
+vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))
 const { list, bulkAction, bulkAssign, listUsers, showError } = vi.hoisted(() => ({
   list: vi.fn(), bulkAction: vi.fn(), bulkAssign: vi.fn(), listUsers: vi.fn(), showError: vi.fn()
 }))
@@ -44,6 +47,7 @@ let wrapper: ReturnType<typeof mountView>
 
 beforeEach(async () => {
   vi.clearAllMocks()
+  Object.keys(routeState.query).forEach(key => delete routeState.query[key])
   localStorage.clear()
   sessionStorage.clear()
   localStorage.setItem('auth_user', JSON.stringify({ id: 777 }))
@@ -62,6 +66,15 @@ async function select(ids: number[]) {
 }
 
 describe('subscription bulk operations', () => {
+  it('loads all statuses with an exact routed user, including an unavailable user label', async () => {
+    wrapper.unmount()
+    routeState.query.user_id = '42'
+    wrapper = mountView()
+    await flushPromises()
+    expect(list).toHaveBeenLastCalledWith(1, expect.any(Number), expect.objectContaining({ user_id: 42, status: undefined }), expect.anything())
+    expect((wrapper.vm as any).filterUserKeyword).toBe('#42')
+  })
+
   it('uses eligible selected rows and retains failures and untouched selections after a partial result', async () => {
     bulkAction.mockResolvedValue({ success_count: 1, failed_count: 1, results: [
       { subscription_id: 1, success: true },

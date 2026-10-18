@@ -1,3 +1,5 @@
+const contextRoute = vi.hoisted(() => ({ query: {} as Record<string, string> }))
+vi.mock('vue-router', () => ({ useRoute: () => contextRoute }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia } from 'pinia'
 import { reactive } from 'vue'
@@ -15,8 +17,18 @@ const config = { enabled: false, recipient: '', balance_low: true, weekly_quota:
 const settings = () => ({ config: { ...config }, smtp_configured: true, dropped_signals: 0, storage_failures: 0, encryption_key_configured: true })
 const deferred = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes }); return { promise, resolve } }
 const create = () => mount(AccountOpsView, { global: { plugins: [createPinia()], stubs: { teleport: true } } })
-beforeEach(() => { vi.resetAllMocks(); state.auth = reactive({ user: { id: 1, role: 'admin' } }); vi.mocked(getAccountOpsSettings).mockResolvedValue(settings()); vi.mocked(getAccountOpsEvents).mockResolvedValue({ items: [], has_more: false }); vi.mocked(getAccountOpsThresholdAccounts).mockResolvedValue([]); vi.mocked(getAccountOpsThresholdGroups).mockResolvedValue([]); vi.mocked(saveAccountOpsGroups).mockResolvedValue(config); vi.mocked(saveAccountOpsRulesBatch).mockResolvedValue(config); vi.mocked(saveAccountOpsRuleGroups).mockResolvedValue(config); vi.mocked(testAccountOpsWebhook).mockResolvedValue({ ok: true }); vi.mocked(saveAccountOpsNotificationSettings).mockImplementation(async c => ({ ...config, ...c })) })
+beforeEach(() => { vi.resetAllMocks(); contextRoute.query = {}; state.auth = reactive({ user: { id: 1, role: 'admin' } }); vi.mocked(getAccountOpsSettings).mockResolvedValue(settings()); vi.mocked(getAccountOpsEvents).mockResolvedValue({ items: [], has_more: false }); vi.mocked(getAccountOpsThresholdAccounts).mockResolvedValue([]); vi.mocked(getAccountOpsThresholdGroups).mockResolvedValue([]); vi.mocked(saveAccountOpsGroups).mockResolvedValue(config); vi.mocked(saveAccountOpsRulesBatch).mockResolvedValue(config); vi.mocked(saveAccountOpsRuleGroups).mockResolvedValue(config); vi.mocked(testAccountOpsWebhook).mockResolvedValue({ ok: true }); vi.mocked(saveAccountOpsNotificationSettings).mockImplementation(async c => ({ ...config, ...c })) })
 describe('account operations tabs and independent saves', () => {
+  it('scopes loaded records and threshold accounts by exact account_id', async () => {
+    contextRoute.query.account_id = '2'
+    vi.mocked(getAccountOpsEvents).mockResolvedValue({ items: [{ account_id: 1, account_name: 'One' }, { account_id: 2, account_name: 'Two' }] as any, has_more: false })
+    vi.mocked(getAccountOpsThresholdAccounts).mockResolvedValue([{ account_id: 1 }, { account_id: 2 }] as any)
+    const wrapper = create(); await flushPromises()
+    expect((wrapper.vm as any).filteredEvents.map((event: any) => event.account_id)).toEqual([2])
+    expect((wrapper.vm as any).scopedThresholdAccounts.map((account: any) => account.account_id)).toEqual([2])
+    wrapper.unmount()
+  })
+
   it('initializes a dynamically opened dialog from saved recovery-only flags', async () => {
     vi.mocked(getAccountOpsSettings).mockResolvedValue({ ...settings(), config: { ...config, balance_thresholds: [{ account_id: 1, enabled: true, threshold: 5, unit: 'USD', notify_alert: false, notify_recovery: true }] } } as any)
     vi.mocked(getAccountOpsThresholdAccounts).mockResolvedValue([{ account_id: 1, account_name: 'key', type: 'apikey', platform: 'openai', balance: 3, unit: 'USD', balance_status: 'ok', received_at: null, usage_windows: [] }])
@@ -238,3 +250,5 @@ describe('account operations tabs and independent saves', () => {
     wrapper.unmount()
   })
 })
+
+vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))

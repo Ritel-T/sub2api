@@ -1,4 +1,5 @@
 import { i18n } from '@/i18n'
+import { consoleRouteTitle } from '@/utils/consoleShell'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import type { CustomMenuItem } from '@/types'
 import type { SiteBillingMode } from '@/utils/siteBillingMode'
@@ -30,6 +31,7 @@ export interface RouteTitleOptions {
    * 仅充值 → 「充值」，仅订阅 → 「订阅」，缺省/两者都有 → 「充值/订阅」。
    */
   billingMode?: SiteBillingMode
+  observer?: boolean
 }
 
 export interface RouteMetaKeys {
@@ -63,11 +65,13 @@ export function resolveRouteMetaKeys(
 }
 
 export function resolveRouteDocumentTitle(
-  route: Pick<RouteLocationNormalizedLoaded, 'name' | 'params' | 'meta'>,
+  route: Pick<RouteLocationNormalizedLoaded, 'name' | 'params' | 'meta'> & Partial<Pick<RouteLocationNormalizedLoaded, 'path' | 'query'>>,
   siteName: string | undefined,
   customMenuItems: CustomMenuItem[] = [],
   options: RouteTitleOptions = {},
 ): string {
+  const consoleTitle = consoleRouteTitle(route.path || '', route.query || {}, i18n.global.locale?.value || 'en', options.observer)
+  if (consoleTitle) return resolveDocumentTitle(consoleTitle, siteName)
   const id = typeof route.params.id === 'string' ? route.params.id : ''
   const menuItem = route.name === 'CustomPage' && id
     ? customMenuItems.find((item) => item.id === id)

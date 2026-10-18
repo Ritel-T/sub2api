@@ -10,6 +10,10 @@ enableAutoUnmount(afterEach)
 
 const {
   listKeys,
+  getKeyById,
+  routeState,
+  routerPush,
+  routerReplace,
   createKey,
   updateKey,
   getConcurrency,
@@ -24,6 +28,10 @@ const {
   nextStep,
 } = vi.hoisted(() => ({
   listKeys: vi.fn(),
+  getKeyById: vi.fn(),
+  routeState: { path: '/keys', query: {} as Record<string, string> },
+  routerPush: vi.fn(),
+  routerReplace: vi.fn(),
   createKey: vi.fn(),
   updateKey: vi.fn(),
   getConcurrency: vi.fn(),
@@ -82,6 +90,7 @@ const messages: Record<string, string> = {
 vi.mock('@/api', () => ({
   keysAPI: {
     list: listKeys,
+    getById: getKeyById,
     create: createKey,
     update: updateKey,
     getConcurrency,
@@ -99,6 +108,8 @@ vi.mock('@/api', () => ({
     getUserGroupRates,
   },
 }))
+
+vi.mock('vue-router', () => ({ useRoute: () => routeState, useRouter: () => ({ push: routerPush, replace: routerReplace }) }))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
@@ -317,6 +328,10 @@ describe('user KeysView column settings', () => {
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
     localStorage.clear()
 
+    routeState.query = {}
+    routerPush.mockReset()
+    routerReplace.mockReset()
+    getKeyById.mockReset().mockResolvedValue(createApiKey())
     listKeys.mockReset()
     createKey.mockReset().mockResolvedValue(createApiKey())
     updateKey.mockReset().mockResolvedValue(createApiKey())
@@ -348,6 +363,111 @@ describe('user KeysView column settings', () => {
     isCurrentStep.mockReturnValue(false)
   })
 
+  it('opens the real create form from the overview link and removes only its action query', async () => {
+    routeState.query = { create: '1', preserved: 'yes' }
+    const wrapper = await mountView()
+    expect(wrapper.find('#key-form').exists()).toBe(true)
+    expect(routerReplace).toHaveBeenCalledWith({ path: '/keys', query: { preserved: 'yes' } })
+    expect(createKey).not.toHaveBeenCalled()
+  })
+
+  it('opens an authenticated key chooser without selecting a key or showing configuration', async () => {
+    routeState.query = { connect: '1' }
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-testid="choose-connection-key-1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="connect-manual"]').exists()).toBe(false)
+    expect(createKey).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="choose-connection-key-1"]').trigger('click')
+    expect(wrapper.find('[data-testid="connect-manual"]').exists()).toBe(true)
+  })
+
+  it('resolves a requested key through getById even when absent from the current list', async () => {
+    routeState.query = { connect: '1', key: '73' }
+    getKeyById.mockResolvedValue({ ...createApiKey(), id: 73, name: 'Other page key' })
+    const wrapper = await mountView()
+    expect(getKeyById).toHaveBeenCalledWith(73)
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Other page key')
+    await wrapper.get('[data-testid="connect-manual"]').trigger('click')
+    expect(wrapper.findComponent({ name: 'UseKeyModal' }).props('apiKey')).toBe('sk-test-key')
+  })
+
+  it('does not configure a stale key when a directed API lookup is denied', async () => {
+    routeState.query = { connect: '1', key: '73' }
+    getKeyById.mockRejectedValue(new Error('Key unavailable'))
+    const wrapper = await mountView()
+    expect(wrapper.get('[role="alert"]').text()).toBe('Key unavailable')
+    expect(wrapper.find('[data-testid="connect-manual"]').exists()).toBe(false)
+  })
+
+  it('connects only the returned persisted key after successful creation', async () => {
+    createKey.mockResolvedValue({ ...createApiKey(), id: 27, group_id: 42, name: 'Created by server', key: 'sk-real-response' })
+    const wrapper = await mountView()
+    await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('New key')
+    await wrapper.getComponent('[data-tour="key-form-group"]').vm.$emit('update:modelValue', 42)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(createKey).toHaveBeenCalledOnce()
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Created by server')
+    expect(wrapper.find('#key-form').exists()).toBe(false)
+    await wrapper.get('[data-testid="connect-manual"]').trigger('click')
+    expect(wrapper.findComponent({ name: 'UseKeyModal' }).props('apiKey')).toBe('sk-real-response')
+  })
+
+  it('keeps failed creates editable and never opens connection on failure', async () => {
+    createKey.mockRejectedValue(new Error('Denied'))
+    const wrapper = await mountView()
+    await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
+    await wrapper.getComponent('[data-tour="key-form-group"]').vm.$emit('update:modelValue', 42)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('#key-form').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="connect-manual"]').exists()).toBe(false)
+    expect(showError).toHaveBeenCalled()
+  })
+
+  it('leaves edits in the existing list and passes key context into request records', async () => {
+    setKeys({ ...createApiKey(), group_id: 42 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="connect-manual"]').exists()).toBe(false)
+    await getButtonByText(wrapper, 'Requests').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith({ path: '/usage', query: { view: 'records', api_key_id: '1' } })
+  })
+
+  it('supports key_id deep links from the overview', async () => {
+    routeState.query = { connect: '1', key_id: '73' }
+    const wrapper = await mountView()
+    expect(getKeyById).toHaveBeenCalledWith(73)
+    expect(wrapper.find('[data-testid="connect-manual"]').exists()).toBe(true)
+  })
+
+  it('loads another page of real keys while preserving chooser search', async () => {
+    routeState.query = { connect: '1' }
+    const wrapper = await mountView()
+    await wrapper.get('#connection-key-search').setValue('Billing app')
+    listKeys.mockResolvedValue({ items: [{ ...createApiKey(), id: 42, name: 'Billing app' }], total: 12, page: 1, page_size: 10, pages: 2 })
+    await wrapper.get('#connection-key-search').element.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(listKeys).toHaveBeenLastCalledWith(1, 10, expect.objectContaining({ search: 'Billing app' }))
+    await getButtonByText(wrapper, 'Next').trigger('click')
+    await flushPromises()
+    expect(listKeys).toHaveBeenLastCalledWith(2, 10, expect.objectContaining({ search: 'Billing app' }))
+  })
+
+  it('clears a previously set quota when its amount is zero', async () => {
+    setKeys({ ...createApiKey(), group_id: 42, quota: 25 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    await wrapper.get('input[placeholder="keys.quotaAmountPlaceholder"]').setValue(0)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledWith(1, expect.objectContaining({ quota: 0 }))
+  })
+
   it('hides CCS import when the administrator removes all platform profiles', async () => {
     getPublicSettings.mockResolvedValue({ ccs_import_config: { profiles: [] } })
     const wrapper = await mountView()
@@ -364,6 +484,7 @@ describe('user KeysView column settings', () => {
       }] }
     })
     const wrapper = await mountView()
+    await wrapper.get('[data-testid="connect-key-row"]').trigger('click')
     await wrapper.get('[data-testid="ccs-import-1"]').trigger('click')
     expect(open).toHaveBeenCalledOnce()
     const params = new URL(String(open.mock.calls[0]?.[0])).searchParams
@@ -371,7 +492,7 @@ describe('user KeysView column settings', () => {
     expect(params.get('name')).toBe('Ritel SI / test-key')
     expect(params.get('apiKey')).toBe('sk-test-key')
     expect(params.get('usageAutoInterval')).toBe('0')
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
   })
 
   it('lets the user choose among matching saved profiles and uses that choice', async () => {
@@ -384,6 +505,7 @@ describe('user KeysView column settings', () => {
       ] }
     })
     const wrapper = await mountView()
+    await wrapper.get('[data-testid="connect-key-row"]').trigger('click')
     await wrapper.get('[data-testid="ccs-import-1"]').trigger('click')
     expect(open).not.toHaveBeenCalled()
     expect(wrapper.find('[data-testid="ccs-profile-other-platform"]').exists()).toBe(false)
@@ -393,7 +515,7 @@ describe('user KeysView column settings', () => {
     expect(params.get('model')).toBe('model-b')
     expect(params.get('apiKey')).toBe('sk-test-key')
     expect(params.get('apiFormat')).toBe('anthropic')
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
   })
 
   it.each([

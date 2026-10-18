@@ -252,6 +252,8 @@ export default {
     emailPlaceholder: 'Enter your email',
     passwordLabel: 'Password',
     passwordPlaceholder: 'Enter your password',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
     createPasswordPlaceholder: 'Create a strong password',
     passwordHint: 'At least 6 characters',
     emailRequired: 'Email is required',

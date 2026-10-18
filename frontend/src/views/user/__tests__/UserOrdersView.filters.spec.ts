@@ -6,6 +6,8 @@ import Pagination from '@/components/common/Pagination.vue'
 
 const api = vi.hoisted(() => ({ getMyOrders: vi.fn(), getRefundEligibleProviders: vi.fn() }))
 vi.mock('@/api/payment', () => ({ paymentAPI: api }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { role: 'user' }, isSimpleMode: false }) }))
+vi.mock('@/composables/useMerchantTestPaymentAccess', () => ({ useMerchantTestPaymentAccess: () => ({ merchantTestPaymentAccess: { value: false } }) }))
 vi.mock('@/stores', () => ({ useAppStore: () => ({ showError: vi.fn() }) }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('vue-i18n', async (importOriginal) => ({
@@ -24,7 +26,7 @@ async function openOrders() {
   const wrapper = mount(UserOrdersView, {
     global: { stubs: {
       AppLayout: { template: '<div><slot /></div>' },
-      OrderTable: true, BaseDialog: true, Icon: true, Pagination: true, teleport: true
+      OrderTable: true, BillingNavigation: true, RouterLink: { props: ['to'], template: '<a><slot /></a>' }, BaseDialog: true, Icon: true, Pagination: true, teleport: true
     } }
   })
   await flushPromises()

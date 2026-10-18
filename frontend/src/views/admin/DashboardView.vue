@@ -1,6 +1,10 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
+      <div v-if="snapshotError && !loading" role="alert" class="card flex flex-wrap items-center justify-between gap-4 p-6" data-testid="dashboard-load-error">
+        <p>{{ t('admin.dashboard.failedToLoad') }}</p>
+        <button type="button" class="btn btn-secondary" :disabled="chartsLoading" data-testid="dashboard-retry" @click="loadDashboardStats">{{ t('common.refresh') }}</button>
+      </div>
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -402,6 +406,7 @@ const router = useRouter()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
+const snapshotError = ref(false)
 const chartsLoading = ref(false)
 const userTrendLoading = ref(false)
 const rankingLoading = ref(false)
@@ -639,6 +644,7 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
     loading.value = true
   }
   chartsLoading.value = true
+  snapshotError.value = false
   try {
     const response = await adminAPI.dashboard.getSnapshotV2({
       start_date: startDate.value,
@@ -654,10 +660,12 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
     if (includeStats && response.stats) {
       stats.value = response.stats
     }
+    if (includeStats && !response.stats) snapshotError.value = true
     trendData.value = response.trend || []
     modelStats.value = response.models || []
   } catch (error) {
     if (currentSeq !== chartLoadSeq) return
+    snapshotError.value = true
     appStore.showError(t('admin.dashboard.failedToLoad'))
     console.error('Error loading dashboard snapshot:', error)
   } finally {
@@ -730,6 +738,7 @@ const loadUserSpendingRanking = async () => {
 }
 
 const loadDashboardStats = async () => {
+  if (chartsLoading.value) return
   const range = selectedPreset.value ? getDatePresetRange(selectedPreset.value) : null
   if (range) { startDate.value = range.start; endDate.value = range.end }
   await Promise.all([

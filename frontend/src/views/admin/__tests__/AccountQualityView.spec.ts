@@ -1,3 +1,5 @@
+const contextRoute = vi.hoisted(() => ({ query: {} as Record<string, string> }))
+vi.mock('vue-router', () => ({ useRoute: () => contextRoute }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
@@ -25,7 +27,7 @@ vi.mock('@/api/admin/groups', () => ({ getModelAllowlistCandidates: vi.fn().mock
 vi.mock('@/components/account/ModelWhitelistSelector.vue', () => ({ default: { props: ['modelValue'], template: '<div data-testid="model-selector">{{ modelValue.join(",") }}</div>' } }))
 const mountView = () => mount(AccountQualityView, { global: { plugins: [createPinia()], stubs: { Teleport: true, AppLayout: { template: '<main><slot /></main>' } } } })
 describe('quality operations', () => {
-  beforeEach(() => { vi.clearAllMocks(); useAuthStore().user!.id = 1; vi.mocked(scheduledTests.delete).mockReset().mockResolvedValue(undefined); vi.mocked(scheduledTests.update).mockReset(); vi.mocked(accountsAPI.list).mockReset().mockResolvedValue({ items: [{ id: 1, name: 'Test account', platform: 'openai', type: 'oauth' }], total: 1 } as any); vi.mocked(listQualityPlans).mockResolvedValue([]); vi.mocked(listQualityOperations).mockResolvedValue({items:[],next_cursor:0})
+  beforeEach(() => { vi.clearAllMocks(); contextRoute.query = {}; useAuthStore().user!.id = 1; vi.mocked(scheduledTests.delete).mockReset().mockResolvedValue(undefined); vi.mocked(scheduledTests.update).mockReset(); vi.mocked(accountsAPI.list).mockReset().mockResolvedValue({ items: [{ id: 1, name: 'Test account', platform: 'openai', type: 'oauth' }], total: 1 } as any); vi.mocked(listQualityPlans).mockResolvedValue([]); vi.mocked(listQualityOperations).mockResolvedValue({items:[],next_cursor:0})
     vi.mocked(listQualityTemplates).mockReset().mockResolvedValue([])
     vi.mocked(createQualityTemplate).mockReset().mockResolvedValue({ template: groupRule(), created: 0 })
     vi.mocked(updateQualityTemplate).mockReset().mockResolvedValue({ template: groupRule(), updated: 0, failed: 0, created: 0 })
@@ -42,6 +44,19 @@ describe('quality operations', () => {
     pelican_config: { question_kind: 'state_probe', prompt: '', reasoning_effort: 'high', parallel_count: 1,
       quality: { expected_answer: '', action: 'remove_groups', remove_group_ids: [id], auto_restore: false } },
   }))
+
+  it('keeps exact account rules and selection separate from similarly named accounts', async () => {
+    contextRoute.query.account_id = '2'
+    vi.mocked(listQualityPlans).mockResolvedValue(rules())
+    const wrapper = mountView(); await flushPromises()
+    expect(wrapper.find('[data-plan-id="2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-plan-id="1"]').exists()).toBe(false)
+    expect(wrapper.find('[data-plan-id="3"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="quality-select-rules"]').setValue(true)
+    expect((wrapper.vm as any).selectedRuleIds).toEqual([2])
+    expect((wrapper.vm as any).contextPlans).toHaveLength(1)
+    wrapper.unmount()
+  })
 
   it('switches to generated reasoning without saving a fixed question or answer', async () => {
     const plan = rules()[0]
@@ -1201,3 +1216,5 @@ describe('quality operations', () => {
     wrapper.unmount()
   })
 })
+
+vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))

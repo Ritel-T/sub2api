@@ -89,6 +89,7 @@
               </button>
             </div>
           </div>
+          <button @click="openConnectionPicker" class="btn btn-secondary" data-testid="connect-key-entry">{{ kc.connect }}</button>
           <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
             <Icon name="plus" size="md" class="mr-2" />
             {{ t('keys.createKey') }}
@@ -438,33 +439,11 @@
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
               <button
-                v-if="isCodexQuickConfigPlatform(row.group?.platform)"
-                @click="openCodexQuickConfigModal(row)"
-                data-testid="quick-config-button"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
-                :title="t('keys.quickConfigure')"
-              >
-                <Icon name="download" size="sm" />
-                <span class="text-xs">{{ t('keys.quickConfigure') }}</span>
-              </button>
-              <!-- Use Key Button -->
-              <button
-                @click="openUseKeyModal(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
-              >
-                <Icon name="terminal" size="sm" />
-                <span class="text-xs">{{ t('keys.useKey') }}</span>
-              </button>
-              <!-- Import to CC Switch Button -->
-              <button
-                v-if="!publicSettings?.hide_ccs_import_button && getCcSwitchImportProfiles(row.group?.platform, publicSettings?.ccs_import_config).length > 0"
-                @click="importToCcswitch(row)"
-                :data-testid="`ccs-import-${row.id}`"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 theme-action-button transition-colors"
-              >
-                <Icon name="upload" size="sm" />
-                <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
-              </button>
+                @click="openConnection(row)"
+                data-testid="connect-key-row"
+                class="btn btn-secondary btn-sm"
+              >{{ kc.connect }}</button>
+              <button @click="viewKeyRequests(row)" class="btn btn-secondary btn-sm">{{ kc.requests }}</button>
               <!-- Toggle Status Button -->
               <button
                 @click="toggleKeyStatus(row)"
@@ -636,12 +615,18 @@
           </Select>
         </div>
 
+        <details :open="showEditModal" class="border-t border-gray-200 pt-4 dark:border-dark-700" data-testid="key-advanced-settings">
+          <summary class="cursor-pointer font-medium">{{ kc.advanced }}</summary>
+          <div class="mt-4 space-y-5">
         <!-- Custom Key Section (only for create) -->
         <div v-if="!showEditModal" class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.customKeyLabel') }}</label>
             <button
               type="button"
+              role="switch"
+              :aria-checked="formData.use_custom_key"
+              :aria-label="t('keys.customKeyLabel')"
               @click="formData.use_custom_key = !formData.use_custom_key"
               :class="[
                 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
@@ -684,6 +669,9 @@
             <label class="input-label mb-0">{{ t('keys.ipRestriction') }}</label>
             <button
               type="button"
+              role="switch"
+              :aria-checked="formData.enable_ip_restriction"
+              :aria-label="t('keys.ipRestriction')"
               @click="formData.enable_ip_restriction = !formData.enable_ip_restriction"
               :class="[
                 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
@@ -757,6 +745,9 @@
             <label class="input-label mb-0">{{ t('keys.quotaLimit') }}</label>
             <button
               type="button"
+              role="switch"
+              :aria-checked="formData.enable_quota"
+              :aria-label="t('keys.quota')"
               @click="formData.enable_quota = !formData.enable_quota"
               :class="[
                 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
@@ -821,6 +812,9 @@
             <label class="input-label mb-0">{{ t('keys.rateLimitSection') }}</label>
             <button
               type="button"
+              role="switch"
+              :aria-checked="formData.enable_rate_limit"
+              :aria-label="t('keys.rateLimitColumn')"
               @click="formData.enable_rate_limit = !formData.enable_rate_limit"
               :class="[
                 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
@@ -995,6 +989,9 @@
             <label class="input-label mb-0">{{ t('keys.expiration') }}</label>
             <button
               type="button"
+              role="switch"
+              :aria-checked="formData.enable_expiration"
+              :aria-label="t('keys.expiresAt')"
               @click="formData.enable_expiration = !formData.enable_expiration"
               :class="[
                 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
@@ -1061,6 +1058,8 @@
             </div>
           </div>
         </div>
+          </div>
+        </details>
       </form>
       <template #footer>
         <div class="flex justify-end gap-3">
@@ -1149,6 +1148,39 @@
       @confirm="resetRateLimitUsage"
       @cancel="showResetRateLimitDialog = false"
     />
+
+
+    <BaseDialog :show="showConnectionDialog" :title="kc.connect" width="normal" @close="closeConnection">
+      <div v-if="connectionKey" class="space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 dark:border-dark-700">
+          <div><h3 class="font-medium">{{ connectionKey.name }}</h3><code>{{ maskApiKey(connectionKey.key) }}</code></div>
+          <button class="btn btn-secondary" @click="copyToClipboard(connectionKey.key, connectionKey.id)">{{ copiedKeyId === connectionKey.id ? t('keys.copied') : kc.copyKey }}</button>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <button class="btn btn-primary" data-testid="connect-manual" @click="openConnectionMethod('manual')">{{ kc.appConfiguration }}</button>
+          <button v-if="isCodexQuickConfigPlatform(connectionKey.group?.platform)" class="btn btn-secondary" data-testid="quick-config-button" @click="openConnectionMethod('quick')">{{ t('keys.quickConfigure') }}</button>
+          <button v-if="!publicSettings?.hide_ccs_import_button && getCcSwitchImportProfiles(connectionKey.group?.platform, publicSettings?.ccs_import_config).length" class="btn btn-secondary" :data-testid="`ccs-import-${connectionKey.id}`" @click="openConnectionMethod('import')">{{ t('keys.importToCcSwitch') }}</button>
+        </div>
+        <button class="btn btn-secondary" @click="openConnectionPicker">{{ kc.changeKey }}</button>
+      </div>
+      <div v-else class="space-y-4">
+        <label class="input-label" for="connection-key-search">{{ kc.chooseKey }}</label>
+        <form class="flex gap-2" @submit.prevent="loadConnectionKeys(1)">
+          <input id="connection-key-search" v-model="connectionSearch" class="input" :placeholder="t('keys.searchPlaceholder')" />
+          <button type="submit" class="btn btn-secondary">{{ kc.search }}</button>
+        </form>
+        <p v-if="connectionError" role="alert">{{ connectionError }}</p>
+        <p v-if="connectionLoading" role="status">{{ t('common.loading') }}</p>
+        <ul v-else class="divide-y divide-gray-200 dark:divide-dark-700">
+          <li v-for="key in connectionKeys" :key="key.id"><button class="flex w-full items-center justify-between gap-3 py-3 text-left" :data-testid="`choose-connection-key-${key.id}`" @click="openConnection(key)"><span>{{ key.name }}</span><code>{{ maskApiKey(key.key) }}</code></button></li>
+        </ul>
+        <p v-if="!connectionLoading && !connectionError && !connectionKeys.length">{{ t('keys.noKeysYet') }}</p>
+        <div class="flex flex-wrap justify-between gap-3">
+          <div class="flex gap-2" v-if="connectionPages > 1"><button class="btn btn-secondary" :disabled="connectionPage <= 1 || connectionLoading" @click="loadConnectionKeys(connectionPage - 1)">{{ kc.previous }}</button><span class="self-center">{{ connectionPage }} / {{ connectionPages }}</span><button class="btn btn-secondary" :disabled="connectionPage >= connectionPages || connectionLoading" @click="loadConnectionKeys(connectionPage + 1)">{{ kc.next }}</button></div>
+          <button class="btn btn-primary" @click="createFromConnection">{{ t('keys.createKey') }}</button>
+        </div>
+      </div>
+    </BaseDialog>
 
     <!-- Use Key Modal -->
     <UseKeyModal
@@ -1276,12 +1308,17 @@
 <script setup lang="ts">
 	import { ref, reactive, computed, watch, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
+import { useKeyConnectionCopy } from '@/components/keys/keyConnectionCopy'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
+const kc = useKeyConnectionCopy()
+const route = useRoute()
+const router = useRouter()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -1566,6 +1603,15 @@ const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
+const showConnectionDialog = ref(false)
+const connectionKey = ref<ApiKey | null>(null)
+const connectionKeys = ref<ApiKey[]>([])
+const connectionSearch = ref('')
+const connectionPage = ref(1)
+const connectionPages = ref(1)
+const connectionLoading = ref(false)
+const connectionError = ref('')
+let connectionRequest = 0
 const showUseKeyModal = ref(false)
 const showCodexQuickConfigModal = ref(false)
 const showCcsClientSelect = ref(false)
@@ -1853,6 +1899,95 @@ const loadPublicSettings = async () => {
   }
 }
 
+const clearConnectionQuery = () => {
+  if (!route?.query || !['create', 'connect', 'key', 'key_id'].some((key) => key in route.query)) return
+  const query = { ...route.query }
+  delete query.create
+  delete query.connect
+  delete query.key
+  delete query.key_id
+  void router.replace({ path: route.path, query })
+}
+const loadConnectionKeys = async (page = 1) => {
+  const request = ++connectionRequest
+  connectionLoading.value = true
+  connectionError.value = ''
+  try {
+    const result = await keysAPI.list(page, 10, { search: connectionSearch.value.trim() || undefined, sort_by: 'created_at', sort_order: 'desc' })
+    if (request !== connectionRequest || disposed) return
+    connectionKeys.value = result.items
+    connectionPage.value = result.page
+    connectionPages.value = result.pages
+  } catch (error: any) {
+    if (request === connectionRequest) connectionError.value = error?.message || t('keys.failedToLoad')
+  } finally {
+    if (request === connectionRequest) connectionLoading.value = false
+  }
+}
+const openConnectionPicker = () => {
+  connectionKey.value = null
+  showConnectionDialog.value = true
+  void loadConnectionKeys(1)
+}
+const openConnection = (key: ApiKey) => {
+  connectionKey.value = key
+  showConnectionDialog.value = true
+}
+const closeConnection = () => {
+  showConnectionDialog.value = false
+  connectionKey.value = null
+  ++connectionRequest
+  ++connectionRouteRequest
+  connectionLoading.value = false
+  clearConnectionQuery()
+}
+const createFromConnection = () => {
+  closeConnection()
+  showCreateModal.value = true
+}
+const openConnectionMethod = (method: 'manual' | 'quick' | 'import') => {
+  const key = connectionKey.value
+  if (!key) return
+  showConnectionDialog.value = false
+  if (method === 'manual') openUseKeyModal(key)
+  else if (method === 'quick') openCodexQuickConfigModal(key)
+  else {
+    importToCcswitch(key)
+    if (!showCcsClientSelect.value) showConnectionDialog.value = true
+  }
+}
+const viewKeyRequests = (key: ApiKey) => router.push({ path: '/usage', query: { view: 'records', api_key_id: String(key.id) } })
+let connectionRouteRequest = 0
+const applyConnectionRoute = async () => {
+  const request = ++connectionRouteRequest
+  if (route?.query?.create === '1') {
+    showCreateModal.value = true
+    clearConnectionQuery()
+    return
+  }
+  if (route?.query?.connect !== '1') return
+  const id = Number(route.query.key_id ?? route.query.key)
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    openConnectionPicker()
+    return
+  }
+  // Resolve the requested object through the authenticated API, regardless of list filters/page.
+  connectionKey.value = null
+  connectionKeys.value = []
+  connectionError.value = ''
+  connectionLoading.value = true
+  showConnectionDialog.value = true
+  try {
+    const key = await keysAPI.getById(id)
+    if (request === connectionRouteRequest && !disposed) openConnection(key)
+  } catch (error: any) {
+    if (request === connectionRouteRequest) connectionError.value = error?.message || t('keys.failedToLoad')
+  } finally {
+    if (request === connectionRouteRequest) connectionLoading.value = false
+  }
+}
+watch(() => [route?.query?.create, route?.query?.connect, route?.query?.key, route?.query?.key_id], () => { void applyConnectionRoute() })
+
 const openUseKeyModal = (key: ApiKey) => {
   selectedKey.value = key
   showUseKeyModal.value = true
@@ -1866,11 +2001,13 @@ const openCodexQuickConfigModal = (key: ApiKey) => {
 const closeUseKeyModal = () => {
   showUseKeyModal.value = false
   selectedKey.value = null
+  if (connectionKey.value) showConnectionDialog.value = true
 }
 
 const closeCodexQuickConfigModal = () => {
   showCodexQuickConfigModal.value = false
   selectedKey.value = null
+  if (connectionKey.value) showConnectionDialog.value = true
 }
 
 const handlePageChange = (page: number) => {
@@ -2082,7 +2219,7 @@ const handleSubmit = async () => {
       appStore.showSuccess(t('keys.keyUpdatedSuccess'))
     } else {
       const customKey = formData.value.use_custom_key ? formData.value.custom_key : undefined
-      await keysAPI.create(
+      const createdKey = await keysAPI.create(
         formData.value.name,
         formData.value.group_id,
         customKey,
@@ -2093,13 +2230,17 @@ const handleSubmit = async () => {
         rateLimitData,
         concurrencyLimit
       )
+      // Use only the returned persisted object; keep its real group capability metadata.
+      connectionKey.value = { ...createdKey, group: createdKey.group || groups.value.find((group) => group.id === createdKey.group_id) || undefined }
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
       if (onboardingStore.isCurrentStep('[data-tour="key-form-submit"]')) {
         onboardingStore.nextStep(500)
       }
     }
+    const created = !showEditModal.value ? connectionKey.value : null
     closeModals()
+    if (created) openConnection(created)
     loadApiKeys()
   } catch (error: any) {
     const errorMsg = error.response?.data?.detail || t('keys.failedToSave')
@@ -2267,11 +2408,13 @@ const handleCcsClientSelect = (profile: CcsImportProfile) => {
   }
   showCcsClientSelect.value = false
   pendingCcsRow.value = null
+  if (connectionKey.value) showConnectionDialog.value = true
 }
 
 const closeCcsClientSelect = () => {
   showCcsClientSelect.value = false
   pendingCcsRow.value = null
+  if (connectionKey.value) showConnectionDialog.value = true
 }
 
 function formatResetTime(resetAt: string | null): string {
@@ -2287,6 +2430,7 @@ function formatResetTime(resetAt: string | null): string {
 }
 
 onMounted(() => {
+  void applyConnectionRoute()
   loadSavedColumns()
   loadApiKeys()
   loadGroups()
@@ -2299,6 +2443,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   disposed = true
+  ++connectionRouteRequest
+  ++connectionRequest
   stopConcurrencyRefresh()
   abortController?.abort()
   document.removeEventListener('visibilitychange', handleConcurrencyVisibility)

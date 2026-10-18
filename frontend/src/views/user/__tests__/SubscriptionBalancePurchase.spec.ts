@@ -73,6 +73,34 @@ describe('subscription purchase using site credit', () => {
     await wrapper.get('[data-test="confirm-subscription"]').trigger('click')
     expect(api.buy).not.toHaveBeenCalled(); wrapper.unmount()
   })
+  it('keeps the selected plan through top-up and restores current server terms after returning', async () => {
+    state.auth.user.balance = 10
+    const first = await mountPage(); await select(first)
+    await first.get('[data-test="subscription-top-up"]').trigger('click'); await flushPromises()
+    expect(first.get('[data-test="subscription-return"]').text()).toContain('Plus')
+    expect(api.buy).not.toHaveBeenCalled()
+    first.unmount()
+    state.auth.user.balance = 200
+    const changed = { ...plan, name: 'Plus updated', price: 150 }
+    const checkout = (await api.checkout()).data
+    api.checkout.mockResolvedValue({ data: { ...checkout, plans: [changed] } })
+    const second = await mountPage()
+    expect(second.get('[data-test="balance-subscription-summary"]').text()).toContain('$150.00')
+    expect(second.text()).toContain('Plus updated')
+    expect(api.buy).not.toHaveBeenCalled()
+    await second.get('[data-test="confirm-subscription"]').trigger('click'); await flushPromises()
+    expect(api.buy).toHaveBeenCalledWith(expect.objectContaining({ plan_id: 1, expected_price: 150 }))
+    second.unmount()
+  })
+  it('does not offer a recharge detour when balance recharge is disabled', async () => {
+    state.auth.user.balance = 10
+    const checkout = (await api.checkout()).data
+    api.checkout.mockResolvedValue({ data: { ...checkout, balance_disabled: true } })
+    const wrapper = await mountPage(); await select(wrapper)
+    expect(wrapper.find('[data-test="subscription-top-up"]').exists()).toBe(false)
+    expect(api.create).not.toHaveBeenCalled(); wrapper.unmount()
+  })
+
   it('suppresses double clicks while the purchase is pending', async () => {
     let resolve!: (value: unknown) => void
     api.buy.mockReturnValue(new Promise(r => { resolve = r }))

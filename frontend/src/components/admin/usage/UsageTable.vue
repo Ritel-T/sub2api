@@ -26,6 +26,9 @@
         :default-sort-order="defaultSortOrder"
         @sort="(key, order) => $emit('sort', key, order)"
       >
+        <template #cell-request_details="{ row }">
+          <button type="button" class="btn btn-secondary" @click="emit('rowDetails', row)">{{ t('common.view') }}</button>
+        </template>
         <template #cell-user="{ row }">
           <div class="text-sm">
             <span v-if="observerMode" class="font-medium text-gray-900 dark:text-white">{{ row.user?.email || "-" }}</span>
@@ -648,6 +651,7 @@ const props = withDefaults(defineProps<Props>(), {
   cacheRateAudience: 'admin'
 })
 const emit = defineEmits<{
+  rowDetails: [record: AdminUsageLog]
   userClick: [userID: number, email?: string]
   sort: [key: string, order: 'asc' | 'desc']
   ipGeoBatchFailed: []

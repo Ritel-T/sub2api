@@ -1,3 +1,5 @@
+const contextRoute = vi.hoisted(() => ({ query: {} as Record<string, string> }))
+vi.mock('vue-router', () => ({ useRoute: () => contextRoute }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -10,8 +12,18 @@ vi.mock('@/components/admin/operations/SmartOpsNav.vue', () => ({ default: { tem
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/api/admin/priorityScheduling', () => ({ getPriorityConfig: vi.fn(), getPrioritySnapshot: vi.fn(), savePriorityConfig: vi.fn() }))
 const config: PrioritySchedulingConfig = { oauth_quota_priority: false, oauth_quota_threshold: 90, balance_protocols: true, enabled: false, mode: 'balanced', group_ids: [], models: [], window_minutes: 60, min_samples: 5, target_ttft_ms: 3000, latency_penalty_minutes: 10, max_load_percent: 80, min_quality_percent: 90, quality_max_age_hours: 24, quality_weight: 30, latency_weight: 25, load_weight: 25, cost_weight: 20 }
-beforeEach(() => { vi.resetAllMocks(); state.auth = reactive({ user: { id: 1, role: 'admin' } }); vi.mocked(getPriorityConfig).mockResolvedValue({ ...config }); vi.mocked(getPrioritySnapshot).mockResolvedValue(null); vi.mocked(savePriorityConfig).mockImplementation(async c => c) })
+beforeEach(() => { vi.resetAllMocks(); contextRoute.query = {}; state.auth = reactive({ user: { id: 1, role: 'admin' } }); vi.mocked(getPriorityConfig).mockResolvedValue({ ...config }); vi.mocked(getPrioritySnapshot).mockResolvedValue(null); vi.mocked(savePriorityConfig).mockImplementation(async c => c) })
 describe('priority scheduling', () => {
+  it('scopes only snapshot candidates without converting global configuration into account settings', async () => {
+    contextRoute.query.account_id = '2'
+    vi.mocked(getPrioritySnapshot).mockResolvedValue({ at: '', model: 'test', mode: 'balanced', candidates: [{ account_id: 1, score: 10 }, { account_id: 2, score: 20 }] } as any)
+    const wrapper = mount(PrioritySchedulingView, { global: { stubs: { ConsoleObjectLinks: true } } }); await flushPromises()
+    expect((wrapper.vm as any).visibleCandidates.map((account: any) => account.account_id)).toEqual([2])
+    expect((wrapper.vm as any).draft.group_ids).toEqual([])
+    expect(savePriorityConfig).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('defaults an omitted latency penalty and saves an explicit duration or zero', async () => {
     const legacy = { ...config }; delete legacy.latency_penalty_minutes
     vi.mocked(getPriorityConfig).mockResolvedValue(legacy)
@@ -160,3 +172,5 @@ describe('priority history refresh', () => {
     } finally { vi.useRealTimers() }
   })
 })
+
+vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))

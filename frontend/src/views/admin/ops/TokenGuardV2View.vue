@@ -1,7 +1,6 @@
 <template>
   <AppLayout>
     <div class="guard-v2">
-      <SmartOpsNav />
       <header class="page-heading">
         <div>
           <p class="eyebrow">{{ t('accountOps.smartTitle') }}</p>
@@ -215,7 +214,6 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import CredentialEncryptionSetup from '@/components/account/CredentialEncryptionSetup.vue'
 import OpenAITOTPDialog from '@/components/account/OpenAITOTPDialog.vue'
-import SmartOpsNav from '@/components/admin/operations/SmartOpsNav.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { BaseDialog, Pagination } from '@/components/common'
 import { list as listAccounts } from '@/api/admin/accounts'

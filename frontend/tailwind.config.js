@@ -26,10 +26,10 @@ export default {
         dark: darkNeutral
       },
       fontFamily: {
-        sans: ['Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
+        sans: ['IBM Plex Sans', 'Noto Sans HK', 'Chiron Sung HK', 'system-ui', 'sans-serif'],
         serif: ['Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
         display: ['Cinzel', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
-        mono: ['Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif']
+        mono: ['IBM Plex Mono', 'Noto Sans HK', 'ui-monospace', 'monospace']
       },
       boxShadow: {
         glass: '0 8px 32px rgba(0, 0, 0, 0.08)',
@@ -92,7 +92,10 @@ export default {
       backdropBlur: {
         xs: '2px'
       },
+      // Aligned with the Ritel radius tokens: cards 14px, dialogs 18px.
       borderRadius: {
+        '2xl': '14px',
+        '3xl': '18px',
         '4xl': '2rem'
       }
     }

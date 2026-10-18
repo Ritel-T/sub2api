@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { shallowMount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import ProxiesView from '../ProxiesView.vue'
-const { route, replace, list } = vi.hoisted(() => ({ route: { hash: '' }, replace: vi.fn(), list: vi.fn() }))
+const { route, replace, list, getById, getProxyAccounts } = vi.hoisted(() => ({ route: { hash: '', query: {} as Record<string, string> }, replace: vi.fn(), list: vi.fn(), getById: vi.fn(), getProxyAccounts: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => ({ replace }) }))
-vi.mock('@/api/admin', () => ({ adminAPI: { proxies: { list, getAllWithCount: vi.fn().mockResolvedValue([]) } } }))
+vi.mock('@/api/admin', () => ({ adminAPI: { proxies: { list, getById, getProxyAccounts, getAllWithCount: vi.fn().mockResolvedValue([]) } } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError: vi.fn() }) }))
 vi.mock('vue-i18n', async () => ({ ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'), useI18n: () => ({ t: (key: string) => key }) }))
 let wrapper: VueWrapper
@@ -11,9 +11,22 @@ const mountView = () => shallowMount(ProxiesView, { global: { stubs: {
   AppLayout: { template: '<div><slot /></div>' },
   TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' }
 } } })
-beforeEach(() => { vi.clearAllMocks(); route.hash = ''; list.mockResolvedValue({ items: [], total: 0, pages: 1 }) })
+beforeEach(() => { vi.clearAllMocks(); route.hash = ''; route.query = {}; list.mockResolvedValue({ items: [], total: 0, pages: 1 }) })
 afterEach(() => wrapper?.unmount())
 describe('IP management navigation', () => {
+  it('opens the exact proxy and real bound-account list without inventing unsupported list filters', async () => {
+    route.query.proxy_id = '84'
+    getById.mockResolvedValue({ id: 84, name: 'Dedicated exit' })
+    getProxyAccounts.mockResolvedValue([{ id: 42, name: 'Upstream' }])
+    wrapper = mountView(); await flushPromises()
+    expect(getById).toHaveBeenCalledWith(84)
+    expect(getProxyAccounts).toHaveBeenCalledWith(84)
+    expect((wrapper.vm as any).accountsProxy.id).toBe(84)
+    expect((wrapper.vm as any).showAccountsModal).toBe(true)
+    expect(list.mock.calls[0][2]).not.toHaveProperty('proxy_id')
+    expect(list.mock.calls[0][2]).not.toHaveProperty('account_id')
+  })
+
   it('opens harvest exit settings in IP management', async () => {
     route.hash = '#harvest'; wrapper = mountView(); await flushPromises()
     expect(wrapper.findComponent({ name: 'HarvestProxySettings' }).exists()).toBe(true)

@@ -696,6 +696,15 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
   })
 
+  it('checks the original order after a JSAPI failure instead of creating a replacement', async () => {
+    createOrder.mockResolvedValue(jsapiOrderFixture('resume-token-123'))
+    bridgeInvoke.mockImplementation((_action, _payload, callback) => callback({ err_msg: 'get_brand_wcpay_request:fail' }))
+    shallowMount(PaymentView, { global: { stubs: { Teleport: true, Transition: false } } })
+    await flushPromises(); await flushPromises()
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(routerPush).toHaveBeenCalledWith({ path: '/payment/result', query: { order_id: '123', out_trade_no: 'sub2_jsapi_123', resume_token: 'resume-token-123' } })
+  })
+
   it('resets payment state when JSAPI reports cancellation', async () => {
     createOrder.mockResolvedValue(jsapiOrderFixture('resume-token-cancel'))
     bridgeInvoke.mockImplementation((_action, _payload, callback) => {
@@ -718,7 +727,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
   })
 
-  it('clears stale recovery state when JSAPI never becomes available', async () => {
+  it('checks the original order when JSAPI never becomes available without creating another order', async () => {
     vi.useFakeTimers()
     createOrder.mockResolvedValue(jsapiOrderFixture('resume-token-missing-bridge'))
     ;(window as Window & { WeixinJSBridge?: { invoke: typeof bridgeInvoke } }).WeixinJSBridge = undefined
@@ -740,7 +749,8 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(showError).toHaveBeenCalledWith(
       'payment.errors.wechatJsapiUnavailable payment.errors.wechatOpenInWeChatHint',
     )
-    expect(routerPush).not.toHaveBeenCalled()
+    expect(routerPush).toHaveBeenCalledWith({ path: '/payment/result', query: { order_id: '123', out_trade_no: 'sub2_jsapi_123', resume_token: 'resume-token-missing-bridge' } })
+    expect(createOrder).toHaveBeenCalledTimes(1)
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
     expect(wrapper.html()).not.toContain('payment-status-panel-stub')
   })
@@ -832,6 +842,24 @@ describe('PaymentView WeChat JSAPI flow', () => {
       configurable: true,
       value: originalLocation,
     })
+  })
+
+  it('does not retry order creation after an unknown gateway outcome', async () => {
+    routeState.query = { wechat_resume: '1', wechat_resume_token: 'resume-unknown', payment_type: 'wxpay_direct' }
+    createOrder.mockRejectedValueOnce({ reason: 'PAYMENT_GATEWAY_ERROR', message: 'unknown outcome' })
+    shallowMount(PaymentView, { global: { stubs: { Teleport: true, Transition: false } } })
+    await flushPromises(); await flushPromises()
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(routerPush).not.toHaveBeenCalled()
+  })
+
+  it('checks a returned order identity when checkout instructions are unavailable', async () => {
+    routeState.query = { wechat_resume: '1', wechat_resume_token: 'resume-unknown', payment_type: 'wxpay_direct' }
+    createOrder.mockResolvedValueOnce({ order_id: 778, amount: 88, pay_amount: 88, payment_type: 'wxpay', expires_at: '2099-01-01T00:10:00.000Z', out_trade_no: 'original-778' })
+    shallowMount(PaymentView, { global: { stubs: { Teleport: true, Transition: false } } })
+    await flushPromises(); await flushPromises()
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(routerPush).toHaveBeenCalledWith({ path: '/payment/result', query: { order_id: '778', out_trade_no: 'original-778' } })
   })
 
   it('falls back to QR flow when mobile WeChat payment is unavailable', async () => {

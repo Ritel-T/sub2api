@@ -684,6 +684,7 @@
         <div class="py-1">
           <template v-for="user in users" :key="user.id">
             <template v-if="user.id === activeMenuId">
+              <ConsoleObjectLinks kind="user" :id="user.id" class="px-4 py-2" @navigate="closeActionMenu" />
               <!-- View API Keys -->
               <button
                 @click="handleViewApiKeys(user); closeActionMenu()"
@@ -800,6 +801,7 @@ import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { formatDateTime } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
+import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
 
 const { t } = useI18n()
 import { adminAPI } from '@/api/admin'

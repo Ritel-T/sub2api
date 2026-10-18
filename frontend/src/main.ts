@@ -9,8 +9,8 @@ import { isIOSDevice } from '@/utils/device'
 import './style.css'
 import { Chart } from 'chart.js'
 
-Chart.defaults.font.family = "'Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', Georgia, serif"
-Chart.defaults.font.size = 14
+Chart.defaults.font.family = "'IBM Plex Sans', 'Noto Sans HK', 'Chiron Sung HK', system-ui, sans-serif"
+Chart.defaults.font.size = 12
 Chart.defaults.color = '#aaa9a4'
 Chart.defaults.borderColor = '#30302d'
 

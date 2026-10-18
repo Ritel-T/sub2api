@@ -2,7 +2,7 @@
   <div class="px-3 pb-2">
     <button
       type="button"
-      class="flex h-10 w-full items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-500 transition-colors hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300 dark:hover:text-primary-400"
+      class="flex h-10 w-full items-center gap-2 border border-gray-200 bg-gray-50 px-3 text-sm text-gray-500 transition-colors hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300 dark:hover:text-primary-400"
       :class="{ 'justify-center px-0': collapsed }"
       :title="`${t('common.featureSearch.title')} (${shortcut})`"
       :aria-label="t('common.featureSearch.title')"
@@ -13,7 +13,7 @@
       <Icon name="search" size="md" class="shrink-0" aria-hidden="true" />
       <template v-if="!collapsed">
         <span class="flex-1 text-left">{{ t('common.featureSearch.title') }}</span>
-        <kbd class="whitespace-nowrap rounded border border-gray-200 px-1 text-xs dark:border-dark-600">{{ shortcut }}</kbd>
+        <kbd class="whitespace-nowrap border border-gray-200 px-1 text-xs dark:border-dark-600">{{ shortcut }}</kbd>
       </template>
     </button>
   </div>
@@ -49,7 +49,7 @@
         role="option"
         tabindex="-1"
         :aria-selected="selectedIndex === index"
-        class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors"
+        class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
         :class="selectedIndex === index ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' : 'text-gray-700 hover:bg-gray-50 dark:text-dark-200 dark:hover:bg-dark-800'"
         @mousemove="selectedIndex = index"
         @mousedown.prevent
@@ -57,7 +57,7 @@
       >
         <div class="min-w-0 flex-1">
           <div class="truncate text-sm font-medium">{{ item.label }}</div>
-          <div class="mt-0.5 truncate text-xs text-gray-500 dark:text-dark-400">{{ item.group || item.path }}</div>
+          <div v-if="item.group" class="mt-0.5 truncate text-xs text-gray-500 dark:text-dark-400">{{ item.group }}</div>
         </div>
         <Icon name="arrowRight" size="sm" aria-hidden="true" />
       </button>
@@ -65,9 +65,6 @@
     <p v-if="!results.length" class="py-8 text-center text-sm text-gray-500 dark:text-dark-400">
       {{ t('common.featureSearch.noResults') }}
     </p>
-    <template #footer>
-      <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('common.featureSearch.hint') }}</p>
-    </template>
   </BaseDialog>
 </template>
 

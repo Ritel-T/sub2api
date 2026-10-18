@@ -1,6 +1,7 @@
 <template>
   <AppLayout>
     <div class="mx-auto max-w-5xl space-y-4">
+      <h1 class="text-3xl font-semibold">{{ t('nav.supportTickets') }}</h1>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="inline-flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800" role="group" :aria-label="t('supportTickets.columns.status')">
           <button
@@ -22,7 +23,7 @@
           <button type="button" class="btn btn-secondary" :disabled="loading" :title="t('supportTickets.refresh')" :aria-label="t('supportTickets.refresh')" @click="load">
             <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
           </button>
-          <button type="button" class="btn btn-primary" data-testid="ticket-new" @click="createOpen = true">
+          <button type="button" class="btn btn-primary" data-testid="ticket-new" @click="openCreate">
             <Icon name="plus" size="md" class="mr-1" />
             {{ t('supportTickets.newTicket') }}
           </button>
@@ -81,13 +82,13 @@
       />
     </div>
 
-    <CreateTicketDialog :show="createOpen" :summary="summary" @close="createOpen = false" @created="onCreated" />
+    <CreateTicketDialog :show="createOpen" :summary="summary" :initial-draft="draft" @close="createOpen = false" @created="onCreated" />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -106,9 +107,12 @@ import {
 } from '@/api/supportTickets'
 import { useSupportTicketStore } from '@/stores/supportTickets'
 import { formatRelativeTime } from '@/utils/format'
+import { supportTicketDraft } from '@/features/support-tickets/ticketDraft'
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
+const draft = computed(() => supportTicketDraft(route.query || {}))
 const ticketStore = useSupportTicketStore()
 
 const pageSize = 20
@@ -120,6 +124,8 @@ const summary = ref<SupportTicketUserSummary | null>(null)
 const loading = ref(false)
 const loadError = ref('')
 const createOpen = ref(false)
+function openCreate() { createOpen.value = true }
+watch(() => route.query, () => { if (draft.value) createOpen.value = true }, { immediate: true })
 
 const statusOptions = computed<Array<{ value: SupportTicketStatusFilter; label: string }>>(() => [
   { value: '', label: t('supportTickets.filters.all') },

@@ -111,3 +111,27 @@ export function describePaymentScenarioError(
 
   return null
 }
+
+
+/** Only a plan identity is saved. Restoring always uses current server terms. */
+export const SUBSCRIPTION_RETURN_KEY = 'ritel.subscription-return.v1'
+export interface SubscriptionReturnIntent { userId: number; planId: number; renewalMode: 'restart' | 'extend'; savedAt: number }
+export function saveSubscriptionReturn(storage: Storage, intent: Omit<SubscriptionReturnIntent, 'savedAt'>): boolean {
+  try {
+    const raw = JSON.stringify({ ...intent, savedAt: Date.now() })
+    storage.setItem(SUBSCRIPTION_RETURN_KEY, raw)
+    return storage.getItem(SUBSCRIPTION_RETURN_KEY) === raw
+  } catch { return false }
+}
+export function readSubscriptionReturn(storage: Storage, userId: number): SubscriptionReturnIntent | null {
+  try {
+    const value = JSON.parse(storage.getItem(SUBSCRIPTION_RETURN_KEY) || 'null') as SubscriptionReturnIntent | null
+    if (!value || value.userId !== userId || !Number.isSafeInteger(value.planId) || value.planId <= 0
+      || !['restart', 'extend'].includes(value.renewalMode) || !Number.isFinite(value.savedAt)
+      || value.savedAt > Date.now() || Date.now() - value.savedAt > 24 * 60 * 60 * 1000) return null
+    return value
+  } catch { return null }
+}
+export function clearSubscriptionReturn(storage: Storage): void {
+  try { storage.removeItem(SUBSCRIPTION_RETURN_KEY) } catch { /* In-memory navigation can still continue. */ }
+}

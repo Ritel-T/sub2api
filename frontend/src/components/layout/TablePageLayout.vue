@@ -47,7 +47,8 @@ onUnmounted(() => {
 /* 桌面端：Flexbox 布局 */
 .table-page-layout {
   @apply flex flex-col gap-6;
-  height: calc(100vh - 64px - 4rem); /* 减去 header + lg:p-8 的上下padding */
+  height: calc(100dvh - var(--console-header-height, 88px) - 6rem);
+  min-height: 420px; /* 减去 header + lg:p-8 的上下padding */
 }
 
 .layout-section-fixed {
@@ -94,6 +95,11 @@ onUnmounted(() => {
 /* 移动端：恢复正常滚动 */
 .table-page-layout.mobile-mode .table-scroll-container {
   @apply h-auto overflow-visible border-none shadow-none bg-transparent;
+}
+
+.table-page-layout.mobile-mode .layout-section-fixed > :deep(.flex) {
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 .table-page-layout.mobile-mode .layout-section-scrollable {

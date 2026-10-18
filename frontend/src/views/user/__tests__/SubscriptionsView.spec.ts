@@ -4,6 +4,7 @@ import SubscriptionsView from '../SubscriptionsView.vue'
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
+  config: vi.fn(),
   app: {
     cachedPublicSettings: { payment_enabled: false },
     fetchPublicSettings: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('vue-i18n', async (importOriginal) => ({
   useI18n: () => ({ t: (key: string) => key }),
 }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => mocks.app }))
+vi.mock('@/api/payment', () => ({ paymentAPI: { getConfig: mocks.config } }))
 vi.mock('@/api/subscriptions', () => ({
   default: {
     getMySubscriptions: vi.fn().mockResolvedValue([
@@ -32,6 +34,7 @@ describe('subscription renewal navigation', () => {
     vi.clearAllMocks()
     mocks.app.cachedPublicSettings = { payment_enabled: false }
     mocks.app.fetchPublicSettings.mockResolvedValue(null)
+    mocks.config.mockResolvedValue({ data: { enabled: false, merchant_test_access: false } })
   })
 
   async function clickRenew() {
@@ -49,6 +52,12 @@ describe('subscription renewal navigation', () => {
     expect(mocks.app.fetchPublicSettings).toHaveBeenCalledWith(true)
     expect(mocks.push).not.toHaveBeenCalled()
     expect(mocks.app.showInfo).toHaveBeenCalledWith('purchase.notEnabledDesc')
+  })
+
+  it('permits renewal for a protected merchant tester while public payments are closed', async () => {
+    mocks.config.mockResolvedValue({ data: { enabled: true, merchant_test_access: true } })
+    await clickRenew()
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/purchase', query: { tab: 'subscription', group: '7' } })
   })
 
   it('uses refreshed settings and opens the matching subscription group', async () => {

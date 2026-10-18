@@ -2,6 +2,7 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
+        <ConsoleObjectLinks v-if="contextUserId && filters.user_id === contextUserId" kind="user" :id="contextUserId" context class="mb-3" />
         <!-- Top Toolbar: Left (search + filters) / Right (actions) -->
         <div class="flex flex-wrap items-start justify-between gap-4">
           <!-- Left: Fuzzy user search + filters (wrap to multiple lines) -->
@@ -840,8 +841,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
+import { objectQueryId } from './objectContext'
+import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
@@ -873,6 +877,8 @@ import { GROUP_PLATFORM_OPTIONS } from '@/constants/platforms'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const route = useRoute()
+const contextUserId = computed(() => objectQueryId(route?.query?.user_id))
 
 interface GroupOption {
   value: number
@@ -1606,7 +1612,24 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 }
 
+async function applyObjectContext() {
+  const id = contextUserId.value
+  filters.user_id = id ?? null
+  selectedFilterUser.value = null
+  filterUserKeyword.value = id ? `#${id}` : ''
+  if (id) {
+    filters.status = ''
+    try {
+      const user = await adminAPI.users.getById(id, true)
+      if (contextUserId.value !== id || filters.user_id !== id) return
+      selectedFilterUser.value = { id: user.id, email: user.email, deleted: false }
+      filterUserKeyword.value = user.email || `#${id}`
+    } catch { /* The exact ID remains visible and queryable if a user has been deleted. */ }
+  }
+}
+watch(contextUserId, async () => { await applyObjectContext(); applyFilters() })
 onMounted(() => {
+  void applyObjectContext()
   loadUserColumnMode()
   loadSavedColumns()
   loadSubscriptions()

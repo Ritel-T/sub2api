@@ -1,6 +1,7 @@
 <template>
   <AppLayout>
     <div class="mx-auto max-w-4xl space-y-6">
+      <BillingNavigation current="purchase" :settings="appStore.cachedPublicSettings" :simple-mode="authStore.isSimpleMode" :merchant-test-access="checkout.merchant_test_access" :title="bt(checkout.balance_disabled ? 'billing.plans' : !subscriptionEnabled ? 'billing.topUp' : 'billing.purchase')" />
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
@@ -43,6 +44,10 @@
           </div>
           <!-- Top-up Tab -->
           <template v-else-if="activeTab === 'recharge'">
+            <div v-if="returnPlan" class="flex flex-wrap items-center justify-between gap-3 border border-gray-200 p-4 dark:border-dark-700" data-test="subscription-return">
+              <span>{{ returnPlan.name }}</span>
+              <button type="button" class="btn btn-secondary" @click="resumeSelectedPlan">{{ bt('billing.resume') }}</button>
+            </div>
             <!-- Recharge Account Card -->
             <div class="card p-5">
               <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
@@ -252,7 +257,7 @@
                 <p v-if="pendingBalancePurchase" role="status" class="text-amber-700 dark:text-amber-300">{{ t('paymentRetail.balanceSubscription.pending') }}</p>
                 <template v-else-if="!hasSubscriptionBalance">
                   <p class="text-amber-700 dark:text-amber-300">{{ t('paymentRetail.balanceSubscription.insufficient') }}</p>
-                  <button class="btn btn-secondary" data-test="subscription-top-up" @click="topUpForSubscription">{{ t('paymentRetail.balanceSubscription.recharge') }}</button>
+                  <button v-if="!checkout.balance_disabled" class="btn btn-secondary" data-test="subscription-top-up" @click="topUpForSubscription">{{ t('paymentRetail.balanceSubscription.recharge') }}</button>
                 </template>
               </div>
               <div v-else-if="enabledMethods.length >= 1" class="card p-6">
@@ -286,7 +291,7 @@
                 <span v-else-if="balanceSubscriptionPurchase">{{ t(pendingBalancePurchase ? 'paymentRetail.balanceSubscription.retry' : 'paymentRetail.balanceSubscription.buy') }} ${{ selectedPlan.price.toFixed(2) }}</span>
                 <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
               </button>
-              <button class="btn btn-secondary w-full" :disabled="!!pendingBalancePurchase || submitting" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
+              <button class="btn btn-secondary w-full" :disabled="!!pendingBalancePurchase || submitting" @click="cancelSelectedPlan">{{ t('common.cancel') }}</button>
             </template>
             <!-- Plan list -->
             <template v-else>
@@ -381,6 +386,7 @@ import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFi
 import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType, PaymentQuoteRequest, SubscriptionRenewalMode } from '@/types/payment'
 import { formatRechargeBonusNumber, normalizeRechargeBonusMode, normalizeRechargeBonusTiers, quoteRechargeBonus } from '@/utils/rechargeBonus'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import BillingNavigation from '@/components/user/BillingNavigation.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
@@ -407,11 +413,13 @@ import { DEFAULT_PAYMENT_CURRENCY, formatPaymentAmount, normalizePaymentCurrency
 import { planValiditySuffix as validitySuffixOf } from '@/components/payment/validity'
 import { formatDateTimeToMinute } from '@/utils/format'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
-import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
+import { buildPaymentErrorToastMessage, describePaymentScenarioError, saveSubscriptionReturn, readSubscriptionReturn, clearSubscriptionReturn } from './paymentUx'
+import { billingMessages } from '@/components/user/billingNavigation'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
 
 const i18n = useI18n()
 const { t } = i18n
+const { t: bt } = useI18n({ useScope: 'local', messages: billingMessages })
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -444,6 +452,7 @@ const activeTab = ref<'recharge' | 'subscription'>('recharge')
 const amount = ref<number | null>(null)
 const selectedMethod = ref('')
 const selectedPlan = ref<SubscriptionPlan | null>(null)
+const returnPlan = ref<SubscriptionPlan | null>(null)
 const pendingBalancePurchase = ref<PendingBalancePurchase | null>(null)
 const balancePurchaseSuccess = ref('')
 let sessionGeneration = 0
@@ -454,6 +463,7 @@ const isCurrentSession = (session: ReturnType<typeof captureSession>) => !dispos
 watch([() => user.value?.id, () => authStore.token], () => {
   sessionGeneration++
   pendingBalancePurchase.value = null
+  returnPlan.value = null
   selectedPlan.value = null
   balancePurchaseSuccess.value = ''
   errorMessage.value = ''
@@ -638,6 +648,7 @@ function onPaymentDone() {
   const wasSubscription = paymentState.value.orderType === 'subscription'
   resetPayment()
   selectedPlan.value = null
+  if (!wasSubscription && returnPlan.value) resumeSelectedPlan()
   if (wasSubscription) {
     subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
   }
@@ -934,9 +945,23 @@ const canSubmitSubscription = computed(() =>
 const balanceSubscriptionPurchase = computed(() => retailPricingEnabled.value && selectedPlan.value?.currency === 'CNY')
 const hasSubscriptionBalance = computed(() => !!selectedPlan.value && (user.value?.balance ?? 0) >= selectedPlan.value.price)
 
+function resumeSelectedPlan() {
+  if (!returnPlan.value || !subscriptionEnabled.value) return
+  selectedPlan.value = checkout.value.plans.find(plan => plan.id === returnPlan.value?.id && plan.for_sale !== false) ?? null
+  if (!selectedPlan.value) {
+    returnPlan.value = null
+    clearSubscriptionReturn(window.sessionStorage)
+    errorMessage.value = t('paymentRetail.balanceSubscription.changed')
+    return
+  }
+  activeTab.value = 'subscription'
+}
+
 function topUpForSubscription() {
-  if (!selectedPlan.value || pendingBalancePurchase.value) return
+  if (!selectedPlan.value || pendingBalancePurchase.value || checkout.value.balance_disabled) return
   amount.value = Math.ceil(Math.max(globalMinAmount.value, selectedPlan.value.price - (user.value?.balance ?? 0)) * 100) / 100
+  returnPlan.value = selectedPlan.value
+  saveSubscriptionReturn(window.sessionStorage, { userId: user.value?.id ?? 0, planId: selectedPlan.value.id, renewalMode: renewalMode.value })
   selectedPlan.value = null
   activeTab.value = 'recharge'
   selectedMethod.value = enabledMethods.value.includes('squarespace') ? 'squarespace' : enabledMethods.value[0] || ''
@@ -990,7 +1015,15 @@ function planPeakRateLabel(plan: SubscriptionPlan): string {
   return formatPeakRateWindow(plan, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
 }
 
+function cancelSelectedPlan() {
+  selectedPlan.value = null
+  returnPlan.value = null
+  clearSubscriptionReturn(window.sessionStorage)
+}
+
 function selectPlan(plan: SubscriptionPlan) {
+  returnPlan.value = null
+  clearSubscriptionReturn(window.sessionStorage)
   balancePurchaseSuccess.value = ''
   const pending = readBalancePurchase(user.value?.id ?? 0)
   pendingBalancePurchase.value = pending
@@ -1043,6 +1076,8 @@ async function confirmSubscribe() {
       if (!isCurrentSession(session)) return
       pendingBalancePurchase.value = null
       selectedPlan.value = null
+      returnPlan.value = null
+      clearSubscriptionReturn(window.sessionStorage)
       balancePurchaseSuccess.value = t(response.data.renewed ? 'paymentRetail.balanceSubscription.renewed' : 'paymentRetail.balanceSubscription.success')
       await authStore.refreshUserIfCurrent(session.userId).catch(() => {})
       if (!isCurrentSession(session)) return
@@ -1190,6 +1225,12 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       return
     }
 
+    if (decision.kind === 'unhandled' && result.order_id > 0) {
+      // An order already exists. Inspect that exact order instead of creating another.
+      await redirectToPaymentResult(decision.paymentState)
+      return
+    }
+
     if (decision.kind === 'unhandled') {
       applyScenarioError({ reason: 'UNHANDLED_PAYMENT_SCENARIO' }, visibleMethod)
       return
@@ -1220,20 +1261,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
           resetPayment()
         } else if (errMsg && !errMsg.includes('ok')) {
           resetPayment()
-          const fallbackApplied = await attemptMobileQrFallback(
-            { reason: 'WECHAT_JSAPI_FAILED', message: errMsg },
-            {
-              orderAmount,
-              orderType,
-              planId,
-              renewalMode: effectiveRenewalMode,
-              paymentType: visibleMethod,
-              attempted: options.mobileQrFallbackAttempted === true,
-            },
-          )
-          if (!fallbackApplied) {
-            applyScenarioError({ reason: 'WECHAT_JSAPI_FAILED', message: errMsg }, visibleMethod)
-          }
+          applyScenarioError({ reason: 'WECHAT_JSAPI_FAILED', message: errMsg }, visibleMethod)
+          await redirectToPaymentResult(decision.paymentState)
         } else {
           const resultState = { ...decision.paymentState }
           resetPayment()
@@ -1241,17 +1270,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
         }
       } catch (err: unknown) {
         resetPayment()
-        const fallbackApplied = await attemptMobileQrFallback(err, {
-          orderAmount,
-          orderType,
-          planId,
-          renewalMode: effectiveRenewalMode,
-          paymentType: visibleMethod,
-          attempted: options.mobileQrFallbackAttempted === true,
-        })
-        if (!fallbackApplied) {
-          throw err
-        }
+        applyScenarioError(err, visibleMethod)
+        await redirectToPaymentResult(decision.paymentState)
       }
       return
     }
@@ -1321,25 +1341,14 @@ function shouldFallbackToDesktopQr(err: unknown, paymentMethod: string, attempte
   const reason = typeof err === 'object' && err && 'reason' in err && typeof err.reason === 'string'
     ? err.reason
     : ''
-  const message = err instanceof Error
-    ? err.message
-    : (typeof err === 'object' && err && 'message' in err && typeof err.message === 'string'
-      ? err.message
-      : '')
-  const normalizedMessage = message.toLowerCase()
-
   if (normalizedMethod === 'wxpay') {
     return reason === 'WECHAT_H5_NOT_AUTHORIZED'
       || reason === 'WECHAT_PAYMENT_MP_NOT_CONFIGURED'
-      || reason === 'WECHAT_JSAPI_FAILED'
-      || reason === 'PAYMENT_GATEWAY_ERROR'
-      || reason === 'UNHANDLED_PAYMENT_SCENARIO'
-      || normalizedMessage.includes('weixinjsbridge is unavailable')
-      || normalizedMessage.includes('wechat_jsapi_unavailable')
+
   }
 
   if (normalizedMethod === 'alipay') {
-    return reason === 'PAYMENT_GATEWAY_ERROR' || reason === 'UNHANDLED_PAYMENT_SCENARIO'
+    return false
   }
 
   return false
@@ -1525,6 +1534,16 @@ onMounted(async () => {
     showRenewalModal.value = false
     renewGroupId.value = null
     activeTab.value = 'subscription'
+  }
+  // A recharge detour keeps only the plan identity; current terms come from checkout.
+  // Existing unresolved payment recovery takes precedence and is never submitted again.
+  const returnIntent = readSubscriptionReturn(window.sessionStorage, session.userId)
+  if (returnIntent && subscriptionEnabled.value && !pendingBalancePurchase.value) {
+    returnPlan.value = checkout.value.plans.find(plan => plan.id === returnIntent.planId && plan.for_sale !== false) ?? null
+    if (returnPlan.value) {
+      renewalMode.value = returnIntent.renewalMode
+      if (paymentPhase.value === 'select') resumeSelectedPlan()
+    } else clearSubscriptionReturn(window.sessionStorage)
   }
   // Fetch active subscriptions (uses cache, non-blocking); skipped when the subscription feature is off
   if (subscriptionEnabled.value) {

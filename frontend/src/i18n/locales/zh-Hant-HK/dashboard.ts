@@ -200,7 +200,7 @@ export default {
       copy: '複製',
       copied: '已複製',
       note: '這些環境變量將在當前終端會話中生效。如需永久配置，請將其添加到 ~/.bashrc、~/.zshrc 或相應的配置文件中。',
-      claudeSettingsHint: '用戶級持久配置。此文件包含 API 密鑰，請勿提交到項目倉庫。',
+      claudeSettingsHint: '用戶層級的持續設定。',
       noGroupTitle: '請先分配分組',
       noGroupDescription:
         '此 API 密鑰尚未分配分組，請先在密鑰列表中點擊分組列進行分配，然後才能查看使用配置。',
@@ -250,19 +250,19 @@ export default {
         claudeDescription: '配置 Claude Code，讓 Messages API 請求通過當前 Sub2API Grok 分組發送。',
         codexDescription: '配置 Codex，讓 Responses API 請求通過當前 Sub2API Grok 分組發送。',
         configTomlHint:
-          '官方路徑：~/.grok/config.toml（或 $GROK_HOME）。請填寫 [endpoints]（models_base_url / models_list_url / xai_api_base_url / cli_chat_proxy_base_url）、[auth] preferred_method=api_key、[models]、[session]、[features] 圖片/視頻覆蓋。優先 env_key，勿硬編碼 api_key；文本模型必須 api_backend=responses。合併前備份，儲存後運行 grok inspect。',
+          '路徑：~/.grok/config.toml（或 $GROK_HOME）。填寫 [endpoints]（models_base_url / models_list_url / xai_api_base_url / cli_chat_proxy_base_url）、[auth] preferred_method=api_key、[models]、[session]、[features] 圖片/影片設定。優先使用 env_key；文字模型必須使用 api_backend=responses。儲存後執行 grok inspect。',
         codexConfigTomlHint:
-          'Codex 官方：wire_api 僅支持 "responses"；優先 env_key，勿與 experimental_bearer_token 混用；非 OpenAI 網關預設 supports_websockets = false（Sub2API 仍可接用戶端 WS 並橋接到 HTTP/SSE）。合併前備份 ~/.codex/config.toml。',
+          '儲存至 ~/.codex/config.toml。Codex 的 wire_api 只支援 "responses"。優先使用 env_key，勿與 experimental_bearer_token 混用。非 OpenAI 閘道使用 supports_websockets = false；Sub2API 仍可接收用戶端 WS 並橋接至 HTTP/SSE。',
         note:
           '導出 GROK_MODELS_BASE_URL 與 XAI_API_KEY，將完整 config.toml（endpoints/auth/models/session/features）儲存為 ~/.grok/config.toml，運行 grok inspect，再用 /model 選擇 grok-4.5（編程場景可用 grok-build-0.1）。',
         noteWindows:
           '設定 GROK_MODELS_BASE_URL 與 XAI_API_KEY，將完整 config.toml 儲存為 %USERPROFILE%\\.grok\\config.toml，運行 grok inspect，再用 /model 選擇 grok-4.5（編程場景可用 grok-build-0.1）。',
         claudeNote:
-          '二選一：終端環境變量僅當前會話；~/.claude/settings.json 可持久化。請勿把含 API Key 的文件提交到倉庫。',
+          '選擇一種方式：終端環境變數用於目前工作階段；~/.claude/settings.json 用於持續設定。',
         codexNote:
-          '導出 SUB2API_API_KEY，將 config.toml 儲存到 ~/.codex（可用 mkdir -p ~/.codex）。優先 env_key，勿提交密鑰。',
+          '匯出 SUB2API_API_KEY，將 config.toml 儲存至 ~/.codex（可執行 mkdir -p ~/.codex）。使用 env_key 驗證。',
         codexNoteWindows:
-          '設定 $env:SUB2API_API_KEY，將 config.toml 儲存到 %USERPROFILE%\\.codex。優先 env_key，勿提交密鑰。'
+          '設定 $env:SUB2API_API_KEY，將 config.toml 儲存至 %USERPROFILE%\\.codex。使用 env_key 驗證。'
       },
       deepseek: {
         description: '通過當前 DeepSeek 分組配置 Claude Code、Codex 或 OpenCode。',
@@ -301,9 +301,9 @@ export default {
         errorDescription: '無法使用當前 API Key 獲取模型目錄。'
       },
       opencode: {
-        title: 'OpenCode 配置示例',
+        title: 'OpenCode 設定',
         subtitle: 'opencode.json',
-        hint: '配置文件路徑：~/.config/opencode/opencode.json（或 opencode.jsonc），不存在需手動建立。可使用預設 provider（openai/anthropic/google）或自定義 provider_id。API Key 支持直接配置或通過用戶端 /connect 命令配置。示例僅供參考，模型與選項可按需調整。'
+        hint: '設定檔路徑：~/.config/opencode/opencode.json（或 opencode.jsonc），不存在時建立。使用預設 provider（openai/anthropic/google）或自訂 provider_id。API Key 可直接設定，或透過用戶端 /connect 指令設定。'
       }
     },
     customKeyLabel: '自定義密鑰',

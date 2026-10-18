@@ -1,17 +1,25 @@
 <template>
   <aside
+    id="console-sidebar"
+    ref="sidebarRef"
     class="sidebar"
+    :inert="isMobileViewport && !mobileOpen ? true : undefined"
+    :aria-hidden="isMobileViewport && !mobileOpen ? 'true' : undefined"
+    :role="mobileOpen ? 'dialog' : undefined"
+    :aria-modal="mobileOpen ? 'true' : undefined"
+    :aria-label="navText.navigation"
     :class="[
       sidebarCollapsed ? 'w-[72px]' : 'w-64',
       { '-translate-x-full lg:translate-x-0': !mobileOpen }
     ]"
   >
+    <button v-if="mobileOpen" type="button" class="sidebar-mobile-close lg:hidden" :aria-label="t('common.close')" @click="closeMobile">×</button>
     <!-- Logo/Brand -->
     <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': sidebarCollapsed }">
       <!-- Custom Logo or Default Logo -->
       <router-link
         :to="homePath"
-        class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow transition-opacity hover:opacity-80"
+        class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden transition-opacity hover:opacity-80"
         @click="handleMenuItemClick(homePath)"
       >
         <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
@@ -29,143 +37,56 @@
       </div>
     </div>
 
-    <FeatureSearch v-if="isAdmin" :items="searchNavItems" :collapsed="sidebarCollapsed" @navigate="handleMenuItemClick" />
+    <div v-if="workspaceOptions.length > 1" class="px-3 pb-3">
+      <label class="sr-only" for="console-workspace">{{ navText.workspace }}</label>
+      <select id="console-workspace" class="input w-full" :value="workspace" :title="navText.workspace" @change="switchWorkspace">
+        <option v-for="option in workspaceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+      </select>
+    </div>
+    <FeatureSearch :items="searchNavItems" :collapsed="sidebarCollapsed" @navigate="handleMenuItemClick" />
 
-    <!-- Navigation -->
-    <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
-      <div v-if="authStore.isObserver" class="sidebar-section">
-        <router-link to="/admin/accounts" class="sidebar-link mb-1"
-          :class="{ 'sidebar-link-active': isActive('/admin/accounts'), 'sidebar-link-collapsed': sidebarCollapsed }"
-          :title="sidebarCollapsed ? t('nav.accounts') : undefined"
-          @click="handleMenuItemClick('/admin/accounts')">
-          <GlobeIcon class="h-5 w-5 flex-shrink-0" />
-          <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }">{{ t('nav.accounts') }}</span>
-        </router-link>
-        <router-link v-if="appStore.backendModeEnabled" to="/usage" class="sidebar-link mb-1"
-          :class="{ 'sidebar-link-active': isActive('/usage'), 'sidebar-link-collapsed': sidebarCollapsed }"
-          :title="sidebarCollapsed ? t('nav.usage') : undefined"
-          @click="handleMenuItemClick('/usage')">
-          <ChartIcon class="h-5 w-5 flex-shrink-0" />
-          <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }">{{ t('nav.usage') }}</span>
-        </router-link>
-      </div>
-      <!-- Admin View: Admin menu first, then personal menu -->
-      <template v-if="isAdmin">
-        <!-- Admin Section -->
-        <div class="sidebar-section">
-          <template v-for="item in adminNavItems" :key="item.path">
-            <!-- Collapsible group (has children) -->
-            <template v-if="item.children?.length">
-              <button
-                type="button"
-                class="sidebar-link mb-1 w-full"
-                :class="{
-                  'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item),
-                  'sidebar-link-collapsed': sidebarCollapsed
-                }"
-                :title="sidebarCollapsed ? item.label : undefined"
-                @click="handleGroupClick(item)"
-              >
-                <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-                <span
-                  class="sidebar-label sidebar-label-flex"
-                  :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
-                  :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
-                >
-                  <span class="min-w-0 truncate">{{ item.label }}</span>
-                  <ChevronDownIcon
-                    class="h-4 w-4 flex-shrink-0 transition-transform duration-200"
-                    :class="isGroupExpanded(item) ? 'rotate-180' : ''"
-                  />
-                </span>
-              </button>
-              <!-- Children -->
-              <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="mb-1 ml-4 border-l border-gray-200 pl-2 dark:border-dark-600">
-                <router-link
-                  v-for="child in item.children"
-                  :key="child.path"
-                  :to="child.path"
-                  class="sidebar-link mb-0.5 py-1.5 text-sm"
-                  :class="{ 'sidebar-link-active': route.path === child.path }"
-                  @click="handleMenuItemClick(child.path)"
-                >
-                  <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
-                  <span>{{ child.label }}</span>
-                </router-link>
-              </div>
-            </template>
-            <!-- Normal item (no children) -->
-            <router-link
-              v-else
-              :to="item.path"
-              class="sidebar-link mb-1"
-              :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
+    <nav ref="sidebarNavRef" class="sidebar-nav" :aria-label="navText.navigation">
+      <div class="sidebar-section">
+        <template v-for="item in visibleNavItems" :key="item.path">
+          <template v-if="item.children?.length">
+            <button type="button" class="sidebar-link mb-1 w-full"
+              :class="{ 'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item), 'sidebar-link-collapsed': sidebarCollapsed }"
               :title="sidebarCollapsed ? item.label : undefined"
-              :id="
-                item.path === '/admin/accounts'
-                  ? 'sidebar-channel-manage'
-                  : item.path === '/admin/groups'
-                    ? 'sidebar-group-manage'
-                    : item.path === '/admin/redeem'
-                      ? 'sidebar-wallet'
-                      : undefined
-              "
-              @click="handleMenuItemClick(item.path)"
-            >
-              <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-              <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-              <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-              <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }" data-testid="sidebar-nav-badge">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
-            </router-link>
+              :aria-expanded="isGroupExpanded(item)"
+              :aria-controls="groupId(item)"
+              @click="handleGroupClick(item)">
+              <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <span class="sidebar-label sidebar-label-flex" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }">
+                <span class="min-w-0 truncate">{{ item.label }}</span>
+                <ChevronDownIcon class="h-4 w-4 flex-shrink-0" :class="{ 'rotate-180': isGroupExpanded(item) }" />
+              </span>
+              <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
+            </button>
+            <div v-if="!sidebarCollapsed && isGroupExpanded(item)" :id="groupId(item)" class="mb-2 ml-4 border-l border-gray-200 pl-2 dark:border-dark-600">
+              <router-link v-for="child in item.children" :key="child.path" :to="child.path"
+                class="sidebar-link mb-0.5 py-1.5 text-sm" :class="{ 'sidebar-link-active': isActive(child.path) }"
+                :aria-current="isActive(child.path) ? 'page' : undefined"
+                :id="tourId(child.path)" :data-tour="child.path === '/keys' ? 'sidebar-my-keys' : undefined"
+                @click="handleMenuItemClick(child.path)">
+                <span v-if="child.iconSvg" class="h-4 w-4 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(child.iconSvg)"></span>
+                <component v-else :is="child.icon" class="h-4 w-4 flex-shrink-0" />
+                <span class="min-w-0 truncate">{{ child.label }}</span>
+                <span v-if="navBadge(child)" class="sidebar-nav-badge" data-testid="sidebar-nav-badge">{{ navBadgeText(child) }}</span>
+              </router-link>
+            </div>
           </template>
-        </div>
-
-        <!-- Personal Section for Admin (hidden in simple mode) -->
-        <div v-if="!authStore.isSimpleMode" class="sidebar-section">
-          <div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
-            <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
-              {{ t('nav.myAccount') }}
-            </span>
-          </div>
-
-          <router-link
-            v-for="item in personalNavItems"
-            :key="item.path"
-            :to="item.path"
-            class="sidebar-link mb-1"
+          <router-link v-else :to="item.path" class="sidebar-link mb-1"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
-          >
+            :title="sidebarCollapsed ? item.label : undefined" :aria-current="isActive(item.path) ? 'page' : undefined"
+            :id="tourId(item.path)" :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+            @click="handleMenuItemClick(item.path)">
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
             <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }" data-testid="sidebar-nav-badge">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
           </router-link>
-        </div>
-      </template>
-
-      <!-- Regular User View -->
-      <template v-else-if="!appStore.backendModeEnabled">
-        <div class="sidebar-section">
-          <router-link
-            v-for="item in userNavItems"
-            :key="item.path"
-            :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
-          >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-            <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }" data-testid="sidebar-nav-badge">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
-          </router-link>
-        </div>
-      </template>
+        </template>
+      </div>
     </nav>
 
     <!-- Bottom Section -->
@@ -208,10 +129,12 @@ import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 import { useMerchantTestPaymentAccess } from '@/composables/useMerchantTestPaymentAccess'
+import { arrangeConsoleNavigation, consoleNavigationText, isConsoleLocationActive, workspaceLocation, legalWorkspaceDestination } from '@/navigation/consoleNavigation'
 
 interface NavItem {
   path: string
   label: string
+  keywords?: string
   icon: unknown
   iconSvg?: string
   hideInSimpleMode?: boolean
@@ -247,7 +170,7 @@ function applyFeatureFlags(items: NavItem[]): NavItem[] {
   return out
 }
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -258,13 +181,16 @@ const adminSettingsStore = useAdminSettingsStore()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 const { merchantTestPaymentAccess } = useMerchantTestPaymentAccess()
 
-const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
+const sidebarCollapsed = computed(() => appStore.sidebarCollapsed && !appStore.mobileOpen)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
+const sidebarRef = ref<HTMLElement | null>(null)
+let mobileOpener: HTMLElement | null = null
+const isMobileViewport = ref(typeof window !== 'undefined' && window.innerWidth < 1024)
 
 const homePath = computed(() => (
-  isAdmin.value ? '/admin/dashboard' : authStore.isObserver ? '/admin/accounts' : '/dashboard'
+  workspace.value === 'management' ? (isAdmin.value ? '/admin/dashboard' : '/admin/accounts') : '/dashboard'
 ))
 
 // Per-group expand/collapse overrides. A group with no entry follows the
@@ -709,6 +635,7 @@ const flagPayment = () => flagPublicPayment() || merchantTestPaymentAccess.value
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
 const flagPelicanShowcase = makeSidebarFlag(FeatureFlags.pelicanShowcase)
 const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)
+const flagModelPlaza = makeSidebarFlag(FeatureFlags.modelPlaza)
 
 // 购买入口文案随站点计费模式切换：仅充值 → 「充值」，仅订阅 → 「订阅」，否则「充值/订阅」。
 const purchaseNavLabel = computed(() => {
@@ -748,7 +675,9 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: !authStore.isObserver },
+    { path: '/model-plaza?embedded=1', label: navText.value.models, icon: GalleryIcon, hideInSimpleMode: true, featureFlag: flagModelPlaza },
+    { path: '/usage?view=analysis', label: navText.value.analysis, icon: ChartIcon, hideInSimpleMode: !authStore.isObserver },
+    { path: '/usage?view=records', label: navText.value.records, icon: OrderListIcon, hideInSimpleMode: !authStore.isObserver },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/pelican-showcase', label: t('nav.pelicanShowcase'), icon: GalleryIcon, featureFlag: flagPelicanShowcase },
@@ -778,10 +707,6 @@ function finalizeNav(items: NavItem[]): NavItem[] {
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
 
-// Personal navigation items (for admin's "My Account" section, without Dashboard).
-// Admins access 可用渠道 from this section just like regular users — there is no
-// separate admin entry, since the page is purely a user-facing view.
-const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {
@@ -883,7 +808,7 @@ const adminNavItems = computed((): NavItem[] => {
   // 简单模式下，在系统设置前插入 API密钥
   if (authStore.isSimpleMode) {
     const filtered = visible.filter(item => !item.hideInSimpleMode)
-    filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
+    filtered.push({ path: '/keys', label: navText.value.ownKeys, icon: KeyIcon })
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
     for (const cm of customMenuItemsForAdmin.value) {
       filtered.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
@@ -891,6 +816,7 @@ const adminNavItems = computed((): NavItem[] => {
     return filtered
   }
 
+  visible.push({ path: '/keys', label: navText.value.ownKeys, icon: KeyIcon })
   visible.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
   for (const cm of customMenuItemsForAdmin.value) {
     visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
@@ -898,19 +824,112 @@ const adminNavItems = computed((): NavItem[] => {
   return visible
 })
 
-// Use exactly the visible navigation, including the personal section only when shown.
-const searchNavItems = computed(() => [
-  ...adminNavItems.value,
-  ...(authStore.isSimpleMode ? [] : personalNavItems.value)
-])
+// The source is filtered before grouping. Search and mobile receive this same tree.
+const navText = computed(() => consoleNavigationText(locale?.value ?? 'en'))
+const workspace = computed(() => route.path.startsWith('/admin/') || (isAdmin.value && (authStore.isSimpleMode || customMenuItemsForAdmin.value.some(item => route.path === `/custom/${item.id}`) && !customMenuItemsForUser.value.some(item => route.path === `/custom/${item.id}`))) || (authStore.isObserver && appStore.backendModeEnabled) ? 'management' : 'personal')
+const workspaceOptions = computed(() => {
+  if (isAdmin.value) return authStore.isSimpleMode
+    ? [{ value: 'management', label: navText.value.management }]
+    : [{ value: 'management', label: navText.value.management }, { value: 'personal', label: navText.value.personal }]
+  if (authStore.isObserver) return appStore.backendModeEnabled
+    ? [{ value: 'management', label: navText.value.management }]
+    : [{ value: 'management', label: navText.value.management }, { value: 'personal', label: navText.value.personal }]
+  return [{ value: 'personal', label: navText.value.personal }]
+})
+const visibleNavItems = computed((): NavItem[] => {
+  if (authStore.isObserver && (workspace.value === 'management' || appStore.backendModeEnabled)) {
+    return [
+      { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
+      ...(appStore.backendModeEnabled ? [{ path: '/usage?view=records', label: navText.value.records, icon: ChartIcon }] : []),
+    ]
+  }
+  if (workspace.value === 'management' && isAdmin.value) {
+    return arrangeConsoleNavigation(adminNavItems.value, 'management', navText.value, { billing: CreditCardIcon, applications: GalleryIcon, operations: SmartOpsIcon, system: CogIcon, extensions: PluginIcon })
+  }
+  if (appStore.backendModeEnabled && !isAdmin.value) return []
+  return arrangeConsoleNavigation(userNavItems.value, 'personal', navText.value, { billing: CreditCardIcon, applications: GalleryIcon, operations: SmartOpsIcon, system: CogIcon, extensions: PluginIcon })
+})
+const searchNavItems = computed(() => visibleNavItems.value)
+
+function permittedWorkspaceItems(value: string): NavItem[] {
+  if (value === 'management') {
+    if (isAdmin.value) return adminNavItems.value
+    if (authStore.isObserver) return [{ path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon }, ...(appStore.backendModeEnabled ? [{ path: '/usage?view=records', label: navText.value.records, icon: ChartIcon }] : [])]
+    return []
+  }
+  return appStore.backendModeEnabled && !isAdmin.value ? [] : userNavItems.value
+}
+function workspaceStorageKey(value: string) {
+  const id = authStore.user?.id
+  if (!id) return undefined
+  return `ritel-console:last:${id}:${authStore.user?.role}:${authStore.isSimpleMode ? 'simple' : 'standard'}:${appStore.backendModeEnabled ? 'backend' : 'full'}:${value}`
+}
+function rememberWorkspaceLocation() {
+  const key = workspaceStorageKey(workspace.value)
+  const value = workspaceLocation(route.path, route.query ?? {}, permittedWorkspaceItems(workspace.value))
+  if (!key || !value) return
+  try { sessionStorage.setItem(key, value) } catch { /* Navigation works when storage is unavailable. */ }
+}
+watch(() => [authStore.user?.id, authStore.user?.role, route.path, route.query] as const, (current, previous) => {
+  if (previous && (current[0] !== previous[0] || current[1] !== previous[1])) return
+  rememberWorkspaceLocation()
+}, { immediate: true, deep: true })
+function switchWorkspace(event: Event) {
+  const value = (event.target as HTMLSelectElement).value
+  if (!workspaceOptions.value.some(option => option.value === value)) return
+  rememberWorkspaceLocation()
+  const fallback = value === 'management' ? (isAdmin.value ? '/admin/dashboard' : '/admin/accounts') : '/dashboard'
+  let saved: string | null = null
+  const key = workspaceStorageKey(value)
+  try { if (key) saved = sessionStorage.getItem(key) } catch { /* Use the authorized default. */ }
+  const path = legalWorkspaceDestination(saved, permittedWorkspaceItems(value), fallback)
+  void router.push(path)
+  handleMenuItemClick(path)
+}
+
+function tourId(path: string) {
+  return path === '/admin/accounts' ? 'sidebar-channel-manage' : path === '/admin/groups' ? 'sidebar-group-manage' : path === '/admin/redeem' ? 'sidebar-wallet' : undefined
+}
+
+function groupId(item: NavItem) { return `console-group-${item.path.replace(/[^a-z0-9]/gi, '-')}` }
 
 function toggleSidebar() {
   appStore.toggleSidebar()
 }
 
-function closeMobile() {
-  appStore.setMobileOpen(false)
+function closeMobile() { appStore.setMobileOpen(false) }
+function mobileFocusTargets(): HTMLElement[] {
+  return [...(sidebarRef.value?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex="0"]') ?? [])]
+    .filter(element => !element.closest('[aria-hidden="true"]'))
 }
+function handleViewportResize() {
+  isMobileViewport.value = window.innerWidth < 1024
+  if (mobileOpen.value && !isMobileViewport.value) closeMobile()
+}
+function handleMobileKeydown(event: KeyboardEvent) {
+  if (!mobileOpen.value || document.querySelector('[role="dialog"][aria-modal="true"]:not(.sidebar)')) return
+  if (event.key === 'Escape') { event.preventDefault(); closeMobile(); return }
+  if (event.key !== 'Tab') return
+  const targets = mobileFocusTargets()
+  const first = targets[0]
+  const last = targets[targets.length - 1]
+  if (!first || !last) return
+  if (event.shiftKey && (document.activeElement === first || !sidebarRef.value?.contains(document.activeElement))) { event.preventDefault(); last.focus() }
+  else if (!event.shiftKey && (document.activeElement === last || !sidebarRef.value?.contains(document.activeElement))) { event.preventDefault(); first.focus() }
+}
+watch(mobileOpen, async (open, wasOpen) => {
+  if (open) {
+    mobileOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    await nextTick()
+    mobileFocusTargets()[0]?.focus()
+  } else if (wasOpen) {
+    await nextTick()
+    const fallback = document.querySelector<HTMLElement>('header button[aria-label]')
+    if (mobileOpener?.isConnected && mobileOpener !== document.body && !sidebarRef.value?.contains(mobileOpener)) mobileOpener.focus()
+    else fallback?.focus()
+    mobileOpener = null
+  }
+}, { immediate: true })
 
 function handleMenuItemClick(itemPath: string) {
   if (mobileOpen.value) {
@@ -933,7 +952,7 @@ function handleMenuItemClick(itemPath: string) {
 }
 
 function navBadge(item: NavItem): number {
-  return item.badge?.() ?? 0
+  return (item.badge?.() ?? 0) + (item.children?.reduce((sum, child) => sum + navBadge(child), 0) ?? 0)
 }
 
 function navBadgeText(item: NavItem): string {
@@ -942,12 +961,12 @@ function navBadgeText(item: NavItem): string {
 }
 
 function isActive(path: string): boolean {
-  return route.path === path || route.path.startsWith(path + '/')
+  return isConsoleLocationActive(path, route.path, route.query ?? {})
 }
 
 function isGroupActive(item: NavItem): boolean {
   if (!item.children) return false
-  return item.children.some(child => route.path === child.path)
+  return item.children.some(child => isActive(child.path))
 }
 
 function isGroupExpanded(item: NavItem): boolean {
@@ -968,7 +987,11 @@ function toggleGroup(item: NavItem) {
  *   (router-link semantics) and ensure the group is expanded.
  */
 function handleGroupClick(item: NavItem) {
-  if (sidebarCollapsed.value) return
+  if (sidebarCollapsed.value) {
+    appStore.toggleSidebar()
+    groupExpandOverrides.value.set(item.path, true)
+    return
+  }
   if (item.expandOnly) {
     toggleGroup(item)
     return
@@ -992,6 +1015,9 @@ watch(
 )
 
 onMounted(() => {
+  document.addEventListener('keydown', handleMobileKeydown)
+  window.addEventListener('resize', handleViewportResize)
+  handleViewportResize()
   void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
@@ -1007,6 +1033,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleMobileKeydown)
+  window.removeEventListener('resize', handleViewportResize)
   if (sidebarNavRef.value) {
     appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
   }
@@ -1014,6 +1042,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.sidebar-mobile-close { position:absolute; top:0.25rem; right:0.25rem; z-index:1; width:1.75rem; height:1.75rem; font-size:1.5rem; line-height:1; }
 .sidebar-logo {
   flex: 0 0 2.25rem;
   min-width: 2.25rem;
@@ -1129,7 +1158,7 @@ onBeforeUnmount(() => {
   min-width: 1.25rem;
   height: 1.25rem;
   padding: 0 0.375rem;
-  border-radius: 9999px;
+  border-radius: var(--ritel-radius-pill, 999px);
   background: rgb(239 68 68);
   color: white;
   font-size: 0.6875rem;

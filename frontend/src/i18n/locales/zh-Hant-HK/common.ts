@@ -252,6 +252,8 @@ export default {
     emailPlaceholder: '請輸入電郵',
     passwordLabel: '密碼',
     passwordPlaceholder: '請輸入密碼',
+    showPassword: '顯示密碼',
+    hidePassword: '隱藏密碼',
     createPasswordPlaceholder: '建立一個安全的密碼',
     passwordHint: '至少 6 個字符',
     emailRequired: '請輸入電郵',

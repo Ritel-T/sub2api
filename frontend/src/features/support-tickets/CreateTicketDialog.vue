@@ -43,8 +43,7 @@
           :placeholder="t('supportTickets.form.bodyPlaceholder')"
           data-testid="ticket-body"
         ></textarea>
-        <div class="mt-1 flex items-start justify-between gap-3 text-xs">
-          <span class="text-amber-700 dark:text-amber-300">{{ t('supportTickets.form.secretWarning') }}</span>
+        <div class="mt-1 flex justify-end text-xs">
           <span class="shrink-0" :class="bodyTooLong ? 'font-medium text-red-600 dark:text-red-400' : 'text-gray-400'" data-testid="ticket-body-counter">
             {{ t('supportTickets.form.counter', { count: bodyLength, max: SUPPORT_TICKET_BODY_MAX }) }}
           </span>
@@ -73,12 +72,13 @@ import {
   SUPPORT_TICKET_TITLE_MAX,
   supportTicketLength,
   type SupportTicketDetail,
+  type CreateSupportTicketRequest,
   type SupportTicketUserSummary,
 } from '@/api/supportTickets'
 import { useAppStore } from '@/stores/app'
 import { supportTicketErrorMessage } from './supportTickets'
 
-const props = defineProps<{ show: boolean; summary: SupportTicketUserSummary | null }>()
+const props = defineProps<{ show: boolean; summary: SupportTicketUserSummary | null; initialDraft?: Partial<CreateSupportTicketRequest> | null }>()
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'created', detail: SupportTicketDetail): void
@@ -98,6 +98,7 @@ const bodyLength = computed(() => supportTicketLength(body.value))
 const bodyTooLong = computed(() => bodyLength.value > SUPPORT_TICKET_BODY_MAX)
 const canSubmit = computed(() =>
   !submitting.value &&
+  !!props.summary &&
   !limitReached.value &&
   (categories.value.length === 0 || category.value !== '') &&
   title.value.trim() !== '' &&
@@ -108,11 +109,11 @@ const canSubmit = computed(() =>
 // A fresh form each time the dialog opens.
 watch(() => props.show, (open) => {
   if (open) {
-    category.value = ''
-    title.value = ''
-    body.value = ''
+    category.value = props.initialDraft?.category && categories.value.includes(props.initialDraft.category) ? props.initialDraft.category : ''
+    title.value = props.initialDraft?.title || ''
+    body.value = props.initialDraft?.body || ''
   }
-})
+}, { immediate: true })
 
 async function submit() {
   if (!canSubmit.value) return

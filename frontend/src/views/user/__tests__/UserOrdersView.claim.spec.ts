@@ -4,6 +4,8 @@ import UserOrdersView from '../UserOrdersView.vue'
 const api = vi.hoisted(() => ({ getMyOrders: vi.fn(), getRefundEligibleProviders: vi.fn() }))
 const push = vi.hoisted(() => vi.fn())
 vi.mock('@/api/payment', () => ({ paymentAPI: api }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { role: 'user' }, isSimpleMode: false }) }))
+vi.mock('@/composables/useMerchantTestPaymentAccess', () => ({ useMerchantTestPaymentAccess: () => ({ merchantTestPaymentAccess: { value: false } }) }))
 vi.mock('@/stores', () => ({ useAppStore: () => ({ showError: vi.fn() }) }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 vi.mock('vue-i18n', async original => ({ ...await original<typeof import('vue-i18n')>(), useI18n: () => ({ t: (key: string) => key }) }))
@@ -16,7 +18,7 @@ async function page(status: string, type = 'squarespace') {
   api.getMyOrders.mockResolvedValue({ data: { items: [{ id: 42, status, payment_type: type, payment_claim_mode: 'receipt_otp', provider_instance_id: 'provider-1' }], total: 1 } })
   const wrapper = mount(UserOrdersView, { global: { stubs: { AppLayout: { template: '<div><slot /></div>' },
     OrderTable: { props: ['orders'], template: '<div><div v-for="row in orders" :key="row.id"><slot name="actions" :row="row" /></div></div>' },
-    BaseDialog: true, Icon: true, Pagination: true, Select: true,
+    BillingNavigation: true, RouterLink: { props: ['to'], template: '<a><slot /></a>' }, BaseDialog: true, Icon: true, Pagination: true, Select: true,
   } } })
   await flushPromises()
   return wrapper

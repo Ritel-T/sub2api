@@ -66,12 +66,14 @@
         <span class="font-medium text-gray-500 dark:text-dark-400">{{ t('usage.errors.detail.responseBody') }}</span>
         <pre class="mt-1 overflow-auto max-h-[40vh] whitespace-pre-wrap break-all rounded-lg bg-gray-50 dark:bg-dark-900 border border-gray-200 dark:border-dark-700 p-3 text-xs text-gray-800 dark:text-dark-200">{{ detail.error_body }}</pre>
       </div>
+      <RouterLink v-if="canContactSupport" class="btn btn-primary" :to="{path:'/support-tickets',query:{error_id:String(errorId)}}">{{ supportLabel }}</RouterLink>
     </div>
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { getMyErrorDetail } from '@/api/usage'
@@ -81,13 +83,16 @@ import type { UserErrorRequestDetail } from '@/types'
 const props = defineProps<{
   show: boolean
   errorId: number | null
+  supportEnabled?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:show', v: boolean): void
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const canContactSupport = computed(() => props.supportEnabled === true && props.errorId != null)
+const supportLabel = computed(() => locale?.value === 'en' ? 'Contact support' : locale?.value === 'zh' ? '联系支持' : '聯絡支援')
 
 const loading = ref(false)
 const loadError = ref(false)

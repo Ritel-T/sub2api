@@ -108,8 +108,8 @@ describe('AppSidebar support tickets', () => {
     expect(componentSource).toMatch(/path: '\/admin\/support-tickets'[^\n]*featureFlag: flagSupportTickets[^\n]*badge: \(\) => supportTicketStore\.adminPending/)
   })
 
-  it('renders badges for every item list and caps the number', () => {
-    expect(componentSource.match(/data-testid="sidebar-nav-badge"/g)).toHaveLength(3)
+  it('renders badges for top-level and grouped destinations and caps the number', () => {
+    expect(componentSource.match(/data-testid="sidebar-nav-badge"/g)).toHaveLength(2)
     expect(componentSource).toContain("return count > 99 ? '99+' : String(count)")
     expect(componentSource).toContain('.sidebar-nav-badge-collapsed {')
   })

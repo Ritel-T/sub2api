@@ -1,5 +1,7 @@
 <template>
   <AppLayout>
+    <ConsoleObjectLinks v-if="!props.observerMode && filters.user_id === objectQueryId(route.query.user_id) && objectQueryId(route.query.user_id)" kind="user" :id="objectQueryId(route.query.user_id)!" context class="mb-4" />
+    <ConsoleObjectLinks v-if="!props.observerMode && filters.account_id === objectQueryId(route.query.account_id) && objectQueryId(route.query.account_id)" kind="account" :id="objectQueryId(route.query.account_id)!" context class="mb-4" />
     <div class="space-y-6">
       <UsageStatsCards :stats="usageStats" />
       <!-- Charts Section -->
@@ -198,6 +200,8 @@ import { observerUsageContext } from '@/components/admin/usage/observerUsageCont
 import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
 import { useRoute } from 'vue-router'
+import { objectQueryId } from './objectContext'
+import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
 import { useAppStore } from '@/stores/app'; import { adminAPI } from '@/api/admin'; import { adminUsageAPI } from '@/api/admin/usage'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatReasoningEffort } from '@/utils/format'
@@ -306,17 +310,11 @@ const getSingleQueryValue = (value: string | null | Array<string | null> | undef
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
-const getNumericQueryValue = (value: string | null | Array<string | null> | undefined): number | undefined => {
-  const raw = getSingleQueryValue(value)
-  if (!raw) return undefined
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
-
 const applyRouteQueryFilters = () => {
   const queryStartDate = getSingleQueryValue(route.query.start_date)
   const queryEndDate = getSingleQueryValue(route.query.end_date)
-  const queryUserId = props.observerMode ? undefined : getNumericQueryValue(route.query.user_id)
+  const queryUserId = props.observerMode ? undefined : objectQueryId(route.query.user_id)
+  const queryAccountId = props.observerMode ? undefined : objectQueryId(route.query.account_id)
   if (queryStartDate || queryEndDate) selectedPreset.value = null
 
   if (queryStartDate) {
@@ -329,6 +327,7 @@ const applyRouteQueryFilters = () => {
   filters.value = {
     ...filters.value,
     user_id: queryUserId,
+    account_id: queryAccountId,
     start_date: startDate.value,
     end_date: endDate.value
   }
@@ -877,6 +876,11 @@ const handleColumnClickOutside = (event: MouseEvent) => {
   }
 }
 
+watch(() => [route.query.user_id, route.query.account_id, route.query.start_date, route.query.end_date], () => {
+  applyRouteQueryFilters()
+  void loadRouteUserFilterLabel()
+  applyFilters()
+})
 onMounted(() => {
   applyRouteQueryFilters()
   void loadRouteUserFilterLabel()

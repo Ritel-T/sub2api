@@ -11,7 +11,7 @@
         </div>
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.balance') }}</p>
-          <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">${{ formatBalance(balance) }}</p>
+          <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">{{ balance == null ? "—" : `$${formatBalance(balance)}` }}</p>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('common.available') }}</p>
         </div>
       </div>
@@ -243,7 +243,7 @@ interface FusedPlatformCard {
 
 const props = defineProps<{
   stats: UserStatsType
-  balance: number
+  balance?: number
   isSimple: boolean
   platformQuotas?: PlatformQuotaItem[] | null
 }>()

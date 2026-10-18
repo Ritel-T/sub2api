@@ -1,6 +1,7 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
+      <BillingNavigation current="subscriptions" :settings="appStore.cachedPublicSettings" />
       <!-- Loading State -->
       <div v-if="loading" class="flex justify-center py-12">
         <div
@@ -253,8 +254,10 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import subscriptionsAPI from '@/api/subscriptions'
+import { paymentAPI } from '@/api/payment'
 import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import BillingNavigation from '@/components/user/BillingNavigation.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
@@ -286,8 +289,17 @@ const loading = ref(true)
 async function renewSubscription(groupId: number) {
   await appStore.fetchPublicSettings(true)
   if (appStore.cachedPublicSettings?.payment_enabled === false) {
-    appStore.showInfo(t('purchase.notEnabledDesc'))
-    return
+    // The public flag cannot authorize the private merchant pilot.
+    try {
+      const { data } = await paymentAPI.getConfig()
+      if (data.enabled !== true || data.merchant_test_access !== true) {
+        appStore.showInfo(t('purchase.notEnabledDesc'))
+        return
+      }
+    } catch {
+      appStore.showInfo(t('purchase.notEnabledDesc'))
+      return
+    }
   }
   await router.push({ path: '/purchase', query: { tab: 'subscription', group: String(groupId) } })
 }

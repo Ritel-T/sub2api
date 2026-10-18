@@ -14,7 +14,7 @@
         <text
           x="12"
           y="17"
-          font-family="Cormorant Garamond, I.MingCP, serif"
+          font-family="IBM Plex Sans, Noto Sans HK, sans-serif"
           font-size="13"
           font-weight="bold"
           fill="white"
