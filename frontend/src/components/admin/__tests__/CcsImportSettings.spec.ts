@@ -4,26 +4,86 @@ import { createI18n } from 'vue-i18n'
 import { describe, expect, it } from 'vitest'
 import CcsImportSettings from '../CcsImportSettings.vue'
 import type { CcsImportConfig, CcsImportProfile } from '@/types/ccswitch'
-import { buildCcSwitchImportDeeplink, createDefaultCcSwitchImportConfig } from '@/utils/ccswitchImport'
+import { buildCcSwitchImportDeeplink, CC_SWITCH_USAGE_SCRIPT, createDefaultCcSwitchImportConfig } from '@/utils/ccswitchImport'
 
 const openaiProfile = (): CcsImportProfile => ({
   id: 'openai-codex', label: 'Codex', platform: 'openai', app: 'codex', parameters: { model: 'gpt-6-astra' },
 })
 
-function mountEditor(initial: CcsImportConfig = { profiles: [openaiProfile()] }) {
+function mountEditor(initial: CcsImportConfig = { profiles: [openaiProfile()] }, initialBaseUrl = 'https://api.example.test/v1') {
   const value = ref(initial)
+  const baseUrl = ref(initialBaseUrl)
   const host = mount(defineComponent({
     setup: () => () => h(CcsImportSettings, {
       modelValue: value.value,
+      baseUrl: baseUrl.value,
       'onUpdate:modelValue': (config: CcsImportConfig) => { value.value = config },
     }),
   }), {
     global: { plugins: [createI18n({ legacy: false, locale: 'zh-CN' })] },
   })
-  return { wrapper: host.findComponent(CcsImportSettings), value }
+  return { wrapper: host.findComponent(CcsImportSettings), value, baseUrl }
 }
 
 describe('CcsImportSettings', () => {
+  it('fills real editable defaults without writing inherited values into saved profiles', async () => {
+    const { wrapper, value } = mountEditor()
+    const fields: Record<string, string> = {
+      name: '{{siteName}}', homepage: '{{baseUrl}}', endpoint: 'https://api.example.test/v1',
+      apiFormat: 'openai_responses', configFormat: 'json', usageEnabled: 'true',
+      usageAutoInterval: '30', usageScript: CC_SWITCH_USAGE_SCRIPT, model: 'gpt-6-astra',
+    }
+    for (const [key, expected] of Object.entries(fields)) {
+      expect((wrapper.get(`[data-testid="ccs-param-${key}"]`).element as HTMLInputElement).value, key).toBe(expected)
+    }
+    expect((wrapper.get('[data-testid="ccs-param-config"]').element as HTMLTextAreaElement).value).toBe('')
+    await wrapper.get('[data-testid="ccs-label"]').setValue('Renamed')
+    expect(value.value.profiles[0]?.parameters).toEqual({ model: 'gpt-6-astra' })
+  })
+
+  it('edits the filled script into the import link and restores the default when cleared', async () => {
+    const { wrapper, value } = mountEditor()
+    const script = `${CC_SWITCH_USAGE_SCRIPT}\n// Custom script`
+    await wrapper.get('[data-testid="ccs-param-usageScript"]').setValue(script)
+    expect(value.value.profiles[0]?.parameters.usageScript).toBe(script)
+    const link = buildCcSwitchImportDeeplink({ settings: value.value, platform: 'openai',
+      baseUrl: 'https://api.example.test', providerName: 'Test', apiKey: 'sk-user' })
+    expect(atob(new URL(link).searchParams.get('usageScript')!)).toBe(script)
+    await wrapper.get('[data-testid="ccs-param-usageScript"]').setValue('')
+    expect(value.value.profiles[0]?.parameters).not.toHaveProperty('usageScript')
+    expect((wrapper.get('[data-testid="ccs-param-usageScript"]').element as HTMLTextAreaElement).value).toBe(CC_SWITCH_USAGE_SCRIPT)
+  })
+
+  it('updates inherited endpoints with site and protocol edits while retaining overrides', async () => {
+    const { wrapper, value, baseUrl } = mountEditor()
+    await wrapper.get('[data-testid="ccs-app"]').setValue('opencode')
+    await wrapper.get('[data-testid="ccs-platform"]').setValue('gemini')
+    expect((wrapper.get('[data-testid="ccs-param-apiFormat"]').element as HTMLSelectElement).value).toBe('gemini_native')
+    expect((wrapper.get('[data-testid="ccs-param-endpoint"]').element as HTMLInputElement).value).toBe('https://api.example.test/v1beta')
+    baseUrl.value = 'https://new.example.test/v1/'
+    await wrapper.vm.$nextTick()
+    expect((wrapper.get('[data-testid="ccs-param-endpoint"]').element as HTMLInputElement).value).toBe('https://new.example.test/v1beta')
+    await wrapper.get('[data-testid="ccs-param-endpoint"]').setValue('https://custom.example.test')
+    await wrapper.get('[data-testid="ccs-param-apiFormat"]').setValue('openai_chat')
+    expect((wrapper.get('[data-testid="ccs-param-endpoint"]').element as HTMLInputElement).value).toBe('https://custom.example.test')
+    await wrapper.get('[data-testid="ccs-param-endpoint"]').setValue('')
+    expect((wrapper.get('[data-testid="ccs-param-endpoint"]').element as HTMLInputElement).value).toBe('https://new.example.test/v1')
+    expect(value.value.profiles[0]?.parameters).not.toHaveProperty('endpoint')
+  })
+
+  it('fills inherited defaults for empty metadata and format strings loaded from the API', () => {
+    const { wrapper } = mountEditor({ profiles: [{ ...openaiProfile(), parameters: {
+      name: '', homepage: '', endpoint: '', apiFormat: '', configFormat: '', usageScript: '',
+    } }] })
+    const fields: Record<string, string> = {
+      name: '{{siteName}}', homepage: '{{baseUrl}}', endpoint: 'https://api.example.test/v1',
+      apiFormat: 'openai_responses', configFormat: 'json', usageScript: '',
+    }
+    for (const [key, expected] of Object.entries(fields)) {
+      expect((wrapper.get(`[data-testid="ccs-param-${key}"]`).element as HTMLInputElement).value, key).toBe(expected)
+    }
+  })
+
   it('accepts empty default formats loaded through the admin API', () => {
     const { wrapper } = mountEditor({ profiles: [{ ...openaiProfile(), parameters: { apiFormat: '', configFormat: '' } }] })
     expect(wrapper.vm.validate()).toBeNull()

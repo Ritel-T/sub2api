@@ -15,6 +15,10 @@
       <p class="mt-1">{{ localText('apiKey 为当前选中用户的 API Key；baseUrl 为站点 API 地址。原始 config 和 usageScript 不替换模板，以保留 CCS 自带占位符。链接中的 endpoint、apiKey 和 model 会覆盖内嵌配置的对应值。', 'apiKey is the selected user API key; baseUrl is the site API address. Raw config and usageScript retain CCS placeholders without template substitution. The link endpoint, apiKey, and model override matching embedded configuration values.') }}</p>
     </div>
 
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+      {{ localText('未自定义的字段已填入当前默认值，可直接修改；清空后恢复默认。没有默认值的可选项保持空白。', 'Fields without overrides show their current defaults for editing. Clear a field to restore its default. Optional fields without defaults remain empty.') }}
+    </p>
+
     <div class="flex flex-wrap items-center gap-2">
       <button type="button" class="btn btn-secondary btn-sm" data-testid="ccs-add-profile" :disabled="modelValue.profiles.length >= 64" @click="addProfile">
         {{ localText('添加导入配置', 'Add profile') }}
@@ -93,14 +97,16 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CcsImportApp, CcsImportConfig, CcsImportParameterValue, CcsImportPlatform, CcsImportProfile } from '@/types/ccswitch'
-import { createDefaultCcSwitchImportConfig } from '@/utils/ccswitchImport'
+import { createDefaultCcSwitchImportConfig, getCcSwitchImportParameterDefaults } from '@/utils/ccswitchImport'
 
-const props = defineProps<{ modelValue: CcsImportConfig }>()
+const props = defineProps<{ modelValue: CcsImportConfig; baseUrl?: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: CcsImportConfig] }>()
 const { locale } = useI18n()
 const localText = (zh: string, en: string) => locale.value.startsWith('zh') ? zh : en
 const selectedIndex = ref(0)
 const selectedProfile = computed(() => props.modelValue.profiles[selectedIndex.value])
+const parameterDefaults = computed(() => selectedProfile.value
+  ? getCcSwitchImportParameterDefaults(selectedProfile.value, props.baseUrl || '{{baseUrl}}') : {})
 const templateTokens = ['{{apiKey}}', '{{baseUrl}}', '{{siteName}}', '{{keyName}}', '{{userId}}']
 const platforms: CcsImportPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok']
 const apps: CcsImportApp[] = ['claude', 'codex', 'gemini', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi']
@@ -182,7 +188,9 @@ function updateProfile(patch: Partial<CcsImportProfile>) {
 }
 
 function parameterText(key: string): string {
-  const value = selectedProfile.value?.parameters[key]
+  const value = selectedProfile.value?.parameters[key] ?? parameterDefaults.value[key]
+  // These empty strings are accepted by the API and inherit the current default.
+  if (value === '' && ['name', 'homepage', 'endpoint', 'apiFormat', 'configFormat'].includes(key)) return String(parameterDefaults.value[key] ?? '')
   return value === undefined ? '' : String(value)
 }
 

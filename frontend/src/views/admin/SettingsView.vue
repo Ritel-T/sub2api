@@ -6846,7 +6846,7 @@
                 </div>
                 <Toggle v-model="form.hide_ccs_import_button" />
               </div>
-              <CcsImportSettings ref="ccsImportSettings" v-model="form.ccs_import_config" />
+              <CcsImportSettings ref="ccsImportSettings" v-model="form.ccs_import_config" :base-url="form.api_base_url || currentOrigin" />
             </div>
           </div>
 

@@ -141,13 +141,43 @@ function encodeUtf8Base64(value: string): string {
   return btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join(''))
 }
 
-function defaultProfileEndpoint(input: CcSwitchImportDeeplinkInput, profile: CcsImportProfile, apiFormat: string): string {
+function defaultProfileEndpoint(input: Pick<CcSwitchImportDeeplinkInput, 'baseUrl' | 'platform'>, profile: CcsImportProfile, apiFormat: string): string {
   let root = input.baseUrl.replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
   if (input.platform === 'antigravity' && !root.endsWith('/antigravity')) root += '/antigravity'
   if (apiFormat === 'openai_chat' || apiFormat === 'openai_responses') return `${root}/v1`
   if (apiFormat === 'anthropic' && profile.app === 'opencode') return `${root}/v1`
   if (apiFormat === 'gemini_native' && ['opencode', 'pi', 'openclaw'].includes(profile.app)) return `${root}/v1beta`
   return root
+}
+
+const DEFAULT_IMPORT_PARAMETERS = {
+  name: '{{siteName}}',
+  homepage: '{{baseUrl}}',
+  configFormat: 'json',
+  usageEnabled: true,
+  usageScript: CC_SWITCH_USAGE_SCRIPT,
+  usageAutoInterval: 30,
+}
+
+function defaultProfileApiFormat(profile: CcsImportProfile): string {
+  if (['opencode', 'openclaw', 'hermes', 'pi'].includes(profile.app)) {
+    return profile.platform === 'gemini' ? 'gemini_native'
+      : profile.platform === 'anthropic' || profile.platform === 'antigravity' ? 'anthropic'
+        : profile.platform === 'grok' ? 'openai_chat' : 'openai_responses'
+  }
+  return profile.app === 'claude' ? 'anthropic' : profile.app === 'gemini' ? 'gemini_native' : 'openai_responses'
+}
+
+/** Current inherited values for the editor; viewing them must not create overrides. */
+export function getCcSwitchImportParameterDefaults(profile: CcsImportProfile, baseUrl: string): Record<string, string | boolean | number> {
+  const apiFormat = String(profile.parameters.apiFormat || defaultProfileApiFormat(profile))
+  const defaults: Record<string, string | boolean | number> = {
+    ...DEFAULT_IMPORT_PARAMETERS,
+    endpoint: defaultProfileEndpoint({ baseUrl, platform: profile.platform }, profile, apiFormat),
+  }
+  // Gemini / Hermes requires an explicit compatible format, not an implicit native default.
+  if (!(profile.app === 'hermes' && apiFormat === 'gemini_native')) defaults.apiFormat = apiFormat
+  return defaults
 }
 
 export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput): string {
@@ -169,28 +199,21 @@ export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput):
     (_, key: string) => variables[key] || ''
   )
   const parameters: Record<string, string | boolean | number> = {
+    ...DEFAULT_IMPORT_PARAMETERS,
     name: input.providerName,
     homepage: input.baseUrl,
-    configFormat: 'json',
-    usageEnabled: true,
-    usageScript: input.usageScript ?? CC_SWITCH_USAGE_SCRIPT,
-    usageAutoInterval: 30,
+    usageScript: input.usageScript ?? DEFAULT_IMPORT_PARAMETERS.usageScript,
     ...profile.parameters
   }
   // Additive clients default to OpenAI Chat in CCS. Select the platform's
   // native format unless the administrator explicitly chose another one.
   if (!profile.parameters.apiFormat && ['opencode', 'openclaw', 'hermes', 'pi'].includes(profile.app)) {
-    parameters.apiFormat = input.platform === 'gemini'
-      ? 'gemini_native'
-      : input.platform === 'anthropic' || input.platform === 'antigravity' || !input.platform
-        ? 'anthropic'
-        : input.platform === 'grok' ? 'openai_chat' : 'openai_responses'
+    parameters.apiFormat = defaultProfileApiFormat(profile)
   }
   if (profile.app === 'hermes' && parameters.apiFormat === 'gemini_native') {
     throw new Error('Hermes requires an explicit supported API format for Gemini import profiles')
   }
-  const nativeFormat = profile.app === 'claude' ? 'anthropic' : profile.app === 'gemini' ? 'gemini_native' : 'openai_responses'
-  const defaultEndpoint = defaultProfileEndpoint(input, profile, String(parameters.apiFormat || nativeFormat))
+  const defaultEndpoint = defaultProfileEndpoint(input, profile, String(parameters.apiFormat || defaultProfileApiFormat(profile)))
   if (!parameters.endpoint) parameters.endpoint = defaultEndpoint
   const result = new URLSearchParams({ resource: 'provider', app: profile.app })
   for (const [key, value] of Object.entries(parameters)) {
