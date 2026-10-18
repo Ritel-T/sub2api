@@ -2455,6 +2455,23 @@ describe("admin SettingsView wechat connect controls", () => {
     ).toBe("/auth/wechat/callback");
   });
 
+  it("renders Hong Kong email OAuth settings and preserves the GitHub setup link", async () => {
+    localeRef.value = "zh-Hant-HK";
+    getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, github_oauth_enabled: true });
+    const wrapper = mountView();
+    await flushPromises();
+    await openSecurityTab(wrapper);
+    expect(wrapper.get("#settings-section-email-oauth").text()).toBe("電郵快捷登入");
+    expect(wrapper.text()).toContain("開啟 GitHub 或 Google 電郵授權登入後");
+    expect(wrapper.text()).toContain("Homepage URL 填站點域名");
+    expect(wrapper.text()).not.toContain("邮箱快捷登录");
+    expect(wrapper.text()).not.toContain("开通引导");
+    const link = wrapper.get('[data-testid="github-oauth-apps-guide-link"]');
+    expect(link.attributes("href")).toBe("https://github.com/settings/developers");
+    expect(link.attributes("rel")).toContain("noopener");
+    localeRef.value = "zh-CN";
+  });
+
   it("links GitHub OAuth Apps guide to GitHub developer settings", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,

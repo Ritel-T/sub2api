@@ -206,19 +206,19 @@
           <ServerlessSettings v-if="activeTab === 'gateway'" />
           <div class="card" data-testid="prism-browser-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Prism 浏览器桥</h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">账号可单独选择 Prism 模型范围。</p>
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ localText("Prism 浏览器桥", "Prism browser bridge") }}</h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ localText("账号可单独选择 Prism 模型范围。", "Choose the Prism model scope for each account.") }}</p>
             </div>
             <div class="space-y-4 p-6">
               <label class="block">
-                <span class="mb-1 block text-sm text-gray-600 dark:text-gray-300">适配器 Base URL</span>
+                <span class="mb-1 block text-sm text-gray-600 dark:text-gray-300">{{ localText("适配器 Base URL", "Adapter Base URL") }}</span>
                 <input v-model="form.prism_browser_base_url" class="input w-full" placeholder="http://127.0.0.1:8319/v1" />
               </label>
               <label class="block">
-                <span class="mb-1 block text-sm text-gray-600 dark:text-gray-300">桥接 API Key（留空保持原值）</span>
+                <span class="mb-1 block text-sm text-gray-600 dark:text-gray-300">{{ localText("桥接 API Key（留空保持原值）", "Bridge API key (leave empty to keep the current value)") }}</span>
                 <input v-model="form.prism_browser_api_key" type="password" autocomplete="new-password" class="input w-full" />
               </label>
-              <p v-if="form.prism_browser_enabled && !form.prism_browser_api_key_configured" class="text-sm text-amber-600">启用前必须配置至少 32 个字符的适配器密钥。</p>
+              <p v-if="form.prism_browser_enabled && !form.prism_browser_api_key_configured" class="text-sm text-amber-600">{{ localText("启用前必须配置至少 32 个字符的适配器密钥。", "Configure an adapter key with at least 32 characters before enabling.") }}</p>
             </div>
           </div>
           <!-- Overload Cooldown (529) Settings -->
@@ -2612,28 +2612,15 @@
 
                   <div v-if="form.github_oauth_enabled" class="mt-4 space-y-4">
                     <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
-                      <template v-if="isZhLocale">
-                        开通引导：GitHub Settings → Developer settings →
-                        <a
-                          data-testid="github-oauth-apps-guide-link"
-                          href="https://github.com/settings/developers"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="font-medium text-primary-600 hover:underline dark:text-primary-400"
-                        >OAuth Apps</a>
-                        → New OAuth App；Homepage URL 填站点域名，Authorization callback URL 填下面的后端回调地址。
-                      </template>
-                      <template v-else>
-                        Setup guide: GitHub Settings → Developer settings →
-                        <a
-                          data-testid="github-oauth-apps-guide-link"
-                          href="https://github.com/settings/developers"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="font-medium text-primary-600 hover:underline dark:text-primary-400"
-                        >OAuth Apps</a>
-                        → New OAuth App. Use your site origin as Homepage URL and the backend callback URL below as Authorization callback URL.
-                      </template>
+                      {{ localText('开通引导：GitHub Settings → Developer settings →', 'Setup guide: GitHub Settings → Developer settings →') }}
+                      <a
+                        data-testid="github-oauth-apps-guide-link"
+                        href="https://github.com/settings/developers"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="font-medium text-primary-600 hover:underline dark:text-primary-400"
+                      >OAuth Apps</a>
+                      {{ localText('→ New OAuth App；Homepage URL 填站点域名，Authorization callback URL 填下面的后端回调地址。', '→ New OAuth App. Use your site origin as Homepage URL and the backend callback URL below as Authorization callback URL.') }}
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -7260,16 +7247,16 @@
         <div v-show="activeTab === 'features'" class="space-y-6">
         <div class="card" data-testid="protocol-feature-switches">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">协议功能</h2>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">关闭后立即停止使用对应协议，并隐藏账号编辑中的相关选项。</p>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ localText("协议功能", "Protocol features") }}</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ localText("关闭后立即停止使用对应协议，并隐藏账号编辑中的相关选项。", "Disabling a protocol stops its use immediately and hides its account editor options.") }}</p>
           </div>
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between gap-4">
-              <span class="font-medium text-gray-900 dark:text-white">Excel / BPS 协议</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ localText("Excel / BPS 协议", "Excel / BPS protocol") }}</span>
               <Toggle v-model="form.excel_bps_enabled" />
             </div>
             <div class="flex items-center justify-between gap-4">
-              <span class="font-medium text-gray-900 dark:text-white">Prism 浏览器桥</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ localText("Prism 浏览器桥", "Prism browser bridge") }}</span>
               <Toggle v-model="form.prism_browser_enabled" />
             </div>
           </div>
@@ -9412,6 +9399,7 @@
 </template>
 
 <script setup lang="ts">
+import { localizeInlineText } from "@/i18n/inline";
 import { excelBPSImageLimits } from "@/utils/excelBPSImageLimits";
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import { listPlatformIds } from "@/constants/platformCatalog";
@@ -9529,10 +9517,9 @@ const appStore = useAppStore();
 // 关闭 step-up 开关是敏感操作：后端返回 STEP_UP_REQUIRED 时弹 TOTP 码重试
 const settingsStepUp = useStepUp();
 const adminSettingsStore = useAdminSettingsStore();
-const isZhLocale = computed(() => locale.value.startsWith("zh"));
 
 function localText(zh: string, en: string): string {
-  return isZhLocale.value ? zh : en;
+  return localizeInlineText(zh, en, locale.value);
 }
 
 const paymentGuideHref = computed(() =>
