@@ -219,6 +219,10 @@ func (s *FrontendServer) injectSettings(settingsJSON []byte) []byte {
 
 // injectSiteFavicon replaces the static favicon with a configured, browser-safe image URL.
 func injectSiteFavicon(html, settingsJSON []byte) []byte {
+	if bytes.Contains(html, []byte(`<meta name="ritel-brand" content="fixed"`)) {
+		return html
+	}
+
 	var cfg struct {
 		SiteLogo string `json:"site_logo"`
 	}
@@ -271,6 +275,10 @@ func safeImageURL(value string) string {
 // injectSiteTitle replaces the static <title> in HTML with the configured site name.
 // This ensures the browser tab shows the correct title before JS executes.
 func injectSiteTitle(html, settingsJSON []byte) []byte {
+	if bytes.Contains(html, []byte(`<meta name="ritel-brand" content="fixed"`)) {
+		return html
+	}
+
 	var cfg struct {
 		SiteName string `json:"site_name"`
 	}

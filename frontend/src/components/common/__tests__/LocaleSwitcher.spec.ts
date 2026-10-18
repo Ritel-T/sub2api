@@ -9,7 +9,8 @@ vi.mock('@/i18n', () => ({
   setLocale,
   availableLocales: [
     { code: 'en', name: 'English', flag: '🇺🇸' },
-    { code: 'zh', name: '中文', flag: '🇨🇳' }
+    { code: 'zh-Hant-HK', name: '繁體中文（香港）', flag: '🇭🇰' },
+    { code: 'zh', name: '简体中文', flag: '🇨🇳' }
   ]
 }))
 
@@ -49,10 +50,17 @@ describe('LocaleSwitcher', () => {
     expect(setLocale.mock.invocationCallOrder[0]).toBeLessThan(reload.mock.invocationCallOrder[0])
   })
 
+  it('offers Hong Kong Traditional Chinese and reloads after selecting it', async () => {
+    const wrapper = mountSwitcher()
+    await choose(wrapper, '繁體中文（香港）')
+    expect(setLocale).toHaveBeenCalledWith('zh-Hant-HK')
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
   it('does nothing when the current language is chosen again', async () => {
     const wrapper = mountSwitcher()
 
-    await choose(wrapper, '中文')
+    await choose(wrapper, '简体中文')
 
     expect(setLocale).not.toHaveBeenCalled()
     expect(reload).not.toHaveBeenCalled()

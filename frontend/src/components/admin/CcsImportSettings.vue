@@ -94,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import { localizeInlineText } from '@/i18n/inline'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CcsImportApp, CcsImportConfig, CcsImportParameterValue, CcsImportPlatform, CcsImportProfile } from '@/types/ccswitch'
@@ -102,7 +103,7 @@ import { createDefaultCcSwitchImportConfig, getCcSwitchImportParameterDefaults }
 const props = defineProps<{ modelValue: CcsImportConfig; baseUrl?: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: CcsImportConfig] }>()
 const { locale } = useI18n()
-const localText = (zh: string, en: string) => locale.value.startsWith('zh') ? zh : en
+const localText = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 const selectedIndex = ref(0)
 const selectedProfile = computed(() => props.modelValue.profiles[selectedIndex.value])
 const parameterDefaults = computed(() => selectedProfile.value

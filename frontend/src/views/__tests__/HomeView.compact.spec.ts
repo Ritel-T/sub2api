@@ -100,7 +100,7 @@ describe('HomeView compact mode', () => {
   it('treats whitespace-only custom content as empty and selects compact mode', () => {
     const wrapper = mountHome({ compact_home_enabled: true, home_content: ' \n\t ' })
 
-    expect(wrapper.get('[data-testid="compact-home"]').text()).toContain('Test site')
+    expect(wrapper.get('[data-testid="compact-home"]').text()).toContain('Ritel.SI')
   })
 
   it.each([undefined, false])('selects the default home when compact mode is %s', (enabled) => {
@@ -109,6 +109,13 @@ describe('HomeView compact mode', () => {
 
     expect(wrapper.find('[data-testid="compact-home"]').exists()).toBe(false)
     expect(wrapper.find('.terminal-container').exists()).toBe(true)
+  })
+
+  it('keeps all logo images pinned when public settings contain an executable URL', () => {
+    const wrapper = mountHome({ compact_home_enabled: true, site_logo: 'javascript:alert(1)' })
+    const logos = wrapper.findAll('img')
+    expect(logos.length).toBeGreaterThan(0)
+    for (const logo of logos) expect(logo.attributes('src')).toBe('/brand/assets/ritel-r.svg')
   })
 
   it('links unauthenticated visitors to login', () => {

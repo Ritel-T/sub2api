@@ -101,13 +101,14 @@
   </section>
 </template>
 <script setup lang="ts">
+import { localizeInlineText } from '@/i18n/inline'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getSettings, updateSettings } from '@/api/admin/settings'
 import { useAppStore } from '@/stores'
 import MihomoProxySelector from '@/views/admin/settings/MihomoProxySelector.vue'
 const { t, locale } = useI18n()
-const text = (zh: string, en: string) => locale.value.startsWith('zh') ? zh : en
+const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 const appStore = useAppStore()
 const form = ref({ openai_codex_ticket_harvest_proxy_url: '', openai_codex_ticket_harvest_proxy_configured: false, openai_codex_ticket_static_proxy_url: '' })
 const loading = ref(true)

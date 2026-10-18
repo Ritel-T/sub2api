@@ -10,7 +10,7 @@
         <!-- Row 1: Core Stats -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <!-- Total API Keys -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
                 <Icon name="key" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
@@ -19,7 +19,7 @@
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.apiKeys') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">
                   {{ stats.total_api_keys }}
                 </p>
                 <p class="text-xs text-green-600 dark:text-green-400">
@@ -30,7 +30,7 @@
           </div>
 
           <!-- Service Accounts -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
                 <Icon name="server" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
@@ -39,7 +39,7 @@
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.accounts') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">
                   {{ stats.total_accounts }}
                 </p>
                 <p class="text-xs">
@@ -55,7 +55,7 @@
           </div>
 
           <!-- Today Requests -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
                 <Icon name="chart" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
@@ -64,7 +64,7 @@
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.todayRequests') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">
                   {{ stats.today_requests }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -75,7 +75,7 @@
           </div>
 
           <!-- New Users Today -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
                 <Icon name="userPlus" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
@@ -84,7 +84,7 @@
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.users') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">
                   +{{ stats.today_new_users }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -98,7 +98,7 @@
         <!-- Row 2: Token Stats -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <!-- Today Tokens -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
                 <Icon name="cube" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
@@ -107,7 +107,7 @@
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.todayTokens') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">
                   {{ formatTokens(stats.today_tokens) }}
                 </p>
                 <p class="text-xs">
@@ -134,7 +134,7 @@
           </div>
 
           <!-- Total Tokens -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
                 <Icon name="database" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
@@ -143,7 +143,7 @@
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.totalTokens') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">
                   {{ formatTokens(stats.total_tokens) }}
                 </p>
                 <p class="text-xs">
@@ -170,7 +170,7 @@
           </div>
 
           <!-- Performance (RPM/TPM) -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
                 <Icon name="bolt" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
@@ -180,7 +180,7 @@
                   {{ t('admin.dashboard.performance') }}
                 </p>
                 <div class="flex items-baseline gap-2">
-                  <p class="text-xl font-bold text-gray-900 dark:text-white">
+                  <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">
                     {{ formatTokens(stats.rpm) }}
                   </p>
                   <span class="text-xs text-gray-500 dark:text-gray-400">RPM</span>
@@ -196,7 +196,7 @@
           </div>
 
           <!-- Avg Response Time -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
                 <Icon name="clock" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
@@ -205,7 +205,7 @@
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.avgResponse') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">
                   {{ formatDuration(stats.average_duration_ms) }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -217,7 +217,7 @@
         </div>
 
         <!-- Quick Actions -->
-        <div class="card p-4">
+        <div class="card ritel-metric-card p-4">
           <div class="mb-3 flex items-center justify-between">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
               {{ t('admin.dashboard.quickActions') }}
@@ -267,7 +267,7 @@
         <!-- Charts Section -->
         <div class="space-y-6">
           <!-- Date Range Filter -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="flex flex-wrap items-center gap-4">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -317,7 +317,7 @@
           </div>
 
           <!-- User Usage Trend (Full Width) -->
-          <div class="card p-4">
+          <div class="card ritel-metric-card p-4">
             <div class="mb-4 flex items-center justify-between gap-3">
               <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.dashboard.recentUsage') }} (Top 12)</h3>
               <div class="flex gap-1" role="group" :aria-label="t('admin.dashboard.recentUsage')">

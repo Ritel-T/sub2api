@@ -103,6 +103,7 @@
 </template>
 
 <script setup lang="ts">
+import { localizeInlineText } from '@/i18n/inline'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Toggle from '@/components/common/Toggle.vue'
@@ -112,7 +113,7 @@ import { useAppStore } from '@/stores'
 
 const emit = defineEmits<{ saved: [] }>()
 const { t, locale } = useI18n()
-const localText = (zh: string, en: string) => locale.value.startsWith('zh') ? zh : en
+const localText = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 const appStore = useAppStore()
 const saving = ref(false)
 const loading = ref(true)

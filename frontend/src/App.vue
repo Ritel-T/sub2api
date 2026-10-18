@@ -8,7 +8,7 @@ import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore, useSupportTicketStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
-import { updateFavicon } from '@/utils/branding'
+import { updateFavicon, BRAND_NAME, BRAND_FAVICON } from '@/utils/branding'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 
@@ -27,7 +27,7 @@ function updateDocumentTitle() {
     ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
     ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
   ]
-  document.title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems, {
+  document.title = resolveRouteDocumentTitle(route, BRAND_NAME, customMenuItems, {
     billingMode: resolveSiteBillingMode(appStore.cachedPublicSettings),
   })
 }
@@ -37,7 +37,7 @@ watch(
   () => appStore.siteLogo,
   (newLogo) => {
     if (newLogo) {
-      updateFavicon(newLogo)
+      updateFavicon(BRAND_FAVICON)
     }
   },
   { immediate: true }

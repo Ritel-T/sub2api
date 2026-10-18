@@ -1,0 +1,13 @@
+@import url('./fonts/chiron/css/vf.css');
+@font-face{font-family:'Cinzel';src:url('./fonts/cinzel/Cinzel-variable.ttf') format('truetype');font-style:normal;font-weight:400 900;font-display:swap}
+@font-face{font-family:'Cormorant Garamond';src:url('./fonts/cormorantgaramond/CormorantGaramond-variable.ttf') format('truetype');font-style:normal;font-weight:300 700;font-display:swap}
+@font-face{font-family:'I.MingCP';src:url('./fonts/iming/I.MingCP-8.10.ttf') format('truetype');font-style:normal;font-weight:400;font-display:swap}
+:root{--ritel-bg:#0a0a0a;--ritel-fg:#f4f2ed;--ritel-muted:#aaa9a4;--ritel-border:#30302d;--ritel-focus:#cfb89a;--ritel-body:'Cormorant Garamond','I.MingCP','Chiron Sung HK',Georgia,serif;--ritel-heading:'Cinzel','I.MingCP','Chiron Sung HK',Georgia,serif;--ritel-max-width:1232px;--ritel-space-1:8px;--ritel-space-2:16px;--ritel-space-3:24px;--ritel-space-4:32px;--ritel-space-6:48px;--ritel-space-8:64px;--ritel-space-12:96px;--ritel-space-15:120px}
+.ritel-theme{font-family:var(--ritel-body);font-synthesis:none;font-optical-sizing:auto;font-variant-numeric:lining-nums tabular-nums;background:var(--ritel-bg);color:var(--ritel-fg)}
+.ritel-theme :is(button,input,select,textarea,code,pre){font-family:inherit;font-synthesis:none}
+.ritel-theme :is(h1,h2,h3),.ritel-heading{font-family:var(--ritel-heading);font-synthesis:none}
+.ritel-number-display,[data-number=display]{font-family:var(--ritel-heading);font-variant-numeric:oldstyle-nums proportional-nums;font-synthesis:none;letter-spacing:0}
+.ritel-number-compact,[data-number=compact]{font-family:var(--ritel-body);font-variant-numeric:lining-nums tabular-nums;font-synthesis:none;letter-spacing:0}
+.ritel-theme :focus-visible{outline:2px solid var(--ritel-focus);outline-offset:4px}
+.ritel-theme :lang(zh-Hant-HK){line-break:strict}
+@media(prefers-reduced-motion:reduce){.ritel-theme *,.ritel-theme *:before,.ritel-theme *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

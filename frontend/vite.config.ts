@@ -3,48 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  })[character] || character)
-}
-
-function isSafeImageUrl(value: string): boolean {
-  const trimmed = value.trim()
-  if ((trimmed.startsWith('/') && !trimmed.startsWith('//')) || /^data:image\//i.test(trimmed)) {
-    return true
-  }
-  try {
-    const parsed = new URL(trimmed)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function injectBranding(html: string, config: { site_name?: string; site_logo?: string }): string {
-  let brandedHtml = html
-  const siteName = config.site_name?.trim()
-  if (siteName) {
-    brandedHtml = brandedHtml.replace(
-      /<title>[^<]*<\/title>/i,
-      `<title>${escapeHtml(siteName)} - AI API Gateway</title>`,
-    )
-  }
-
-  const siteLogo = config.site_logo?.trim()
-  if (siteLogo && isSafeImageUrl(siteLogo)) {
-    brandedHtml = brandedHtml.replace(
-      /<link\s+rel=["']icon["'][^>]*>/i,
-      `<link rel="icon" href="${escapeHtml(siteLogo)}" />`,
-    )
-  }
-  return brandedHtml
-}
+import { injectBranding } from './build/firstPaintBranding'
 
 /**
  * Vite 插件：开发模式下注入公开配置到 index.html

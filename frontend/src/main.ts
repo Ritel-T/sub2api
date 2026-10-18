@@ -4,9 +4,15 @@ import App from './App.vue'
 import router from './router'
 import i18n, { initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
-import { updateFavicon } from '@/utils/branding'
+import { updateFavicon, BRAND_NAME, BRAND_FAVICON } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
 import './style.css'
+import { Chart } from 'chart.js'
+
+Chart.defaults.font.family = "'Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', Georgia, serif"
+Chart.defaults.font.size = 14
+Chart.defaults.color = '#aaa9a4'
+Chart.defaults.borderColor = '#30302d'
 
 function initIOSViewportZoomFix() {
   // iOS Safari 在输入框字号小于 16px 时聚焦会自动放大页面，且失焦后不会恢复。
@@ -23,11 +29,7 @@ function initIOSViewportZoomFix() {
 }
 
 function initThemeClass() {
-  const savedTheme = localStorage.getItem('theme')
-  const shouldUseDark =
-    savedTheme === 'dark' ||
-    (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  document.documentElement.classList.toggle('dark', shouldUseDark)
+  document.documentElement.classList.add('dark')
 }
 
 async function bootstrap() {
@@ -45,10 +47,8 @@ async function bootstrap() {
   appStore.initFromInjectedConfig()
 
   // Set document title immediately after config is loaded
-  if (appStore.siteName && appStore.siteName !== 'Sub2API') {
-    document.title = `${appStore.siteName} - AI API Gateway`
-  }
-  updateFavicon(appStore.siteLogo)
+  document.title = BRAND_NAME
+  updateFavicon(BRAND_FAVICON)
 
   await initI18n()
 

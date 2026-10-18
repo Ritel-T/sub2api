@@ -877,3 +877,162 @@
 
 .modal-fullscreen { width: 100vw !important; max-width: none !important; height: 100vh !important; max-height: none !important; border-radius: 0 !important; }
 .modal-fullscreen .modal-body { max-height: none !important; }
+
+/* Ritel.SI: shared visual system for the real application. */
+:root, .dark {
+  --theme-surface: #0a0a0a;
+  --theme-surface-raised: #111110;
+  --theme-surface-inset: #0a0a0a;
+  --theme-hover: #181817;
+  --theme-selected: #181817;
+  --theme-selected-hover: #222220;
+  --theme-foreground: #f4f2ed;
+  --theme-muted: #aaa9a4;
+  --theme-border: #30302d;
+  --theme-primary: #eeeae1;
+  --theme-primary-hover: #fff;
+  --theme-primary-soft: #181817;
+  --theme-primary-border: #30302d;
+  --theme-control-fill: #f4f2ed;
+  --theme-control-hover: #d8d4cb;
+  --theme-on-control: #0a0a0a;
+  --theme-focus: #cfb89a;
+}
+html { color-scheme: dark; }
+body {
+  background: #0a0a0a;
+  color: #f4f2ed;
+  font-family: var(--ritel-body);
+  font-size: 18px;
+  line-height: 1.5;
+  font-synthesis: none;
+  font-optical-sizing: auto;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+button, input, select, textarea, code, pre, kbd, samp, .font-mono {
+  font-family: var(--ritel-body);
+  font-synthesis: none;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+h1, h2, h3, .page-title, .sidebar-brand-title {
+  font-family: var(--ritel-heading);
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: -.025em;
+}
+:focus-visible { outline: 2px solid #cfb89a; outline-offset: 4px; }
+::selection { background: #cfb89a; color: #0a0a0a; }
+.text-xs { font-size: 14px; line-height: 1.45; }
+.text-sm { font-size: 16px; line-height: 1.45; }
+.text-\[10px\], .text-\[11px\] { font-size: 13px; }
+.ritel-main { width: 100%; max-width: 1328px; margin: 0 auto; padding: 48px; }
+.ritel-app-header { background: #0a0a0af2; border-color: #30302d !important; backdrop-filter: blur(12px); }
+.ritel-app-header > div { min-height: 88px; height: auto; padding: 20px 32px; }
+.ritel-app-header h1 { font-size: 26px; }
+.sidebar { background: #0a0a0a !important; border-color: #30302d !important; }
+.sidebar-header { height: 88px; border-color: #30302d !important; }
+.sidebar-logo { border-radius: 0 !important; box-shadow: none !important; width: 44px; height: 40px; flex-shrink: 0; }
+.sidebar-brand-title { font-size: 21px; font-weight: 400 !important; letter-spacing: .015em; }
+.sidebar-nav { padding: 28px 16px; }
+.sidebar-link { border-radius: 0 !important; min-height: 44px; font-size: 16px; font-weight: 400; }
+.sidebar-link-active { background: #181817 !important; color: #f4f2ed !important; box-shadow: inset 2px 0 #cfb89a; }
+.sidebar-section-title { font-size: 14px; font-weight: 400; letter-spacing: .04em; text-transform: none; color: #aaa9a4; }
+.card, .glass-card, .card-glass, .modal-content, .dialog-container, .dropdown, .table-container {
+  border-radius: 0 !important;
+  background: #0a0a0a !important;
+  border-color: #30302d !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
+}
+.card:hover, .card-hover:hover { transform: none; box-shadow: none !important; }
+.card-header, .card-footer, .modal-header, .modal-footer, .dialog-header, .dialog-footer { border-color: #30302d; }
+.card-header { padding: 24px; }
+.btn, .btn-sm, .btn-md, .btn-lg, .btn-icon, .input, .dropdown-item, .tabs, .tab, .code-block, .code {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.btn { min-height: 44px; padding: 10px 22px; font-size: 17px; font-weight: 500; }
+.btn-sm { min-height: 36px; padding: 6px 14px; font-size: 15px; }
+.btn-primary { background: #f4f2ed !important; border: 1px solid #f4f2ed; color: #0a0a0a !important; }
+.btn-primary:hover { background: #d8d4cb !important; }
+.btn-secondary { background: transparent !important; border-color: #55554f; color: #f4f2ed; }
+.btn-secondary:hover { border-color: #f4f2ed; background: #181817 !important; }
+.input { min-height: 44px; font-size: 17px; background: #111110 !important; border-color: #3c3c38; }
+.input-label { font-size: 16px; margin-bottom: 10px; font-weight: 400; }
+.input-hint, .input-error-text { font-size: 14px; }
+.tabs { padding: 0; background: transparent !important; border-bottom: 1px solid #30302d; gap: 24px; }
+.tab { padding: 12px 0; font-weight: 400; }
+.tab-active { background: transparent !important; border-bottom: 1px solid #f4f2ed; }
+.table th, .table td { padding: 16px; font-variant-numeric: lining-nums tabular-nums; }
+.table th { background: #111110; font-weight: 400; font-size: 15px; }
+.table td { font-size: 16px; }
+.page-header { margin-bottom: 32px; }
+.page-title { font-size: 36px; line-height: 1.2; }
+.page-description { font-size: 17px; line-height: 1.5; margin-top: 12px; }
+.stat-card { flex-direction: column; padding: 28px 24px; gap: 16px; }
+.stat-icon { border-radius: 0; background: transparent !important; color: #aaa9a4; width: 24px; height: 24px; }
+.stat-value, .ritel-number-display { font-family: var(--ritel-heading); font-variant-numeric: oldstyle-nums proportional-nums; font-weight: 400; letter-spacing: -.025em; }
+.stat-value { font-size: 36px; line-height: 1.2; }
+.ritel-metric-card { padding: 28px 20px; border-left: 0; border-right: 0; border-bottom: 0; }
+.ritel-metric-card > .flex { align-items: flex-start; gap: 12px; }
+.ritel-metric-card > .flex > .rounded-lg { display: none; }
+.ritel-metric-card .ritel-number-display { font-size: 30px; line-height: 1.2; padding: 12px 0; overflow-wrap: anywhere; }
+.ritel-number-display .text-sm { font-family: var(--ritel-body); font-variant-numeric: lining-nums tabular-nums; font-size: 15px; letter-spacing: 0; }
+.ritel-number-compact, [data-number=compact] { font-family: var(--ritel-body); font-variant-numeric: lining-nums tabular-nums; }
+.ritel-brand { display: inline-flex; align-items: center; gap: 16px; color: #f4f2ed; font-family: var(--ritel-heading); font-size: 24px; white-space: nowrap; }
+.ritel-brand img { object-fit: contain; }
+.ritel-auth { min-height: 100svh; display: flex; flex-direction: column; background: #0a0a0a; }
+.ritel-auth-header, .ritel-home-nav { display: flex; justify-content: space-between; align-items: center; width: min(100% - 96px, 1232px); margin: 0 auto; min-height: 112px; gap: 24px; }
+.ritel-auth-header { border-bottom: 1px solid #30302d; }
+.ritel-auth-main { flex: 1; display: grid; align-items: center; padding: 72px 24px 104px; }
+.ritel-auth-form { width: 100%; max-width: 430px; margin: 0 auto; }
+.ritel-auth-form h2 { font-size: 36px; line-height: 1.2; margin-bottom: 16px; }
+.ritel-auth-form input { font-size: 18px; }
+.ritel-auth-form .btn { min-height: 48px; }
+.ritel-auth-footer { margin-top: 32px; text-align: center; font-size: 17px; }
+.ritel-auth-footer:empty { display: none; }
+.ritel-home { min-height: 100svh; display: flex; flex-direction: column; background: #0a0a0a; }
+.ritel-home-header { border-bottom: 1px solid #30302d; }
+.ritel-home-actions { display: flex; align-items: center; justify-content: flex-end; gap: 28px; }
+.ritel-nav-link { display: inline-flex; gap: 12px; align-items: center; color: #c1beb6; font-size: 18px; }
+.ritel-nav-link:hover { color: #f4f2ed; }
+.ritel-home-main { flex: 1; width: min(100% - 96px, 1232px); margin: 0 auto; }
+.ritel-home-hero { padding: 96px 0 112px; text-align: center; }
+.ritel-home-symbol { width: 180px; height: 142px; object-fit: contain; margin: 0 auto 48px; }
+.ritel-home-hero h1 { font-size: clamp(56px, 8vw, 108px); line-height: 1.05; letter-spacing: -.04em; }
+.ritel-home-hero p { max-width: 720px; margin: 32px auto 0; font-size: clamp(20px, 2.5vw, 28px); color: #aaa9a4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ritel-home-cta { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; margin-top: 40px; }
+.ritel-home-cta .btn { min-height: 52px; min-width: 168px; font-size: 19px; }
+.ritel-home-endpoint { display: flex; flex-wrap: wrap; align-items: center; gap: 32px; border-top: 1px solid #30302d; padding: 32px 0 48px; }
+.ritel-home-endpoint > span { color: #aaa9a4; }
+.ritel-home-endpoint code { flex: 1; font-size: 22px; overflow-wrap: anywhere; min-width: 0; }
+.ritel-home-footer { border-top: 1px solid #30302d; padding: 24px; text-align: center; font-size: 15px; color: #aaa9a4; }
+@media (max-width: 1279px) {
+  .ritel-main { padding: 32px 24px; }
+  .ritel-metric-card { padding: 24px 16px; }
+  .ritel-metric-card .ritel-number-display { font-size: 26px; }
+}
+@media (max-width: 767px) {
+  .ritel-main { padding: 28px 16px; }
+  .ritel-app-header > div { padding: 12px; min-height: 72px; }
+  .ritel-auth-header, .ritel-home-nav { width: calc(100% - 32px); min-height: 88px; gap: 12px; flex-wrap: wrap; padding: 16px 0; }
+  .ritel-brand { font-size: 20px; gap: 10px; }
+  .ritel-brand img { width: 48px; height: 38px; }
+  .ritel-home-actions { gap: 16px; flex-wrap: wrap; justify-content: flex-start; }
+  .ritel-home-actions .btn { font-size: 15px; min-height: 40px; padding: 8px 14px; }
+  .ritel-home-actions .ritel-nav-link { font-size: 16px; }
+  .ritel-auth-main { padding: 48px 24px 72px; }
+  .ritel-home-main { width: calc(100% - 40px); }
+  .ritel-home-hero { padding: 64px 0 72px; }
+  .ritel-home-symbol { width: 140px; height: 112px; margin-bottom: 32px; }
+  .ritel-home-endpoint { gap: 16px; }
+  .ritel-home-endpoint code { font-size: 18px; flex-basis: calc(100% - 80px); }
+  .ritel-metric-card { padding: 20px 8px; }
+  .ritel-metric-card .ritel-number-display { font-size: 24px; }
+  .ritel-metric-card .text-xs { font-size: 13px; }
+  .page-title { font-size: 30px; }
+  .modal-content, .dialog-container { max-width: calc(100vw - 16px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}

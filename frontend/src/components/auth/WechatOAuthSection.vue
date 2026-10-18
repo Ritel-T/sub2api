@@ -28,6 +28,7 @@
 </template>
 
 <script setup lang="ts">
+import { localizeInlineText } from '@/i18n/inline'
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -52,7 +53,7 @@ const { t, locale } = useI18n()
 const providerName = computed(() => t('auth.wechatProviderName'))
 
 function localizeWeChatHint(zh: string, en: string): string {
-  return locale.value.startsWith('zh') ? zh : en
+  return localizeInlineText(zh, en, locale.value)
 }
 
 const resolvedStart = computed(() => resolveWeChatOAuthStart(appStore.cachedPublicSettings))

@@ -14,7 +14,7 @@
         <text
           x="12"
           y="17"
-          font-family="sans-serif"
+          font-family="Cormorant Garamond, I.MingCP, serif"
           font-size="13"
           font-weight="bold"
           fill="white"

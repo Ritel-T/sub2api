@@ -2,10 +2,8 @@ import { computed, ref } from 'vue'
 import { useMutationObserver } from '@vueuse/core'
 
 /** Resolve theme tokens to real colors before passing them to the canvas renderer. */
-export function getChartTheme(isDark: boolean) {
-  const fallback = isDark
-    ? { surface: '#2E2D29', foreground: '#F0EDE7', muted: '#ABA59B', border: '#393833' }
-    : { surface: '#FAF8F5', foreground: '#1E1E1C', muted: '#6F6254', border: '#DDD8D0' }
+export function getChartTheme(_isDark: boolean) {
+  const fallback = { surface: '#111110', foreground: '#f4f2ed', muted: '#aaa9a4', border: '#30302d' }
   const style = typeof document !== 'undefined' && typeof getComputedStyle !== 'undefined'
     ? getComputedStyle(document.documentElement)
     : null

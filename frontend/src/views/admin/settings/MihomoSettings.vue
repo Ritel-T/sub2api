@@ -188,6 +188,7 @@ http://username:password@hostname:port</pre></details>
   </div>
 </template>
 <script setup lang="ts">
+import { localizeInlineText } from '@/i18n/inline'
 import { computed, ref, onMounted, onUnmounted, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiClient } from '@/api/client'
@@ -204,7 +205,7 @@ const props = withDefaults(defineProps<{ section?: 'subscriptions' | 'dynamic' |
 const emit = defineEmits<{ 'static-proxies-added': [] }>()
 const { locale, t } = useI18n()
 const appStore = useAppStore()
-const text = (zh: string, en: string) => locale.value.startsWith('zh') ? zh : en
+const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 type SubscriptionDownloadMode = 'auto' | 'proxy' | 'direct'
 interface WarmPoolStatus { ready_subscription?: number; ready_dynamic?: number; target: number; ready: number; checking: number; cooling: number; failure_reasons?: Record<string, number> }
 interface Subscription { id: string; label: string; enabled: boolean; nodes: number; cached: boolean; updated_at?: string }

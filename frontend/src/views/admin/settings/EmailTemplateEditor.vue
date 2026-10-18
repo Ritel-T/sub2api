@@ -230,6 +230,7 @@
 </template>
 
 <script setup lang="ts">
+import { localizeInlineText } from '@/i18n/inline'
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
@@ -336,7 +337,7 @@ interface EventDisplayMeta {
 }
 
 function localText(zh: string, en: string): string {
-  return locale.value.toLowerCase().startsWith("zh") ? zh : en;
+  return localizeInlineText(zh, en, locale.value);
 }
 
 const eventDisplayMeta: Record<string, EventDisplayMeta> = {

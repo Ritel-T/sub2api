@@ -1,6 +1,7 @@
 import { createI18n } from 'vue-i18n'
+import { BRAND_NAME } from '@/utils/branding'
 
-type LocaleCode = 'en' | 'zh'
+type LocaleCode = 'en' | 'zh' | 'zh-Hant-HK'
 
 type LocaleMessages = Record<string, any>
 
@@ -9,22 +10,18 @@ const DEFAULT_LOCALE: LocaleCode = 'en'
 
 const localeLoaders: Record<LocaleCode, () => Promise<{ default: LocaleMessages }>> = {
   en: () => import('./locales/en'),
-  zh: () => import('./locales/zh')
+  zh: () => import('./locales/zh'),
+  'zh-Hant-HK': () => import('./locales/zh-Hant-HK')
 }
 
 function isLocaleCode(value: string): value is LocaleCode {
-  return value === 'en' || value === 'zh'
+  return value === 'en' || value === 'zh' || value === 'zh-Hant-HK'
 }
 
 function getDefaultLocale(): LocaleCode {
   const saved = localStorage.getItem(LOCALE_KEY)
   if (saved && isLocaleCode(saved)) {
     return saved
-  }
-
-  const browserLang = navigator.language.toLowerCase()
-  if (browserLang.startsWith('zh')) {
-    return 'zh'
   }
 
   return DEFAULT_LOCALE
@@ -83,7 +80,7 @@ export async function setLocale(locale: string): Promise<void> {
     ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
     ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
   ]
-  document.title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems)
+  document.title = resolveRouteDocumentTitle(route, BRAND_NAME, customMenuItems)
 }
 
 export function getLocale(): LocaleCode {
@@ -93,7 +90,8 @@ export function getLocale(): LocaleCode {
 
 export const availableLocales = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'zh', name: '中文', flag: '🇨🇳' }
+  { code: 'zh-Hant-HK', name: '繁體中文（香港）', flag: '🇭🇰' },
+  { code: 'zh', name: '简体中文', flag: '🇨🇳' }
 ] as const
 
 export default i18n

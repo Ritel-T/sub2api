@@ -90,7 +90,8 @@ describe('GroupI18nField', () => {
     expect(menuItems(wrapper).map((item) => [item.attributes('data-locale'), item.text()])).toEqual([
       ['default', 'admin.groups.i18nField.default'],
       ['en', 'admin.groups.i18nField.edit:English'],
-      ['zh', 'admin.groups.i18nField.add:中文']
+      ['zh-Hant-HK', 'admin.groups.i18nField.add:繁體中文（香港）'],
+      ['zh', 'admin.groups.i18nField.add:简体中文']
     ])
   })
 
@@ -126,6 +127,16 @@ describe('GroupI18nField', () => {
     await input.setValue('Standard')
 
     expect(state.i18n).toEqual({ en: { name: 'Standard', description: 'Pro + Max pool' } })
+  })
+
+  it('edits the Hong Kong translation without changing existing languages', async () => {
+    const { wrapper, state } = mountField({
+      text: '标准', i18n: { en: { name: 'Standard' }, zh: { name: '标准' }, 'zh-Hant-HK': { description: '帳戶池' } }
+    })
+    await choose(wrapper, 'zh-Hant-HK')
+    await wrapper.get('input').setValue('標準')
+    expect(state.text).toBe('标准')
+    expect(state.i18n).toEqual({ en: { name: 'Standard' }, zh: { name: '标准' }, 'zh-Hant-HK': { name: '標準', description: '帳戶池' } })
   })
 
   it('returns to the default content from a language version', async () => {
@@ -187,7 +198,7 @@ describe('GroupI18nField', () => {
   it('closes the menu when clicking elsewhere', async () => {
     const { wrapper } = mountField({ text: '标准', i18n: {} })
     await trigger(wrapper).trigger('click')
-    expect(menuItems(wrapper)).toHaveLength(3)
+    expect(menuItems(wrapper)).toHaveLength(4)
 
     document.body.click()
     await wrapper.vm.$nextTick()

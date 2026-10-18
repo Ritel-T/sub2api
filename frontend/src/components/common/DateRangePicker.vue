@@ -186,7 +186,7 @@ const validRange = computed(() => {
 
 const formatDate = (value: string) => {
   const date = parseDateBoundary(value)
-  return date.toLocaleString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
+  return date.toLocaleString(locale.value === 'zh-Hant-HK' ? 'zh-Hant-HK' : locale.value === 'zh' ? 'zh-CN' : 'en-US', {
     year: 'numeric', month: 'short', day: 'numeric',
     ...(props.enableTime && value.includes('T') ? { hour: '2-digit', minute: '2-digit', hour12: false } : {})
   })

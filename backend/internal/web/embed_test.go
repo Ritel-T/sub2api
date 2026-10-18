@@ -732,6 +732,7 @@ func TestEmbeddedFrontendBypassesBareVideoAPIRoutes(t *testing.T) {
 
 func TestEmbeddedFrontendBypassesBareAPIAliases(t *testing.T) {
 	for _, path := range []string{
+		"/v3/other",
 		"/chat/completions",
 		"/embeddings",
 		"/messages/count_tokens",
@@ -758,7 +759,6 @@ func TestEmbeddedFrontendBypassesBareAPIAliases(t *testing.T) {
 		"/custom/page-1",
 		"/monitor",
 		"/setup",
-		"/v3/other",
 	} {
 		require.False(t, shouldBypassEmbeddedFrontend(path), "path=%s", path)
 	}
@@ -986,4 +986,17 @@ func BenchmarkFrontendServerServeIndexHTML(b *testing.B) {
 
 		server.serveIndexHTML(c)
 	}
+}
+
+func TestFixedBrandPreservesInitialHTMLAndPublicConfig(t *testing.T) {
+	base := []byte(`<html><head><meta name="ritel-brand" content="fixed" /><title>Ritel.SI</title><link rel="icon" href="/brand/assets/ritel-favicon.svg" /></head><body></body></html>`)
+	settings := []byte(`{"site_name":"Old name","site_logo":"/uploads/old.svg","registration_enabled":true}`)
+	assert.Equal(t, base, injectSiteTitle(base, settings))
+	assert.Equal(t, base, injectSiteFavicon(base, settings))
+	server := &FrontendServer{baseHTML: base}
+	rendered := string(server.injectSettings(settings))
+	assert.Contains(t, rendered, `<title>Ritel.SI</title>`)
+	assert.Contains(t, rendered, `href="/brand/assets/ritel-favicon.svg"`)
+	assert.Contains(t, rendered, `window.__APP_CONFIG__=`+string(settings))
+	assert.Contains(t, rendered, `nonce="`+NonceHTMLPlaceholder+`"`)
 }

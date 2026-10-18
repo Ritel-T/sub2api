@@ -74,6 +74,7 @@ RUNTIME_SERVERLESS_ENDPOINT=https://pod.example.com</pre>
 </template>
 
 <script setup lang="ts">
+import { localizeInlineText } from '@/i18n/inline'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiClient } from '@/api/client'
@@ -84,7 +85,7 @@ interface Config { enabled: boolean; pods: Policy[]; regions: Region[] }
 interface Pod { id: string; boot: string; endpoint: string; region: string; version: string; ready: boolean; at: number }
 interface Snapshot { config: Config; pods: Pod[]; stats: Record<string, string> }
 const { locale } = useI18n()
-const text = (zh: string, en: string) => locale.value.startsWith('zh') ? zh : en
+const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 const loaded = ref(false), busy = ref(false), error = ref(''), notice = ref('')
 const draft = ref<Config>({ enabled: false, pods: [], regions: [] })
 const pods = ref<Pod[]>([]), stats = ref<Record<string, string>>({}), probes = ref<Record<string, boolean>>({})

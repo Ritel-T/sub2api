@@ -37,13 +37,14 @@
   </section>
 </template>
 <script setup lang="ts">
+import { localizeInlineText } from '@/i18n/inline'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CountryFilter, CountryNode } from './mihomoCountry'
 const props = defineProps<{ filter?: CountryFilter; codes: string[]; nodes: CountryNode[]; busy: boolean }>()
 const emit = defineEmits<{ save: [filter: CountryFilter]; scan: [] }>()
 const { locale } = useI18n()
-const text = (zh: string, en: string) => locale.value.startsWith('zh') ? zh : en
+const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 const draft = reactive<CountryFilter>({ mode: 'off', codes: [], allow_unknown: false })
 const dirty = ref(false); const search = ref('')
 watch(() => props.filter, value => {
@@ -51,7 +52,7 @@ watch(() => props.filter, value => {
   const equal = draft.mode === next.mode && draft.allow_unknown === next.allow_unknown && !!draft.dynamic_provider_managed === !!next.dynamic_provider_managed && [...draft.codes].sort().join(',') === [...(next.codes || [])].sort().join(',')
   if (!dirty.value || equal) { Object.assign(draft, { dynamic_provider_managed: false }, next, { codes: [...(next.codes || [])] }); dirty.value = false }
 }, { immediate: true, deep: true })
-const names = computed(() => new Intl.DisplayNames([locale.value.startsWith('zh') ? 'zh' : 'en'], { type: 'region' }))
+const names = computed(() => new Intl.DisplayNames([locale.value === 'zh' ? 'zh' : locale.value === 'zh-Hant-HK' ? 'zh-Hant-HK' : 'en'], { type: 'region' }))
 const englishNames = new Intl.DisplayNames(['en'], { type: 'region' })
 const label = (code: string) => `${code === 'HK' ? text('香港', 'Hong Kong') : names.value.of(code) || code} ${code}`
 const common = ['HK', 'CN', 'MO', 'US', 'JP', 'SG', 'TW', 'KR', 'GB', 'DE', 'CA', 'AU']

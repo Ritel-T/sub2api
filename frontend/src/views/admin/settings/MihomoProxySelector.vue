@@ -9,12 +9,13 @@
   </div>
 </template>
 <script setup lang="ts">
+import { localizeInlineText } from '@/i18n/inline'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiClient } from '@/api/client'
 const emit = defineEmits<{ ready: [endpoint: string] }>()
 const { locale } = useI18n()
-const text = (zh: string, en: string) => locale.value.startsWith('zh') ? zh : en
+const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 const pending = ref(false)
 const error = ref('')
 async function select() {

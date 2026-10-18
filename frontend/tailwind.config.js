@@ -1,10 +1,10 @@
 // Neutral utility families share the brand palette; status and provider colors stay distinct.
 const warmNeutral = {
-  50: '#FAF8F5', 100: '#F5EFE6', 200: '#DDD8D0', 300: '#C3BDB4',
-  400: '#ABA59B', 500: '#756B5F', 600: '#615D55', 700: '#393833',
-  800: '#2E2D29', 900: '#242421', 950: '#1E1E1C'
+  50: '#f4f2ed', 100: '#eeeae1', 200: '#d8d4cb', 300: '#c1beb6',
+  400: '#aaa9a4', 500: '#86857f', 600: '#66655f', 700: '#30302d',
+  800: '#181817', 900: '#111110', 950: '#0a0a0a'
 }
-const darkNeutral = { ...warmNeutral, 100: '#F0EDE7', 500: '#8B857B' }
+const darkNeutral = { ...warmNeutral, 100: '#f4f2ed', 300: '#c1beb6' }
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -14,20 +14,8 @@ export default {
     extend: {
       colors: {
         // 主色调 - 暖中性色
-        primary: {
-          50: '#F5EFE6',
-          100: '#E8E1D6',
-          200: '#D2C9BC',
-          300: '#C0B5A5',
-          400: '#B3AA9E',
-          500: '#6F6254',
-          600: '#51493E',
-          700: '#3F3A32',
-          800: '#332F29',
-          900: '#292722',
-          950: '#1E1E1C'
-        },
-        brand: { paper: '#F5EFE6', selected: '#F8F4ED' },
+        primary: warmNeutral,
+        brand: { paper: '#0a0a0a', selected: '#181817' },
         // Common neutral classes and dark surfaces use the same warm palette.
         gray: warmNeutral,
         slate: warmNeutral,
@@ -38,20 +26,10 @@ export default {
         dark: darkNeutral
       },
       fontFamily: {
-        sans: [
-          'system-ui',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'Segoe UI',
-          'Roboto',
-          'Helvetica Neue',
-          'Arial',
-          'PingFang SC',
-          'Hiragino Sans GB',
-          'Microsoft YaHei',
-          'sans-serif'
-        ],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+        sans: ['Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
+        serif: ['Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
+        display: ['Cinzel', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
+        mono: ['Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif']
       },
       boxShadow: {
         glass: '0 8px 32px rgba(0, 0, 0, 0.08)',

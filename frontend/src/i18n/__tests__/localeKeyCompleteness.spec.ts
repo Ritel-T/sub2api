@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import en from '../locales/en'
 import zh from '../locales/zh'
+import zhHK from '../locales/zh-Hant-HK'
 
 type LocaleValue = Record<string, unknown>
 
@@ -63,15 +64,18 @@ function missingKeys(usedKeys: string[], availableKeys: Set<string>): string[] {
 describe('locale key completeness', () => {
   const enKeys = new Set(flattenLeafKeys(en))
   const zhKeys = new Set(flattenLeafKeys(zh))
+  const zhHKKeys = new Set(flattenLeafKeys(zhHK))
   const usedKeys = [...new Set(sourceKeys())].sort()
 
   it('keeps English and Chinese locale schemas identical', () => {
     expect([...enKeys].filter((key) => !zhKeys.has(key)).sort()).toEqual([])
     expect([...zhKeys].filter((key) => !enKeys.has(key)).sort()).toEqual([])
+    expect([...enKeys].filter((key) => !zhHKKeys.has(key)).sort()).toEqual([])
+    expect([...zhHKKeys].filter((key) => !enKeys.has(key)).sort()).toEqual([])
   })
 
   it('contains a non-empty message for every locale leaf', () => {
-    for (const [locale, messages] of Object.entries({ en, zh })) {
+    for (const [locale, messages] of Object.entries({ en, zh, zhHK })) {
       const emptyKeys = flattenLeafKeys(messages).filter((key) => {
         let current: unknown = messages
         for (const segment of key.split('.')) {
@@ -83,8 +87,24 @@ describe('locale key completeness', () => {
     }
   })
 
+  it('preserves Hong Kong placeholders, HTML and protocol text', () => {
+    const compare = (original: unknown, translated: unknown, path = ''): void => {
+      if (typeof original === 'string') {
+        expect(typeof translated, path).toBe('string')
+        const ascii = (value: string) => [...value].filter((char) => char.charCodeAt(0) <= 0x7f).join('')
+        expect(ascii(translated as string), path).toBe(ascii(original))
+        return
+      }
+      for (const [key, child] of Object.entries(original as LocaleValue)) {
+        compare(child, (translated as LocaleValue)[key], path ? `${path}.${key}` : key)
+      }
+    }
+    compare(zh, zhHK)
+  })
+
   it('contains every statically referenced production key', () => {
     expect(missingKeys(usedKeys, enKeys), 'English locale is missing referenced keys').toEqual([])
     expect(missingKeys(usedKeys, zhKeys), 'Chinese locale is missing referenced keys').toEqual([])
+    expect(missingKeys(usedKeys, zhHKKeys), 'Hong Kong locale is missing referenced keys').toEqual([])
   })
 })
