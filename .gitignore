@@ -212,3 +212,5 @@ backend/internal/service/data/bps-images/
 
 # Local macOS re-auth Worker runtime (ephemeral, never commit)
 tools/local-worker/
+
+!docs/subscription-overflow.md

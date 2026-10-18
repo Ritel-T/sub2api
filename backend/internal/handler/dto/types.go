@@ -141,8 +141,9 @@ type Group struct {
 	AudioSttPricePerHour         *float64 `json:"audio_stt_price_per_hour"`
 
 	// Claude Code 客户端限制
-	ClaudeCodeOnly  bool   `json:"claude_code_only"`
-	FallbackGroupID *int64 `json:"fallback_group_id"`
+	ClaudeCodeOnly              bool   `json:"claude_code_only"`
+	SubscriptionFallbackGroupID *int64 `json:"subscription_fallback_group_id"`
+	FallbackGroupID             *int64 `json:"fallback_group_id"`
 	// 无效请求兜底分组
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request"`
 

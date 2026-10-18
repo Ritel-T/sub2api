@@ -19,6 +19,7 @@ import (
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/google/uuid"
@@ -374,8 +375,51 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
 	c.Request = c.Request.WithContext(pricingCtx)
 
-	if decision := h.checkSecurityAudit(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, modelName, body); decision != nil && !decision.AllowNextStage {
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), authSubject, service.ContentModerationProtocolGemini, modelName, body); decision != nil && !decision.AllowNextStage {
 		googleSecurityAuditError(c, decision)
+		return
+	}
+
+	finishBillingResolution := middleware.BeginSubscriptionBillingRouteResolution(c)
+	defer finishBillingResolution()
+
+	// For Gemini native API, do not send Claude-style ping frames.
+	geminiConcurrency := NewConcurrencyHelper(h.concurrencyHelper.concurrencyService, SSEPingFormatNone, 0)
+
+	// 1) user concurrency slot
+	streamStarted := false
+	if h.errorPassthroughService != nil {
+		service.BindErrorPassthroughService(c, h.errorPassthroughService)
+	}
+	userReleaseFunc, err := geminiConcurrency.AcquireUserSlotWithWait(c, authSubject.UserID, authSubject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted)
+	if err != nil {
+		reqLog.Warn("gemini.user_slot_acquire_failed", zap.Error(err))
+		googleConcurrencyError(c, err, "user")
+		return
+	}
+	// 确保请求取消时也会释放槽位，避免长连接被动中断造成泄漏
+	userReleaseFunc = wrapReleaseOnDone(c.Request.Context(), userReleaseFunc)
+	if userReleaseFunc != nil {
+		defer userReleaseFunc()
+	}
+
+	// Resolve the effective charging group before mapping or binding an account.
+	apiKey, subscription, err := resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body, func(ctx context.Context, key *service.APIKey, sub *service.UserSubscription) error {
+		return h.billingCacheService.CheckBillingEligibility(ctx, key.User, key, key.Group, sub, service.QuotaPlatform(ctx, key))
+	}, func(key *service.APIKey) *securityaudit.Decision {
+		return h.checkSecurityAudit(c, reqLog, key, authSubject, service.ContentModerationProtocolGemini, modelName, body)
+	})
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			googleSecurityAuditError(c, audit.decision)
+			return
+		}
+		reqLog.Info("gemini.billing_eligibility_check_failed", zap.Error(err))
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		googleErrorWithType(c, status, code, "", message)
 		return
 	}
 
@@ -389,40 +433,6 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	// 引用显式缓存的请求只能发往持有该缓存的账号，且不参与会话粘性与换号。
 	cachedContentBinding, body, ok := h.resolveGeminiCachedContentBinding(c, reqLog, apiKey, modelName, body)
 	if !ok {
-		return
-	}
-
-	// Get subscription (may be nil)
-	subscription, _ := middleware.GetSubscriptionFromContext(c)
-
-	// For Gemini native API, do not send Claude-style ping frames.
-	geminiConcurrency := NewConcurrencyHelper(h.concurrencyHelper.concurrencyService, SSEPingFormatNone, 0)
-
-	// 1) user concurrency slot
-	streamStarted := false
-	if h.errorPassthroughService != nil {
-		service.BindErrorPassthroughService(c, h.errorPassthroughService)
-	}
-	userReleaseFunc, err := geminiConcurrency.AcquireUserSlotWithWait(c, authSubject.UserID, authSubject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, stream, &streamStarted)
-	if err != nil {
-		reqLog.Warn("gemini.user_slot_acquire_failed", zap.Error(err))
-		googleConcurrencyError(c, err, "user")
-		return
-	}
-	// 确保请求取消时也会释放槽位，避免长连接被动中断造成泄漏
-	userReleaseFunc = wrapReleaseOnDone(c.Request.Context(), userReleaseFunc)
-	if userReleaseFunc != nil {
-		defer userReleaseFunc()
-	}
-
-	// 2) billing eligibility check (after wait)
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		reqLog.Info("gemini.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		googleErrorWithType(c, status, code, "", message)
 		return
 	}
 

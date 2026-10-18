@@ -32,6 +32,9 @@ func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID,
 
 // ResolveUserGroupRateMultiplier resolves the same cached multiplier used by usage billing.
 func (s *GatewayService) ResolveUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
+	if rate, ok := subscriptionOverflowBaseRateFromContext(ctx, userID, groupID); ok {
+		return rate
+	}
 	return s.getUserGroupRateMultiplier(ctx, userID, groupID, groupDefaultMultiplier)
 }
 
@@ -347,6 +350,20 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		cmd.AccountQuotaCost = p.Cost.TotalCost * p.AccountRateMultiplier
 	}
 
+	if evidence := p.APIKey.SubscriptionOverflow; evidence != nil && cmd.BalanceCost > 0 && cmd.SubscriptionID == nil {
+		multiplier := 1.0
+		if usageLog != nil {
+			multiplier = usageLog.RateMultiplier
+		}
+		cmd.SubscriptionOverflow = &SubscriptionOverflowBillingEvidence{
+			SubscriptionID: evidence.SubscriptionID, SourceGroupID: evidence.SourceGroupID, TargetGroupID: evidence.TargetGroupID,
+			Dimension: evidence.Dimension, WindowStart: evidence.WindowStart,
+			DailyUsageUSD: evidence.DailyUsageUSD, DailyLimitUSD: evidence.DailyLimitUSD,
+			WeeklyUsageUSD: evidence.WeeklyUsageUSD, WeeklyLimitUSD: evidence.WeeklyLimitUSD,
+			MonthlyUsageUSD: evidence.MonthlyUsageUSD, MonthlyLimitUSD: evidence.MonthlyLimitUSD,
+			RateMultiplier: multiplier,
+		}
+	}
 	cmd.Normalize()
 	return cmd
 }
@@ -358,6 +375,11 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 
 	cmd := buildUsageBillingCommand(requestID, usageLog, p)
 	if cmd == nil || cmd.RequestID == "" || repo == nil {
+		// Overflow promises atomic wallet charging plus its durable notice.
+		// The legacy path cannot provide that contract, so it must fail closed.
+		if p.APIKey != nil && p.APIKey.SubscriptionOverflow != nil {
+			return false, ErrBillingServiceUnavailable
+		}
 		if p.SimpleModeKeyRateLimitOnly {
 			return false, ErrSimpleModeKeyRateLimitBillingUnavailable
 		}
@@ -812,7 +834,9 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	if s.cfg != nil {
 		multiplier = s.cfg.Default.RateMultiplier
 	}
-	if apiKey.GroupID != nil && apiKey.Group != nil {
+	if rate, ok := subscriptionOverflowBaseRateFromKey(apiKey); ok {
+		multiplier = rate
+	} else if apiKey.GroupID != nil && apiKey.Group != nil {
 		groupDefault := apiKey.Group.RateMultiplier
 		multiplier = s.ResolveUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, groupDefault)
 	}
@@ -959,7 +983,9 @@ func (s *GatewayService) recordUsageMultipliers(ctx context.Context, apiKey *API
 	if s.cfg != nil {
 		multiplier = s.cfg.Default.RateMultiplier
 	}
-	if apiKey.GroupID != nil && apiKey.Group != nil {
+	if rate, ok := subscriptionOverflowBaseRateFromKey(apiKey); ok {
+		multiplier = rate
+	} else if apiKey.GroupID != nil && apiKey.Group != nil {
 		multiplier = apiKey.Group.RateMultiplier
 		if user != nil {
 			multiplier = s.ResolveUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, multiplier)

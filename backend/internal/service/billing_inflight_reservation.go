@@ -493,7 +493,9 @@ func (d inflightEstimateDeps) rates(ctx context.Context, apiKey *APIKey) (text, 
 	if d.cfg != nil && d.cfg.Default.RateMultiplier > 0 {
 		rate = d.cfg.Default.RateMultiplier
 	}
-	if apiKey != nil && apiKey.GroupID != nil && apiKey.Group != nil {
+	if snapshot, ok := subscriptionOverflowBaseRateFromKey(apiKey); ok {
+		rate = snapshot
+	} else if apiKey != nil && apiKey.GroupID != nil && apiKey.Group != nil {
 		rate = apiKey.Group.RateMultiplier
 		if d.userGroupRate != nil && apiKey.User != nil {
 			rate = d.userGroupRate(ctx, apiKey.User.ID, *apiKey.GroupID, rate)

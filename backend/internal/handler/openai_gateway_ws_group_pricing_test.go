@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
@@ -290,4 +291,25 @@ func TestOpenAIWSTurnBillingAPIKeysKeepPreviousTurnUntilItIsRecorded(t *testing.
 	keys.set(4, conn)
 	require.Same(t, conn, keys.forTurn(2, conn), "only the current and previous turn are kept")
 	require.Len(t, keys.keys, 2)
+}
+
+func TestSubscriptionOverflowWebSocketTurnRefreshesRateContextForSameGroupPointer(t *testing.T) {
+	rateBefore, rateAfter := 0.42, 0.35
+	group := &service.Group{ID: 20, RateMultiplier: 0.6}
+	initial := &service.SubscriptionOverflowEvidence{UserID: 2, TargetGroupID: 20, BaseRateMultiplier: &rateBefore}
+	updated := &service.SubscriptionOverflowEvidence{UserID: 2, TargetGroupID: 20, BaseRateMultiplier: &rateAfter}
+	ctx := context.WithValue(context.Background(), ctxkey.Group, group)
+	ctx = service.WithSubscriptionOverflow(ctx, initial)
+	key := &service.APIKey{UserID: 2, GroupID: &group.ID, Group: group, SubscriptionOverflow: updated}
+	fresh := withOpenAIWSTurnBillingGroup(ctx, key)
+	evidence, ok := service.SubscriptionOverflowFromContext(fresh)
+	require.True(t, ok)
+	require.Same(t, updated, evidence)
+	gateway := &service.OpenAIGatewayService{}
+	require.Equal(t, rateAfter, gateway.ResolveUserGroupRateMultiplier(fresh, 2, 20, 0.6))
+	require.Equal(t, rateBefore, gateway.ResolveUserGroupRateMultiplier(ctx, 2, 20, 0.6), "previous turn context remains immutable")
+	key.SubscriptionOverflow = nil
+	restored := withOpenAIWSTurnBillingGroup(fresh, key)
+	_, ok = service.SubscriptionOverflowFromContext(restored)
+	require.False(t, ok, "stale overflow evidence must be cleared")
 }

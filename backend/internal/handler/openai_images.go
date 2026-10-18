@@ -11,6 +11,7 @@ import (
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -75,6 +76,49 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	}
 	requestModel := parsed.Model
 	ensureCompositeTargetPlatform(c, apiKey, requestModel)
+	if !compositeTargetPlatformAllowed(c, apiKey, requestModel, service.PlatformOpenAI) {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
+		return
+	}
+	auditBody := parsed.ModerationBody()
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolOpenAIImages, requestModel, auditBody); decision != nil && !decision.AllowNextStage {
+		h.openAISecurityAuditError(c, decision)
+		return
+	}
+	if !service.GroupAllowsImageGeneration(service.SubscriptionOverflowSourceAPIKey(apiKey).Group) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
+		return
+	}
+	requireAPIKeyQueueCapability(c, service.APIKeyQueueCapabilityImageGeneration)
+	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
+	routingStart := time.Now()
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
+	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted, reqLog)
+	if !acquired {
+		return
+	}
+	if userReleaseFunc != nil {
+		defer userReleaseFunc()
+	}
+	var subscription *service.UserSubscription
+	apiKey, subscription, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body, h.checkRegionalBillingEligibility, func(key *service.APIKey) *securityaudit.Decision {
+		return h.checkSecurityAudit(c, reqLog, key, subject, service.ContentModerationProtocolOpenAIImages, requestModel, auditBody)
+	})
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.openAISecurityAuditError(c, audit.decision)
+			return
+		}
+		reqLog.Info("openai.images.billing_eligibility_check_failed", zap.Error(err))
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		h.handleStreamingAwareError(c, status, code, message, streamStarted)
+		return
+	}
+	ensureCompositeTargetPlatform(c, apiKey, requestModel)
 	clientRequestModel := clientRequestedModel(c, requestModel)
 	routingModel := requestModel
 	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context()); ok {
@@ -99,11 +143,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
 		return
 	}
-	requireAPIKeyQueueCapability(c, service.APIKeyQueueCapabilityImageGeneration)
-	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, parsed.ModerationBody()); decision != nil && !decision.AllowNextStage {
-		h.openAISecurityAuditError(c, decision)
-		return
-	}
 	imageReleaseFunc, acquired := h.acquireImageGenerationSlot(c, streamStarted)
 	if !acquired {
 		return
@@ -119,29 +158,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 	if h.errorPassthroughService != nil {
 		service.BindErrorPassthroughService(c, h.errorPassthroughService)
-	}
-
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-
-	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
-	routingStart := time.Now()
-
-	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, parsed.Stream, &streamStarted, reqLog)
-	if !acquired {
-		return
-	}
-	if userReleaseFunc != nil {
-		defer userReleaseFunc()
-	}
-
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		reqLog.Info("openai.images.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		h.handleStreamingAwareError(c, status, code, message, streamStarted)
-		return
 	}
 
 	// 余额模式在途预留（与计费同口径估算；计费任务扣减余额缓存后才释放）。

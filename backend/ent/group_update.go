@@ -840,6 +840,33 @@ func (_u *GroupUpdate) SetNillableClaudeCodeOnly(v *bool) *GroupUpdate {
 	return _u
 }
 
+// SetSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field.
+func (_u *GroupUpdate) SetSubscriptionFallbackGroupID(v int64) *GroupUpdate {
+	_u.mutation.ResetSubscriptionFallbackGroupID()
+	_u.mutation.SetSubscriptionFallbackGroupID(v)
+	return _u
+}
+
+// SetNillableSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableSubscriptionFallbackGroupID(v *int64) *GroupUpdate {
+	if v != nil {
+		_u.SetSubscriptionFallbackGroupID(*v)
+	}
+	return _u
+}
+
+// AddSubscriptionFallbackGroupID adds value to the "subscription_fallback_group_id" field.
+func (_u *GroupUpdate) AddSubscriptionFallbackGroupID(v int64) *GroupUpdate {
+	_u.mutation.AddSubscriptionFallbackGroupID(v)
+	return _u
+}
+
+// ClearSubscriptionFallbackGroupID clears the value of the "subscription_fallback_group_id" field.
+func (_u *GroupUpdate) ClearSubscriptionFallbackGroupID() *GroupUpdate {
+	_u.mutation.ClearSubscriptionFallbackGroupID()
+	return _u
+}
+
 // SetFallbackGroupID sets the "fallback_group_id" field.
 func (_u *GroupUpdate) SetFallbackGroupID(v int64) *GroupUpdate {
 	_u.mutation.ResetFallbackGroupID()
@@ -1830,6 +1857,15 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.ClaudeCodeOnly(); ok {
 		_spec.SetField(group.FieldClaudeCodeOnly, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SubscriptionFallbackGroupID(); ok {
+		_spec.SetField(group.FieldSubscriptionFallbackGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSubscriptionFallbackGroupID(); ok {
+		_spec.AddField(group.FieldSubscriptionFallbackGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.SubscriptionFallbackGroupIDCleared() {
+		_spec.ClearField(group.FieldSubscriptionFallbackGroupID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.FallbackGroupID(); ok {
 		_spec.SetField(group.FieldFallbackGroupID, field.TypeInt64, value)
@@ -3060,6 +3096,33 @@ func (_u *GroupUpdateOne) SetNillableClaudeCodeOnly(v *bool) *GroupUpdateOne {
 	return _u
 }
 
+// SetSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field.
+func (_u *GroupUpdateOne) SetSubscriptionFallbackGroupID(v int64) *GroupUpdateOne {
+	_u.mutation.ResetSubscriptionFallbackGroupID()
+	_u.mutation.SetSubscriptionFallbackGroupID(v)
+	return _u
+}
+
+// SetNillableSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableSubscriptionFallbackGroupID(v *int64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionFallbackGroupID(*v)
+	}
+	return _u
+}
+
+// AddSubscriptionFallbackGroupID adds value to the "subscription_fallback_group_id" field.
+func (_u *GroupUpdateOne) AddSubscriptionFallbackGroupID(v int64) *GroupUpdateOne {
+	_u.mutation.AddSubscriptionFallbackGroupID(v)
+	return _u
+}
+
+// ClearSubscriptionFallbackGroupID clears the value of the "subscription_fallback_group_id" field.
+func (_u *GroupUpdateOne) ClearSubscriptionFallbackGroupID() *GroupUpdateOne {
+	_u.mutation.ClearSubscriptionFallbackGroupID()
+	return _u
+}
+
 // SetFallbackGroupID sets the "fallback_group_id" field.
 func (_u *GroupUpdateOne) SetFallbackGroupID(v int64) *GroupUpdateOne {
 	_u.mutation.ResetFallbackGroupID()
@@ -4080,6 +4143,15 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.ClaudeCodeOnly(); ok {
 		_spec.SetField(group.FieldClaudeCodeOnly, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SubscriptionFallbackGroupID(); ok {
+		_spec.SetField(group.FieldSubscriptionFallbackGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSubscriptionFallbackGroupID(); ok {
+		_spec.AddField(group.FieldSubscriptionFallbackGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.SubscriptionFallbackGroupIDCleared() {
+		_spec.ClearField(group.FieldSubscriptionFallbackGroupID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.FallbackGroupID(); ok {
 		_spec.SetField(group.FieldFallbackGroupID, field.TypeInt64, value)

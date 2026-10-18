@@ -188,7 +188,7 @@ func (s *EmailService) GetSMTPConfig(ctx context.Context) (*SMTPConfig, error) {
 func (s *EmailService) SendEmail(ctx context.Context, to, subject, body string) error {
 	config, err := s.GetSMTPConfig(ctx)
 	if err != nil {
-		return err
+		return emailDefinitelyNotSent(err)
 	}
 	return s.SendEmailWithConfig(config, to, subject, body)
 }
@@ -200,32 +200,32 @@ const smtpIOTimeout = 20 * time.Second
 func (s *EmailService) SendEmailWithConfig(config *SMTPConfig, to, subject, body string) error {
 	deliveryRecipient, err := rewriteSMTPRecipientDomain(to, s.recipientDomainAliases)
 	if err != nil {
-		return err
+		return emailDefinitelyNotSent(err)
 	}
 	message, err := buildSMTPMessage(config, deliveryRecipient, subject, body)
 	if err != nil {
-		return err
+		return emailDefinitelyNotSent(err)
 	}
 
 	client, err := s.connectSMTP(config)
 	if err != nil {
-		return err
+		return emailDefinitelyNotSent(err)
 	}
 	defer func() { _ = client.Close() }()
 
 	auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
 	if err = client.Auth(auth); err != nil {
-		return fmt.Errorf("smtp auth: %w", err)
+		return emailDefinitelyNotSent(fmt.Errorf("smtp auth: %w", err))
 	}
 	if err = client.Mail(message.envelopeFrom); err != nil {
-		return fmt.Errorf("smtp mail: %w", err)
+		return emailDefinitelyNotSent(fmt.Errorf("smtp mail: %w", err))
 	}
 	if err = client.Rcpt(message.envelopeTo); err != nil {
-		return fmt.Errorf("smtp rcpt: %w", err)
+		return emailDefinitelyNotSent(fmt.Errorf("smtp rcpt: %w", err))
 	}
 	w, err := client.Data()
 	if err != nil {
-		return fmt.Errorf("smtp data: %w", err)
+		return emailDefinitelyNotSent(fmt.Errorf("smtp data: %w", err))
 	}
 	if _, err = w.Write(message.data); err != nil {
 		return fmt.Errorf("write msg: %w", err)

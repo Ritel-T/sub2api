@@ -11,6 +11,7 @@ import (
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -82,17 +83,15 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 	reqLog = reqLog.With(zap.String("model", requestedModel))
 	setOpsRequestContext(c, requestedModel, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
-	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, "openai_alpha_search", requestedModel, body); decision != nil && !decision.AllowNextStage {
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, "openai_alpha_search", requestedModel, body); decision != nil && !decision.AllowNextStage {
 		h.openAISecurityAuditError(c, decision)
 		return
 	}
 
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, requestedModel)
-	forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
-	c.Request = c.Request.WithContext(service.WithOpenAIAlphaSearchForwardModel(c.Request.Context(), openAIChannelForwardModel(channelMapping, requestedModel)))
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
-
+	routingStart := time.Now()
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
 	userRelease, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted, reqLog)
 	if !acquired {
 		return
@@ -101,14 +100,34 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		defer userRelease()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		status, code, message, retryAfter := billingErrorDetails(err)
+	var subscription *service.UserSubscription
+	apiKey, subscription, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body, h.checkRegionalBillingEligibility, func(key *service.APIKey) *securityaudit.Decision {
+		return h.checkSecurityAudit(c, reqLog, key, subject, "openai_alpha_search", requestedModel, body)
+	})
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.openAISecurityAuditError(c, audit.decision)
+			return
+		}
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
 		h.errorResponse(c, status, code, message)
 		return
 	}
+	if apiKey.Group.Platform != service.PlatformOpenAI && apiKey.Group.Platform != service.PlatformComposite {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Codex alpha search is only available for OpenAI and Composite groups")
+		return
+	}
+	ensureCompositeTargetPlatform(c, apiKey, requestedModel)
+	if !compositeTargetPlatformAllowed(c, apiKey, requestedModel, service.PlatformOpenAI) {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Codex alpha search only supports OpenAI models for Composite groups")
+		return
+	}
+	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, requestedModel)
+	forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
+	c.Request = c.Request.WithContext(service.WithOpenAIAlphaSearchForwardModel(c.Request.Context(), openAIChannelForwardModel(channelMapping, requestedModel)))
 
 	// 余额模式在途预留（与计费同口径估算；计费任务扣减余额缓存后才释放）。
 	inflightDone, inflightErr := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, service.InflightEstimateRequest{Model: requestedModel, BodyBytes: len(body), MaxTokens: requestMaxOutputTokens(body), Kind: service.InflightEstimateToken, SearchCalls: 1})
@@ -131,8 +150,6 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 	var rpmAdmission openAIRPMAdmission
 	switchCount := 0
 	var oauth429FailoverState service.OpenAIOAuth429FailoverState
-	routingStart := time.Now()
-
 	// 分组利润控制：alpha search 文本入口请求级装门并固定 pricingAt
 	//（记录路径经 service.OpenAIPricingAtFromContext 从请求 ctx 回读）。
 	asPricingCtx, _ := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)

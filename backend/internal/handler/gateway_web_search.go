@@ -14,6 +14,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/websearch"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -68,8 +69,7 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 		}})
 		return
 	}
-
-	if apiKey.Group == nil || apiKey.Group.Platform != "grok" {
+	if apiKey.Group == nil || apiKey.Group.Platform != service.PlatformGrok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
 			"type":    "invalid_request_error",
 			"message": searchLabel + " is only supported for grok groups",
@@ -77,30 +77,11 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 		return
 	}
 
-	// Billing eligibility (same as other requests)
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		c.JSON(status, gin.H{"error": gin.H{"type": code, "message": message}})
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"type": "api_error", "message": "User context not found"}})
 		return
 	}
-
-	// 余额模式在途预留（与计费同口径估算；计费任务扣减余额缓存后才释放）。
-	inflightDone, inflightErr := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, service.InflightEstimateRequest{Model: "grok-" + strings.ReplaceAll(searchLabel, "_", "-"), Kind: service.InflightEstimatePerRequest, SearchCalls: 1})
-	if inflightErr != nil {
-		status, code, message, retryAfter := billingErrorDetails(inflightErr)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		c.JSON(status, gin.H{"error": gin.H{"type": code, "message": message}})
-		return
-	}
-	defer inflightDone()
-
-	subject, _ := middleware2.GetAuthSubjectFromContext(c)
 	reqLog := requestLogger(c, "handler.gateway.web_search")
 	// Audit user search query before upstream Grok web_search traffic.
 	auditBody, _ := json.Marshal(map[string]any{
@@ -108,7 +89,7 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 			"role": "user", "content": req.Query,
 		}},
 	})
-	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, searchModel, auditBody); decision != nil && !decision.AllowNextStage {
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolOpenAIChat, searchModel, auditBody); decision != nil && !decision.AllowNextStage {
 		status := decision.HTTPStatus
 		if status == 0 {
 			status = http.StatusForbidden
@@ -124,6 +105,57 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 		c.JSON(status, gin.H{"error": gin.H{"type": code, "message": msg}})
 		return
 	}
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
+	streamStarted := false
+	userRelease, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted)
+	if err != nil {
+		h.handleConcurrencyError(c, err, "user", false)
+		return
+	}
+	userRelease = wrapReleaseOnDone(c.Request.Context(), userRelease)
+	if userRelease != nil {
+		defer userRelease()
+	}
+	// This endpoint chooses its server-side model rather than accepting a model field.
+	// Validate that actual model against both groups when an overflow route is used.
+	billingBody, _ := json.Marshal(struct {
+		grokStandaloneSearchRequest
+		Model string `json:"model"`
+	}{req, searchModel})
+	var subscription *service.UserSubscription
+	apiKey, subscription, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, billingBody, func(ctx context.Context, key *service.APIKey, sub *service.UserSubscription) error {
+		return h.billingCacheService.CheckBillingEligibility(ctx, key.User, key, key.Group, sub, service.QuotaPlatform(ctx, key))
+	}, func(key *service.APIKey) *securityaudit.Decision {
+		return h.checkSecurityAudit(c, reqLog, key, subject, service.ContentModerationProtocolOpenAIChat, searchModel, auditBody)
+	})
+	if err != nil {
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		c.JSON(status, gin.H{"error": gin.H{"type": code, "message": message}})
+		return
+	}
+	if apiKey.Group == nil || apiKey.Group.Platform != service.PlatformGrok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
+			"type":    "invalid_request_error",
+			"message": searchLabel + " is only supported for grok groups",
+		}})
+		return
+	}
+
+	// 余额模式在途预留（与计费同口径估算；计费任务扣减余额缓存后才释放）。
+	inflightDone, inflightErr := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, service.InflightEstimateRequest{Model: "grok-" + strings.ReplaceAll(searchLabel, "_", "-"), Kind: service.InflightEstimatePerRequest, SearchCalls: 1})
+	if inflightErr != nil {
+		status, code, message, retryAfter := billingErrorDetails(inflightErr)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		c.JSON(status, gin.H{"error": gin.H{"type": code, "message": message}})
+		return
+	}
+	defer inflightDone()
 
 	// Use exactly the same scheduling as other requests (SelectAccountWithLoadAwareness handles load, rate limit, sticky, etc.)
 	groupID := apiKey.GroupID
@@ -136,17 +168,10 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 	}
 
 	failedAccounts := make(map[int64]struct{})
-	keyRelease, keyErr := h.concurrencyHelper.AcquireAPIKeySlot(c.Request.Context(), apiKey.ID, apiKey.ConcurrencyLimit)
-	if keyErr != nil {
-		h.handleConcurrencyError(c, keyErr, "API key", false)
-		return
-	}
-	defer keyRelease()
 	var account *service.Account
 	var accountReleaseFunc func()
 	var nativeResp *websearch.SearchResponse
 	var providerName string
-	var err error
 
 	// Acquire + release holder for the whole handler (including failover retries).
 	defer func() {

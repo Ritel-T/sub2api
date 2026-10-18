@@ -22402,6 +22402,8 @@ type GroupMutation struct {
 	model_pricing                           *jsontext.Value
 	appendmodel_pricing                     jsontext.Value
 	claude_code_only                        *bool
+	subscription_fallback_group_id          *int64
+	addsubscription_fallback_group_id       *int64
 	fallback_group_id                       *int64
 	addfallback_group_id                    *int64
 	fallback_group_id_on_invalid_request    *int64
@@ -24802,6 +24804,76 @@ func (m *GroupMutation) ResetClaudeCodeOnly() {
 	m.claude_code_only = nil
 }
 
+// SetSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field.
+func (m *GroupMutation) SetSubscriptionFallbackGroupID(i int64) {
+	m.subscription_fallback_group_id = &i
+	m.addsubscription_fallback_group_id = nil
+}
+
+// SubscriptionFallbackGroupID returns the value of the "subscription_fallback_group_id" field in the mutation.
+func (m *GroupMutation) SubscriptionFallbackGroupID() (r int64, exists bool) {
+	v := m.subscription_fallback_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubscriptionFallbackGroupID returns the old "subscription_fallback_group_id" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldSubscriptionFallbackGroupID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubscriptionFallbackGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubscriptionFallbackGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubscriptionFallbackGroupID: %w", err)
+	}
+	return oldValue.SubscriptionFallbackGroupID, nil
+}
+
+// AddSubscriptionFallbackGroupID adds i to the "subscription_fallback_group_id" field.
+func (m *GroupMutation) AddSubscriptionFallbackGroupID(i int64) {
+	if m.addsubscription_fallback_group_id != nil {
+		*m.addsubscription_fallback_group_id += i
+	} else {
+		m.addsubscription_fallback_group_id = &i
+	}
+}
+
+// AddedSubscriptionFallbackGroupID returns the value that was added to the "subscription_fallback_group_id" field in this mutation.
+func (m *GroupMutation) AddedSubscriptionFallbackGroupID() (r int64, exists bool) {
+	v := m.addsubscription_fallback_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSubscriptionFallbackGroupID clears the value of the "subscription_fallback_group_id" field.
+func (m *GroupMutation) ClearSubscriptionFallbackGroupID() {
+	m.subscription_fallback_group_id = nil
+	m.addsubscription_fallback_group_id = nil
+	m.clearedFields[group.FieldSubscriptionFallbackGroupID] = struct{}{}
+}
+
+// SubscriptionFallbackGroupIDCleared returns if the "subscription_fallback_group_id" field was cleared in this mutation.
+func (m *GroupMutation) SubscriptionFallbackGroupIDCleared() bool {
+	_, ok := m.clearedFields[group.FieldSubscriptionFallbackGroupID]
+	return ok
+}
+
+// ResetSubscriptionFallbackGroupID resets all changes to the "subscription_fallback_group_id" field.
+func (m *GroupMutation) ResetSubscriptionFallbackGroupID() {
+	m.subscription_fallback_group_id = nil
+	m.addsubscription_fallback_group_id = nil
+	delete(m.clearedFields, group.FieldSubscriptionFallbackGroupID)
+}
+
 // SetFallbackGroupID sets the "fallback_group_id" field.
 func (m *GroupMutation) SetFallbackGroupID(i int64) {
 	m.fallback_group_id = &i
@@ -26251,7 +26323,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 68)
+	fields := make([]string, 0, 69)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -26380,6 +26452,9 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.claude_code_only != nil {
 		fields = append(fields, group.FieldClaudeCodeOnly)
+	}
+	if m.subscription_fallback_group_id != nil {
+		fields = append(fields, group.FieldSubscriptionFallbackGroupID)
 	}
 	if m.fallback_group_id != nil {
 		fields = append(fields, group.FieldFallbackGroupID)
@@ -26550,6 +26625,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.ModelPricing()
 	case group.FieldClaudeCodeOnly:
 		return m.ClaudeCodeOnly()
+	case group.FieldSubscriptionFallbackGroupID:
+		return m.SubscriptionFallbackGroupID()
 	case group.FieldFallbackGroupID:
 		return m.FallbackGroupID()
 	case group.FieldFallbackGroupIDOnInvalidRequest:
@@ -26695,6 +26772,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldModelPricing(ctx)
 	case group.FieldClaudeCodeOnly:
 		return m.OldClaudeCodeOnly(ctx)
+	case group.FieldSubscriptionFallbackGroupID:
+		return m.OldSubscriptionFallbackGroupID(ctx)
 	case group.FieldFallbackGroupID:
 		return m.OldFallbackGroupID(ctx)
 	case group.FieldFallbackGroupIDOnInvalidRequest:
@@ -27055,6 +27134,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetClaudeCodeOnly(v)
 		return nil
+	case group.FieldSubscriptionFallbackGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubscriptionFallbackGroupID(v)
+		return nil
 	case group.FieldFallbackGroupID:
 		v, ok := value.(int64)
 		if !ok {
@@ -27301,6 +27387,9 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.addaudio_stt_price_per_hour != nil {
 		fields = append(fields, group.FieldAudioSttPricePerHour)
 	}
+	if m.addsubscription_fallback_group_id != nil {
+		fields = append(fields, group.FieldSubscriptionFallbackGroupID)
+	}
 	if m.addfallback_group_id != nil {
 		fields = append(fields, group.FieldFallbackGroupID)
 	}
@@ -27369,6 +27458,8 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedAudioTtsPricePerMillionChars()
 	case group.FieldAudioSttPricePerHour:
 		return m.AddedAudioSttPricePerHour()
+	case group.FieldSubscriptionFallbackGroupID:
+		return m.AddedSubscriptionFallbackGroupID()
 	case group.FieldFallbackGroupID:
 		return m.AddedFallbackGroupID()
 	case group.FieldFallbackGroupIDOnInvalidRequest:
@@ -27537,6 +27628,13 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddAudioSttPricePerHour(v)
 		return nil
+	case group.FieldSubscriptionFallbackGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSubscriptionFallbackGroupID(v)
+		return nil
 	case group.FieldFallbackGroupID:
 		v, ok := value.(int64)
 		if !ok {
@@ -27644,6 +27742,9 @@ func (m *GroupMutation) ClearedFields() []string {
 	if m.FieldCleared(group.FieldModelPricing) {
 		fields = append(fields, group.FieldModelPricing)
 	}
+	if m.FieldCleared(group.FieldSubscriptionFallbackGroupID) {
+		fields = append(fields, group.FieldSubscriptionFallbackGroupID)
+	}
 	if m.FieldCleared(group.FieldFallbackGroupID) {
 		fields = append(fields, group.FieldFallbackGroupID)
 	}
@@ -27723,6 +27824,9 @@ func (m *GroupMutation) ClearField(name string) error {
 		return nil
 	case group.FieldModelPricing:
 		m.ClearModelPricing()
+		return nil
+	case group.FieldSubscriptionFallbackGroupID:
+		m.ClearSubscriptionFallbackGroupID()
 		return nil
 	case group.FieldFallbackGroupID:
 		m.ClearFallbackGroupID()
@@ -27869,6 +27973,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldClaudeCodeOnly:
 		m.ResetClaudeCodeOnly()
+		return nil
+	case group.FieldSubscriptionFallbackGroupID:
+		m.ResetSubscriptionFallbackGroupID()
 		return nil
 	case group.FieldFallbackGroupID:
 		m.ResetFallbackGroupID()

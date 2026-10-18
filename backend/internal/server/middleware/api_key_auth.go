@@ -197,7 +197,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
 			}
 			authDone()
-			nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, false)
+			nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, false, subscriptionService)
 			return
 		}
 
@@ -208,11 +208,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 
 		// 倍率自省和展示结果只读查询不需要订阅数据；/v1/usage 保留原行为。
 		if isSubscriptionType && subscriptionService != nil && !metadataReadRequest {
-			sub, subErr := subscriptionService.GetActiveSubscription(
-				c.Request.Context(),
-				apiKey.User.ID,
-				apiKey.Group.ID,
-			)
+			sub, subErr := subscriptionService.GetSubscriptionForBillingRoute(c.Request.Context(), apiKey.User.ID, apiKey.Group)
 			if subErr != nil {
 				if !skipBilling {
 					AbortWithError(c, 403, "SUBSCRIPTION_NOT_FOUND", "No active subscription found for this group")
@@ -259,6 +255,13 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 					subscription = refreshed
 					_, validateErr = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
 				}
+				if validateErr != nil && service.IsSubscriptionQuotaError(validateErr) && apiKey.Group.SubscriptionFallbackGroupID != nil {
+					apiKey, subscription, validateErr = apiKeyService.ResolveSubscriptionFallback(c.Request.Context(), apiKey, subscription, validateErr)
+					if validateErr == nil {
+						c.Request = c.Request.WithContext(service.WithSubscriptionOverflow(c.Request.Context(), apiKey.SubscriptionOverflow))
+						SetOpsFallbackAPIKey(c, apiKey)
+					}
+				}
 				if validateErr != nil {
 					code := "SUBSCRIPTION_INVALID"
 					status := 403
@@ -267,6 +270,12 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 						errors.Is(validateErr, service.ErrMonthlyLimitExceeded) {
 						code = "USAGE_LIMIT_EXCEEDED"
 						status = 429
+					}
+					if errors.Is(validateErr, service.ErrInsufficientBalance) {
+						code = "INSUFFICIENT_BALANCE"
+					}
+					if errors.Is(validateErr, service.ErrBillingServiceUnavailable) {
+						status, code = 503, "BILLING_SERVICE_UNAVAILABLE"
 					}
 					AbortWithError(c, status, code, validateErr.Error())
 					return
@@ -297,7 +306,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		}
 
 		authDone()
-		nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, false)
+		nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, false, subscriptionService)
 	}
 }
 
@@ -391,7 +400,7 @@ func GetSubscriptionFromContext(c *gin.Context) (*service.UserSubscription, bool
 		return nil, false
 	}
 	subscription, ok := value.(*service.UserSubscription)
-	return subscription, ok
+	return subscription, ok && subscription != nil
 }
 
 func setGroupContext(c *gin.Context, group *service.Group) {

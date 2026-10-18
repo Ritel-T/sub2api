@@ -77,6 +77,19 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	}
 	reqModel := modelResult.String()
 	bindRequestedReasoningEffort(c, body, reqModel)
+	reqStream, ok := parseOpenAICompatibleStream(body)
+	if !ok {
+		h.responsesErrorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)
+		return
+	}
+
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body); decision != nil && !decision.AllowNextStage {
+		h.responsesSecurityAuditError(c, decision)
+		return
+	}
+
+	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
+	// Resolve the charging group after queue admission and before its policies.
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !compositeTargetPlatformResolved(c, apiKey, reqModel) {
 		h.responsesErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
@@ -85,11 +98,46 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	if rejectSystemOneOnlyPlatform(c, apiKey, h.responsesErrorResponse) {
 		return
 	}
-	reqStream, ok := parseOpenAICompatibleStream(body)
-	if !ok {
-		h.responsesErrorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)
+
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
+	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted)
+	if err != nil {
+		reqLog.Warn("gateway.responses.user_slot_acquire_failed", zap.Error(err))
+		h.handleConcurrencyError(c, err, "user", streamStarted)
 		return
 	}
+	userReleaseFunc = wrapReleaseOnDone(c.Request.Context(), userReleaseFunc)
+	if userReleaseFunc != nil {
+		defer userReleaseFunc()
+	}
+
+	// 2. Re-check billing
+	var subscription *service.UserSubscription
+	apiKey, subscription, err = h.resolveSubscriptionBilling(c, body)
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.responsesSecurityAuditError(c, audit.decision)
+			return
+		}
+		reqLog.Info("gateway.responses.billing_check_failed", zap.Error(err))
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		h.responsesErrorResponse(c, status, code, message)
+		return
+	}
+
+	ensureCompositeTargetPlatform(c, apiKey, reqModel)
+	if !compositeTargetPlatformResolved(c, apiKey, reqModel) {
+		h.responsesErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
+		return
+	}
+	if rejectSystemOneOnlyPlatform(c, apiKey, h.responsesErrorResponse) {
+		return
+	}
+
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 
 	setOpsRequestContext(c, reqModel, reqStream)
@@ -129,32 +177,6 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	// Error passthrough binding
 	if h.errorPassthroughService != nil {
 		service.BindErrorPassthroughService(c, h.errorPassthroughService)
-	}
-
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-
-	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
-
-	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, reqStream, &streamStarted)
-	if err != nil {
-		reqLog.Warn("gateway.responses.user_slot_acquire_failed", zap.Error(err))
-		h.handleConcurrencyError(c, err, "user", streamStarted)
-		return
-	}
-	userReleaseFunc = wrapReleaseOnDone(c.Request.Context(), userReleaseFunc)
-	if userReleaseFunc != nil {
-		defer userReleaseFunc()
-	}
-
-	// 2. Re-check billing
-	if err := h.billingCacheService.CheckBillingEligibility(requestCtx, apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(requestCtx, apiKey)); err != nil {
-		reqLog.Info("gateway.responses.billing_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		h.responsesErrorResponse(c, status, code, message)
-		return
 	}
 
 	// 余额模式在途预留：防止并发请求在预检时看到同一份余额而集体透支。

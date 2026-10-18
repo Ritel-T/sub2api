@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -99,7 +100,7 @@ func TestGatewayOpenAICompatibleHandlersAllowBooleanStreamToContinue(t *testing.
 			path: "/v1/responses",
 			body: `{"model":"gpt-5","stream":false,"input":"hello"}`,
 			run: func(c *gin.Context) {
-				(&GatewayHandler{gatewayService: &service.GatewayService{}}).Responses(c)
+				newGatewayBooleanStreamContinuationHandler(t).Responses(c)
 			},
 		},
 		{
@@ -107,7 +108,7 @@ func TestGatewayOpenAICompatibleHandlersAllowBooleanStreamToContinue(t *testing.
 			path: "/v1/chat/completions",
 			body: `{"model":"gpt-5","stream":true,"messages":[{"role":"user","content":"hello"}]}`,
 			run: func(c *gin.Context) {
-				(&GatewayHandler{gatewayService: &service.GatewayService{}}).ChatCompletions(c)
+				newGatewayBooleanStreamContinuationHandler(t).ChatCompletions(c)
 			},
 		},
 	}
@@ -140,4 +141,26 @@ func newOpenAICompatibleStreamValidationContext(path, body string, claudeCodeOnl
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 13, Concurrency: 1})
 
 	return c, rec
+}
+
+// A valid stream field advances into ordinary admission and billing before the
+// final group policy. Provide those dependencies so this test observes the
+// Claude Code restriction rather than an unrelated missing-service failure.
+func newGatewayBooleanStreamContinuationHandler(t *testing.T) *GatewayHandler {
+	t.Helper()
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	billing := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(billing.Stop)
+	cache := &helperConcurrencyCacheStub{userSeq: []bool{true}}
+	t.Cleanup(func() {
+		require.Equal(t, 1, cache.userAcquireCalls)
+		require.Equal(t, 1, cache.userReleaseCalls)
+		require.Zero(t, cache.accountAcquireCalls)
+	})
+	return &GatewayHandler{
+		gatewayService:      &service.GatewayService{},
+		billingCacheService: billing,
+		concurrencyHelper:   NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, 0),
+		cfg:                 cfg,
+	}
 }

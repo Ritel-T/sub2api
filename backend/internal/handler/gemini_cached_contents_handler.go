@@ -14,6 +14,7 @@ import (
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -118,18 +119,13 @@ func (h *GatewayHandler) GeminiCachedContentsCreate(c *gin.Context) {
 	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
 	c.Request = c.Request.WithContext(pricingCtx)
 
-	if decision := h.checkSecurityAudit(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, modelName, body); decision != nil && !decision.AllowNextStage {
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), authSubject, service.ContentModerationProtocolGemini, modelName, body); decision != nil && !decision.AllowNextStage {
 		googleSecurityAuditError(c, decision)
 		return
 	}
 
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, modelName)
-	reqModel := modelName
-	if channelMapping.Mapped {
-		modelName = channelMapping.MappedModel
-	}
-
-	subscription, _ := middleware.GetSubscriptionFromContext(c)
+	finishBillingResolution := middleware.BeginSubscriptionBillingRouteResolution(c)
+	defer finishBillingResolution()
 	geminiConcurrency := NewConcurrencyHelper(h.concurrencyHelper.concurrencyService, SSEPingFormatNone, 0)
 	streamStarted := false
 	userReleaseFunc, err := geminiConcurrency.AcquireUserSlotWithWait(c, authSubject.UserID, authSubject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted)
@@ -143,9 +139,30 @@ func (h *GatewayHandler) GeminiCachedContentsCreate(c *gin.Context) {
 		defer userReleaseFunc()
 	}
 
-	if !h.checkGeminiCachedContentBilling(c, reqLog, apiKey, subscription) {
+	apiKey, subscription, err := resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body, func(ctx context.Context, key *service.APIKey, sub *service.UserSubscription) error {
+		return h.billingCacheService.CheckBillingEligibility(ctx, key.User, key, key.Group, sub, service.QuotaPlatform(ctx, key))
+	}, func(key *service.APIKey) *securityaudit.Decision {
+		return h.checkSecurityAudit(c, reqLog, key, authSubject, service.ContentModerationProtocolGemini, modelName, body)
+	})
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			googleSecurityAuditError(c, audit.decision)
+			return
+		}
+		reqLog.Info("gemini.cached_content.billing_eligibility_check_failed", zap.Error(err))
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		googleErrorWithType(c, status, code, "", message)
 		return
 	}
+	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, modelName)
+	reqModel := modelName
+	if channelMapping.Mapped {
+		modelName = channelMapping.MappedModel
+	}
+
 	inflightRelease, err := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(modelName, body))
 	if err != nil {
 		reqLog.Info("gemini.cached_content.inflight_reservation_rejected", zap.Error(err))

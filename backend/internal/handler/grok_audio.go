@@ -12,6 +12,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	coderws "github.com/coder/websocket"
@@ -212,9 +213,49 @@ func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
 	if !h.ensureResponsesDependencies(c, nil) {
 		return
 	}
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		status, code, message, retryAfter := billingErrorDetails(err)
+
+	body, err := readGrokVoiceGatewayBody(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	reqLog := requestLogger(c, "handler.openai_gateway.grok_voice", zap.String("endpoint", endpoint))
+	auditBody := body
+	if endpoint == "tts" {
+		if input := extractGrokTTSInputText(body); input != "" {
+			if normalized, marshalErr := json.Marshal(map[string]any{"messages": []map[string]any{{"role": "user", "content": input}}}); marshalErr == nil {
+				auditBody = normalized
+			}
+		}
+	}
+	audit := func(key *service.APIKey) *securityaudit.Decision {
+		if endpoint != "tts" {
+			return nil
+		}
+		return h.checkSecurityAudit(c, reqLog, key, subject, service.ContentModerationProtocolOpenAIChat, "grok-4.5", auditBody)
+	}
+	if decision := audit(service.SubscriptionOverflowSourceAPIKey(apiKey)); decision != nil && !decision.AllowNextStage {
+		h.openAISecurityAuditError(c, decision)
+		return
+	}
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
+	keyRelease, keyErr := h.concurrencyHelper.AcquireAPIKeySlot(c.Request.Context(), apiKey.ID, apiKey.ConcurrencyLimit)
+	if keyErr != nil {
+		h.handleConcurrencyError(c, keyErr, "API key", false)
+		return
+	}
+	defer keyRelease()
+	var subscription *service.UserSubscription
+	apiKey, subscription, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body, h.checkRegionalBillingEligibility, audit)
+	if err != nil {
+		if rejected, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.openAISecurityAuditError(c, rejected.decision)
+			return
+		}
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -222,29 +263,6 @@ func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
 		return
 	}
 
-	body, err := readGrokVoiceGatewayBody(c)
-	if err != nil {
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return
-	}
-	if endpoint == "tts" {
-		subject, _ := middleware2.GetAuthSubjectFromContext(c)
-		reqLog := requestLogger(c, "handler.openai_gateway.grok_voice", zap.String("endpoint", endpoint))
-		// TTS bodies use {"input":"..."} (and variants). Normalize to chat messages so
-		// content moderation extractors see the spoken text.
-		auditBody := body
-		if input := extractGrokTTSInputText(body); input != "" {
-			if b, err := json.Marshal(map[string]any{
-				"messages": []map[string]any{{"role": "user", "content": input}},
-			}); err == nil {
-				auditBody = b
-			}
-		}
-		if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, "grok-4.5", auditBody); decision != nil && !decision.AllowNextStage {
-			h.openAISecurityAuditError(c, decision)
-			return
-		}
-	}
 	// 余额模式在途预留（与计费同口径估算；计费任务扣减余额缓存后才释放）。
 	inflightDone, inflightErr := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, grokVoiceInflightEstimate(endpoint, body))
 	if inflightErr != nil {
@@ -266,14 +284,7 @@ func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
 	var forbiddenBudget grokForbiddenFailoverBudget
 	upstreamSwitchCount := 0
 	var last *service.UpstreamFailoverError
-	reqLog := requestLogger(c, "handler.openai_gateway.grok_voice", zap.String("endpoint", endpoint))
 	selectionModel := "grok-4.5"
-	keyRelease, keyErr := h.concurrencyHelper.AcquireAPIKeySlot(c.Request.Context(), apiKey.ID, apiKey.ConcurrencyLimit)
-	if keyErr != nil {
-		h.handleConcurrencyError(c, keyErr, "API key", false)
-		return
-	}
-	defer keyRelease()
 
 	for attempts := 0; attempts < 4; attempts++ {
 		selection, _, selectErr := h.gatewayService.SelectAccountWithSchedulerForCapability(

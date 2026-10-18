@@ -532,6 +532,7 @@
           }}</label>
           <Select
             v-model="createForm.platform"
+            data-testid="create-group-platform"
             :options="platformOptions"
             data-tour="group-form-platform"
             @change="createForm.copy_accounts_from_group_ids = []"
@@ -742,6 +743,7 @@
             }}</label>
             <Select
               v-model="createForm.subscription_type"
+              data-testid="create-subscription-type"
               :options="subscriptionTypeOptions"
             />
             <p class="input-hint">
@@ -792,6 +794,16 @@
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
               />
+            </div>
+            <div data-testid="create-subscription-fallback">
+              <label class="input-label">{{ t("admin.groups.subscription.fallbackGroup") }}</label>
+              <Select
+                v-model="createForm.subscription_fallback_group_id"
+                data-testid="create-subscription-fallback-select"
+                :options="subscriptionFallbackOptions"
+                :disabled="subscriptionFallbackGroupsLoading || createForm.platform === 'composite'"
+              />
+              <p class="input-hint">{{ t(createForm.platform === 'composite' ? "admin.groups.subscription.fallbackCompositeUnsupported" : "admin.groups.subscription.fallbackGroupHint") }}</p>
             </div>
           </div>
         </div>
@@ -2443,6 +2455,16 @@
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
               />
+            </div>
+            <div data-testid="edit-subscription-fallback">
+              <label class="input-label">{{ t("admin.groups.subscription.fallbackGroup") }}</label>
+              <Select
+                v-model="editForm.subscription_fallback_group_id"
+                data-testid="edit-subscription-fallback-select"
+                :options="subscriptionFallbackOptionsForEdit"
+                :disabled="subscriptionFallbackGroupsLoading || editForm.platform === 'composite'"
+              />
+              <p class="input-hint">{{ t(editForm.platform === 'composite' ? "admin.groups.subscription.fallbackCompositeUnsupported" : "admin.groups.subscription.fallbackGroupHint") }}</p>
             </div>
           </div>
         </div>
@@ -4754,6 +4776,28 @@ const fallbackGroupOptionsForEdit = computed(() => {
   return options;
 });
 
+// Fetch the complete active catalog: the visible table may be filtered or paginated.
+const subscriptionFallbackGroups = ref<AdminGroup[]>([]);
+const subscriptionFallbackGroupsLoading = ref(false);
+const loadSubscriptionFallbackGroups = async () => {
+  subscriptionFallbackGroupsLoading.value = true;
+  try {
+    subscriptionFallbackGroups.value = (await adminAPI.groups.getAll()) || [];
+  } catch {
+    appStore.showError(t("admin.groups.subscription.fallbackGroupsLoadFailed"));
+  } finally {
+    subscriptionFallbackGroupsLoading.value = false;
+  }
+};
+const subscriptionFallbackOptionsFor = (platform: GroupPlatform, currentID?: number) => [
+  { value: null, label: t("admin.groups.subscription.noFallbackGroup") },
+  ...subscriptionFallbackGroups.value
+    .filter(group => group.platform !== "composite" && group.platform === platform && group.status === "active" && group.subscription_type === "standard" && group.id !== currentID)
+    .map(group => ({ value: group.id, label: `${group.name} (${group.rate_multiplier}x)` })),
+];
+const subscriptionFallbackOptions = computed(() => subscriptionFallbackOptionsFor(createForm.platform));
+const subscriptionFallbackOptionsForEdit = computed(() => subscriptionFallbackOptionsFor(editForm.platform, editingGroup.value?.id));
+
 // 无效请求兜底分组选项（创建时）- 仅包含 anthropic 平台、非订阅且未配置兜底的分组
 const invalidRequestFallbackOptions = computed(() => {
   const options: { value: number | null; label: string }[] = [
@@ -4998,6 +5042,7 @@ const createForm = reactive({
   rate_multiplier: 1.0,
   is_exclusive: false,
   subscription_type: "standard" as SubscriptionType,
+  subscription_fallback_group_id: null as number | null,
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
@@ -5366,6 +5411,7 @@ const editForm = reactive({
   is_exclusive: false,
   status: "active" as "active" | "inactive",
   subscription_type: "standard" as SubscriptionType,
+  subscription_fallback_group_id: null as number | null,
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
@@ -5815,6 +5861,7 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 
 const openCreateModal = () => {
   showCreateModal.value = true;
+  void loadSubscriptionFallbackGroups();
   loadModelAllowlistCandidates("create", 0, createForm.platform);
 };
 
@@ -5831,6 +5878,7 @@ const closeCreateModal = () => {
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
   createForm.subscription_type = "standard";
+  createForm.subscription_fallback_group_id = null;
   createForm.daily_limit_usd = null;
   createForm.weekly_limit_usd = null;
   createForm.monthly_limit_usd = null;
@@ -5974,6 +6022,7 @@ const handleCreateGroup = async () => {
     // 构建请求数据，包含模型路由配置
     const requestData = {
       ...createGroupForm,
+      subscription_fallback_group_id: createForm.subscription_type === "subscription" && createForm.platform !== "composite" ? createForm.subscription_fallback_group_id : null,
       force_openai_fast: normalizeGroupOpenAIFast(
         createForm.platform,
         createForm.force_openai_fast,
@@ -6108,6 +6157,7 @@ const handleCreateGroup = async () => {
 
 const handleEdit = async (group: AdminGroup) => {
   editingGroup.value = group;
+  void loadSubscriptionFallbackGroups();
   editForm.name = group.name;
   editForm.description = group.description || "";
   editForm.i18n = Object.fromEntries(
@@ -6121,6 +6171,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";
+  editForm.subscription_fallback_group_id = group.subscription_fallback_group_id ?? null;
   editForm.daily_limit_usd = group.daily_limit_usd;
   editForm.weekly_limit_usd = group.weekly_limit_usd;
   editForm.monthly_limit_usd = group.monthly_limit_usd;
@@ -6318,6 +6369,7 @@ const handleUpdateGroup = async () => {
     // 转换 fallback_group_id: null -> 0 (后端使用 0 表示清除)
     const payload = {
       ...editForm,
+      subscription_fallback_group_id: editForm.subscription_type === "subscription" && editForm.platform !== "composite" ? (editForm.subscription_fallback_group_id ?? 0) : 0,
       force_openai_fast: normalizeGroupOpenAIFast(
         editForm.platform,
         editForm.force_openai_fast,
@@ -6729,6 +6781,7 @@ watch(
       createForm.is_exclusive = true;
       createForm.fallback_group_id_on_invalid_request = null;
     } else {
+      createForm.subscription_fallback_group_id = null;
       createForm.peak_rate_enabled = false;
       createForm.peak_start = "";
       createForm.peak_end = "";
@@ -6753,6 +6806,7 @@ watch(
 watch(
   () => createForm.platform,
   (newVal) => {
+    createForm.subscription_fallback_group_id = null;
     if (!["anthropic", "antigravity"].includes(newVal)) {
       createForm.fallback_group_id_on_invalid_request = null;
     }

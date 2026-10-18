@@ -175,7 +175,8 @@ func TestWebSearch_RejectsWhenInflightExceedsBalance(t *testing.T) {
 		nil, nil, nil, nil, nil, nil, nil, nil, cfg, nil, nil, billing, nil, nil,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, service.NewModelPricingResolver(nil, billing), nil, nil, nil,
 	)
-	h := &GatewayHandler{gatewayService: gw, billingCacheService: billingCache}
+	h := &GatewayHandler{gatewayService: gw, billingCacheService: billingCache,
+		concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(&helperConcurrencyCacheStub{userSeq: []bool{true}}), SSEPingFormatNone, 0)}
 
 	groupID := int64(3)
 	perK := 1000.0 // $1 per search
@@ -195,6 +196,7 @@ func TestWebSearch_RejectsWhenInflightExceedsBalance(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/web_search", bytes.NewBufferString(`{"query":"sub2api"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set(string(middleware2.ContextKeyAPIKey), apiKey)
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42, Concurrency: 1})
 
 	h.WebSearch(c)
 

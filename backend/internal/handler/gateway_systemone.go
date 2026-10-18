@@ -10,6 +10,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/typesafe"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -74,19 +75,14 @@ func (h *GatewayHandler) SystemOne(c *gin.Context) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "System One is only available for TypeSafe and compatible Composite groups")
 		return
 	}
-	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolTypeSafeSystemOne, model, body); decision != nil && !decision.AllowNextStage {
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolTypeSafeSystemOne, model, body); decision != nil && !decision.AllowNextStage {
 		h.anthropicSecurityAuditError(c, decision)
 		return
 	}
 
-	setOpsRequestContext(c, model, false)
-	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
-	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
-	c.Request = c.Request.WithContext(pricingCtx)
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, model)
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
 	streamStarted := false
 	userRelease, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted)
 	if err != nil {
@@ -99,15 +95,43 @@ func (h *GatewayHandler) SystemOne(c *gin.Context) {
 	if userRelease != nil {
 		defer userRelease()
 	}
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		reqLog.Info("systemone.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+
+	var subscription *service.UserSubscription
+	apiKey, subscription, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body,
+		func(ctx context.Context, key *service.APIKey, sub *service.UserSubscription) error {
+			return h.billingCacheService.CheckBillingEligibility(ctx, key.User, key, key.Group, sub, service.QuotaPlatform(ctx, key))
+		}, func(key *service.APIKey) *securityaudit.Decision {
+			return h.checkSecurityAudit(c, reqLog, key, subject, service.ContentModerationProtocolTypeSafeSystemOne, model, body)
+		})
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.anthropicSecurityAuditError(c, audit.decision)
+			return
+		}
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
 		h.errorResponse(c, status, code, message)
 		return
 	}
+
+	ensureCompositeTargetPlatform(c, apiKey, model)
+	if apiKey.Group.Platform != service.PlatformTypeSafe &&
+		(apiKey.Group.Platform != service.PlatformComposite || !compositeTargetPlatformAllowed(c, apiKey, model, service.PlatformTypeSafe)) {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "System One is only available for TypeSafe and compatible Composite groups")
+		return
+	}
+	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolTypeSafeSystemOne, model, body); decision != nil && !decision.AllowNextStage {
+		h.anthropicSecurityAuditError(c, decision)
+		return
+	}
+
+	setOpsRequestContext(c, model, false)
+	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
+	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
+	c.Request = c.Request.WithContext(pricingCtx)
+	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, model)
 
 	fs := NewFailoverState(h.maxAccountSwitches, false)
 	for {

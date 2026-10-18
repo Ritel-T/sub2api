@@ -42,6 +42,10 @@ type UsageBillingCommand struct {
 	APIKeyQuotaCost     float64
 	APIKeyRateLimitCost float64
 	AccountQuotaCost    float64
+
+	// SubscriptionOverflow is notification metadata, excluded from the billing
+	// fingerprint. The repository persists it only with a successful balance charge.
+	SubscriptionOverflow *SubscriptionOverflowBillingEvidence
 }
 
 func (c *UsageBillingCommand) Normalize() {

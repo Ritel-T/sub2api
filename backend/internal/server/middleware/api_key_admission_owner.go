@@ -13,13 +13,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func nextWithAPIKeyAdmissionOwner(c *gin.Context, apiKeyService *service.APIKeyService, credential string, trustedClientIP string, key *service.APIKey, googleStyle bool) {
+func nextWithAPIKeyAdmissionOwner(c *gin.Context, apiKeyService *service.APIKeyService, credential string, trustedClientIP string, key *service.APIKey, googleStyle bool, subscriptions ...*service.SubscriptionService) {
 	var lookup func(context.Context, string) (*service.APIKey, error)
 	if apiKeyService != nil {
 		lookup = apiKeyService.GetByKey
 		if isResponsesWebSocketRoute(c) {
 			lookup = apiKeyService.GetByKeyUncached
 		}
+	}
+	c.Request = c.Request.WithContext(service.WithSubscriptionBillingRouteState(c.Request.Context(), key))
+	var subService *service.SubscriptionService
+	if len(subscriptions) > 0 {
+		subService = subscriptions[0]
+	}
+	if subService != nil {
+		c.Request = c.Request.WithContext(service.WithSubscriptionBillingResolver(c.Request.Context(), func(ctx context.Context, current *service.APIKey) (*service.APIKey, *service.UserSubscription, error) {
+			return apiKeyService.ResolveSubscriptionBilling(ctx, current, subService)
+		}))
 	}
 	nextWithAPIKeyAdmissionLookup(c, lookup, credential, trustedClientIP, key, googleStyle)
 }
@@ -60,7 +70,7 @@ func nextWithAPIKeyAdmissionLookup(c *gin.Context, lookup func(context.Context, 
 // Share all identity, permission and expiry gates between cached HTTP queue
 // revalidation and authoritative WS turn revalidation.
 func newAPIKeyAuthRevalidator(lookup func(context.Context, string) (*service.APIKey, error), credential string, trustedClientIP string, initial *service.APIKey) service.APIKeyQueueAuthRevalidator {
-	identity := captureAPIKeyQueueIdentity(initial)
+	identity := captureAPIKeyQueueIdentity(service.SubscriptionOverflowSourceAPIKey(initial))
 	return func(ctx context.Context) (int, error) {
 		if lookup == nil || credential == "" || initial == nil {
 			return 0, service.NewAPIKeyQueueAuthRejected(infraerrors.ServiceUnavailable("API_KEY_AUTH_UNAVAILABLE", "API key authentication is temporarily unavailable"))
@@ -113,12 +123,43 @@ func newAPIKeyAuthRevalidator(lookup func(context.Context, string) (*service.API
 		if apiKeyQueueCoreIdentityChanged(identity, latest) {
 			return 0, service.NewAPIKeyQueueAuthRejected(infraerrors.ServiceUnavailable("API_KEY_GROUP_CHANGED", "API key configuration changed; please retry"))
 		}
+		// Re-evaluate recurring quota before each queued/WS turn. Routing an
+		// already-bound connection to a different group is unsafe: reject before
+		// any send and require a fresh request/connection to select its account.
+		expected, resolving := initial, false
+		if state := service.SubscriptionBillingRouteStateFromContext(ctx); state != nil {
+			if current, open := state.Snapshot(); current != nil {
+				expected, resolving = current, open
+			}
+		}
+		if expected != nil && (expected.SubscriptionOverflow != nil || latest.Group != nil && latest.Group.IsSubscriptionType()) {
+			if resolve, ok := service.SubscriptionBillingResolverFromContext(ctx); ok {
+				effective, _, resolveErr := resolve(ctx, latest)
+				if resolveErr != nil {
+					return 0, service.NewAPIKeyQueueAuthRejected(resolveErr)
+				}
+				if effective == nil || effective.GroupID == nil || expected.GroupID == nil || (!resolving && *effective.GroupID != *expected.GroupID) {
+					return 0, service.NewAPIKeyQueueAuthRejected(infraerrors.ServiceUnavailable("API_KEY_BILLING_ROUTE_CHANGED", "Subscription charging route changed; reconnect with complete context"))
+				}
+				latest = effective
+			}
+		}
 		// Publish the freshest image permission for forwarding gates; a
 		// revalidation may have relaxed or revoked it since handshake.
 		if permission := service.APIKeyQueueImagePermissionFromContext(ctx); permission != nil {
 			permission.Set(service.GroupAllowsImageGeneration(latest.Group))
 		}
 		permissions := service.APIKeyQueueRequestPermissionsFromContext(ctx)
+		if evidence := latest.SubscriptionOverflow; evidence != nil && evidence.SourceGroup != nil {
+			sourcePolicy := *latest
+			sourcePolicy.Group = evidence.SourceGroup
+			if blocked := apiKeyQueueBlockedModel(&sourcePolicy, permissions); blocked != "" {
+				return 0, service.NewAPIKeyQueueAuthRejected(infraerrors.NotFound("MODEL_NOT_ALLOWED", fmt.Sprintf("Model %q is not available for this subscription", blocked)))
+			}
+			if capabilityErr := apiKeyQueueRevokedCapability(&sourcePolicy, permissions); capabilityErr != nil {
+				return 0, service.NewAPIKeyQueueAuthRejected(capabilityErr)
+			}
+		}
 		if blocked := apiKeyQueueBlockedModel(latest, permissions); blocked != "" {
 			return 0, service.NewAPIKeyQueueAuthRejected(infraerrors.NotFound("MODEL_NOT_ALLOWED", fmt.Sprintf("Model %q is not available for this group", blocked)))
 		}

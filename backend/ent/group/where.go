@@ -255,6 +255,11 @@ func ClaudeCodeOnly(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldClaudeCodeOnly, v))
 }
 
+// SubscriptionFallbackGroupID applies equality check predicate on the "subscription_fallback_group_id" field. It's identical to SubscriptionFallbackGroupIDEQ.
+func SubscriptionFallbackGroupID(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSubscriptionFallbackGroupID, v))
+}
+
 // FallbackGroupID applies equality check predicate on the "fallback_group_id" field. It's identical to FallbackGroupIDEQ.
 func FallbackGroupID(v int64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldFallbackGroupID, v))
@@ -2098,6 +2103,56 @@ func ClaudeCodeOnlyEQ(v bool) predicate.Group {
 // ClaudeCodeOnlyNEQ applies the NEQ predicate on the "claude_code_only" field.
 func ClaudeCodeOnlyNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldClaudeCodeOnly, v))
+}
+
+// SubscriptionFallbackGroupIDEQ applies the EQ predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSubscriptionFallbackGroupID, v))
+}
+
+// SubscriptionFallbackGroupIDNEQ applies the NEQ predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDNEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldSubscriptionFallbackGroupID, v))
+}
+
+// SubscriptionFallbackGroupIDIn applies the In predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldSubscriptionFallbackGroupID, vs...))
+}
+
+// SubscriptionFallbackGroupIDNotIn applies the NotIn predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDNotIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldSubscriptionFallbackGroupID, vs...))
+}
+
+// SubscriptionFallbackGroupIDGT applies the GT predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDGT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldSubscriptionFallbackGroupID, v))
+}
+
+// SubscriptionFallbackGroupIDGTE applies the GTE predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDGTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldSubscriptionFallbackGroupID, v))
+}
+
+// SubscriptionFallbackGroupIDLT applies the LT predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDLT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldSubscriptionFallbackGroupID, v))
+}
+
+// SubscriptionFallbackGroupIDLTE applies the LTE predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDLTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldSubscriptionFallbackGroupID, v))
+}
+
+// SubscriptionFallbackGroupIDIsNil applies the IsNil predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldSubscriptionFallbackGroupID))
+}
+
+// SubscriptionFallbackGroupIDNotNil applies the NotNil predicate on the "subscription_fallback_group_id" field.
+func SubscriptionFallbackGroupIDNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldSubscriptionFallbackGroupID))
 }
 
 // FallbackGroupIDEQ applies the EQ predicate on the "fallback_group_id" field.

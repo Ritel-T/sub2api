@@ -11,6 +11,7 @@ import (
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -127,25 +128,19 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	setOpsRequestContext(c, requestModel, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
 
+	auditBody := requestInfo.ModerationBody()
 	if endpoint.IsGenerationRequest() {
-		if !service.GroupAllowsImageGeneration(apiKey.Group) {
-			h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
-			return
-		}
 		requireAPIKeyQueueCapability(c, service.APIKeyQueueCapabilityImageGeneration)
-		if moderationBody := requestInfo.ModerationBody(); len(moderationBody) > 0 {
-			decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, moderationBody)
+		if len(auditBody) > 0 {
+			decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolOpenAIImages, requestModel, auditBody)
 			if decision != nil && !decision.AllowNextStage {
 				h.openAISecurityAuditError(c, decision)
 				return
 			}
 		}
-		imageReleaseFunc, acquired := h.acquireImageGenerationSlot(c, streamStarted)
-		if !acquired {
+		if !service.GroupAllowsImageGeneration(service.SubscriptionOverflowSourceAPIKey(apiKey).Group) {
+			h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
 			return
-		}
-		if imageReleaseFunc != nil {
-			defer imageReleaseFunc()
 		}
 	}
 
@@ -155,6 +150,14 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
+	routingStart := time.Now()
+	if !endpoint.IsVideoLookupRequest() {
+		finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+		defer finishRouteResolution()
+	} else {
+		// A lookup belongs to an existing upstream task. Never re-route that task.
+		middleware2.FreezeSubscriptionBillingRoute(c)
+	}
 
 	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted, reqLog)
 	if !acquired {
@@ -164,14 +167,41 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+	if endpoint.IsVideoLookupRequest() {
+		err = h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey))
+	} else {
+		apiKey, subscription, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body, h.checkRegionalBillingEligibility, func(key *service.APIKey) *securityaudit.Decision {
+			if len(auditBody) == 0 {
+				return nil
+			}
+			return h.checkSecurityAudit(c, reqLog, key, subject, service.ContentModerationProtocolOpenAIImages, requestModel, auditBody)
+		})
+	}
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.openAISecurityAuditError(c, audit.decision)
+			return
+		}
 		reqLog.Info("grok_media.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
 		h.errorResponse(c, status, code, message)
 		return
+	}
+	if endpoint.IsGenerationRequest() {
+		if !service.GroupAllowsImageGeneration(apiKey.Group) {
+			h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
+			return
+		}
+		imageReleaseFunc, acquired := h.acquireImageGenerationSlot(c, streamStarted)
+		if !acquired {
+			return
+		}
+		if imageReleaseFunc != nil {
+			defer imageReleaseFunc()
+		}
 	}
 
 	// 余额模式在途预留（与计费同口径估算；计费任务扣减余额缓存后才释放）。
@@ -223,7 +253,6 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	if maxAccountSwitches <= 0 {
 		maxAccountSwitches = 3
 	}
-	routingStart := time.Now()
 	requiredCapability := grokMediaRequiredCapability(endpoint)
 	var accountReleaseFunc func()
 	releaseAccount := func() {

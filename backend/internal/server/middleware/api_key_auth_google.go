@@ -141,7 +141,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			c.Set(string(ContextKeyUserRole), apiKey.User.Role)
 			setGroupContext(c, apiKey.Group)
 			_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
-			nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, true)
+			nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, true, subscriptionService)
 			return
 		}
 
@@ -167,11 +167,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 
 		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
 		if isSubscriptionType && subscriptionService != nil {
-			subscription, err := subscriptionService.GetActiveSubscription(
-				c.Request.Context(),
-				apiKey.User.ID,
-				apiKey.Group.ID,
-			)
+			subscription, err := subscriptionService.GetSubscriptionForBillingRoute(c.Request.Context(), apiKey.User.ID, apiKey.Group)
 			if err != nil {
 				abortWithGoogleError(c, 403, "No active subscription found for this group")
 				return
@@ -187,12 +183,22 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 				subscription = refreshed
 				_, err = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
 			}
+			if err != nil && service.IsSubscriptionQuotaError(err) && apiKey.Group.SubscriptionFallbackGroupID != nil {
+				apiKey, subscription, err = apiKeyService.ResolveSubscriptionFallback(c.Request.Context(), apiKey, subscription, err)
+				if err == nil {
+					c.Request = c.Request.WithContext(service.WithSubscriptionOverflow(c.Request.Context(), apiKey.SubscriptionOverflow))
+					SetOpsFallbackAPIKey(c, apiKey)
+				}
+			}
 			if err != nil {
 				status := 403
 				if errors.Is(err, service.ErrDailyLimitExceeded) ||
 					errors.Is(err, service.ErrWeeklyLimitExceeded) ||
 					errors.Is(err, service.ErrMonthlyLimitExceeded) {
 					status = 429
+				}
+				if errors.Is(err, service.ErrBillingServiceUnavailable) {
+					status = 503
 				}
 				abortWithGoogleError(c, status, err.Error())
 				return
@@ -214,7 +220,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 		c.Set(string(ContextKeyUserRole), apiKey.User.Role)
 		setGroupContext(c, apiKey.Group)
 		_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
-		nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, true)
+		nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, true, subscriptionService)
 	}
 }
 

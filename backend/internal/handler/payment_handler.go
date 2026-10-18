@@ -54,44 +54,9 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	// Enrich plans with group platform for frontend color coding
-	type planWithPlatform struct {
-		ID                 int64    `json:"id"`
-		GroupID            int64    `json:"group_id"`
-		GroupPlatform      string   `json:"group_platform"`
-		GroupName          string   `json:"group_name"`
-		RateMultiplier     float64  `json:"rate_multiplier"`
-		PeakRateEnabled    bool     `json:"peak_rate_enabled"`
-		PeakStart          string   `json:"peak_start"`
-		PeakEnd            string   `json:"peak_end"`
-		PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
-		Name               string   `json:"name"`
-		Description        string   `json:"description"`
-		Price              float64  `json:"price"`
-		OriginalPrice      *float64 `json:"original_price,omitempty"`
-		Currency           string   `json:"currency,omitempty"`
-		ValidityDays       int      `json:"validity_days"`
-		ValidityUnit       string   `json:"validity_unit"`
-		Features           string   `json:"features"`
-		ProductName        string   `json:"product_name"`
-		ForSale            bool     `json:"for_sale"`
-		SortOrder          int      `json:"sort_order"`
-	}
 	groupInfo := h.configService.GetGroupInfoMap(c.Request.Context(), plans)
-	result := make([]planWithPlatform, 0, len(plans))
-	for _, p := range plans {
-		gi := groupInfo[p.GroupID]
-		result = append(result, planWithPlatform{
-			ID: int64(p.ID), GroupID: p.GroupID,
-			GroupPlatform: gi.Platform, GroupName: gi.I18n.LocalizeName(c.GetHeader("Accept-Language"), gi.Name),
-			RateMultiplier: gi.RateMultiplier, PeakRateEnabled: gi.PeakRateEnabled,
-			PeakStart: gi.PeakStart, PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
-			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
-			Currency:     p.Currency,
-			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: p.Features,
-			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
-		})
-	}
+	result := publicPlansForResponse(plans, groupInfo, c.GetHeader("Accept-Language"))
+
 	response.Success(c, result)
 }
 
@@ -133,27 +98,14 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	}
 	limitsResp.Methods = h.paymentService.FilterPaymentMethodsForUser(ctx, cfg, subject.UserID, limitsResp.Methods)
 	publicConfig := h.paymentService.PaymentConfigForUser(ctx, cfg, subject.UserID)
-	// Fetch plans with group info
-	plans, _ := h.configService.ListPlansForSale(ctx)
-	groupInfo := h.configService.GetGroupInfoMap(ctx, plans)
-	planList := make([]checkoutPlan, 0, len(plans))
-	for _, p := range plans {
-		gi := groupInfo[p.GroupID]
-		planList = append(planList, checkoutPlan{
-			ID: int64(p.ID), GroupID: p.GroupID,
-			GroupPlatform: gi.Platform, GroupName: gi.I18n.LocalizeName(c.GetHeader("Accept-Language"), gi.Name),
-			RateMultiplier:  gi.RateMultiplier,
-			PeakRateEnabled: gi.PeakRateEnabled, PeakStart: gi.PeakStart,
-			PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
-			DailyLimitUSD:  gi.DailyLimitUSD,
-			WeeklyLimitUSD: gi.WeeklyLimitUSD, MonthlyLimitUSD: gi.MonthlyLimitUSD,
-			ModelScopes: gi.ModelScopes,
-			Name:        p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
-			Currency:     p.Currency,
-			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
-			ProductName: p.ProductName,
-		})
+	// Fetch fresh group terms for both purchase and renewal cards.
+	plans, err := h.configService.ListPlansForSale(ctx)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
 	}
+	groupInfo := h.configService.GetGroupInfoMap(ctx, plans)
+	planList := checkoutPlansForResponse(plans, groupInfo, c.GetHeader("Accept-Language"))
 
 	response.Success(c, checkoutInfoResponse{
 		Methods:                       limitsResp.Methods,
@@ -201,6 +153,7 @@ type checkoutInfoResponse struct {
 }
 
 type checkoutPlan struct {
+	GroupStatus        string   `json:"group_status"`
 	ID                 int64    `json:"id"`
 	GroupID            int64    `json:"group_id"`
 	GroupPlatform      string   `json:"group_platform"`
@@ -223,6 +176,8 @@ type checkoutPlan struct {
 	ValidityUnit       string   `json:"validity_unit"`
 	Features           []string `json:"features"`
 	ProductName        string   `json:"product_name"`
+	ForSale            bool     `json:"for_sale"`
+	SortOrder          int      `json:"sort_order"`
 }
 
 // parseFeatures splits a newline-separated features string into a string slice.

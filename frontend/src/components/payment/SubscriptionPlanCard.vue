@@ -43,6 +43,10 @@
         </div>
       </div>
 
+      <p v-if="plan.group_name" class="mb-2 truncate text-xs text-gray-500 dark:text-dark-400" data-testid="plan-group-name" :title="plan.group_name">
+        {{ t('payment.admin.group') }}: {{ plan.group_name }}
+      </p>
+
       <!-- Group quota info (compact) -->
       <div class="mb-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-dark-700/50">
         <div class="flex items-center justify-between">
@@ -53,19 +57,19 @@
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.peakRate') }}</span>
           <span class="text-right font-medium text-amber-700 dark:text-amber-300">{{ peakRateDisplay }}</span>
         </div>
-        <div v-if="plan.daily_limit_usd != null" class="flex items-center justify-between">
+        <div v-if="hasPositivePlanLimit(plan.daily_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.dailyLimit') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">${{ plan.daily_limit_usd }}</span>
         </div>
-        <div v-if="plan.weekly_limit_usd != null" class="flex items-center justify-between">
+        <div v-if="hasPositivePlanLimit(plan.weekly_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.weeklyLimit') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">${{ plan.weekly_limit_usd }}</span>
         </div>
-        <div v-if="plan.monthly_limit_usd != null" class="flex items-center justify-between">
+        <div v-if="hasPositivePlanLimit(plan.monthly_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.monthlyLimit') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">${{ plan.monthly_limit_usd }}</span>
         </div>
-        <div v-if="plan.daily_limit_usd == null && plan.weekly_limit_usd == null && plan.monthly_limit_usd == null" class="flex items-center justify-between">
+        <div v-if="!hasPositivePlanLimit(plan.daily_limit_usd) && !hasPositivePlanLimit(plan.weekly_limit_usd) && !hasPositivePlanLimit(plan.monthly_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.quota') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.planCard.unlimited') }}</span>
         </div>
@@ -81,8 +85,8 @@
       </div>
 
       <!-- Features list (compact) -->
-      <div v-if="plan.features.length > 0" class="mb-3 space-y-1">
-        <div v-for="feature in plan.features" :key="feature" class="flex items-start gap-1.5">
+      <div v-if="displayFeatures.length > 0" class="mb-3 space-y-1">
+        <div v-for="feature in displayFeatures" :key="feature" class="flex items-start gap-1.5">
           <svg :class="['mt-0.5 h-3.5 w-3.5 flex-shrink-0', iconClass]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
           </svg>
@@ -96,7 +100,8 @@
       <button
         type="button"
         :class="['w-full rounded-xl py-2.5 text-sm font-semibold transition-all active:scale-[0.98]', btnClass]"
-        @click="emit('select', plan)"
+        :disabled="!availableForSale"
+        @click="availableForSale && emit('select', plan)"
       >
         {{ isRenewal ? t('payment.renewNow') : t('payment.subscribeNow') }}
       </button>
@@ -113,6 +118,7 @@ import { useAppStore } from '@/stores/app'
 import { hasPeakRate as groupHasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import { planValiditySuffix } from './validity'
 import { currencySymbol } from '@/components/payment/currency'
+import { hasPositivePlanLimit, planCustomFeatures } from './planGroupTerms'
 import {
   platformAccentBarClass,
   platformBadgeLightClass,
@@ -129,6 +135,8 @@ const emit = defineEmits<{ select: [plan: SubscriptionPlan] }>()
 const { t } = useI18n()
 
 const platform = computed(() => props.plan.group_platform || '')
+const displayFeatures = computed(() => planCustomFeatures(props.plan.features))
+const availableForSale = computed(() => props.plan.for_sale !== false && (!props.plan.group_status || props.plan.group_status === 'active'))
 const isRenewal = computed(() =>
   props.activeSubscriptions?.some(s => s.group_id === props.plan.group_id && s.status === 'active') ?? false
 )

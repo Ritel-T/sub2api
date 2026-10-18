@@ -75,6 +75,8 @@ func validatePlanPatch(req UpdatePlanRequest) error {
 
 // PlanGroupInfo holds the group details needed for subscription plan display.
 type PlanGroupInfo struct {
+	Status             string   `json:"status"`
+	SubscriptionType   string   `json:"subscription_type"`
 	Platform           string   `json:"platform"`
 	Name               string   `json:"name"`
 	RateMultiplier     float64  `json:"rate_multiplier"`
@@ -96,6 +98,9 @@ func (s *PaymentConfigService) GetGroupInfoMap(ctx context.Context, plans []*dbe
 	ids := make([]int64, 0, len(plans))
 	seen := make(map[int64]bool)
 	for _, p := range plans {
+		if p == nil {
+			continue
+		}
 		if !seen[p.GroupID] {
 			seen[p.GroupID] = true
 			ids = append(ids, p.GroupID)
@@ -104,13 +109,14 @@ func (s *PaymentConfigService) GetGroupInfoMap(ctx context.Context, plans []*dbe
 	if len(ids) == 0 {
 		return nil
 	}
-	groups, err := s.entClient.Group.Query().Where(group.IDIn(ids...)).All(ctx)
+	groups, err := s.entClient.Group.Query().Where(group.IDIn(ids...), group.DeletedAtIsNil()).All(ctx)
 	if err != nil {
 		return nil
 	}
 	m := make(map[int64]PlanGroupInfo, len(groups))
 	for _, g := range groups {
 		m[int64(g.ID)] = PlanGroupInfo{
+			Status: g.Status, SubscriptionType: g.SubscriptionType,
 			Platform:           g.Platform,
 			Name:               g.Name,
 			RateMultiplier:     g.RateMultiplier,
@@ -133,7 +139,16 @@ func (s *PaymentConfigService) ListPlans(ctx context.Context) ([]*dbent.Subscrip
 }
 
 func (s *PaymentConfigService) ListPlansForSale(ctx context.Context) ([]*dbent.SubscriptionPlan, error) {
-	return s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.ForSaleEQ(true)).Order(subscriptionplan.BySortOrder()).All(ctx)
+	// A plan is a product, while its currently linked group defines entitlement.
+	// Deleted, disabled or converted groups must never be advertised for purchase.
+	groupIDs, err := s.entClient.Group.Query().Where(group.StatusEQ(StatusActive), group.SubscriptionTypeEQ(SubscriptionTypeSubscription), group.DeletedAtIsNil()).IDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(groupIDs) == 0 {
+		return []*dbent.SubscriptionPlan{}, nil
+	}
+	return s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.ForSaleEQ(true), subscriptionplan.GroupIDIn(groupIDs...)).Order(subscriptionplan.BySortOrder()).All(ctx)
 }
 
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {

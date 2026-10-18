@@ -30,6 +30,10 @@ func (h *OpenAIGatewayHandler) Live(c *gin.Context) {
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
 	}
+	if apiKey.SubscriptionOverflow != nil {
+		h.errorResponse(c, http.StatusForbidden, "subscription_fallback_unsupported", "Live does not support subscription overflow billing; use an active subscription quota or another endpoint")
+		return
+	}
 	if apiKey.Group == nil || (apiKey.Group.Platform != service.PlatformOpenAI && apiKey.Group.Platform != service.PlatformComposite) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Live is not supported for this platform")
 		return
@@ -101,6 +105,8 @@ func (h *OpenAIGatewayHandler) Live(c *gin.Context) {
 	// The Key wait (bounded by the global queue policy) happens before user and
 	// account capacity; the reservation is then transferred atomically into the
 	// Live lease so the same allowance is not counted twice.
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
 	keyReservation, err := h.concurrencyHelper.ReserveAPIKeySlotWithWait(c.Request.Context(), apiKey.ID, apiKey.ConcurrencyLimit)
 	if err != nil {
 		h.handleConcurrencyError(c, err, "API key", false)
@@ -127,6 +133,49 @@ func (h *OpenAIGatewayHandler) Live(c *gin.Context) {
 		defer userResult.ReleaseFunc()
 	}
 
+	// A call is still unbound here. Refresh subscription eligibility after the
+	// key wait, but reject a wallet route because Live has no paid-usage pipeline.
+	if apiKey.Group != nil && apiKey.Group.IsSubscriptionType() && apiKey.Group.SubscriptionFallbackGroupID != nil {
+		freshKey, freshSub, resolveErr := middleware2.ResolveSubscriptionBillingContext(c, h.apiKeyService, nil)
+		if resolveErr != nil {
+			status, code, message, retryAfter := subscriptionBillingErrorDetails(resolveErr)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.errorResponse(c, status, code, message)
+			return
+		}
+		if freshKey.SubscriptionOverflow != nil {
+			h.errorResponse(c, http.StatusForbidden, "subscription_fallback_unsupported", "Live does not support subscription overflow billing; use an active subscription quota or another endpoint")
+			return
+		}
+		apiKey, subscription = freshKey, freshSub
+		if !liveEnabledForAPIKey(apiKey) {
+			h.errorResponse(c, http.StatusForbidden, "permission_error", "Live is not enabled for this group")
+			return
+		}
+		if apiKey.Group.ModelAllowlistEnabled() && !apiKey.Group.ModelAllowlist.Allows(model) {
+			h.errorResponse(c, http.StatusNotFound, "model_not_allowed", "Model is not available for this group")
+			return
+		}
+		if service.FirstUserGroupDeniedModel(apiKey.DeniedModelsInGroup(), []string{model}) != "" {
+			h.errorResponse(c, http.StatusNotFound, "model_not_allowed", "Model is not available for your account in this group")
+			return
+		}
+		if billingErr := h.billingCacheService.CheckBillingEligibilityWithoutRPM(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); billingErr != nil {
+			if service.IsSubscriptionQuotaError(billingErr) {
+				h.errorResponse(c, http.StatusForbidden, "subscription_fallback_unsupported", "Live does not support subscription overflow billing; use an active subscription quota or another endpoint")
+				return
+			}
+			status, code, message, retryAfter := billingErrorDetails(billingErr)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.errorResponse(c, status, code, message)
+			return
+		}
+	}
+	middleware2.FreezeSubscriptionBillingRoute(c)
 	identity := liveCallIdentity(c, apiKey, subject.UserID, subscription)
 	identity.KeyReservation = keyReservation
 	if keyReservation != nil {

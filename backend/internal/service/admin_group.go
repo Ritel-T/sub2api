@@ -502,6 +502,11 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		return nil, err
 	}
 
+	subscriptionFallback, err := s.resolveSubscriptionFallbackGroup(ctx, 0, platform, subscriptionType, nil, input.SubscriptionFallbackGroupID)
+	if err != nil {
+		return nil, err
+	}
+
 	// 校验降级分组
 	if input.FallbackGroupID != nil {
 		if err := s.validateFallbackGroup(ctx, 0, *input.FallbackGroupID); err != nil {
@@ -609,6 +614,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		AudioSTTPricePerHour:            audioSTTPricePerHour,
 		ClaudeCodeOnly:                  input.ClaudeCodeOnly,
 		StreamOnly:                      input.StreamOnly,
+		SubscriptionFallbackGroupID:     subscriptionFallback,
 		FallbackGroupID:                 input.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: fallbackOnInvalidRequest,
 		ModelRouting:                    input.ModelRouting,
@@ -673,7 +679,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	return group, nil
 }
 
-// normalizeLimit 将负数转换为 nil（表示无限制），0 保留（表示限额为零）
+// normalizeLimit 将负数转换为 nil（表示无限制），0 原样保存；实际限额仅在 >0 时生效。
 func normalizeLimit(limit *float64) *float64 {
 	if limit == nil || *limit < 0 {
 		return nil
@@ -819,7 +825,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.SubscriptionType != "" {
 		group.SubscriptionType = input.SubscriptionType
 	}
-	// 限额字段：nil 表示不修改，负数表示"无限制"，0 表示"不允许用量"，正数表示具体限额。
+	// 限额字段：nil 表示不修改，负数表示"无限制"；0 原样保存但不启用限制，正数表示具体限额。
 	if input.DailyLimitUSD != nil {
 		group.DailyLimitUSD = normalizeLimit(input.DailyLimitUSD)
 	}
@@ -946,6 +952,12 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.AudioSTTPricePerHour != nil {
 		group.AudioSTTPricePerHour = normalizePrice(input.AudioSTTPricePerHour)
 	}
+
+	subscriptionFallback, err := s.resolveSubscriptionFallbackGroup(ctx, id, group.Platform, group.SubscriptionType, group.SubscriptionFallbackGroupID, input.SubscriptionFallbackGroupID)
+	if err != nil {
+		return nil, err
+	}
+	group.SubscriptionFallbackGroupID = subscriptionFallback
 
 	// Claude Code 客户端限制
 	if input.ClaudeCodeOnly != nil {

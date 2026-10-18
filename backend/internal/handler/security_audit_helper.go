@@ -14,10 +14,12 @@ import (
 )
 
 const securityAuditCompletedContextKey = "sub2api.security_audit.completed"
+const securityAuditCompletedGroupContextKey = "sub2api.security_audit.completed_group"
 const securityAuditWSTurnContextKey = "sub2api.security_audit.ws_turn"
 const securityAuditWSDedupeContextKey = "sub2api.security_audit.ws_dedupe"
 
 type securityAuditWSDedupeEntry struct {
+	groupID  int64
 	stage    string
 	turn     int
 	bodyHash [sha256.Size]byte
@@ -63,6 +65,15 @@ func (h *OpenAIGatewayHandler) checkSecurityAuditStage(c *gin.Context, reqLog *z
 	if h == nil {
 		return nil
 	}
+	if apiKey != nil && apiKey.SubscriptionOverflow != nil && isSecurityAuditWebSocketStage(stage) {
+		source := service.SubscriptionOverflowSourceAPIKey(apiKey)
+		if source != apiKey {
+			decision := runSecurityAudit(c, reqLog, h.securityAuditCoordinator, h.contentModerationService, source, subject, protocol, model, body, stage)
+			if decision != nil && !decision.AllowNextStage {
+				return decision
+			}
+		}
+	}
 	return runSecurityAudit(c, reqLog, h.securityAuditCoordinator, h.contentModerationService, apiKey, subject, protocol, model, body, stage)
 }
 
@@ -73,7 +84,7 @@ func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securitya
 	defer requesttiming.Observe(c.Request.Context(), "security_audit")()
 	cacheCompletion := cachesSecurityAuditCompletion(stage)
 	if cacheCompletion {
-		if completed, exists := c.Get(securityAuditCompletedContextKey); exists && completed == true {
+		if completed, exists := c.Get(securityAuditCompletedContextKey); exists && completed == true && securityAuditCompletedForGroup(c, apiKey) {
 			return nil
 		}
 	}
@@ -93,8 +104,12 @@ func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securitya
 		}
 		if decision.AllowNextStage && cacheCompletion {
 			c.Set(securityAuditCompletedContextKey, true)
+			c.Set(securityAuditCompletedGroupContextKey, securityAuditGroupID(apiKey))
 		}
 		return &decision
+	}
+	if cacheCompletion && apiKey != nil && apiKey.SubscriptionOverflow != nil {
+		stage = "subscription_overflow"
 	}
 	request := buildSecurityAuditRequest(c, apiKey, subject, protocol, model, body, stage)
 	if isSecurityAuditWebSocketStage(request.Stage) {
@@ -102,7 +117,7 @@ func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securitya
 			bodyHash := sha256.Sum256(body)
 			if cached, exists := c.Get(securityAuditWSDedupeContextKey); exists {
 				if entry, ok := cached.(securityAuditWSDedupeEntry); ok &&
-					entry.stage == request.Stage && entry.turn == turnNo && entry.bodyHash == bodyHash {
+					entry.stage == request.Stage && entry.turn == turnNo && entry.bodyHash == bodyHash && entry.groupID == securityAuditGroupID(apiKey) {
 					decision := entry.decision
 					logSecurityAuditDone(reqLog, request, decision, true)
 					return &decision
@@ -112,7 +127,7 @@ func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securitya
 			decision := coordinator.Check(c.Request.Context(), request)
 			if decision.Kind == securityaudit.DecisionAllow {
 				c.Set(securityAuditWSDedupeContextKey, securityAuditWSDedupeEntry{
-					stage: request.Stage, turn: turnNo, bodyHash: bodyHash, decision: decision,
+					stage: request.Stage, turn: turnNo, bodyHash: bodyHash, groupID: securityAuditGroupID(apiKey), decision: decision,
 				})
 			}
 			logSecurityAuditDone(reqLog, request, decision, false)
@@ -123,6 +138,7 @@ func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securitya
 	decision := coordinator.Check(c.Request.Context(), request)
 	if decision.AllowNextStage && cacheCompletion {
 		c.Set(securityAuditCompletedContextKey, true)
+		c.Set(securityAuditCompletedGroupContextKey, securityAuditGroupID(apiKey))
 	}
 	logSecurityAuditDone(reqLog, request, decision, false)
 	return &decision
@@ -212,4 +228,19 @@ func cloneSecurityAuditGroupID(value *int64) *int64 {
 	}
 	cloned := *value
 	return &cloned
+}
+
+func securityAuditGroupID(key *service.APIKey) int64 {
+	if key != nil && key.GroupID != nil {
+		return *key.GroupID
+	}
+	return 0
+}
+
+func securityAuditCompletedForGroup(c *gin.Context, key *service.APIKey) bool {
+	group, exists := c.Get(securityAuditCompletedGroupContextKey)
+	if !exists {
+		return key == nil || key.SubscriptionOverflow == nil
+	}
+	return group == securityAuditGroupID(key)
 }

@@ -1133,14 +1133,16 @@ func (s *SubscriptionService) ValidateAndCheckLimits(sub *UserSubscription, grou
 		needsMaintenance = true
 	}
 
-	// 3. 检查用量限额
-	if !sub.CheckDailyLimit(group, 0) {
+	// Configured overflow starts at exhaustion, including an exact positive
+	// limit. Unconfigured subscriptions retain the legacy inclusive allowance.
+	useOverflow := group != nil && group.SubscriptionFallbackGroupID != nil
+	if !sub.CheckDailyLimit(group, 0) || useOverflow && group.HasDailyLimit() && sub.DailyUsageUSD >= *group.DailyLimitUSD {
 		return needsMaintenance, ErrDailyLimitExceeded
 	}
-	if !sub.CheckWeeklyLimit(group, 0) {
+	if !sub.CheckWeeklyLimit(group, 0) || useOverflow && group.HasWeeklyLimit() && sub.WeeklyUsageUSD >= *group.WeeklyLimitUSD {
 		return needsMaintenance, ErrWeeklyLimitExceeded
 	}
-	if !sub.CheckMonthlyLimit(group, 0) {
+	if !sub.CheckMonthlyLimit(group, 0) || useOverflow && group.HasMonthlyLimit() && sub.MonthlyUsageUSD >= *group.MonthlyLimitUSD {
 		return needsMaintenance, ErrMonthlyLimitExceeded
 	}
 

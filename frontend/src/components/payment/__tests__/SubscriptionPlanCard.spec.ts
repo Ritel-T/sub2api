@@ -149,3 +149,37 @@ describe("SubscriptionPlanCard", () => {
     expect(badge?.element.parentElement?.textContent).toContain("/ 30payment.days");
   });
 });
+
+
+describe("SubscriptionPlanCard live group terms", () => {
+  it("keeps product identity and custom benefits while reading current group quotas", async () => {
+    const wrapper = mountPlanCard("openai", {
+      name: "Commercial product", group_name: "Current group", group_status: "active", for_sale: true,
+      daily_limit_usd: 10, weekly_limit_usd: 70, monthly_limit_usd: 1120,
+      features: ["月额度：$280", "Priority support", "每日客服支持"],
+    });
+    expect(wrapper.get("h3").text()).toBe("Commercial product");
+    expect(wrapper.get('[data-testid="plan-group-name"]').text()).toContain("Current group");
+    expect(wrapper.text()).toContain("$1120");
+    expect(wrapper.text()).not.toContain("$280");
+    expect(wrapper.text()).toContain("Priority support");
+    expect(wrapper.text()).toContain("每日客服支持");
+    await wrapper.setProps({ plan: { ...wrapper.props("plan"), group_name: "Renamed group", monthly_limit_usd: 2240 } });
+    expect(wrapper.text()).toContain("$2240");
+    expect(wrapper.text()).not.toContain("$1120");
+    expect(wrapper.get('[data-testid="plan-group-name"]').text()).toContain("Renamed group");
+  });
+
+  it("shows unlimited for zero and absent caps instead of a zero allowance", () => {
+    const wrapper = mountPlanCard("openai", { daily_limit_usd: 0, weekly_limit_usd: -1, monthly_limit_usd: null });
+    expect(wrapper.text()).toContain("payment.planCard.unlimited");
+    expect(wrapper.text()).not.toContain("$0");
+  });
+
+  it.each([{ for_sale: false }, { group_status: "inactive" }])("does not select unavailable stale plan %j", async (overrides) => {
+    const wrapper = mountPlanCard("openai", { for_sale: true, group_status: "active", ...overrides });
+    expect(wrapper.get("button").attributes("disabled")).toBeDefined();
+    await wrapper.get("button").trigger("click");
+    expect(wrapper.emitted("select")).toBeUndefined();
+  });
+});

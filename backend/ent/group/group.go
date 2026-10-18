@@ -102,6 +102,8 @@ const (
 	FieldModelPricing = "model_pricing"
 	// FieldClaudeCodeOnly holds the string denoting the claude_code_only field in the database.
 	FieldClaudeCodeOnly = "claude_code_only"
+	// FieldSubscriptionFallbackGroupID holds the string denoting the subscription_fallback_group_id field in the database.
+	FieldSubscriptionFallbackGroupID = "subscription_fallback_group_id"
 	// FieldFallbackGroupID holds the string denoting the fallback_group_id field in the database.
 	FieldFallbackGroupID = "fallback_group_id"
 	// FieldFallbackGroupIDOnInvalidRequest holds the string denoting the fallback_group_id_on_invalid_request field in the database.
@@ -270,6 +272,7 @@ var Columns = []string{
 	FieldLongContextPricingEnabled,
 	FieldModelPricing,
 	FieldClaudeCodeOnly,
+	FieldSubscriptionFallbackGroupID,
 	FieldFallbackGroupID,
 	FieldFallbackGroupIDOnInvalidRequest,
 	FieldStreamOnly,
@@ -652,6 +655,11 @@ func ByLongContextPricingEnabled(opts ...sql.OrderTermOption) OrderOption {
 // ByClaudeCodeOnly orders the results by the claude_code_only field.
 func ByClaudeCodeOnly(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldClaudeCodeOnly, opts...).ToFunc()
+}
+
+// BySubscriptionFallbackGroupID orders the results by the subscription_fallback_group_id field.
+func BySubscriptionFallbackGroupID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSubscriptionFallbackGroupID, opts...).ToFunc()
 }
 
 // ByFallbackGroupID orders the results by the fallback_group_id field.

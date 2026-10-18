@@ -513,6 +513,12 @@ func ProvideProxyExpiryService(proxyRepo ProxyRepository, cfg *config.Config) *P
 }
 
 // ProvideSubscriptionExpiryService creates and starts SubscriptionExpiryService.
+func ProvideSubscriptionOverflowNotificationService(repo SubscriptionOverflowNotificationRepository, sender *NotificationEmailService, cfg *config.Config) *SubscriptionOverflowNotificationService {
+	svc := NewSubscriptionOverflowNotificationService(repo, sender)
+	startBackgroundService(cfg, svc)
+	return svc
+}
+
 func ProvideSubscriptionExpiryService(userSubRepo UserSubscriptionRepository, settingRepo SettingRepository, notificationEmailService *NotificationEmailService, lockCache LeaderLockCache, db *sql.DB, cfg *config.Config) *SubscriptionExpiryService {
 	svc := NewSubscriptionExpiryService(userSubRepo, time.Minute)
 	svc.SetSettingRepository(settingRepo)
@@ -1102,6 +1108,7 @@ var ProviderSet = wire.NewSet(
 	ProvideClaudeCodeVersionSyncService,
 	ProvideProxyExpiryService,
 	ProvideSubscriptionExpiryService,
+	ProvideSubscriptionOverflowNotificationService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
 	ProvideUsageCleanupService,

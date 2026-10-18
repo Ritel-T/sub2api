@@ -614,7 +614,7 @@ export default {
       group: '分组',
       groupId: '分组 ID',
       features: '功能特性',
-      featuresHint: '每行一个特性',
+      featuresHint: '每行一个自定义卖点；额度会自动同步关联分组，无需手写额度。',
       featuresPlaceholder: '输入套餐特性...',
       providerManagement: '服务商管理',
       providerManagementDesc: '管理支付服务商实例',

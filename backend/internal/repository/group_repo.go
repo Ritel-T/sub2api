@@ -131,6 +131,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetDefaultValidityDays(groupIn.DefaultValidityDays).
 		SetClaudeCodeOnly(groupIn.ClaudeCodeOnly).
 		SetStreamOnly(groupIn.StreamOnly).
+		SetNillableSubscriptionFallbackGroupID(groupIn.SubscriptionFallbackGroupID).
 		SetNillableFallbackGroupID(groupIn.FallbackGroupID).
 		SetNillableFallbackGroupIDOnInvalidRequest(groupIn.FallbackGroupIDOnInvalidRequest).
 		SetModelRoutingEnabled(groupIn.ModelRoutingEnabled).
@@ -415,6 +416,11 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		builder = builder.ClearAudioSttPricePerHour()
 	}
 
+	if groupIn.SubscriptionFallbackGroupID != nil {
+		builder = builder.SetSubscriptionFallbackGroupID(*groupIn.SubscriptionFallbackGroupID)
+	} else {
+		builder = builder.ClearSubscriptionFallbackGroupID()
+	}
 	// 处理 FallbackGroupID：nil 时清除，否则设置
 	if groupIn.FallbackGroupID != nil {
 		builder = builder.SetFallbackGroupID(*groupIn.FallbackGroupID)

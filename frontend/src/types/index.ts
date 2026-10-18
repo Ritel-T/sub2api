@@ -610,6 +610,7 @@ export interface Group {
   is_exclusive: boolean
   status: 'active' | 'inactive'
   subscription_type: SubscriptionType
+  subscription_fallback_group_id?: number | null
   daily_limit_usd: number | null
   weekly_limit_usd: number | null
   monthly_limit_usd: number | null
@@ -850,6 +851,7 @@ export interface CreateGroupRequest {
   rate_multiplier?: number
   is_exclusive?: boolean
   subscription_type?: SubscriptionType
+  subscription_fallback_group_id?: number | null
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
@@ -918,6 +920,7 @@ export interface UpdateGroupRequest {
   is_exclusive?: boolean
   status?: 'active' | 'inactive'
   subscription_type?: SubscriptionType
+  subscription_fallback_group_id?: number | null
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null

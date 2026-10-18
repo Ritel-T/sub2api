@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -67,15 +69,23 @@ func (h *OpenAIGatewayHandler) ResponsesInputTokens(c *gin.Context) {
 
 	setOpsRequestContext(c, reqModel, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(false, false)))
-	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body); decision != nil && !decision.AllowNextStage {
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body); decision != nil && !decision.AllowNextStage {
 		h.openAISecurityAuditError(c, decision)
 		return
 	}
 
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+	apiKey, _, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body, func(ctx context.Context, key *service.APIKey, sub *service.UserSubscription) error {
+		return h.billingCacheService.CheckBillingEligibility(ctx, key.User, key, key.Group, sub, service.QuotaPlatform(ctx, key))
+	}, func(key *service.APIKey) *securityaudit.Decision {
+		return h.checkSecurityAudit(c, reqLog, key, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body)
+	})
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.openAISecurityAuditError(c, audit.decision)
+			return
+		}
 		reqLog.Info("openai_input_tokens.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -139,6 +149,16 @@ func (h *OpenAIGatewayHandler) ResponsesInputTokens(c *gin.Context) {
 // The route middleware already authenticates the API key and resolves the
 // group; this handler intentionally does not select an account or check billing.
 func (h *OpenAIGatewayHandler) GrokCountTokens(c *gin.Context) {
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	if !ok || apiKey == nil {
+		h.anthropicErrorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
+		return
+	}
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		subject.UserID = apiKey.UserID
+	}
+	reqLog := requestLogger(c, "handler.openai_gateway.grok_count_tokens")
 	body, err := readLenientJSONRequestBodyWithPrealloc(c.Request, h.cfg)
 	if err != nil {
 		if maxErr, ok := extractMaxBytesError(err); ok {
@@ -163,6 +183,32 @@ func (h *OpenAIGatewayHandler) GrokCountTokens(c *gin.Context) {
 	if parsedReq.Model == "" {
 		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
+	}
+
+	body = parsedReq.Body.Bytes()
+	if apiKey.SubscriptionOverflow != nil || apiKey.Group != nil && apiKey.Group.IsSubscriptionType() && apiKey.Group.SubscriptionFallbackGroupID != nil {
+		if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolAnthropicMessages, parsedReq.Model, body); decision != nil && !decision.AllowNextStage {
+			h.anthropicSecurityAuditError(c, decision)
+			return
+		}
+		_, _, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body, func(context.Context, *service.APIKey, *service.UserSubscription) error {
+			// This local estimator has never performed billing or consumed RPM.
+			return nil
+		}, func(key *service.APIKey) *securityaudit.Decision {
+			return h.checkSecurityAudit(c, reqLog, key, subject, service.ContentModerationProtocolAnthropicMessages, parsedReq.Model, body)
+		})
+		if err != nil {
+			if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+				h.anthropicSecurityAuditError(c, audit.decision)
+				return
+			}
+			status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.anthropicErrorResponse(c, status, code, message)
+			return
+		}
 	}
 
 	estimated, err := service.EstimateGrokCountTokens(parsedReq.Body.Bytes())
@@ -198,13 +244,6 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		zap.Int64("api_key_id", apiKey.ID),
 		zap.Any("group_id", apiKey.GroupID),
 	)
-
-	if !allowOpenAICompatibleMessagesDispatch(c, apiKey) {
-		h.anthropicErrorResponse(c, http.StatusForbidden, "permission_error",
-			"This group does not allow /v1/messages dispatch")
-		return
-	}
-	requireMessagesDispatchQueueCapability(c, apiKey)
 
 	if !h.ensureResponsesDependencies(c, reqLog) {
 		return
@@ -245,26 +284,46 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
 		return
 	}
-	routingModel := service.NormalizeOpenAICompatRequestedModel(reqModel)
-	preferredMappedModel := resolveOpenAIMessagesDispatchMappedModel(c, apiKey, reqModel)
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", parsedReq.Stream))
-
 	setOpsRequestContext(c, reqModel, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(false, false)))
-
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
-	mappedBodyForMessages := newOpenAIModelMappedBodyCache(body, h.gatewayService.ReplaceModelInBody)
-
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolAnthropicMessages, reqModel, body); decision != nil && !decision.AllowNextStage {
+		h.anthropicSecurityAuditError(c, decision)
+		return
+	}
+	// Capture dispatch permission before resolving so both source and target
+	// scopes are rechecked even though this endpoint is not /v1/messages.
+	requireMessagesDispatchQueueCapability(c, apiKey)
+	apiKey, _, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body, func(ctx context.Context, key *service.APIKey, sub *service.UserSubscription) error {
+		return h.billingCacheService.CheckBillingEligibility(ctx, key.User, key, key.Group, sub, service.QuotaPlatform(ctx, key))
+	}, func(key *service.APIKey) *securityaudit.Decision {
+		return h.checkSecurityAudit(c, reqLog, key, subject, service.ContentModerationProtocolAnthropicMessages, reqModel, body)
+	})
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.anthropicSecurityAuditError(c, audit.decision)
+			return
+		}
 		reqLog.Info("openai_count_tokens.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
 		h.anthropicErrorResponse(c, status, code, message)
 		return
 	}
+
+	if !allowOpenAICompatibleMessagesDispatch(c, apiKey) {
+		h.anthropicErrorResponse(c, http.StatusForbidden, "permission_error",
+			"This group does not allow /v1/messages dispatch")
+		return
+	}
+	requireMessagesDispatchQueueCapability(c, apiKey)
+
+	routingModel := service.NormalizeOpenAICompatRequestedModel(reqModel)
+	preferredMappedModel := resolveOpenAIMessagesDispatchMappedModel(c, apiKey, reqModel)
+	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	mappedBodyForMessages := newOpenAIModelMappedBodyCache(body, h.gatewayService.ReplaceModelInBody)
 
 	requestStart := time.Now()
 	// count_tokens 不计费：显式豁免利润门，避免高倍率账号池被门排除后连

@@ -600,6 +600,20 @@ func (_c *GroupCreate) SetNillableClaudeCodeOnly(v *bool) *GroupCreate {
 	return _c
 }
 
+// SetSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field.
+func (_c *GroupCreate) SetSubscriptionFallbackGroupID(v int64) *GroupCreate {
+	_c.mutation.SetSubscriptionFallbackGroupID(v)
+	return _c
+}
+
+// SetNillableSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableSubscriptionFallbackGroupID(v *int64) *GroupCreate {
+	if v != nil {
+		_c.SetSubscriptionFallbackGroupID(*v)
+	}
+	return _c
+}
+
 // SetFallbackGroupID sets the "fallback_group_id" field.
 func (_c *GroupCreate) SetFallbackGroupID(v int64) *GroupCreate {
 	_c.mutation.SetFallbackGroupID(v)
@@ -1651,6 +1665,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldClaudeCodeOnly, field.TypeBool, value)
 		_node.ClaudeCodeOnly = value
 	}
+	if value, ok := _c.mutation.SubscriptionFallbackGroupID(); ok {
+		_spec.SetField(group.FieldSubscriptionFallbackGroupID, field.TypeInt64, value)
+		_node.SubscriptionFallbackGroupID = &value
+	}
 	if value, ok := _c.mutation.FallbackGroupID(); ok {
 		_spec.SetField(group.FieldFallbackGroupID, field.TypeInt64, value)
 		_node.FallbackGroupID = &value
@@ -2630,6 +2648,30 @@ func (u *GroupUpsert) SetClaudeCodeOnly(v bool) *GroupUpsert {
 // UpdateClaudeCodeOnly sets the "claude_code_only" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateClaudeCodeOnly() *GroupUpsert {
 	u.SetExcluded(group.FieldClaudeCodeOnly)
+	return u
+}
+
+// SetSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field.
+func (u *GroupUpsert) SetSubscriptionFallbackGroupID(v int64) *GroupUpsert {
+	u.Set(group.FieldSubscriptionFallbackGroupID, v)
+	return u
+}
+
+// UpdateSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateSubscriptionFallbackGroupID() *GroupUpsert {
+	u.SetExcluded(group.FieldSubscriptionFallbackGroupID)
+	return u
+}
+
+// AddSubscriptionFallbackGroupID adds v to the "subscription_fallback_group_id" field.
+func (u *GroupUpsert) AddSubscriptionFallbackGroupID(v int64) *GroupUpsert {
+	u.Add(group.FieldSubscriptionFallbackGroupID, v)
+	return u
+}
+
+// ClearSubscriptionFallbackGroupID clears the value of the "subscription_fallback_group_id" field.
+func (u *GroupUpsert) ClearSubscriptionFallbackGroupID() *GroupUpsert {
+	u.SetNull(group.FieldSubscriptionFallbackGroupID)
 	return u
 }
 
@@ -3879,6 +3921,34 @@ func (u *GroupUpsertOne) SetClaudeCodeOnly(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateClaudeCodeOnly() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateClaudeCodeOnly()
+	})
+}
+
+// SetSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field.
+func (u *GroupUpsertOne) SetSubscriptionFallbackGroupID(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionFallbackGroupID(v)
+	})
+}
+
+// AddSubscriptionFallbackGroupID adds v to the "subscription_fallback_group_id" field.
+func (u *GroupUpsertOne) AddSubscriptionFallbackGroupID(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddSubscriptionFallbackGroupID(v)
+	})
+}
+
+// UpdateSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateSubscriptionFallbackGroupID() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionFallbackGroupID()
+	})
+}
+
+// ClearSubscriptionFallbackGroupID clears the value of the "subscription_fallback_group_id" field.
+func (u *GroupUpsertOne) ClearSubscriptionFallbackGroupID() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearSubscriptionFallbackGroupID()
 	})
 }
 
@@ -5353,6 +5423,34 @@ func (u *GroupUpsertBulk) SetClaudeCodeOnly(v bool) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateClaudeCodeOnly() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateClaudeCodeOnly()
+	})
+}
+
+// SetSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field.
+func (u *GroupUpsertBulk) SetSubscriptionFallbackGroupID(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionFallbackGroupID(v)
+	})
+}
+
+// AddSubscriptionFallbackGroupID adds v to the "subscription_fallback_group_id" field.
+func (u *GroupUpsertBulk) AddSubscriptionFallbackGroupID(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddSubscriptionFallbackGroupID(v)
+	})
+}
+
+// UpdateSubscriptionFallbackGroupID sets the "subscription_fallback_group_id" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateSubscriptionFallbackGroupID() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionFallbackGroupID()
+	})
+}
+
+// ClearSubscriptionFallbackGroupID clears the value of the "subscription_fallback_group_id" field.
+func (u *GroupUpsertBulk) ClearSubscriptionFallbackGroupID() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearSubscriptionFallbackGroupID()
 	})
 }
 

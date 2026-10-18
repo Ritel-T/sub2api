@@ -590,7 +590,7 @@ export default {
       group: 'Group',
       groupId: 'Group ID',
       features: 'Features',
-      featuresHint: 'One feature per line',
+      featuresHint: 'One custom benefit per line. Quotas sync from the linked group automatically; do not enter quota amounts here.',
       featuresPlaceholder: 'Enter plan features...',
       providerManagement: 'Provider Management',
       providerManagementDesc: 'Manage payment provider instances',

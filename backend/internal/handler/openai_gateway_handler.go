@@ -734,11 +734,6 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		// 与真实 Codex 线型一致（网关链剥头后本级负责恢复，#5586）。
 		service.MarkOpenAINativeCompactionV2(c)
 	}
-	// body-signal compact：上游 unary 等待期间向下游发 SSE 注释行心跳，防止
-	// 反向代理空闲超时掐断长压缩连接（#3887）。首拍延迟一个心跳间隔，快速
-	// 失败仍走 JSON+状态码链路；未标记客户端流式或间隔为 0 时是 no-op。
-	stopCompactKeepalive := service.StartOpenAICompactSSEKeepalive(c, h.openAICompactKeepaliveInterval())
-	defer stopCompactKeepalive()
 
 	// 校验请求体 JSON 合法性
 	if !gjson.ValidBytes(body) {
@@ -754,17 +749,17 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
-	ensureCompositeTargetPlatform(c, apiKey, reqModel)
-	if !openAICompatibleTextTargetAllowed(c, apiKey, reqModel) {
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
+	reqStream, ok := parseOpenAICompatibleStream(body)
+	if !ok {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)
 		return
 	}
-	if cappedBody, changed, err := applyOpenAIReasoningEffortPolicyForRequest(c, apiKey, body); err != nil {
-		respondOpenAIReasoningEffortPolicyError(c, err, h.errorResponse)
+
+	if _, err := service.ValidateOpenAIServiceTierField(body); err != nil {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
-	} else if changed {
-		body = cappedBody
 	}
+
 	if normalizedBody, changed := normalizeCodexAutomationBootstrap(body); changed {
 		body = normalizedBody
 		reqLog.Info("openai.codex_automation_bootstrap_normalized",
@@ -778,60 +773,64 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		)
 	}
 
-	reqStream, ok := parseOpenAICompatibleStream(body)
-	if !ok {
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)
+	// 提前校验 function_call_output 是否具备可关联上下文，避免上游 400。
+	if !h.validateFunctionCallOutputRequest(c, body, reqLog) {
 		return
 	}
-	if _, err := service.ValidateOpenAIServiceTierField(body); err != nil {
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return
-	}
-	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
-	previousResponseID := strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String())
-	if previousResponseID != "" {
-		previousResponseIDKind := service.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
-		reqLog = reqLog.With(
-			zap.Bool("has_previous_response_id", true),
-			zap.String("previous_response_id_kind", previousResponseIDKind),
-			zap.Int("previous_response_id_len", len(previousResponseID)),
-		)
-		if previousResponseIDKind == service.OpenAIPreviousResponseIDKindMessageID {
-			reqLog.Warn("openai.request_validation_failed",
-				zap.String("reason", "previous_response_id_looks_like_message_id"),
-			)
-			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "previous_response_id must be a response.id (resp_*), not a message id")
-			return
-		}
-		groupID := int64(0)
-		if apiKey.GroupID != nil {
-			groupID = *apiKey.GroupID
-		}
-		owned, ownershipErr := h.gatewayService.ValidateOpenAIHTTPResponseOwner(
-			c.Request.Context(),
-			groupID,
-			previousResponseID,
-			subject.UserID,
-			apiKey.ID,
-		)
-		if ownershipErr != nil {
-			reqLog.Warn("openai.previous_response_owner_lookup_failed", zap.Error(ownershipErr))
-		}
-		if !owned {
-			reqLog.Warn("openai.request_validation_failed", zap.String("reason", "previous_response_owner_mismatch"))
-			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "previous_response_id is not available for this user")
-			return
-		}
-	}
-	service.SetOpenAIHTTPResponseOwner(c, subject.UserID, apiKey.ID)
 
-	setOpsRequestContext(c, reqModel, reqStream)
-	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
-
-	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body); decision != nil && !decision.AllowNextStage {
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body); decision != nil && !decision.AllowNextStage {
 		h.openAISecurityAuditError(c, decision)
 		return
 	}
+
+	previousResponseID := strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String())
+	validatePreviousResponseOwner := func(ownerKey *service.APIKey) bool {
+		if previousResponseID != "" {
+			previousResponseIDKind := service.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
+			reqLog = reqLog.With(
+				zap.Bool("has_previous_response_id", true),
+				zap.String("previous_response_id_kind", previousResponseIDKind),
+				zap.Int("previous_response_id_len", len(previousResponseID)),
+			)
+			if previousResponseIDKind == service.OpenAIPreviousResponseIDKindMessageID {
+				reqLog.Warn("openai.request_validation_failed",
+					zap.String("reason", "previous_response_id_looks_like_message_id"),
+				)
+				h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "previous_response_id must be a response.id (resp_*), not a message id")
+				return false
+			}
+			groupID := int64(0)
+			if ownerKey.GroupID != nil {
+				groupID = *ownerKey.GroupID
+			}
+			owned, ownershipErr := h.gatewayService.ValidateOpenAIHTTPResponseOwner(
+				c.Request.Context(),
+				groupID,
+				previousResponseID,
+				subject.UserID,
+				ownerKey.ID,
+			)
+			if ownershipErr != nil {
+				reqLog.Warn("openai.previous_response_owner_lookup_failed", zap.Error(ownershipErr))
+			}
+			if !owned {
+				reqLog.Warn("openai.request_validation_failed", zap.String("reason", "previous_response_owner_mismatch"))
+				h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "previous_response_id is not available for this user")
+				return false
+			}
+		}
+		return true
+	}
+	if !validatePreviousResponseOwner(apiKey) {
+		return
+	}
+	validatedOwnerGroupID := int64(0)
+	if apiKey.GroupID != nil {
+		validatedOwnerGroupID = *apiKey.GroupID
+	}
+
+	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
+	routingStart := time.Now()
 
 	// 使用 IsExplicitImageGenerationIntent 排除被动 image_gen namespace 声明。
 	// Codex 在所有请求中被动声明 image_gen namespace，宽泛检测会导致禁了生图的
@@ -857,6 +856,65 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		}
 	}
 
+	// Resolve the charging group after queue admission and before its policies.
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
+	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted, reqLog)
+	if !acquired {
+		return
+	}
+	// 确保请求取消时也会释放槽位，避免长连接被动中断造成泄漏
+	if userReleaseFunc != nil {
+		defer userReleaseFunc()
+	}
+
+	// 2. Re-check billing eligibility after wait
+	var subscription *service.UserSubscription
+	apiKey, subscription, err = h.resolveSubscriptionBilling(c, body)
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.openAISecurityAuditError(c, audit.decision)
+			return
+		}
+		reqLog.Info("openai.billing_eligibility_check_failed", zap.Error(err))
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		h.handleStreamingAwareError(c, status, code, message, streamStarted)
+		return
+	}
+
+	if imageIntent && !service.GroupAllowsImageGeneration(apiKey.Group) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
+		return
+	}
+	ensureCompositeTargetPlatform(c, apiKey, reqModel)
+	if !openAICompatibleTextTargetAllowed(c, apiKey, reqModel) {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
+		return
+	}
+	if cappedBody, changed, err := applyOpenAIReasoningEffortPolicyForRequest(c, apiKey, body); err != nil {
+		respondOpenAIReasoningEffortPolicyError(c, err, h.errorResponse)
+		return
+	} else if changed {
+		body = cappedBody
+	}
+
+	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	if apiKey.GroupID != nil && *apiKey.GroupID != validatedOwnerGroupID && !validatePreviousResponseOwner(apiKey) {
+		return
+	}
+	service.SetOpenAIHTTPResponseOwner(c, subject.UserID, apiKey.ID)
+
+	setOpsRequestContext(c, reqModel, reqStream)
+	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
+
+	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body); decision != nil && !decision.AllowNextStage {
+		h.openAISecurityAuditError(c, decision)
+		return
+	}
+
 	// 解析渠道级模型映射
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
 	forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
@@ -868,42 +926,18 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		legacyCompact,
 	))
 
-	// 提前校验 function_call_output 是否具备可关联上下文，避免上游 400。
-	if !h.validateFunctionCallOutputRequest(c, body, reqLog) {
-		return
-	}
-
 	// 绑定错误透传服务，允许 service 层在非 failover 错误场景复用规则。
 	if h.errorPassthroughService != nil {
 		service.BindErrorPassthroughService(c, h.errorPassthroughService)
 	}
 
-	// Get subscription info (may be nil)
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
 
-	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
-	routingStart := time.Now()
-
-	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, reqStream, &streamStarted, reqLog)
-	if !acquired {
-		return
-	}
-	// 确保请求取消时也会释放槽位，避免长连接被动中断造成泄漏
-	if userReleaseFunc != nil {
-		defer userReleaseFunc()
-	}
-
-	// 2. Re-check billing eligibility after wait
-	if err := h.checkRegionalBillingEligibility(c.Request.Context(), apiKey, subscription); err != nil {
-		reqLog.Info("openai.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		h.handleStreamingAwareError(c, status, code, message, streamStarted)
-		return
-	}
+	// body-signal compact：上游 unary 等待期间向下游发 SSE 注释行心跳，防止
+	// 反向代理空闲超时掐断长压缩连接（#3887）。首拍延迟一个心跳间隔，快速
+	// 失败仍走 JSON+状态码链路；未标记客户端流式或间隔为 0 时是 no-op。
+	stopCompactKeepalive := service.StartOpenAICompactSSEKeepalive(c, h.openAICompactKeepaliveInterval())
+	defer stopCompactKeepalive()
 
 	// 余额模式在途预留：防止并发请求在预检时看到同一份余额而集体透支。
 	inflightRelease, err := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(reqModel, body))
@@ -1547,6 +1581,42 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	reqStream := gjson.GetBytes(body, "stream").Bool()
+
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolAnthropicMessages, reqModel, body); decision != nil && !decision.AllowNextStage {
+		h.anthropicSecurityAuditError(c, decision)
+		return
+	}
+
+	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
+	routingStart := time.Now()
+	// Resolve the charging group after queue admission and before its policies.
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
+	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted, reqLog)
+	if !acquired {
+		return
+	}
+	if userReleaseFunc != nil {
+		defer userReleaseFunc()
+	}
+
+	var subscription *service.UserSubscription
+	apiKey, subscription, err = h.resolveSubscriptionBilling(c, body)
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.anthropicSecurityAuditError(c, audit.decision)
+			return
+		}
+		reqLog.Info("openai_messages.billing_eligibility_check_failed", zap.Error(err))
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		h.anthropicStreamingAwareError(c, status, code, message, streamStarted)
+		return
+	}
+
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !openAICompatibleTextTargetAllowed(c, apiKey, reqModel) {
 		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
@@ -1555,7 +1625,6 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	bindOpenAIReasoningEffortPolicyForMessagesRequest(c, apiKey, body)
 	routingModel := service.NormalizeOpenAICompatRequestedModel(reqModel)
 	preferredMappedModel := resolveOpenAIMessagesDispatchMappedModel(c, apiKey, reqModel)
-	reqStream := gjson.GetBytes(body, "stream").Bool()
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 
@@ -1576,29 +1645,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		service.BindErrorPassthroughService(c, h.errorPassthroughService)
 	}
 
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
-
-	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
-	routingStart := time.Now()
-
-	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, reqStream, &streamStarted, reqLog)
-	if !acquired {
-		return
-	}
-	if userReleaseFunc != nil {
-		defer userReleaseFunc()
-	}
-
-	if err := h.checkRegionalBillingEligibility(c.Request.Context(), apiKey, subscription); err != nil {
-		reqLog.Info("openai_messages.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		h.anthropicStreamingAwareError(c, status, code, message, streamStarted)
-		return
-	}
 
 	// 余额模式在途预留（与计费同口径估算；计费任务扣减余额缓存后才释放）。
 	inflightDone, inflightErr := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(reqModel, body))
@@ -2555,6 +2602,11 @@ func refreshOpenAIWSTurnBillingAPIKey(ctx context.Context, lookup openAIWSTurnAP
 		return conn
 	}
 	latest, err := lookup.GetByKey(ctx, conn.Key)
+	if err == nil && latest != nil && conn.SubscriptionOverflow != nil {
+		if resolve, ok := service.SubscriptionBillingResolverFromContext(ctx); ok {
+			latest, _, err = resolve(ctx, latest)
+		}
+	}
 	if err != nil || latest == nil || latest.ID != conn.ID || latest.GroupID == nil || *latest.GroupID != *conn.GroupID {
 		return conn
 	}
@@ -2566,6 +2618,10 @@ func refreshOpenAIWSTurnBillingAPIKey(ctx context.Context, lookup openAIWSTurnAP
 	}
 	turnKey := *conn
 	turnKey.Group = group
+	if conn.SubscriptionOverflow != nil {
+		turnKey.User = latest.User
+		turnKey.SubscriptionOverflow = latest.SubscriptionOverflow
+	}
 	return &turnKey
 }
 
@@ -2576,10 +2632,14 @@ func withOpenAIWSTurnBillingGroup(ctx context.Context, turnKey *service.APIKey) 
 		return ctx
 	}
 	current, ok := ctx.Value(ctxkey.Group).(*service.Group)
-	if !ok || current == nil || current == turnKey.Group || current.ID != turnKey.Group.ID {
+	if !ok || current == nil || current.ID != turnKey.Group.ID {
 		return ctx
 	}
-	return context.WithValue(ctx, ctxkey.Group, turnKey.Group)
+	ctx = service.WithSubscriptionOverflow(ctx, turnKey.SubscriptionOverflow)
+	if current != turnKey.Group {
+		ctx = context.WithValue(ctx, ctxkey.Group, turnKey.Group)
+	}
+	return ctx
 }
 
 // recordOpenAIProfitVeto 记录 OpenAI 侧选号循环的一次利润门终检否决：把账号
@@ -3085,15 +3145,20 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	defer inflightDone()
 	ctx = inflightCtx
 
-	// A WebSocket may outlive a key's remaining spending window. Recheck
-	// after acquiring turn slots, including the first account-selection wait.
-	// Restrict this extra check to the opt-in mode so standard-mode RPM checks
-	// are not charged a second time for the same request.
-	checkSimpleModeTurnBilling := func() error {
-		if h.gatewayService.RegionalFundsReadiness() == nil && (h.cfg == nil || h.cfg.RunMode != config.RunModeSimple || !h.cfg.SimpleModeKeyRateLimitEnabled) {
+	// Spending eligibility can change during an account wait. The first turn
+	// already consumed RPM above; rechecks/failover must not consume it again.
+	// Each later overflow turn consumes RPM once after all admission waits.
+	checkSimpleModeTurnBilling := func(countRPM bool) error {
+		if apiKey.SubscriptionOverflow == nil && h.gatewayService.RegionalFundsReadiness() == nil && (h.cfg == nil || h.cfg.RunMode != config.RunModeSimple || !h.cfg.SimpleModeKeyRateLimitEnabled) {
 			return nil
 		}
-		if err := h.checkRegionalBillingEligibility(ctx, apiKey, subscription); err != nil {
+		var err error
+		if countRPM {
+			err = h.checkRegionalBillingEligibility(ctx, apiKey, subscription)
+		} else {
+			err = h.checkRegionalBillingEligibilityWithoutRPM(ctx, apiKey, subscription)
+		}
+		if err != nil {
 			return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "billing check failed", err)
 		}
 		return nil
@@ -3394,7 +3459,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			closeOpenAIWSAdmissionError(wsConn, reqLog, "openai.websocket_key_auth_rejected", err)
 			return
 		}
-		if err := checkSimpleModeTurnBilling(); err != nil {
+		if err := checkSimpleModeTurnBilling(false); err != nil {
 			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "billing check failed")
 			return
 		}
@@ -3594,7 +3659,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				if err := h.concurrencyHelper.RevalidateTurnAuth(turnQueueCtx); err != nil {
 					return mapOpenAIWSTurnAdmissionError(err)
 				}
-				return checkSimpleModeTurnBilling()
+				return checkSimpleModeTurnBilling(true)
 			},
 			AfterTurn: func(turn int, result *service.OpenAIForwardResult, turnErr error) {
 				turnStart := getTurnStart(turn)
@@ -5233,6 +5298,16 @@ func summarizeWSCloseErrorForLog(err error) (string, string) {
 		}
 	}
 	return closeStatus, closeReason
+}
+
+func (h *OpenAIGatewayHandler) checkRegionalBillingEligibilityWithoutRPM(ctx context.Context, key *service.APIKey, subscription *service.UserSubscription) error {
+	if funds := h.gatewayService.RegionalFundsReadiness(); funds != nil {
+		return funds.Check(ctx)
+	}
+	if h.cfg != nil && h.cfg.Runtime.RegionalFundsFile != "" {
+		return errors.New("coordinated funds unavailable")
+	}
+	return h.billingCacheService.CheckBillingEligibilityWithoutRPM(ctx, key.User, key, key.Group, subscription, service.QuotaPlatform(ctx, key))
 }
 
 func (h *OpenAIGatewayHandler) checkRegionalBillingEligibility(ctx context.Context, key *service.APIKey, subscription *service.UserSubscription) error {

@@ -1093,6 +1093,11 @@ export default {
         typeHint:
           'Standard billing deducts from user balance. Subscription mode uses quota limits instead.',
         typeNotEditable: 'Billing type cannot be changed after group creation.',
+        fallbackGroup: 'Pay-as-you-go group after quota exhaustion',
+        noFallbackGroup: 'Disabled (stop when quota is exhausted)',
+        fallbackCompositeUnsupported: 'Composite groups do not yet support balance continuation after subscription quota exhaustion. Use a group for a single platform.',
+        fallbackGroupHint: 'Only when a valid subscription exhausts its daily, weekly, or monthly quota, continue through an active pay-as-you-go group on the same platform. Charge the balance at the target group rate or user-specific rate and send an email notification. Return to the subscription automatically when quota recovers; insufficient balance still stops requests.',
+        fallbackGroupsLoadFailed: 'Could not load pay-as-you-go groups. Reopen the form to retry.',
         standard: 'Standard (Balance)',
         subscription: 'Subscription (Quota)',
         dailyLimit: 'Daily Limit (USD)',

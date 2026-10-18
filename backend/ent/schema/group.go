@@ -204,6 +204,10 @@ func (Group) Fields() []ent.Field {
 		field.Bool("claude_code_only").
 			Default(false).
 			Comment("是否仅允许 Claude Code 客户端"),
+		field.Int64("subscription_fallback_group_id").
+			Optional().
+			Nillable().
+			Comment("订阅限额耗尽后按量接续的同平台 standard 分组 ID；不启用时为空"),
 		field.Int64("fallback_group_id").
 			Optional().
 			Nillable().

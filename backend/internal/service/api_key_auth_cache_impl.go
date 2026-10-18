@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 27 // v27: include API key concurrency limit; retain stream_only and user-group denied models
+const apiKeyAuthSnapshotVersion = 28 // v28: include subscription fallback group; retain key concurrency and admission policies
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -433,6 +433,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			LongContextPricingEnabled:       apiKey.Group.LongContextPricingEnabled,
 			ModelPricing:                    apiKey.Group.ModelPricing,
 			ClaudeCodeOnly:                  apiKey.Group.ClaudeCodeOnly,
+			SubscriptionFallbackGroupID:     apiKey.Group.SubscriptionFallbackGroupID,
 			FallbackGroupID:                 apiKey.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: apiKey.Group.FallbackGroupIDOnInvalidRequest,
 			StreamOnly:                      apiKey.Group.StreamOnly,
@@ -538,6 +539,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			LongContextPricingEnabled:       snapshot.Group.LongContextPricingEnabled,
 			ModelPricing:                    snapshot.Group.ModelPricing,
 			ClaudeCodeOnly:                  snapshot.Group.ClaudeCodeOnly,
+			SubscriptionFallbackGroupID:     snapshot.Group.SubscriptionFallbackGroupID,
 			FallbackGroupID:                 snapshot.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: snapshot.Group.FallbackGroupIDOnInvalidRequest,
 			StreamOnly:                      snapshot.Group.StreamOnly,

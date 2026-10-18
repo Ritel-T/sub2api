@@ -25,6 +25,7 @@ const (
 	NotificationEmailEventNotificationEmailVerifyCode = "notification_email.verify_code"
 	NotificationEmailEventSubscriptionPurchaseSuccess = "subscription.purchase_success"
 	NotificationEmailEventSubscriptionExpiryReminder  = "subscription.expiry_reminder"
+	NotificationEmailEventSubscriptionOverflow        = "subscription.overflow_to_balance"
 	NotificationEmailEventBalanceLow                  = "balance.low"
 	NotificationEmailEventBalanceRechargeSuccess      = "balance.recharge_success"
 	NotificationEmailEventAccountQuotaAlert           = "account.quota_alert"
@@ -517,6 +518,16 @@ func (s *NotificationEmailService) sampleVariables(ctx context.Context, event, l
 	for key, value := range notificationEmailSampleVariables(locale) {
 		variables[key] = value
 	}
+	if event == NotificationEmailEventSubscriptionOverflow {
+		for key, value := range map[string]string{
+			"subscription_id": "123", "target_group": "ChatGPT060", "quota_dimension": "daily",
+			"window_start": "2026-10-17T00:00:00Z", "daily_usage": "10.00000000", "daily_limit": "10.00000000",
+			"weekly_usage": "20.00000000", "weekly_limit": "70.00000000", "monthly_usage": "30.00000000", "monthly_limit": "—",
+			"rate_multiplier": "0.6", "balance_charge": "0.01250000",
+		} {
+			variables[key] = value
+		}
+	}
 	variables["site_name"] = s.siteName(ctx)
 	if variables["unsubscribe_url"] == "" && info.Optional {
 		variables["unsubscribe_url"] = "https://example.com/unsubscribe"
@@ -526,6 +537,14 @@ func (s *NotificationEmailService) sampleVariables(ctx context.Context, event, l
 
 func (s *NotificationEmailService) runtimeVariables(ctx context.Context, event, locale string, input NotificationEmailSendInput) map[string]string {
 	variables := s.sampleVariables(ctx, event, locale)
+	if event == NotificationEmailEventSubscriptionOverflow {
+		// An incomplete live caller must not turn preview sample prices into facts.
+		for _, key := range notificationEmailEventDefinitions[event].Placeholders {
+			if _, ok := input.Variables[key]; !ok {
+				variables[key] = ""
+			}
+		}
+	}
 	for key, value := range input.Variables {
 		variables[key] = value
 	}
@@ -1026,6 +1045,7 @@ var notificationEmailEventOrder = []string{
 	NotificationEmailEventNotificationEmailVerifyCode,
 	NotificationEmailEventSubscriptionPurchaseSuccess,
 	NotificationEmailEventSubscriptionExpiryReminder,
+	NotificationEmailEventSubscriptionOverflow,
 	NotificationEmailEventBalanceLow,
 	NotificationEmailEventBalanceRechargeSuccess,
 	NotificationEmailEventAccountQuotaAlert,
@@ -1037,6 +1057,14 @@ var notificationEmailEventOrder = []string{
 }
 
 var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
+	NotificationEmailEventSubscriptionOverflow: {
+		Event:        NotificationEmailEventSubscriptionOverflow,
+		Label:        "Subscription overflow to balance",
+		Description:  "Sent once per exhausted subscription window after a successful pay-as-you-go charge.",
+		Category:     "subscription",
+		Optional:     false,
+		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...), "subscription_group", "subscription_id", "target_group", "quota_dimension", "window_start", "daily_usage", "daily_limit", "weekly_usage", "weekly_limit", "monthly_usage", "monthly_limit", "rate_multiplier", "balance_charge", "current_balance", "triggered_at"),
+	},
 	NotificationEmailEventAuthVerifyCode: {
 		Event:        NotificationEmailEventAuthVerifyCode,
 		Label:        "Email verification code",
@@ -1155,6 +1183,30 @@ var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
 }
 
 var notificationEmailOfficialTemplates = map[string]map[string]notificationEmailOfficialTemplate{
+	NotificationEmailEventSubscriptionOverflow: {
+		notificationEmailDefaultLocale: {
+			Subject: "[{{site_name}}] Subscription quota reached: balance billing started",
+			HTML: notificationEmailCard("#d97706", "Balance billing started", `
+<p>Hello {{recipient_name}},</p>
+<p>Your <strong>{{subscription_group}}</strong> subscription (#{{subscription_id}}) reached its <strong>{{quota_dimension}}</strong> quota. A request routed to <strong>{{target_group}}</strong> has incurred an actual charge to your account balance.</p>
+<p>Quota snapshot (USD used / limit): daily <strong>{{daily_usage}} / {{daily_limit}}</strong>; weekly <strong>{{weekly_usage}} / {{weekly_limit}}</strong>; monthly <strong>{{monthly_usage}} / {{monthly_limit}}</strong>. — means no limit is configured.</p>
+<p>Exhausted window started: {{window_start}}<br>First successful balance charge: {{triggered_at}}</p>
+<p>Your effective rate multiplier for the target group on this request: <strong>{{rate_multiplier}}×</strong> (including any user-specific rate). This request charged <strong>${{balance_charge}}</strong>; balance immediately after the charge: <strong>${{current_balance}}</strong>.</p>
+<p>Further requests use the target group's pay-as-you-go rates and deduct from your balance while subscription quota remains exhausted. Requests automatically return to the subscription group once its quota recovers and the subscription is still active.</p>
+<p>This notice is sent once for this exhausted subscription window; it is not a charge for every future request.</p>`),
+		},
+		notificationEmailLocaleChinese: {
+			Subject: "[{{site_name}}] 订阅额度已用尽，已开始余额计费",
+			HTML: notificationEmailCard("#d97706", "已切换到余额计费", `
+<p>{{recipient_name}}，您好：</p>
+<p>您的 <strong>{{subscription_group}}</strong> 订阅（#{{subscription_id}}）已达到 <strong>{{quota_dimension}}</strong> 额度。一笔请求已实际使用 <strong>{{target_group}}</strong> 分组，并已产生账户余额扣费。</p>
+<p>切换时的订阅额度（已用 / 上限，美元）：日额度 <strong>{{daily_usage}} / {{daily_limit}}</strong>；周额度 <strong>{{weekly_usage}} / {{weekly_limit}}</strong>；月额度 <strong>{{monthly_usage}} / {{monthly_limit}}</strong>。— 表示未设置上限。</p>
+<p>本次耗尽周期开始时间：{{window_start}}<br>首次成功余额扣费时间：{{triggered_at}}</p>
+<p>此请求在目标分组的实际生效倍率：<strong>{{rate_multiplier}} 倍</strong>（已包含您的用户专属倍率配置）。此请求实际扣费 <strong>${{balance_charge}}</strong>，扣费后的余额为 <strong>${{current_balance}}</strong>。</p>
+<p>订阅额度耗尽期间，后续请求按目标分组的按量价格从余额扣费。订阅额度恢复且订阅仍有效后，请求会自动回到原订阅分组。</p>
+<p>同一订阅的同一耗尽周期仅发送一次此提醒；邮件中的扣费金额仅为首次成功切换请求的金额。</p>`),
+		},
+	},
 	NotificationEmailEventAuthVerifyCode: {
 		notificationEmailDefaultLocale: {
 			Subject: "[{{site_name}}] Email verification code",

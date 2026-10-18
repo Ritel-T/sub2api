@@ -172,7 +172,59 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	body = parsedReq.Body.Bytes()
 	reqModel := parsedReq.Model
 	reqStream := parsedReq.Stream
+	if reqModel == "" {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
+		return
+	}
 	bindRequestedReasoningEffort(c, body, reqModel)
+	streamStarted := false
+
+	if decision := h.checkSecurityAudit(c, reqLog, service.SubscriptionOverflowSourceAPIKey(apiKey), subject, service.ContentModerationProtocolAnthropicMessages, reqModel, body); decision != nil && !decision.AllowNextStage {
+		h.anthropicSecurityAuditError(c, decision)
+		return
+	}
+
+	// Resolve the charging group after queue admission and before its policies.
+	ensureCompositeTargetPlatform(c, apiKey, reqModel)
+	if !compositeTargetPlatformResolved(c, apiKey, reqModel) {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
+		return
+	}
+	if rejectSystemOneOnlyPlatform(c, apiKey, h.errorResponse) {
+		return
+	}
+
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
+	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted)
+	if err != nil {
+		reqLog.Warn("gateway.user_slot_acquire_failed", zap.Error(err))
+		h.handleConcurrencyError(c, err, "user", streamStarted)
+		return
+	}
+	// 在请求结束或 Context 取消时确保释放槽位，避免客户端断开造成泄漏
+	userReleaseFunc = wrapReleaseOnDone(c.Request.Context(), userReleaseFunc)
+	if userReleaseFunc != nil {
+		defer userReleaseFunc()
+	}
+
+	// 2. 【新增】Wait后二次检查余额/订阅
+	var subscription *service.UserSubscription
+	apiKey, subscription, err = h.resolveSubscriptionBilling(c, body)
+	if err != nil {
+		if audit, ok := err.(*subscriptionOverflowAuditError); ok {
+			h.anthropicSecurityAuditError(c, audit.decision)
+			return
+		}
+		reqLog.Info("gateway.billing_eligibility_check_failed", zap.Error(err))
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		h.handleStreamingAwareError(c, status, code, message, streamStarted)
+		return
+	}
+
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if policyBody, changed, err := applyAnthropicReasoningEffortPolicyForRequest(c, apiKey, body); err != nil {
 		respondOpenAIReasoningEffortPolicyError(c, err, h.errorResponse)
@@ -234,39 +286,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		return
 	}
 
-	// Track if we've started streaming (for error handling)
-	streamStarted := false
-
 	// 绑定错误透传服务，允许 service 层在非 failover 错误场景复用规则。
 	if h.errorPassthroughService != nil {
 		service.BindErrorPassthroughService(c, h.errorPassthroughService)
-	}
-
-	// 获取订阅信息（可能为nil）- 提前获取用于后续检查
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-
-	// 1. 首先获取用户并发槽位
-	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, reqStream, &streamStarted)
-	if err != nil {
-		reqLog.Warn("gateway.user_slot_acquire_failed", zap.Error(err))
-		h.handleConcurrencyError(c, err, "user", streamStarted)
-		return
-	}
-	// 在请求结束或 Context 取消时确保释放槽位，避免客户端断开造成泄漏
-	userReleaseFunc = wrapReleaseOnDone(c.Request.Context(), userReleaseFunc)
-	if userReleaseFunc != nil {
-		defer userReleaseFunc()
-	}
-
-	// 2. 【新增】Wait后二次检查余额/订阅
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		reqLog.Info("gateway.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		h.handleStreamingAwareError(c, status, code, message, streamStarted)
-		return
 	}
 
 	// 余额模式在途预留：防止并发请求在预检时看到同一份余额而集体透支。
@@ -2192,6 +2214,43 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 		return
 	}
 	body = parsedReq.Body.Bytes()
+	if parsedReq.Model == "" {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
+		return
+	}
+
+	// Count-only requests retain their existing no-audit/no-usage semantics.
+	ensureCompositeTargetPlatform(c, apiKey, parsedReq.Model)
+	if !compositeTargetPlatformResolved(c, apiKey, parsedReq.Model) {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
+		return
+	}
+	if rejectSystemOneOnlyPlatform(c, apiKey, h.errorResponse) {
+		return
+	}
+
+	finishRouteResolution := middleware2.BeginSubscriptionBillingRouteResolution(c)
+	defer finishRouteResolution()
+	keyRelease, err := h.concurrencyHelper.AcquireAPIKeySlot(c.Request.Context(), apiKey.ID, apiKey.ConcurrencyLimit)
+	if err != nil {
+		h.handleConcurrencyError(c, err, "API key", false)
+		return
+	}
+	defer keyRelease()
+
+	apiKey, _, err = resolveRequestSubscriptionBilling(c, h.apiKeyService, h.billingCacheService, body,
+		func(ctx context.Context, key *service.APIKey, sub *service.UserSubscription) error {
+			return h.billingCacheService.CheckBillingEligibility(ctx, key.User, key, key.Group, sub, service.QuotaPlatform(ctx, key))
+		}, func(*service.APIKey) *securityaudit.Decision { return nil })
+	if err != nil {
+		status, code, message, retryAfter := subscriptionBillingErrorDetails(err)
+		if retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		h.errorResponse(c, status, code, message)
+		return
+	}
+
 	// count_tokens 走 messages 严格校验时，复用已解析请求，避免二次反序列化。
 	SetClaudeCodeClientContext(c, body, parsedReq)
 	ensureCompositeTargetPlatform(c, apiKey, parsedReq.Model)
@@ -2199,11 +2258,6 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 	// 在请求上下文中记录 thinking 状态，供 Antigravity 最终模型 key 推导/模型维度限流使用
 	c.Request = c.Request.WithContext(service.WithThinkingEnabled(c.Request.Context(), parsedReq.ThinkingEnabled, h.metadataBridgeEnabled()))
 
-	// 验证 model 必填
-	if parsedReq.Model == "" {
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
-		return
-	}
 	if !compositeTargetPlatformResolved(c, apiKey, parsedReq.Model) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
 		return
@@ -2214,28 +2268,6 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 
 	setOpsRequestContext(c, parsedReq.Model, parsedReq.Stream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(parsedReq.Stream, false)))
-
-	// 获取订阅信息（可能为nil）
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-
-	// 校验 billing eligibility（订阅/余额）
-	// count_tokens 不占用户/账号槽，API key 限额仍约束上游请求。
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		h.errorResponse(c, status, code, message)
-		return
-	}
-
-	// 计算粘性会话 hash
-	keyRelease, err := h.concurrencyHelper.AcquireAPIKeySlot(c.Request.Context(), apiKey.ID, apiKey.ConcurrencyLimit)
-	if err != nil {
-		h.handleConcurrencyError(c, err, "API key", false)
-		return
-	}
-	defer keyRelease()
 
 	parsedReq.SessionContext = &service.SessionContext{
 		ClientIP:  ip.GetClientIP(c),
