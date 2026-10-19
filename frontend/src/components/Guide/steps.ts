@@ -25,7 +25,7 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
     popover: {
       title: t('onboarding.admin.groupManage.title'),
       description: t('onboarding.admin.groupManage.description'),
-      side: 'right',
+      side: 'bottom',
       align: 'center',
       showButtons: ['close'],
     }
@@ -97,7 +97,7 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
     popover: {
       title: t('onboarding.admin.accountManage.title'),
       description: t('onboarding.admin.accountManage.description'),
-      side: 'right',
+      side: 'bottom',
       align: 'center',
       showButtons: ['close']
     }
@@ -179,7 +179,7 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
     popover: {
       title: t('onboarding.admin.keyManage.title'),
       description: t('onboarding.admin.keyManage.description'),
-      side: 'right',
+      side: 'bottom',
       align: 'center',
       showButtons: ['close']
     }
@@ -261,7 +261,7 @@ export const getUserSteps = (t: (key: string) => string): DriveStep[] => [
     popover: {
       title: t('onboarding.user.keyManage.title'),
       description: t('onboarding.user.keyManage.description'),
-      side: 'right',
+      side: 'bottom',
       align: 'center',
       showButtons: ['close']
     }

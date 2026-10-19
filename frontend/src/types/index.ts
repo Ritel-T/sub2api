@@ -531,7 +531,6 @@ export interface Toast {
 }
 
 export interface AppState {
-  sidebarCollapsed: boolean
   loading: boolean
   toasts: Toast[]
 }

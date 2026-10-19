@@ -4,12 +4,85 @@ export function consoleNavigationText(locale: string) {
   if (locale.startsWith('zh')) {
     const traditional = locale === 'zh-Hant' || /HK|TW/i.test(locale)
     return traditional
-      ? { ownKeys: '我的 API Keys', workspace: '工作區', management: '管理', personal: '個人', navigation: '功能導覽', models: '模型', analysis: '用量分析', records: '請求記錄', billing: '帳務', applications: '應用與服務', operations: '運維與診斷', system: '系統管理', extensions: '擴充功能' }
-      : { ownKeys: '我的 API Keys', workspace: '工作区', management: '管理', personal: '个人', navigation: '功能导航', models: '模型', analysis: '用量分析', records: '请求记录', billing: '账务', applications: '应用与服务', operations: '运维与诊断', system: '系统管理', extensions: '扩展功能' }
+      ? {
+          ownKeys: '我的 API Keys',
+          workspace: '工作區',
+          management: '管理',
+          personal: '個人',
+          navigation: '功能導覽',
+          models: '模型',
+          analysis: '用量分析',
+          records: '請求記錄',
+          sections: {
+            overview: '總覽',
+            access: '接入',
+            usage: '用量',
+            billing: '帳務',
+            support: '支援',
+            account: '帳戶',
+            resources: '資源',
+            users: '用戶',
+            operations: '運維',
+            revenue: '營收',
+            system: '系統',
+            extensions: '擴充',
+            more: '更多',
+          },
+        }
+      : {
+          ownKeys: '我的 API Keys',
+          workspace: '工作区',
+          management: '管理',
+          personal: '个人',
+          navigation: '功能导航',
+          models: '模型',
+          analysis: '用量分析',
+          records: '请求记录',
+          sections: {
+            overview: '总览',
+            access: '接入',
+            usage: '用量',
+            billing: '账务',
+            support: '支持',
+            account: '账户',
+            resources: '资源',
+            users: '用户',
+            operations: '运维',
+            revenue: '营收',
+            system: '系统',
+            extensions: '扩展',
+            more: '更多',
+          },
+        }
   }
-  return { ownKeys: 'My API Keys', workspace: 'Workspace', management: 'Management', personal: 'Personal', navigation: 'Navigation', models: 'Models', analysis: 'Usage analytics', records: 'Request records', billing: 'Billing', applications: 'Apps & services', operations: 'Operations & diagnostics', system: 'System', extensions: 'Extensions' }
+  return {
+    ownKeys: 'My API Keys',
+    workspace: 'Workspace',
+    management: 'Management',
+    personal: 'Personal',
+    navigation: 'Navigation',
+    models: 'Models',
+    analysis: 'Usage analytics',
+    records: 'Request records',
+    sections: {
+      overview: 'Overview',
+      access: 'Access',
+      usage: 'Usage',
+      billing: 'Billing',
+      support: 'Support',
+      account: 'Account',
+      resources: 'Resources',
+      users: 'Users',
+      operations: 'Operations',
+      revenue: 'Revenue',
+      system: 'System',
+      extensions: 'Extensions',
+      more: 'More',
+    },
+  }
 }
 export type ConsoleNavigationText = ReturnType<typeof consoleNavigationText>
+export type ConsoleWorkspace = 'personal' | 'management'
 
 const aliases: Record<string, string> = {
   '/admin/dashboard': 'Overview 总览 總覽 仪表盘 儀表板',
@@ -67,47 +140,199 @@ export interface ConsoleNavItem extends SearchNavItem {
   iconSvg?: string
   children?: ConsoleNavItem[]
   badge?: () => number
+  mergeTabs?: boolean
 }
 
-// Accept only the source already filtered for role, feature flags and run mode.
-// Every navigable leaf survives once; structural groups carry no destination.
-export function arrangeConsoleNavigation<T extends ConsoleNavItem>(
-  source: T[], workspace: 'personal' | 'management', text: ConsoleNavigationText,
-  icons: Record<'billing' | 'applications' | 'operations' | 'system' | 'extensions', unknown>,
-): T[] {
-  const leaves: T[] = []
-  const visit = (items: T[], parents: string[] = []) => {
+export interface ConsoleSection {
+  key: string
+  label: string
+  path: string
+  tabs: ConsoleTab[]
+  badge?: () => number
+  hidden?: boolean
+}
+
+export interface ConsoleTab {
+  item: ConsoleNavItem
+  path: string
+  label: string
+  matches: string[]
+  children?: ConsoleNavItem[]
+}
+
+type SectionKey = keyof ConsoleNavigationText['sections']
+
+const personalTable: Record<string, SectionKey> = {
+  '/dashboard': 'overview',
+  '/keys': 'access',
+  '/model-plaza': 'access',
+  '/batch-image': 'access',
+  '/available-channels': 'access',
+  '/pelican-showcase': 'access',
+  '/usage?view=analysis': 'usage',
+  '/usage?view=records': 'usage',
+  '/purchase': 'billing',
+  '/subscriptions': 'billing',
+  '/orders': 'billing',
+  '/redeem': 'billing',
+  '/affiliate': 'billing',
+  '/support-tickets': 'support',
+  '/monitor': 'support',
+  '/profile': 'account',
+}
+
+const managementTable: Record<string, SectionKey> = {
+  '/admin/dashboard': 'overview',
+  '/admin/accounts': 'resources',
+  '/admin/groups': 'resources',
+  '/admin/channels/pricing': 'resources',
+  '/admin/proxies': 'resources',
+  '/keys': 'resources',
+  '/admin/users': 'users',
+  '/admin/subscriptions': 'users',
+  '/admin/usage': 'operations',
+  '/admin/ops': 'operations',
+  '/admin/auto-config': 'operations',
+  '/admin/priority-scheduling': 'operations',
+  '/admin/account-quality': 'operations',
+  '/admin/controlled-experiments': 'operations',
+  '/admin/account-ops': 'operations',
+  '/admin/token-guard': 'operations',
+  '/admin/token-guard-v2': 'operations',
+  '/admin/pelican-tests': 'operations',
+  '/admin/group-cache-tests': 'operations',
+  '/admin/request-captures': 'operations',
+  '/admin/harvest-flow': 'operations',
+  '/admin/channels/monitor': 'operations',
+  '/admin/risk-control': 'operations',
+  '/admin/prompt-audit': 'operations',
+  '/admin/orders/dashboard': 'revenue',
+  '/admin/orders': 'revenue',
+  '/admin/orders/plans': 'revenue',
+  '/admin/redeem': 'revenue',
+  '/admin/promo-codes': 'revenue',
+  '/admin/affiliates/invites': 'revenue',
+  '/admin/affiliates/rebates': 'revenue',
+  '/admin/affiliates/transfers': 'revenue',
+  '/admin/support-tickets': 'support',
+  '/admin/announcements': 'support',
+  '/admin/settings': 'system',
+  '/admin/plugins': 'system',
+  '/admin/audit-logs': 'system',
+}
+
+const sectionOrder: Record<ConsoleWorkspace, SectionKey[]> = {
+  personal: ['overview', 'access', 'usage', 'billing', 'support', 'account'],
+  management: ['overview', 'resources', 'users', 'operations', 'revenue', 'support', 'system'],
+}
+// Reached through the avatar menu and search; a top-level link would duplicate them.
+const hiddenSections = new Set<SectionKey>(['account'])
+
+function lookup(table: Record<string, SectionKey>, path: string): [SectionKey, number] | undefined {
+  const keys = Object.keys(table)
+  for (const candidate of [path, path.split('?')[0]!]) {
+    const index = keys.indexOf(candidate)
+    if (index >= 0) return [table[candidate]!, index]
+  }
+  return undefined
+}
+
+function classify(path: string, workspace: ConsoleWorkspace): [SectionKey, number] {
+  if (path.startsWith('/custom/')) return ['extensions', 0]
+  const own = workspace === 'personal' ? personalTable : managementTable
+  const other = workspace === 'personal' ? managementTable : personalTable
+  return lookup(own, path) ?? lookup(other, path) ?? ['extensions', 0]
+}
+
+function itemBadge(item: ConsoleNavItem): number {
+  return (item.badge?.() ?? 0) + (item.children?.reduce((sum, child) => sum + itemBadge(child), 0) ?? 0)
+}
+
+function withKeywords(item: ConsoleNavItem, parents: string[]): ConsoleNavItem {
+  const alias = aliases[item.path] ?? aliases[item.path.split('?')[0]!] ?? ''
+  return { ...item, children: undefined, keywords: [item.keywords, ...parents, alias].filter(Boolean).join(' ') }
+}
+
+// Source items must already be filtered by permissions, feature flags and run mode.
+export function arrangeConsoleSections(
+  source: ConsoleNavItem[], workspace: ConsoleWorkspace, text: ConsoleNavigationText,
+): ConsoleSection[] {
+  const placed: { key: SectionKey; index: number; order: number; tab: ConsoleTab }[] = []
+  const visit = (items: ConsoleNavItem[], parents: string[]) => {
     for (const item of items) {
-      if (!item.expandOnly) leaves.push({ ...item, children: undefined, keywords: [item.keywords, ...parents, aliases[item.path] ?? aliases[item.path.split('?')[0]!] ?? ''].filter(Boolean).join(' ') })
-      if (item.children) visit(item.children as T[], [...parents, item.label])
+      if (item.mergeTabs && item.children?.length) {
+        const children = item.children.map(child => withKeywords(child, [...parents, item.label]))
+        const [key, index] = classify(children[0]!.path, workspace)
+        placed.push({ key, index, order: placed.length, tab: { item, path: children[0]!.path, label: item.label, matches: children.map(child => child.path), children } })
+        continue
+      }
+      if (!item.expandOnly) {
+        const leaf = withKeywords(item, parents)
+        const [key, index] = classify(item.path, workspace)
+        placed.push({ key, index, order: placed.length, tab: { item: leaf, path: item.path, label: item.label, matches: [item.path] } })
+      }
+      if (item.children) visit(item.children, [...parents, item.label])
     }
   }
-  visit(source)
-  const core: T[] = []
-  const buckets: Record<string, T[]> = { applications: [], billing: [], operations: [], system: [], extensions: [] }
-  for (const item of leaves) {
-    const path = item.path.split('?')[0]!
-    if (path.startsWith('/custom/')) { buckets.extensions!.push(item); continue }
-    if (workspace === 'personal') {
-      if (['/purchase', '/subscriptions', '/orders', '/redeem', '/affiliate'].includes(path)) buckets.billing!.push(item)
-      else if (['/batch-image', '/available-channels', '/monitor', '/pelican-showcase'].includes(path)) buckets.applications!.push(item)
-      else core.push(item)
-    } else {
-      if (['/admin/dashboard', '/admin/accounts', '/admin/groups', '/admin/users', '/admin/usage', '/admin/support-tickets', '/keys'].includes(path)) core.push(item)
-      else if (path.startsWith('/admin/orders') || path.startsWith('/admin/affiliates/') || ['/admin/subscriptions', '/admin/redeem', '/admin/promo-codes'].includes(path)) buckets.billing!.push(item)
-      else if (['/admin/settings', '/admin/plugins', '/admin/announcements', '/admin/audit-logs'].includes(path)) buckets.system!.push(item)
-      else buckets.operations!.push(item)
+  visit(source, [])
+
+  const own = sectionOrder[workspace]
+  const other = sectionOrder[workspace === 'personal' ? 'management' : 'personal']
+  const keys = [...own, ...other.filter(key => !own.includes(key)), 'extensions' as SectionKey]
+  return keys.flatMap((key): ConsoleSection[] => {
+    const tabs = placed
+      .filter(entry => entry.key === key)
+      .sort((a, b) => a.index - b.index || a.order - b.order)
+      .map(entry => entry.tab)
+    if (!tabs.length) return []
+    return [{
+      key,
+      label: text.sections[key],
+      path: tabs[0]!.path,
+      tabs,
+      badge: () => tabs.reduce((sum, tab) => sum + tabBadge(tab), 0),
+      hidden: hiddenSections.has(key) || undefined,
+    }]
+  })
+}
+
+export function sectionBadge(section: ConsoleSection): number {
+  return section.badge?.() ?? 0
+}
+
+export function tabBadge(tab: ConsoleTab): number {
+  return itemBadge(tab.children ? { ...tab.item, children: tab.children } : tab.item)
+}
+
+// Longest matching base path wins; an exact query match breaks ties, so
+// /usage?view=records is chosen over analysis when the query says so.
+export function resolveConsoleLocation(sections: ConsoleSection[], path: string, query: Record<string, unknown>):
+  { section: ConsoleSection; tab: ConsoleTab } | undefined {
+  let best: { section: ConsoleSection; tab: ConsoleTab; score: number } | undefined
+  for (const section of sections) {
+    for (const tab of section.tabs) {
+      for (const match of tab.matches) {
+        const base = match.split('?')[0]!
+        if (path !== base && !path.startsWith(`${base}/`)) continue
+        const score = base.length * 2 + (isConsoleLocationActive(match, path, query) ? 1 : 0)
+        if (!best || score > best.score) best = { section, tab, score }
+      }
     }
   }
-  const ordered = workspace === 'personal'
-    ? ['/dashboard', '/keys', '/model-plaza', '/usage?view=analysis', '/usage?view=records', '/support-tickets', '/profile']
-    : ['/admin/dashboard', '/admin/accounts', '/admin/groups', '/admin/users', '/admin/usage', '/admin/support-tickets', '/keys']
-  core.sort((a, b) => ordered.indexOf(a.path.startsWith('/model-plaza') ? '/model-plaza' : a.path) - ordered.indexOf(b.path.startsWith('/model-plaza') ? '/model-plaza' : b.path))
-  const utilityPaths = new Set(workspace === 'personal' ? ['/support-tickets', '/profile'] : ['/keys'])
-  const primary = core.filter(item => !utilityPaths.has(item.path))
-  const utility = core.filter(item => utilityPaths.has(item.path))
-  const groups = (Object.keys(buckets) as (keyof typeof icons)[]).flatMap(key => buckets[key]!.length ? [{ path: `#console-${workspace}-${key}`, label: text[key], icon: icons[key], expandOnly: true, children: buckets[key] } as unknown as T] : [])
-  return [...primary, ...groups, ...utility]
+  return best && { section: best.section, tab: best.tab }
+}
+
+// Search keeps the section → tab hierarchy so results read "Billing / Orders".
+export function consoleSearchTree(sections: ConsoleSection[]): ConsoleNavItem[] {
+  return sections.map(section => ({
+    path: `#console-section-${section.key}`,
+    label: section.label,
+    icon: null,
+    expandOnly: true,
+    children: section.tabs.map(tab => tab.children
+      ? { path: `#console-tab-${tab.item.path.replace(/[^a-z0-9]/gi, '-')}`, label: tab.label, icon: null, expandOnly: true, children: tab.children }
+      : tab.item),
+  }))
 }
 
 export function isConsoleLocationActive(destination: string, currentPath: string, query: Record<string, unknown>): boolean {
@@ -119,7 +344,6 @@ export function isConsoleLocationActive(destination: string, currentPath: string
     return actual === value
   })
 }
-
 
 const workspaceQueryValues: Record<string, readonly string[]> = {
   view: ['analysis', 'records'], embedded: ['1'],

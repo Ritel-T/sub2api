@@ -44,7 +44,7 @@ export const PURCHASE_ROUTE_NAME = 'PurchaseSubscription'
 
 /**
  * 解析路由的 i18n 标题/描述 key。绝大多数路由直接取 meta；
- * /purchase 随站点计费模式切换文案，AppHeader 与 document.title 共用这一处判断。
+ * /purchase 随站点计费模式切换文案，控制台页面标题与 document.title 共用这一处判断。
  */
 export function resolveRouteMetaKeys(
   route: Pick<RouteLocationNormalizedLoaded, 'name' | 'meta'>,

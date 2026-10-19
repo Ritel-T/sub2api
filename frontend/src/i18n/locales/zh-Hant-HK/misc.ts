@@ -142,8 +142,8 @@ export default {
     restartTour: '重新查看新手引導',
     dontShowAgain: '不再提示',
     dontShowAgainTitle: '永久關閉新手引導',
-    confirmDontShow: '確定不再顯示新手引導嗎？\n\n您可以隨時在右上角頭像菜單中重新開啟。',
-    confirmExit: '確定要退出新手引導嗎？您可以隨時在右上角菜單重新開始。',
+    confirmDontShow: '確定不再顯示新手引導嗎？\n\n您可以隨時在帳戶選單中重新開啟。',
+    confirmExit: '確定要退出新手引導嗎？您可以隨時在帳戶選單重新開始。',
     interactiveHint: '按 Enter 或點擊繼續',
     navigation: {
       flipPage: '翻頁',
@@ -152,16 +152,16 @@ export default {
     // Admin tour steps
     admin: {
       welcome: {
-        title: '👋 歡迎使用 Sub2API',
+        title: '歡迎使用 Ritel.SI',
         description:
-          '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">Sub2API 是一個強大的 AI 服務中轉平台，讓您輕鬆管理和分發 AI 服務。</p><p style="margin-bottom: 12px;"><b>🎯 核心功能：</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>📦 <b>分組管理</b> - 建立不同的服務套餐（VIP、免費試用等）</li><li>🔗 <b>帳戶池</b> - 連接多個上游 AI 服務商帳戶</li><li>🔑 <b>密鑰分發</b> - 為用戶生成獨立的 API Key</li><li>💰 <b>計費管理</b> - 靈活的費率和配額控制</li></ul><p style="color: #10b981; font-weight: 600;">接下來，我們將用 3 分鐘帶您完成首次配置 →</p></div>',
+          '<p>建立分組、連接上游帳戶，再建立 API 密鑰。</p>',
         nextBtn: '開始配置 🚀',
         prevBtn: '跳過'
       },
       groupManage: {
         title: '📦 第一步：分組管理',
         description:
-          '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;"><b>什麼是分組？</b></p><p style="margin-bottom: 12px;">分組是 Sub2API 的核心概念，它就像一個"服務套餐"：</p><ul style="margin-left: 20px; margin-bottom: 12px; font-size: 13px;"><li>🎯 每個分組可以包含多個上游帳戶</li><li>💰 每個分組有獨立的計費倍率</li><li>👥 可以設定為公開或專屬分組</li></ul><p style="margin-top: 12px; padding: 8px 12px; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px; font-size: 13px;"><b>💡 示例：</b>您可以建立"VIP專線"（高倍率）和"免費試用"（低倍率）兩個分組</p><p style="margin-top: 16px; color: #10b981; font-weight: 600;">👉 點擊左側的"分組管理"開始</p></div>'
+          '<p>分組決定可用的上游帳戶、計費倍率和存取權限。</p><p>選擇「分組管理」。</p>'
       },
       createGroup: {
         title: '➕ 建立新分組',
@@ -200,7 +200,7 @@ export default {
       accountManage: {
         title: '🔗 第二步：添加帳戶',
         description:
-          '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;"><b>太棒了！分組已建立成功 🎉</b></p><p style="margin-bottom: 12px;">現在需要添加上游 AI 服務商的帳戶，讓分組能夠實際提供服務。</p><div style="padding: 8px 12px; background: #eff6ff; border-left: 3px solid #3b82f6; border-radius: 4px; font-size: 13px; margin-bottom: 12px;"><b>🔑 帳戶的作用：</b><ul style="margin: 8px 0 0 16px;"><li>連接到上游 AI 服務（Claude、GPT 等）</li><li>一個分組可以包含多個帳戶（負載均衡）</li><li>支持 OAuth 和 Session Key 兩種方式</li></ul></div><p style="margin-top: 16px; color: #10b981; font-weight: 600;">👉 點擊左側的"帳戶管理"</p></div>'
+          '<p>連接上游 AI 帳戶，讓分組能夠提供服務。</p><p>選擇「帳戶管理」。</p>'
       },
       createAccount: {
         title: '➕ 添加新帳戶',
@@ -245,7 +245,7 @@ export default {
       keyManage: {
         title: '🔑 第三步：生成密鑰',
         description:
-          '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;"><b>恭喜！帳戶配置完成 🎉</b></p><p style="margin-bottom: 12px;">最後一步，生成 API Key 來測試服務是否正常工作。</p><div style="padding: 8px 12px; background: #eff6ff; border-left: 3px solid #3b82f6; border-radius: 4px; font-size: 13px; margin-bottom: 12px;"><b>🔑 API Key 的作用：</b><ul style="margin: 8px 0 0 16px;"><li>用於調用 AI 服務的憑證</li><li>每個 Key 綁定一個分組</li><li>可以設定配額和有效期</li><li>支持獨立的使用統計</li></ul></div><p style="margin-top: 16px; color: #10b981; font-weight: 600;">👉 點擊左側的"API 密鑰"</p></div>'
+          '<p>建立 API 密鑰以使用設定好的分組。</p><p>選擇高亮的密鑰入口。</p>'
       },
       createKey: {
         title: '➕ 建立密鑰',
@@ -273,16 +273,16 @@ export default {
     // User tour steps
     user: {
       welcome: {
-        title: '👋 歡迎使用 Sub2API',
+        title: '歡迎使用 Ritel.SI',
         description:
-          '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">您好！歡迎來到 Sub2API AI 服務平台。</p><p style="margin-bottom: 12px;"><b>🎯 快速開始：</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>🔑 建立 API 密鑰</li><li>📋 複製密鑰到您的應用</li><li>🚀 開始使用 AI 服務</li></ul><p style="color: #10b981; font-weight: 600;">只需 1 分鐘，讓我們開始吧 →</p></div>',
+          '<p>建立 API 密鑰並連接您的應用程式。</p>',
         nextBtn: '開始 🚀',
         prevBtn: '跳過'
       },
       keyManage: {
         title: '🔑 API 密鑰管理',
         description:
-          '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;">在這裏管理您的所有 API 訪問密鑰。</p><p style="padding: 8px 12px; background: #eff6ff; border-left: 3px solid #3b82f6; border-radius: 4px; font-size: 13px;"><b>📌 什麼是 API 密鑰？</b><br/>API 密鑰是您訪問 AI 服務的憑證，就像一把鑰匙，讓您的應用能夠調用 AI 能力。</p><p style="margin-top: 12px; color: #10b981; font-weight: 600;">👉 點擊進入密鑰頁面</p></div>'
+          '<p>建立 API 密鑰以使用設定好的分組。</p><p>選擇高亮的密鑰入口。</p>'
       },
       createKey: {
         title: '➕ 建立新密鑰',

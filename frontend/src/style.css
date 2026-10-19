@@ -662,10 +662,6 @@
     @apply hover:bg-primary-100 dark:hover:bg-primary-900/30;
   }
 
-  .sidebar-section {
-    @apply mb-6;
-  }
-
   .sidebar-section-title {
     @apply mb-2 px-3;
     @apply text-xs font-semibold uppercase tracking-wider;
@@ -946,10 +942,7 @@ h2, h3 {
 .uppercase, th { text-transform: none; }
 .uppercase:is(.tracking-wide, .tracking-wider, .tracking-widest, [class*="tracking-["]), th.uppercase { letter-spacing: .01em; }
 select option { background: #111110; color: #f4f2ed; }
-.ritel-main { width: 100%; max-width: 1328px; margin: 0 auto; padding: 48px; }
-.ritel-app-header { background: #0a0a0af2; border-color: #30302d !important; backdrop-filter: blur(12px); }
-.ritel-app-header > div { min-height: 88px; height: auto; padding: 20px 32px; }
-.ritel-app-header h1 { font-size: 27px; }
+.ritel-main { width: 100%; max-width: 1296px; margin: 0 auto; padding: 32px; }
 .ritel-main h1 { font-size: 36px; line-height: 1.15; }
 .ritel-main :is(h2, h3) { font-size: 16px; line-height: 1.4; }
 .ritel-main :is(h2, h3)[class*=text-gray-500] { font-size: 13px; font-weight: 400; color: #aaa9a4; }
@@ -1047,8 +1040,6 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
   .ritel-metric-card .ritel-number-display { font-size: 26px; }
 }
 @media (max-width: 767px) {
-  .ritel-main { padding: 28px 16px; }
-  .ritel-app-header > div { padding: 12px; min-height: 72px; }
   .ritel-auth-header, .ritel-home-nav { width: calc(100% - 32px); min-height: 88px; gap: 12px; flex-wrap: wrap; padding: 16px 0; }
   .ritel-brand { font-size: 20px; gap: 10px; }
   .ritel-brand img { width: 48px; height: 38px; }
@@ -1083,20 +1074,39 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
 span.inline-flex.rounded, span.inline-block.rounded { border-radius: var(--ritel-radius-pill); }
 
 
-/* Production console: stable context and local scrolling. */
-.ritel-app { --console-header-height: 88px; }
-.ritel-app-header .console-page-context { display: grid; min-width: 0; gap: 3px; }
-.console-workspace-label { font-size: 12.5px; color: var(--ritel-muted); }
-.ritel-app-header [data-testid=console-page-title] { font-family: var(--ritel-display); font-size: 27px; font-weight: 600; line-height: 1.2; }
-.console-skip { position: fixed; z-index: 1000; left: 16px; top: -100px; padding: 12px 20px; background: var(--ritel-fg); color: var(--ritel-bg); }
+/* Production console: top-bar layout, section tabs, page title. */
+/* Header height: 60px top bar + 44px tab band when tabs are present. */
+.ritel-app { --console-header-height: 60px; }
+.ritel-app.has-tabs { --console-header-height: 104px; }
+.console-skip { position: fixed; z-index: 1000; left: 16px; top: -100px; padding: 12px 20px; background: var(--ritel-fg); color: var(--ritel-bg); border-radius: var(--ritel-radius-control); }
 .console-skip:focus { top: 12px; }
 .ritel-main:focus { outline: none; }
+/* Phones: the fixed bottom nav (56px plus the safe area) sits over the page end. */
+@media (max-width: 760px) {
+  .ritel-app { --console-bottom-nav-height: calc(56px + env(safe-area-inset-bottom)); }
+  .ritel-main { padding: 24px 16px calc(var(--console-bottom-nav-height) + 24px); }
+  .console-bottom-clearance { bottom: var(--console-bottom-nav-height) !important; }
+}
+/* Both workspace controls use the same sizing and selected state. */
+.console-segment { padding: 8px 12px; min-height: 36px; border-radius: var(--ritel-radius-pill); font-size: 13px; font-weight: 400; color: var(--ritel-muted); white-space: nowrap; transition: color .15s, background .15s; }
+.console-segment:hover { color: var(--ritel-fg); }
+.console-segment[aria-pressed="true"] { background: #1e1e1c; color: var(--ritel-fg); }
+/* Sidebar nav scrollbar (drawer). */
 .ritel-app .sidebar-nav { scrollbar-width: thin; scrollbar-color: #55554e #0a0a0a; }
 .ritel-app .sidebar-nav::-webkit-scrollbar { display: block; width: 5px; }
 .ritel-app .sidebar-nav::-webkit-scrollbar-thumb { background: #55554e; }
-@media (max-width:767px) {
-  .ritel-app { --console-header-height: 72px; }
-  .ritel-app-header [data-testid=console-page-title] { font-size: 21px; max-width: 44vw; }
-  .console-workspace-label { font-size: 12px; }
+
+.console-nav-badge {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--ritel-radius-pill);
+  background: #e08b78;
+  color: #0a0a0a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: lining-nums tabular-nums;
 }
-@media (prefers-reduced-motion:reduce) { .ritel-app *, .ritel-app *::before, .ritel-app *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }

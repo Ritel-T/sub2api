@@ -190,38 +190,6 @@ describe('useAppStore', () => {
   // --- 侧边栏 ---
 
   describe('侧边栏管理', () => {
-    it('toggleSidebar 切换折叠状态', () => {
-      const store = useAppStore()
-      expect(store.sidebarCollapsed).toBe(false)
-
-      store.toggleSidebar()
-      expect(store.sidebarCollapsed).toBe(true)
-
-      store.toggleSidebar()
-      expect(store.sidebarCollapsed).toBe(false)
-    })
-
-    it('setSidebarCollapsed 直接设置状态', () => {
-      const store = useAppStore()
-
-      store.setSidebarCollapsed(true)
-      expect(store.sidebarCollapsed).toBe(true)
-
-      store.setSidebarCollapsed(false)
-      expect(store.sidebarCollapsed).toBe(false)
-    })
-
-    it('sidebarScrollTop 默认为 0 且可读写', () => {
-      const store = useAppStore()
-      expect(store.sidebarScrollTop).toBe(0)
-
-      store.sidebarScrollTop = 256
-      expect(store.sidebarScrollTop).toBe(256)
-
-      store.sidebarScrollTop = 0
-      expect(store.sidebarScrollTop).toBe(0)
-    })
-
     it('toggleMobileSidebar 切换移动端状态', () => {
       const store = useAppStore()
       expect(store.mobileOpen).toBe(false)
@@ -309,16 +277,14 @@ describe('useAppStore', () => {
   // --- reset ---
 
   describe('reset', () => {
-    it('重置所有 UI 状态', () => {
+    it('重置加载状态和通知', () => {
       const store = useAppStore()
 
-      store.setSidebarCollapsed(true)
       store.setLoading(true)
       store.showSuccess('消息')
 
       store.reset()
 
-      expect(store.sidebarCollapsed).toBe(false)
       expect(store.loading).toBe(false)
       expect(store.toasts).toHaveLength(0)
     })

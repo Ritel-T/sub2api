@@ -1,58 +1,57 @@
 <template>
-  <div class="ritel-app min-h-screen bg-brand-paper dark:bg-dark-950">
-    <a href="#console-main" class="console-skip" @click.prevent="focusMain">{{ skipLabel }}</a>
-    <!-- Sidebar -->
+  <div class="ritel-app" :class="{ 'has-tabs': hasTabs }">
+    <a href="#console-main" class="console-skip" :inert="appStore.mobileOpen ? true : undefined" @click.prevent="focusMain">{{ skipLabel }}</a>
     <AppSidebar />
-
-    <!-- Main Content Area -->
-    <div
-      class="relative min-h-screen transition-all duration-300"
-      :class="[sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-64']"
-    >
-      <!-- Header -->
-      <AppHeader />
-
-      <!-- Main Content -->
-      <main id="console-main" ref="mainRef" class="ritel-main" tabindex="-1">
-        <slot />
-      </main>
-    </div>
+    <ConsoleTopBar />
+    <ConsoleSectionTabs :inert="appStore.mobileOpen ? true : undefined" />
+    <main id="console-main" ref="mainRef" class="ritel-main" :inert="appStore.mobileOpen ? true : undefined" tabindex="-1">
+      <ConsolePageTitle />
+      <slot />
+    </main>
+    <ConsoleBottomNav :inert="appStore.mobileOpen ? true : undefined" />
   </div>
 </template>
 
 <script setup lang="ts">
 import '@/styles/onboarding.css'
-import { computed, onMounted, ref, watch, nextTick } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAppStore } from '@/stores'
-import { useAuthStore } from '@/stores/auth'
+import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
-import { useOnboardingStore } from '@/stores/onboarding'
+import { provideConsoleNav } from '@/navigation/useConsoleNavSource'
+import { consoleShellCopy } from '@/utils/consoleShellUi'
 import AppSidebar from './AppSidebar.vue'
-import AppHeader from './AppHeader.vue'
+import ConsoleTopBar from './ConsoleTopBar.vue'
+import ConsoleSectionTabs from './ConsoleSectionTabs.vue'
+import ConsolePageTitle from './ConsolePageTitle.vue'
+import ConsoleBottomNav from './ConsoleBottomNav.vue'
 
 const route = useRoute()
 const { locale } = useI18n()
 const mainRef = ref<HTMLElement | null>(null)
-const skipLabel = computed(() => locale.value.startsWith('zh') ? '跳至主要內容' : 'Skip to content')
+const authStore = useAuthStore()
+const appStore = useAppStore()
+const onboardingStore = useOnboardingStore()
+
+const consoleNav = provideConsoleNav()
+const hasTabs = computed(() => (consoleNav.activeLocation.value?.section.tabs.length ?? 0) > 1)
+
+const skipLabel = computed(() => consoleShellCopy(locale.value).skip)
+const isAdmin = computed(() => authStore.user?.role === 'admin')
+
 function focusMain() { mainRef.value?.focus({ preventScroll: true }) }
 watch(() => route.path, async () => { await nextTick(); focusMain() })
-const appStore = useAppStore()
-const authStore = useAuthStore()
-const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
-const isAdmin = computed(() => authStore.user?.role === 'admin')
 
 const { replayTour } = useOnboardingTour({
   storageKey: isAdmin.value ? 'admin_guide' : 'user_guide',
-  autoStart: false
+  autoStart: false,
+  prepareElement: consoleNav.prepareTourTarget,
+  onEnd: consoleNav.finishTour
 })
-
-const onboardingStore = useOnboardingStore()
 
 onMounted(() => {
   onboardingStore.setReplayCallback(replayTour)
 })
 
-defineExpose({ replayTour })
 </script>

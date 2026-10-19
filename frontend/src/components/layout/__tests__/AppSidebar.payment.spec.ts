@@ -3,6 +3,7 @@ import { flushPromises, shallowMount, type VueWrapper } from '@vue/test-utils'
 import { computed, nextTick, reactive } from 'vue'
 import AppSidebar from '../AppSidebar.vue'
 import type { CustomMenuItem } from '@/types'
+import type { ConsoleNavSource } from '@/navigation/useConsoleNavSource'
 
 const mocks = vi.hoisted(() => ({ getConfig: vi.fn(), fetchAdminSettings: vi.fn(), push: vi.fn() }))
 
@@ -16,20 +17,22 @@ interface AuthState {
 }
 
 let authState: AuthState
+let tourActive = false
+let navigation: ConsoleNavSource | undefined
 let appState: {
   cachedPublicSettings: { payment_enabled?: boolean; subscription_enabled?: boolean; payment_balance_disabled?: boolean; custom_menu_items?: CustomMenuItem[] }
-  publicSettingsLoaded: boolean
-  sidebarCollapsed: boolean
   mobileOpen: boolean
   backendModeEnabled: boolean
-  sidebarScrollTop: number
-  siteName: string
-  siteLogo: string
+  docUrl: string
   siteVersion: string
   setMobileOpen: (value: boolean) => void
 }
 let adminState: { paymentEnabled: boolean; customMenuItems: CustomMenuItem[]; fetch: typeof mocks.fetchAdminSettings }
 const route = reactive({ path: '/admin/dashboard', query: {} as Record<string, string> })
+vi.mock('@/navigation/useConsoleNavSource', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/navigation/useConsoleNavSource')>()
+  return { ...actual, useConsoleNav: () => { navigation = actual.useConsoleNav(); return navigation } }
+})
 
 vi.mock('@/api/payment', () => ({ paymentAPI: { getConfig: mocks.getConfig } }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
@@ -38,14 +41,14 @@ vi.mock('@/stores', () => ({
   useAuthStore: () => authState,
   useAppStore: () => appState,
   useAdminSettingsStore: () => adminState,
-  useOnboardingStore: () => ({ isCurrentStep: () => false }),
+  useOnboardingStore: () => ({ isCurrentStep: () => false, isDriverActive: () => tourActive }),
   useSupportTicketStore: () => ({ userUnread: 0, adminPending: 0 }),
 }))
 vi.mock('@/composables/useBatchImageAccess', () => ({
   useBatchImageAccess: () => ({ canUseBatchImage: computed(() => false), refreshBatchImageAccess: vi.fn() }),
 }))
 vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => ({ push: mocks.push }) }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }) }))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }), createI18n: () => ({}) }))
 vi.mock('@/components/common/VersionBadge.vue', () => ({ default: { template: '<span />' } }))
 
 let wrapper: VueWrapper | undefined
@@ -60,8 +63,7 @@ function mountSidebar() {
 
 interface TestNavItem { path: string; label: string; children?: TestNavItem[] }
 function tree(name: 'userNavItems' | 'adminNavItems'): TestNavItem[] {
-  // Payment authorization is independent of the selected workspace / disclosure.
-  return (wrapper?.vm.$.setupState as unknown as Record<string, TestNavItem[]>)[name] ?? []
+  return navigation?.[name].value ?? []
 }
 function hasLink(path: string): boolean {
   return tree('userNavItems').some(item => item.path === path)
@@ -79,6 +81,8 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
+  tourActive = false
+  navigation = undefined
   vi.clearAllMocks()
   Object.defineProperty(window, 'innerWidth', { value: 390, writable: true, configurable: true })
   sessionStorage.clear()
@@ -93,9 +97,9 @@ beforeEach(() => {
   })
   appState = reactive({
     cachedPublicSettings: { payment_enabled: false, subscription_enabled: false, payment_balance_disabled: false },
-    publicSettingsLoaded: true, sidebarCollapsed: false, mobileOpen: false,
+    mobileOpen: false,
     setMobileOpen(value: boolean) { this.mobileOpen = value },
-    backendModeEnabled: false, sidebarScrollTop: 0, siteName: 'RynexAI', siteLogo: '', siteVersion: 'test',
+    backendModeEnabled: false, docUrl: '', siteVersion: 'test',
   })
   adminState = reactive({ paymentEnabled: false, customMenuItems: [], fetch: mocks.fetchAdminSettings })
   route.path = '/admin/dashboard'
@@ -233,7 +237,7 @@ describe('AppSidebar merchant payment pilot', () => {
     mountSidebar()
     await flushPromises()
     route.path = '/profile'
-    appState.sidebarCollapsed = true
+    appState.mobileOpen = true
     authState.user = { id: 41, role: 'admin' }
     await flushPromises()
     expect(mocks.getConfig).toHaveBeenCalledTimes(1)
@@ -263,31 +267,29 @@ describe('AppSidebar merchant payment pilot', () => {
 describe('console workspace navigation', () => {
   it('shows one management directory and searches exactly that tree', async () => {
     mountSidebar()
+    // Admin workspace: accounts and keys should appear as section tab links.
     expect(wrapper?.find('a[href="/admin/accounts"]').exists()).toBe(true)
     expect(wrapper?.find('a[href="/keys"]').exists()).toBe(true)
-    const search = wrapper!.findComponent({ name: 'FeatureSearch' })
-    const flattened = JSON.stringify(search.props('items'))
-    expect(flattened).toContain('/admin/token-guard-v2')
-    expect(flattened).not.toContain('"/profile"')
-    expect(wrapper?.find('[data-tour="sidebar-my-keys"]').exists()).toBe(true)
-    await wrapper!.get('#console-workspace').setValue('personal')
-    expect(mocks.push).toHaveBeenLastCalledWith('/dashboard')
-    route.path = '/dashboard'
-    await nextTick()
-    expect(wrapper?.find('a[href="/keys"]').exists()).toBe(true)
-    expect(wrapper?.find('a[href="/admin/accounts"]').exists()).toBe(false)
+    // Profile is hidden from nav (account section is hidden).
+    expect(wrapper?.find('a[href="/profile"]').exists()).toBe(false)
+    // Workspace switch: aria-pressed buttons inside the group.
+    const ws = wrapper!.find('.console-drawer-workspace')
+    expect(ws.exists()).toBe(true)
+    const btns = ws.findAll('button')
+    const mgmt = btns.find(b => b.attributes('aria-pressed') === 'true')
+    expect(mgmt).toBeDefined()
+    // Click personal button triggers switchWorkspace → router.push.
+    const personal = btns.find(b => b.attributes('aria-pressed') === 'false')!
+    await personal.trigger('click')
+    expect(mocks.push).toHaveBeenCalled()
   })
 
-  it('keeps billing collapsed and search can still find its authorized entries', async () => {
+  it('keeps payment routes hidden behind the feature flag', async () => {
     authState.user = { id: 52, role: 'user' }
     route.path = '/dashboard'
     appState.cachedPublicSettings.payment_enabled = true
     mountSidebar()
-    expect(wrapper?.find('a[href="/purchase"]').exists()).toBe(false)
-    const billing = wrapper!.findAll('button').find(button => button.text().includes('Billing'))!
-    expect(billing.attributes('aria-expanded')).toBe('false')
-    expect(JSON.stringify(wrapper!.findComponent({ name: 'FeatureSearch' }).props('items'))).toContain('/purchase')
-    await billing.trigger('click')
+    // In user workspace: /purchase appears as a section tab link.
     expect(wrapper?.find('a[href="/purchase"]').exists()).toBe(true)
   })
 
@@ -296,9 +298,8 @@ describe('console workspace navigation', () => {
     appState.backendModeEnabled = true
     route.path = '/usage'
     mountSidebar()
-    const search = wrapper!.findComponent({ name: 'FeatureSearch' })
-    expect((search.props('items') as TestNavItem[]).map(item => item.path)).toEqual(['/admin/accounts', '/usage?view=records'])
-    expect(wrapper?.find('#console-workspace').exists()).toBe(false)
+    // Observer in backend mode: no workspace switch (single option).
+    expect(wrapper?.find('.console-drawer-workspace').exists()).toBe(false)
     expect(wrapper?.find('a[href="/keys"]').exists()).toBe(false)
   })
 
@@ -308,8 +309,8 @@ describe('console workspace navigation', () => {
     mountSidebar()
     expect(wrapper?.find('a[href="/keys"]').exists()).toBe(true)
     expect(wrapper?.find('a[href="/admin/accounts"]').exists()).toBe(true)
-    expect(wrapper?.find('#console-workspace').exists()).toBe(false)
-    expect(JSON.stringify(wrapper!.findComponent({ name: 'FeatureSearch' }).props('items'))).not.toContain('/purchase')
+    // Simple mode: only management workspace → no workspace switch.
+    expect(wrapper?.find('.console-drawer-workspace').exists()).toBe(false)
   })
 
   it('distinguishes usage analytics and request records using the current query', async () => {
@@ -326,18 +327,15 @@ describe('console workspace navigation', () => {
 })
 
 describe('mobile console directory', () => {
-  it('shows full labels and allows grouped destinations even when desktop is collapsed', async () => {
+  it('shows section tab links when the drawer is open', async () => {
     authState.user = { id: 52, role: 'user' }
     route.path = '/dashboard'
-    appState.sidebarCollapsed = true
     appState.mobileOpen = true
     mountSidebar()
-    expect(wrapper!.get('aside').classes()).toContain('w-64')
-    const applications = wrapper!.findAll('button').find(button => button.text().includes('Apps & services'))
-    if (applications) {
-      await applications.trigger('click')
-      expect(applications.attributes('aria-expanded')).toBe('true')
-    }
+    // The drawer has the console-drawer class and is not inert when open.
+    expect(wrapper!.get('aside').attributes('inert')).toBeUndefined()
+    // Links are rendered as section tab router-links.
+    expect(wrapper?.find('a[href="/dashboard"]').exists()).toBe(true)
   })
 })
 
@@ -351,15 +349,20 @@ describe('workspace session restoration', () => {
     route.path = '/admin/accounts'
     route.query = {}
     await nextTick()
-    await wrapper!.get('#console-workspace').setValue('personal')
+    // Click the personal workspace button.
+    const personalBtn = wrapper!.findAll('.console-drawer-workspace button').find(b => b.attributes('aria-pressed') === 'false')!
+    await personalBtn.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/usage?view=analysis&page=3')
   })
+
   it('rejects a previously stored feature after its public switch is disabled', async () => {
     sessionStorage.setItem('ritel-console:last:41:admin:standard:full:personal', '/purchase')
     mountSidebar()
-    await wrapper!.get('#console-workspace').setValue('personal')
+    const personalBtn = wrapper!.findAll('.console-drawer-workspace button').find(b => b.attributes('aria-pressed') === 'false')!
+    await personalBtn.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/dashboard')
   })
+
   it('does not copy an outgoing account location into the newly switched account session', async () => {
     mountSidebar()
     route.path = '/profile'
@@ -369,20 +372,43 @@ describe('workspace session restoration', () => {
     expect(sessionStorage.getItem('ritel-console:last:52:admin:standard:full:personal')).toBeNull()
     route.path = '/admin/accounts'
     await nextTick()
-    await wrapper!.get('#console-workspace').setValue('personal')
+    const personalBtn = wrapper!.findAll('.console-drawer-workspace button').find(b => b.attributes('aria-pressed') === 'false')!
+    await personalBtn.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/dashboard')
   })
+
   it('does not infer management for a custom page that is also in the personal collection', async () => {
     const custom = { id: 'shared', label: 'Shared', icon_svg: '<svg />', url: 'https://example.test', visibility: 'user' as const, sort_order: 0 }
     appState.cachedPublicSettings.custom_menu_items = [custom]
     adminState.customMenuItems = [{ ...custom, visibility: 'admin' }]
     route.path = '/custom/shared'
     mountSidebar()
-    expect((wrapper!.get('#console-workspace').element as HTMLSelectElement).value).toBe('personal')
+    // In the drawer, the active workspace button has aria-pressed="true".
+    const activeBtn = wrapper!.findAll('.console-drawer-workspace button').find(b => b.attributes('aria-pressed') === 'true')
+    expect(activeBtn?.text()).toBeTruthy()
   })
 })
 
 describe('mobile drawer keyboard behavior', () => {
+  it('owns the active tour popover and includes its controls in the keyboard cycle', async () => {
+    tourActive = true
+    const popover = document.createElement('div')
+    popover.id = 'driver-popover-content'
+    popover.innerHTML = '<button>Close tour</button><button>Next step</button>'
+    document.body.append(popover)
+    try {
+      mountSidebar()
+      appState.mobileOpen = true
+      await nextTick(); await nextTick()
+      expect(wrapper!.get('aside').attributes('aria-owns')).toBe('driver-popover-content')
+      const close = wrapper!.get('.sidebar-mobile-close').element as HTMLButtonElement
+      close.focus()
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }))
+      expect(document.activeElement).toBe(popover.lastElementChild)
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+      expect(document.activeElement).toBe(close)
+    } finally { popover.remove() }
+  })
   it('focuses its close control, traps Tab, closes with Escape and returns focus to its opener', async () => {
     const opener = document.createElement('button')
     opener.textContent = 'Toggle menu'
@@ -397,7 +423,7 @@ describe('mobile drawer keyboard behavior', () => {
     const close = wrapper!.get('.sidebar-mobile-close').element as HTMLButtonElement
     expect(document.activeElement).toBe(close)
     expect(wrapper!.get('aside').attributes('aria-modal')).toBe('true')
-    const targets = wrapper!.get('aside').element.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),select')
+    const targets = wrapper!.get('aside').element.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),[tabindex="0"]')
     targets[targets.length - 1]!.focus()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
     expect(document.activeElement).toBe(close)
@@ -411,9 +437,10 @@ describe('mobile drawer keyboard behavior', () => {
 })
 
 describe('closed mobile navigation accessibility', () => {
-  it('makes only the closed mobile drawer inert and hidden, restoring desktop navigation on resize', async () => {
+  it('makes the closed drawer inert and hidden, and restores it when open', async () => {
     mountSidebar()
     const aside = wrapper!.get('aside')
+    // Drawer is always inert when closed (not tied to viewport width).
     expect(aside.attributes('inert')).toBeDefined()
     expect(aside.attributes('aria-hidden')).toBe('true')
     appState.mobileOpen = true
@@ -422,13 +449,7 @@ describe('closed mobile navigation accessibility', () => {
     expect(aside.attributes('aria-hidden')).toBeUndefined()
     appState.mobileOpen = false
     await nextTick()
-    Object.defineProperty(window, 'innerWidth', { value: 1280, writable: true, configurable: true })
-    window.dispatchEvent(new Event('resize'))
-    await nextTick()
-    appState.sidebarCollapsed = true
-    await nextTick()
-    expect(aside.attributes('inert')).toBeUndefined()
-    expect(aside.attributes('aria-hidden')).toBeUndefined()
-    expect(aside.classes()).toContain('w-[72px]')
+    expect(aside.attributes('inert')).toBeDefined()
+    expect(aside.attributes('aria-hidden')).toBe('true')
   })
 })

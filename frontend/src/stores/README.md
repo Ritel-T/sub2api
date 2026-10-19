@@ -27,11 +27,11 @@ Manages user authentication state, login/logout, and token persistence.
 
 ### 2. App Store (`app.ts`)
 
-Manages global UI state including sidebar, loading indicators, and toast notifications.
+Manages global UI state including the navigation drawer, loading indicators, and toast notifications.
 
 **State:**
 
-- `sidebarCollapsed: boolean` - Sidebar collapsed state
+- `mobileOpen: boolean` - Navigation drawer open state
 - `loading: boolean` - Global loading state
 - `toasts: Toast[]` - Active toast notifications
 
@@ -41,8 +41,8 @@ Manages global UI state including sidebar, loading indicators, and toast notific
 
 **Actions:**
 
-- `toggleSidebar()` - Toggle sidebar state
-- `setSidebarCollapsed(collapsed)` - Set sidebar state explicitly
+- `toggleMobileSidebar()` - Toggle the navigation drawer
+- `setMobileOpen(open)` - Set the navigation drawer open state
 - `setLoading(isLoading)` - Set loading state
 - `showToast(type, message, duration?)` - Show toast notification
 - `showSuccess(message, duration?)` - Show success toast
@@ -53,7 +53,7 @@ Manages global UI state including sidebar, loading indicators, and toast notific
 - `clearAllToasts()` - Clear all toasts
 - `withLoading(operation)` - Execute async operation with loading state
 - `withLoadingAndError(operation, errorMessage?)` - Execute with loading and error handling
-- `reset()` - Reset store to defaults
+- `reset()` - Clear loading state and toast notifications
 
 ## Usage Examples
 
@@ -93,9 +93,9 @@ import { useAppStore } from '@/stores'
 // In component setup
 const appStore = useAppStore()
 
-// Sidebar control
-appStore.toggleSidebar()
-appStore.setSidebarCollapsed(true)
+// Navigation drawer
+appStore.toggleMobileSidebar()
+appStore.setMobileOpen(false)
 
 // Loading state
 appStore.setLoading(true)
@@ -154,7 +154,7 @@ async function handleLogout() {
 
 <template>
   <div>
-    <button @click="appStore.toggleSidebar">Toggle Sidebar</button>
+    <button @click="appStore.toggleMobileSidebar">Open navigation</button>
 
     <div v-if="appStore.loading">Loading...</div>
 
@@ -193,5 +193,5 @@ Stores can be reset to initial state:
 authStore.logout() // Clears all auth state
 
 // App store
-appStore.reset() // Resets to defaults
+appStore.reset() // Clears loading state and toast notifications
 ```

@@ -9,34 +9,35 @@ import { getAdminSteps, getUserSteps } from '@/components/Guide/steps'
 export interface OnboardingOptions {
   storageKey?: string
   autoStart?: boolean
+  prepareElement?: (selector: string) => Promise<boolean>
+  onEnd?: () => void
 }
+
+// Route views each mount an AppLayout. The active driver's owner keeps the
+// session, and replacement layouts delegate to it rather than advancing a
+// second driver or cancelling an in-flight navigation.
+let startVersion = 0
+const sessions = new WeakMap<Driver, { moveBy: (offset: number, delay?: number) => Promise<void> }>()
 
 export function useOnboardingTour(options: OnboardingOptions) {
   const { t } = useI18n()
   const userStore = useUserStore()
   const onboardingStore = useOnboardingStore()
-  const storageVersion = 'v4_interactive' // Bump version for new tour type
+  const storageVersion = 'v4_interactive'
 
-  // Timing constants for better maintainability
   const TIMING = {
-    INTERACTIVE_WAIT_MS: 800,        // Default wait time for interactive steps
-    ELEMENT_TIMEOUT_MS: 8000,        // Timeout for element detection
-    AUTO_START_DELAY_MS: 1000        // Delay before auto-starting tour
+    INTERACTIVE_WAIT_MS: 800,
+    ELEMENT_TIMEOUT_MS: 8000,
+    AUTO_START_DELAY_MS: 1000
   } as const
 
-  // Helper: Check if a step is interactive (only close button shown)
-  const isInteractiveStep = (step: DriveStep): boolean => {
-    return step.popover?.showButtons?.length === 1 &&
-           step.popover.showButtons[0] === 'close'
-  }
+  const isInteractiveStep = (step: DriveStep): boolean =>
+    step.popover?.showButtons?.length === 1 && step.popover.showButtons[0] === 'close'
 
-  // Helper: Clean up click listener
   const cleanupClickListener = () => {
     if (!currentClickListener) return
     const { element: el, handler, keyHandler, originalTabIndex, eventTypes } = currentClickListener
-    if (eventTypes) {
-      eventTypes.forEach(type => el.removeEventListener(type, handler))
-    }
+    eventTypes.forEach(type => el.removeEventListener(type, handler))
     if (keyHandler) el.removeEventListener('keydown', keyHandler)
     if (originalTabIndex !== undefined) {
       if (originalTabIndex === null) el.removeAttribute('tabindex')
@@ -45,14 +46,13 @@ export function useOnboardingTour(options: OnboardingOptions) {
     currentClickListener = null
   }
 
-  // 使用 store 管理的全局 driver 实例
   let driverInstance: Driver | null = onboardingStore.getDriverInstance()
   let currentClickListener: {
     element: HTMLElement
     handler: () => void
     keyHandler?: (e: KeyboardEvent) => void
     originalTabIndex?: string | null
-    eventTypes?: string[] // Track which event types were added
+    eventTypes: string[]
   } | null = null
   let autoStartTimer: ReturnType<typeof setTimeout> | null = null
   let globalKeyboardHandler: ((e: KeyboardEvent) => void) | null = null
@@ -76,14 +76,11 @@ export function useOnboardingTour(options: OnboardingOptions) {
     localStorage.removeItem(getStorageKey())
   }
 
-  /**
-   * 检查元素是否存在，如果不存在则重试
-   */
-  const ensureElement = async (selector: string, timeout = 5000): Promise<boolean> => {
+  const ensureElement = async (selector: string, timeout = 5000, valid = () => true): Promise<boolean> => {
     const startTime = Date.now()
-    while (Date.now() - startTime < timeout) {
+    while (valid() && Date.now() - startTime < timeout) {
       const element = document.querySelector(selector)
-      if (element && element.getBoundingClientRect().height > 0) {
+      if (element && !element.closest('[inert], [aria-hidden="true"]') && element.getBoundingClientRect().height > 0) {
         return true
       }
       await new Promise((resolve) => setTimeout(resolve, 150))
@@ -92,26 +89,70 @@ export function useOnboardingTour(options: OnboardingOptions) {
   }
 
   const startTour = async (startIndex = 0) => {
-    // 动态获取当前用户角色和步骤
+    const requestedStart = ++startVersion
     const isAdmin = userStore.user?.role === 'admin'
     const isSimpleMode = userStore.isSimpleMode
     const steps = isAdmin ? getAdminSteps(t, isSimpleMode) : getUserSteps(t)
 
-    // 确保 DOM 就绪
     await nextTick()
 
-    // 如果指定了起始步骤，确保元素可见
+    if (requestedStart !== startVersion) return
+    // End the old session before preparing the next drawer target, so its
+    // cleanup cannot close the new session's navigation surface.
+    driverInstance?.destroy()
+
     const currentStep = steps[startIndex]
     if (currentStep?.element && typeof currentStep.element === 'string') {
-      await ensureElement(currentStep.element, TIMING.ELEMENT_TIMEOUT_MS)
+      if (await options.prepareElement?.(currentStep.element) === false) return
+      if (!await ensureElement(currentStep.element, TIMING.ELEMENT_TIMEOUT_MS)) return
     }
 
-    if (driverInstance) {
-      driverInstance.destroy()
+    if (requestedStart !== startVersion) return
+
+    const interactiveTarget = () => {
+      const step = steps[sessionDriver.getActiveIndex() ?? 0]
+      if (!step || !isInteractiveStep(step) || !step.element) return null
+      const element = typeof step.element === 'string'
+        ? document.querySelector<HTMLElement>(step.element)
+        : step.element as HTMLElement
+      return element && !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName) ? element : null
+    }
+    const finishTour = () => {
+      markAsSeen()
+      sessionDriver.destroy()
     }
 
-    // 创建新的 driver 实例并存储到 store
-    driverInstance = driver({
+    let moving = false
+    let sessionEnded = false
+    const moveBy = async (offset: number, delay = 0) => {
+      if (moving || !sessionDriver?.isActive()) return
+      moving = true
+      const index = sessionDriver.getActiveIndex() ?? 0
+      const targetIndex = index + offset
+      const valid = () => sessionDriver.isActive() && onboardingStore.getDriverInstance() === sessionDriver && sessionDriver.getActiveIndex() === index
+      try {
+        if (delay) await new Promise(resolve => setTimeout(resolve, delay))
+        if (!valid()) return
+        const step = steps[targetIndex]
+        if (!step) {
+          if (targetIndex >= steps.length) {
+            finishTour()
+          }
+          return
+        }
+        if (typeof step.element === 'string') {
+          if (await options.prepareElement?.(step.element) === false || !valid()) return
+          if (!await ensureElement(step.element, TIMING.ELEMENT_TIMEOUT_MS, valid)) return
+        }
+        if (valid()) sessionDriver.moveTo(targetIndex)
+      } catch (error) {
+        console.warn('Onboarding: Could not prepare the next target', error)
+      } finally {
+        moving = false
+      }
+    }
+
+    const sessionDriver = driver({
       showProgress: true,
       steps,
       animate: true,
@@ -122,64 +163,27 @@ export function useOnboardingTour(options: OnboardingOptions) {
       prevBtnText: t('common.back'),
       doneBtnText: t('common.confirm'),
 
-      // 导航处理
-      onNextClick: async (_el, _step, { config, state }) => {
-        // 如果是最后一步，点击则是"完成"
+      onNextClick: (_el, _step, { config, state }) => {
         if (state.activeIndex === (config.steps?.length ?? 0) - 1) {
-          markAsSeen()
-          driverInstance?.destroy()
-          onboardingStore.setDriverInstance(null)
-        } else {
-          // 注意：交互式步骤通常隐藏 Next 按钮，此处逻辑为防御性编程
-          const currentIndex = state.activeIndex ?? 0
-          const currentStep = steps[currentIndex]
-
-          if (currentStep && isInteractiveStep(currentStep) && currentStep.element) {
-            const targetElement = typeof currentStep.element === 'string'
-              ? document.querySelector(currentStep.element) as HTMLElement
-              : currentStep.element as HTMLElement
-
-            if (targetElement) {
-              const isClickable = !['INPUT', 'TEXTAREA', 'SELECT'].includes(targetElement.tagName)
-              if (isClickable) {
-                targetElement.click()
-                return
-              }
-            }
-          }
-          driverInstance?.moveNext()
+          finishTour()
+          return
         }
+        const target = interactiveTarget()
+        if (target) target.click()
+        else void moveBy(1)
       },
-      onPrevClick: () => {
-        driverInstance?.movePrevious()
-      },
-      onCloseClick: () => {
-        markAsSeen()
-        driverInstance?.destroy()
-        onboardingStore.setDriverInstance(null)
-      },
+      onPrevClick: () => { void moveBy(-1) },
+      onCloseClick: finishTour,
 
-      // 渲染时重组 Footer 布局
       onPopoverRender: (popover, { config, state }) => {
-        // Class name constants for easier maintenance
-        const CLASS_REORGANIZED = 'reorganized'
-        const CLASS_FOOTER_LEFT = 'footer-left'
-        const CLASS_FOOTER_RIGHT = 'footer-right'
-        const CLASS_DONE_BTN = 'driver-popover-done-btn'
-        const CLASS_PROGRESS_TEXT = 'driver-popover-progress-text'
-        const CLASS_NEXT_BTN = 'driver-popover-next-btn'
-        const CLASS_PREV_BTN = 'driver-popover-prev-btn'
-
         try {
           const { title: titleEl, footer: footerEl, nextButton, previousButton } = popover
 
-          // Defensive check: ensure popover elements exist
           if (!titleEl || !footerEl) {
             console.warn('Onboarding: Missing popover elements')
             return
           }
 
-          // 1.5 交互式步骤提示
           const currentStep = steps[state.activeIndex ?? 0]
 
           if (currentStep && isInteractiveStep(currentStep) && popover.description) {
@@ -201,19 +205,18 @@ export function useOnboardingTour(options: OnboardingOptions) {
             }
           }
 
-          // 2. 底部：DOM 重组
-          if (!footerEl.classList.contains(CLASS_REORGANIZED)) {
-            footerEl.classList.add(CLASS_REORGANIZED)
+          if (!footerEl.classList.contains('reorganized')) {
+            footerEl.classList.add('reorganized')
 
-            const progressEl = footerEl.querySelector(`.${CLASS_PROGRESS_TEXT}`)
-            const nextBtnEl = nextButton || footerEl.querySelector(`.${CLASS_NEXT_BTN}`)
-            const prevBtnEl = previousButton || footerEl.querySelector(`.${CLASS_PREV_BTN}`)
+            const progressEl = footerEl.querySelector('.driver-popover-progress-text')
+            const nextBtnEl = nextButton || footerEl.querySelector('.driver-popover-next-btn')
+            const prevBtnEl = previousButton || footerEl.querySelector('.driver-popover-prev-btn')
 
             const leftContainer = document.createElement('div')
-            leftContainer.className = CLASS_FOOTER_LEFT
+            leftContainer.className = 'footer-left'
 
             const rightContainer = document.createElement('div')
-            rightContainer.className = CLASS_FOOTER_RIGHT
+            rightContainer.className = 'footer-right'
 
             if (progressEl) leftContainer.appendChild(progressEl)
 
@@ -253,114 +256,56 @@ export function useOnboardingTour(options: OnboardingOptions) {
             footerEl.appendChild(rightContainer)
           }
 
-          // 3. 状态更新
           const isLastStep = state.activeIndex === (config.steps?.length ?? 0) - 1
-          const activeNextBtn = nextButton || footerEl.querySelector(`.${CLASS_NEXT_BTN}`)
+          const activeNextBtn = nextButton || footerEl.querySelector('.driver-popover-next-btn')
 
-          if (activeNextBtn) {
-             if (isLastStep) {
-               activeNextBtn.classList.add(CLASS_DONE_BTN)
-             } else {
-               activeNextBtn.classList.remove(CLASS_DONE_BTN)
-             }
-          }
+          activeNextBtn?.classList.toggle('driver-popover-done-btn', isLastStep)
         } catch (e) {
           console.error('Onboarding Tour Render Error:', e)
         }
       },
 
-      // 步骤高亮时触发
-      onHighlightStarted: async (element, step) => {
-        // 清理之前的监听器
+      onHighlightStarted: (element, step) => {
         cleanupClickListener()
-
-        // 尝试等待元素
-        if (!element && step.element && typeof step.element === 'string') {
-           const exists = await ensureElement(step.element, 8000)
-           if (!exists) {
-             console.warn(`Tour element not found after 8s: ${step.element}`)
-             return
-           }
-           element = document.querySelector(step.element) as HTMLElement
-        }
 
         if (isInteractiveStep(step) && element) {
           const htmlElement = element as HTMLElement
 
-          // Check if this is a submit button - if so, don't bind auto-advance listeners
-          // Let business code (e.g., handleCreateGroup) manually call nextStep after success
+          // Submit steps advance only after business validation succeeds.
           const isSubmitButton = htmlElement.getAttribute('type') === 'submit' ||
                                 (htmlElement.tagName === 'BUTTON' && htmlElement.closest('form'))
 
           if (isSubmitButton) {
-            return // Don't bind any click listeners for submit buttons
+            return
           }
 
-          const originalTabIndex = htmlElement.getAttribute('tabindex')
-          if (!htmlElement.isContentEditable && htmlElement.tabIndex === -1) {
-             htmlElement.setAttribute('tabindex', '0')
-          }
-
-          // Enhanced Select component detection - check both children and self
           const isSelectComponent = htmlElement.querySelector('.select-trigger') !== null ||
                                     htmlElement.classList.contains('select-trigger')
 
-          // Select dropdowns are teleported to <body>, so click events on options
-          // won't bubble through this element. Skip auto-advance for Select components.
-          // Users navigate using Next/Previous buttons after making their selection.
+          // Teleported Select options do not bubble here; navigation stays manual.
           if (isSelectComponent) {
             return
           }
 
-          // Single-execution protection flag
-          let hasExecuted = false
-
-          // Capture the step index when binding the handler
-          const boundStepIndex = driverInstance?.getActiveIndex() ?? 0
-
-          const clickHandler = async () => {
-            // Prevent duplicate execution
-            if (hasExecuted) {
-              return
-            }
-            hasExecuted = true
-
-            // Wait before advancing to allow user to see the result of their action
-            await new Promise(resolve => setTimeout(resolve, TIMING.INTERACTIVE_WAIT_MS))
-
-            // Verify driver is still active and not destroyed
-            if (!driverInstance || !driverInstance.isActive()) {
-              return
-            }
-
-            // Check if we're still on the same step - abort if step changed during wait
-            const currentIndex = driverInstance.getActiveIndex() ?? 0
-            if (currentIndex !== boundStepIndex) {
-              return
-            }
-
-            const nextStep = steps[currentIndex + 1]
-
-            if (nextStep?.element && typeof nextStep.element === 'string') {
-              const exists = await ensureElement(nextStep.element, TIMING.ELEMENT_TIMEOUT_MS)
-              if (!exists) {
-                console.warn(`Onboarding: Next step element not found: ${nextStep.element}`)
-                return
-              }
-            }
-
-            // Final check before moving
-            if (driverInstance && driverInstance.isActive()) {
-              driverInstance.moveNext()
-            }
+          const originalTabIndex = htmlElement.getAttribute('tabindex')
+          if (!htmlElement.isContentEditable && htmlElement.tabIndex === -1) {
+            htmlElement.setAttribute('tabindex', '0')
           }
 
-          // For input fields, advance on input/change events instead of click
+          let hasExecuted = false
+
+          const boundStepIndex = sessionDriver.getActiveIndex() ?? 0
+
+          const clickHandler = async () => {
+            if (hasExecuted || !sessionDriver.isActive() || sessionDriver.getActiveIndex() !== boundStepIndex) return
+            hasExecuted = true
+            await moveBy(1, TIMING.INTERACTIVE_WAIT_MS)
+          }
+
           const isInputField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(htmlElement.tagName)
 
           if (isInputField) {
             const inputHandler = () => {
-              // Remove listener after first input
               htmlElement.removeEventListener('input', inputHandler)
               htmlElement.removeEventListener('change', inputHandler)
               clickHandler()
@@ -377,10 +322,10 @@ export function useOnboardingTour(options: OnboardingOptions) {
             }
           } else {
             const keyHandler = (e: KeyboardEvent) => {
-               if (['Enter', ' '].includes(e.key)) {
-                  e.preventDefault()
-                  clickHandler()
-               }
+              if (['Enter', ' '].includes(e.key)) {
+                e.preventDefault()
+                htmlElement.click()
+              }
             }
 
             htmlElement.addEventListener('click', clickHandler, { once: true })
@@ -388,7 +333,7 @@ export function useOnboardingTour(options: OnboardingOptions) {
 
             currentClickListener = {
               element: htmlElement,
-              handler: clickHandler as () => void,
+              handler: clickHandler,
               keyHandler,
               originalTabIndex,
               eventTypes: ['click']
@@ -399,101 +344,44 @@ export function useOnboardingTour(options: OnboardingOptions) {
 
       onDestroyed: () => {
         cleanupClickListener()
-        // 清理全局监听器 (由此处唯一管理)
         if (globalKeyboardHandler) {
           document.removeEventListener('keydown', globalKeyboardHandler, { capture: true })
           globalKeyboardHandler = null
         }
-        onboardingStore.setDriverInstance(null)
+        sessions.delete(sessionDriver)
+        if (!sessionEnded) {
+          sessionEnded = true
+          options.onEnd?.()
+        }
+        if (onboardingStore.getDriverInstance() === sessionDriver) onboardingStore.setDriverInstance(null)
       }
     })
 
+    driverInstance = sessionDriver
+    sessions.set(sessionDriver, { moveBy })
     onboardingStore.setDriverInstance(driverInstance)
 
-    // 添加全局键盘监听器
     globalKeyboardHandler = (e: KeyboardEvent) => {
-      if (!driverInstance?.isActive()) return
+      if (!sessionDriver.isActive()) return
+      const key = e.key
+      if (!['Escape', 'ArrowRight', 'Enter', 'ArrowLeft'].includes(key)) return
+      const target = e.target as HTMLElement
+      if (key !== 'Escape' && ['INPUT', 'TEXTAREA'].includes(target?.tagName)) return
+      if (key === 'ArrowLeft' && (target?.tagName === 'SELECT' || target?.isContentEditable)) return
 
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopPropagation()
-        markAsSeen()
-        driverInstance.destroy()
-        onboardingStore.setDriverInstance(null)
-        return
-      }
-
-      if (e.key === 'ArrowRight') {
-        const target = e.target as HTMLElement
-        // 允许在输入框中使用方向键
-        if (['INPUT', 'TEXTAREA'].includes(target?.tagName)) {
-           return
+      e.preventDefault()
+      e.stopPropagation()
+      if (key === 'Escape') {
+        finishTour()
+      } else if (key === 'ArrowLeft') {
+        void moveBy(-1)
+      } else {
+        const element = interactiveTarget()
+        if (element) {
+          if (key === 'Enter') element.click()
+        } else {
+          void moveBy(1)
         }
-
-        e.preventDefault()
-        e.stopPropagation()
-
-        // 对于交互式步骤，箭头键应该触发交互而非跳过
-        const currentIndex = driverInstance!.getActiveIndex() ?? 0
-        const currentStep = steps[currentIndex]
-
-        if (currentStep && isInteractiveStep(currentStep) && currentStep.element) {
-          const targetElement = typeof currentStep.element === 'string'
-            ? document.querySelector(currentStep.element) as HTMLElement
-            : currentStep.element as HTMLElement
-
-          if (targetElement) {
-            // 对于非输入类元素，提示用户需要点击或按Enter
-            const isClickable = !['INPUT', 'TEXTAREA', 'SELECT'].includes(targetElement.tagName)
-            if (isClickable) {
-              // 不自动触发，只是停留提示
-              return
-            }
-          }
-        }
-
-        // 非交互式步骤才允许箭头键翻页
-        driverInstance!.moveNext()
-      }
-      else if (e.key === 'Enter') {
-        const target = e.target as HTMLElement
-        // 允许在输入框中使用回车
-        if (['INPUT', 'TEXTAREA'].includes(target?.tagName)) {
-           return
-        }
-
-        e.preventDefault()
-        e.stopPropagation()
-
-        // 回车键处理交互式步骤
-        const currentIndex = driverInstance!.getActiveIndex() ?? 0
-        const currentStep = steps[currentIndex]
-
-        if (currentStep && isInteractiveStep(currentStep) && currentStep.element) {
-          const targetElement = typeof currentStep.element === 'string'
-            ? document.querySelector(currentStep.element) as HTMLElement
-            : currentStep.element as HTMLElement
-
-          if (targetElement) {
-            const isClickable = !['INPUT', 'TEXTAREA', 'SELECT'].includes(targetElement.tagName)
-            if (isClickable) {
-              targetElement.click()
-              return
-            }
-          }
-        }
-        driverInstance!.moveNext()
-      }
-      else if (e.key === 'ArrowLeft') {
-        const target = e.target as HTMLElement
-        // 允许在输入框中使用方向键
-        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName) || target?.isContentEditable) {
-           return
-        }
-
-        e.preventDefault()
-        e.stopPropagation()
-        driverInstance.movePrevious()
       }
     }
 
@@ -502,11 +390,8 @@ export function useOnboardingTour(options: OnboardingOptions) {
   }
 
   const nextStep = async (delay = 300) => {
-    if (!driverInstance?.isActive()) return
-    if (delay > 0) {
-      await new Promise(resolve => setTimeout(resolve, delay))
-    }
-    driverInstance.moveNext()
+    const active = onboardingStore.getDriverInstance()
+    if (active?.isActive()) await sessions.get(active)?.moveBy(1, delay)
   }
 
   const isCurrentStep = (elementSelector: string): boolean => {
@@ -531,18 +416,7 @@ export function useOnboardingTour(options: OnboardingOptions) {
       return
     }
 
-    // 简易模式下禁用新手引导
-    if (userStore.isSimpleMode) {
-      return
-    }
-
-    // 只在管理员+标准模式下自动启动
-    const isAdmin = userStore.user?.role === 'admin'
-    if (!isAdmin) {
-      return
-    }
-
-    if (!options.autoStart || hasSeen()) return
+    if (userStore.isSimpleMode || userStore.user?.role !== 'admin' || !options.autoStart || hasSeen()) return
     autoStartTimer = setTimeout(() => {
       void startTour()
     }, TIMING.AUTO_START_DELAY_MS)
@@ -553,7 +427,7 @@ export function useOnboardingTour(options: OnboardingOptions) {
       clearTimeout(autoStartTimer)
       autoStartTimer = null
     }
-    // 关键修复：不再此处清理 globalKeyboardHandler，交由 driver.onDestroyed 管理
+    // The driver owns its listeners across route view replacement.
     onboardingStore.clearControlMethods()
   })
 

@@ -1,13 +1,7 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
-      <header class="flex flex-wrap items-end justify-between gap-4">
-        <h1 class="text-3xl">{{ consoleCopy[usageView] }}</h1>
-        <nav :aria-label="consoleCopy.views" class="flex gap-2">
-          <button type="button" class="btn btn-secondary" :aria-current="usageView === 'analysis' ? 'page' : undefined" @click="setUsageView('analysis')">{{ consoleCopy.analysis }}</button>
-          <button type="button" class="btn btn-secondary" :aria-current="usageView === 'records' ? 'page' : undefined" @click="setUsageView('records')">{{ consoleCopy.records }}</button>
-        </nav>
-      </header>
+      <h1 class="text-3xl">{{ consoleCopy[usageView] }}</h1>
       <div v-if="usageView === 'analysis' && analyticsErrors.size" role="alert" class="flex items-center justify-between gap-4 border border-red-500 p-4"><span>{{ t('usage.failedToLoad') }}</span><button type="button" class="btn btn-secondary" @click="refreshData">{{ t('common.refresh') }}</button></div>
       <UsageStatsCards v-if="usageView === 'analysis'" :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
 
@@ -286,7 +280,7 @@ const router = inject(routerKey, undefined)
 const authStore = useAuthStore()
 const selectedRequest = ref<UsageLog | null>(null)
 const usageView = ref<'analysis' | 'records'>('records')
-const consoleCopy = computed(() => locale?.value === 'en' ? {analysis:'Usage analytics', records:'Request records', views:'Usage views', advanced:'More filters'} : locale?.value === 'zh' ? {analysis:'用量分析', records:'请求记录', views:'用量视图', advanced:'更多筛选'} : {analysis:'用量分析', records:'請求記錄', views:'用量檢視', advanced:'更多篩選'})
+const consoleCopy = computed(() => locale?.value === 'en' ? {analysis:'Usage analytics', records:'Request records', advanced:'More filters'} : locale?.value === 'zh' ? {analysis:'用量分析', records:'请求记录', advanced:'更多筛选'} : {analysis:'用量分析', records:'請求記錄', advanced:'更多篩選'})
 const appStore = useAppStore()
 const supportEnabled = computed(() => !authStore.isAdmin && !authStore.isObserver && resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.supportTickets))
 
@@ -1028,20 +1022,6 @@ const reloadCurrentData = () => {
   void loadModelStats()
   void loadChartData()
   if (activeTab.value === 'errors') void loadErrors()
-}
-const setUsageView = (view: 'analysis' | 'records') => {
-  usageView.value = view
-  if (view === 'analysis') {
-    if (activeTab.value === 'errors') {
-      filters.value.api_key_id = errorFilter.value.api_key_id ?? undefined
-      filters.value.model = errorFilter.value.model || undefined
-    }
-    activeTab.value = 'usage'
-    void loadStats()
-    void loadModelStats()
-    void loadChartData()
-  }
-  syncLocation()
 }
 const switchToUsage = () => {
   filters.value.api_key_id = errorFilter.value.api_key_id ?? undefined

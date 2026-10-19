@@ -1,26 +1,45 @@
 import { describe, expect, it } from 'vitest'
-import { arrangeConsoleNavigation, consoleNavigationText, isConsoleLocationActive, workspaceLocation, legalWorkspaceDestination, type ConsoleNavItem } from '../consoleNavigation'
+import { arrangeConsoleSections, consoleNavigationText, consoleSearchTree, isConsoleLocationActive, resolveConsoleLocation, tabBadge, workspaceLocation, legalWorkspaceDestination, type ConsoleNavItem } from '../consoleNavigation'
 import { buildFeatureSearchEntries, searchFeatures } from '@/utils/featureSearch'
-const icons = { billing: null, applications: null, operations: null, system: null, extensions: null }
 const item = (path: string, label = path): ConsoleNavItem => ({ path, label, icon: null })
 describe('console navigation organization', () => {
-  it('preserves every granted leaf and custom SVG once, including children of structural groups', () => {
+  it('places every granted leaf once, merges flagged groups and keeps extensions last', () => {
     const custom = { ...item('/custom/custom-1'), iconSvg: '<svg />' }
-    const source = [item('/admin/dashboard'), item('/admin/accounts'), { ...item('/admin/smart-ops'), expandOnly: true, children: [item('/admin/token-guard'), item('/admin/token-guard-v2')] }, { ...item('/admin/orders'), expandOnly: true, children: [item('/admin/orders'), item('/admin/orders/plans')] }, custom]
-    const nav = arrangeConsoleNavigation(source, 'management', consoleNavigationText('en'), icons)
-    const entries = buildFeatureSearchEntries(nav)
-    expect(entries.map(entry => entry.path).sort()).toEqual(['/admin/dashboard', '/admin/accounts', '/admin/token-guard', '/admin/token-guard-v2', '/admin/orders', '/admin/orders/plans', '/custom/custom-1'].sort())
-    expect(nav.find(node => node.path.endsWith('extensions'))?.children?.[0]?.iconSvg).toBe('<svg />')
-    expect(nav.slice(0, 2).map(node => node.path)).toEqual(['/admin/dashboard', '/admin/accounts'])
+    const smartOps = { ...item('/admin/smart-ops', 'Smart ops'), expandOnly: true, mergeTabs: true, children: [item('/admin/token-guard'), { ...item('/admin/token-guard-v2'), badge: () => 2 }] }
+    const source = [custom, item('/admin/accounts'), item('/admin/dashboard'), smartOps, { ...item('/admin/orders'), expandOnly: true, children: [item('/admin/orders'), item('/admin/orders/plans')] }, item('/keys'), item('/admin/settings')]
+    const sections = arrangeConsoleSections(source, 'management', consoleNavigationText('en'))
+    expect(sections.map(section => section.key)).toEqual(['overview', 'resources', 'operations', 'revenue', 'system', 'extensions'])
+    expect(sections.find(section => section.key === 'resources')?.tabs.map(tab => tab.path)).toEqual(['/admin/accounts', '/keys'])
+    const operations = sections.find(section => section.key === 'operations')!
+    expect(operations.tabs).toHaveLength(1)
+    expect(operations.tabs[0]).toMatchObject({ label: 'Smart ops', path: '/admin/token-guard', matches: ['/admin/token-guard', '/admin/token-guard-v2'] })
+    expect(tabBadge(operations.tabs[0]!)).toBe(2)
+    expect(operations.badge?.()).toBe(2)
+    expect(sections.at(-1)?.tabs[0]?.item.iconSvg).toBe('<svg />')
+    const entries = buildFeatureSearchEntries(consoleSearchTree(sections))
+    expect(entries.map(entry => entry.path).sort()).toEqual(['/admin/dashboard', '/admin/accounts', '/admin/token-guard', '/admin/token-guard-v2', '/admin/orders', '/admin/orders/plans', '/keys', '/admin/settings', '/custom/custom-1'].sort())
+    expect(entries.find(entry => entry.path === '/admin/token-guard')?.group).toBe('Operations / Smart ops')
   })
-  it('keeps five personal essentials direct, moves billing into one group and searches multilingual aliases', () => {
+  it('groups the personal workspace, resolves the active tab and searches multilingual aliases', () => {
     const source = ['/profile', '/usage?view=records', '/keys', '/purchase', '/dashboard', '/usage?view=analysis', '/model-plaza?embedded=1', '/redeem'].map(path => item(path))
-    const nav = arrangeConsoleNavigation(source, 'personal', consoleNavigationText('en'), icons)
-    expect(nav.slice(0, 5).map(node => node.path)).toEqual(['/dashboard', '/keys', '/model-plaza?embedded=1', '/usage?view=analysis', '/usage?view=records'])
-    const entries = buildFeatureSearchEntries(nav)
+    const sections = arrangeConsoleSections(source, 'personal', consoleNavigationText('zh'))
+    expect(sections.map(section => [section.key, section.label, section.tabs.map(tab => tab.path)])).toEqual([
+      ['overview', '总览', ['/dashboard']],
+      ['access', '接入', ['/keys', '/model-plaza?embedded=1']],
+      ['usage', '用量', ['/usage?view=analysis', '/usage?view=records']],
+      ['billing', '账务', ['/purchase', '/redeem']],
+      ['account', '账户', ['/profile']],
+    ])
+    expect(sections.find(section => section.key === 'account')?.hidden).toBe(true)
+    expect(resolveConsoleLocation(sections, '/usage', {})?.tab.path).toBe('/usage?view=records')
+    expect(resolveConsoleLocation(sections, '/usage', { view: 'analysis' })?.tab.path).toBe('/usage?view=analysis')
+    expect(resolveConsoleLocation(sections, '/model-plaza', {})?.section.key).toBe('access')
+    expect(resolveConsoleLocation(sections, '/admin/users', {})).toBeUndefined()
+    const entries = buildFeatureSearchEntries(consoleSearchTree(sections))
     expect(searchFeatures(entries, '用量')[0]?.path).toBe('/usage?view=analysis')
     expect(searchFeatures(entries, '請求')[0]?.path).toBe('/usage?view=records')
     expect(searchFeatures(entries, '充值')[0]?.path).toBe('/purchase')
+    expect(searchFeatures(entries, '密碼')[0]?.path).toBe('/profile')
     expect(searchFeatures(entries, 'token guard')).toEqual([])
   })
   it('never marks analytics and records active together and retains legacy records default', () => {

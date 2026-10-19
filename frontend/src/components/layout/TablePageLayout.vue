@@ -1,5 +1,5 @@
 <template>
-  <div class="table-page-layout" :class="{ 'mobile-mode': isMobile }">
+  <div ref="layoutRef" class="table-page-layout" :class="{ 'mobile-mode': isMobile }" :style="layoutStyle">
     <!-- 固定区域：操作按钮 -->
     <div v-if="$slots.actions" class="layout-section-fixed">
       <slot name="actions" />
@@ -25,21 +25,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 
 const isMobile = ref(false)
-
-const checkMobile = () => {
+const layoutRef = ref<HTMLElement | null>(null)
+const availableHeight = ref<number>()
+const layoutStyle = computed(() => isMobile.value ? { height: 'auto', minHeight: '0' }
+  : availableHeight.value !== undefined ? { height: `${availableHeight.value}px`, minHeight: '0' } : undefined)
+let observer: ResizeObserver | undefined
+let frame = 0
+function measure() {
   isMobile.value = window.innerWidth < 1024
+  const element = layoutRef.value
+  const main = element?.closest('main')
+  if (!element || !main || isMobile.value) return
+  const padding = parseFloat(getComputedStyle(main).paddingBottom) || 0
+  const remaining = window.innerHeight - (element.getBoundingClientRect().top + window.scrollY) - padding
+  // On short viewports controls may need normal page scrolling.
+  availableHeight.value = remaining >= 240 ? Math.floor(remaining) : undefined
 }
-
+function scheduleMeasure() {
+  cancelAnimationFrame(frame)
+  frame = requestAnimationFrame(measure)
+}
 onMounted(() => {
-  checkMobile()
-  window.addEventListener('resize', checkMobile)
+  measure()
+  window.addEventListener('resize', scheduleMeasure)
+  observer = new ResizeObserver(scheduleMeasure)
+  const main = layoutRef.value?.closest('main')
+  if (main) observer.observe(main)
+  void document.fonts?.ready.then(scheduleMeasure)
+  scheduleMeasure()
 })
-
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile)
+  window.removeEventListener('resize', scheduleMeasure)
+  observer?.disconnect()
+  cancelAnimationFrame(frame)
 })
 </script>
 
@@ -78,10 +99,6 @@ onUnmounted(() => {
 
 .table-scroll-container :deep(thead) {
   @apply bg-gray-50/80 dark:bg-dark-800/80 backdrop-blur-sm;
-}
-
-.table-scroll-container :deep(tbody) {
-  /* 保持默认 table-row-group 显示，不使用 block */
 }
 
 .table-scroll-container :deep(th) {
