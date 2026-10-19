@@ -18,6 +18,7 @@ type SystemSettings struct {
 	OpenAICodexTicketFailClosed         bool
 	OpenAICodexTicketStrategy           string
 	RegistrationEnabled                 bool
+	LoginRateLimitEnabled               bool // 登录频率限制与失败 IP 封禁（默认开启）
 	EmailVerifyEnabled                  bool
 	RegistrationEmailSuffixWhitelist    []string
 	RegistrationEmailDomainQuotaEnabled bool // 白名单非空时放行非白名单域名限量注册（默认关闭）

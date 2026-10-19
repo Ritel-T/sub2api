@@ -551,6 +551,8 @@ If you need to use AI Studio OAuth for Gemini accounts, add the OAuth client cre
 
 The main config file is at `/etc/sub2api/config.yaml` (created by Setup Wizard).
 
+Login rate limiting can be toggled in **System Settings → Security → Login rate limiting** (enabled by default). Saving applies immediately to admins and users, including password, two-factor, Passkey, and OAuth account-binding sign-ins. Disabling skips both the request counter and the IP failure guard, including existing bans and Redis/Lua failures on these login paths. Other authentication endpoints retain their protection. Existing counters and bans keep their original expiry and apply again if re-enabled before expiry. The setting is stored as `login_rate_limit_enabled` in the database; no `.env` change or restart is required. An older settings client that omits this field preserves the current value.
+
 ### Prerequisites
 
 - Linux server (Ubuntu 20.04+, Debian 11+, CentOS 8+, etc.)

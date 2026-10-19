@@ -928,6 +928,10 @@ export default {
         rpmLimit: '每分鐘請求數 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '每用戶在本分組每分鐘最大請求數，0 = 不限制；一旦設定即接管該用戶的限流（覆蓋用戶級 rpm_limit）',
+        blockSubagents: '禁止子代理',
+        blockSubagentsHint: '拒絕帶子代理或父執行緒標識的員工請求（包括自動審查等子代理）。主執行緒、後台測試和品質運維不受影響；用戶端刪除這些標識後無法可靠識別。',
+        codexCLIOnly: '僅允許 Codex 用戶端',
+        codexCLIOnlyHint: '僅限制員工 API 調用，使用全局 Codex 用戶端識別策略。帳戶管理的測試連線、智商測試及品質運維判題不受影響。',
         streamOnly: '僅允許流式請求',
         streamOnlyHint: '開啟後本分組只接受流式對話請求：Messages、Chat Completions、Responses 裏沒寫 "stream": true 的請求，以及 Gemini 的 generateContent，都會直接返回 400。Token 計數、模型列表、Embeddings、圖片視頻等本來沒有流式的接口不受影響。注意：部分用戶端的連通性檢測是非流式請求，開啟後會檢測失敗。',
         streamOnlyBadge: '僅流式',
@@ -1121,6 +1125,16 @@ export default {
         notConfigured: '未配置'
       },
       videoPricing: {
+        h3Enable: '開啟 MiniMax-H3 視頻模型',
+        h3Mode: '計費方式',
+        h3PerSecond: '按秒',
+        h3PerRequest: '按次',
+        h3Seconds: '每次視頻時長（1–15 秒）',
+        h3SecondPrice: '每秒單價（USD/秒）',
+        h3RequestPrice: '每次價格（USD/次）',
+        h3Hint: '統一美元定價，不區分解像度。最終費用 = 基礎費用 × 當前分組倍率。成功任務在查詢結果時結算，失敗任務不扣費。',
+        h3DurationHint: '按次計費僅接受這裏配置的時長，其他時長會在提交上游前被拒絕。',
+        h3Preview: '當前分組倍率 {multiplier}，最終價格 {price}',
         title: '視頻生成計費',
         description:
           '配置 Grok 視頻生成的每秒單價（USD/秒），留空則使用預設每秒價（grok-imagine-video：480p $0.05/s、720p $0.07/s；video-1.5：480p $0.08/s、720p $0.14/s、1080p $0.25/s）',

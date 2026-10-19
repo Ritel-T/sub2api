@@ -228,6 +228,8 @@ type CreateGroupRequest struct {
 	ClaudeCodeOnly                  bool                          `json:"claude_code_only"`
 	StreamOnly                      bool                          `json:"stream_only"`
 	SubscriptionFallbackGroupID     *int64                        `json:"subscription_fallback_group_id"`
+	CodexCLIOnly                    bool                          `json:"codex_cli_only"`
+	BlockSubagents                  bool                          `json:"block_subagents"`
 	FallbackGroupID                 *int64                        `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64                        `json:"fallback_group_id_on_invalid_request"`
 	// 模型路由配置（仅 anthropic 平台使用）
@@ -306,6 +308,8 @@ type UpdateGroupRequest struct {
 	ClaudeCodeOnly                  *bool                         `json:"claude_code_only"`
 	StreamOnly                      *bool                         `json:"stream_only"`
 	SubscriptionFallbackGroupID     *int64                        `json:"subscription_fallback_group_id"`
+	CodexCLIOnly                    *bool                         `json:"codex_cli_only"`
+	BlockSubagents                  *bool                         `json:"block_subagents"`
 	FallbackGroupID                 *int64                        `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64                        `json:"fallback_group_id_on_invalid_request"`
 	// 模型路由配置（仅 anthropic 平台使用）
@@ -722,6 +726,8 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		StreamOnly:                      req.StreamOnly,
 		SubscriptionFallbackGroupID:     req.SubscriptionFallbackGroupID,
+		CodexCLIOnly:                    req.CodexCLIOnly,
+		BlockSubagents:                  req.BlockSubagents,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
 		ModelRouting:                    req.ModelRouting,
@@ -871,6 +877,8 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		StreamOnly:                      req.StreamOnly,
 		SubscriptionFallbackGroupID:     req.SubscriptionFallbackGroupID,
+		CodexCLIOnly:                    req.CodexCLIOnly,
+		BlockSubagents:                  req.BlockSubagents,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
 		ModelRouting:                    req.ModelRouting,

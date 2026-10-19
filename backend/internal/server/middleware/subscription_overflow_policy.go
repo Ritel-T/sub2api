@@ -7,6 +7,7 @@ import (
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/gemini"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/requestmodel"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -55,6 +56,15 @@ func ValidateSubscriptionOverflowRequestPolicy(c *gin.Context, key *service.APIK
 		if group == nil {
 			return infraerrors.Forbidden("SUBSCRIPTION_FALLBACK_INVALID", "Subscription overflow group is not available")
 		}
+		if group.CodexCLIOnly {
+			if result := subscriptionOverflowCodexClient(c, body); !result.Matched {
+				markGroupCodexRejected(c)
+				return infraerrors.Forbidden("CODEX_CLIENT_REQUIRED", GroupCodexClientMessage(result))
+			}
+		}
+		if group.BlockSubagents && subscriptionOverflowSubagent(c, body) {
+			return infraerrors.Forbidden("SUBAGENTS_BLOCKED", GroupSubagentsBlockedMessage)
+		}
 		if group.ModelAllowlistEnabled() {
 			for _, model := range models {
 				if !group.ModelAllowlist.Allows(model) {
@@ -92,4 +102,48 @@ func ValidateSubscriptionOverflowRequestPolicy(c *gin.Context, key *service.APIK
 		return infraerrors.NotFound("MODEL_NOT_ALLOWED", fmt.Sprintf("Model %q is not available for your account in this group", denied))
 	}
 	return nil
+}
+
+// The billing projection must not relax either employee usage scope. These
+// flags are admission policy only; the effective billing group stays intact.
+func subscriptionOverflowUsagePolicy(key *service.APIKey) (codexOnly, blockSubagents bool) {
+	if key == nil {
+		return false, false
+	}
+	if key.Group != nil {
+		codexOnly, blockSubagents = key.Group.CodexCLIOnly, key.Group.BlockSubagents
+	}
+	if key.SubscriptionOverflow != nil && key.SubscriptionOverflow.SourceGroup != nil {
+		source := key.SubscriptionOverflow.SourceGroup
+		codexOnly = codexOnly || source.CodexCLIOnly
+		blockSubagents = blockSubagents || source.BlockSubagents
+	}
+	return
+}
+
+func subscriptionOverflowCodexClient(c *gin.Context, body []byte) service.CodexClientRestrictionDetectionResult {
+	headersOnly := len(body) == 0 && (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead || c.Request.Method == http.MethodDelete)
+	if value, ok := c.Get(groupCodexRequestCheckKey); ok {
+		if check, ok := value.(groupCodexFrameCheck); ok {
+			return check(body, headersOnly)
+		}
+	}
+	policy := service.CodexRestrictionPolicy{EngineFingerprintSignals: openai.DefaultEngineFingerprintSignals}
+	if headersOnly {
+		policy.EngineFingerprintSignals = nil
+	}
+	return service.DetectCodexGroupClient(c, &service.Group{CodexCLIOnly: true}, policy, body)
+}
+
+func subscriptionOverflowSubagent(c *gin.Context, body []byte) bool {
+	if value, ok := c.Get(groupSubagentRequestCheckKey); ok {
+		if check, ok := value.(groupSubagentFrameCheck); ok {
+			return check(body)
+		}
+	}
+	if !service.IsCodexSubagentRequest(c, body) {
+		return false
+	}
+	markGroupSubagentRejected(c, c, body, isResponsesWebSocketRoute(c))
+	return true
 }

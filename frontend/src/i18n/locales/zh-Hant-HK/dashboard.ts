@@ -134,6 +134,9 @@ export default {
     nameLabel: '名稱',
     namePlaceholder: '我的 API 密鑰',
     groupLabel: '分組',
+    additionalGroups: '同時使用其他分組',
+    multiGroupHint: '每次請求自動選擇可用且倍率較低的分組，並按實際使用分組計費。最多選擇 20 個分組。',
+    multiGroupCount: '自動分配 · {count} 個分組',
     providerLabel: '廠商',
     providers: {
       anthropic: 'Anthropic',

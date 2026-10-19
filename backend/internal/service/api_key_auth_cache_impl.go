@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 28 // v28: include subscription fallback group; retain key concurrency and admission policies
+const apiKeyAuthSnapshotVersion = 31 // v31: configured key groups and usage policies plus subscription fallback
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -360,6 +360,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 		Version:          apiKeyAuthSnapshotVersion,
 		APIKeyID:         apiKey.ID,
 		UserID:           apiKey.UserID,
+		GroupIDs:         append([]int64(nil), apiKey.GroupIDs...),
 		GroupID:          apiKey.GroupID,
 		Name:             apiKey.Name,
 		Status:           apiKey.Status,
@@ -437,6 +438,8 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			FallbackGroupID:                 apiKey.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: apiKey.Group.FallbackGroupIDOnInvalidRequest,
 			StreamOnly:                      apiKey.Group.StreamOnly,
+			CodexCLIOnly:                    apiKey.Group.CodexCLIOnly,
+			BlockSubagents:                  apiKey.Group.BlockSubagents,
 			ModelRouting:                    apiKey.Group.ModelRouting,
 			ModelRoutingEnabled:             apiKey.Group.ModelRoutingEnabled,
 			MCPXMLInject:                    apiKey.Group.MCPXMLInject,
@@ -472,6 +475,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 	apiKey := &APIKey{
 		ID:               snapshot.APIKeyID,
 		UserID:           snapshot.UserID,
+		GroupIDs:         append([]int64(nil), snapshot.GroupIDs...),
 		GroupID:          snapshot.GroupID,
 		Key:              key,
 		Name:             snapshot.Name,
@@ -543,6 +547,8 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			FallbackGroupID:                 snapshot.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: snapshot.Group.FallbackGroupIDOnInvalidRequest,
 			StreamOnly:                      snapshot.Group.StreamOnly,
+			CodexCLIOnly:                    snapshot.Group.CodexCLIOnly,
+			BlockSubagents:                  snapshot.Group.BlockSubagents,
 			ModelRouting:                    snapshot.Group.ModelRouting,
 			ModelRoutingEnabled:             snapshot.Group.ModelRoutingEnabled,
 			MCPXMLInject:                    snapshot.Group.MCPXMLInject,

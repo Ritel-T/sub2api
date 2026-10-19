@@ -1637,6 +1637,24 @@
                 </p>
               </div>
 
+              <!-- Login rate limits -->
+              <div
+                class="flex items-start justify-between gap-4 border-t border-gray-100 pt-4 dark:border-dark-700"
+              >
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">
+                    {{ t("admin.settings.security.loginRateLimit") }}
+                  </label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.security.loginRateLimitHint") }}
+                  </p>
+                </div>
+                <Toggle
+                  v-model="form.login_rate_limit_enabled"
+                  data-testid="login-rate-limit-toggle"
+                />
+              </div>
+
               <!-- TOTP 2FA -->
               <div
                 class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
@@ -10218,6 +10236,7 @@ const form = reactive<SettingsForm>({
   prism_browser_api_key_configured: false,
   prism_browser_api_key: "",
   registration_enabled: true,
+  login_rate_limit_enabled: true,
   email_verify_enabled: false,
   registration_email_suffix_whitelist: [],
   registration_email_domain_quota_enabled: false,
@@ -12025,6 +12044,7 @@ async function saveSettings() {
       prism_browser_base_url: form.prism_browser_base_url,
       ...(form.prism_browser_api_key ? { prism_browser_api_key: form.prism_browser_api_key } : {}),
       registration_enabled: form.registration_enabled,
+      login_rate_limit_enabled: form.login_rate_limit_enabled,
       email_verify_enabled: form.email_verify_enabled,
       registration_email_suffix_whitelist:
         registrationEmailSuffixWhitelistTags.value.map((suffix) =>

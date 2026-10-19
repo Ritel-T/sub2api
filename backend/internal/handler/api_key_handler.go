@@ -35,6 +35,7 @@ func NewAPIKeyHandler(apiKeyService *service.APIKeyService) *APIKeyHandler {
 type CreateAPIKeyRequest struct {
 	ConcurrencyLimit int      `json:"concurrency_limit" binding:"gte=0"`
 	Name             string   `json:"name" binding:"required"`
+	GroupIDs         []int64  `json:"group_ids"`
 	GroupID          *int64   `json:"group_id"`        // nullable
 	CustomKey        *string  `json:"custom_key"`      // 可选的自定义key
 	IPWhitelist      []string `json:"ip_whitelist"`    // IP 白名单
@@ -52,6 +53,7 @@ type CreateAPIKeyRequest struct {
 type UpdateAPIKeyRequest struct {
 	ConcurrencyLimit *int      `json:"concurrency_limit" binding:"omitempty,gte=0"`
 	Name             string    `json:"name"`
+	GroupIDs         *[]int64  `json:"group_ids"`
 	GroupID          *int64    `json:"group_id"`
 	Status           string    `json:"status" binding:"omitempty,oneof=active inactive"`
 	IPWhitelist      *[]string `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
@@ -202,6 +204,7 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 	svcReq := service.CreateAPIKeyRequest{
 		ConcurrencyLimit: req.ConcurrencyLimit,
 		Name:             req.Name,
+		GroupIDs:         req.GroupIDs,
 		GroupID:          req.GroupID,
 		CustomKey:        req.CustomKey,
 		IPWhitelist:      req.IPWhitelist,
@@ -269,6 +272,7 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
 	if req.Name != "" {
 		svcReq.Name = &req.Name
 	}
+	svcReq.GroupIDs = req.GroupIDs
 	svcReq.GroupID = req.GroupID
 	if req.Status != "" {
 		svcReq.Status = &req.Status

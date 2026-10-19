@@ -250,6 +250,8 @@ export default {
           '請先在環境變量中配置 TOTP_ENCRYPTION_KEY。使用命令 openssl rand -hex 32 生成密鑰。'
       },
       security: {
+        loginRateLimit: '登入限流',
+        loginRateLimitHint: '預設開啟。限制登入請求頻率，15 分鐘內驗證失敗 10 次後封禁 IP 1 小時。關閉後，密碼、二次驗證、Passkey 及第三方綁定登入將跳過頻率限制和 IP 封禁；儲存後立即生效，對管理員和普通用戶均有效。已有封禁在重新開啟後仍按原有效期生效。',
         passkey: 'Passkey 登入',
         passkeyHint: '當依賴方配置有效時，允許無密碼登入及用戶自行管理 Passkey。',
         passkeyConfigured: 'WebAuthn 依賴方配置有效。',

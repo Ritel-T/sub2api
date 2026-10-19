@@ -159,7 +159,7 @@
             <div class="group/dropdown relative">
               <button
                 :ref="(el) => setGroupButtonRef(row.id, el)"
-                @click="openGroupSelector(row)"
+                @click="(row.group_ids?.length ?? 0) > 1 ? editKey(row) : openGroupSelector(row)"
                 class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
                 :title="t('keys.clickToChangeGroup')"
               >
@@ -178,7 +178,8 @@
                 <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
                   t('keys.noGroup')
                 }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
+                <span v-if="(row.group_ids?.length ?? 0) > 1" class="text-xs text-primary-600">{{ t('keys.multiGroupCount', { count: row.group_ids.length }) }}</span>
+                <span v-else class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
                 <svg
                   class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
                   fill="none"
@@ -613,6 +614,19 @@
               />
             </template>
           </Select>
+          <fieldset class="mt-3 space-y-2" data-testid="key-additional-groups">
+            <legend class="input-label">{{ t('keys.additionalGroups') }}</legend>
+            <p class="input-hint">{{ t('keys.multiGroupHint') }}</p>
+            <div class="max-h-48 space-y-2 overflow-y-auto">
+              <label v-for="option in groupOptions.filter(item => item.value !== null && item.value !== formData.group_id)"
+                :key="String(option.value)" class="flex items-center gap-2 text-sm">
+                <input v-model="formData.group_ids" type="checkbox" :value="option.value" :disabled="!formData.group_ids.includes(Number(option.value)) && selectedFormGroupIDs().length >= 20" />
+                <GroupBadge :name="option.label" :platform="option.platform"
+                  :subscription-type="option.subscriptionType" :rate-multiplier="option.rate"
+                  :user-rate-multiplier="option.userRate" />
+              </label>
+            </div>
+          </fieldset>
         </div>
 
         <details :open="showEditModal" class="border-t border-gray-200 pt-4 dark:border-dark-700" data-testid="key-advanced-settings">
@@ -1653,6 +1667,7 @@ const formData = ref({
   name: '',
   concurrency_limit: 0 as number | string,
   group_id: null as number | null,
+  group_ids: [] as number[],
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -2031,6 +2046,11 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   loadApiKeys()
 }
 
+const selectedFormGroupIDs = (): number[] => [...new Set([
+  ...(formData.value.group_id === null ? [] : [formData.value.group_id]),
+  ...formData.value.group_ids.filter(id => id !== formData.value.group_id)
+])]
+
 const editKey = (key: ApiKey) => {
   selectedKey.value = key
   const hasIPRestriction = (key.ip_whitelist?.length > 0) || (key.ip_blacklist?.length > 0)
@@ -2039,6 +2059,7 @@ const editKey = (key: ApiKey) => {
     name: key.name,
     concurrency_limit: key.concurrency_limit ?? 0,
     group_id: key.group_id,
+    group_ids: (key.group_ids ?? []).filter(id => id !== key.group_id),
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -2111,7 +2132,7 @@ const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
   if (key.group_id === newGroupId) return
 
   try {
-    await keysAPI.update(key.id, { group_id: newGroupId })
+    await keysAPI.update(key.id, { group_id: newGroupId, group_ids: newGroupId === null ? [] : [newGroupId] })
     appStore.showSuccess(t('keys.groupChangedSuccess'))
     loadApiKeys()
   } catch (error) {
@@ -2204,6 +2225,7 @@ const handleSubmit = async () => {
         name: formData.value.name,
         concurrency_limit: concurrencyLimit,
         group_id: formData.value.group_id,
+        group_ids: selectedFormGroupIDs(),
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -2228,7 +2250,8 @@ const handleSubmit = async () => {
         quota,
         expiresInDays,
         rateLimitData,
-        concurrencyLimit
+        concurrencyLimit,
+        selectedFormGroupIDs()
       )
       // Use only the returned persisted object; keep its real group capability metadata.
       connectionKey.value = { ...createdKey, group: createdKey.group || groups.value.find((group) => group.id === createdKey.group_id) || undefined }
@@ -2279,6 +2302,7 @@ const closeModals = () => {
     name: '',
     concurrency_limit: 0,
     group_id: null,
+    group_ids: [],
     status: 'active',
     use_custom_key: false,
     custom_key: '',

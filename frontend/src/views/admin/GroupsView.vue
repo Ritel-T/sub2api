@@ -129,6 +129,12 @@
               value
             }}</span>
             <span
+              v-if="row.codex_cli_only"
+              class="badge badge-warning ml-2"
+              data-testid="group-codex-cli-only-badge"
+              >{{ t("admin.groups.form.codexCLIOnly") }}</span
+            >
+            <span
               v-if="row.stream_only"
               class="badge badge-warning ml-2"
               data-testid="group-stream-only-badge"
@@ -658,6 +664,28 @@
         </div>
         <div class="flex items-start justify-between gap-4">
           <div>
+            <label class="input-label">{{ t("admin.groups.form.codexCLIOnly") }}</label>
+            <p class="input-hint">{{ t("admin.groups.form.codexCLIOnlyHint") }}</p>
+          </div>
+          <Toggle
+            data-testid="create-codex-cli-only"
+            :aria-label="t('admin.groups.form.codexCLIOnly')"
+            v-model="createForm.codex_cli_only"
+          />
+        </div>
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <label class="input-label">{{ t("admin.groups.form.blockSubagents") }}</label>
+            <p class="input-hint">{{ t("admin.groups.form.blockSubagentsHint") }}</p>
+          </div>
+          <Toggle
+            data-testid="create-block-subagents"
+            :aria-label="t('admin.groups.form.blockSubagents')"
+            v-model="createForm.block_subagents"
+          />
+        </div>
+        <div class="flex items-start justify-between gap-4">
+          <div>
             <label class="input-label">{{ t("admin.groups.form.streamOnly") }}</label>
             <p class="input-hint">{{ t("admin.groups.form.streamOnlyHint") }}</p>
           </div>
@@ -1081,6 +1109,11 @@
           </p>
         </div>
 
+        <MiniMaxH3VideoPricing
+          v-if="createForm.platform === 'minimax'"
+          v-model="createForm.video_model_prices"
+          :multiplier="createForm.rate_multiplier"
+        />
         <!-- 视频生成计费配置（仅 Grok 平台） -->
         <div
           v-if="supportsVideoPricingPlatform(createForm.platform)"
@@ -2318,6 +2351,28 @@
         </div>
         <div class="flex items-start justify-between gap-4">
           <div>
+            <label class="input-label">{{ t("admin.groups.form.codexCLIOnly") }}</label>
+            <p class="input-hint">{{ t("admin.groups.form.codexCLIOnlyHint") }}</p>
+          </div>
+          <Toggle
+            data-testid="edit-codex-cli-only"
+            :aria-label="t('admin.groups.form.codexCLIOnly')"
+            v-model="editForm.codex_cli_only"
+          />
+        </div>
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <label class="input-label">{{ t("admin.groups.form.blockSubagents") }}</label>
+            <p class="input-hint">{{ t("admin.groups.form.blockSubagentsHint") }}</p>
+          </div>
+          <Toggle
+            data-testid="edit-block-subagents"
+            :aria-label="t('admin.groups.form.blockSubagents')"
+            v-model="editForm.block_subagents"
+          />
+        </div>
+        <div class="flex items-start justify-between gap-4">
+          <div>
             <label class="input-label">{{ t("admin.groups.form.streamOnly") }}</label>
             <p class="input-hint">{{ t("admin.groups.form.streamOnlyHint") }}</p>
           </div>
@@ -2742,6 +2797,11 @@
           </p>
         </div>
 
+        <MiniMaxH3VideoPricing
+          v-if="editForm.platform === 'minimax'"
+          v-model="editForm.video_model_prices"
+          :multiplier="editForm.rate_multiplier"
+        />
         <!-- 视频生成计费配置（仅 Grok 平台） -->
         <div
           v-if="supportsVideoPricingPlatform(editForm.platform)"
@@ -4358,6 +4418,7 @@ import {
 } from "@/constants/platforms";
 import type { Column } from "@/components/common/types";
 import AppLayout from "@/components/layout/AppLayout.vue";
+import MiniMaxH3VideoPricing from "./MiniMaxH3VideoPricing.vue";
 import TablePageLayout from "@/components/layout/TablePageLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
 import Pagination from "@/components/common/Pagination.vue";
@@ -5098,6 +5159,8 @@ const createForm = reactive({
   require_privacy_set: false,
   // 仅允许流式请求
   stream_only: false,
+  codex_cli_only: false,
+  block_subagents: false,
   // 模型路由开关
   model_routing_enabled: false,
   // 支持的模型系列（仅 antigravity 平台）
@@ -5468,6 +5531,8 @@ const editForm = reactive({
   require_privacy_set: false,
   // 仅允许流式请求
   stream_only: false,
+  codex_cli_only: false,
+  block_subagents: false,
   // 模型路由开关
   model_routing_enabled: false,
   // 支持的模型系列（仅 antigravity 平台）
@@ -5921,6 +5986,8 @@ const closeCreateModal = () => {
   createForm.require_oauth_only = false;
   createForm.require_privacy_set = false;
   createForm.stream_only = false;
+  createForm.codex_cli_only = false;
+  createForm.block_subagents = false;
   createForm.supported_model_scopes = ["claude", "gemini_text", "gemini_image"];
   createForm.mcp_xml_inject = true;
   createForm.copy_accounts_from_group_ids = [];
@@ -6234,6 +6301,8 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.require_oauth_only = group.require_oauth_only ?? false;
   editForm.require_privacy_set = group.require_privacy_set ?? false;
   editForm.stream_only = group.stream_only ?? false;
+  editForm.codex_cli_only = group.codex_cli_only ?? false;
+  editForm.block_subagents = group.block_subagents ?? false;
   editForm.model_routing_enabled = group.model_routing_enabled || false;
   editForm.supported_model_scopes = group.supported_model_scopes || [
     "claude",

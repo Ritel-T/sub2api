@@ -138,6 +138,8 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		ClaudeCodeOnly:                  source.ClaudeCodeOnly,
 		StreamOnly:                      source.StreamOnly,
 		SubscriptionFallbackGroupID:     cloneGroupValuePointer(source.SubscriptionFallbackGroupID),
+		CodexCLIOnly:                    source.CodexCLIOnly,
+		BlockSubagents:                  source.BlockSubagents,
 		FallbackGroupID:                 cloneGroupValuePointer(source.FallbackGroupID),
 		FallbackGroupIDOnInvalidRequest: cloneGroupValuePointer(source.FallbackGroupIDOnInvalidRequest),
 		ModelRouting:                    cloneGroupModelRouting(source.ModelRouting),

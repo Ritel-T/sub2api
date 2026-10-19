@@ -240,6 +240,10 @@ export default {
         syncRate: '同步上游聲明倍率',
         syncRateHint: '成功探測後自動更新帳戶倍率，同步的是不含高峯的基準倍率；探測失敗或聲明超出允許範圍時保持不變。開啟本項會同時打開“自動探測上游渠道聲明”。',
         syncRateManagedHint: '當前倍率由上游聲明的基準倍率（不含高峯）自動維護。',
+        multiGroupHint: '按實際使用分組計費，倍率可能隨模型、可用性和高峯時段變化。',
+        multiGroupSyncPaused: '多分組聲明：已暫停同步為單一帳戶倍率及成本倍率。',
+        multiGroupCount: '查看 {count} 個上游分組倍率',
+        groupInactive: '此分組已停用',
         syncedRateTooltip: '該帳戶倍率由上游聲明的基準倍率（不含高峯）自動同步',
         manualProbe: '立即探測上游倍率與餘額',
         stale: '已過期',
@@ -1076,6 +1080,9 @@ export default {
         apiKeyPassthrough: '自動透傳（僅替換認證）',
         apiKeyPassthroughDesc:
           '僅對 Anthropic API Key 生效。開啟後，messages/count_tokens 請求將透傳上游並僅替換認證，保留計費/併發/審計及必要安全過濾；關閉即可回滾到現有兼容鏈路。',
+        stripClaudeCodeIdentity: '抹除 Claude Code 身份',
+        stripClaudeCodeIdentityDesc:
+          '僅對 Anthropic API Key 生效。開啟後，轉發與測試連線時自動剝離 Claude Code / Agent SDK 用戶端特徵（替換 claude-cli User-Agent、移除 claude-code/oauth beta、剔除 system 中的 x-anthropic-billing-header 區塊與官方 CLI/SDK 身份句、移除 metadata.user_id），避免限制 Claude Code 調用的官方 API Key（如 sk-ant-usr-* 額度 Key）被上游拒絕並返回餘額不足錯誤。',
         apiKeyAuthScheme: '上游認證方式',
         apiKeyAuthSchemeDesc: '選擇轉發到 Anthropic-compatible 上游時使用的 API Key 認證頭。Ollama Cloud 使用 Authorization: Bearer。',
         apiKeyAuthSchemeXApiKey: 'x-api-key',

@@ -14,6 +14,17 @@ import (
 	"time"
 )
 
+// IsLoginRateLimitEnabled defaults to enabled unless explicitly disabled.
+// Read directly from the database so disabling login limits does not depend on
+// Redis or a stale process cache, and takes effect on the next login request.
+func (s *SettingService) IsLoginRateLimitEnabled(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return true
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyLoginRateLimitEnabled)
+	return err != nil || value != "false"
+}
+
 // IsRegistrationEnabled 检查是否开放注册
 func (s *SettingService) IsRegistrationEnabled(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEnabled)

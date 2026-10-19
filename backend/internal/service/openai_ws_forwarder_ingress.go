@@ -649,6 +649,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 
 	wsDecision := s.getOpenAIWSProtocolResolver().Resolve(account)
+	ctx = withOpenAITransportRoute(ctx, "websocket", "ctx_pool", wsDecision.Reason, "")
 	// One reader owns the downstream socket for the whole connection. A
 	// passthrough attempt consumes cancel/overlap frames through it, established
 	// native/bridge only needs its disconnect signal, and the first-turn wait
@@ -1175,6 +1176,18 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	refreshIngressRouteState(firstPayload)
 
 	if useHTTPBridge {
+		bridgeReason := "payload_threshold_http_bridge"
+		switch {
+		case account.Platform == PlatformGrok:
+			bridgeReason = "platform_http_bridge"
+		case s.pluginManager != nil && s.pluginManager.ShouldRouteOpenAIOAuth(account):
+			bridgeReason = "plugin_http_bridge"
+		case ingressMode == OpenAIWSIngressModeHTTPBridge:
+			bridgeReason = "account_mode_http_bridge"
+		case forceHTTPBridge:
+			bridgeReason = "passthrough_payload_http_bridge"
+		}
+		ctx = withOpenAITransportRoute(ctx, "websocket", "http_bridge", bridgeReason, "")
 		logOpenAIWSModeInfo(
 			"ingress_ws_http_bridge_start account_id=%d account_type=%s payload_bytes=%d threshold_bytes=%d has_session_hash=%v store_disabled=%v",
 			account.ID,

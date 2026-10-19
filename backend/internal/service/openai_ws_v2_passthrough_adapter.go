@@ -785,6 +785,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			firstClientMessage = s.ReplaceModelInBody(firstClientMessage, mappedModel)
 		}
 	}
+	ctx = withOpenAITransportRoute(ctx, "websocket", "passthrough", wsDecision.Reason, "")
 	requestcapture.FromContext(ctx).BindAccount(account.ID)
 	capturedSessionModel := openAIWSPassthroughPolicyModelForFrame(account, firstClientMessage)
 	var activePolicyModel atomic.Pointer[string]
@@ -934,7 +935,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			cancelDial()
 			return borrowErr
 		}
+		finishCapture := captureOpenAIWSHandshake(ctx, account.ID, wsURL)
 		upstreamConn, statusCode, handshakeHeaders, err = dialer.Dial(dialCtx, wsURL, headers, borrowProxy)
+		finishCapture(statusCode, handshakeHeaders, err)
 		releaseBorrow()
 		cancelDial()
 		if err == nil {
@@ -945,7 +948,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		if errors.As(err, &handshakeErr) && handshakeErr != nil {
 			responseBody = handshakeErr.Body
 		}
-		requestcapture.FromContext(ctx).SelectionFailed(account.ID, statusCode, handshakeHeaders, responseBody, err)
+		captureOpenAIWSHandshakeBody(ctx, responseBody, handshakeHeaders)
 		dialErr := &openAIWSDialError{StatusCode: statusCode, ResponseHeaders: cloneHeader(handshakeHeaders), ResponseBody: responseBody, Err: err}
 		if s.isAgentIdentityAccount(ctx, account) && isAgentIdentityTaskInvalidWSDialError(dialErr) && !agentTaskRecoveryTried {
 			agentTaskRecoveryTried = true
@@ -983,7 +986,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		return errors.New("openai ws passthrough upstream connection does not support frame relay")
 	}
 	if capture := requestcapture.FromContext(ctx); capture != nil {
-		upstreamFrameConn = &captureUpstreamFrameConn{FrameConn: upstreamFrameConn, capture: capture, account: account.ID}
+		upstreamFrameConn = &captureUpstreamFrameConn{FrameConn: upstreamFrameConn, capture: capture, account: account.ID, route: openAIWSCaptureRoute(ctx, wsURL)}
 	}
 	relayUpstreamFrameConn := &openAIWSPassthroughFirstOutputFrameConn{
 		inner:             upstreamFrameConn,
@@ -1065,6 +1068,18 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			responseCreateAt := time.Time{}
 			acceptedTurn := false
 			if isResponseCreate {
+				// Match native ingress: check the original employee frame before
+				// compatibility or account identity normalization changes metadata.
+				if hooks != nil && hooks.BeforePayloadParse != nil {
+					turn := max(2, int(completedTurns.Load())+1)
+					model := usageMeta.requestModelForFrame(payload)
+					if model == "" {
+						model = capturedSessionModel
+					}
+					if err := hooks.BeforePayloadParse(turn, payload, model); err != nil {
+						return payload, nil, err
+					}
+				}
 				responseCreateAt = time.Now()
 				if !turnLifecycle.beginResponseCreate(clientFrameConn.markTurnStarted) {
 					err := errors.New("overlapping response.create is not supported")

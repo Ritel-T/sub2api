@@ -113,6 +113,15 @@ func (s *APIKeyService) ResolveSubscriptionBilling(ctx context.Context, key *API
 		if key.SubscriptionOverflow != nil {
 			sourceGroup = key.SubscriptionOverflow.SourceGroup
 		}
+		// The persisted primary is not necessarily the source selected for a
+		// multi-group request. Confirm that source is still bound and authorized
+		// before refreshing its subscription or projecting onto a wallet group.
+		if latest != nil && sourceGroup != nil && len(SubscriptionOverflowSourceAPIKey(key).ConfiguredGroupIDs()) > 1 {
+			latest, err = s.PinAPIKeyGroup(ctx, latest, sourceGroup.ID)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 		if latest == nil || latest.ID != key.ID || latest.UserID != key.UserID || latest.Group == nil || latest.GroupID == nil || sourceGroup == nil || latest.Group.ID != sourceGroup.ID || *latest.GroupID != sourceGroup.ID || latest.Group.Platform != sourceGroup.Platform || latest.Group.SubscriptionType != sourceGroup.SubscriptionType {
 			return nil, nil, infraerrors.ServiceUnavailable("API_KEY_GROUP_CHANGED", "API key configuration changed; please retry")
 		}

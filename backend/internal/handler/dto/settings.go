@@ -34,6 +34,7 @@ type SystemSettings struct {
 	OpenAICodexTicketFailClosed         bool                            `json:"openai_codex_ticket_fail_closed"`
 	OpenAICodexTicketStrategy           string                          `json:"openai_codex_ticket_strategy"`
 	RegistrationEnabled                 bool                            `json:"registration_enabled"`
+	LoginRateLimitEnabled               bool                            `json:"login_rate_limit_enabled"`
 	PrismBrowserEnabled                 bool                            `json:"prism_browser_enabled"`
 	PrismBrowserBaseURL                 string                          `json:"prism_browser_base_url"`
 	PrismBrowserAPIKeyConfigured        bool                            `json:"prism_browser_api_key_configured"`

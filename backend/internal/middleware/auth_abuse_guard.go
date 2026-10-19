@@ -47,6 +47,16 @@ return 0
 // accounting for every creation path, including OAuth callbacks/completion.
 // It deliberately uses the trusted proxy chain, never legacy raw-header trust.
 func AuthAbuseGuard(client *redis.Client) gin.HandlerFunc {
+	return AuthAbuseGuardWithOptions(client, AuthAbuseGuardOptions{})
+}
+
+type AuthAbuseGuardOptions struct {
+	// LoginRateLimitEnabled controls login bans and failure recording only.
+	// Registration accounting and protection of other auth endpoints remain active.
+	LoginRateLimitEnabled func(*gin.Context) bool
+}
+
+func AuthAbuseGuardWithOptions(client *redis.Client, opts AuthAbuseGuardOptions) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !isAuthAbuseProtectedEndpoint(c) {
 			c.Next()
@@ -55,6 +65,11 @@ func AuthAbuseGuard(client *redis.Client) gin.HandlerFunc {
 		address := ippkg.GetTrustedClientIP(c)
 		key := authguard.IPKey(address)
 		c.Request = c.Request.WithContext(authguard.WithRegistrationIP(c.Request.Context(), address))
+		if (isCredentialAttempt(c) || strings.HasSuffix(c.FullPath(), "/passkey/login/begin")) &&
+			opts.LoginRateLimitEnabled != nil && !opts.LoginRateLimitEnabled(c) {
+			c.Next()
+			return
+		}
 		if key == "" || client == nil {
 			abortRateLimit(c, time.Minute)
 			return
