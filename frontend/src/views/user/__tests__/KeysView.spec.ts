@@ -192,7 +192,7 @@ const TablePageLayoutStub = {
 const DataTableStub = {
   name: 'DataTable',
   props: { columns: Array, data: Array, selectedKeys: Array, selectable: Boolean },
-  emits: ['sort', 'update:selectedKeys'],
+  emits: ['sort', 'update:selectedKeys', 'column-reorder'],
   template: `
     <div>
       <div data-test="columns">{{ columns.map((col) => col.key).join(',') }}</div>
@@ -262,6 +262,12 @@ const mountView = async () => {
         AppLayout: AppLayoutStub,
         TablePageLayout: TablePageLayoutStub,
         DataTable: DataTableStub,
+        ColumnSettings: {
+          name: 'ColumnSettings',
+          props: ['columns', 'hiddenColumns', 'requiredColumns'],
+          emits: ['toggle', 'reorder', 'reset'],
+          template: '<div data-test="column-settings" />'
+        },
         Pagination: PaginationStub,
         BaseDialog: {
           props: ['show', 'title'],
@@ -555,24 +561,15 @@ describe('user KeysView column settings', () => {
     wrapper.unmount()
   })
 
-  it('uses the default API key columns with low-frequency columns hidden', async () => {
+  it('shows all API key columns with frequently checked fields first', async () => {
     const wrapper = await mountView()
 
     expect(visibleColumnKeys(wrapper)).toEqual([
-      'name',
-      'key',
-      'group',
-      'current_concurrency',
-      'usage',
-      'expires_at',
-      'status',
-      'created_at',
-      'actions',
+      'name', 'key', 'status', 'group', 'usage', 'current_concurrency', 'rate_limit',
+      'last_used_at', 'expires_at', 'last_used_ip', 'id', 'created_at', 'actions',
     ])
-    expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
-    expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
-    expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
-    expect(visibleColumnKeys(wrapper)).not.toContain('id')
+    expect(wrapper.get('[data-test="key-id"]').text()).toBe('#1')
+    expect(visibleColumnMeta(wrapper).find((column) => column.key === 'id')?.sortable).toBe(true)
   })
 
   it('opens bulk editing with only selected visible keys', async () => {
@@ -635,87 +632,72 @@ describe('user KeysView column settings', () => {
     wrapper.unmount()
   })
 
-  it('shows a hidden column when toggled and persists the preference', async () => {
+  it('hides a column and persists the preference through the shared settings', async () => {
     const wrapper = await mountView()
-
-    await wrapper.get('button[title="Column Settings"]').trigger('click')
-    await getButtonByText(wrapper, 'Rate Limit').trigger('click')
+    const settings = wrapper.findComponent({ name: 'ColumnSettings' })
+    settings.vm.$emit('toggle', 'rate_limit')
     await nextTick()
 
+    expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
+    expect(JSON.parse(localStorage.getItem('table-columns:keys:v1') || '{}').hidden).toEqual(['rate_limit'])
+    settings.vm.$emit('toggle', 'rate_limit')
+    await nextTick()
     expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
-    expect(localStorage.getItem('api-key-hidden-columns')).toBe(
-      JSON.stringify(['id', 'last_used_at', 'last_used_ip'])
-    )
-    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
   })
 
-  it('shows the API key ID column when toggled', async () => {
-    const wrapper = await mountView()
-
-    await wrapper.get('button[title="Column Settings"]').trigger('click')
-    await getButtonByText(wrapper, 'ID').trigger('click')
-    await nextTick()
-
-    expect(visibleColumnKeys(wrapper)).toContain('id')
-    expect(wrapper.get('[data-test="key-id"]').text()).toBe('#1')
-    expect(visibleColumnMeta(wrapper).find((column) => column.key === 'id')?.sortable).toBe(true)
-  })
-
-  it('shows the last used IP column when toggled', async () => {
+  it('shows the last used IP by default', async () => {
     listKeys.mockResolvedValueOnce({
       items: [{ ...createApiKey(), last_used_ip: '203.0.113.10' }],
-      total: 1,
-      page: 1,
-      page_size: 20,
-      pages: 1,
+      total: 1, page: 1, page_size: 20, pages: 1,
     })
     const wrapper = await mountView()
-
-    await wrapper.get('button[title="Column Settings"]').trigger('click')
-    await getButtonByText(wrapper, 'Last Used IP').trigger('click')
-    await nextTick()
-
-    expect(visibleColumnKeys(wrapper)).toContain('last_used_ip')
     expect(wrapper.get('[data-test="last-used-ip"]').text()).toBe('203.0.113.10')
   })
 
-  it('restores column preferences from localStorage on mount', async () => {
-    localStorage.setItem('api-key-hidden-columns', JSON.stringify(['group', 'created_at']))
-    localStorage.setItem('api-key-column-settings-version', '1')
-
+  it('restores both column order and visibility on mount', async () => {
+    localStorage.setItem('table-columns:keys:v1', JSON.stringify({
+      order: ['status', 'actions', 'name'], hidden: ['group', 'created_at'],
+    }))
     const wrapper = await mountView()
-
-    expect(visibleColumnKeys(wrapper)).toEqual([
-      'name',
-      'key',
-      'current_concurrency',
-      'usage',
-      'rate_limit',
-      'expires_at',
-      'status',
-      'last_used_at',
-      'actions',
-    ])
-    expect(localStorage.getItem('api-key-hidden-columns')).toBe(
-      JSON.stringify(['group', 'created_at', 'last_used_ip', 'id'])
-    )
-    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
+    expect(visibleColumnKeys(wrapper).slice(0, 3)).toEqual(['status', 'actions', 'name'])
+    expect(visibleColumnKeys(wrapper)).not.toContain('group')
+    expect(visibleColumnKeys(wrapper)).not.toContain('created_at')
   })
 
-  it('does not include always-visible columns in the toggleable menu', async () => {
+  it('ignores the obsolete automatic hiding preferences', async () => {
+    localStorage.setItem('api-key-hidden-columns', JSON.stringify(['group', 'created_at']))
+    localStorage.setItem('api-key-column-settings-version', '1')
     const wrapper = await mountView()
+    expect(visibleColumnKeys(wrapper)).toHaveLength(13)
+    expect(visibleColumnKeys(wrapper)).toContain('group')
+    expect(visibleColumnKeys(wrapper)).toContain('id')
+  })
 
-    await wrapper.get('button[title="Column Settings"]').trigger('click')
+  it('lets the table reorder required columns without changing data sorting', async () => {
+    const wrapper = await mountView()
+    const calls = listKeys.mock.calls.length
+    const keys = visibleColumnKeys(wrapper)
+    const order = ['actions', ...keys.filter(key => key !== 'actions')]
+    wrapper.findComponent({ name: 'DataTable' }).vm.$emit('column-reorder', order)
     await nextTick()
+    expect(visibleColumnKeys(wrapper)).toEqual(order)
+    expect(JSON.parse(localStorage.getItem('table-columns:keys:v1') || '{}').order).toEqual(order)
+    expect(listKeys).toHaveBeenCalledTimes(calls)
+  })
 
-    const columnMenuText = wrapper.text()
-    expect(columnMenuText).toContain('API Key')
-    expect(columnMenuText).toContain('ID')
-    expect(columnMenuText).toContain('Concurrency / Waiting')
-    expect(columnMenuText).toContain('Rate Limit')
-    expect(columnMenuText).toContain('Last Used IP')
-    expect(columnMenuText).not.toContain('Name')
-    expect(columnMenuText).not.toContain('Actions')
+  it('offers every column for reordering and resets to all visible defaults', async () => {
+    const wrapper = await mountView()
+    const settings = wrapper.findComponent({ name: 'ColumnSettings' })
+    expect(settings.props('columns').map((column: { key: string }) => column.key)).toEqual(visibleColumnKeys(wrapper))
+    expect(settings.props('requiredColumns')).toEqual(['name', 'actions'])
+    settings.vm.$emit('toggle', 'rate_limit')
+    settings.vm.$emit('reorder', ['actions', 'name'])
+    await nextTick()
+    expect(visibleColumnKeys(wrapper)[0]).toBe('actions')
+    settings.vm.$emit('reset')
+    await nextTick()
+    expect(visibleColumnKeys(wrapper)).toHaveLength(13)
+    expect(visibleColumnKeys(wrapper)[0]).toBe('name')
   })
 
   it.each([0, 3])('keeps the concurrency badge at %s for an unlimited key', async (current) => {

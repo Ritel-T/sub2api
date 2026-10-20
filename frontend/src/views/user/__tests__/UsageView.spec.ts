@@ -6,6 +6,8 @@ import UsageView from '../UsageView.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
+import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 
 const {
   query,
@@ -167,7 +169,7 @@ function mountUsageView(router?: Router) {
         Icon: true,
         UsageStatsCards: chartStub,
         UsageTable: { ...chartStub, props: ['columns'] },
-        UserErrorRequestsTable: chartStub,
+        UserErrorRequestsTable: { ...chartStub, props: ['visibleColumnKeys'] },
         ModelDistributionChart: chartStub,
         GroupDistributionChart: chartStub,
         EndpointDistributionChart: chartStub,
@@ -179,6 +181,7 @@ function mountUsageView(router?: Router) {
 
 describe('user UsageView', () => {
   beforeEach(() => {
+    localStorage.clear()
     getById.mockReset()
     getById.mockResolvedValue({...usageLog,id:42})
     query.mockReset()
@@ -225,6 +228,49 @@ describe('user UsageView', () => {
     getAvailable.mockResolvedValue([{ id: 1, name: 'default' }])
   })
 
+
+  it('shows all usage columns, persists reordering, and resets to the useful default order', async () => {
+    const wrapper = mountUsageView()
+    await flushPromises()
+    const table = wrapper.findComponent(UsageTable)
+    const originalKeys = table.props('columns').map((column: { key: string }) => column.key)
+    expect(originalKeys).toEqual([
+      'created_at', 'api_key', 'model', 'tokens', 'cost', 'latency', 'group',
+      'reasoning_effort', 'endpoint', 'stream', 'billing_mode', 'request_details',
+      'ip_address', 'user_agent',
+    ])
+    const reordered = [...originalKeys].reverse()
+    table.vm.$emit('column-reorder', reordered)
+    await wrapper.vm.$nextTick()
+    expect(table.props('columns').map((column: { key: string }) => column.key)).toEqual(reordered)
+    wrapper.findComponent(ColumnSettings).vm.$emit('reset')
+    await wrapper.vm.$nextTick()
+    expect(table.props('columns').map((column: { key: string }) => column.key)).toEqual(originalKeys)
+    wrapper.unmount()
+  })
+
+  it('keeps error column preferences independent from successful requests', async () => {
+    localStorage.setItem('user-usage-error-hidden-columns', '["user_agent"]')
+    const wrapper = mountUsageView()
+    await flushPromises()
+    const usageKeys = wrapper.findComponent(UsageTable).props('columns').map((column: { key: string }) => column.key)
+    await wrapper.findAll('button').find(button => button.text() === 'Error records')!.trigger('click')
+    await flushPromises()
+    const table = wrapper.findComponent(UserErrorRequestsTable)
+    const errorKeys = table.props('visibleColumnKeys') as string[]
+    expect(errorKeys).toEqual([
+      'created_at', 'key_name', 'model', 'status', 'message', 'category', 'group',
+      'type', 'platform', 'endpoint', 'client_ip', 'user_agent',
+    ])
+    table.vm.$emit('column-reorder', [...errorKeys].reverse())
+    await wrapper.vm.$nextTick()
+    expect(table.props('visibleColumnKeys')).toEqual([...errorKeys].reverse())
+    expect(JSON.parse(localStorage.getItem('table-columns:user-errors:v1')!).order).toEqual([...errorKeys].reverse())
+    await wrapper.findAll('button').find(button => button.text() === 'Usage records')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(UsageTable).props('columns').map((column: { key: string }) => column.key)).toEqual(usageKeys)
+    wrapper.unmount()
+  })
 
   it('restores error filters on refresh, supports successful records and restores browser back', async () => {
     const router = createRouter({history:createMemoryHistory(), routes:[{path:'/usage',component:{template:'<div />'}}]})

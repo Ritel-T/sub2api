@@ -1,5 +1,10 @@
 export default {
   common: {
+    columnSettings: '欄位設定',
+    resetColumns: '恢復預設',
+    moveColumn: '移動{column}欄',
+    columnKeyboard: '使用上下方向鍵移動此欄，Home 及 End 移至首尾。',
+
     loading: '載入中...',
     submitting: '提交中...',
     justNow: '剛剛',

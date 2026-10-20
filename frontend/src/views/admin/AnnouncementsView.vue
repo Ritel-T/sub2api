@@ -39,7 +39,7 @@
       </template>
 
       <template #table>
-        <DataTable
+        <DataTable column-order-key="table-columns:announcements:v1"
           :columns="columns"
           :data="announcements"
           :loading="loading"

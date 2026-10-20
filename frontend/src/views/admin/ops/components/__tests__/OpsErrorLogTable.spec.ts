@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import OpsErrorLogTable from '../OpsErrorLogTable.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import zhLocale from '@/i18n/locales/zh'
 import enLocale from '@/i18n/locales/en'
 import type { OpsErrorLog } from '@/api/admin/ops'
@@ -16,7 +17,7 @@ vi.mock('vue-i18n', async (importOriginal) => {
 const TooltipStub = { template: '<div><slot /></div>' }
 const PaginationStub = { template: '<div class="pagination-stub" />' }
 
-function mountTable(row: Partial<OpsErrorLog>) {
+function mountTable(row: Partial<OpsErrorLog>, reorder?: (keys: string[]) => void) {
   const base = {
     id: 1,
     created_at: '2026-06-05T23:59:50Z',
@@ -39,7 +40,7 @@ function mountTable(row: Partial<OpsErrorLog>) {
   } as OpsErrorLog
 
   return mount(OpsErrorLogTable, {
-    props: { rows: [base], total: 1, loading: false, page: 1, pageSize: 20 },
+    props: { rows: [base], total: 1, loading: false, page: 1, pageSize: 20, onColumnReorder: reorder },
     global: { stubs: { 'el-tooltip': TooltipStub, Pagination: PaginationStub } },
   })
 }
@@ -93,15 +94,23 @@ describe('OpsErrorLogTable column order', () => {
     wrapper.unmount()
   })
 
-  it('preserves the usage column order and visibility by default', async () => {
+  it('renders visible columns in the supplied order', async () => {
     const wrapper = mountTable({})
     await wrapper.setProps({ visibleColumnKeys: ['created_at', 'user', 'message'] })
 
     expect(wrapper.findAll('thead th').map((header) => header.text())).toEqual([
+      'admin.ops.errorLog.time',
       'admin.ops.errorLog.user',
       'admin.ops.errorLog.message',
-      'admin.ops.errorLog.time',
     ])
+    wrapper.unmount()
+  })
+
+  it('forwards header reordering without altering requested data sorting', async () => {
+    const wrapper = mountTable({}, vi.fn())
+    wrapper.findComponent(DataTable).vm.$emit('columnReorder', ['message', 'created_at', 'user'])
+    expect(wrapper.emitted('column-reorder')).toEqual([[['message', 'created_at', 'user']]])
+    expect(wrapper.emitted('sort')).toBeUndefined()
     wrapper.unmount()
   })
 })

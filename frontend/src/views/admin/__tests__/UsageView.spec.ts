@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 
 import UsageView from '../UsageView.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 
 vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))
 
@@ -139,7 +140,7 @@ const UsageFiltersStub = defineComponent({
 })
 const UsageTableStub = {
   props: ['columns'],
-  emits: ['userClick'],
+  emits: ['userClick', 'column-reorder'],
   template: '<div data-test="usage-table"><button class="user-click" @click="$emit(\'userClick\', 2)">user</button></div>',
 }
 const UserTokenRankingStub = {
@@ -526,7 +527,7 @@ describe('admin UsageView distribution metric toggles', () => {
   })
 })
 
-describe('admin UsageView request ID column visibility', () => {
+describe('admin UsageView column preferences', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.mocked(localStorage.getItem).mockReset().mockReturnValue(null)
@@ -544,7 +545,7 @@ describe('admin UsageView request ID column visibility', () => {
     vi.useRealTimers()
   })
 
-  it('keeps request ID hidden by default and allows enabling it from column settings', async () => {
+  it('shows every column by default and allows hiding request IDs', async () => {
     const wrapper = mount(UsageView, {
       global: {
         stubs: {
@@ -571,25 +572,20 @@ describe('admin UsageView request ID column visibility', () => {
     await wrapper.vm.$nextTick()
 
     const usageTable = wrapper.findComponent(UsageTableStub)
+    expect(usageTable.props('columns').map((column: { key: string }) => column.key)).toEqual([
+      'created_at', 'user', 'api_key', 'account', 'model', 'tokens', 'cost', 'latency',
+      'group', 'reasoning_effort', 'endpoint', 'stream', 'billing_mode', 'ip_address',
+      'request_id', 'upstream_request_id', 'user_agent',
+    ])
+    wrapper.findComponent(ColumnSettings).vm.$emit('toggle', 'request_id')
+    await wrapper.vm.$nextTick()
     expect(usageTable.props('columns')).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ key: 'request_id' })]),
     )
-
-    await wrapper.get('button[title="admin.users.columnSettings"]').trigger('click')
-    const requestIdToggle = wrapper.findAll('button').find((button) => button.text() === 'Request ID')
-    expect(requestIdToggle).toBeDefined()
-    await requestIdToggle!.trigger('click')
-
-    expect(usageTable.props('columns')).toEqual(
-      expect.arrayContaining([expect.objectContaining({ key: 'request_id', label: 'Request ID' })]),
-    )
-    expect(localStorage.setItem).toHaveBeenCalledWith(
-      'usage-hidden-columns-version',
-      'upstream-request-id-hidden-by-default',
-    )
+    expect(localStorage.setItem).toHaveBeenCalledWith('table-columns:admin-usage:v1', expect.any(String))
   })
 
-  it('keeps upstream ID hidden by default and allows enabling it from column settings', async () => {
+  it('supports reordering all columns including the required time and user columns', async () => {
     const wrapper = mount(UsageView, {
       global: {
         stubs: {
@@ -616,18 +612,14 @@ describe('admin UsageView request ID column visibility', () => {
     await wrapper.vm.$nextTick()
 
     const usageTable = wrapper.findComponent(UsageTableStub)
-    expect(usageTable.props('columns')).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ key: 'upstream_request_id' })]),
-    )
-
-    await wrapper.get('button[title="admin.users.columnSettings"]').trigger('click')
-    const upstreamToggle = wrapper.findAll('button').find((button) => button.text() === 'Upstream ID')
-    expect(upstreamToggle).toBeDefined()
-    await upstreamToggle!.trigger('click')
-
-    expect(usageTable.props('columns')).toEqual(
-      expect.arrayContaining([expect.objectContaining({ key: 'upstream_request_id', label: 'Upstream ID' })]),
-    )
+    const originalKeys = usageTable.props('columns').map((column: { key: string }) => column.key)
+    const reordered = [...originalKeys].reverse()
+    usageTable.vm.$emit('column-reorder', reordered)
+    await wrapper.vm.$nextTick()
+    expect(usageTable.props('columns').map((column: { key: string }) => column.key)).toEqual(reordered)
+    wrapper.findComponent(ColumnSettings).vm.$emit('reset')
+    await wrapper.vm.$nextTick()
+    expect(usageTable.props('columns').map((column: { key: string }) => column.key)).toEqual(originalKeys)
   })
 })
 

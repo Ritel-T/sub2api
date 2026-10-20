@@ -31,7 +31,7 @@
       </template>
 
       <template #table>
-        <DataTable :columns="columns" :data="tickets" :loading="loading" row-key="id" clickable-rows @row-click="openTicket">
+        <DataTable column-order-key="table-columns:admin-support-tickets:v1" :columns="columns" :data="tickets" :loading="loading" row-key="id" clickable-rows @row-click="openTicket">
           <template #cell-title="{ row }">
             <div class="min-w-0 max-w-md">
               <div class="flex items-center gap-2">

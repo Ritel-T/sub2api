@@ -5,6 +5,7 @@
 
       <DataTable
         :columns="columns"
+        @column-reorder="emit('column-reorder', $event)"
         :data="rows"
         :loading="loading"
         clickable-rows
@@ -156,6 +157,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:page', v: number): void
   (e: 'update:pageSize', v: number): void
+  (e: 'column-reorder', keys: string[]): void
   (e: 'ipGeoBatchFailed'): void
   (e: 'sort', sortBy: string, sortOrder: 'asc' | 'desc'): void
 }>()
@@ -166,26 +168,24 @@ function onSort(key: string, order: 'asc' | 'desc') {
 
 const { t } = useI18n()
 
-// 列序对齐用户端用量明细:Key → 模型 → 端点 → IP → 分组 → 类型 → 平台 → 分类
-// → 结果(状态→消息)→ 时间 → UA(用量明细 UA 同在时间之后的尾部)
 const allColumns = computed<Column[]>(() => [
+  { key: 'created_at', label: t('usage.errors.time'), sortable: true },
   { key: 'key_name', label: t('usage.errors.keyName') },
   { key: 'model', label: t('usage.errors.model'), sortable: true },
-  { key: 'endpoint', label: t('usage.errors.endpoint') },
-  { key: 'client_ip', label: 'IP' },
+  { key: 'status', label: t('usage.errors.status'), sortable: true },
+  { key: 'message', label: t('usage.errors.message') },
+  { key: 'category', label: t('usage.errors.category') },
   { key: 'group', label: t('admin.usage.group') },
   { key: 'type', label: t('usage.type') },
   { key: 'platform', label: t('usage.errors.platform') },
-  { key: 'category', label: t('usage.errors.category') },
-  { key: 'status', label: t('usage.errors.status'), sortable: true },
-  { key: 'message', label: t('usage.errors.message') },
-  { key: 'created_at', label: t('usage.errors.time'), sortable: true },
+  { key: 'endpoint', label: t('usage.errors.endpoint') },
+  { key: 'client_ip', label: 'IP' },
   { key: 'user_agent', label: t('usage.userAgent') },
 ])
 
 const columns = computed<Column[]>(() =>
   props.visibleColumnKeys
-    ? allColumns.value.filter((c) => props.visibleColumnKeys!.includes(c.key))
+    ? props.visibleColumnKeys.flatMap(key => allColumns.value.find(column => column.key === key) ?? [])
     : allColumns.value
 )
 

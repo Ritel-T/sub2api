@@ -61,38 +61,14 @@
                 :class="loading ? 'animate-spin' : ''"
               />
             </button>
-            <div class="relative" ref="columnDropdownRef">
-              <button
-                @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary"
-                :title="t('admin.groups.columnSettings')"
-              >
-                <Icon name="grid" size="md" class="mr-2" />
-                <span class="hidden md:inline">{{
-                  t("admin.groups.columnSettings")
-                }}</span>
-              </button>
-              <div
-                v-if="showColumnDropdown"
-                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-              >
-                <button
-                  v-for="col in toggleableColumns"
-                  :key="col.key"
-                  @click="toggleColumn(col.key)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-                >
-                  <span>{{ col.label }}</span>
-                  <Icon
-                    v-if="isColumnVisible(col.key)"
-                    name="check"
-                    size="sm"
-                    class="text-primary-500"
-                    :stroke-width="2"
-                  />
-                </button>
-              </div>
-            </div>
+            <ColumnSettings
+              :columns="orderedColumns"
+              :hidden-columns="hiddenColumns"
+              :required-columns="['name', 'actions']"
+              @toggle="toggleColumn"
+              @reorder="setColumnOrder"
+              @reset="resetColumns"
+            />
             <button
               v-if="!authStore.isSimpleMode"
               @click="openSortModal"
@@ -123,6 +99,7 @@
           default-sort-key="sort_order"
           default-sort-order="asc"
           @sort="handleSort"
+          @column-reorder="setColumnOrder"
         >
           <template #cell-name="{ value, row }">
             <span class="font-medium text-gray-900 dark:text-white">{{
@@ -4421,6 +4398,8 @@ import AppLayout from "@/components/layout/AppLayout.vue";
 import MiniMaxH3VideoPricing from "./MiniMaxH3VideoPricing.vue";
 import TablePageLayout from "@/components/layout/TablePageLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
+import ColumnSettings from "@/components/common/ColumnSettings.vue";
+import { useTableColumns } from "@/composables/useTableColumns";
 import Pagination from "@/components/common/Pagination.vue";
 import Toggle from "@/components/common/Toggle.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -4587,150 +4566,51 @@ const appStore = useAppStore();
 const authStore = useAuthStore();
 const onboardingStore = useOnboardingStore();
 
-const ALWAYS_VISIBLE_COLUMNS = new Set(["name", "actions"]);
-// Default hidden columns (hidden on first load / after schema bumps).
-const DEFAULT_HIDDEN_COLUMNS = ["id"];
-const HIDDEN_COLUMNS_KEY = "group-hidden-columns";
-// Bump when adding new default-hidden columns so existing admins pick them up once.
-const COLUMN_SETTINGS_VERSION_KEY = "group-column-settings-version";
-const COLUMN_SETTINGS_VERSION = 2;
-const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
-  2: ["id"],
-};
-
 const allColumns = computed<Column[]>(() => {
-  const basic: Column[] = [
+  const identity: Column[] = [
     { key: "name", label: t("admin.groups.columns.name"), sortable: true },
-    { key: "id", label: t("admin.groups.columns.id"), sortable: true },
+    { key: "status", label: t("admin.groups.columns.status"), sortable: true },
     { key: "platform", label: t("admin.groups.columns.platform"), sortable: true },
     { key: "account_count", label: t("admin.groups.columns.accounts"), sortable: true },
-    { key: "status", label: t("admin.groups.columns.status"), sortable: true },
-    { key: "actions", label: t("admin.groups.columns.actions"), sortable: false },
   ];
-  if (authStore.isSimpleMode) return basic;
-  return [
-    ...basic.slice(0, 3),
+  const details: Column[] = authStore.isSimpleMode ? [] : [
+    { key: "capacity", label: t("admin.groups.columns.capacity"), sortable: false },
+    { key: "usage", label: t("admin.groups.columns.usage"), sortable: false },
     { key: "billing_type", label: t("admin.groups.columns.billingType"), sortable: true },
     { key: "rate_multiplier", label: t("admin.groups.columns.rateMultiplier"), sortable: true },
     { key: "is_exclusive", label: t("admin.groups.columns.type"), sortable: true },
-    basic[3],
-    { key: "capacity", label: t("admin.groups.columns.capacity"), sortable: false },
-    { key: "usage", label: t("admin.groups.columns.usage"), sortable: false },
-    ...basic.slice(4),
+  ];
+  return [
+    ...identity,
+    ...details,
+    { key: "id", label: t("admin.groups.columns.id"), sortable: true },
+    { key: "actions", label: t("admin.groups.columns.actions"), sortable: false },
   ];
 });
 
-const toggleableColumns = computed(() =>
-  allColumns.value.filter((col) => !ALWAYS_VISIBLE_COLUMNS.has(col.key)),
-);
-const hiddenColumns = reactive<Set<string>>(new Set());
-const showColumnDropdown = ref(false);
-const columnDropdownRef = ref<HTMLElement | null>(null);
+const {
+  columns,
+  orderedColumns,
+  hiddenColumns,
+  isColumnVisible,
+  toggleColumn,
+  setColumnOrder,
+  resetColumns,
+} = useTableColumns("table-columns:groups:v1", allColumns, {
+  required: ["name", "actions"],
+});
 
-const getValidHiddenColumnKeys = () =>
-  new Set(toggleableColumns.value.map((col) => col.key));
-
-const loadSavedColumns = () => {
-  hiddenColumns.clear();
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY);
-    const validKeys = getValidHiddenColumnKeys();
-
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        parsed
-          .filter(
-            (key): key is string =>
-              typeof key === "string" && validKeys.has(key),
-          )
-          .forEach((key) => hiddenColumns.add(key));
-      }
-
-      // Existing admins: auto-hide columns newly added as default-hidden.
-      const storedVersion = Number(
-        localStorage.getItem(COLUMN_SETTINGS_VERSION_KEY) ?? "1",
-      );
-      if (storedVersion < COLUMN_SETTINGS_VERSION) {
-        let mutated = false;
-        for (let v = storedVersion + 1; v <= COLUMN_SETTINGS_VERSION; v++) {
-          for (const key of VERSION_NEW_HIDDEN_COLUMNS[v] ?? []) {
-            if (validKeys.has(key) && !hiddenColumns.has(key)) {
-              hiddenColumns.add(key);
-              mutated = true;
-            }
-          }
-        }
-        if (mutated) {
-          saveColumnsToStorage();
-        } else {
-          localStorage.setItem(
-            COLUMN_SETTINGS_VERSION_KEY,
-            String(COLUMN_SETTINGS_VERSION),
-          );
-        }
-      }
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
-        if (validKeys.has(key)) hiddenColumns.add(key);
-      });
-      saveColumnsToStorage();
-    }
-  } catch (error) {
-    console.error("Failed to load group column settings:", error);
-    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key));
-  }
-};
-
-const saveColumnsToStorage = () => {
-  try {
-    const validKeys = getValidHiddenColumnKeys();
-    const keys = [...hiddenColumns].filter((key) => validKeys.has(key));
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify(keys));
-    localStorage.setItem(
-      COLUMN_SETTINGS_VERSION_KEY,
-      String(COLUMN_SETTINGS_VERSION),
-    );
-  } catch (error) {
-    console.error("Failed to save group column settings:", error);
-  }
-};
-
-const isColumnVisible = (key: string) => !hiddenColumns.has(key);
 const hasVisibleUsageSummaryConsumer = computed(
   () => !authStore.isSimpleMode && (isColumnVisible("usage") || isColumnVisible("billing_type")),
 );
 const hasVisibleCapacityColumn = computed(() => !authStore.isSimpleMode && isColumnVisible("capacity"));
 
-const toggleColumn = (key: string) => {
-  const validKeys = getValidHiddenColumnKeys();
-  if (!validKeys.has(key)) return;
-
-  const wasHidden = hiddenColumns.has(key);
-  if (wasHidden) {
-    hiddenColumns.delete(key);
-  } else {
-    hiddenColumns.add(key);
-  }
-  saveColumnsToStorage();
-
-  if (wasHidden && (key === "usage" || key === "billing_type")) {
-    loadUsageSummary();
-  }
-  if (wasHidden && key === "capacity") {
-    loadCapacitySummary();
-  }
-};
-
-const columns = computed<Column[]>(() =>
-  allColumns.value.filter(
-    (col) => ALWAYS_VISIBLE_COLUMNS.has(col.key) || !hiddenColumns.has(col.key),
-  ),
-);
-
-if (typeof window !== "undefined") {
-  loadSavedColumns();
-}
+watch(hasVisibleUsageSummaryConsumer, (visible) => {
+  if (visible) loadUsageSummary();
+});
+watch(hasVisibleCapacityColumn, (visible) => {
+  if (visible) loadCapacitySummary();
+});
 
 // Filter options
 const statusOptions = computed(() => [
@@ -7013,9 +6893,6 @@ const handleClickOutside = (event: MouseEvent) => {
     Object.keys(showAccountDropdown.value).forEach((key) => {
       showAccountDropdown.value[key] = false;
     });
-  }
-  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
-    showColumnDropdown.value = false;
   }
 };
 

@@ -5,6 +5,7 @@
 
       <DataTable
         :columns="columns"
+        v-on="columnOrderListeners"
         :data="rows"
         :loading="loading"
         clickable-rows
@@ -182,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { getCurrentInstance, computed } from 'vue'
 import { balanceErrorSource } from '../utils/balanceError'
 import { useI18n } from 'vue-i18n'
 import DataTable from '@/components/common/DataTable.vue'
@@ -198,30 +199,28 @@ import { mapErrorSortKey, statusCodeBadgeClass } from '@/utils/errorBadges'
 
 const { t } = useI18n()
 
-// 列序对齐管理端用量明细:身份(用户→Key→账号)→ 请求形态(平台→模型→端点→分组→类型)
-// → 结果(状态→消息)→ 时间→UA→IP→操作
 const allColumns = computed<Column[]>(() => [
+  { key: 'created_at', label: t('admin.ops.errorLog.time'), sortable: true },
   { key: 'user', label: t('admin.ops.errorLog.user') },
   { key: 'api_key', label: t('admin.ops.errorLog.apiKey') },
   { key: 'account', label: t('admin.ops.errorLog.account') },
-  { key: 'platform', label: t('admin.ops.errorLog.platform') },
   { key: 'model', label: t('admin.ops.errorLog.model'), sortable: true },
-  { key: 'endpoint', label: t('admin.ops.errorLog.endpoint') },
-  { key: 'group', label: t('admin.ops.errorLog.group') },
-  { key: 'type', label: t('admin.ops.errorLog.type') },
-  { key: 'category', label: t('usage.errors.category') },
   { key: 'status', label: t('admin.ops.errorLog.status'), sortable: true },
   { key: 'message', label: t('admin.ops.errorLog.message') },
-  { key: 'created_at', label: t('admin.ops.errorLog.time'), sortable: true },
-  { key: 'user_agent', label: t('usage.userAgent') },
-  { key: 'client_ip', label: t('admin.ops.errorLog.ip') },
+  { key: 'category', label: t('usage.errors.category') },
+  { key: 'group', label: t('admin.ops.errorLog.group') },
+  { key: 'type', label: t('admin.ops.errorLog.type') },
+  { key: 'platform', label: t('admin.ops.errorLog.platform') },
+  { key: 'endpoint', label: t('admin.ops.errorLog.endpoint') },
   { key: 'actions', label: t('admin.ops.errorLog.action') },
+  { key: 'client_ip', label: t('admin.ops.errorLog.ip') },
+  { key: 'user_agent', label: t('usage.userAgent') },
 ])
 
-// 传入 visibleColumnKeys 时按其过滤(列设置);未传则全量(Ops 弹窗等使用方)
+// Explicit column preferences retain their supplied order.
 const columns = computed<Column[]>(() => {
   const visibleColumns = props.visibleColumnKeys
-    ? allColumns.value.filter((c) => props.visibleColumnKeys!.includes(c.key))
+    ? props.visibleColumnKeys.flatMap(key => allColumns.value.find(column => column.key === key) ?? [])
     : allColumns.value
   if (!props.summaryFirst) return visibleColumns
 
@@ -309,6 +308,7 @@ interface Emits {
   (e: 'openErrorDetail', id: number): void
   (e: 'update:page', value: number): void
   (e: 'update:pageSize', value: number): void
+  (e: 'column-reorder', keys: string[]): void
   (e: 'ipGeoBatchFailed'): void
   (e: 'sort', sortBy: string, sortOrder: 'asc' | 'desc'): void
   (e: 'userClick', userId: number, email?: string): void
@@ -316,6 +316,9 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const columnOrderListeners = getCurrentInstance()?.vnode.props?.onColumnReorder
+  ? { columnReorder: (keys: string[]) => emit('column-reorder', keys) }
+  : {}
 
 function onSort(key: string, order: 'asc' | 'desc') {
   emit('sort', mapErrorSortKey(key), order)

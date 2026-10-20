@@ -25,7 +25,7 @@
       </template>
 
       <template #table>
-        <DataTable
+        <DataTable :column-order-key="`table-columns:affiliate-${type}:v1`"
           :columns="columns"
           :data="records"
           :loading="loading"

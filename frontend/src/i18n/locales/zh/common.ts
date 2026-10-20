@@ -1,5 +1,10 @@
 export default {
   common: {
+    columnSettings: '列设置',
+    resetColumns: '恢复默认',
+    moveColumn: '移动{column}列',
+    columnKeyboard: '使用上下方向键移动此列，Home 和 End 移到首尾。',
+
     loading: '加载中...',
     submitting: '提交中...',
     justNow: '刚刚',

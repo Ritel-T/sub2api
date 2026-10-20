@@ -4,6 +4,7 @@ import { defineComponent } from 'vue'
 
 import UserUsageView from '@/views/user/UsageView.vue'
 import AdminUsageView from '@/views/admin/UsageView.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 
 const {
   userQuery,
@@ -39,6 +40,7 @@ const messages: Record<string, string> = {
   'admin.dashboard.day': 'Day',
   'admin.dashboard.hour': 'Hour',
   'admin.users.columnSettings': 'Columns',
+  'common.columnSettings': 'Columns',
   'admin.usage.group': 'Group',
   'admin.usage.user': 'User',
   'admin.usage.account': 'Account',
@@ -206,6 +208,7 @@ const adminMappedLog = {
 }
 
 const sharedPageStubs = {
+  Teleport: true,
   AppLayout: layoutStub,
   Pagination: true,
   Select: true,
@@ -295,22 +298,37 @@ describe('usage reasoning effort page display', () => {
   })
 
   it('retains a saved hidden reasoning column and allows re-enabling the BPS mapping', async () => {
+    const storageKey = 'table-columns:admin-usage:v1'
     const wrapper = mountAdminUsage()
     await flushPromises()
-    await wrapper.get('[data-testid="usage-column-settings"]').trigger('click')
-    await wrapper.get('[data-testid="usage-column-toggle-reasoning_effort"]').trigger('click')
+    expect(reasoningCellText(wrapper)).toContain('Max')
+    expect(reasoningCellText(wrapper)).toContain('XHigh')
+
+    const settings = wrapper.getComponent(ColumnSettings)
+    await settings.get('button[aria-haspopup="dialog"]').trigger('click')
+    const reasoningToggle = settings.findAll('label').find(label => label.text() === 'Reasoning Effort')!.get('input')
+    expect(reasoningToggle.element).toHaveProperty('checked', true)
+    await reasoningToggle.setValue(false)
     await flushPromises()
     expect(wrapper.find('[data-testid="reasoning-effort-cell"]').exists()).toBe(false)
+    const saved = JSON.parse(localStorage.getItem(storageKey)!)
+    expect(saved).toEqual({ order: [], hidden: ['reasoning_effort'] })
     wrapper.unmount()
 
     const reopened = mountAdminUsage()
     await flushPromises()
     expect(reopened.find('[data-testid="reasoning-effort-cell"]').exists()).toBe(false)
-    await reopened.get('[data-testid="usage-column-settings"]').trigger('click')
-    await reopened.get('[data-testid="usage-column-toggle-reasoning_effort"]').trigger('click')
+    const reopenedSettings = reopened.getComponent(ColumnSettings)
+    await reopenedSettings.get('button[aria-haspopup="dialog"]').trigger('click')
+    const reopenedToggle = reopenedSettings.findAll('label').find(label => label.text() === 'Reasoning Effort')!.get('input')
+    expect(reopenedToggle.element).toHaveProperty('checked', false)
+    await reopenedToggle.setValue(true)
     await flushPromises()
     expect(reasoningCellText(reopened)).toContain('Max')
     expect(reasoningCellText(reopened)).toContain('XHigh')
+    expect(reasoningCellText(reopened)).toContain('↳')
+    expect(reopened.text()).toContain('/basispoints/api/responses')
+    expect(JSON.parse(localStorage.getItem(storageKey)!).hidden).toEqual([])
     reopened.unmount()
   })
 

@@ -20,6 +20,7 @@ import { nextTick } from 'vue'
 import en from '@/i18n/locales/en/admin/resources'
 import zh from '@/i18n/locales/zh/admin/resources'
 import UsageTable from '../UsageTable.vue'
+import DataTable from '@/components/common/DataTable.vue'
 
 let locale: 'en' | 'zh' = 'en'
 const localizedMessages: Record<'en' | 'zh', Record<string, string>> = {
@@ -1124,5 +1125,18 @@ describe('admin UsageTable latency TPS', () => {
     const shown = mountLatency([cacheHitRow], { cacheRateAudience: 'user' })
     expect(shown.find('[data-testid="latency-cache-rate"]').text()).toBe('98.6%')
     appStoreMocks.cachedPublicSettings = undefined
+  })
+})
+
+
+describe('UsageTable column preferences', () => {
+  it('forwards column reordering independently of server-side sorting', () => {
+    const wrapper = mount(UsageTable, {
+      props: { data: [], columns: [{ key: 'model', label: 'Model' }, { key: 'created_at', label: 'Time' }] },
+    })
+    wrapper.findComponent(DataTable).vm.$emit('columnReorder', ['created_at', 'model'])
+    expect(wrapper.emitted('column-reorder')).toEqual([[['created_at', 'model']]])
+    expect(wrapper.emitted('sort')).toBeUndefined()
+    wrapper.unmount()
   })
 })

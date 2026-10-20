@@ -90,40 +90,15 @@
 
         <UsageFilters v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="border-b border-gray-100 dark:border-dark-700/50" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
           <template #after-reset>
-            <div v-if="activeTab !== 'ranking'" class="relative" ref="columnDropdownRef">
-              <button
-                data-testid="usage-column-settings"
-                @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary px-2 md:px-3"
-                :title="t('admin.users.columnSettings')"
-              >
-                <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-                </svg>
-                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
-              </button>
-              <div
-                v-if="showColumnDropdown"
-                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-              >
-                <button
-                  v-for="col in currentToggleableColumns"
-                  :key="col.key"
-                  :data-testid="`usage-column-toggle-${col.key}`"
-                  @click="toggleCurrentColumn(col.key)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-                >
-                  <span>{{ col.label }}</span>
-                  <Icon
-                    v-if="isCurrentColumnVisible(col.key)"
-                    name="check"
-                    size="sm"
-                    class="text-primary-500"
-                    :stroke-width="2"
-                  />
-                </button>
-              </div>
-            </div>
+            <ColumnSettings
+              v-if="activeTab !== 'ranking'"
+              :columns="activeTab === 'errors' ? errOrderedColumns : orderedColumns"
+              :hidden-columns="activeTab === 'errors' ? errHiddenColumns : hiddenColumns"
+              :required-columns="activeTab === 'errors' ? ERR_ALWAYS_VISIBLE : ALWAYS_VISIBLE"
+              @toggle="toggleCurrentColumn"
+              @reorder="setCurrentColumnOrder"
+              @reset="resetCurrentColumns"
+            />
           </template>
         </UsageFilters>
 
@@ -134,6 +109,7 @@
             :data="usageLogs"
             :loading="loading"
             :columns="visibleColumns"
+            @column-reorder="setColumnOrder"
             :server-side-sort="true"
             :default-sort-key="'created_at'"
             :default-sort-order="'desc'"
@@ -150,6 +126,7 @@
             :rows="errRows" :total="errTotal" :loading="errLoading"
             :page="errPage" :page-size="errPageSize"
             :visible-column-keys="errVisibleColumnKeys"
+            @column-reorder="setErrColumnOrder"
             :user-clickable="!props.observerMode"
             @userClick="handleUserClick"
             @openErrorDetail="openError"
@@ -204,6 +181,8 @@ import { objectQueryId } from './objectContext'
 import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
 import { useAppStore } from '@/stores/app'; import { adminAPI } from '@/api/admin'; import { adminUsageAPI } from '@/api/admin/usage'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { useTableColumns } from '@/composables/useTableColumns'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import { formatReasoningEffort } from '@/utils/format'
 import { formatUsageCacheRate, showUsageCacheRate } from '@/utils/usageCacheRate'
 import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
@@ -636,159 +615,72 @@ const exportToExcel = async () => {
   finally { if(exportAbortController === c) { exportAbortController = null; exporting.value = false; exportProgress.show = false } }
 }
 
-// Column visibility
 const ALWAYS_VISIBLE = ['user', 'created_at']
-const DEFAULT_HIDDEN_COLUMNS = ['request_id', 'upstream_request_id', 'user_agent']
-const HIDDEN_COLUMNS_KEY = 'usage-hidden-columns'
-const HIDDEN_COLUMNS_VERSION_KEY = 'usage-hidden-columns-version'
-// 隐藏列版本链：每级只把当级新增列加入隐藏集，不重置用户已显式打开的列。
-const HIDDEN_COLUMNS_PREV_VERSION = 'request-id-hidden-by-default'
-const HIDDEN_COLUMNS_CURRENT_VERSION = 'upstream-request-id-hidden-by-default'
+const ERR_ALWAYS_VISIBLE = ['user', 'status', 'created_at', 'actions']
 
 const allColumns = computed(() => [
+  { key: 'created_at', label: t('usage.time'), sortable: true },
   { key: 'user', label: t('admin.usage.user'), sortable: false },
   { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
   { key: 'account', label: t('admin.usage.account'), sortable: false },
   { key: 'model', label: t('usage.model'), sortable: true },
-  { key: 'reasoning_effort', label: t('usage.reasoningEffort'), sortable: false },
-  { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
-  { key: 'group', label: t('admin.usage.group'), sortable: false },
-  { key: 'stream', label: t('usage.type'), sortable: false },
-  { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
   { key: 'tokens', label: t('usage.tokens'), sortable: false },
   { key: 'cost', label: t('usage.cost'), sortable: false },
   { key: 'latency', label: t('usage.latency'), sortable: false },
-  { key: 'created_at', label: t('usage.time'), sortable: true },
+  { key: 'group', label: t('admin.usage.group'), sortable: false },
+  { key: 'reasoning_effort', label: t('usage.reasoningEffort'), sortable: false },
+  { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
+  { key: 'stream', label: t('usage.type'), sortable: false },
+  { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
+  { key: 'ip_address', label: t('admin.usage.ipAddress'), sortable: false },
   { key: 'request_id', label: t('admin.usage.requestId'), sortable: false },
   { key: 'upstream_request_id', label: t('admin.usage.upstreamRequestId'), sortable: false },
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
-  { key: 'ip_address', label: t('admin.usage.ipAddress'), sortable: false }
 ])
 
-const hiddenColumns = reactive<Set<string>>(new Set())
+const {
+  columns: visibleColumns,
+  orderedColumns,
+  hiddenColumns,
+  toggleColumn,
+  setColumnOrder,
+  resetColumns,
+} = useTableColumns('table-columns:admin-usage:v1', allColumns, { required: ALWAYS_VISIBLE })
 
-const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => !ALWAYS_VISIBLE.includes(col.key))
-)
-
-const visibleColumns = computed(() =>
-  allColumns.value.filter(col =>
-    ALWAYS_VISIBLE.includes(col.key) || !hiddenColumns.has(col.key)
-  )
-)
-
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
-
-const toggleColumn = (key: string) => {
-  if (hiddenColumns.has(key)) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  try {
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-    localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
-  } catch (e) {
-    console.error('Failed to save columns:', e)
-  }
-}
-
-// ---- 错误请求 tab 列设置(与用量明细同机制,独立存储) ----
-const ERR_ALWAYS_VISIBLE = ['user', 'status', 'created_at', 'actions']
-const ERR_DEFAULT_HIDDEN_COLUMNS = ['user_agent']
-const ERR_HIDDEN_COLUMNS_KEY = 'usage-error-hidden-columns'
-
-// key 集合须与 OpsErrorLogTable 内部 allColumns 一致
 const errAllColumns = computed(() => [
+  { key: 'created_at', label: t('admin.ops.errorLog.time') },
   { key: 'user', label: t('admin.ops.errorLog.user') },
   { key: 'api_key', label: t('admin.ops.errorLog.apiKey') },
   { key: 'account', label: t('admin.ops.errorLog.account') },
-  { key: 'platform', label: t('admin.ops.errorLog.platform') },
   { key: 'model', label: t('admin.ops.errorLog.model') },
-  { key: 'endpoint', label: t('admin.ops.errorLog.endpoint') },
-  { key: 'group', label: t('admin.ops.errorLog.group') },
-  { key: 'type', label: t('admin.ops.errorLog.type') },
-  { key: 'category', label: t('usage.errors.category') },
   { key: 'status', label: t('admin.ops.errorLog.status') },
   { key: 'message', label: t('admin.ops.errorLog.message') },
-  { key: 'created_at', label: t('admin.ops.errorLog.time') },
-  { key: 'user_agent', label: t('usage.userAgent') },
-  { key: 'client_ip', label: t('admin.ops.errorLog.ip') },
+  { key: 'category', label: t('usage.errors.category') },
+  { key: 'group', label: t('admin.ops.errorLog.group') },
+  { key: 'type', label: t('admin.ops.errorLog.type') },
+  { key: 'platform', label: t('admin.ops.errorLog.platform') },
+  { key: 'endpoint', label: t('admin.ops.errorLog.endpoint') },
   { key: 'actions', label: t('admin.ops.errorLog.action') },
+  { key: 'client_ip', label: t('admin.ops.errorLog.ip') },
+  { key: 'user_agent', label: t('usage.userAgent') },
 ])
 
-const errHiddenColumns = reactive<Set<string>>(new Set())
+const {
+  columns: errColumns,
+  orderedColumns: errOrderedColumns,
+  hiddenColumns: errHiddenColumns,
+  toggleColumn: toggleErrColumn,
+  setColumnOrder: setErrColumnOrder,
+  resetColumns: resetErrColumns,
+} = useTableColumns('table-columns:admin-errors:v1', errAllColumns, { required: ERR_ALWAYS_VISIBLE })
 
-const errToggleableColumns = computed(() =>
-  errAllColumns.value.filter(col => !ERR_ALWAYS_VISIBLE.includes(col.key))
-)
-
-const errVisibleColumnKeys = computed(() =>
-  errAllColumns.value
-    .filter(col => ERR_ALWAYS_VISIBLE.includes(col.key) || !errHiddenColumns.has(col.key))
-    .map(col => col.key)
-)
-
-const toggleErrColumn = (key: string) => {
-  if (errHiddenColumns.has(key)) {
-    errHiddenColumns.delete(key)
-  } else {
-    errHiddenColumns.add(key)
-  }
-  try {
-    localStorage.setItem(ERR_HIDDEN_COLUMNS_KEY, JSON.stringify([...errHiddenColumns]))
-  } catch (e) {
-    console.error('Failed to save error columns:', e)
-  }
-}
-
-const loadSavedErrColumns = () => {
-  try {
-    const saved = localStorage.getItem(ERR_HIDDEN_COLUMNS_KEY)
-    const keys = saved ? (JSON.parse(saved) as string[]) : ERR_DEFAULT_HIDDEN_COLUMNS
-    keys.forEach((key) => errHiddenColumns.add(key))
-  } catch {
-    ERR_DEFAULT_HIDDEN_COLUMNS.forEach((key) => errHiddenColumns.add(key))
-  }
-}
-
-// 列设置下拉按当前 tab 分发
-const currentToggleableColumns = computed(() =>
-  activeTab.value === 'errors' ? errToggleableColumns.value : toggleableColumns.value
-)
-const isCurrentColumnVisible = (key: string) =>
-  activeTab.value === 'errors' ? !errHiddenColumns.has(key) : isColumnVisible(key)
+const errVisibleColumnKeys = computed(() => errColumns.value.map(column => column.key))
 const toggleCurrentColumn = (key: string) =>
   activeTab.value === 'errors' ? toggleErrColumn(key) : toggleColumn(key)
-
-const loadSavedColumns = () => {
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    if (saved) {
-      (JSON.parse(saved) as string[]).forEach((key) => {
-        hiddenColumns.add(key)
-      })
-      const savedVersion = localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY)
-      if (savedVersion !== HIDDEN_COLUMNS_CURRENT_VERSION) {
-        if (savedVersion !== HIDDEN_COLUMNS_PREV_VERSION) {
-          hiddenColumns.add('request_id')
-        }
-        hiddenColumns.add('upstream_request_id')
-        localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-        localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
-      }
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
-        hiddenColumns.add(key)
-      })
-      localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
-    }
-  } catch {
-    DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
-      hiddenColumns.add(key)
-    })
-  }
-}
+const setCurrentColumnOrder = (keys: string[]) =>
+  activeTab.value === 'errors' ? setErrColumnOrder(keys) : setColumnOrder(keys)
+const resetCurrentColumns = () =>
+  activeTab.value === 'errors' ? resetErrColumns() : resetColumns()
 
 // Detail tabs
 type DetailTab = 'usage' | 'errors' | 'ranking'
@@ -867,15 +759,6 @@ const onErrPage = (p: number) => { errPage.value = p; loadAdminErrors() }
 const onErrPageSize = (s: number) => { errPageSize.value = s; errPage.value = 1; loadAdminErrors() }
 const openError = (id: number) => { selectedErrorId.value = id; showErrorModal.value = true }
 
-const showColumnDropdown = ref(false)
-const columnDropdownRef = ref<HTMLElement | null>(null)
-
-const handleColumnClickOutside = (event: MouseEvent) => {
-  if (columnDropdownRef.value && !columnDropdownRef.value.contains(event.target as HTMLElement)) {
-    showColumnDropdown.value = false
-  }
-}
-
 watch(() => [route.query.user_id, route.query.account_id, route.query.start_date, route.query.end_date], () => {
   applyRouteQueryFilters()
   void loadRouteUserFilterLabel()
@@ -890,11 +773,8 @@ onMounted(() => {
   window.setTimeout(() => {
     void loadChartData()
   }, 120)
-  loadSavedColumns()
-  loadSavedErrColumns()
-  document.addEventListener('click', handleColumnClickOutside)
 })
-onUnmounted(() => { abortController?.abort(); exportAbortController?.abort(); document.removeEventListener('click', handleColumnClickOutside) })
+onUnmounted(() => { abortController?.abort(); exportAbortController?.abort() })
 
 watch(modelDistributionSource, (source) => {
   void loadModelStats(source)

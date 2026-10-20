@@ -102,7 +102,7 @@
           <MihomoSettings v-else :section="activeManagementTab" @static-proxies-added="loadProxies" />
         </div>
         <div v-show="activeManagementTab === 'proxies'" ref="proxyTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <DataTable
+        <DataTable column-order-key="table-columns:proxies:v1"
           :columns="columns"
           :data="proxies"
           :loading="loading"
@@ -973,15 +973,15 @@ const { copyToClipboard } = useClipboard()
 const columns = computed<Column[]>(() => [
   { key: 'select', label: '', sortable: false },
   { key: 'name', label: t('admin.proxies.columns.name'), sortable: true },
-  { key: 'protocol', label: t('admin.proxies.columns.protocol'), sortable: true },
-  { key: 'address', label: t('admin.proxies.columns.address'), sortable: false },
-  { key: 'auth', label: t('admin.proxies.columns.auth'), sortable: false },
+  { key: 'status', label: t('admin.proxies.columns.status'), sortable: true },
+  { key: 'latency', label: t('admin.proxies.columns.latency'), sortable: false },
   { key: 'location', label: t('admin.proxies.columns.location'), sortable: false },
   { key: 'account_count', label: t('admin.proxies.columns.accounts'), sortable: true },
-  { key: 'latency', label: t('admin.proxies.columns.latency'), sortable: false },
+  { key: 'address', label: t('admin.proxies.columns.address'), sortable: false },
+  { key: 'protocol', label: t('admin.proxies.columns.protocol'), sortable: true },
   { key: 'expiry', label: t('admin.proxies.columns.expiry'), sortable: true },
+  { key: 'auth', label: t('admin.proxies.columns.auth'), sortable: false },
   { key: 'created_at', label: t('admin.proxies.columns.createdAt'), sortable: true },
-  { key: 'status', label: t('admin.proxies.columns.status'), sortable: true },
   { key: 'actions', label: t('admin.proxies.columns.actions'), sortable: false }
 ])
 

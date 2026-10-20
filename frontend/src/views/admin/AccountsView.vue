@@ -18,6 +18,14 @@
             @create="showCreate = true"
           >
             <template #after>
+              <ColumnSettings
+                :columns="orderedColumns.filter(column => column.key !== 'select')"
+                :hidden-columns="hiddenColumns"
+                :required-columns="['name', 'actions']"
+                @toggle="toggleColumn"
+                @reorder="setColumnOrder"
+                @reset="resetColumns"
+              />
               <!-- Auto Refresh Dropdown -->
               <div class="relative" ref="autoRefreshDropdownRef">
                 <button
@@ -134,27 +142,6 @@
                         </span>
                         <span class="flex-1 text-left">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
                       </button>
-
-                      <div class="my-2 border-t border-gray-100 dark:border-dark-700"></div>
-                      <div class="px-2 py-2">
-                        <div class="flex items-center justify-between gap-3">
-                          <span class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                            {{ t('admin.accounts.viewColumns') }}
-                          </span>
-                          <Icon name="grid" size="sm" class="text-gray-400" />
-                        </div>
-                      </div>
-                      <div class="grid grid-cols-1 gap-1">
-                        <button
-                          v-for="col in toggleableColumns"
-                          :key="col.key"
-                          @click="toggleColumn(col.key)"
-                          class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-700"
-                        >
-                          <span class="truncate">{{ col.label }}</span>
-                          <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
-                        </button>
-                      </div>
                     </div>
                   </div>
                 </Teleport>
@@ -196,6 +183,7 @@
         <DataTable
           ref="dataTableRef"
           :columns="cols"
+          @column-reorder="setColumnOrder"
           :data="accounts"
           :loading="loading"
           row-key="id"
@@ -508,6 +496,7 @@ import { adminAPI } from '@/api/admin'
 import { useGatewayBorrowRuntime } from '@/composables/useGatewayBorrowRuntime'
 import { requiredBorrowModels } from '@/utils/gatewayBorrowStatus'
 import { useTableLoader } from '@/composables/useTableLoader'
+import { useTableColumns } from '@/composables/useTableColumns'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
@@ -515,6 +504,7 @@ import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -680,12 +670,35 @@ const accountToolsDropdownStyle = computed(() => ({
   left: `${accountToolsDropdownPosition.left}px`,
   width: `${accountToolsDropdownPosition.width}px`
 }))
-const hiddenColumns = reactive<Set<string>>(new Set())
-const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'proxy', 'notes', 'scheduler_score', 'rate_multiplier']
-const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
-// One-time migration: hide scheduler score for existing admins too, because showing it opt-ins to heavy backend scoring.
-const HIDDEN_COLUMNS_VERSION_KEY = 'account-hidden-columns-version'
-const HIDDEN_COLUMNS_CURRENT_VERSION = 'scheduler-score-hidden-by-default'
+const allColumns = computed(() => [
+  { key: 'select', label: '', sortable: false },
+  { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
+  { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
+  { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
+  { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false },
+  { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false },
+  { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
+  { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false },
+  { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
+  { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
+  { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
+  { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore'), sortable: false },
+  { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
+  { key: 'upstream_billing_rate', label: t('admin.accounts.columns.upstreamBillingRate'), sortable: true },
+  { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true },
+  { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true },
+  { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
+  { key: 'id', label: t('admin.accounts.columns.id'), sortable: true },
+  { key: 'created_at', label: t('admin.accounts.columns.createdAt'), sortable: true },
+  { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false }
+].filter(column => column.key !== 'groups' || !authStore.isSimpleMode))
+
+const {
+  columns: cols, orderedColumns, hiddenColumns, isColumnVisible, toggleColumn, setColumnOrder, resetColumns
+} = useTableColumns('table-columns:accounts:v1', allColumns, {
+  required: ['select', 'name', 'actions'],
+  fixed: ['select']
+})
 
 // Sorting settings
 const ACCOUNT_SORT_STORAGE_KEY = 'account-table-sort'
@@ -990,43 +1003,6 @@ const formatSchedulerScoreGroup = (score: AccountSchedulerGroupScore): string =>
   return t('admin.accounts.schedulerScore.ungrouped')
 }
 
-const loadSavedColumns = () => {
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved) as string[]
-      parsed.forEach(key => {
-        hiddenColumns.add(key)
-      })
-      // Older saved column layouts may have scheduler_score visible; migrate them to the new safe default once.
-      if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_CURRENT_VERSION) {
-        hiddenColumns.add('scheduler_score')
-        localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-        localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
-      }
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach(key => {
-        hiddenColumns.add(key)
-      })
-      localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
-    }
-  } catch (e) {
-    console.error('Failed to load saved columns:', e)
-    DEFAULT_HIDDEN_COLUMNS.forEach(key => {
-      hiddenColumns.add(key)
-    })
-  }
-}
-
-const saveColumnsToStorage = () => {
-  try {
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-    localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
-  } catch (e) {
-    console.error('Failed to save columns:', e)
-  }
-}
-
 const loadSavedAutoRefresh = () => {
   try {
     const saved = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY)
@@ -1057,7 +1033,6 @@ const saveAutoRefreshToStorage = () => {
 }
 
 if (typeof window !== 'undefined') {
-  loadSavedColumns()
   loadSavedAutoRefresh()
 }
 
@@ -1081,29 +1056,21 @@ const setAutoRefreshInterval = (seconds: (typeof autoRefreshIntervals)[number]) 
   }
 }
 
-const toggleColumn = (key: string) => {
-  const wasHidden = hiddenColumns.has(key)
-  if (hiddenColumns.has(key)) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  saveColumnsToStorage()
-  if ((key === 'today_stats' || key === 'usage') && wasHidden) {
+watch(() => [isColumnVisible('usage'), isColumnVisible('today_stats')], (visible, previous) => {
+  if (visible.some((shown, index) => shown && !previous[index])) {
     refreshTodayStatsBatch().catch((error) => {
       console.error('Failed to load account today stats after showing column:', error)
     })
   }
-  if (key === 'scheduler_score') {
-    // The server only returns scheduler scores when this column is visible, so reload the current page immediately.
-    syncAccountListDerivedParams()
-    load().catch((error) => {
-      console.error('Failed to reload accounts after toggling scheduler score column:', error)
-    })
-  }
-}
+})
 
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
+watch(() => isColumnVisible('scheduler_score'), () => {
+  syncAccountListDerivedParams()
+  load().catch((error) => {
+    console.error('Failed to reload accounts after changing scheduler score visibility:', error)
+  })
+})
+
 const shouldIncludeSchedulerScore = () => isColumnVisible('scheduler_score')
 const syncAccountListDerivedParams = () => {
   // Keep every load path, including auto-refresh and sorting, aligned with the current column visibility.
@@ -1850,49 +1817,6 @@ function getAntigravityTierClass(row: any): string {
     default: return ''
   }
 }
-
-// All available columns
-const allColumns = computed(() => {
-  const c = [
-    { key: 'select', label: '', sortable: false },
-    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
-    { key: 'id', label: t('admin.accounts.columns.id'), sortable: true },
-    { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
-    { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
-    { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
-    { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
-    { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
-  ]
-  if (!authStore.isSimpleMode) {
-    c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false })
-  }
-  c.push({ key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false })
-  c.push(
-    { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
-    { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
-    { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore'), sortable: false },
-    { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
-    { key: 'upstream_billing_rate', label: t('admin.accounts.columns.upstreamBillingRate'), sortable: true },
-    { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true },
-    { key: 'created_at', label: t('admin.accounts.columns.createdAt'), sortable: true },
-    { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true },
-    { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
-    { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false }
-  )
-  return c
-})
-
-// Columns that can be toggled (exclude select, name, and actions)
-const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => col.key !== 'select' && col.key !== 'name' && col.key !== 'actions')
-)
-
-// Filtered columns based on visibility
-const cols = computed(() =>
-  allColumns.value.filter(col =>
-    col.key === 'select' || col.key === 'name' || col.key === 'actions' || !hiddenColumns.has(col.key)
-  )
-)
 
 const accountDetailLoading = new Set<number>()
 const loadAccountDetails = async (account: Pick<AccountListItem, 'id'>): Promise<Account | null> => {

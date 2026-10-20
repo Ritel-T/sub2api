@@ -102,57 +102,22 @@
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
-            <!-- Column Settings Dropdown -->
-            <div class="relative" ref="columnDropdownRef">
-              <button
-                @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary px-2 md:px-3"
-                :title="t('admin.users.columnSettings')"
-              >
-                <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-                </svg>
-                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
-              </button>
-              <!-- Dropdown menu -->
-              <div
-                v-if="showColumnDropdown"
-                class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
-              >
-                <div class="p-2">
-                  <!-- User column mode selection -->
-                  <div class="mb-2 border-b border-gray-200 pb-2 dark:border-dark-700">
-                    <div class="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                      {{ t('admin.subscriptions.columns.user') }}
-                    </div>
-                    <button
-                      @click="setUserColumnMode('email')"
-                      class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-700"
-                    >
-                      <span>{{ t('admin.users.columns.email') }}</span>
-                      <Icon v-if="userColumnMode === 'email'" name="check" size="sm" class="text-primary-500" />
-                    </button>
-                    <button
-                      @click="setUserColumnMode('username')"
-                      class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-700"
-                    >
-                      <span>{{ t('admin.users.columns.username') }}</span>
-                      <Icon v-if="userColumnMode === 'username'" name="check" size="sm" class="text-primary-500" />
-                    </button>
-                  </div>
-                  <!-- Other columns toggle -->
-                  <button
-                    v-for="col in toggleableColumns"
-                    :key="col.key"
-                    @click="toggleColumn(col.key)"
-                    class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-700"
-                  >
-                    <span>{{ col.label }}</span>
-                    <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
-                  </button>
-                </div>
-              </div>
+            <div class="w-36">
+              <Select
+                :model-value="userColumnMode"
+                :options="userColumnModeOptions"
+                :aria-label="t('admin.subscriptions.columns.user')"
+                @update:model-value="setUserColumnMode"
+              />
             </div>
+            <ColumnSettings
+              :columns="orderedColumns"
+              :hidden-columns="hiddenColumns"
+              :required-columns="['user', 'actions']"
+              @toggle="toggleColumn"
+              @reorder="setColumnOrder"
+              @reset="resetColumns"
+            />
             <button
               @click="showGuideModal = true"
               class="btn btn-secondary"
@@ -207,6 +172,7 @@
           :server-side-sort="true"
           default-sort-key="created_at"
           default-sort-order="desc"
+          @column-reorder="setColumnOrder"
           @sort="handleSort"
           @update:selected-keys="handleSelectedKeysUpdate"
         >
@@ -852,6 +818,8 @@ import type { AdminUser, UserSubscription, Group, GroupPlatform, SubscriptionTyp
 import type { SimpleUser } from '@/api/admin/usage'
 import type { SubscriptionBulkAction, SubscriptionBulkActionResult, BulkAssignSubscriptionResult } from '@/api/admin/subscriptions'
 import { useTableSelection } from '@/composables/useTableSelection'
+import { useTableColumns } from '@/composables/useTableColumns'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import BulkSubscriptionActionDialog from '@/components/admin/subscription/BulkSubscriptionActionDialog.vue'
 import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
@@ -921,7 +889,13 @@ const saveUserColumnMode = () => {
   }
 }
 
-const setUserColumnMode = (mode: 'email' | 'username') => {
+const userColumnModeOptions = computed(() => [
+  { value: 'email', label: t('admin.users.columns.email') },
+  { value: 'username', label: t('admin.users.columns.username') }
+])
+
+const setUserColumnMode = (mode: unknown) => {
+  if (mode !== 'email' && mode !== 'username') return
   userColumnMode.value = mode
   saveUserColumnMode()
 }
@@ -935,75 +909,16 @@ const allColumns = computed<Column[]>(() => [
       : t('admin.users.columns.username'),
     sortable: false
   },
-  { key: 'group', label: t('admin.subscriptions.columns.group'), sortable: false },
+  { key: 'status', label: t('admin.subscriptions.columns.status'), sortable: true },
   { key: 'usage', label: t('admin.subscriptions.columns.usage'), sortable: false },
   { key: 'expires_at', label: t('admin.subscriptions.columns.expires'), sortable: true },
-  { key: 'status', label: t('admin.subscriptions.columns.status'), sortable: true },
+  { key: 'group', label: t('admin.subscriptions.columns.group'), sortable: false },
   { key: 'actions', label: t('admin.subscriptions.columns.actions'), sortable: false }
 ])
 
-// Columns that can be toggled (exclude user and actions which are always visible)
-const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => col.key !== 'user' && col.key !== 'actions')
-)
-
-// Hidden columns set
-const hiddenColumns = reactive<Set<string>>(new Set())
-
-// Default hidden columns
-const DEFAULT_HIDDEN_COLUMNS: string[] = []
-
-// localStorage key
-const HIDDEN_COLUMNS_KEY = 'subscription-hidden-columns'
-
-// Load saved column settings
-const loadSavedColumns = () => {
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved) as string[]
-      parsed.forEach(key => hiddenColumns.add(key))
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
-    }
-  } catch (e) {
-    console.error('Failed to load saved columns:', e)
-    DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
-  }
-}
-
-// Save column settings to localStorage
-const saveColumnsToStorage = () => {
-  try {
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-  } catch (e) {
-    console.error('Failed to save columns:', e)
-  }
-}
-
-// Toggle column visibility
-const toggleColumn = (key: string) => {
-  if (hiddenColumns.has(key)) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  saveColumnsToStorage()
-}
-
-// Check if column is visible
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
-
-// Filtered columns for display
-const columns = computed<Column[]>(() =>
-  allColumns.value.filter(col =>
-    col.key === 'user' || col.key === 'actions' || !hiddenColumns.has(col.key)
-  )
-)
-
-// Column dropdown state
-const showColumnDropdown = ref(false)
-const columnDropdownRef = ref<HTMLElement | null>(null)
+const {
+  columns, orderedColumns, hiddenColumns, toggleColumn, setColumnOrder, resetColumns
+} = useTableColumns('table-columns:subscriptions:v1', allColumns, { required: ['user', 'actions'] })
 
 // Filter options
 const statusOptions = computed(() => [
@@ -1607,9 +1522,6 @@ const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement
   if (!target.closest('[data-assign-user-search]')) showUserDropdown.value = false
   if (!target.closest('[data-filter-user-search]')) showFilterUserDropdown.value = false
-  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
-    showColumnDropdown.value = false
-  }
 }
 
 async function applyObjectContext() {
@@ -1631,7 +1543,6 @@ watch(contextUserId, async () => { await applyObjectContext(); applyFilters() })
 onMounted(() => {
   void applyObjectContext()
   loadUserColumnMode()
-  loadSavedColumns()
   loadSubscriptions()
   loadGroups()
   document.addEventListener('click', handleClickOutside)

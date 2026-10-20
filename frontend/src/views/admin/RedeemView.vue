@@ -56,7 +56,7 @@
       </template>
 
       <template #table>
-        <DataTable
+        <DataTable column-order-key="table-columns:redeem-codes:v1"
           :columns="columns"
           :data="codes"
           :loading="loading"
@@ -730,9 +730,9 @@ const downloadGeneratedCodes = () => {
 const columns = computed<Column[]>(() => [
   { key: 'select', label: '' },
   { key: 'code', label: t('admin.redeem.columns.code') },
+  { key: 'status', label: t('admin.redeem.columns.status'), sortable: true },
   { key: 'type', label: t('admin.redeem.columns.type'), sortable: true },
   { key: 'value', label: t('admin.redeem.columns.value'), sortable: true },
-  { key: 'status', label: t('admin.redeem.columns.status'), sortable: true },
   { key: 'used_by', label: t('admin.redeem.columns.usedBy') },
   { key: 'used_at', label: t('admin.redeem.columns.usedAt'), sortable: true },
   { key: 'expires_at', label: t('admin.redeem.columns.expiresAt'), sortable: true },

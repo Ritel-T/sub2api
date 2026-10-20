@@ -42,7 +42,7 @@
       </div>
     </div>
 
-    <DataTable :columns="columns" :data="orders" :loading="loading">
+    <DataTable column-order-key="table-columns:admin-orders:v1" :columns="columns" :data="orders" :loading="loading">
       <template #cell-id="{ value }">
         <span class="font-mono text-sm">#{{ value }}</span>
       </template>
@@ -196,13 +196,13 @@ function emitFiltersChanged() {
 
 const columns = computed<Column[]>(() => [
   { key: 'id', label: t('payment.orders.orderId') },
-  { key: 'user_id', label: t('payment.orders.userId') },
-  { key: 'pay_amount', label: t('payment.orders.payAmount') },
-  { key: 'payment_type', label: t('payment.orders.paymentMethod') },
   { key: 'status', label: t('payment.orders.status') },
+  { key: 'pay_amount', label: t('payment.orders.payAmount') },
+  { key: 'user_id', label: t('payment.orders.userId') },
   { key: 'order_type', label: t('payment.orders.orderType') },
+  { key: 'payment_type', label: t('payment.orders.paymentMethod') },
   { key: 'created_at', label: t('payment.orders.createdAt') },
-  { key: 'actions', label: t('payment.orders.actions') },
+  { key: 'actions', label: t('payment.orders.actions') }
 ])
 
 const statusFilterOptions = computed(() => [

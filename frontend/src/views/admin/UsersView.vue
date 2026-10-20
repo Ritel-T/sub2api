@@ -191,47 +191,14 @@
                   </button>
                 </div>
               </div>
-              <!-- Column Settings Dropdown -->
-              <div class="relative" ref="columnDropdownRef">
-                <button
-                  @click="showColumnDropdown = !showColumnDropdown"
-                  class="btn btn-secondary px-2 md:px-3"
-                  :title="t('admin.users.columnSettings')"
-                >
-                  <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-                  </svg>
-                  <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
-                </button>
-                <!-- Dropdown menu -->
-                <div
-                  v-if="showColumnDropdown"
-                  class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-                >
-                  <button
-                    v-for="col in toggleableColumns"
-                    :key="col.key"
-                    :disabled="isForcedVisibleColumn(col.key)"
-                    @click="toggleColumn(col.key)"
-                    :class="[
-                      'flex w-full items-center justify-between px-4 py-2 text-left text-sm',
-                      isForcedVisibleColumn(col.key)
-                        ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
-                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700'
-                    ]"
-                    :title="isForcedVisibleColumn(col.key) ? t('admin.users.columnAlwaysVisible') : ''"
-                  >
-                    <span>{{ col.label }}</span>
-                    <Icon
-                      v-if="isColumnVisible(col.key)"
-                      name="check"
-                      size="sm"
-                      :class="isForcedVisibleColumn(col.key) ? 'text-gray-400 dark:text-gray-500' : 'text-primary-500'"
-                      :stroke-width="2"
-                    />
-                  </button>
-                </div>
-              </div>
+              <ColumnSettings
+                :columns="orderedColumns"
+                :hidden-columns="hiddenColumns"
+                :required-columns="['email', 'actions']"
+                @toggle="toggleColumn"
+                @reorder="setColumnOrder"
+                @reset="resetColumns"
+              />
               <!-- Attributes Config Button -->
               <button
                 @click="showAttributesModal = true"
@@ -288,6 +255,7 @@
           default-sort-key="created_at"
           default-sort-order="desc"
           :sort-storage-key="USER_SORT_STORAGE_KEY"
+          @column-reorder="setColumnOrder"
           @sort="handleSort"
           @update:selected-keys="handleSelectedKeysUpdate"
         >
@@ -799,6 +767,8 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useTableSelection } from '@/composables/useTableSelection'
+import { useTableColumns } from '@/composables/useTableColumns'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import { formatDateTime } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
 import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
@@ -835,6 +805,7 @@ import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryM
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 
 const appStore = useAppStore()
+const attributeDefinitions = ref<UserAttributeDefinition[]>([])
 
 // Generate dynamic attribute columns from enabled definitions
 const attributeColumns = computed<Column[]>(() =>
@@ -882,137 +853,51 @@ const getAttributeValue = (userId: number, attrId: number): string => {
   return value
 }
 
-// All possible columns (for column settings)
 const allColumns = computed<Column[]>(() => [
   { key: 'email', label: t('admin.users.columns.user'), sortable: true },
-  { key: 'id', label: t('admin.users.columns.id'), sortable: true },
   { key: 'username', label: t('admin.users.columns.username'), sortable: true },
-  { key: 'notes', label: t('admin.users.columns.notes'), sortable: false },
-  // Dynamic attribute columns
-  ...attributeColumns.value,
-  { key: 'role', label: t('admin.users.columns.role'), sortable: true },
-  { key: 'groups', label: t('admin.users.columns.groups'), sortable: false },
-  { key: 'subscriptions', label: t('admin.users.columns.subscriptions'), sortable: false },
+  { key: 'status', label: t('admin.users.columns.status'), sortable: true },
   { key: 'balance', label: t('admin.users.columns.balance'), sortable: true },
-  { key: 'balance_platform_quota', label: t('admin.users.columns.balancePlatformQuota'), sortable: false },
   { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
+  { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
+  { key: 'subscriptions', label: t('admin.users.columns.subscriptions'), sortable: false },
+  { key: 'groups', label: t('admin.users.columns.groups'), sortable: false },
+  { key: 'role', label: t('admin.users.columns.role'), sortable: true },
+  { key: 'last_used_at', label: t('admin.users.columns.lastUsed'), sortable: true },
+  { key: 'last_active_at', label: t('admin.users.columns.lastActive'), sortable: true },
+  { key: 'balance_platform_quota', label: t('admin.users.columns.balancePlatformQuota'), sortable: false },
   { key: 'usage_anthropic', label: t('admin.users.columns.usageAnthropic'), sortable: false },
   { key: 'usage_openai', label: t('admin.users.columns.usageOpenAI'), sortable: false },
   { key: 'usage_gemini', label: t('admin.users.columns.usageGemini'), sortable: false },
   { key: 'usage_antigravity', label: t('admin.users.columns.usageAntigravity'), sortable: false },
-  { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
-  { key: 'status', label: t('admin.users.columns.status'), sortable: true },
-  { key: 'last_active_at', label: t('admin.users.columns.lastActive'), sortable: true },
-  { key: 'last_used_at', label: t('admin.users.columns.lastUsed'), sortable: true },
+  { key: 'notes', label: t('admin.users.columns.notes'), sortable: false },
+  ...attributeColumns.value,
+  { key: 'id', label: t('admin.users.columns.id'), sortable: true },
   { key: 'created_at', label: t('admin.users.columns.created'), sortable: true },
   { key: 'actions', label: t('admin.users.columns.actions'), sortable: false }
 ])
 
-// Columns that can be toggled (exclude email and actions which are always visible)
-const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => col.key !== 'email' && col.key !== 'actions')
-)
+const {
+  columns, orderedColumns, hiddenColumns, toggleColumn: toggleColumnPreference,
+  setColumnOrder, resetColumns: resetColumnPreferences
+} = useTableColumns('table-columns:users:v1', allColumns, { required: ['email', 'actions'] })
 
-// Hidden columns (stored in Set - columns NOT in this set are visible)
-// This way, new columns are visible by default
-const hiddenColumns = reactive<Set<string>>(new Set())
-
-// Default hidden columns (columns hidden by default on first load)
-const DEFAULT_HIDDEN_COLUMNS = [
-  'notes', 'groups', 'subscriptions', 'usage', 'concurrency',
-  'usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity',
-  'balance_platform_quota'
-]
-const REMOVED_COLUMNS = new Set(['last_login_at'])
-// 强制可见列：加载时会被强制移出 hiddenColumns，并在列设置 UI 上 disabled。
-// 当前没有列需要强制可见 —— last_active_at 已改为可被用户隐藏。
-const FORCED_VISIBLE_COLUMNS = new Set<string>()
-
-// localStorage keys for column settings
-const HIDDEN_COLUMNS_KEY = 'user-hidden-columns'
-// 列设置 schema 版本号。每次给 DEFAULT_HIDDEN_COLUMNS 新增列时 bump 一次，
-// 并在 VERSION_NEW_HIDDEN_COLUMNS 中登记该版本新增的 key。
-// 这样老用户升级后这些新列会被自动隐藏一次，而不会影响他们对其它老列的偏好。
-const COLUMN_SETTINGS_VERSION_KEY = 'user-column-settings-version'
-const COLUMN_SETTINGS_VERSION = 3
-const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
-  2: ['usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity'],
-  3: ['balance_platform_quota']
-}
-
-// Load saved column settings
-const loadSavedColumns = () => {
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved) as string[]
-      parsed
-        .filter(key => !REMOVED_COLUMNS.has(key) && !FORCED_VISIBLE_COLUMNS.has(key))
-        .forEach(key => hiddenColumns.add(key))
-
-      // 老用户升级：把每个未应用过的版本里新增的默认隐藏列自动追加到 hiddenColumns。
-      const storedVersion = Number(localStorage.getItem(COLUMN_SETTINGS_VERSION_KEY) ?? '1')
-      if (storedVersion < COLUMN_SETTINGS_VERSION) {
-        let mutated = false
-        for (let v = storedVersion + 1; v <= COLUMN_SETTINGS_VERSION; v++) {
-          for (const key of VERSION_NEW_HIDDEN_COLUMNS[v] ?? []) {
-            if (REMOVED_COLUMNS.has(key) || FORCED_VISIBLE_COLUMNS.has(key)) continue
-            if (!hiddenColumns.has(key)) {
-              hiddenColumns.add(key)
-              mutated = true
-            }
-          }
-        }
-        if (mutated) saveColumnsToStorage()
-        else localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-      }
-    } else {
-      // Use default hidden columns on first load
-      DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
-      localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-    }
-  } catch (e) {
-    console.error('Failed to load saved columns:', e)
-    DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
-  }
-}
-
-// Save column settings to localStorage
-const saveColumnsToStorage = () => {
-  try {
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-  } catch (e) {
-    console.error('Failed to save columns:', e)
-  }
-}
-
-// Toggle column visibility
-const isForcedVisibleColumn = (key: string) => FORCED_VISIBLE_COLUMNS.has(key)
 const toggleColumn = (key: string) => {
-  // 强制可见列(如 last_active_at)在加载时会被恢复成可见，
-  // 这里阻止用户在当前会话隐藏它，避免"取消勾选 → 刷新又恢复"的反直觉行为。
-  if (FORCED_VISIBLE_COLUMNS.has(key)) return
   const wasHidden = hiddenColumns.has(key)
-  if (hiddenColumns.has(key)) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  saveColumnsToStorage()
+  toggleColumnPreference(key)
   if (wasHidden && (key === 'usage' || key.startsWith('usage_') || key.startsWith('attr_') || key === 'balance_platform_quota')) {
     refreshCurrentPageSecondaryData()
   }
-  if (key === 'subscriptions') {
-    loadUsers()
-  }
-  if (wasHidden && key === 'groups') {
-    loadAllGroups()
-  }
+  if (wasHidden && key === 'groups') loadAllGroups()
 }
 
-// Check if column is visible (not in hidden set)
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
+const resetColumns = () => {
+  const reloadGroups = hiddenColumns.has('groups')
+  resetColumnPreferences()
+  refreshCurrentPageSecondaryData()
+  if (reloadGroups) loadAllGroups()
+}
+
 // usage 主列或任意 usage_<platform> 子列可见时都需要批量拉取用量数据
 // 列 key → 平台名（'usage' 主列汇总所有平台时为 null）
 // 显式数组取代 Object.keys()：保证迭代顺序（决定列头排序按钮渲染顺序）
@@ -1033,13 +918,6 @@ const hasVisibleGroupsColumn = computed(() => !hiddenColumns.has('groups'))
 const hasVisiblePlatformQuotaColumn = computed(() => !hiddenColumns.has('balance_platform_quota'))
 const hasVisibleAttributeColumns = computed(() =>
   attributeDefinitions.value.some((def) => def.enabled && !hiddenColumns.has(`attr_${def.id}`))
-)
-
-// Filtered columns based on visibility
-const columns = computed<Column[]>(() =>
-  allColumns.value.filter(col =>
-    col.key === 'email' || col.key === 'actions' || !hiddenColumns.has(col.key)
-  )
 )
 
 const users = ref<AdminUser[]>([])
@@ -1143,11 +1021,9 @@ const visibleFilters = reactive<Set<string>>(new Set())
 
 // Dropdown states
 const showFilterDropdown = ref(false)
-const showColumnDropdown = ref(false)
 
 // Dropdown refs for click outside detection
 const filterDropdownRef = ref<HTMLElement | null>(null)
-const columnDropdownRef = ref<HTMLElement | null>(null)
 
 // localStorage keys
 const FILTER_VALUES_KEY = 'user-filter-values'
@@ -1332,8 +1208,7 @@ const handleSelectedKeysUpdate = (keys: Array<string | number>) => {
 const getUserSelectionLabel = (user: AdminUser) =>
   t('admin.users.bulkLimits.selectUser', { email: user.email })
 
-// User attribute definitions and values
-const attributeDefinitions = ref<UserAttributeDefinition[]>([])
+// User attribute values
 const userAttributeValues = ref<Record<number, Record<number, string>>>({})
 const pagination = reactive({
   page: 1,
@@ -1523,10 +1398,6 @@ const handleClickOutside = (event: MouseEvent) => {
   // Close filter dropdown when clicking outside
   if (filterDropdownRef.value && !filterDropdownRef.value.contains(target)) {
     showFilterDropdown.value = false
-  }
-  // Close column dropdown when clicking outside
-  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
-    showColumnDropdown.value = false
   }
   // Close usage sort dropdown when clicking outside any usage-sort-trigger
   if (openUsageSortMenu.value !== null && !target.closest('.usage-sort-trigger')) {
@@ -1894,7 +1765,6 @@ const handleScroll = () => {
 onMounted(async () => {
   await loadAttributeDefinitions()
   loadSavedFilters()
-  loadSavedColumns()
   loadUsers()
   if (hasVisibleGroupsColumn.value || visibleFilters.has('group')) {
     loadAllGroups()

@@ -95,7 +95,7 @@
       </template>
 
       <template #table>
-        <DataTable :columns="columns" :data="monitors" :loading="loading">
+        <DataTable column-order-key="table-columns:channel-monitors:v1" :columns="columns" :data="monitors" :loading="loading">
           <template #cell-name="{ row, value }">
             <div class="flex items-center gap-1.5">
               <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
@@ -302,12 +302,12 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const columns = computed<Column[]>(() => [
   { key: 'name', label: t('admin.channelMonitor.columns.name'), sortable: false },
-  { key: 'provider', label: t('admin.channelMonitor.columns.provider'), sortable: false },
-  { key: 'primary_model', label: t('admin.channelMonitor.columns.primaryModel'), sortable: false },
+  { key: 'enabled', label: t('admin.channelMonitor.columns.enabled'), sortable: false },
   { key: 'availability_7d', label: t('admin.channelMonitor.columns.availability7d'), sortable: false },
   { key: 'latency', label: t('admin.channelMonitor.columns.latency'), sortable: false },
-  { key: 'enabled', label: t('admin.channelMonitor.columns.enabled'), sortable: false },
-  { key: 'actions', label: t('admin.channelMonitor.columns.actions'), sortable: false },
+  { key: 'provider', label: t('admin.channelMonitor.columns.provider'), sortable: false },
+  { key: 'primary_model', label: t('admin.channelMonitor.columns.primaryModel'), sortable: false },
+  { key: 'actions', label: t('admin.channelMonitor.columns.actions'), sortable: false }
 ])
 
 const deleteConfirmMessage = computed(() => {

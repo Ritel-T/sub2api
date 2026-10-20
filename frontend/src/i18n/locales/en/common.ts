@@ -1,5 +1,10 @@
 export default {
   common: {
+    columnSettings: 'Columns',
+    resetColumns: 'Reset columns',
+    moveColumn: 'Move {column}',
+    columnKeyboard: 'Use arrow keys to move this column. Home and End move to the first and last position.',
+
     loading: 'Loading...',
     submitting: 'Submitting...',
     justNow: 'just now',

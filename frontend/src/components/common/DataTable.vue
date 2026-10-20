@@ -1,4 +1,8 @@
 <template>
+  <div v-if="columnOrderKey" class="flex shrink-0 justify-end pb-2">
+    <ColumnSettings :columns="localOrderedColumns" :hidden-columns="localHiddenColumns"
+      :required-columns="requiredColumnKeys" @toggle="toggleLocalColumn" @reorder="setLocalColumnOrder" @reset="resetLocalColumns" />
+  </div>
   <div v-if="!isDesktopViewport" class="space-y-3">
     <template v-if="loading">
       <div v-for="i in 5" :key="i" class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
@@ -7,7 +11,7 @@
             <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
             <div class="h-4 w-32 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
           </div>
-          <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
+          <div v-if="hasActionsColumn && !columnReordering" class="border-t border-gray-200 pt-3 dark:border-dark-700">
             <div class="h-8 w-full animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
           </div>
         </div>
@@ -110,7 +114,7 @@
               </slot>
             </div>
           </div>
-          <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
+          <div v-if="hasActionsColumn && !columnReordering" class="border-t border-gray-200 pt-3 dark:border-dark-700">
             <slot name="cell-actions" :row="row" :value="row['actions']" :expanded="actionsExpanded"></slot>
           </div>
         </div>
@@ -129,7 +133,10 @@
   >
     <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
       <thead class="table-header">
-        <tr>
+        <VueDraggable v-model="draggableHeaderColumns" tag="tr" handle=".table-column-drag-handle"
+          draggable="th[data-column-key]" :disabled="!columnReordering" direction="horizontal"
+          :force-fallback="true" :fallback-on-body="true" :animation="150" :on-move="canMoveHeaderColumn"
+        >
           <th
             v-if="selectable"
             scope="col"
@@ -148,6 +155,7 @@
           <th
             v-for="(column, index) in columns"
             :key="column.key"
+            :data-column-key="column.key"
             scope="col"
             :aria-sort="column.sortable ? getColumnAriaSort(column.key) : undefined"
             :class="[
@@ -160,6 +168,14 @@
             @click="column.sortable && handleSort(column.key)"
           >
             <div :class="['flex items-center space-x-1', getHeaderContentAlignmentClass(column)]">
+              <button v-if="columnReordering && column.key !== 'select'" type="button"
+                class="table-column-drag-handle inline-flex h-6 w-5 shrink-0 touch-none cursor-grab items-center justify-center text-gray-400 hover:text-gray-700 focus-visible:outline focus-visible:outline-2 active:cursor-grabbing dark:hover:text-gray-100"
+                :aria-label="t('common.moveColumn', { column: column.label })" :title="t('common.moveColumn', { column: column.label })"
+                @click.stop
+                @keydown.left.prevent.stop="moveHeaderColumn(column.key, -1)" @keydown.up.prevent.stop="moveHeaderColumn(column.key, -1)"
+                @keydown.right.prevent.stop="moveHeaderColumn(column.key, 1)" @keydown.down.prevent.stop="moveHeaderColumn(column.key, 1)"
+                @keydown.home.prevent.stop="moveHeaderColumn(column.key, -columns.length)" @keydown.end.prevent.stop="moveHeaderColumn(column.key, columns.length)"
+              ><span aria-hidden="true">⋮⋮</span></button>
               <slot
                 :name="`header-${column.key}`"
                 :column="column"
@@ -192,7 +208,7 @@
               </span>
             </div>
           </th>
-        </tr>
+        </VueDraggable>
       </thead>
       <tbody class="table-body divide-y divide-gray-200 dark:divide-dark-700">
         <!-- Loading skeleton -->
@@ -262,6 +278,7 @@
             <td
               v-for="(column, colIndex) in columns"
               :key="column.key"
+              :data-column-key="column.key"
               :class="[
                 'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
                 getAdaptivePaddingClass(),
@@ -291,11 +308,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, nextTick, getCurrentInstance } from 'vue'
 import { useVirtualizer, observeElementRect as observeElementRectDefault } from '@tanstack/vue-virtual'
 import { useI18n } from 'vue-i18n'
 import type { Column } from './types'
 import Icon from '@/components/icons/Icon.vue'
+import ColumnSettings from './ColumnSettings.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
+import { VueDraggable } from 'vue-draggable-plus'
 
 const { t } = useI18n()
 
@@ -309,6 +329,7 @@ const emit = defineEmits<{
   rowClick: [row: any]
   'update:selectedKeys': [keys: Array<string | number>]
   selectionChange: [keys: Array<string | number>]
+  columnReorder: [keys: string[]]
 }>()
 
 // 表格容器引用
@@ -354,7 +375,7 @@ const checkActionsColumnWidth = () => {
   if (!tableWrapperRef.value) return
 
   // 查找第一行的操作列单元格
-  const firstActionCell = tableWrapperRef.value.querySelector('tbody tr:first-child td:last-child')
+  const firstActionCell = tableWrapperRef.value.querySelector('tbody tr:first-child td[data-column-key="actions"]')
   if (!firstActionCell) return
 
   // 查找操作列内容的容器div
@@ -459,6 +480,8 @@ onUnmounted(() => {
 
 interface Props {
   columns: Column[]
+  /** Stable table identity for locally managed column preferences. */
+  columnOrderKey?: string
   data: any[]
   loading?: boolean
   stickyFirstColumn?: boolean
@@ -511,6 +534,42 @@ const props = withDefaults(defineProps<Props>(), {
   selectable: false,
   selectedKeys: () => []
 })
+
+const requiredColumnKeys = [props.columns.find(column => column.key !== 'select')?.key, 'actions'].filter((key): key is string => !!key)
+const {
+  columns: localColumns, orderedColumns: localOrderedColumns, hiddenColumns: localHiddenColumns,
+  toggleColumn: toggleLocalColumn, setColumnOrder: setLocalColumnOrder, resetColumns: resetLocalColumns
+} = useTableColumns(props.columnOrderKey ?? '', () => props.columns, { fixed: ['select'], required: requiredColumnKeys })
+const columns = computed(() => props.columnOrderKey ? localColumns.value : props.columns)
+const controlledColumnOrder = !!getCurrentInstance()?.vnode.props?.onColumnReorder
+const columnReordering = computed(() => !!props.columnOrderKey || controlledColumnOrder)
+function applyColumnOrder(keys: string[]) {
+  if (props.columnOrderKey) setLocalColumnOrder(keys)
+  emit('columnReorder', keys)
+}
+const draggableHeaderColumns = computed({
+  get: () => columns.value,
+  set: columns => applyColumnOrder(columns.map(column => column.key))
+})
+function canMoveHeaderColumn(event: { related: HTMLElement; dragged: HTMLElement }) {
+  return event.related.dataset.columnKey !== 'select' && event.dragged.dataset.columnKey !== 'select'
+}
+function reorderHeader(from: number, to: number) {
+  const keys = columns.value.map(column => column.key)
+  if (from < 0 || to < 0 || from === to || keys[from] === 'select' || keys[to] === 'select') return
+  keys.splice(to, 0, keys.splice(from, 1)[0]!)
+  applyColumnOrder(keys)
+}
+async function moveHeaderColumn(key: string, delta: number) {
+  const keys = columns.value.map(column => column.key)
+  const from = keys.indexOf(key)
+  const min = keys[0] === 'select' ? 1 : 0
+  const to = Math.max(min, Math.min(keys.length - 1, from + delta))
+  reorderHeader(from, to)
+  await nextTick()
+  Array.from(tableWrapperRef.value?.querySelectorAll<HTMLElement>('th[data-column-key]') ?? [])
+    .find(cell => cell.dataset.columnKey === key)?.querySelector('button')?.focus()
+}
 
 const sortKey = ref<string>('')
 const sortOrder = ref<'asc' | 'desc'>('asc')
@@ -662,11 +721,22 @@ const resolveStableRowKey = (row: any): string | number | undefined => {
 
 const resolveRowKey = (row: any, index: number) => resolveStableRowKey(row) ?? index
 
-const dataColumns = computed(() => props.columns.filter((column) => column.key !== 'actions'))
-const sortableColumns = computed(() => props.columns.filter((column) => column.sortable))
+const dataColumns = computed(() => columns.value.filter(column => column.key !== 'select' && (columnReordering.value || column.key !== 'actions')))
+const sortColumnLabels = new Map<string, string>()
+watch(() => props.columns, incoming => {
+  incoming.forEach(column => { if (column.sortable) sortColumnLabels.set(column.key, column.label) })
+}, { immediate: true })
+const sortableColumns = computed(() => {
+  const visible = columns.value.filter(column => column.sortable)
+  if (sortKey.value && !visible.some(column => column.key === sortKey.value)) {
+    const label = sortColumnLabels.get(sortKey.value)
+    if (label) return [{ key: sortKey.value, label, sortable: true }, ...visible]
+  }
+  return visible
+})
 const mobileSortId = 'mobile-sort'
 const columnsSignature = computed(() =>
-  props.columns.map((column) => `${column.key}:${column.sortable ? '1' : '0'}`).join('|')
+  columns.value.map((column) => `${column.key}:${column.sortable ? '1' : '0'}`).join('|')
 )
 
 watch(
@@ -744,7 +814,7 @@ const sortedData = computed(() => {
     .map(item => item.row)
 })
 
-const tableColumnCount = computed(() => props.columns.length + (props.selectable ? 1 : 0))
+const tableColumnCount = computed(() => columns.value.length + (props.selectable ? 1 : 0))
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
 const visibleRowKeys = computed(() =>
   (sortedData.value ?? []).map((row, index) => resolveRowKey(row, index))
@@ -885,11 +955,11 @@ const renderRows = computed<Array<{ index: number; row: any; measure: boolean }>
 })
 
 const hasActionsColumn = computed(() => {
-  return props.columns.some(column => column.key === 'actions')
+  return columns.value.some(column => column.key === 'actions')
 })
 
 const hasSelectColumn = computed(() => {
-  return props.columns.length > 0 && props.columns[0].key === 'select'
+  return columns.value.length > 0 && columns.value[0].key === 'select'
 })
 
 // 生成固定列的 CSS 类
@@ -913,7 +983,7 @@ const getStickyColumnClass = (column: Column, index: number) => {
   }
 
   // 操作列固定（最后一列）
-  if (props.stickyActionsColumn && column.key === 'actions') {
+  if (props.stickyActionsColumn && column.key === 'actions' && index === columns.value.length - 1) {
     classes.push('sticky-col sticky-col-right')
   }
 
@@ -922,7 +992,7 @@ const getStickyColumnClass = (column: Column, index: number) => {
 
 // 根据列数自适应调整内边距
 const getAdaptivePaddingClass = () => {
-  const columnCount = props.columns.length
+  const columnCount = columns.value.length
 
   // 列数越多，内边距越小
   if (columnCount >= 10) {
@@ -948,7 +1018,8 @@ onMounted(() => {
 watch(
   columnsSignature,
   () => {
-    // If current sort key is no longer sortable/visible, fall back to default/persisted.
+    // Hiding a column does not change the server's current row ordering.
+    if (props.serverSideSort && sortKey.value) return
     const normalized = normalizeSortKey(sortKey.value)
     if (!sortKey.value) {
       const initial = resolveInitialSortState()

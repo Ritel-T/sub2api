@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DataTable from '../DataTable.vue'
+import { VueDraggable } from 'vue-draggable-plus'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -45,6 +46,80 @@ describe('DataTable', () => {
   beforeEach(() => {
     stubDesktopMatchMedia()
     localStorage.clear()
+  })
+
+  it('reorders header and cells, persists order, and keeps row sorting separate', async () => {
+    const props = {
+      columnOrderKey: 'test-order',
+      columns: [{ key: 'name', label: 'Name', sortable: true }, { key: 'status', label: 'Status' }, { key: 'actions', label: 'Actions' }],
+      data: [{ id: 1, name: 'A', status: 'active' }], serverSideSort: true
+    }
+    const wrapper = mount(DataTable, { props })
+    await wrapper.find('th[data-column-key="actions"] button').trigger('keydown', { key: 'Home' })
+    expect(wrapper.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['actions', 'name', 'status'])
+    expect(wrapper.find('td[data-column-key="actions"]').classes()).not.toContain('sticky-col-right')
+    expect(wrapper.emitted('sort')).toBeUndefined()
+    const reopened = mount(DataTable, { props })
+    expect(reopened.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['actions', 'name', 'status'])
+    reopened.unmount(); wrapper.unmount()
+  })
+
+  it('emits controlled drag reordering without changing selection or row sorting', async () => {
+    const onColumnReorder = vi.fn()
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ key: 'select', label: '' }, { key: 'name', label: 'Name', sortable: true }, { key: 'status', label: 'Status' }],
+      data: [{ id: 1, name: 'A' }], onColumnReorder, serverSideSort: true
+    } })
+    expect(wrapper.find('th[data-column-key="select"] button').exists()).toBe(false)
+    const draggable = wrapper.findComponent(VueDraggable)
+    draggable.vm.$emit('update:modelValue', [
+      { key: 'select', label: '' }, { key: 'status', label: 'Status' }, { key: 'name', label: 'Name', sortable: true }
+    ])
+    await wrapper.vm.$nextTick()
+    expect(onColumnReorder).toHaveBeenCalledWith(['select', 'status', 'name'])
+    expect(wrapper.emitted('sort')).toBeUndefined()
+    expect(wrapper.emitted('update:selectedKeys')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('uses the saved order for mobile card fields including the actions column', async () => {
+    stubMobileMatchMedia()
+    localStorage.setItem('mobile-order', JSON.stringify({ order: ['actions', 'status', 'name'], hidden: [] }))
+    const wrapper = mount(DataTable, { props: {
+      columnOrderKey: 'mobile-order', columns: [{ key: 'name', label: 'Name' }, { key: 'status', label: 'Status' }, { key: 'actions', label: 'Actions' }],
+      data: [{ id: 1, name: 'A', status: 'active' }]
+    }, slots: { 'cell-actions': '<button>Edit</button>' } })
+    expect(wrapper.findAll('.table-card [data-field]').map(field => field.attributes('data-field'))).toEqual(['actions', 'status', 'name'])
+    expect(wrapper.findAll('.table-card button')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('does not display a false default sorting indicator when the active server-sort column is hidden', async () => {
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ key: 'name', label: 'Name', sortable: true }, { key: 'created_at', label: 'Created', sortable: true }],
+      data: [], serverSideSort: true, defaultSortKey: 'created_at'
+    } })
+    await wrapper.find('th[data-column-key="name"]').trigger('click')
+    expect(wrapper.emitted('sort')).toEqual([['name', 'asc']])
+    await wrapper.setProps({ columns: [{ key: 'created_at', label: 'Created', sortable: true }] })
+    expect(wrapper.find('th').attributes('aria-sort')).toBe('none')
+    await wrapper.setProps({ columns: [{ key: 'name', label: 'Name', sortable: true }, { key: 'created_at', label: 'Created', sortable: true }] })
+    expect(wrapper.find('th[data-column-key="name"]').attributes('aria-sort')).toBe('ascending')
+    expect(wrapper.emitted('sort')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('retains the active hidden sort field in the mobile sorting control', async () => {
+    stubMobileMatchMedia()
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ key: 'name', label: 'Name', sortable: true }, { key: 'created_at', label: 'Created', sortable: true }],
+      data: [{ id: 1, name: 'A' }], serverSideSort: true, defaultSortKey: 'name'
+    } })
+    await wrapper.setProps({ columns: [{ key: 'created_at', label: 'Created', sortable: true }] })
+    const select = wrapper.find('[data-test="mobile-sort-controls"] select')
+    expect((select.element as HTMLSelectElement).value).toBe('name')
+    expect(select.findAll('option').map(option => option.text())).toEqual(['Name', 'Created'])
+    wrapper.unmount()
   })
 
   it('renders paired sort arrows and highlights the active direction', async () => {

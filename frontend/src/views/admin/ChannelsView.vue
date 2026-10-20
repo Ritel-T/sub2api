@@ -48,7 +48,7 @@
       </template>
 
       <template #table>
-        <DataTable
+        <DataTable column-order-key="table-columns:channels:v1"
           :columns="columns"
           :data="channels"
           :loading="loading"
@@ -695,10 +695,10 @@ interface PlatformSection {
 // ── Table columns ──
 const columns = computed<Column[]>(() => [
   { key: 'name', label: t('admin.channels.columns.name', 'Name'), sortable: true },
-  { key: 'description', label: t('admin.channels.columns.description', 'Description'), sortable: false },
   { key: 'status', label: t('admin.channels.columns.status', 'Status'), sortable: true },
   { key: 'group_count', label: t('admin.channels.columns.groups', 'Groups'), sortable: false },
   { key: 'pricing_count', label: t('admin.channels.columns.pricing', 'Pricing'), sortable: false },
+  { key: 'description', label: t('admin.channels.columns.description', 'Description'), sortable: false },
   { key: 'created_at', label: t('admin.channels.columns.createdAt', 'Created'), sortable: true },
   { key: 'actions', label: t('admin.channels.columns.actions', 'Actions'), sortable: false }
 ])

@@ -3,8 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
 
-const { listAccounts } = vi.hoisted(() => ({
-  listAccounts: vi.fn()
+const { listAccounts, authState } = vi.hoisted(() => ({
+  listAccounts: vi.fn(),
+  authState: { token: 'test-token', isSimpleMode: false }
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -30,7 +31,7 @@ vi.mock('@/stores/app', () => ({
 }))
 
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ token: 'test-token', isSimpleMode: false })
+  useAuthStore: () => authState
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -42,8 +43,9 @@ vi.mock('vue-i18n', async () => {
 })
 
 const DataTableStub = {
+  name: 'DataTable',
   props: ['columns'],
-  emits: ['sort'],
+  emits: ['sort', 'column-reorder'],
   template: `
     <div data-test="data-table">
       <span v-for="column in columns" :key="column.key" :data-column="column.key">
@@ -63,6 +65,7 @@ function mountView() {
           template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
         },
         DataTable: DataTableStub,
+        ColumnSettings: true,
         AccountTableActions: { template: '<div><slot name="after" /></div>' },
         AccountTableFilters: true,
         AccountBulkActionsBar: true,
@@ -98,6 +101,7 @@ function mountView() {
 describe('admin AccountsView priority column preferences', () => {
   beforeEach(() => {
     localStorage.clear()
+    authState.isSimpleMode = false
     listAccounts.mockReset().mockResolvedValue({
       items: [],
       total: 0,
@@ -125,29 +129,51 @@ describe('admin AccountsView priority column preferences', () => {
   })
 
   it('preserves an existing preference that explicitly hides priority', async () => {
-    localStorage.setItem('account-hidden-columns', JSON.stringify(['priority', 'today_stats']))
-    localStorage.setItem('account-hidden-columns-version', 'scheduler-score-hidden-by-default')
+    localStorage.setItem('table-columns:accounts:v1', JSON.stringify({ order: [], hidden: ['priority', 'today_stats'] }))
 
     const wrapper = mountView()
     await flushPromises()
 
     expect(wrapper.find('[data-column="priority"]').exists()).toBe(false)
-    expect(JSON.parse(localStorage.getItem('account-hidden-columns') || '[]')).toEqual([
+    expect(JSON.parse(localStorage.getItem('table-columns:accounts:v1') || '{}').hidden).toEqual([
       'priority',
       'today_stats'
     ])
   })
 
-  it('keeps priority visible while migrating older saved preferences', async () => {
+  it('shows all columns without migrating obsolete automatic hiding preferences', async () => {
     localStorage.setItem('account-hidden-columns', JSON.stringify(['today_stats']))
 
     const wrapper = mountView()
     await flushPromises()
 
     expect(wrapper.get('[data-column="priority"]').text()).toBe('sortable')
-    expect(JSON.parse(localStorage.getItem('account-hidden-columns') || '[]')).toEqual(
-      expect.arrayContaining(['today_stats', 'scheduler_score'])
-    )
-    expect(JSON.parse(localStorage.getItem('account-hidden-columns') || '[]')).not.toContain('priority')
+    expect(wrapper.findAll('[data-column]').map(column => column.attributes('data-column'))).toEqual([
+      'select', 'name', 'status', 'schedulable', 'usage', 'today_stats', 'capacity', 'groups',
+      'priority', 'platform_type', 'proxy', 'scheduler_score', 'rate_multiplier',
+      'upstream_billing_rate', 'last_used_at', 'expires_at', 'notes', 'id', 'created_at', 'actions'
+    ])
   })
+
+  it('reorders required columns while retaining the fixed selection column and data sort', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    const columns = table.props('columns').map((column: { key: string }) => column.key)
+    const calls = listAccounts.mock.calls.length
+    table.vm.$emit('column-reorder', ['actions', ...columns.filter((key: string) => key !== 'actions')])
+    await flushPromises()
+    expect(table.props('columns').slice(0, 3).map((column: { key: string }) => column.key)).toEqual(['select', 'actions', 'name'])
+    expect(listAccounts).toHaveBeenCalledTimes(calls)
+  })
+
+
+  it('retains the simple-mode restriction while otherwise showing all columns', async () => {
+    authState.isSimpleMode = true
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-column="groups"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-column]')).toHaveLength(19)
+  })
+
 })

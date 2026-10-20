@@ -65,6 +65,7 @@ vi.mock('vue-i18n', async () => {
 
 // Render the scheduler-score cell slot for every row so the fallback logic is observable.
 const DataTableStub = {
+  name: 'DataTable',
   props: ['columns', 'data'],
   template: `
     <div data-test="data-table">
@@ -84,6 +85,12 @@ function mountView() {
           template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
         },
         DataTable: DataTableStub,
+        ColumnSettings: {
+          name: 'ColumnSettings',
+          props: ['columns', 'hiddenColumns', 'requiredColumns'],
+          emits: ['toggle', 'reorder', 'reset'],
+          template: '<div />'
+        },
         HelpTooltip: true,
         Pagination: true,
         ConfirmDialog: true,
@@ -199,7 +206,7 @@ describe('admin AccountsView scheduler score column', () => {
     await flushPromises()
 
     expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
-      include_scheduler_score: '0'
+      include_scheduler_score: '1'
     }))
 
     const ungroupedCell = wrapper.find('[data-test="scheduler-score-1"]')
@@ -219,28 +226,42 @@ describe('admin AccountsView scheduler score column', () => {
     expect(groupedCell.text()).toContain('2')
   })
 
-  it('keeps scheduler score hidden for old saved column settings until the admin opts in again', async () => {
-    localStorage.setItem('account-hidden-columns', JSON.stringify(['today_stats']))
-
-    mountView()
+  it('defaults to all visible columns even when obsolete hidden preferences exist', async () => {
+    localStorage.setItem('account-hidden-columns', JSON.stringify(['today_stats', 'scheduler_score']))
+    const wrapper = mountView()
     await flushPromises()
-
-    expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
-      include_scheduler_score: '0'
-    }))
-    expect(JSON.parse(localStorage.getItem('account-hidden-columns') || '[]')).toContain('scheduler_score')
+    expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ include_scheduler_score: '1' }))
+    const keys = wrapper.findComponent({ name: 'DataTable' }).props('columns').map((column: { key: string }) => column.key)
+    expect(keys).toHaveLength(20)
+    expect(keys).toContain('today_stats')
+    expect(keys).toContain('scheduler_score')
+    expect(getBatchTodayStats).toHaveBeenCalled()
   })
 
-  it('requests scheduler scores when the migrated column settings explicitly show the column', async () => {
-    localStorage.setItem('account-hidden-columns', JSON.stringify(['today_stats']))
-    localStorage.setItem('account-hidden-columns-version', 'scheduler-score-hidden-by-default')
-
-    mountView()
+  it('restores explicit scheduler visibility and reloads after hide and reset', async () => {
+    localStorage.setItem('table-columns:accounts:v1', JSON.stringify({ order: [], hidden: ['scheduler_score'] }))
+    const wrapper = mountView()
     await flushPromises()
+    expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ include_scheduler_score: '0' }))
+    const settings = wrapper.findComponent({ name: 'ColumnSettings' })
+    settings.vm.$emit('reset')
+    await flushPromises()
+    expect(listAccounts).toHaveBeenLastCalledWith(1, 20,
+      expect.objectContaining({ include_scheduler_score: '1' }), expect.anything())
+    settings.vm.$emit('toggle', 'scheduler_score')
+    await flushPromises()
+    expect(listAccounts).toHaveBeenLastCalledWith(1, 20,
+      expect.objectContaining({ include_scheduler_score: '0' }), expect.anything())
+  })
 
-    expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
-      include_scheduler_score: '1'
-    }))
+  it('fetches stats when previously hidden usage columns are restored', async () => {
+    localStorage.setItem('table-columns:accounts:v1', JSON.stringify({ order: [], hidden: ['usage', 'today_stats'] }))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(getBatchTodayStats).not.toHaveBeenCalled()
+    wrapper.findComponent({ name: 'ColumnSettings' }).vm.$emit('reset')
+    await flushPromises()
+    expect(getBatchTodayStats).toHaveBeenCalled()
   })
 
   it('still shows a dash when no scheduler score is available', async () => {

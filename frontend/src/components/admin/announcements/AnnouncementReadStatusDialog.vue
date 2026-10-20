@@ -21,7 +21,7 @@
         </button>
       </div>
 
-      <DataTable
+      <DataTable column-order-key="table-columns:announcement-read-status:v1"
         :columns="columns"
         :data="items"
         :loading="loading"

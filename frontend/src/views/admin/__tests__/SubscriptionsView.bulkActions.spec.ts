@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import SubscriptionsView from '../SubscriptionsView.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 
 const routeState = vi.hoisted(() => ({ query: {} as Record<string, string> }))
 vi.mock('vue-router', () => ({ useRoute: () => routeState }))
@@ -34,7 +35,7 @@ function mountView() {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
         TablePageLayout: { template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
-        DataTable: { name: 'DataTable', props: ['data', 'selectedKeys'], emits: ['update:selectedKeys', 'sort'], template: '<div />' },
+        DataTable: { name: 'DataTable', props: ['columns', 'data', 'selectedKeys'], emits: ['update:selectedKeys', 'sort', 'column-reorder'], template: '<div />' },
         BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' },
         Pagination: true, Select: true, ConfirmDialog: true, Icon: true,
         GroupBadge: true, GroupOptionItem: true, EmptyState: true, Teleport: true, RouterLink: true
@@ -66,6 +67,41 @@ async function select(ids: number[]) {
 }
 
 describe('subscription bulk operations', () => {
+  it('shows all columns by default and persists free movement, visibility, and reset', async () => {
+    wrapper.unmount()
+    localStorage.setItem('subscription-hidden-columns', JSON.stringify(['usage', 'group']))
+    wrapper = mountView()
+    await flushPromises()
+    const keys = () => wrapper.getComponent({ name: 'DataTable' }).props('columns').map((column: { key: string }) => column.key)
+    const defaults = ['user', 'status', 'usage', 'expires_at', 'group', 'actions']
+    expect(keys()).toEqual(defaults)
+    const order = ['actions', 'group', 'user', 'status', 'usage', 'expires_at']
+    wrapper.getComponent({ name: 'DataTable' }).vm.$emit('column-reorder', order)
+    wrapper.getComponent(ColumnSettings).vm.$emit('toggle', 'usage')
+    await flushPromises()
+    expect(keys()).toEqual(order.filter(key => key !== 'usage'))
+    wrapper.unmount()
+    wrapper = mountView()
+    await flushPromises()
+    expect(keys()).toEqual(order.filter(key => key !== 'usage'))
+    wrapper.getComponent(ColumnSettings).vm.$emit('reset')
+    await flushPromises()
+    expect(keys()).toEqual(defaults)
+  })
+
+  it('retains the email or username display preference beside column settings', async () => {
+    wrapper.unmount()
+    localStorage.setItem('subscription-user-column-mode', 'username')
+    wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('columns')[0].label).toBe('admin.users.columns.username')
+    const modeSelect = wrapper.findAllComponents({ name: 'Select' }).find(select => select.attributes('aria-label') === 'admin.subscriptions.columns.user')!
+    modeSelect.vm.$emit('update:modelValue', 'email')
+    await flushPromises()
+    expect(localStorage.getItem('subscription-user-column-mode')).toBe('email')
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('columns')[0].label).toBe('admin.subscriptions.columns.user')
+  })
+
   it('loads all statuses with an exact routed user, including an unavailable user label', async () => {
     wrapper.unmount()
     routeState.query.user_id = '42'

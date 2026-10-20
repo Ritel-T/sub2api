@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import type { AdminUser } from '@/types'
 import UsersView from '../UsersView.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 
 const {
   listUsers,
@@ -31,7 +32,8 @@ vi.mock('@/api/admin', () => ({
     users: {
       list: listUsers,
       toggleStatus,
-      delete: deleteUser
+      delete: deleteUser,
+      getPlatformQuotas: vi.fn().mockResolvedValue([])
     },
     groups: {
       getAll: getAllGroups
@@ -87,7 +89,7 @@ const createAdminUser = (overrides: Partial<AdminUser> = {}): AdminUser => ({
 
 const DataTableStub = {
   props: ['columns', 'data', 'selectedKeys'],
-  emits: ['sort', 'update:selectedKeys'],
+  emits: ['sort', 'update:selectedKeys', 'column-reorder'],
   template: `
     <div>
       <div data-test="columns">{{ columns.map(col => col.key).join(',') }}</div>
@@ -207,6 +209,41 @@ describe('admin UsersView', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('starts with every available column visible despite legacy hidden preferences', async () => {
+    localStorage.setItem('user-hidden-columns', JSON.stringify(['usage', 'groups', 'balance_platform_quota']))
+    listEnabledDefinitions.mockResolvedValue([{ id: 7, enabled: true, name: 'Team', type: 'text' }])
+    const wrapper = mountBulkDeleteView()
+    await flushPromises()
+
+    const keys = wrapper.get('[data-test="columns"]').text().split(',')
+    expect(keys).toHaveLength(21)
+    expect(keys).toEqual(expect.arrayContaining(['usage', 'groups', 'balance_platform_quota', 'attr_7']))
+    expect(keys.indexOf('id')).toBeGreaterThan(keys.indexOf('attr_7'))
+    wrapper.unmount()
+  })
+
+  it('persists column movement and visibility independently and resets both', async () => {
+    let wrapper = mountBulkDeleteView()
+    await flushPromises()
+    const original = wrapper.get('[data-test="columns"]').text().split(',')
+    const reordered = ['actions', 'balance', ...original.filter(key => key !== 'actions' && key !== 'balance')]
+    wrapper.findComponent(DataTableStub).vm.$emit('column-reorder', reordered)
+    await flushPromises()
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual(reordered)
+
+    wrapper.getComponent(ColumnSettings).vm.$emit('toggle', 'notes')
+    await flushPromises()
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).not.toContain('notes')
+    wrapper.unmount()
+    wrapper = mountBulkDeleteView()
+    await flushPromises()
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual(reordered.filter(key => key !== 'notes'))
+    wrapper.getComponent(ColumnSettings).vm.$emit('reset')
+    await flushPromises()
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual(original)
+    wrapper.unmount()
   })
 
   it('cancels bulk deletion without deleting or clearing selected users', async () => {
@@ -350,7 +387,7 @@ describe('admin UsersView', () => {
     wrapper.unmount()
   })
 
-  it('shows active, used, and created activity columns in order and requests last_used_at sort', async () => {
+  it('prioritizes identity and usage while retaining activity and metadata columns and last-used sorting', async () => {
     const wrapper = mount(UsersView, {
       global: {
         stubs: {
@@ -385,7 +422,10 @@ describe('admin UsersView', () => {
 
     const columns = wrapper.get('[data-test="columns"]').text()
     const visibleColumns = columns.split(',')
-    expect(visibleColumns.slice(-4, -1)).toEqual(['last_active_at', 'last_used_at', 'created_at'])
+    expect(visibleColumns.slice(0, 6)).toEqual(['email', 'username', 'status', 'balance', 'usage', 'concurrency'])
+    expect(visibleColumns.slice(-3)).toEqual(['id', 'created_at', 'actions'])
+    expect(visibleColumns).toContain('last_active_at')
+    expect(visibleColumns).toContain('last_used_at')
     expect(visibleColumns).not.toContain('last_login_at')
 
     await wrapper.get('[data-test="sort-last-used"]').trigger('click')
@@ -404,21 +444,7 @@ describe('admin UsersView', () => {
 
   it('clears usage current-page sort when switching to last_used_at server sort', async () => {
     vi.useFakeTimers()
-    localStorage.setItem('user-column-settings-version', '3')
-    localStorage.setItem(
-      'user-hidden-columns',
-      JSON.stringify([
-        'notes',
-        'groups',
-        'subscriptions',
-        'concurrency',
-        'usage_anthropic',
-        'usage_openai',
-        'usage_gemini',
-        'usage_antigravity',
-        'balance_platform_quota'
-      ])
-    )
+
 
     listUsers.mockResolvedValue({
       items: [

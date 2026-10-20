@@ -39,7 +39,7 @@
       </template>
 
       <template #table>
-        <DataTable
+        <DataTable column-order-key="table-columns:promo-codes:v1"
           :columns="columns"
           :data="codes"
           :loading="loading"
@@ -479,9 +479,9 @@ const statusOptions = computed(() => [
 
 const columns = computed<Column[]>(() => [
   { key: 'code', label: t('admin.promo.columns.code') },
+  { key: 'status', label: t('admin.promo.columns.status'), sortable: true },
   { key: 'bonus_amount', label: t('admin.promo.columns.bonusAmount'), sortable: true },
   { key: 'usage', label: t('admin.promo.columns.usage') },
-  { key: 'status', label: t('admin.promo.columns.status'), sortable: true },
   { key: 'expires_at', label: t('admin.promo.columns.expiresAt'), sortable: true },
   { key: 'created_at', label: t('admin.promo.columns.createdAt'), sortable: true },
   { key: 'actions', label: t('admin.promo.columns.actions') }

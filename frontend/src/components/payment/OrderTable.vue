@@ -1,5 +1,5 @@
 <template>
-  <DataTable :columns="columns" :data="orders" :loading="loading">
+  <DataTable :column-order-key="showUser ? 'table-columns:orders-admin:v1' : 'table-columns:orders-user:v1'" :columns="columns" :data="orders" :loading="loading">
     <template #cell-id="{ value }">
       <span class="font-mono text-sm">#{{ value }}</span>
     </template>

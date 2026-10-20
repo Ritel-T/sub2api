@@ -19,6 +19,7 @@
     <div class="overflow-auto">
       <DataTable
         :columns="columns"
+        @column-reorder="emit('column-reorder', $event)"
         :data="data"
         :loading="loading"
         :server-side-sort="serverSideSort"
@@ -631,6 +632,7 @@ const props = withDefaults(defineProps<Props>(), {
   cacheRateAudience: 'admin'
 })
 const emit = defineEmits<{
+  'column-reorder': [keys: string[]]
   rowDetails: [record: AdminUsageLog]
   userClick: [userID: number, email?: string]
   sort: [key: string, order: 'asc' | 'desc']
