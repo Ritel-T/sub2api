@@ -5,11 +5,12 @@
       <nav class="mx-auto flex max-w-6xl items-center justify-between">
         <router-link to="/home" class="flex items-center gap-3">
           <div class="h-10 w-10 overflow-hidden rounded-xl shadow-md">
-            <img :src="siteLogo" :alt="siteName" class="h-full w-full object-contain" />
+            <img :src="siteLogo" :alt="siteName" class="ritel-logo h-full w-full object-contain" />
           </div>
           <span class="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{{ siteName }}</span>
         </router-link>
         <div class="flex items-center gap-3">
+          <ThemeSwitcher />
           <LocaleSwitcher />
           <a
             v-if="docUrl"
@@ -411,6 +412,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildGatewayUrl } from '@/api/client'
 import { formatDateLocalInput } from '@/utils/format'

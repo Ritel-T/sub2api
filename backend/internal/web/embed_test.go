@@ -428,28 +428,39 @@ func TestFrontendServer_ServeIndexHTML(t *testing.T) {
 		assert.Equal(t, "no-cache", w.Header().Get("Cache-Control"))
 	})
 
-	t.Run("fallback_on_settings_error", func(t *testing.T) {
-		provider := &mockSettingsProvider{
-			err: context.DeadlineExceeded,
-		}
+	for _, tt := range []struct {
+		name     string
+		provider *mockSettingsProvider
+	}{
+		{name: "settings_error", provider: &mockSettingsProvider{err: context.DeadlineExceeded}},
+		{name: "marshal_error", provider: &mockSettingsProvider{settings: make(chan int)}},
+	} {
+		t.Run("fallback_on_"+tt.name, func(t *testing.T) {
+			server, err := NewFrontendServer(tt.provider)
+			require.NoError(t, err)
+			server.InvalidateCache()
+			require.Contains(t, string(server.baseHTML), "localStorage.getItem('ritel-theme')")
 
-		server, err := NewFrontendServer(provider)
-		require.NoError(t, err)
+			for _, nonce := range []string{"first-fallback-nonce", "next-fallback-nonce"} {
+				w := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(w)
+				c.Request = httptest.NewRequest(http.MethodGet, "/login", nil)
+				c.Set(middleware.CSPNonceKey, nonce)
 
-		// Invalidate cache to force settings fetch
-		server.InvalidateCache()
+				server.serveIndexHTML(c)
 
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-		c.Set(middleware.CSPNonceKey, "nonce123")
-
-		server.serveIndexHTML(c)
-
-		// Should still return 200 with base HTML
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
-	})
+				assert.Equal(t, http.StatusOK, w.Code)
+				assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
+				assert.Equal(t, "no-cache", w.Header().Get("Cache-Control"))
+				assert.Contains(t, w.Body.String(), `<script nonce="`+nonce+`">`)
+				assert.Contains(t, w.Body.String(), "document.documentElement.classList.toggle('dark'")
+				assert.NotContains(t, w.Body.String(), NonceHTMLPlaceholder)
+				assert.NotContains(t, w.Body.String(), "window.__APP_CONFIG__")
+				assert.True(t, c.IsAborted())
+			}
+			assert.Equal(t, 2, tt.provider.called)
+		})
+	}
 }
 
 func TestFrontendServer_InvalidateCache(t *testing.T) {

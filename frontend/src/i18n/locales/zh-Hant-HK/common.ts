@@ -1,5 +1,11 @@
 export default {
   common: {
+    theme: {
+      label: '外觀',
+      system: '跟隨系統',
+      light: '淺色',
+      dark: '深色',
+    },
     columnSettings: '欄位設定',
     resetColumns: '恢復預設',
     moveColumn: '移動{column}欄',

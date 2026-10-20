@@ -85,8 +85,8 @@ function sectionIcon(key: string): unknown {
   padding-bottom: env(safe-area-inset-bottom);
   display: flex;
   align-items: stretch;
-  background: #0a0a0a;
-  border-top: 1px solid #30302d;
+  background: var(--ritel-bg);
+  border-top: 1px solid var(--ritel-border);
 }
 .console-bottom-item {
   flex: 1;

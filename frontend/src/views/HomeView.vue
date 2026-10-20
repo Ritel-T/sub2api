@@ -7,10 +7,11 @@
     <header class="ritel-home-header">
       <nav class="ritel-home-nav">
         <a href="https://ritel.si" class="ritel-brand" aria-label="Ritel.SI">
-          <img :src="BRAND_LOGO" alt="" width="64" height="50" />
+          <img class="ritel-logo" :src="BRAND_LOGO" alt="" width="64" height="50" />
           <span>{{ BRAND_NAME }}</span>
         </a>
         <div class="ritel-home-actions">
+          <ThemeSwitcher />
           <LocaleSwitcher />
           <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer" class="ritel-nav-link">{{ t('nav.docs') }}</a>
           <router-link v-if="showModelPlazaEntry" to="/model-plaza" class="ritel-nav-link">{{ t('nav.modelPlaza') }}</router-link>
@@ -20,7 +21,7 @@
     </header>
     <main class="ritel-home-main">
       <section class="ritel-home-hero">
-        <img :src="BRAND_LOGO" alt="" class="ritel-home-symbol" width="180" height="142" />
+        <img :src="BRAND_LOGO" alt="" class="ritel-logo ritel-home-symbol" width="180" height="142" />
         <h1>{{ BRAND_NAME }}</h1>
         <p>{{ siteSubtitle }}</p>
         <div class="ritel-home-cta">
@@ -43,6 +44,7 @@ import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { BRAND_LOGO, BRAND_NAME } from '@/utils/branding'

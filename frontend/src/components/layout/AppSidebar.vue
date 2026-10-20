@@ -13,7 +13,7 @@
   >
     <div class="sidebar-header">
       <span class="sidebar-logo flex items-center justify-center">
-        <img :src="siteLogo" alt="" class="h-full w-full object-contain" />
+        <img :src="siteLogo" alt="" class="ritel-logo h-full w-full object-contain" />
       </span>
       <div class="sidebar-brand">
         <span class="sidebar-brand-title">{{ siteName }}</span>
@@ -36,6 +36,7 @@
     </div>
 
     <div class="console-drawer-utilities">
+      <ThemeSwitcher />
       <LocaleSwitcher />
       <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer" class="console-drawer-docs">{{ t('nav.docs') }}</a>
     </div>
@@ -75,6 +76,7 @@ import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { BRAND_LOGO, BRAND_NAME } from '@/utils/branding'
@@ -107,7 +109,7 @@ function releaseScroll() {
 
 function closeMobile() { appStore.setMobileOpen(false) }
 function mobileFocusTargets(): HTMLElement[] {
-  const selector = 'a[href], button:not([disabled]), [tabindex="0"]'
+  const selector = 'a[href], button:not([disabled]), select:not([disabled]), [tabindex="0"]'
   const popover = onboardingStore.isDriverActive() ? document.getElementById('driver-popover-content') : null
   return [...(sidebarRef.value?.querySelectorAll<HTMLElement>(selector) ?? []), ...(popover?.querySelectorAll<HTMLElement>(selector) ?? [])]
     .filter(element => !element.closest('[aria-hidden="true"]'))
@@ -195,7 +197,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   color: var(--ritel-muted);
 }
-.sidebar-mobile-close:hover { color: var(--ritel-fg); background: #151514; }
+.sidebar-mobile-close:hover { color: var(--ritel-fg); background: var(--theme-hover); }
 .console-drawer-workspace {
   display: grid;
   grid-auto-flow: column;

@@ -1,12 +1,22 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="theme-color" content="#f5f3ee" />
+    <script nonce="__CSP_NONCE_VALUE__">
+      (() => {
+        let theme = 'system'
+        try { theme = localStorage.getItem('ritel-theme') || 'system' } catch {}
+        const dark = theme === 'dark' || (theme !== 'light' && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
+        document.documentElement.classList.toggle('dark', !!dark)
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+        document.querySelector('meta[name="theme-color"]').content = dark ? '#1b1b19' : '#f5f3ee'
+      })()
+    </script>
     <meta name="ritel-brand" content="fixed" />
     <link rel="icon" type="image/svg+xml" href="/brand/assets/ritel-favicon.svg" />
     <link rel="preload" href="/brand/fonts/ibmplexsans/IBMPlexSans-variable.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="stylesheet" href="/brand/brand.css" />
-    <meta name="theme-color" content="#0a0a0a" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ritel.SI</title>
   </head>

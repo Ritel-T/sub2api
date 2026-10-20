@@ -1,5 +1,11 @@
 export default {
   common: {
+    theme: {
+      label: '外观',
+      system: '跟随系统',
+      light: '浅色',
+      dark: '深色',
+    },
     columnSettings: '列设置',
     resetColumns: '恢复默认',
     moveColumn: '移动{column}列',

@@ -3,53 +3,30 @@
 @tailwind utilities;
 
 @layer base {
-  /* Shared surfaces also cover scoped CSS, sticky cells, overlays and canvas consumers. */
   :root {
     --theme-shadow-rgb: 30, 30, 28;
-    --theme-surface: theme('colors.white');
-    --theme-surface-raised: theme('colors.gray.50');
-    --theme-surface-inset: theme('colors.gray.100');
-    --theme-hover: theme('colors.gray.100');
-    --theme-selected: theme('colors.brand.selected');
-    --theme-selected-hover: theme('colors.primary.50');
-    --theme-foreground: theme('colors.primary.950');
-    --theme-muted: theme('colors.primary.500');
-    --theme-border: theme('colors.gray.200');
-    --theme-primary: theme('colors.primary.600');
-    --theme-primary-hover: theme('colors.primary.700');
-    --theme-primary-soft: theme('colors.primary.50');
-    --theme-primary-border: theme('colors.primary.200');
-    --theme-control-fill: theme('colors.primary.950');
-    --theme-control-hover: theme('colors.primary.800');
-    --theme-on-control: theme('colors.white');
-    --theme-scrollbar: theme('colors.gray.400');
-    --theme-scrollbar-hover: theme('colors.dark.500');
-    --theme-scrollbar-track: theme('colors.gray.100');
+    --theme-surface: var(--ritel-surface);
+    --theme-surface-raised: var(--ritel-surface-raised);
+    --theme-surface-inset: var(--ritel-surface-inset);
+    --theme-hover: var(--ritel-hover);
+    --theme-selected: var(--ritel-selected);
+    --theme-selected-hover: var(--ritel-selected-hover);
+    --theme-foreground: var(--ritel-fg);
+    --theme-muted: var(--ritel-muted);
+    --theme-border: var(--ritel-border);
+    --theme-primary: var(--ritel-primary);
+    --theme-primary-hover: var(--ritel-primary-hover);
+    --theme-primary-soft: var(--ritel-primary-soft);
+    --theme-primary-border: var(--ritel-border);
+    --theme-control-fill: var(--ritel-control-fill);
+    --theme-control-hover: var(--ritel-control-hover);
+    --theme-on-control: var(--ritel-on-control);
+    --theme-scrollbar: var(--ritel-scrollbar);
+    --theme-scrollbar-hover: var(--ritel-muted);
+    --theme-scrollbar-track: var(--ritel-surface-inset);
     --theme-selection-fill: color-mix(in srgb, var(--theme-primary) 12%, transparent);
     --theme-selection-border: var(--theme-primary);
-    --theme-focus: color-mix(in srgb, var(--theme-primary) 30%, transparent);
-  }
-
-  .dark {
-    --theme-surface: theme('colors.dark.900');
-    --theme-surface-raised: theme('colors.dark.800');
-    --theme-surface-inset: theme('colors.dark.950');
-    --theme-hover: theme('colors.dark.700');
-    --theme-selected: theme('colors.primary.800');
-    --theme-selected-hover: theme('colors.primary.700');
-    --theme-foreground: theme('colors.dark.100');
-    --theme-muted: theme('colors.dark.400');
-    --theme-border: theme('colors.dark.700');
-    --theme-primary: theme('colors.primary.400');
-    --theme-primary-hover: theme('colors.primary.300');
-    --theme-primary-soft: color-mix(in srgb, theme('colors.primary.900') 35%, transparent);
-    --theme-primary-border: theme('colors.primary.700');
-    --theme-control-fill: theme('colors.primary.100');
-    --theme-control-hover: theme('colors.primary.200');
-    --theme-on-control: theme('colors.primary.950');
-    --theme-scrollbar: theme('colors.dark.600');
-    --theme-scrollbar-hover: theme('colors.dark.500');
-    --theme-scrollbar-track: theme('colors.dark.900');
+    --theme-focus: var(--ritel-focus);
   }
 
   * {
@@ -61,9 +38,7 @@
     color-scheme: light;
   }
 
-  .dark {
-    color-scheme: dark;
-  }
+  html.dark { color-scheme: dark; }
 
   input[type='checkbox'],
   input[type='radio'],
@@ -875,29 +850,9 @@
 .modal-fullscreen .modal-body { max-height: none !important; }
 
 /* Ritel.SI: shared visual system for the real application. */
-:root, .dark {
-  --theme-surface: #0a0a0a;
-  --theme-surface-raised: #111110;
-  --theme-surface-inset: #0a0a0a;
-  --theme-hover: #181817;
-  --theme-selected: #181817;
-  --theme-selected-hover: #222220;
-  --theme-foreground: #f4f2ed;
-  --theme-muted: #aaa9a4;
-  --theme-border: #30302d;
-  --theme-primary: #eeeae1;
-  --theme-primary-hover: #fff;
-  --theme-primary-soft: #181817;
-  --theme-primary-border: #30302d;
-  --theme-control-fill: #f4f2ed;
-  --theme-control-hover: #d8d4cb;
-  --theme-on-control: #0a0a0a;
-  --theme-focus: #cfb89a;
-}
-html { color-scheme: dark; }
 body {
-  background: #0a0a0a;
-  color: #f4f2ed;
+  background: var(--ritel-bg);
+  color: var(--ritel-fg);
   font-family: var(--ritel-ui);
   font-size: 15px;
   line-height: 1.55;
@@ -932,8 +887,8 @@ h2, h3 {
   font-family: var(--ritel-heading);
   letter-spacing: -.025em;
 }
-:focus-visible { outline: 2px solid #cfb89a; outline-offset: 4px; }
-::selection { background: #cfb89a; color: #0a0a0a; }
+:focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 4px; }
+::selection { background: var(--theme-control-fill); color: var(--theme-on-control); }
 .text-xs { font-size: 12.5px; line-height: 1.5; }
 .text-sm { font-size: 14px; line-height: 1.5; }
 .text-base { font-size: 15px; }
@@ -941,31 +896,32 @@ h2, h3 {
 /* Labels and table headers use sentence case; uppercase with wide tracking slows scanning. */
 .uppercase, th { text-transform: none; }
 .uppercase:is(.tracking-wide, .tracking-wider, .tracking-widest, [class*="tracking-["]), th.uppercase { letter-spacing: .01em; }
-select option { background: #111110; color: #f4f2ed; }
+select option { background: var(--theme-surface); color: var(--ritel-fg); }
+.input::placeholder, textarea::placeholder { color: var(--ritel-muted); opacity: 1; }
 .ritel-main { width: 100%; max-width: 1296px; margin: 0 auto; padding: 32px; }
 .ritel-main h1 { font-size: 36px; line-height: 1.15; }
 .ritel-main :is(h2, h3) { font-size: 16px; line-height: 1.4; }
-.ritel-main :is(h2, h3)[class*=text-gray-500] { font-size: 13px; font-weight: 400; color: #aaa9a4; }
+.ritel-main :is(h2, h3)[class*=text-gray-500] { font-size: 13px; font-weight: 400; color: var(--ritel-muted); }
 .modal-title { font-family: var(--ritel-display); font-size: 24px; font-weight: 600; }
-.sidebar { background: #0a0a0a !important; border-color: #30302d !important; }
-.sidebar-header { height: 88px; border-color: #30302d !important; }
+.sidebar { background: var(--ritel-bg) !important; border-color: var(--ritel-border) !important; }
+.sidebar-header { height: 88px; border-color: var(--ritel-border) !important; }
 .sidebar-logo { border-radius: 0 !important; box-shadow: none !important; width: 44px; height: 40px; flex-shrink: 0; }
 .sidebar-brand-title { font-size: 21px; font-weight: 400 !important; letter-spacing: .015em; }
 .sidebar-nav { padding: 28px 16px; }
 .sidebar-link { border-radius: var(--ritel-radius-control) !important; min-height: 44px; font-size: 14.5px; font-weight: 400; }
-.sidebar-link-active { background: #181817 !important; color: #f4f2ed !important; box-shadow: inset 2px 0 #cfb89a; }
-.sidebar-section-title { font-size: 12.5px; font-weight: 400; letter-spacing: .02em; text-transform: none; color: #aaa9a4; }
+.sidebar-link-active { background: var(--theme-hover) !important; color: var(--ritel-fg) !important; box-shadow: inset 2px 0 var(--ritel-focus); }
+.sidebar-section-title { font-size: 12.5px; font-weight: 400; letter-spacing: .02em; text-transform: none; color: var(--ritel-muted); }
 .card, .glass-card, .card-glass, .table-container { border-radius: var(--ritel-radius-card) !important; }
 .modal-content:not(.drawer-content):not(.modal-fullscreen), .dialog-container { border-radius: var(--ritel-radius-dialog) !important; }
 .dropdown { border-radius: var(--ritel-radius-menu) !important; }
 .card, .glass-card, .card-glass, .modal-content, .dialog-container, .dropdown, .table-container {
-  background: #0a0a0a !important;
-  border-color: #30302d !important;
+  background: var(--theme-surface) !important;
+  border-color: var(--ritel-border) !important;
   box-shadow: none !important;
   backdrop-filter: none;
 }
 .card:hover, .card-hover:hover { transform: none; box-shadow: none !important; }
-.card-header, .card-footer, .modal-header, .modal-footer, .dialog-header, .dialog-footer { border-color: #30302d; }
+.card-header, .card-footer, .modal-header, .modal-footer, .dialog-header, .dialog-footer { border-color: var(--ritel-border); }
 .card-header { padding: 24px; }
 .btn, .btn-sm, .btn-md, .btn-lg, .btn-icon, .input, .dropdown-item, .tabs, .tab, .code-block, .code { box-shadow: none !important; }
 .btn, .btn-sm, .btn-md, .btn-lg, .btn-icon { border-radius: var(--ritel-radius-pill) !important; }
@@ -978,25 +934,25 @@ select option { background: #111110; color: #f4f2ed; }
 .btn { min-height: 44px; padding: 10px 22px; font-size: 14.5px; font-weight: 500; white-space: nowrap; }
 button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
 .btn-sm { min-height: 36px; padding: 6px 14px; font-size: 13.5px; }
-.btn-primary { background: #f4f2ed !important; border: 1px solid #f4f2ed; color: #0a0a0a !important; }
-.btn-primary:hover { background: #d8d4cb !important; }
-.btn-secondary { background: transparent !important; border-color: #55554f; color: #f4f2ed; }
-.btn-secondary:hover { border-color: #f4f2ed; background: #181817 !important; }
-.input { min-height: 44px; font-size: 14.5px; background: #111110 !important; border-color: #3c3c38; }
+.btn-primary { background: var(--theme-control-fill) !important; border: 1px solid var(--theme-control-fill); color: var(--theme-on-control) !important; }
+.btn-primary:hover { background: var(--theme-control-hover) !important; }
+.btn-secondary { background: transparent !important; border-color: var(--ritel-control-border); color: var(--ritel-fg); }
+.btn-secondary:hover { border-color: var(--ritel-fg); background: var(--theme-hover) !important; }
+.input { min-height: 44px; font-size: 14.5px; background: var(--theme-surface) !important; border-color: var(--ritel-control-border); }
 .input-label { font-size: 13.5px; margin-bottom: 10px; font-weight: 500; }
 .input-hint, .input-error-text { font-size: 12.5px; }
-.tabs { padding: 0; background: transparent !important; border-bottom: 1px solid #30302d; gap: 24px; }
+.tabs { padding: 0; background: transparent !important; border-bottom: 1px solid var(--ritel-border); gap: 24px; }
 .tab { padding: 12px 0; font-weight: 400; }
-.tab-active { background: transparent !important; border-bottom: 1px solid #f4f2ed; }
+.tab-active { background: transparent !important; border-bottom: 1px solid var(--ritel-fg); }
 .table th, .table td { padding: 16px; font-variant-numeric: lining-nums tabular-nums; }
 .table th, th { font-size: 12.5px; font-weight: 500; letter-spacing: .01em; }
-.table th { background: #111110; }
+.table th { background: var(--theme-surface); }
 .table td { font-size: 14px; }
 .page-header { margin-bottom: 32px; }
 .page-title { font-size: 36px; line-height: 1.2; }
 .page-description { font-size: 15px; line-height: 1.5; margin-top: 12px; }
 .stat-card { flex-direction: column; padding: 28px 24px; gap: 16px; }
-.stat-icon { border-radius: 0; background: transparent !important; color: #aaa9a4; width: 24px; height: 24px; }
+.stat-icon { border-radius: 0; background: transparent !important; color: var(--ritel-muted); width: 24px; height: 24px; }
 /* Console metrics use Cormorant lining figures; Cinzel oldstyle figures stay for marketing hero numbers (.ritel-number-hero). */
 .stat-value, .ritel-number-display { font-family: var(--ritel-display); font-variant-numeric: lining-nums proportional-nums; font-weight: 500; letter-spacing: -.01em; }
 .stat-value { font-size: 36px; line-height: 1.2; }
@@ -1006,11 +962,11 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
 .ritel-metric-card .ritel-number-display { font-size: 30px; line-height: 1.2; padding: 12px 0; overflow-wrap: anywhere; }
 .ritel-number-display .text-sm { font-family: var(--ritel-ui); font-variant-numeric: lining-nums tabular-nums; font-size: 13px; letter-spacing: 0; }
 .ritel-number-compact, [data-number=compact] { font-family: var(--ritel-ui); font-variant-numeric: lining-nums tabular-nums; }
-.ritel-brand { display: inline-flex; align-items: center; gap: 16px; color: #f4f2ed; font-family: var(--ritel-heading); font-size: 24px; white-space: nowrap; }
+.ritel-brand { display: inline-flex; align-items: center; gap: 16px; color: var(--ritel-fg); font-family: var(--ritel-heading); font-size: 24px; white-space: nowrap; }
 .ritel-brand img { object-fit: contain; }
-.ritel-auth { min-height: 100svh; display: flex; flex-direction: column; background: #0a0a0a; }
+.ritel-auth { min-height: 100svh; display: flex; flex-direction: column; background: var(--ritel-bg); }
 .ritel-auth-header, .ritel-home-nav { display: flex; justify-content: space-between; align-items: center; width: min(100% - 96px, 1232px); margin: 0 auto; min-height: 112px; gap: 24px; }
-.ritel-auth-header { border-bottom: 1px solid #30302d; }
+.ritel-auth-header { border-bottom: 1px solid var(--ritel-border); }
 .ritel-auth-main { flex: 1; display: grid; align-items: center; padding: 72px 24px 104px; }
 .ritel-auth-form { width: 100%; max-width: 430px; margin: 0 auto; }
 .ritel-auth-form h2 { font-size: 36px; line-height: 1.2; margin-bottom: 16px; }
@@ -1018,22 +974,22 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
 .ritel-auth-form .btn { min-height: 48px; }
 .ritel-auth-footer { margin-top: 32px; text-align: center; font-size: 14px; }
 .ritel-auth-footer:empty { display: none; }
-.ritel-home { min-height: 100svh; display: flex; flex-direction: column; background: #0a0a0a; }
-.ritel-home-header { border-bottom: 1px solid #30302d; }
+.ritel-home { min-height: 100svh; display: flex; flex-direction: column; background: var(--ritel-bg); }
+.ritel-home-header { border-bottom: 1px solid var(--ritel-border); }
 .ritel-home-actions { display: flex; align-items: center; justify-content: flex-end; gap: 28px; }
-.ritel-nav-link { display: inline-flex; gap: 12px; align-items: center; color: #c1beb6; font-size: 15px; }
-.ritel-nav-link:hover { color: #f4f2ed; }
+.ritel-nav-link { display: inline-flex; gap: 12px; align-items: center; color: var(--ritel-muted); font-size: 15px; }
+.ritel-nav-link:hover { color: var(--ritel-fg); }
 .ritel-home-main { flex: 1; width: min(100% - 96px, 1232px); margin: 0 auto; }
 .ritel-home-hero { padding: 96px 0 112px; text-align: center; }
 .ritel-home-symbol { width: 180px; height: 142px; object-fit: contain; margin: 0 auto 48px; }
 .ritel-home-hero h1 { font-weight: 400; font-size: clamp(56px, 8vw, 108px); line-height: 1.05; letter-spacing: -.04em; }
-.ritel-home-hero p { max-width: 720px; margin: 32px auto 0; font-size: clamp(20px, 2.5vw, 28px); color: #aaa9a4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ritel-home-hero p { max-width: 720px; margin: 32px auto 0; font-size: clamp(20px, 2.5vw, 28px); color: var(--ritel-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ritel-home-cta { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; margin-top: 40px; }
 .ritel-home-cta .btn { min-height: 52px; min-width: 168px; font-size: 16px; }
-.ritel-home-endpoint { display: flex; flex-wrap: wrap; align-items: center; gap: 32px; border-top: 1px solid #30302d; padding: 32px 0 48px; }
-.ritel-home-endpoint > span { color: #aaa9a4; }
+.ritel-home-endpoint { display: flex; flex-wrap: wrap; align-items: center; gap: 32px; border-top: 1px solid var(--ritel-border); padding: 32px 0 48px; }
+.ritel-home-endpoint > span { color: var(--ritel-muted); }
 .ritel-home-endpoint code { flex: 1; font-size: 19px; overflow-wrap: anywhere; min-width: 0; }
-.ritel-home-footer { border-top: 1px solid #30302d; padding: 24px; text-align: center; font-size: 13px; color: #aaa9a4; }
+.ritel-home-footer { border-top: 1px solid var(--ritel-border); padding: 24px; text-align: center; font-size: 13px; color: var(--ritel-muted); }
 @media (max-width: 1279px) {
   .ritel-main { padding: 32px 24px; }
   .ritel-metric-card { padding: 24px 16px; }
@@ -1090,11 +1046,11 @@ span.inline-flex.rounded, span.inline-block.rounded { border-radius: var(--ritel
 /* Both workspace controls use the same sizing and selected state. */
 .console-segment { padding: 8px 12px; min-height: 36px; border-radius: var(--ritel-radius-pill); font-size: 13px; font-weight: 400; color: var(--ritel-muted); white-space: nowrap; transition: color .15s, background .15s; }
 .console-segment:hover { color: var(--ritel-fg); }
-.console-segment[aria-pressed="true"] { background: #1e1e1c; color: var(--ritel-fg); }
+.console-segment[aria-pressed="true"] { background: var(--theme-selected); color: var(--ritel-fg); }
 /* Sidebar nav scrollbar (drawer). */
-.ritel-app .sidebar-nav { scrollbar-width: thin; scrollbar-color: #55554e #0a0a0a; }
+.ritel-app .sidebar-nav { scrollbar-width: thin; scrollbar-color: var(--theme-scrollbar) var(--ritel-bg); }
 .ritel-app .sidebar-nav::-webkit-scrollbar { display: block; width: 5px; }
-.ritel-app .sidebar-nav::-webkit-scrollbar-thumb { background: #55554e; }
+.ritel-app .sidebar-nav::-webkit-scrollbar-thumb { background: var(--theme-scrollbar); }
 
 .console-nav-badge {
   flex-shrink: 0;
@@ -1103,10 +1059,13 @@ span.inline-flex.rounded, span.inline-block.rounded { border-radius: var(--ritel
   padding: 0 5px;
   border-radius: var(--ritel-radius-pill);
   background: #e08b78;
-  color: #0a0a0a;
+  color: #27251f;
   font-size: 12px;
   font-weight: 600;
   line-height: 18px;
   text-align: center;
   font-variant-numeric: lining-nums tabular-nums;
 }
+
+:root:not(.dark) .ritel-logo { filter: brightness(0) saturate(100%); }
+:root.dark .ritel-logo { filter: none; }

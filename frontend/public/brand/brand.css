@@ -1,21 +1,38 @@
 @import url('./fonts/chiron/css/vf.css');
+@import url('./fonts/notosanscjkhk/fonts.css');
 @font-face{font-family:'Cinzel';src:url('./fonts/cinzel/Cinzel-variable.ttf') format('truetype');font-style:normal;font-weight:400 900;font-display:swap}
 @font-face{font-family:'Cormorant Garamond';src:url('./fonts/cormorantgaramond/CormorantGaramond-variable.ttf') format('truetype');font-style:normal;font-weight:300 700;font-display:swap}
 @font-face{font-family:'I.MingCP';src:url('./fonts/iming/I.MingCP-8.10.ttf') format('truetype');font-style:normal;font-weight:400;font-display:swap}
 @font-face{font-family:'IBM Plex Sans';src:url('./fonts/ibmplexsans/IBMPlexSans-variable.ttf') format('truetype');font-style:normal;font-weight:100 700;font-stretch:85% 100%;font-display:swap}
 @font-face{font-family:'IBM Plex Mono';src:url('./fonts/ibmplexmono/IBMPlexMono-Regular.ttf') format('truetype');font-style:normal;font-weight:400;font-display:swap}
 @font-face{font-family:'IBM Plex Mono';src:url('./fonts/ibmplexmono/IBMPlexMono-Medium.ttf') format('truetype');font-style:normal;font-weight:500;font-display:swap}
-@font-face{font-family:'Noto Sans HK';src:url('./fonts/notosanshk/NotoSansHK-variable.ttf') format('truetype');font-style:normal;font-weight:100 900;font-display:swap;unicode-range:U+2E80-2FDF,U+3000-303F,U+3100-312F,U+31A0-31BF,U+3200-33FF,U+3400-4DBF,U+4E00-9FFF,U+F900-FAFF,U+FE30-FE4F,U+FF00-FFEF,U+20000-2FA1F}
 :root{
-  --ritel-bg:#0a0a0a;--ritel-fg:#f4f2ed;--ritel-muted:#aaa9a4;--ritel-border:#30302d;--ritel-focus:#cfb89a;
-  --ritel-ui:'IBM Plex Sans','Noto Sans HK','Chiron Sung HK',system-ui,sans-serif;
+  color-scheme:light;
+  --ritel-neutral-400:115 110 100;--ritel-neutral-500:105 102 92;
+  --ritel-bg:#f5f3ee;--ritel-fg:#27251f;--ritel-muted:#69665c;--ritel-border:#d6d1c5;--ritel-focus:#80613b;
+  --ritel-surface:#fffefa;--ritel-surface-raised:#f0eee6;--ritel-surface-inset:#ebe8df;
+  --ritel-hover:#e8e4da;--ritel-selected:#e2ddd1;--ritel-selected-hover:#d6d0c2;
+  --ritel-primary:#454238;--ritel-primary-hover:#27251f;--ritel-primary-soft:#e8e4da;
+  --ritel-control-fill:#27251f;--ritel-control-hover:#454238;--ritel-on-control:#f7f5ef;
+  --ritel-control-border:#8c877b;--ritel-scrollbar:#a09a8d;
+  --ritel-ui:'IBM Plex Sans','Noto Sans CJK HK',system-ui,'Microsoft JhengHei','Microsoft YaHei',sans-serif;
   --ritel-body:var(--ritel-ui);
   --ritel-display:'Cormorant Garamond','I.MingCP','Chiron Sung HK',Georgia,serif;
   --ritel-heading:'Cinzel','I.MingCP','Chiron Sung HK',Georgia,serif;
-  --ritel-mono:'IBM Plex Mono','Noto Sans HK',ui-monospace,monospace;
+  --ritel-mono:'IBM Plex Mono','Noto Sans CJK HK',ui-monospace,monospace;
   --ritel-radius-pill:999px;--ritel-radius-control:8px;--ritel-radius-field:10px;--ritel-radius-tile:12px;
   --ritel-radius-menu:12px;--ritel-radius-card:14px;--ritel-radius-dialog:18px;--ritel-radius-code:10px;
   --ritel-max-width:1232px;--ritel-space-1:8px;--ritel-space-2:16px;--ritel-space-3:24px;--ritel-space-4:32px;--ritel-space-6:48px;--ritel-space-8:64px;--ritel-space-12:96px;--ritel-space-15:120px
+}
+:root.dark{
+  color-scheme:dark;
+  --ritel-neutral-400:180 177 167;--ritel-neutral-500:149 146 135;
+  --ritel-bg:#1b1b19;--ritel-fg:#eeece5;--ritel-muted:#b4b1a7;--ritel-border:#41413b;--ritel-focus:#cfb89a;
+  --ritel-surface:#232320;--ritel-surface-raised:#2b2b27;--ritel-surface-inset:#171715;
+  --ritel-hover:#32322d;--ritel-selected:#383831;--ritel-selected-hover:#42423a;
+  --ritel-primary:#eeece5;--ritel-primary-hover:#fffefa;--ritel-primary-soft:#32322d;
+  --ritel-control-fill:#eeece5;--ritel-control-hover:#dcd9d0;--ritel-on-control:#232320;
+  --ritel-control-border:#858175;--ritel-scrollbar:#777469;
 }
 .ritel-theme{font-family:var(--ritel-ui);font-synthesis:none;font-optical-sizing:auto;font-variant-numeric:lining-nums tabular-nums;background:var(--ritel-bg);color:var(--ritel-fg)}
 .ritel-theme :is(button,input,select,textarea){font-family:inherit;font-synthesis:none}

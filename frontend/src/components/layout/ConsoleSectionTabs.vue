@@ -57,8 +57,8 @@ onBeforeUnmount(() => cancelAnimationFrame(frame))
   top: 60px;
   z-index: 40;
   height: 44px;
-  background: #0a0a0a;
-  border-bottom: 1px solid #1e1e1c;
+  background: var(--ritel-bg);
+  border-bottom: 1px solid var(--ritel-border);
 }
 .console-section-tabs-inner {
   display: flex;

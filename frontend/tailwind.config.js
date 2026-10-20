@@ -1,10 +1,14 @@
 // Neutral utility families share the brand palette; status and provider colors stay distinct.
 const warmNeutral = {
-  50: '#f4f2ed', 100: '#eeeae1', 200: '#d8d4cb', 300: '#c1beb6',
-  400: '#aaa9a4', 500: '#86857f', 600: '#66655f', 700: '#30302d',
-  800: '#181817', 900: '#111110', 950: '#0a0a0a'
+  50: '#f7f5ef', 100: '#ede9df', 200: '#d6d1c5', 300: '#b8b3a7',
+  400: 'rgb(var(--ritel-neutral-400) / <alpha-value>)', 500: 'rgb(var(--ritel-neutral-500) / <alpha-value>)', 600: '#59564d', 700: '#454238',
+  800: '#333027', 900: '#27251f', 950: '#1b1a16'
 }
-const darkNeutral = { ...warmNeutral, 100: '#f4f2ed', 300: '#c1beb6' }
+const darkNeutral = {
+  50: '#f7f5ef', 100: '#eeece5', 200: '#dcd9d0', 300: '#c7c4b9',
+  400: '#b4b1a7', 500: '#959287', 600: '#626056', 700: '#41413b',
+  800: '#2b2b27', 900: '#232320', 950: '#1b1b19'
+}
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -15,7 +19,7 @@ export default {
       colors: {
         // 主色调 - 暖中性色
         primary: warmNeutral,
-        brand: { paper: '#0a0a0a', selected: '#181817' },
+        brand: { paper: '#f5f3ee', selected: '#e8e4da' },
         // Common neutral classes and dark surfaces use the same warm palette.
         gray: warmNeutral,
         slate: warmNeutral,
@@ -26,10 +30,10 @@ export default {
         dark: darkNeutral
       },
       fontFamily: {
-        sans: ['IBM Plex Sans', 'Noto Sans HK', 'Chiron Sung HK', 'system-ui', 'sans-serif'],
+        sans: ['IBM Plex Sans', 'Noto Sans CJK HK', 'system-ui', 'sans-serif'],
         serif: ['Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
         display: ['Cinzel', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
-        mono: ['IBM Plex Mono', 'Noto Sans HK', 'ui-monospace', 'monospace']
+        mono: ['IBM Plex Mono', 'Noto Sans CJK HK', 'ui-monospace', 'monospace']
       },
       boxShadow: {
         glass: '0 8px 32px rgba(0, 0, 0, 0.08)',

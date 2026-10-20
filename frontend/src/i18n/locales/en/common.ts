@@ -1,5 +1,11 @@
 export default {
   common: {
+    theme: {
+      label: 'Appearance',
+      system: 'System',
+      light: 'Light',
+      dark: 'Dark',
+    },
     columnSettings: 'Columns',
     resetColumns: 'Reset columns',
     moveColumn: 'Move {column}',

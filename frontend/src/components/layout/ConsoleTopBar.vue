@@ -3,7 +3,7 @@
     <div ref="barRef" class="console-top-bar-inner">
       <div ref="leftRef" class="console-top-bar-left">
         <router-link :to="homePath" class="console-wordmark" :aria-label="siteName" @click="handleNavigate(homePath)">
-          <img :src="siteLogo" alt="" class="console-wordmark-logo" />
+          <img :src="siteLogo" alt="" class="ritel-logo console-wordmark-logo" />
           <span class="console-wordmark-name">{{ siteName }}</span>
         </router-link>
 
@@ -86,6 +86,7 @@
           <span class="console-balance-amount" :aria-label="`${shellCopy.available}: ${formatMoney(availableBalance)}`">{{ formatMoney(availableBalance) }}</span>
           <span v-if="frozenBalance > 0" class="console-balance-frozen">{{ shellCopy.frozen }} {{ formatMoney(frozenBalance) }}</span>
         </div>
+        <ThemeSwitcher class="console-theme" />
         <LocaleSwitcher class="console-locale" />
         <SubscriptionProgressMini
           v-if="user && !authStore.isObserver && !appStore.backendModeEnabled && subscriptionFeatureEnabled"
@@ -190,6 +191,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import FeatureSearch from './FeatureSearch.vue'
@@ -326,8 +328,8 @@ onBeforeUnmount(() => {
   top: 0;
   z-index: 50;
   height: 60px;
-  background: #0a0a0af2;
-  border-bottom: 1px solid #30302d;
+  background: color-mix(in srgb, var(--ritel-bg) 95%, transparent);
+  border-bottom: 1px solid var(--ritel-border);
   backdrop-filter: blur(12px);
 }
 .console-top-bar-inner {
@@ -407,7 +409,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   transition: color 0.15s, background 0.15s;
 }
-.console-section-link:hover { color: var(--ritel-fg); background: #181817; }
+.console-section-link:hover { color: var(--ritel-fg); background: var(--theme-hover); }
 .console-section-link-active { color: var(--ritel-fg) !important; }
 .console-section-link-active::after {
   content: '';
@@ -437,7 +439,7 @@ onBeforeUnmount(() => {
   color: var(--ritel-muted);
   transition: color 0.15s, background 0.15s;
 }
-.console-icon-btn:hover { color: var(--ritel-fg); background: #181817; }
+.console-icon-btn:hover { color: var(--ritel-fg); background: var(--theme-hover); }
 .console-mobile-section {
   font-size: 14px;
   font-weight: 500;
@@ -450,8 +452,8 @@ onBeforeUnmount(() => {
   gap: 4px;
   padding: 4px 10px;
   border-radius: var(--ritel-radius-pill);
-  background: #111110;
-  border: 1px solid #30302d;
+  background: var(--theme-surface);
+  border: 1px solid var(--ritel-border);
 }
 .console-balance-amount {
   font-size: 13px;
@@ -471,13 +473,13 @@ onBeforeUnmount(() => {
   padding: 2px;
   transition: background 0.15s;
 }
-.console-avatar-btn:hover { background: #181817; }
+.console-avatar-btn:hover { background: var(--theme-hover); }
 .console-avatar {
   width: 30px;
   height: 30px;
   border-radius: var(--ritel-radius-pill);
-  background: #cfb89a;
-  color: #0a0a0a;
+  background: var(--theme-control-fill);
+  color: var(--theme-on-control);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -504,6 +506,6 @@ onBeforeUnmount(() => {
 @media (min-width: 1280px) { .console-docs-link { display: inline-flex; } }
 @media (max-width: 1279px) { .console-balance { display: none; } }
 @media (max-width: 1023px) { .console-workspace-switch { display: none; } }
-@media (max-width: 639px) { .console-locale, .console-mobile-section { display: none; } }
+@media (max-width: 639px) { .console-theme, .console-locale, .console-mobile-section { display: none; } }
 @media (max-width: 359px) { .console-wordmark-name { display: none; } }
 </style>

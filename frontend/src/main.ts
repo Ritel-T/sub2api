@@ -1,4 +1,4 @@
-import { createApp } from 'vue'
+import { createApp, watch } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
@@ -6,13 +6,13 @@ import i18n, { initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
 import { updateFavicon, BRAND_NAME, BRAND_FAVICON } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
+import { initializeTheme, useTheme } from '@/composables/useTheme'
+import { getChartTheme } from '@/utils/chartTheme'
 import './style.css'
 import { Chart } from 'chart.js'
 
-Chart.defaults.font.family = "'IBM Plex Sans', 'Noto Sans HK', 'Chiron Sung HK', system-ui, sans-serif"
+Chart.defaults.font.family = "'IBM Plex Sans', 'Noto Sans CJK HK', system-ui, sans-serif"
 Chart.defaults.font.size = 12
-Chart.defaults.color = '#aaa9a4'
-Chart.defaults.borderColor = '#30302d'
 
 function initIOSViewportZoomFix() {
   // iOS Safari 在输入框字号小于 16px 时聚焦会自动放大页面，且失焦后不会恢复。
@@ -28,13 +28,15 @@ function initIOSViewportZoomFix() {
   viewport.setAttribute('content', `${content}, maximum-scale=1.0`)
 }
 
-function initThemeClass() {
-  document.documentElement.classList.add('dark')
-}
-
 async function bootstrap() {
   // Apply theme class globally before app mount to keep all routes consistent.
-  initThemeClass()
+  initializeTheme()
+  const { resolvedTheme } = useTheme()
+  watch(resolvedTheme, theme => {
+    const colors = getChartTheme(theme === 'dark')
+    Chart.defaults.color = colors.text
+    Chart.defaults.borderColor = colors.grid
+  }, { immediate: true })
   initIOSViewportZoomFix()
 
   const app = createApp(App)

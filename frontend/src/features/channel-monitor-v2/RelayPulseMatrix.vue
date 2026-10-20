@@ -622,33 +622,22 @@ function formatBucketRange(value: string) {
   max-width: min(18rem, calc(100vw - 1.5rem));
   transform: translate(-50%, -100%);
   border-radius: 0.75rem;
-  border: 1px solid rgb(229 231 235);
-  background: rgb(255 255 255);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-raised);
   padding: 0.5rem 0.625rem;
   box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.28);
   white-space: nowrap;
-}
-:global(.dark) .matrix-floating-tooltip {
-  border-color: rgb(55 65 81);
-  background: var(--theme-surface-inset);
-  color: rgb(229 231 235);
 }
 .matrix-floating-tooltip-line {
   display: block;
   font-size: 11px;
   line-height: 1.45;
-  color: rgb(75 85 99);
-}
-:global(.dark) .matrix-floating-tooltip-line {
-  color: rgb(209 213 219);
+  color: var(--theme-muted);
 }
 .matrix-floating-tooltip-title {
   margin-bottom: 0.2rem;
   font-weight: 600;
   color: var(--theme-foreground);
-}
-:global(.dark) .matrix-floating-tooltip-title {
-  color: rgb(243 244 246);
 }
 
 @media (max-width: 640px) {

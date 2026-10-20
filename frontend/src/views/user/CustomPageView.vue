@@ -560,7 +560,7 @@ onUnmounted(() => {
 .markdown-page-content th { @apply border border-gray-300 dark:border-dark-500 px-3 py-2 bg-gray-50 dark:bg-dark-700 font-semibold text-left; }
 .markdown-page-content td { @apply border border-gray-300 dark:border-dark-500 px-3 py-2; }
 .markdown-page-content code { @apply bg-gray-100 dark:bg-dark-700 px-1.5 py-0.5 rounded text-sm font-mono; }
-.markdown-page-content pre { @apply bg-gray-900 dark:bg-dark-900 text-gray-100 p-4 rounded-lg overflow-x-auto my-4 relative; }
+.markdown-page-content pre { @apply p-4 rounded-lg overflow-x-auto my-4 relative; background: var(--theme-surface-inset); color: var(--theme-foreground); }
 .markdown-page-content pre code { @apply bg-transparent p-0 text-inherit; }
 .markdown-page-content hr { @apply my-6 border-gray-200 dark:border-dark-600; }
 
@@ -571,14 +571,14 @@ onUnmounted(() => {
   padding: 4px 10px;
   font-size: 12px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.15);
-  color: #e2e8f0;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--theme-surface-raised);
+  color: var(--theme-foreground);
+  border: 1px solid var(--theme-border);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s, background 0.2s;
   font-family: inherit;
 }
-.copy-btn:hover { background: rgba(255, 255, 255, 0.25); }
-pre:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { background: var(--theme-hover); }
+pre:hover .copy-btn, pre:focus-within .copy-btn { opacity: 1; }
 </style>
