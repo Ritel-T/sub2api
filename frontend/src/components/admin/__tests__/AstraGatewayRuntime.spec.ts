@@ -60,7 +60,7 @@ describe('Model route availability with shared account quality', () => {
     const w = mount(AstraGatewayRuntime, { props: { settings: { ...settings, auto_quality: true }, dirty: false } }); await flushPromises()
     expect(w.text()).toContain('gpt-6-astra')
     expect(w.text()).toContain('gpt-6.1-sol')
-    const targets = w.findAll('div.rounded-xl').filter(row => row.text().includes('admin.astraGateway.targets #300'))
+    const targets = w.findAll('[data-testid="target-route"]')
     expect(targets).toHaveLength(2)
     expect(targets[0].text()).toContain('120 s')
     expect(targets[1].text()).not.toContain('120 s')

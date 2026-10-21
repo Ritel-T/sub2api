@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-700" data-testid="balance-retail-settings">
+  <div class="open-section" data-testid="balance-retail-settings">
     <div class="flex items-start justify-between gap-4">
       <div>
         <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('squarespaceProvider.retail.title') }}</h4>

@@ -15,7 +15,7 @@ vi.mock('vue-i18n', async () => {
 })
 
 const DialogStub = defineComponent({ props: ['show', 'title'], emits: ['close'], template: '<div v-if="show" data-test="dialog"><slot /><slot name="footer" /></div>' })
-const PaginationStub = defineComponent({ props: ['total', 'page', 'pageSize'], emits: ['update:page', 'update:pageSize'], template: '<div data-test="pagination" />' })
+const InfiniteListSentinelStub = defineComponent({ props: ['hasMore', 'loading', 'error'], emits: ['load-more', 'retry'], template: '<div data-test="infinite-list" />' })
 
 const endpoint = (): PromptAuditEndpointDraft => ({
   id: 'guard-1', name: 'Guard One', protocol: 'openai_compatible', base_url: 'http://127.0.0.1:8000',
@@ -90,8 +90,8 @@ describe('Prompt Audit components', () => {
       snapshot: { request_id: 'req-1', user_id: 1, username: 'alice', user_email: 'alice@example.test', api_key_id: 2, api_key_name: 'alice-key', group_id: 3, group_name: 'Alpha', provider: 'openai', endpoint: '/v1/chat/completions', protocol: 'openai_chat', model: 'gpt-test', prompt_hash: 'a'.repeat(64), redacted_preview: 'redacted preview', full_prompt: 'full prompt text', prompt_length: 10, message_count: 1, stage: 'http' },
     }
     const wrapper = mount(EventWorkspace, {
-      props: { events: [event], total: 1, page: 1, pageSize: 20, filters: emptyEventFilters(), selectedIds: [], loading: false, error: '' },
-      global: { stubs: { Pagination: PaginationStub } },
+      props: { events: [event], hasMore: false, filters: emptyEventFilters(), selectedIds: [], loading: false, error: '' },
+      global: { stubs: { InfiniteListSentinel: InfiniteListSentinelStub } },
     })
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('alice@example.test')
@@ -101,8 +101,15 @@ describe('Prompt Audit components', () => {
     expect(wrapper.get('[data-test="filter-delete"]').attributes()).not.toHaveProperty('disabled')
     await wrapper.get('[data-test="filter-delete"]').trigger('click')
     expect(wrapper.emitted('preview-delete')).toHaveLength(1)
-    await wrapper.get('[aria-label="admin.promptAudit.events.selectEvent"]').setValue(true)
+    await wrapper.get('[aria-label="admin.promptAudit.events.selectEvent"]').trigger('click')
     expect(wrapper.emitted('selection')?.at(-1)?.[0]).toEqual([1])
+    expect(wrapper.text()).not.toContain('redacted preview')
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.text()).toContain('redacted preview')
+    const action = wrapper.findAll('button').find((button) => button.text() === 'common.view')!
+    await action.trigger('click')
+    expect(wrapper.emitted('view')?.at(-1)?.[0]).toBe(1)
+    expect(wrapper.text()).toContain('redacted preview')
   })
 
   it('resolves delete range presets to an epoch start and a cutoff end', () => {

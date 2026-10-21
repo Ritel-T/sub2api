@@ -1,5 +1,5 @@
 <template>
-  <section :class="embedded ? 'border-t border-gray-100 pt-5 dark:border-dark-700' : 'card overflow-visible p-5'" aria-labelledby="harvest-console-title">
+  <section :class="embedded ? 'border-t border-gray-100 pt-5 dark:border-dark-700' : 'open-section overflow-visible'" aria-labelledby="harvest-console-title">
     <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 id="harvest-console-title" class="text-sm font-semibold text-gray-900 dark:text-white">{{ t(`${prefix}.title`) }}</h2>
@@ -121,7 +121,7 @@
         </div>
       </div>
 
-      <div class="flex min-h-[22rem] flex-col rounded-2xl border border-gray-100 bg-gray-50/40 dark:border-dark-700 dark:bg-dark-800/40 lg:col-span-7">
+      <div class="flex min-h-[22rem] flex-col border-t border-gray-200 dark:border-dark-700 lg:col-span-7">
         <div class="flex flex-wrap justify-between gap-2 border-b border-gray-100 px-4 py-2 text-xs dark:border-dark-700">
           <div>{{ t(`${prefix}.status`) }} <strong :class="statusColor">{{ statusText }}</strong></div>
           <div>{{ t(`${prefix}.progress`) }} <span class="font-mono font-semibold">{{ progressText }}</span></div>

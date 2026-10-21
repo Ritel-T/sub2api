@@ -1,11 +1,12 @@
 <template>
   <AppLayout>
-    <div class="space-y-4">
+    <div class="open-page">
       <BillingNavigation current="orders" :settings="appStore.cachedPublicSettings" />
       <!-- Filters -->
-      <div class="card p-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <Select v-model="currentFilter" :options="statusFilters" class="w-36" @change="handlePageChange(1)" />
+      <div class="open-section p-4">
+        <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
+          <Select v-model="currentFilter" :options="statusFilters" class="w-36" @change="reset" />
+          <div ref="tableToolbarTarget" class="min-w-0" />
           <div class="flex flex-1 items-center justify-end gap-2">
             <button @click="fetchOrders" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
@@ -34,14 +35,12 @@
         </template>
       </OrderTable>
 
-      <!-- Pagination -->
-      <Pagination
-        v-if="pagination.total > 0"
-        :page="pagination.page"
-        :total="pagination.total"
-        :page-size="pagination.page_size"
-        @update:page="handlePageChange"
-        @update:pageSize="handlePageSizeChange"
+      <InfiniteListSentinel
+        :loading="loading || loadingMore || refreshing"
+        :error="listError"
+        :has-more="hasMore"
+        @load-more="loadMore"
+        @retry="retry"
       />
     </div>
 
@@ -85,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { provide, ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores'
@@ -97,28 +96,28 @@ import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { PaymentOrder } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BillingNavigation from '@/components/user/BillingNavigation.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderTable from '@/components/payment/OrderTable.vue'
 
 const { t } = useI18n()
+const tableToolbarTarget = ref<HTMLElement | null>(null)
+provide('tableToolbarTarget', tableToolbarTarget)
 const { t: bt } = useI18n({ useScope: 'local', messages: billingMessages })
 const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const canContactSupport = computed(() => authStore.user?.role === 'user' && resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.supportTickets))
 
-const loading = ref(false)
 const actionLoading = ref(false)
-const orders = ref<PaymentOrder[]>([])
 const refundEligibleProviders = ref<Set<string>>(new Set())
 const currentFilter = ref('')
 const cancelTargetId = ref<number | null>(null)
 const refundTarget = ref<PaymentOrder | null>(null)
 const refundReason = ref('')
-const pagination = reactive({ page: 1, page_size: 20, total: 0 })
 
 const statusFilters = computed(() => [
   { value: '', label: t('common.all') },
@@ -128,25 +127,15 @@ const statusFilters = computed(() => [
   { value: 'REFUNDED', label: t('payment.status.refunded') },
 ])
 
-async function fetchOrders() {
-  loading.value = true
-  try {
-    const res = await paymentAPI.getMyOrders({
-      page: pagination.page,
-      page_size: pagination.page_size,
-      status: currentFilter.value || undefined,
-    })
-    orders.value = res.data.items || []
-    pagination.total = res.data.total || 0
-  } catch (err: unknown) {
-    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
-  } finally {
-    loading.value = false
-  }
-}
-
-function handlePageChange(page: number) { pagination.page = page; fetchOrders() }
-function handlePageSizeChange(size: number) { pagination.page_size = size; pagination.page = 1; fetchOrders() }
+const { items: orders, loading, loadingMore, refreshing, error: listError, hasMore, loadMore, retry, reset, refresh } = useInfiniteList<PaymentOrder>({
+  pageSize: 50,
+  keyOf: order => order.id,
+  fetchPage: async page => {
+    const res = await paymentAPI.getMyOrders({ page, page_size: 50, status: currentFilter.value || undefined })
+    return { items: res.data.items || [], total: res.data.total || 0 }
+  },
+})
+const fetchOrders = () => refresh()
 
 function handleCancel(orderId: number) { cancelTargetId.value = orderId }
 

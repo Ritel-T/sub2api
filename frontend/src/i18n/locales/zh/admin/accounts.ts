@@ -1,5 +1,14 @@
 export default {
     accounts: {
+    details: {
+      statistics: '用量统计',
+      configuration: '账户资料',
+      actions: '操作',
+      diagnostics: '诊断与统计',
+      management: '账户管理',
+      links: '相关页面',
+      extras: '点数与邀请',
+    },
       bpsAuthorizing: 'BPS 正在自动授权，当前使用原生通道；授权成功后自动切换，无需再次操作开关。',
       "modelsLoadFailed": "模型列表加载失败，请重试。",
       "retryModels": "重新加载模型",
@@ -732,7 +741,7 @@ export default {
       bulkActions: {
         selected: '已选择 {count} 个账号',
         selectedAll: '已选择全部 {count} 个账号',
-        selectCurrentPage: '本页全选',
+        selectCurrentPage: '选择已加载账号',
         selectAllResults: '全选所有结果（{count}）',
         selectingAll: '正在选择全部结果...',
         selectAllFailed: '获取全部账号失败，原有选择未改变',

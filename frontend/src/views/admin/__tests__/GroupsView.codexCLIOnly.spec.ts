@@ -72,7 +72,7 @@ function mountView() {
     global: {
       stubs: {
         AppLayout: defineComponent({ template: '<main><slot /></main>' }),
-        TablePageLayout: defineComponent({ template: '<section><slot name="filters" /><slot name="table" /><slot name="pagination" /></section>' }),
+        TablePageLayout: defineComponent({ template: '<section><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></section>' }),
         DataTable: DataTableStub,
         BaseDialog: defineComponent({ props: { show: Boolean }, template: '<div v-if="show"><slot /><slot name="footer" /></div>' }),
         Pagination: true, ConfirmDialog: true, EmptyState: true, Select: true, PlatformIcon: true, Icon: true,

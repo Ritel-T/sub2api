@@ -133,6 +133,30 @@ describe('OpsSystemLogTable host support', () => {
     expect(mockCleanupSystemLogs).toHaveBeenCalledWith(expect.objectContaining({ host: 'api-node-2' }))
   })
 
+  it('appends logs with the applied query and resets on an explicit filter search', async () => {
+    const first = { id: 1, created_at: '2026-10-20T00:00:00Z', level: 'error', message: 'first record' }
+    const second = { ...first, id: 2, message: 'second record' }
+    mockListSystemLogs.mockResolvedValueOnce({ items: [first], total: 2 })
+      .mockResolvedValueOnce({ items: [second], total: 2 })
+      .mockResolvedValueOnce({ items: [{ ...first, id: 3, message: 'filtered record' }], total: 1 })
+    const wrapper = mount(OpsSystemLogTable, { global: { stubs: { Select: SelectStub } } })
+    await flushPromises()
+    const host = wrapper.findAll('label').find(label => label.text().includes('admin.ops.systemLogs.host'))!
+    await host.find('input').setValue('unapplied-host')
+    await wrapper.get('.infinite-list-action').trigger('click')
+    await flushPromises()
+    expect(mockListSystemLogs).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, page_size: 50 }))
+    expect(mockListSystemLogs.mock.calls.at(-1)![0].host).toBeUndefined()
+    expect(wrapper.text()).toContain('first record')
+    expect(wrapper.text()).toContain('second record')
+    await wrapper.findAll('button').find(button => button.text() === 'admin.ops.systemLogs.search')!.trigger('click')
+    await flushPromises()
+    expect(mockListSystemLogs).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, host: 'unapplied-host' }))
+    expect(wrapper.text()).toContain('filtered record')
+    expect(wrapper.text()).not.toContain('second record')
+    wrapper.unmount()
+  })
+
   it('keeps database access-log persistence opt-in', async () => {
     const wrapper = mount(OpsSystemLogTable, {
       global: {

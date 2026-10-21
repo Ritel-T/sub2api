@@ -1,5 +1,5 @@
 <template>
-  <div class="card p-4" data-testid="harvest-coverage">
+  <div class="open-section" data-testid="harvest-coverage">
     <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.harvestFlow.coverageTitle') }}</p>
     <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ available ? `${coverage!.average_percent!.toFixed(1)}%` : '—' }}</p>
     <p v-if="available" class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.harvestFlow.coverageDurations', { ready: duration(coverage!.average_ready_seconds), missing: duration(coverage!.average_missing_seconds) }) }}</p>

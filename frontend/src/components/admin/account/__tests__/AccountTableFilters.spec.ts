@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import AccountTableFilters from '../AccountTableFilters.vue'
 import Select from '@/components/common/Select.vue'
@@ -16,6 +17,12 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
+const viewport = vi.hoisted(() => ({ desktop: true }))
+vi.mock('@vueuse/core', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@vueuse/core')>(),
+  useMediaQuery: () => ref(viewport.desktop)
+}))
+beforeEach(() => { viewport.desktop = true })
 const defaultFilters = () => ({
   platform: '', type: '', status: '', privacy_mode: '', group: '',
   search: 'existing search', lite: '1', sort_by: 'priority', sort_order: 'asc'
@@ -39,7 +46,7 @@ afterEach(() => {
 })
 
 describe('AccountTableFilters', () => {
-  it('shows all five filters immediately and preserves selections on external updates', async () => {
+  it('shows all five desktop filters immediately and preserves selections on external updates', async () => {
     const filters = { ...defaultFilters(), type: 'bedrock', privacy_mode: '__unset__', group: 'ungrouped' }
     const wrapper = mountFilters(filters)
     const selects = wrapper.findAllComponents(Select)
@@ -58,6 +65,16 @@ describe('AccountTableFilters', () => {
     expect(wrapper.emitted('change')).toBeUndefined()
   })
 
+  it('keeps every mobile filter visible at the same level without clearing its value', async () => {
+    viewport.desktop = false
+    const filters = { ...defaultFilters(), type: 'oauth', privacy_mode: '__unset__', group: '42' }
+    const wrapper = mountFilters(filters)
+    expect(wrapper.find('details').exists()).toBe(false)
+    expect(wrapper.findAllComponents(Select)).toHaveLength(5)
+    expect(wrapper.findAllComponents(Select).every(select => select.isVisible())).toBe(true)
+    expect(wrapper.props('filters')).toEqual(filters)
+    expect(wrapper.emitted('update:filters')).toBeUndefined()
+  })
   it('preserves every option and emits a merged filter snapshot plus change for every selection', async () => {
     const filters = { ...defaultFilters(), platform: 'openai', type: 'oauth', status: 'active', privacy_mode: '__unset__', group: '42' }
     const wrapper = mountFilters(filters)
@@ -102,11 +119,5 @@ describe('AccountTableFilters', () => {
     wrapper.unmount()
   })
 
-  it('uses shrinkable, wrapping controls for all five filters', () => {
-    const wrapper = mountFilters()
-    expect(wrapper.classes()).toEqual(expect.arrayContaining(['min-w-0', 'grid-cols-2', 'sm:flex-wrap']))
-    for (const select of wrapper.findAllComponents(Select)) {
-      expect(select.classes()).toEqual(expect.arrayContaining(['min-w-0', 'w-full', 'sm:w-36']))
-    }
-  })
+
 })

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -27,11 +28,15 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 
-const loading = ref(false)
-const rows = ref<OpsErrorLog[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
+let errorQuery: Record<string, any> = {}
+const list = useInfiniteList<OpsErrorLog>({
+  pageSize: 50,
+  keyOf: row => row.id,
+  fetchPage: page => props.errorType === 'upstream'
+    ? opsAPI.listUpstreamErrors({ ...errorQuery, page, page_size: 50 })
+    : opsAPI.listRequestErrors({ ...errorQuery, page, page_size: 50 })
+})
+const { items: rows, total, loading, loadingMore, error, hasMore } = list
 
 const q = ref('')
 const statusCode = ref<number | 'other' | null>(null)
@@ -95,97 +100,78 @@ const sortOrder = ref<'asc' | 'desc'>('desc')
 function onSort(nextSortBy: string, nextSortOrder: 'asc' | 'desc') {
   sortBy.value = nextSortBy
   sortOrder.value = nextSortOrder
-  page.value = 1
   void fetchErrorLogs()
 }
 
 async function fetchErrorLogs() {
   if (!props.show) return
-
-  loading.value = true
-  try {
-    const params: Record<string, any> = {
-      page: page.value,
-      page_size: pageSize.value,
-      view: viewMode.value,
-      sort_by: sortBy.value,
-      sort_order: sortOrder.value
-    }
-    Object.assign(params, buildOpsErrorTimeParams(props.timeRange, props.customStartTime, props.customEndTime))
-
-    if (props.timeRange === 'custom') {
-      if (props.customStartTime && props.customEndTime) {
-        params.start_time = props.customStartTime
-        params.end_time = props.customEndTime
-        delete params.time_range
-      } else {
-        // Safety fallback: avoid sending time_range=custom (backend doesn't support it)
-        params.time_range = '1h'
-      }
-    }
-
-    const platform = String(props.platform || '').trim()
-    if (platform) params.platform = platform
-    if (typeof props.groupId === 'number' && props.groupId > 0) params.group_id = props.groupId
-
-    if (q.value.trim()) params.q = q.value.trim()
-    if (statusCode.value === 'other') params.status_codes_other = '1'
-    else if (typeof statusCode.value === 'number') params.status_codes = String(statusCode.value)
-
-    const phaseVal = String(phase.value || '').trim()
-    if (phaseVal) params.phase = phaseVal
-
-    const ownerVal = String(errorOwner.value || '').trim()
-    if (ownerVal) params.error_owner = ownerVal
-
-
-    const res = props.errorType === 'upstream'
-      ? await opsAPI.listUpstreamErrors(params)
-      : await opsAPI.listRequestErrors(params)
-    rows.value = res.items || []
-    total.value = res.total || 0
-  } catch (err) {
-    console.error('[OpsErrorDetailsModal] Failed to fetch error logs', err)
-    rows.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
+  const params: Record<string, any> = {
+    view: viewMode.value,
+    sort_by: sortBy.value,
+    sort_order: sortOrder.value
   }
+  Object.assign(params, buildOpsErrorTimeParams(props.timeRange, props.customStartTime, props.customEndTime))
+
+  if (props.timeRange === 'custom') {
+    if (props.customStartTime && props.customEndTime) {
+      params.start_time = props.customStartTime
+      params.end_time = props.customEndTime
+      delete params.time_range
+    } else {
+      // Safety fallback: avoid sending time_range=custom (backend doesn't support it)
+      params.time_range = '1h'
+    }
+  }
+
+  const platform = String(props.platform || '').trim()
+  if (platform) params.platform = platform
+  if (typeof props.groupId === 'number' && props.groupId > 0) params.group_id = props.groupId
+
+  if (q.value.trim()) params.q = q.value.trim()
+  if (statusCode.value === 'other') params.status_codes_other = '1'
+  else if (typeof statusCode.value === 'number') params.status_codes = String(statusCode.value)
+
+  const phaseVal = String(phase.value || '').trim()
+  if (phaseVal) params.phase = phaseVal
+
+  const ownerVal = String(errorOwner.value || '').trim()
+  if (ownerVal) params.error_owner = ownerVal
+
+
+  const duration = /^(\d+)(m|h|d)$/.exec(String(params.time_range))
+  if (duration && !params.start_time && !params.end_time) {
+    const end = Date.now()
+    const unit = duration[2] === 'd' ? 86400000 : duration[2] === 'h' ? 3600000 : 60000
+    params.start_time = new Date(end - Number(duration[1]) * unit).toISOString()
+    params.end_time = new Date(end).toISOString()
+    delete params.time_range
+  }
+  errorQuery = params
+  await list.reset()
 }
 
-  function resetFilters() {
-    q.value = ''
-    statusCode.value = null
-    phase.value = props.errorType === 'upstream' ? 'upstream' : ''
-    errorOwner.value = ''
-    viewMode.value = 'errors'
-    page.value = 1
-    fetchErrorLogs()
-  }
+function resetFilters() {
+  q.value = ''
+  statusCode.value = null
+  phase.value = props.errorType === 'upstream' ? 'upstream' : ''
+  errorOwner.value = ''
+  viewMode.value = 'errors'
+  void fetchErrorLogs()
+}
 
 
 watch(
   () => props.show,
   (open) => {
-    if (!open) return
-    if (props.resumeState) return
-    page.value = 1
-    pageSize.value = 10
+    if (!open) { list.cancel(); return }
+    if (props.resumeState) { void list.refresh(); return }
     resetFilters()
-  }
+  },
+  { immediate: true }
 )
 
 watch(
   () => [props.timeRange, props.customStartTime, props.customEndTime, props.platform, props.groupId] as const,
-  () => {
-    if (!props.show) return
-    page.value = 1
-    fetchErrorLogs()
-  }
-)
-
-watch(
-  () => [page.value, pageSize.value] as const,
   () => {
     if (!props.show) return
     fetchErrorLogs()
@@ -199,8 +185,7 @@ watch(
     if (!props.show) return
     if (searchTimeout) window.clearTimeout(searchTimeout)
     searchTimeout = window.setTimeout(() => {
-      page.value = 1
-      fetchErrorLogs()
+      void fetchErrorLogs()
     }, 350)
   }
 )
@@ -209,15 +194,15 @@ watch(
   () => [statusCode.value, phase.value, errorOwner.value, viewMode.value] as const,
   () => {
     if (!props.show) return
-    page.value = 1
     fetchErrorLogs()
   }
 )
+onBeforeUnmount(() => { if (searchTimeout) window.clearTimeout(searchTimeout) })
 </script>
 
 <template>
   <BaseDialog :show="show" :title="modalTitle" width="full" @close="close">
-    <div class="flex h-full min-h-0 flex-col">
+    <div class="min-w-0">
       <!-- Filters -->
       <div class="mb-4 flex-shrink-0 border-b border-gray-200 pb-4 dark:border-dark-700">
         <div class="grid grid-cols-2 gap-2 md:grid-cols-8">
@@ -269,24 +254,25 @@ watch(
       </div>
 
       <!-- Body -->
-      <div class="flex min-h-0 flex-1 flex-col">
+      <div class="min-w-0">
         <div class="mb-2 flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
           {{ t('admin.ops.errorDetails.total') }} {{ total }}
         </div>
 
           <OpsErrorLogTable
-            class="min-h-0 flex-1"
+            class="min-w-0"
             summary-first
             :rows="rows"
-            :total="total"
+            :total="total ?? 0"
             :loading="loading"
-            :page="page"
-            :page-size="pageSize"
+            :loading-more="loadingMore"
+            :error="error"
+            :has-more="hasMore"
             @openErrorDetail="emit('openErrorDetail', $event)"
             @sort="onSort"
 
-            @update:page="page = $event"
-            @update:pageSize="pageSize = $event"
+            @load-more="list.loadMore"
+            @retry="list.retry"
           />
 
       </div>
@@ -296,6 +282,6 @@ watch(
 
 <style>
 .compact-select .select-trigger {
-  @apply py-1.5 px-3 text-xs rounded-lg;
+  @apply py-1.5 px-1 text-xs;
 }
 </style>

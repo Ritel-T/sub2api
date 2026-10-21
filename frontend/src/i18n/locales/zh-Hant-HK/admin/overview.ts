@@ -591,7 +591,7 @@ export default {
       today: '今日',
       total: '近30天',
       sortBy: '排序方式',
-      sortCurrentPageOnly: '僅對本頁數據排序',
+      sortCurrentPageOnly: '僅排序已載入的資料',
       noSubscription: '暫無訂閱',
       publicGroupCount: '+{count} 公開',
       exclusiveLabel: '專屬',

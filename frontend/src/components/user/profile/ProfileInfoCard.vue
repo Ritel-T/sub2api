@@ -2,9 +2,9 @@
   <div class="space-y-6">
     <section
       data-testid="profile-overview-hero"
-      class="card overflow-hidden border border-primary-100/80 bg-gradient-to-br from-primary-50 via-white to-amber-50/70 dark:border-primary-900/40 dark:from-primary-950/40 dark:via-dark-900 dark:to-dark-950"
+      class="profile-identity"
     >
-      <div class="px-6 py-6 md:px-8">
+      <div class="py-6">
         <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
           <div
             class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-600 text-2xl font-semibold text-white"
@@ -58,12 +58,12 @@
               </div>
             </div>
 
-            <div class="grid gap-3 sm:grid-cols-3">
+            <div class="open-metric-strip">
               <div
                 data-testid="profile-overview-metric-balance"
-                class="rounded-xl bg-white/85 px-4 py-3 ring-1 ring-white/70 dark:bg-dark-900/60 dark:ring-dark-700"
+                class="min-w-0 py-3"
               >
-                <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+                <p class="text-xs font-medium text-gray-400 dark:text-gray-500">
                   {{ t('profile.accountBalance') }}
                 </p>
                 <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
@@ -72,9 +72,9 @@
               </div>
               <div
                 data-testid="profile-overview-metric-concurrency"
-                class="rounded-xl bg-white/85 px-4 py-3 ring-1 ring-white/70 dark:bg-dark-900/60 dark:ring-dark-700"
+                class="min-w-0 py-3"
               >
-                <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+                <p class="text-xs font-medium text-gray-400 dark:text-gray-500">
                   {{ t('profile.concurrencyLimit') }}
                 </p>
                 <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
@@ -83,9 +83,9 @@
               </div>
               <div
                 data-testid="profile-overview-metric-member-since"
-                class="rounded-xl bg-white/85 px-4 py-3 ring-1 ring-white/70 dark:bg-dark-900/60 dark:ring-dark-700"
+                class="min-w-0 py-3"
               >
-                <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+                <p class="text-xs font-medium text-gray-400 dark:text-gray-500">
                   {{ t('profile.memberSince') }}
                 </p>
                 <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
@@ -102,7 +102,7 @@
       <div data-testid="profile-main-column" class="space-y-6">
         <section
           data-testid="profile-basics-panel"
-          class="card border border-gray-100 bg-white/90 p-6 dark:border-dark-700 dark:bg-dark-900/50"
+          class="open-settings-section"
         >
           <div class="mb-5 flex items-start justify-between gap-4">
             <div>
@@ -115,15 +115,15 @@
             </div>
           </div>
 
-          <div class="grid gap-6 sm:grid-cols-1 md:grid-cols-2">
-            <div class="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 dark:border-dark-700 dark:bg-dark-900/30">
+          <div class="grid min-w-0 gap-8 xl:grid-cols-[minmax(12rem,.7fr)_minmax(0,1.3fr)]">
+            <div class="min-w-0">
               <ProfileAvatarCard
                 :user="user"
                 embedded
               />
             </div>
 
-            <div class="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 dark:border-dark-700 dark:bg-dark-900/30">
+            <div class="min-w-0">
               <ProfileEditForm
                 :initial-username="user?.username || ''"
                 embedded
@@ -134,7 +134,7 @@
 
         <section
           data-testid="profile-auth-bindings-panel"
-          class="card border border-gray-100 bg-white/90 p-6 dark:border-dark-700 dark:bg-dark-900/50"
+          class="open-section"
         >
           <ProfileIdentityBindingsSection
             :user="user"
@@ -154,7 +154,7 @@
       <div data-testid="profile-side-column" class="space-y-6">
         <section
           v-if="sourceHints.length"
-          class="card border border-gray-100 bg-white/90 p-6 dark:border-dark-700 dark:bg-dark-900/50"
+          class="open-section"
         >
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
             {{ t('profile.linkedProfileSources') }}
@@ -167,7 +167,7 @@
             <div
               v-for="hint in sourceHints"
               :key="hint.key"
-              class="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3 text-sm text-gray-600 dark:border-dark-700 dark:bg-dark-900/30 dark:text-gray-300"
+              class="flex items-start gap-3 border-t border-gray-200 py-3 text-sm text-gray-600 dark:border-dark-700 dark:text-gray-300"
             >
               <Icon name="link" size="sm" class="mt-0.5 text-gray-400 dark:text-gray-500" />
               <span>{{ hint.text }}</span>

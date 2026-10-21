@@ -9,6 +9,8 @@ import { isIOSDevice } from '@/utils/device'
 import { initializeTheme, useTheme } from '@/composables/useTheme'
 import { getChartTheme } from '@/utils/chartTheme'
 import './style.css'
+import './styles/open-workspace.css'
+import './styles/workspace-controls.css'
 import { Chart } from 'chart.js'
 
 Chart.defaults.font.family = "'IBM Plex Sans', 'Noto Sans CJK HK', system-ui, sans-serif"

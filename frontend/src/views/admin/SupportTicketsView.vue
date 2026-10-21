@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex-1 sm:max-w-72">
@@ -74,14 +74,7 @@
       </template>
 
       <template #pagination>
-        <Pagination
-          v-if="total > 0"
-          :page="page"
-          :total="total"
-          :page-size="pageSize"
-          @update:page="changePage"
-          @update:page-size="changePageSize"
-        />
+        <InfiniteListSentinel :loading="list.loading.value || list.loadingMore.value" :error="list.error.value" :has-more="list.hasMore.value" @load-more="list.loadMore" @retry="list.retry" />
       </template>
     </TablePageLayout>
   </AppLayout>
@@ -95,7 +88,8 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { Column } from '@/components/common/types'
@@ -111,15 +105,27 @@ const router = useRouter()
 const appStore = useAppStore()
 const ticketStore = useSupportTicketStore()
 
-const tickets = ref<SupportTicket[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
+let appliedFilters = { status: 'open' as SupportTicketStatusFilter, category: undefined as string | undefined, keyword: undefined as string | undefined }
+const list = useInfiniteList<SupportTicket>({
+  keyOf: row => row.id,
+  pageSize: 50,
+  fetchPage: async (page, signal) => {
+    const [result, summary] = await Promise.all([
+      listTickets({ ...appliedFilters, page, page_size: 50 }),
+      getAdminSummary(),
+    ])
+    if (!signal.aborted) {
+      categories.value = summary.categories
+      ticketStore.setAdminPending(summary.pending_count)
+    }
+    return result
+  },
+})
+const { items: tickets, loading } = list
 const status = ref<SupportTicketStatusFilter>('open')
 const category = ref('')
 const keyword = ref('')
 const categories = ref<string[]>([])
-const loading = ref(false)
 let keywordTimer: ReturnType<typeof setTimeout> | undefined
 
 const columns = computed<Column[]>(() => [
@@ -145,47 +151,16 @@ const categoryOptions = computed(() => [
 ])
 
 async function load() {
-  loading.value = true
-  try {
-    const [list, summary] = await Promise.all([
-      listTickets({
-        status: status.value,
-        category: category.value || undefined,
-        keyword: keyword.value.trim() || undefined,
-        page: page.value,
-        page_size: pageSize.value,
-      }),
-      getAdminSummary(),
-    ])
-    tickets.value = list.items
-    total.value = list.total
-    categories.value = summary.categories
-    ticketStore.setAdminPending(summary.pending_count)
-  } catch (err) {
-    appStore.showError(supportTicketErrorMessage(err, t, 'supportTickets.loadFailed'))
-  } finally {
-    loading.value = false
-  }
+  appliedFilters = { status: status.value, category: category.value || undefined, keyword: keyword.value.trim() || undefined }
+  await list.reset()
+  if (list.error.value) appStore.showError(supportTicketErrorMessage(list.error.value, t, 'supportTickets.loadFailed'))
 }
 
-function reload() {
-  page.value = 1
-  load()
-}
+function reload() { void load() }
 
 function onKeyword() {
   if (keywordTimer) clearTimeout(keywordTimer)
   keywordTimer = setTimeout(reload, 300)
-}
-
-function changePage(value: number) {
-  page.value = value
-  load()
-}
-
-function changePageSize(value: number) {
-  pageSize.value = value
-  reload()
 }
 
 function openTicket(row: SupportTicket) {

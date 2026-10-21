@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import DataTable from '@/components/common/DataTable.vue'
 import { computed, ref, watch } from 'vue'
-import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useClipboard } from '@/composables/useClipboard'
 import { useAppStore } from '@/stores'
 import { opsAPI, type OpsRequestDetailsParams, type OpsRequestDetail } from '@/api/admin/ops'
@@ -37,14 +38,18 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const { copyToClipboard } = useClipboard()
 
-// 与 DataTable 一致：< 768px 切换为卡片视图，避免宽表在移动端被截断。
-const isDesktopViewport = useMediaQuery('(min-width: 768px)')
 
-const loading = ref(false)
-const items = ref<OpsRequestDetail[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
+const list = useInfiniteList<OpsRequestDetail>({
+  pageSize: 50,
+  keyOf: row => `${row.kind}:${row.error_id ?? row.request_id}:${row.created_at}`,
+  fetchPage: async (page) => {
+    const res = await opsAPI.listRequestDetails({ ...requestQuery, page, page_size: 50 })
+    return res
+  }
+})
+const { items, loading, loadingMore, error, hasMore } = list
+const requestRows = computed(() => items.value.map(row => ({ ...row, recordKey: `${row.kind}:${row.error_id ?? row.request_id}:${row.created_at}` })))
+let requestQuery: OpsRequestDetailsParams = {}
 const accountNameById = ref<Map<number, string>>(new Map())
 
 const close = () => emit('update:modelValue', false)
@@ -75,47 +80,34 @@ function buildTimeParams(): Pick<OpsRequestDetailsParams, 'start_time' | 'end_ti
 
 const fetchData = async () => {
   if (!props.modelValue) return
-  loading.value = true
-  try {
-    const params: OpsRequestDetailsParams = {
-      ...buildTimeParams(),
-      page: page.value,
-      page_size: pageSize.value,
-      kind: props.preset.kind ?? 'all',
-      sort: props.preset.sort ?? 'created_at_desc'
-    }
-
-    const platform = (props.platform || '').trim()
-    if (platform) params.platform = platform
-    if (typeof props.groupId === 'number' && props.groupId > 0) params.group_id = props.groupId
-
-    if (typeof props.preset.min_duration_ms === 'number') params.min_duration_ms = props.preset.min_duration_ms
-    if (typeof props.preset.max_duration_ms === 'number') params.max_duration_ms = props.preset.max_duration_ms
-
-    const res = await opsAPI.listRequestDetails(params)
-    items.value = res.items || []
-    total.value = res.total || 0
-    refreshAccountNames()
-  } catch (e: any) {
-    console.error('[OpsRequestDetailsModal] Failed to fetch request details', e)
-    appStore.showError(e?.message || t('admin.ops.requestDetails.failedToLoad'))
-    items.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
+  const params: OpsRequestDetailsParams = {
+    ...buildTimeParams(),
+    kind: props.preset.kind ?? 'all',
+    sort: props.preset.sort ?? 'created_at_desc'
   }
+
+  const platform = (props.platform || '').trim()
+  if (platform) params.platform = platform
+  if (typeof props.groupId === 'number' && props.groupId > 0) params.group_id = props.groupId
+
+  if (typeof props.preset.min_duration_ms === 'number') params.min_duration_ms = props.preset.min_duration_ms
+  if (typeof props.preset.max_duration_ms === 'number') params.max_duration_ms = props.preset.max_duration_ms
+
+  requestQuery = params
+  await list.reset()
 }
+watch(items, () => { void refreshAccountNames() })
 
 watch(
   () => props.modelValue,
   (open) => {
+    if (!open) { list.cancel(); return }
     if (open) {
-      if (props.resumeState) return
-      page.value = 1
-      pageSize.value = 10
+      if (props.resumeState) { void list.refresh(); return }
       fetchData()
     }
-  }
+  },
+  { immediate: true }
 )
 
 watch(
@@ -130,21 +122,9 @@ watch(
   ],
   () => {
     if (!props.modelValue) return
-    page.value = 1
     fetchData()
   }
 )
-
-function handlePageChange(next: number) {
-  page.value = next
-  fetchData()
-}
-
-function handlePageSizeChange(next: number) {
-  pageSize.value = next
-  page.value = 1
-  fetchData()
-}
 
 async function handleCopyRequestId(requestId: string) {
   const ok = await copyToClipboard(requestId, t('admin.ops.requestDetails.requestIdCopied'))
@@ -183,12 +163,22 @@ function accountLabel(row: OpsRequestDetail): string {
   if (typeof id !== 'number' || id <= 0) return '-'
   return accountNameById.value.get(id) || `#${id}`
 }
+
+const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.requestDetails.table.time'), sortable: false },
+  { key: 'kind', label: t('admin.ops.requestDetails.table.kind'), sortable: false },
+  { key: 'platform', label: t('admin.ops.requestDetails.table.platform'), sortable: false },
+  { key: 'model', label: t('admin.ops.requestDetails.table.model'), sortable: false },
+  { key: 'account', label: t('admin.ops.requestDetails.table.account'), sortable: false },
+  { key: 'latency', label: latencyLabel.value, sortable: false },
+  { key: 'status', label: t('admin.ops.requestDetails.table.status'), sortable: false },
+  { key: 'request_id', label: t('admin.ops.requestDetails.table.requestId'), sortable: false },
+  { key: 'actions', label: t('admin.ops.requestDetails.table.actions'), sortable: false }])
 </script>
 
 <template>
   <BaseDialog :show="modelValue" :title="props.preset.title || t('admin.ops.requestDetails.title')" width="full" @close="close">
     <template #default>
-      <div class="flex h-full min-h-0 flex-col">
+      <div class="min-w-0">
         <div class="mb-4 flex flex-shrink-0 items-center justify-between">
           <div class="text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.ops.requestDetails.rangeLabel', { range: rangeLabel }) }}
@@ -218,145 +208,76 @@ function accountLabel(row: OpsRequestDetail): string {
         </div>
 
         <!-- Table -->
-        <div v-else class="flex min-h-0 flex-1 flex-col">
-          <div v-if="items.length === 0" class="rounded-xl border border-dashed border-gray-200 p-10 text-center dark:border-dark-700">
+        <div v-else class="min-w-0">
+          <div v-if="items.length === 0" class="py-10 text-center">
             <div class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.requestDetails.empty') }}</div>
             <div class="mt-1 text-xs text-gray-400">{{ t('admin.ops.requestDetails.emptyHint') }}</div>
           </div>
 
-          <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-dark-700">
-            <div class="min-h-0 flex-1 overflow-auto">
-              <div v-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
-                <div v-for="(row, idx) in items" :key="idx" class="space-y-2 p-4">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded-full px-2 py-1 text-[10px] font-bold" :class="kindBadgeClass(row.kind)">
-                      {{ row.kind === 'error' ? t('admin.ops.requestDetails.kind.error') : t('admin.ops.requestDetails.kind.success') }}
-                    </span>
-                    <span class="text-xs font-medium text-gray-700 dark:text-gray-200">{{ (row.platform || 'unknown').toUpperCase() }}</span>
-                    <span class="ml-auto text-[11px] text-gray-500 dark:text-gray-400">{{ formatDateTime(row.created_at) }}</span>
-                  </div>
-                  <div class="break-all text-xs text-gray-600 dark:text-gray-300">{{ row.model || '-' }}</div>
-                  <div v-if="typeof row.account_id === 'number' && row.account_id > 0" class="break-all text-xs text-gray-500 dark:text-gray-400" :title="accountLabel(row)">
-                    {{ t('admin.ops.requestDetails.table.account') }}: {{ accountLabel(row) }}
-                  </div>
-                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-gray-300">
-                    <span>{{ latencyLabel }}: {{ formatLatency(row) }}</span>
-                    <span>{{ row.status_code ?? '-' }}</span>
-                  </div>
-                  <div v-if="row.request_id" class="flex items-center gap-2">
-                    <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-gray-700 dark:text-gray-200" :title="row.request_id">
-                      {{ row.request_id }}
-                    </span>
-                    <button
-                      class="shrink-0 rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
-                      @click="handleCopyRequestId(row.request_id)"
-                    >
-                      {{ t('admin.ops.requestDetails.copy') }}
-                    </button>
-                  </div>
-                  <button
-                    v-if="row.kind === 'error' && row.error_id"
-                    class="w-full rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
-                    @click="openErrorDetail(row.error_id)"
-                  >
-                    {{ t('admin.ops.requestDetails.viewError') }}
-                  </button>
-                </div>
-              </div>
-              <table v-else class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
-                <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-dark-900">
-                <tr>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ t('admin.ops.requestDetails.table.time') }}
-                  </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ t('admin.ops.requestDetails.table.kind') }}
-                  </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ t('admin.ops.requestDetails.table.platform') }}
-                  </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ t('admin.ops.requestDetails.table.model') }}
-                  </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ t('admin.ops.requestDetails.table.account') }}
-                  </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ latencyLabel }}
-                  </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ t('admin.ops.requestDetails.table.status') }}
-                  </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ t('admin.ops.requestDetails.table.requestId') }}
-                  </th>
-                  <th class="px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ t('admin.ops.requestDetails.table.actions') }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-800">
-                <tr v-for="(row, idx) in items" :key="idx" class="hover:bg-gray-50 dark:hover:bg-dark-700/50">
-                  <td class="whitespace-nowrap px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
+          <div v-else class="min-w-0">
+            <div class="min-w-0">
+              <DataTable
+ :columns="openRecordColumns"
+ :primary-columns="['time','kind','model','latency','status','actions']"
+ :data="requestRows" row-key="recordKey" >
+<template #cell-time="{ row: row }"><div class="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
                     {{ formatDateTime(row.created_at) }}
-                  </td>
-                  <td class="whitespace-nowrap px-4 py-3">
-                    <span class="rounded-full px-2 py-1 text-[10px] font-bold" :class="kindBadgeClass(row.kind)">
+                  </div></template>
+<template #cell-kind="{ row: row }"><div class="whitespace-nowrap ">
+                    <span class="rounded-full text-[10px] font-bold" :class="kindBadgeClass(row.kind)">
                       {{ row.kind === 'error' ? t('admin.ops.requestDetails.kind.error') : t('admin.ops.requestDetails.kind.success') }}
                     </span>
-                  </td>
-                  <td class="whitespace-nowrap px-4 py-3 text-xs font-medium text-gray-700 dark:text-gray-200">
+                  </div></template>
+<template #cell-platform="{ row: row }"><div class="whitespace-nowrap text-xs font-medium text-gray-700 dark:text-gray-200">
                     {{ (row.platform || 'unknown').toUpperCase() }}
-                  </td>
-                  <td class="max-w-[240px] truncate px-4 py-3 text-xs text-gray-600 dark:text-gray-300" :title="row.model || ''">
+                  </div></template>
+<template #cell-model="{ row: row }"><div class="max-w-[240px] truncate text-xs text-gray-600 dark:text-gray-300" :title="row.model || ''">
                     {{ row.model || '-' }}
-                  </td>
-                  <td class="max-w-[180px] truncate px-4 py-3 text-xs text-gray-600 dark:text-gray-300" :title="accountLabel(row)">
+                  </div></template>
+<template #cell-account="{ row: row }"><div class="max-w-[180px] truncate text-xs text-gray-600 dark:text-gray-300" :title="accountLabel(row)">
                     {{ accountLabel(row) }}
-                  </td>
-                  <td class="whitespace-nowrap px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
+                  </div></template>
+<template #cell-latency="{ row: row }"><div class="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
                     {{ formatLatency(row) }}
-                  </td>
-                  <td class="whitespace-nowrap px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
+                  </div></template>
+<template #cell-status="{ row: row }"><div class="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
                     {{ row.status_code ?? '-' }}
-                  </td>
-                  <td class="px-4 py-3">
+                  </div></template>
+<template #cell-request_id="{ row: row }"><div class="">
                     <div v-if="row.request_id" class="flex items-center gap-2">
                       <span class="max-w-[220px] truncate font-mono text-[11px] text-gray-700 dark:text-gray-200" :title="row.request_id">
                         {{ row.request_id }}
                       </span>
                       <button
-                        class="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
+                        class="rounded-md bg-gray-100 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
                         @click="handleCopyRequestId(row.request_id)"
                       >
                         {{ t('admin.ops.requestDetails.copy') }}
                       </button>
                     </div>
                     <span v-else class="text-xs text-gray-400">-</span>
-                  </td>
-                  <td class="whitespace-nowrap px-4 py-3 text-right">
+                  </div></template>
+<template #cell-actions="{ row: row }"><div class="whitespace-nowrap text-right">
                     <button
                       v-if="row.kind === 'error' && row.error_id"
-                      class="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+                      class="rounded-lg bg-red-50 text-xs font-bold text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
                       @click="openErrorDetail(row.error_id)"
                     >
                       {{ t('admin.ops.requestDetails.viewError') }}
                     </button>
                     <span v-else class="text-xs text-gray-400">-</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  </div></template>
+</DataTable>
             </div>
-
-            <Pagination
-              :total="total"
-              :page="page"
-              :page-size="pageSize"
-              @update:page="handlePageChange"
-              @update:pageSize="handlePageSizeChange"
-            />
           </div>
+
+            <InfiniteListSentinel
+              :loading="loading || loadingMore"
+              :error="error"
+              :has-more="hasMore"
+              @load-more="list.loadMore"
+              @retry="list.retry"
+            />
         </div>
       </div>
     </template>

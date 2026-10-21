@@ -49,7 +49,7 @@ const wrappers: ReturnType<typeof mount>[] = []
 function mountView() {
   const wrapper = mount(GroupsView, { global: { stubs: {
     AppLayout: defineComponent({ template: '<main><slot /></main>' }),
-    TablePageLayout: defineComponent({ template: '<section><slot name="filters" /><slot name="table" /><slot name="pagination" /></section>' }),
+    TablePageLayout: defineComponent({ template: '<section><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></section>' }),
     DataTable: defineComponent({ props: ['data'], template: '<div><div v-for="row in data" :key="row.id" :data-testid="`row-${row.id}`"><slot name="cell-actions" :row="row" /></div></div>' }),
     BaseDialog: defineComponent({ props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' }),
     Select: SelectStub, Icon: true, Pagination: true, ConfirmDialog: true, EmptyState: true,

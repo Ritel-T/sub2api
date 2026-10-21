@@ -1,9 +1,8 @@
 <template>
   <AppLayout>
-    <div class="guard-v2">
+    <div class="open-page guard-v2">
       <header class="page-heading">
         <div>
-          <p class="eyebrow">{{ t('accountOps.smartTitle') }}</p>
           <h2 class="flex items-center gap-2"><Icon name="credentialOps" size="lg" class="shrink-0" aria-hidden="true" />{{ t('tokenGuardV2.title') }}</h2>
           <p class="subtitle">{{ t('tokenGuardV2.description') }}</p>
         </div>
@@ -40,7 +39,7 @@
         </div>
       </CredentialEncryptionSetup>
 
-      <section v-if="status.worker" class="mb-5 rounded-xl border border-gray-200 p-4 dark:border-gray-700" data-testid="reauth-runtime-status" role="status">
+      <section v-if="status.worker" class="open-section mb-5" data-testid="reauth-runtime-status" role="status">
         <strong>{{ t('tokenGuardV2.runtimeTitle') }}</strong>
         <p>{{ t(`tokenGuardV2.runtimeStates.${runtimeState}`) }}</p>
         <p v-if="runtimeReason">{{ t(`tokenGuardV2.runtimeReasons.${runtimeReason}`) }}</p>
@@ -60,7 +59,7 @@
       </nav>
 
       <section v-if="activeSection === 'accounts'" class="table-card">
-        <div class="list-toolbar">
+        <div class="list-toolbar open-filter-toolbar">
           <div class="filter-tabs" role="tablist" :aria-label="t('tokenGuardV2.statusFilter')">
             <button v-for="filter in accountFilters" :key="filter.value" type="button" role="tab" :aria-selected="accountFilter === filter.value" :data-filter="filter.value" :class="{ active: accountFilter === filter.value }" @click="accountFilter = filter.value">
               {{ t(filter.label) }} <span>{{ filter.count }}</span>
@@ -70,63 +69,46 @@
             <Icon name="search" size="sm" />
             <input id="token-guard-v2-search" v-model.trim="searchQuery" type="search" :placeholder="t('tokenGuardV2.searchPlaceholder')" />
           </label>
+          <div ref="tableTools0" class="min-w-0" />
         </div>
         <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{{ t('tokenGuardV2.account') }}</th>
-                <th>{{ t('tokenGuardV2.loginMode') }}</th>
-                <th>{{ t('tokenGuardV2.configuration') }}</th>
-                <th>{{ t('tokenGuardV2.automation') }}</th>
-                <th>{{ t('tokenGuardV2.inspection') }}</th>
-                <th>{{ t('tokenGuardV2.failureStreak') }}</th>
-                <th>{{ t('tokenGuardV2.lastInspection') }}</th>
-                <th>{{ t('tokenGuardV2.lastRelogin') }}</th>
-                <th>{{ t('tokenGuardV2.actions') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in pagedAccounts" :key="item.account_id">
-                <td><strong>{{ item.account_name || `#${item.account_id}` }}</strong><small>#{{ item.account_id }} · {{ item.account_status }}</small></td>
-                <td>{{ modeLabel(item.login_config?.credential_mode) }}<small>{{ item.login_config?.login_email || '-' }}</small></td>
-                <td><span class="badge" :class="item.login_config?.configured ? 'ok' : 'danger'">{{ item.login_config?.configured ? t('tokenGuardV2.configured') : t('tokenGuardV2.incomplete') }}</span><small>{{ configurationDetail(item) }}</small></td>
-                <td>
+          <DataTable :toolbar-target="tableTools0"
+ :columns="openRecordColumns"
+ :primary-columns="['account','automation','inspection','failure_streak','actions']"
+ :data="pagedAccounts" row-key="account_id" :loading="loading">
+<template #cell-account="{ row: item }"><div><strong>{{ item.account_name || `#${item.account_id}` }}</strong><small>#{{ item.account_id }} · {{ item.account_status }}</small></div></template>
+<template #cell-login_mode="{ row: item }"><div>{{ modeLabel(item.login_config?.credential_mode) }}<small>{{ item.login_config?.login_email || '-' }}</small></div></template>
+<template #cell-configuration="{ row: item }"><div><span class="badge" :class="item.login_config?.configured ? 'ok' : 'danger'">{{ item.login_config?.configured ? t('tokenGuardV2.configured') : t('tokenGuardV2.incomplete') }}</span><small>{{ configurationDetail(item) }}</small></div></template>
+<template #cell-automation="{ row: item }"><div>
                   <div class="flex flex-col gap-2">
                     <label class="inline-flex items-center gap-2" :title="t('tokenGuardV2.autoInspectHint')"><input type="checkbox" role="switch" class="automation-switch" :checked="item.enabled" :aria-label="t('tokenGuardV2.autoInspect')" :data-testid="'auto-inspect-' + item.account_id" :disabled="busyId !== 0 || loading" @change="toggleSwitch(item, 'enabled', $event)" />{{ t('tokenGuardV2.autoInspect') }}</label>
                     <label class="inline-flex items-center gap-2" :title="t('tokenGuardV2.autoReloginHint')"><input type="checkbox" role="switch" class="automation-switch" :checked="item.auto_relogin_enabled" :aria-label="t('tokenGuardV2.autoRelogin')" :data-testid="'auto-relogin-' + item.account_id" :disabled="busyId !== 0 || loading" @change="toggleSwitch(item, 'auto_relogin_enabled', $event)" />{{ t('tokenGuardV2.autoRelogin') }}</label>
                   </div>
-                </td>
-                <td><span class="badge" :class="probeClass(item.probe_state)">{{ t(`tokenGuardV2.probeStates.${item.probe_state || 'pending'}`) }}</span><small>{{ item.blocked_reason || item.probe_detail || '-' }}</small></td>
-                <td class="tabular-nums">{{ item.fail_streak }}</td>
-                <td>{{ date(item.last_probe_at) }}<small v-if="item.enabled">{{ t('tokenGuardV2.next') }} {{ date(item.next_probe_at) }}</small><small v-else>{{ t('tokenGuardV2.paused') }}</small></td>
-                <td>{{ date(item.last_reauth_at) }}<small v-if="item.latest_task">{{ taskLabel(item.latest_task) }}</small></td>
-                <td>
+                </div></template>
+<template #cell-inspection="{ row: item }"><div><span class="badge" :class="probeClass(item.probe_state)">{{ t(`tokenGuardV2.probeStates.${item.probe_state || 'pending'}`) }}</span><small>{{ item.blocked_reason || item.probe_detail || '-' }}</small></div></template>
+<template #cell-failure_streak="{ row: item }"><div class="tabular-nums">{{ item.fail_streak }}</div></template>
+<template #cell-last_inspection="{ row: item }"><div>{{ date(item.last_probe_at) }}<small v-if="item.enabled">{{ t('tokenGuardV2.next') }} {{ date(item.next_probe_at) }}</small><small v-else>{{ t('tokenGuardV2.paused') }}</small></div></template>
+<template #cell-last_relogin="{ row: item }"><div>{{ date(item.last_reauth_at) }}<small v-if="item.latest_task">{{ taskLabel(item.latest_task) }}</small></div></template>
+<template #cell-actions="{ row: item }"><div>
                   <div class="actions">
-                    <button class="link-btn" @click="openEdit(item)">{{ t('tokenGuardV2.edit') }}</button>
-                    <button class="link-btn" :disabled="busyId === item.account_id" @click="probe(item)">{{ t('tokenGuardV2.inspectNow') }}</button>
-                    <button class="link-btn" :disabled="busyId === item.account_id" @click="relogin(item)">{{ t('tokenGuardV2.reloginNow') }}</button>
+                    <button :title="t('tokenGuardV2.edit')" :aria-label="t('tokenGuardV2.edit')" class="workspace-icon-action theme-action-button" @click="openEdit(item)"><Icon name="edit" size="sm" /><span class="sr-only">{{ t('tokenGuardV2.edit') }}</span></button>
+                    <button :title="t('tokenGuardV2.inspectNow')" :aria-label="t('tokenGuardV2.inspectNow')" class="workspace-icon-action theme-action-button" :disabled="busyId === item.account_id" @click="probe(item)"><Icon name="bolt" size="sm" /><span class="sr-only">{{ t('tokenGuardV2.inspectNow') }}</span></button>
+                    <button :title="t('tokenGuardV2.reloginNow')" :aria-label="t('tokenGuardV2.reloginNow')" class="workspace-icon-action theme-action-button" :disabled="busyId === item.account_id" @click="relogin(item)"><Icon name="login" size="sm" /><span class="sr-only">{{ t('tokenGuardV2.reloginNow') }}</span></button>
                     <OpenAITOTPDialog :account-id="item.account_id" :account-name="item.account_name" :configured="!!(item.login_config?.password_configured && item.login_config?.totp_configured)" />
-                    <button class="link-btn danger-text" :disabled="busyId === item.account_id" @click="remove(item)">{{ t('tokenGuardV2.remove') }}</button>
+                    <button :title="t('tokenGuardV2.remove')" :aria-label="t('tokenGuardV2.remove')" class="workspace-icon-action text-red-600 dark:text-red-400" :disabled="busyId === item.account_id" @click="remove(item)"><Icon name="trash" size="sm" /><span class="sr-only">{{ t('tokenGuardV2.remove') }}</span></button>
                   </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                </div></template>
+</DataTable>
           <div v-if="!loading && !filteredAccounts.length" class="empty-state">
             <Icon name="shield" size="xl" />
             <h3>{{ t(accounts.length ? 'tokenGuardV2.noResultsTitle' : 'tokenGuardV2.emptyTitle') }}</h3>
             <p>{{ t(accounts.length ? 'tokenGuardV2.noResultsHint' : 'tokenGuardV2.emptyHint') }}</p>
           </div>
         </div>
-        <Pagination
-          v-if="filteredAccounts.length"
-          :total="filteredAccounts.length"
-          :page="accountPage"
-          :page-size="accountPageSize"
-          :page-size-options="[10, 20, 50]"
-          @update:page="accountPage = $event"
-          @update:pageSize="handleAccountPageSize"
+        <InfiniteListSentinel
+          :loading="loading"
+          :has-more="visibleAccountCount < filteredAccounts.length"
+          @load-more="visibleAccountCount += 20"
         />
       </section>
 
@@ -209,13 +191,15 @@
 </template>
 
 <script setup lang="ts">
+import DataTable from '@/components/common/DataTable.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import CredentialEncryptionSetup from '@/components/account/CredentialEncryptionSetup.vue'
 import OpenAITOTPDialog from '@/components/account/OpenAITOTPDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { BaseDialog, Pagination } from '@/components/common'
+import { BaseDialog } from '@/components/common'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { list as listAccounts } from '@/api/admin/accounts'
 import { getByPlatform as listGroups } from '@/api/admin/groups'
 import { getAllWithCount as listProxies } from '@/api/admin/proxies'
@@ -243,6 +227,7 @@ import {
 } from '@/api/admin/accountTokenGuardV2'
 
 const { t, te } = useI18n()
+const tableTools0 = ref<HTMLElement | null>(null)
 const encryptionReady = ref(false)
 const emptyStatus = (): TokenGuardV2Status => ({
   accounts: [],
@@ -262,8 +247,7 @@ const editing = ref<TokenGuardV2Account | null>(null)
 const activeSection = ref<'accounts' | 'rules'>('accounts')
 const accountFilter = ref<'all' | 'healthy' | 'attention' | 'paused'>('all')
 const searchQuery = ref('')
-const accountPage = ref(1)
-const accountPageSize = ref(20)
+const visibleAccountCount = ref(20)
 const runtimeDraft = reactive<TokenGuardV2RuntimeSettings>({ engine: '', worker_concurrency: 3 })
 const runtimeSaving = ref(false)
 const runtimeLoaded = ref(false)
@@ -343,10 +327,7 @@ const filteredAccounts = computed(() => {
     ].some(value => String(value || '').toLowerCase().includes(query))
   })
 })
-const pagedAccounts = computed(() => {
-  const start = (accountPage.value - 1) * accountPageSize.value
-  return filteredAccounts.value.slice(start, start + accountPageSize.value)
-})
+const pagedAccounts = computed(() => filteredAccounts.value.slice(0, visibleAccountCount.value))
 const matchesAccountGroup = (account: AccountListItem) => {
   if (!accountGroup.value) return true
   if (accountGroup.value === 'ungrouped') return !account.group_ids?.length
@@ -413,7 +394,6 @@ function syncRulesDraft(rules: TokenGuardV2Rules) {
     fail_streak_threshold: rules.fail_streak_threshold
   })
 }
-function handleAccountPageSize(size: number) { accountPageSize.value = size; accountPage.value = 1 }
 function openCreate() { error.value = ''; notice.value = ''; editing.value = null; accountGroup.value = ''; accountSearch.value = ''; resetDraft(); editorOpen.value = true }
 function selectAccount(account: AccountListItem) { draft.account_id = account.id; draft.login_email = accountEmail(account) }
 function openEdit(item: TokenGuardV2Account) {
@@ -549,16 +529,23 @@ const remove = async (item: TokenGuardV2Account) => {
 }
 
 
-watch([accountFilter, searchQuery], () => { accountPage.value = 1 })
-watch(() => filteredAccounts.value.length, (total) => {
-  accountPage.value = Math.min(accountPage.value, Math.max(1, Math.ceil(total / accountPageSize.value)))
-})
+watch([accountFilter, searchQuery], () => { visibleAccountCount.value = 20 })
 
 onMounted(() => {
   void load()
   timer = setInterval(() => { if (document.visibilityState === 'visible' && !editorOpen.value) void load(true) }, 30_000)
 })
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+
+const openRecordColumns = computed(() => [{ key: 'account', label: t('tokenGuardV2.account'), sortable: false },
+  { key: 'login_mode', label: t('tokenGuardV2.loginMode'), sortable: false },
+  { key: 'configuration', label: t('tokenGuardV2.configuration'), sortable: false },
+  { key: 'automation', label: t('tokenGuardV2.automation'), sortable: false },
+  { key: 'inspection', label: t('tokenGuardV2.inspection'), sortable: false },
+  { key: 'failure_streak', label: t('tokenGuardV2.failureStreak'), sortable: false },
+  { key: 'last_inspection', label: t('tokenGuardV2.lastInspection'), sortable: false },
+  { key: 'last_relogin', label: t('tokenGuardV2.lastRelogin'), sortable: false },
+  { key: 'actions', label: t('tokenGuardV2.actions'), sortable: false }])
 </script>
 
 <style scoped>
@@ -568,7 +555,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .page-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:20px; @apply mb-5; }
-.summary-card,.table-card,.rules-card { @apply overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
+.summary-card,.table-card,.rules-card { @apply min-w-0 border-t border-gray-200 dark:border-dark-700; }
 .summary-card { @apply p-5; }
 .summary-card span { @apply block text-xs font-medium text-gray-400; }
 .summary-card strong { @apply mt-2 block text-2xl font-semibold tabular-nums; }
@@ -583,7 +570,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .filter-tabs button.active,.group-tabs button.active { @apply border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-900 dark:bg-primary-950/30 dark:text-primary-300; }
 .search-box { @apply flex min-w-64 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-gray-400 focus-within:border-primary-400 dark:border-dark-600 dark:bg-dark-900; }
 .search-box input { @apply min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-100; }
-.table-wrap { max-height:65vh; @apply overflow-auto overscroll-contain; scrollbar-gutter:stable; }
+.table-wrap { @apply overflow-auto overscroll-contain; scrollbar-gutter:stable; }
 table { min-width:1180px; @apply w-full text-left text-xs; }
 thead { @apply sticky top-0 z-10 bg-white text-gray-400 dark:bg-dark-900; }
 th { @apply whitespace-nowrap px-4 py-3 font-medium; }

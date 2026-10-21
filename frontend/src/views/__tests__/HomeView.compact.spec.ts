@@ -101,6 +101,7 @@ describe('HomeView compact mode', () => {
     const wrapper = mountHome({ compact_home_enabled: true, home_content: ' \n\t ' })
 
     expect(wrapper.get('[data-testid="compact-home"]').text()).toContain('Ritel.SI')
+    expect(wrapper.find('section[aria-label="API endpoint"]').exists()).toBe(false)
   })
 
   it.each([undefined, false])('selects the default home when compact mode is %s', (enabled) => {
@@ -108,7 +109,7 @@ describe('HomeView compact mode', () => {
     const wrapper = mountHome(settings)
 
     expect(wrapper.find('[data-testid="compact-home"]').exists()).toBe(false)
-    expect(wrapper.find('.terminal-container').exists()).toBe(true)
+    expect(wrapper.get('section[aria-label="API endpoint"] code').text()).toBe('https://api.ritel.si/v1')
   })
 
   it('keeps all logo images pinned when public settings contain an executable URL', () => {

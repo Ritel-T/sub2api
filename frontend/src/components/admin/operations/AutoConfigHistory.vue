@@ -1,5 +1,5 @@
 <template>
-  <section class="min-w-0 rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900" aria-labelledby="auto-config-history-title" data-testid="auto-config-history">
+  <section class="open-section" aria-labelledby="auto-config-history-title" data-testid="auto-config-history">
     <header class="flex flex-wrap items-start justify-between gap-4 p-5">
       <div class="min-w-0">
         <h2 id="auto-config-history-title" class="text-lg font-semibold">{{ t('autoConfig.logs.title') }}</h2>

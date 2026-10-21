@@ -613,7 +613,7 @@ export default {
       today: 'Today',
       total: 'Last 30d',
       sortBy: 'Sort By',
-      sortCurrentPageOnly: 'Sorts current page only',
+      sortCurrentPageOnly: 'Sorts loaded rows only',
       noSubscription: 'No subscription',
       publicGroupCount: '+{count} public',
       exclusiveLabel: 'exclusive',

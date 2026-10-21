@@ -1,8 +1,29 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
+      <template #actions>
+        <div class="workspace-page-header">
+          <h1 class="workspace-page-title">{{ t('admin.promo.title') }}</h1>
+          <div class="workspace-header-actions">
+            <TableToolbarTarget kind="actions" />
+            <button
+              @click="loadCodes"
+              :disabled="loading"
+              class="btn btn-secondary"
+              :title="t('common.refresh')"
+            >
+              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+            </button>
+            <button @click="showCreateDialog = true" class="btn btn-primary">
+              <Icon name="plus" size="md" class="mr-1" />
+              {{ t('admin.promo.createCode') }}
+            </button>
+          </div>
+        </div>
+      </template>
+
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="filter-controls">
           <!-- Left: Search + Filters -->
           <div class="flex-1 sm:max-w-64">
             <input
@@ -20,21 +41,7 @@
             @change="loadCodes"
           />
 
-          <!-- Right: Action buttons -->
-          <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
-            <button
-              @click="loadCodes"
-              :disabled="loading"
-              class="btn btn-secondary"
-              :title="t('common.refresh')"
-            >
-              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
-            <button @click="showCreateDialog = true" class="btn btn-primary">
-              <Icon name="plus" size="md" class="mr-1" />
-              {{ t('admin.promo.createCode') }}
-            </button>
-          </div>
+          <TableToolbarTarget />
         </div>
       </template>
 
@@ -110,31 +117,31 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center space-x-1">
-              <button
+            <div class="workspace-row-actions">
+              <button :aria-label="t('admin.promo.copyRegisterLink')"
                 @click="copyRegisterLink(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
+                class="text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400 workspace-icon-action"
                 :title="t('admin.promo.copyRegisterLink')"
               >
                 <Icon name="link" size="sm" />
               </button>
-              <button
+              <button :aria-label="t('admin.promo.viewUsages')"
                 @click="handleViewUsages(row)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+                class="theme-action-button transition-colors workspace-icon-action"
                 :title="t('admin.promo.viewUsages')"
               >
                 <Icon name="eye" size="sm" />
               </button>
-              <button
+              <button :aria-label="t('common.edit')"
                 @click="handleEdit(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-dark-600 dark:hover:text-gray-300"
+                class="text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-dark-600 dark:hover:text-gray-300 workspace-icon-action"
                 :title="t('common.edit')"
               >
                 <Icon name="edit" size="sm" />
               </button>
-              <button
+              <button :aria-label="t('common.delete')"
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
                 :title="t('common.delete')"
               >
                 <Icon name="trash" size="sm" />
@@ -145,13 +152,12 @@
       </template>
 
       <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
+        <InfiniteListSentinel
+          :loading="loading || continuousList.loadingMore.value"
+          :error="continuousList.error.value"
+          :has-more="continuousList.hasMore.value"
+          @load-more="continuousList.loadMore"
+          @retry="continuousList.retry"
         />
       </template>
     </TablePageLayout>
@@ -351,16 +357,13 @@
             </span>
           </div>
         </div>
-        <!-- Usages Pagination -->
-        <div v-if="usagesTotal > usagesPageSize" class="mt-4">
-          <Pagination
-            :page="usagesPage"
-            :total="usagesTotal"
-            :page-size="usagesPageSize"
-            @update:page="handleUsagesPageChange"
-            @update:page-size="(size: number) => { usagesPageSize = size; usagesPage = 1; loadUsages() }"
-          />
-        </div>
+        <InfiniteListSentinel
+          :loading="usagesLoading || usageList.loadingMore.value"
+          :error="usageList.error.value"
+          :has-more="usageList.hasMore.value"
+          @load-more="usageList.loadMore"
+          @retry="usageList.retry"
+        />
       </div>
       <template #footer>
         <div class="flex justify-end">
@@ -386,11 +389,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime, formatDateTimeLocalInput } from '@/utils/format'
 import type { PromoCode, PromoCodeUsage } from '@/types'
@@ -398,7 +401,8 @@ import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -409,8 +413,12 @@ const appStore = useAppStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
 // State
-const codes = ref<PromoCode[]>([])
-const loading = ref(false)
+const continuousList = useInfiniteList<PromoCode>({
+  fetchPage: fetchListPage,
+  keyOf: row => row.id,
+  pageSize: 50
+})
+const { items: codes, loading } = continuousList
 const creating = ref(false)
 const updating = ref(false)
 const searchQuery = ref('')
@@ -420,11 +428,6 @@ const filters = reactive({
   status: ''
 })
 
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0
-})
 const sortState = reactive({
   sort_by: 'created_at',
   sort_order: 'desc' as 'asc' | 'desc'
@@ -440,12 +443,22 @@ const editingCode = ref<PromoCode | null>(null)
 const deletingCode = ref<PromoCode | null>(null)
 
 // Usages
-const usages = ref<PromoCodeUsage[]>([])
-const usagesLoading = ref(false)
+const usageList = useInfiniteList<PromoCodeUsage>({
+  keyOf: row => row.id,
+  pageSize: 50,
+  fetchPage: async (page, signal) => {
+    const code = currentViewingCode.value
+    if (!code) return { items: [], total: 0 }
+    try {
+      return await adminAPI.promo.getUsages(code.id, page, 50, { signal })
+    } catch (error: unknown) {
+      if (!signal.aborted) appStore.showError(t('admin.promo.failedToLoadUsages'))
+      throw error
+    }
+  }
+})
+const { items: usages, loading: usagesLoading } = usageList
 const currentViewingCode = ref<PromoCode | null>(null)
-const usagesPage = ref(1)
-const usagesPageSize = ref(20)
-const usagesTotal = ref(0)
 
 // Forms
 const createForm = reactive({
@@ -509,75 +522,39 @@ const getStatusLabel = (status: string, row: PromoCode) => {
 }
 
 // API calls
-let abortController: AbortController | null = null
 
-const loadCodes = async () => {
-  if (abortController) {
-    abortController.abort()
-  }
-  const currentController = new AbortController()
-  abortController = currentController
-  loading.value = true
-
+async function fetchListPage(page: number, signal: AbortSignal) {
   try {
-    const response = await adminAPI.promo.list(
-      pagination.page,
-      pagination.page_size,
-      {
-        status: filters.status || undefined,
-        search: searchQuery.value || undefined,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order
-      },
-      { signal: currentController.signal }
-    )
-    if (currentController.signal.aborted || abortController !== currentController) return
-
-    codes.value = response.items
-    pagination.total = response.total
-  } catch (error: any) {
-    if (
-      currentController.signal.aborted ||
-      abortController !== currentController ||
-      error?.name === 'AbortError' ||
-      error?.code === 'ERR_CANCELED'
-    ) {
-      return
-    }
-    appStore.showError(t('admin.promo.failedToLoad'))
-    console.error('Error loading promo codes:', error)
-  } finally {
-    if (abortController === currentController) {
-      loading.value = false
-      abortController = null
-    }
+    return await adminAPI.promo.list(page, 50, {
+      status: filters.status || undefined, search: searchQuery.value || undefined,
+      sort_by: sortState.sort_by, sort_order: sortState.sort_order
+    }, { signal })
+  } catch (error: unknown) {
+    if (!signal.aborted) appStore.showError(t('admin.promo.failedToLoad'))
+    throw error
   }
 }
+
+const loadCodes = async () => {
+  await continuousList.reset()
+}
+
 
 let searchTimeout: ReturnType<typeof setTimeout>
 const handleSearch = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
-    pagination.page = 1
+
     loadCodes()
   }, 300)
 }
 
-const handlePageChange = (page: number) => {
-  pagination.page = page
-  loadCodes()
-}
 
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.page_size = pageSize
-  pagination.page = 1
-  loadCodes()
-}
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.sort_by = key
   sortState.sort_order = order
-  pagination.page = 1
+
   loadCodes()
 }
 
@@ -707,34 +684,12 @@ const confirmDelete = async () => {
 const handleViewUsages = async (code: PromoCode) => {
   currentViewingCode.value = code
   showUsagesDialog.value = true
-  usagesPage.value = 1
   await loadUsages()
 }
 
-const loadUsages = async () => {
-  if (!currentViewingCode.value) return
-  usagesLoading.value = true
-  usages.value = []
+const loadUsages = () => usageList.reset()
+watch(showUsagesDialog, (visible) => { if (!visible) usageList.cancel() })
 
-  try {
-    const response = await adminAPI.promo.getUsages(
-      currentViewingCode.value.id,
-      usagesPage.value,
-      usagesPageSize.value
-    )
-    usages.value = response.items
-    usagesTotal.value = response.total
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.promo.failedToLoadUsages'))
-  } finally {
-    usagesLoading.value = false
-  }
-}
-
-const handleUsagesPageChange = (page: number) => {
-  usagesPage.value = page
-  loadUsages()
-}
 
 onMounted(() => {
   loadCodes()
@@ -742,6 +697,5 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearTimeout(searchTimeout)
-  abortController?.abort()
 })
 </script>

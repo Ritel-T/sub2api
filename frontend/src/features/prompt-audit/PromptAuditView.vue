@@ -1,9 +1,8 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-[1600px]" :class="activeTab === 'config' && draft ? 'pb-28' : 'pb-8'">
+    <div class="w-full min-w-0" :class="activeTab === 'config' && draft ? 'pb-28' : 'pb-8'">
       <header class="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-primary-600 dark:text-primary-400">{{ t('nav.securityAudit') }}</p>
           <h1 class="mt-1 text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">{{ t('admin.promptAudit.title') }}</h1>
           <p class="mt-2 max-w-3xl text-sm text-gray-500 dark:text-dark-300">{{ t('admin.promptAudit.description') }}</p>
         </div>
@@ -37,7 +36,7 @@
           </div>
         </div>
 
-        <main class="card px-4 sm:px-6 lg:px-8">
+        <main class="min-w-0 border-t border-gray-200 dark:border-dark-700">
           <div v-show="activeTab === 'config'" data-test="tab-panel-config">
             <RuntimeOverview :runtime="runtime" :loading="loading.runtime" :error="loadErrors.runtime" @refresh="loadRuntime" />
 
@@ -67,19 +66,18 @@
               </button>
             </div>
             <EventWorkspace
-              :events="events.items"
-              :total="events.total"
-              :page="events.page"
-              :page-size="events.page_size"
+              :events="events"
+              :has-more="hasMoreEvents"
+              :loading-more="loadingMoreEvents || refreshingEvents"
               :filters="filters"
               :selected-ids="selectedEventIds"
-              :loading="loading.events"
-              :error="loadErrors.events"
+              :loading="loadingEvents"
+              :error="eventErrorMessage"
               @filters-change="handleFiltersChanged"
               @search="applyEventFilters"
               @selection="selectedEventIds = $event"
-              @page="changePage"
-              @page-size="changePageSize"
+              @load-more="loadMoreEvents"
+              @retry="retryEvents"
               @view="openEvent"
               @delete="requestSingleDelete"
               @batch-delete="requestBatchDelete"
@@ -144,9 +142,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
+import { computed, defineComponent, h, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
@@ -165,7 +164,6 @@ import type {
   PromptAuditRuntime,
   PromptDeletePreview,
   PromptEventFilters,
-  PromptEventPage,
   PromptLoadErrors,
   PromptProbeResult,
 } from './types'
@@ -183,7 +181,6 @@ const serverConfig = ref<PromptAuditDraft | null>(null)
 const draft = ref<PromptAuditDraft | null>(null)
 const runtime = ref<PromptAuditRuntime | null>(null)
 const groups = ref<PromptAuditGroup[]>([])
-const events = reactive<PromptEventPage>({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
 const filters = ref<PromptEventFilters>(emptyEventFilters())
 const appliedFilters = ref<PromptEventFilters>(emptyEventFilters())
 const selectedEventIds = ref<number[]>([])
@@ -196,8 +193,8 @@ const deletePreview = ref<PromptDeletePreview | null>(null)
 const deletePreviewFilters = ref<PromptEventFilters | null>(null)
 const showBlockingConfirmation = ref(false)
 const deleteRequest = reactive<{ mode: '' | 'single' | 'batch'; ids: number[] }>({ mode: '', ids: [] })
-const loading = reactive({ config: false, runtime: false, groups: false, events: false, saving: false, detail: false, deleting: false, previewing: false })
-const loadErrors = reactive<PromptLoadErrors>({ config: '', runtime: '', groups: '', events: '' })
+const loading = reactive({ config: false, runtime: false, groups: false, saving: false, detail: false, deleting: false, previewing: false })
+const loadErrors = reactive<Omit<PromptLoadErrors, 'events'>>({ config: '', runtime: '', groups: '' })
 const dirty = computed(() => draftFingerprint(draft.value) !== draftFingerprint(serverConfig.value))
 
 const SaveToggle = defineComponent({
@@ -272,19 +269,20 @@ async function loadGroups() {
   catch (error) { loadErrors.groups = errorMessage(error, 'admin.promptAudit.errors.loadGroups') }
   finally { loading.groups = false }
 }
-async function loadEvents() {
-  loading.events = true
-  loadErrors.events = ''
-  try {
-    const result = await promptAuditAPI.listEvents(appliedFilters.value, events.page, events.page_size)
-    Object.assign(events, result)
-    selectedEventIds.value = []
-  } catch (error) {
-    loadErrors.events = errorMessage(error, 'admin.promptAudit.errors.loadEvents')
-  } finally {
-    loading.events = false
-  }
-}
+const {
+  items: events, loading: loadingEvents, loadingMore: loadingMoreEvents, refreshing: refreshingEvents,
+  error: eventsError, hasMore: hasMoreEvents, reset: resetEvents,
+  loadMore: loadMoreEvents, retry: retryEvents, refresh: loadEvents,
+} = useInfiniteList<PromptAuditEvent>({
+  pageSize: 50,
+  keyOf: event => event.id,
+  fetchPage: (page, signal) => promptAuditAPI.listEvents(appliedFilters.value, page, 50, { signal }),
+})
+const eventErrorMessage = computed(() => eventsError.value ? errorMessage(eventsError.value, 'admin.promptAudit.errors.loadEvents') : '')
+watch(events, rows => {
+  const ids = new Set(rows.map(event => event.id))
+  selectedEventIds.value = selectedEventIds.value.filter(id => ids.has(id))
+})
 async function loadInitial() {
   await Promise.allSettled([loadConfig(), loadRuntime(), loadGroups(), loadEvents()])
 }
@@ -348,12 +346,10 @@ function handleFiltersChanged(value: PromptEventFilters) {
 function applyEventFilters(value: PromptEventFilters) {
   filters.value = cloneData(value)
   appliedFilters.value = cloneData(value)
-  events.page = 1
+  selectedEventIds.value = []
   clearDeletePreview()
-  void loadEvents()
+  void resetEvents()
 }
-function changePage(value: number) { events.page = value; void loadEvents() }
-function changePageSize(value: number) { events.page_size = value; events.page = 1; void loadEvents() }
 async function openEvent(id: number) {
   showEventDetail.value = true
   loading.detail = true
@@ -374,6 +370,7 @@ async function confirmIDDelete() {
   loading.deleting = true
   try {
     const result = mode === 'single' ? await promptAuditAPI.deleteEvent(ids[0]) : await promptAuditAPI.batchDeleteEvents(ids)
+    selectedEventIds.value = selectedEventIds.value.filter(id => !ids.includes(id))
     appStore.showSuccess(t('admin.promptAudit.messages.deleted', { count: result.deleted_events }))
     await Promise.allSettled([loadEvents(), loadRuntime()])
   } catch (error) { appStore.showError(errorMessage(error, 'admin.promptAudit.errors.delete')) }

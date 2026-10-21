@@ -1,5 +1,14 @@
 export default {
     accounts: {
+    details: {
+      statistics: 'Usage statistics',
+      configuration: 'Account details',
+      actions: 'Actions',
+      diagnostics: 'Diagnostics',
+      management: 'Manage account',
+      links: 'Related pages',
+      extras: 'Credits and invitations',
+    },
       bpsAuthorizing: 'BPS authorization is automatic. Native routing remains active until authorization succeeds, then BPS activates automatically.',
       "modelsLoadFailed": "Could not load models. Please retry.",
       "retryModels": "Reload models",
@@ -612,7 +621,7 @@ export default {
       bulkActions: {
         selected: '{count} account(s) selected',
         selectedAll: 'All {count} account(s) selected',
-        selectCurrentPage: 'Select this page',
+        selectCurrentPage: 'Select loaded accounts',
         selectAllResults: 'Select all results ({count})',
         selectingAll: 'Selecting all results...',
         selectAllFailed: 'Failed to load all accounts. The previous selection was kept.',

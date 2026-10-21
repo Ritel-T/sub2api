@@ -1,13 +1,13 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="open-page space-y-6">
       <header class="flex flex-wrap items-start justify-between gap-4">
         <div><h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ t('controlledExperiments.title') }}</h1><p class="mt-2 max-w-4xl text-sm leading-6 text-gray-500">{{ t('controlledExperiments.intro') }}</p></div>
         <button class="btn btn-secondary" :disabled="loading || busy" @click="refresh">{{ t('controlledExperiments.refresh') }}</button>
       </header>
       <p v-if="error" role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{{ error }}</p>
 
-      <details class="card" :open="!report">
+      <details class="open-section" :open="!report">
         <summary class="cursor-pointer p-5 font-semibold">{{ t('controlledExperiments.newRun') }}</summary>
         <form class="space-y-5 border-t border-gray-100 p-5 dark:border-dark-700" @submit.prevent="create">
           <div class="grid gap-4 md:grid-cols-3">
@@ -37,13 +37,13 @@
             <legend class="mb-3 text-sm font-semibold">{{ t('controlledExperiments.tasks') }} · {{ t('controlledExperiments.selected', { count: selectedTasks.length }) }}</legend>
             <div class="mb-3 flex gap-3 text-sm"><button type="button" class="text-primary-600" @click="selectAll">{{ t('controlledExperiments.selectAll') }}</button><button type="button" class="text-gray-500" @click="form.task_ids = []">{{ t('controlledExperiments.selectNone') }}</button></div>
             <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              <div v-for="task in splitTasks" :key="task.id" class="rounded-lg border border-gray-200 p-3 dark:border-dark-700">
+              <div v-for="task in splitTasks" :key="task.id" class="open-section">
                 <label class="flex items-center gap-2 text-sm"><input v-model="form.task_ids" type="checkbox" :value="task.id" /><span class="font-medium">{{ task.id }}</span><span class="ml-auto text-xs text-gray-500">{{ t(`controlledExperiments.${task.category}`) }}</span></label>
                 <details class="mt-2 text-xs text-gray-500"><summary class="cursor-pointer">{{ task.family }} · {{ t('controlledExperiments.turns', { count: task.max_turns }) }}</summary><pre class="experiment-content mt-2 max-h-52">{{ task.prompt }}</pre></details>
               </div>
             </div>
           </fieldset>
-          <div class="rounded-lg bg-gray-50 p-4 dark:bg-dark-800">
+          <div class="open-section">
             <label class="experiment-field max-w-xs">{{ t('controlledExperiments.maxCalls') }}<input v-model.number="form.max_calls" type="number" min="1" max="300" required class="input" data-testid="experiment-budget" /></label>
             <p class="mt-3 text-sm" data-testid="experiment-planned">{{ t('controlledExperiments.planned', { count: plannedCalls }) }}</p>
             <p v-if="form.max_calls < plannedCalls" class="mt-2 text-sm text-amber-700 dark:text-amber-300">{{ t('controlledExperiments.limited') }}</p>
@@ -54,7 +54,7 @@
       </details>
 
       <div class="grid items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside class="card p-4">
+        <aside class="open-section">
           <h2 class="mb-4 font-semibold">{{ t('controlledExperiments.history') }}</h2>
           <p v-if="!runs.length" class="py-6 text-sm text-gray-500">{{ loading ? t('controlledExperiments.loading') : t('controlledExperiments.empty') }}</p>
           <button v-for="run in runs" :key="run.id" class="mb-2 w-full rounded-lg border p-3 text-left text-sm" :class="selectedId === run.id ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-700'" @click="selectRun(run.id)">
@@ -63,7 +63,7 @@
           <button v-if="hasMore" class="btn btn-secondary w-full" :disabled="loading" @click="loadMore">{{ t('controlledExperiments.more') }}</button>
         </aside>
         <section v-if="report" class="min-w-0 space-y-5" aria-live="polite">
-          <div class="card p-5">
+          <div class="open-section p-5">
             <div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="font-semibold">#{{ report.run.id }} · {{ report.run.name }}</h2><p class="mt-1 text-sm text-gray-500">{{ stateLabel(report.run.status) }} · {{ t('controlledExperiments.budget', { used: report.run.reserved_calls, limit: report.run.max_calls }) }}</p></div><button class="btn btn-secondary" @click="exportReport">{{ t('controlledExperiments.export') }}</button></div>
             <p class="mt-4 break-words text-sm"><span class="text-gray-500">{{ t('controlledExperiments.configuration') }}</span> · <code>{{ report.run.spec.model }}</code> · {{ report.run.spec.reasoning_effort }} · {{ report.run.spec.suite_version }} · {{ t('controlledExperiments.repetitions') }} {{ report.run.spec.repetitions }}</p>
             <p v-if="report.run.stop_reason" class="mt-2 text-xs text-gray-500">{{ report.run.stop_reason }}</p>
@@ -73,7 +73,7 @@
             </div>
           </div>
           <div class="grid gap-4 xl:grid-cols-2">
-            <article v-for="summary in report.routes" :key="summary.route_index" class="card p-5">
+            <article v-for="summary in report.routes" :key="summary.route_index" class="open-section p-5">
               <h3 class="font-semibold">{{ routeLabel(summary.route_index) }}</h3>
               <p class="mt-2 break-words text-xs text-gray-500" data-testid="experiment-frozen-route">{{ t('controlledExperiments.mappedModel') }}: {{ report.run.spec.routes[summary.route_index].mapped_model }} · {{ t('controlledExperiments.parentAccount') }}: {{ report.run.spec.routes[summary.route_index].parent_account_id ?? '—' }} · {{ t('controlledExperiments.proxy') }}: {{ report.run.spec.routes[summary.route_index].proxy_id ?? '—' }}</p>
               <p class="mt-1 text-sm text-gray-500">{{ t('controlledExperiments.eligibility') }} · {{ stateLabel(summary.eligibility) }}</p>
@@ -93,11 +93,11 @@
               <p class="mt-4 text-xs text-gray-500">{{ t('controlledExperiments.coverage', { done: summary.graded_tasks, total: (report.run.spec.tasks?.length || 0) * report.run.spec.repetitions }) }}</p>
             </article>
           </div>
-          <article v-if="report.comparisons.length" class="card p-5">
+          <article v-if="report.comparisons.length" class="open-section p-5">
             <h3 class="font-semibold">{{ t('controlledExperiments.comparisons') }}</h3><p class="mb-4 mt-2 text-xs leading-5 text-gray-500">{{ t('controlledExperiments.comparisonHint') }}</p>
             <div class="overflow-x-auto"><table class="experiment-table"><thead><tr><th>{{ t('controlledExperiments.pair') }}</th><th>{{ t('controlledExperiments.paired') }}</th><th>{{ t('controlledExperiments.excluded') }}</th><th>{{ t('controlledExperiments.leftScore') }}</th><th>{{ t('controlledExperiments.rightScore') }}</th><th>{{ t('controlledExperiments.difference') }}</th></tr></thead><tbody><tr v-for="pair in report.comparisons" :key="`${pair.left}/${pair.right}`"><td>{{ pair.left + 1 }} ↔ {{ pair.right + 1 }}</td><td>{{ pair.paired_tasks }}</td><td>{{ pair.excluded_tasks }}</td><td>{{ percentage(pair.left_mean) }}</td><td>{{ percentage(pair.right_mean) }}</td><td>{{ percentage(pair.mean_difference) }}</td></tr></tbody></table></div>
           </article>
-          <article class="card p-5">
+          <article class="open-section p-5">
             <h3 class="mb-4 font-semibold">{{ t('controlledExperiments.submissions') }}</h3>
             <div class="overflow-x-auto"><table class="experiment-table"><thead><tr><th>{{ t('controlledExperiments.sequence') }}</th><th>{{ t('controlledExperiments.task') }}</th><th>{{ t('controlledExperiments.actual') }}</th><th>{{ t('controlledExperiments.result') }}</th><th>{{ t('controlledExperiments.score') }}</th><th>{{ t('controlledExperiments.evidence') }}</th></tr></thead><tbody>
               <tr v-for="attempt in report.attempts" :key="attempt.sequence" data-testid="experiment-attempt">
@@ -110,7 +110,7 @@
             </tbody></table></div>
           </article>
         </section>
-        <div v-else class="card p-8 text-sm text-gray-500">{{ t('controlledExperiments.selectRun') }}</div>
+        <div v-else class="open-section text-sm text-gray-500">{{ t('controlledExperiments.selectRun') }}</div>
       </div>
     </div>
   </AppLayout>

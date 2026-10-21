@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootRef" v-if="showUsageWindows">
+  <div ref="rootRef" v-if="showUsageWindows" :class="{ 'account-usage-compact': compact }">
     <ExcelBPSCredentialStatus :state="account.excel_bps_credential_state" />
     <!-- Anthropic OAuth and Setup Token accounts: fetch real usage data -->
     <template
@@ -47,7 +47,7 @@
           label="5h"
           :utilization="usageInfo.five_hour.utilization"
           :resets-at="usageInfo.five_hour.resets_at"
-          :window-stats="usageInfo.five_hour.window_stats"
+          :window-stats="compact ? null : usageInfo.five_hour.window_stats"
           color="indigo"
         />
 
@@ -132,13 +132,13 @@
           <span v-if="ticket.probe" class="text-gray-400" :title="`${t('admin.accounts.openai.ticketProbe.' + ticket.probe.result)} · HTTP ${ticket.probe.http_status || '—'} · ${new Date(ticket.probe.checked_at).toLocaleString()}${ticket.probe.next_probe_at ? ' · ' + t('admin.accounts.openai.ticketProbeNext') + new Date(ticket.probe.next_probe_at).toLocaleString() : ''}${ticket.standby_expires_at ? ' · ' + t('admin.accounts.openai.ticketStandbyExpires') + new Date(ticket.standby_expires_at).toLocaleString() : ''}`">ⓘ</span>
         </div>
       </div>
-      <div v-if="hasOpenAIUsageFallback" class="space-y-1">
+      <div v-if="hasOpenAIUsageFallback" :class="compact ? 'space-y-0.5' : 'space-y-1'">
         <UsageProgressBar
           v-if="usageInfo?.five_hour"
           label="5h"
           :utilization="usageInfo.five_hour.utilization"
           :resets-at="usageInfo.five_hour.resets_at"
-          :window-stats="usageInfo.five_hour.window_stats"
+          :window-stats="compact ? null : usageInfo.five_hour.window_stats"
           :show-now-when-idle="true"
           color="indigo"
         />
@@ -147,8 +147,8 @@
           label="7d"
           :utilization="usageInfo.seven_day.utilization"
           :resets-at="usageInfo.seven_day.resets_at"
-          :window-stats="usageInfo.seven_day.window_stats"
-          :estimated-total-cost="openAISevenDayEstimatedTotalCost"
+          :window-stats="compact ? null : usageInfo.seven_day.window_stats"
+          :estimated-total-cost="compact ? null : openAISevenDayEstimatedTotalCost"
           :show-now-when-idle="true"
           color="emerald"
         />
@@ -157,11 +157,12 @@
           refresh button is rendered via the pre-actions slot so the user sees a
           single row of related buttons instead of two stacked rows.
         -->
-        <OpenAIQuotaResetCell :account="account" @account-updated="handleQuotaResetAccountUpdated">
+        <OpenAIQuotaResetCell :mode="compact ? 'primary' : 'all'" :account="account" @account-updated="handleQuotaResetAccountUpdated">
           <template #pre-actions>
             <button
               type="button"
               class="theme-action-button inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              :class="{ 'min-h-6': compact }"
               :disabled="activeQueryLoading"
               @click="loadActiveUsage"
             >
@@ -201,10 +202,22 @@
         <!-- Always allow on-demand upstream quota query, even before local data exists. -->
         <OpenAIQuotaResetCell
           v-if="account.type === 'oauth'"
+          :mode="compact ? 'primary' : 'all'"
           :account="account"
           class="mt-1"
           @account-updated="handleQuotaResetAccountUpdated"
-        />
+        >
+          <template v-if="compact" #pre-actions>
+            <button
+              type="button"
+              class="theme-action-button inline-flex min-h-6 items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="activeQueryLoading"
+              @click="loadActiveUsage"
+            >
+              {{ t('admin.accounts.usageWindow.activeQuery') }}
+            </button>
+          </template>
+        </OpenAIQuotaResetCell>
       </div>
     </template>
 
@@ -376,7 +389,7 @@
             label="24h"
             :title="t('admin.accounts.usageWindow.grokFreeQuota24hHint', { limit: formatCompactNumber(grokFreeTokenBar.limit) })"
             :utilization="grokFreeTokenBar.utilization"
-            :window-stats="grokFreeQuotaUsage"
+            :window-stats="compact ? null : grokFreeQuotaUsage"
             :show-now-when-idle="true"
             color="emerald"
           />
@@ -390,7 +403,7 @@
             label="7d"
             :utilization="grokWeeklyBillingBar.utilization"
             :resets-at="grokWeeklyBillingBar.resetsAt"
-            :window-stats="grokWeeklyBillingBar.windowStats"
+            :window-stats="compact ? null : grokWeeklyBillingBar.windowStats"
             :show-now-when-idle="true"
             color="indigo"
           />
@@ -399,7 +412,7 @@
             label="30d"
             :utilization="grokMonthlyBillingBar.utilization"
             :resets-at="grokMonthlyBillingBar.resetsAt"
-            :window-stats="grokMonthlyBillingBar.windowStats"
+            :window-stats="compact ? null : grokMonthlyBillingBar.windowStats"
             :show-now-when-idle="true"
             color="indigo"
           />
@@ -523,7 +536,7 @@
       <!-- Usage data or unlimited flow -->
       <div class="space-y-1">
         <div
-          v-if="showGeminiTodayStats && todayStats"
+          v-if="!compact && showGeminiTodayStats && todayStats"
           class="mb-0.5 flex items-center"
         >
           <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
@@ -549,7 +562,7 @@
           </div>
         </div>
         <div
-          v-else-if="showGeminiTodayStats && todayStatsLoading"
+          v-else-if="!compact && showGeminiTodayStats && todayStatsLoading"
           class="mb-0.5 flex items-center gap-1"
         >
           <div class="h-3 w-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
@@ -574,7 +587,7 @@
             :label="bar.label"
             :utilization="bar.utilization"
             :resets-at="bar.resetsAt"
-            :window-stats="bar.windowStats"
+            :window-stats="compact ? null : bar.windowStats"
             :color="bar.color"
           />
           <p class="mt-1 text-[9px] leading-tight text-gray-400 dark:text-gray-500 italic">
@@ -585,6 +598,7 @@
         <div v-else-if="!showGeminiTodayStats" class="text-xs text-gray-400">
           {{ t('admin.accounts.gemini.rateLimit.unlimited') }}
         </div>
+        <div v-else-if="compact" class="text-xs text-gray-400">-</div>
       </div>
     </template>
 
@@ -614,7 +628,7 @@
       />
       <!-- Today stats row (requests, tokens, cost, user_cost) -->
       <div
-        v-if="todayStats"
+        v-if="!compact && todayStats"
         class="mb-0.5 flex items-center"
       >
         <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
@@ -641,7 +655,7 @@
       </div>
       <!-- Loading skeleton for today stats -->
       <div
-        v-else-if="todayStatsLoading"
+        v-else-if="!compact && todayStatsLoading"
         class="mb-0.5 flex items-center gap-1"
       >
         <div class="h-3 w-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
@@ -673,7 +687,7 @@
 
       <!-- No data at all -->
       <div
-        v-if="!todayStats && !todayStatsLoading && !hasApiKeyQuota && !account.ollama_cloud_usage?.eligible && !account.opencode_go_usage?.eligible"
+        v-if="(compact || (!todayStats && !todayStatsLoading)) && !hasApiKeyQuota && !account.ollama_cloud_usage?.eligible && !account.opencode_go_usage?.eligible"
         class="text-xs text-gray-400"
       >-</div>
     </div>
@@ -713,6 +727,7 @@ const USAGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 const props = withDefaults(
   defineProps<{
     account: Account
+    compact?: boolean
     todayStats?: WindowStats | null
     todayStatsLoading?: boolean
     manualRefreshToken?: number
@@ -722,6 +737,7 @@ const props = withDefaults(
     requestBatchedUsage?: ((account: Account, options?: { force?: boolean }) => void) | null
   }>(),
   {
+    compact: false,
     todayStats: null,
     todayStatsLoading: false,
     manualRefreshToken: 0,

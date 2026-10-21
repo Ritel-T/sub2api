@@ -1,5 +1,5 @@
 <template>
-  <section :class="embedded ? 'border-t border-gray-100 pt-5 dark:border-dark-700' : 'card overflow-hidden'" aria-labelledby="gateway-borrow-title" data-testid="gateway-borrow-panel">
+  <section :class="embedded ? 'border-t border-gray-100 pt-5 dark:border-dark-700' : 'open-section'" aria-labelledby="gateway-borrow-title" data-testid="gateway-borrow-panel">
 
     <div :class="embedded ? 'flex flex-wrap items-start justify-between gap-4' : 'flex flex-wrap items-start justify-between gap-4 p-5'">
       <div class="min-w-0 flex-1">
@@ -40,7 +40,7 @@
             <p v-if="saved?.auto_quality" class="mt-3 text-xs leading-6 text-gray-500" data-testid="auto-managed-hint">{{ t(`${p}.autoManagedHint`) }}</p>
             <p v-if="draft.auto_quality" class="mt-3 text-xs text-gray-500" data-testid="auto-model-scope">{{ t(`${p}.autoModelScope`) }}</p>
           </section>
-          <section class="card p-5 sm:p-6" aria-labelledby="astra-cookie-title">
+          <section class="open-section sm:p-6" aria-labelledby="astra-cookie-title">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h2 id="astra-cookie-title" class="font-semibold text-gray-900 dark:text-white">{{ t(`${p}.cookieTitle`) }}</h2>
@@ -50,8 +50,8 @@
             </div>
             <p class="mt-3 text-xs text-gray-500">{{ t(`${p}.savedState`) }}：{{ t(saved?.cookie_pool.enabled ? `${p}.enabled` : `${p}.disabled`) }}</p>
             <div v-if="draft.auto_quality" class="mt-5 grid gap-4 md:grid-cols-2" data-testid="automatic-accounts">
-              <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"><h3 class="text-sm font-medium">{{ t(`${p}.sources`) }}</h3><p class="mt-2 text-xs text-gray-500">{{ draft.cookie_pool.source_account_ids.map(id => `#${id}`).join(', ') || t(`${p}.autoAwaitingSources`) }}</p></div>
-              <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"><h3 class="text-sm font-medium">{{ t(`${p}.targets`) }}</h3><p v-if="!automaticTargets.length" class="mt-2 text-xs text-gray-500">{{ t(`${p}.autoNoTargets`) }}</p><p v-for="row in automaticTargets" :key="row.id" class="mt-2 text-xs text-gray-500">#{{ row.id }} · {{ row.models.join(' / ') }}</p></div>
+              <div class="open-section"><h3 class="text-sm font-medium">{{ t(`${p}.sources`) }}</h3><p class="mt-2 text-xs text-gray-500">{{ draft.cookie_pool.source_account_ids.map(id => `#${id}`).join(', ') || t(`${p}.autoAwaitingSources`) }}</p></div>
+              <div class="open-section"><h3 class="text-sm font-medium">{{ t(`${p}.targets`) }}</h3><p v-if="!automaticTargets.length" class="mt-2 text-xs text-gray-500">{{ t(`${p}.autoNoTargets`) }}</p><p v-for="row in automaticTargets" :key="row.id" class="mt-2 text-xs text-gray-500">#{{ row.id }} · {{ row.models.join(' / ') }}</p></div>
               <p class="text-xs text-gray-500 md:col-span-2">{{ t(`${p}.autoSelectionHint`) }}</p>
             </div>
             <div v-else class="mt-5 grid gap-4 md:grid-cols-2" data-testid="manual-accounts">
@@ -59,14 +59,14 @@
               <AstraAccountPicker v-model="draft.cookie_pool.target_account_ids" :label="t(`${p}.targets`)" :accounts="accounts" :disabled="saving" />
               <fieldset class="space-y-2 md:col-span-2" data-testid="borrow-models"><legend class="text-sm font-medium">{{ t(`${p}.models`) }}</legend><label v-for="model in borrowModels" :key="model" class="mr-4 inline-flex items-center gap-2 text-sm"><input v-model="draft.cookie_pool.models" type="checkbox" :value="model" />{{ model }}</label></fieldset>
             </div>
-            <div class="mt-4 flex items-start justify-between gap-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+            <div class="open-section mt-4 flex items-start justify-between gap-4">
               <div>
                 <h3 class="text-sm font-medium">{{ t(`${p}.ipAffinity`) }}</h3>
                 <p id="astra-ip-affinity-hint" class="mt-1 text-xs leading-6 text-gray-500 dark:text-gray-400">{{ t(`${p}.ipAffinityHint`) }}</p>
               </div>
               <Toggle :model-value="draft.cookie_pool.ip_affinity ?? false" @update:model-value="setAffinity" data-testid="ip-affinity-toggle" :aria-label="t(`${p}.ipAffinity`)" aria-describedby="astra-ip-affinity-hint" />
             </div>
-            <div class="mt-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+            <div class="open-section mt-4">
               <div class="flex items-start justify-between gap-4">
                 <div><h3 class="text-sm font-medium">{{ t(`${p}.rotateNodes`) }}</h3><p id="astra-rotation-hint" class="mt-1 text-xs leading-6 text-gray-500 dark:text-gray-400">{{ t(`${p}.rotateNodesHint`) }}</p></div>
                 <Toggle :model-value="draft.cookie_pool.rotate_nodes ?? false" @update:model-value="setRotation" data-testid="rotation-toggle" :aria-label="t(`${p}.rotateNodes`)" aria-describedby="astra-rotation-hint" />
@@ -78,7 +78,7 @@
             <label class="mt-4 flex items-center gap-3 text-sm">{{ t(`${p}.cookieTTL`) }}<input v-model.number="draft.cookie_pool.ttl_seconds" class="input w-28" type="number" min="30" max="240" required /> s</label>
             <p class="mt-4 text-xs leading-6 text-gray-500 dark:text-gray-400">{{ t(draft.auto_quality ? `${p}.cookieHint` : `${p}.manualCookieHint`) }}</p>
           </section>
-          <section v-if="!draft.auto_quality" class="card p-5 sm:p-6" aria-labelledby="astra-ws-title">
+          <section v-if="!draft.auto_quality" class="open-section sm:p-6" aria-labelledby="astra-ws-title">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h2 id="astra-ws-title" class="font-semibold text-gray-900 dark:text-white">{{ t(`${p}.wsTitle`) }}</h2>

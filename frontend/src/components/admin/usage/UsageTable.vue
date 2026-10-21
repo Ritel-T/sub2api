@@ -1,5 +1,5 @@
 <template>
-  <div :class="flat ? '' : 'card overflow-hidden'">
+  <div :class="flat ? '' : 'open-section'">
     <div
       v-if="showIpGeoToolbar"
       class="flex items-center justify-end gap-2 border-b border-gray-200 px-4 py-2 dark:border-dark-700"
@@ -17,7 +17,8 @@
       </button>
     </div>
     <div class="overflow-auto">
-      <DataTable
+      <DataTable :primary-columns="['created_at', 'user', 'model', 'tokens', 'cost', 'latency', 'request_details']"
+        :toolbar-target="toolbarTarget"
         :columns="columns"
         @column-reorder="emit('column-reorder', $event)"
         :data="data"
@@ -601,6 +602,7 @@ import type { AdminUsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
 
 interface Props {
+  toolbarTarget?: string | HTMLElement | null
   data: AdminUsageLog[]
   loading?: boolean
   columns: Column[]

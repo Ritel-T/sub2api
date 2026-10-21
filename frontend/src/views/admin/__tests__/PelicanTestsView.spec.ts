@@ -1,7 +1,7 @@
 import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PelicanTestsView from '../PelicanTestsView.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import type { PelicanGroupTestPlan, PelicanGroupTestResult } from '@/api/admin/pelicanTests'
 
 const api = vi.hoisted(() => ({
@@ -129,11 +129,13 @@ describe('PelicanTestsView', () => {
     expect(wrapper.get('[data-testid="pelican-plan-8"]').text()).toContain('pelicanTests.plans.modelMissing')
     expect(wrapper.get('[data-testid="pelican-plan-run-8"]').attributes('disabled')).toBeDefined()
 
-    const history = wrapper.get('[data-testid="pelican-result-90"]').text()
+    await wrapper.get('[data-testid="pelican-result-90"] [data-test="toggle-details"]').trigger('click')
+    const history = wrapper.get('.table-detail-row [data-field="account"]').text()
     expect(history).toContain('pool-b')
     expect(history).toContain('pelicanTests.history.tried {"accounts":"pool-a"}')
     const failed = wrapper.get('[data-testid="pelican-result-89"]')
-    expect(failed.text()).toContain('pelicanTests.plans.noAccount')
+    await failed.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.findAll('.table-detail-row [data-field="account"]')[1].text()).toContain('pelicanTests.plans.noAccount')
     expect(failed.text()).toContain('no_available_account')
     expect(failed.find('[data-testid="pelican-result-view-89"]').exists()).toBe(false)
     expect(wrapper.findComponent(RouterLinkStub).props('to')).toBe('/pelican-showcase')
@@ -277,9 +279,9 @@ describe('PelicanTestsView', () => {
     expect(wrapper.find('[data-testid="pelican-result-90"]').exists()).toBe(false)
   })
 
-  it('previews an answer in the sandbox and pages the history', async () => {
-    api.listResults.mockResolvedValueOnce({ items: [result()], total: 21 })
-    api.listResults.mockResolvedValueOnce({ items: [result({ id: 80 })], total: 21 })
+  it('previews an answer and appends history without replacing previous rows', async () => {
+    api.listResults.mockResolvedValueOnce({ items: [result()], total: 2 })
+    api.listResults.mockResolvedValueOnce({ items: [result({ id: 80 })], total: 2 })
     api.getResult.mockResolvedValue(result({ response_text: '<svg data-answer="90"></svg>' }))
     wrapper = mountView()
     await flushPromises()
@@ -288,96 +290,74 @@ describe('PelicanTestsView', () => {
     const frame = wrapper.get('[data-testid="pelican-result-preview"] iframe')
     expect(frame.attributes('sandbox')).toBe('allow-scripts')
     expect(frame.attributes('srcdoc')).toContain('data-answer="90"')
-
-    wrapper.getComponent(Pagination).vm.$emit('update:page', 2)
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
     await flushPromises()
-    expect(api.listResults).toHaveBeenLastCalledWith(2, 20, 0, expect.any(AbortSignal))
+    expect(api.listResults).toHaveBeenLastCalledWith(2, 50, 0, expect.any(AbortSignal))
     expect(wrapper.find('[data-testid="pelican-result-80"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="pelican-result-90"]').exists()).toBe(false)
-    expect(wrapper.getComponent(Pagination).props()).toMatchObject({ total: 21, page: 2, pageSize: 20, showJump: true })
+    expect(wrapper.find('[data-testid="pelican-result-90"]').exists()).toBe(true)
+    expect(wrapper.getComponent(InfiniteListSentinel).props('hasMore')).toBe(false)
   })
 
-  it('uses the shared page size and returns to page one when it changes', async () => {
-    localStorage.setItem('table-page-size', '50')
-    api.listResults.mockResolvedValue({ items: [result()], total: 120 })
+  it('uses fixed bounded batches rather than a persisted page-size control', async () => {
+    localStorage.setItem('table-page-size', '20')
     wrapper = mountView()
     await flushPromises()
     expect(api.listResults).toHaveBeenLastCalledWith(1, 50, 0, expect.any(AbortSignal))
-    wrapper.getComponent(Pagination).vm.$emit('update:page', 2)
-    await flushPromises()
-    await wrapper.get('[data-testid="pelican-history-pagination"] select').setValue('20')
-    await flushPromises()
-    expect(api.listResults).toHaveBeenLastCalledWith(1, 20, 0, expect.any(AbortSignal))
+    expect(wrapper.find('[data-testid="pelican-history-pagination"]').exists()).toBe(false)
     expect(localStorage.getItem('table-page-size')).toBe('20')
-    expect(wrapper.getComponent(Pagination).props('page')).toBe(1)
   })
 
-  it('replaces the current page while polling instead of accumulating rows', async () => {
+  it('atomically refreshes the loaded range while polling', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-    api.listResults.mockResolvedValue({ items: [result()], total: 80 })
+    api.listResults.mockResolvedValueOnce({ items: [result()], total: 3 })
+    api.listResults.mockResolvedValueOnce({ items: [result({ id: 80 })], total: 3 })
     wrapper = mountView()
     await flushPromises()
-    wrapper.getComponent(Pagination).vm.$emit('update:page', 2)
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
     await flushPromises()
-    api.listResults.mockResolvedValue({ items: [result({ id: 91, cost_usd: 0.6 })], total: 81 })
+    api.listResults.mockImplementation(async (page: number) => ({ items: [result({ id: page === 1 ? 91 : 80, cost_usd: 0.6 })], total: 3 }))
     api.listPlans.mockResolvedValue([plan({ today_cost_usd: 0.7, total_cost_usd: 1.2 })])
     await vi.advanceTimersByTimeAsync(15000)
     await flushPromises()
-    expect(api.listResults).toHaveBeenLastCalledWith(2, 20, 0, expect.any(AbortSignal))
-    expect(wrapper.getComponent(Pagination).props('page')).toBe(2)
-    expect(wrapper.findAll('[data-testid="pelican-test-history"] tbody tr')).toHaveLength(1)
+    expect(api.listResults).toHaveBeenLastCalledWith(2, 50, 0, expect.any(AbortSignal))
     expect(wrapper.find('[data-testid="pelican-result-90"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="pelican-result-91"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pelican-result-80"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="pelican-result-cost-91"]').text()).toBe('$0.600000')
     expect(wrapper.get('[data-testid="pelican-plan-cost-7"]').text()).toContain('$0.700000')
-    expect(wrapper.get('[data-testid="pelican-plan-cost-7"]').text()).toContain('$1.200000')
   })
 
-  it('ignores a late response from an earlier page and aborts it', async () => {
-    api.listResults.mockResolvedValue({ items: [result()], total: 80 })
+  it('aborts a pending append when history resets after deleting a plan', async () => {
+    api.listResults.mockResolvedValue({ items: [result()], total: 3 })
     wrapper = mountView()
     await flushPromises()
     let resolveOld!: (value: unknown) => void
     api.listResults.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
-    wrapper.getComponent(Pagination).vm.$emit('update:page', 2)
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
     const oldSignal = api.listResults.mock.calls.at(-1)?.[3] as AbortSignal
-    api.listResults.mockResolvedValueOnce({ items: [result({ id: 70 })], total: 80 })
-    wrapper.getComponent(Pagination).vm.$emit('update:page', 3)
-    await flushPromises()
-    expect(oldSignal.aborted).toBe(true)
-    resolveOld({ items: [result({ id: 80 })], total: 80 })
-    await flushPromises()
-    expect(wrapper.getComponent(Pagination).props('page')).toBe(3)
-    expect(wrapper.find('[data-testid="pelican-result-70"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="pelican-result-80"]').exists()).toBe(false)
-  })
-
-  it('moves to the last available page after history is deleted', async () => {
-    api.listResults.mockResolvedValue({ items: [result()], total: 21 })
-    wrapper = mountView()
-    await flushPromises()
-    wrapper.getComponent(Pagination).vm.$emit('update:page', 2)
-    await flushPromises()
-    api.listResults.mockResolvedValueOnce({ items: [], total: 1 })
     api.listResults.mockResolvedValueOnce({ items: [result({ id: 70, plan_id: 8 })], total: 1 })
     await wrapper.get('[data-testid="pelican-plan-delete-7"]').trigger('click')
     await wrapper.get('.confirm-yes').trigger('click')
     await flushPromises()
-    expect(api.listResults).toHaveBeenLastCalledWith(1, 20, 0, expect.any(AbortSignal))
-    expect(wrapper.getComponent(Pagination).props()).toMatchObject({ page: 1, total: 1 })
+    expect(oldSignal.aborted).toBe(true)
+    resolveOld({ items: [result({ id: 80 })], total: 3 })
+    await flushPromises()
     expect(wrapper.find('[data-testid="pelican-result-70"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pelican-result-80"]').exists()).toBe(false)
+    expect(wrapper.getComponent(InfiniteListSentinel).props('hasMore')).toBe(false)
   })
 
-  it('reports a failed page request and cancels requests on unmount', async () => {
-    api.listResults.mockResolvedValue({ items: [result()], total: 80 })
+  it('keeps rows on append failure and cancels a pending retry on unmount', async () => {
+    api.listResults.mockResolvedValue({ items: [result()], total: 3 })
     wrapper = mountView()
     await flushPromises()
     api.listResults.mockRejectedValueOnce(new Error('history unavailable'))
-    wrapper.getComponent(Pagination).vm.$emit('update:page', 2)
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
     await flushPromises()
-    expect(wrapper.get('[role="alert"]').text()).toContain('history unavailable')
+    expect(wrapper.getComponent(InfiniteListSentinel).props('error')).toEqual(new Error('history unavailable'))
+    expect(wrapper.find('[data-testid="pelican-result-90"]').exists()).toBe(true)
     api.listResults.mockReturnValueOnce(new Promise(() => {}))
-    wrapper.getComponent(Pagination).vm.$emit('update:page', 3)
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('retry')
     const signal = api.listResults.mock.calls.at(-1)?.[3] as AbortSignal
     wrapper.unmount()
     expect(signal.aborted).toBe(true)

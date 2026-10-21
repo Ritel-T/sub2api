@@ -898,7 +898,7 @@ h2, h3 {
 .uppercase:is(.tracking-wide, .tracking-wider, .tracking-widest, [class*="tracking-["]), th.uppercase { letter-spacing: .01em; }
 select option { background: var(--theme-surface); color: var(--ritel-fg); }
 .input::placeholder, textarea::placeholder { color: var(--ritel-muted); opacity: 1; }
-.ritel-main { width: 100%; max-width: 1296px; margin: 0 auto; padding: 32px; }
+.ritel-main { width: 100%; max-width: var(--console-content-width, 1296px); margin: 0 auto; padding: 32px; }
 .ritel-main h1 { font-size: 36px; line-height: 1.15; }
 .ritel-main :is(h2, h3) { font-size: 16px; line-height: 1.4; }
 .ritel-main :is(h2, h3)[class*=text-gray-500] { font-size: 13px; font-weight: 400; color: var(--ritel-muted); }

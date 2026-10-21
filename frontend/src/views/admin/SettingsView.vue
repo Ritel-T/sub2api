@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-6xl space-y-6">
+    <div class="open-page admin-settings-workspace space-y-10">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <div
@@ -47,7 +47,7 @@
         <!-- Tab: Security — Admin API Key -->
         <div v-show="activeTab === 'security'" class="space-y-6">
           <!-- Admin API Key Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -58,6 +58,7 @@
                 {{ t("admin.settings.adminApiKey.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-4 p-6">
               <!-- Security Warning -->
               <div
@@ -197,6 +198,8 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
         </div>
         <!-- /Tab: Security — Admin API Key -->
@@ -204,11 +207,12 @@
         <!-- Tab: Gateway -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
           <ServerlessSettings v-if="activeTab === 'gateway'" />
-          <div class="card" data-testid="prism-browser-settings">
+          <div class="open-settings-section" data-testid="prism-browser-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ localText("Prism 浏览器桥", "Prism browser bridge") }}</h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ localText("账号可单独选择 Prism 模型范围。", "Choose the Prism model scope for each account.") }}</p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-4 p-6">
               <label class="block">
                 <span class="mb-1 block text-sm text-gray-600 dark:text-gray-300">{{ localText("适配器 Base URL", "Adapter Base URL") }}</span>
@@ -220,9 +224,11 @@
               </label>
               <p v-if="form.prism_browser_enabled && !form.prism_browser_api_key_configured" class="text-sm text-amber-600">{{ localText("启用前必须配置至少 32 个字符的适配器密钥。", "Configure an adapter key with at least 32 characters before enabling.") }}</p>
             </div>
+
+            </div>
           </div>
           <!-- Overload Cooldown (529) Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -233,6 +239,7 @@
                 {{ t("admin.settings.overloadCooldown.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div
                 v-if="overloadCooldownLoading"
@@ -320,10 +327,12 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
 
           <!-- Rate Limit Cooldown (429) Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -334,6 +343,7 @@
                 {{ t("admin.settings.rateLimit429Cooldown.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div
                 v-if="rateLimit429CooldownLoading"
@@ -427,10 +437,12 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
 
           <!-- Stream Timeout Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -441,6 +453,7 @@
                 {{ t("admin.settings.streamTimeout.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <!-- Loading State -->
               <div
@@ -607,10 +620,12 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
 
           <!-- Request Rectifier Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -621,6 +636,7 @@
                 {{ t("admin.settings.rectifier.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <!-- Loading State -->
               <div
@@ -807,9 +823,11 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
           <!-- Beta Policy Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -820,6 +838,7 @@
                 {{ t("admin.settings.betaPolicy.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <!-- Loading State -->
               <div
@@ -837,7 +856,7 @@
                 <div
                   v-for="rule in betaPolicyForm.rules"
                   :key="rule.beta_token"
-                  class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                  class="open-section"
                 >
                   <div class="mb-3 flex items-center gap-2">
                     <span
@@ -1086,9 +1105,11 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
           <!-- OpenAI Fast/Flex Policy Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1099,11 +1120,12 @@
                 {{ t("admin.settings.openaiFastPolicy.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <!-- Empty state -->
               <div
                 v-if="openaiFastPolicyForm.rules.length === 0"
-                class="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+                class="open-section border-dashed text-center text-sm text-gray-500 dark:text-gray-400"
               >
                 {{ t("admin.settings.openaiFastPolicy.empty") }}
               </div>
@@ -1112,7 +1134,7 @@
               <div
                 v-for="(rule, ruleIndex) in openaiFastPolicyForm.rules"
                 :key="ruleIndex"
-                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="open-section"
               >
                 <div class="mb-3 flex items-center justify-between">
                   <span
@@ -1435,6 +1457,8 @@
                 </p>
               </div>
             </div>
+
+            </div>
           </div>
         </div>
         <!-- /Tab: Gateway -->
@@ -1442,7 +1466,7 @@
         <!-- Tab: Security — Registration, Turnstile, LinuxDo -->
         <div v-show="activeTab === 'security'" class="space-y-6">
           <!-- Registration Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1453,6 +1477,7 @@
                 {{ t("admin.settings.registration.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <!-- Enable Registration -->
               <div class="flex items-center justify-between">
@@ -1495,7 +1520,7 @@
                   }}
                 </p>
                 <div
-                  class="mt-3 rounded-lg border border-gray-300 bg-white p-2 dark:border-dark-500 dark:bg-dark-700"
+                  class="open-section mt-3 p-2"
                 >
                   <div class="flex flex-wrap items-center gap-2">
                     <span
@@ -1789,10 +1814,12 @@
                 />
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- API Key IP ACL Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1803,6 +1830,7 @@
                 {{ t("admin.settings.apiKeyAcl.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div class="flex items-center justify-between gap-4">
                 <div>
@@ -1830,7 +1858,7 @@
                   {{ t("admin.settings.apiKeyAcl.forwardedClientIpHeadersHint") }}
                 </p>
                 <div
-                  class="mt-3 rounded-lg border border-gray-300 bg-white p-2 dark:border-dark-500 dark:bg-dark-700"
+                  class="open-section mt-3 p-2"
                 >
                   <div class="flex flex-wrap items-center gap-2">
                     <span
@@ -1876,10 +1904,12 @@
                 </p>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- Panel API Rate Limit Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1897,6 +1927,7 @@
                 {{ t("admin.settings.panelRateLimit.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div
                 v-if="panelRateLimitLoading"
@@ -2067,10 +2098,12 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
 
           <!-- 人机验证 Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -2081,6 +2114,7 @@
                 {{ t("admin.settings.captcha.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <!-- Enable Captcha -->
               <div class="flex items-center justify-between">
@@ -2111,7 +2145,7 @@
                     {{ t("admin.settings.captcha.provider") }}
                   </label>
                   <div
-                    class="grid grid-cols-3 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+                    class="open-section grid grid-cols-3 gap-2 p-1"
                   >
                     <button
                       type="button"
@@ -2214,7 +2248,7 @@
                     <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                       {{ t("admin.settings.tencentCaptcha.region") }}
                     </label>
-                    <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
+                    <div class="open-section grid grid-cols-2 gap-2 p-1">
                       <button
                         type="button"
                         data-testid="tencent-captcha-region-cn"
@@ -2365,7 +2399,7 @@
                         {{ t("admin.settings.aliyunCaptcha.region") }}
                       </label>
                       <div
-                        class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+                        class="open-section grid grid-cols-2 gap-2 p-1"
                       >
                         <button
                           type="button"
@@ -2471,10 +2505,12 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- LinuxDo Connect OAuth 登录 -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -2485,6 +2521,7 @@
                 {{ t("admin.settings.linuxdo.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div class="flex items-center justify-between">
                 <div>
@@ -2589,10 +2626,12 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- GitHub / Google 邮箱快捷登录 -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -2608,9 +2647,10 @@
                 }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-6 p-6">
               <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
+                <div class="open-section">
                   <div class="flex items-start justify-between gap-4">
                     <div>
                       <h3 class="font-medium text-gray-900 dark:text-white">
@@ -2629,7 +2669,7 @@
                   </div>
 
                   <div v-if="form.github_oauth_enabled" class="mt-4 space-y-4">
-                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                    <div class="open-section py-2 text-xs text-gray-600 dark:text-gray-300">
                       {{ localText('开通引导：GitHub Settings → Developer settings →', 'Setup guide: GitHub Settings → Developer settings →') }}
                       <a
                         data-testid="github-oauth-apps-guide-link"
@@ -2707,7 +2747,7 @@
                   </div>
                 </div>
 
-                <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
+                <div class="open-section">
                   <div class="flex items-start justify-between gap-4">
                     <div>
                       <h3 class="font-medium text-gray-900 dark:text-white">
@@ -2726,7 +2766,7 @@
                   </div>
 
                   <div v-if="form.google_oauth_enabled" class="mt-4 space-y-4">
-                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                    <div class="open-section py-2 text-xs text-gray-600 dark:text-gray-300">
                       {{
                         localText(
                           "开通引导：Google Cloud Console → APIs & Services → OAuth consent screen 完成同意屏幕；Credentials → Create Credentials → OAuth client ID，类型选择 Web application，并把下面地址加入 Authorized redirect URIs。",
@@ -2802,10 +2842,12 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- WeChat Connect OAuth 登录 -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -2816,6 +2858,7 @@
                 {{ t("admin.settings.wechatConnect.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div class="flex items-center justify-between">
                 <div>
@@ -2838,7 +2881,7 @@
               >
                 <div class="space-y-4">
                   <div
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                    class="open-section"
                   >
                     <div class="flex items-start justify-between gap-4">
                       <div>
@@ -2911,7 +2954,7 @@
                   </div>
 
                   <div
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                    class="open-section"
                   >
                     <div class="flex items-start justify-between gap-4">
                       <div>
@@ -2989,7 +3032,7 @@
                   </div>
 
                   <div
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                    class="open-section"
                   >
                     <div class="flex items-start justify-between gap-4">
                       <div>
@@ -3144,10 +3187,12 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- DingTalk Connect OAuth 登录 -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -3158,6 +3203,7 @@
                 {{ t("admin.settings.dingtalk.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div class="flex items-center justify-between">
                 <div>
@@ -3432,10 +3478,12 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- Generic OIDC OAuth 登录 -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -3446,6 +3494,7 @@
                 {{ t("admin.settings.oidc.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div class="flex items-center justify-between">
                 <div>
@@ -3841,6 +3890,8 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
         </div>
         <!-- /Tab: Security — Registration, Turnstile, LinuxDo, OIDC -->
@@ -3848,7 +3899,7 @@
         <!-- Tab: Users -->
         <div v-show="activeTab === 'users'" class="space-y-6">
           <!-- Default Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -3859,6 +3910,7 @@
                 {{ t("admin.settings.defaults.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-6 p-6">
               <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
@@ -4119,9 +4171,11 @@
               </div>
               <!-- /全局平台限额矩阵 -->
             </div>
+
+            </div>
           </div>
 
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -4132,6 +4186,7 @@
                 {{ t("admin.settings.authSourceDefaults.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-6 p-6">
               <div
                 class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
@@ -4151,7 +4206,7 @@
                 <div
                   v-for="authSource in authSourceDefaultsMeta"
                   :key="authSource.source"
-                  class="rounded-xl border border-gray-200 p-4 dark:border-dark-700"
+                  class="open-section"
                 >
                   <div class="flex items-center justify-between gap-4">
                     <div>
@@ -4457,6 +4512,8 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
         </div>
         <!-- /Tab: Users -->
@@ -4464,7 +4521,7 @@
         <!-- Tab: Gateway — Claude Code, Scheduling -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
           <!-- Claude Code Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -4475,6 +4532,7 @@
                 {{ t("admin.settings.claudeCode.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="p-6">
               <div>
                 <label
@@ -4513,10 +4571,12 @@
                 </p>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- Codex Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -4524,9 +4584,10 @@
                 {{ t("admin.settings.gatewayForwarding.codexHardeningTitle") }}
               </h2>
             </div>
+            <div class="settings-section-fields">
             <div class="p-6 space-y-4">
                 <RequestTimezoneSettings v-model="form.openai_request_timezone_enabled" v-model:auto="form.openai_request_timezone_auto" />
-                <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600" data-testid="codex-management-links">
+                <div class="open-section" data-testid="codex-management-links">
                   <p class="text-sm text-gray-500 dark:text-gray-400">{{ localText('自动打票、模型与票据策略在「打票全流程」管理；采票出口、订阅与节点在「IP 管理」管理。', 'Manage automatic harvesting, models and ticket policies in Harvest Flow; manage exits, subscriptions and nodes in IP Management.') }}</p>
                   <div class="mt-3 flex flex-wrap gap-2">
                     <router-link to="/admin/harvest-flow" class="btn btn-secondary btn-sm">{{ t('nav.harvestFlow') }}</router-link>
@@ -4769,10 +4830,12 @@
                   </button>
                 </div>
             </div>
+
+            </div>
           </div>
 
           <!-- Upstream Billing Probe Settings -->
-          <div class="card" data-testid="upstream-billing-probe-settings">
+          <div class="open-settings-section" data-testid="upstream-billing-probe-settings">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -4783,6 +4846,7 @@
                 {{ t("admin.settings.upstreamBillingProbe.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div
                 v-if="upstreamBillingProbeLoading"
@@ -4855,10 +4919,12 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
 
           <!-- Ollama Cloud Usage Settings -->
-          <div class="card" data-testid="ollama-cloud-usage-global-settings">
+          <div class="open-settings-section" data-testid="ollama-cloud-usage-global-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <h2 id="settings-section-ollama-cloud-usage" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.ollamaCloudUsage.title") }}
@@ -4867,6 +4933,7 @@
                 {{ t("admin.settings.ollamaCloudUsage.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div v-if="ollamaCloudUsageLoading" class="flex items-center gap-2 text-gray-500">
                 <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
@@ -4939,10 +5006,12 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
 
           <!-- OpenCode Go Usage Settings -->
-          <div class="card" data-testid="opencode-go-usage-global-settings">
+          <div class="open-settings-section" data-testid="opencode-go-usage-global-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <h2 id="settings-section-opencode-go-usage" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.opencodeGoUsage.title") }}
@@ -4951,6 +5020,7 @@
                 {{ t("admin.settings.opencodeGoUsage.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div v-if="opencodeGoUsageLoading" class="flex items-center gap-2 text-gray-500">
                 <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
@@ -5023,10 +5093,12 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
 
           <!-- Gateway Scheduling Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -5037,6 +5109,7 @@
                 {{ t("admin.settings.scheduling.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div class="flex items-center justify-between">
                 <div>
@@ -5087,7 +5160,7 @@
                   <div
                     v-for="platform in schedulingThresholdPlatforms"
                     :key="platform"
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                    class="open-section"
                   >
                     <div class="flex items-start justify-between gap-3">
                       <div>
@@ -5302,10 +5375,12 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- Gateway Forwarding Behavior -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -5316,6 +5391,7 @@
                 {{ t("admin.settings.gatewayForwarding.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div class="grid gap-5 border-b border-gray-100 pb-5 dark:border-dark-700 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                 <div>
@@ -5520,7 +5596,7 @@
                   <div
                     v-for="(block, index) in claudeOAuthSystemPromptBlocks"
                     :key="block.id"
-                    class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60"
+                    class="open-section"
                   >
                     <div
                       :class="[
@@ -5960,10 +6036,12 @@
               </div>
 
             </div>
+
+            </div>
           </div>
 
           <!-- Web Search Emulation -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -5974,6 +6052,7 @@
                 {{ t("admin.settings.webSearchEmulation.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <!-- Global Toggle -->
               <div class="flex items-center justify-between">
@@ -6009,7 +6088,7 @@
 
                 <div
                   v-if="webSearchConfig.providers.length === 0"
-                  class="rounded-lg border border-dashed border-gray-300 p-4 text-center text-sm text-gray-400 dark:border-dark-600"
+                  class="open-section border-dashed text-center text-sm text-gray-400"
                 >
                   {{ t("admin.settings.webSearchEmulation.noProviders") }}
                 </div>
@@ -6017,7 +6096,7 @@
                 <div
                   v-for="(provider, pIdx) in webSearchConfig.providers"
                   :key="pIdx"
-                  class="rounded-lg border border-gray-200 dark:border-dark-600"
+                  class="open-section"
                 >
                   <!-- Collapsible header -->
                   <div
@@ -6313,6 +6392,8 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- Web Search Test Dialog -->
@@ -6399,7 +6480,7 @@
           </div>
 
         <!-- Usage Records Settings -->
-        <div class="card">
+        <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-usage-records" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.usageRecords.title') }}
@@ -6408,6 +6489,7 @@
               {{ t('admin.settings.usageRecords.description') }}
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-4 p-6">
             <!-- User error requests visibility -->
             <div class="flex items-center justify-between">
@@ -6481,14 +6563,16 @@
               </label>
             </div>
           </div>
-        </div>
+
+            </div>
+          </div>
         </div>
         <!-- /Tab: Gateway — Claude Code, Scheduling -->
 
         <!-- Tab: General -->
         <div v-show="activeTab === 'general'" class="space-y-6">
           <!-- Site Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -6499,6 +6583,7 @@
                 {{ t("admin.settings.site.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-6 p-6">
               <!-- Backend Mode -->
               <div
@@ -6633,7 +6718,7 @@
                   <div
                     v-for="(ep, index) in form.custom_endpoints"
                     :key="index"
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                    class="open-section"
                   >
                     <div class="mb-3 flex items-center justify-between">
                       <span
@@ -6853,10 +6938,12 @@
               </div>
               <CcsImportSettings ref="ccsImportSettings" v-model="form.ccs_import_config" :base-url="form.api_base_url || currentOrigin" />
             </div>
+
+            </div>
           </div>
 
           <!-- Custom Menu Items -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -6867,12 +6954,13 @@
                 {{ t("admin.settings.customMenu.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-4 p-6">
               <!-- Existing menu items -->
               <div
                 v-for="(item, index) in form.custom_menu_items"
                 :key="item.id || index"
-                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="open-section"
               >
                 <div class="mb-3 flex items-center justify-between">
                   <span
@@ -7055,13 +7143,15 @@
                 {{ t("admin.settings.customMenu.add") }}
               </button>
             </div>
+
+            </div>
           </div>
 	        </div>
 	        <!-- /Tab: General -->
 
 	        <!-- Tab: Login Agreement -->
 	        <div v-show="activeTab === 'agreement'" class="space-y-6">
-	          <div class="card">
+	          <div class="open-settings-section">
 	            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
 	              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 	                <div>
@@ -7085,6 +7175,7 @@
 	                </div>
 	              </div>
 	            </div>
+            <div class="settings-section-fields">
 
 	            <div class="space-y-6 p-6">
 	              <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">
@@ -7092,7 +7183,7 @@
 	                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
 	                    {{ localText("展示形式", "Display mode") }}
 	                  </label>
-	                  <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
+	                  <div class="open-section grid grid-cols-2 gap-2 p-1">
                     <button
                       type="button"
                       class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
@@ -7173,7 +7264,7 @@
                   <div
                     v-for="(doc, index) in form.login_agreement_documents"
                     :key="doc.id || index"
-                    class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-800/60"
+                    class="open-section"
                   >
                     <div class="mb-3 flex items-center justify-between gap-3">
                       <div class="flex min-w-0 items-center gap-3">
@@ -7257,17 +7348,20 @@
                 </div>
               </div>
             </div>
+
+            </div>
           </div>
         </div>
         <!-- /Tab: Login Agreement -->
 
         <!-- Tab: Features (功能开关) -->
         <div v-show="activeTab === 'features'" class="space-y-6">
-        <div class="card" data-testid="protocol-feature-switches">
+        <div class="open-settings-section" data-testid="protocol-feature-switches">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ localText("协议功能", "Protocol features") }}</h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ localText("关闭后立即停止使用对应协议，并隐藏账号编辑中的相关选项。", "Disabling a protocol stops its use immediately and hides its account editor options.") }}</p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between gap-4">
               <span class="font-medium text-gray-900 dark:text-white">{{ localText("Excel / BPS 协议", "Excel / BPS protocol") }}</span>
@@ -7278,12 +7372,15 @@
               <Toggle v-model="form.prism_browser_enabled" />
             </div>
           </div>
-        </div>
-        <div class="card" data-testid="request-capture-settings">
+
+            </div>
+          </div>
+        <div class="open-settings-section" data-testid="request-capture-settings">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-request-capture" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.requestCapture.title') }}</h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.requestCapture.description') }}</p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between gap-4">
               <label for="request-capture-enabled" class="input-label">{{ t('admin.requestCapture.enabled') }}</label>
@@ -7296,8 +7393,10 @@
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.requestCapture.limitsHint') }}</p>
             <p class="text-xs text-amber-700 dark:text-amber-300">{{ t('admin.requestCapture.privacy') }}</p>
           </div>
-        </div>
-        <div class="card" data-testid="excel-bps-image-settings">
+
+            </div>
+          </div>
+        <div class="open-settings-section" data-testid="excel-bps-image-settings">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-features-excel-bps-images" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.excelBpsImages.title') }}
@@ -7306,6 +7405,7 @@
               {{ t('admin.settings.features.excelBpsImages.description') }}
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between gap-4">
               <div>
@@ -7418,9 +7518,11 @@
               </template>
             </div>
           </div>
-        </div>
 
-        <div class="card">
+            </div>
+          </div>
+
+        <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-features-channel-monitor" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.channelMonitor.title') }}
@@ -7438,6 +7540,7 @@
               </router-link>
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between">
               <div>
@@ -7456,7 +7559,7 @@
                 <label class="input-label">
                   {{ t('admin.settings.features.channelMonitor.mode') }}
                 </label>
-                <div class="mt-1.5 inline-flex w-full max-w-xl rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-dark-600 dark:bg-dark-900/40">
+                <div class=" mt-1.5 inline-flex w-full max-w-xl p-1">
                   <button
                     v-for="mode in channelMonitorModes"
                     :key="mode"
@@ -7536,9 +7639,11 @@
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="card">
+            </div>
+          </div>
+
+        <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-features-available-channels" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.availableChannels.title') }}
@@ -7556,6 +7661,7 @@
               </router-link>
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between">
               <div>
@@ -7569,10 +7675,12 @@
               <Toggle v-model="form.available_channels_enabled" />
             </div>
           </div>
-        </div>
+
+            </div>
+          </div>
 
         <!-- The Pelican showcase is configured with its group tests under Smart Ops. -->
-        <div class="card" data-testid="pelican-showcase-moved">
+        <div class="open-settings-section" data-testid="pelican-showcase-moved">
           <div class="px-6 py-4">
             <h2 id="settings-section-features-pelican-showcase" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.pelicanShowcase.title') }}
@@ -7590,7 +7698,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-features-model-plaza" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.modelPlaza.title') }}
@@ -7599,6 +7707,7 @@
               {{ t('admin.settings.features.modelPlaza.description') }}
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between">
               <div>
@@ -7638,9 +7747,11 @@
               ></textarea>
             </div>
           </div>
-        </div>
 
-        <div class="card">
+            </div>
+          </div>
+
+        <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-features-site-billing-mode" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.siteBillingMode.title') }}
@@ -7649,6 +7760,7 @@
               {{ t('admin.settings.features.siteBillingMode.description') }}
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div class="min-w-0">
@@ -7668,9 +7780,11 @@
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="card">
+            </div>
+          </div>
+
+        <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-features-plugin-management" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.pluginManagement.title') }}
@@ -7679,6 +7793,7 @@
               {{ t('admin.settings.features.pluginManagement.description') }}
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between gap-4">
               <div>
@@ -7692,9 +7807,11 @@
               <Toggle v-model="form.plugin_management_enabled" />
             </div>
           </div>
-        </div>
 
-        <div class="card" data-testid="support-ticket-settings">
+            </div>
+          </div>
+
+        <div class="open-settings-section" data-testid="support-ticket-settings">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-features-support-tickets" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.supportTickets.title') }}
@@ -7712,6 +7829,7 @@
               </router-link>
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between gap-4">
               <div>
@@ -7797,9 +7915,11 @@
               </div>
             </template>
           </div>
-        </div>
 
-        <div class="card">
+            </div>
+          </div>
+
+        <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-features-risk-control" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.riskControl.title') }}
@@ -7817,6 +7937,7 @@
               </router-link>
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between">
               <div>
@@ -7884,10 +8005,12 @@
               </div>
             </div>
           </div>
-        </div>
+
+            </div>
+          </div>
 
         <!-- Affiliate (邀请返利) feature card -->
-        <div class="card">
+        <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 id="settings-section-features-affiliate" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.affiliate.title') }}
@@ -7896,6 +8019,7 @@
               {{ t('admin.settings.features.affiliate.description') }}
             </p>
           </div>
+            <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between">
               <div>
@@ -8086,14 +8210,14 @@
                   </button>
                 </div>
 
-                <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-dark-700">
+                <div class="open-section overflow-x-auto">
                   <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
                     <thead class="bg-gray-50 dark:bg-dark-800">
                       <tr>
                         <th class="px-3 py-2 text-left">
                           <input
                             type="checkbox"
-                            :checked="affiliateState.entries.length > 0 && affiliateState.selected.length === affiliateState.entries.length"
+                            :checked="affiliateList.items.value.length > 0 && affiliateState.selected.length === affiliateList.items.value.length"
                             @change="toggleAffiliateSelectAll"
                           />
                         </th>
@@ -8105,17 +8229,17 @@
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
-                      <tr v-if="affiliateState.loading">
+                      <tr v-if="affiliateList.loading.value">
                         <td colspan="6" class="px-3 py-6 text-center text-sm text-gray-500">
                           {{ t('common.loading') }}
                         </td>
                       </tr>
-                      <tr v-else-if="affiliateState.entries.length === 0">
+                      <tr v-else-if="affiliateList.items.value.length === 0">
                         <td colspan="6" class="px-3 py-6 text-center text-sm text-gray-500">
                           {{ t('admin.settings.features.affiliate.customUsers.empty') }}
                         </td>
                       </tr>
-                      <tr v-for="entry in affiliateState.entries" :key="entry.user_id">
+                      <tr v-for="entry in affiliateList.items.value" :key="entry.user_id">
                         <td class="px-3 py-2">
                           <input
                             type="checkbox"
@@ -8155,34 +8279,19 @@
                   </table>
                 </div>
 
-                <div v-if="affiliateState.total > affiliateState.pageSize" class="mt-3 flex items-center justify-between text-sm">
-                  <span class="text-gray-500">
-                    {{ t('admin.settings.features.affiliate.customUsers.totalLabel', { total: affiliateState.total }) }}
-                  </span>
-                  <div class="flex items-center gap-2">
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-sm"
-                      :disabled="affiliateState.page <= 1"
-                      @click="changeAffiliatePage(affiliateState.page - 1)"
-                    >
-                      {{ t('pagination.previous') }}
-                    </button>
-                    <span class="text-gray-500">{{ affiliateState.page }} / {{ Math.max(1, Math.ceil(affiliateState.total / affiliateState.pageSize)) }}</span>
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-sm"
-                      :disabled="affiliateState.page >= Math.ceil(affiliateState.total / affiliateState.pageSize)"
-                      @click="changeAffiliatePage(affiliateState.page + 1)"
-                    >
-                      {{ t('pagination.next') }}
-                    </button>
-                  </div>
-                </div>
+                <InfiniteListSentinel
+                  :loading="affiliateList.loading.value || affiliateList.loadingMore.value"
+                  :error="affiliateList.error.value"
+                  :has-more="affiliateList.hasMore.value"
+                  @load-more="affiliateList.loadMore"
+                  @retry="affiliateList.retry"
+                />
               </div>
             </div>
           </div>
-        </div>
+
+            </div>
+          </div>
 
         <!-- Affiliate add/edit modal -->
         <div
@@ -8359,7 +8468,7 @@
         <!-- Tab: Payment -->
         <div v-show="activeTab === 'payment'" class="space-y-6">
           <!-- Payment System Settings -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -8391,6 +8500,7 @@
                 </a>
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-4 p-6">
               <!-- Enable toggle -->
               <div class="flex items-center justify-between">
@@ -8434,7 +8544,7 @@
                       t("admin.settings.payment.preview")
                     }}</label>
                     <div
-                      class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300"
+                      class="open-section py-2 text-sm text-gray-600 dark:text-gray-300"
                     >
                       {{
                         (form.payment_product_name_prefix || "Sub2API") +
@@ -8888,6 +8998,8 @@
                 </div>
               </template>
             </div>
+
+            </div>
           </div>
 
           <!-- 充值优惠阶梯（独立卡片，与服务商管理同级） -->
@@ -8919,7 +9031,7 @@
 
         <div v-show="activeTab === 'email'" class="space-y-6">
           <!-- Email disabled hint - show when email_verify_enabled is off -->
-          <div v-if="!form.email_verify_enabled" class="card">
+          <div v-if="!form.email_verify_enabled" class="open-settings-section">
             <div class="p-6">
               <div class="flex items-start gap-3">
                 <Icon
@@ -8940,7 +9052,7 @@
           </div>
 
           <!-- SMTP Settings - Only show when email verification is enabled -->
-          <div v-if="form.email_verify_enabled" class="card">
+          <div v-if="form.email_verify_enabled" class="open-settings-section">
             <div
               class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -8985,6 +9097,7 @@
                 }}
               </button>
             </div>
+            <div class="settings-section-fields">
             <div class="space-y-6 p-6">
               <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
@@ -9100,10 +9213,12 @@
                 <Toggle v-model="form.smtp_use_tls" />
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- Send Test Email - Only show when email verification is enabled -->
-          <div v-if="form.email_verify_enabled" class="card">
+          <div v-if="form.email_verify_enabled" class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -9114,6 +9229,7 @@
                 {{ t("admin.settings.testEmail.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="p-6">
               <div class="flex items-end gap-4">
                 <div class="flex-1">
@@ -9167,10 +9283,12 @@
                 </button>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- 订阅到期提醒 -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -9181,6 +9299,7 @@
                 {{ t("admin.settings.subscriptionExpiryNotify.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="px-6 py-6">
               <div class="flex items-center justify-between gap-4">
                 <div>
@@ -9196,12 +9315,14 @@
                 <Toggle v-model="form.subscription_expiry_notify_enabled" />
               </div>
             </div>
+
+            </div>
           </div>
 
           <EmailTemplateEditor />
 
           <!-- Balance Low Notification -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -9212,6 +9333,7 @@
                 {{ t("admin.settings.balanceNotify.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="px-6 py-6 space-y-4">
               <div class="flex items-center justify-between">
                 <label
@@ -9258,10 +9380,12 @@
                 </p>
               </div>
             </div>
+
+            </div>
           </div>
 
           <!-- Account Quota Notification -->
-          <div class="card">
+          <div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -9272,6 +9396,7 @@
                 {{ t("admin.settings.quotaNotify.description") }}
               </p>
             </div>
+            <div class="settings-section-fields">
             <div class="px-6 py-6 space-y-4">
               <div class="flex items-center justify-between">
                 <label
@@ -9333,6 +9458,8 @@
                   {{ t("admin.settings.quotaNotify.emailsHint") }}
                 </p>
               </div>
+            </div>
+
             </div>
           </div>
         </div>
@@ -9419,7 +9546,7 @@
 <script setup lang="ts">
 import { localizeInlineText } from "@/i18n/inline";
 import { excelBPSImageLimits } from "@/utils/excelBPSImageLimits";
-import { ref, reactive, computed, onMounted, watch } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import { useI18n } from "vue-i18n";
 import { useSettingsNavigation } from "@/composables/useSettingsNavigation";
@@ -9511,6 +9638,8 @@ import {
   isStepUpBlocked,
   stepUpBlockReason,
 } from "@/composables/useStepUp";
+import InfiniteListSentinel from "@/components/common/InfiniteListSentinel.vue";
+import { useInfiniteList } from "@/composables/useInfiniteList";
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
@@ -13566,22 +13695,12 @@ onMounted(() => {
 // =========================
 
 interface AffiliateState {
-  loading: boolean;
-  entries: AffiliateAdminEntry[];
-  total: number;
-  page: number;
-  pageSize: number;
   search: string;
   selected: number[];
   searchTimer: number | null;
 }
 
 const affiliateState = reactive<AffiliateState>({
-  loading: false,
-  entries: [],
-  total: 0,
-  page: 1,
-  pageSize: 20,
   search: "",
   selected: [],
   searchTimer: null,
@@ -13702,42 +13821,37 @@ function parseRebateRate(raw: unknown): number | null | undefined {
   return parsed;
 }
 
+onUnmounted(() => {
+  if (affiliateState.searchTimer != null) window.clearTimeout(affiliateState.searchTimer);
+  if (affiliateModal.searchTimer != null) window.clearTimeout(affiliateModal.searchTimer);
+});
+let affiliateQuery = '';
+const affiliateList = useInfiniteList<AffiliateAdminEntry>({
+  pageSize: 50,
+  keyOf: entry => entry.user_id,
+  fetchPage: async (page, signal) => {
+    try {
+      return await affiliatesAPI.listUsers({ page, page_size: 50, search: affiliateQuery }, { signal });
+    } catch (error) {
+      if (!signal.aborted) appStore.showError(extractApiErrorMessage(error, t("common.error")));
+      throw error;
+    }
+  },
+});
+
 async function loadAffiliateUsers() {
-  affiliateState.loading = true;
-  try {
-    const res = await affiliatesAPI.listUsers({
-      page: affiliateState.page,
-      page_size: affiliateState.pageSize,
-      search: affiliateState.search,
-    });
-    affiliateState.entries = res.items ?? [];
-    affiliateState.total = res.total ?? 0;
-    // Drop selections that are no longer visible.
-    const visibleIds = new Set(affiliateState.entries.map((e) => e.user_id));
-    affiliateState.selected = affiliateState.selected.filter((id) => visibleIds.has(id));
-  } catch (err) {
-    appStore.showError(extractApiErrorMessage(err, t("common.error")));
-  } finally {
-    affiliateState.loading = false;
-  }
+  affiliateQuery = affiliateState.search;
+  affiliateState.selected = [];
+  await affiliateList.reset();
 }
 
 function onAffiliateSearchInput() {
-  debounceTimer(affiliateState, 300, () => {
-    affiliateState.page = 1;
-    loadAffiliateUsers();
-  });
-}
-
-function changeAffiliatePage(page: number) {
-  if (page < 1) return;
-  affiliateState.page = page;
-  loadAffiliateUsers();
+  debounceTimer(affiliateState, 300, () => { void loadAffiliateUsers(); });
 }
 
 function toggleAffiliateSelectAll(e: Event) {
   const checked = (e.target as HTMLInputElement).checked;
-  affiliateState.selected = checked ? affiliateState.entries.map((entry) => entry.user_id) : [];
+  affiliateState.selected = checked ? affiliateList.items.value.map((entry) => entry.user_id) : [];
 }
 
 function toggleAffiliateSelect(userId: number) {
@@ -13849,7 +13963,6 @@ async function submitAffiliateModal() {
     await affiliatesAPI.updateUserSettings(userId, payload);
     appStore.showSuccess(t("common.saved"));
     closeAffiliateModal();
-    affiliateState.page = 1;
     await loadAffiliateUsers();
   } catch (err) {
     appStore.showError(extractApiErrorMessage(err, t("common.error")));
@@ -13910,7 +14023,7 @@ watch(
   (enabled, prev) => {
     if (enabled && !prev) {
       loadAffiliateUsers();
-    }
+    } else if (!enabled) affiliateList.cancel();
   },
 );
 
@@ -13948,121 +14061,42 @@ h2[id^="settings-section-"]:target {
   @apply h-[42px];
 }
 
-/* ============ 系统设置 Tab 导航 ============ */
 .settings-tabs-shell {
-  @apply sticky z-20 -mx-1 rounded-2xl border border-white/80 bg-white/90 p-1.5 backdrop-blur-xl;
+  position: sticky;
+  z-index: 20;
   top: 4.75rem;
-  box-shadow:
-    0 12px 28px rgba(var(--theme-shadow-rgb), 0.07),
-    0 1px 0 rgb(255 255 255 / 0.9) inset;
+  border-bottom: 1px solid var(--ritel-border);
+  background: var(--ritel-bg);
 }
-
-.settings-tabs-scroll {
-  @apply overflow-x-auto;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.settings-tabs-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.settings-tabs {
-  @apply flex min-w-max items-center gap-1;
-}
-
+.settings-tabs-scroll { overflow-x: auto; }
+.settings-tabs { display: flex; align-items: center; gap: 1.75rem; width: max-content; min-width: 100%; }
 .settings-tab {
-  @apply relative isolate flex h-10 min-w-[6.75rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-transparent px-3 text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out dark:text-gray-300;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 48px;
+  padding: 10px 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ritel-muted);
+  white-space: nowrap;
+  font-size: 14px;
+  transition: color .15s, border-color .15s;
 }
-
-@media (min-width: 768px) {
-  .settings-tabs {
-    @apply min-w-full;
-  }
-
-  .settings-tab {
-    @apply min-w-0 flex-1 basis-0 overflow-hidden px-2 text-[13px];
-  }
-
-  .settings-tab-icon {
-    @apply h-6 w-6;
-  }
-}
-
-.settings-tab::before {
-  @apply absolute inset-0 -z-10 rounded-xl opacity-0 transition-opacity duration-200;
-  content: "";
-  background: var(--theme-hover);
-}
-
-.settings-tab:hover::before,
-.settings-tab:focus-visible::before {
-  opacity: 1;
-}
-
-.settings-tab:focus-visible {
-  @apply ring-2 ring-primary-500/40 ring-offset-2 ring-offset-white dark:ring-offset-dark-900;
-}
-
-.settings-tab-active {
-  @apply border-primary-200/80 bg-white text-primary-700 shadow-sm dark:border-primary-400/30 dark:bg-dark-700/95 dark:text-primary-200;
-  box-shadow:
-    0 8px 18px color-mix(in srgb, var(--theme-foreground) 8%, transparent),
-    0 1px 0 rgb(255 255 255 / 0.92) inset;
-}
-
-.settings-tab-active::before {
-  opacity: 0;
-}
-
-.settings-tab-active::after {
-  position: absolute;
-  right: 0.75rem;
-  bottom: 0.25rem;
-  left: 0.75rem;
-  height: 2px;
-  border-radius: 9999px;
-  content: "";
-  background: var(--theme-primary);
-}
-
-.settings-tab-icon {
-  @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors duration-200 dark:text-gray-400;
-}
-
-.settings-tab:hover .settings-tab-icon,
-.settings-tab:focus-visible .settings-tab-icon {
-  @apply text-gray-700 dark:text-gray-200;
-}
-
-.settings-tab-active .settings-tab-icon {
-  @apply bg-primary-50 text-primary-600 dark:bg-primary-400/10 dark:text-primary-300;
-}
-
-.settings-tab-label {
-  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-none;
-}
+.settings-tab:hover { color: var(--ritel-fg); }
+.settings-tab-active { border-bottom-color: var(--ritel-fg); color: var(--ritel-fg); }
+.settings-tab:focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 3px; }
+.settings-tab-icon { display: flex; align-items: center; }
+.settings-tab-label { line-height: 1.4; }
 </style>
-
-<style>
-/* Dark-mode overrides for the settings tabs shell. Kept in an UNSCOPED block
-   because Vue's scoped-CSS compiler was dropping the `:global(.dark) ...`
-   rules in the production build, leaving inactive tabs unreadable on dark. */
-.dark .settings-tabs-shell {
-  border-color: var(--theme-border);
-  background: var(--theme-surface);
-  box-shadow:
-    0 16px 36px rgb(0 0 0 / 0.28),
-    0 1px 0 rgb(255 255 255 / 0.06) inset;
-}
-
-.dark .settings-tab::before {
-  background: var(--theme-hover);
-}
-
-.dark .settings-tab-active {
-  box-shadow:
-    0 12px 26px rgb(0 0 0 / 0.22),
-    0 1px 0 rgb(255 255 255 / 0.08) inset;
-}
+<style scoped>
+.admin-settings-workspace { width: 100%; }
+.admin-settings-workspace .open-settings-section { display: grid; align-items: start; gap: 1.5rem 4rem; padding-block: 2.25rem; }
+.admin-settings-workspace .open-settings-section > :first-child { padding: 0; border: 0; background: transparent; min-width: 0; }
+.settings-section-fields { min-width: 0; max-width: 72rem; }
+.settings-section-fields > div { padding-inline: 0; }
+.settings-section-fields > :first-child { padding-top: 0; }
+.settings-section-fields > :last-child { padding-bottom: 0; }
+.admin-settings-workspace .open-settings-section h2 { font-family: var(--ritel-display); font-size: 1.65rem; font-weight: 400; line-height: 1.2; }
+.admin-settings-workspace .open-settings-section > :first-child p { max-width: 38ch; margin-top: .75rem; line-height: 1.6; }
+@media (min-width: 1100px) { .admin-settings-workspace .open-settings-section { grid-template-columns: minmax(14rem, .8fr) minmax(0, 2.2fr); } }
 </style>

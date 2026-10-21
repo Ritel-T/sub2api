@@ -23,7 +23,7 @@
     <p v-if="error" class="text-sm text-red-600 dark:text-red-400" role="alert">{{ error }}</p>
     <p v-if="saveFailed" class="text-xs text-amber-700 dark:text-amber-300">{{ t('modelTrace.saveFailed') }}</p>
 
-    <section v-if="result" class="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-dark-600" data-testid="modeltrace-result">
+    <section v-if="result" class="open-section space-y-3" data-testid="modeltrace-result">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="font-semibold text-gray-900 dark:text-gray-100">{{ t(`modelTrace.status.${result.status}`) }}</h3>
         <span class="text-xs text-gray-500">{{ result.analysis?.used_outputs || 0 }} / 3 · {{ result.requested_model }} · {{ result.reasoning_effort || t('modelTrace.providerDefault') }}</span>
@@ -48,7 +48,7 @@
     </section>
 
     <div v-if="samples.length || (running && challenges.length)" class="space-y-3">
-      <article v-for="(challenge, index) in challenges" :key="challenge.id" class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+      <article v-for="(challenge, index) in challenges" :key="challenge.id" class="open-section">
         <header class="flex flex-wrap justify-between gap-2 text-sm text-gray-800 dark:text-gray-200">
           <span>{{ t('modelTrace.sample', { index: index + 1 }) }} · {{ challenge.expected_count }}</span>
           <span v-if="samples[index]">{{ samples[index]!.accepted ? t('modelTrace.accepted') : t(`modelTrace.errors.${samples[index]!.error || 'generation_failed'}`) }}</span>

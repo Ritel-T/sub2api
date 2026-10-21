@@ -1,69 +1,57 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="open-page dashboard-overview">
       <header class="flex flex-wrap items-center justify-between gap-4">
         <h1 class="text-3xl font-semibold">{{ copy.overview }}</h1>
-        <div class="flex flex-wrap items-center gap-3">
-          <router-link to="/usage?view=analysis" class="btn btn-secondary">{{ copy.analysis }}</router-link>
-          <button type="button" class="btn btn-secondary" :disabled="refreshing" @click="refreshAll">{{ copy.refresh }}</button>
-        </div>
+        <button type="button" class="btn btn-secondary" :disabled="refreshing" @click="refreshAll">{{ copy.refresh }}</button>
       </header>
+
+      <section class="dashboard-summary" :class="{ 'dashboard-summary-simple': authStore.isSimpleMode }" aria-labelledby="overview-summary-title">
+        <h2 id="overview-summary-title" class="sr-only">{{ copy.overview }}</h2>
+        <div v-if="!authStore.isSimpleMode" class="dashboard-balance" data-test="balance">
+          <h3 class="dashboard-metric-label">{{ copy.balance }}</h3>
+          <p v-if="states.balance.loading" class="dashboard-metric-state" role="status">{{ copy.loading }}</p>
+          <div v-else-if="states.balance.error" class="dashboard-metric-state" role="alert"><p>{{ copy.loadFailed }}</p><button type="button" class="btn btn-secondary mt-3" @click="loadBalance">{{ copy.retry }}</button></div>
+          <p v-else-if="balance !== null" class="ritel-number-display dashboard-balance-value">${{ money(balance, 2) }}</p>
+        </div>
+        <div class="dashboard-spending" data-test="spending">
+          <h3 class="dashboard-metric-label">{{ copy.cost }}</h3>
+          <p v-if="states.stats.loading && !stats" class="dashboard-metric-state" role="status">{{ copy.loading }}</p>
+          <div v-else-if="states.stats.error" class="dashboard-metric-state" role="alert"><p>{{ copy.loadFailed }}</p><button type="button" class="btn btn-secondary mt-3" @click="loadStats">{{ copy.retry }}</button></div>
+          <p v-else-if="stats" class="ritel-number-display dashboard-spending-value">${{ money(stats.today_actual_cost) }}</p>
+        </div>
+        <div class="dashboard-activity">
+          <div data-test="requests">
+            <h3 class="dashboard-metric-label">{{ copy.requests }}</h3>
+            <p class="ritel-number-display dashboard-activity-value">{{ !states.stats.error && stats ? stats.today_requests.toLocaleString() : '—' }}</p>
+          </div>
+          <div data-test="tokens">
+            <h3 class="dashboard-metric-label">{{ copy.tokens }}</h3>
+            <p class="ritel-number-display dashboard-activity-value">{{ !states.stats.error && stats ? stats.today_tokens.toLocaleString() : '—' }}</p>
+          </div>
+        </div>
+      </section>
 
       <UserDashboardQuickActions :active-key="activeKey" :total-keys="totalKeys" :loading="states.keys.loading" :error="states.keys.error" @retry="loadKeys" />
 
-      <section v-if="hasAttention" class="card p-6" aria-labelledby="attention-title">
-        <h2 id="attention-title" class="mb-4 text-xl font-semibold">{{ copy.attention }}</h2>
+      <section v-if="hasAttention" class="open-section dashboard-attention" aria-labelledby="attention-title">
+        <h2 id="attention-title" class="text-lg font-semibold">{{ copy.attention }}</h2>
         <ul class="divide-y divide-gray-200 dark:divide-dark-700">
-          <li v-if="!states.errors.error && !states.errors.loading && errorCount !== null && errorCount > 0" class="flex flex-wrap items-center justify-between gap-3 py-3">
+          <li v-if="!states.errors.error && !states.errors.loading && errorCount !== null && errorCount > 0" class="dashboard-attention-item">
             <span>{{ copy.errors }} <strong class="tabular-nums">{{ errorCount.toLocaleString() }}</strong></span>
             <router-link :to="{ path: '/usage', query: { view: 'errors', start_date: today, end_date: today } }" class="underline underline-offset-4">{{ copy.viewErrors }}</router-link>
           </li>
-          <li v-if="noCredit" class="flex flex-wrap items-center justify-between gap-3 py-3">
+          <li v-if="noCredit" class="dashboard-attention-item">
             <span>{{ copy.noCredit }}</span><router-link v-if="paymentEnabled" to="/purchase" class="underline underline-offset-4">{{ copy.billing }}</router-link>
           </li>
-          <li v-for="subscription in endingSubscriptions" :key="subscription.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
+          <li v-for="subscription in endingSubscriptions" :key="subscription.id" class="dashboard-attention-item">
             <span>{{ copy.expires }} · {{ subscription.group_name }}<span v-if="subscription.expires_at"> · {{ formatDate(subscription.expires_at) }}</span></span>
             <router-link to="/subscriptions" class="underline underline-offset-4">{{ copy.subscriptions }}</router-link>
           </li>
         </ul>
       </section>
-
-      <div v-if="!authStore.isSimpleMode" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <section class="card p-6">
-          <h2 class="text-base text-gray-500 dark:text-gray-400">{{ copy.balance }}</h2>
-          <p v-if="states.balance.loading" class="mt-3" role="status">{{ copy.loading }}</p>
-          <div v-else-if="states.balance.error" class="mt-3" role="alert"><p>{{ copy.loadFailed }}</p><button type="button" class="btn btn-secondary mt-3" @click="loadBalance">{{ copy.retry }}</button></div>
-          <p v-else-if="balance !== null" class="ritel-number-display mt-3 text-4xl">${{ money(balance, 2) }}</p>
-          <router-link v-if="paymentEnabled" to="/purchase" class="mt-4 inline-block underline underline-offset-4">{{ copy.billing }}</router-link>
-        </section>
-        <section v-if="subscriptionsEnabled" class="card p-6">
-          <h2 class="text-base text-gray-500 dark:text-gray-400">{{ copy.subscriptions }}</h2>
-          <p v-if="states.subscriptions.loading" class="mt-3" role="status">{{ copy.loading }}</p>
-          <div v-else-if="states.subscriptions.error" class="mt-3" role="alert"><p>{{ copy.loadFailed }}</p><button type="button" class="btn btn-secondary mt-3" @click="loadSubscriptions">{{ copy.retry }}</button></div>
-          <p v-else-if="subscriptionSummary" class="ritel-number-display mt-3 text-4xl">{{ subscriptionSummary.active_count }}</p>
-          <router-link to="/subscriptions" class="mt-4 inline-block underline underline-offset-4">{{ copy.subscriptions }}</router-link>
-        </section>
-      </div>
-
-      <section v-if="states.stats.loading && !stats" class="card p-6" role="status">{{ copy.loading }}</section>
-      <section v-else-if="states.stats.error" class="card flex flex-wrap items-center gap-3 p-6" role="alert"><span>{{ copy.loadFailed }}</span><button type="button" class="btn btn-secondary" @click="loadStats">{{ copy.retry }}</button></section>
-      <section v-else-if="stats" class="grid grid-cols-2 gap-4 lg:grid-cols-4" :aria-label="copy.fullStats">
-        <div v-for="metric in metrics" :key="metric.label" class="card p-5"><h2 class="text-base text-gray-500 dark:text-gray-400">{{ metric.label }}</h2><p class="ritel-number-display mt-3 break-words text-3xl">{{ metric.value }}</p></div>
-      </section>
-
-      <div v-if="states.errors.error" class="card flex flex-wrap items-center gap-3 p-4" role="alert"><span>{{ copy.errors }}: {{ copy.loadFailed }}</span><button type="button" class="btn btn-secondary" @click="loadErrors">{{ copy.retry }}</button></div>
-      <UserDashboardRecentUsage :data="recentUsage" :loading="states.recent.loading" :error="states.recent.error" @retry="loadRecent" />
-
-      <details class="card p-6" @toggle="onDetailsToggle">
-        <summary class="cursor-pointer text-lg font-semibold">{{ copy.fullStats }}</summary>
-        <div class="mt-6 space-y-6">
-          <UserDashboardStats v-if="stats" :stats="stats" :balance="balance ?? undefined" :is-simple="authStore.isSimpleMode" :platform-quotas="platformQuotas" />
-          <p v-if="states.quotas.loading" role="status">{{ copy.loading }}</p>
-          <div v-else-if="states.quotas.error" role="alert"><span>{{ copy.quotaFailed }}</span><button type="button" class="btn btn-secondary ml-3" @click="loadPlatformQuotas">{{ copy.retry }}</button></div>
-          <div v-if="states.charts.error" role="alert"><span>{{ copy.loadFailed }}</span><button type="button" class="btn btn-secondary ml-3" @click="loadCharts">{{ copy.retry }}</button></div>
-          <UserDashboardCharts v-else v-model:startDate="startDate" v-model:endDate="endDate" v-model:granularity="granularity" :loading="states.charts.loading" :trend="trendData" :models="modelStats" @dateRangeChange="loadCharts" @granularityChange="loadCharts" @refresh="loadCharts" />
-        </div>
-      </details>
+      <div v-if="states.errors.error" class="dashboard-load-error" role="alert"><span>{{ copy.errors }}: {{ copy.loadFailed }}</span><button type="button" class="btn btn-secondary" @click="loadErrors">{{ copy.retry }}</button></div>
+      <div v-if="subscriptionsEnabled && states.subscriptions.error" class="dashboard-load-error" role="alert"><span>{{ copy.subscriptions }}: {{ copy.loadFailed }}</span><button type="button" class="btn btn-secondary" @click="loadSubscriptions">{{ copy.retry }}</button></div>
     </div>
   </AppLayout>
 </template>
@@ -75,15 +63,11 @@ import { useAppStore } from '@/stores/app'
 import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
 import { keysAPI } from '@/api/keys'
 import { getSubscriptionSummary, type SubscriptionSummary } from '@/api/subscriptions'
-import { getMyPlatformQuotas } from '@/api/user'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import UserDashboardStats from '@/components/user/dashboard/UserDashboardStats.vue'
-import UserDashboardCharts from '@/components/user/dashboard/UserDashboardCharts.vue'
-import UserDashboardRecentUsage from '@/components/user/dashboard/UserDashboardRecentUsage.vue'
 import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboardQuickActions.vue'
 import { useOverviewCopy } from '@/components/user/dashboard/overviewCopy'
 import { selectOverviewKey } from '@/components/user/dashboard/overviewState'
-import type { ApiKey, UsageLog, TrendDataPoint, ModelStat, PlatformQuotaItem } from '@/types'
+import type { ApiKey } from '@/types'
 import { formatDateLocalInput } from '@/utils/format'
 
 const authStore = useAuthStore()
@@ -97,16 +81,8 @@ const activeKey = ref<ApiKey | null>(null)
 const totalKeys = ref<number | null>(null)
 const subscriptionSummary = ref<SubscriptionSummary | null>(null)
 const errorCount = ref<number | null>(null)
-const recentUsage = ref<UsageLog[]>([])
-const trendData = ref<TrendDataPoint[]>([])
-const modelStats = ref<ModelStat[]>([])
-const platformQuotas = ref<PlatformQuotaItem[] | null>(null)
 const today = ref(formatDateLocalInput(new Date()))
-const startDate = ref(formatDateLocalInput(new Date(Date.now() - 6 * 86400000)))
-const endDate = ref(today.value)
-const granularity = ref('day')
-const expanded = ref(false)
-const sectionNames = ['stats', 'balance', 'keys', 'subscriptions', 'errors', 'recent', 'charts', 'quotas'] as const
+const sectionNames = ['stats', 'balance', 'keys', 'subscriptions', 'errors'] as const
 type Section = typeof sectionNames[number]
 const states = reactive(Object.fromEntries(sectionNames.map(name => [name, { loading: true, error: false, generation: 0 }])) as Record<Section, { loading: boolean; error: boolean; generation: number }>)
 let alive = true
@@ -149,52 +125,48 @@ const loadKeys = () => load('keys', async () => {
   }
 }, data => { activeKey.value = data.active; totalKeys.value = data.total })
 const loadSubscriptions = () => load('subscriptions', getSubscriptionSummary, data => { subscriptionSummary.value = data })
-const loadRecent = () => load('recent', () => usageAPI.query({ page: 1, page_size: 5, sort_by: 'created_at', sort_order: 'desc' }), data => { recentUsage.value = data.items })
 const loadErrors = () => load('errors', () => usageAPI.listMyErrorRequests({ page: 1, page_size: 1, start_date: today.value, end_date: today.value, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }), data => { errorCount.value = data.total })
-const loadPlatformQuotas = () => load('quotas', getMyPlatformQuotas, data => { platformQuotas.value = data.platform_quotas ?? [] })
-const loadCharts = () => load('charts', () => Promise.all([
-  usageAPI.getDashboardTrend({ start_date: startDate.value, end_date: endDate.value, granularity: granularity.value as 'day' | 'hour' }),
-  usageAPI.getDashboardModels({ start_date: startDate.value, end_date: endDate.value }),
-]), data => { trendData.value = data[0].trend ?? []; modelStats.value = data[1].models ?? [] })
-
 function refreshAll() {
   if (!authStore.user) return
   today.value = formatDateLocalInput(new Date())
-  void loadStats(); void loadKeys(); void loadRecent(); void loadErrors()
+  void loadStats(); void loadKeys(); void loadErrors()
   if (!authStore.isSimpleMode) void loadBalance(); else states.balance.loading = false
   if (subscriptionsEnabled.value) void loadSubscriptions(); else states.subscriptions.loading = false
-  if (expanded.value) { void loadCharts(); void loadPlatformQuotas() }
 }
-function onDetailsToggle(event: Event) {
-  const open = (event.target as HTMLDetailsElement).open
-  if (expanded.value === open) return
-  expanded.value = open
-  if (expanded.value) { void loadCharts(); if (!authStore.isSimpleMode) void loadPlatformQuotas(); else states.quotas.loading = false }
-}
-const refreshing = computed(() => sectionNames.filter(name => name !== 'charts' && name !== 'quotas').some(name => states[name].loading))
+const refreshing = computed(() => sectionNames.some(name => states[name].loading))
 const endingSubscriptions = computed(() => !subscriptionsEnabled.value || states.subscriptions.error || states.subscriptions.loading ? [] : subscriptionSummary.value?.subscriptions.filter(subscription => subscription.status === 'active' && subscription.days_remaining !== null && subscription.days_remaining >= 0 && subscription.days_remaining <= 3) ?? [])
 const noCredit = computed(() => !authStore.isSimpleMode && !states.balance.error && !states.subscriptions.error && !states.balance.loading && !states.subscriptions.loading && balance.value !== null && balance.value <= 0 && subscriptionSummary.value?.active_count === 0)
 const hasAttention = computed(() => (!states.errors.error && !states.errors.loading && (errorCount.value ?? 0) > 0) || noCredit.value || endingSubscriptions.value.length > 0)
 const money = (value: number, decimals = 4) => new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value)
 const formatDate = (value: string) => new Date(value).toLocaleDateString()
-const metrics = computed(() => !stats.value ? [] : [
-  { label: copy.value.requests, value: stats.value.today_requests.toLocaleString() },
-  { label: copy.value.tokens, value: stats.value.today_tokens.toLocaleString() },
-  { label: copy.value.cost, value: `$${money(stats.value.today_actual_cost)}` },
-  { label: copy.value.keys, value: stats.value.active_api_keys.toLocaleString() },
-])
 watch(subscriptionsEnabled, enabled => {
   if (enabled && authStore.user) void loadSubscriptions()
   else { states.subscriptions.generation++; states.subscriptions.loading = false; states.subscriptions.error = false; subscriptionSummary.value = null }
 })
-watch([() => authStore.user?.id, () => authStore.token], () => {
+watch([() => authStore.user?.id, () => authStore.token, () => authStore.isSimpleMode], () => {
   ownerGeneration++
   stats.value = null; balance.value = null; activeKey.value = null; totalKeys.value = null
-  subscriptionSummary.value = null; errorCount.value = null; recentUsage.value = []
-  trendData.value = []; modelStats.value = []; platformQuotas.value = null
+  subscriptionSummary.value = null; errorCount.value = null
   for (const section of sectionNames) { states[section].loading = true; states[section].error = false }
   refreshAll()
 }, { flush: 'sync' })
 onMounted(refreshAll)
 onBeforeUnmount(() => { alive = false; ownerGeneration++ })
 </script>
+
+<style scoped>
+.dashboard-summary{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,.7fr);align-items:stretch;gap:2rem;padding:2rem 0 1rem}
+.dashboard-summary>div{min-width:0}
+.dashboard-metric-label{font-size:1rem;font-weight:400;color:var(--ritel-muted)}
+.dashboard-balance,.dashboard-spending{display:flex;flex-direction:column;justify-content:space-between}
+.dashboard-balance-value,.dashboard-spending-value{margin-block:1rem 0;line-height:1.1;overflow-wrap:anywhere;font-size:clamp(2.75rem,4.5vw,4.5rem)}
+.dashboard-activity{display:grid;grid-template-rows:1fr 1fr;gap:1rem}
+.dashboard-activity-value{margin-block:.375rem 0;font-size:1.75rem;line-height:1.1;overflow-wrap:anywhere}
+.dashboard-metric-state{margin-block:1.5rem}
+.dashboard-attention{display:grid;grid-template-columns:minmax(9rem,.4fr) minmax(0,1fr);gap:2rem;padding-block:1.5rem}
+.dashboard-attention-item{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;padding-block:.75rem}
+.dashboard-attention-item:first-child{padding-block-start:0}
+.dashboard-load-error{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem}
+.dashboard-summary-simple{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+@media(max-width:767px){.dashboard-summary{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2rem 1.5rem;padding-block:1rem 2rem}.dashboard-balance-value,.dashboard-spending-value{font-size:clamp(1.75rem,8vw,2.5rem)}.dashboard-activity{grid-column:1/-1;grid-template-columns:1fr 1fr;grid-template-rows:auto;gap:1.5rem}.dashboard-attention{grid-template-columns:minmax(0,1fr);gap:1rem}}
+</style>

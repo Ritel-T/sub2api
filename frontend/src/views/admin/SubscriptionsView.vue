@@ -1,12 +1,55 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
+      <template #actions>
+        <div class="workspace-page-header">
+          <h1 class="workspace-page-title">{{ t('admin.subscriptions.title') }}</h1>
+          <div class="workspace-header-actions">
+            <button
+              @click="loadSubscriptions"
+              :disabled="loading"
+              class="btn btn-secondary"
+              :title="t('common.refresh')"
+            >
+              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+            </button>
+            <div class="w-36">
+              <Select
+                :model-value="userColumnMode"
+                :options="userColumnModeOptions"
+                :aria-label="t('admin.subscriptions.columns.user')"
+                @update:model-value="setUserColumnMode"
+              />
+            </div>
+            <ColumnSettings
+              :columns="orderedColumns"
+              :hidden-columns="hiddenColumns"
+              :required-columns="['id', 'user', 'actions']"
+              @toggle="toggleColumn"
+              @reorder="setColumnOrder"
+              @reset="resetColumns"
+            />
+            <button
+              @click="showGuideModal = true"
+              class="btn btn-secondary"
+              :title="t('admin.subscriptions.guide.showGuide')"
+            >
+              <Icon name="questionCircle" size="md" />
+            </button>
+            <button @click="showAssignModal = true" class="btn btn-primary">
+              <Icon name="plus" size="md" class="mr-2" />
+              {{ t('admin.subscriptions.assignSubscription') }}
+            </button>
+          </div>
+        </div>
+      </template>
+
       <template #filters>
         <ConsoleObjectLinks v-if="contextUserId && filters.user_id === contextUserId" kind="user" :id="contextUserId" context class="mb-3" />
         <!-- Top Toolbar: Left (search + filters) / Right (actions) -->
-        <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="filter-controls">
           <!-- Left: Fuzzy user search + filters (wrap to multiple lines) -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
+          <div class="contents">
             <!-- User Search -->
             <div
               class="relative w-full sm:w-64"
@@ -92,44 +135,7 @@
             </div>
           </div>
 
-          <!-- Right: Actions -->
-          <div class="ml-auto flex flex-wrap items-center justify-end gap-3">
-            <button
-              @click="loadSubscriptions"
-              :disabled="loading"
-              class="btn btn-secondary"
-              :title="t('common.refresh')"
-            >
-              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
-            <div class="w-36">
-              <Select
-                :model-value="userColumnMode"
-                :options="userColumnModeOptions"
-                :aria-label="t('admin.subscriptions.columns.user')"
-                @update:model-value="setUserColumnMode"
-              />
-            </div>
-            <ColumnSettings
-              :columns="orderedColumns"
-              :hidden-columns="hiddenColumns"
-              :required-columns="['user', 'actions']"
-              @toggle="toggleColumn"
-              @reorder="setColumnOrder"
-              @reset="resetColumns"
-            />
-            <button
-              @click="showGuideModal = true"
-              class="btn btn-secondary"
-              :title="t('admin.subscriptions.guide.showGuide')"
-            >
-              <Icon name="questionCircle" size="md" />
-            </button>
-            <button @click="showAssignModal = true" class="btn btn-primary">
-              <Icon name="plus" size="md" class="mr-2" />
-              {{ t('admin.subscriptions.assignSubscription') }}
-            </button>
-          </div>
+          <TableToolbarTarget />
         </div>
         <div
           v-if="selectedCount > 0"
@@ -384,39 +390,39 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <button
+            <div class="workspace-row-actions">
+              <button :title="t('admin.subscriptions.adjust')" :aria-label="t('admin.subscriptions.adjust')"
                 v-if="row.status === 'active' || row.status === 'expired'"
                 @click="handleExtend(row)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+                class="theme-action-button transition-colors workspace-icon-action"
               >
                 <Icon name="calendar" size="sm" />
-                <span class="text-xs">{{ t('admin.subscriptions.adjust') }}</span>
+                <span class="sr-only">{{ t('admin.subscriptions.adjust') }}</span>
               </button>
-              <button
+              <button :title="t('admin.subscriptions.resetQuota')" :aria-label="t('admin.subscriptions.resetQuota')"
                 v-if="row.status === 'active'"
                 @click="handleResetQuota(row)"
                 :disabled="resettingQuota && resettingSubscription?.id === row.id"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+                class="text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400 disabled:cursor-not-allowed disabled:opacity-50 workspace-icon-action"
               >
                 <Icon name="refresh" size="sm" />
-                <span class="text-xs">{{ t('admin.subscriptions.resetQuota') }}</span>
+                <span class="sr-only">{{ t('admin.subscriptions.resetQuota') }}</span>
               </button>
-              <button
+              <button :title="t('admin.subscriptions.revoke')" :aria-label="t('admin.subscriptions.revoke')"
                 v-if="row.status === 'active'"
                 @click="handleRevoke(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
               >
                 <Icon name="ban" size="sm" />
-                <span class="text-xs">{{ t('admin.subscriptions.revoke') }}</span>
+                <span class="sr-only">{{ t('admin.subscriptions.revoke') }}</span>
               </button>
-              <button
+              <button :title="t('admin.subscriptions.restore')" :aria-label="t('admin.subscriptions.restore')"
                 v-if="row.status === 'revoked'"
                 @click="handleRestore(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
+                class="text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400 workspace-icon-action"
               >
                 <Icon name="refresh" size="sm" />
-                <span class="text-xs">{{ t('admin.subscriptions.restore') }}</span>
+                <span class="sr-only">{{ t('admin.subscriptions.restore') }}</span>
               </button>
             </div>
           </template>
@@ -434,14 +440,13 @@
 
       <!-- Pagination -->
       <template #pagination>
-      <Pagination
-        v-if="pagination.total > 0"
-        :page="pagination.page"
-        :total="pagination.total"
-        :page-size="pagination.page_size"
-        @update:page="handlePageChange"
-        @update:pageSize="handlePageSizeChange"
-      />
+      <InfiniteListSentinel
+          :loading="loading || continuousList.loadingMore.value"
+          :error="continuousList.error.value"
+          :has-more="continuousList.hasMore.value"
+          @load-more="continuousList.loadMore"
+          @retry="continuousList.retry"
+        />
       </template>
     </TablePageLayout>
 
@@ -807,6 +812,7 @@
 </template>
 
 <script setup lang="ts">
+import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -823,11 +829,11 @@ import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import BulkSubscriptionActionDialog from '@/components/admin/subscription/BulkSubscriptionActionDialog.vue'
 import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -918,7 +924,7 @@ const allColumns = computed<Column[]>(() => [
 
 const {
   columns, orderedColumns, hiddenColumns, toggleColumn, setColumnOrder, resetColumns
-} = useTableColumns('table-columns:subscriptions:v1', allColumns, { required: ['user', 'actions'] })
+} = useTableColumns('table-columns:subscriptions:v1', allColumns, { required: ['id', 'user', 'actions'] })
 
 // Filter options
 const statusOptions = computed(() => [
@@ -928,10 +934,13 @@ const statusOptions = computed(() => [
   { value: 'revoked', label: t('admin.subscriptions.status.revoked') }
 ])
 
-const subscriptions = ref<UserSubscription[]>([])
+const continuousList = useInfiniteList<UserSubscription>({
+  fetchPage: fetchListPage,
+  keyOf: row => row.id,
+  pageSize: 50
+})
+const { items: subscriptions, loading } = continuousList
 const groups = ref<Group[]>([])
-const loading = ref(false)
-let abortController: AbortController | null = null
 
 const { selectedIds, selectedCount, setSelectedIds, clear: clearSelection, removeMany: removeSelectedIds } =
   useTableSelection<UserSubscription>({ rows: subscriptions, getId: (subscription) => subscription.id })
@@ -951,7 +960,7 @@ const getSubscriptionSelectionLabel = (subscription: UserSubscription) =>
   t('admin.subscriptions.bulk.selectSubscription', { id: subscription.id })
 const handleSelectedKeysUpdate = (keys: Array<string | number>) => {
   const visibleIds = new Set(subscriptions.value.map((subscription) => subscription.id))
-  setSelectedIds(keys.filter((key): key is number => typeof key === 'number' && visibleIds.has(key)))
+  setSelectedIds([...new Set(keys.filter((key): key is number => typeof key === 'number' && visibleIds.has(key)))].slice(0, 100))
 }
 const openBulkAction = (action: SubscriptionBulkAction) => {
   if (loading.value || bulkTargets.value[action].length === 0) return
@@ -960,7 +969,7 @@ const openBulkAction = (action: SubscriptionBulkAction) => {
 }
 const handleBulkCompleted = async (result: SubscriptionBulkActionResult) => {
   removeSelectedIds(result.results.filter((item) => item.success).map((item) => item.subscription_id))
-  await loadSubscriptions()
+  await continuousList.refresh()
 }
 
 // Toolbar user filter (fuzzy search -> select user_id)
@@ -995,12 +1004,6 @@ const sortState = reactive({
   sort_order: 'desc' as 'asc' | 'desc'
 })
 
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0,
-  pages: 0
-})
 
 const showAssignModal = ref(false)
 const showExtendModal = ref(false)
@@ -1051,54 +1054,29 @@ const subscriptionGroupOptions = computed(() =>
 
 const applyFilters = () => {
   clearSelection()
-  pagination.page = 1
+
   loadSubscriptions()
 }
 
-const loadSubscriptions = async () => {
-  if (abortController) {
-    abortController.abort()
-  }
-  const requestController = new AbortController()
-  abortController = requestController
-  const { signal } = requestController
-
-  loading.value = true
+async function fetchListPage(page: number, signal: AbortSignal) {
   try {
-    const response = await adminAPI.subscriptions.list(
-      pagination.page,
-      pagination.page_size,
-      {
-        status: (filters.status as any) || undefined,
-        group_id: filters.group_id ? parseInt(filters.group_id) : undefined,
-        platform: filters.platform || undefined,
-        user_id: filters.user_id || undefined,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order
-      },
-      {
-        signal
-      }
-    )
-    if (signal.aborted || abortController !== requestController) return
-    subscriptions.value = response.items
-    const visibleIds = new Set(response.items.map((subscription) => subscription.id))
-    setSelectedIds(selectedIds.value.filter((id) => visibleIds.has(id)))
-    pagination.total = response.total
-    pagination.pages = response.pages
-  } catch (error: any) {
-    if (signal.aborted || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') {
-      return
-    }
-    appStore.showError(t('admin.subscriptions.failedToLoad'))
-    console.error('Error loading subscriptions:', error)
-  } finally {
-    if (abortController === requestController) {
-      loading.value = false
-      abortController = null
-    }
+    return await adminAPI.subscriptions.list(page, 50, {
+      status: (filters.status as any) || undefined,
+      group_id: filters.group_id ? parseInt(filters.group_id) : undefined,
+      platform: filters.platform || undefined, user_id: filters.user_id || undefined,
+      sort_by: sortState.sort_by, sort_order: sortState.sort_order
+    }, { signal })
+  } catch (error: unknown) {
+    if (!signal.aborted) appStore.showError(t('admin.subscriptions.failedToLoad'))
+    throw error
   }
 }
+
+const loadSubscriptions = async () => {
+  clearSelection()
+  await continuousList.reset()
+}
+
 
 const loadGroups = async () => {
   try {
@@ -1224,24 +1202,13 @@ const resetAssignUsers = () => {
   batchAssignResult.value = null
 }
 
-const handlePageChange = (page: number) => {
-  clearSelection()
-  pagination.page = page
-  loadSubscriptions()
-}
 
-const handlePageSizeChange = (pageSize: number) => {
-  clearSelection()
-  pagination.page_size = pageSize
-  pagination.page = 1
-  loadSubscriptions()
-}
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   clearSelection()
   sortState.sort_by = key
   sortState.sort_order = order
-  pagination.page = 1
+
   loadSubscriptions()
 }
 

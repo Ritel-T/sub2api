@@ -1,14 +1,9 @@
 <template>
   <!-- Row 1: Core Stats -->
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+  <div class="open-metric-strip dashboard-primary-metrics">
     <!-- Balance -->
-    <div v-if="!isSimple" class="card ritel-metric-card p-4">
+    <div v-if="!isSimple" class="dashboard-metric">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-          <svg class="h-5 w-5 text-primary-600 dark:text-primary-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
-          </svg>
-        </div>
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.balance') }}</p>
           <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">{{ balance == null ? "—" : `$${formatBalance(balance)}` }}</p>
@@ -18,11 +13,8 @@
     </div>
 
     <!-- API Keys -->
-    <div class="card ritel-metric-card p-4">
+    <div class="dashboard-metric">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-          <Icon name="key" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-        </div>
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.apiKeys') }}</p>
           <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">{{ stats?.total_api_keys || 0 }}</p>
@@ -32,11 +24,8 @@
     </div>
 
     <!-- Today Requests -->
-    <div class="card ritel-metric-card p-4">
+    <div class="dashboard-metric">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-          <Icon name="chart" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-        </div>
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.todayRequests') }}</p>
           <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">{{ stats?.today_requests || 0 }}</p>
@@ -46,11 +35,8 @@
     </div>
 
     <!-- Today Cost -->
-    <div class="card ritel-metric-card p-4">
+    <div class="dashboard-metric">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-          <Icon name="dollar" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-        </div>
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.todayCost') }}</p>
           <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">
@@ -68,13 +54,10 @@
   </div>
 
   <!-- Row 2: Token Stats -->
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+  <div class="open-metric-strip dashboard-secondary-metrics">
     <!-- Today Tokens -->
-    <div class="card ritel-metric-card p-4">
+    <div class="dashboard-metric">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-          <Icon name="cube" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-        </div>
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.todayTokens') }}</p>
           <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">{{ formatTokens(stats?.today_tokens || 0) }}</p>
@@ -84,11 +67,8 @@
     </div>
 
     <!-- Total Tokens -->
-    <div class="card ritel-metric-card p-4">
+    <div class="dashboard-metric">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-          <Icon name="database" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-        </div>
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.totalTokens') }}</p>
           <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">{{ formatTokens(stats?.total_tokens || 0) }}</p>
@@ -98,11 +78,8 @@
     </div>
 
     <!-- Performance (RPM/TPM) -->
-    <div class="card ritel-metric-card p-4">
+    <div class="dashboard-metric">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-          <Icon name="bolt" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-        </div>
         <div class="flex-1">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.performance') }}</p>
           <div class="flex items-baseline gap-2">
@@ -118,11 +95,8 @@
     </div>
 
     <!-- Avg Response Time -->
-    <div class="card ritel-metric-card p-4">
+    <div class="dashboard-metric">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-          <Icon name="clock" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-        </div>
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.avgResponse') }}</p>
           <p class="ritel-number-display text-xl font-bold text-gray-900 dark:text-white">{{ formatDuration(stats?.average_duration_ms || 0) }}</p>
@@ -133,24 +107,24 @@
   </div>
 
   <!-- Row 3: Per-platform breakdown -->
-  <div v-if="!isSimple && platformCards.length > 0" class="card ritel-metric-card p-4">
+  <div v-if="!isSimple && platformCards.length > 0" class="open-section ritel-metric-card">
     <div class="mb-3 flex items-center justify-between">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('dashboard.platformBreakdown') }}</h3>
       <span class="text-xs text-gray-500 dark:text-gray-400">
         {{ t('dashboard.platformCount', { count: platformCount }) }}
       </span>
     </div>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="dashboard-platforms">
       <div
         v-for="item in platformCards"
         :key="item.platform"
         data-testid="platform-card"
         :data-platform="item.platform"
         :class="[
-          'rounded-lg border p-3',
+          'dashboard-platform',
           item.isOther
-            ? 'border-dashed border-gray-300 bg-gray-50 dark:border-dark-500 dark:bg-dark-700/30'
-            : 'border-gray-200 dark:border-dark-600'
+            ? 'dashboard-platform-other'
+            : ''
         ]"
       >
         <div class="flex items-center justify-between">
@@ -182,7 +156,7 @@
 
         <!-- Quota 区：仅当 quota 配置存在、非 __other__ 且至少有一个窗口配了 limit 时显示 -->
         <div v-if="hasAnyLimit(item.quota) && !item.isOther" class="mt-3 space-y-1.5 border-t border-gray-200 pt-2 dark:border-dark-700">
-          <p class="text-[10px] uppercase tracking-wide text-gray-400">
+          <p class="text-xs text-gray-400">
             {{ t('dashboard.platformQuota.title') }}
           </p>
           <template v-for="w in (['daily', 'weekly', 'monthly'] as const)" :key="w">
@@ -212,7 +186,7 @@
                     :style="{ width: calcPercent((quotaVal(item.quota, `${w}_usage_usd`) as number) ?? 0, quotaVal(item.quota, `${w}_limit_usd`) as number) + '%' }"
                   />
                 </div>
-                <p v-if="quotaVal(item.quota, `${w}_window_resets_at`)" class="text-[10px] text-gray-400">
+                <p v-if="quotaVal(item.quota, `${w}_window_resets_at`)" class="text-xs text-gray-400">
                   {{ t('dashboard.platformQuota.resetsAt', { time: formatResetTime(quotaVal(item.quota, `${w}_window_resets_at`) as string) }) }}
                 </p>
               </template>
@@ -227,7 +201,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import Icon from '@/components/icons/Icon.vue'
 import type { PlatformDashboardStats, UserDashboardStats as UserStatsType } from '@/api/usage'
 import type { PlatformQuotaItem } from '@/types'
 
@@ -400,3 +373,17 @@ const formatTokens = (t: number) => {
 }
 const formatDuration = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms.toFixed(0)}ms`
 </script>
+
+<style scoped>
+.dashboard-primary-metrics { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); align-items: end; }
+.dashboard-primary-metrics .dashboard-metric:first-child :deep(.ritel-number-display) { font-size: clamp(2rem, 3.2vw, 3.4rem); line-height: 1.15; }
+.dashboard-secondary-metrics { display: grid; grid-template-columns: 1.35fr 1.35fr 1fr 1fr; }
+.dashboard-metric { min-width: 0; padding-block: 1.25rem; }
+.dashboard-metric > div { align-items: flex-start; }
+.dashboard-metric p { overflow-wrap: anywhere; }
+.dashboard-platforms { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: 1rem 2.5rem; }
+.dashboard-platform { border-top: 1px solid var(--ritel-border); padding-block: 1rem; min-width: 0; }
+.dashboard-platform-other { border-top-style: dashed; }
+@media (max-width: 767px) { .dashboard-primary-metrics, .dashboard-secondary-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 479px) { .dashboard-primary-metrics { display: grid; grid-template-columns: 1fr; } .dashboard-secondary-metrics { gap: 0 1.5rem; } }
+</style>

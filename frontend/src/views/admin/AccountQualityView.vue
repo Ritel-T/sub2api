@@ -1,9 +1,9 @@
 <template>
   <AppLayout>
-    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="mb-4" />
-    <div class="quality-workspace">
+    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="open-page mb-4" />
+    <div class="open-page quality-workspace">
       <div class="workspace-heading">
-        <div><p class="workspace-eyebrow">{{ t('qualityOps.workspaceLabel') }}</p><h2>{{ t('qualityOps.workspaceTitle') }}</h2><p class="workspace-subtitle">{{ t('qualityOps.workspaceHint') }}</p></div>
+        <div><h2>{{ t('qualityOps.workspaceTitle') }}</h2><p class="workspace-subtitle">{{ t('qualityOps.workspaceHint') }}</p></div>
         <div class="heading-actions"><span class="updated-label" aria-live="polite">{{ store.updatedAt ? t('qualityOps.updatedAt', { time: clock(store.updatedAt) }) : t('qualityOps.loading') }}</span><button class="btn btn-secondary" :disabled="refreshing" @click="load"><Icon name="refresh" size="sm" :class="{ 'animate-spin': refreshing }" />{{ t('qualityOps.refresh') }}</button><button class="btn btn-primary" @click="newPlan"><Icon name="plus" size="sm" />{{ t('qualityOps.create') }}</button></div>
       </div>
       <div v-if="error || notice" class="workspace-message" :class="error ? 'message-error' : 'message-success'" :role="error ? 'alert' : 'status'">{{ error || notice }}<button :aria-label="t('qualityOps.dismiss')" @click="error = ''; notice = ''"><Icon name="x" size="sm" /></button></div>
@@ -917,7 +917,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 </script>
 
 <style scoped>
-.quality-workspace { height: calc(100dvh - 8rem - 1px); min-height: 34rem; @apply flex w-full min-w-0 flex-col gap-4 text-gray-900 dark:text-gray-100; }
+.quality-workspace { height: auto; min-height: 0; @apply flex w-full min-w-0 flex-col gap-4 text-gray-900 dark:text-gray-100; }
 .quality-workspace > :not(.workspace-columns) { flex-shrink: 0; }
 .quality-workspace > nav { margin-bottom: 0; max-width: 100%; }
 .workspace-heading { @apply flex flex-wrap items-center justify-between gap-4; }
@@ -930,7 +930,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .workspace-message { @apply flex items-center justify-between gap-4 rounded-xl border px-4 py-3 text-sm; }
 .message-error, .editor-error { @apply border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300; }
 .message-success { @apply border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300; }
-.workspace-summary { @apply grid grid-cols-2 rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900 lg:grid-cols-4; }
+.workspace-summary { @apply grid grid-cols-2 border-y border-gray-200 py-3 dark:border-dark-700 lg:grid-cols-4; }
 .summary-cell { @apply relative flex items-center gap-3 px-5 py-4; }
 .summary-cell + .summary-cell { @apply lg:border-l lg:border-gray-100 lg:dark:border-dark-700; }
 .summary-icon { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-dark-800 dark:text-gray-400; }
@@ -940,8 +940,8 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .summary-cell strong { @apply mt-1 block text-2xl font-semibold tabular-nums tracking-tight; }
 .summary-cell strong small { @apply text-sm font-normal text-gray-400; }
 .summary-link { @apply ml-auto inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400; }
-.workspace-columns { display: grid; grid-template-columns: clamp(320px, 30%, 480px) minmax(0, 1fr); gap: 16px; flex: 1; min-height: 0; }
-.workspace-panel { @apply flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
+.workspace-columns { display: grid; grid-template-columns: clamp(320px, 30%, 480px) minmax(0, 1fr); gap: clamp(2rem, 4vw, 4rem); align-items: start; min-height: 0; }
+.workspace-panel { @apply flex min-h-0 min-w-0 flex-col border-t border-gray-200 dark:border-dark-700; }
 .panel-heading { @apply flex shrink-0 items-center justify-between gap-3 px-5 pb-4 pt-5; }
 .panel-heading h3 { @apply flex items-center gap-2 text-base font-semibold; }
 .panel-heading p { @apply mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400; }
@@ -967,8 +967,8 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .all-accounts span:last-child { @apply ml-auto text-xs tabular-nums; }
 .all-accounts.selected { @apply bg-primary-50 font-medium text-primary-700 dark:bg-primary-950/40 dark:text-primary-300; }
 .rules-scroll { @apply min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pb-4; scrollbar-gutter: stable; }
-.rule-card { @apply rounded-xl border border-gray-200 p-3.5 transition-colors dark:border-dark-700; }
-.rule-card.selected { @apply border-primary-300 bg-primary-50/30 ring-1 ring-primary-100 dark:border-primary-700 dark:bg-primary-950/20 dark:ring-primary-900; }
+.rule-card { @apply border-b border-gray-200 py-5 transition-colors dark:border-dark-700; }
+.rule-card.selected { @apply border-primary-300 bg-primary-50/30 dark:border-primary-700 dark:bg-primary-950/20; }
 .rule-card.checked { @apply border-primary-400 bg-primary-50/60 dark:border-primary-600 dark:bg-primary-950/40; }
 .rule-card-top { @apply flex items-start gap-2; }
 .rule-select { @apply flex min-w-0 flex-1 items-start gap-2.5 text-left; }
@@ -987,7 +987,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .template-section { @apply space-y-2 border-b border-dashed border-gray-200 pb-3 dark:border-dark-700; }
 .template-section-title { @apply flex flex-wrap items-baseline gap-x-2 text-xs font-semibold text-sky-700 dark:text-sky-300; }
 .template-section-title span { @apply font-normal text-gray-400; }
-.template-card { @apply rounded-xl border border-sky-200 bg-sky-50/40 p-3.5 dark:border-sky-900 dark:bg-sky-950/20; }
+.template-card { @apply border-b border-gray-200 py-5 dark:border-dark-700; }
 .template-card strong { overflow-wrap: anywhere; @apply block text-[13px] font-semibold leading-5; }
 .template-avatar { @apply bg-sky-100 text-sky-600 dark:bg-sky-950/60 dark:text-sky-300; }
 .template-hint { @apply rounded-lg border border-sky-200 bg-sky-50/60 p-3 text-sm leading-relaxed text-sky-800 dark:border-sky-900 dark:bg-sky-950/20 dark:text-sky-200; }
@@ -1109,8 +1109,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 @media (max-width: 1279px) {
   .quality-workspace { height: auto; min-height: 0; }
   .workspace-columns { grid-template-columns: minmax(0, 1fr); }
-  .rules-panel { height: clamp(24rem, 60dvh, 42rem); }
-  .operations-panel { height: clamp(28rem, 70dvh, 52rem); }
+  .rules-panel { height: auto; }
+  .operations-panel { height: auto; }
 }
 @media (max-width: 640px) {
   .operations-table { display: block; min-width: 0; }

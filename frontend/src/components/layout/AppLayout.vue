@@ -1,5 +1,5 @@
 <template>
-  <div class="ritel-app" :class="{ 'has-tabs': hasTabs }">
+  <div class="ritel-app" :class="{ 'has-tabs': hasTabs, 'wide-layout': wide }">
     <a href="#console-main" class="console-skip" :inert="appStore.mobileOpen ? true : undefined" @click.prevent="focusMain">{{ skipLabel }}</a>
     <AppSidebar />
     <ConsoleTopBar />
@@ -26,6 +26,8 @@ import ConsoleTopBar from './ConsoleTopBar.vue'
 import ConsoleSectionTabs from './ConsoleSectionTabs.vue'
 import ConsolePageTitle from './ConsolePageTitle.vue'
 import ConsoleBottomNav from './ConsoleBottomNav.vue'
+
+defineProps<{ wide?: boolean }>()
 
 const route = useRoute()
 const { locale } = useI18n()
@@ -55,3 +57,7 @@ onMounted(() => {
 })
 
 </script>
+
+<style scoped>
+.wide-layout { --console-content-width: 100%; }
+</style>

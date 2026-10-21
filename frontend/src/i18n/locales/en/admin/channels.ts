@@ -689,7 +689,7 @@ export default {
         selected: '{count} subscriptions selected',
         selectSubscription: 'Select subscription #{id}',
         clearSelection: 'Clear Selection',
-        selectionHint: 'Select up to 100 subscriptions on this page. Changing pages or filters clears the selection. Each action only processes subscriptions with an applicable status.',
+        selectionHint: 'Select up to 100 loaded subscriptions. Filtering or sorting clears the selection.',
         selectionLimit: 'You can process up to 100 subscriptions at a time',
         selectionRequired: 'Select at least one subscription',
         confirmTargets: 'This action will process the following {count} subscriptions',

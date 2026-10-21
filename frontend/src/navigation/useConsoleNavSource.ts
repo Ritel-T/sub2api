@@ -233,7 +233,6 @@ export function provideConsoleNav() {
 
     return [
       ...finalizeNav(baseItems),
-      { path: '/keys', label: navText.value.ownKeys, icon: KeyIcon },
       { path: '/admin/settings', label: t('nav.settings'), icon: CogIcon },
       ...customMenuItemsForAdmin.value.map((item): NavItem => ({
         path: `/custom/${item.id}`,
@@ -344,7 +343,7 @@ export function provideConsoleNav() {
     const path = Object.keys(pathToSelector).find(path => pathToSelector[path] === selector)
     if (!path) return true
     updateTourViewport()
-    const targetWorkspace = path.startsWith('/admin/') ? 'management' : workspace.value
+    const targetWorkspace = path.startsWith('/admin/') ? 'management' : 'personal'
     const targetSections = arrangeConsoleSections(permittedWorkspaceItems(targetWorkspace), targetWorkspace, navText.value)
     const section = targetSections.find(section => section.tabs.some(tab => tab.path === path))
     if (!section) return false

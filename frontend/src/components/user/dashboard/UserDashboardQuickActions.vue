@@ -1,5 +1,5 @@
 <template>
-  <section class="card p-6" aria-labelledby="continue-title">
+  <section class="open-section" aria-labelledby="continue-title">
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div>
         <h2 id="continue-title" class="text-xl font-semibold">{{ copy.continue }}</h2>

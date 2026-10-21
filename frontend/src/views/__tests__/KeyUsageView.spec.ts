@@ -114,7 +114,7 @@ describe('KeyUsageView daily detail', () => {
 
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
-      value: vi.fn().mockReturnValue({ matches: false }),
+      value: vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
     })
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 0))
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -198,6 +198,8 @@ describe('KeyUsageView daily detail', () => {
     )
     expect(String(fetchMock.mock.calls[0][0])).toContain('days=30')
 
+    expect(wrapper.find('[data-field="cache_write_tokens"]').exists()).toBe(false)
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
     const text = wrapper.text()
     expect(text).toContain('Daily Detail')
     expect(text).toContain('Date')
@@ -266,7 +268,7 @@ describe('KeyUsageView subscription feature flag', () => {
     localStorage.clear()
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
-      value: vi.fn().mockReturnValue({ matches: false }),
+      value: vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
     })
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 0))
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({

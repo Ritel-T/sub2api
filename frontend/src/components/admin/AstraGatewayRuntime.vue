@@ -1,5 +1,5 @@
 <template>
-  <section class="card space-y-4 p-5" aria-labelledby="astra-runtime-title">
+  <section class="open-section space-y-4" aria-labelledby="astra-runtime-title">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div><h2 id="astra-runtime-title" class="font-semibold">{{ t(`${p}.runtimeTitle`) }}</h2><p class="mt-1 text-xs text-gray-500">{{ t(`${p}.runtimeHint`) }}</p></div>
       <button type="button" class="btn btn-primary btn-sm" data-testid="prepare" :disabled="busy || setupBusy || dirty || !settings?.cookie_pool.enabled" @click="run('prepare')">{{ t(busy ? `${p}.testing` : `${p}.prepare`) }}</button>
@@ -9,7 +9,7 @@
     <p class="text-xs text-gray-500" data-testid="probe-hint">{{ t(settings?.auto_quality ? `${p}.probeHint` : `${p}.manualProbeHint`) }}</p>
     <p v-if="settings?.auto_quality" class="text-xs text-gray-500" data-testid="auto-runtime-hint">{{ t(`${p}.autoRuntimeHint`) }}</p>
     <template v-if="runtime">
-      <div v-if="runtime.setup?.state" class="rounded-xl border p-3 text-sm dark:border-dark-600" data-testid="setup-status">
+      <div v-if="runtime.setup?.state" class="open-section text-sm" data-testid="setup-status">
         {{ t(`${p}.automaticStatus`) }}：{{ t(`${p}.setupStates.${runtime.setup.state}`) }}
         <span v-if="runtime.setup.phase"> · {{ t(`${p}.setupPhases.${runtime.setup.phase}`) }}</span>
         <span v-if="runtime.setup.account_id"> #{{ runtime.setup.account_id }}</span>
@@ -17,11 +17,11 @@
         <p v-if="runtime.setup.ready !== undefined || runtime.setup.pending !== undefined || runtime.setup.blocked !== undefined" class="mt-2 text-xs text-gray-500" data-testid="setup-counts">{{ t(`${p}.setupCounts`, { ready: runtime.setup.ready || 0, pending: runtime.setup.pending || 0, blocked: runtime.setup.blocked || 0 }) }}</p>
       </div>
       <p class="text-sm" data-testid="route-counts" :class="runtime.ready_routes ? 'text-emerald-600' : 'text-amber-600'">{{ t(`${p}.readyRoutes`, { n: runtime.ready_routes }) }} · {{ t(`${p}.readyTargets`, { n: readyTargetCount }) }} · {{ t(`${p}.readyModels`, { n: readyModelCount }) }} · {{ t(runtime.preparing ? `${p}.preparing` : `${p}.idle`) }}</p>
-      <div v-if="runtime.cooldowns?.length" class="rounded-xl border p-3 text-sm dark:border-dark-600" data-testid="rotation-cooldowns">
+      <div v-if="runtime.cooldowns?.length" class="open-section text-sm" data-testid="rotation-cooldowns">
         <h3 class="font-medium">{{ t(`${p}.cooldownTitle`) }}</h3>
         <p v-for="row in runtime.cooldowns" :key="`${row.account_id}:${row.gateway}`" class="mt-2 break-all">#{{ row.account_id }} · {{ row.gateway }} · {{ remaining(row.retry_at) }} s</p>
       </div>
-      <div class="space-y-2 rounded-xl border p-3 dark:border-dark-600" data-testid="gateway-observations">
+      <div class="open-section space-y-2" data-testid="gateway-observations">
         <h3 class="text-sm font-medium">{{ t(`${p}.gatewayInventory`) }}</h3>
         <p class="text-sm">{{ t(`${p}.gatewayCounts`, { n: runtime.gateways?.length || 0, repeats: repeatedGatewayHits, unknown: runtime.unknown_gateway_samples || 0 }) }}</p>
         <p v-if="runtime.gateways?.length === 1" class="text-xs text-amber-600">{{ t(`${p}.singleGateway`) }}</p>
@@ -41,7 +41,7 @@
         </table>
       </div>
       <div class="grid gap-3 md:grid-cols-2">
-        <div v-for="row in runtime.targets" data-testid="target-route" :key="`target-${row.account_id}-${row.model || 'gpt-6-astra'}`" class="rounded-xl border p-3 dark:border-dark-600">
+        <div v-for="row in runtime.targets" data-testid="target-route" :key="`target-${row.account_id}-${row.model || 'gpt-6-astra'}`" class="open-section">
           <p class="text-sm font-medium">{{ t(`${p}.targets`) }} #{{ row.account_id }} <span class="ml-2 font-mono text-xs text-gray-500">{{ row.model || 'gpt-6-astra' }}</span></p><p class="my-2 text-xs text-gray-500">{{ reason(row.reason) }} · {{ routeLifetime(row) }}</p>
           <p class="mb-2 break-all font-mono text-xs">{{ row.gateway || t(`${p}.unknownGateway`) }}</p>
           <p v-if="row.proxy_node" class="mb-2 text-xs">{{ row.proxy_country || '—' }} · {{ row.proxy_node }}</p>
@@ -50,7 +50,7 @@
           <p v-if="row.retry_at" class="mb-2 text-xs" data-testid="target-retry">{{ t(`${p}.retryAt`, { time: clock(row.retry_at) }) }}</p>
           <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || setupBusy || dirty || !settings?.cookie_pool.enabled" :title="t(settings?.auto_quality ? `${p}.verifyTargetHint` : `${p}.verifyManualTargetHint`)" @click="run('verify', row.account_id)">{{ t(`${p}.verifyTarget`) }}</button>
         </div>
-        <div v-for="row in settings?.auto_quality ? [] : runtime.ws" :key="`ws-${row.account_id}`" class="rounded-xl border p-3 dark:border-dark-600">
+        <div v-for="row in settings?.auto_quality ? [] : runtime.ws" :key="`ws-${row.account_id}`" class="open-section">
           <p class="text-sm font-medium">WS #{{ row.account_id }}</p><p class="my-2 text-xs text-gray-500">{{ reason(row.reason) }} · {{ t(`${p}.sessions`, { n: row.active_sessions }) }} · {{ remaining(row.expires_at) }} s</p>
           <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || setupBusy || dirty || !row.ready" @click="run('ws', row.account_id)">{{ t(`${p}.verifyWS`) }}</button>
         </div>

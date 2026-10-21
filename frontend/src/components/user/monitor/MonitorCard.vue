@@ -1,14 +1,14 @@
 <template>
   <button
     type="button"
-    class="group text-left p-5 rounded-2xl min-h-[280px] w-full bg-white/70 backdrop-blur-xl border border-gray-200/80 shadow-card dark:bg-dark-800/60 dark:border-dark-700/70 hover:-translate-y-1 hover:shadow-card-hover dark:hover:border-primary-500/30 hover:border-gray-300 transition-all duration-300 ease-out flex flex-col"
+    class="monitor-record group w-full text-left transition-colors hover:bg-gray-50/50 dark:hover:bg-dark-800/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
     @click="emit('click')"
   >
     <!-- Header: icon + name/model + status chip -->
-    <div class="flex items-start gap-3">
+    <div class="monitor-record-heading flex min-w-0 items-start gap-3">
       <span
-        class="w-9 h-9 rounded-xl ring-1 ring-black/5 dark:ring-white/10 grid place-items-center flex-shrink-0"
-        :class="[providerGradient(item.provider), providerTintClass]"
+        class="w-7 h-7 grid place-items-center flex-shrink-0"
+        :class="providerTintClass"
       >
         <ProviderIcon :provider="item.provider" :size="20" />
       </span>
@@ -18,7 +18,7 @@
         </div>
         <div class="mt-0.5 flex items-center gap-1.5 min-w-0">
           <span
-            class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium flex-shrink-0"
+            class="inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium flex-shrink-0"
             :class="providerBadgeClass(item.provider)"
           >
             {{ providerLabel(item.provider) }}
@@ -29,7 +29,7 @@
           </span>
           <span
             v-if="item.group_name"
-            class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300 flex-shrink-0"
+            class="inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300 flex-shrink-0"
           >
             {{ item.group_name }}
           </span>
@@ -44,7 +44,7 @@
     </div>
 
     <!-- Metrics -->
-    <MonitorMetricPair
+    <MonitorMetricPair class="monitor-record-metrics"
       primary-icon="bolt"
       :primary-label="t('monitorCommon.dialogLatency')"
       :primary-value="formatLatency(item.primary_latency_ms)"
@@ -56,20 +56,21 @@
     />
 
     <!-- 配额模式：最新用量/余额快照（服务端已按系统开关剥离，此处 flag 为纵深防御） -->
-    <MonitorQuotaView v-if="quotaVisible" :snapshot="item.latest_quota" class="mt-2" />
+    <MonitorQuotaView v-if="quotaVisible" :snapshot="item.latest_quota" class="monitor-record-quota" />
 
-    <!-- Divider -->
-    <div class="mt-4 border-t border-gray-100 dark:border-dark-700/60"></div>
 
     <!-- Availability row -->
+    <div class="monitor-record-availability">
     <MonitorAvailabilityRow
       :window-label="availabilityLabel"
       :value="availabilityValue"
       :samples-label="extraModelsCountLabel"
     />
 
+    </div>
+
     <!-- Timeline -->
-    <MonitorTimeline
+    <MonitorTimeline class="monitor-record-timeline"
       :buckets="item.timeline"
       :countdown-seconds="countdownSeconds"
     />
@@ -82,7 +83,6 @@ import { useI18n } from 'vue-i18n'
 import type { UserMonitorView } from '@/api/channelMonitor'
 import {
   useChannelMonitorFormat,
-  providerGradient,
 } from '@/composables/useChannelMonitorFormat'
 import { isChannelMonitorQuotaVisible } from '@/utils/featureFlags'
 import ProviderIcon from './ProviderIcon.vue'
@@ -144,3 +144,13 @@ const extraModelsCountLabel = computed(() => {
   return t('monitorCommon.extraModelsCount', { n: count })
 })
 </script>
+
+<style scoped>
+.monitor-record { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(13rem, 1fr) minmax(10rem, .7fr); gap: 1.25rem 2rem; padding-block: 1.75rem; border-top: 1px solid var(--ritel-border); border-radius: 0; background: transparent; }
+.monitor-record-metrics { margin-top: 0; }
+.monitor-record-availability { min-width: 0; }
+.monitor-record-timeline { grid-column: 1 / -1; margin-top: 0; border-top: 0; padding-top: 0; }
+.monitor-record-quota { grid-column: 1 / -1; }
+@media (max-width: 767px) { .monitor-record { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; } .monitor-record-heading { grid-column: 1 / -1; } }
+@media (max-width: 420px) { .monitor-record { grid-template-columns: minmax(0, 1fr); } }
+</style>

@@ -1,27 +1,15 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-2xl space-y-6">
+    <div class="open-page redeem-workspace">
       <BillingNavigation current="redeem" :settings="appStore.cachedPublicSettings" :simple-mode="authStore.isSimpleMode" />
-      <!-- Current Balance Card -->
-      <div class="card overflow-hidden">
-        <div class="bg-gradient-to-br from-primary-500 to-primary-600 px-6 py-8 text-center">
-          <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm"
-          >
-            <Icon name="creditCard" size="xl" class="text-white" />
-          </div>
-          <p class="text-sm font-medium text-primary-100">{{ t('redeem.currentBalance') }}</p>
-          <p class="mt-2 text-4xl font-bold text-white">
-            ${{ user?.balance?.toFixed(2) || '0.00' }}
-          </p>
-          <p class="mt-2 text-sm text-primary-100">
-            {{ t('redeem.concurrency') }}: {{ user?.concurrency || 0 }} {{ t('redeem.requests') }}
-          </p>
-        </div>
-      </div>
-
+      <div class="redeem-entry">
+        <aside class="redeem-account">
+          <h2 class="text-sm text-gray-500 dark:text-gray-400">{{ t('redeem.currentBalance') }}</h2>
+          <p class="ritel-number-display mt-3 text-5xl">${{ user?.balance?.toFixed(2) || '0.00' }}</p>
+          <p class="mt-5 text-sm text-gray-500 dark:text-gray-400">{{ t('redeem.concurrency') }}: {{ user?.concurrency || 0 }} {{ t('redeem.requests') }}</p>
+        </aside>
       <!-- Redeem Form -->
-      <div class="card">
+      <div class="open-section">
         <div class="p-6">
           <form @submit.prevent="handleRedeem" class="space-y-5">
             <div>
@@ -79,11 +67,13 @@
         </div>
       </div>
 
+      </div>
+
       <!-- Success Message -->
       <transition name="fade">
         <div
           v-if="redeemResult"
-          class="card border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/20"
+          class="open-section border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/20"
         >
           <div class="p-6">
             <div class="flex items-start gap-4">
@@ -137,7 +127,7 @@
       <transition name="fade">
         <div
           v-if="errorMessage"
-          class="card border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20"
+          class="open-section border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20"
         >
           <div class="p-6">
             <div class="flex items-start gap-4">
@@ -165,7 +155,7 @@
 
       <!-- Information Card -->
       <div
-        class="card border-primary-200 bg-primary-50 dark:border-primary-800/50 dark:bg-primary-900/20"
+        class="open-section border-primary-200 bg-primary-50 dark:border-primary-800/50 dark:bg-primary-900/20"
       >
         <div class="p-6">
           <div class="flex items-start gap-4">
@@ -200,7 +190,7 @@
       </div>
 
       <!-- Recent Activity -->
-      <div class="card">
+      <div class="open-section">
         <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
             {{ t('redeem.recentActivity') }}
@@ -231,7 +221,7 @@
             <div
               v-for="item in history"
               :key="item.id"
-              class="flex items-center justify-between rounded-xl bg-gray-50 p-4 dark:bg-dark-800"
+              class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 py-4 dark:border-dark-700"
             >
               <div class="flex items-center gap-4">
                 <div
@@ -336,30 +326,13 @@
               {{ t('redeem.historyWillAppear') }}
             </p>
           </div>
-          <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-            <span>{{ t('common.total') }}: {{ historyTotal }} {{ t('pagination.results') }}</span>
-            <label>
-              {{ t('pagination.perPage') }}
-              <select
-                v-model="historyPageSize"
-                class="input w-20"
-                :disabled="loadingHistory || submitting"
-                @change="fetchHistory(1)"
-              >
-                <option v-for="size in [20, 50, 100]" :key="size" :value="size">{{ size }}</option>
-              </select>
-            </label>
-            <button
-              class="btn btn-secondary"
-              :disabled="loadingHistory || submitting || historyPage <= 1"
-              @click="fetchHistory(historyPage - 1)"
-            >{{ t('pagination.previous') }}</button>
-            <button
-              class="btn btn-secondary"
-              :disabled="loadingHistory || submitting || historyPage * historyPageSize >= historyTotal"
-              @click="fetchHistory(historyPage + 1)"
-            >{{ t('pagination.next') }}</button>
-          </div>
+          <InfiniteListSentinel
+            :loading="loadingHistory || loadingMoreHistory || refreshingHistory || submitting"
+            :error="historyError"
+            :has-more="hasMoreHistory"
+            @load-more="loadMoreHistory"
+            @retry="retryHistory"
+          />
         </div>
       </div>
     </div>
@@ -367,13 +340,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import BillingNavigation from '@/components/user/BillingNavigation.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
@@ -398,14 +373,6 @@ const redeemResult = ref<{
 } | null>(null)
 const errorMessage = ref('')
 
-// History data
-const history = ref<RedeemHistoryItem[]>([])
-const loadingHistory = ref(false)
-const historyPage = ref(1)
-const historyPageSize = ref(20)
-const historyTotal = ref(0)
-let historyRequest = 0
-let loadedHistoryPageSize = 20
 const contactInfo = ref('')
 
 // Helper functions for history display
@@ -451,27 +418,15 @@ const formatHistoryValue = (item: RedeemHistoryItem) => {
   }
 }
 
-const fetchHistory = async (page = 1) => {
-  const request = ++historyRequest
-  const pageSize = historyPageSize.value
-  loadingHistory.value = true
-  try {
-    const result = await redeemAPI.getHistory(page, pageSize)
-    if (request !== historyRequest) return
-    history.value = result.items
-    historyTotal.value = result.total
-    historyPage.value = page
-    historyPageSize.value = pageSize
-    loadedHistoryPageSize = pageSize
-  } catch (error) {
-    if (request !== historyRequest) return
-    historyPageSize.value = loadedHistoryPageSize
-    appStore.showError(t('redeem.historyLoadFailed'))
-    console.error('Failed to fetch history:', error)
-  } finally {
-    if (request === historyRequest) loadingHistory.value = false
-  }
-}
+const {
+  items: history, loading: loadingHistory, loadingMore: loadingMoreHistory, refreshing: refreshingHistory,
+  error: historyError, hasMore: hasMoreHistory, refresh: fetchHistory, loadMore: loadMoreHistory, retry: retryHistory,
+} = useInfiniteList<RedeemHistoryItem>({
+  pageSize: 50,
+  keyOf: item => item.id,
+  fetchPage: page => redeemAPI.getHistory(page, 50),
+})
+watch(historyError, error => { if (error) appStore.showError(t('redeem.historyLoadFailed')) })
 
 const handleRedeem = async () => {
   if (!redeemCode.value.trim()) {
@@ -535,6 +490,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.redeem-entry{display:grid;gap:3rem;align-items:start;padding-block:1rem 2rem}.redeem-account{padding-block:1.5rem}
+.redeem-workspace{max-width:80rem;margin-inline:auto}.redeem-entry>.open-section{padding-top:1.5rem}
+@media(min-width:800px){.redeem-entry{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:clamp(3rem,8vw,8rem)}}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: all 0.3s ease;

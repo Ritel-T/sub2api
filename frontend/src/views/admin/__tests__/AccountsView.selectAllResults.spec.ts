@@ -108,11 +108,13 @@ const mountView = () => mount(AccountsView, {
     stubs: {
       AppLayout: { template: '<div><slot /></div>' },
       TablePageLayout: {
-        template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+        template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
       },
       DataTable: {
-        props: ['data'],
-        template: '<div data-test="data-table"><div v-for="row in data" :key="row.id"><slot name="cell-select" :row="row" /></div></div>'
+        name: 'DataTable',
+        props: ['data', 'selectedKeys'],
+        emits: ['update:selectedKeys'],
+        template: `<div data-test="data-table"><button data-test="select-table-page" @click="$emit('update:selectedKeys', data.map(row => row.id))">ID</button><button v-for="row in data" :key="row.id" data-test="select-row" :aria-checked="selectedKeys.includes(row.id)">{{ row.id }}</button></div>`
       },
       Pagination: true,
       ConfirmDialog: true,
@@ -181,14 +183,15 @@ describe('admin AccountsView select all filtered results', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const wrapper = mountView()
     await flushPromises()
-    await wrapper.get('[data-test="select-page"]').trigger('click')
+    await wrapper.get('[data-test="select-table-page"]').trigger('click')
     await wrapper.get('[data-test="refresh-token"]').trigger('click')
     await flushPromises()
 
     expect(batchRefresh).toHaveBeenCalledWith([1, 2, 3])
     expect(listAccounts).toHaveBeenCalledTimes(2)
-    expect(wrapper.getComponent(AccountBulkActionsBarStub).props('selectedIds')).toEqual(expectedIds)
-    expect(wrapper.findAll<HTMLInputElement>('[data-test="data-table"] input').map(input => input.element.checked))
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('selectedKeys')).toEqual(expectedIds)
+    expect(wrapper.findComponent(AccountBulkActionsBarStub).exists()).toBe(expectedIds.length > 0)
+    expect(wrapper.findAll('[data-test="select-row"]').map(button => button.attributes('aria-checked') === 'true'))
       .toEqual([1, 2, 3].map(id => expectedIds.includes(id)))
     if (result.failed > 0) {
       expect(showError).toHaveBeenCalledWith('admin.accounts.bulkActions.partialSuccess')
@@ -223,6 +226,8 @@ describe('admin AccountsView select all filtered results', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    expect(wrapper.findComponent(AccountBulkActionsBarStub).exists()).toBe(false)
+    await wrapper.get('[data-test="select-table-page"]').trigger('click')
     await wrapper.get('[data-test="select-all-results"]').trigger('click')
     await flushPromises()
 
@@ -239,8 +244,8 @@ describe('admin AccountsView select all filtered results', () => {
     await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
 
-    expect(wrapper.get('[data-test="selected-count"]').text()).toBe('0')
-    expect(wrapper.get('[data-test="all-results-selected"]').text()).toBe('false')
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('selectedKeys')).toEqual([])
+    expect(wrapper.findComponent(AccountBulkActionsBarStub).exists()).toBe(false)
   })
 
   it('keeps the original page selection when loading all results fails', async () => {
@@ -261,7 +266,7 @@ describe('admin AccountsView select all filtered results', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.get('[data-test="select-page"]').trigger('click')
+    await wrapper.get('[data-test="select-table-page"]').trigger('click')
     expect(wrapper.get('[data-test="selected-count"]').text()).toBe('20')
 
     await wrapper.get('[data-test="select-all-results"]').trigger('click')

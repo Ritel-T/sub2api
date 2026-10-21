@@ -11,58 +11,63 @@
       owns that real estate. This cell queries Codex points and reset credits,
       and lets the operator consume a reset credit if needed.
     -->
-    <div class="flex flex-wrap items-center gap-1.5">
-      <slot name="pre-actions" />
+    <div class="flex flex-wrap items-center" :class="mode === 'primary' ? 'gap-0.5' : 'gap-1.5'">
+      <template v-if="mode !== 'supplementary'">
+        <slot name="pre-actions" />
 
-      <button
-        type="button"
-        class="theme-action-button inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-        :disabled="loading || resetting"
-        :title="countButtonTitle"
-        @click="handleQuery()"
-      >
-        <svg
-          class="h-2.5 w-2.5"
-          :class="{ 'animate-spin': loading }"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+        <button
+          type="button"
+          class="theme-action-button inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          :class="{ 'min-h-6': mode === 'primary' }"
+          :disabled="loading || resetting"
+          :title="countButtonTitle"
+          @click="handleQuery()"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-        {{ t('admin.accounts.openaiQuotaReset.count') }}<span v-if="data"> {{ availableResetCount }}</span>
-      </button>
+          <svg
+            class="h-2.5 w-2.5"
+            :class="{ 'animate-spin': loading }"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          {{ t('admin.accounts.openaiQuotaReset.count') }}<span v-if="data"> {{ availableResetCount }}</span>
+        </button>
 
-      <button
-        type="button"
-        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-orange-600 transition-colors hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
-        :disabled="resetting || loading || !canReset"
-        :title="resetButtonTitle"
-        @click="openResetConfirm"
-      >
-        <svg
-          class="h-2.5 w-2.5"
-          :class="{ 'animate-spin': resetting }"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+        <button
+          type="button"
+          class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-orange-600 transition-colors hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
+          :class="{ 'min-h-6': mode === 'primary' }"
+          :disabled="resetting || loading || !canReset"
+          :title="resetButtonTitle"
+          @click="openResetConfirm"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M20 12a8 8 0 11-2.343-5.657L20 8m0 0V4m0 4h-4"
-          />
-        </svg>
-        {{ t('admin.accounts.openaiQuotaReset.reset') }}
-      </button>
+          <svg
+            class="h-2.5 w-2.5"
+            :class="{ 'animate-spin': resetting }"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M20 12a8 8 0 11-2.343-5.657L20 8m0 0V4m0 4h-4"
+            />
+          </svg>
+          {{ t('admin.accounts.openaiQuotaReset.reset') }}
+        </button>
 
+      </template>
       <button
+        v-if="mode !== 'primary'"
         type="button"
         data-testid="codex-credits"
         class="inline-flex max-w-full items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
@@ -73,7 +78,7 @@
         {{ t('admin.accounts.openaiQuotaReset.points') }}
         <span class="truncate tabular-nums">{{ creditsDisplay }}</span>
       </button>
-      <OpenAIReferralCell :account="account" />
+      <OpenAIReferralCell v-if="mode !== 'primary'" :account="account" />
     </div>
 
     <div v-if="creditsCacheWarning" class="text-[10px] text-amber-600 dark:text-amber-400">
@@ -81,7 +86,7 @@
     </div>
 
     <div
-      v-if="autoResetState"
+      v-if="mode !== 'primary' && autoResetState"
       class="flex flex-wrap items-center gap-1 text-[10px]"
       data-testid="auto-reset-credit-state"
     >
@@ -106,7 +111,7 @@
       </span>
     </div>
 
-    <div v-if="primaryResetCreditExpiry" class="space-y-1">
+    <div v-if="mode !== 'primary' && primaryResetCreditExpiry" class="space-y-1">
       <div class="flex flex-wrap items-center gap-1">
         <span
           class="inline-flex max-w-full items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] leading-4 text-gray-600 tabular-nums dark:bg-dark-800 dark:text-gray-300"
@@ -193,9 +198,11 @@ import {
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import OpenAIReferralCell from '@/components/account/OpenAIReferralCell.vue'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   account: Account
-}>()
+  /** Split the compact main-row actions from the expandable account tools. */
+  mode?: 'all' | 'primary' | 'supplementary'
+}>(), { mode: 'all' })
 
 const emit = defineEmits<{
   'account-updated': [account: Account]
@@ -371,7 +378,10 @@ const resetButtonTitle = computed(() => {
 // Tooltip differs between "click to load" (no data yet) and "click to refresh".
 const countButtonTitle = computed(() => {
   if (!data.value) return t('admin.accounts.openaiQuotaReset.countTooltipLoad')
-  return t('admin.accounts.openaiQuotaReset.countTooltipRefresh')
+  const label = t('admin.accounts.openaiQuotaReset.countTooltipRefresh')
+  return props.mode === 'primary' && resetCreditDetailsTitle.value
+    ? `${label}\n${resetCreditDetailsTitle.value}`
+    : label
 })
 
 const truncatedError = computed(() => {

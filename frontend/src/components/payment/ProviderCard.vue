@@ -1,13 +1,13 @@
 <template>
   <div
     :class="[
-      'group relative rounded-lg border transition-all',
-      enabled ? 'border-gray-200 dark:border-dark-600' : 'border-gray-200 bg-gray-50 opacity-50 dark:border-dark-700 dark:bg-dark-800/50',
+      'group relative border-t transition-colors',
+      enabled ? 'border-gray-200 dark:border-dark-600' : 'border-gray-200 opacity-50 dark:border-dark-700',
     ]"
     :title="!enabled ? t('admin.settings.payment.typeDisabled') + ' — ' + t('admin.settings.payment.enableTypesFirst') : undefined"
   >
     <div :class="[
-      'flex items-center justify-between px-4 py-2.5',
+      'flex items-center justify-between py-4',
       !enabled && 'pointer-events-none',
     ]">
       <!-- Left: icon + name + key badge + type badges -->

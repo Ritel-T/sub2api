@@ -1,5 +1,5 @@
 <template>
-  <fieldset class="min-w-0 rounded-xl border border-gray-200 p-4 dark:border-dark-600">
+  <fieldset class="open-section min-w-0">
     <legend class="px-1 text-sm font-medium text-gray-800 dark:text-gray-100">{{ label }} · {{ modelValue.length }}/64</legend>
     <input v-model="search" type="search" class="input mb-3 w-full" :aria-label="t('admin.astraGateway.search')" :placeholder="t('admin.astraGateway.search')" />
     <div class="max-h-52 space-y-1 overflow-y-auto">

@@ -1,52 +1,11 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
       <template #actions>
-        <div class="flex flex-wrap gap-2" role="group" :aria-label="t('admin.proxies.managementSections')">
-          <button v-for="tab in managementTabs" :key="tab.key" type="button"
-            class="btn" :class="activeManagementTab === tab.key ? 'btn-primary' : 'btn-secondary'"
-            :aria-pressed="activeManagementTab === tab.key" @click="selectManagementTab(tab.key)">
-            {{ t(tab.label) }}
-          </button>
-        </div>
-      </template>
-      <template v-if="activeManagementTab === 'proxies'" #filters>
-        <div class="flex flex-wrap items-center gap-3">
-          <!-- Left: Search + Filters -->
-          <div class="relative w-full sm:w-64">
-            <Icon
-              name="search"
-              size="md"
-              class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-            />
-            <input
-              v-model="searchQuery"
-              type="text"
-              :placeholder="t('admin.proxies.searchProxies')"
-              class="input pl-10"
-              @input="handleSearch"
-            />
-          </div>
-
-          <div class="w-full sm:w-40">
-            <Select
-              v-model="filters.protocol"
-              :options="protocolOptions"
-              :placeholder="t('admin.proxies.allProtocols')"
-              @change="handleFilterChange"
-            />
-          </div>
-          <div class="w-full sm:w-36">
-            <Select
-              v-model="filters.status"
-              :options="statusOptions"
-              :placeholder="t('admin.proxies.allStatus')"
-              @change="handleFilterChange"
-            />
-          </div>
-
-          <!-- Right: All action buttons -->
-          <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
+        <div class="workspace-page-header">
+          <h1 class="workspace-page-title">{{ t('admin.proxies.title') }}</h1>
+          <template v-if="activeManagementTab === 'proxies'"><div class="workspace-header-actions">
+            <TableToolbarTarget kind="actions" />
             <button
               @click="loadProxies"
               :disabled="loading"
@@ -92,7 +51,53 @@
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.proxies.createProxy') }}
             </button>
+          </div></template>
+        </div>
+
+        <div class="flex flex-wrap gap-2" role="group" :aria-label="t('admin.proxies.managementSections')">
+          <button v-for="tab in managementTabs" :key="tab.key" type="button"
+            class="btn" :class="activeManagementTab === tab.key ? 'btn-primary' : 'btn-secondary'"
+            :aria-pressed="activeManagementTab === tab.key" @click="selectManagementTab(tab.key)">
+            {{ t(tab.label) }}
+          </button>
+        </div>
+      </template>
+      <template v-if="activeManagementTab === 'proxies'" #filters>
+        <div class="filter-controls">
+          <!-- Left: Search + Filters -->
+          <div class="relative w-full sm:w-64">
+            <Icon
+              name="search"
+              size="md"
+              class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+            />
+            <input
+              v-model="searchQuery"
+              type="text"
+              :placeholder="t('admin.proxies.searchProxies')"
+              class="input pl-10"
+              @input="handleSearch"
+            />
           </div>
+
+          <div class="w-full sm:w-40">
+            <Select
+              v-model="filters.protocol"
+              :options="protocolOptions"
+              :placeholder="t('admin.proxies.allProtocols')"
+              @change="handleFilterChange"
+            />
+          </div>
+          <div class="w-full sm:w-36">
+            <Select
+              v-model="filters.status"
+              :options="statusOptions"
+              :placeholder="t('admin.proxies.allStatus')"
+              @change="handleFilterChange"
+            />
+          </div>
+
+          <TableToolbarTarget />
         </div>
       </template>
 
@@ -282,11 +287,11 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <button
+            <div class="workspace-row-actions">
+              <button :title="t('admin.proxies.testConnection')" :aria-label="t('admin.proxies.testConnection')"
                 @click="handleTestConnection(row)"
                 :disabled="testingProxyIds.has(row.id)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                class="theme-action-button transition-colors disabled:cursor-not-allowed disabled:opacity-50 workspace-icon-action"
               >
                 <svg
                   v-if="testingProxyIds.has(row.id)"
@@ -309,12 +314,12 @@
                   ></path>
                 </svg>
                 <Icon v-else name="checkCircle" size="sm" />
-                <span class="text-xs">{{ t('admin.proxies.testConnection') }}</span>
+                <span class="sr-only">{{ t('admin.proxies.testConnection') }}</span>
               </button>
-              <button
+              <button :title="t('admin.proxies.qualityCheck')" :aria-label="t('admin.proxies.qualityCheck')"
                 @click="handleQualityCheck(row)"
                 :disabled="qualityCheckingProxyIds.has(row.id)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                class="theme-action-button transition-colors disabled:cursor-not-allowed disabled:opacity-50 workspace-icon-action"
               >
                 <svg
                   v-if="qualityCheckingProxyIds.has(row.id)"
@@ -337,21 +342,21 @@
                   ></path>
                 </svg>
                 <Icon v-else name="shield" size="sm" />
-                <span class="text-xs">{{ t('admin.proxies.qualityCheck') }}</span>
+                <span class="sr-only">{{ t('admin.proxies.qualityCheck') }}</span>
               </button>
-              <button
+              <button :title="t('common.edit')" :aria-label="t('common.edit')"
                 @click="handleEdit(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400 workspace-icon-action"
               >
                 <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t('common.edit') }}</span>
+                <span class="sr-only">{{ t('common.edit') }}</span>
               </button>
-              <button
+              <button :title="t('common.delete')" :aria-label="t('common.delete')"
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
               >
                 <Icon name="trash" size="sm" />
-                <span class="text-xs">{{ t('common.delete') }}</span>
+                <span class="sr-only">{{ t('common.delete') }}</span>
               </button>
             </div>
           </template>
@@ -369,13 +374,12 @@
       </template>
 
       <template v-if="activeManagementTab === 'proxies'" #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
+        <InfiniteListSentinel
+          :loading="loading || continuousList.loadingMore.value"
+          :error="continuousList.error.value"
+          :has-more="continuousList.hasMore.value"
+          @load-more="continuousList.loadMore"
+          @retry="continuousList.retry"
         />
       </template>
     </TablePageLayout>
@@ -914,6 +918,7 @@
 </template>
 
 <script setup lang="ts">
+import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { objectQueryId } from './objectContext'
@@ -927,7 +932,8 @@ import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -940,7 +946,6 @@ import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { useSwipeSelect } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatDateTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import { proxyQualityOverallClass, proxyQualityOverallLabelKey, summarizeProxyQuality } from '@/utils/proxyQuality'
@@ -1014,20 +1019,18 @@ const editStatusOptions = computed(() => [
   { value: 'inactive', label: t('admin.accounts.status.inactive') }
 ])
 
-const proxies = ref<Proxy[]>([])
+const continuousList = useInfiniteList<Proxy>({
+  fetchPage: fetchListPage,
+  keyOf: row => row.id,
+  pageSize: 50
+})
+const { items: proxies, loading } = continuousList
 const visiblePasswordIds = reactive(new Set<number>())
 const copyMenuProxyId = ref<number | null>(null)
-const loading = ref(false)
 const searchQuery = ref('')
 const filters = reactive({
   protocol: '',
   status: ''
-})
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0,
-  pages: 0
 })
 const sortState = reactive({
   sort_by: 'id',
@@ -1134,13 +1137,7 @@ const backupProxyOptions = (excludeId?: number) =>
     .filter(p => p.id !== excludeId)
     .map(p => ({ label: `${p.name} (${p.host}:${p.port})`, value: p.id }))
 
-let abortController: AbortController | null = null
 
-const isAbortError = (error: unknown) => {
-  if (!error || typeof error !== 'object') return false
-  const maybeError = error as { name?: string; code?: string }
-  return maybeError.name === 'AbortError' || maybeError.code === 'ERR_CANCELED'
-}
 
 const toggleSelectRow = (id: number, event: Event) => {
   const target = event.target as HTMLInputElement
@@ -1164,42 +1161,23 @@ const buildProxyQueryFilters = () => ({
   sort_order: sortState.sort_order
 })
 
-const loadProxies = async () => {
-  if (abortController) {
-    abortController.abort()
-  }
-  const currentAbortController = new AbortController()
-  abortController = currentAbortController
-  loading.value = true
+async function fetchListPage(page: number, signal: AbortSignal) {
   try {
-    const response = await adminAPI.proxies.list(
-      pagination.page,
-      pagination.page_size,
-      buildProxyQueryFilters(),
-      { signal: currentAbortController.signal }
-    )
-    if (currentAbortController.signal.aborted || abortController !== currentAbortController) {
-      return
-    }
-    proxies.value = response.items
-    pagination.total = response.total
-    pagination.pages = response.pages
-  } catch (error) {
-    if (isAbortError(error)) {
-      return
-    }
-    appStore.showError(t('admin.proxies.failedToLoad'))
-    console.error('Error loading proxies:', error)
-  } finally {
-    if (abortController === currentAbortController) {
-      loading.value = false
-      abortController = null
-    }
+    return await adminAPI.proxies.list(page, 50, buildProxyQueryFilters(), { signal })
+  } catch (error: unknown) {
+    if (!signal.aborted) appStore.showError(t('admin.proxies.failedToLoad'))
+    throw error
   }
 }
 
+const loadProxies = async () => {
+  clearSelectedProxies()
+  await continuousList.reset()
+}
+
+
 const handleFilterChange = () => {
-  pagination.page = 1
+
   loadProxies()
 }
 
@@ -1207,26 +1185,17 @@ let searchTimeout: ReturnType<typeof setTimeout>
 const handleSearch = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
-    pagination.page = 1
+
     loadProxies()
   }, 300)
 }
 
-const handlePageChange = (page: number) => {
-  pagination.page = page
-  loadProxies()
-}
 
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.page_size = pageSize
-  pagination.page = 1
-  loadProxies()
-}
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.sort_by = key
   sortState.sort_order = order
-  pagination.page = 1
+
   loadProxies()
 }
 
@@ -2017,7 +1986,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearTimeout(searchTimeout)
-  abortController?.abort()
   document.removeEventListener('click', closeCopyMenu)
 })
 </script>

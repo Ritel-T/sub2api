@@ -66,6 +66,53 @@ beforeEach(() => {
   vi.mocked(resetOpenAIQuota).mockReset()
 })
 
+describe('OpenAIQuotaResetCell split action modes', () => {
+  it('keeps primary reset confirmation and cached count without points or extra buttons', async () => {
+    const account = makeAccount({ extra: { codex_reset_credit_snapshot: {
+      available_count: 2,
+      credits: [{ expires_at: FUTURE_EXPIRY_EARLY }, { expires_at: FUTURE_EXPIRY_LATE }]
+    } } })
+    const wrapper = mount(OpenAIQuotaResetCell, {
+      props: { account, mode: 'primary' },
+      slots: { 'pre-actions': '<button>Query</button>' }
+    })
+    expect(wrapper.findAll('button').map(button => button.text())).toEqual([
+      'Query', 'admin.accounts.openaiQuotaReset.count2', 'admin.accounts.openaiQuotaReset.reset'
+    ])
+    expect(wrapper.find('[data-testid="codex-credits"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="reset-credit-expiry-toggle"]').exists()).toBe(false)
+    expect(wrapper.findAll('button')[1].attributes('title')).toContain('2099')
+    expect(refreshOpenAIQuota).not.toHaveBeenCalled()
+    await wrapper.findAll('button')[2].trigger('click')
+    expect(wrapper.getComponent(ConfirmDialog).props('show')).toBe(true)
+    expect(resetOpenAIQuota).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('mounts supplementary points and referrals without an automatic upstream request', async () => {
+    const wrapper = mount(OpenAIQuotaResetCell, {
+      props: { account: makeAccount({}), mode: 'supplementary' },
+      slots: { 'pre-actions': '<button>Query</button>' }
+    })
+    expect(wrapper.findAll('button').map(button => button.text())).toEqual([
+      'admin.accounts.openaiQuotaReset.points —',
+      'admin.accounts.openaiReferral.available —',
+      'admin.accounts.openaiReferral.invite'
+    ])
+    expect(refreshOpenAIQuota).not.toHaveBeenCalled()
+    vi.mocked(refreshOpenAIQuota).mockResolvedValue({
+      credits: { has_credits: true, unlimited: false, balance: '12.5' },
+      fetched_at: 1770000000, cache_persisted: true, credits_cache_persisted: true
+    })
+    await wrapper.get('[data-testid="codex-credits"]').trigger('click')
+    await flushPromises()
+    expect(refreshOpenAIQuota).toHaveBeenCalledWith(1)
+    expect(wrapper.get('[data-testid="codex-credits"]').text()).toContain('12.5')
+    expect(resetOpenAIQuota).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+})
+
 describe('OpenAIQuotaResetCell — Codex 点数', () => {
   const points = (wrapper: ReturnType<typeof mount>) => wrapper.get('[data-testid="codex-credits"]')
   const balance = { has_credits: true, unlimited: false, balance: '12345678901234567890.0123' }

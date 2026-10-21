@@ -1,7 +1,7 @@
 <template>
   <div class="flex min-h-screen items-center justify-center bg-gray-50 p-4 dark:bg-dark-950">
     <div
-      class="w-full max-w-md space-y-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg dark:border-dark-700 dark:bg-dark-900"
+      class="open-page w-full max-w-md py-8"
     >
       <!-- Amount + Order ID -->
       <div v-if="amount" class="text-center">

@@ -267,9 +267,9 @@ describe('AppSidebar merchant payment pilot', () => {
 describe('console workspace navigation', () => {
   it('shows one management directory and searches exactly that tree', async () => {
     mountSidebar()
-    // Admin workspace: accounts and keys should appear as section tab links.
+    // Management resources do not duplicate personal key navigation.
     expect(wrapper?.find('a[href="/admin/accounts"]').exists()).toBe(true)
-    expect(wrapper?.find('a[href="/keys"]').exists()).toBe(true)
+    expect(wrapper?.find('a[href="/keys"]').exists()).toBe(false)
     // Profile is hidden from nav (account section is hidden).
     expect(wrapper?.find('a[href="/profile"]').exists()).toBe(false)
     // Workspace switch: aria-pressed buttons inside the group.
@@ -303,11 +303,11 @@ describe('console workspace navigation', () => {
     expect(wrapper?.find('a[href="/keys"]').exists()).toBe(false)
   })
 
-  it('keeps simple mode admin key access in the management workspace', async () => {
+  it('keeps the management directory free of personal-key shortcuts in simple mode', async () => {
     authState.isSimpleMode = true
     route.path = '/keys'
     mountSidebar()
-    expect(wrapper?.find('a[href="/keys"]').exists()).toBe(true)
+    expect(wrapper?.find('a[href="/keys"]').exists()).toBe(false)
     expect(wrapper?.find('a[href="/admin/accounts"]').exists()).toBe(true)
     // Simple mode: only management workspace → no workspace switch.
     expect(wrapper?.find('.console-drawer-workspace').exists()).toBe(false)

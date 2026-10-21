@@ -126,7 +126,7 @@ describe('admin DashboardView', () => {
     const wrapper = mountDashboard()
     await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toContain('admin.dashboard.failedToLoad')
-    expect(wrapper.findAll('.ritel-metric-card')).toHaveLength(0)
+    expect(wrapper.findAll('.open-metric')).toHaveLength(0)
     let resolveRetry!: (value: unknown) => void
     getSnapshotV2.mockImplementationOnce(() => new Promise(resolve => { resolveRetry = resolve }))
     await wrapper.get('[data-testid="dashboard-retry"]').trigger('click')
@@ -136,19 +136,19 @@ describe('admin DashboardView', () => {
     resolveRetry({ stats: createDashboardStats(), trend: [], models: [] })
     await flushPromises()
     expect(wrapper.find('[data-testid="dashboard-load-error"]').exists()).toBe(false)
-    expect(wrapper.findAll('.ritel-metric-card').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('.open-metric').length).toBeGreaterThan(0)
     wrapper.unmount()
   })
 
   it('keeps previous statistics visible when a refresh fails and clears the error after recovery', async () => {
     const wrapper = mountDashboard()
     await flushPromises()
-    const count = wrapper.findAll('.ritel-metric-card').length
+    const count = wrapper.findAll('.open-metric').length
     getSnapshotV2.mockRejectedValueOnce(new Error('Unavailable'))
     await (wrapper.vm as any).loadDashboardStats()
     await flushPromises()
     expect(wrapper.get('[data-testid="dashboard-load-error"]').text()).toContain('admin.dashboard.failedToLoad')
-    expect(wrapper.findAll('.ritel-metric-card')).toHaveLength(count)
+    expect(wrapper.findAll('.open-metric')).toHaveLength(count)
     await wrapper.get('[data-testid="dashboard-retry"]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="dashboard-load-error"]').exists()).toBe(false)

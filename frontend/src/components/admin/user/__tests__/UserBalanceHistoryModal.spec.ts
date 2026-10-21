@@ -49,7 +49,7 @@ describe('UserBalanceHistoryModal request ordering', () => {
     await flushPromises()
     select.vm.$emit('change', 'affiliate_signup_bonus')
     await flushPromises()
-    expect(mocks.getUserBalanceHistory).toHaveBeenLastCalledWith(1, 1, 15, 'affiliate_signup_bonus')
+    expect(mocks.getUserBalanceHistory).toHaveBeenLastCalledWith(1, 1, 15, 'affiliate_signup_bonus', { signal: expect.any(AbortSignal) })
   })
 
   it('shows inviter first-recharge gifts separately from recharge totals and supports their filter', async () => {
@@ -70,7 +70,7 @@ describe('UserBalanceHistoryModal request ordering', () => {
     await flushPromises();
     select.vm.$emit('change', 'affiliate_first_recharge_bonus');
     await flushPromises();
-    expect(mocks.getUserBalanceHistory).toHaveBeenLastCalledWith(1, 1, 15, 'affiliate_first_recharge_bonus');
+    expect(mocks.getUserBalanceHistory).toHaveBeenLastCalledWith(1, 1, 15, 'affiliate_first_recharge_bonus', { signal: expect.any(AbortSignal) });
   });
 
   it('keeps the new user history when an old response finishes later', async () => {
@@ -123,4 +123,18 @@ describe('UserBalanceHistoryModal request ordering', () => {
     expect(console.error).toHaveBeenCalledWith('Failed to load balance history:', error)
     expect(wrapper.find('svg.animate-spin').exists()).toBe(false)
   })
+  it('appends money history without replacing previous records or changing the recharge summary', async () => {
+    mocks.getUserBalanceHistory.mockResolvedValueOnce({ ...result(1), total: 2, total_recharged: 500 })
+    const wrapper = await openDialog()
+    await flushPromises()
+    mocks.getUserBalanceHistory.mockResolvedValueOnce({ ...result(2), total: 2, total_recharged: 500 })
+    wrapper.getComponent({ name: 'InfiniteListSentinel' }).vm.$emit('load-more')
+    await flushPromises()
+    expect(mocks.getUserBalanceHistory).toHaveBeenLastCalledWith(1, 2, 15, undefined, { signal: expect.any(AbortSignal) })
+    expect(wrapper.text()).toContain('History 1')
+    expect(wrapper.text()).toContain('History 2')
+    expect(wrapper.text()).toContain('$500.00')
+    expect(wrapper.getComponent({ name: 'InfiniteListSentinel' }).props('hasMore')).toBe(false)
+  })
+
 })

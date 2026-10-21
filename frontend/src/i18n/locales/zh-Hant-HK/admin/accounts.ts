@@ -1,5 +1,14 @@
 export default {
     accounts: {
+    details: {
+      statistics: '用量統計',
+      configuration: '帳戶資料',
+      actions: '操作',
+      diagnostics: '診斷與統計',
+      management: '帳戶管理',
+      links: '相關頁面',
+      extras: '點數與邀請',
+    },
       bpsAuthorizing: 'BPS 正在自動授權，當前使用原生通道；授權成功後自動切換，無需再次操作開關。',
       "modelsLoadFailed": "模型列表載入失敗，請重試。",
       "retryModels": "重新載入模型",
@@ -732,7 +741,7 @@ export default {
       bulkActions: {
         selected: '已選擇 {count} 個帳戶',
         selectedAll: '已選擇全部 {count} 個帳戶',
-        selectCurrentPage: '本頁全選',
+        selectCurrentPage: '選取已載入帳戶',
         selectAllResults: '全選所有結果（{count}）',
         selectingAll: '正在選擇全部結果...',
         selectAllFailed: '獲取全部帳戶失敗，原有選擇未改變',

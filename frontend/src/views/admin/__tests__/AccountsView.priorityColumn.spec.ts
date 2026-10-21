@@ -62,7 +62,7 @@ function mountView() {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
         TablePageLayout: {
-          template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
         },
         DataTable: DataTableStub,
         ColumnSettings: true,
@@ -128,17 +128,19 @@ describe('admin AccountsView priority column preferences', () => {
     )
   })
 
-  it('preserves an existing preference that explicitly hides priority', async () => {
-    localStorage.setItem('table-columns:accounts:v1', JSON.stringify({ order: [], hidden: ['priority', 'today_stats'] }))
-
+  it('preserves priority in details when unchecked and allows promotion without losing its sorting contract', async () => {
+    const storageKey = 'table-columns:accounts:v1'
+    localStorage.setItem(storageKey, JSON.stringify({ version: 2, order: [], primary: { priority: false, today_stats: false } }))
     const wrapper = mountView()
     await flushPromises()
-
-    expect(wrapper.find('[data-column="priority"]').exists()).toBe(false)
-    expect(JSON.parse(localStorage.getItem('table-columns:accounts:v1') || '{}').hidden).toEqual([
-      'priority',
-      'today_stats'
-    ])
+    const priorityColumn = () => wrapper.getComponent({ name: 'DataTable' }).props('columns').find((column: { key: string }) => column.key === 'priority')
+    expect(wrapper.get('[data-column="priority"]').text()).toBe('sortable')
+    expect(priorityColumn().primary).toBe(false)
+    wrapper.getComponent({ name: 'ColumnSettings' }).vm.$emit('toggle', 'priority')
+    await flushPromises()
+    expect(priorityColumn().primary).toBe(true)
+    expect(priorityColumn().sortable).toBe(true)
+    expect(JSON.parse(localStorage.getItem(storageKey)!).primary).toEqual({ priority: true, today_stats: false })
   })
 
   it('shows all columns without migrating obsolete automatic hiding preferences', async () => {
@@ -149,13 +151,13 @@ describe('admin AccountsView priority column preferences', () => {
 
     expect(wrapper.get('[data-column="priority"]').text()).toBe('sortable')
     expect(wrapper.findAll('[data-column]').map(column => column.attributes('data-column'))).toEqual([
-      'select', 'name', 'status', 'schedulable', 'usage', 'today_stats', 'capacity', 'groups',
-      'priority', 'platform_type', 'proxy', 'scheduler_score', 'rate_multiplier',
-      'upstream_billing_rate', 'last_used_at', 'expires_at', 'notes', 'id', 'created_at', 'actions'
+      'id', 'platform_type', 'name', 'status', 'schedulable', 'usage', 'capacity', 'groups', 'links', 'today_stats',
+      'priority', 'proxy', 'scheduler_score', 'rate_multiplier',
+      'upstream_billing_rate', 'last_used_at', 'expires_at', 'notes', 'created_at', 'actions'
     ])
   })
 
-  it('reorders required columns while retaining the fixed selection column and data sort', async () => {
+  it('reorders required columns including ID without changing data sort', async () => {
     const wrapper = mountView()
     await flushPromises()
     const table = wrapper.findComponent({ name: 'DataTable' })
@@ -163,7 +165,7 @@ describe('admin AccountsView priority column preferences', () => {
     const calls = listAccounts.mock.calls.length
     table.vm.$emit('column-reorder', ['actions', ...columns.filter((key: string) => key !== 'actions')])
     await flushPromises()
-    expect(table.props('columns').slice(0, 3).map((column: { key: string }) => column.key)).toEqual(['select', 'actions', 'name'])
+    expect(table.props('columns').slice(0, 3).map((column: { key: string }) => column.key)).toEqual(['actions', 'id', 'platform_type'])
     expect(listAccounts).toHaveBeenCalledTimes(calls)
   })
 

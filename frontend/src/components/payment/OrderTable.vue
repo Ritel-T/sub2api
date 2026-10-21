@@ -1,5 +1,5 @@
 <template>
-  <DataTable :column-order-key="showUser ? 'table-columns:orders-admin:v1' : 'table-columns:orders-user:v1'" :columns="columns" :data="orders" :loading="loading">
+  <DataTable :primary-columns="['id', ...(showUser ? ['user_email'] : []), 'pay_amount', 'status', 'created_at', 'actions']" :column-order-key="showUser ? 'table-columns:orders-admin:v1' : 'table-columns:orders-user:v1'" :columns="columns" :data="orders" :loading="loading">
     <template #cell-id="{ value }">
       <span class="font-mono text-sm">#{{ value }}</span>
     </template>

@@ -14,7 +14,7 @@
         {{ t('admin.usage.cleanup.warning') }}
       </div>
 
-      <div class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
+      <div class="open-section pt-4">
         <div class="flex items-center justify-between">
           <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
             {{ t('admin.usage.cleanup.recentTasks') }}
@@ -35,7 +35,7 @@
             <div
               v-for="task in tasks"
               :key="task.id"
-              class="flex flex-col gap-2 rounded-lg border border-gray-100 px-3 py-2 text-sm text-gray-600 dark:border-dark-700 dark:text-gray-300"
+              class="flex flex-col gap-2 border-b border-gray-100 py-3 text-sm text-gray-600 dark:border-dark-700 dark:text-gray-300"
             >
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
@@ -67,18 +67,7 @@
           </div>
         </div>
 
-        <Pagination
-          v-if="tasksTotal > tasksPageSize"
-          class="mt-4"
-          :total="tasksTotal"
-          :page="tasksPage"
-          :page-size="tasksPageSize"
-          :page-size-options="[5]"
-          :show-page-size-selector="false"
-          :show-jump="true"
-          @update:page="handleTaskPageChange"
-          @update:pageSize="handleTaskPageSizeChange"
-        />
+        <InfiniteListSentinel :loading="tasksLoading || taskList.loadingMore.value || taskList.refreshing.value" :error="taskList.error.value" :has-more="taskList.hasMore.value" @load-more="taskList.loadMore" @retry="taskList.retry" />
       </div>
     </div>
 
@@ -121,7 +110,8 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import { adminUsageAPI } from '@/api/admin/usage'
 import type { AdminUsageQueryParams, UsageCleanupTask, CreateUsageCleanupTaskRequest } from '@/api/admin/usage'
@@ -144,18 +134,20 @@ const localFilters = ref<AdminUsageQueryParams>({})
 const localStartDate = ref('')
 const localEndDate = ref('')
 
-const tasks = ref<UsageCleanupTask[]>([])
-const tasksLoading = ref(false)
-const tasksPage = ref(1)
-const tasksPageSize = ref(5)
-const tasksTotal = ref(0)
+const taskList = useInfiniteList<UsageCleanupTask>({
+  keyOf: task => task.id, pageSize: 20,
+  fetchPage: page => adminUsageAPI.listCleanupTasks({ page, page_size: 20 }),
+})
+const { items: tasks, loading: tasksLoading } = taskList
+watch(taskList.error, error => {
+  if (error) appStore.showError(t('admin.usage.cleanup.loadFailed'))
+})
 const submitting = ref(false)
 const confirmVisible = ref(false)
 const cancelConfirmVisible = ref(false)
 const canceling = ref(false)
 const cancelTarget = ref<UsageCleanupTask | null>(null)
 let pollTimer: number | null = null
-let taskRequestId = 0
 
 const noop = () => {}
 
@@ -165,8 +157,6 @@ const resetFilters = () => {
   localEndDate.value = props.endDate
   localFilters.value.start_date = localStartDate.value
   localFilters.value.end_date = localEndDate.value
-  tasksPage.value = 1
-  tasksTotal.value = 0
 }
 
 const startPolling = () => {
@@ -184,7 +174,7 @@ const stopPolling = () => {
 }
 
 const handleClose = () => {
-  taskRequestId++
+  taskList.cancel()
   stopPolling()
   confirmVisible.value = false
   cancelConfirmVisible.value = false
@@ -238,42 +228,8 @@ const getUserTimezone = () => {
 }
 
 const loadTasks = async () => {
-  if (!props.show) return
-  const requestId = ++taskRequestId
-  tasksLoading.value = true
-  try {
-    const res = await adminUsageAPI.listCleanupTasks({
-      page: tasksPage.value,
-      page_size: tasksPageSize.value
-    })
-    if (requestId !== taskRequestId) return
-    tasks.value = res.items || []
-    tasksTotal.value = res.total || 0
-    if (res.page) {
-      tasksPage.value = res.page
-    }
-    if (res.page_size) {
-      tasksPageSize.value = res.page_size
-    }
-  } catch (error) {
-    if (requestId !== taskRequestId) return
-    console.error('Failed to load cleanup tasks:', error)
-    appStore.showError(t('admin.usage.cleanup.loadFailed'))
-  } finally {
-    if (requestId === taskRequestId) tasksLoading.value = false
-  }
-}
-
-const handleTaskPageChange = (page: number) => {
-  tasksPage.value = page
-  loadTasks()
-}
-
-const handleTaskPageSizeChange = (size: number) => {
-  if (!Number.isFinite(size) || size <= 0) return
-  tasksPageSize.value = size
-  tasksPage.value = 1
-  loadTasks()
+  if (!props.show || tasksLoading.value || taskList.loadingMore.value || taskList.refreshing.value) return
+  await taskList.refresh()
 }
 
 const openConfirm = () => {
@@ -333,6 +289,7 @@ const buildPayload = (): CreateUsageCleanupTaskRequest | null => {
 }
 
 const submitCleanup = async () => {
+  if (!props.show || submitting.value) return
   const payload = buildPayload()
   if (!payload) {
     confirmVisible.value = false
@@ -353,6 +310,7 @@ const submitCleanup = async () => {
 }
 
 const cancelTask = async () => {
+  if (!props.show || canceling.value) return
   const task = cancelTarget.value
   if (!task) {
     cancelConfirmVisible.value = false
@@ -378,17 +336,18 @@ watch(
   (show) => {
     if (show) {
       resetFilters()
-      loadTasks()
+      void taskList.reset()
       startPolling()
     } else {
-      taskRequestId++
+      taskList.cancel()
       stopPolling()
     }
-  }
+  },
+  { immediate: true }
 )
 
 onUnmounted(() => {
-  taskRequestId++
+  taskList.cancel()
   stopPolling()
 })
 </script>

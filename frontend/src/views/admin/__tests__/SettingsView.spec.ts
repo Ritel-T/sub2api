@@ -94,6 +94,14 @@ const {
   showSuccess: vi.fn(),
 }));
 
+const affiliateListMock = vi.hoisted(() => vi.fn())
+vi.mock('@/api/admin/affiliates', () => { const api = {
+  listUsers: affiliateListMock,
+  lookupUsers: vi.fn().mockResolvedValue([]),
+  updateUserSettings: vi.fn(), clearUserSettings: vi.fn(), batchSetRate: vi.fn()
+}; return { affiliatesAPI: api, default: api } })
+beforeEach(() => { affiliateListMock.mockReset(); affiliateListMock.mockResolvedValue({ items: [], total: 0, pages: 0 }) })
+
 const localeRef = vi.hoisted(() => ({ value: "zh-CN" }));
 
 vi.mock("@/api", () => ({
@@ -1399,7 +1407,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
 
     const card = wrapper
-      .findAll(".card")
+      .findAll(".open-settings-section")
       .find((node) => node.text().includes("admin.settings.captcha.title"));
     expect(card).toBeDefined();
     expect(card!.text()).not.toContain("admin.settings.turnstile.siteKey");
@@ -1441,7 +1449,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.get('[data-testid="tencent-captcha-region-intl"]').trigger("click");
 
     const card = wrapper
-      .findAll(".card")
+      .findAll(".open-settings-section")
       .find((node) => node.text().includes("admin.settings.captcha.title"));
     expect(card).toBeDefined();
     expect(card!.get('a[href="https://console.tencentcloud.com/captcha/graphical"]').exists()).toBe(
@@ -1472,7 +1480,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
 
     const card = wrapper
-      .findAll(".card")
+      .findAll(".open-settings-section")
       .find((node) => node.text().includes("admin.settings.captcha.title"));
     expect(card).toBeDefined();
     expect(card!.text()).toContain("admin.settings.aliyunCaptcha.region");
@@ -1568,7 +1576,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await openSecurityTab(wrapper);
 
     const card = wrapper
-      .findAll(".card")
+      .findAll(".open-settings-section")
       .find((node) => node.text().includes("admin.settings.apiKeyAcl.title"));
     expect(card).toBeDefined();
     const toggle = card!.get('input[type="checkbox"]');
@@ -1747,6 +1755,26 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
   });
+
+  it("appends affiliate custom users and resets the query without changing settings", async () => {
+    getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, affiliate_enabled: true })
+    const entry = (id: number) => ({ user_id: id, email: `affiliate-${id}@example.com`, username: `user-${id}`, aff_code: `code-${id}`, aff_code_custom: true })
+    affiliateListMock.mockResolvedValueOnce({ items: [entry(1)], total: 2, pages: 2 })
+    const wrapper = mountView()
+    await flushPromises()
+    affiliateListMock.mockResolvedValueOnce({ items: [entry(2)], total: 2, pages: 2 })
+    const vm = wrapper.vm as any
+    await vm.affiliateList.loadMore()
+    await flushPromises()
+    expect(vm.affiliateList.items.value.map((row: { user_id: number }) => row.user_id)).toEqual([1, 2])
+    expect(affiliateListMock).toHaveBeenLastCalledWith({ page: 2, page_size: 50, search: '' }, { signal: expect.any(AbortSignal) })
+    vm.affiliateState.search = 'affiliate-2'
+    affiliateListMock.mockResolvedValueOnce({ items: [entry(2)], total: 1, pages: 1 })
+    await vm.loadAffiliateUsers()
+    expect(vm.affiliateList.items.value.map((row: { user_id: number }) => row.user_id)).toEqual([2])
+    expect(affiliateListMock).toHaveBeenLastCalledWith({ page: 1, page_size: 50, search: 'affiliate-2' }, { signal: expect.any(AbortSignal) })
+    expect(updateSettings).not.toHaveBeenCalled()
+  })
 
   it("submits the admin recharge affiliate rebate setting", async () => {
     getSettings.mockResolvedValueOnce({

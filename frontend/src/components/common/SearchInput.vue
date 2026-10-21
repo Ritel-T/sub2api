@@ -6,7 +6,8 @@
     <input
       v-model="searchValue"
       type="text"
-      class="input pl-10"
+      class="input workspace-search-input pl-10"
+      :aria-label="placeholder"
       :placeholder="placeholder"
     />
   </div>

@@ -114,7 +114,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-dark-600">
                   <tr
-                    v-for="entry in paginatedLocalEntries"
+                    v-for="entry in visibleEntries"
                     :key="entry.user_id"
                     class="align-top hover:bg-gray-50 dark:hover:bg-dark-700/50"
                     :data-testid="`denied-models-row-${entry.user_id}`"
@@ -159,12 +159,11 @@
             </div>
           </div>
 
-          <Pagination
-            :total="localEntries.length"
-            :page="currentPage"
-            :page-size="pageSize"
-            @update:page="currentPage = $event"
-            @update:pageSize="handlePageSizeChange"
+          <InfiniteListSentinel
+            :has-more="visibleEntries.length < localEntries.length"
+            :loading="loading"
+            :progress="currentPage"
+            @load-more="currentPage++"
           />
         </div>
       </div>
@@ -211,7 +210,7 @@ import type { GroupUserDeniedModelsEntry } from '@/api/admin/groups'
 import type { AdminGroup, AdminUser } from '@/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import ModelTagInput from '@/components/admin/group/ModelTagInput.vue'
@@ -241,7 +240,7 @@ const showDropdown = ref(false)
 const selectedUser = ref<AdminUser | null>(null)
 const newModels = ref<string[]>([])
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = 50
 
 let searchTimeout: ReturnType<typeof setTimeout>
 
@@ -262,16 +261,15 @@ const isDirty = computed(() => {
   return localEntries.value.some(e => serverMap.get(e.user_id) !== modelsKey(e.denied_models))
 })
 
-const paginatedLocalEntries = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return localEntries.value.slice(start, start + pageSize.value)
+const visibleEntries = computed(() => {
+  return localEntries.value.slice(0, currentPage.value * pageSize)
 })
 
 const cloneEntries = (entries: GroupUserDeniedModelsEntry[]) =>
   entries.map(e => ({ ...e, denied_models: [...e.denied_models] }))
 
 const adjustPage = () => {
-  const totalPages = Math.max(1, Math.ceil(localEntries.value.length / pageSize.value))
+  const totalPages = Math.max(1, Math.ceil(localEntries.value.length / pageSize))
   if (currentPage.value > totalPages) currentPage.value = totalPages
 }
 
@@ -312,11 +310,6 @@ watch(() => props.show, (val) => {
     loadCandidates()
   }
 }, { immediate: true })
-
-const handlePageSizeChange = (newSize: number) => {
-  pageSize.value = newSize
-  currentPage.value = 1
-}
 
 const handleSearchUsers = () => {
   clearTimeout(searchTimeout)

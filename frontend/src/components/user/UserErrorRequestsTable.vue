@@ -1,9 +1,10 @@
 <template>
-  <div class="flex min-h-0 flex-1 flex-col">
-    <div class="card flex min-h-0 flex-1 flex-col overflow-hidden">
+  <div class="min-w-0">
+    <div class="open-section">
       <IpGeoBatchToolbar :ips="rows.map((r) => r.client_ip)" @failed="emit('ipGeoBatchFailed')" />
 
-      <DataTable
+      <DataTable :primary-columns="['created_at', 'key_name', 'model', 'status', 'message']"
+        :toolbar-target="toolbarTarget"
         :columns="columns"
         @column-reorder="emit('column-reorder', $event)"
         :data="rows"
@@ -106,16 +107,13 @@
       </DataTable>
     </div>
 
-    <div class="flex-shrink-0">
-      <Pagination
-        v-if="total > 0"
-        :page="page"
-        :page-size="pageSize"
-        :total="total"
-        @update:page="$emit('update:page', $event)"
-        @update:pageSize="$emit('update:pageSize', $event)"
-      />
-    </div>
+    <InfiniteListSentinel
+      :loading="loading || loadingMore"
+      :error="error"
+      :has-more="hasMore ?? false"
+      @load-more="emit('load-more')"
+      @retry="emit('retry')"
+    />
 
     <UserErrorDetailModal v-model:show="showDetail" :error-id="selectedId" :support-enabled="supportEnabled" />
   </div>
@@ -126,7 +124,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import UserErrorDetailModal from '@/components/user/UserErrorDetailModal.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import IpGeoBatchToolbar from '@/components/common/IpGeoBatchToolbar.vue'
@@ -142,21 +140,23 @@ import type { UserErrorRequest } from '@/types'
 import type { Column } from '@/components/common/types'
 
 const props = defineProps<{
+  toolbarTarget?: string | HTMLElement | null
   rows: UserErrorRequest[]
-  total: number
   loading: boolean
-  page: number
-  pageSize: number
-  /** 列设置:仅显示这些 key 的列;不传则全显(key 须与 allColumns 一致) */
+  loadingMore?: boolean
+  hasMore?: boolean
+  error?: unknown
+  /** Ordered fields and their main-row placement from the page's column settings. */
   visibleColumnKeys?: string[]
+  primaryColumnKeys?: string[]
   supportEnabled?: boolean
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
 }>()
 
 const emit = defineEmits<{
-  (e: 'update:page', v: number): void
-  (e: 'update:pageSize', v: number): void
+  (e: 'load-more'): void
+  (e: 'retry'): void
   (e: 'column-reorder', keys: string[]): void
   (e: 'ipGeoBatchFailed'): void
   (e: 'sort', sortBy: string, sortOrder: 'asc' | 'desc'): void
@@ -183,11 +183,15 @@ const allColumns = computed<Column[]>(() => [
   { key: 'user_agent', label: t('usage.userAgent') },
 ])
 
-const columns = computed<Column[]>(() =>
-  props.visibleColumnKeys
+const columns = computed<Column[]>(() => {
+  const ordered = props.visibleColumnKeys
     ? props.visibleColumnKeys.flatMap(key => allColumns.value.find(column => column.key === key) ?? [])
     : allColumns.value
-)
+  return ordered.map(column => ({
+    ...column,
+    primary: props.primaryColumnKeys?.includes(column.key)
+  }))
+})
 
 function requestTypeBadge(row: UserErrorRequest): { label: string; className: string } | null {
   const kind = numericRequestTypeKind(row.request_type, row.stream)

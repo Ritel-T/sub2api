@@ -288,13 +288,14 @@ export async function getUserBalanceHistory(
   id: number,
   page: number = 1,
   pageSize: number = 20,
-  type?: string
+  type?: string,
+  options?: { signal?: AbortSignal }
 ): Promise<BalanceHistoryResponse> {
   const params: Record<string, any> = { page, page_size: pageSize }
   if (type) params.type = type
   const { data } = await apiClient.get<BalanceHistoryResponse>(
     `/admin/users/${id}/balance-history`,
-    { params }
+    { params, signal: options?.signal }
   )
   return data
 }

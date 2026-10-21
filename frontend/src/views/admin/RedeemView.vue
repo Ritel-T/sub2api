@@ -1,33 +1,11 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
-          <!-- Left: Search + Filters -->
-          <div class="flex-1 sm:max-w-64">
-            <input
-              v-model="searchQuery"
-              type="text"
-              :placeholder="t('admin.redeem.searchCodes')"
-              class="input"
-              @input="handleSearch"
-            />
-          </div>
-          <Select
-            v-model="filters.type"
-            :options="filterTypeOptions"
-            class="w-36"
-            @change="loadCodes"
-          />
-          <Select
-            v-model="filters.status"
-            :options="filterStatusOptions"
-            class="w-36"
-            @change="loadCodes"
-          />
-
-          <!-- Right: Action buttons -->
-          <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
+    <TablePageLayout open>
+      <template #actions>
+        <div class="workspace-page-header">
+          <h1 class="workspace-page-title">{{ t('admin.redeem.title') }}</h1>
+          <div class="workspace-header-actions">
+            <TableToolbarTarget kind="actions" />
             <button
               @click="loadCodes"
               :disabled="loading"
@@ -52,6 +30,35 @@
               {{ t('admin.redeem.generateCodes') }}
             </button>
           </div>
+        </div>
+      </template>
+
+      <template #filters>
+        <div class="filter-controls">
+          <!-- Left: Search + Filters -->
+          <div class="flex-1 sm:max-w-64">
+            <input
+              v-model="searchQuery"
+              type="text"
+              :placeholder="t('admin.redeem.searchCodes')"
+              class="input"
+              @input="handleSearch"
+            />
+          </div>
+          <Select
+            v-model="filters.type"
+            :options="filterTypeOptions"
+            class="w-36"
+            @change="loadCodes"
+          />
+          <Select
+            v-model="filters.status"
+            :options="filterStatusOptions"
+            class="w-36"
+            @change="loadCodes"
+          />
+
+          <TableToolbarTarget />
         </div>
       </template>
 
@@ -182,11 +189,11 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center space-x-2">
-              <button
+            <div class="workspace-row-actions">
+              <button :title="t('common.delete')" :aria-label="t('common.delete')"
                 v-if="row.status === 'unused'"
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -196,7 +203,7 @@
                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                   />
                 </svg>
-                <span class="text-xs">{{ t('common.delete') }}</span>
+                <span class="sr-only">{{ t('common.delete') }}</span>
               </button>
               <span v-else class="text-gray-400 dark:text-dark-500">-</span>
             </div>
@@ -230,13 +237,12 @@
           </div>
         </div>
 
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
+        <InfiniteListSentinel
+          :loading="loading || continuousList.loadingMore.value"
+          :error="continuousList.error.value"
+          :has-more="continuousList.hasMore.value"
+          @load-more="continuousList.loadMore"
+          @retry="continuousList.retry"
         />
 
         <!-- Batch Actions -->
@@ -611,12 +617,12 @@
 </template>
 
 <script setup lang="ts">
+import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { useTableSelection } from '@/composables/useTableSelection'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import {
   formatDateTime,
@@ -635,7 +641,8 @@ import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -772,8 +779,12 @@ const batchExpiryModeOptions = computed(() => [
   { value: 'custom', label: t('admin.redeem.customExpiry') }
 ])
 
-const codes = ref<RedeemCode[]>([])
-const loading = ref(false)
+const continuousList = useInfiniteList<RedeemCode>({
+  fetchPage: fetchListPage,
+  keyOf: row => row.id,
+  pageSize: 50
+})
+const { items: codes, loading } = continuousList
 const generating = ref(false)
 const batchUpdating = ref(false)
 const searchQuery = ref('')
@@ -781,18 +792,11 @@ const filters = reactive({
   type: '',
   status: ''
 })
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0,
-  pages: 0
-})
 const sortState = reactive({
   sort_by: 'id',
   sort_order: 'desc' as 'asc' | 'desc'
 })
 
-let abortController: AbortController | null = null
 
 const showDeleteDialog = ref(false)
 const showDeleteUnusedDialog = ref(false)
@@ -865,70 +869,36 @@ const buildRedeemQueryFilters = () => ({
   sort_order: sortState.sort_order
 })
 
-const loadCodes = async () => {
-  if (abortController) {
-    abortController.abort()
-  }
-  const currentController = new AbortController()
-  abortController = currentController
-  loading.value = true
+async function fetchListPage(page: number, signal: AbortSignal) {
   try {
-    const response = await adminAPI.redeem.list(
-      pagination.page,
-      pagination.page_size,
-      buildRedeemQueryFilters(),
-      {
-        signal: currentController.signal
-      }
-    )
-    if (currentController.signal.aborted) {
-      return
-    }
-    codes.value = response.items
-    pagination.total = response.total
-    pagination.pages = response.pages
-  } catch (error: any) {
-    if (
-      currentController.signal.aborted ||
-      error?.name === 'AbortError' ||
-      error?.code === 'ERR_CANCELED'
-    ) {
-      return
-    }
-    appStore.showError(t('admin.redeem.failedToLoad'))
-    console.error('Error loading redeem codes:', error)
-  } finally {
-    if (abortController === currentController && !currentController.signal.aborted) {
-      loading.value = false
-      abortController = null
-    }
+    return await adminAPI.redeem.list(page, 50, buildRedeemQueryFilters(), { signal })
+  } catch (error: unknown) {
+    if (!signal.aborted) appStore.showError(t('admin.redeem.failedToLoad'))
+    throw error
   }
 }
+
+const loadCodes = async () => {
+  clearSelectedCodes()
+  await continuousList.reset()
+}
+
 
 let searchTimeout: ReturnType<typeof setTimeout>
 const handleSearch = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
-    pagination.page = 1
+
     loadCodes()
   }, 300)
 }
 
-const handlePageChange = (page: number) => {
-  pagination.page = page
-  loadCodes()
-}
 
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.page_size = pageSize
-  pagination.page = 1
-  loadCodes()
-}
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.sort_by = key
   sortState.sort_order = order
-  pagination.page = 1
+
   loadCodes()
 }
 
@@ -1192,6 +1162,5 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearTimeout(searchTimeout)
-  abortController?.abort()
 })
 </script>

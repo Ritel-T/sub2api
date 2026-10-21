@@ -1,9 +1,9 @@
 <template>
   <section
-    class="rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900"
+    class="open-section"
     data-testid="account-ops-rules"
   >
-    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
+    <div class="flex flex-wrap items-center justify-between gap-3 pb-5">
       <div>
         <h3 class="text-sm font-semibold">{{ t('accountOps.accountRules') }}</h3>
         <p class="mt-1 text-xs text-gray-500">{{ t('accountOps.rulesOnceSummary') }}</p>

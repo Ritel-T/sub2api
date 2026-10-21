@@ -5,8 +5,10 @@
       :disabled="switching"
       class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
       :title="currentLocale?.name"
+      :aria-label="currentLocale?.name"
+      :aria-expanded="isOpen"
     >
-      <span class="text-base">{{ currentLocale?.flag }}</span>
+      <img :src="localeFlag(currentLocaleCode)" alt="" aria-hidden="true" width="20" height="15" class="h-[15px] w-5 shrink-0 rounded-[2px] object-cover" />
       <span class="hidden sm:inline">{{ currentLocaleCode === 'zh-Hant-HK' ? '繁' : currentLocale?.code.toUpperCase() }}</span>
       <Icon
         name="chevronDown"
@@ -32,7 +34,7 @@
               locale.code === currentLocaleCode
           }"
         >
-          <span class="text-base">{{ locale.flag }}</span>
+          <img :src="localeFlag(locale.code)" alt="" aria-hidden="true" width="20" height="15" class="h-[15px] w-5 shrink-0 rounded-[2px] object-cover" />
           <span>{{ locale.name }}</span>
           <Icon v-if="locale.code === currentLocaleCode" name="check" size="sm" class="ml-auto text-primary-500" />
         </button>
@@ -46,6 +48,13 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { setLocale, availableLocales } from '@/i18n'
+import usFlag from '@/assets/flags/us.svg'
+import hkFlag from '@/assets/flags/hk.svg'
+import cnFlag from '@/assets/flags/cn.svg'
+
+// Local SVG assets render consistently on Windows without relying on emoji fonts.
+const localeFlags: Record<string, string> = { en: usFlag, 'zh-Hant-HK': hkFlag, zh: cnFlag }
+const localeFlag = (code: string) => localeFlags[code] ?? usFlag
 
 const { locale } = useI18n()
 

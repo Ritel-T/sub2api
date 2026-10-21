@@ -15,6 +15,14 @@
     <!-- Stats data -->
     <div v-else-if="props.stats" class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:block sm:space-y-0.5">
       <div class="flex min-w-0 items-center gap-1">
+        <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.stats.todayRequests') }}:</span>
+        <span class="font-medium tabular-nums">{{ props.stats.requests }}</span>
+      </div>
+      <div v-if="props.stats.user_cost != null" class="flex min-w-0 items-center gap-1">
+        <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.stats.todayCost') }}:</span>
+        <span class="font-medium tabular-nums">{{ formatCurrency(props.stats.user_cost) }}</span>
+      </div>
+      <div class="flex min-w-0 items-center gap-1">
         <span class="min-w-0 truncate text-gray-500 dark:text-gray-400">{{ t('admin.accounts.stats.todayTokens') }}:</span>
         <span class="whitespace-nowrap font-medium text-emerald-600 dark:text-emerald-400">{{
           formatTokens(props.stats.tokens)
@@ -55,6 +63,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { formatCurrency } from '@/utils/format'
 import type { WindowStats } from '@/types'
 import ApiEquivalentCost from './ApiEquivalentCost.vue'
 

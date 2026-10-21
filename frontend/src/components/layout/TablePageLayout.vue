@@ -1,18 +1,19 @@
 <template>
-  <div ref="layoutRef" class="table-page-layout" :class="{ 'mobile-mode': isMobile }" :style="layoutStyle">
+  <div ref="layoutRef" class="table-page-layout" :class="{ 'mobile-mode': isMobile, 'is-open': open }" :style="layoutStyle">
     <!-- 固定区域：操作按钮 -->
     <div v-if="$slots.actions" class="layout-section-fixed">
       <slot name="actions" />
     </div>
 
     <!-- 固定区域：搜索和过滤器 -->
-    <div v-if="$slots.filters" class="layout-section-fixed">
-      <slot name="filters" />
+    <div v-if="$slots.filters" class="layout-section-fixed table-filter-workspace">
+      <div class="table-filter-content"><slot name="filters" /></div>
+      <div ref="fallbackToolbarTarget" class="table-filter-tools" />
     </div>
 
     <!-- 滚动区域：表格 -->
     <div class="layout-section-scrollable">
-      <div class="card table-scroll-container">
+      <div :class="open ? 'open-table-container' : 'card table-scroll-container'">
         <slot name="table" />
       </div>
     </div>
@@ -25,12 +26,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, provide, ref, onMounted, onUnmounted } from 'vue'
 
+const props = withDefaults(defineProps<{ open?: boolean }>(), { open: true })
+const fallbackToolbarTarget = ref<HTMLElement | null>(null)
+const inlineToolbarTarget = ref<HTMLElement | null>(null)
+const actionsTarget = ref<HTMLElement | null>(null)
+const toolbarTarget = computed(() => inlineToolbarTarget.value || fallbackToolbarTarget.value)
+provide('tableToolbarTarget', toolbarTarget)
+provide('tableInlineToolbarTarget', inlineToolbarTarget)
+provide('tableActionsTarget', actionsTarget)
 const isMobile = ref(false)
 const layoutRef = ref<HTMLElement | null>(null)
 const availableHeight = ref<number>()
-const layoutStyle = computed(() => isMobile.value ? { height: 'auto', minHeight: '0' }
+const layoutStyle = computed(() => props.open || isMobile.value ? { height: 'auto', minHeight: '0' }
   : availableHeight.value !== undefined ? { height: `${availableHeight.value}px`, minHeight: '0' } : undefined)
 let observer: ResizeObserver | undefined
 let frame = 0
@@ -38,7 +47,7 @@ function measure() {
   isMobile.value = window.innerWidth < 1024
   const element = layoutRef.value
   const main = element?.closest('main')
-  if (!element || !main || isMobile.value) return
+  if (!element || !main || isMobile.value || props.open) return
   const padding = parseFloat(getComputedStyle(main).paddingBottom) || 0
   const remaining = window.innerHeight - (element.getBoundingClientRect().top + window.scrollY) - padding
   // On short viewports controls may need normal page scrolling.
@@ -128,4 +137,5 @@ onUnmounted(() => {
   display: table;
   min-width: 100%;
 }
+.table-page-layout.is-open{height:auto;min-height:0}.is-open .layout-section-scrollable{flex:none;min-height:0;display:block}.open-table-container{min-width:0}
 </style>

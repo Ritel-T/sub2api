@@ -1,64 +1,77 @@
 <template>
-  <Teleport to="body">
-    <div v-if="show && anchorRect">
+  <Teleport to="body" :disabled="inline">
+    <div v-if="inline || (show && anchorRect)">
       <!-- Backdrop: click anywhere outside to close -->
-      <div class="fixed inset-0 z-[9998]" @click="emit('close')"></div>
+      <div v-if="!inline" class="fixed inset-0 z-[9998]" @click="emit('close')"></div>
       <div
         ref="menuRef"
-        class="action-menu-content fixed z-[9999] w-52 overflow-y-auto overscroll-contain rounded-xl bg-white shadow-lg ring-1 ring-black/5 dark:bg-dark-800"
-        :style="menuStyle"
+        :class="inline ? 'account-inline-actions' : 'action-menu-content fixed z-[9999] w-52 overflow-y-auto overscroll-contain rounded-xl bg-white shadow-lg ring-1 ring-black/5 dark:bg-dark-800'"
+        :style="inline ? undefined : menuStyle"
         @click.stop
       >
-        <div class="py-1">
+        <div :class="inline ? 'account-action-groups' : 'py-1'">
           <template v-if="account">
-            <button @click="$emit('test', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+            <div :class="inline ? 'account-action-group' : undefined">
+            <h4 v-if="inline">{{ t('admin.accounts.details.diagnostics') }}</h4>
+            <div :class="inline ? 'account-action-items' : undefined">
+            <button @click="$emit('test', account); $emit('close')" :class="itemClass">
               <Icon name="play" size="sm" :stroke-width="2" />
               {{ t('admin.accounts.testConnection') }}
             </button>
-            <button @click="$emit('stats', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+            <button @click="$emit('stats', account); $emit('close')" :class="itemClass">
               <Icon name="chart" size="sm" />
               {{ t('admin.accounts.viewStats') }}
             </button>
-            <button @click="$emit('schedule', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+            <button @click="$emit('schedule', account); $emit('close')" :class="itemClass">
               <Icon name="clock" size="sm" />
               {{ t('admin.scheduledTests.schedule') }}
             </button>
-            <button @click="$emit('iq-test', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+            <button @click="$emit('iq-test', account); $emit('close')" :class="itemClass">
               <Icon name="brain" size="sm" />
               {{ t('admin.accounts.pelicanTest.menu') }}
             </button>
-            <button v-if="canDuplicate" @click="$emit('duplicate', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+            </div>
+            </div>
+            <div :class="inline ? 'account-action-group' : undefined">
+            <h4 v-if="inline">{{ t('admin.accounts.details.management') }}</h4>
+            <div :class="inline ? 'account-action-items' : undefined">
+            <button v-if="canDuplicate" @click="$emit('duplicate', account); $emit('close')" :class="itemClass">
               <Icon name="copy" size="sm" />
               {{ t('admin.accounts.duplicateAccount') }}
             </button>
             <!-- 影子账号不持凭据:重授权/刷新 token 对其无效(后端拒绝),故隐藏(外审 G4)。 -->
             <template v-if="(account.type === 'oauth' || account.type === 'setup-token') && !isShadow">
-              <button @click="$emit('reauth', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+              <button @click="$emit('reauth', account); $emit('close')" :class="itemClass">
                 <Icon name="link" size="sm" />
                 {{ t('admin.accounts.reAuthorize') }}
               </button>
-              <button @click="$emit('refresh-token', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+              <button @click="$emit('refresh-token', account); $emit('close')" :class="itemClass">
                 <Icon name="refresh" size="sm" />
                 {{ t('admin.accounts.refreshToken') }}
               </button>
             </template>
-            <button v-if="isOpenAIOAuthParent" @click="$emit('create-spark-shadow', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+            <button v-if="isOpenAIOAuthParent" @click="$emit('create-spark-shadow', account); $emit('close')" :class="itemClass">
               <Icon name="sparkles" size="sm" />
               {{ t('admin.accounts.createSparkShadow') }}
             </button>
-            <button v-if="supportsPrivacy" @click="$emit('set-privacy', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+            <button v-if="supportsPrivacy" @click="$emit('set-privacy', account); $emit('close')" :class="itemClass">
               <Icon name="shield" size="sm" />
               {{ t('admin.accounts.setPrivacy') }}
             </button>
-            <div v-if="hasRecoverableState" class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
-            <button v-if="hasRecoverableState" @click="$emit('recover-state', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+            <div v-if="!inline && hasRecoverableState" class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
+            <button v-if="hasRecoverableState" @click="$emit('recover-state', account); $emit('close')" :class="itemClass">
               <Icon name="sync" size="sm" />
               {{ t('admin.accounts.recoverState') }}
             </button>
-            <button v-if="hasQuotaLimit" @click="$emit('reset-quota', account); $emit('close')" class="theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm">
+            <button v-if="hasQuotaLimit" @click="$emit('reset-quota', account); $emit('close')" :class="itemClass">
               <Icon name="refresh" size="sm" />
               {{ t('admin.accounts.resetQuota') }}
             </button>
+            <button v-if="inline" @click="$emit('delete', account)" :class="[itemClass, 'account-delete-action']">
+              <Icon name="trash" size="sm" />{{ t('common.delete') }}
+            </button>
+            </div>
+            </div>
           </template>
         </div>
       </div>
@@ -73,9 +86,10 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@/components/icons'
 import type { Account } from '@/types'
 
-const props = defineProps<{ show: boolean; account: Account | null; anchorRect: DOMRect | null }>()
-const emit = defineEmits(['close', 'test', 'stats', 'schedule', 'iq-test', 'duplicate', 'reauth', 'refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'create-spark-shadow'])
+const props = withDefaults(defineProps<{ inline?: boolean; show?: boolean; account: Account | null; anchorRect?: DOMRect | null }>(), { inline: false, show: false, anchorRect: null })
+const emit = defineEmits(['close', 'test', 'stats', 'schedule', 'iq-test', 'duplicate', 'reauth', 'refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'create-spark-shadow', 'delete'])
 const { t } = useI18n()
+const itemClass = computed(() => props.inline ? 'theme-action-button account-inline-action' : 'theme-action-button flex w-full items-center gap-2 px-4 py-2 text-sm')
 const menuRef = ref<HTMLElement | null>(null)
 const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 const viewportPadding = 8
@@ -153,7 +167,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 watch(
   () => props.show,
   (visible) => {
-    if (visible) {
+    if (visible && !props.inline) {
       window.addEventListener('keydown', handleKeydown)
     } else {
       window.removeEventListener('keydown', handleKeydown)
@@ -166,3 +180,14 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 </script>
+
+<style scoped>
+.account-action-groups { display: grid; gap: 1rem; }
+.account-action-group { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: .75rem; align-items: start; }
+.account-action-group h4 { margin: 0; padding-top: .45rem; font-size: 12px; font-weight: 500; color: var(--ritel-muted); }
+.account-action-items { display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+.account-inline-action { display: inline-flex; align-items: center; gap: .4rem; min-height: 32px; padding: .3rem 0; font-size: 12px; white-space: nowrap; }
+.account-delete-action { color: var(--color-red-600, #dc2626); }
+:global(.dark) .account-delete-action { color: #f87171; }
+@media (max-width: 639px) { .account-action-group { grid-template-columns: 1fr; gap: .25rem; } }
+</style>

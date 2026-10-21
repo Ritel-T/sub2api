@@ -1,22 +1,24 @@
 <template>
-  <div class="grid min-w-0 w-full grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+  <div class="account-filter-fields">
     <SearchInput
       :model-value="searchQuery"
       :placeholder="t('admin.accounts.searchAccounts')"
-      class="col-span-2 min-w-0 w-full sm:w-56"
+      class="account-search"
       @update:model-value="$emit('update:searchQuery', $event)"
       @search="$emit('change')"
     />
-    <Select :model-value="filters.platform" :aria-label="t('admin.accounts.allPlatforms')" class="min-w-0 w-full sm:w-36" :options="pOpts" @update:model-value="updatePlatform" @change="$emit('change')" />
-    <Select :model-value="filters.status" :aria-label="t('admin.accounts.allStatus')" class="min-w-0 w-full sm:w-36" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
-    <Select :model-value="filters.type" :aria-label="t('admin.accounts.allTypes')" class="min-w-0 w-full sm:w-36" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
-    <Select :model-value="filters.privacy_mode" :aria-label="t('admin.accounts.allPrivacyModes')" class="min-w-0 w-full sm:w-36" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
-    <Select :model-value="filters.group" :aria-label="t('admin.accounts.allGroups')" class="min-w-0 w-full sm:w-36" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
+    <Select :model-value="filters.platform" :aria-label="t('admin.accounts.allPlatforms')" class="account-filter" :options="pOpts" @update:model-value="updatePlatform" @change="$emit('change')" />
+    <Select :model-value="filters.status" :aria-label="t('admin.accounts.allStatus')" class="account-filter" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
+    <Select :model-value="filters.type" :aria-label="t('admin.accounts.allTypes')" class="account-filter" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
+    <Select :model-value="filters.privacy_mode" :aria-label="t('admin.accounts.allPrivacyModes')" class="account-filter" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
+    <Select :model-value="filters.group" :aria-label="t('admin.accounts.allGroups')" class="account-filter" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
+    <slot><TableToolbarTarget /></slot>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'; import { useI18n } from 'vue-i18n'; import Select from '@/components/common/Select.vue'; import SearchInput from '@/components/common/SearchInput.vue'
+import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import type { AdminGroup } from '@/types'
 import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
 const props = defineProps<{ searchQuery: string; filters: Record<string, any>; groups?: AdminGroup[] }>()
@@ -42,3 +44,14 @@ const gOpts = computed(() => [
   ...(props.groups || []).map(g => ({ value: String(g.id), label: g.name }))
 ])
 </script>
+
+<style scoped>
+.account-filter-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem 1rem; min-width: 0; width: 100%; }
+.account-search { flex: 1 1 13rem; min-width: 11rem; max-width: 15rem; }
+.account-filter { flex: 1 1 7.5rem; min-width: 7rem; max-width: 12rem; }
+@media (max-width: 767px) {
+  .account-filter-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .account-search { grid-column: 1 / -1; }
+  .account-search, .account-filter { min-width: 0; max-width: none; width: 100%; }
+}
+</style>

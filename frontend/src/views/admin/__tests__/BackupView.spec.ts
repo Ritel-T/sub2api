@@ -181,7 +181,8 @@ describe('admin BackupView', () => {
     const wrapper = mountBackupView()
     await flushPromises()
 
-    expect(wrapper.find('tbody tr td:nth-child(5)').text()).toBe('-')
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.get('[data-field="parts"] dd').text()).toBe('-')
     expect(wrapper.findAll('button').some(button => button.text() === 'common.delete')).toBe(false)
   })
 
@@ -289,7 +290,8 @@ describe('admin BackupView', () => {
     const wrapper = mountBackupView()
     await flushPromises()
     expect(wrapper.text()).toContain('admin.backup.archive.badge')
-    expect(wrapper.get('tbody tr td:nth-child(6)').text()).toBe('admin.backup.archive.retainLatest')
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.get('[data-field="expires_at"] dd').text()).toBe('admin.backup.archive.retainLatest')
     const button = wrapper.findAll('button').find(button => button.text() === 'common.delete')!
     await button.trigger('click')
     expect(confirm).toHaveBeenCalledWith('admin.backup.archive.deleteConfirm')

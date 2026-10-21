@@ -1,11 +1,11 @@
 <template>
   <AppLayout>
-    <div class="space-y-6 pb-6">
+    <div class="open-page pb-6">
       <!-- Notice on how to read imperfect drawings; only while there are results to look at. -->
       <p
         v-if="groups.length"
         role="note"
-        class="mt-3 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-relaxed text-sky-900 dark:border-sky-800/60 dark:bg-sky-950/30 dark:text-sky-100 md:mt-4"
+        class="open-section flex items-start gap-2 py-4 text-sm leading-relaxed text-gray-600 dark:text-gray-300"
         data-testid="showcase-notice"
       >
         <Icon name="infoCircle" size="sm" class="mt-0.5 flex-shrink-0 text-sky-500 dark:text-sky-400" />
@@ -132,7 +132,7 @@
 
         <div
           v-if="!group.items.length"
-          class="rounded-2xl border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+          class="open-section py-10 text-center text-sm text-gray-500 dark:text-gray-400"
         >
           {{ t('pelicanShowcase.groupEmpty') }}
         </div>

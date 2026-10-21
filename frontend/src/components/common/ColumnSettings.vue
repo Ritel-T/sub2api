@@ -16,7 +16,7 @@
       :style="position"
     >
       <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-dark-600">
-        <span class="text-sm font-medium">{{ t('common.columnSettings') }}</span>
+        <span class="text-sm font-medium">{{ primaryHeading }}</span>
         <button type="button" class="btn btn-secondary btn-sm" @click="emit('reset')">{{ t('common.resetColumns') }}</button>
       </div>
       <span :id="hintId" class="sr-only">{{ t('common.columnKeyboard') }}</span>
@@ -61,7 +61,8 @@ const props = withDefaults(defineProps<{
   requiredColumns?: string[]
 }>(), { requiredColumns: () => [] })
 const emit = defineEmits<{ toggle: [key: string]; reorder: [keys: string[]]; reset: [] }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const primaryHeading = computed(() => locale?.value?.startsWith('zh') ? locale.value === 'zh-CN' || locale.value === 'zh' ? '主行字段' : '主行欄位' : 'Main row columns')
 const panelId = useId()
 const hintId = useId()
 const trigger = ref<HTMLButtonElement>()

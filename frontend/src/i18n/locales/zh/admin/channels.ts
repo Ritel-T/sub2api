@@ -689,7 +689,7 @@ export default {
         selected: '已选择 {count} 条订阅',
         selectSubscription: '选择订阅 #{id}',
         clearSelection: '清空选择',
-        selectionHint: '当前页选择，翻页或筛选会清空，最多 100 条。各操作仅处理适用状态的订阅。',
+        selectionHint: '最多选择 100 条已加载订阅；筛选或排序时清空选择。',
         selectionLimit: '每次最多操作 100 条订阅',
         selectionRequired: '请至少选择一条订阅',
         confirmTargets: '本次将处理以下 {count} 条订阅',

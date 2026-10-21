@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
-    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="mb-4" />
-    <div class="min-w-0 space-y-5">
+    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="open-page mb-4" />
+    <div class="open-page min-w-0 space-y-5">
       <header><h1 class="text-2xl font-semibold">{{ t('priorityScheduling.title') }}</h1><p class="mt-2 text-sm text-gray-500">{{ t('priorityScheduling.description') }}</p></header>
       <p class="rounded-xl bg-primary-50 p-4 text-sm leading-6 text-primary-800 dark:bg-primary-950/30 dark:text-primary-200">{{ t('priorityScheduling.scopeNote') }}</p>
       <div v-if="error" role="alert" class="text-red-600">{{ error }} <button v-if="!draft" class="underline" @click="load">{{ t('priorityScheduling.retry') }}</button></div>
@@ -11,7 +11,7 @@
         <fieldset :disabled="saving" class="min-w-0 space-y-5">
           <label class="flex items-center gap-3 font-medium"><input v-model="draft.enabled" data-testid="enabled" type="checkbox" role="switch" />{{ t('priorityScheduling.enabled') }}</label>
           <label class="block text-sm"><span class="flex items-center gap-3"><input v-model="draft.balance_protocols" data-testid="balance-protocols" type="checkbox" />{{ t('priorityScheduling.balanceProtocols') }}</span><small class="mt-1 block text-gray-500">{{ t('priorityScheduling.balanceProtocolsHint') }}</small></label>
-          <section class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
+          <section class="open-section">
             <label class="flex items-center gap-3 font-medium"><input v-model="draft.oauth_quota_priority" data-testid="oauth-quota-priority" type="checkbox" role="switch" />{{ t('priorityScheduling.oauthQuotaPriority') }}</label>
             <p class="mt-2 text-sm leading-6 text-gray-500">{{ t('priorityScheduling.oauthQuotaHint') }}</p>
             <label v-if="draft.oauth_quota_priority" class="mt-3 block max-w-xs"><span class="field-title">{{ t('priorityScheduling.oauthQuotaThreshold') }}</span><input v-model.number="draft.oauth_quota_threshold" data-testid="oauth-quota-threshold" type="number" min="1" max="100" step="1" required class="input w-full" /></label>
@@ -19,7 +19,7 @@
           <div class="grid gap-5 lg:grid-cols-2">
             <section class="min-w-0 space-y-4">
               <label class="block"><span class="field-title">{{ t('priorityScheduling.strategy') }}</span><select v-model="draft.mode" class="input w-full" data-testid="mode"><option v-for="mode in modes" :key="mode" :value="mode">{{ t(`priorityScheduling.modes.${mode}`) }}</option></select></label>
-              <div class="grid grid-cols-2 gap-3"><label v-for="(weight, index) in weightKeys" :key="weight"><span class="field-title">{{ t(`priorityScheduling.${weight}`) }}</span><input v-if="draft.mode === 'custom'" v-model.number="draft[weight]" type="number" min="0" max="100" step="0.1" required class="input w-full" /><div v-else class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-800">{{ presets[draft.mode][index] }}%</div></label></div>
+              <div class="grid grid-cols-2 gap-3"><label v-for="(weight, index) in weightKeys" :key="weight"><span class="field-title">{{ t(`priorityScheduling.${weight}`) }}</span><input v-if="draft.mode === 'custom'" v-model.number="draft[weight]" type="number" min="0" max="100" step="0.1" required class="input w-full" /><div v-else class="open-section text-sm">{{ presets[draft.mode][index] }}%</div></label></div>
               <p class="text-sm leading-6 text-gray-500">{{ t('priorityScheduling.rule') }}</p>
               <p class="text-xs leading-5 text-gray-500">{{ t('priorityScheduling.costHint') }}</p>
             </section>
@@ -29,7 +29,7 @@
           <button class="btn btn-primary" type="submit">{{ t(saving ? 'priorityScheduling.saving' : 'priorityScheduling.save') }}</button>
         </fieldset>
       </form>
-      <section class="card p-5">
+      <section class="open-section p-5">
         <header class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-lg font-semibold">{{ t('priorityScheduling.recent') }}</h2><button class="btn btn-secondary" :disabled="refreshing" @click="refresh">{{ t('priorityScheduling.refresh') }}</button></header>
         <p class="my-3 text-xs leading-5 text-gray-500">{{ t('priorityScheduling.snapshotHint') }}</p>
         <p v-if="snapshot && contextAccountId && !visibleCandidates.length" class="py-4 text-sm">{{ t('common.noData') }}</p>
@@ -41,13 +41,27 @@
           <p v-else-if="!snapshot.history_ready" class="text-sm text-amber-600">{{ t('priorityScheduling.historyPending') }}</p>
           <p v-if="snapshot.history_error && snapshot.history_ready" class="text-sm text-amber-600">{{ t('priorityScheduling.historyRetry') }}</p>
           <p v-if="snapshot.evaluated_at" class="mb-3 text-xs text-gray-500">{{ t('priorityScheduling.evaluatedAt') }}: {{ new Date(snapshot.evaluated_at).toLocaleString() }}<template v-if="snapshot.history_observed_at"> · {{ t('priorityScheduling.historyObservedAt') }}: {{ new Date(snapshot.history_observed_at).toLocaleString() }}</template></p>
-          <div v-if="visibleCandidates.length" class="overflow-x-auto"><table class="w-full whitespace-nowrap text-left text-sm"><thead><tr><th v-for="key in ['account','tier','priority','score','quality','latency','load','rate','profit']" :key="key" class="px-3 py-3 text-xs font-medium text-gray-500">{{ t(`priorityScheduling.${key}`) }}</th></tr></thead><tbody><tr v-for="row in visibleCandidates" :key="row.account_id" class="border-t border-gray-100 dark:border-dark-700"><td class="px-3 py-4"><strong class="font-medium">{{ row.account_name }}</strong><small class="block text-gray-400">#{{ row.account_id }}</small><small v-if="row.bound_groups != null" class="block text-gray-400">{{ t('priorityScheduling.boundGroups') }}: {{ row.bound_groups }}</small></td><td class="px-3 py-4"><span :class="row.tier === 'eligible' ? 'text-emerald-600' : row.tier === 'degraded' ? 'text-amber-600' : 'text-gray-500'">{{ t(`priorityScheduling.tiers.${row.tier}`) }}</span><small v-if="row.oauth_quota_role" class="block font-medium text-primary-600">{{ t(`priorityScheduling.oauthQuotaRoles.${row.oauth_quota_role}`) }}</small><small v-if="row.history_status && row.history_status !== 'ready'" class="block text-amber-600">{{ t(`priorityScheduling.historyStates.${row.history_status}`) }}</small><small v-if="row.latency_penalty_until && !row.latency_recovery" class="block text-gray-400">{{ t('priorityScheduling.latencyPenaltyUntil') }}: {{ new Date(row.latency_penalty_until).toLocaleString() }}</small><small v-for="reason in row.reasons" :key="reason" class="block text-gray-400">{{ t(`priorityScheduling.reasons.${reason}`) }}</small></td><td class="px-3 py-4 tabular-nums">{{ row.priority }}</td><td class="px-3 py-4 tabular-nums">{{ row.score.toFixed(1) }}<small v-if="row.selection_weight != null" class="block text-gray-400">{{ t('priorityScheduling.selectionWeight') }}: {{ row.selection_weight.toFixed(2) }}</small><small v-if="row.exploration_eligible" class="block text-gray-400">{{ t('priorityScheduling.explorationEligible') }}</small></td><td class="px-3 py-4">{{ row.quality_samples ? `${row.quality_passed}/${row.quality_samples}` : '—' }}</td><td class="px-3 py-4">{{ row.samples ? `${Math.round(row.p90_ttft_ms)} ms` : '—' }}<small class="block text-gray-400">{{ row.samples }} {{ t('priorityScheduling.samples') }}</small></td><td class="px-3 py-4">{{ row.load_percent == null ? '—' : `${row.load_percent}%` }}</td><td class="px-3 py-4">{{ row.rate == null ? '—' : `${row.rate.toFixed(3)}×` }}</td><td class="px-3 py-4"><template v-if="row.economics_source === 'usage'"><span :class="(row.profit ?? 0) < 0 ? 'text-red-600' : 'text-emerald-600'">${{ row.profit?.toFixed(4) }} · {{ row.margin == null ? '—' : `${(row.margin * 100).toFixed(1)}%` }}</span><small class="block text-gray-400">${{ row.revenue.toFixed(4) }} − ${{ row.theoretical_cost.toFixed(4) }}</small></template><span v-else class="text-xs text-gray-500">{{ t(`priorityScheduling.economics.${row.economics_source || 'unknown'}`) }}</span></td></tr></tbody></table></div>
+          <div v-if="visibleCandidates.length" class="overflow-x-auto"><DataTable
+ :columns="openRecordColumns"
+ :primary-columns="['account','tier','priority','score','quality','load']"
+ :data="visibleCandidates" row-key="account_id" >
+<template #cell-account="{ row: row }"><div class=""><strong class="font-medium">{{ row.account_name }}</strong><small class="block text-gray-400">#{{ row.account_id }}</small><small v-if="row.bound_groups != null" class="block text-gray-400">{{ t('priorityScheduling.boundGroups') }}: {{ row.bound_groups }}</small></div></template>
+<template #cell-tier="{ row: row }"><div class=""><span :class="row.tier === 'eligible' ? 'text-emerald-600' : row.tier === 'degraded' ? 'text-amber-600' : 'text-gray-500'">{{ t(`priorityScheduling.tiers.${row.tier}`) }}</span><small v-if="row.oauth_quota_role" class="block font-medium text-primary-600">{{ t(`priorityScheduling.oauthQuotaRoles.${row.oauth_quota_role}`) }}</small><small v-if="row.history_status && row.history_status !== 'ready'" class="block text-amber-600">{{ t(`priorityScheduling.historyStates.${row.history_status}`) }}</small><small v-if="row.latency_penalty_until && !row.latency_recovery" class="block text-gray-400">{{ t('priorityScheduling.latencyPenaltyUntil') }}: {{ new Date(row.latency_penalty_until).toLocaleString() }}</small><small v-for="reason in row.reasons" :key="reason" class="block text-gray-400">{{ t(`priorityScheduling.reasons.${reason}`) }}</small></div></template>
+<template #cell-priority="{ row: row }"><div class="tabular-nums">{{ row.priority }}</div></template>
+<template #cell-score="{ row: row }"><div class="tabular-nums">{{ row.score.toFixed(1) }}<small v-if="row.selection_weight != null" class="block text-gray-400">{{ t('priorityScheduling.selectionWeight') }}: {{ row.selection_weight.toFixed(2) }}</small><small v-if="row.exploration_eligible" class="block text-gray-400">{{ t('priorityScheduling.explorationEligible') }}</small></div></template>
+<template #cell-quality="{ row: row }"><div class="">{{ row.quality_samples ? `${row.quality_passed}/${row.quality_samples}` : '—' }}</div></template>
+<template #cell-latency="{ row: row }"><div class="">{{ row.samples ? `${Math.round(row.p90_ttft_ms)} ms` : '—' }}<small class="block text-gray-400">{{ row.samples }} {{ t('priorityScheduling.samples') }}</small></div></template>
+<template #cell-load="{ row: row }"><div class="">{{ row.load_percent == null ? '—' : `${row.load_percent}%` }}</div></template>
+<template #cell-rate="{ row: row }"><div class="">{{ row.rate == null ? '—' : `${row.rate.toFixed(3)}×` }}</div></template>
+<template #cell-profit="{ row: row }"><div class=""><template v-if="row.economics_source === 'usage'"><span :class="(row.profit ?? 0) < 0 ? 'text-red-600' : 'text-emerald-600'">${{ row.profit?.toFixed(4) }} · {{ row.margin == null ? '—' : `${(row.margin * 100).toFixed(1)}%` }}</span><small class="block text-gray-400">${{ row.revenue.toFixed(4) }} − ${{ row.theoretical_cost.toFixed(4) }}</small></template><span v-else class="text-xs text-gray-500">{{ t(`priorityScheduling.economics.${row.economics_source || 'unknown'}`) }}</span></div></template>
+</DataTable></div>
         </template>
       </section>
     </div>
   </AppLayout>
 </template>
 <script setup lang="ts">
+import DataTable from '@/components/common/DataTable.vue'
 const contextRoute = useRoute()
 const contextAccountId = computed(() => objectQueryId(contextRoute?.query?.account_id))
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -121,9 +135,18 @@ async function loadSnapshot(attempt: number) {
 watch(() => auth.user ? `${auth.user.id}:${auth.user.role}` : '', () => { stopHistoryRefresh(); generation++; draft.value = null; snapshot.value = null; groups.value = modelsText.value = error.value = notice.value = snapshotError.value = ''; loading.value = saving.value = refreshing.value = false }, { flush: 'sync' })
 onMounted(() => { void load(); void refresh() })
 onBeforeUnmount(() => { stopHistoryRefresh(); alive = false; generation++ })
+
+const openRecordColumns = computed(() => [{ key: 'account', label: t('priorityScheduling.account'), sortable: false },
+  { key: 'tier', label: t('priorityScheduling.tier'), sortable: false },
+  { key: 'priority', label: t('priorityScheduling.priority'), sortable: false },
+  { key: 'score', label: t('priorityScheduling.score'), sortable: false },
+  { key: 'quality', label: t('priorityScheduling.quality'), sortable: false },
+  { key: 'latency', label: t('priorityScheduling.latency'), sortable: false },
+  { key: 'load', label: t('priorityScheduling.load'), sortable: false },
+  { key: 'rate', label: t('priorityScheduling.rate'), sortable: false },
+  { key: 'profit', label: t('priorityScheduling.profit'), sortable: false }])
 </script>
 <style scoped>
-.card { @apply rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
 .field-title { @apply mb-2 block text-xs font-medium text-gray-600 dark:text-gray-300; }
 input[type=checkbox] { @apply h-4 w-4 rounded text-primary-600; }
 button:disabled { @apply cursor-not-allowed opacity-50; }

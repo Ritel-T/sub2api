@@ -37,7 +37,7 @@ function mountView() {
         AppLayout: { template: '<div><slot /></div>' },
         OrderTable: { props: ['orders'], template: '<div><div v-for="row in orders" :key="row.id" :data-order="row.id"><slot name="actions" :row="row" /></div></div>' },
         BaseDialog: { props: ['show'], template: '<div v-if="show" data-testid="order-detail"><slot /></div>' },
-        Pagination: true, Select: true, Icon: true, OrderStatusBadge: true, AdminRefundDialog: true,
+        InfiniteListSentinel: true, Select: true, Icon: true, OrderStatusBadge: true, AdminRefundDialog: true,
       },
     },
   })
@@ -96,4 +96,46 @@ describe('real admin orders route retail snapshots', () => {
     expect(wrapper.get('[data-order="2"]').text()).toContain('payment.admin.refund')
     wrapper.unmount()
   })
+  it('appends server pages and retries a failed append without dropping loaded orders', async () => {
+    getOrders.mockReset()
+    getOrders.mockResolvedValueOnce({ data: { items: [order], total: 2 } })
+      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockResolvedValueOnce({ data: { items: [{ ...order, id: 2 }], total: 2 } })
+    const wrapper = mountView()
+    await flushPromises()
+    const sentinel = wrapper.findComponent({ name: 'InfiniteListSentinel' })
+    sentinel.vm.$emit('load-more')
+    await flushPromises()
+    expect(wrapper.findAll('[data-order]')).toHaveLength(1)
+    expect(sentinel.props('error')).toBeTruthy()
+    sentinel.vm.$emit('retry')
+    await flushPromises()
+    expect(getOrders.mock.calls.map(call => call[0].page)).toEqual([1, 2, 2])
+    expect(wrapper.findAll('[data-order]')).toHaveLength(2)
+    expect(sentinel.props('hasMore')).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('discards an old append after a filter starts a new result set', async () => {
+    let resolveOld!: (value: unknown) => void
+    getOrders.mockReset()
+    getOrders.mockResolvedValueOnce({ data: { items: [order], total: 2 } })
+      .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve }))
+      .mockResolvedValueOnce({ data: { items: [{ ...order, id: 3 }], total: 1 } })
+    const wrapper = mountView()
+    await flushPromises()
+    wrapper.findComponent({ name: 'InfiniteListSentinel' }).vm.$emit('load-more')
+    await flushPromises()
+    wrapper.findAllComponents({ name: 'Select' })[0].vm.$emit('update:modelValue', 'COMPLETED')
+    wrapper.findAllComponents({ name: 'Select' })[0].vm.$emit('change')
+    await flushPromises()
+    resolveOld({ data: { items: [{ ...order, id: 2 }], total: 2 } })
+    await flushPromises()
+    expect(getOrders).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, status: 'COMPLETED' }))
+    expect(wrapper.find('[data-order="3"]').exists()).toBe(true)
+    expect(wrapper.find('[data-order="2"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-order]')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
 })

@@ -1,7 +1,7 @@
 <template>
     <div class="space-y-6">
       <!-- S3 Storage Config -->
-      <div class="card p-6">
+      <div class="open-section">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="text-base font-semibold text-gray-900 dark:text-white">
@@ -55,7 +55,7 @@
       </div>
 
       <!-- Async image object storage -->
-      <div class="card p-6">
+      <div class="open-section">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="text-base font-semibold text-gray-900 dark:text-white">
@@ -130,7 +130,7 @@
       </div>
 
       <!-- Schedule Config -->
-      <div class="card p-6" data-testid="backup-schedule">
+      <div class="open-section" data-testid="backup-schedule">
         <div class="mb-4">
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">
             {{ t('admin.backup.schedule.title') }}
@@ -164,7 +164,7 @@
         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.schedule.ordinaryHint') }}</p>
         <BackupArchiveSettings v-model="archiveForm" />
         <p v-if="scheduleValidationError" class="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">{{ scheduleValidationError }}</p>
-        <div class="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-dark-800 dark:text-gray-300" aria-live="polite">
+        <div class="open-section mt-4 text-sm text-gray-700 dark:text-gray-300" aria-live="polite">
           <p class="font-medium">{{ t('admin.backup.schedule.preview') }}</p>
           <p>{{ retentionPreview }}</p>
         </div>
@@ -176,7 +176,7 @@
       </div>
 
       <!-- Backup Operations -->
-      <div class="card p-6">
+      <div class="open-section">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="text-base font-semibold text-gray-900 dark:text-white">
@@ -201,86 +201,68 @@
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[800px] text-sm">
-            <thead>
-              <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500 dark:border-dark-700 dark:text-gray-400">
-                <th class="py-2 pr-4">ID</th>
-                <th class="py-2 pr-4">{{ t('admin.backup.columns.status') }}</th>
-                <th class="py-2 pr-4">{{ t('admin.backup.columns.fileName') }}</th>
-                <th class="py-2 pr-4">{{ t('admin.backup.columns.size') }}</th>
-                <th class="py-2 pr-4">{{ t('admin.backup.columns.parts') }}</th>
-                <th class="py-2 pr-4">{{ t('admin.backup.columns.expiresAt') }}</th>
-                <th class="py-2 pr-4">{{ t('admin.backup.columns.triggeredBy') }}</th>
-                <th class="py-2 pr-4">{{ t('admin.backup.columns.startedAt') }}</th>
-                <th class="py-2">{{ t('admin.backup.columns.actions') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="record in backups" :key="record.id" class="border-b border-gray-100 align-top dark:border-dark-800">
-                <td class="py-3 pr-4 font-mono text-xs">{{ record.id }}</td>
-                <td class="py-3 pr-4">
+          <DataTable
+ :columns="openRecordColumns"
+ :primary-columns="['id','status','file_name','size','started_at','actions']"
+ :data="backups" row-key="id" :loading="loadingBackups">
+<template #cell-id="{ row: record }"><div class="font-mono text-xs">{{ record.id }}</div></template>
+<template #cell-status="{ row: record }"><div class="">
                   <span
-                    class="rounded px-2 py-0.5 text-xs"
+                    class="rounded text-xs"
                     :class="statusClass(record.status)"
                   >
                     {{ record.status === 'running' && record.progress
                       ? t(`admin.backup.progress.${record.progress}`)
                       : t(`admin.backup.status.${record.status}`) }}
                   </span>
-                </td>
-                <td class="py-3 pr-4 text-xs">
+                </div></template>
+<template #cell-file_name="{ row: record }"><div class="text-xs">
                   {{ record.file_name }}
-                  <span v-if="record.monthly_archive" class="ml-1 inline-block rounded bg-primary-50 px-1.5 py-0.5 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ t('admin.backup.archive.badge') }}</span>
+                  <span v-if="record.monthly_archive" class="ml-1 inline-block rounded bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ t('admin.backup.archive.badge') }}</span>
                   <div v-if="record.monthly_archive" class="mt-1 text-gray-500 dark:text-gray-400">{{ record.monthly_archive.dates.join(' / ') }}</div>
-                </td>
-                <td class="py-3 pr-4 text-xs">{{ formatSize(record.size_bytes) }}</td>
-                <td class="py-3 pr-4 text-xs">{{ record.parts?.length || (record.status === 'running' ? '-' : 1) }}</td>
-                <td class="py-3 pr-4 text-xs">
+                </div></template>
+<template #cell-size="{ row: record }"><div class="text-xs">{{ formatSize(record.size_bytes) }}</div></template>
+<template #cell-parts="{ row: record }"><div class="text-xs">{{ record.parts?.length || (record.status === 'running' ? '-' : 1) }}</div></template>
+<template #cell-expires_at="{ row: record }"><div class="text-xs">
                   {{ record.monthly_archive
                     ? record.monthly_archive.retain_count === 0 ? t('admin.backup.archive.forever') : t('admin.backup.archive.retainLatest', { count: record.monthly_archive.retain_count })
                     : record.expires_at ? formatDate(record.expires_at) : t('admin.backup.neverExpire') }}
-                </td>
-                <td class="py-3 pr-4 text-xs">
+                </div></template>
+<template #cell-triggered_by="{ row: record }"><div class="text-xs">
                   {{ record.triggered_by === 'scheduled' ? t('admin.backup.trigger.scheduled') : t('admin.backup.trigger.manual') }}
-                </td>
-                <td class="py-3 pr-4 text-xs">{{ formatDate(record.started_at) }}</td>
-                <td class="py-3 text-xs">
+                </div></template>
+<template #cell-started_at="{ row: record }"><div class="text-xs">{{ formatDate(record.started_at) }}</div></template>
+<template #cell-actions="{ row: record }"><div class="text-xs">
                   <div class="flex flex-wrap gap-1">
-                    <button
+                    <button :title="t('admin.backup.actions.download')" :aria-label="t('admin.backup.actions.download')"
                       v-if="record.status === 'completed'"
                       type="button"
-                      class="btn btn-secondary btn-xs"
+                      class="workspace-icon-action theme-action-button"
                       @click="downloadBackup(record.id)"
                     >
-                      {{ t('admin.backup.actions.download') }}
+                      <Icon name="download" size="sm" /><span class="sr-only">{{ t('admin.backup.actions.download') }}</span>
                     </button>
-                    <button
+                    <button :title="restoringId === record.id ? t('common.loading') : t('admin.backup.actions.restore')" :aria-label="restoringId === record.id ? t('common.loading') : t('admin.backup.actions.restore')"
                       v-if="record.status === 'completed'"
                       type="button"
-                      class="btn btn-secondary btn-xs"
+                      class="workspace-icon-action theme-action-button"
                       :disabled="restoringId === record.id"
                       @click="restoreBackup(record.id)"
                     >
-                      {{ restoringId === record.id ? t('common.loading') : t('admin.backup.actions.restore') }}
+                      <Icon name="refresh" size="sm" /><span class="sr-only">{{ restoringId === record.id ? t('common.loading') : t('admin.backup.actions.restore') }}</span>
                     </button>
-                    <button
+                    <button :title="t('common.delete')" :aria-label="t('common.delete')"
                       v-if="record.status !== 'running'"
                       type="button"
-                      class="btn btn-danger btn-xs"
+                      class="workspace-icon-action text-red-600 dark:text-red-400"
                       @click="removeBackup(record.id)"
                     >
-                      {{ t('common.delete') }}
+                      <Icon name="trash" size="sm" /><span class="sr-only">{{ t('common.delete') }}</span>
                     </button>
                   </div>
-                </td>
-              </tr>
-              <tr v-if="backups.length === 0">
-                <td colspan="9" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                  {{ t('admin.backup.empty') }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                </div></template>
+<template #empty><p class="py-6 text-sm text-gray-500">{{ t('admin.backup.empty') }}</p></template>
+</DataTable>
         </div>
       </div>
     </div>
@@ -414,6 +396,8 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
@@ -938,6 +922,16 @@ onBeforeUnmount(() => {
   stopRestorePolling()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
+
+const openRecordColumns = computed(() => [{ key: 'id', label: "ID", sortable: false },
+  { key: 'status', label: t('admin.backup.columns.status'), sortable: false },
+  { key: 'file_name', label: t('admin.backup.columns.fileName'), sortable: false },
+  { key: 'size', label: t('admin.backup.columns.size'), sortable: false },
+  { key: 'parts', label: t('admin.backup.columns.parts'), sortable: false },
+  { key: 'expires_at', label: t('admin.backup.columns.expiresAt'), sortable: false },
+  { key: 'triggered_by', label: t('admin.backup.columns.triggeredBy'), sortable: false },
+  { key: 'started_at', label: t('admin.backup.columns.startedAt'), sortable: false },
+  { key: 'actions', label: t('admin.backup.columns.actions'), sortable: false }])
 </script>
 
 <style scoped>

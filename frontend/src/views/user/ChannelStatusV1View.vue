@@ -1,5 +1,6 @@
 <template>
   <AppLayout>
+    <div class="open-page">
     <MonitorHero
       :overall-status="overallStatus"
       :interval-seconds="DEFAULT_INTERVAL_SECONDS"
@@ -18,6 +19,8 @@
       :detail-cache="detailCache"
       @card-click="openDetail"
     />
+
+    </div>
 
     <MonitorDetailDialog
       :show="showDetail"

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import type { OpsDashboardOverview } from '@/api/admin/ops'
 import { flushPromises, mount, shallowMount } from '@vue/test-utils'
@@ -12,7 +12,7 @@ const { listRequestDetails, listAccounts, viewport } = vi.hoisted(() => ({
   viewport: { desktop: true },
 }))
 
-vi.mock('@vueuse/core', () => ({ useMediaQuery: () => ref(viewport.desktop) }))
+vi.mock('@vueuse/core', async (importOriginal) => ({ ...await importOriginal<typeof import('@vueuse/core')>(), useMediaQuery: () => ref(viewport.desktop) }))
 vi.mock('@/api/admin/ops', () => ({ opsAPI: { listRequestDetails } }))
 vi.mock('@/api/admin/accounts', () => ({ accountsAPI: { list: listAccounts } }))
 vi.mock('@/api', () => ({ adminAPI: { groups: { getAll: vi.fn().mockResolvedValue([]) } } }))
@@ -27,6 +27,8 @@ vi.mock('vue-i18n', async (importOriginal) => ({
 }))
 
 async function openDetails(sort: 'duration_desc' | 'ttft_desc') {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: viewport.desktop ? 1280 : 390 })
+  vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: viewport.desktop, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }))
   const wrapper = mount(OpsRequestDetailsModal, {
     props: { modelValue: false, timeRange: '1h', preset: { title: 'Details', sort } },
     global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Pagination: true } },
@@ -35,6 +37,8 @@ async function openDetails(sort: 'duration_desc' | 'ttft_desc') {
   await flushPromises()
   return wrapper
 }
+
+afterEach(() => { vi.restoreAllMocks() })
 
 describe('Ops request latency details', () => {
   beforeEach(() => {
@@ -85,15 +89,16 @@ describe('Ops request latency details', () => {
     expect(wrapper.text()).not.toContain('12000 ms')
     expect(wrapper.text()).not.toContain('9000 ms')
     expect(wrapper.text()).not.toContain('5000 ms')
-    if (desktop) expect(wrapper.findAll('tbody tr')[2].findAll('td')[5].text()).toBe('-')
-    else expect(wrapper.text()).toContain('admin.ops.ttftLabel: -')
+    if (desktop) expect(wrapper.findAll('tbody tr')[2].find('[data-column-key="latency"]').text()).toBe('-')
+    else expect(wrapper.findAll('[data-field="latency"]')[2].text()).toContain('-')
     wrapper.unmount()
   })
 
   it('shows account names with id fallback in the account column', async () => {
     const wrapper = await openDetails('ttft_desc')
+    for (const toggle of wrapper.findAll('[data-test="toggle-details"]')) await toggle.trigger('click')
     expect(wrapper.text()).toContain('admin.ops.requestDetails.table.account')
-    const accountCells = wrapper.findAll('tbody tr').map(tr => tr.findAll('td')[4].text())
+    const accountCells = wrapper.findAll('.table-detail-row [data-field="account"] dd').map(cell => cell.text())
     expect(accountCells).toEqual(['acc-alpha', 'acc-beta', '#999'])
     // 999 不在账号映射里，应触发一次强制刷新重建缓存
     expect(listAccounts).toHaveBeenCalledTimes(2)
@@ -108,4 +113,34 @@ describe('Ops request latency details', () => {
     expect(wrapper.text()).not.toContain('800 ms')
     wrapper.unmount()
   })
+  it('appends details without changing its time window and retries a failed next batch', async () => {
+    const first = { kind: 'success', request_id: 'request-1', created_at: '2026-10-20T00:00:00Z', duration_ms: 100 }
+    const second = { ...first, request_id: 'request-2', created_at: '2026-10-20T00:00:01Z' }
+    listRequestDetails.mockResolvedValueOnce({ items: [first], total: 2 })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ items: [second], total: 2 })
+    const wrapper = await openDetails('duration_desc')
+    const initialQuery = listRequestDetails.mock.calls[0][0]
+    await wrapper.get('.infinite-list-action').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+    expect(wrapper.get('.infinite-list-action').text()).toBe('Retry')
+    await wrapper.get('.infinite-list-action').trigger('click')
+    await flushPromises()
+    expect(listRequestDetails).toHaveBeenLastCalledWith({ ...initialQuery, page: 2 })
+    expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+    expect(wrapper.find('.infinite-list-action').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('offers retry after a failed initial request', async () => {
+    listRequestDetails.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = await openDetails('duration_desc')
+    expect(wrapper.get('.infinite-list-action').text()).toBe('Retry')
+    await wrapper.get('.infinite-list-action').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('tbody tr')).toHaveLength(3)
+    wrapper.unmount()
+  })
+
 })

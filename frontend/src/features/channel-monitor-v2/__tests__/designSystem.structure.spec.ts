@@ -13,12 +13,12 @@ function read(rel: string) {
 }
 
 describe('channel-monitor-v2 design system structure', () => {
-  it('user ChannelStatus V2 shell uses page-header, card, btn, tabs utilities', () => {
+  it('user ChannelStatus V2 separates open sections while retaining its monitoring controls', () => {
     // Route wrapper may switch V1/V2; design chrome lives on the V2 implementation.
     const src = read('views/user/ChannelStatusV2View.vue')
     expect(src).toContain('page-header')
     expect(src).toContain('page-title')
-    expect(src).toContain('class="card')
+    expect(src).toContain('class="open-section')
     expect(src).toContain('btn btn-secondary')
     expect(src).toContain('class="tab')
     expect(src).toContain('tab-active')
@@ -28,9 +28,8 @@ describe('channel-monitor-v2 design system structure', () => {
     expect(src).toContain('clearFilters')
     expect(src).toContain('healthModeOptions')
     expect(src).toContain("'cache'")
-    // Ops elevation: rounded-3xl + ring surfaces
-    expect(src).toContain('rounded-3xl')
-    expect(src).toContain('ring-1 ring-gray-900/5')
+    expect(src).toContain('open-metric-strip')
+    expect(src).not.toContain('class="card ')
     // Overview-first KPI strip before primary viz
     expect(src.indexOf('summaryAria')).toBeLessThan(src.indexOf('MonitorTrendChart'))
     // No page-level fixed min-width that forces viewport horizontal scroll
@@ -45,34 +44,32 @@ describe('channel-monitor-v2 design system structure', () => {
     expect(src).toContain('MonitorTrendChart')
   })
 
-  it('RelayPulseMatrix uses card chrome, matrix scroll, and hover tooltips (no click modal)', () => {
+  it('RelayPulseMatrix preserves bounded matrix scrolling, zoom recovery and hover details', () => {
     const src = read('features/channel-monitor-v2/RelayPulseMatrix.vue')
-    expect(src).toContain('class="card')
-    expect(src).toContain('card-header')
-    expect(src).toContain('card-body')
+    expect(src).toContain('<section')
+    expect(src).toContain('@click="resetMatrixZoom"')
+    expect(src).toContain('channelMonitorV2.matrix.title')
     expect(src).toContain('matrix-scroll')
     expect(src).toMatch(/max-h-\[min\(42vh/)
     expect(src).toContain('overflow-auto')
     expect(src).toContain('pulse-tooltip')
-    expect(src).toContain('rounded-3xl')
-    expect(src).toContain('ring-1 ring-gray-900/5')
     expect(src).not.toContain('modal-overlay')
     expect(src).not.toContain('modal-content')
   })
 
-  it('MetricCell uses stat-card utility', () => {
+  it('MetricCell retains label, value, status and supporting telemetry', () => {
     const src = read('features/channel-monitor-v2/MetricCell.vue')
-    expect(src).toContain('stat-card')
     expect(src).toContain('stat-label')
     expect(src).toContain('stat-value')
-    expect(src).toContain('rounded-3xl')
+    expect(src).toContain('resolvedState')
+    expect(src).toContain('detailParts')
   })
 
-  it('MonitorTrendChart uses Ops chart shell tokens', () => {
+  it('MonitorTrendChart preserves the chart title, recovery and empty state', () => {
     const src = read('features/channel-monitor-v2/MonitorTrendChart.vue')
-    expect(src).toContain('class="card')
-    expect(src).toContain('rounded-3xl')
-    expect(src).toContain('ring-1 ring-gray-900/5')
+    expect(src).toContain('<section')
+    expect(src).toContain('channelMonitorV2.chart.title')
+    expect(src).toContain('@click="resetChartZoom"')
     expect(src).toContain('EmptyState')
     expect(src).toContain('min-h-[360px]')
   })
@@ -84,11 +81,10 @@ describe('channel-monitor-v2 design system structure', () => {
     expect(src).toContain('dropdown-item')
   })
 
-  it('MonitorSettingsPanel uses page-header, card, btn-primary, tabs', () => {
+  it('MonitorSettingsPanel retains save, settings navigation and bounded record browsing', () => {
     const src = read('features/channel-monitor-v2/MonitorSettingsPanel.vue')
     expect(src).toContain('page-header')
     expect(src).toContain('btn btn-primary')
-    expect(src).toContain('class="card')
     expect(src).toContain('tab-active')
     expect(src).toMatch(/max-h-\[min\(40vh/)
   })

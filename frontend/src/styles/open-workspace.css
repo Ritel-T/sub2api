@@ -1,0 +1,145 @@
+/* Content lives on the page; borders belong to sections and interactive controls. */
+.ritel-app {
+  --console-content-width: 1760px;
+  --workspace-section-gap: clamp(32px, 3.4vw, 64px);
+  --workspace-column-gap: clamp(28px, 4vw, 72px);
+}
+
+.ritel-main {
+  padding: 40px clamp(24px, 3vw, 64px) 80px;
+}
+
+.open-page {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-section-gap, 40px);
+}
+
+.open-section,
+.open-record-list {
+  min-width: 0;
+  border: 0;
+  border-top: 1px solid var(--ritel-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 24px 0;
+}
+
+.open-section > .card-header,
+.open-section > .card-body,
+.open-section > .card-footer,
+.open-record-list > .card-header,
+.open-record-list > .card-body,
+.open-record-list > .card-footer {
+  padding-left: 0;
+  padding-right: 0;
+  background: transparent;
+}
+
+.open-section > .card-header,
+.open-record-list > .card-header {
+  padding-top: 0;
+  border: 0;
+}
+
+.open-section > .card-body,
+.open-record-list > .card-body { padding-top: 16px; padding-bottom: 0; }
+
+.open-section > .card-footer,
+.open-record-list > .card-footer { padding-bottom: 0; }
+
+.open-metric-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 24px clamp(24px, 3vw, 56px);
+  border-top: 1px solid var(--ritel-border);
+  padding: 24px 0;
+}
+
+.open-metric-strip > * {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.open-metric-strip > :first-child { flex-grow: 1.6; }
+.open-metric-strip > .open-section { border: 0; padding: 0; }
+.open-metric {
+  min-width: 0;
+  padding: 8px 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.open-main-aside {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr);
+  align-items: start;
+  gap: var(--workspace-section-gap, 40px) var(--workspace-column-gap, 48px);
+}
+
+.open-main-aside > *,
+.open-settings-section > * { min-width: 0; }
+
+.open-settings-section {
+  display: grid;
+  grid-template-columns: minmax(180px, 14rem) minmax(0, 1fr);
+  gap: 24px var(--workspace-column-gap, 48px);
+  border-top: 1px solid var(--ritel-border);
+  padding: 32px 0;
+}
+
+.open-settings-section > :first-child { align-self: start; }
+.open-settings-section > :not(:first-child) { grid-column: 2; }
+
+.open-section :is(h2, h3),
+.open-settings-section :is(h2, h3) { text-wrap: balance; }
+
+.open-record-list table { width: 100%; }
+.open-record-list th { color: var(--ritel-muted); }
+.open-record-list :is(th, td) { border-color: var(--ritel-border); }
+
+.table-filter-workspace { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
+.table-filter-content { flex: 1 1 640px; min-width: 0; }
+.table-filter-tools { flex: 0 1 auto; min-width: 0; }
+.table-filter-tools:empty, .inline-table-tools:empty { display: none; }
+.table-header-tools { display: flex; align-items: center; gap: 8px; }
+.table-header-tools:empty { display: none; }
+.inline-table-tools { display: flex; align-items: center; flex: 0 1 12rem; min-width: 0; max-width: 100%; }
+.inline-table-tools > :is(.table-tools, .workspace-tools) { width: 100%; }
+.inline-table-tools :is(.table-tools, .workspace-tools),
+.table-filter-tools :is(.table-tools, .workspace-tools) { margin: 0; padding: 0; border: 0; }
+.filter-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; min-width: 0; }
+.filter-controls > * { min-width: 0; }
+.workspace-page-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px 32px; }
+.workspace-page-title {
+  margin: 0;
+  color: var(--ritel-fg);
+  font-family: var(--ritel-display);
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.01em;
+}
+.workspace-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.workspace-page-header + [role="group"] { margin-top: 24px; }
+
+@media (max-width: 1023px) {
+  .open-main-aside { grid-template-columns: minmax(0, 1fr); }
+  .open-settings-section { grid-template-columns: minmax(150px, 1fr) minmax(0, 2.5fr); }
+}
+
+@media (max-width: 767px) {
+  .workspace-page-title { font-size: 28px; }
+  .workspace-header-actions { justify-content: flex-start; }
+  .ritel-main { padding: 28px 20px 96px; }
+  .ritel-app { --workspace-section-gap: 32px; --workspace-column-gap: 24px; }
+  .open-settings-section { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 24px 0; }
+  .open-settings-section > :not(:first-child) { grid-column: auto; }
+  .open-metric-strip { gap: 24px; }
+  .open-metric-strip > * { flex-basis: 128px; }
+}

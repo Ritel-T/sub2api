@@ -1,50 +1,9 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
-        <div
-          class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start"
-        >
-          <!-- Left: fuzzy search + filters (can wrap to multiple lines) -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
-            <div class="relative w-full sm:w-64">
-              <Icon
-                name="search"
-                size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-              />
-              <input
-                v-model="searchQuery"
-                type="text"
-                :placeholder="t('admin.groups.searchGroups')"
-                class="input pl-10"
-                @input="handleSearch"
-              />
-            </div>
-            <Select
-              v-model="filters.platform"
-              :options="platformFilterOptions"
-              :placeholder="t('admin.groups.allPlatforms')"
-              class="w-44"
-              @change="loadGroups"
-            />
-            <Select
-              v-model="filters.status"
-              :options="statusOptions"
-              :placeholder="t('admin.groups.allStatus')"
-              class="w-40"
-              @change="loadGroups"
-            />
-            <Select
-              v-if="!authStore.isSimpleMode"
-              v-model="filters.is_exclusive"
-              :options="exclusiveOptions"
-              :placeholder="t('admin.groups.allGroups')"
-              class="w-44"
-              @change="loadGroups"
-            />
-          </div>
-
+    <TablePageLayout open>
+      <template #actions>
+        <header class="groups-page-heading">
+          <h1>{{ t('admin.groups.title') }}</h1>
           <!-- Right: actions -->
           <div
             class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto"
@@ -87,6 +46,51 @@
               {{ t("admin.groups.createGroup") }}
             </button>
           </div>
+        </header>
+      </template>
+      <template #filters>
+        <div
+          class="flex flex-wrap items-end gap-3"
+        >
+          <div class="flex flex-1 flex-wrap items-center gap-3">
+            <div class="relative w-full sm:w-64">
+              <Icon
+                name="search"
+                size="md"
+                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+              />
+              <input
+                v-model="searchQuery"
+                type="text"
+                :placeholder="t('admin.groups.searchGroups')"
+                class="input pl-10"
+                @input="handleSearch"
+              />
+            </div>
+            <Select
+              v-model="filters.platform"
+              :options="platformFilterOptions"
+              :placeholder="t('admin.groups.allPlatforms')"
+              class="w-44"
+              @change="loadGroups"
+            />
+            <Select
+              v-model="filters.status"
+              :options="statusOptions"
+              :placeholder="t('admin.groups.allStatus')"
+              class="w-40"
+              @change="loadGroups"
+            />
+            <Select
+              v-if="!authStore.isSimpleMode"
+              v-model="filters.is_exclusive"
+              :options="exclusiveOptions"
+              :placeholder="t('admin.groups.allGroups')"
+              class="w-44"
+              @change="loadGroups"
+            />
+            <TableToolbarTarget />
+          </div>
         </div>
       </template>
 
@@ -94,6 +98,7 @@
         <DataTable
           :columns="columns"
           :data="groups"
+          :actions-count="authStore.isSimpleMode ? 2 : groups.some(group => group.platform === 'composite') ? 7 : 6"
           :loading="loading"
           :server-side-sort="true"
           default-sort-key="sort_order"
@@ -369,15 +374,19 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <button
+            <div class="workspace-row-actions">
+              <button :title="t('common.edit')" :aria-label="t('common.edit')"
                 @click="handleEdit(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400 workspace-icon-action"
               >
                 <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t("common.edit") }}</span>
+                <span class="sr-only">{{ t("common.edit") }}</span>
               </button>
-              <button
+              <button :aria-label="
+                  duplicatingGroupIds.has(row.id)
+                    ? t('admin.groups.duplicating')
+                    : t('admin.groups.duplicate')
+                "
                 v-if="!authStore.isSimpleMode"
                 data-testid="group-duplicate"
                 :title="
@@ -387,10 +396,10 @@
                 "
                 :disabled="duplicatingGroupIds.has(row.id)"
                 @click="handleDuplicate(row)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                class="theme-action-button transition-colors disabled:cursor-not-allowed disabled:opacity-50 workspace-icon-action"
               >
                 <Icon name="copy" size="sm" />
-                <span class="text-xs">
+                <span class="sr-only">
                   {{
                     duplicatingGroupIds.has(row.id)
                       ? t("admin.groups.duplicating")
@@ -398,56 +407,56 @@
                   }}
                 </span>
               </button>
-              <button
+              <button :title="t('admin.groups.compositeRoutes.action')" :aria-label="t('admin.groups.compositeRoutes.action')"
                 v-if="!authStore.isSimpleMode && row.platform === 'composite'"
                 data-testid="group-composite-routes"
                 @click="handleCompositeRoutes(row)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+                class="theme-action-button transition-colors workspace-icon-action"
               >
                 <Icon name="swap" size="sm" />
-                <span class="text-xs">{{
+                <span class="sr-only">{{
                   t("admin.groups.compositeRoutes.action")
                 }}</span>
               </button>
-              <button
+              <button :title="t('admin.groups.rateMultipliers')" :aria-label="t('admin.groups.rateMultipliers')"
                 v-if="!authStore.isSimpleMode"
                 data-testid="group-rate-multipliers"
                 @click="handleRateMultipliers(row)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+                class="theme-action-button transition-colors workspace-icon-action"
               >
                 <Icon name="dollar" size="sm" />
-                <span class="text-xs">{{
+                <span class="sr-only">{{
                   t("admin.groups.rateMultipliers")
                 }}</span>
               </button>
-              <button
+              <button :title="t('admin.groups.rpmOverrides')" :aria-label="t('admin.groups.rpmOverrides')"
                 v-if="!authStore.isSimpleMode"
                 data-testid="group-rpm-overrides"
                 @click="handleRPMOverrides(row)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+                class="theme-action-button transition-colors workspace-icon-action"
               >
                 <Icon name="bolt" size="sm" />
-                <span class="text-xs">{{
+                <span class="sr-only">{{
                   t("admin.groups.rpmOverrides")
                 }}</span>
               </button>
-              <button
+              <button :title="t('admin.groups.userDeniedModels')" :aria-label="t('admin.groups.userDeniedModels')"
                 v-if="!authStore.isSimpleMode"
                 data-testid="group-user-denied-models"
                 @click="handleUserDeniedModels(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-red-600 dark:hover:bg-dark-700 dark:hover:text-red-400"
+                class="text-gray-500 transition-colors hover:bg-gray-100 hover:text-red-600 dark:hover:bg-dark-700 dark:hover:text-red-400 workspace-icon-action"
               >
                 <Icon name="ban" size="sm" />
-                <span class="text-xs">{{
+                <span class="sr-only">{{
                   t("admin.groups.userDeniedModels")
                 }}</span>
               </button>
-              <button
+              <button :title="t('common.delete')" :aria-label="t('common.delete')"
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
               >
                 <Icon name="trash" size="sm" />
-                <span class="text-xs">{{ t("common.delete") }}</span>
+                <span class="sr-only">{{ t("common.delete") }}</span>
               </button>
             </div>
           </template>
@@ -464,13 +473,12 @@
       </template>
 
       <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
+        <InfiniteListSentinel
+          :loading="loading || continuousList.loadingMore.value"
+          :error="continuousList.error.value"
+          :has-more="continuousList.hasMore.value"
+          @load-more="continuousList.loadMore"
+          @retry="continuousList.retry"
         />
       </template>
     </TablePageLayout>
@@ -4400,7 +4408,9 @@ import TablePageLayout from "@/components/layout/TablePageLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
 import ColumnSettings from "@/components/common/ColumnSettings.vue";
 import { useTableColumns } from "@/composables/useTableColumns";
-import Pagination from "@/components/common/Pagination.vue";
+import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import Toggle from "@/components/common/Toggle.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
@@ -4433,7 +4443,6 @@ import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
 import { extractApiErrorMessage } from "@/utils/apiError";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
-import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import {
   createDefaultMessagesDispatchFormState,
   messagesDispatchConfigToFormState,
@@ -4597,6 +4606,7 @@ const {
   setColumnOrder,
   resetColumns,
 } = useTableColumns("table-columns:groups:v1", allColumns, {
+  primary: ["name", "status", "platform", "account_count", "rate_multiplier", "actions"],
   required: ["name", "actions"],
 });
 
@@ -4814,8 +4824,12 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
   }));
 });
 
-const groups = ref<AdminGroup[]>([]);
-const loading = ref(false);
+const continuousList = useInfiniteList<AdminGroup>({
+  fetchPage: fetchListPage,
+  keyOf: row => row.id,
+  pageSize: 50
+})
+const { items: groups, loading } = continuousList
 type GroupUsageSummary = {
   today_cost: number;
   yesterday_cost: number;
@@ -4843,18 +4857,11 @@ const filters = reactive({
   status: "",
   is_exclusive: "",
 });
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0,
-  pages: 0,
-});
 const sortState = reactive({
   sort_by: "sort_order",
   sort_order: "asc" as "asc" | "desc",
 });
 
-let abortController: AbortController | null = null;
 
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
@@ -5641,58 +5648,32 @@ const cancelUnsupportedLive = () => {
   pendingLiveForm.value = null;
 };
 
-const loadGroups = async () => {
-  if (abortController) {
-    abortController.abort();
-  }
-  const currentController = new AbortController();
-  abortController = currentController;
-  const { signal } = currentController;
-  loading.value = true;
+async function fetchListPage(page: number, signal: AbortSignal) {
   try {
-    const response = await adminAPI.groups.list(
-      pagination.page,
-      pagination.page_size,
-      {
-        platform: (filters.platform as GroupPlatform) || undefined,
-        status: filters.status as any,
-        is_exclusive: !authStore.isSimpleMode && filters.is_exclusive
-          ? filters.is_exclusive === "true"
-          : undefined,
-        search: searchQuery.value.trim() || undefined,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order,
-      },
-      { signal },
-    );
-    if (signal.aborted) return;
-    groups.value = response.items;
-    pagination.total = response.total;
-    pagination.pages = response.pages;
-    if (hasVisibleUsageSummaryConsumer.value) {
-      loadUsageSummary();
-    } else {
-      usageLoading.value = false;
-    }
-    if (hasVisibleCapacityColumn.value) {
-      loadCapacitySummary();
-    }
-  } catch (error: any) {
-    if (
-      signal.aborted ||
-      error?.name === "AbortError" ||
-      error?.code === "ERR_CANCELED"
-    ) {
-      return;
-    }
-    appStore.showError(t("admin.groups.failedToLoad"));
-    console.error("Error loading groups:", error);
-  } finally {
-    if (abortController === currentController && !signal.aborted) {
-      loading.value = false;
-    }
+    return await adminAPI.groups.list(page, 50, {
+      platform: (filters.platform as GroupPlatform) || undefined,
+      status: filters.status as any,
+      is_exclusive: !authStore.isSimpleMode && filters.is_exclusive ? filters.is_exclusive === "true" : undefined,
+      search: searchQuery.value.trim() || undefined,
+      sort_by: sortState.sort_by, sort_order: sortState.sort_order
+    }, { signal })
+  } catch (error: unknown) {
+    if (!signal.aborted) appStore.showError(t('admin.groups.failedToLoad'))
+    throw error
   }
-};
+}
+
+const loadGroups = async () => {
+  await continuousList.reset()
+}
+
+watch(groups, (rows) => {
+  if (!rows.length) return
+  if (hasVisibleUsageSummaryConsumer.value) void loadUsageSummary()
+  else usageLoading.value = false
+  if (hasVisibleCapacityColumn.value) void loadCapacitySummary()
+})
+
 
 const formatCost = (cost: number): string => {
   if (cost >= 1000) return cost.toFixed(0);
@@ -5781,26 +5762,17 @@ let searchTimeout: ReturnType<typeof setTimeout>;
 const handleSearch = () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    pagination.page = 1;
+
     loadGroups();
   }, 300);
 };
 
-const handlePageChange = (page: number) => {
-  pagination.page = page;
-  loadGroups();
-};
 
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.page_size = pageSize;
-  pagination.page = 1;
-  loadGroups();
-};
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.sort_by = key;
   sortState.sort_order = order;
-  pagination.page = 1;
+
   loadGroups();
 };
 
@@ -6955,3 +6927,9 @@ onUnmounted(() => {
   clearAllAccountSearchState();
 });
 </script>
+
+<style scoped>
+.groups-page-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1.25rem; }
+.groups-page-heading h1 { font-family:var(--ritel-display); font-size:clamp(2.25rem,3vw,3rem); font-weight:400; line-height:1.1; }
+@media (max-width:767px) { .groups-page-heading { gap:.875rem; } }
+</style>

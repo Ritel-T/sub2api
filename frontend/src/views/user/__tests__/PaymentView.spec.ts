@@ -369,18 +369,17 @@ describe('PaymentView help text', () => {
   })
 })
 
-describe('PaymentView subscription plan grid', () => {
-  it.each([3, 4, 6])('keeps %i plans on the existing mobile/tablet/desktop grid', async (planCount) => {
+describe('PaymentView subscription plan list', () => {
+  it.each([3, 4, 6])('keeps all %i plans in server order and permits selecting the final plan', async (planCount) => {
     const wrapper = await mountSubscriptionPlanList(planCount)
     const cards = wrapper.findAllComponents(SubscriptionPlanCard)
 
     expect(cards).toHaveLength(planCount)
-    expect([...(cards[0].element.parentElement?.classList ?? [])]).toEqual(expect.arrayContaining([
-      'grid',
-      'grid-cols-1',
-      'sm:grid-cols-2',
-      'lg:grid-cols-3',
-    ]))
+    expect(cards.map(card => card.props('plan').id)).toEqual(Array.from({ length: planCount }, (_, index) => index + 1))
+    cards[planCount - 1].vm.$emit('select', cards[planCount - 1].props('plan'))
+    await flushPromises()
+    expect(wrapper.get('[data-test="confirm-subscription"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain(`Plan ${planCount}`)
   })
 })
 
