@@ -26,6 +26,11 @@ export function mapErrorCategory(phase?: string | null, errType?: string | null)
           return 'invalid_request'
         case 'cyber_policy':
           return 'cyber'
+        // Never label historical identity rows as policy violations, even with request_type=4.
+        case 'cyber_policy_session_blocked':
+          return 'session_blocked'
+        case 'cyber_session_identity_rejected':
+          return 'session_identity'
       }
   }
   return 'other'

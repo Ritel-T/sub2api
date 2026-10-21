@@ -538,7 +538,7 @@ export default {
       categories: {
         auth: '認證失敗', rate_limit: '限流', quota: '餘額/訂閱',
         invalid_request: '參數錯誤', service_unavailable: '服務暫時不可用',
-        upstream: '上游錯誤', internal: '平台錯誤', other: '其他', cyber: '安全策略',
+        upstream: '上游錯誤', internal: '平台錯誤', other: '其他', cyber: '上游網絡安全過濾', session_blocked: '本地會話封鎖', session_identity: '會話身分錯誤',
       },
       detail: {
         title: '錯誤請求詳情',

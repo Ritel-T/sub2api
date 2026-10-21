@@ -533,7 +533,7 @@ export default {
       categories: {
         auth: 'Auth failed', rate_limit: 'Rate limited', quota: 'Balance/Subscription',
         invalid_request: 'Invalid request', service_unavailable: 'Service unavailable',
-        upstream: 'Upstream error', internal: 'Platform error', other: 'Other', cyber: 'Cyber policy',
+        upstream: 'Upstream error', internal: 'Platform error', other: 'Other', cyber: 'Upstream cyber policy', session_blocked: 'Local session block', session_identity: 'Session identity error',
       },
       detail: {
         title: 'Error Request Detail',

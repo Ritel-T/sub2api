@@ -58,6 +58,11 @@ func MapUserErrorCategory(phase, errType string) string {
 			return "invalid_request"
 		case "cyber_policy":
 			return "cyber"
+		// Local enforcement and identity validation are distinct from upstream policy hits.
+		case "cyber_policy_session_blocked":
+			return "session_blocked"
+		case "cyber_session_identity_rejected":
+			return "session_identity"
 		}
 	}
 	return "other"
@@ -84,6 +89,10 @@ func CategoryToFilter(category string) (phases []string, errorTypes []string) {
 		return []string{"request"}, []string{"invalid_request_error", "model_not_found"}
 	case "cyber":
 		return []string{"request"}, []string{"cyber_policy"}
+	case "session_blocked":
+		return []string{"request"}, []string{"cyber_policy_session_blocked"}
+	case "session_identity":
+		return []string{"request"}, []string{"cyber_session_identity_rejected"}
 	default:
 		return nil, nil
 	}

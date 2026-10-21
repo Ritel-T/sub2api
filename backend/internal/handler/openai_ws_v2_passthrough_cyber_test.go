@@ -87,7 +87,7 @@ func newOpenAIWSPassthroughHandlerHarnessWithOptions(t *testing.T, upstreamURL s
 
 	account.GroupIDs = []int64{groupID}
 	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
-	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 2)}
+	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 8)}
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo, nil, usageRepo, nil, nil, nil, nil, gatewayCache, cfg, nil, nil,
@@ -216,7 +216,7 @@ func TestOpenAIResponsesWebSocketV2PassthroughCyberMarkIsConsumedAfterTurn(t *te
 	}, 3*time.Second, 10*time.Millisecond, "handler AfterTurn must write the cyber session block table")
 
 	writeCtx, cancelWrite = context.WithTimeout(context.Background(), 3*time.Second)
-	err = harness.clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","prompt_cache_key":"cyber-session-1","input":"follow-up"}`))
+	err = harness.clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","client_metadata":{"thread_id":"different-thread-after-hit"},"prompt_cache_key":"cyber-session-1","input":"follow-up"}`))
 	cancelWrite()
 	require.NoError(t, err)
 

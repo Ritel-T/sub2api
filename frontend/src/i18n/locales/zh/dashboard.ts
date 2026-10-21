@@ -538,7 +538,7 @@ export default {
       categories: {
         auth: '认证失败', rate_limit: '限流', quota: '余额/订阅',
         invalid_request: '参数错误', service_unavailable: '服务暂时不可用',
-        upstream: '上游错误', internal: '平台错误', other: '其他', cyber: '安全策略',
+        upstream: '上游错误', internal: '平台错误', other: '其他', cyber: '上游网络安全过滤', session_blocked: '本地会话封锁', session_identity: '会话身份错误',
       },
       detail: {
         title: '错误请求详情',

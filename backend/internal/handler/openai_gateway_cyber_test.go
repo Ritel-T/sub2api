@@ -155,6 +155,7 @@ func TestBuildCyberSessionBlockedOpsEntry(t *testing.T) {
 	require.Equal(t, "cyber_policy_session_blocked", entry.ErrorType)
 	require.Equal(t, "request", entry.ErrorPhase)
 	require.True(t, entry.IsBusinessLimited)
+	require.Equal(t, int16(service.RequestTypeCyberBlocked), *entry.RequestType)
 	require.Equal(t, "gateway_local", entry.ErrorSource)
 	require.Equal(t, "platform", entry.ErrorOwner)
 	require.Empty(t, entry.ErrorBody, "no session block key → ErrorBody must be empty")
@@ -176,9 +177,15 @@ func TestBuildCyberSessionBlockedOpsEntry(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, identityRejected.StatusCode)
 	require.Equal(t, "cyber_session_identity_rejected", identityRejected.ErrorType)
 	require.Equal(t, "client", identityRejected.ErrorOwner)
+	require.Equal(t, int16(service.RequestTypeFromLegacy(false, false)), *identityRejected.RequestType)
 	require.Contains(t, identityRejected.ErrorMessage, "session_identity_status=conflict")
 	require.Contains(t, identityRejected.ErrorMessage, "session_identity_kind=thread")
 	require.Contains(t, identityRejected.ErrorMessage, "session_identity_source=header_body")
+	for _, requestType := range []int16{int16(service.RequestTypeFromLegacy(true, false)), int16(service.RequestTypeFromLegacy(true, true))} {
+		entry := buildCyberSessionIdentityRejectedOpsEntry(cyberPolicyOpsErrorMeta{RequestType: &requestType})
+		require.Equal(t, requestType, *entry.RequestType)
+		require.NotEqual(t, int16(service.RequestTypeCyberBlocked), *entry.RequestType)
+	}
 }
 
 // TestRejectIfCyberSessionBlocked_FailOpen verifies fail-open paths: nil handler
@@ -330,18 +337,48 @@ func TestOpenAIWSCyberIdentityBinding(t *testing.T) {
 	require.Equal(t, first.effective.BlockKey, missingFollowup.effective.BlockKey)
 
 	swapped := binding.resolve(7, c, []byte(`{"client_metadata":{"thread_id":"thread-b"}}`), true, false)
-	require.True(t, swapped.reject)
+	require.False(t, swapped.reject, "compatibility mode accepts an explicit new thread")
 	require.True(t, swapped.identitySwap)
+	require.Equal(t, swapped.observed.BlockKey, swapped.effective.BlockKey)
+	require.NotEqual(t, first.effective.BlockKey, swapped.effective.BlockKey)
+	swappedFollowup := binding.resolve(7, c, []byte(`{}`), true, false)
+	require.Equal(t, swapped.effective.BlockKey, swappedFollowup.effective.BlockKey, "a later hit belongs only to the current thread")
+	require.True(t, swappedFollowup.effective.Inherited)
 
 	c.Request.Header.Set("thread_id", "thread-c")
 	conflicting := binding.resolve(7, c, []byte(`{"client_metadata":{"thread_id":"thread-b"}}`), true, false)
-	require.True(t, conflicting.reject, "ambiguous follow-up must not inherit a trusted connection identity")
+	require.False(t, conflicting.reject, "compatibility mode leaves ambiguous identity enforcement to upstream")
+	require.False(t, conflicting.effective.Resolved(), "ambiguous follow-up must not inherit a trusted connection identity")
+	require.Empty(t, conflicting.effective.LookupKeys)
+
+	staleHeaderFollowup := binding.resolve(7, c, []byte(`{}`), true, false)
+	require.False(t, staleHeaderFollowup.reject)
+	require.False(t, staleHeaderFollowup.effective.Resolved(), "a stale upgrade header cannot identify the thread after ambiguity")
+	require.Empty(t, staleHeaderFollowup.effective.LookupKeys)
+
+	c.Request.Header.Del("thread_id")
+	recovered := binding.resolve(7, c, []byte(`{"client_metadata":{"thread_id":"thread-recovered"}}`), true, false)
+	require.True(t, recovered.effective.Resolved(), "an unambiguous body may restore exact identity")
+	require.False(t, recovered.effective.Inherited)
+	invalid := binding.resolve(7, c, []byte(`{"client_metadata":{"thread_id":123}}`), true, false)
+	require.False(t, invalid.reject)
+	require.False(t, invalid.effective.Resolved())
+	missingAfterInvalid := binding.resolve(7, c, []byte(`{}`), true, false)
+	require.False(t, missingAfterInvalid.effective.Resolved(), "an invalid frame must clear stale inheritance")
 
 	c.Request.Header.Del("thread_id")
 	strictBinding := &openAIWSCyberIdentityBinding{}
 	strictMissing := strictBinding.resolve(7, c, []byte(`{}`), true, true)
 	require.True(t, strictMissing.reject)
 	require.Equal(t, service.OpenAIClientSessionIdentityMissing, strictMissing.observed.Metadata.Status)
+	strictFirst := strictBinding.resolve(7, c, []byte(`{"client_metadata":{"thread_id":"strict-a"}}`), true, true)
+	require.False(t, strictFirst.reject)
+	strictSwap := strictBinding.resolve(7, c, []byte(`{"client_metadata":{"thread_id":"strict-b"}}`), true, true)
+	require.True(t, strictSwap.reject, "strict mode still rejects an explicit thread switch")
+	c.Request.Header.Set("thread_id", "header-a")
+	strictConflict := strictBinding.resolve(7, c, []byte(`{"client_metadata":{"thread_id":"body-b"}}`), true, true)
+	require.True(t, strictConflict.reject, "strict mode still rejects header/body conflicts")
+	c.Request.Header.Del("thread_id")
 
 	staticHeaderCtx := newTestGinContext()
 	staticHeaderCtx.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)

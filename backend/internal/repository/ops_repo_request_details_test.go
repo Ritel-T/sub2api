@@ -61,3 +61,29 @@ func TestOpsRepositoryListRequestDetails_LatencySort(t *testing.T) {
 		})
 	}
 }
+
+// An SSE cyber_policy error can retain HTTP 200 after stream headers were sent.
+// Both count and page queries must include it, just like the error-log view.
+func TestOpsRepositoryListRequestDetails_IncludesStreamingCyberPolicy(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &opsRepository{db: db}
+	start := time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+	filter := &service.OpsRequestDetailFilter{StartTime: &start, EndTime: &end, Kind: "error", Page: 1, PageSize: 10}
+	clause := `(?s)AND \(COALESCE\(o\.status_code, 0\) >= 400 OR o\.error_type = 'cyber_policy'\).*`
+	mock.ExpectQuery(clause+`SELECT COUNT\(1\) FROM combined WHERE kind = \$3`).
+		WithArgs(start, end, "error").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	rows := sqlmock.NewRows([]string{
+		"kind", "created_at", "request_id", "platform", "model", "duration_ms", "first_token_ms",
+		"status_code", "error_id", "phase", "severity", "message", "user_id", "api_key_id", "account_id", "group_id", "stream",
+	}).AddRow("error", start, "req-cyber", "openai", "gpt-6.1-sol", 100, nil, 200, 7, "request", "error", "cyber_policy", 1, 2, 3, 4, true)
+	mock.ExpectQuery(clause+`SELECT.*FROM combined.*WHERE kind = \$3.*LIMIT \$4 OFFSET \$5`).
+		WithArgs(start, end, "error", 10, 0).WillReturnRows(rows)
+	items, total, err := repo.ListRequestDetails(context.Background(), filter)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Len(t, items, 1)
+	require.Equal(t, service.OpsRequestKindError, items[0].Kind)
+	require.Equal(t, 200, *items[0].StatusCode)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

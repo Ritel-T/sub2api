@@ -71,6 +71,7 @@ type openAIWSCyberIdentityBinding struct {
 	bound                    service.CyberSessionIdentityResolution
 	connectionHeaderIdentity service.CyberSessionIdentityResolution
 	headersCaptured          bool
+	headerIdentityUntrusted  bool
 }
 
 type openAIWSCyberIdentityDecision struct {
@@ -96,6 +97,20 @@ func (b *openAIWSCyberIdentityBinding) resolve(apiKeyID int64, c *gin.Context, p
 
 	switch observed.Metadata.Status {
 	case service.OpenAIClientSessionIdentityResolved:
+		if observed.Metadata.Source == service.OpenAIClientSessionIdentitySourceHeader && b.headerIdentityUntrusted {
+			if b.bound.Resolved() {
+				decision.effective = service.InheritCyberSessionIdentity(b.bound)
+			} else {
+				// After an ambiguous turn, the static upgrade headers cannot
+				// establish which thread a later identity-less frame belongs to.
+				decision.effective = service.CyberSessionIdentityResolution{Metadata: service.OpenAIClientSessionIdentityMetadata{
+					Status: service.OpenAIClientSessionIdentityMissing,
+					Source: service.OpenAIClientSessionIdentitySourceConnection,
+				}}
+				decision.reject = strict
+			}
+			return decision
+		}
 		if !b.bound.Resolved() {
 			b.bound = observed
 			return decision
@@ -110,8 +125,13 @@ func (b *openAIWSCyberIdentityBinding) resolve(apiKeyID int64, c *gin.Context, p
 				decision.effective = service.InheritCyberSessionIdentity(b.bound)
 				return decision
 			}
-			decision.reject = true
+			decision.reject = strict
 			decision.identitySwap = true
+			if !strict {
+				// Connection pooling may carry more than one conversation. Bind
+				// only the current resolved identity, never the previous thread.
+				b.bound = observed
+			}
 		}
 		return decision
 	case service.OpenAIClientSessionIdentityMissing:
@@ -120,11 +140,12 @@ func (b *openAIWSCyberIdentityBinding) resolve(apiKeyID int64, c *gin.Context, p
 			return decision
 		}
 	case service.OpenAIClientSessionIdentityConflict, service.OpenAIClientSessionIdentityInvalid:
-		// Once a connection has a trusted identity, an explicitly ambiguous
-		// follow-up must never silently inherit that identity.
-		if b.bound.Resolved() {
-			decision.reject = true
-			return decision
+		if !strict {
+			// Compatibility mode allows upstream to evaluate the request, but
+			// must not persist a later cyber hit against an unrelated old ID.
+			// The separate post-hit connection gate still stops follow-ups.
+			b.bound = service.CyberSessionIdentityResolution{}
+			b.headerIdentityUntrusted = true
 		}
 	}
 	decision.reject = strict
@@ -4777,6 +4798,7 @@ type cyberPolicyOpsErrorMeta struct {
 	Model             string
 	RequestPath       string
 	Stream            bool
+	RequestType       *int16
 	InboundEndpoint   string
 	UserAgent         string
 	APIKeyPrefix      string
@@ -4885,7 +4907,10 @@ func buildCyberSessionBlockedOpsEntry(meta cyberPolicyOpsErrorMeta) *service.Ops
 }
 
 func buildCyberSessionIdentityRejectedOpsEntry(meta cyberPolicyOpsErrorMeta) *service.OpsInsertErrorLogInput {
-	rt := int16(service.RequestTypeCyberBlocked)
+	rt := int16(service.RequestTypeFromLegacy(meta.Stream, false))
+	if meta.RequestType != nil {
+		rt = *meta.RequestType
+	}
 	entry := &service.OpsInsertErrorLogInput{
 		RequestID:         meta.RequestID,
 		ClientRequestID:   meta.ClientRequestID,
@@ -5097,6 +5122,7 @@ func (h *OpenAIGatewayHandler) enqueueCyberSessionIdentityRejectedOpsEntry(c *gi
 	c.Set(opsDedicatedErrorRecordedKey, true)
 	meta := cyberPolicyOpsErrorMeta{
 		Model:           model,
+		RequestType:     opsRequestTypeFromContext(c),
 		InboundEndpoint: GetInboundEndpoint(c),
 		CreatedAt:       time.Now(),
 		IdentityStatus:  string(metadata.Status),
