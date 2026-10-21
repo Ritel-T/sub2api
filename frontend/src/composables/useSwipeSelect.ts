@@ -1,5 +1,5 @@
 import { ref, onMounted, onUnmounted, type Ref } from 'vue'
-import type { Virtualizer } from '@tanstack/vue-virtual'
+import type { VirtualItem } from '@tanstack/vue-virtual'
 
 /**
  * WeChat-style swipe/drag to select rows in a DataTable,
@@ -29,9 +29,17 @@ export interface SwipeSelectAdapter {
   batchUpdate?: (updater: (draft: Set<number>) => void) => void
 }
 
+// Only the read contract is needed; avoid invariant element callback types from
+// the full TanStack instance when window and element virtualizers are combined.
+export interface SwipeSelectionVirtualizer {
+  scrollElement: HTMLElement | Window | null
+  getVirtualItems: () => VirtualItem[]
+  options: { estimateSize: (index: number) => number; scrollMargin?: number }
+}
+
 export interface SwipeSelectVirtualContext {
   /** Get the virtualizer instance */
-  getVirtualizer: () => Virtualizer<HTMLElement, Element> | Virtualizer<Window, Element> | null
+  getVirtualizer: () => SwipeSelectionVirtualizer | null
   /** Explicit scroll owner also works before the virtualizer is enabled. */
   getScrollElement?: () => HTMLElement | Window | null
   /** Header excluded by legacy item coordinates; document rows include it in scrollMargin. */
