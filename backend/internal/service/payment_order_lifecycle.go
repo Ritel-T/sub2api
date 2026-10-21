@@ -122,6 +122,9 @@ func (s *PaymentService) AdminCancelOrder(ctx context.Context, orderID int64) (s
 }
 
 func (s *PaymentService) cancelCore(ctx context.Context, o *dbent.PaymentOrder, fs, op, ad string) (string, error) {
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return "", err
+	}
 	if o.PaymentTradeNo != "" || o.PaymentType != "" {
 		if s.checkPaid(ctx, o) == checkPaidResultAlreadyPaid {
 			return checkPaidResultAlreadyPaid, nil
@@ -150,6 +153,9 @@ func (s *PaymentService) reconcilePaid(ctx context.Context, o *dbent.PaymentOrde
 }
 
 func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.PaymentOrder, opts checkPaidOptions) string {
+	if s.paymentOrderPaused(ctx, o) {
+		return ""
+	}
 	if psStringValue(o.ProviderKey) == "squarespace" && PaymentOrderClaimMode(o) == "receipt_otp" {
 		if strings.TrimSpace(o.PaymentTradeNo) == "" {
 			return ""
@@ -319,7 +325,7 @@ func (s *PaymentService) VerifyOrderByOutTradeNo(ctx context.Context, outTradeNo
 			}
 		}
 	}
-	return o, nil
+	return s.paymentOrderForResponse(ctx, o), nil
 }
 
 // ReconcilePendingPaymentOrders actively checks recent pending Alipay and WeChat
@@ -371,7 +377,7 @@ func (s *PaymentService) VerifyOrderPublic(ctx context.Context, outTradeNo strin
 	if err != nil {
 		return nil, infraerrors.NotFound("NOT_FOUND", "order not found")
 	}
-	return o, nil
+	return s.paymentOrderForResponse(ctx, o), nil
 }
 
 func normalizeOrderLookupOutTradeNo(raw string) (string, error) {

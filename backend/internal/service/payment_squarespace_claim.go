@@ -20,6 +20,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentexternalorder"
+	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
@@ -159,6 +160,9 @@ func NewSquarespaceClaimService(payments *PaymentService, email *EmailService, c
 }
 
 func (s *SquarespaceClaimService) RequestChallenge(ctx context.Context, uid, localID int64, receiptNumber, payerEmail string) (*SquarespaceClaimChallengeResponse, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return nil, err
+	}
 	if !s.ready(ctx) {
 		return nil, ErrSquarespaceClaimServiceUnavailable
 	}
@@ -230,6 +234,9 @@ func (s *SquarespaceClaimService) RequestChallenge(ctx context.Context, uid, loc
 }
 
 func (s *SquarespaceClaimService) Claim(ctx context.Context, uid int64, token, code string) (*dbent.PaymentOrder, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return nil, err
+	}
 	if !s.ready(ctx) {
 		return nil, ErrSquarespaceClaimServiceUnavailable
 	}
