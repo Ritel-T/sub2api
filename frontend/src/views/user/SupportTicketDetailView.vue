@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-4xl space-y-4">
+    <div class="open-page support-conversation">
       <router-link
         to="/support-tickets"
         class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
@@ -9,13 +9,13 @@
         {{ t('supportTickets.detail.back') }}
       </router-link>
 
-      <div v-if="loading && !detail" class="card h-64 animate-pulse" aria-busy="true"></div>
-      <p v-else-if="loadError" class="card p-6 text-sm text-red-600 dark:text-red-400" data-testid="ticket-load-error">{{ loadError }}</p>
+      <div v-if="loading && !detail" class="open-section h-64 animate-pulse" aria-busy="true"></div>
+      <p v-else-if="loadError" class="open-section p-6 text-sm text-red-600 dark:text-red-400" data-testid="ticket-load-error">{{ loadError }}</p>
       <template v-else-if="detail">
-        <div class="card p-5">
+        <div class="open-section p-5">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <h2 class="break-words text-lg font-semibold text-gray-900 dark:text-white" data-testid="ticket-title">{{ detail.ticket.title }}</h2>
+              <h2 class="break-words text-3xl font-semibold text-gray-900 dark:text-white" data-testid="ticket-title">{{ detail.ticket.title }}</h2>
               <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                 <span>{{ t('supportTickets.detail.number', { id: detail.ticket.id }) }}</span>
                 <span v-if="detail.ticket.category" class="rounded-md bg-gray-100 px-1.5 py-0.5 dark:bg-dark-700">{{ detail.ticket.category }}</span>
@@ -38,11 +38,11 @@
           </div>
         </div>
 
-        <div class="card p-5">
+        <div class="open-section p-5">
           <TicketConversation :messages="detail.messages" viewer="user" />
         </div>
 
-        <div v-if="closed" class="card flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-gray-600 dark:text-gray-300" data-testid="ticket-closed">
+        <div v-if="closed" class="open-section flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-gray-600 dark:text-gray-300" data-testid="ticket-closed">
           <span>
             {{ detail.ticket.closed_by_role === 'admin' ? t('supportTickets.detail.closedBySupport') : t('supportTickets.detail.closedByYou') }}
             {{ t('supportTickets.detail.closedHintUser') }}
@@ -51,7 +51,7 @@
             {{ t('supportTickets.detail.reopen') }}
           </button>
         </div>
-        <div v-else class="card p-5">
+        <div v-else class="open-section p-5">
           <TicketReplyBox v-model="reply" :placeholder="t('supportTickets.detail.replyPlaceholder')" :sending="busy" @submit="send" />
         </div>
       </template>
@@ -174,3 +174,8 @@ onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
 })
 </script>
+
+<style scoped>
+.support-conversation{max-width:76rem;margin-inline:auto}.support-conversation>:not(:first-child){padding-inline:0}
+.support-conversation :deep(.ticket-conversation){max-width:65rem}
+</style>

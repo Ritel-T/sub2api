@@ -1,10 +1,12 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col">
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden" :class="flat ? '' : 'card'">
+  <div class="min-w-0">
+    <div class="min-w-0" :class="flat ? '' : 'open-section'">
       <IpGeoBatchToolbar :ips="rows.map((r) => r.client_ip)" @failed="emit('ipGeoBatchFailed')" />
 
       <DataTable
+        :toolbar-target="toolbarTarget"
         :columns="columns"
+        :primary-columns="['created_at', 'message', 'user', 'model', 'status', 'actions']"
         v-on="columnOrderListeners"
         :data="rows"
         :loading="loading"
@@ -155,9 +157,9 @@
         </template>
 
         <template #cell-actions="{ row }">
-          <button
+          <button :aria-label="t('admin.ops.errorLog.details')"
             type="button"
-            class="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-600 dark:hover:text-primary-400"
+            class="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-600 dark:hover:text-primary-400 workspace-icon-action"
             :title="t('admin.ops.errorLog.details')"
             @click.stop="emit('openErrorDetail', row.id)"
           >
@@ -170,13 +172,12 @@
     </div>
 
     <div class="flex-shrink-0">
-      <Pagination
-        v-if="total > 0"
-        :total="total"
-        :page="page"
-        :page-size="pageSize"
-        @update:page="emit('update:page', $event)"
-        @update:pageSize="emit('update:pageSize', $event)"
+      <InfiniteListSentinel
+        :loading="loading || loadingMore"
+        :error="error"
+        :has-more="hasMore ?? rows.length < total"
+        @load-more="emit('load-more')"
+        @retry="emit('retry')"
       />
     </div>
   </div>
@@ -188,7 +189,7 @@ import { balanceErrorSource } from '../utils/balanceError'
 import { useI18n } from 'vue-i18n'
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import IpGeoBatchToolbar from '@/components/common/IpGeoBatchToolbar.vue'
 import type { OpsErrorLog } from '@/api/admin/ops'
@@ -219,9 +220,12 @@ const allColumns = computed<Column[]>(() => [
 
 // Explicit column preferences retain their supplied order.
 const columns = computed<Column[]>(() => {
-  const visibleColumns = props.visibleColumnKeys
+  const selectedColumns = props.visibleColumnKeys
     ? props.visibleColumnKeys.flatMap(key => allColumns.value.find(column => column.key === key) ?? [])
     : allColumns.value
+  const visibleColumns = props.primaryColumnKeys === undefined
+    ? selectedColumns
+    : selectedColumns.map(column => ({ ...column, primary: props.primaryColumnKeys!.includes(column.key) }))
   if (!props.summaryFirst) return visibleColumns
 
   return [
@@ -289,15 +293,20 @@ function getTypeBadge(log: OpsErrorLog): { label: string; className: string } {
 }
 
 interface Props {
+  toolbarTarget?: string | HTMLElement | null
   rows: OpsErrorLog[]
   total: number
   loading: boolean
-  page: number
-  pageSize: number
+  page?: number
+  pageSize?: number
+  loadingMore?: boolean
+  error?: unknown
+  hasMore?: boolean
   /** 用户邮箱可点击(emit userClick),仅在有弹窗承接的使用方开启 */
   userClickable?: boolean
   /** 列设置:仅显示这些 key 的列;不传则全量 */
   visibleColumnKeys?: string[]
+  primaryColumnKeys?: string[]
   /** 运维弹窗优先展示时间和响应内容 */
   summaryFirst?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
@@ -306,6 +315,8 @@ interface Props {
 
 interface Emits {
   (e: 'openErrorDetail', id: number): void
+  (e: 'load-more'): void
+  (e: 'retry'): void
   (e: 'update:page', value: number): void
   (e: 'update:pageSize', value: number): void
   (e: 'column-reorder', keys: string[]): void

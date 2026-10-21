@@ -82,7 +82,7 @@ function mountView() {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
         TablePageLayout: {
-          template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
         },
         DataTable: DataTableStub,
         ColumnSettings: {
@@ -238,27 +238,30 @@ describe('admin AccountsView scheduler score column', () => {
     expect(getBatchTodayStats).toHaveBeenCalled()
   })
 
-  it('restores explicit scheduler visibility and reloads after hide and reset', async () => {
-    localStorage.setItem('table-columns:accounts:v1', JSON.stringify({ order: [], hidden: ['scheduler_score'] }))
+  it('keeps scheduler data available in details through main-row changes and reset', async () => {
+    localStorage.setItem('table-columns:accounts:v1', JSON.stringify({ version: 2, order: [], primary: { scheduler_score: false } }))
     const wrapper = mountView()
     await flushPromises()
-    expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ include_scheduler_score: '0' }))
+    expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ include_scheduler_score: '1' }))
     const settings = wrapper.findComponent({ name: 'ColumnSettings' })
+    const scoreColumn = () => wrapper.findComponent({ name: 'DataTable' }).props('columns').find((column: { key: string }) => column.key === 'scheduler_score')
+    expect(scoreColumn().primary).toBe(false)
     settings.vm.$emit('reset')
     await flushPromises()
     expect(listAccounts).toHaveBeenLastCalledWith(1, 20,
       expect.objectContaining({ include_scheduler_score: '1' }), expect.anything())
     settings.vm.$emit('toggle', 'scheduler_score')
     await flushPromises()
+    expect(scoreColumn().primary).toBe(true)
     expect(listAccounts).toHaveBeenLastCalledWith(1, 20,
-      expect.objectContaining({ include_scheduler_score: '0' }), expect.anything())
+      expect.objectContaining({ include_scheduler_score: '1' }), expect.anything())
   })
 
-  it('fetches stats when previously hidden usage columns are restored', async () => {
-    localStorage.setItem('table-columns:accounts:v1', JSON.stringify({ order: [], hidden: ['usage', 'today_stats'] }))
+  it('fetches stats for unchecked detail columns before the user expands or promotes them', async () => {
+    localStorage.setItem('table-columns:accounts:v1', JSON.stringify({ version: 2, order: [], primary: { usage: false, today_stats: false, today_summary: false } }))
     const wrapper = mountView()
     await flushPromises()
-    expect(getBatchTodayStats).not.toHaveBeenCalled()
+    expect(getBatchTodayStats).toHaveBeenCalled()
     wrapper.findComponent({ name: 'ColumnSettings' }).vm.$emit('reset')
     await flushPromises()
     expect(getBatchTodayStats).toHaveBeenCalled()

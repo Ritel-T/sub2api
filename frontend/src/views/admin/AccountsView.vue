@@ -1,17 +1,9 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
-        <div class="flex flex-wrap-reverse items-start justify-between gap-3">
-          <AccountTableFilters
-            class="lg:w-auto lg:flex-1"
-            v-model:searchQuery="params.search"
-            :filters="params"
-            :groups="groups"
-            @update:filters="(newFilters) => Object.assign(params, newFilters)"
-            @change="debouncedReload"
-            @update:searchQuery="debouncedReload"
-          />
+    <TablePageLayout open>
+      <template #actions>
+        <header class="accounts-page-heading">
+          <h1>{{ t('admin.accounts.title') }}</h1>
           <AccountTableActions
             :loading="loading"
             @refresh="handleManualRefresh"
@@ -19,9 +11,9 @@
           >
             <template #after>
               <ColumnSettings
-                :columns="orderedColumns.filter(column => column.key !== 'select')"
+                :columns="orderedColumns"
                 :hidden-columns="hiddenColumns"
-                :required-columns="['name', 'actions']"
+                :required-columns="['id', 'name', 'actions']"
                 @toggle="toggleColumn"
                 @reorder="setColumnOrder"
                 @reset="resetColumns"
@@ -130,6 +122,10 @@
                           {{ t('admin.accounts.toolActions') }}
                         </div>
                       </div>
+                      <button class="account-tools-menu-item" data-test="edit-filtered" @click="showAccountToolsDropdown = false; openBulkEditFiltered()">
+                        <Icon name="edit" size="sm" />
+                        <span>{{ t('admin.accounts.bulkEdit.submit') }}</span>
+                      </button>
                       <button v-if="authStore.isAdmin" class="account-tools-menu-item" @click="openErrorPassthrough">
                         <span class="account-tools-menu-icon theme-info-icon">
                           <Icon name="shield" size="sm" />
@@ -148,6 +144,20 @@
               </div>
             </template>
           </AccountTableActions>
+        </header>
+      </template>
+      <template #filters>
+        <div class="accounts-filter-row">
+          <AccountTableFilters
+            class="accounts-filters"
+            v-model:searchQuery="params.search"
+            :filters="params"
+            :groups="groups"
+            @update:filters="(newFilters) => Object.assign(params, newFilters)"
+            @change="debouncedReload"
+            @update:searchQuery="debouncedReload"
+          />
+
         </div>
         <div
           v-if="hasPendingListSync"
@@ -164,6 +174,7 @@
       </template>
       <template #table>
         <AccountBulkActionsBar
+          v-if="selIds.length > 0"
           :selected-ids="selIds"
           :total-results="pagination.total"
           :selecting-all="selectingAllResults"
@@ -179,37 +190,26 @@
           @select-all-results="handleSelectAllResults"
           @toggle-schedulable="handleBulkToggleSchedulable"
         />
-        <div ref="accountTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div ref="accountTableRef" class="min-w-0">
         <DataTable
           ref="dataTableRef"
           :columns="cols"
+          :primary-columns="['id', 'platform_type', 'name', 'status', 'schedulable', 'usage', 'capacity', 'groups', 'actions']"
+          selectable
+          :selected-keys="selIds"
+          @update:selected-keys="setSelectedIds($event.map(Number))"
           @column-reorder="setColumnOrder"
           :data="accounts"
-          :loading="loading"
+          :loading="initialLoading"
           row-key="id"
           :server-side-sort="true"
           @sort="handleSort"
           default-sort-key="name"
           default-sort-order="asc"
           :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
-          :estimate-row-height="156"
-          :overscan="5"
-          :virtualize-threshold="50"
         >
-          <template #header-select>
-            <input
-              type="checkbox"
-              class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              :checked="allVisibleSelected"
-              @click.stop
-              @change="toggleSelectAllVisible($event)"
-            />
-          </template>
-          <template #cell-select="{ row }">
-            <input type="checkbox" :checked="isSelected(row.id)" @change="toggleSel(row.id)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-          </template>
           <template #cell-id="{ value }">
-            <span class="font-mono text-xs text-gray-500 dark:text-gray-400">#{{ value }}</span>
+            <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ value }}</span>
           </template>
           <template #cell-name="{ row, value }">
             <div class="flex flex-col">
@@ -248,7 +248,7 @@
           <template #cell-platform_type="{ row }">
             <div class="flex min-w-0 flex-col gap-1">
               <div class="flex flex-wrap items-center gap-1">
-                <PlatformTypeBadge :platform="row.platform" :type="row.type"
+                <PlatformTypeBadge compact :platform="row.platform" :type="row.type"
                   :auth-mode="getOpenAIAuthMode(row)"
                   :plan-type="getAccountPlanType(row)"
                   :privacy-mode="row.extra?.privacy_mode || row.parent_privacy_mode"
@@ -261,7 +261,7 @@
                 </span>
               </div>
               <div
-                v-if="getOpenAICompactMeta(row)"
+                v-if="getOpenAICompactState(row) !== 'auto' && getOpenAICompactMeta(row)"
                 :class="[
                   'inline-flex items-center gap-1.5 pl-0.5 text-[11px] font-medium leading-4',
                   getOpenAICompactMeta(row)?.className
@@ -273,6 +273,9 @@
               </div>
             </div>
           </template>
+          <template #cell-links="{ row }">
+            <ConsoleObjectLinks v-if="authStore.isAdmin" kind="account" :id="row.id" :proxy-id="row.proxy_id" />
+          </template>
           <template #cell-capacity="{ row }">
             <AccountCapacityCell :account="row" :concurrency-upgrade-enabled="concurrencyUpgradeEnabled" />
           </template>
@@ -282,7 +285,7 @@
             </div>
           </template>
           <template #cell-schedulable="{ row }">
-            <button @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
+            <button role="switch" :aria-checked="row.schedulable" :aria-label="t('admin.accounts.columns.schedulable')" @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
             </button>
           </template>
@@ -294,7 +297,7 @@
             />
           </template>
           <template #cell-groups="{ row }">
-            <AccountGroupsCell :groups="accountGroupsForRow(row)" :max-display="4" />
+            <AccountGroupsCell :groups="accountGroupsForRow(row)" :max-display="1" />
           </template>
           <template #header-usage="{ column }">
             <div class="flex items-center">
@@ -303,7 +306,7 @@
             </div>
           </template>
           <template #cell-usage="{ row }">
-            <AccountUsageCell
+            <AccountUsageCell compact
               :account="row"
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
               :today-stats-loading="todayStatsLoading"
@@ -426,26 +429,29 @@
             </div>
           </template>
           <template #cell-actions="{ row }">
-            <details v-if="authStore.isAdmin" class="mb-2"><summary class="cursor-pointer text-sm">{{ t('common.view') }}</summary><ConsoleObjectLinks kind="account" :id="row.id" :proxy-id="row.proxy_id" class="mt-2" /></details>
             <div class="flex items-center gap-1">
-              <button @click="handleEdit(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
+              <button @click="handleEdit(row)" :aria-label="t('common.edit')" :title="t('common.edit')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
-                <span class="text-xs">{{ t('common.edit') }}</span>
-              </button>
-              <button @click="handleDelete(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                <span class="text-xs">{{ t('common.delete') }}</span>
-              </button>
-              <button @click="openMenu(row, $event)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
-                <span class="text-xs">{{ t('common.more') }}</span>
+
               </button>
             </div>
+          </template>
+          <template #row-details="{ row, columns, renderCell }">
+            <AccountRowDetails :columns="columns" :render-cell="renderCell">
+              <template #actions>
+                <AccountActionMenu inline :account="row" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @iq-test="handleIQTest" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" @delete="handleDelete" />
+              </template>
+              <template v-if="row.platform === 'openai' && row.type === 'oauth'" #supplementary>
+                <OpenAIQuotaResetCell mode="supplementary" :account="row" @account-updated="handleAccountUpdated" />
+              </template>
+            </AccountRowDetails>
           </template>
         </DataTable>
         </div>
       </template>
-      <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
+      <template #pagination>
+        <InfiniteListSentinel :loading="loading" :error="listError" :has-more="hasMore" @load-more="loadMoreAccounts" @retry="retryAccounts" />
+      </template>
     </TablePageLayout>
     <NewAPIUpstreamConfigDialog v-if="authStore.isAdmin" :show="newAPIConfigAccount !== null" :account="newAPIConfigAccount" @close="newAPIConfigAccount = null" @saved="reload" />
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
@@ -455,7 +461,6 @@
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <IQTestModal :show="showIQTest" :account="iqTestingAcc" :accounts="accounts" @close="closeIQTestModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :anchor-rect="menu.anchorRect" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @iq-test="handleIQTest" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
     <SyncFromCrsModal v-if="authStore.isAdmin" :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <BulkEditAccountModal
@@ -487,7 +492,7 @@
 <script setup lang="ts">
 import { isValidAccountCostMultiplier } from '@/utils/accountCost'
 import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
-import { useIntervalFn } from '@vueuse/core'
+import { useDebounceFn, useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
 import { useAppStore } from '@/stores/app'
@@ -495,7 +500,7 @@ import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { useGatewayBorrowRuntime } from '@/composables/useGatewayBorrowRuntime'
 import { requiredBorrowModels } from '@/utils/gatewayBorrowStatus'
-import { useTableLoader } from '@/composables/useTableLoader'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useTableColumns } from '@/composables/useTableColumns'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -506,13 +511,15 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
 import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
+import AccountRowDetails from '@/components/admin/account/AccountRowDetails.vue'
+import OpenAIQuotaResetCell from '@/components/account/OpenAIQuotaResetCell.vue'
 import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
@@ -643,12 +650,12 @@ const showSchedulePanel = ref(false)
 const scheduleAcc = ref<Account | null>(null)
 const scheduleModelOptions = ref<SelectOption[]>([])
 const togglingSchedulable = ref<number | null>(null)
-const menu = reactive<{show:boolean, acc:Account|null, anchorRect:DOMRect|null}>({ show: false, acc: null, anchorRect: null })
 const exportingData = ref(false)
 const probingUpstreamBilling = reactive(new Set<number>())
 const upstreamBillingProbeGloballyEnabled = ref<boolean | undefined>(undefined)
 const upstreamBillingNow = ref(Date.now())
-const upstreamBillingRateETag = ref<string | null>(null)
+type UpstreamRatePage = NonNullable<Awaited<ReturnType<typeof adminAPI.accounts.getUpstreamBillingRatesWithEtag>>['data']>
+const upstreamBillingRatePages = new Map<number, { etag: string | null; data: UpstreamRatePage }>()
 const upstreamBillingRateRefreshing = ref(false)
 let upstreamBillingRateAbortController: AbortController | null = null
 useIntervalFn(() => { upstreamBillingNow.value = Date.now() }, 60_000)
@@ -671,16 +678,17 @@ const accountToolsDropdownStyle = computed(() => ({
   width: `${accountToolsDropdownPosition.width}px`
 }))
 const allColumns = computed(() => [
-  { key: 'select', label: '', sortable: false },
-  { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
-  { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
-  { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
-  { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false },
+  { key: 'id', label: 'ID', sortable: true, width: 112 },
+  { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false, width: 104 },
+  { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, weight: 1.8, minWidth: 160 },
+  { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, width: 96 },
+  { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true, width: 96 },
+  { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false, weight: 2.6, minWidth: 260 },
+  { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false, width: 88 },
+  { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false, weight: 1.3, minWidth: 120 },
+  { key: 'links', label: t('common.view'), sortable: false },
   { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false },
-  { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
-  { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false },
   { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
-  { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
   { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
   { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore'), sortable: false },
   { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
@@ -688,16 +696,15 @@ const allColumns = computed(() => [
   { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true },
   { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true },
   { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
-  { key: 'id', label: t('admin.accounts.columns.id'), sortable: true },
   { key: 'created_at', label: t('admin.accounts.columns.createdAt'), sortable: true },
-  { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false }
+  { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false, width: 80 }
 ].filter(column => column.key !== 'groups' || !authStore.isSimpleMode))
 
 const {
   columns: cols, orderedColumns, hiddenColumns, isColumnVisible, toggleColumn, setColumnOrder, resetColumns
 } = useTableColumns('table-columns:accounts:v1', allColumns, {
-  required: ['select', 'name', 'actions'],
-  fixed: ['select']
+  primary: ['id', 'platform_type', 'name', 'status', 'schedulable', 'usage', 'capacity', 'groups', 'actions'],
+  required: ['id', 'name', 'actions']
 })
 
 // Sorting settings
@@ -745,7 +752,9 @@ const autoRefreshIntervals = [5, 10, 15, 30] as const
 const autoRefreshEnabled = ref(false)
 const autoRefreshIntervalSeconds = ref<(typeof autoRefreshIntervals)[number]>(30)
 const autoRefreshCountdown = ref(0)
-const autoRefreshETag = ref<string | null>(null)
+type AccountPage = Awaited<ReturnType<typeof adminAPI.accounts.list>>
+const accountPages = new Map<number, { etag: string | null; data: AccountPage }>()
+let pollingAccounts = false
 const autoRefreshFetching = ref(false)
 const AUTO_REFRESH_SILENT_WINDOW_MS = 15000
 const autoRefreshSilentUntil = ref(0)
@@ -922,16 +931,6 @@ const queueBatchedUsage = (account: Account, options?: { force?: boolean }) => {
 }
 
 const refreshTodayStatsBatch = async () => {
-  // Why this checks both columns:
-  // - today_stats column shows dedicated today's metrics.
-  // - usage column also embeds today's stats for Key/Bedrock rows.
-  // So we only skip fetching when BOTH columns are hidden.
-  if (hiddenColumns.has('today_stats') && hiddenColumns.has('usage')) {
-    todayStatsLoading.value = false
-    todayStatsError.value = null
-    return
-  }
-
   const accountIDs = accounts.value.map(account => account.id)
   const reqSeq = ++todayStatsReqSeq.value
   if (accountIDs.length === 0) {
@@ -945,9 +944,12 @@ const refreshTodayStatsBatch = async () => {
   todayStatsError.value = null
 
   try {
-    const result = await adminAPI.accounts.getBatchTodayStats(accountIDs)
-    if (reqSeq !== todayStatsReqSeq.value) return
-    const serverStats = result.stats ?? {}
+    const serverStats: Record<string, WindowStats> = {}
+    for (let offset = 0; offset < accountIDs.length; offset += 100) {
+      const result = await adminAPI.accounts.getBatchTodayStats(accountIDs.slice(offset, offset + 100))
+      if (reqSeq !== todayStatsReqSeq.value) return
+      Object.assign(serverStats, result.stats ?? {})
+    }
     const nextStats: Record<string, WindowStats> = {}
     for (const accountID of accountIDs) {
       const key = String(accountID)
@@ -1056,7 +1058,7 @@ const setAutoRefreshInterval = (seconds: (typeof autoRefreshIntervals)[number]) 
   }
 }
 
-watch(() => [isColumnVisible('usage'), isColumnVisible('today_stats')], (visible, previous) => {
+watch(() => [isColumnVisible('usage'), isColumnVisible('today_stats'), isColumnVisible('today_summary')], (visible, previous) => {
   if (visible.some((shown, index) => shown && !previous[index])) {
     refreshTodayStatsBatch().catch((error) => {
       console.error('Failed to load account today stats after showing column:', error)
@@ -1078,19 +1080,7 @@ const syncAccountListDerivedParams = () => {
   requestParams.include_scheduler_score = shouldIncludeSchedulerScore() ? '1' : '0'
 }
 
-const {
-  items: accounts,
-  loading,
-  params,
-  pagination,
-  load: baseLoad,
-  reload: baseReload,
-  debouncedReload: baseDebouncedReload,
-  handlePageChange: baseHandlePageChange,
-  handlePageSizeChange: baseHandlePageSizeChange
-} = useTableLoader<AccountListItem, any>({
-  fetchFn: adminAPI.accounts.list,
-  initialParams: {
+const params = reactive({
     platform: '',
     type: '',
     status: '',
@@ -1101,21 +1091,60 @@ const {
     include_scheduler_score: shouldIncludeSchedulerScore() ? '1' : '0',
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
+})
+const accountPageSize = 20
+const continuousList = useInfiniteList<AccountListItem>({
+  pageSize: accountPageSize,
+  keyOf: account => account.id,
+  fetchPage: async (page, signal): Promise<AccountPage> => {
+    const filters = { ...toRaw(params) }
+    const cached = accountPages.get(page)
+    let data: AccountPage
+    let etag: string | null = null
+    if (pollingAccounts) {
+      const result = await adminAPI.accounts.listWithEtag(page, accountPageSize, filters, {
+        etag: cached?.etag ?? null, signal
+      })
+      data = result.notModified && cached ? cached.data
+        : result.data ?? await adminAPI.accounts.list(page, accountPageSize, filters, { signal })
+      etag = result.etag ?? null
+    } else {
+      data = await adminAPI.accounts.list(page, accountPageSize, filters, { signal })
+    }
+    if (!signal.aborted) accountPages.set(page, { etag, data })
+    if (pollingAccounts) {
+      const currentByID = new Map(accounts.value.map(account => [account.id, account]))
+      return { ...data, items: data.items.map(next => {
+        const current = currentByID.get(next.id)
+        return current && !shouldReplaceAutoRefreshRow(current, next) ? current : next
+      }) }
+    }
+    return data
   }
+})
+const {
+  items: accounts, loading: initialLoading, loadingMore, refreshing,
+  error: listError, hasMore
+} = continuousList
+const filterReloadPending = ref(false)
+let filterReloadVersion = 0
+const loading = computed(() => initialLoading.value || loadingMore.value || refreshing.value || filterReloadPending.value)
+const pagination = reactive({
+  get page() { return Math.max(1, continuousList.page.value) },
+  page_size: accountPageSize,
+  get total() { return continuousList.total.value ?? 0 },
+  set total(value: number) { continuousList.total.value = value }
 })
 
 const {
   selectedSet,
   selectedIds: selIds,
-  allVisibleSelected,
   isSelected,
   setSelectedIds,
   select,
   deselect,
-  toggle: toggleSel,
   clear: clearSelectedIds,
   removeMany: removeSelectedAccounts,
-  toggleVisible,
   selectVisible: selectCurrentPage,
   batchUpdate
 } = useTableSelection<AccountListItem>({
@@ -1157,8 +1186,8 @@ useSwipeSelect(accountTableRef, {
 }, swipeVirtualContext)
 
 const resetAutoRefreshCache = () => {
-  autoRefreshETag.value = null
-  upstreamBillingRateETag.value = null
+  accountPages.clear()
+  upstreamBillingRatePages.clear()
   upstreamBillingRateAbortController?.abort()
 }
 
@@ -1167,23 +1196,41 @@ type AccountLoadOptions = {
 }
 
 const load = async (options: AccountLoadOptions = {}) => {
+  filterReloadVersion++
+  filterReloadPending.value = false
+  continuousList.cancel()
+  pollingAccounts = false
   const requestParams = params as any
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = false
   requestParams.lite = '1'
-  await Promise.all([baseLoad(), loadConcurrencyUpgradeState()])
+  await Promise.all([continuousList.refresh(), loadConcurrencyUpgradeState()])
   if (options.refreshTodayStats !== false) await refreshTodayStatsBatch()
 }
 
 const reload = async () => {
-  syncAccountListDerivedParams()
-  hasPendingListSync.value = false
-  resetAutoRefreshCache()
-  pendingTodayStatsRefresh.value = false
-  await Promise.all([baseReload(), loadConcurrencyUpgradeState()])
-  await refreshTodayStatsBatch()
+  await load()
+}
+
+const loadMoreAccounts = async () => {
+  if (loading.value) return
+  if (hasPendingListSync.value) {
+    await load()
+    if (listError.value) return
+  }
+  pollingAccounts = false
+  upstreamBillingRateAbortController?.abort()
+  upstreamBillingRatePages.clear()
+  await continuousList.loadMore()
+  if (!listError.value) await refreshTodayStatsBatch()
+}
+
+const retryAccounts = async () => {
+  pollingAccounts = false
+  await continuousList.retry()
+  if (!listError.value) await refreshTodayStatsBatch()
 }
 
 const buildUpstreamBillingRateFilters = () => {
@@ -1220,16 +1267,24 @@ const applyUpstreamBillingRateSnapshots = async (
 
   // Fetch missing rows without replacing the table with its loading skeleton.
   if (result.total !== pagination.total || nextIDs.length !== currentIDs.length || nextIDs.some(id => !currentByID.has(id))) {
-    const page = await adminAPI.accounts.list(
-      pagination.page,
-      pagination.page_size,
-      { ...toRaw(params), lite: '1' },
-      { signal }
-    )
-    if (signal.aborted || loading.value || requestContextKey !== upstreamBillingRateContextKey()) return
-    pagination.total = page.total
-    pagination.pages = page.pages
-    mergeAccountsIncrementally(page.items)
+    const nextRows: AccountListItem[] = []
+    let nextTotal = pagination.total
+    let nextPages = pagination.page
+    let loadedPage = 1
+    const filters = { ...toRaw(params), lite: '1' }
+    for (let page = 1; page <= pagination.page; page++) {
+      const result = await adminAPI.accounts.list(page, pagination.page_size, filters, { signal })
+      if (signal.aborted || loading.value || requestContextKey !== upstreamBillingRateContextKey()) return
+      nextRows.push(...result.items)
+      nextTotal = result.total
+      nextPages = result.pages
+      loadedPage = page
+      if (result.pages <= page) break
+    }
+    pagination.total = nextTotal
+    accountPages.clear()
+    mergeAccountsIncrementally([...new Map(nextRows.map(row => [row.id, row])).values()])
+    continuousList.replaceLoaded({ items: accounts.value, total: nextTotal, pages: nextPages }, loadedPage)
     hasPendingListSync.value = false
     upstreamBillingNow.value = Date.now()
     return
@@ -1274,7 +1329,6 @@ const refreshUpstreamBillingRates = async (force = false) => {
   if (!force && (
     probingUpstreamBilling.size > 0 ||
     isAnyModalOpen.value ||
-    menu.show ||
     showAccountToolsDropdown.value ||
     showAutoRefreshDropdown.value ||
     (typeof document !== 'undefined' && document.hidden)
@@ -1286,19 +1340,26 @@ const refreshUpstreamBillingRates = async (force = false) => {
   try {
     syncAccountListDerivedParams()
     const requestContextKey = upstreamBillingRateContextKey()
-    const result = await adminAPI.accounts.getUpstreamBillingRatesWithEtag(
-      pagination.page,
-      pagination.page_size,
-      buildUpstreamBillingRateFilters(),
-      { etag: force ? null : upstreamBillingRateETag.value, signal: controller.signal }
-    )
-    if (controller.signal.aborted || loading.value || requestContextKey !== upstreamBillingRateContextKey()) return
-    if (result.etag) upstreamBillingRateETag.value = result.etag
-    if (!result.notModified && result.data) {
-      await applyUpstreamBillingRateSnapshots(result.data, requestContextKey, controller.signal)
+    const filters = buildUpstreamBillingRateFilters()
+    let combined: UpstreamRatePage | undefined
+    let changed = false
+    for (let page = 1; page <= pagination.page; page++) {
+      const cached = upstreamBillingRatePages.get(page)
+      const result = await adminAPI.accounts.getUpstreamBillingRatesWithEtag(
+        page, pagination.page_size, filters,
+        { etag: force ? null : cached?.etag ?? null, signal: controller.signal }
+      )
+      if (controller.signal.aborted || loading.value || requestContextKey !== upstreamBillingRateContextKey()) return
+      const data = result.notModified ? cached?.data : result.data
+      if (!data) return
+      upstreamBillingRatePages.set(page, { etag: result.etag ?? null, data })
+      changed ||= !result.notModified
+      combined = { ...data, items: [...(combined?.items ?? []), ...data.items] }
+      if (page * pagination.page_size >= data.total) break
     }
+    if (changed && combined) await applyUpstreamBillingRateSnapshots(combined, requestContextKey, controller.signal)
   } catch (error) {
-    upstreamBillingRateETag.value = null
+    upstreamBillingRatePages.clear()
     const refreshError = error as { name?: string; code?: string }
     if (refreshError.name !== 'AbortError' && refreshError.name !== 'CanceledError' && refreshError.code !== 'ERR_CANCELED') {
       console.error('Failed to refresh upstream billing rates:', error)
@@ -1312,42 +1373,41 @@ const refreshUpstreamBillingRates = async (force = false) => {
 useIntervalFn(() => { void refreshUpstreamBillingRates() }, 5 * 60_000, { immediate: false })
 
 const debouncedReload = () => {
+  filterReloadPending.value = true
+  const version = ++filterReloadVersion
   clearSelection()
+  continuousList.clear()
+  pollingAccounts = false
+  todayStatsReqSeq.value++
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
-  baseDebouncedReload()
+  baseDebouncedReload(version)
 }
 
-const handlePageChange = (page: number) => {
-  syncAccountListDerivedParams()
-  hasPendingListSync.value = false
-  resetAutoRefreshCache()
-  pendingTodayStatsRefresh.value = true
-  baseHandlePageChange(page)
-}
-
-const handlePageSizeChange = (size: number) => {
-  syncAccountListDerivedParams()
-  hasPendingListSync.value = false
-  resetAutoRefreshCache()
-  pendingTodayStatsRefresh.value = true
-  baseHandlePageSizeChange(size)
-}
+const baseDebouncedReload = useDebounceFn(async (version: number) => {
+  if (version !== filterReloadVersion) return
+  filterReloadPending.value = false
+  await continuousList.reset()
+}, 300)
 
 const handleSort = (key: string, order: AccountSortOrder) => {
+  filterReloadVersion++
+  filterReloadPending.value = false
   sortState.sort_by = key
   sortState.sort_order = order
   const requestParams = params as any
   requestParams.sort_by = key
   requestParams.sort_order = order
   syncAccountListDerivedParams()
-  pagination.page = 1
+  continuousList.clear()
+  pollingAccounts = false
+  todayStatsReqSeq.value++
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
-  load()
+  void continuousList.reset()
 }
 
 watch(loading, (isLoading, wasLoading) => {
@@ -1441,7 +1501,6 @@ const syncAccountRefs = (nextAccount: Account) => {
   if (reAuthAcc.value?.id === nextAccount.id) reAuthAcc.value = nextAccount
   if (tempUnschedAcc.value?.id === nextAccount.id) tempUnschedAcc.value = nextAccount
   if (deletingAcc.value?.id === nextAccount.id) deletingAcc.value = nextAccount
-  if (menu.acc?.id === nextAccount.id) menu.acc = nextAccount
 }
 
 const mergeAccountsIncrementally = (nextRows: Account[]) => {
@@ -1475,48 +1534,26 @@ const mergeAccountsIncrementally = (nextRows: Account[]) => {
 }
 
 const refreshAccountsIncrementally = async () => {
-  if (autoRefreshFetching.value) return
+  if (autoRefreshFetching.value || loading.value) return
   syncAccountListDerivedParams()
   autoRefreshFetching.value = true
+  pollingAccounts = true
+  upstreamBillingRateAbortController?.abort()
   const upgradeStateRefresh = loadConcurrencyUpgradeState()
   try {
-    const result = await adminAPI.accounts.listWithEtag(
-      pagination.page,
-      pagination.page_size,
-      toRaw(params) as {
-        platform?: string
-        type?: string
-        status?: string
-        privacy_mode?: string
-        group?: string
-        search?: string
-        sort_by?: string
-        sort_order?: AccountSortOrder
-
-      },
-      { etag: autoRefreshETag.value }
-    )
-
-    if (result.etag) {
-      autoRefreshETag.value = result.etag
-    }
-    if (!result.notModified && result.data) {
-      pagination.total = result.data.total || 0
-      pagination.pages = result.data.pages || 0
-      mergeAccountsIncrementally(result.data.items || [])
+    await continuousList.refresh()
+    if (!listError.value) {
+      accounts.value.forEach(syncAccountRefs)
       hasPendingListSync.value = false
+      upstreamBillingNow.value = Date.now()
+      await refreshTodayStatsBatch()
     }
-    upstreamBillingNow.value = Date.now()
-
-    await refreshTodayStatsBatch()
-  } catch (error) {
-    console.error('Auto refresh failed:', error)
   } finally {
+    pollingAccounts = false
     await upgradeStateRefresh
     autoRefreshFetching.value = false
   }
 }
-
 const handleManualRefresh = async () => {
   await Promise.all([load(), loadUpstreamBillingProbeGlobalState()])
   // Force usage cells to refetch /usage on explicit user refresh.
@@ -1593,7 +1630,7 @@ const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
     if (document.hidden) return
     if (loading.value || autoRefreshFetching.value) return
     if (isAnyModalOpen.value) return
-    if (menu.show || showAccountToolsDropdown.value || showAutoRefreshDropdown.value) return
+    if (showAccountToolsDropdown.value || showAutoRefreshDropdown.value) return
     if (inAutoRefreshSilentWindow()) {
       autoRefreshCountdown.value = Math.max(
         0,
@@ -1838,16 +1875,6 @@ const handleEdit = async (a: AccountListItem) => {
   if (!account) return
   edAcc.value = account
   showEdit.value = true
-}
-const openMenu = (a: Account, e: MouseEvent) => {
-  menu.acc = a
-  const target = e.currentTarget as HTMLElement
-  menu.anchorRect = target.getBoundingClientRect()
-  menu.show = true
-}
-const toggleSelectAllVisible = (event: Event) => {
-  const target = event.target as HTMLInputElement
-  toggleVisible(target.checked)
 }
 const handleBulkDelete = async () => {
   const accountIds = [...selIds.value]
@@ -2183,14 +2210,12 @@ const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Accou
 
 const syncPaginationAfterLocalRemoval = () => {
   const nextTotal = Math.max(0, pagination.total - 1)
-  pagination.total = nextTotal
-  pagination.pages = nextTotal > 0 ? Math.ceil(nextTotal / pagination.page_size) : 0
+  const nextPages = Math.ceil(nextTotal / accountPageSize)
+  continuousList.replaceLoaded({
+    items: accounts.value, total: nextTotal, pages: nextPages
+  }, Math.max(1, Math.min(pagination.page, nextPages)))
+  resetAutoRefreshCache()
 
-  const maxPage = Math.max(1, pagination.pages || 1)
-
-  if (pagination.page > maxPage) {
-    pagination.page = maxPage
-  }
   // 行被本地移除后不立刻全量补页，改为提示用户手动同步。
   hasPendingListSync.value = nextTotal > 0
 }
@@ -2203,10 +2228,6 @@ const patchAccountInList = (updatedAccount: Account) => {
     accounts.value = accounts.value.filter(account => account.id !== mergedAccount.id)
     syncPaginationAfterLocalRemoval()
     removeSelectedAccounts([mergedAccount.id])
-    if (menu.acc?.id === mergedAccount.id) {
-      menu.show = false
-      menu.acc = null
-    }
     return
   }
   const nextAccounts = [...accounts.value]
@@ -2502,10 +2523,8 @@ const proxyExpiryText = (p: AccountProxy): string => {
   return params ? t(key, params) : t(key)
 }
 
-// 表格滚动时关闭行操作菜单，并让顶部工具菜单继续贴紧触发按钮。
-const handleScroll = (event: Event) => {
-  if (event.target instanceof Element && event.target.closest('.action-menu-content')) return
-  menu.show = false
+// Keep the toolbar menu aligned with its trigger during document scrolling.
+const handleScroll = () => {
   if (showAccountToolsDropdown.value) updateAccountToolsDropdownPosition()
 }
 
@@ -2567,6 +2586,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  filterReloadVersion++
+  todayStatsReqSeq.value++
   concurrencyUpgradeRequest++
   upstreamBillingRateAbortController?.abort()
   if (usageBatchFlushTimer !== null) {
@@ -2596,5 +2617,18 @@ onUnmounted(() => {
 
 .account-tools-menu-icon {
   @apply inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md;
+}
+
+.accounts-page-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem; }
+.accounts-page-heading h1 { font-family: var(--ritel-display); font-size: clamp(2.25rem, 3vw, 3rem); font-weight: 400; line-height: 1.1; }
+.accounts-filter-row { width: 100%; padding-top: .5rem; }
+.accounts-filters { width: 100%; }
+
+
+@media (max-width: 767px) {
+  .accounts-page-heading { gap: .875rem; }
+  .accounts-page-heading > :deep(div) { width: 100%; gap: .375rem; }
+  .accounts-page-heading :deep(.btn) { min-height: 36px; padding: 7px 10px; font-size: 12px; }
+  .accounts-page-heading > :deep(div) > .btn-primary { order: -1; margin-right: auto; }
 }
 </style>

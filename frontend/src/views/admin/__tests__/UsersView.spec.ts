@@ -137,7 +137,7 @@ const mountBulkDeleteView = () => mount(UsersView, {
     stubs: {
       AppLayout: { template: '<div><slot /></div>' },
       TablePageLayout: {
-        template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+        template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
       },
       DataTable: DataTableStub,
       Pagination: PaginationStub,
@@ -235,14 +235,17 @@ describe('admin UsersView', () => {
 
     wrapper.getComponent(ColumnSettings).vm.$emit('toggle', 'notes')
     await flushPromises()
-    expect(wrapper.get('[data-test="columns"]').text().split(',')).not.toContain('notes')
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toContain('notes')
+    expect(wrapper.findComponent(DataTableStub).props('columns').find((column: { key: string }) => column.key === 'notes').primary).toBe(true)
     wrapper.unmount()
     wrapper = mountBulkDeleteView()
     await flushPromises()
-    expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual(reordered.filter(key => key !== 'notes'))
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual(reordered)
+    expect(wrapper.findComponent(DataTableStub).props('columns').find((column: { key: string }) => column.key === 'notes').primary).toBe(true)
     wrapper.getComponent(ColumnSettings).vm.$emit('reset')
     await flushPromises()
     expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual(original)
+    expect(wrapper.findComponent(DataTableStub).props('columns').find((column: { key: string }) => column.key === 'notes').primary).toBe(false)
     wrapper.unmount()
   })
 
@@ -267,7 +270,7 @@ describe('admin UsersView', () => {
     { failedIds: [], remaining: '', deleted: 2 },
     { failedIds: [43], remaining: '43', deleted: 1 },
     { failedIds: [42, 43], remaining: '42,43', deleted: 0 }
-  ])('deletes across pages and retains failures: $remaining', async ({ failedIds, remaining, deleted }) => {
+  ])('deletes across appended batches and retains failures: $remaining', async ({ failedIds, remaining, deleted }) => {
     listUsers.mockImplementation(async (page: number) => ({
       items: [createAdminUser({ id: page === 2 ? 43 : 42 })],
       total: 2, page, page_size: 20, pages: 2
@@ -278,7 +281,7 @@ describe('admin UsersView', () => {
     const wrapper = mountBulkDeleteView()
     await flushPromises()
     await wrapper.get('[data-test="select-42"]').trigger('click')
-    await wrapper.get('[data-test="next-page"]').trigger('click')
+    wrapper.getComponent({ name: 'InfiniteListSentinel' }).vm.$emit('load-more')
     await flushPromises()
     await wrapper.get('[data-test="select-43"]').trigger('click')
     await wrapper.get('[data-test="bulk-delete-users"]').trigger('click')
@@ -292,7 +295,7 @@ describe('admin UsersView', () => {
     expect(wrapper.find('[data-test="delete-dialog"]').exists()).toBe(false)
     if (deleted) {
       expect(showSuccess).toHaveBeenCalledWith(`admin.users.bulkDelete.success:${deleted}`)
-      expect(listUsers.mock.lastCall?.[0]).toBe(1)
+      expect(listUsers.mock.calls.slice(-2).map(call => call[0])).toEqual([1, 2])
     } else {
       expect(showSuccess).not.toHaveBeenCalled()
     }
@@ -393,7 +396,7 @@ describe('admin UsersView', () => {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+            template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
           },
           DataTable: DataTableStub,
           Pagination: true,
@@ -433,7 +436,7 @@ describe('admin UsersView', () => {
 
     expect(listUsers).toHaveBeenLastCalledWith(
       1,
-      20,
+      50,
       expect.objectContaining({
         sort_by: 'last_used_at',
         sort_order: 'desc'
@@ -468,7 +471,7 @@ describe('admin UsersView', () => {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+            template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
           },
           DataTable: DataTableStub,
           Pagination: true,
@@ -514,7 +517,7 @@ describe('admin UsersView', () => {
     expect(wrapper.get('[data-test="row-order"]').text()).toBe('last-used-first@example.com,usage-first@example.com')
     expect(listUsers).toHaveBeenLastCalledWith(
       1,
-      20,
+      50,
       expect.objectContaining({
         sort_by: 'last_used_at',
         sort_order: 'desc'
@@ -523,7 +526,7 @@ describe('admin UsersView', () => {
     )
   })
 
-  it('keeps selected user IDs across pages and clears them after a successful bulk update', async () => {
+  it('keeps selected user IDs across appended batches and clears them after a successful bulk update', async () => {
     let refreshed = false
     listUsers.mockImplementation(async (page: number) => {
       const user = page === 2
@@ -546,7 +549,7 @@ describe('admin UsersView', () => {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+            template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
           },
           DataTable: DataTableStub,
           Pagination: PaginationStub,
@@ -578,7 +581,7 @@ describe('admin UsersView', () => {
     expect(wrapper.get('[data-test="selected-keys"]').text()).toBe('42')
     expect(wrapper.find('[data-test="bulk-edit-limits"]').exists()).toBe(true)
 
-    await wrapper.get('[data-test="next-page"]').trigger('click')
+    wrapper.getComponent({ name: 'InfiniteListSentinel' }).vm.$emit('load-more')
     await flushPromises()
     expect(wrapper.get('[data-test="selected-keys"]').text()).toBe('42')
 
@@ -594,7 +597,7 @@ describe('admin UsersView', () => {
     await flushPromises()
 
     expect(listUsers.mock.calls.length).toBeGreaterThan(callsBeforeSuccess)
-    expect(wrapper.get('[data-test="row-order"]').text()).toBe('refreshed-page-two@example.com')
+    expect(wrapper.get('[data-test="row-order"]').text()).toBe('page-one@example.com,refreshed-page-two@example.com')
     expect(wrapper.find('[data-test="bulk-edit-limits"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="selected-keys"]').text()).toBe('')
   })

@@ -53,7 +53,7 @@
           v-model="typeFilter"
           :options="typeOptions"
           class="w-56"
-          @change="loadHistory(1)"
+          @change="loadHistory"
         />
         <!-- Deposit button - matches menu style -->
         <button
@@ -91,11 +91,11 @@
       </div>
 
       <!-- History list -->
-      <div v-else class="max-h-[28rem] space-y-3 overflow-y-auto">
+      <div v-else class="divide-y divide-gray-200 dark:divide-dark-600">
         <div
           v-for="item in history"
           :key="item.id"
-          class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-600 dark:bg-dark-800"
+          class="py-4"
         >
           <div class="flex items-start justify-between">
             <!-- Left: type icon + description -->
@@ -147,32 +147,19 @@
         </div>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 pt-2">
-        <button
-          :disabled="currentPage <= 1"
-          class="btn btn-secondary px-3 py-1 text-sm"
-          @click="loadHistory(currentPage - 1)"
-        >
-          {{ t('pagination.previous') }}
-        </button>
-        <span class="text-sm text-gray-500 dark:text-dark-400">
-          {{ currentPage }} / {{ totalPages }}
-        </span>
-        <button
-          :disabled="currentPage >= totalPages"
-          class="btn btn-secondary px-3 py-1 text-sm"
-          @click="loadHistory(currentPage + 1)"
-        >
-          {{ t('pagination.next') }}
-        </button>
-      </div>
+      <InfiniteListSentinel
+        :loading="loading || historyList.loadingMore.value"
+        :error="historyList.error.value"
+        :has-more="historyList.hasMore.value"
+        @load-more="historyList.loadMore"
+        @retry="historyList.retry"
+      />
     </div>
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type BalanceHistoryItem } from '@/api/admin'
 import { formatDateTime } from '@/utils/format'
@@ -180,23 +167,32 @@ import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 
 const props = defineProps<{ show: boolean; user: AdminUser | null; hideActions?: boolean }>()
 const emit = defineEmits(['close', 'deposit', 'withdraw'])
 const { t } = useI18n()
 
-const history = ref<BalanceHistoryItem[]>([])
-const loading = ref(false)
-const currentPage = ref(1)
-const total = ref(0)
 const totalRecharged = ref(0)
-const pageSize = 15
 const typeFilter = ref('')
-let requestVersion = 0
-
-onUnmounted(() => { requestVersion++ })
-
-const totalPages = computed(() => Math.ceil(total.value / pageSize) || 1)
+const historyList = useInfiniteList<BalanceHistoryItem>({
+  pageSize: 15,
+  keyOf: item => item.id,
+  fetchPage: async (page, signal) => {
+    const user = props.user
+    if (!props.show || !user) return { items: [], total: 0 }
+    try {
+      const response = await adminAPI.users.getUserBalanceHistory(user.id, page, 15, typeFilter.value || undefined, { signal })
+      if (!signal.aborted) totalRecharged.value = response.total_recharged || 0
+      return response
+    } catch (error) {
+      if (!signal.aborted) console.error('Failed to load balance history:', error)
+      throw error
+    }
+  }
+})
+const { items: history, loading } = historyList
 
 // Type filter options
 const typeOptions = computed(() => [
@@ -211,37 +207,15 @@ const typeOptions = computed(() => [
   { value: 'subscription', label: t('admin.users.typeSubscription') }
 ])
 
-// Watch modal open
-watch(() => props.show, (v) => {
-  requestVersion++
-  if (v && props.user) {
-    typeFilter.value = ''
-    loadHistory(1)
-  }
-})
+watch([() => props.show, () => props.user?.id], ([show]) => {
+  historyList.clear()
+  totalRecharged.value = 0
+  typeFilter.value = ''
+  if (show && props.user) void loadHistory()
+}, { immediate: true })
 
-const loadHistory = async (page: number) => {
-  if (!props.user) return
-  const version = ++requestVersion
-  loading.value = true
-  currentPage.value = page
-  try {
-    const res = await adminAPI.users.getUserBalanceHistory(
-      props.user.id,
-      page,
-      pageSize,
-      typeFilter.value || undefined
-    )
-    if (version !== requestVersion) return
-    history.value = res.items || []
-    total.value = res.total || 0
-    totalRecharged.value = res.total_recharged || 0
-  } catch (error) {
-    if (version !== requestVersion) return
-    console.error('Failed to load balance history:', error)
-  } finally {
-    if (version === requestVersion) loading.value = false
-  }
+async function loadHistory() {
+  if (props.show && props.user) await historyList.reset()
 }
 
 // Helper: check if admin type

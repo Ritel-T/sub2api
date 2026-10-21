@@ -148,7 +148,7 @@ const AppLayoutStub = {
 const TablePageLayoutStub = {
   template: `
     <div>
-      <slot name="filters" />
+      <slot name="actions" /><slot name="filters" />
       <slot name="table" />
       <slot name="pagination" />
     </div>
@@ -226,6 +226,9 @@ const mountView = async () => {
 const columnKeys = (wrapper: ReturnType<typeof mount>) =>
   wrapper.get('[data-test="columns"]').text().split(',').filter(Boolean)
 
+const primaryKeys = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.findComponent(DataTable).props('columns').filter((column: { primary?: boolean }) => column.primary !== false).map((column: { key: string }) => column.key)
+
 const openColumnSettings = async (wrapper: ReturnType<typeof mount>) => {
   await wrapper.get('button[title="Column Settings"]').trigger('click')
 }
@@ -246,7 +249,7 @@ const defaultColumns = [
 ]
 const storageKey = 'table-columns:groups:v1'
 const saveColumns = (hidden: string[], order: string[] = []) => {
-  localStorage.setItem(storageKey, JSON.stringify({ hidden, order }))
+  localStorage.setItem(storageKey, JSON.stringify({ version: 2, primary: Object.fromEntries(hidden.map(key => [key, false])), order }))
 }
 
 describe('admin GroupsView column settings', () => {
@@ -313,7 +316,7 @@ describe('admin GroupsView column settings', () => {
     expect(getCapacitySummary).toHaveBeenCalledTimes(1)
     expect(localStorage.getItem(storageKey)).toBeNull()
     expect(listGroups).toHaveBeenCalledWith(
-      1, 20, expect.objectContaining({ sort_by: 'sort_order', sort_order: 'asc' }), expect.any(Object),
+      1, 50, expect.objectContaining({ sort_by: 'sort_order', sort_order: 'asc' }), expect.any(Object),
     )
   })
 
@@ -321,22 +324,22 @@ describe('admin GroupsView column settings', () => {
     saveColumns(['usage', 'capacity', 'removed_column', 'name', 'actions'], ['id', 'actions', 'removed_column'])
     const wrapper = await mountView()
 
-    expect(columnKeys(wrapper)).toEqual([
-      'id', 'actions', 'name', 'status', 'platform', 'account_count',
-      'billing_type', 'rate_multiplier', 'is_exclusive',
-    ])
+    expect(columnKeys(wrapper)).toEqual(['id', 'actions', ...defaultColumns.filter(key => !['id', 'actions'].includes(key))])
+    expect(primaryKeys(wrapper)).toEqual(['actions', 'name', 'status', 'platform', 'account_count', 'rate_multiplier'])
   })
 
-  it('toggles a column through the shared settings and persists its visibility', async () => {
+  it('promotes a default detail field through settings and persists main-row placement', async () => {
     const wrapper = await mountView()
+    expect(primaryKeys(wrapper)).not.toContain('usage')
     await openColumnSettings(wrapper)
     await clickColumnToggle(wrapper, 'Usage')
 
-    expect(columnKeys(wrapper)).toEqual(defaultColumns.filter(key => key !== 'usage'))
-    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual({ order: [], hidden: ['usage'] })
+    expect(columnKeys(wrapper)).toEqual(defaultColumns)
+    expect(primaryKeys(wrapper)).toContain('usage')
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual({ version: 2, order: [], primary: { usage: true } })
   })
 
-  it('can hide and show ID while keeping required identity and action checkboxes disabled', async () => {
+  it('can promote and demote ID while keeping required identity and action checkboxes disabled', async () => {
     const wrapper = await mountView()
     await openColumnSettings(wrapper)
     for (const label of ['Name', 'Actions']) {
@@ -344,23 +347,25 @@ describe('admin GroupsView column settings', () => {
       expect(input.attributes('disabled')).toBeDefined()
     }
     await clickColumnToggle(wrapper, 'ID')
-    expect(columnKeys(wrapper)).not.toContain('id')
+    expect(columnKeys(wrapper)).toContain('id')
+    expect(primaryKeys(wrapper)).toContain('id')
     await clickColumnToggle(wrapper, 'ID')
     expect(columnKeys(wrapper)).toEqual(defaultColumns)
-    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual({ order: [], hidden: [] })
+    expect(primaryKeys(wrapper)).not.toContain('id')
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual({ version: 2, order: [], primary: { id: false } })
   })
 
-  it('skips summary fetches while all consuming columns are hidden and lazily loads when shown', async () => {
+  it('loads detail summaries even when their columns are unchecked and avoids refetching for main-row changes', async () => {
     saveColumns(['billing_type', 'usage', 'capacity'])
     const wrapper = await mountView()
-    expect(getUsageSummary).not.toHaveBeenCalled()
-    expect(getCapacitySummary).not.toHaveBeenCalled()
+    expect(getUsageSummary).toHaveBeenCalledTimes(1)
+    expect(getCapacitySummary).toHaveBeenCalledTimes(1)
 
     await openColumnSettings(wrapper)
     await clickColumnToggle(wrapper, 'Usage')
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
     expect(getUsageSummary).toHaveBeenCalledWith()
-    expect(getCapacitySummary).not.toHaveBeenCalled()
+    expect(getCapacitySummary).toHaveBeenCalledTimes(1)
 
     await clickColumnToggle(wrapper, 'Capacity')
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
@@ -369,11 +374,11 @@ describe('admin GroupsView column settings', () => {
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
   })
 
-  it('restores default order and fetches hidden summaries when reset from the settings panel', async () => {
+  it('restores default order and main-row choices without discarding already loaded detail summaries', async () => {
     saveColumns(['billing_type', 'usage', 'capacity'], ['actions', 'id'])
     const wrapper = await mountView()
-    expect(getUsageSummary).not.toHaveBeenCalled()
-    expect(getCapacitySummary).not.toHaveBeenCalled()
+    expect(getUsageSummary).toHaveBeenCalledTimes(1)
+    expect(getCapacitySummary).toHaveBeenCalledTimes(1)
 
     await openColumnSettings(wrapper)
     const reset = wrapper.findAll('button').find(button => button.text() === 'Reset columns')!
@@ -382,7 +387,7 @@ describe('admin GroupsView column settings', () => {
     expect(columnKeys(wrapper)).toEqual(defaultColumns)
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
     expect(getCapacitySummary).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual({ order: [], hidden: [] })
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual({ version: 2, order: [], primary: {} })
   })
 
   it('persists both header and keyboard settings reordering across remounts', async () => {
@@ -413,4 +418,36 @@ describe('admin GroupsView column settings', () => {
     expect(text.indexOf('Today')).toBeLessThan(text.indexOf('Yesterday'))
     expect(text.indexOf('Yesterday')).toBeLessThan(text.indexOf('Total'))
   })
+
+  it('appends groups without losing earlier rows, deduplicates overlap, and resets after changing sort', async () => {
+    listGroups.mockResolvedValueOnce({ items: [createGroup({ id: 1, name: 'First' })], total: 3, pages: 2 })
+    const wrapper = await mountView()
+    listGroups.mockResolvedValueOnce({ items: [createGroup({ id: 1, name: 'Updated' }), createGroup({ id: 2, name: 'Second' }), createGroup({ id: 3, name: 'Third' })], total: 3, pages: 2 })
+    wrapper.getComponent({ name: 'InfiniteListSentinel' }).vm.$emit('load-more')
+    await flushPromises()
+    expect(listGroups.mock.lastCall?.[0]).toBe(2)
+    expect(wrapper.get('[data-test="rows"]').text()).toBe('Updated,Second,Third')
+    expect(wrapper.getComponent({ name: 'InfiniteListSentinel' }).props('hasMore')).toBe(false)
+    listGroups.mockResolvedValueOnce({ items: [createGroup({ id: 3, name: 'Third' })], total: 1, pages: 1 })
+    wrapper.getComponent(DataTable).vm.$emit('sort', 'name', 'desc')
+    await flushPromises()
+    expect(listGroups.mock.lastCall?.[0]).toBe(1)
+    expect(wrapper.get('[data-test="rows"]').text()).toBe('Third')
+  })
+
+  it('keeps already loaded groups on append failure and retries the same batch', async () => {
+    listGroups.mockResolvedValueOnce({ items: [createGroup({ id: 1, name: 'First' })], total: 2, pages: 2 })
+    const wrapper = await mountView()
+    listGroups.mockRejectedValueOnce(new Error('temporary failure'))
+    wrapper.getComponent({ name: 'InfiniteListSentinel' }).vm.$emit('load-more')
+    await flushPromises()
+    expect(wrapper.get('[data-test="rows"]').text()).toBe('First')
+    expect(wrapper.getComponent({ name: 'InfiniteListSentinel' }).props('error')).toBeTruthy()
+    listGroups.mockResolvedValueOnce({ items: [createGroup({ id: 2, name: 'Second' })], total: 2, pages: 2 })
+    wrapper.getComponent({ name: 'InfiniteListSentinel' }).vm.$emit('retry')
+    await flushPromises()
+    expect(listGroups.mock.calls.slice(-2).map(call => call[0])).toEqual([2, 2])
+    expect(wrapper.get('[data-test="rows"]').text()).toBe('First,Second')
+  })
+
 })

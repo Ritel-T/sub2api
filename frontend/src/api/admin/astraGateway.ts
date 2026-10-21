@@ -72,8 +72,8 @@ export interface AstraGatewayHistoryRecord {
   first_seen: string; last_seen: string; last_pass?: string; last_failure?: string; last_answer: string; last_reason: string
 }
 export interface AstraGatewayHistoryPage { items: AstraGatewayHistoryRecord[]; total: number; unique_gateways: number }
-export async function getAstraGatewayHistory(host = '', passed = true, page = 1): Promise<AstraGatewayHistoryPage> {
-  return (await apiClient.get<AstraGatewayHistoryPage>('/admin/accounts/astra-gateway/history', { params: { host, passed, page } })).data
+export async function getAstraGatewayHistory(host = '', passed = true, page = 1, options?: { signal?: AbortSignal }): Promise<AstraGatewayHistoryPage> {
+  return (await apiClient.get<AstraGatewayHistoryPage>('/admin/accounts/astra-gateway/history', { params: { host, passed, page }, signal: options?.signal })).data
 }
 export async function getAstraGatewayRuntime(): Promise<AstraGatewayRuntime> {
   return (await apiClient.get<AstraGatewayRuntime>('/admin/accounts/astra-gateway/status')).data

@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="space-y-4">
+    <div class="open-page space-y-4">
       <!-- Actions -->
       <div class="flex items-center justify-end gap-2">
         <button @click="loadPlans" :disabled="plansLoading" class="btn btn-secondary" :title="t('common.refresh')">
@@ -53,14 +53,14 @@
           </button>
         </template>
         <template #cell-actions="{ row }">
-          <div class="flex items-center gap-2">
-            <button @click="openPlanEdit(row)" class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors">
+          <div class="workspace-row-actions">
+            <button :title="t('common.edit')" :aria-label="t('common.edit')" @click="openPlanEdit(row)" class="theme-action-button transition-colors workspace-icon-action">
               <Icon name="edit" size="sm" />
-              <span class="text-xs">{{ t('common.edit') }}</span>
+              <span class="sr-only">{{ t('common.edit') }}</span>
             </button>
-            <button @click="confirmDeletePlan(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+            <button :title="t('common.delete')" :aria-label="t('common.delete')" @click="confirmDeletePlan(row)" class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action">
               <Icon name="trash" size="sm" />
-              <span class="text-xs">{{ t('common.delete') }}</span>
+              <span class="sr-only">{{ t('common.delete') }}</span>
             </button>
           </div>
         </template>

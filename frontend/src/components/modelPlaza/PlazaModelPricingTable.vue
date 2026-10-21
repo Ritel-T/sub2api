@@ -1,23 +1,14 @@
 <template>
-  <div class="plaza-pricing-table overflow-x-auto" :style="accentStyle">
-    <table class="w-full min-w-[1000px] table-auto border-collapse text-sm tabular-nums">
-      <colgroup>
-        <col class="w-[25%]" />
-        <col class="w-[11%]" />
-        <col class="w-[9%]" />
-        <col class="w-[14%]" />
-        <col class="w-[11%]" />
-        <col class="w-[8%]" />
-        <col class="w-[14%]" />
-        <col class="w-[8%]" />
-      </colgroup>
+  <div class="plaza-pricing-table overflow-x-auto">
+    <table class="w-full min-w-[760px] table-fixed border-collapse text-sm tabular-nums">
+      <colgroup><col class="w-[28%]" /><col class="w-[18%]" /><col class="w-[18%]" /><col class="w-[24%]" /><col class="w-[12%]" /></colgroup>
       <thead>
         <tr
-          class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400"
+          class="text-xs font-semibold  text-gray-500 dark:text-dark-400"
         >
           <th
             rowspan="2"
-            class="border-r border-gray-100 py-2.5 pl-5 pr-4 text-left align-middle dark:border-dark-700/60"
+            class="py-2.5 pl-0 pr-4 text-left align-middle dark:border-dark-700/60"
           >
             {{ t('modelPlaza.table.model') }}
           </th>
@@ -28,48 +19,37 @@
             </div>
           </th>
           <th
-            colspan="3"
-            class="border-l border-gray-100 pt-2 text-center dark:border-dark-700/60"
-          >
-            <div class="border-b border-gray-200 pb-2 text-gray-400 dark:border-dark-600 dark:text-dark-500">
-              {{ t('modelPlaza.table.officialPrice') }}
-              <span class="ml-1 normal-case font-normal text-gray-400 dark:text-dark-500">{{ t('modelPlaza.table.unitPerMillion') }}</span>
-            </div>
-          </th>
-          <th
             rowspan="2"
-            class="border-l border-gray-100 py-2.5 pl-3 pr-5 text-right align-middle dark:border-dark-700/60"
+            class="py-2.5 pl-3 pr-0 text-right align-middle dark:border-dark-700/60"
           >
             {{ t('modelPlaza.table.rate') }}
           </th>
         </tr>
         <tr
-          class="border-b border-gray-200 text-left text-[11px] font-medium uppercase leading-4 tracking-wide text-gray-400 dark:border-dark-700 dark:text-dark-500"
+          class="border-b border-gray-200 text-left text-xs font-medium leading-4 text-gray-400 dark:border-dark-700 dark:text-dark-500"
         >
           <th class="pz-bg px-3 py-2 font-medium">{{ t('modelPlaza.table.input') }}</th>
           <th class="pz-bg px-3 py-2 font-medium">{{ t('modelPlaza.table.output') }}</th>
           <th class="pz-bg px-3 py-2 font-medium">{{ t('modelPlaza.table.cache') }}</th>
-          <th class="border-l border-gray-100 px-3 py-2 font-medium dark:border-dark-700/60">
-            {{ t('modelPlaza.table.input') }}
-          </th>
-          <th class="px-3 py-2 font-medium">{{ t('modelPlaza.table.output') }}</th>
-          <th class="px-3 py-2 font-medium">{{ t('modelPlaza.table.cache') }}</th>
         </tr>
       </thead>
       <tbody>
+        <template v-for="{ model: m, period, key } in rows" :key="key">
         <tr
-          v-for="{ model: m, period, key } in rows"
-          :key="key"
-          class="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/70 dark:border-dark-800 dark:hover:bg-dark-800/50"
+          @click="toggleRow($event, key)"
+          class="pricing-main-row cursor-pointer border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/70 dark:border-dark-800 dark:hover:bg-dark-800/50"
         >
           <!-- 模型名 + 非 token 计费模式徽章;分时时段行额外标注时段 -->
-          <td class="border-r border-gray-100 py-2.5 pl-5 pr-4 align-middle dark:border-dark-700/60">
+          <td class="py-2.5 pl-0 pr-4 align-middle dark:border-dark-700/60">
             <div class="flex flex-wrap items-center gap-1.5">
-              <span class="font-medium text-gray-900 dark:text-white">{{ m.name }}</span>
+              <button type="button" class="pricing-disclosure" :aria-expanded="expanded.has(key)" :aria-label="`${t('modelPlaza.table.officialPrice')}: ${m.name}`" @click.stop="toggle(key)">
+                <svg aria-hidden="true" class="h-4 w-4 transition-transform" :class="{ 'rotate-90': expanded.has(key) }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m9 5 7 7-7 7" /></svg>
+              </button>
+              <span class="min-w-0 break-words [overflow-wrap:anywhere] font-medium text-gray-900 dark:text-white">{{ m.name }}</span>
               <!-- 时段徽章紧跟模型名,其余徽章排在后面,空间不足时先换行的是它们 -->
               <span
                 v-if="period"
-                class="inline-flex items-center whitespace-nowrap rounded-md bg-gray-100 px-1 py-0.5 font-mono text-[10px] font-medium text-gray-500 dark:bg-dark-700/70 dark:text-dark-300"
+                class="inline-flex items-center whitespace-nowrap rounded-md bg-gray-100 px-1 py-0.5 font-mono text-xs font-medium text-gray-500 dark:bg-dark-700/70 dark:text-dark-300"
                 :title="timePricingRowHint(m)"
               >
                 <span v-if="m.time_pricing?.weekdays_only" class="mr-1 font-sans">{{
@@ -80,7 +60,7 @@
               <span
                 v-if="platform && m.platform !== platform"
                 :class="[
-                  'inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+                  'inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium',
                   platformBadgeLightClass(m.platform)
                 ]"
               >
@@ -88,13 +68,13 @@
               </span>
               <span
                 v-if="billingMode(m) !== BILLING_MODE_TOKEN"
-                class="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-dark-700/70 dark:text-dark-300"
+                class="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-dark-700/70 dark:text-dark-300"
               >
                 {{ billingModeLabel(m) }}
               </span>
               <span
                 v-if="m.long_context_basis === 'marginal'"
-                class="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-dark-700/70 dark:text-dark-300"
+                class="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-dark-700/70 dark:text-dark-300"
                 :title="t('modelPlaza.table.tierHintMarginal')"
               >
                 {{ t('modelPlaza.table.marginalBadge') }}
@@ -102,7 +82,7 @@
               <span
                 v-for="([effort, multiplier]) in reasoningEffortMultipliers(m)"
                 :key="effort"
-                class="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                class="rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
                 :title="t('modelPlaza.table.reasoningMultiplierHint', { effort, multiplier })"
                 :data-reasoning-effort="effort"
               >
@@ -208,10 +188,35 @@
             </td>
           </template>
 
-          <!-- 官方价格(参考价,不乘倍率;官方有阶梯时每档一行) -->
+          <!-- 折扣倍率(分时时段行展示 生效倍率×时段倍率;生图独立倍率行展示独立倍率;专属倍率划线展示原倍率) -->
           <td
-            class="border-l border-gray-100 px-3 py-2.5 align-middle font-mono text-xs text-gray-500 dark:border-dark-700/60 dark:text-dark-400"
+            class="py-2.5 pl-3 pr-0 text-right align-middle font-mono text-xs dark:border-dark-700/60"
           >
+            <span
+              v-if="period"
+              class="font-bold text-primary-600 dark:text-primary-400"
+              :title="t('modelPlaza.table.timePricingRateHint', { rate: effectiveRate, multiplier: period.multiplier })"
+              >{{ periodRate(period) }}x</span
+            >
+            <span
+              v-else-if="usesIndependentMediaRate(m)"
+              class="font-bold text-gray-700 dark:text-gray-300"
+              >{{ requestRate(m) }}x</span
+            >
+            <template v-else-if="hasCustomRate">
+              <span class="mr-1 text-gray-400 line-through dark:text-dark-500">{{ rateMultiplier }}x</span>
+              <span class="font-bold text-primary-600 dark:text-primary-400">{{ effectiveRate }}x</span>
+            </template>
+            <span v-else class="font-bold text-gray-700 dark:text-gray-300">{{ effectiveRate }}x</span>
+          </td>
+        </tr>
+        <tr v-show="expanded.has(key)" class="pricing-details-row" :data-price-reference="key">
+          <td colspan="5" class="py-5">
+            <h4 class="mb-4 text-sm font-medium">{{ t('modelPlaza.table.officialPrice') }} <span class="font-normal text-gray-500">{{ t('modelPlaza.table.unitPerMillion') }}</span></h4>
+            <dl class="pricing-reference-grid">
+              <div class="min-w-0">
+                <dt class="mb-2 text-xs text-gray-500">{{ t('modelPlaza.table.input') }}</dt>
+                <dd class="font-mono text-sm" data-reference-field="input">
             <template v-if="officialIntervals(m).length">
               <div
                 v-for="(iv, idx) in officialIntervals(m)"
@@ -223,8 +228,12 @@
               </div>
             </template>
             <template v-else>{{ official(m.official_pricing?.input_price) }}</template>
-          </td>
-          <td class="px-3 py-2.5 align-middle font-mono text-xs text-gray-500 dark:text-dark-400">
+
+                </dd>
+              </div>
+              <div class="min-w-0">
+                <dt class="mb-2 text-xs text-gray-500">{{ t('modelPlaza.table.output') }}</dt>
+                <dd class="font-mono text-sm" data-reference-field="output">
             <template v-if="officialIntervals(m).length">
               <div
                 v-for="(iv, idx) in officialIntervals(m)"
@@ -236,8 +245,12 @@
               </div>
             </template>
             <template v-else>{{ official(m.official_pricing?.output_price) }}</template>
-          </td>
-          <td class="px-3 py-2.5 align-middle">
+
+                </dd>
+              </div>
+              <div class="min-w-0">
+                <dt class="mb-2 text-xs text-gray-500">{{ t('modelPlaza.table.cache') }}</dt>
+                <dd class="font-mono text-sm" data-reference-field="cache">
             <template v-if="hasTierCachePricing(officialIntervals(m))">
               <div
                 v-for="(iv, idx) in officialIntervals(m)"
@@ -276,40 +289,23 @@
               </div>
             </div>
             <span v-else class="text-gray-400 dark:text-dark-500">-</span>
-          </td>
 
-          <!-- 折扣倍率(分时时段行展示 生效倍率×时段倍率;生图独立倍率行展示独立倍率;专属倍率划线展示原倍率) -->
-          <td
-            class="border-l border-gray-100 py-2.5 pl-3 pr-5 text-right align-middle font-mono text-xs dark:border-dark-700/60"
-          >
-            <span
-              v-if="period"
-              class="font-bold text-primary-600 dark:text-primary-400"
-              :title="t('modelPlaza.table.timePricingRateHint', { rate: effectiveRate, multiplier: period.multiplier })"
-              >{{ periodRate(period) }}x</span
-            >
-            <span
-              v-else-if="usesIndependentMediaRate(m)"
-              class="font-bold text-gray-700 dark:text-gray-300"
-              >{{ requestRate(m) }}x</span
-            >
-            <template v-else-if="hasCustomRate">
-              <span class="mr-1 text-gray-400 line-through dark:text-dark-500">{{ rateMultiplier }}x</span>
-              <span class="font-bold text-primary-600 dark:text-primary-400">{{ effectiveRate }}x</span>
-            </template>
-            <span v-else class="font-bold text-gray-700 dark:text-gray-300">{{ effectiveRate }}x</span>
+                </dd>
+              </div>
+            </dl>
           </td>
         </tr>
+        </template>
       </tbody>
     </table>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatScaled, resolveIntervalPrices } from '@/utils/pricing'
-import { platformAccentColor, platformBadgeLightClass, platformLabel } from '@/utils/platformColors'
+import { platformBadgeLightClass, platformLabel } from '@/utils/platformColors'
 import {
   BILLING_MODE_TOKEN,
   BILLING_MODE_IMAGE,
@@ -332,7 +328,7 @@ function reasoningEffortMultipliers(model: PlazaModel): [string, number][] {
 
 const props = defineProps<{
   models: PlazaModel[]
-  /** 分组平台;实付分区底色随平台着色,未知平台回退品牌青。 */
+  /** 分组平台，用于跨平台模型标记。 */
   platform?: string
   /** 分组默认倍率。 */
   rateMultiplier: number
@@ -354,9 +350,18 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const expanded = ref(new Set<string>())
+function toggle(key: string) {
+  const next = new Set(expanded.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expanded.value = next
+}
+function toggleRow(event: MouseEvent, key: string) {
+  if ((event.target as HTMLElement).closest('button, a, input, select') || window.getSelection()?.toString()) return
+  toggle(key)
+}
 
-/** 实付分区只从平台拿一个主色,浅底/标题/下划线全部由 scoped CSS 用 color-mix 派生。 */
-const accentStyle = computed(() => ({ '--plaza-accent': platformAccentColor(props.platform ?? '') }))
 
 const PER_MILLION = 1_000_000
 
@@ -559,40 +564,11 @@ function trimZero(n: number): string {
 </script>
 
 <style scoped>
-/* 实付分区配色统一从 --plaza-accent(平台主色)派生,新增平台无需扩展样式 */
-.plaza-pricing-table {
-  --pz-title: color-mix(in srgb, var(--plaza-accent) 88%, black);
-  --pz-bg: color-mix(in srgb, var(--plaza-accent) 7%, transparent);
-  --pz-bg-hover: color-mix(in srgb, var(--plaza-accent) 13%, transparent);
-}
-
-.dark .plaza-pricing-table {
-  --pz-title: color-mix(in srgb, var(--plaza-accent) 70%, white);
-  --pz-bg: color-mix(in srgb, var(--plaza-accent) 6%, transparent);
-  --pz-bg-hover: color-mix(in srgb, var(--plaza-accent) 10%, transparent);
-}
-
-.pz-bg,
-.pz-cell {
-  background-color: var(--pz-bg);
-}
-
-.pz-cell {
-  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-tbody tr:hover .pz-cell {
-  background-color: var(--pz-bg-hover);
-}
-
-.pz-title {
-  /* color-mix 不可用的老浏览器回退为平台原色 */
-  color: var(--plaza-accent);
-  color: var(--pz-title);
-  border-color: color-mix(in srgb, var(--pz-title) 30%, transparent);
-}
-
-.pz-unit {
-  color: color-mix(in srgb, var(--pz-title) 62%, transparent);
-}
+.plaza-pricing-table { position: relative; }
+.pz-title { color: var(--ritel-fg); border-color: var(--ritel-border); }
+.pz-unit { color: var(--ritel-muted); }
+.pricing-disclosure { display: inline-grid; flex: none; width: 24px; height: 28px; place-items: center; color: var(--ritel-muted); border-radius: 0; }
+.pricing-disclosure:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.pricing-details-row { border-bottom: 1px solid var(--ritel-border); }
+.pricing-reference-grid { display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 2rem; max-width: 64rem; }
 </style>

@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-4xl space-y-6">
+    <div class="open-page purchase-workspace">
       <BillingNavigation current="purchase" :settings="appStore.cachedPublicSettings" :simple-mode="authStore.isSimpleMode" :merchant-test-access="checkout.merchant_test_access" :title="bt(checkout.balance_disabled ? 'billing.plans' : !subscriptionEnabled ? 'billing.topUp' : 'billing.purchase')" />
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
@@ -8,10 +8,10 @@
       <template v-else>
         <p v-if="checkout.merchant_test_access" data-test="merchant-test-access" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{{ t('paymentRetail.merchantTest') }}</p>
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
-        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="purchase-tabs flex flex-wrap gap-6 border-b border-gray-200 dark:border-dark-700">
           <button v-for="tab in tabs" :key="tab.key"
-            class="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
-            :class="activeTab === tab.key ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+            class="border-b-2 px-1 py-3 text-sm font-medium transition-colors"
+            :class="activeTab === tab.key ? 'border-current text-gray-900 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
             @click="activeTab = tab.key">{{ tab.label }}</button>
         </div>
         <!-- Payment in progress (shared by recharge and subscription) -->
@@ -39,26 +39,26 @@
         <!-- Tab content (select phase) -->
         <template v-else>
           <!-- Neither top-up nor subscriptions available (balance recharge disabled via API while subscriptions are off) -->
-          <div v-if="tabs.length === 0" class="card py-16 text-center">
+          <div v-if="tabs.length === 0" class="open-section py-16 text-center">
             <p class="text-gray-500 dark:text-gray-400">{{ t('payment.billingUnavailable') }}</p>
           </div>
           <!-- Top-up Tab -->
-          <template v-else-if="activeTab === 'recharge'">
-            <div v-if="returnPlan" class="flex flex-wrap items-center justify-between gap-3 border border-gray-200 p-4 dark:border-dark-700" data-test="subscription-return">
+          <div v-else-if="activeTab === 'recharge'" class="purchase-topup">
+            <div v-if="returnPlan" class="open-section purchase-return flex flex-wrap items-center justify-between gap-3 py-4" data-test="subscription-return">
               <span>{{ returnPlan.name }}</span>
               <button type="button" class="btn btn-secondary" @click="resumeSelectedPlan">{{ bt('billing.resume') }}</button>
             </div>
-            <!-- Recharge Account Card -->
-            <div class="card p-5">
+            <!-- Account context -->
+            <div class="open-section purchase-account">
               <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
               <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
               <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
             </div>
-            <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
+            <div v-if="enabledMethods.length === 0" class="open-section py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
-            <div class="card p-6">
+            <div class="open-section purchase-amount">
               <p v-if="retailPricingEnabled && selectedMethod === 'squarespace'" data-test="gbp-payment-notice" class="mb-4 text-sm text-gray-600 dark:text-gray-300">{{ t('paymentRetail.gbpPaymentNotice') }}</p>
               <p v-if="retailPricingEnabled" class="mb-2 text-sm font-medium">{{ t(selectedMethod === 'gelv' ? 'gelv.cashLabel' : 'paymentRetail.amountLabel') }}</p>
               <p v-if="retailPricingEnabled" class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t(selectedMethod === 'gelv' ? 'gelv.pickTier' : 'paymentRetail.amountHint') }}</p>
@@ -82,7 +82,7 @@
               />
               <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
             </div>
-            <div v-if="enabledMethods.length >= 1" class="card p-6">
+            <div v-if="enabledMethods.length >= 1" class="open-section purchase-methods">
               <p v-if="retailPricingEnabled" data-test="admin-payment-hint" class="mb-4 text-sm text-gray-500 dark:text-gray-400">
                 {{ t('paymentRetail.adminPaymentHint') }}<span v-if="appStore.contactInfo" class="ml-1 break-words">{{ appStore.contactInfo }}</span>
               </p>
@@ -92,7 +92,7 @@
                 @select="selectedMethod = $event"
               />
             </div>
-            <div v-if="retailPricingEnabled && validAmount > 0" class="card space-y-4 p-6">
+            <div v-if="retailPricingEnabled && validAmount > 0" class="open-section purchase-summary space-y-4">
               <p v-if="quoteLoading" class="text-sm text-gray-500">{{ t('paymentRetail.loading') }}</p>
               <template v-else-if="retailQuote">
                 <RetailQuoteSummary :quote="retailQuote" />
@@ -106,7 +106,7 @@
               <p v-else-if="quoteFailed" class="text-sm text-amber-600">{{ t('paymentRetail.unavailable') }}</p>
               <button v-if="quoteExpired || quoteFailed" data-test="refresh-retail-quote" class="btn btn-secondary" :disabled="quoteLoading" @click="refreshRetailQuote">{{ t('paymentRetail.refresh') }}</button>
             </div>
-            <div v-else-if="validAmount > 0" class="card p-6">
+            <div v-else-if="validAmount > 0" class="open-section purchase-summary">
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
@@ -146,14 +146,14 @@
               <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
             </button>
             </template>
-          </template>
+          </div>
           <!-- Subscribe Tab -->
           <template v-else-if="activeTab === 'subscription'">
             <p v-if="balancePurchaseSuccess" class="rounded-lg theme-info-panel border p-4 text-sm" role="status">{{ balancePurchaseSuccess }}</p>
             <p v-if="errorMessage && (!pendingBalancePurchase || errorMessage !== t('paymentRetail.balanceSubscription.pending'))" class="rounded-lg border border-amber-200 p-4 text-sm text-amber-700 dark:border-amber-800 dark:text-amber-300" role="alert">{{ errorMessage }}</p>
             <!-- Subscription confirm (inline, replaces plan list) -->
             <template v-if="selectedPlan">
-              <div class="card p-5">
+              <div class="open-section p-5">
                 <!-- Header: platform badge + plan name -->
                 <div class="mb-3 flex flex-wrap items-center gap-2">
                   <span :class="['rounded-md border px-2 py-0.5 text-xs font-medium', planBadgeClass]">
@@ -207,7 +207,7 @@
               </div>
               <div
                 v-if="selectedActiveSubscription && !balanceSubscriptionPurchase"
-                class="card bg-white p-6 dark:bg-dark-800"
+                class="open-section bg-white p-6 dark:bg-dark-800"
                 data-test="renewal-mode-selector"
               >
                 <div class="mb-3">
@@ -250,7 +250,7 @@
                   {{ t(`payment.renewalMode.${renewalMode}Hint`) }}
                 </p>
               </div>
-              <div v-if="balanceSubscriptionPurchase" data-test="balance-subscription-summary" class="card space-y-3 p-6 text-sm">
+              <div v-if="balanceSubscriptionPurchase" data-test="balance-subscription-summary" class="open-section space-y-3 p-6 text-sm">
                 <p>{{ t('paymentRetail.balanceSubscription.notice') }}</p>
                 <div class="flex justify-between"><span>{{ t('paymentRetail.balanceSubscription.available') }}</span><span>${{ (user?.balance ?? 0).toFixed(2) }}</span></div>
                 <div class="flex justify-between font-semibold"><span>{{ t('paymentRetail.balanceSubscription.debit') }}</span><span>${{ selectedPlan.price.toFixed(2) }}</span></div>
@@ -260,14 +260,14 @@
                   <button v-if="!checkout.balance_disabled" class="btn btn-secondary" data-test="subscription-top-up" @click="topUpForSubscription">{{ t('paymentRetail.balanceSubscription.recharge') }}</button>
                 </template>
               </div>
-              <div v-else-if="enabledMethods.length >= 1" class="card p-6">
+              <div v-else-if="enabledMethods.length >= 1" class="open-section p-6">
                 <PaymentMethodSelector
                   :methods="subMethodOptions"
                   :selected="selectedMethod"
                   @select="selectedMethod = $event"
                 />
               </div>
-              <div v-if="!balanceSubscriptionPurchase && feeRate > 0 && selectedPlan.price > 0" class="card p-6">
+              <div v-if="!balanceSubscriptionPurchase && feeRate > 0 && selectedPlan.price > 0" class="open-section p-6">
                 <div class="space-y-2 text-sm">
                   <div class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
@@ -295,11 +295,11 @@
             </template>
             <!-- Plan list -->
             <template v-else>
-              <div v-if="checkout.plans.length === 0" class="card py-16 text-center">
+              <div v-if="checkout.plans.length === 0" class="open-section py-16 text-center">
                 <Icon name="gift" size="xl" class="mx-auto mb-3 text-gray-300 dark:text-dark-600" />
                 <p class="text-gray-500 dark:text-gray-400">{{ t('payment.noPlans') }}</p>
               </div>
-              <div v-else :class="planGridClass">
+              <div v-else class="open-record-list purchase-plans">
                 <SubscriptionPlanCard v-for="plan in checkout.plans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlan" />
               </div>
               <!-- Active subscriptions (compact, below plan list) -->
@@ -307,8 +307,8 @@
                 <p class="mb-2 text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.activeSubscription') }}</p>
                 <div class="space-y-2">
                   <div v-for="sub in activeSubscriptions" :key="sub.id"
-                    class="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2 dark:border-dark-700 dark:bg-dark-800">
-                    <div :class="['h-6 w-1 shrink-0 rounded-full', platformAccentBarClass(sub.group?.platform || '')]" />
+                    class="flex items-center gap-3 border-b border-gray-200 py-4 dark:border-dark-700">
+                    <div :class="['h-1.5 w-1.5 shrink-0 rounded-full', platformAccentBarClass(sub.group?.platform || '')]" />
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
                         <span class="truncate text-xs font-semibold text-gray-900 dark:text-white">{{ sub.group?.name || t('payment.groupFallback', { id: sub.group_id }) }}</span>
@@ -329,7 +329,7 @@
             </template>
           </template>
         </template>
-        <div v-if="(checkout.help_text || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan" class="card p-4">
+        <div v-if="(checkout.help_text || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan" class="open-section p-4">
           <div class="flex flex-col items-center gap-3">
             <img v-if="checkout.help_image_url" :src="checkout.help_image_url" alt=""
               class="h-40 max-w-full cursor-pointer rounded-lg object-contain transition-opacity hover:opacity-80"
@@ -735,13 +735,6 @@ const subscriptionUsdToCnyRate = computed(() => {
 // Frozen retail quotes retain their server-confirmed principal and credit amounts.
 const rechargeBonusTiers = computed(() => retailPricingEnabled.value ? [] : normalizeRechargeBonusTiers(checkout.value.recharge_bonus_tiers))
 const rechargeBonusMode = computed(() => normalizeRechargeBonusMode(checkout.value.recharge_bonus_mode))
-
-// Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
-const planGridClass = computed(() => {
-  const n = checkout.value.plans.length
-  if (n <= 2) return 'grid grid-cols-1 gap-5 sm:grid-cols-2'
-  return 'grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3'
-})
 
 // Check if an amount fits a method's [min, max]. 0 = no limit.
 function amountFitsMethod(amt: number, methodType: string): boolean {
@@ -1551,3 +1544,12 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.purchase-topup{display:grid;gap:2rem;align-items:start}.purchase-topup>.open-section{padding:1.5rem 0}.purchase-account p:last-child{margin-top:1rem}
+@media(min-width:1000px){.purchase-topup{grid-template-columns:minmax(0,1.8fr) minmax(16rem,1fr);column-gap:clamp(3rem,7vw,7rem)}.purchase-account{grid-column:2;grid-row:1}.purchase-amount{grid-column:1;grid-row:1}.purchase-methods{grid-column:1;grid-row:2}.purchase-summary{grid-column:2;grid-row:2 / span 2}.purchase-topup>[data-test="create-recharge-order"]{grid-column:1}.purchase-return{grid-column:1 / -1}.purchase-topup:has(.purchase-return) .purchase-account,.purchase-topup:has(.purchase-return) .purchase-amount{grid-row:2}.purchase-topup:has(.purchase-return) .purchase-methods{grid-row:3}.purchase-topup:has(.purchase-return) .purchase-summary{grid-row:3 / span 2}}
+
+.purchase-workspace{max-width:88rem;margin-inline:auto}.purchase-workspace>.open-section{padding:1.75rem 0}
+.purchase-plans{display:flex;flex-direction:column;gap:0}.purchase-plans>:deep(*){min-width:0}
+.purchase-workspace :deep(.input),.purchase-workspace :deep(.select){max-width:100%}
+</style>

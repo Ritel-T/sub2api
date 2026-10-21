@@ -31,7 +31,7 @@
     </p>
     <div v-else class="grid gap-4 xl:grid-cols-[15rem_minmax(0,1fr)]">
       <div class="space-y-2">
-        <div v-for="(profile, index) in modelValue.profiles" :key="index" class="flex items-center gap-1 rounded-lg border p-2" :class="index === selectedIndex ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600'">
+        <div v-for="(profile, index) in modelValue.profiles" :key="index" class="open-section flex items-center gap-1" :class="index === selectedIndex ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600'">
           <button type="button" class="min-w-0 flex-1 text-left" :data-testid="`ccs-select-${index}`" :aria-pressed="index === selectedIndex" @click="selectedIndex = index">
             <span class="block truncate text-sm font-medium text-gray-900 dark:text-white">{{ profile.label || localText('未命名配置', 'Unnamed profile') }}</span>
             <span class="block text-xs text-gray-500 dark:text-gray-400">{{ profile.platform }} / {{ profile.app }}</span>
@@ -43,7 +43,7 @@
           <button type="button" class="px-1 text-red-500" :aria-label="localText('删除配置', 'Remove profile')" :data-testid="`ccs-remove-${index}`" @click="removeProfile(index)">×</button>
         </div>
       </div>
-      <div v-if="selectedProfile" class="min-w-0 space-y-5 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+      <div v-if="selectedProfile" class="open-section min-w-0 space-y-5">
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="space-y-1 text-sm text-gray-700 dark:text-gray-300">
             <span>{{ localText('菜单名称', 'Menu label') }}</span>

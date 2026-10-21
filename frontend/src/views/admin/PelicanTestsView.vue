@@ -1,9 +1,8 @@
 <template>
   <AppLayout>
-    <div class="pelican-tests">
+    <div class="open-page pelican-tests">
       <header class="ops-heading">
         <div>
-          <p class="eyebrow">{{ t('accountOps.smartTitle') }}</p>
           <h2>{{ t('pelicanTests.title') }}</h2>
           <p class="subtitle">{{ t('pelicanTests.description') }}</p>
         </div>
@@ -156,62 +155,37 @@
           <div><h3>{{ t('pelicanTests.history.title') }}</h3><p>{{ t('pelicanTests.history.hint') }}</p></div>
         </header>
         <div class="history-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>{{ t('pelicanTests.history.time') }}</th>
-                <th>{{ t('pelicanTests.history.group') }}</th>
-                <th>{{ t('pelicanTests.history.model') }}</th>
-                <th>{{ t('pelicanTests.history.account') }}</th>
-                <th>{{ t('pelicanTests.history.result') }}</th>
-                <th>{{ t('pelicanTests.history.duration') }}</th>
-                <th>{{ t('pelicanTests.cost.column') }}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="resultsLoading && !results.length">
-                <td colspan="8" class="text-center" role="status">{{ t('pelicanTests.history.loading') }}</td>
-              </tr>
-              <tr v-for="result in results" :key="result.id" :data-testid="`pelican-result-${result.id}`">
-                <td class="whitespace-nowrap">{{ formatDateTimeToMinute(result.started_at) }}</td>
-                <td><strong :title="result.group_name">{{ result.group_name }}</strong></td>
-                <td><code>{{ result.pelican_config?.model_id || '—' }}</code></td>
-                <td>
+          <DataTable
+ :columns="openRecordColumns"
+ :primary-columns="['time','group','model','result','cost','actions']"
+ :data="results" :row-attrs="row => ({ 'data-testid': `pelican-result-${row.id}` })" row-key="id" :loading="resultsLoading">
+<template #cell-time="{ row: result }"><div class="whitespace-nowrap">{{ formatDateTimeToMinute(result.started_at) }}</div></template>
+<template #cell-group="{ row: result }"><div><strong :title="result.group_name">{{ result.group_name }}</strong></div></template>
+<template #cell-model="{ row: result }"><div><code>{{ result.pelican_config?.model_id || '—' }}</code></div></template>
+<template #cell-account="{ row: result }"><div>
                   <strong v-if="result.account_id" :title="accountName(result)">{{ accountName(result) }}</strong>
                   <span v-else class="text-gray-400">{{ t('pelicanTests.plans.noAccount') }}</span>
                   <small v-if="result.attempts.length" class="text-amber-600 dark:text-amber-400">
                     {{ t('pelicanTests.history.tried', { accounts: result.attempts.map(attemptLabel).join('、') }) }}
                   </small>
-                </td>
-                <td>
+                </div></template>
+<template #cell-result="{ row: result }"><div>
                   <span class="result-badge" :class="result.status === 'success' ? 'badge-ok' : 'badge-bad'">
                     {{ t(result.status === 'success' ? 'pelicanTests.history.success' : 'pelicanTests.history.failed') }}
                   </span>
                   <small v-if="result.status !== 'success'" class="error-text" :title="result.error_message">{{ result.error_message }}</small>
-                </td>
-                <td class="whitespace-nowrap tabular-nums">{{ pelicanDurationLabel(t, result.latency_ms) }}</td>
-                <td class="whitespace-nowrap tabular-nums" :title="t('pelicanTests.cost.hint')" :data-testid="`pelican-result-cost-${result.id}`">{{ costLabel(result.cost_usd, result.cost_incomplete) }}</td>
-                <td class="whitespace-nowrap text-right">
+                </div></template>
+<template #cell-duration="{ row: result }"><div class="whitespace-nowrap tabular-nums">{{ pelicanDurationLabel(t, result.latency_ms) }}</div></template>
+<template #cell-cost="{ row: result }"><div class="whitespace-nowrap tabular-nums" :title="t('pelicanTests.cost.hint')" :data-testid="`pelican-result-cost-${result.id}`">{{ costLabel(result.cost_usd, result.cost_incomplete) }}</div></template>
+<template #cell-actions="{ row: result }"><div class="whitespace-nowrap text-right">
                   <button v-if="result.status === 'success'" class="link-button" :data-testid="`pelican-result-view-${result.id}`" @click="openPreview(result)">
                     {{ t('pelicanTests.history.view') }}
                   </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                </div></template>
+</DataTable>
           <div v-if="resultsLoaded && !resultsLoading && !results.length" class="empty-state"><Icon name="document" size="xl" /><p>{{ t('pelicanTests.history.empty') }}</p></div>
         </div>
-        <Pagination
-          v-if="resultsTotal > 0"
-          :total="resultsTotal"
-          :page="resultsPage"
-          :page-size="resultsPageSize"
-          show-jump
-          data-testid="pelican-history-pagination"
-          @update:page="changeResultsPage"
-          @update:page-size="changeResultsPageSize"
-        />
+        <InfiniteListSentinel data-testid="pelican-history-load-more" :loading="history.loading.value || history.loadingMore.value || history.refreshing.value" :error="history.error.value" :has-more="history.hasMore.value" @load-more="history.loadMore" @retry="history.retry" />
       </section>
 
       <aside class="scope-note"><Icon name="infoCircle" size="sm" /><p>{{ t('pelicanTests.accountNote') }}</p></aside>
@@ -331,12 +305,14 @@
 </template>
 
 <script setup lang="ts">
+import DataTable from '@/components/common/DataTable.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Select from '@/components/common/Select.vue'
@@ -355,7 +331,6 @@ import {
   type PelicanShowcaseSettings,
 } from '@/api/admin/pelicanTests'
 import { useAppStore } from '@/stores/app'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import type { AdminGroup, GroupPlatform } from '@/types'
 import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTimeToMinute } from '@/utils/format'
@@ -381,12 +356,12 @@ const plans = ref<PelicanGroupTestPlan[]>([])
 const plansLoaded = ref(false)
 const settings = ref<PelicanShowcaseSettings | null>(null)
 const draft = ref<PelicanShowcaseSettings | null>(null)
-const results = ref<PelicanGroupTestResult[]>([])
+const history = useInfiniteList<PelicanGroupTestResult>({
+  keyOf: row => row.id, pageSize: 50,
+  fetchPage: (page, signal) => pelicanTestsAPI.listResults(page, 50, 0, signal),
+})
+const { items: results, loading: resultsLoading } = history
 const resultsLoaded = ref(false)
-const resultsPage = ref(1)
-const resultsPageSize = ref(getPersistedPageSize())
-const resultsTotal = ref(0)
-const resultsLoading = ref(false)
 const groups = ref<AdminGroup[]>([])
 const groupsLoadFailed = ref(false)
 const loading = ref(false)
@@ -401,8 +376,6 @@ const deleting = ref<PelicanGroupTestPlan | null>(null)
 const preview = ref<{ result: PelicanGroupTestResult; html: string; status: 'loading' | 'ready' | 'invalid' | 'error' } | null>(null)
 let alive = true
 let timer: ReturnType<typeof setInterval> | undefined
-let resultsController: AbortController | undefined
-let resultsRequest = 0
 let polling = false
 
 const settingsDirty = computed(() => !!draft.value && JSON.stringify(draft.value) !== JSON.stringify(settings.value))
@@ -504,48 +477,11 @@ async function poll() {
 }
 
 async function loadResults(silent = false) {
-  if (silent && resultsLoading.value) return
-  const request = ++resultsRequest
-  resultsController?.abort()
-  const controller = new AbortController()
-  resultsController = controller
-  const pageNumber = resultsPage.value
-  const pageSize = resultsPageSize.value
-  resultsLoading.value = true
-  if (!silent) results.value = []
-  try {
-    let page = await pelicanTestsAPI.listResults(pageNumber, pageSize, 0, controller.signal)
-    if (!alive || request !== resultsRequest) return
-    // Deleting a plan or retention cleanup can remove the last page.
-    const lastPage = Math.max(1, Math.ceil(page.total / pageSize))
-    if (pageNumber > lastPage) {
-      resultsPage.value = lastPage
-      page = await pelicanTestsAPI.listResults(lastPage, pageSize, 0, controller.signal)
-    }
-    if (!alive || request !== resultsRequest) return
-    results.value = page.items
-    resultsTotal.value = page.total
-    resultsLoaded.value = true
-  } catch (err: unknown) {
-    if (alive && request === resultsRequest && !controller.signal.aborted && !silent) {
-      fail(err, t('pelicanTests.loadError'))
-    }
-  } finally {
-    if (alive && request === resultsRequest) resultsLoading.value = false
-  }
-}
-
-function changeResultsPage(page: number) {
-  if (page === resultsPage.value) return
-  resultsPage.value = page
-  void loadResults()
-}
-
-function changeResultsPageSize(pageSize: number) {
-  if (pageSize === resultsPageSize.value) return
-  resultsPageSize.value = pageSize
-  resultsPage.value = 1
-  void loadResults()
+  if (silent && (history.loading.value || history.loadingMore.value)) return
+  if (silent) await history.refresh()
+  else await history.reset()
+  if (!history.error.value) resultsLoaded.value = true
+  else if (!silent) fail(history.error.value, t('pelicanTests.loadError'))
 }
 
 async function saveSettings() {
@@ -691,9 +627,17 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   alive = false
-  resultsController?.abort()
   if (timer) clearInterval(timer)
 })
+
+const openRecordColumns = computed(() => [{ key: 'time', label: t('pelicanTests.history.time'), sortable: false },
+  { key: 'group', label: t('pelicanTests.history.group'), sortable: false },
+  { key: 'model', label: t('pelicanTests.history.model'), sortable: false },
+  { key: 'account', label: t('pelicanTests.history.account'), sortable: false },
+  { key: 'result', label: t('pelicanTests.history.result'), sortable: false },
+  { key: 'duration', label: t('pelicanTests.history.duration'), sortable: false },
+  { key: 'cost', label: t('pelicanTests.cost.column'), sortable: false },
+  { key: 'actions', label: "Actions", sortable: false }])
 </script>
 
 <style scoped>
@@ -703,7 +647,7 @@ onBeforeUnmount(() => {
 .ops-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 .ops-columns { display: grid; grid-template-columns: minmax(300px, .32fr) minmax(0, .68fr); gap: 20px; align-items: start; }
-.settings-card, .plans-card, .history-card { @apply min-w-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
+.settings-card, .plans-card, .history-card { @apply min-w-0 overflow-hidden     border-t border-gray-200 dark:border-dark-700; }
 .history-card { @apply mt-5; }
 .section-title { @apply flex items-center gap-3 border-b border-gray-100 p-5 dark:border-dark-700; }
 .icon-tile { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30 dark:text-primary-400; }

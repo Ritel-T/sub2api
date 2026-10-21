@@ -130,6 +130,34 @@ describe('AccountUsageCell', () => {
     })
   })
 
+  it('keeps compact OpenAI rows to standard windows and the first three actions', async () => {
+    const windowStats = { requests: 204, tokens: 518000, cost: 4.98, user_cost: 4.98, api_equivalent_cost: 8.3 }
+    getUsage.mockResolvedValue({
+      five_hour: { utilization: 70, resets_at: '2099-10-20T12:00:00Z', window_stats: windowStats },
+      seven_day: { utilization: 41, resets_at: '2099-10-25T12:00:00Z', window_stats: windowStats }
+    })
+    const wrapper = mount(AccountUsageCell, {
+      props: { account: makeAccount({ id: 9801, platform: 'openai', type: 'oauth' }), compact: true },
+      global: { stubs: { AccountQuotaInfo: true } }
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('5h')
+    expect(wrapper.text()).toContain('70%')
+    expect(wrapper.text()).toContain('7d')
+    expect(wrapper.text()).toContain('41%')
+    expect(wrapper.text()).not.toContain('204 req')
+    expect(wrapper.text()).not.toContain('518.0K')
+    expect(wrapper.find('[data-test="api-equivalent-cost"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('U $')
+    expect(wrapper.findAll('button').map(button => button.text())).toEqual([
+      'admin.accounts.usageWindow.activeQuery',
+      'admin.accounts.openaiQuotaReset.count',
+      'admin.accounts.openaiQuotaReset.reset'
+    ])
+    expect(getUsage).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
   it.each([
     { platform: 'openai', type: 'apikey' },
     { platform: 'gemini', type: 'service_account' }
@@ -1799,6 +1827,9 @@ describe('AccountUsageCell', () => {
 		expect(wrapper.text()).toContain('vertex')
 		expect(wrapper.text()).not.toContain('admin.accounts.gemini.quotaPolicy.title')
 		expect(wrapper.text()).not.toContain('admin.accounts.gemini.rateLimit.unlimited')
+    await wrapper.setProps({ compact: true })
+    expect(wrapper.text()).not.toContain('admin.accounts.gemini.rateLimit.unlimited')
+    expect(wrapper.find('[data-test="api-equivalent-cost"]').exists()).toBe(false)
 		expect(getUsage).not.toHaveBeenCalled()
   })
 

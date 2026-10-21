@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
-    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="mb-4" />
-    <div class="account-ops space-y-5">
+    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="open-page mb-4" />
+    <div class="open-page account-ops space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-dark-700">
         <div role="tablist" :aria-label="t('accountOps.pageSections')" class="flex gap-6">
           <button v-for="tab in tabs" :id="`ops-tab-${tab}`" :key="tab" type="button" role="tab" :aria-selected="activeTab === tab"
@@ -21,7 +21,7 @@
         </div>
       </div>
       <section v-if="activeTab === 'records'" id="ops-panel-records" role="tabpanel" aria-labelledby="ops-tab-records"
-        class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900">
+        class="open-section overflow-hidden">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-5 dark:border-dark-700">
           <div>
             <h2 class="text-base font-semibold">{{ t('accountOps.recordsTab') }}</h2>
@@ -94,7 +94,7 @@
       </section>
       <section v-if="activeTab === 'settings' && remote" id="ops-panel-settings" role="tabpanel" aria-labelledby="ops-tab-settings"
         class="space-y-5">
-        <section class="rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900"
+        <section class="open-section"
           data-testid="account-ops-channels">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
             <div>
@@ -103,7 +103,7 @@
             </div>
           </div>
           <div class="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
-            <div v-if="remote.config.recipient" class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+            <div v-if="remote.config.recipient" class="open-section"
               data-testid="account-ops-email-channel">
               <div class="flex items-center justify-between"><span
                   class="min-w-0 truncate text-sm font-medium" :title="remote.config.email_name || t('accountOps.providers.email')">{{ remote.config.email_name || t('accountOps.providers.email') }}</span><span
@@ -116,7 +116,7 @@
                   @click="removeEmail">{{ t('common.delete') }}</button></div>
             </div>
             <div v-for="(hook, index) in remote.config.webhooks" :key="hook.id"
-              class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
+              class="open-section">
               <div class="flex items-center justify-between gap-2"><span
                   class="min-w-0 truncate text-sm font-medium" :title="hook.name || `${t(`accountOps.providers.${hook.provider}`)} ${index + 1}`">{{ hook.name || `${t(`accountOps.providers.${hook.provider}`)} ${index + 1}` }}</span><span class="text-xs"
                   :class="hook.enabled ? 'text-emerald-600' : 'text-gray-500'">{{ t(hook.enabled ? 'accountOps.channelEnabled' : 'accountOps.channelDisabled') }}</span>
@@ -136,7 +136,7 @@
               @click="showAddChannel = true">{{ t('accountOps.addChannel') }}</button>
           </div>
         </section>
-        <section class="rounded-xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900" data-testid="account-ops-groups">
+        <section class="open-section" data-testid="account-ops-groups">
           <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
             <div>
               <h2 class="text-sm font-semibold">{{ t('accountOps.accountGroups') }}</h2>

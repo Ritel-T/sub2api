@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-4">
-    <div class="card p-4">
+    <div class="open-section">
       <div class="flex flex-wrap items-center gap-3">
         <div class="flex-1 sm:max-w-64">
           <input
@@ -42,7 +42,7 @@
       </div>
     </div>
 
-    <DataTable column-order-key="table-columns:admin-orders:v1" :columns="columns" :data="orders" :loading="loading">
+    <DataTable :primary-columns="['id', 'status', 'pay_amount', 'user_id', 'created_at', 'actions']" column-order-key="table-columns:admin-orders:v1" :columns="columns" :data="orders" :loading="loading">
       <template #cell-id="{ value }">
         <span class="font-mono text-sm">#{{ value }}</span>
       </template>
@@ -90,60 +90,59 @@
       </template>
 
       <template #cell-actions="{ row }">
-        <div class="flex items-center gap-2">
-          <button
+        <div class="workspace-row-actions">
+          <button :title="t('common.view')" :aria-label="t('common.view')"
             @click="emit('detail', row)"
-            class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+            class="theme-action-button transition-colors workspace-icon-action"
           >
             <Icon name="eye" size="sm" />
-            <span class="text-xs">{{ t('common.view') }}</span>
+            <span class="sr-only">{{ t('common.view') }}</span>
           </button>
-          <button
+          <button :title="t('payment.orders.cancel')" :aria-label="t('payment.orders.cancel')"
             v-if="row.status === 'PENDING'"
             @click="emit('cancel', row)"
-            class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400"
+            class="text-gray-500 transition-colors hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400 workspace-icon-action"
           >
             <Icon name="x" size="sm" />
-            <span class="text-xs">{{ t('payment.orders.cancel') }}</span>
+            <span class="sr-only">{{ t('payment.orders.cancel') }}</span>
           </button>
-          <button
+          <button :title="t('payment.admin.retry')" :aria-label="t('payment.admin.retry')"
             v-if="row.status === 'FAILED'"
             @click="emit('retry', row)"
-            class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+            class="theme-action-button transition-colors workspace-icon-action"
           >
             <Icon name="refresh" size="sm" />
-            <span class="text-xs">{{ t('payment.admin.retry') }}</span>
+            <span class="sr-only">{{ t('payment.admin.retry') }}</span>
           </button>
-          <button
+          <button :title="t('payment.admin.refund')" :aria-label="t('payment.admin.refund')"
             v-if="canRefundRow(row)"
             @click="emit('refund', row)"
-            class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+            class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
           >
             <Icon name="dollar" size="sm" />
-            <span class="text-xs">{{ t('payment.admin.refund') }}</span>
+            <span class="sr-only">{{ t('payment.admin.refund') }}</span>
           </button>
         </div>
       </template>
     </DataTable>
 
-    <Pagination
-      v-if="total > 0"
-      :page="page"
-      :total="total"
-      :page-size="pageSize"
-      @update:page="emit('update:page', $event)"
-      @update:pageSize="emit('update:pageSize', $event)"
+    <InfiniteListSentinel
+      :loading="loading"
+      :error="loadError"
+      :has-more="orders.length < total"
+      @load-more="emit('update:page', page + 1)"
+      @retry="emit('refresh')"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PaymentOrder } from '@/types/payment'
 import type { Column } from '@/components/common/types'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import AdminRetailOrderAmounts from './AdminRetailOrderAmounts.vue'
@@ -158,6 +157,7 @@ defineProps<{
   page: number
   pageSize: number
   total: number
+  loadError?: unknown
 }>()
 
 const emit = defineEmits<{
@@ -180,6 +180,7 @@ function paymentAmountSymbol(order: PaymentOrder): string {
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+onUnmounted(() => { if (debounceTimer) clearTimeout(debounceTimer) })
 function handleSearch() {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => emitFiltersChanged(), 300)

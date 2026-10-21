@@ -98,7 +98,7 @@ describe('admin subscription users', () => {
     global: {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
-        TablePageLayout: { template: '<div><slot name="filters" /><slot name="table" /></div>' },
+        TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /></div>' },
         DataTable: DataTableStub,
         RouterLink: RouterLinkStub,
         Pagination: true,

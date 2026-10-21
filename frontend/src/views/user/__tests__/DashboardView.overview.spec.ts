@@ -49,15 +49,23 @@ beforeEach(() => {
 })
 
 describe('real overview workflow', () => {
-  it('uses an existing active key, paginates five recent requests, and preserves real request details links', async () => {
+  it('prioritizes balance and actual daily spending, with requests secondary and details on their own pages', async () => {
     const wrapper = await render()
     expect(wrapper.find('a[href="/keys?connect=1&key_id=4"]').text()).toBe('Connect an app')
     expect(wrapper.find('a[href="/keys?create=1"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Needs attention')
-    expect(api.recent).toHaveBeenCalledWith({ page: 1, page_size: 5, sort_by: 'created_at', sort_order: 'desc' })
-    expect(wrapper.find('a[href="/usage?view=records&usage_id=9"]').text()).toBe('gpt-test')
-    expect(wrapper.find('a[href="/usage?view=analysis"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="balance"]').text()).toContain('$25.00')
+    expect(wrapper.find('[data-test="spending"]').text()).toContain('$0.2500')
+    expect(wrapper.find('[data-test="requests"]').text()).toContain('4')
+    expect(wrapper.find('[data-test="tokens"]').text()).toContain('1,800')
+    expect(wrapper.findAll('.dashboard-summary [data-test]').map(item => item.attributes('data-test'))).toEqual(['balance', 'spending', 'requests', 'tokens'])
+    expect(wrapper.findAll('[data-test="balance"]')).toHaveLength(1)
+    expect(wrapper.find('.dashboard-summary a').exists()).toBe(false)
+    expect(wrapper.find('details').exists()).toBe(false)
+    expect(api.recent).not.toHaveBeenCalled()
     expect(api.trend).not.toHaveBeenCalled()
+    expect(api.models).not.toHaveBeenCalled()
+    expect(api.quotas).not.toHaveBeenCalled()
   })
   it('finds a previously used key beyond a page of unused keys', async () => {
     api.listKeys.mockImplementation((page: number, _size: number, filters?: unknown) => Promise.resolve(!filters ? { total: 51, items: [] }
@@ -93,7 +101,7 @@ describe('real overview workflow', () => {
   it('offers recoverable errors per section instead of replacing failures with empty or zero data', async () => {
     api.stats.mockRejectedValue(new Error('offline')); api.recent.mockRejectedValue(new Error('offline')); api.listKeys.mockRejectedValue(new Error('offline')); api.user.mockRejectedValue(new Error('offline')); api.errors.mockRejectedValue(new Error('offline'))
     const wrapper = await render()
-    expect(wrapper.findAll('[role="alert"]').length).toBe(5)
+    expect(wrapper.findAll('[role="alert"]').length).toBe(4)
     expect(wrapper.text()).not.toContain('No requests yet')
     expect(wrapper.text()).not.toContain('No balance or active subscription')
     expect(wrapper.find('a[href="/keys?create=1"]').exists()).toBe(false)
@@ -145,13 +153,48 @@ describe('real overview workflow', () => {
     expect(wrapper.find('h1').text()).toBe('总览')
     expect(wrapper.find('a[href="/keys?connect=1&key_id=4"]').text()).toBe('连接应用')
   })
-  it('loads original charts and platform quotas only after expanding statistics', async () => {
+  it('does not fetch secondary analysis or duplicate request details on refresh', async () => {
     const wrapper = await render()
-    const details = wrapper.find('details')
-    ;(details.element as HTMLDetailsElement).open = true
-    await details.trigger('toggle'); await flushPromises()
-    expect(api.trend).toHaveBeenCalledTimes(1); expect(api.models).toHaveBeenCalledTimes(1); expect(api.quotas).toHaveBeenCalledTimes(1)
-    expect(wrapper.find('[data-test="full-stats"]').text()).toBe('25')
+    await wrapper.find('header button').trigger('click'); await flushPromises()
+    expect(api.stats).toHaveBeenCalledTimes(2)
+    expect(api.recent).not.toHaveBeenCalled()
+    expect(api.trend).not.toHaveBeenCalled()
+    expect(api.models).not.toHaveBeenCalled()
+    expect(api.quotas).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-test="full-stats"]').exists()).toBe(false)
+  })
+  it('provides a retry for an unavailable subscription check without implying there is no credit', async () => {
+    api.subscriptions.mockRejectedValue(new Error('offline'))
+    api.user.mockResolvedValue({ id: 1, balance: 0 })
+    const wrapper = await render()
+    const alert = wrapper.find('[role="alert"]')
+    expect(alert.text()).toContain('Active subscriptions')
+    expect(wrapper.text()).not.toContain('No balance or active subscription')
+    api.subscriptions.mockResolvedValue({ active_count: 1, subscriptions: [] })
+    await alert.find('button').trigger('click'); await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+  it('clears money and ignores a pending owner balance after the account changes', async () => {
+    const oldBalance = deferred<{ id: number; balance: number }>()
+    api.user.mockReturnValueOnce(oldBalance.promise)
+    const wrapper = await render()
+    api.user.mockResolvedValue({ id: 2, balance: 19 })
+    auth.user = { id: 2 }; auth.token = 'second'
+    await flushPromises()
+    oldBalance.resolve({ id: 1, balance: 987654 }); await flushPromises()
+    expect(wrapper.find('[data-test="balance"]').text()).toContain('$19.00')
+    expect(wrapper.text()).not.toContain('987,654')
+  })
+  it('removes balance when simple mode activates and ignores the pending balance request', async () => {
+    const pending = deferred<{ id: number; balance: number }>()
+    api.user.mockReturnValueOnce(pending.promise)
+    const wrapper = await render()
+    auth.isSimpleMode = true; await flushPromises()
+    pending.resolve({ id: 1, balance: 999 }); await flushPromises()
+    expect(wrapper.find('[data-test="balance"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/purchase"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('$999')
+    expect(wrapper.find('[data-test="spending"]').text()).toContain('$0.2500')
   })
 })
 

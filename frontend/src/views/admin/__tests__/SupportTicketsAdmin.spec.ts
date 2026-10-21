@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SupportTicketsView from '../SupportTicketsView.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import SupportTicketDetailView from '../SupportTicketDetailView.vue'
 import type { SupportTicket, SupportTicketDetail } from '@/api/supportTickets'
 
@@ -69,6 +70,7 @@ const detail = (extra: Partial<SupportTicket> = {}): SupportTicketDetail => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.listTickets.mockReset()
   mocks.getAdminSummary.mockResolvedValue({ pending_count: 4, categories: ['账户与充值', '其他'] })
   mocks.listTickets.mockResolvedValue({ items: [ticket(3, { admin_unread: true }), ticket(2, { status: 'replied', last_message_role: 'admin' })], total: 2, page: 1, page_size: 20, pages: 1 })
   mocks.getTicket.mockResolvedValue(detail())
@@ -79,11 +81,35 @@ afterEach(() => {
 })
 
 describe('admin ticket list', () => {
+  it('appends tickets and discards an obsolete next page after filtering', async () => {
+    mocks.listTickets.mockResolvedValueOnce({ items: [ticket(1)], total: 3 })
+    const wrapper = mount(SupportTicketsView, { global: { stubs } })
+    await flushPromises()
+    mocks.listTickets.mockResolvedValueOnce({ items: [ticket(2)], total: 3 })
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="row"]')).toHaveLength(2)
+    expect(mocks.listTickets).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, page_size: 50 }))
+    let complete!: (value: unknown) => void
+    mocks.listTickets.mockReturnValueOnce(new Promise(resolve => { complete = resolve }))
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
+    await flushPromises()
+    expect(mocks.listTickets).toHaveBeenLastCalledWith(expect.objectContaining({ page: 3 }))
+    mocks.listTickets.mockResolvedValueOnce({ items: [ticket(9)], total: 1 })
+    await wrapper.get('[data-testid="ticket-status-filter"] [data-value="closed"]').trigger('click')
+    await flushPromises()
+    complete({ items: [ticket(3)], total: 3 })
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="row"]')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="row"]').text()).toContain('ticket 9')
+    wrapper.unmount()
+  })
+
   it('starts with unclosed tickets and filters by status, category and keyword', async () => {
     vi.useFakeTimers()
     const wrapper = mount(SupportTicketsView, { global: { stubs } })
     await flushPromises()
-    expect(mocks.listTickets).toHaveBeenCalledWith({ status: 'open', category: undefined, keyword: undefined, page: 1, page_size: 20 })
+    expect(mocks.listTickets).toHaveBeenCalledWith({ status: 'open', category: undefined, keyword: undefined, page: 1, page_size: 50 })
     expect(mocks.setAdminPending).toHaveBeenCalledWith(4)
     const rows = wrapper.findAll('[data-testid="row"]')
     expect(rows).toHaveLength(2)

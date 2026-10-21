@@ -1,8 +1,8 @@
 <template>
   <AppLayout>
-    <div class="w-full min-w-0 space-y-6 pb-8">
+    <div class="open-page w-full min-w-0 space-y-6 pb-8">
       <header
-        class="page-header mb-0 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 sm:p-6"
+        class="open-section page-header mb-0 p-5"
       >
         <h1 class="page-title flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
           <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
@@ -13,9 +13,9 @@
         <p class="page-description mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           {{ t(`channelMonitorV3.admin.description.${siteMode}`) }}
         </p>
-        <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-gray-50 px-4 py-3 dark:bg-dark-900/50" data-testid="monitor-mode-switch">
+        <div class="open-section mt-4 flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="monitor-mode-switch">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ t('channelMonitorV3.admin.siteMode') }}</span>
-          <div class="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 dark:border-dark-600 dark:bg-dark-800" role="radiogroup" :aria-label="t('channelMonitorV3.admin.siteMode')">
+          <div class=" inline-flex p-0.5" role="radiogroup" :aria-label="t('channelMonitorV3.admin.siteMode')">
             <button
               v-for="mode in modes"
               :key="mode"
@@ -80,7 +80,7 @@
       <V3SettingsPanel v-if="adminMonitorTab === 'v3'" />
       <MonitorSettingsPanel v-else-if="adminMonitorTab === 'v2'" />
 
-      <TablePageLayout v-else>
+      <TablePageLayout open v-else>
       <template #filters>
         <MonitorFiltersBar
           v-model:search="searchQuery"
@@ -155,14 +155,7 @@
       </template>
 
       <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="onPageChange"
-          @update:pageSize="onPageSizeChange"
-        />
+        <InfiniteListSentinel :loading="list.loading.value || list.loadingMore.value" :error="list.error.value" :has-more="list.hasMore.value" @load-more="list.loadMore" @retry="list.retry" />
       </template>
       </TablePageLayout>
     </div>
@@ -225,7 +218,8 @@ import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -237,7 +231,6 @@ import MonitorTemplateManagerDialog from '@/components/admin/monitor/MonitorTemp
 import MonitorRunResultDialog from '@/components/admin/monitor/MonitorRunResultDialog.vue'
 import MonitorPrimaryModelCell from '@/components/admin/monitor/MonitorPrimaryModelCell.vue'
 import MonitorActionsCell from '@/components/admin/monitor/MonitorActionsCell.vue'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
 import MonitorSettingsPanel from '@/features/channel-monitor-v2/MonitorSettingsPanel.vue'
 import V3SettingsPanel from '@/features/channel-monitor-v3/V3SettingsPanel.vue'
@@ -280,13 +273,23 @@ const {
   formatAvailability,
 } = useChannelMonitorFormat()
 
-const monitors = ref<ChannelMonitor[]>([])
-const loading = ref(false)
+let appliedSearch = ''
+const list = useInfiniteList<ChannelMonitor>({
+  keyOf: row => row.id, pageSize: 50,
+  fetchPage: async (page, signal) => {
+    const params: ListParams = { page, page_size: 50 }
+    if (providerFilter.value) params.provider = providerFilter.value
+    if (enabledFilter.value === 'true') params.enabled = true
+    if (enabledFilter.value === 'false') params.enabled = false
+    if (appliedSearch) params.search = appliedSearch
+    return adminAPI.channelMonitor.list(params, { signal })
+  },
+})
+const { items: monitors, loading } = list
 const runningId = ref<number | null>(null)
 const searchQuery = ref('')
 const providerFilter = ref<Provider | ''>('')
 const enabledFilter = ref<'' | 'true' | 'false'>('')
-const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
 
 const showDialog = ref(false)
 const showTemplateManager = ref(false)
@@ -297,7 +300,6 @@ const showRunResult = ref(false)
 const runResults = ref<CheckResult[]>([])
 const duplicatingIds = reactive(new Set<number>())
 
-let abortController: AbortController | null = null
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const columns = computed<Column[]>(() => [
@@ -316,53 +318,16 @@ const deleteConfirmMessage = computed(() => {
 })
 
 async function reload() {
-  if (abortController) abortController.abort()
-  const ctrl = new AbortController()
-  abortController = ctrl
-  loading.value = true
-  try {
-    const params: ListParams = {
-      page: pagination.page,
-      page_size: pagination.page_size,
-    }
-    if (providerFilter.value) params.provider = providerFilter.value
-    if (enabledFilter.value === 'true') params.enabled = true
-    if (enabledFilter.value === 'false') params.enabled = false
-    if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
-
-    const res = await adminAPI.channelMonitor.list(params, { signal: ctrl.signal })
-    if (ctrl.signal.aborted || abortController !== ctrl) return
-    monitors.value = res.items || []
-    pagination.total = res.total
-  } catch (err: unknown) {
-    const e = err as { name?: string; code?: string }
-    if (e?.name === 'AbortError' || e?.code === 'ERR_CANCELED') return
-    appStore.showError(extractApiErrorMessage(err, t('admin.channelMonitor.loadError')))
-  } finally {
-    if (abortController === ctrl) {
-      loading.value = false
-      abortController = null
-    }
-  }
+  appliedSearch = searchQuery.value.trim()
+  await list.reset()
+  if (list.error.value) appStore.showError(extractApiErrorMessage(list.error.value, t('admin.channelMonitor.loadError')))
 }
 
 function handleSearch() {
   if (searchTimeout) clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
-    pagination.page = 1
     reload()
   }, 300)
-}
-
-function onPageChange(page: number) {
-  pagination.page = page
-  reload()
-}
-
-function onPageSizeChange(size: number) {
-  pagination.page_size = size
-  pagination.page = 1
-  reload()
 }
 
 function openCreateDialog() {
@@ -456,6 +421,5 @@ onMounted(() => {
 })
 onUnmounted(() => {
   if (searchTimeout) clearTimeout(searchTimeout)
-  abortController?.abort()
 })
 </script>

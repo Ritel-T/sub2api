@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import OpsOpenAITokenStatsCard from '../OpsOpenAITokenStatsCard.vue'
 
 const mockGetOpenAITokenStats = vi.fn()
@@ -73,6 +74,40 @@ const sampleResponse = {
 describe('OpsOpenAITokenStatsCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetOpenAITokenStats.mockReset()
+  })
+
+  it('keeps Top N bounded and appends all-model batches without losing precision or publishing stale filters', async () => {
+    mockGetOpenAITokenStats.mockResolvedValue({ ...sampleResponse, total: 3 })
+    const wrapper = mount(OpsOpenAITokenStatsCard, {
+      props: { refreshToken: 0 }, global: { stubs: { Select: SelectStub, EmptyState: EmptyStateStub } },
+    })
+    await flushPromises()
+    expect(wrapper.getComponent(InfiniteListSentinel).props('hasMore')).toBe(false)
+    await wrapper.findAllComponents(SelectStub)[1].vm.$emit('update:modelValue', 'pagination')
+    await flushPromises()
+    mockGetOpenAITokenStats.mockResolvedValueOnce({ ...sampleResponse, items: [{ ...sampleResponse.items[0], model: 'gpt-5.4', avg_tokens_per_sec: 12.3456 }], total: 3 })
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
+    await flushPromises()
+    expect(wrapper.text()).toContain('gpt-4o-mini')
+    expect(wrapper.text()).toContain('gpt-5.4')
+    expect(wrapper.text()).toContain('12.35')
+    let complete!: (value: unknown) => void
+    mockGetOpenAITokenStats.mockReturnValueOnce(new Promise(resolve => { complete = resolve }))
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
+    await flushPromises()
+    const signal = mockGetOpenAITokenStats.mock.calls.at(-1)![1].signal as AbortSignal
+    mockGetOpenAITokenStats.mockResolvedValueOnce({ ...sampleResponse, items: [{ ...sampleResponse.items[0], model: 'claude' }], total: 1 })
+    await wrapper.setProps({ platformFilter: 'anthropic' })
+    await flushPromises()
+    expect(signal.aborted).toBe(true)
+    complete({ ...sampleResponse, items: [{ ...sampleResponse.items[0], model: 'obsolete' }], total: 3 })
+    await flushPromises()
+    expect(wrapper.text()).toContain('claude')
+    expect(wrapper.text()).not.toContain('obsolete')
+    expect(wrapper.text()).not.toContain('gpt-4o-mini')
+    expect(wrapper.getComponent(InfiniteListSentinel).props('hasMore')).toBe(false)
+    wrapper.unmount()
   })
 
   it('默认不限定平台并展示各平台模型的统计', async () => {
@@ -102,7 +137,7 @@ describe('OpsOpenAITokenStatsCard', () => {
       platform: undefined,
       group_id: undefined,
       top_n: 20,
-    })
+    }, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     for (const model of models) {
       expect(wrapper.text()).toContain(model)
     }
@@ -134,9 +169,9 @@ describe('OpsOpenAITokenStatsCard', () => {
     await flushPromises()
     await wrapper.findAllComponents(SelectStub)[1].vm.$emit('update:modelValue', 'pagination')
     await flushPromises()
-    await wrapper.findAll('button')[1].trigger('click')
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
     await flushPromises()
-    expect(mockGetOpenAITokenStats).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }))
+    expect(mockGetOpenAITokenStats).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
 
     mockGetOpenAITokenStats.mockClear()
     await wrapper.setProps({ platformFilter: platform })
@@ -149,7 +184,7 @@ describe('OpsOpenAITokenStatsCard', () => {
       group_id: 7,
       page: 1,
       page_size: 20,
-    })
+    }, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text()).toContain(model)
     expect(wrapper.text()).not.toContain('gpt-4o-mini')
   })
@@ -178,7 +213,7 @@ describe('OpsOpenAITokenStatsCard', () => {
         platform: 'openai',
         group_id: 7,
         top_n: 20,
-      })
+      }), expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
 
     const selects = wrapper.findAllComponents(SelectStub)
@@ -190,7 +225,7 @@ describe('OpsOpenAITokenStatsCard', () => {
         time_range: '1h',
         platform: 'openai',
         group_id: 7,
-      })
+      }), expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
   })
 
@@ -225,19 +260,17 @@ describe('OpsOpenAITokenStatsCard', () => {
       expect.objectContaining({
         page: 1,
         page_size: 20,
-      })
+      }), expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
 
-    const buttons = wrapper.findAll('button')
-    expect(buttons.length).toBeGreaterThanOrEqual(2)
-    await buttons[1].trigger('click')
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
     await flushPromises()
 
     expect(mockGetOpenAITokenStats).toHaveBeenCalledWith(
       expect.objectContaining({
         page: 2,
         page_size: 20,
-      })
+      }), expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
 
     selects = wrapper.findAllComponents(SelectStub)
@@ -250,7 +283,7 @@ describe('OpsOpenAITokenStatsCard', () => {
     expect(mockGetOpenAITokenStats).toHaveBeenCalledWith(
       expect.objectContaining({
         top_n: 50,
-      })
+      }), expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
   })
 
@@ -275,7 +308,7 @@ describe('OpsOpenAITokenStatsCard', () => {
     expect(wrapper.find('.empty-state').exists()).toBe(true)
   })
 
-  it('数据表使用固定高度滚动容器，避免纵向无限增长', async () => {
+  it('数据表随页面延伸，额外统计在展开记录中保留', async () => {
     mockGetOpenAITokenStats.mockResolvedValue(sampleResponse)
 
     const wrapper = mount(OpsOpenAITokenStatsCard, {
@@ -289,7 +322,10 @@ describe('OpsOpenAITokenStatsCard', () => {
     })
     await flushPromises()
 
-    expect(wrapper.find('.max-h-\\[420px\\]').exists()).toBe(true)
+    expect(wrapper.find('.max-h-\\[420px\\]').exists()).toBe(false)
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.get('[data-field="avg_duration_ms"] dd').text()).not.toBe('')
+    expect(wrapper.get('[data-field="requests_with_first_token"] dd').text()).not.toBe('')
   })
 
   it('接口异常时显示错误提示', async () => {

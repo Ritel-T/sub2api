@@ -47,7 +47,7 @@ describe('UserTokenRanking', () => {
     getUserBreakdown.mockResolvedValue({ users: [item(1, 100), item(2, 50)] })
   })
 
-  it('loads on mount with shared filters and emits select-user with id + email on row click', async () => {
+  it('loads with shared filters, expands row details and selects a user through its name', async () => {
     const wrapper = mountRanking({ filters: { group_id: 3 }, model: 'claude-fable-5' })
     await flushPromises()
 
@@ -64,7 +64,12 @@ describe('UserTokenRanking', () => {
     expect(rows).toHaveLength(2)
 
     await rows[0].trigger('click')
+    expect(wrapper.emitted('select-user')).toBeUndefined()
+    expect(wrapper.findAll('tbody tr')).toHaveLength(3)
+    expect(wrapper.text()).toContain('admin.usage.tokenRanking.columns.inputTokens')
+    await rows[0].get('td:nth-child(2) button').trigger('click')
     expect(wrapper.emitted('select-user')![0]).toEqual([1, 'u1@test.com'])
+    expect(wrapper.findAll('tbody tr')).toHaveLength(3)
   })
 
   it('reloads when shared filters change', async () => {

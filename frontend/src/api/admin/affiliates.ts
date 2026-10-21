@@ -141,10 +141,12 @@ export interface SimpleUser {
 
 export async function listUsers(
   params: ListAffiliateUsersParams = {},
+  options?: { signal?: AbortSignal },
 ): Promise<PaginatedResponse<AffiliateAdminEntry>> {
   const { data } = await apiClient.get<PaginatedResponse<AffiliateAdminEntry>>(
     '/admin/affiliates/users',
     {
+      signal: options?.signal,
       params: {
         page: params.page ?? 1,
         page_size: params.page_size ?? 20,

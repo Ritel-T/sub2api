@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="space-y-5">
+    <div class="open-page space-y-5">
       <header><h1 class="text-2xl font-semibold">{{ t('autoConfig.title') }}</h1><p class="mt-2 text-sm text-gray-500">{{ t('autoConfig.description') }}</p></header>
       <p v-if="error" role="alert" class="rounded-xl bg-red-50 p-4 text-red-700 dark:bg-red-950/30 dark:text-red-300">{{ error }}</p>
       <p v-if="notice" role="status" class="text-emerald-600">{{ notice }}</p>
@@ -10,7 +10,7 @@
         <p v-if="draft.runtime_blocked" role="alert" class="rounded-xl bg-amber-50 p-4 text-amber-800">{{ t('autoConfig.blocked') }}</p>
         <fieldset :disabled="saving" class="min-w-0"><BPSDefaultsCard v-model="draft.excel_bps" :groups="groups" /></fieldset>
         <fieldset :disabled="saving" class="min-w-0">
-          <section class="card space-y-5" data-testid="model-billing">
+          <section class="open-section space-y-5" data-testid="model-billing">
             <header class="flex flex-wrap items-center justify-between gap-3">
               <h2 class="text-lg font-semibold">{{ t('autoConfig.modelBilling.title') }}</h2>
               <label class="flex items-center gap-2 text-sm"><input v-model="draft.model_billing.enabled" data-testid="model-billing-enabled" type="checkbox" role="switch" />{{ t('autoConfig.enable') }}</label>
@@ -27,7 +27,7 @@
           </section>
         </fieldset>
         <fieldset :disabled="saving" class="grid min-w-0 gap-5 xl:grid-cols-2">
-          <section class="card space-y-5">
+          <section class="open-section space-y-5">
             <header class="flex items-center justify-between gap-3"><h2 class="text-lg font-semibold">{{ t('autoConfig.initial') }}</h2><label class="flex items-center gap-2 text-sm"><input v-model="draft.enabled" data-testid="initial-enabled" type="checkbox" role="switch" />{{ t('autoConfig.enable') }}</label></header>
             <p class="text-sm leading-6 text-gray-500">{{ t('autoConfig.initialHint') }}</p>
             <label class="block"><span class="field-label">{{ t('autoConfig.platform') }}</span><select v-model="draft.platform" data-testid="platform" class="input w-full" @change="draft.group_ids = []; draft.model_mappings = defaultOAuthModelMappings(draft.platform); draft.quality_rule = null; selectedQualityRule = ''"><option v-for="p in platforms" :key="p.value" :value="p.value">{{ p.label }}</option></select></label>
@@ -58,7 +58,7 @@
               <p class="text-xs leading-5 text-gray-500">{{ t('autoConfig.mapping.allowlistHint') }}</p>
             </fieldset>
           </section>
-          <section class="card space-y-5">
+          <section class="open-section space-y-5">
             <header class="flex items-center justify-between gap-3"><h2 class="text-lg font-semibold">{{ t('autoConfig.upgrade') }}</h2><label class="flex items-center gap-2 text-sm"><input v-model="draft.upgrade_enabled" data-testid="upgrade-enabled" type="checkbox" role="switch" />{{ t('autoConfig.enable') }}</label></header>
             <p class="text-sm leading-6 text-gray-500">{{ t('autoConfig.upgradeHint') }}</p>
             <div class="grid gap-4 sm:grid-cols-2"><label v-for="field in upgradeFields" :key="field.key"><span class="field-label">{{ t('autoConfig.' + field.key) }}</span><input v-model.number="draft[field.key]" :data-testid="field.key" type="number" min="1" :max="field.max" step="1" required class="input w-full" /></label></div>
@@ -141,7 +141,6 @@ onMounted(() => { void load(); void loadQualityPlans() })
 onBeforeUnmount(() => { alive = false; generation++ })
 </script>
 <style scoped>
-.card { @apply min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900; }
 .field-label { @apply mb-2 block text-sm font-medium text-gray-600 dark:text-gray-300; }
 .group-list { @apply max-h-48 space-y-2 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-dark-700; }
 .group-option { @apply flex items-center gap-2 text-sm; }

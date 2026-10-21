@@ -1,5 +1,5 @@
 <template>
-  <section class="card p-5" data-testid="harvest-proxy-settings">
+  <section class="open-section" data-testid="harvest-proxy-settings">
     <p v-if="error" role="alert" class="mb-3 text-sm text-red-600">{{ error }}</p>
     <p v-if="loading" class="text-sm text-gray-500">{{ text('加载中…', 'Loading…') }}</p>
     <button v-else-if="!loaded" type="button" class="btn btn-secondary" @click="load">{{ text('重试', 'Retry') }}</button>

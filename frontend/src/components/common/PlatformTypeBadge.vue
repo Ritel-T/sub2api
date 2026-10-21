@@ -1,5 +1,18 @@
 <template>
-  <div class="inline-flex flex-col gap-0.5 text-xs font-medium">
+  <div v-if="compact" class="inline-flex min-w-0 max-w-full flex-col gap-0.5 text-xs font-medium leading-4" :title="compactTitle">
+    <span class="inline-flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5" :class="platformClass">
+      <PlatformIcon :platform="platform" size="xs" class="shrink-0" />
+      <span class="sr-only">{{ platformLabel }}</span>
+      <span class="truncate">{{ typeLabel }}</span>
+    </span>
+    <span v-if="planLabel || privacyBadge" class="inline-flex min-w-0 items-center gap-1 text-gray-500 dark:text-gray-400">
+      <span v-if="planLabel" class="truncate rounded px-1 py-0.5" :class="planBadgeClass">{{ planLabel }}</span>
+      <svg v-if="privacyBadge" class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" role="img" :class="privacyBadge.class" :aria-label="privacyBadge.title">
+        <path stroke-linecap="round" stroke-linejoin="round" :d="privacyBadge.icon" />
+      </svg>
+    </span>
+  </div>
+  <div v-else class="inline-flex flex-col gap-0.5 text-xs font-medium">
     <!-- Row 1: Platform + Type -->
     <div class="inline-flex items-center overflow-hidden rounded-md">
       <span :class="['inline-flex items-center gap-1 px-2 py-1', platformClass]">
@@ -77,6 +90,7 @@ import Icon from '@/components/icons/Icon.vue'
 const { t } = useI18n()
 
 interface Props {
+  compact?: boolean
   platform: AccountPlatform
   type: AccountType
   authMode?: string
@@ -319,4 +333,8 @@ const privacyBadge = computed(() => {
       return null
   }
 })
+const compactTitle = computed(() =>
+  [platformLabel.value, typeLabel.value, planLabel.value, privacyBadge.value?.title, expiresLabel.value]
+    .filter(Boolean).join(' · ')
+)
 </script>

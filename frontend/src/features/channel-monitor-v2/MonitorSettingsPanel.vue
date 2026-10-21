@@ -1,7 +1,7 @@
 <template>
-  <section class="mx-auto w-full max-w-6xl space-y-5 px-1 py-2 sm:px-2">
+  <section class="open-page w-full py-2">
     <header
-      class="page-header mb-0 flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 sm:p-6"
+      class="page-header mb-0 flex flex-wrap items-center justify-between gap-3 py-2"
     >
       <div class="min-w-0">
         <h2 class="page-title flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
@@ -41,14 +41,14 @@
 
     <div
       v-if="loading"
-      class="card flex min-h-[200px] items-center justify-center !rounded-3xl !border-0 text-sm text-gray-400 shadow-sm ring-1 ring-gray-900/5 dark:ring-dark-700"
+      class="open-section flex min-h-[200px] items-center justify-center text-sm text-gray-400"
     >
       <span class="animate-pulse">{{ t('channelMonitorV2.settings.loading') }}</span>
     </div>
 
     <template v-else-if="draft">
-      <div class="card divide-y divide-gray-100 !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:divide-dark-700 dark:!bg-dark-800 dark:ring-dark-700">
-        <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+      <div class="open-section divide-y divide-gray-100 dark:divide-dark-700">
+        <div class="flex flex-wrap items-center justify-between gap-4 py-5">
           <div>
             <strong class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.enableTitle') }}</strong>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
@@ -57,7 +57,7 @@
           </div>
           <Toggle v-model="draft.enabled" />
         </div>
-        <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+        <div class="flex flex-wrap items-center justify-between gap-4 py-5">
           <div>
             <strong class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.refreshTitle') }}</strong>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">{{ t('channelMonitorV2.settings.refreshHint') }}</p>
@@ -81,7 +81,7 @@
             </button>
           </div>
         </div>
-        <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+        <div class="flex flex-wrap items-center justify-between gap-4 py-5">
           <div>
             <strong class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.cardTimelineTitle') }}</strong>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">{{ t('channelMonitorV2.settings.cardTimelineHint') }}</p>
@@ -109,8 +109,8 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
-        <div class="card-header !py-3">
+      <div class="open-section overflow-hidden">
+        <div class="monitor-section-heading mb-5">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.platformsTitle') }}</h3>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
             {{ t('channelMonitorV2.settings.platformsHint') }}
@@ -119,7 +119,7 @@
             {{ t('channelMonitorV2.settings.platformsOrderHint') }}
           </p>
         </div>
-        <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-5 py-3 dark:border-dark-700">
+        <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 py-4 dark:border-dark-700">
           <select v-model="selectedCandidate" class="input min-w-[12rem] flex-1" data-testid="monitor-v2-platform-select" :aria-label="t('channelMonitorV2.settings.selectPlatform')">
             <option value="">{{ t('channelMonitorV2.settings.selectPlatform') }}</option>
             <option v-for="option in addCandidates" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -143,7 +143,7 @@
           <div
             v-for="(platform, index) in draft.platforms"
             :key="platform.platform"
-            class="flex flex-wrap items-center gap-3 px-5 py-3"
+            class="flex flex-wrap items-center gap-3 py-4"
             data-testid="monitor-v2-platform-row"
             :data-platform="platform.platform"
           >
@@ -154,7 +154,7 @@
             <Toggle v-model="platform.enabled" />
             <div class="w-36 min-w-0">
               <strong class="block truncate text-sm font-medium text-gray-900 dark:text-white">{{ platformLabel(platform.platform) }}</strong>
-              <small class="block truncate font-mono text-[10px] text-gray-400">
+              <small class="block truncate font-mono text-xs text-gray-400">
                 {{ platform.platform }}
                 <span v-if="isFactoryPlatform(platform.platform)"> · {{ t('channelMonitorV2.settings.factoryBadge') }}</span>
               </small>
@@ -187,8 +187,8 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
-        <div class="card-header flex flex-wrap items-center justify-between gap-2 !py-3">
+      <div class="open-section overflow-hidden">
+        <div class="monitor-section-heading mb-5 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.groupsTitle') }}</h3>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
@@ -209,7 +209,7 @@
             {{ t('channelMonitorV2.settings.groupsAll') }}
           </button>
         </div>
-        <div class="max-h-[min(40vh,420px)] overflow-y-auto px-3 py-2 sm:px-4">
+        <div class="max-h-[min(40vh,420px)] overflow-y-auto py-3">
           <section v-for="section in groupSections" :key="section.platform" class="py-2" :data-testid="'monitor-v2-group-platform'" :data-platform="section.platform">
             <h4 class="px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400">{{ platformLabel(section.platform) }}</h4>
             <div
@@ -239,14 +239,14 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
-        <div class="card-header !py-3">
+      <div class="open-section overflow-hidden">
+        <div class="monitor-section-heading mb-5">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.errorsTitle') }}</h3>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
             {{ t('channelMonitorV2.settings.errorsHint') }}
           </p>
         </div>
-        <div class="max-h-[min(40vh,320px)] overflow-y-auto px-3 py-2 sm:px-4">
+        <div class="max-h-[min(40vh,320px)] overflow-y-auto py-3">
           <div class="grid grid-cols-1 gap-1 sm:grid-cols-2">
             <label
               v-for="category in errorCategories"
@@ -262,11 +262,11 @@
               <span class="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-gray-100">
                 {{ categoryLabel(category) }}
               </span>
-              <small class="shrink-0 font-mono text-[10px] text-gray-400">{{ category }}</small>
+              <small class="shrink-0 font-mono text-xs text-gray-400">{{ category }}</small>
             </label>
           </div>
         </div>
-        <div class="border-t border-gray-100 px-5 py-3 text-xs text-gray-500 dark:border-dark-700 dark:text-dark-400">
+        <div class="border-t border-gray-100 py-4 text-xs text-gray-500 dark:border-dark-700 dark:text-dark-400">
           {{
             t('channelMonitorV2.settings.ignoredSummary', {
               ignored: draft.ignored_error_categories?.length || 0,
@@ -276,14 +276,14 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
-        <div class="card-header !py-3">
+      <div class="open-section overflow-hidden">
+        <div class="monitor-section-heading mb-5">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.healthTitle') }}</h3>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
             {{ t('channelMonitorV2.settings.healthHint') }}
           </p>
         </div>
-        <div class="grid grid-cols-1 gap-4 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid grid-cols-1 gap-4 py-5 sm:grid-cols-2 lg:grid-cols-4">
           <label class="block">
             <span class="input-label">{{ t('channelMonitorV2.settings.fields.minimumSample') }}</span>
             <input v-model.number="draft.health_thresholds.minimum_sample" class="input" type="number" min="1" max="10000" />

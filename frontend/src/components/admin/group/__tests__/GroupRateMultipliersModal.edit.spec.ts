@@ -29,6 +29,21 @@ async function openEditor() {
 }
 
 describe('group rate multiplier edits', () => {
+  it('reveals further editor rows without discarding an unsaved override', async () => {
+    mocks.getGroupRateMultipliers.mockResolvedValue(Array.from({ length: 65 }, (_, index) => ({
+      user_id: index + 1, user_email: `user-${index + 1}@example.invalid`,
+      user_name: '', user_status: 'active', rate_multiplier: 2, rpm_override: null,
+    })))
+    const wrapper = await openEditor()
+    expect(wrapper.findAll('tbody tr')).toHaveLength(50)
+    await wrapper.get('tbody input[type="number"]').setValue('3')
+    await wrapper.get('.infinite-list-action').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('tbody tr')).toHaveLength(65)
+    expect((wrapper.get('tbody input[type="number"]').element as HTMLInputElement).value).toBe('3')
+    expect(mocks.getGroupRateMultipliers).toHaveBeenCalledTimes(1)
+    expect(mocks.batchSetGroupRateMultipliers).not.toHaveBeenCalled()
+  })
   it.each(['0', '-1'])('does not stage invalid custom rate %s', async (value) => {
     const wrapper = await openEditor()
     await wrapper.get('tbody input[type="number"]').setValue(value)

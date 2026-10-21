@@ -1,7 +1,7 @@
 <template>
-  <div class="card">
+  <div class="open-section">
     <!-- Header -->
-    <div class="border-b border-gray-100 px-4 py-3 dark:border-dark-700">
+    <div class="pb-5">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
@@ -36,7 +36,7 @@
     </div>
 
     <!-- List -->
-    <div class="p-4">
+    <div class="min-w-0">
       <!-- Loading -->
       <div v-if="loading && !providers.length" class="flex items-center justify-center py-6">
         <div class="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />

@@ -1,10 +1,31 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
+      <template #actions>
+        <div class="workspace-page-header">
+          <h1 class="workspace-page-title">{{ t('admin.channels.title') }}</h1>
+          <div class="workspace-header-actions">
+            <TableToolbarTarget kind="actions" />
+            <button
+              @click="loadChannels"
+              :disabled="loading"
+              class="btn btn-secondary"
+              :title="t('common.refresh', 'Refresh')"
+            >
+              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+            </button>
+            <button @click="openCreateDialog" class="btn btn-primary">
+              <Icon name="plus" size="md" class="mr-2" />
+              {{ t('admin.channels.createChannel', 'Create Channel') }}
+            </button>
+          </div>
+        </div>
+      </template>
+
       <template #filters>
-        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div class="filter-controls">
           <!-- Left: Search + Filters -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
+          <div class="contents">
             <div class="relative w-full sm:w-64">
               <Icon
                 name="search"
@@ -29,21 +50,7 @@
             />
           </div>
 
-          <!-- Right: Actions -->
-          <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
-            <button
-              @click="loadChannels"
-              :disabled="loading"
-              class="btn btn-secondary"
-              :title="t('common.refresh', 'Refresh')"
-            >
-              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
-            <button @click="openCreateDialog" class="btn btn-primary">
-              <Icon name="plus" size="md" class="mr-2" />
-              {{ t('admin.channels.createChannel', 'Create Channel') }}
-            </button>
-          </div>
+          <TableToolbarTarget />
         </div>
       </template>
 
@@ -97,20 +104,20 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <button
+            <div class="workspace-row-actions">
+              <button :title="t('common.edit', 'Edit')" :aria-label="t('common.edit', 'Edit')"
                 @click="openEditDialog(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400 workspace-icon-action"
               >
                 <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t('common.edit', 'Edit') }}</span>
+                <span class="sr-only">{{ t('common.edit', 'Edit') }}</span>
               </button>
-              <button
+              <button :title="t('common.delete', 'Delete')" :aria-label="t('common.delete', 'Delete')"
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
               >
                 <Icon name="trash" size="sm" />
-                <span class="text-xs">{{ t('common.delete', 'Delete') }}</span>
+                <span class="sr-only">{{ t('common.delete', 'Delete') }}</span>
               </button>
             </div>
           </template>
@@ -127,13 +134,12 @@
       </template>
 
       <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
+        <InfiniteListSentinel
+          :loading="loading || continuousList.loadingMore.value"
+          :error="continuousList.error.value"
+          :has-more="continuousList.hasMore.value"
+          @load-more="continuousList.loadMore"
+          @retry="continuousList.retry"
         />
       </template>
     </TablePageLayout>
@@ -628,6 +634,7 @@
 </template>
 
 <script setup lang="ts">
+import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -643,7 +650,8 @@ import { listPlatformIds, supportsPricingModelSync } from '@/constants/platformC
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -652,7 +660,6 @@ import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import PricingEntryCard from '@/components/admin/channel/PricingEntryCard.vue'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useKeyedDebouncedSearch } from '@/composables/useKeyedDebouncedSearch'
 
 const { t } = useI18n()
@@ -722,15 +729,14 @@ const billingModelSourceOptions = computed(() => [
 ])
 
 // ── State ──
-const channels = ref<Channel[]>([])
-const loading = ref(false)
+const continuousList = useInfiniteList<Channel>({
+  fetchPage: fetchListPage,
+  keyOf: row => row.id,
+  pageSize: 50
+})
+const { items: channels, loading } = continuousList
 const searchQuery = ref('')
 const filters = reactive({ status: '' })
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0
-})
 const sortState = reactive({
   sort_by: 'created_at',
   sort_order: 'desc' as 'asc' | 'desc'
@@ -762,7 +768,6 @@ const form = reactive({
   apply_pricing_to_account_stats: false,
 })
 
-let abortController: AbortController | null = null
 
 // ── Platform config ──
 // 平台清单中的全部具体平台（展示顺序）。
@@ -1276,34 +1281,22 @@ function apiToForm(channel: Channel): PlatformSection[] {
 }
 
 // ── Load data ──
-async function loadChannels() {
-  if (abortController) abortController.abort()
-  const ctrl = new AbortController()
-  abortController = ctrl
-  loading.value = true
-
+async function fetchListPage(page: number, signal: AbortSignal) {
   try {
-    const response = await adminAPI.channels.list(pagination.page, pagination.page_size, {
-      status: filters.status || undefined,
-      search: searchQuery.value || undefined,
-      sort_by: sortState.sort_by,
-      sort_order: sortState.sort_order
-    }, { signal: ctrl.signal })
-
-    if (ctrl.signal.aborted || abortController !== ctrl) return
-    channels.value = response.items || []
-    pagination.total = response.total
+    return await adminAPI.channels.list(page, 50, {
+      status: filters.status || undefined, search: searchQuery.value || undefined,
+      sort_by: sortState.sort_by, sort_order: sortState.sort_order
+    }, { signal })
   } catch (error: unknown) {
-    const e = error as { name?: string; code?: string }
-    if (e?.name === 'AbortError' || e?.code === 'ERR_CANCELED') return
-    appStore.showError(extractApiErrorMessage(error, t('admin.channels.loadError', 'Failed to load channels')))
-  } finally {
-    if (abortController === ctrl) {
-      loading.value = false
-      abortController = null
-    }
+    if (!signal.aborted) appStore.showError(t('admin.channels.loadError'))
+    throw error
   }
 }
+
+const loadChannels = async () => {
+  await continuousList.reset()
+}
+
 
 async function loadGroups() {
   groupsLoading.value = true
@@ -1330,26 +1323,17 @@ let searchTimeout: ReturnType<typeof setTimeout>
 function handleSearch() {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
-    pagination.page = 1
+
     loadChannels()
   }, 300)
 }
 
-function handlePageChange(page: number) {
-  pagination.page = page
-  loadChannels()
-}
 
-function handlePageSizeChange(pageSize: number) {
-  pagination.page_size = pageSize
-  pagination.page = 1
-  loadChannels()
-}
 
 function handleSort(key: string, order: 'asc' | 'desc') {
   sortState.sort_by = key
   sortState.sort_order = order
-  pagination.page = 1
+
   loadChannels()
 }
 
@@ -1695,7 +1679,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearTimeout(searchTimeout)
-  abortController?.abort()
   document.removeEventListener('click', handleRuleAccountClickOutside)
   ruleAccountSearchRunner.clearAll()
   clearAllRuleAccountSearchState()

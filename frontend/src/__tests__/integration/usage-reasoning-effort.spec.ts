@@ -153,6 +153,7 @@ const layoutStub = { template: '<div><slot /></div>' }
 const chartStub = { template: '<div />' }
 const iconStub = { template: '<span />' }
 const adminFiltersStub = defineComponent({
+  emits: ['update:modelValue', 'change', 'refresh', 'reset', 'export', 'cleanup'],
   template: '<div><slot name="after-reset" /></div>',
 })
 
@@ -223,6 +224,11 @@ const sharedPageStubs = {
   EmptyState: true,
 }
 
+async function expandUsageRow(wrapper: ReturnType<typeof mount>) {
+  const toggle = wrapper.get('[data-test="toggle-details"]')
+  if (toggle.attributes('aria-expanded') === 'false') await toggle.trigger('click')
+}
+
 function reasoningCellText(wrapper: ReturnType<typeof mount>): string {
   return wrapper.get('[data-testid="reasoning-effort-cell"]').text()
 }
@@ -279,6 +285,7 @@ describe('usage reasoning effort page display', () => {
     })
     await flushPromises()
 
+    await expandUsageRow(wrapper)
     const cell = reasoningCellText(wrapper)
     expect(cell).toContain('Max')
     expect(cell).not.toContain('XHigh')
@@ -286,10 +293,11 @@ describe('usage reasoning effort page display', () => {
     expect(wrapper.text()).not.toContain('XHigh')
   })
 
-  it('admin usage page shows BPS requested and forwarded effort by default', async () => {
+  it('admin usage details show BPS requested and forwarded effort by default', async () => {
     const wrapper = mountAdminUsage()
     await flushPromises()
 
+    await expandUsageRow(wrapper)
     const cell = reasoningCellText(wrapper)
     expect(cell).toContain('Max')
     expect(cell).toContain('XHigh')
@@ -297,38 +305,49 @@ describe('usage reasoning effort page display', () => {
     expect(wrapper.text()).toContain('/basispoints/api/responses')
   })
 
-  it('retains a saved hidden reasoning column and allows re-enabling the BPS mapping', async () => {
+  it('persists reasoning main-row placement while retaining the complete BPS mapping in details', async () => {
     const storageKey = 'table-columns:admin-usage:v1'
     const wrapper = mountAdminUsage()
     await flushPromises()
+    expect(wrapper.find('th[data-column-key="reasoning_effort"]').exists()).toBe(false)
+    await expandUsageRow(wrapper)
     expect(reasoningCellText(wrapper)).toContain('Max')
     expect(reasoningCellText(wrapper)).toContain('XHigh')
 
     const settings = wrapper.getComponent(ColumnSettings)
     await settings.get('button[aria-haspopup="dialog"]').trigger('click')
     const reasoningToggle = settings.findAll('label').find(label => label.text() === 'Reasoning Effort')!.get('input')
-    expect(reasoningToggle.element).toHaveProperty('checked', true)
+    expect(reasoningToggle.element).toHaveProperty('checked', false)
+    await reasoningToggle.setValue(true)
+    await flushPromises()
+    expect(wrapper.find('th[data-column-key="reasoning_effort"]').exists()).toBe(true)
+    expect(wrapper.get('tr.table-row [data-testid="reasoning-effort-cell"]').text()).toContain('XHigh')
     await reasoningToggle.setValue(false)
     await flushPromises()
-    expect(wrapper.find('[data-testid="reasoning-effort-cell"]').exists()).toBe(false)
-    const saved = JSON.parse(localStorage.getItem(storageKey)!)
-    expect(saved).toEqual({ order: [], hidden: ['reasoning_effort'] })
+    expect(wrapper.find('th[data-column-key="reasoning_effort"]').exists()).toBe(false)
+    expect(adminList).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('.table-detail-row [data-testid="reasoning-effort-cell"]').text()).toContain('XHigh')
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual({ version: 2, order: [], primary: { reasoning_effort: false } })
     wrapper.unmount()
 
     const reopened = mountAdminUsage()
     await flushPromises()
+    expect(reopened.find('th[data-column-key="reasoning_effort"]').exists()).toBe(false)
     expect(reopened.find('[data-testid="reasoning-effort-cell"]').exists()).toBe(false)
+    await expandUsageRow(reopened)
+    expect(reasoningCellText(reopened)).toContain('Max')
+    expect(reasoningCellText(reopened)).toContain('XHigh')
+    expect(reasoningCellText(reopened)).toContain('↳')
     const reopenedSettings = reopened.getComponent(ColumnSettings)
     await reopenedSettings.get('button[aria-haspopup="dialog"]').trigger('click')
     const reopenedToggle = reopenedSettings.findAll('label').find(label => label.text() === 'Reasoning Effort')!.get('input')
     expect(reopenedToggle.element).toHaveProperty('checked', false)
     await reopenedToggle.setValue(true)
     await flushPromises()
-    expect(reasoningCellText(reopened)).toContain('Max')
-    expect(reasoningCellText(reopened)).toContain('XHigh')
-    expect(reasoningCellText(reopened)).toContain('↳')
+    expect(reopened.find('th[data-column-key="reasoning_effort"]').exists()).toBe(true)
+    expect(reopened.get('tr.table-row [data-testid="reasoning-effort-cell"]').text()).toContain('XHigh')
     expect(reopened.text()).toContain('/basispoints/api/responses')
-    expect(JSON.parse(localStorage.getItem(storageKey)!).hidden).toEqual([])
+    expect(JSON.parse(localStorage.getItem(storageKey)!).primary).toEqual({ reasoning_effort: true })
     reopened.unmount()
   })
 
@@ -342,6 +361,7 @@ describe('usage reasoning effort page display', () => {
     const wrapper = mountAdminUsage()
     await flushPromises()
 
+    await expandUsageRow(wrapper)
     const cell = reasoningCellText(wrapper)
     expect(cell).toContain('High')
     expect(cell).not.toContain('↳')

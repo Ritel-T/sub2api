@@ -2,7 +2,10 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DataTable from '../DataTable.vue'
+import TableSortControl from '../TableSortControl.vue'
 import { VueDraggable } from 'vue-draggable-plus'
+import { defineComponent, ref, nextTick, h } from 'vue'
+import ColumnSettings from '../ColumnSettings.vue'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -116,9 +119,9 @@ describe('DataTable', () => {
       data: [{ id: 1, name: 'A' }], serverSideSort: true, defaultSortKey: 'name'
     } })
     await wrapper.setProps({ columns: [{ key: 'created_at', label: 'Created', sortable: true }] })
-    const select = wrapper.find('[data-test="mobile-sort-controls"] select')
-    expect((select.element as HTMLSelectElement).value).toBe('name')
-    expect(select.findAll('option').map(option => option.text())).toEqual(['Name', 'Created'])
+    const select = wrapper.findComponent(TableSortControl)
+    expect(select.props('sortKey')).toBe('name')
+    expect(select.props('columns').map(column => column.label)).toEqual(['Name', 'Created'])
     wrapper.unmount()
   })
 
@@ -183,7 +186,7 @@ describe('DataTable', () => {
       props: {
         columns: [{ key: 'name', label: 'Name' }],
         data,
-        virtualizeThreshold: 3
+        open: false, virtualizeThreshold: 3
       }
     })
 
@@ -204,7 +207,7 @@ describe('DataTable', () => {
         columns: [{ key: 'name', label: 'Name' }],
         data,
         rowKey: 'id',
-        virtualizeThreshold: 3
+        open: false, virtualizeThreshold: 3
       }
     })
 
@@ -225,7 +228,7 @@ describe('DataTable', () => {
         columns: [{ key: 'name', label: 'Name' }],
         data: firstPage,
         rowKey: 'id',
-        virtualizeThreshold: 1
+        open: false, virtualizeThreshold: 1
       }
     })
 
@@ -259,7 +262,7 @@ describe('DataTable', () => {
       props: {
         columns: [{ key: 'name', label: 'Name' }],
         data: firstPage,
-        virtualizeThreshold: 1
+        open: false, virtualizeThreshold: 1
       }
     })
 
@@ -291,7 +294,7 @@ describe('DataTable', () => {
         columns: [{ key: 'name', label: 'Name' }],
         data: firstPage,
         rowKey: 'id',
-        virtualizeThreshold: 1
+        open: false, virtualizeThreshold: 1
       }
     })
 
@@ -313,7 +316,7 @@ describe('DataTable', () => {
       props: {
         columns: [{ key: 'name', label: 'Name' }],
         data,
-        virtualizeThreshold: 1
+        open: false, virtualizeThreshold: 1
       }
     })
 
@@ -336,7 +339,7 @@ describe('DataTable', () => {
         columns: [{ key: 'name', label: 'Name' }],
         data,
         rowKey: 'id',
-        virtualizeThreshold: 1
+        open: false, virtualizeThreshold: 1
       }
     })
 
@@ -369,16 +372,16 @@ describe('DataTable', () => {
       }
     })
 
-    await wrapper.get('[data-test="select-all"]').setValue(true)
+    await wrapper.get('[data-test="select-all"]').trigger('click')
 
     const selectedAll = wrapper.emitted('update:selectedKeys')?.at(-1)?.[0]
     expect(selectedAll).toEqual([99, 1, 2])
 
     await wrapper.setProps({ selectedKeys: selectedAll as number[] })
-    const rowCheckboxes = wrapper.findAll<HTMLInputElement>('[data-test="select-row"]')
-    expect(rowCheckboxes.every((checkbox) => checkbox.element.checked)).toBe(true)
+    const rowCheckboxes = wrapper.findAll('[data-test="select-row"]')
+    expect(rowCheckboxes.every((checkbox) => checkbox.attributes('aria-checked') === 'true')).toBe(true)
 
-    await rowCheckboxes[0].setValue(false)
+    await rowCheckboxes[0].trigger('click')
 
     expect(wrapper.emitted('update:selectedKeys')?.at(-1)?.[0]).toEqual([99, 2])
     expect(wrapper.emitted('selectionChange')?.at(-1)?.[0]).toEqual([99, 2])
@@ -428,8 +431,246 @@ describe('DataTable', () => {
       }
     })
 
-    await wrapper.get('[data-test="select-all-mobile"]').setValue(true)
+    await wrapper.get('[data-test="select-all-mobile"]').trigger('click')
 
     expect(wrapper.emitted('update:selectedKeys')?.at(-1)?.[0]).toEqual([99, 1, 2])
+  })
+  it('keeps large open lists in document flow and moves secondary fields below each row', async () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    const columns = ['id', 'name', 'status', 'group', 'usage', 'concurrency', 'actions', 'created_at', 'expires_at', 'notes'].map(key => ({ key, label: key, sortable: true }))
+    const data = Array.from({ length: 120 }, (_, i) => ({ id: i + 1, name: `Row ${i + 1}`, notes: `Note ${i + 1}` }))
+    const wrapper = mount(DataTable, { props: { columns, data }, slots: { 'cell-notes': '<strong data-test="note">Custom detail</strong>' } })
+    expect((wrapper.vm as any).shouldVirtualize).toBe(false)
+    expect(wrapper.findAll('tr.table-row').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('tr.table-row').length).toBeLessThan(120)
+    expect(wrapper.get('table').attributes('aria-rowcount')).toBe('121')
+    expect(wrapper.get('tr.table-row').attributes('aria-rowindex')).toBe('2')
+    expect(wrapper.find('th[data-column-key="notes"]').exists()).toBe(false)
+    expect(wrapper.find('.table-detail-row').exists()).toBe(false)
+    await wrapper.find('tr.table-row').trigger('click')
+    expect(wrapper.findAll('.table-detail-row')).toHaveLength(1)
+    expect(wrapper.find('.table-detail-row [data-test="note"]').text()).toBe('Custom detail')
+    expect(wrapper.find('[data-test="toggle-details"]').attributes('aria-expanded')).toBe('true')
+    wrapper.unmount()
+  })
+
+  it.each(['desktop', 'mobile'])('opens a custom row-details slot with no secondary columns on %s', async viewport => {
+    if (viewport === 'mobile') stubMobileMatchMedia()
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ key: 'name', label: 'Name' }], data: [{ id: 1, name: 'One' }],
+    }, slots: { 'row-details': ({ row, columns }: any) => h('button', { 'data-test': 'custom-details' }, `${row.name}:${columns.length}`) } })
+    expect(wrapper.find('[data-test="custom-details"]').exists()).toBe(false)
+    if (viewport === 'desktop') {
+      expect(wrapper.findAll('colgroup col')).toHaveLength(2)
+      expect(wrapper.get('colgroup col:last-child').attributes('style')).toContain('44px')
+      expect(wrapper.findAll('thead th')).toHaveLength(2)
+    }
+    await wrapper.get(viewport === 'desktop' ? 'tr.table-row' : '.table-record').trigger('click')
+    expect(wrapper.get('[data-test="custom-details"]').text()).toBe('One:0')
+    expect(wrapper.get('[data-test="toggle-details"]').attributes('aria-expanded')).toBe('true')
+    if (viewport === 'desktop') expect(wrapper.get('.table-detail-row > td').attributes('colspan')).toBe('2')
+    await wrapper.get('[data-test="custom-details"]').trigger('click')
+    expect(wrapper.get('[data-test="toggle-details"]').attributes('aria-expanded')).toBe('true')
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.find('[data-test="custom-details"]').exists()).toBe(false)
+    if (viewport === 'desktop') {
+      await wrapper.setProps({ data: [] })
+      expect(wrapper.get('tbody td').attributes('colspan')).toBe('2')
+      await wrapper.setProps({ loading: true })
+      expect(wrapper.findAll('tbody tr')[0].findAll('td')).toHaveLength(2)
+    }
+    wrapper.unmount()
+  })
+
+  it.each(['desktop', 'mobile'])('lets custom details reuse cell slots, formatters, and plain values on %s', async viewport => {
+    if (viewport === 'mobile') stubMobileMatchMedia()
+    const wrapper = mount(DataTable, { props: {
+      primaryColumns: ['name'],
+      columns: [{ key: 'name', label: 'Name' }, { key: 'notes', label: 'Notes' },
+        { key: 'amount', label: 'Amount', formatter: (value: number) => `$${value}` }, { key: 'region', label: 'Region' }],
+      data: [{ id: 1, name: 'One', notes: 'Custom note', amount: 5, region: 'Tokyo' }],
+    }, slots: {
+      'cell-notes': ({ row, value, expanded }: any) => h('button', { 'data-test': 'reused-cell' }, `${row.id}:${value}:${expanded}`),
+      'row-details': ({ columns, renderCell }: any) => h('section', { 'data-test': 'custom-layout' },
+        [...columns].reverse().map(column => h('div', { 'data-detail': column.key }, renderCell(column)))),
+    } })
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.findAll('[data-detail]').map(node => node.attributes('data-detail'))).toEqual(['region', 'amount', 'notes'])
+    expect(wrapper.get('[data-test="reused-cell"]').text()).toBe('1:Custom note:false')
+    expect(wrapper.get('[data-detail="amount"]').text()).toBe('$5')
+    expect(wrapper.get('[data-detail="region"]').text()).toBe('Tokyo')
+    expect(wrapper.find('.table-details-grid').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not add expansion controls when all fields are primary and no custom details are supplied', () => {
+    const wrapper = mount(DataTable, { props: { columns: [{ key: 'name', label: 'Name' }], data: [{ id: 1, name: 'One' }] } })
+    expect(wrapper.find('[data-test="toggle-details"]').exists()).toBe(false)
+    expect(wrapper.findAll('colgroup col')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('sorts secondary fields through the shared control without locally reordering server data', async () => {
+    const wrapper = mount(DataTable, { props: {
+      primaryColumns: ['name'], columns: [{ key: 'name', label: 'Name' }, { key: 'created_at', label: 'Created', sortable: true }],
+      data: [{ id: 2, name: 'Second' }, { id: 1, name: 'First' }], serverSideSort: true
+    } })
+    wrapper.findComponent(TableSortControl).vm.$emit('select', 'created_at')
+    await nextTick()
+    expect(wrapper.emitted('sort')).toEqual([['created_at', 'asc']])
+    expect(wrapper.findAll('tr.table-row').map(row => row.attributes('data-row-id'))).toEqual(['2', '1'])
+    wrapper.unmount()
+  })
+
+  it('preserves row navigation while controls and explicit detail expansion stay independent', async () => {
+    const action = vi.fn()
+    const wrapper = mount(DataTable, { props: { primaryColumns: ['name', 'actions'], columns: [{ key: 'name', label: 'Name' }, { key: 'notes', label: 'Notes' }, { key: 'actions', label: 'Actions' }], data: [{ id: 1, name: 'One', notes: 'Note' }], clickableRows: true }, slots: { 'cell-actions': '<button data-test="action">Edit</button>' } })
+    wrapper.get('[data-test="action"]').element.addEventListener('click', action)
+    await wrapper.get('[data-test="action"]').trigger('click')
+    expect(action).toHaveBeenCalledOnce()
+    expect(wrapper.emitted('rowClick')).toBeUndefined()
+    expect(wrapper.find('.table-detail-row').exists()).toBe(false)
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.find('.table-detail-row').exists()).toBe(true)
+    expect(wrapper.emitted('rowClick')).toBeUndefined()
+    await wrapper.get('tr.table-row').trigger('click')
+    expect(wrapper.emitted('rowClick')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('does not relabel a named row key as an ID', () => {
+    const wrapper = mount(DataTable, { props: { columns: [{ key: 'name', label: 'Node' }], data: [{ name: 'Tokyo' }], rowKey: 'name', selectable: true } })
+    expect(wrapper.find('th[data-column-key="id"]').exists()).toBe(false)
+    expect(wrapper.find('input[data-test="select-row"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('preserves expansion by stable identity across sorting and clears removed records', async () => {
+    const rows = [{ id: 1, name: 'Beta', notes: 'Beta note' }, { id: 2, name: 'Alpha', notes: 'Alpha note' }]
+    const wrapper = mount(DataTable, { props: { primaryColumns: ['name'], columns: [{ key: 'name', label: 'Name', sortable: true }, { key: 'notes', label: 'Notes' }], data: rows } })
+    await wrapper.get('tr[data-row-id="1"] [data-test="toggle-details"]').trigger('click')
+    await wrapper.get('th[data-column-key="name"]').trigger('click')
+    expect(wrapper.find('.table-detail-row').text()).toContain('Beta note')
+    await wrapper.setProps({ data: [rows[1]] })
+    expect(wrapper.find('.table-detail-row').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('expands secondary cell slots in the mobile record flow', async () => {
+    stubMobileMatchMedia()
+    const wrapper = mount(DataTable, { props: { primaryColumns: ['name'], columns: [{ key: 'name', label: 'Name' }, { key: 'notes', label: 'Notes' }], data: [{ id: 1, name: 'One', notes: 'Note' }] } })
+    expect(wrapper.find('[data-field="notes"]').exists()).toBe(false)
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.get('[data-field="notes"]').text()).toContain('Note')
+    wrapper.unmount()
+  })
+
+  it('moves primary columns past each other without displacing secondary columns', async () => {
+    const wrapper = mount(DataTable, { props: { columnOrderKey: 'sparse', selectable: true, primaryColumns: ['id', 'name', 'status', 'actions'], columns: [{ key: 'name', label: 'Name' }, { key: 'notes', label: 'Notes' }, { key: 'status', label: 'Status' }, { key: 'id', label: 'ID' }, { key: 'actions', label: 'Actions' }], data: [{ id: 1, name: 'One' }] } })
+    await wrapper.get('th[data-column-key="name"] .table-column-drag-handle').trigger('keydown', { key: 'ArrowRight' })
+    expect(wrapper.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['status', 'name', 'id', 'actions'])
+    expect(wrapper.get('th[data-column-key="id"]').find('.table-column-drag-handle').exists()).toBe(true)
+    expect(wrapper.emitted('columnReorder')?.at(-1)?.[0]).toEqual(['status', 'notes', 'name', 'id', 'actions'])
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.get('.table-detail-row [data-field]').attributes('data-field')).toBe('notes')
+    wrapper.unmount()
+  })
+
+
+  it('moves and persists ID while ID sorting and select-all stay independent', async () => {
+    const props = { columnOrderKey: 'id-order', selectable: true, serverSideSort: true,
+      columns: [{ key: 'id', label: 'ID', sortable: true }, { key: 'name', label: 'Name' }],
+      data: [{ id: 2, name: 'Second' }, { id: 1, name: 'First' }], selectedKeys: [2] }
+    const wrapper = mount(DataTable, { props })
+    await wrapper.get('th[data-column-key="id"] .table-column-drag-handle').trigger('keydown', { key: 'End' })
+    expect(wrapper.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['name', 'id'])
+    expect(wrapper.emitted('sort')).toBeUndefined()
+    expect(wrapper.emitted('update:selectedKeys')).toBeUndefined()
+    await wrapper.get('th[data-column-key="id"]').trigger('click')
+    expect(wrapper.emitted('sort')).toEqual([['id', 'asc']])
+    expect(wrapper.emitted('update:selectedKeys')).toBeUndefined()
+    await wrapper.get('[data-test="select-all"]').trigger('click')
+    expect(wrapper.emitted('update:selectedKeys')?.at(-1)).toEqual([[2, 1]])
+    expect(wrapper.emitted('sort')).toHaveLength(1)
+    expect(wrapper.findAll('tr.table-row').map(row => row.attributes('data-row-id'))).toEqual(['2', '1'])
+    const restored = mount(DataTable, { props })
+    expect(restored.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['name', 'id'])
+    restored.unmount(); wrapper.unmount()
+  })
+
+  it('uses checkboxes to promote any detail field and demote any optional main field without losing its control', async () => {
+    const wrapper = mount(DataTable, { props: {
+      columnOrderKey: 'detail-contract', primaryColumns: ['name', 'status'],
+      columns: [{ key: 'name', label: 'Name' }, { key: 'status', label: 'Status' }, { key: 'notes', label: 'Notes', sortable: true }],
+      data: [{ id: 1, name: 'One', notes: 'Note', status: 'active' }]
+    }, slots: { 'cell-status': '<button data-test="status-control">Change status</button>' } })
+    const settings = wrapper.findComponent(ColumnSettings)
+    settings.vm.$emit('toggle', 'notes')
+    settings.vm.$emit('toggle', 'status')
+    await nextTick()
+    expect(wrapper.find('th[data-column-key="notes"]').exists()).toBe(true)
+    expect(wrapper.find('th[data-column-key="status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="status-control"]').exists()).toBe(false)
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.get('.table-detail-row [data-test="status-control"]').text()).toBe('Change status')
+    expect(wrapper.findComponent(TableSortControl).props('columns').some(column => column.key === 'notes')).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('moves its existing toolbar into the shared filter target after the parent target mounts', async () => {
+    const target = document.createElement('div')
+    document.body.append(target)
+    const targetRef = ref<HTMLElement | null>(null)
+    const wrapper = mount(DataTable, { props: { columns: [{ key: 'name', label: 'Name', sortable: true }], data: [] }, global: { provide: { tableToolbarTarget: targetRef } } })
+    targetRef.value = target
+    await nextTick()
+    await nextTick()
+    expect(target.querySelector('.workspace-sort-control')).not.toBeNull()
+    expect(wrapper.find('.workspace-sort-control').exists()).toBe(false)
+    wrapper.unmount(); target.remove()
+  })
+
+  it('honors parent main-row metadata even when it demotes the first source field and contradicts default primary keys', async () => {
+    const wrapper = mount(DataTable, { props: {
+      primaryColumns: ['created_at', 'message'],
+      columns: [{ key: 'created_at', label: 'Time', primary: false }, { key: 'message', label: 'Message', primary: false }, { key: 'account', label: 'Account', primary: true }],
+      data: [{ id: 1, account: 'One', created_at: 'Today', message: 'Detail' }]
+    } })
+    expect(wrapper.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['account'])
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.get('.table-detail-row').text()).toContain('Today')
+    expect(wrapper.get('.table-detail-row').text()).toContain('Detail')
+    wrapper.unmount()
+  })
+
+  it('mounts a sibling string toolbar target before moving controls and retains rows after refresh', async () => {
+    const rows = ref([{ id: 1, name: 'One' }])
+    const Parent = defineComponent({
+      components: { DataTable }, setup: () => ({ rows, columns: [{ key: 'name', label: 'Name', sortable: true }] }),
+      template: '<div><div id="table-filter-target"></div><DataTable toolbar-target="#table-filter-target" :columns="columns" :data="rows" /></div>',
+    })
+    const host = document.createElement('div')
+    document.body.append(host)
+    const wrapper = mount(Parent, { attachTo: host })
+    await nextTick(); await nextTick()
+    expect(host.querySelector('#table-filter-target .workspace-sort-control')).not.toBeNull()
+    rows.value = [{ id: 2, name: 'Two' }]
+    await nextTick()
+    expect(wrapper.get('tr.table-row').text()).toContain('Two')
+    wrapper.unmount(); host.remove()
+  })
+
+  it('reserves the full action group width independently of the detail-expansion column', async () => {
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ key: 'name', label: 'Name', primary: true }, { key: 'actions', label: 'Actions', primary: true }, { key: 'notes', label: 'Notes', primary: false }],
+      actionsCount: 6, data: [{ id: 1, name: 'Group', notes: 'Detail' }],
+    } })
+    const widths = () => wrapper.findAll('colgroup col').map(column => column.attributes('style'))
+    expect(widths().at(-2)).toContain('240px')
+    expect(widths().at(-1)).toContain('44px')
+    await wrapper.setProps({ actionsCount: 7 })
+    expect(widths().at(-2)).toContain('276px')
+    expect(widths().at(-1)).toContain('44px')
+    wrapper.unmount()
   })
 })

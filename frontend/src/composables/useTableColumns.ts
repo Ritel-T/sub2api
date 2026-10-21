@@ -1,33 +1,35 @@
-import { computed, reactive, ref, toValue, type MaybeRefOrGetter } from 'vue'
-import type { Column } from '@/components/common/types'
+import { computed, reactive, ref, toValue, watchEffect, type MaybeRefOrGetter } from 'vue'
+import { defaultPrimaryColumnKeys, type Column } from '@/components/common/types'
 
 interface ColumnOptions {
-  required?: string[]
+  required?: MaybeRefOrGetter<string[]>
   fixed?: string[]
+  primary?: MaybeRefOrGetter<string[] | undefined>
 }
 
-/** Per-table display preferences. New tables and new columns start fully visible. */
+/** Per-table main-row preferences. Every other field remains available in expanded details. */
 export function useTableColumns(
   storageKey: string,
   source: MaybeRefOrGetter<Column[]>,
   options: ColumnOptions = {}
 ) {
   const order = ref<string[]>([])
-  const hiddenColumns = reactive(new Set<string>())
-  const required = new Set([...(options.required ?? []), ...(options.fixed ?? [])])
+  const primaryOverrides = reactive(new Map<string, boolean>())
+  const required = computed(() => new Set([...(options.required ? toValue(options.required) : []), ...(options.fixed ?? [])]))
   const fixed = new Set(options.fixed ?? [])
   try {
     const saved = storageKey ? localStorage.getItem(storageKey) : null
     if (saved) {
       const parsed: unknown = JSON.parse(saved)
       if (parsed && typeof parsed === 'object') {
-        const value = parsed as { order?: unknown; hidden?: unknown }
+        const value = parsed as { version?: unknown; order?: unknown; primary?: unknown }
         if (Array.isArray(value.order)) {
           order.value = [...new Set(value.order.filter((key): key is string => typeof key === 'string'))]
         }
-        if (Array.isArray(value.hidden)) {
-          value.hidden.forEach(key => {
-            if (typeof key === 'string' && !required.has(key)) hiddenColumns.add(key)
+        // Old hidden preferences meant data removal. Preserve order, adopt the new main-row defaults once.
+        if (value.version === 2 && value.primary && typeof value.primary === 'object' && !Array.isArray(value.primary)) {
+          Object.entries(value.primary).forEach(([key, primary]) => {
+            if (typeof primary === 'boolean' && !required.value.has(key)) primaryOverrides.set(key, primary)
           })
         }
       }
@@ -44,22 +46,34 @@ export function useTableColumns(
     let index = 0
     return defaults.map(column => fixed.has(column.key) ? column : byKey.get(movable[index++])!)
   })
-  const isColumnVisible = (key: string) => required.has(key) || !hiddenColumns.has(key)
-  const columns = computed(() => orderedColumns.value.filter(column => isColumnVisible(column.key)))
+  const defaultPrimary = computed(() => {
+    if (toValue(source).some(column => typeof column.primary === 'boolean')) return defaultPrimaryColumnKeys(toValue(source))
+    const explicit = options.primary ? toValue(options.primary) : undefined
+    return explicit ? new Set(explicit) : defaultPrimaryColumnKeys(toValue(source))
+  })
+  const isColumnPrimary = (key: string) => required.value.has(key) || (primaryOverrides.get(key) ?? defaultPrimary.value.has(key))
+  // Existing data loaders use visibility to decide which API fields to fetch. Details are visible too.
+  const isColumnVisible = (key: string) => toValue(source).some(column => column.key === key)
+  const hiddenColumns = reactive(new Set<string>())
+  watchEffect(() => {
+    const next = orderedColumns.value.filter(column => !isColumnPrimary(column.key)).map(column => column.key)
+    hiddenColumns.clear()
+    next.forEach(key => hiddenColumns.add(key))
+  }, { flush: 'sync' })
+  const columns = computed(() => orderedColumns.value.map(column => ({ ...column, primary: isColumnPrimary(column.key) })))
 
   function save() {
     if (!storageKey) return
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ order: order.value, hidden: [...hiddenColumns] }))
+      localStorage.setItem(storageKey, JSON.stringify({ version: 2, order: order.value, primary: Object.fromEntries(primaryOverrides) }))
     } catch {
       // Keep in-memory preferences when storage is full or blocked.
     }
   }
 
   function toggleColumn(key: string) {
-    if (required.has(key) || !toValue(source).some(column => column.key === key)) return
-    if (hiddenColumns.has(key)) hiddenColumns.delete(key)
-    else hiddenColumns.add(key)
+    if (required.value.has(key) || !toValue(source).some(column => column.key === key)) return
+    primaryOverrides.set(key, !isColumnPrimary(key))
     save()
   }
 
@@ -69,7 +83,7 @@ export function useTableColumns(
     const requested = [...new Set(keys.filter(key => valid.has(key)))]
     const included = new Set(requested)
     let index = 0
-    // A table header only supplies visible columns. Hidden columns retain their slots.
+    // A table header only supplies visible columns. Detail fields retain their slots.
     const previous = [...new Set([...order.value, ...current])]
     order.value = previous.map(key => included.has(key) ? requested[index++]! : key)
     save()
@@ -87,9 +101,9 @@ export function useTableColumns(
 
   function resetColumns() {
     order.value = []
-    hiddenColumns.clear()
+    primaryOverrides.clear()
     save()
   }
 
-  return { columns, orderedColumns, hiddenColumns, isColumnVisible, toggleColumn, setColumnOrder, moveColumn, resetColumns }
+  return { columns, orderedColumns, hiddenColumns, isColumnVisible, isColumnPrimary, toggleColumn, setColumnOrder, moveColumn, resetColumns }
 }

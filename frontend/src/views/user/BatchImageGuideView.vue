@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
       <template #filters>
         <div class="flex flex-col gap-3">
           <div class="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
@@ -229,52 +229,13 @@
       </template>
 
       <template #pagination>
-        <div
-          v-if="visibleBatchJobs.length > 0 || pagination.page > 1"
-          class="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 dark:border-dark-700 dark:bg-dark-800 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-        >
-          <div class="flex flex-wrap items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
-            <i18n-t keypath="batchImage.pagination.pageNumber" tag="span" scope="global">
-              <template #page>
-                <span class="font-medium">{{ pagination.page }}</span>
-              </template>
-            </i18n-t>
-            <i18n-t keypath="batchImage.pagination.pageItems" tag="span" scope="global">
-              <template #count>
-                <span class="font-medium">{{ visibleBatchJobs.length }}</span>
-              </template>
-            </i18n-t>
-            <div class="flex items-center gap-2">
-              <span>{{ t('pagination.perPage') }}</span>
-              <Select
-                v-model="pagination.page_size"
-                :options="batchPageSizeOptions"
-                class="w-24"
-                @change="handlePageSizeChange"
-              />
-            </div>
-          </div>
-          <div class="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              :disabled="pagination.page <= 1 || loadingJobs"
-              @click="handlePageChange(pagination.page - 1)"
-            >
-              <Icon name="chevronLeft" size="sm" class="mr-1" />
-              {{ t('pagination.previous') }}
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              :disabled="!pagination.has_more || loadingJobs"
-              @click="handlePageChange(pagination.page + 1)"
-            >
-              {{ t('pagination.next') }}
-              <Icon name="chevronRight" size="sm" class="ml-1" />
-            </button>
-          </div>
-        </div>
+        <InfiniteListSentinel
+          :loading="loadingKeys || loadingJobs || loadingMoreJobs || refreshingJobs"
+          :error="jobsError"
+          :has-more="hasMoreJobs"
+          @load-more="loadMoreJobs"
+          @retry="retryJobs"
+        />
       </template>
     </TablePageLayout>
 
@@ -762,7 +723,8 @@ import Select, { type SelectOption } from '@/components/common/Select.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
-import { getPersistedPageSize, setPersistedPageSize } from '@/composables/usePersistedPageSize'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useBatchImageJobList } from '@/composables/useBatchImageJobList'
 import { useAppStore } from '@/stores/app'
 import { keysAPI } from '@/api'
 import {
@@ -771,7 +733,6 @@ import {
   downloadBatchImageZip,
   getBatchImageItemContent,
   getBatchImageJob,
-  listBatchImageJobs,
   listBatchImageItems,
   listBatchImageModels,
   saveBlob,
@@ -832,7 +793,6 @@ const PREVIEW_CACHE_MAX_BYTES = 48 * 1024 * 1024
 const BATCH_IMAGE_MAX_OUTPUTS_PER_ITEM = 4
 const BATCH_IMAGE_MAX_OUTPUTS_PER_JOB = 200
 const outputCountOptions = Array.from({ length: BATCH_IMAGE_MAX_OUTPUTS_PER_ITEM }, (_, index) => index + 1)
-const batchPageSizeOptions: SelectOption[] = [20, 50, 100].map(size => ({ value: size, label: String(size) }))
 
 const appStore = useAppStore()
 const { copyToClipboard } = useClipboard()
@@ -882,15 +842,8 @@ const filters = reactive({
   downloaded: '',
 })
 
-const pagination = reactive({
-  page: 1,
-  page_size: Math.min(getPersistedPageSize(20), 100),
-  has_more: false,
-})
-
 const apiKeys = ref<ApiKey[]>([])
 const loadingKeys = ref(false)
-const loadingJobs = ref(false)
 const submitting = ref(false)
 const refreshing = ref(false)
 const cancelling = ref(false)
@@ -908,7 +861,6 @@ const currentJob = ref<BatchImageJob | null>(null)
 const selectedBatchId = ref('')
 const selectedBatchApiKeyId = ref(0)
 const items = ref<BatchImageDetailItem[]>([])
-const batchJobs = ref<BatchImageJobRow[]>([])
 const selectedJobIds = ref(new Set<string>())
 const expandedParentIds = ref(new Set<string>())
 const promptRows = ref<PromptRow[]>([])
@@ -1298,9 +1250,8 @@ async function refreshPage() {
 }
 
 function applyFilters() {
-  pagination.page = 1
   selectedJobIds.value = new Set()
-  void loadBatchJobs()
+  void resetBatchJobs()
 }
 
 function resetFilters() {
@@ -1312,10 +1263,7 @@ function resetFilters() {
 }
 
 function listOptions(): BatchImageJobsListOptions {
-  const options: BatchImageJobsListOptions = {
-    limit: pagination.page_size,
-    cursor: String((pagination.page - 1) * pagination.page_size),
-  }
+  const options: BatchImageJobsListOptions = {}
   if (filters.taskName.trim()) options.taskName = filters.taskName.trim()
   if (filters.status) options.status = filters.status
   if (filters.downloaded) options.downloaded = filters.downloaded
@@ -1494,35 +1442,27 @@ function copyPromptPopover() {
   void copyToClipboard(promptPopover.text, t('batchImage.promptPopover.copied'))
 }
 
+const {
+  items: loadedBatchJobs, loading: loadingJobs, loadingMore: loadingMoreJobs, refreshing: refreshingJobs,
+  error: jobsError, hasMore: hasMoreJobs, reset: resetBatchJobs,
+  refresh: refreshBatchJobs, loadMore: loadMoreJobs, retry: retryJobs,
+} = useBatchImageJobList<BatchImageJobRow>({
+  getKeys: () => filteredApiKeys.value,
+  getFilters: listOptions,
+  mapJob: toJobRow,
+})
+const batchJobs = computed({
+  get: () => applyChildCounts([...loadedBatchJobs.value].sort((a, b) => b.created_at - a.created_at)),
+  set: (rows: BatchImageJobRow[]) => { loadedBatchJobs.value = rows },
+})
+watch(jobsError, error => { if (error) appStore.showError(batchImageErrorMessage(error, batchImageText('loadJobsFailed'))) })
+watch(batchJobs, rows => {
+  const ids = new Set(rows.map(row => row.id))
+  selectedJobIds.value = new Set([...selectedJobIds.value].filter(id => ids.has(id)))
+})
 async function loadBatchJobs() {
-  const keys = filteredApiKeys.value
-  if (!keys.length) {
-    batchJobs.value = []
-    pagination.has_more = false
-    return
-  }
-  loadingJobs.value = true
   closeMoreMenu()
-  try {
-    const options = listOptions()
-    const results = await Promise.all(keys.map(async (key) => {
-      const result = await listBatchImageJobs(key.key, options)
-      return {
-        hasMore: Boolean(result.has_more),
-        rows: (result.data || []).map(job => toJobRow(job, key)),
-      }
-    }))
-    batchJobs.value = applyChildCounts(results
-      .flatMap(result => result.rows)
-      .sort((a, b) => b.created_at - a.created_at)
-      .slice(0, pagination.page_size))
-    pagination.has_more = results.some(result => result.hasMore)
-    selectedJobIds.value = new Set([...selectedJobIds.value].filter(id => visibleBatchJobs.value.some(job => job.id === id)))
-  } catch (error: any) {
-    appStore.showError(batchImageErrorMessage(error, batchImageText('loadJobsFailed')))
-  } finally {
-    loadingJobs.value = false
-  }
+  await refreshBatchJobs()
 }
 
 function upsertJob(job: BatchImageJob) {
@@ -1534,24 +1474,7 @@ function upsertJob(job: BatchImageJob) {
     batchJobs.value = applyChildCounts(rows)
     return
   }
-  batchJobs.value = applyChildCounts([next, ...batchJobs.value].slice(0, pagination.page_size))
-}
-
-function handlePageChange(page: number) {
-  if (page < 1 || page === pagination.page) return
-  pagination.page = page
-  selectedJobIds.value = new Set()
-  void loadBatchJobs()
-}
-
-function handlePageSizeChange(value: string | number | boolean | null) {
-  if (value === null || typeof value === 'boolean') return
-  const nextSize = Math.min(Math.max(Number(value) || 20, 1), 100)
-  pagination.page_size = nextSize
-  pagination.page = 1
-  setPersistedPageSize(nextSize)
-  selectedJobIds.value = new Set()
-  void loadBatchJobs()
+  batchJobs.value = applyChildCounts([next, ...batchJobs.value])
 }
 
 function openCreateModal() {

@@ -8,11 +8,11 @@
       <button type="button" data-testid="reset-all-nodes" class="btn btn-secondary btn-sm" :disabled="busy || page.total === 0" @click="reset(0)">{{ t(`${prefix}.resetAll`) }}</button>
     </div>
     <p v-if="error" role="alert" class="mb-3 text-sm text-red-600">{{ error }}</p>
-    <div class="max-h-[560px] space-y-2 overflow-auto pr-1">
+    <div class="divide-y divide-gray-200 dark:divide-dark-700">
       <article
         v-for="node in page.items"
         :key="node.id"
-        class="rounded-xl border border-gray-100 p-3 dark:border-dark-700"
+        class="py-4"
       >
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">

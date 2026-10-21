@@ -29,7 +29,7 @@
           <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">{{ t('home.viewDocs') }}</a>
         </div>
       </section>
-      <section v-if="!compactHomeEnabled" class="terminal-container ritel-home-endpoint" aria-label="API endpoint">
+      <section v-if="!compactHomeEnabled" class="ritel-home-endpoint open-section" aria-label="API endpoint">
         <span>API</span>
         <code>{{ apiBaseUrl }}</code>
         <router-link v-if="showModelPlazaEntry" to="/model-plaza" class="ritel-nav-link">{{ t('nav.modelPlaza') }}<Icon name="arrowRight" size="sm" /></router-link>
@@ -70,3 +70,7 @@ onMounted(() => {
   if (!appStore.publicSettingsLoaded) appStore.fetchPublicSettings()
 })
 </script>
+
+<style scoped>
+.ritel-home-endpoint{border:0;border-top:1px solid var(--border-color,#80808033);border-bottom:1px solid var(--border-color,#80808033);border-radius:0;background:transparent;box-shadow:none;padding-block:1.5rem}
+</style>

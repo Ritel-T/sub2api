@@ -37,7 +37,7 @@ function mountView() {
       stubs: {
         AppLayout: defineComponent({ template: '<main><slot /></main>' }),
         TablePageLayout: defineComponent({
-          template: '<section><slot name="filters" /><slot name="table" /><slot name="pagination" /></section>'
+          template: '<section><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></section>'
         }),
         BaseDialog: defineComponent({
           props: ['show'],

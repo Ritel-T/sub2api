@@ -136,7 +136,7 @@ const UsageFiltersStub = defineComponent({
     })
     return { userKeyword }
   },
-  template: '<div><span data-test="user-filter-label">{{ userKeyword }}</span><slot name="after-reset" /></div>',
+  template: '<div><slot name="before-filters" /><span data-test="user-filter-label">{{ userKeyword }}</span><slot name="after-reset" /></div>',
 })
 const UsageTableStub = {
   props: ['columns'],
@@ -545,7 +545,7 @@ describe('admin UsageView column preferences', () => {
     vi.useRealTimers()
   })
 
-  it('shows every column by default and allows hiding request IDs', async () => {
+  it('retains every column and moves request IDs between main rows and details', async () => {
     const wrapper = mount(UsageView, {
       global: {
         stubs: {
@@ -577,11 +577,15 @@ describe('admin UsageView column preferences', () => {
       'group', 'reasoning_effort', 'endpoint', 'stream', 'billing_mode', 'ip_address',
       'request_id', 'upstream_request_id', 'user_agent',
     ])
+    const requestIdColumn = () => usageTable.props('columns').find((column: { key: string }) => column.key === 'request_id')
+    expect(requestIdColumn().primary).toBe(false)
     wrapper.findComponent(ColumnSettings).vm.$emit('toggle', 'request_id')
     await wrapper.vm.$nextTick()
-    expect(usageTable.props('columns')).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ key: 'request_id' })]),
-    )
+    expect(requestIdColumn().primary).toBe(true)
+    wrapper.findComponent(ColumnSettings).vm.$emit('toggle', 'request_id')
+    await wrapper.vm.$nextTick()
+    expect(requestIdColumn().primary).toBe(false)
+    expect(usageTable.props('columns')).toHaveLength(17)
     expect(localStorage.setItem).toHaveBeenCalledWith('table-columns:admin-usage:v1', expect.any(String))
   })
 

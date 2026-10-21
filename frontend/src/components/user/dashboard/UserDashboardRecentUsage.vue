@@ -1,14 +1,14 @@
 <template>
-  <section class="card" aria-labelledby="recent-title">
-    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-6 py-4 dark:border-dark-700">
+  <section class="open-section" aria-labelledby="recent-title">
+    <header class="flex flex-wrap items-center justify-between gap-3 pb-4">
       <h2 id="recent-title" class="text-xl font-semibold">{{ copy.recent }}</h2>
       <router-link to="/usage?view=records" class="underline underline-offset-4">{{ copy.allRequests }}</router-link>
     </header>
-    <div v-if="loading" class="p-6" role="status">{{ copy.loading }}</div>
-    <div v-else-if="error" class="flex flex-wrap items-center gap-3 p-6" role="alert">
+    <div v-if="loading" class="py-6" role="status">{{ copy.loading }}</div>
+    <div v-else-if="error" class="flex flex-wrap items-center gap-3 py-6" role="alert">
       <span>{{ copy.loadFailed }}</span><button type="button" class="btn btn-secondary" @click="$emit('retry')">{{ copy.retry }}</button>
     </div>
-    <p v-else-if="!data.length" class="p-6 text-gray-500 dark:text-gray-400">{{ copy.noRequests }}</p>
+    <p v-else-if="!data.length" class="py-6 text-gray-500 dark:text-gray-400">{{ copy.noRequests }}</p>
     <div v-else class="overflow-x-auto">
       <table class="w-full text-sm">
         <thead><tr class="text-gray-500 dark:text-gray-400"><th class="px-6 py-3 text-left">{{ copy.model }}</th><th class="px-6 py-3 text-left">{{ copy.time }}</th><th class="px-6 py-3 text-right">{{ copy.tokensUnit }}</th><th class="px-6 py-3 text-right">{{ copy.actual }}</th></tr></thead>

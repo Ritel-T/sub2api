@@ -48,7 +48,7 @@ function mountTable(row: Partial<OpsErrorLog>, reorder?: (keys: string[]) => voi
 describe('OpsErrorLogTable user/api-key/account columns', () => {
   // 回归:上游错误行(phase=upstream, owner=provider)以前在单一「用户」列里只显示账号、
   // 丢失用户;现在用户/API Key/账号各占独立列,三者同时可见。
-  it('renders user, api key and account in separate columns for an upstream row', () => {
+  it('preserves user, api key and account in separate record fields for an upstream row', async () => {
     const wrapper = mountTable({
       user_id: 2,
       user_email: 'alice@test.com',
@@ -58,19 +58,21 @@ describe('OpsErrorLogTable user/api-key/account columns', () => {
       account_name: 'acct-A',
     })
 
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
     const text = wrapper.text()
     expect(text).toContain('alice@test.com') // 用户列(上游行也显示用户)
     expect(text).toContain('my-key') // API Key 列
     expect(text).toContain('acct-A') // 账号列
   })
 
-  it('shows the deleted badge for a soft-deleted api key', () => {
+  it('shows the deleted badge for a soft-deleted api key', async () => {
     const wrapper = mountTable({
       api_key_id: 5,
       api_key_name: 'old-key',
       api_key_deleted: true,
     })
 
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
     expect(wrapper.text()).toContain('old-key')
     expect(wrapper.text()).toContain('admin.ops.errorLog.keyDeletedBadge')
   })
@@ -82,10 +84,10 @@ describe('OpsErrorLogTable column order', () => {
     await wrapper.setProps({ summaryFirst: true })
 
     const headers = wrapper.findAll('thead th')
-    expect(headers.slice(0, 3).map((header) => header.text())).toEqual([
-      'admin.ops.errorLog.time',
-      'admin.ops.errorLog.message',
-      'admin.ops.errorLog.user',
+    expect(headers.slice(0, 3).map((header) => header.attributes('data-column-key'))).toEqual([
+      'created_at',
+      'message',
+      'user',
     ])
     expect(wrapper.findAll('tbody td')[1].text()).toBe('boom')
 
@@ -98,11 +100,31 @@ describe('OpsErrorLogTable column order', () => {
     const wrapper = mountTable({})
     await wrapper.setProps({ visibleColumnKeys: ['created_at', 'user', 'message'] })
 
-    expect(wrapper.findAll('thead th').map((header) => header.text())).toEqual([
-      'admin.ops.errorLog.time',
-      'admin.ops.errorLog.user',
-      'admin.ops.errorLog.message',
+    expect(wrapper.findAll('thead th[data-column-key]').map((header) => header.attributes('data-column-key'))).toEqual([
+      'created_at',
+      'user',
+      'message',
     ])
+    wrapper.unmount()
+  })
+
+  it('uses checked columns for the main row while preserving the others in details', async () => {
+    const wrapper = mountTable({ account_id: 9, account_name: 'acct-A', api_key_name: 'my-key', api_key_id: 5 })
+    await wrapper.setProps({
+      visibleColumnKeys: ['created_at', 'account', 'api_key', 'message'],
+      primaryColumnKeys: ['created_at', 'account'],
+    })
+    expect(wrapper.findAll('thead th[data-column-key]').map(header => header.attributes('data-column-key'))).toEqual(['created_at', 'account'])
+    expect(wrapper.text()).not.toContain('my-key')
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.text()).toContain('my-key')
+    expect(wrapper.text()).toContain('boom')
+    await wrapper.setProps({ primaryColumnKeys: ['created_at', 'api_key'] })
+    expect(wrapper.findAll('thead th[data-column-key]').map(header => header.attributes('data-column-key'))).toEqual(['created_at', 'api_key'])
+    expect(wrapper.text()).toContain('acct-A')
+    await wrapper.setProps({ primaryColumnKeys: ['api_key'] })
+    expect(wrapper.findAll('thead th[data-column-key]').map(header => header.attributes('data-column-key'))).toEqual(['api_key'])
+    expect(wrapper.text()).toContain('06-05')
     wrapper.unmount()
   })
 
@@ -132,12 +154,14 @@ describe('OpsErrorLogTable i18n keys exist in the errorLog namespace', () => {
   }
 })
 
-it('labels historical balance failures by source while preserving the raw message', () => {
+it('labels historical balance failures by source while preserving the raw message', async () => {
   const user = mountTable({ phase: 'request', error_source: 'client_request', error_owner: 'client', status_code: 403, message: 'insufficient balance' })
+  await user.get('[data-test="toggle-details"]').trigger('click')
   expect(user.get('[data-testid="balance-source"]').text()).toBe('admin.ops.balanceError.user')
   expect(user.text()).toContain('insufficient balance')
   user.unmount()
   const upstream = mountTable({ status_code: 403, message: 'insufficient balance', account_id: 9 })
+  await upstream.get('[data-test="toggle-details"]').trigger('click')
   expect(upstream.get('[data-testid="balance-source"]').text()).toBe('admin.ops.balanceError.upstream')
   upstream.unmount()
 })

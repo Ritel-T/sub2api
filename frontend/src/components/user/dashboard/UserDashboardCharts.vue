@@ -1,7 +1,7 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-8">
     <!-- Date Range Filter -->
-    <div class="card p-4">
+    <div class="open-section">
       <div class="flex flex-wrap items-center gap-4">
         <div class="flex items-center gap-2">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('dashboard.timeRange') }}:</span>
@@ -20,19 +20,22 @@
     </div>
 
     <!-- Charts Grid -->
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div class="dashboard-chart-layout">
+      <!-- Token Usage Trend Chart -->
+      <TokenUsageTrend :trend-data="trend" :loading="loading" />
+
       <!-- Model Distribution Chart -->
-      <div class="card relative overflow-hidden p-4">
+      <div class="open-section relative overflow-hidden">
         <div v-if="loading" class="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm dark:bg-dark-800/50">
           <LoadingSpinner size="md" />
         </div>
         <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('dashboard.modelDistribution') }}</h3>
-        <div class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
+        <div class="flex min-w-0 flex-col items-center gap-5">
           <div class="h-48 w-48 shrink-0">
             <Doughnut v-if="modelData" :data="modelData" :options="doughnutOptions" />
             <div v-else class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">{{ t('dashboard.noDataAvailable') }}</div>
           </div>
-          <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
+          <div class="w-full min-w-0 flex-1 overflow-x-auto">
             <table class="w-full text-xs">
               <thead>
                 <tr class="text-gray-500 dark:text-gray-400">
@@ -57,8 +60,6 @@
         </div>
       </div>
 
-      <!-- Token Usage Trend Chart -->
-      <TokenUsageTrend :trend-data="trend" :loading="loading" />
     </div>
   </div>
 </template>
@@ -104,3 +105,9 @@ const doughnutOptions = computed(() => ({
   }
 }))
 </script>
+
+<style scoped>
+.dashboard-chart-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(22rem, 1fr); gap: 2.5rem; align-items: start; }
+.dashboard-chart-layout > * { min-width: 0; }
+@media (max-width: 1100px) { .dashboard-chart-layout { grid-template-columns: minmax(0, 1fr); } }
+</style>

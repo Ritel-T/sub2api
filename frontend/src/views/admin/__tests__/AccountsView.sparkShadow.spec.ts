@@ -73,9 +73,15 @@ const mountView = () =>
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
         TablePageLayout: {
-          template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
         },
-        DataTable: true,
+        DataTable: {
+          props: ['data'], data: () => ({ expandedIds: new Set<number>() }),
+          template: `<div><div v-for="row in data" :key="row.id">
+            <button data-test="expand-row" @click="expandedIds.add(row.id)">Expand</button>
+            <slot v-if="expandedIds.has(row.id)" name="row-details" :row="row" :columns="[]" :render-cell="() => []" />
+          </div></div>`,
+        },
         Pagination: true,
         ConfirmDialog: true,
         AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
@@ -100,6 +106,7 @@ const mountView = () =>
         AccountTodayStatsCell: true,
         AccountGroupsCell: true,
         AccountUsageCell: true,
+        OpenAIQuotaResetCell: true,
         Icon: true
       }
     }
@@ -111,7 +118,7 @@ describe('admin AccountsView — 外审 F2:spark 影子创建接线', () => {
     for (const fn of [listAccounts, listWithEtag, getBatchTodayStats, getAllProxies, getAllGroups, duplicateAccount, createSparkShadow, showSuccess, showError]) {
       fn.mockReset()
     }
-    listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
+    listAccounts.mockResolvedValue({ items: [{ id: 42, name: 'parent-acc', platform: 'openai', type: 'oauth', status: 'active', credentials: {}, extra: {} }], total: 1, page: 1, page_size: 20, pages: 1 })
     listWithEtag.mockResolvedValue({ notModified: true, etag: null, data: null })
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getAllProxies.mockResolvedValue([])
@@ -127,6 +134,8 @@ describe('admin AccountsView — 外审 F2:spark 影子创建接线', () => {
   it('AccountActionMenu 的 duplicate 事件一键复制账号并刷新列表', async () => {
     const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(AccountActionMenu).exists()).toBe(false)
+    await wrapper.get('[data-test="expand-row"]').trigger('click')
 
     wrapper.findComponent(AccountActionMenu).vm.$emit('duplicate', { id: 42, name: 'parent-acc' })
     await flushPromises()
@@ -143,6 +152,8 @@ describe('admin AccountsView — 外审 F2:spark 影子创建接线', () => {
     duplicateAccount.mockImplementationOnce(() => new Promise(resolve => { resolveDuplicate = resolve }))
     const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(AccountActionMenu).exists()).toBe(false)
+    await wrapper.get('[data-test="expand-row"]').trigger('click')
 
     const menu = wrapper.findComponent(AccountActionMenu)
     menu.vm.$emit('duplicate', { id: 42, name: 'parent-acc' })
@@ -160,6 +171,8 @@ describe('admin AccountsView — 外审 F2:spark 影子创建接线', () => {
     duplicateAccount.mockRejectedValueOnce(new Error('duplicate failed'))
     const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(AccountActionMenu).exists()).toBe(false)
+    await wrapper.get('[data-test="expand-row"]').trigger('click')
 
     wrapper.findComponent(AccountActionMenu).vm.$emit('duplicate', { id: 42, name: 'parent-acc' })
     await flushPromises()
@@ -172,6 +185,8 @@ describe('admin AccountsView — 外审 F2:spark 影子创建接线', () => {
   it('AccountActionMenu 的 create-spark-shadow 事件触发 createSparkShadow API + 成功提示', async () => {
     const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(AccountActionMenu).exists()).toBe(false)
+    await wrapper.get('[data-test="expand-row"]').trigger('click')
 
     const menu = wrapper.findComponent(AccountActionMenu)
     expect(menu.exists()).toBe(true)
@@ -194,6 +209,8 @@ describe('admin AccountsView — 外审 F2:spark 影子创建接线', () => {
   it('用户取消确认时不调用 API', async () => {
     const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(AccountActionMenu).exists()).toBe(false)
+    await wrapper.get('[data-test="expand-row"]').trigger('click')
 
     wrapper.findComponent(AccountActionMenu).vm.$emit('create-spark-shadow', { id: 42, name: 'parent-acc' })
     await flushPromises()
@@ -216,7 +233,7 @@ const mountViewWithRow = () =>
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
         TablePageLayout: {
-          template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
         },
         // 使用能透传 row 数据的自定义 DataTable stub，以便渲染 cell 插槽
         DataTable: {

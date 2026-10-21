@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <div v-if="snapshotError && !loading" role="alert" class="card flex flex-wrap items-center justify-between gap-4 p-6" data-testid="dashboard-load-error">
+    <div class="open-page space-y-6">
+      <div v-if="snapshotError && !loading" role="alert" class="open-section flex flex-wrap items-center justify-between gap-4" data-testid="dashboard-load-error">
         <p>{{ t('admin.dashboard.failedToLoad') }}</p>
         <button type="button" class="btn btn-secondary" :disabled="chartsLoading" data-testid="dashboard-retry" @click="loadDashboardStats">{{ t('common.refresh') }}</button>
       </div>
@@ -12,13 +12,10 @@
 
       <template v-else-if="stats">
         <!-- Row 1: Core Stats -->
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div class="open-metric-strip admin-overview-metrics">
           <!-- Total API Keys -->
-          <div class="card ritel-metric-card p-4">
+          <div class="open-metric">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-                <Icon name="key" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-              </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.apiKeys') }}
@@ -34,11 +31,8 @@
           </div>
 
           <!-- Service Accounts -->
-          <div class="card ritel-metric-card p-4">
+          <div class="open-metric">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-                <Icon name="server" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-              </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.accounts') }}
@@ -59,11 +53,8 @@
           </div>
 
           <!-- Today Requests -->
-          <div class="card ritel-metric-card p-4">
+          <div class="open-metric">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-                <Icon name="chart" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-              </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.todayRequests') }}
@@ -79,11 +70,8 @@
           </div>
 
           <!-- New Users Today -->
-          <div class="card ritel-metric-card p-4">
+          <div class="open-metric">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-                <Icon name="userPlus" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-              </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.users') }}
@@ -99,14 +87,93 @@
           </div>
         </div>
 
-        <!-- Row 2: Token Stats -->
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <!-- Today Tokens -->
-          <div class="card ritel-metric-card p-4">
-            <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-                <Icon name="cube" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
+        <div class="admin-overview-workspace">
+          <div class="min-w-0">
+        <!-- Charts Section -->
+        <div class="space-y-6">
+          <!-- Date Range Filter -->
+          <div class="open-section">
+            <div class="flex flex-wrap items-center gap-4">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >{{ t('admin.dashboard.timeRange') }}:</span
+                >
+                <DateRangePicker enable-time :preset="selectedPreset"
+                  v-model:start-date="startDate"
+                  v-model:end-date="endDate"
+                  @change="onDateRangeChange"
+                />
               </div>
+              <button @click="loadDashboardStats" :disabled="chartsLoading" class="btn btn-secondary">
+                {{ t('common.refresh') }}
+              </button>
+              <div class="ml-auto flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >{{ t('admin.dashboard.granularity') }}:</span
+                >
+                <div class="w-28">
+                  <Select
+                    v-model="granularity"
+                    :options="granularityOptions"
+                    @change="loadChartData"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Grid -->
+          <div class="admin-overview-charts">
+            <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+            <ModelDistributionChart
+              :model-stats="modelStats"
+              :enable-ranking-view="true"
+              :ranking-items="rankingItems"
+              :ranking-total-actual-cost="rankingTotalActualCost"
+              :ranking-total-requests="rankingTotalRequests"
+              :ranking-total-tokens="rankingTotalTokens"
+              :loading="chartsLoading"
+              :ranking-loading="rankingLoading"
+              :ranking-error="rankingError"
+              :start-date="startDate"
+              :end-date="endDate"
+              @ranking-click="goToUserUsage"
+            />
+          </div>
+
+          <!-- User Usage Trend (Full Width) -->
+          <div class="open-section">
+            <div class="mb-4 flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.dashboard.recentUsage') }} (Top 12)</h3>
+              <div class="flex gap-1" role="group" :aria-label="t('admin.dashboard.recentUsage')">
+                <button v-for="metric in (['tokens', 'actual_cost'] as const)" :key="metric" type="button"
+                  class="rounded px-2 py-1 text-xs" :class="userTrendMetric === metric ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300'"
+                  :aria-pressed="userTrendMetric === metric" @click="setUserTrendMetric(metric)">
+                  {{ t(metric === 'tokens' ? 'admin.dashboard.tokens' : 'admin.dashboard.actualSpending') }}
+                </button>
+              </div>
+            </div>
+            <div class="h-64">
+              <div v-if="userTrendLoading" class="flex h-full items-center justify-center">
+                <LoadingSpinner size="md" />
+              </div>
+              <Line v-else-if="userTrendChartData" :data="userTrendChartData" :options="lineOptions" />
+              <div
+                v-else
+                class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+              >
+                {{ t('admin.dashboard.noDataAvailable') }}
+              </div>
+            </div>
+          </div>
+        </div>
+          </div>
+          <aside class="admin-overview-aside">
+        <!-- Row 2: Token Stats -->
+        <div class="admin-overview-secondary">
+          <!-- Today Tokens -->
+          <div class="open-metric">
+            <div class="flex items-center gap-3">
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.todayTokens') }}
@@ -138,11 +205,8 @@
           </div>
 
           <!-- Total Tokens -->
-          <div class="card ritel-metric-card p-4">
+          <div class="open-metric">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-                <Icon name="database" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-              </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.totalTokens') }}
@@ -174,11 +238,8 @@
           </div>
 
           <!-- Performance (RPM/TPM) -->
-          <div class="card ritel-metric-card p-4">
+          <div class="open-metric">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-                <Icon name="bolt" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-              </div>
               <div class="flex-1">
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.performance') }}
@@ -200,11 +261,8 @@
           </div>
 
           <!-- Avg Response Time -->
-          <div class="card ritel-metric-card p-4">
+          <div class="open-metric">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
-                <Icon name="clock" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
-              </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.avgResponse') }}
@@ -221,17 +279,17 @@
         </div>
 
         <!-- Quick Actions -->
-        <div class="card ritel-metric-card p-4">
+        <div class="open-section">
           <div class="mb-3 flex items-center justify-between">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
               {{ t('admin.dashboard.quickActions') }}
             </h2>
           </div>
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div class="open-record-list">
             <button
               v-if="canUseBatchImage"
               type="button"
-              class="group flex items-center gap-3 rounded-lg bg-gray-50 p-3 text-left transition-colors hover:bg-primary-50 dark:bg-dark-800/50 dark:hover:bg-primary-900/20"
+              class="group flex items-center gap-3 border-b border-gray-200 py-4 text-left transition-colors hover:text-primary-600 dark:border-dark-700"
               @click="router.push('/batch-image')"
             >
               <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
@@ -249,7 +307,7 @@
             </button>
             <button
               type="button"
-              class="group flex items-center gap-3 rounded-lg bg-gray-50 p-3 text-left transition-colors hover:bg-primary-50 dark:bg-dark-800/50 dark:hover:bg-primary-900/20"
+              class="group flex items-center gap-3 border-b border-gray-200 py-4 text-left transition-colors hover:text-primary-600 dark:border-dark-700"
               @click="router.push('/admin/groups')"
             >
               <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
@@ -268,83 +326,7 @@
           </div>
         </div>
 
-        <!-- Charts Section -->
-        <div class="space-y-6">
-          <!-- Date Range Filter -->
-          <div class="card ritel-metric-card p-4">
-            <div class="flex flex-wrap items-center gap-4">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >{{ t('admin.dashboard.timeRange') }}:</span
-                >
-                <DateRangePicker enable-time :preset="selectedPreset"
-                  v-model:start-date="startDate"
-                  v-model:end-date="endDate"
-                  @change="onDateRangeChange"
-                />
-              </div>
-              <button @click="loadDashboardStats" :disabled="chartsLoading" class="btn btn-secondary">
-                {{ t('common.refresh') }}
-              </button>
-              <div class="ml-auto flex items-center gap-2">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >{{ t('admin.dashboard.granularity') }}:</span
-                >
-                <div class="w-28">
-                  <Select
-                    v-model="granularity"
-                    :options="granularityOptions"
-                    @change="loadChartData"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Charts Grid -->
-          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <ModelDistributionChart
-              :model-stats="modelStats"
-              :enable-ranking-view="true"
-              :ranking-items="rankingItems"
-              :ranking-total-actual-cost="rankingTotalActualCost"
-              :ranking-total-requests="rankingTotalRequests"
-              :ranking-total-tokens="rankingTotalTokens"
-              :loading="chartsLoading"
-              :ranking-loading="rankingLoading"
-              :ranking-error="rankingError"
-              :start-date="startDate"
-              :end-date="endDate"
-              @ranking-click="goToUserUsage"
-            />
-            <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
-          </div>
-
-          <!-- User Usage Trend (Full Width) -->
-          <div class="card ritel-metric-card p-4">
-            <div class="mb-4 flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.dashboard.recentUsage') }} (Top 12)</h3>
-              <div class="flex gap-1" role="group" :aria-label="t('admin.dashboard.recentUsage')">
-                <button v-for="metric in (['tokens', 'actual_cost'] as const)" :key="metric" type="button"
-                  class="rounded px-2 py-1 text-xs" :class="userTrendMetric === metric ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300'"
-                  :aria-pressed="userTrendMetric === metric" @click="setUserTrendMetric(metric)">
-                  {{ t(metric === 'tokens' ? 'admin.dashboard.tokens' : 'admin.dashboard.actualSpending') }}
-                </button>
-              </div>
-            </div>
-            <div class="h-64">
-              <div v-if="userTrendLoading" class="flex h-full items-center justify-center">
-                <LoadingSpinner size="md" />
-              </div>
-              <Line v-else-if="userTrendChartData" :data="userTrendChartData" :options="lineOptions" />
-              <div
-                v-else
-                class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
-              >
-                {{ t('admin.dashboard.noDataAvailable') }}
-              </div>
-            </div>
-          </div>
+          </aside>
         </div>
       </template>
     </div>
@@ -763,4 +745,15 @@ onMounted(() => {
 </script>
 
 <style scoped>
+</style>
+
+<style scoped>
+.admin-overview-workspace { display: grid; gap: clamp(2rem, 4vw, 5rem); align-items: start; }
+.admin-overview-aside { min-width: 0; }
+.admin-overview-secondary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem; padding-block: 1.75rem; border-top: 1px solid var(--ritel-border); }
+.admin-overview-metrics :deep(.ritel-number-display) { font-size: clamp(2rem, 3vw, 3rem); font-weight: 400; }
+.admin-overview-charts { display: grid; gap: 2rem; }
+@media (min-width: 1280px) { .admin-overview-workspace { grid-template-columns: minmax(0, 3fr) minmax(16rem, 1fr); } .admin-overview-secondary { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1600px) { .admin-overview-charts { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); } }
+@media (max-width: 480px) { .admin-overview-secondary { grid-template-columns: minmax(0, 1fr); } }
 </style>

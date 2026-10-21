@@ -1,9 +1,8 @@
 <template>
   <AppLayout>
-    <div class="space-y-6 pb-12">
-      <!-- Ops-style elevated shell: title toolbar + filters (mirrors OpsDashboardHeader) -->
+    <div class="open-page pb-12">
       <section
-        class="card sticky top-0 z-20 !rounded-3xl !border-0 p-0 shadow-sm ring-1 ring-gray-900/5 backdrop-blur-sm dark:!bg-dark-800 dark:ring-dark-700 supports-[backdrop-filter]:bg-white/95 dark:supports-[backdrop-filter]:bg-dark-800/95"
+        class="open-section monitor-toolbar"
       >
         <header class="page-header mb-0 flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 px-5 py-4 dark:border-dark-700 sm:px-6">
           <div class="min-w-0">
@@ -196,7 +195,6 @@
           </div>
           </template>
           <template v-else>
-            <span class="ml-3 text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.cards.passive') }}</span>
             <button v-if="hasDimensionFilter" class="btn btn-ghost btn-sm" @click="clearDimensions">{{ t('channelMonitorV2.clearFilters') }}</button>
             <span v-if="snapshot && hasMonitorSamples(snapshot.metrics)" class="ml-auto hidden text-xs text-gray-500 dark:text-gray-400 md:inline">{{ t('channelMonitorV2.cards.availability') }} {{ formatPercent(1 - snapshot.metrics.error_rate) }} · {{ t('channelMonitorV2.cards.cache') }} {{ formatPercent(snapshot.metrics.cache_rate) }}</span>
           </template>
@@ -217,8 +215,7 @@
       <!-- Overview KPI: success · TTFT · tokens/s(optional) · cache · (+ RPM when throughput visible) -->
       <section
         v-if="snapshot"
-        class="grid grid-cols-2 gap-3 sm:grid-cols-3"
-        :class="showThroughput ? 'xl:grid-cols-5' : 'xl:grid-cols-4'"
+        class="open-metric-strip"
         :aria-label="t('channelMonitorV2.summaryAria')"
       >
         <MetricCell
@@ -257,8 +254,7 @@
       </section>
       <section
         v-else-if="loading"
-        class="grid grid-cols-2 gap-3 sm:grid-cols-3"
-        :class="showThroughput ? 'xl:grid-cols-5' : 'xl:grid-cols-4'"
+        class="open-metric-strip"
         aria-hidden="true"
       >
         <div
@@ -284,13 +280,13 @@
         />
         <div
           v-else-if="loading"
-          class="card flex min-h-[320px] items-center justify-center !rounded-3xl !border-0 text-sm text-gray-400 shadow-sm ring-1 ring-gray-900/5 dark:ring-dark-700"
+          class="open-section flex min-h-[320px] items-center justify-center text-sm text-gray-400"
         >
           <span class="animate-pulse">{{ t('common.loading') }}</span>
         </div>
       </div>
 
-      <section class="card flex min-h-0 flex-col overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
+      <section class="open-section flex min-h-0 flex-col overflow-hidden">
         <div class="border-b border-gray-100 px-5 pt-4 dark:border-dark-700 sm:px-6">
           <nav class="tabs w-full max-w-md sm:w-auto" role="tablist" :aria-label="t('channelMonitorV2.tabs.aria')">
             <button

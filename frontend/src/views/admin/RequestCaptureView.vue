@@ -1,13 +1,13 @@
 <template>
   <AppLayout>
-    <div class="space-y-5">
+    <div class="open-page space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('admin.requestCapture.title') }}</h1><p class="mt-1 text-sm text-gray-500">{{ t('admin.requestCapture.description') }}</p></div>
         <button class="btn btn-secondary" :disabled="loading" @click="refresh">{{ t('admin.requestCapture.refresh') }}</button>
       </div>
       <p class="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">{{ t('admin.requestCapture.privacy') }}</p>
       <p v-if="error" role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">{{ error }}</p>
-      <div v-if="stats" class="card flex flex-wrap gap-5 p-4 text-sm">
+      <div v-if="stats" class="open-section flex flex-wrap gap-5 text-sm">
         <span>{{ t('admin.requestCapture.instance') }}: <code>{{ stats.instance_id }}</code></span>
         <span>{{ t('admin.requestCapture.used') }}: {{ bytes(stats.used_bytes) }}</span>
         <span>{{ t('admin.requestCapture.active') }}: {{ stats.active_requests }}</span>
@@ -31,25 +31,29 @@
         <p class="text-xs text-gray-500">{{ t('admin.requestCapture.targetHint') }}</p>
         <button class="btn btn-primary" :disabled="busy || !targetID || !validDuration">{{ t('admin.requestCapture.start') }}</button>
       </form>
-      <div class="card overflow-hidden">
-        <div class="overflow-x-auto"><table class="w-full text-left text-sm">
-          <thead class="bg-gray-50 text-gray-500 dark:bg-dark-800"><tr><th class="p-3">{{ t('admin.requestCapture.target') }}</th><th class="p-3">{{ t('admin.requestCapture.status') }}</th><th class="p-3">{{ t('admin.requestCapture.remaining') }}</th><th class="p-3">{{ t('admin.requestCapture.records') }}</th><th class="p-3">{{ t('admin.requestCapture.incomplete') }}</th><th class="p-3">{{ t('admin.requestCapture.size') }}</th><th class="p-3">{{ t('admin.requestCapture.actions') }}</th></tr></thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-dark-700"><tr v-for="task in tasks" :key="task.id" :class="{ 'bg-blue-50 dark:bg-blue-950': selectedTask?.id === task.id }">
-            <td class="p-3"><button class="text-primary-600 underline" @click="selectTask(task)">{{ t('admin.requestCapture.' + task.target_type) }} #{{ task.target_id }} {{ task.target_name }}</button><div class="text-xs text-gray-500">{{ task.save_media ? t('admin.requestCapture.mediaIncluded') : t('admin.requestCapture.metadataOnly') }}</div></td>
-            <td class="p-3">{{ task.status }}<div v-if="task.reason" class="text-xs text-amber-700">{{ task.reason }}</div></td><td class="p-3">{{ remaining(task) }}</td><td class="p-3">{{ task.requests }}</td><td class="p-3">{{ task.partial }} / {{ task.skipped }}</td><td class="p-3">{{ bytes(task.bytes) }}</td>
-            <td class="p-3"><div class="flex gap-2"><button v-if="task.status === 'running'" class="btn btn-secondary" :disabled="busy" @click="stop(task)">{{ t('admin.requestCapture.stop') }}</button><button v-else class="btn btn-secondary" :disabled="busy || !streamExport" @click="download(task.id)">{{ t('admin.requestCapture.export') }}</button><button class="btn btn-secondary text-red-600" :disabled="busy" @click="remove(task)">{{ t('admin.requestCapture.delete') }}</button></div></td>
-          </tr><tr v-if="!tasks.length"><td colspan="7" class="p-6 text-center text-gray-500">{{ t('admin.requestCapture.empty') }}</td></tr></tbody>
-        </table></div>
+      <div class="open-section overflow-hidden">
+        <div class="overflow-x-auto"><DataTable
+ :columns="openRecordColumns"
+ :primary-columns="['target','status','remaining','records','actions']"
+ :data="tasks" row-key="id" >
+<template #cell-target="{ row: task }"><div class="p-3"><button class="text-primary-600 underline" @click="selectTask(task)">{{ t('admin.requestCapture.' + task.target_type) }} #{{ task.target_id }} {{ task.target_name }}</button><div class="text-xs text-gray-500">{{ task.save_media ? t('admin.requestCapture.mediaIncluded') : t('admin.requestCapture.metadataOnly') }}</div></div></template>
+<template #cell-status="{ row: task }"><div class="p-3">{{ task.status }}<div v-if="task.reason" class="text-xs text-amber-700">{{ task.reason }}</div></div></template>
+<template #cell-remaining="{ row: task }"><div class="p-3">{{ remaining(task) }}</div></template>
+<template #cell-records="{ row: task }"><div class="p-3">{{ task.requests }}</div></template>
+<template #cell-incomplete="{ row: task }"><div class="p-3">{{ task.partial }} / {{ task.skipped }}</div></template>
+<template #cell-size="{ row: task }"><div class="p-3">{{ bytes(task.bytes) }}</div></template>
+<template #cell-actions="{ row: task }"><div class="p-3"><div class="flex gap-2"><button :title="t('admin.requestCapture.stop')" :aria-label="t('admin.requestCapture.stop')" v-if="task.status === 'running'" class="workspace-icon-action theme-action-button" :disabled="busy" @click="stop(task)"><Icon name="ban" size="sm" /><span class="sr-only">{{ t('admin.requestCapture.stop') }}</span></button><button :title="t('admin.requestCapture.export')" :aria-label="t('admin.requestCapture.export')" v-else class="workspace-icon-action theme-action-button" :disabled="busy || !streamExport" @click="download(task.id)"><Icon name="download" size="sm" /><span class="sr-only">{{ t('admin.requestCapture.export') }}</span></button><button :title="t('admin.requestCapture.delete')" :aria-label="t('admin.requestCapture.delete')" class="workspace-icon-action text-red-600 dark:text-red-400" :disabled="busy" @click="remove(task)"><Icon name="trash" size="sm" /><span class="sr-only">{{ t('admin.requestCapture.delete') }}</span></button></div></div></template>
+</DataTable></div>
         <div class="flex justify-end gap-3 p-3"><button class="btn btn-secondary" :disabled="taskPage <= 1" @click="changeTaskPage(-1)">{{ t('admin.requestCapture.previous') }}</button><span class="self-center">{{ taskPage }}</span><button class="btn btn-secondary" :disabled="!taskMore" @click="changeTaskPage(1)">{{ t('admin.requestCapture.next') }}</button></div>
       </div>
       <p v-if="!streamExport" class="text-sm text-gray-500">{{ t('admin.requestCapture.exportBrowser') }}</p>
-      <section v-if="selectedTask" class="card space-y-4 p-5">
+      <section v-if="selectedTask" class="open-section space-y-4 p-5">
         <h2 class="font-semibold">{{ t('admin.requestCapture.records') }} - {{ selectedTask.target_name }}</h2>
         <form class="flex flex-wrap items-center gap-3" @submit.prevent="recordPage = 1; loadRecords()"><input v-model.trim="requestID" class="input max-w-md" placeholder="Request ID" /><span class="text-sm text-gray-500">{{ t('admin.requestCapture.errorsOnly') }}</span><button class="btn btn-secondary">{{ t('admin.requestCapture.filter') }}</button></form>
         <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr><th class="p-2">Request ID</th><th class="p-2">{{ t('admin.requestCapture.model') }}</th><th class="p-2">{{ t('admin.requestCapture.status') }}</th><th class="p-2">{{ t('admin.requestCapture.size') }}</th></tr></thead><tbody><tr v-for="record in records" :key="record.id" class="border-t border-gray-100 dark:border-dark-700"><td class="p-2"><button class="break-all text-primary-600 underline" @click="viewRecord(record)">{{ record.request_id || record.id }}</button><div class="text-xs text-gray-500">{{ record.created_at }} / {{ record.protocol }}<span v-if="record.turn"> / {{ t('admin.requestCapture.turn') }} {{ record.turn }}</span></div></td><td class="p-2">{{ record.model }}</td><td class="p-2"><span>HTTP {{ record.status }}</span><span v-if="record.is_error" class="ml-2 text-red-600" data-testid="capture-outcome">{{ captureOutcome(record) }}</span><div v-if="record.error_code" class="break-all text-xs text-red-600">{{ record.error_code }}</div><span v-if="record.partial" class="ml-2 text-amber-700">{{ record.reason || t('admin.requestCapture.partial') }}</span></td><td class="p-2">{{ bytes(record.bytes) }}</td></tr></tbody></table></div>
         <div class="flex justify-end gap-3"><button class="btn btn-secondary" :disabled="recordPage <= 1" @click="recordPage--; loadRecords()">{{ t('admin.requestCapture.previous') }}</button><span class="self-center">{{ recordPage }}</span><button class="btn btn-secondary" :disabled="!recordMore" @click="recordPage++; loadRecords()">{{ t('admin.requestCapture.next') }}</button></div>
       </section>
-      <section v-if="detail" class="card space-y-4 p-5">
+      <section v-if="detail" class="open-section space-y-4 p-5">
         <div class="flex justify-between gap-3"><h2 class="font-semibold">{{ t('admin.requestCapture.detail') }} - {{ detail.request_id }}</h2><button class="btn btn-secondary" :disabled="busy || !streamExport || selectedTask?.status === 'running'" @click="download(detail.task_id, detail.id)">{{ t('admin.requestCapture.export') }}</button></div>
         <p v-if="detail.is_error" class="text-sm text-red-600">HTTP {{ detail.status }} · {{ captureOutcome(detail) }}<span v-if="detail.error_code"> · {{ detail.error_code }}</span></p>
         <p v-if="detail.partial" class="text-sm text-amber-700">{{ t('admin.requestCapture.partial') }}: {{ detail.reason }}</p>
@@ -66,6 +70,8 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -129,4 +135,6 @@ async function readContent(offset: number) { if (!detail.value || !part.value) r
 watch([targetType, search], () => { targetID.value = 0; clearTimeout(debounce); debounce = setTimeout(() => { void loadTargets(1) }, 250) })
 onMounted(() => { void refresh(); void loadTargets(); poll = setInterval(() => { now.value = Date.now(); void refresh() }, 3000) })
 onUnmounted(() => { disposed = true; clearInterval(poll); clearTimeout(debounce); searchAbort?.abort(); detailVersion++; contentVersion++ })
+
+const openRecordColumns = computed(() => [{ key: 'target', label: t('admin.requestCapture.target'), sortable: false }, { key: 'status', label: t('admin.requestCapture.status'), sortable: false }, { key: 'remaining', label: t('admin.requestCapture.remaining'), sortable: false }, { key: 'records', label: t('admin.requestCapture.records'), sortable: false }, { key: 'incomplete', label: t('admin.requestCapture.incomplete'), sortable: false }, { key: 'size', label: t('admin.requestCapture.size'), sortable: false }, { key: 'actions', label: t('admin.requestCapture.actions'), sortable: false }])
 </script>

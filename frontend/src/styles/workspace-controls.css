@@ -1,0 +1,50 @@
+/* Fields share a quiet baseline; menus retain a bounded surface. */
+.select-trigger,
+.date-picker-trigger {
+  min-height: 44px;
+  border: 0;
+  border-bottom: 1px solid var(--ritel-control-border);
+  border-radius: 0;
+  background: transparent;
+  padding: 10px 4px;
+  color: var(--ritel-fg);
+  box-shadow: none;
+  transition: border-color 160ms, color 160ms;
+}
+.select-trigger:hover,
+.date-picker-trigger:hover { border-bottom-color: var(--ritel-muted); }
+.select-trigger-open,
+.date-picker-trigger-open { border-bottom-color: var(--ritel-fg); box-shadow: none; }
+.select-trigger:focus-visible,
+.date-picker-trigger:focus-visible {
+  outline: 2px solid var(--ritel-focus);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+.select-trigger-error { border-bottom-color: #c94841; }
+.select-trigger-disabled { background: transparent; }
+.input.workspace-search-input,
+.table-filter-workspace input.input {
+  border: 0;
+  border-bottom: 1px solid var(--ritel-control-border);
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+.input.workspace-search-input:focus-visible,
+.table-filter-workspace input.input:focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 3px; }
+.workspace-row-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; }
+button.workspace-icon-action {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 36px;
+  min-height: 36px;
+  padding: 6px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+button.workspace-icon-action:focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 2px; }

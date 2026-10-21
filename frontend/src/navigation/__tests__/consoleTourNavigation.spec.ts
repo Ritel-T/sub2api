@@ -46,6 +46,14 @@ describe('real console tour navigation surfaces', () => {
     expect(document.querySelectorAll('#sidebar-group-manage')).toHaveLength(1)
     expect(document.querySelector('#sidebar-group-manage')?.closest('.tabs')).not.toBeNull()
   })
+  it('keeps personal keys out of management resources and enters the personal workspace for its tour', async () => {
+    route.path = '/admin/accounts'
+    setup()
+    expect(nav.sections.value.flatMap(section => section.tabs).some(tab => tab.path === '/keys')).toBe(false)
+    expect(await nav.prepareTourTarget('[data-tour="sidebar-my-keys"]')).toBe(true)
+    expect(route.path).toBe('/keys')
+    expect(document.querySelectorAll('[data-tour="sidebar-my-keys"]')).toHaveLength(1)
+  })
   it('opens the mobile drawer with one real destination anchor', async () => {
     window.innerWidth = 390
     setup()

@@ -2,7 +2,7 @@
   <AppLayout>
     <div
       data-testid="profile-shell"
-      class="mx-auto max-w-[950px] space-y-6"
+      class="open-page profile-workspace"
     >
       <ProfileInfoCard
         :user="user"
@@ -17,7 +17,7 @@
 
       <div
         v-if="contactInfo"
-        class="card border-primary-200 bg-primary-50 p-6 dark:bg-primary-900/20"
+        class="open-section flex items-center gap-4 py-5"
       >
         <div class="flex items-center gap-4">
           <div class="rounded-xl bg-primary-100 p-3 text-primary-600 dark:text-primary-600">
@@ -113,3 +113,7 @@ onMounted(async () => {
   await Promise.all([profileRefresh, settingsLoad])
 })
 </script>
+
+<style scoped>
+.profile-workspace{max-width:82rem;margin-inline:auto}
+</style>

@@ -1,8 +1,29 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
+      <template #actions>
+        <div class="workspace-page-header">
+          <h1 class="workspace-page-title">{{ t('admin.announcements.title') }}</h1>
+          <div class="workspace-header-actions">
+            <TableToolbarTarget kind="actions" />
+            <button
+              @click="loadAnnouncements"
+              :disabled="loading"
+              class="btn btn-secondary"
+              :title="t('common.refresh')"
+            >
+              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+            </button>
+            <button @click="openCreateDialog" class="btn btn-primary">
+              <Icon name="plus" size="md" class="mr-1" />
+              {{ t('admin.announcements.createAnnouncement') }}
+            </button>
+          </div>
+        </div>
+      </template>
+
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="filter-controls">
           <!-- Left: Search + Filters -->
           <div class="flex-1 sm:max-w-64">
             <input
@@ -20,21 +41,7 @@
             @change="handleStatusChange"
           />
 
-          <!-- Right: Action buttons -->
-          <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
-            <button
-              @click="loadAnnouncements"
-              :disabled="loading"
-              class="btn btn-secondary"
-              :title="t('common.refresh')"
-            >
-              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
-            <button @click="openCreateDialog" class="btn btn-primary">
-              <Icon name="plus" size="md" class="mr-1" />
-              {{ t('admin.announcements.createAnnouncement') }}
-            </button>
-          </div>
+          <TableToolbarTarget />
         </div>
       </template>
 
@@ -113,31 +120,31 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center space-x-1">
-              <button
+            <div class="workspace-row-actions">
+              <button :aria-label="t('admin.announcements.preview')"
                 @click="openPreview(row)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+                class="theme-action-button transition-colors workspace-icon-action"
                 :title="t('admin.announcements.preview')"
               >
                 <Icon name="eye" size="sm" />
               </button>
-              <button
+              <button :aria-label="t('admin.announcements.readStatus')"
                 @click="openReadStatus(row)"
-                class="theme-action-button flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+                class="theme-action-button transition-colors workspace-icon-action"
                 :title="t('admin.announcements.readStatus')"
               >
                 <Icon name="chartBar" size="sm" />
               </button>
-              <button
+              <button :aria-label="t('common.edit')"
                 @click="openEditDialog(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-dark-600 dark:hover:text-gray-300"
+                class="text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-dark-600 dark:hover:text-gray-300 workspace-icon-action"
                 :title="t('common.edit')"
               >
                 <Icon name="edit" size="sm" />
               </button>
-              <button
+              <button :aria-label="t('common.delete')"
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
                 :title="t('common.delete')"
               >
                 <Icon name="trash" size="sm" />
@@ -157,13 +164,12 @@
       </template>
 
       <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
+        <InfiniteListSentinel
+          :loading="loading || continuousList.loadingMore.value"
+          :error="continuousList.error.value"
+          :has-more="continuousList.hasMore.value"
+          @load-more="continuousList.loadMore"
+          @retry="continuousList.retry"
         />
       </template>
     </TablePageLayout>
@@ -257,10 +263,10 @@
 </template>
 
 <script setup lang="ts">
+import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import type { AdminGroup, Announcement, AnnouncementTargeting } from '@/types'
@@ -269,7 +275,8 @@ import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -284,20 +291,18 @@ import { hasEmptyUserCondition, onlyTargetsSpecificUsers, targetingUserIds } fro
 const { t } = useI18n()
 const appStore = useAppStore()
 
-const announcements = ref<Announcement[]>([])
-const loading = ref(false)
+const continuousList = useInfiniteList<Announcement>({
+  fetchPage: fetchListPage,
+  keyOf: row => row.id,
+  pageSize: 50
+})
+const { items: announcements, loading } = continuousList
 
 const filters = reactive({
   status: '',
 })
 const searchQuery = ref('')
 
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0,
-  pages: 0
-})
 
 const sortState = reactive({
   sort_by: 'created_at',
@@ -349,69 +354,35 @@ const targetingSummary = (targeting: AnnouncementTargeting) => {
 }
 
 // ===== CRUD / list =====
-let currentController: AbortController | null = null
 
-async function loadAnnouncements() {
-  currentController?.abort()
-  const requestController = new AbortController()
-  currentController = requestController
-  const { signal } = requestController
-
+async function fetchListPage(page: number, signal: AbortSignal) {
   try {
-    loading.value = true
-    const res = await adminAPI.announcements.list(pagination.page, pagination.page_size, {
-      status: filters.status || undefined,
-      search: searchQuery.value || undefined,
-      sort_by: sortState.sort_by,
-      sort_order: sortState.sort_order
+    return await adminAPI.announcements.list(page, 50, {
+      status: filters.status || undefined, search: searchQuery.value || undefined,
+      sort_by: sortState.sort_by, sort_order: sortState.sort_order
     }, { signal })
-
-    if (signal.aborted || currentController !== requestController) return
-
-    announcements.value = res.items
-    pagination.total = res.total
-    pagination.pages = res.pages
-    pagination.page = res.page
-    pagination.page_size = res.page_size
-  } catch (error: any) {
-    if (
-      signal.aborted ||
-      currentController !== requestController ||
-      error?.name === 'AbortError' ||
-      error?.code === 'ERR_CANCELED'
-    ) {
-      return
-    }
-    console.error('Error loading announcements:', error)
-    appStore.showError(error.response?.data?.detail || t('admin.announcements.failedToLoad'))
-  } finally {
-    if (currentController === requestController) {
-      loading.value = false
-      currentController = null
-    }
+  } catch (error: unknown) {
+    if (!signal.aborted) appStore.showError(t('admin.announcements.failedToLoad'))
+    throw error
   }
 }
 
-function handlePageChange(page: number) {
-  pagination.page = page
-  loadAnnouncements()
+const loadAnnouncements = async () => {
+  await continuousList.reset()
 }
 
-function handlePageSizeChange(pageSize: number) {
-  pagination.page_size = pageSize
-  pagination.page = 1
-  loadAnnouncements()
-}
+
+
 
 function handleStatusChange() {
-  pagination.page = 1
+
   loadAnnouncements()
 }
 
 function handleSort(key: string, order: 'asc' | 'desc') {
   sortState.sort_by = key
   sortState.sort_order = order
-  pagination.page = 1
+
   loadAnnouncements()
 }
 
@@ -419,7 +390,7 @@ let searchDebounceTimer: number | null = null
 function handleSearch() {
   if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer)
   searchDebounceTimer = window.setTimeout(() => {
-    pagination.page = 1
+
     loadAnnouncements()
   }, 300)
 }
@@ -628,6 +599,5 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer)
-  currentController?.abort()
 })
 </script>

@@ -39,6 +39,27 @@ describe('LocaleSwitcher', () => {
     vi.unstubAllGlobals()
   })
 
+  it('renders bundled flags for the current language and all options without emoji glyphs', async () => {
+    const wrapper = mountSwitcher()
+    const trigger = wrapper.get('button')
+    expect(trigger.attributes('aria-label')).toBe('简体中文')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+    expect(trigger.get('img').attributes('src')).toContain('/assets/flags/cn.svg')
+    expect(trigger.get('img').attributes('alt')).toBe('')
+
+    await trigger.trigger('click')
+
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    const flags = wrapper.findAll('img').map(flag => flag.attributes('src'))
+    expect(flags).toEqual([
+      expect.stringContaining('/assets/flags/cn.svg'),
+      expect.stringContaining('/assets/flags/us.svg'),
+      expect.stringContaining('/assets/flags/hk.svg'),
+      expect.stringContaining('/assets/flags/cn.svg')
+    ])
+    expect(wrapper.text()).not.toMatch(/[\u{1F1E6}-\u{1F1FF}]/u)
+  })
+
   // 分组名称等内容由后端按请求语言返回，已加载的数据要靠整页刷新换成新语言
   it('reloads the page after switching to another language', async () => {
     const wrapper = mountSwitcher()

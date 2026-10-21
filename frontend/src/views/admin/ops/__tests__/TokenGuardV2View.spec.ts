@@ -354,7 +354,7 @@ describe('TokenGuardV2View', () => {
     expect(wrapper.text()).toContain('tokenGuardV2.rulesSaved')
   })
 
-  it('paginates monitored accounts and resets to page one after searching', async () => {
+  it('reveals monitored accounts incrementally and resets visible rows after searching', async () => {
     api.listGuard.mockResolvedValueOnce({
       probe_interval_seconds: 1800,
       retry_interval_seconds: 300,
@@ -381,19 +381,15 @@ describe('TokenGuardV2View', () => {
           SmartOpsNav: true,
           Icon: true,
           BaseDialog: true,
-          Pagination: {
-            props: ['page'],
-            emits: ['update:page'],
-            template: '<button data-testid="next-page" @click="$emit(\'update:page\', page + 1)">next</button>',
-          },
+
         },
       },
     })
     await flushPromises()
 
     expect(wrapper.findAll('tbody tr')).toHaveLength(20)
-    await wrapper.get('[data-testid="next-page"]').trigger('click')
-    expect(wrapper.findAll('tbody tr')).toHaveLength(5)
+    await wrapper.get('.infinite-list-action').trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(25)
     expect(wrapper.get('tbody').text()).toContain('Account 25')
 
     await wrapper.get('#token-guard-v2-search').setValue('Account 2')

@@ -54,11 +54,12 @@ export async function deleteCode(id: number): Promise<{ message: string }> {
 export async function getUsages(
   id: number,
   page: number = 1,
-  pageSize: number = 20
+  pageSize: number = 20,
+  options?: { signal?: AbortSignal }
 ): Promise<BasePaginationResponse<PromoCodeUsage>> {
   const { data } = await apiClient.get<BasePaginationResponse<PromoCodeUsage>>(
     `/admin/promo-codes/${id}/usages`,
-    { params: { page, page_size: pageSize } }
+    { params: { page, page_size: pageSize }, signal: options?.signal }
   )
   return data
 }

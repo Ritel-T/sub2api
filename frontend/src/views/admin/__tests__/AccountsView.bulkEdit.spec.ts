@@ -79,12 +79,14 @@ vi.mock('vue-i18n', async () => {
 })
 
 const DataTableStub = {
-  props: ['columns', 'data'],
+  name: 'DataTable',
+  props: ['columns', 'data', 'selectedKeys'],
+  emits: ['update:selectedKeys', 'sort'],
   template: `
     <div data-test="data-table">
       <span v-for="column in columns" :key="column.key" data-test="column-key">{{ column.key }}</span>
       <div v-for="row in data" :key="row.id">
-        <div data-test="select-row"><slot name="cell-select" :row="row" /></div>
+        <button data-test="select-row" :aria-pressed="selectedKeys.includes(row.id)" @click="$emit('update:selectedKeys', selectedKeys.includes(row.id) ? selectedKeys.filter(id => id !== row.id) : [...selectedKeys, row.id])">{{ row.id }}</button>
         <slot name="cell-created_at" :value="row.created_at" :row="row" />
         <div data-test="account-rate"><slot name="cell-rate_multiplier" :row="row" /></div>
       </div>
@@ -93,12 +95,14 @@ const DataTableStub = {
 }
 
 const ProbeDataTableStub = {
-  props: ['data', 'loading'],
+  name: 'DataTable',
+  props: ['data', 'loading', 'selectedKeys'],
+  emits: ['update:selectedKeys', 'sort'],
   template: `
     <div>
       <div v-if="loading" data-test="table-loading">loading</div>
       <div v-for="row in loading ? [] : data" :key="row.id" :data-account-id="row.id">
-        <div data-test="select-row"><slot name="cell-select" :row="row" /></div>
+        <button data-test="select-row" :aria-pressed="selectedKeys.includes(row.id)" @click="$emit('update:selectedKeys', selectedKeys.includes(row.id) ? selectedKeys.filter(id => id !== row.id) : [...selectedKeys, row.id])">{{ row.id }}</button>
         <div data-test="account-rate"><slot name="cell-rate_multiplier" :row="row" /></div>
         <span data-test="account-cost">{{ row.extra?.cost_multiplier }}</span>
         <slot name="cell-upstream_billing_rate" :row="row" />
@@ -118,9 +122,9 @@ const AccountBulkActionsBarStub = {
   `
 }
 
-const PaginationStub = {
-  emits: ['update:page'],
-  template: '<button data-test="next-page" @click="$emit(\'update:page\', 2)">next</button>'
+const InfiniteListSentinelStub = {
+  emits: ['load-more', 'retry'],
+  template: '<button data-test="load-more" @click="$emit(\'load-more\')">load more</button>'
 }
 
 const BulkEditAccountModalStub = {
@@ -156,14 +160,14 @@ const mountProbeView = () => mount(AccountsView, {
     stubs: {
       AppLayout: { template: '<div><slot /></div>' },
       TablePageLayout: { template: '<div><slot name="table" /><slot name="pagination" /></div>' },
-      DataTable: ProbeDataTableStub, Pagination: PaginationStub,
+      DataTable: ProbeDataTableStub, InfiniteListSentinel: InfiniteListSentinelStub,
       AccountBulkActionsBar: AccountBulkActionsBarStub, AccountTableActions: true, AccountTableFilters: true,
       AccountActionMenu: true, ConfirmDialog: true, ImportDataModal: true, ReAuthAccountModal: true,
       AccountTestModal: true, AccountStatsModal: true, ScheduledTestsPanel: true, SyncFromCrsModal: true,
       TempUnschedStatusModal: true, ErrorPassthroughRulesModal: true, TLSFingerprintProfilesModal: true,
       CreateAccountModal: true, EditAccountModal: true, BulkEditAccountModal: true,
       PlatformTypeBadge: true, AccountCapacityCell: true, AccountStatusIndicator: true,
-      AccountTodayStatsCell: true, AccountGroupsCell: true, AccountUsageCell: true, Icon: true
+      AccountTodayStatsCell: true, AccountGroupsCell: true, AccountUsageCell: true, Icon: true, Teleport: true
     }
   }
 })
@@ -215,7 +219,7 @@ describe('admin AccountsView bulk edit scope', () => {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+            template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
           },
           DataTable: DataTableStub,
           Pagination: true,
@@ -242,12 +246,13 @@ describe('admin AccountsView bulk edit scope', () => {
           AccountTodayStatsCell: true,
           AccountGroupsCell: true,
           AccountUsageCell: true,
-          Icon: true
+          Icon: true, Teleport: true
         }
       }
     })
 
     await flushPromises()
+    await wrapper.get('[title="admin.accounts.moreActions"]').trigger('click')
     await wrapper.get('[data-test="edit-filtered"]').trigger('click')
     await flushPromises()
 
@@ -280,7 +285,7 @@ describe('admin AccountsView bulk edit scope', () => {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+            template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
           },
           DataTable: DataTableStub,
           Pagination: true,
@@ -307,7 +312,7 @@ describe('admin AccountsView bulk edit scope', () => {
           AccountTodayStatsCell: true,
           AccountGroupsCell: true,
           AccountUsageCell: true,
-          Icon: true
+          Icon: true, Teleport: true
         }
       }
     })
@@ -381,7 +386,7 @@ describe('admin AccountsView bulk edit scope', () => {
           AccountTodayStatsCell: true,
           AccountGroupsCell: true,
           AccountUsageCell: true,
-          Icon: true
+          Icon: true, Teleport: true
         }
       }
     })
@@ -413,7 +418,7 @@ describe('admin AccountsView bulk edit scope', () => {
           AppLayout: { template: '<div><slot /></div>' },
           TablePageLayout: { template: '<div><slot name="table" /><slot name="pagination" /></div>' },
           DataTable: DataTableStub,
-          Pagination: PaginationStub,
+          InfiniteListSentinel: InfiniteListSentinelStub,
           ConfirmDialog: true,
           AccountTableActions: true,
           AccountTableFilters: true,
@@ -437,16 +442,16 @@ describe('admin AccountsView bulk edit scope', () => {
           AccountTodayStatsCell: true,
           AccountGroupsCell: true,
           AccountUsageCell: true,
-          Icon: true
+          Icon: true, Teleport: true
         }
       }
     })
 
     await flushPromises()
-    await wrapper.get('[data-test="select-row"] input').trigger('change')
-    await wrapper.get('[data-test="next-page"]').trigger('click')
+    await wrapper.get('[data-test="select-row"]').trigger('click')
+    await wrapper.get('[data-test="load-more"]').trigger('click')
     await flushPromises()
-    await wrapper.get('[data-test="select-row"] input').trigger('change')
+    await wrapper.findAll('[data-test="select-row"]').at(-1)!.trigger('click')
     await wrapper.get('[data-test="probe-upstream-billing"]').trigger('click')
     await flushPromises()
 
@@ -492,7 +497,7 @@ describe('admin AccountsView bulk edit scope', () => {
           AccountTableActions: true,
           AccountTableFilters: true,
           AccountActionMenu: true,
-          Pagination: PaginationStub,
+          InfiniteListSentinel: InfiniteListSentinelStub,
           ConfirmDialog: true,
           ImportDataModal: true,
           ReAuthAccountModal: true,
@@ -512,21 +517,21 @@ describe('admin AccountsView bulk edit scope', () => {
           AccountTodayStatsCell: true,
           AccountGroupsCell: true,
           AccountUsageCell: true,
-          Icon: true
+          Icon: true, Teleport: true
         }
       }
     })
 
     await flushPromises()
-    await wrapper.get('[data-test="next-page"]').trigger('click')
+    await wrapper.get('[data-test="load-more"]').trigger('click')
     await flushPromises()
-    await wrapper.get('[data-test="select-row"] input').trigger('change')
+    await wrapper.findAll('[data-test="select-row"]').at(-1)!.trigger('click')
     await wrapper.get('[data-test="probe-upstream-billing"]').trigger('click')
     await flushPromises()
 
     expect(probeUpstreamBillingBatch).toHaveBeenCalledWith([11])
     expect(listAccounts).toHaveBeenCalledTimes(2)
-    expect(wrapper.get('[data-test="account-rate"]').text()).toBe('0.065x')
+    expect(wrapper.findAll('[data-test="account-rate"]')[1].text()).toBe('0.065x')
   })
 
   it('does not report a successful batch probe as failed when reconciliation is skipped', async () => {
@@ -586,13 +591,13 @@ describe('admin AccountsView bulk edit scope', () => {
           AccountTodayStatsCell: true,
           AccountGroupsCell: true,
           AccountUsageCell: true,
-          Icon: true
+          Icon: true, Teleport: true
         }
       }
     })
 
     await flushPromises()
-    await wrapper.get('[data-test="select-row"] input').trigger('change')
+    await wrapper.findAll('[data-test="select-row"]').at(-1)!.trigger('click')
     await wrapper.get('[data-test="probe-upstream-billing"]').trigger('click')
     await flushPromises()
 
@@ -658,7 +663,7 @@ describe('admin AccountsView bulk edit scope', () => {
           AccountTodayStatsCell: true,
           AccountGroupsCell: true,
           AccountUsageCell: true,
-          Icon: true
+          Icon: true, Teleport: true
         }
       }
     })
@@ -743,7 +748,7 @@ describe('admin AccountsView bulk edit scope', () => {
     wrapper.unmount()
   })
 
-  it('ignores a canceled rate-page response even after navigating back to the same page', async () => {
+  it('ignores a canceled rate-window response after append and sort reset', async () => {
     localStorage.setItem('account-table-sort', JSON.stringify({ key: 'upstream_billing_rate', order: 'asc' }))
     listAccounts.mockResolvedValueOnce(probePage([7, 11], 40))
     let finishPage!: (value: ReturnType<typeof probePage>) => void
@@ -757,11 +762,11 @@ describe('admin AccountsView bulk edit scope', () => {
     await wrapper.get('[data-account-id="7"] [data-testid="upstream-billing-probe"]').trigger('click')
     await flushPromises()
     const signal = listAccounts.mock.calls[1][3].signal as AbortSignal
-    await wrapper.get('[data-test="next-page"]').trigger('click')
+    await wrapper.get('[data-test="load-more"]').trigger('click')
     await flushPromises()
     expect(signal.aborted).toBe(true)
-    expect(wrapper.findAll('[data-account-id]').map(item => item.attributes('data-account-id'))).toEqual(['21', '22'])
-    wrapper.findComponent(PaginationStub).vm.$emit('update:page', 1)
+    expect(wrapper.findAll('[data-account-id]').map(item => item.attributes('data-account-id'))).toEqual(['7', '11', '21', '22'])
+    wrapper.findComponent(ProbeDataTableStub).vm.$emit('sort', 'name', 'asc')
     await flushPromises()
     finishPage(probePage([11, 13], 40))
     await flushPromises()
@@ -803,7 +808,7 @@ describe('admin AccountsView bulk edit scope', () => {
     await flushPromises()
     const row = wrapper.get('[data-account-id="11"]').element
     const statsCalls = getBatchTodayStats.mock.calls.length
-    await wrapper.get('[data-account-id="7"] [data-test="select-row"] input').trigger('change')
+    await wrapper.get('[data-account-id="7"] [data-test="select-row"]').trigger('click')
     await wrapper.get('[data-test="probe-upstream-billing"]').trigger('click')
     await flushPromises()
     expect(probeUpstreamBillingBatch).toHaveBeenCalledWith([7])

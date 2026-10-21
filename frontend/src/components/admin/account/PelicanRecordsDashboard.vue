@@ -13,8 +13,8 @@
       <p v-if="loadError" role="alert" class="mb-4 text-sm text-red-600">{{ loadError }}</p>
       <div v-if="loading" class="py-20 text-center text-sm text-gray-500">{{ t('common.loading') }}...</div>
       <div v-else-if="cards.length" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article v-for="card in visibleCards" :key="card.key" class="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:border-primary-300 hover:shadow-md dark:border-dark-700 dark:bg-dark-800" data-testid="pelican-record-card">
-          <div class="p-4">
+        <article v-for="card in visibleCards" :key="card.key" class="relative min-w-0 border-t border-gray-200 dark:border-dark-700" data-testid="pelican-record-card">
+          <div class="py-4">
             <h3 class="font-semibold">{{ card.account.name }}</h3>
             <p class="mt-1 text-xs text-gray-500">#{{ card.account.id }}<span v-if="card.resultId"> · {{ t('admin.accounts.pelicanTest.recordId') }} #{{ card.resultId }}</span></p>
             <div class="mt-3 flex justify-between gap-2 text-xs">
@@ -33,11 +33,11 @@
             </div>
             <p v-if="card.record.error && !card.record.verdict" class="mt-2 line-clamp-2 break-words text-xs text-red-500">{{ card.record.error }}</p>
           </div>
-          <div class="border-t border-gray-100 px-4 py-3 text-sm text-primary-600 dark:border-dark-700">{{ t('admin.accounts.pelicanTest.preview') }}</div>
-          <button type="button" class="absolute inset-0 z-10 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500" :aria-label="`${card.account.name} · ${t('admin.accounts.pelicanTest.preview')}`" @click="openRecord(card)" />
+          <div class="border-t border-gray-100 py-3 text-sm text-primary-600 dark:border-dark-700">{{ t('admin.accounts.pelicanTest.preview') }}</div>
+          <button type="button" class="absolute inset-0 z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500" :aria-label="`${card.account.name} · ${t('admin.accounts.pelicanTest.preview')}`" @click="openRecord(card)" />
         </article>
       </div>
-      <div v-else class="rounded-xl border border-dashed border-gray-300 bg-white py-20 text-center text-sm text-gray-500 dark:bg-dark-800">{{ t('admin.accounts.pelicanTest.noHistory') }}</div>
+      <div v-else class="border-t border-gray-200 py-20 text-center text-sm text-gray-500 dark:border-dark-700">{{ t('admin.accounts.pelicanTest.noHistory') }}</div>
       <button v-if="cards.length > visibleLimit" type="button" class="btn btn-secondary mt-4" data-testid="load-more" @click="showMore">{{ t('admin.accounts.pelicanTest.moreRecords') }}</button>
     </div>
     <div v-if="selected" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" data-testid="record-detail" @click.self="selected = null">
@@ -51,7 +51,7 @@
           <button type="button" class="btn btn-secondary" @click="selected = null">{{ t('common.close') }}</button>
         </header>
         <iframe v-if="selected.record.html" :srcdoc="selected.record.html" class="min-h-0 w-full flex-1 border-0" sandbox="allow-scripts" referrerpolicy="no-referrer" :title="selected.account.name" />
-        <p v-else-if="!selected.loaded && !selected.loadError" class="p-4">{{ t('common.loading') }}...</p>
+        <p v-else-if="!selected.loaded && !selected.loadError" class="py-4">{{ t('common.loading') }}...</p>
         <pre v-else class="overflow-auto whitespace-pre-wrap p-4 text-sm">{{ detailText(selected) }}</pre>
       </div>
     </div>

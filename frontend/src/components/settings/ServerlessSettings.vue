@@ -1,5 +1,5 @@
 <template>
-  <details class="card" @toggle="onToggle">
+  <details class="open-section" @toggle="onToggle">
     <summary class="cursor-pointer px-6 py-4 font-semibold">{{ text('Serverless 管理', 'Serverless management') }}
       <span class="ml-2 text-xs font-normal text-gray-500">{{ text('地区 → Pod（可选）', 'Region → Pod (optional)') }}</span>
     </summary>
@@ -18,7 +18,7 @@
         <h3 class="font-medium">{{ text('自动注册的 Pod', 'Automatically registered Pods') }}</h3>
         <p class="text-xs text-gray-500">{{ text('心跳就绪不等于入口可达；先确认上报地址，再保存并检查连接。跨集群请使用可达的 HTTPS 或受信隧道地址。', 'A ready heartbeat does not prove ingress connectivity. Approve the reported endpoint, save, then check connectivity. Across clusters, use a reachable HTTPS or trusted tunnel endpoint.') }}</p>
         <p v-if="!pods.length" class="text-sm text-gray-500">{{ text('暂无 Pod；按下方接入说明配置已有 gateway。', 'No Pods yet. Configure an existing gateway using the connection instructions below.') }}</p>
-        <div v-for="pod in pods" :key="pod.id" class="rounded-lg border border-gray-200 p-3 text-sm dark:border-dark-700">
+        <div v-for="pod in pods" :key="pod.id" class="border-t border-gray-200 py-4 text-sm dark:border-dark-700">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="font-medium">{{ pod.id }} <span class="text-xs text-gray-500">{{ pod.region || '—' }} · {{ pod.version || '—' }}</span></span>
             <span :class="pod.ready ? 'text-green-600' : 'text-amber-600'">{{ pod.ready ? text('心跳就绪', 'Heartbeat ready') : text('未就绪 / 失联', 'Not ready / offline') }}</span>
@@ -41,7 +41,7 @@
         <div class="flex items-center justify-between"><h3 class="font-medium">{{ text('地区 → Pod 池', 'Region → Pod pool') }}</h3>
           <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !loaded" @click="addRegion">{{ text('添加地区', 'Add region') }}</button>
         </div>
-        <div v-for="(region, index) in draft.regions" :key="index" class="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-dark-700">
+        <div v-for="(region, index) in draft.regions" :key="index" class="space-y-3 border-t border-gray-200 py-4 dark:border-dark-700">
           <div class="flex flex-wrap items-center gap-3">
             <label class="text-sm">{{ text('国家代码', 'Country code') }}<input v-model="region.country" maxlength="2" class="input ml-2 w-24" placeholder="US" :disabled="busy" /></label>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="draft.regions.splice(index, 1)">{{ text('删除地区', 'Remove region') }}</button>

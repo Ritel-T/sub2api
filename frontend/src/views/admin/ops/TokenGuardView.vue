@@ -1,9 +1,8 @@
 <template>
   <AppLayout>
-    <div class="token-guard">
+    <div class="open-page token-guard">
       <header class="ops-heading">
         <div>
-          <p class="eyebrow">{{ t('accountOps.smartTitle') }}</p>
           <h2>{{ t('tokenGuard.title') }}</h2>
           <p class="subtitle">{{ t('tokenGuard.description') }}</p>
         </div>
@@ -374,14 +373,14 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 
 .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 20px; @apply mb-5; }
-.summary-card { @apply min-w-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900; }
+.summary-card { @apply min-w-0 overflow-hidden  p-5    border-t border-gray-200 dark:border-dark-700; }
 .summary-card > span { @apply block text-xs font-medium text-gray-400; }
 .summary-card > strong { @apply mt-2 block text-2xl font-semibold tabular-nums tracking-tight; }
 .summary-card > small { @apply mt-2 block truncate text-xs text-gray-400; }
 
 .ops-columns { display: grid; grid-template-columns: minmax(320px,.32fr) minmax(0,.68fr); gap: 20px; }
 .stack { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
-.settings-card, .events-card { @apply min-w-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900; }
+.settings-card, .events-card { @apply min-w-0 min-w-0 border-t border-gray-200 dark:border-dark-700; }
 .section-title { @apply flex items-center gap-3 border-b border-gray-100 p-5 dark:border-dark-700; }
 .icon-tile { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30 dark:text-primary-400; }
 .section-title h3, .events-heading h3 { @apply text-base font-semibold; }
@@ -408,8 +407,8 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 .events-card { @apply flex flex-col; }
 .events-heading { @apply flex flex-wrap items-start justify-between gap-3 p-5; }
 .events-heading h3 span { @apply ml-2 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-normal tabular-nums text-gray-500 dark:bg-dark-800; }
-.events-scroll { @apply min-h-0 flex-1 overflow-auto overscroll-contain; max-height: 24rem; scrollbar-gutter:stable; }
-.events-scroll.short { max-height: 18rem; }
+.events-scroll { @apply min-h-0 flex-1 overflow-auto overscroll-contain; scrollbar-gutter:stable; }
+.events-scroll.short {  }
 table { @apply w-full text-left text-xs; min-width: 780px; }
 thead { @apply sticky top-0 z-10 bg-white text-gray-400 dark:bg-dark-900; }
 th { @apply whitespace-nowrap px-4 py-3 font-medium; }
@@ -433,5 +432,5 @@ td.detail { max-width: 24rem; @apply whitespace-normal leading-5 text-gray-500 d
 .success-banner { @apply mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300; }
 button:disabled { @apply cursor-not-allowed opacity-40; }
 textarea.input { @apply font-mono text-[11px] leading-5; }
-@media(max-width:1100px) { .ops-columns {grid-template-columns:1fr;} .events-scroll {max-height:28rem;} }
+@media(max-width:1100px) { .ops-columns {grid-template-columns:1fr;}  }
 </style>

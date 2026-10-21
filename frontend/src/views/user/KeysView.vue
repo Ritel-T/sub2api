@@ -1,29 +1,52 @@
 <template>
-  <AppLayout>
-    <TablePageLayout>
+  <AppLayout wide>
+    <TablePageLayout open>
       <template #filters>
-        <div class="flex flex-col gap-3">
+        <div class="keys-filters flex flex-col gap-3">
           <div class="flex flex-wrap items-center gap-3">
             <SearchInput
               v-model="filterSearch"
               :placeholder="t('keys.searchPlaceholder')"
-              class="w-full sm:w-64"
+              class="keys-search w-full sm:w-80"
               @search="onFilterChange"
             />
             <Select
               :model-value="filterGroupId"
+              :aria-label="t('keys.group')"
               class="w-40"
               :options="groupFilterOptions"
               @update:model-value="onGroupFilterChange"
             />
             <Select
               :model-value="filterStatus"
+              :aria-label="t('common.status')"
               class="w-40"
               :options="statusFilterOptions"
               @update:model-value="onStatusFilterChange"
             />
+            <div ref="sortToolbarTarget" class="inline-table-tools" />
+            <div class="keys-table-tools">
+              <button
+                @click="loadApiKeys"
+                :disabled="loading"
+                class="btn btn-secondary"
+                :title="t('common.refresh')"
+                :aria-label="t('common.refresh')"
+              >
+                <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+              </button>
+              <ColumnSettings
+                :columns="orderedColumns"
+                :hidden-columns="hiddenColumns"
+                :required-columns="['id', 'name', 'actions']"
+                @toggle="toggleColumn"
+                @reorder="setColumnOrder"
+                @reset="resetColumns"
+              />
+            </div>
           </div>
           <EndpointPopover
+            class="keys-endpoints"
             v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
             :api-base-url="publicSettings?.api_base_url || ''"
             :custom-endpoints="publicSettings?.custom_endpoints || []"
@@ -48,80 +71,45 @@
       </template>
 
       <template #actions>
-        <div class="flex justify-end gap-3">
-          <button
-            @click="loadApiKeys"
-            :disabled="loading"
-            class="btn btn-secondary"
-            :title="t('common.refresh')"
-          >
-            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-          </button>
-          <ColumnSettings
-            :columns="orderedColumns"
-            :hidden-columns="hiddenColumns"
-            :required-columns="['name', 'actions']"
-            @toggle="toggleColumn"
-            @reorder="setColumnOrder"
-            @reset="resetColumns"
-          />
-          <button @click="openConnectionPicker" class="btn btn-secondary" data-testid="connect-key-entry">{{ kc.connect }}</button>
-          <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
-            <Icon name="plus" size="md" class="mr-2" />
-            {{ t('keys.createKey') }}
-          </button>
+        <div class="keys-page-heading">
+          <h1>{{ t('keys.title') }}</h1>
+          <div class="keys-primary-actions">
+            <button @click="openConnectionPicker" class="btn btn-secondary" data-testid="connect-key-entry">{{ kc.connect }}</button>
+            <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
+              <Icon name="plus" size="md" class="mr-2" />
+              {{ t('keys.createKey') }}
+            </button>
+          </div>
         </div>
       </template>
 
       <template #table>
-        <DataTable
+        <KeyWorkspaceTable
+          :toolbar-target="sortToolbarTarget"
           :columns="columns"
           @column-reorder="setColumnOrder"
           :data="apiKeys"
           :loading="loading"
-          selectable
-          row-key="id"
+          :busy-keys="busyKeyIds"
+          :rename="renameKey"
+          :sort-key="sortState.sort_by"
+          :sort-order="sortState.sort_order"
           :selected-keys="selectedIds"
-          :selection-label="(key: ApiKey) => t('keys.bulkEdit.selectKey', { name: key.name })"
           @update:selected-keys="handleSelectionChange"
-          :server-side-sort="true"
-          default-sort-key="created_at"
-          default-sort-order="desc"
           @sort="handleSort"
         >
           <template #cell-id="{ value }">
-            <span class="font-mono text-xs text-gray-500 dark:text-gray-400">#{{ value }}</span>
+            <span>{{ value }}</span>
           </template>
 
-          <template #cell-key="{ value, row }">
-            <div class="flex items-center gap-2">
-              <code class="code text-xs">
-                {{ maskApiKey(value) }}
-              </code>
-              <button
-                @click="copyToClipboard(value, row.id)"
-                class="rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
-                :class="
-                  copiedKeyId === row.id
-                    ? 'text-green-500'
-                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                "
-                :title="copiedKeyId === row.id ? t('keys.copied') : t('keys.copyToClipboard')"
-              >
-                <Icon
-                  v-if="copiedKeyId === row.id"
-                  name="check"
-                  size="sm"
-                  :stroke-width="2"
-                />
-                <Icon v-else name="clipboard" size="sm" />
-              </button>
-            </div>
+          <template #cell-key="{ row }">
+            <button class="keys-key-copy" :disabled="busyKeyIds.has(row.id)" :aria-label="`${t('keys.copyToClipboard')}: ${row.name}`" @click.stop="copyToClipboard(row.key, row.id)">
+              <span>{{ maskApiKey(row.key) }}</span><Icon v-if="copiedKeyId === row.id" name="check" size="xs" />
+            </button>
           </template>
 
-          <template #cell-name="{ value, row }">
-            <div class="flex items-center gap-1.5">
-              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+          <template #cell-name="{ row }">{{ row.name }}</template>
+          <template #name-indicator="{ row }">
               <Icon
                 v-if="row.ip_whitelist?.length > 0 || row.ip_blacklist?.length > 0"
                 name="shield"
@@ -129,149 +117,26 @@
                 class="theme-info-icon"
                 :title="t('keys.ipRestrictionEnabled')"
               />
-            </div>
           </template>
 
           <template #cell-group="{ row }">
-            <div class="group/dropdown relative">
-              <button
-                :ref="(el) => setGroupButtonRef(row.id, el)"
-                @click="(row.group_ids?.length ?? 0) > 1 ? editKey(row) : openGroupSelector(row)"
-                class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
-                :title="t('keys.clickToChangeGroup')"
-              >
-                <GroupBadge
-                  v-if="row.group"
-                  :name="row.group.name"
-                  :platform="row.group.platform"
-                  :subscription-type="row.group.subscription_type"
-                  :rate-multiplier="row.group.rate_multiplier"
-                  :user-rate-multiplier="userGroupRates[row.group.id]"
-                  :peak-rate-enabled="row.group.peak_rate_enabled"
-                  :peak-start="row.group.peak_start"
-                  :peak-end="row.group.peak_end"
-                  :peak-rate-multiplier="row.group.peak_rate_multiplier"
-                />
-                <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
-                  t('keys.noGroup')
-                }}</span>
-                <span v-if="(row.group_ids?.length ?? 0) > 1" class="text-xs text-primary-600">{{ t('keys.multiGroupCount', { count: row.group_ids.length }) }}</span>
-                <span v-else class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
-                <svg
-                  class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"
-                  />
-                </svg>
+            <div class="group/dropdown">
+              <button :ref="el => setGroupButtonRef(row.id, el)" class="keys-group-button" :disabled="busyKeyIds.has(row.id)" :title="`${row.group?.name || t('keys.noGroup')} · ${t('keys.clickToChangeGroup')}`" @click.stop="(row.group_ids?.length ?? 0) > 1 ? editKey(row) : openGroupSelector(row)">
+                <span>{{ row.group?.name || t('keys.noGroup') }}</span><span v-if="(row.group_ids?.length ?? 0) > 1">+{{ (row.group_ids?.length ?? 0) - 1 }}</span><Icon name="chevronDown" size="xs" />
               </button>
             </div>
           </template>
 
           <template #cell-current_concurrency="{ row }">
-            <span
-              :title="t('keys.concurrencyCount')"
-              :class="[
-                'inline-flex items-center gap-1 rounded-md px-1.5 py-px text-xs font-normal leading-tight tabular-nums',
-                concurrencyRows[row.id]?.concurrencyFull
-                  ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/25 dark:text-amber-300 dark:ring-amber-800'
-                  : (concurrencyRows[row.id]?.current ?? 0) > 0
-                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
-                  : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
-              ]"
-            >
-              <svg
-                class="h-2.5 w-2.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m8-8a4 4 0 100-8 4 4 0 000 8" />
-              </svg>
-              <span class="sr-only">{{ t('keys.concurrencyCount') }}{{ ' ' }}</span>
-              <span class="whitespace-nowrap font-mono">
-                {{ concurrencyRows[row.id]?.current ?? '—' }}
-                <span v-if="concurrencyRows[row.id]?.limit > 0" class="ml-1">/ {{ concurrencyRows[row.id]?.limit }}</span>
-              </span>
-            </span>
-            <div v-if="concurrencyRows[row.id]?.limit > 0" class="mt-1 text-xs tabular-nums text-gray-500 dark:text-dark-400">
-              <template v-if="queuePolicy && concurrencyRows[row.id]?.limit > 0">
-                <span v-if="queuePolicy.max_waiting === 0" class="block">{{ t('keys.queueOff') }}</span>
-                <span v-if="queuePolicy.max_waiting > 0 || (concurrencyRows[row.id]?.waiting ?? 0) > 0"
-                  :class="{ 'text-amber-600 dark:text-amber-400': concurrencyRows[row.id]?.full }">
-                  <span :class="[
-                    'inline-flex items-center gap-1 rounded-md px-1.5 py-px font-normal leading-tight tabular-nums',
-                    concurrencyRows[row.id]?.full
-                      ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/25 dark:text-amber-300 dark:ring-amber-800'
-                      : concurrencyRows[row.id]?.waiting === 0
-                        ? 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
-                        : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
-                  ]" :title="t('keys.waitingCount')">
-                    <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                      <circle cx="12" cy="12" r="9" />
-                      <path stroke-linecap="round" d="M12 7v5l3 2" />
-                    </svg>
-                    <span class="sr-only">{{ t('keys.waitingCount') }}{{ ' ' }}</span>
-                    <span class="whitespace-nowrap font-mono">{{ concurrencyRows[row.id]?.waiting ?? '—' }}<template v-if="queuePolicy.max_waiting > 0"> / {{ queuePolicy.max_waiting }}</template></span>
-                  </span>
-                  <span v-if="concurrencyRows[row.id]?.full"> · {{ t('keys.queueFull') }}</span>
-                </span>
-              </template>
-              <span v-else>{{ t(concurrencyState.status === 'loading' ? 'keys.queuePolicyLoading' : 'keys.queuePolicyUnavailable') }}</span>
+            <div class="keys-concurrency-main" :title="concurrencyRows[row.id]?.notice || t('keys.concurrencyAndWaiting')">
+              <span :class="{ 'text-amber-600 dark:text-amber-400': concurrencyRows[row.id]?.concurrencyFull }" :aria-label="t('keys.concurrencyCount')">{{ concurrencyRows[row.id]?.current ?? '—' }}<template v-if="concurrencyRows[row.id]?.limit > 0"> / {{ concurrencyRows[row.id].limit }}</template></span>
+              <span v-if="concurrencyRows[row.id]?.notice" class="keys-concurrency-notice">{{ concurrencyRows[row.id].notice }}</span>
+              <span v-else-if="(queuePolicy?.max_waiting ?? 0) > 0 || (concurrencyRows[row.id]?.waiting ?? 0) > 0" class="keys-waiting" :title="t('keys.waitingCount')" :class="{ 'text-amber-600 dark:text-amber-400': concurrencyRows[row.id]?.full }"><Icon name="clock" size="xs" />{{ concurrencyRows[row.id]?.waiting ?? '—' }}</span>
             </div>
-            <span v-if="concurrencyRows[row.id]?.notice" class="mt-1 block text-xs text-gray-500 dark:text-dark-400">
-              {{ concurrencyRows[row.id].notice }}
-            </span>
           </template>
 
           <template #cell-usage="{ row }">
-            <div class="text-sm">
-              <div class="flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
-                </span>
-              </div>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
-                </span>
-              </div>
-              <!-- Quota progress (if quota is set) -->
-              <div v-if="row.quota > 0" class="mt-1.5">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('keys.quota') }}:</span>
-                  <span :class="[
-                    'font-medium',
-                    row.quota_used >= row.quota ? 'text-red-500' :
-                    row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
-                    'text-gray-900 dark:text-white'
-                  ]">
-                    ${{ row.quota_used?.toFixed(2) || '0.00' }} / ${{ row.quota?.toFixed(2) }}
-                  </span>
-                </div>
-                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.quota_used >= row.quota ? 'bg-red-500' :
-                      row.quota_used >= row.quota * 0.8 ? 'bg-yellow-500' :
-                      'bg-primary-500'
-                    ]"
-                    :style="{ width: Math.min((row.quota_used / row.quota) * 100, 100) + '%' }"
-                  />
-                </div>
-              </div>
-            </div>
+            <span class="keys-quota-used" :title="t('keys.quota')">${{ (row.quota_used ?? 0).toFixed(2) }}</span><span class="keys-quota-total"> / {{ row.quota > 0 ? '$' + row.quota.toFixed(2) : kw.unlimited }}</span>
           </template>
 
           <template #cell-rate_limit="{ row }">
@@ -374,31 +239,24 @@
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
 
-          <template #cell-expires_at="{ value }">
-            <span v-if="value" :class="[
+          <template #cell-expires_at="{ row }">
+            <span v-if="row.expires_at" :class="[
               'text-sm',
-              new Date(value) < new Date() ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'
+              new Date(row.expires_at) < new Date() ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'
             ]">
-              {{ formatDateTime(value) }}
+              {{ formatDateTime(row.expires_at) }}
             </span>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{ t('keys.noExpiration') }}</span>
           </template>
 
-          <template #cell-status="{ value }">
-            <span :class="[
-              'badge',
-              value === 'active' ? 'badge-success' :
-              value === 'quota_exhausted' ? 'badge-warning' :
-              value === 'expired' ? 'badge-danger' :
-              'badge-gray'
-            ]">
-              {{ t('keys.status.' + value) }}
-            </span>
+          <template #cell-status="{ row }">
+            <button v-if="row.status === 'active' || row.status === 'inactive'" class="keys-status-switch" role="switch" :aria-checked="row.status === 'active'" :aria-label="`${t('common.status')}: ${row.name}`" :title="t('keys.status.' + row.status)" :disabled="busyKeyIds.has(row.id) || loading" @click.stop="toggleKeyStatus(row)"><span class="keys-switch-track"><span /></span></button>
+            <button v-else class="keys-blocked-status" :class="row.status === 'expired' ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'" :disabled="busyKeyIds.has(row.id)" :title="t('common.edit')" @click.stop="editKey(row)">{{ t('keys.status.' + row.status) }}</button>
           </template>
 
-          <template #cell-last_used_at="{ value }">
-            <span v-if="value" class="text-sm text-gray-500 dark:text-dark-400">
-              {{ formatDateTime(value) }}
+          <template #cell-last_used_at="{ row }">
+            <span v-if="row.last_used_at" class="text-sm text-gray-500 dark:text-dark-400">
+              {{ formatDateTime(row.last_used_at) }}
             </span>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
@@ -410,49 +268,102 @@
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
 
-          <template #cell-created_at="{ value }">
-            <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(value) }}</span>
+          <template #cell-created_at="{ row }">
+            <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(row.created_at) }}</span>
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <button
-                @click="openConnection(row)"
-                data-testid="connect-key-row"
-                class="btn btn-secondary btn-sm"
-              >{{ kc.connect }}</button>
-              <button @click="viewKeyRequests(row)" class="btn btn-secondary btn-sm">{{ kc.requests }}</button>
-              <!-- Toggle Status Button -->
-              <button
-                @click="toggleKeyStatus(row)"
-                :class="[
-                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
-                  row.status === 'active'
-                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
-                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
-                ]"
+            <div class="keys-row-actions"><button data-testid="connect-key-row" :disabled="row.status !== 'active' || busyKeyIds.has(row.id)" @click.stop="openConnection(row)">{{ kw.use }}</button><button :disabled="busyKeyIds.has(row.id)" @click.stop="editKey(row)">{{ t('common.edit') }}</button></div>
+          </template>
+
+          <template #details-extra="{ row }">
+            <div class="keys-extra-details">
+              <section><h3>{{ t('keys.group') }}</h3><GroupBadge
+                  v-if="row.group"
+                  :name="row.group.name"
+                  :platform="row.group.platform"
+                  :subscription-type="row.group.subscription_type"
+                  :rate-multiplier="row.group.rate_multiplier"
+                  :user-rate-multiplier="userGroupRates[row.group.id]"
+                  :peak-rate-enabled="row.group.peak_rate_enabled"
+                  :peak-start="row.group.peak_start"
+                  :peak-end="row.group.peak_end"
+                  :peak-rate-multiplier="row.group.peak_rate_multiplier"
+                /><div v-if="(row.group_ids?.length ?? 0) > 1" class="keys-extra-groups">{{ (row.group_ids ?? []).map((id: number) => groups.find(group => group.id === id)?.name || '#' + id).join(' · ') }}</div></section>
+              <section><h3>{{ t('keys.usage') }}</h3>
+            <div class="text-sm">
+              <div class="flex items-center gap-1.5">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
+                <span class="font-medium text-gray-900 dark:text-white">
+                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
+                </span>
+              </div>
+              <div class="mt-0.5 flex items-center gap-1.5">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
+                <span class="font-medium text-gray-900 dark:text-white">
+                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
+                </span>
+              </div>
+              </div></section>
+              <section><h3>{{ t('keys.concurrencyAndWaiting') }}</h3><div data-testid="detail-concurrency">
+            <span
+              :title="t('keys.concurrencyCount')"
+              :class="[
+                'inline-flex items-center gap-1 rounded-md px-1.5 py-px text-xs font-normal leading-tight tabular-nums',
+                concurrencyRows[row.id]?.concurrencyFull
+                  ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/25 dark:text-amber-300 dark:ring-amber-800'
+                  : (concurrencyRows[row.id]?.current ?? 0) > 0
+                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
+              ]"
+            >
+              <svg
+                class="h-2.5 w-2.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
               >
-                <Icon v-if="row.status === 'active'" name="ban" size="sm" />
-                <Icon v-else name="checkCircle" size="sm" />
-                <span class="text-xs">{{ row.status === 'active' ? t('keys.disable') : t('keys.enable') }}</span>
-              </button>
-              <!-- Edit Button -->
-              <button
-                @click="editKey(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
-              >
-                <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t('common.edit') }}</span>
-              </button>
-              <!-- Delete Button -->
-              <button
-                @click="confirmDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-              >
-                <Icon name="trash" size="sm" />
-                <span class="text-xs">{{ t('common.delete') }}</span>
-              </button>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m8-8a4 4 0 100-8 4 4 0 000 8" />
+              </svg>
+              <span class="sr-only">{{ t('keys.concurrencyCount') }}{{ ' ' }}</span>
+              <span class="whitespace-nowrap font-mono">
+                {{ concurrencyRows[row.id]?.current ?? '—' }}
+                <span v-if="concurrencyRows[row.id]?.limit > 0" class="ml-1">/ {{ concurrencyRows[row.id]?.limit }}</span>
+              </span>
+            </span>
+            <div v-if="concurrencyRows[row.id]?.limit > 0" class="mt-1 text-xs tabular-nums text-gray-500 dark:text-dark-400">
+              <template v-if="queuePolicy && concurrencyRows[row.id]?.limit > 0">
+                <span v-if="queuePolicy.max_waiting === 0" class="block">{{ t('keys.queueOff') }}</span>
+                <span v-if="queuePolicy.max_waiting > 0 || (concurrencyRows[row.id]?.waiting ?? 0) > 0"
+                  :class="{ 'text-amber-600 dark:text-amber-400': concurrencyRows[row.id]?.full }">
+                  <span :class="[
+                    'inline-flex items-center gap-1 rounded-md px-1.5 py-px font-normal leading-tight tabular-nums',
+                    concurrencyRows[row.id]?.full
+                      ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/25 dark:text-amber-300 dark:ring-amber-800'
+                      : concurrencyRows[row.id]?.waiting === 0
+                        ? 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
+                        : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
+                  ]" :title="t('keys.waitingCount')">
+                    <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <circle cx="12" cy="12" r="9" />
+                      <path stroke-linecap="round" d="M12 7v5l3 2" />
+                    </svg>
+                    <span class="sr-only">{{ t('keys.waitingCount') }}{{ ' ' }}</span>
+                    <span class="whitespace-nowrap font-mono">{{ concurrencyRows[row.id]?.waiting ?? '—' }}<template v-if="queuePolicy.max_waiting > 0"> / {{ queuePolicy.max_waiting }}</template></span>
+                  </span>
+                  <span v-if="concurrencyRows[row.id]?.full"> · {{ t('keys.queueFull') }}</span>
+                </span>
+              </template>
+              <span v-else>{{ t(concurrencyState.status === 'loading' ? 'keys.queuePolicyLoading' : 'keys.queuePolicyUnavailable') }}</span>
             </div>
+            <span v-if="concurrencyRows[row.id]?.notice" class="mt-1 block text-xs text-gray-500 dark:text-dark-400">
+              {{ concurrencyRows[row.id].notice }}
+            </span>
+          </div></section>
+            </div>
+            <div class="keys-detail-actions"><button class="btn btn-secondary btn-sm" @click="viewKeyRequests(row)">{{ kc.requests }}</button><button class="btn btn-secondary btn-sm" :disabled="busyKeyIds.has(row.id)" @click="confirmDelete(row)">{{ t('common.delete') }}</button></div>
           </template>
 
           <template #empty>
@@ -463,17 +374,16 @@
               @action="showCreateModal = true"
             />
           </template>
-        </DataTable>
+        </KeyWorkspaceTable>
       </template>
 
       <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
+        <InfiniteListSentinel
+          :loading="loading || loadingMore || refreshing"
+          :error="listError"
+          :has-more="hasMoreKeys"
+          @load-more="loadMoreKeys"
+          @retry="retryKeys"
         />
       </template>
     </TablePageLayout>
@@ -1230,6 +1140,7 @@
       <div
         v-if="groupSelectorKeyId !== null && dropdownPosition"
         ref="dropdownRef"
+        data-testid="key-group-selector"
         class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-max max-w-[calc(100vw-16px)] overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 duration-200 sm:min-w-[380px] dark:bg-dark-800 dark:ring-white/10"
         style="pointer-events: auto !important;"
         :style="{
@@ -1301,23 +1212,26 @@
 	import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useKeyConnectionCopy } from '@/components/keys/keyConnectionCopy'
+import { useKeyWorkspaceCopy } from '@/components/keys/keyWorkspaceCopy'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useTableColumns } from '@/composables/useTableColumns'
 import ColumnSettings from '@/components/common/ColumnSettings.vue'
 
 const { t } = useI18n()
+const sortToolbarTarget = ref<HTMLElement | null>(null)
 const kc = useKeyConnectionCopy()
+const kw = useKeyWorkspaceCopy()
 const route = useRoute()
 const router = useRouter()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
-	import DataTable from '@/components/common/DataTable.vue'
-	import Pagination from '@/components/common/Pagination.vue'
+	import KeyWorkspaceTable from '@/components/keys/KeyWorkspaceTable.vue'
+	import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
 	import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 	import EmptyState from '@/components/common/EmptyState.vue'
@@ -1370,26 +1284,52 @@ const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const allColumns = computed<Column[]>(() => [
+  { key: 'id', label: t('keys.id'), sortable: true },
   { key: 'name', label: t('common.name'), sortable: true },
   { key: 'key', label: t('keys.apiKey'), sortable: false },
-  { key: 'status', label: t('common.status'), sortable: true },
   { key: 'group', label: t('keys.group'), sortable: true },
   { key: 'usage', label: t('keys.usage'), sortable: false },
-  { key: 'current_concurrency', label: t('keys.concurrencyAndWaiting'), sortable: true },
+  { key: 'current_concurrency', label: kw.value.concurrent, sortable: true },
+  { key: 'status', label: t('common.status'), sortable: true },
+  { key: 'actions', label: t('common.actions'), sortable: false },
   { key: 'rate_limit', label: t('keys.rateLimitColumn'), sortable: false },
   { key: 'last_used_at', label: t('keys.lastUsedAt'), sortable: true },
   { key: 'expires_at', label: t('keys.expiresAt'), sortable: true },
   { key: 'last_used_ip', label: t('keys.lastUsedIP'), sortable: false },
-  { key: 'id', label: t('keys.id'), sortable: true },
-  { key: 'created_at', label: t('keys.created'), sortable: true },
-  { key: 'actions', label: t('common.actions'), sortable: false }
+  { key: 'created_at', label: t('keys.created'), sortable: true }
 ])
 
 const {
   columns, orderedColumns, hiddenColumns, toggleColumn, setColumnOrder, resetColumns
-} = useTableColumns('table-columns:keys:v1', allColumns, { required: ['name', 'actions'] })
+} = useTableColumns('table-columns:keys:v1', allColumns, {
+  required: ['id', 'name', 'actions'],
+  primary: ['id', 'name', 'key', 'group', 'usage', 'current_concurrency', 'status', 'actions']
+})
 
-const apiKeys = ref<ApiKey[]>([])
+const busyKeyIds = ref(new Set<number>())
+function setKeyBusy(id: number, busy: boolean) {
+  const next = new Set(busyKeyIds.value)
+  if (busy) next.add(id)
+  else next.delete(id)
+  busyKeyIds.value = next
+}
+const renameKey = async (key: ApiKey, value: string): Promise<boolean> => {
+  const name = value.trim()
+  if (!name || busyKeyIds.value.has(key.id)) return false
+  if (name === key.name) return true
+  setKeyBusy(key.id, true)
+  try {
+    const saved = await keysAPI.update(key.id, { name })
+    apiKeys.value = apiKeys.value.map(item => item.id === key.id ? { ...item, ...saved } : item)
+    appStore.showSuccess(t('keys.keyUpdatedSuccess'))
+    return true
+  } catch {
+    appStore.showError(t('keys.failedToSave'))
+    return false
+  } finally {
+    setKeyBusy(key.id, false)
+  }
+}
 const selectedIds = ref<number[]>([])
 const showBulkEditModal = ref(false)
 const selectedApiKeys = computed(() => apiKeys.value.filter((key) => selectedIds.value.includes(key.id)))
@@ -1406,7 +1346,6 @@ const handleBulkUpdated = (succeededIds: number[]) => {
 }
 
 const groups = ref<Group[]>([])
-const loading = ref(false)
 const submitting = ref(false)
 const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
@@ -1501,12 +1440,6 @@ const handleConcurrencyVisibility = () => {
   if (!document.hidden) void refreshConcurrency()
 }
 
-const pagination = ref({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0,
-  pages: 0
-})
 const sortState = ref({
   sort_by: 'created_at',
   sort_order: 'desc' as 'asc' | 'desc'
@@ -1550,7 +1483,6 @@ const ccsProfileOptions = computed(() => getCcSwitchImportProfiles(
 const dropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
-let abortController: AbortController | null = null
 
 // Get the currently selected key for group change
 const selectedKeyForGroup = computed(() => {
@@ -1647,8 +1579,7 @@ const statusFilterOptions = computed(() => [
 
 const onFilterChange = () => {
   selectedIds.value = []
-  pagination.value.page = 1
-  loadApiKeys()
+  resetApiKeys()
 }
 
 const onGroupFilterChange = (value: string | number | boolean | null) => {
@@ -1734,64 +1665,49 @@ const isAbortError = (error: unknown) => {
   return name === 'AbortError' || code === 'ERR_CANCELED'
 }
 
-const loadApiKeys = async () => {
-  concurrencyPageReady = false
-  stopConcurrencyRefresh()
-  abortController?.abort()
-  const controller = new AbortController()
-  abortController = controller
-  const { signal } = controller
-  loading.value = true
-  try {
-    // Build filters
-    const filters: {
-      search?: string
-      status?: string
-      group_id?: number | string
-      sort_by?: string
-      sort_order?: 'asc' | 'desc'
-    } = {}
-    if (filterSearch.value) filters.search = filterSearch.value
-    if (filterStatus.value) filters.status = filterStatus.value
-    if (filterGroupId.value !== '') filters.group_id = filterGroupId.value
-    filters.sort_by = sortState.value.sort_by
-    filters.sort_order = sortState.value.sort_order
-
-    const response = await keysAPI.list(pagination.value.page, pagination.value.page_size, filters, {
-      signal
-    })
-    if (signal.aborted) return
-    apiKeys.value = response.items
-    handleSelectionChange(selectedIds.value)
-    pagination.value.total = response.total
-    pagination.value.pages = response.pages
-
-    // Load usage stats for all API keys in the list
-    if (response.items.length > 0) {
-      const keyIds = response.items.map((k) => k.id)
+const {
+  items: apiKeys, loading, loadingMore, refreshing, error: listError, hasMore: hasMoreKeys,
+  reset: resetKeys, refresh: refreshKeys, loadMore: appendKeys, retry: retryKeyPage,
+} = useInfiniteList<ApiKey>({
+  pageSize: 50,
+  keyOf: key => key.id,
+  fetchPage: async (page, signal) => {
+    const response = await keysAPI.list(page, 50, {
+      search: filterSearch.value || undefined,
+      status: filterStatus.value || undefined,
+      group_id: filterGroupId.value === '' ? undefined : filterGroupId.value,
+      sort_by: sortState.value.sort_by,
+      sort_order: sortState.value.sort_order,
+    }, { signal })
+    if (response.items.length && !signal.aborted) {
       try {
-        const usageResponse = await usageAPI.getDashboardApiKeysUsage(keyIds, { signal })
-        if (signal.aborted) return
-        usageStats.value = usageResponse.stats
-      } catch (e) {
-        if (!isAbortError(e)) {
-          console.error('Failed to load usage stats:', e)
-        }
+        const stats = await usageAPI.getDashboardApiKeysUsage(response.items.map(key => key.id), { signal })
+        if (!signal.aborted) usageStats.value = { ...usageStats.value, ...stats.stats }
+      } catch (error) {
+        if (!isAbortError(error)) console.error('Failed to load usage stats:', error)
       }
     }
-  } catch (error) {
-    if (isAbortError(error)) {
-      return
-    }
-    appStore.showError(t('keys.failedToLoad'))
-  } finally {
-    if (abortController === controller) {
-      loading.value = false
-      concurrencyPageReady = true
-      void refreshConcurrency()
-    }
-  }
+    return response
+  },
+})
+
+async function updateKeyList(load: () => Promise<void>) {
+  concurrencyPageReady = false
+  stopConcurrencyRefresh()
+  await load()
+  if (disposed || loading.value || loadingMore.value || refreshing.value) return
+  handleSelectionChange(selectedIds.value)
+  concurrencyPageReady = true
+  void refreshConcurrency()
 }
+const loadApiKeys = () => updateKeyList(refreshKeys)
+const resetApiKeys = () => {
+  usageStats.value = {}
+  return updateKeyList(resetKeys)
+}
+const loadMoreKeys = () => updateKeyList(appendKeys)
+const retryKeys = () => updateKeyList(retryKeyPage)
+watch(listError, error => { if (error) appStore.showError(t('keys.failedToLoad')) })
 
 const loadGroups = async () => {
   try {
@@ -1928,25 +1844,11 @@ const closeCodexQuickConfigModal = () => {
   if (connectionKey.value) showConnectionDialog.value = true
 }
 
-const handlePageChange = (page: number) => {
-  selectedIds.value = []
-  pagination.value.page = page
-  loadApiKeys()
-}
-
-const handlePageSizeChange = (pageSize: number) => {
-  selectedIds.value = []
-  pagination.value.page_size = pageSize
-  pagination.value.page = 1
-  loadApiKeys()
-}
-
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   selectedIds.value = []
   sortState.value.sort_by = key
   sortState.value.sort_order = order
-  pagination.value.page = 1
-  loadApiKeys()
+  resetApiKeys()
 }
 
 const selectedFormGroupIDs = (): number[] => [...new Set([
@@ -1983,15 +1885,17 @@ const editKey = (key: ApiKey) => {
 }
 
 const toggleKeyStatus = async (key: ApiKey) => {
+  if (!['active', 'inactive'].includes(key.status) || busyKeyIds.value.has(key.id)) return
   const newStatus = key.status === 'active' ? 'inactive' : 'active'
+  setKeyBusy(key.id, true)
   try {
     await keysAPI.toggleStatus(key.id, newStatus)
-    appStore.showSuccess(
-      newStatus === 'active' ? t('keys.keyEnabledSuccess') : t('keys.keyDisabledSuccess')
-    )
-    loadApiKeys()
-  } catch (error) {
+    appStore.showSuccess(newStatus === 'active' ? t('keys.keyEnabledSuccess') : t('keys.keyDisabledSuccess'))
+    await loadApiKeys()
+  } catch {
     appStore.showError(t('keys.failedToUpdateStatus'))
+  } finally {
+    setKeyBusy(key.id, false)
   }
 }
 
@@ -2032,14 +1936,17 @@ const openGroupSelector = (key: ApiKey) => {
 const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
-  if (key.group_id === newGroupId) return
-
+  if (key.group_id === newGroupId || busyKeyIds.value.has(key.id)) return
+  if ((key.group_ids?.length ?? 0) > 1) { editKey(key); return }
+  setKeyBusy(key.id, true)
   try {
     await keysAPI.update(key.id, { group_id: newGroupId, group_ids: newGroupId === null ? [] : [newGroupId] })
     appStore.showSuccess(t('keys.groupChangedSuccess'))
-    loadApiKeys()
-  } catch (error) {
+    await loadApiKeys()
+  } catch {
     appStore.showError(t('keys.failedToChangeGroup'))
+  } finally {
+    setKeyBusy(key.id, false)
   }
 }
 
@@ -2369,7 +2276,6 @@ onUnmounted(() => {
   ++connectionRouteRequest
   ++connectionRequest
   stopConcurrencyRefresh()
-  abortController?.abort()
   document.removeEventListener('visibilitychange', handleConcurrencyVisibility)
   document.removeEventListener('click', closeGroupSelector)
   if (resetTimer) clearInterval(resetTimer)
@@ -2377,6 +2283,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.keys-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.keys-page-heading h1 { margin: 0; font: 600 36px/1.15 var(--ritel-display); letter-spacing: -.01em; }
+.keys-primary-actions { display: flex; align-items: center; gap: 12px; }
+.keys-table-tools { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.keys-table-tools :deep(.btn){border-color:transparent;background:transparent;box-shadow:none}
+@media (max-width: 767px) {
+  .keys-page-heading { flex-direction: column; align-items: stretch; gap: 20px; }
+  .keys-page-heading h1 { font-size: 28px; }
+  .keys-primary-actions { flex-wrap: wrap; }
+  .keys-primary-actions .btn { flex: 1; }
+  .keys-row-actions { flex-wrap: wrap; }
+  .keys-endpoints { min-width: 0; max-width: 100%; }
+  .keys-endpoints :deep(> div) { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+  .keys-endpoints :deep(code) { overflow-wrap: anywhere; }
+}
+
 :deep([data-field='current_concurrency']) {
   flex-wrap: wrap;
 }
@@ -2385,4 +2307,21 @@ onUnmounted(() => {
   flex-shrink: 0;
   margin-left: auto;
 }
+.keys-key-copy{display:inline-flex;align-items:center;gap:6px;min-height:44px;max-width:100%;background:none;border:0;padding:0;color:var(--ritel-muted);font:12px var(--ritel-ui);cursor:pointer}
+.keys-key-copy>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.keys-group-button{display:flex;align-items:center;gap:6px;min-height:44px;max-width:100%;border:0;background:none;padding:0;font:inherit;text-align:left;cursor:pointer}
+.keys-group-button>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.keys-group-button>span:not(:first-child){flex:none;white-space:nowrap}.keys-group-button>svg{flex:none}
+.keys-quota-used{font-weight:500}.keys-quota-total{color:var(--ritel-muted)}
+.keys-concurrency-main{display:flex;align-items:center;gap:10px;max-width:100%;white-space:nowrap}.keys-waiting{display:inline-flex;align-items:center;gap:4px;color:var(--ritel-muted)}.keys-concurrency-notice{font-size:12px;overflow:hidden;text-overflow:ellipsis;color:var(--ritel-muted)}
+.keys-row-actions{display:flex;align-items:center;gap:16px}.keys-row-actions>button{min-height:44px;border:0;background:none;padding:0;font:inherit;cursor:pointer}.keys-row-actions>button:last-child{color:var(--ritel-muted)}
+.keys-status-switch{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer}.keys-switch-track{display:flex;align-items:center;width:32px;height:18px;border:1px solid var(--ritel-control-border);border-radius:999px;background:var(--ritel-surface-raised);padding:2px;box-sizing:border-box}.keys-switch-track>span{width:12px;height:12px;border-radius:50%;background:var(--ritel-muted);transition:transform .15s ease-out}.keys-status-switch[aria-checked=true] .keys-switch-track{background:#047857;border-color:#047857}.keys-status-switch[aria-checked=true] .keys-switch-track>span{transform:translateX(12px);background:#fffefa}.keys-blocked-status{min-height:44px;border:0;background:none;padding:0;font:inherit;font-size:12px;text-align:left;cursor:pointer}
+.keys-extra-details{display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;padding-top:24px}.keys-extra-details h3{font-size:12px;font-weight:500;color:var(--ritel-muted);margin-bottom:10px}.keys-extra-groups{font-size:12px;color:var(--ritel-muted);margin-top:8px}.keys-detail-actions{display:flex;gap:12px;margin-top:24px}
+.keys-key-copy:disabled,.keys-group-button:disabled,.keys-row-actions>button:disabled,.keys-status-switch:disabled{opacity:.5;cursor:wait}
+@media(max-width:767px){.keys-extra-details{grid-template-columns:1fr;gap:24px}.keys-group-button{white-space:normal}.keys-row-actions{gap:24px}}
+@media(prefers-reduced-motion:reduce){.keys-switch-track>span{transition:none}}
+</style>
+
+<style>
+.dark .keys-status-switch[aria-checked=true] .keys-switch-track{background:#6ee7b7;border-color:#6ee7b7}
+.dark .keys-status-switch[aria-checked=true] .keys-switch-track>span{background:#1b1b19}
 </style>

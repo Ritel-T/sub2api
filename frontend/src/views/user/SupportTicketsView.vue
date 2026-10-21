@@ -1,17 +1,17 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-5xl space-y-4">
+    <div class="open-page support-workspace">
       <h1 class="text-3xl font-semibold">{{ t('nav.supportTickets') }}</h1>
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="inline-flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800" role="group" :aria-label="t('supportTickets.columns.status')">
+        <div class="inline-flex flex-wrap gap-5 border-b border-gray-200 dark:border-dark-700" role="group" :aria-label="t('supportTickets.columns.status')">
           <button
             v-for="option in statusOptions"
             :key="option.value"
             type="button"
-            class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+            class="border-b-2 px-1 py-3 text-sm font-medium transition-colors"
             :class="status === option.value
-              ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-600 dark:text-white'
-              : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'"
+              ? 'border-current text-gray-900 dark:text-white'
+              : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'"
             :aria-pressed="status === option.value"
             data-testid="ticket-filter"
             @click="setStatus(option.value)"
@@ -33,18 +33,18 @@
         {{ t('supportTickets.form.openCount', { count: summary.open_count, max: summary.max_open }) }}
       </p>
 
-      <div v-if="loading && !tickets.length" class="space-y-3" aria-busy="true">
-        <div v-for="index in 3" :key="index" class="card h-20 animate-pulse"></div>
+      <div v-if="loading && !tickets.length" class="open-record-list" aria-busy="true">
+        <div v-for="index in 3" :key="index" class="open-section h-20 animate-pulse"></div>
       </div>
-      <p v-else-if="loadError" class="card p-6 text-sm text-red-600 dark:text-red-400">{{ loadError }}</p>
-      <div v-else-if="!tickets.length" class="card" data-testid="ticket-empty">
+      <p v-else-if="loadError && !tickets.length" class="open-section p-6 text-sm text-red-600 dark:text-red-400">{{ loadError }}</p>
+      <div v-else-if="!tickets.length" class="open-section" data-testid="ticket-empty">
         <EmptyState :title="t('supportTickets.empty')" :description="t('supportTickets.emptyHint')" />
       </div>
-      <ul v-else class="space-y-3">
+      <ul v-else class="open-record-list">
         <li v-for="ticket in tickets" :key="ticket.id">
           <router-link
             :to="`/support-tickets/${ticket.id}`"
-            class="card block p-4 transition hover:ring-2 hover:ring-primary-200 dark:hover:ring-primary-800"
+            class="open-section block py-6 transition hover:bg-gray-500/5"
             data-testid="ticket-row"
           >
             <div class="flex items-start justify-between gap-3">
@@ -72,13 +72,12 @@
         </li>
       </ul>
 
-      <Pagination
-        v-if="total > pageSize"
-        :page="page"
-        :total="total"
-        :page-size="pageSize"
-        :show-page-size-selector="false"
-        @update:page="changePage"
+      <InfiniteListSentinel
+        :loading="loading || loadingMore || refreshing"
+        :error="listError"
+        :has-more="hasMore"
+        @load-more="loadMore"
+        @retry="retry"
       />
     </div>
 
@@ -92,7 +91,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import Icon from '@/components/icons/Icon.vue'
 import CreateTicketDialog from '@/features/support-tickets/CreateTicketDialog.vue'
 import TicketStatusBadge from '@/features/support-tickets/TicketStatusBadge.vue'
@@ -115,14 +115,8 @@ const route = useRoute()
 const draft = computed(() => supportTicketDraft(route.query || {}))
 const ticketStore = useSupportTicketStore()
 
-const pageSize = 20
 const status = ref<SupportTicketStatusFilter>('')
-const page = ref(1)
-const total = ref(0)
-const tickets = ref<SupportTicket[]>([])
 const summary = ref<SupportTicketUserSummary | null>(null)
-const loading = ref(false)
-const loadError = ref('')
 const createOpen = ref(false)
 function openCreate() { createOpen.value = true }
 watch(() => route.query, () => { if (draft.value) createOpen.value = true }, { immediate: true })
@@ -133,35 +127,28 @@ const statusOptions = computed<Array<{ value: SupportTicketStatusFilter; label: 
   { value: 'closed', label: t('supportTickets.status.closed') },
 ])
 
-async function load() {
-  loading.value = true
-  loadError.value = ''
-  try {
+const { items: tickets, loading, loadingMore, refreshing, error: listError, hasMore, loadMore, retry, reset, refresh } = useInfiniteList<SupportTicket>({
+  pageSize: 50,
+  keyOf: ticket => ticket.id,
+  fetchPage: async (page, signal) => {
     const [list, mine] = await Promise.all([
-      listMyTickets({ status: status.value, page: page.value, page_size: pageSize }),
+      listMyTickets({ status: status.value, page, page_size: 50 }),
       getMySummary(),
     ])
-    tickets.value = list.items
-    total.value = list.total
-    summary.value = mine
-    ticketStore.setUserUnread(mine.unread_count)
-  } catch (err) {
-    loadError.value = supportTicketErrorMessage(err, t, 'supportTickets.loadFailed')
-  } finally {
-    loading.value = false
-  }
-}
+    if (!signal.aborted) {
+      summary.value = mine
+      ticketStore.setUserUnread(mine.unread_count)
+    }
+    return list
+  },
+})
+const loadError = computed(() => listError.value ? supportTicketErrorMessage(listError.value, t, 'supportTickets.loadFailed') : '')
+const load = () => refresh()
 
 function setStatus(value: SupportTicketStatusFilter) {
   if (status.value === value) return
   status.value = value
-  page.value = 1
-  load()
-}
-
-function changePage(value: number) {
-  page.value = value
-  load()
+  void reset()
 }
 
 function onCreated(detail: SupportTicketDetail) {

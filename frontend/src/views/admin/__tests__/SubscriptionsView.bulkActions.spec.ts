@@ -34,7 +34,7 @@ function mountView() {
     global: {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
-        TablePageLayout: { template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+        TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
         DataTable: { name: 'DataTable', props: ['columns', 'data', 'selectedKeys'], emits: ['update:selectedKeys', 'sort', 'column-reorder'], template: '<div />' },
         BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' },
         Pagination: true, Select: true, ConfirmDialog: true, Icon: true,
@@ -67,7 +67,7 @@ async function select(ids: number[]) {
 }
 
 describe('subscription bulk operations', () => {
-  it('shows all columns by default and persists free movement, visibility, and reset', async () => {
+  it('retains every field and persists main-row placement independently of free ordering and reset', async () => {
     wrapper.unmount()
     localStorage.setItem('subscription-hidden-columns', JSON.stringify(['usage', 'group']))
     wrapper = mountView()
@@ -79,14 +79,17 @@ describe('subscription bulk operations', () => {
     wrapper.getComponent({ name: 'DataTable' }).vm.$emit('column-reorder', order)
     wrapper.getComponent(ColumnSettings).vm.$emit('toggle', 'usage')
     await flushPromises()
-    expect(keys()).toEqual(order.filter(key => key !== 'usage'))
+    expect(keys()).toEqual(order)
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('columns').find((column: { key: string }) => column.key === 'usage').primary).toBe(false)
     wrapper.unmount()
     wrapper = mountView()
     await flushPromises()
-    expect(keys()).toEqual(order.filter(key => key !== 'usage'))
+    expect(keys()).toEqual(order)
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('columns').find((column: { key: string }) => column.key === 'usage').primary).toBe(false)
     wrapper.getComponent(ColumnSettings).vm.$emit('reset')
     await flushPromises()
     expect(keys()).toEqual(defaults)
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('columns').find((column: { key: string }) => column.key === 'usage').primary).toBe(true)
   })
 
   it('retains the email or username display preference beside column settings', async () => {
@@ -139,20 +142,29 @@ describe('subscription bulk operations', () => {
     expect(wrapper.get('[data-test="bulk-restore"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('clears selection on pagination, sorting, and filters and rejects IDs outside the visible page', async () => {
+  it('retains selection on append, clears on sorting and filters, and rejects unloaded IDs', async () => {
     await select([1, 999])
     expect(wrapper.getComponent({ name: 'DataTable' }).props('selectedKeys')).toEqual([1])
-    wrapper.getComponent({ name: 'Pagination' }).vm.$emit('update:page', 2)
+    wrapper.getComponent({ name: 'InfiniteListSentinel' }).vm.$emit('load-more')
     await flushPromises()
-    expect(wrapper.getComponent({ name: 'DataTable' }).props('selectedKeys')).toEqual([])
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('selectedKeys')).toEqual([1])
     await select([2])
     wrapper.getComponent({ name: 'DataTable' }).vm.$emit('sort', 'status', 'asc')
     await flushPromises()
     expect(wrapper.getComponent({ name: 'DataTable' }).props('selectedKeys')).toEqual([])
     await select([3])
-    wrapper.findAllComponents({ name: 'Select' })[0]!.vm.$emit('change')
+    wrapper.findAllComponents({ name: 'Select' }).find(select => select.attributes('placeholder') === 'admin.subscriptions.allStatus')!.vm.$emit('change')
     await flushPromises()
     expect(wrapper.getComponent({ name: 'DataTable' }).props('selectedKeys')).toEqual([])
+  })
+
+  it('caps selection at the existing 100-ID mutation contract after multiple batches', async () => {
+    const loaded = Array.from({ length: 125 }, (_, index) => ({ ...rows[0], id: index + 1 }))
+    list.mockResolvedValueOnce({ items: loaded, total: 125, pages: 1 })
+    await (wrapper.vm as any).loadSubscriptions()
+    await flushPromises()
+    await select(loaded.map(row => row.id))
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('selectedKeys')).toEqual(loaded.slice(0, 100).map(row => row.id))
   })
 
   it('assigns multiple users once and retries only failed users', async () => {

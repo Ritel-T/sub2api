@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="open-page space-y-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('admin.harvestFlow.title') }}</h1>
@@ -38,7 +38,7 @@
       </div>
 
       <template v-else-if="snapshot">
-        <div class="card overflow-hidden p-5">
+        <div class="open-section overflow-hidden p-5">
           <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5" :class="snapshot.harvest.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-dark-700'">
@@ -82,7 +82,7 @@
         </div>
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <div class="card p-4">
+          <div class="open-section">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.harvestFlow.sidecar') }}</p>
             <p v-if="snapshot.sidecar.mode === 'external'" class="mt-1 text-sm font-semibold text-gray-600 dark:text-gray-300">
               {{ t('admin.harvestFlow.externalProxy') }}
@@ -100,17 +100,17 @@
               <p v-if="snapshot.sidecar.error" class="mt-1 text-xs text-rose-500">{{ snapshot.sidecar.error }}</p>
             </template>
           </div>
-          <div class="card p-4">
+          <div class="open-section">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.harvestFlow.ready') }}</p>
             <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ snapshot.counts.tickets_ready }}</p>
             <p class="text-xs text-rose-500">{{ t('admin.harvestFlow.paused') }} {{ snapshot.counts.tickets_blocked }}</p>
           </div>
-          <div class="card p-4">
+          <div class="open-section">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.harvestFlow.probeHit') }} / {{ t('admin.harvestFlow.probeMiss') }}</p>
             <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ snapshot.counts.probe_hit }} / {{ snapshot.counts.probe_miss }}</p>
             <p class="text-xs text-gray-400">{{ t('admin.harvestFlow.ticketAccept') }} {{ snapshot.counts.ticket_accept }} · {{ t('admin.harvestFlow.ticketReject') }} {{ snapshot.counts.ticket_reject }}</p>
           </div>
-          <div class="card p-4">
+          <div class="open-section">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.harvestFlow.stages.select') }}</p>
             <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ snapshot.counts.select_ok }} / {{ snapshot.counts.select_skip }}</p>
             <p class="text-xs text-gray-400">{{ t('admin.harvestFlow.selectOk') }} / {{ t('admin.harvestFlow.selectSkip') }}</p>
@@ -120,7 +120,7 @@
         </div>
 
         <div class="grid grid-cols-1 gap-6 xl:grid-cols-5">
-          <div class="card p-5 xl:col-span-2">
+          <div class="open-section p-5 xl:col-span-2">
             <h2 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.harvestFlow.accounts') }}</h2>
             <div v-if="!snapshot.accounts?.length" class="text-sm text-gray-500">{{ t('admin.harvestFlow.noAccounts') }}</div>
             <div v-else class="grid grid-cols-1 gap-3">
@@ -128,7 +128,7 @@
                 v-for="account in snapshot.accounts"
                 :key="account.id"
                 data-test="harvest-account-card"
-                class="flex min-h-[13.75rem] flex-col rounded-2xl border border-gray-100 p-4 dark:border-dark-700"
+                class="open-section flex min-h-[13.75rem] flex-col"
               >
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
@@ -177,7 +177,7 @@
             </div>
           </div>
 
-          <div class="card min-w-0 p-5 xl:col-span-3">
+          <div class="open-section min-w-0 p-5 xl:col-span-3">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.harvestFlow.events') }}</h2>
               <div class="flex flex-wrap gap-1">
@@ -199,7 +199,7 @@
               :account-names="accountNames"
             />
             <div v-else-if="!snapshot.events?.length" class="text-sm text-gray-500">{{ t('admin.harvestFlow.noEvents') }}</div>
-            <ol v-else class="max-h-[560px] space-y-2 overflow-auto pr-1">
+            <ol v-else class="space-y-2">
               <li
                 v-for="event in filteredEvents"
                 :key="event.id"

@@ -1,17 +1,17 @@
 <template>
-  <section class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700" data-testid="monitor-candy-settings">
-    <header class="card-header !py-3">
+  <section class="open-section overflow-hidden" data-testid="monitor-candy-settings">
+    <header class="monitor-section-heading mb-5">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.candy.settingsTitle') }}</h3>
       <p class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.candy.settingsHint') }}</p>
     </header>
-    <div class="space-y-4 p-5">
+    <div class="space-y-5 pt-4">
       <p class="rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{{ t('channelMonitorV2.candy.costHint') }}</p>
       <label class="block max-w-xs">
         <span class="input-label">{{ t('channelMonitorV2.candy.historyLimit') }}</span>
         <input :value="historyLimit" type="number" class="input" :min="CANDY_HISTORY_LIMIT_MIN" :max="CANDY_HISTORY_LIMIT_MAX" step="1" required data-testid="candy-history-limit" @input="emit('update:historyLimit', Number(($event.target as HTMLInputElement).value))" />
         <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.candy.historyLimitHint') }}</span>
       </label>
-      <div v-for="(probe, index) in modelValue || []" :key="`${probe.group_id}-${index}`" class="rounded-2xl border border-gray-200 p-4 dark:border-dark-700">
+      <div v-for="(probe, index) in modelValue || []" :key="`${probe.group_id}-${index}`" class="border-t border-gray-200 py-5 dark:border-dark-700">
         <div class="mb-3 flex items-center gap-3">
           <Toggle :model-value="probe.enabled" @update:model-value="patch(index, { enabled: $event })" />
           <strong class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-100">{{ groupName(probe.group_id) }}</strong>

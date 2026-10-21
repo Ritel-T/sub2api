@@ -65,15 +65,14 @@ onBeforeUnmount(() => cancelAnimationFrame(frame))
   align-items: stretch;
   gap: 0;
   height: 100%;
-  max-width: calc(1232px + 64px);
+  max-width: var(--console-content-width, 1296px);
   margin: 0 auto;
-  padding: 0 32px;
+  padding: 0 clamp(24px, 3vw, 64px);
   overflow-x: auto;
   scrollbar-width: none;
 }
 .console-section-tabs-inner::-webkit-scrollbar { display: none; }
-@media (max-width: 1279px) { .console-section-tabs-inner { padding: 0 24px; } }
-@media (max-width: 767px)  { .console-section-tabs-inner { padding: 0 16px; } }
+@media (max-width: 767px)  { .console-section-tabs-inner { padding: 0 20px; } }
 
 .console-tab-link {
   display: inline-flex;

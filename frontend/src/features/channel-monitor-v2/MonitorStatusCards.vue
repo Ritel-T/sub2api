@@ -1,40 +1,40 @@
 <template>
   <div class="space-y-7" data-testid="monitor-status-cards">
-    <div v-if="loading && !items.length" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-      <div v-for="index in 6" :key="index" class="h-72 animate-pulse rounded-3xl bg-gray-100 dark:bg-dark-800" />
+    <div v-if="loading && !items.length" class="space-y-4">
+      <div v-for="index in 6" :key="index" class="h-32 animate-pulse border-t border-gray-200 dark:border-dark-700" />
     </div>
-    <div v-else-if="!items.length" class="card py-16 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.empty.title') }}</div>
+    <div v-else-if="!items.length" class="open-section py-16 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.empty.title') }}</div>
     <section v-for="platform in platforms" :key="platform.name" class="space-y-3" :data-platform="platform.name">
       <h2 class="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
         <span class="grid h-7 w-7 place-items-center rounded-full bg-gray-100 dark:bg-dark-700"><ProviderIcon :provider="platform.name" :size="17" /></span>
         {{ providerLabel(platform.name) }}
         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ platform.items.length }}</span>
       </h2>
-      <div class="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        <article v-for="row in platform.items" :key="`${row.platform}-${row.group_id}`" class="min-w-0 rounded-3xl border border-gray-200/80 bg-white/80 p-5 shadow-sm dark:border-dark-700/70 dark:bg-dark-800/80" data-testid="monitor-group-card">
+      <div class="monitor-service-list">
+        <article v-for="row in platform.items" :key="`${row.platform}-${row.group_id}`" class="open-section monitor-service-record" data-testid="monitor-group-card">
           <header class="flex items-start gap-3">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300"><ProviderIcon :provider="row.platform" :size="23" /></span>
             <div class="min-w-0 flex-1">
               <h3 class="truncate text-base font-semibold text-gray-900 dark:text-gray-100" :title="row.group_name">{{ row.group_name || `#${row.group_id}` }}</h3>
-              <div class="mt-1 flex flex-wrap gap-1 text-[10px]">
+              <div class="mt-1 flex flex-wrap gap-1 text-xs">
                 <span class="rounded px-1.5 py-0.5" :class="providerBadgeClass(row.platform)">{{ providerLabel(row.platform) }}</span>
                 <span v-if="row.group_rate_multiplier != null" class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ t('channelMonitorV2.cards.groupRate', { value: row.group_rate_multiplier.toFixed(2) }) }}</span>
               </div>
             </div>
-            <span class="shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold" :class="healthBadge[row.health.overall]">{{ t(`channelMonitorV2.cards.health.${row.health.overall}`) }}</span>
+            <span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold" :class="healthBadge[row.health.overall]">{{ t(`channelMonitorV2.cards.health.${row.health.overall}`) }}</span>
           </header>
 
-          <dl class="mt-5 grid grid-cols-3 gap-2">
-            <div v-for="metric in metrics(row)" :key="metric.name" class="min-w-0 rounded-2xl border border-gray-100 bg-gray-50/70 px-2.5 py-3 dark:border-dark-700/60 dark:bg-dark-900/40">
-              <dt class="truncate text-[10px] tracking-wide text-gray-500 dark:text-gray-400" :title="metric.title || metric.name">{{ metric.name }}</dt>
+          <dl class="monitor-service-metrics grid grid-cols-3 gap-5">
+            <div v-for="metric in metrics(row)" :key="metric.name" class="min-w-0 py-2">
+              <dt class="truncate text-xs tracking-wide text-gray-500 dark:text-gray-400" :title="metric.title || metric.name">{{ metric.name }}</dt>
               <dd class="mt-1.5 font-mono text-base font-semibold tabular-nums" :class="metric.color">{{ metric.value }}</dd>
             </div>
           </dl>
           <div class="mt-4 border-t border-gray-100 pt-3 dark:border-dark-700/70">
-            <div class="mb-2 flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
+            <div class="mb-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
               <span>{{ timelineCaption(row) }}</span><span>{{ t('channelMonitorV2.cards.refreshIn', { seconds: countdown }) }}</span>
             </div>
-            <p v-if="timelineMode === 'samples' && !timelineBars(row).length" class="text-[10px] text-gray-400" data-testid="card-timeline-empty">{{ t('channelMonitorV2.cards.noSamples') }}</p>
+            <p v-if="timelineMode === 'samples' && !timelineBars(row).length" class="text-xs text-gray-400" data-testid="card-timeline-empty">{{ t('channelMonitorV2.cards.noSamples') }}</p>
             <template v-else>
               <div class="flex h-5 items-end gap-1" :aria-label="t('channelMonitorV2.cards.trafficHistory')">
                 <button v-for="(bar, index) in timelineBars(row)" :key="`${bar.start}-${index}`" type="button"
@@ -44,7 +44,7 @@
                   @focus="openDetail($event, { kind: 'traffic', row, bar })" @click="openDetail($event, { kind: 'traffic', row, bar })"
                   @mouseleave="scheduleClose" @blur="scheduleClose" />
               </div>
-              <div class="mt-1 flex justify-between font-mono text-[9px] tracking-widest text-gray-400"><span>PAST</span><span>NOW</span></div>
+              <div class="mt-1 flex justify-between font-mono text-xs tracking-widest text-gray-400"><span>PAST</span><span>NOW</span></div>
             </template>
           </div>
 
@@ -52,8 +52,8 @@
               <h4 class="text-xs font-medium text-gray-700 dark:text-gray-200">{{ t('channelMonitorV2.candy.title') }}</h4>
               <div v-for="(history, historyIndex) in candyHistories(row)" :key="`${history.model}-${history.reasoning_effort}-${historyIndex}`" class="mt-2" data-testid="candy-model-history">
                 <div class="flex items-center justify-between gap-2 text-xs">
-                  <p class="min-w-0 break-words text-[10px] leading-relaxed text-gray-500 dark:text-gray-400">{{ history.model }} · {{ history.reasoning_effort }} · {{ t('channelMonitorV2.candy.cadence', { minutes: history.interval_minutes }) }} · {{ t('channelMonitorV2.candy.window', { count: candyHistoryLimit(history) }) }}</p>
-                  <span class="flex shrink-0 items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400"><i class="h-2 w-2 rounded-full" :class="candyColor[candyDisplayState(history, now)]" />{{ t(`channelMonitorV2.candy.states.${candyDisplayState(history, now)}`) }}</span>
+                  <p class="min-w-0 break-words text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ history.model }} · {{ history.reasoning_effort }} · {{ t('channelMonitorV2.candy.cadence', { minutes: history.interval_minutes }) }} · {{ t('channelMonitorV2.candy.window', { count: candyHistoryLimit(history) }) }}</p>
+                  <span class="flex shrink-0 items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><i class="h-2 w-2 rounded-full" :class="candyColor[candyDisplayState(history, now)]" />{{ t(`channelMonitorV2.candy.states.${candyDisplayState(history, now)}`) }}</span>
                 </div>
                 <div class="mt-2 flex h-5 gap-px" role="group" :aria-label="t('channelMonitorV2.candy.historyCount', { count: Math.min(history.results.length, candyHistoryLimit(history)), limit: candyHistoryLimit(history) })" data-testid="candy-history-slots">
                   <template v-for="(result, index) in candyHistorySlots(history)" :key="index">
@@ -66,9 +66,9 @@
                     <span v-else class="min-w-0 flex-1 rounded-sm bg-gray-200 dark:bg-dark-600" aria-hidden="true" :title="t('channelMonitorV2.candy.notChecked')" data-testid="candy-history-placeholder" />
                   </template>
                 </div>
-                <p v-if="!history.results.length" class="mt-3 text-[10px] text-gray-400">{{ t('channelMonitorV2.candy.waiting') }}</p>
+                <p v-if="!history.results.length" class="mt-3 text-xs text-gray-400">{{ t('channelMonitorV2.candy.waiting') }}</p>
               </div>
-              <div class="mt-2 flex items-center justify-between gap-2 text-[9px] text-gray-500 dark:text-gray-400"><span>{{ t('channelMonitorV2.candy.legend') }}</span><span>{{ latestCandyTime(row) }}</span></div>
+              <div class="mt-2 flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400"><span>{{ t('channelMonitorV2.candy.legend') }}</span><span>{{ latestCandyTime(row) }}</span></div>
           </section>
         </article>
       </div>
@@ -248,3 +248,9 @@ function candyTooltip(result: MonitorCandyResult, model?: string, effort?: strin
     + (result.answer_preview ? '\n' + result.answer_preview : '')
 }
 </script>
+
+<style scoped>
+.monitor-service-record{display:grid;gap:1.25rem}
+.monitor-service-record>div,.monitor-service-record>section{margin-top:0}
+@media(min-width:900px){.monitor-service-record{grid-template-columns:minmax(15rem,1fr) minmax(0,2fr);column-gap:3rem}.monitor-service-record>div,.monitor-service-record>section{grid-column:1 / -1}}
+</style>

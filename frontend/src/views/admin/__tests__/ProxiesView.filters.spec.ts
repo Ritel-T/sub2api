@@ -21,16 +21,16 @@ const mountView = () => shallowMount(ProxiesView, {
     stubs: {
       AppLayout: { template: '<div><slot /></div>' },
       TablePageLayout: {
-        template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+        template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
       },
       DataTable: {
         props: ['data'],
         template: '<div data-test="rows">{{ data.map(row => row.name).join(",") }}</div>'
       },
-      Pagination: {
-        props: ['page'],
-        emits: ['update:page'],
-        template: '<button data-test="page" @click="$emit(\'update:page\', 2)">{{ page }}</button>'
+      InfiniteListSentinel: {
+        props: ['hasMore'],
+        emits: ['load-more'],
+        template: '<button data-test="load-more" v-if="hasMore" @click="$emit(\'load-more\')">Load more</button>'
       },
       Select: {
         props: ['modelValue', 'options', 'placeholder'],
@@ -49,7 +49,7 @@ let wrapper: ReturnType<typeof mountView>
 beforeEach(() => {
   vi.clearAllMocks()
   getAllWithCount.mockResolvedValue([])
-  listProxies.mockResolvedValue({ items: [], total: 100, pages: 5 })
+  listProxies.mockImplementation(async (page) => ({ items: [{ id: page, name: `batch-${page}` }], total: 100, pages: 5 }))
 })
 
 afterEach(() => wrapper?.unmount())
@@ -68,7 +68,7 @@ describe('proxy list filter pagination', () => {
       await filter.setValue(initial)
       await flushPromises()
     }
-    await wrapper.get('[data-test="page"]').trigger('click')
+    await wrapper.get('[data-test="load-more"]').trigger('click')
     await flushPromises()
     expect(listProxies.mock.lastCall?.[0]).toBe(2)
     const [, pageSize, previousFilters] = listProxies.mock.lastCall!
@@ -85,20 +85,20 @@ describe('proxy list filter pagination', () => {
       1, pageSize, { ...previousFilters, [field]: value || undefined },
       { signal: expect.any(AbortSignal) }
     )
-    expect(wrapper.get('[data-test="page"]').text()).toBe('1')
+    expect(wrapper.find('[data-test="load-more"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="rows"]').text()).toBe('matching-proxy')
   })
 
-  it('keeps the current page when refreshing the same filter', async () => {
+  it('resets to the first batch when explicitly refreshing the same filter', async () => {
     wrapper = mountView()
     await flushPromises()
-    await wrapper.get('[data-test="page"]').trigger('click')
+    await wrapper.get('[data-test="load-more"]').trigger('click')
     await flushPromises()
 
     await wrapper.get('button[title="common.refresh"]').trigger('click')
     await flushPromises()
 
-    expect(listProxies.mock.lastCall?.[0]).toBe(2)
-    expect(wrapper.get('[data-test="page"]').text()).toBe('2')
+    expect(listProxies.mock.lastCall?.[0]).toBe(1)
+    expect(wrapper.get('[data-test="rows"]').text()).toBe('batch-1')
   })
 })

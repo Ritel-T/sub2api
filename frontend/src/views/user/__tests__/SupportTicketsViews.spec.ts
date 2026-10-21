@@ -79,7 +79,7 @@ describe('my tickets', () => {
   it('lists tickets with unread marks and keeps the badge in sync', async () => {
     const wrapper = mount(SupportTicketsView, { global: { stubs } })
     await flushPromises()
-    expect(mocks.listMyTickets).toHaveBeenCalledWith({ status: '', page: 1, page_size: 20 })
+    expect(mocks.listMyTickets).toHaveBeenCalledWith({ status: '', page: 1, page_size: 50 })
     const rows = wrapper.findAll('[data-testid="ticket-row"]')
     expect(rows).toHaveLength(2)
     expect(rows[0].attributes('href')).toBe('/support-tickets/3')
@@ -91,7 +91,7 @@ describe('my tickets', () => {
 
     await wrapper.findAll('[data-testid="ticket-filter"]')[1].trigger('click')
     await flushPromises()
-    expect(mocks.listMyTickets).toHaveBeenLastCalledWith({ status: 'open', page: 1, page_size: 20 })
+    expect(mocks.listMyTickets).toHaveBeenLastCalledWith({ status: 'open', page: 1, page_size: 50 })
 
     await wrapper.get('[data-testid="ticket-new"]').trigger('click')
     expect(wrapper.find('[data-testid="create-dialog"]').exists()).toBe(true)

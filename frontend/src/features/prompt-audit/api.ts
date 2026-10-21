@@ -52,9 +52,11 @@ export async function listEvents(
   filters: PromptEventFilters,
   page: number,
   pageSize: number,
+  options?: { signal?: AbortSignal },
 ): Promise<PromptEventPage> {
   const { data } = await apiClient.get<PromptEventPage>(`${basePath}/events`, {
     params: { page, page_size: pageSize, ...eventQueryParams(filters) },
+    signal: options?.signal,
   })
   return data
 }

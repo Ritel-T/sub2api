@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <div class="relative w-full md:w-80">
@@ -122,13 +122,12 @@
       </template>
 
       <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
+        <InfiniteListSentinel
+          :loading="loading || loadingMore || refreshing"
+          :error="listError"
+          :has-more="hasMore"
+          @load-more="loadMore"
+          @retry="retry"
         />
       </template>
     </TablePageLayout>
@@ -169,12 +168,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref, type PropType } from 'vue'
+import { computed, defineComponent, h, onMounted, onUnmounted, watch, reactive, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
@@ -195,10 +195,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const loading = ref(false)
-const records = ref<AffiliateRecord[]>([])
 const filters = reactive({ search: '', start_at: '', end_at: '' })
-const pagination = reactive({ page: 1, page_size: 20, total: 0 })
+const appliedSearch = ref('')
 const overviewDialog = ref(false)
 const overviewLoading = ref(false)
 const selectedOverview = ref<AffiliateUserOverview | null>(null)
@@ -269,11 +267,11 @@ function userTimezone(): string {
   }
 }
 
-function buildParams(): ListAffiliateRecordsParams {
+function buildParams(page: number): ListAffiliateRecordsParams {
   return {
-    page: pagination.page,
-    page_size: pagination.page_size,
-    search: filters.search.trim() || undefined,
+    page,
+    page_size: 20,
+    search: appliedSearch.value.trim() || undefined,
     start_at: filters.start_at || undefined,
     end_at: filters.end_at || undefined,
     sort_by: sortState.sort_by,
@@ -292,45 +290,32 @@ async function fetchRecords(params: ListAffiliateRecordsParams): Promise<Paginat
   return affiliatesAPI.listTransferRecords(params)
 }
 
-async function loadRecords() {
-  loading.value = true
-  try {
-    const res = await fetchRecords(buildParams())
-    records.value = res.items || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    appStore.showError(extractI18nErrorMessage(error, t, 'admin.affiliates.errors', t('common.error')))
-  } finally {
-    loading.value = false
-  }
-}
+const {
+  items: records, loading, loadingMore, refreshing, error: listError, hasMore,
+  reset: reloadFromFirstPage, refresh: loadRecords, loadMore, retry,
+} = useInfiniteList<AffiliateRecord>({
+  pageSize: 20,
+  // Rebate accruals have no unique ID in this API. Keep equal ledger entries.
+  fetchPage: page => fetchRecords(buildParams(page)),
+})
+watch(listError, error => {
+  if (error) appStore.showError(extractI18nErrorMessage(error, t, 'admin.affiliates.errors', t('common.error')))
+})
+watch(() => props.type, () => {
+  Object.assign(sortState, loadInitialSortState())
+  void reloadFromFirstPage()
+})
+onUnmounted(() => { if (debounceTimer) clearTimeout(debounceTimer) })
 
 function debounceLoad() {
   if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => reloadFromFirstPage(), 300)
-}
-
-function reloadFromFirstPage() {
-  pagination.page = 1
-  void loadRecords()
-}
-
-function handlePageChange(page: number) {
-  pagination.page = page
-  void loadRecords()
-}
-
-function handlePageSizeChange(size: number) {
-  pagination.page_size = size
-  pagination.page = 1
-  void loadRecords()
+  debounceTimer = setTimeout(() => { appliedSearch.value = filters.search; void reloadFromFirstPage() }, 300)
 }
 
 function handleSort(key: string, order: 'asc' | 'desc') {
   sortState.sort_by = key
   sortState.sort_order = order
-  pagination.page = 1
-  void loadRecords()
+  void reloadFromFirstPage()
 }
 
 function handleWithdrawSuccess() {
@@ -443,6 +428,6 @@ const OverviewStat = defineComponent({
 })
 
 onMounted(() => {
-  void loadRecords()
+  void reloadFromFirstPage()
 })
 </script>

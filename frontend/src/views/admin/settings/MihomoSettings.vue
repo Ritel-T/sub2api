@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-5" :aria-busy="busy">
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
+    <div class="open-section flex flex-wrap items-center justify-between gap-3">
       <div class="space-y-1">
         <p class="text-sm font-medium" role="status">Mihomo <span class="badge ml-2" :class="status?.running ? 'badge-success' : 'badge-gray'">{{ status?.phase || '—' }}</span></p>
         <p class="text-xs text-gray-500">{{ text('内核本地出口', 'Local endpoint') }} <code>{{ status?.endpoint || '—' }}</code> · {{ status?.nodes || 0 }} {{ text('个节点', 'nodes') }}</p>
@@ -8,7 +8,7 @@
       <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refresh">{{ text('检测状态', 'Check status') }}</button>
     </div>
     <div v-if="warmPools.length" class="grid gap-3 sm:grid-cols-2">
-      <div v-for="pool in warmPools" :key="pool.source" class="rounded-xl border border-gray-200 p-3 text-xs dark:border-dark-600" data-testid="bps-warm-pool">
+      <div v-for="pool in warmPools" :key="pool.source" class="open-section text-xs" data-testid="bps-warm-pool">
         <p class="font-medium">{{ pool.source }} · Warm IP pool</p>
         <p class="mt-2">{{ text('就绪', 'Ready') }} {{ pool.ready }} / {{ text('目标', 'Target') }} {{ pool.target }} · {{ text('探测中', 'Checking') }} {{ pool.checking }} · {{ text('冷却中', 'Cooling') }} {{ pool.cooling }}</p>
         <p v-if="pool.source === 'Mihomo' && pool.ready_subscription !== undefined" class="mt-1">{{ text('订阅就绪', 'Ready subscription exits') }} {{ pool.ready_subscription }} · {{ text('动态就绪', 'Ready dynamic exits') }} {{ pool.ready_dynamic || 0 }}</p>
@@ -26,7 +26,7 @@
         <div><h2 class="font-semibold">{{ text('Mihomo 订阅', 'Mihomo subscriptions') }}</h2><p class="mt-1 text-xs text-gray-500">{{ text('按订阅管理来源；地址和令牌不回显。添加订阅不会替换其他来源。', 'Manage each source independently. URLs and tokens stay hidden; adding a subscription preserves other sources.') }}</p></div>
         <button type="button" class="btn btn-primary" :disabled="busy || !status?.installed" @click="openSubscription()">{{ text('添加订阅', 'Add subscription') }}</button>
       </div>
-      <div class="rounded-xl border border-gray-200 p-3 dark:border-dark-600">
+      <div class="open-section">
         <div class="flex flex-wrap items-center gap-3">
           <label for="subscription-download-mode" class="text-sm font-medium">{{ text('订阅下载模式', 'Subscription download mode') }}</label>
           <select id="subscription-download-mode" v-model="downloadMode" class="input w-auto" :disabled="busy" @change="downloadModeDirty = true">
@@ -38,7 +38,8 @@
         </div>
         <p class="mt-2 text-xs text-gray-500">{{ text('仅影响订阅文件下载，不改变打票或账号业务出口。自动模式在代理下载失败或内容无效时尝试直连；仅代理模式不会回退直连。', 'Only affects subscription downloads, not ticket or account traffic. Auto retries direct after a failed or invalid proxy response; proxy-only never falls back to direct.') }}</p>
       </div>
-      <div class="flex flex-wrap gap-3">
+      <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
+        <div ref="tableTools0" class="min-w-0" />
         <input v-model="search" type="search" class="input sm:max-w-xs" :placeholder="text('搜索订阅名称', 'Search subscription names')" :aria-label="text('搜索订阅', 'Search subscriptions')" />
         <div v-if="selected.length" class="flex flex-wrap items-center gap-2 text-sm">
           <span>{{ text('已选', 'Selected') }} {{ selected.length }}</span>
@@ -48,17 +49,17 @@
           <button type="button" class="btn btn-danger btn-sm" :disabled="busy" @click="confirmRemoval(selected.map(id => 'subscription_remove/' + id))">{{ text('移除所选', 'Remove selected') }}</button>
         </div>
       </div>
-      <DataTable column-order-key="table-columns:mihomo-subscriptions:v1" v-model:selected-keys="selected" :columns="subscriptionColumns" :data="filteredSubscriptions" row-key="id" selectable :loading="loading">
+      <DataTable :toolbar-target="tableTools0" column-order-key="table-columns:mihomo-subscriptions:v1" v-model:selected-keys="selected" :columns="subscriptionColumns" :data="filteredSubscriptions" row-key="id" selectable :loading="loading">
         <template #cell-label="{ row }"><span class="font-medium">{{ row.label }}</span><code class="ml-2 text-xs text-gray-400">{{ row.id.slice(0, 8) }}</code></template>
         <template #cell-enabled="{ row }"><span class="badge" :class="row.enabled ? 'badge-success' : 'badge-gray'">{{ row.enabled ? text('启用', 'Enabled') : text('停用', 'Disabled') }}</span></template>
         <template #cell-nodes="{ row }">{{ row.cached ? row.nodes : text('待更新', 'Not refreshed') }}</template>
         <template #cell-updated_at="{ row }">{{ row.updated_at ? new Date(row.updated_at).toLocaleString() : '—' }}</template>
         <template #cell-actions="{ row }">
           <div class="flex flex-wrap gap-2">
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !row.enabled" @click="operate('subscription_refresh/' + row.id)">{{ text('更新', 'Refresh') }}</button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="openSubscription(row)">{{ text('编辑', 'Edit') }}</button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="operate((row.enabled ? 'subscription_disable/' : 'subscription_enable/') + row.id)">{{ row.enabled ? text('停用', 'Disable') : text('启用', 'Enable') }}</button>
-            <button type="button" class="btn btn-danger btn-sm" :disabled="busy" @click="confirmRemoval(['subscription_remove/' + row.id])">{{ text('移除', 'Remove') }}</button>
+            <button :title="text('更新', 'Refresh')" :aria-label="text('更新', 'Refresh')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !row.enabled" @click="operate('subscription_refresh/' + row.id)"><Icon name="refresh" size="sm" /><span class="sr-only">{{ text('更新', 'Refresh') }}</span></button>
+            <button :title="text('编辑', 'Edit')" :aria-label="text('编辑', 'Edit')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy" @click="openSubscription(row)"><Icon name="edit" size="sm" /><span class="sr-only">{{ text('编辑', 'Edit') }}</span></button>
+            <button :title="row.enabled ? text('停用', 'Disable') : text('启用', 'Enable')" :aria-label="row.enabled ? text('停用', 'Disable') : text('启用', 'Enable')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy" @click="operate((row.enabled ? 'subscription_disable/' : 'subscription_enable/') + row.id)"><Icon :name="row.enabled ? 'ban' : 'checkCircle'" size="sm" /><span class="sr-only">{{ row.enabled ? text('停用', 'Disable') : text('启用', 'Enable') }}</span></button>
+            <button :title="text('移除', 'Remove')" :aria-label="text('移除', 'Remove')" type="button" class="workspace-icon-action text-red-600 dark:text-red-400" :disabled="busy" @click="confirmRemoval(['subscription_remove/' + row.id])"><Icon name="trash" size="sm" /><span class="sr-only">{{ text('移除', 'Remove') }}</span></button>
           </div>
         </template>
         <template #empty><p class="p-8 text-center text-sm text-gray-500">{{ text('暂无匹配的订阅。点击“添加订阅”导入 Clash / Mihomo YAML 来源。', 'No matching subscriptions. Add a Clash / Mihomo YAML source to get started.') }}</p></template>
@@ -77,7 +78,8 @@
           <button v-if="section === 'dynamic'" type="button" class="btn btn-primary" :disabled="busy || !status?.installed" @click="dynamicDialog = true">{{ text('导入动态代理', 'Import dynamic proxies') }}</button>
         </div>
       </div>
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
+        <div ref="tableTools1" class="min-w-0" />
         <input v-model="search" type="search" class="input sm:max-w-xs" :placeholder="text('搜索节点名称或地区', 'Search node names or regions')" :aria-label="text('搜索节点', 'Search nodes')" />
         <select v-model="nodeState" class="input w-auto" :aria-label="text('节点状态', 'Node status')">
           <option value="">{{ text('全部状态', 'All statuses') }}</option><option v-for="state in nodeStates" :key="state" :value="state">{{ stateLabel(state) }}</option>
@@ -88,7 +90,7 @@
         </select>
         <span class="text-xs text-gray-500" data-testid="node-batch-scope">{{ selectedNodes.length ? text(`批量检测已选的 ${nodeBatchTargets.length} 个节点`, `Batch checks cover ${nodeBatchTargets.length} selected nodes`) : text(`未选择时批量检测当前筛选的全部 ${nodeBatchTargets.length} 个节点`, `Without a selection, batch checks cover all ${nodeBatchTargets.length} filtered nodes`) }}</span>
       </div>
-      <DataTable column-order-key="table-columns:mihomo-nodes:v1" v-model:selected-keys="selectedNodes" :columns="nodeColumns" :data="pagedNodes" row-key="name" selectable :loading="loading">
+      <DataTable :toolbar-target="tableTools1" column-order-key="table-columns:mihomo-nodes:v1" v-model:selected-keys="selectedNodes" :columns="nodeColumns" :data="pagedNodes" row-key="name" selectable :loading="loading">
         <template #cell-display_name="{ row }"><span>{{ row.display_name || row.name }}</span><span v-if="row.static_proxy" class="badge badge-primary ml-2">{{ text('已添加静态代理', 'Static proxy added') }}</span></template>
         <template #cell-source="{ row }">{{ nodeSourceLabel(row) }}</template>
         <template #cell-state="{ row }"><span class="badge" :class="row.state === 'enabled' ? 'badge-success' : 'badge-gray'">{{ stateLabel(row.state) }}</span></template>
@@ -107,13 +109,13 @@
         </template>
         <template #cell-actions="{ row }">
           <div class="flex flex-wrap gap-2">
-            <button type="button" class="btn btn-primary btn-sm" :disabled="busy || !status?.running || row.state !== 'enabled'" @click="openStaticProxyDialog([row])">{{ text('添加为静态代理', 'Add as static proxy') }}</button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="!status?.installed || testingNodes.has(row.name)" :aria-busy="testingNodes.has(row.name)" @click="testNode(row)">{{ testingNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.testConnection') }}</button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="!status?.installed || qualityNodes.has(row.name)" :aria-busy="qualityNodes.has(row.name)" @click="checkNodeQuality(row)">{{ qualityNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.qualityCheck') }}</button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !status?.running" :title="text('经运行中的内核测速：失败则标记为检测失败，成功则恢复节点', 'Measures through the running kernel: failure marks the node failed, success recovers it')" @click="operate('probe/' + row.name)">{{ text('检测', 'Probe') }}</button>
-            <button v-if="!row.dynamic" type="button" class="btn btn-secondary btn-sm" :disabled="busy || !status?.running" @click="operate('country_probe/' + row.name)">{{ text('检测地区', 'Check region') }}</button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || row.state === 'country_excluded'" @click="operate((row.state === 'enabled' ? 'disable/' : 'recover/') + row.name)">{{ row.state === 'enabled' ? text('停用', 'Disable') : text('恢复', 'Recover') }}</button>
-            <button v-if="row.dynamic" type="button" class="btn btn-danger btn-sm" :disabled="busy" @click="confirmRemoval(['dynamic_remove/' + row.name])">{{ text('移除', 'Remove') }}</button>
+            <button :title="text('添加为静态代理', 'Add as static proxy')" :aria-label="text('添加为静态代理', 'Add as static proxy')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !status?.running || row.state !== 'enabled'" @click="openStaticProxyDialog([row])"><Icon name="plus" size="sm" /><span class="sr-only">{{ text('添加为静态代理', 'Add as static proxy') }}</span></button>
+            <button :title="testingNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.testConnection')" :aria-label="testingNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.testConnection')" type="button" class="workspace-icon-action theme-action-button" :disabled="!status?.installed || testingNodes.has(row.name)" :aria-busy="testingNodes.has(row.name)" @click="testNode(row)"><Icon name="checkCircle" size="sm" /><span class="sr-only">{{ testingNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.testConnection') }}</span></button>
+            <button :title="qualityNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.qualityCheck')" :aria-label="qualityNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.qualityCheck')" type="button" class="workspace-icon-action theme-action-button" :disabled="!status?.installed || qualityNodes.has(row.name)" :aria-busy="qualityNodes.has(row.name)" @click="checkNodeQuality(row)"><Icon name="shield" size="sm" /><span class="sr-only">{{ qualityNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.qualityCheck') }}</span></button>
+            <button :aria-label="text('检测', 'Probe')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !status?.running" :title="text('经运行中的内核测速：失败则标记为检测失败，成功则恢复节点', 'Measures through the running kernel: failure marks the node failed, success recovers it')" @click="operate('probe/' + row.name)"><Icon name="bolt" size="sm" /><span class="sr-only">{{ text('检测', 'Probe') }}</span></button>
+            <button :title="text('检测地区', 'Check region')" :aria-label="text('检测地区', 'Check region')" v-if="!row.dynamic" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !status?.running" @click="operate('country_probe/' + row.name)"><Icon name="globe" size="sm" /><span class="sr-only">{{ text('检测地区', 'Check region') }}</span></button>
+            <button :title="row.state === 'enabled' ? text('停用', 'Disable') : text('恢复', 'Recover')" :aria-label="row.state === 'enabled' ? text('停用', 'Disable') : text('恢复', 'Recover')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || row.state === 'country_excluded'" @click="operate((row.state === 'enabled' ? 'disable/' : 'recover/') + row.name)"><Icon :name="row.state === 'enabled' ? 'ban' : 'refresh'" size="sm" /><span class="sr-only">{{ row.state === 'enabled' ? text('停用', 'Disable') : text('恢复', 'Recover') }}</span></button>
+            <button :title="text('移除', 'Remove')" :aria-label="text('移除', 'Remove')" v-if="row.dynamic" type="button" class="workspace-icon-action text-red-600 dark:text-red-400" :disabled="busy" @click="confirmRemoval(['dynamic_remove/' + row.name])"><Icon name="trash" size="sm" /><span class="sr-only">{{ text('移除', 'Remove') }}</span></button>
           </div>
         </template>
       </DataTable>
@@ -188,6 +190,7 @@ http://username:password@hostname:port</pre></details>
   </div>
 </template>
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { localizeInlineText } from '@/i18n/inline'
 import { computed, ref, onMounted, onUnmounted, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -204,6 +207,8 @@ import { proxyQualityOverallClass, proxyQualityOverallLabelKey, summarizeProxyQu
 const props = withDefaults(defineProps<{ section?: 'subscriptions' | 'dynamic' | 'nodes' | 'kernel' }>(), { section: 'subscriptions' })
 const emit = defineEmits<{ 'static-proxies-added': [] }>()
 const { locale, t } = useI18n()
+const tableTools1 = ref<HTMLElement | null>(null)
+const tableTools0 = ref<HTMLElement | null>(null)
 const appStore = useAppStore()
 const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 type SubscriptionDownloadMode = 'auto' | 'proxy' | 'direct'

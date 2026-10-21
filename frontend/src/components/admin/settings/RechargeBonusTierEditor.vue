@@ -1,5 +1,5 @@
 <template>
-  <div class="card" data-testid="recharge-bonus-tier-editor">
+  <div class="open-section" data-testid="recharge-bonus-tier-editor">
     <!-- Header：与服务商管理卡片同款 -->
     <div class="border-b border-gray-100 px-4 py-3 dark:border-dark-700">
       <div class="flex items-center justify-between gap-3">

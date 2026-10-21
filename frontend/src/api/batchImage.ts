@@ -159,7 +159,7 @@ export async function getBatchImageJob(apiKey: string, batchId: string): Promise
   return response.json()
 }
 
-export async function listBatchImageJobs(apiKey: string, options: number | BatchImageJobsListOptions = 20): Promise<BatchImageJobsResponse> {
+export async function listBatchImageJobs(apiKey: string, options: number | BatchImageJobsListOptions = 20, signal?: AbortSignal): Promise<BatchImageJobsResponse> {
   const params = new URLSearchParams()
   if (typeof options === 'number') {
     params.set('limit', String(options))
@@ -174,6 +174,7 @@ export async function listBatchImageJobs(apiKey: string, options: number | Batch
   }
   const response = await fetch(buildGatewayUrl(`/v1/images/batches?${params.toString()}`), {
     headers: authHeaders(apiKey),
+    signal,
   })
   if (!response.ok) throw await parseBatchImageError(response)
   return response.json()

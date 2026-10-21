@@ -1,9 +1,9 @@
 <template>
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+  <div class="open-metric-strip">
     <!-- Today Revenue -->
-    <div class="card p-4">
+    <div class="min-w-0 py-5">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
+        <div class="shrink-0">
           <Icon name="dollar" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
         </div>
         <div>
@@ -19,9 +19,9 @@
     </div>
 
     <!-- Total Revenue -->
-    <div class="card p-4">
+    <div class="min-w-0 py-5">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
+        <div class="shrink-0">
           <Icon name="creditCard" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
         </div>
         <div>
@@ -37,9 +37,9 @@
     </div>
 
     <!-- Today Orders -->
-    <div class="card p-4">
+    <div class="min-w-0 py-5">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
+        <div class="shrink-0">
           <Icon name="chart" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
         </div>
         <div>
@@ -50,9 +50,9 @@
     </div>
 
     <!-- Average Amount -->
-    <div class="card p-4">
+    <div class="min-w-0 py-5">
       <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/30">
+        <div class="shrink-0">
           <Icon name="chart" size="md" class="text-primary-600 dark:text-primary-300" :stroke-width="2" />
         </div>
         <div>

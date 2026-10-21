@@ -1,8 +1,8 @@
 <template>
-  <div :class="props.embedded ? 'space-y-4' : 'card'">
+  <div :class="props.embedded ? 'space-y-4' : 'open-settings-section'">
     <div
       v-if="!props.embedded"
-      class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+      class="min-w-0"
     >
       <h2 class="text-lg font-medium text-gray-900 dark:text-white">
         {{ t('profile.avatar.title') }}
@@ -12,7 +12,7 @@
       </p>
     </div>
 
-    <div :class="props.embedded ? 'space-y-3' : 'flex flex-col gap-5 px-6 py-6 sm:flex-row sm:items-start'">
+    <div :class="props.embedded ? 'space-y-3' : 'flex min-w-0 flex-col gap-5 sm:flex-row sm:items-start'">
       <div
         :class="props.embedded
           ? 'flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-600 text-xl font-semibold text-white'

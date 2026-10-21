@@ -1,6 +1,6 @@
 <template>
   <component :is="isFullscreen ? 'div' : AppLayout" :class="isFullscreen ? 'flex min-h-screen flex-col justify-center bg-gray-50 dark:bg-dark-950' : ''">
-    <div :class="[isFullscreen ? 'p-4 md:p-6' : '', 'space-y-6 pb-12']">
+    <div :class="[isFullscreen ? 'p-4 md:p-6' : '', 'open-page space-y-10 pb-12']">
       <div
         v-if="errorMessage"
         class="rounded-2xl bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
@@ -39,21 +39,8 @@
         @exit-fullscreen="exitFullscreen"
       />
 
-      <!-- Row: Concurrency + Throughput -->
-      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        <div class="lg:col-span-1 min-h-[360px]">
-          <OpsConcurrencyCard :platform-filter="platform" :group-id-filter="groupId" :refresh-token="dashboardRefreshToken" />
-        </div>
-        <div class="lg:col-span-1 h-[360px]">
-          <OpsSwitchRateTrendChart
-            :points="switchTrend?.points ?? []"
-            :loading="loadingSwitchTrend"
-            :time-range="switchTrendTimeRange"
-            :fullscreen="isFullscreen"
-          />
-        </div>
-        <div class="lg:col-span-2 h-[360px]">
-          <OpsThroughputTrendChart
+      <section v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="ops-flow-workspace">
+        <div class="ops-throughput-primary"><OpsThroughputTrendChart
             :points="throughputTrend?.points ?? []"
             :by-platform="throughputTrend?.by_platform ?? []"
             :top-groups="throughputTrend?.top_groups ?? []"
@@ -63,12 +50,20 @@
             @select-platform="handleThroughputSelectPlatform"
             @select-group="handleThroughputSelectGroup"
             @open-details="handleOpenRequestDetails"
-          />
-        </div>
-      </div>
+          /></div>
+        <aside class="ops-flow-aside">
+          <div class="min-h-[300px]"><OpsConcurrencyCard :platform-filter="platform" :group-id-filter="groupId" :refresh-token="dashboardRefreshToken" /></div>
+          <div class="h-[280px]"><OpsSwitchRateTrendChart
+            :points="switchTrend?.points ?? []"
+            :loading="loadingSwitchTrend"
+            :time-range="switchTrendTimeRange"
+            :fullscreen="isFullscreen"
+          /></div>
+        </aside>
+      </section>
 
       <!-- Row: Visual Analysis (baseline 3-up grid) -->
-      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="ops-analysis-workspace">
         <OpsLatencyChart :latency-data="latencyHistogram" :loading="loadingLatency" />
         <OpsErrorDistributionChart
           :data="errorDistribution"
@@ -863,3 +858,11 @@ watch(showSettingsDialog, async (show) => {
   }
 })
 </script>
+
+<style scoped>
+.ops-flow-workspace { display: grid; gap: clamp(2rem, 4vw, 4rem); align-items: start; }
+.ops-throughput-primary { height: 440px; min-width: 0; }
+.ops-flow-aside { min-width: 0; display: grid; gap: 2rem; }
+.ops-analysis-workspace { display: grid; gap: 2rem; }
+@media (min-width: 1100px) { .ops-flow-workspace { grid-template-columns: minmax(0, 2.4fr) minmax(18rem, 1fr); } .ops-throughput-primary { height: 650px; } .ops-analysis-workspace { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.7fr); } }
+</style>

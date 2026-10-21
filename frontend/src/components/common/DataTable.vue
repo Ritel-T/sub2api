@@ -1,32 +1,54 @@
 <template>
-  <div v-if="columnOrderKey" class="flex shrink-0 justify-end pb-2">
-    <ColumnSettings :columns="localOrderedColumns" :hidden-columns="localHiddenColumns"
-      :required-columns="requiredColumnKeys" @toggle="toggleLocalColumn" @reorder="setLocalColumnOrder" @reset="resetLocalColumns" />
+  <Teleport :to="resolvedToolbarTarget || 'body'" :disabled="!resolvedToolbarTarget">
+  <div class="table-tools" :class="{ 'is-inline': resolvedToolbarTarget }">
+    <TableSortControl
+      v-if="sortableColumns.length > 0"
+      :columns="sortableColumns"
+      :sort-key="sortKey"
+      :sort-order="sortOrder"
+      :disabled="loading"
+      @select="handleMobileSortKey"
+      @toggle="handleMobileSortOrder"
+    />
+    <Teleport :to="resolvedActionsTarget || 'body'" :disabled="!resolvedActionsTarget">
+    <div v-if="!controlledColumnOrder || columnOrderKey">
+      <ColumnSettings
+        :columns="localOrderedColumns"
+        :hidden-columns="localHiddenColumns"
+        :required-columns="requiredColumnKeys"
+        @toggle="toggleLocalColumn"
+        @reorder="setLocalColumnOrder"
+        @reset="resetLocalColumns"
+      />
+    </div>
+    </Teleport>
   </div>
-  <div v-if="!isDesktopViewport" class="space-y-3">
-    <template v-if="loading">
-      <div v-for="i in 5" :key="i" class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+  </Teleport>
+  <div v-if="!isDesktopViewport" ref="documentBodyRef" class="table-mobile-records">
+    <template v-if="loading && !data.length">
+      <div v-for="i in 5" :key="i" class="table-record p-4">
         <div class="space-y-3">
           <div v-for="column in dataColumns" :key="column.key" class="flex justify-between">
-            <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
-            <div class="h-4 w-32 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
+            <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-dark-700">
+            </div>
+            <div class="h-4 w-32 animate-pulse rounded bg-gray-200 dark:bg-dark-700">
+            </div>
           </div>
-          <div v-if="hasActionsColumn && !columnReordering" class="border-t border-gray-200 pt-3 dark:border-dark-700">
-            <div class="h-8 w-full animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
+          <div
+            v-if="hasActionsColumn && !columnReordering"
+            class="border-t border-gray-200 pt-3 dark:border-dark-700"
+          >
+            <div class="h-8 w-full animate-pulse rounded bg-gray-200 dark:bg-dark-700">
+            </div>
           </div>
         </div>
       </div>
     </template>
-
     <template v-else-if="!data || data.length === 0">
-      <div class="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-dark-700 dark:bg-dark-900">
+      <div class="table-record p-12 text-center">
         <slot name="empty">
           <div class="flex flex-col items-center">
-            <Icon
-              name="inbox"
-              size="xl"
-              class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500"
-            />
+            <Icon name="inbox" size="xl" class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500" />
             <p class="text-lg font-medium text-gray-900 dark:text-gray-100">
               {{ t('empty.noData') }}
             </p>
@@ -34,39 +56,23 @@
         </slot>
       </div>
     </template>
-
     <template v-else>
-      <div
-        v-if="serverSideSort && sortableColumns.length > 0"
-        class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-dark-700 dark:bg-dark-900"
-        data-test="mobile-sort-controls"
-      >
-        <label class="shrink-0 text-xs font-medium text-gray-500 dark:text-dark-400" :for="mobileSortId">
-          {{ t('common.sort') }}
-        </label>
-        <select
-          :id="mobileSortId"
-          class="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200"
-          :value="sortKey"
-          @change="handleMobileSortKey(($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="column in sortableColumns" :key="column.key" :value="column.key">
-            {{ column.label }}
-          </option>
-        </select>
-        <button
-          type="button"
-          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700"
-          :aria-label="sortOrder === 'asc' ? t('common.sortDescending') : t('common.sortAscending')"
-          :title="sortOrder === 'asc' ? t('common.sortDescending') : t('common.sortAscending')"
-          @click="handleMobileSortOrder"
-        >
-          <span aria-hidden="true">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
-        </button>
-      </div>
       <div v-if="selectable" class="flex items-center justify-end gap-2 px-1">
         <label class="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+          <button
+            v-if="identitySelection"
+            type="button"
+            class="table-id-button"
+            role="checkbox"
+            :aria-checked="allVisibleSelected ? true : someVisibleSelected ? 'mixed' : false"
+            :aria-label="t('common.selectAll')"
+            data-test="select-all-mobile"
+            @click.stop="toggleAllVisible(!allVisibleSelected)"
+          >
+            ID
+          </button>
           <input
+            v-else
             type="checkbox"
             class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
             :checked="allVisibleSelected"
@@ -74,21 +80,27 @@
             data-test="select-all-mobile"
             @change="toggleAllVisible(($event.target as HTMLInputElement).checked)"
           />
-          <span>{{ t('common.selectAll') }}</span>
+          <span>
+            {{ t('common.selectAll') }}
+          </span>
         </label>
       </div>
+      <div v-if="documentPaddingTop" aria-hidden="true" :style="{ height: `${documentPaddingTop}px` }" />
+      <template v-for="{ row, index, gapBefore } in documentRenderRows" :key="resolveRowKey(row, index)">
+      <div v-if="gapBefore" aria-hidden="true" :style="{ height: `${gapBefore}px` }" />
       <div
-        v-for="(row, index) in sortedData"
-        :key="resolveRowKey(row, index)"
-        class="table-card rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+        v-bind="rowAttrs?.(row)"
+        :ref="measureDocumentRow"
+        :data-index="index"
+        class="table-card table-record"
         :class="{
-          'cursor-pointer': clickableRows,
+          'cursor-pointer': clickableRows || hasRowDetails,
           'is-selected border-primary-300 dark:border-primary-700': selectable && isRowSelected(row, index)
         }"
-        @click="clickableRows && emit('rowClick', row)"
+        @click="onRowClick($event, row, index)"
       >
         <div class="space-y-3">
-          <div v-if="selectable" class="flex justify-end">
+          <div v-if="selectable && !identitySelection" class="flex justify-end">
             <input
               type="checkbox"
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
@@ -105,40 +117,115 @@
             :data-field="column.key"
             class="flex min-w-0 items-start justify-between gap-4"
           >
-            <span class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400">
+            <span class="text-xs font-medium text-gray-500 dark:text-dark-400">
               {{ column.label }}
             </span>
             <div class="min-w-0 max-w-full text-right text-sm text-gray-900 dark:text-gray-100">
-              <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]" :expanded="actionsExpanded">
+              <button
+                v-if="identitySelection && column.key === 'id'"
+                type="button"
+                class="table-id-button"
+                role="checkbox"
+                :aria-checked="isRowSelected(row, index)"
+                :aria-label="getRowSelectionLabel(row, index)"
+                data-test="select-row"
+                @click.stop="toggleRowSelection(row, index, !isRowSelected(row, index))"
+              >
+                {{ row.id }}
+              </button>
+              <slot
+                v-else
+                :name="`cell-${column.key}`"
+                :row="row"
+                :value="row[column.key]"
+                :expanded="actionsExpanded"
+              >
                 {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
               </slot>
             </div>
           </div>
-          <div v-if="hasActionsColumn && !columnReordering" class="border-t border-gray-200 pt-3 dark:border-dark-700">
-            <slot name="cell-actions" :row="row" :value="row['actions']" :expanded="actionsExpanded"></slot>
+          <button
+            v-if="hasRowDetails"
+            type="button"
+            class="table-details-toggle"
+            :aria-expanded="isExpanded(row,index)"
+            :aria-controls="`${componentId}-mobile-${index}`"
+            data-test="toggle-details"
+            @click.stop="toggleDetails(row,index)"
+          >
+            {{ t(isExpanded(row,index) ? 'common.collapse' : 'common.expand') }}
+            <Icon :name="isExpanded(row,index) ? 'chevronUp' : 'chevronDown'" size="sm" />
+          </button>
+          <div v-if="hasRowDetails && isExpanded(row,index)" :id="`${componentId}-mobile-${index}`">
+            <slot name="row-details" :row="row" :columns="detailColumns" :render-cell="(column: Column) => renderDetailCell(row, column)">
+              <dl class="table-details-grid">
+                <div v-for="column in detailColumns" :key="column.key" :data-field="column.key">
+                  <dt>
+                    {{ column.label }}
+                  </dt>
+                  <dd>
+                    <slot
+                      :name="`cell-${column.key}`"
+                      :row="row"
+                      :value="row[column.key]"
+                      :expanded="actionsExpanded"
+                    >
+                      {{ column.formatter ? column.formatter(row[column.key],row) : row[column.key] }}
+                    </slot>
+                  </dd>
+                </div>
+              </dl>
+            </slot>
+          </div>
+          <div
+            v-if="hasActionsColumn && !columnReordering"
+            class="border-t border-gray-200 pt-3 dark:border-dark-700"
+          >
+            <slot name="cell-actions" :row="row" :value="row['actions']" :expanded="actionsExpanded">
+            </slot>
           </div>
         </div>
       </div>
+      </template>
+      <div v-if="documentPaddingBottom" aria-hidden="true" :style="{ height: `${documentPaddingBottom}px` }" />
     </template>
   </div>
-
   <div
     v-else
     ref="tableWrapperRef"
     class="table-wrapper"
     :class="{
+      'is-open': open,
       'actions-expanded': actionsExpanded,
       'is-scrollable': isScrollable
     }"
   >
-    <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
+    <table
+      class="w-full divide-y divide-gray-200 dark:divide-dark-700"
+      :aria-rowcount="sortedData.length + 1"
+      :class="{ 'open-data-table': open }"
+      :style="open ? { minWidth: `${minimumTableWidth}px` } : undefined"
+    >
+      <colgroup v-if="open">
+        <col v-if="selectable && !identitySelection" style="width:48px">
+        <col v-for="column in mainColumns" :key="column.key" :style="{ width: columnWidth(column.key) }">
+        <col v-if="hasRowDetails" style="width:44px">
+      </colgroup>
       <thead class="table-header">
-        <VueDraggable v-model="draggableHeaderColumns" tag="tr" handle=".table-column-drag-handle"
-          draggable="th[data-column-key]" :disabled="!columnReordering" direction="horizontal"
-          :force-fallback="true" :fallback-on-body="true" :animation="150" :on-move="canMoveHeaderColumn"
+        <VueDraggable
+          v-model="draggableHeaderColumns"
+          tag="tr"
+          handle=".table-column-drag-handle"
+          draggable="th[data-column-key]"
+          :disabled="!columnReordering"
+          direction="horizontal"
+          :force-fallback="true"
+          :fallback-on-body="true"
+          :animation="150"
+          :on-move="canMoveHeaderColumn"
         >
           <th
-            v-if="selectable"
+            v-if="selectable && !identitySelection"
             scope="col"
             class="sticky-header-cell w-11 min-w-11 px-3 py-3 text-center"
           >
@@ -153,13 +240,13 @@
             />
           </th>
           <th
-            v-for="(column, index) in columns"
+            v-for="(column, index) in mainColumns"
             :key="column.key"
             :data-column-key="column.key"
             scope="col"
             :aria-sort="column.sortable ? getColumnAriaSort(column.key) : undefined"
             :class="[
-              'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
+              'sticky-header-cell py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400',
               getAdaptivePaddingClass(),
               { 'is-sortable cursor-pointer': column.sortable },
               getStickyColumnClass(column, index),
@@ -168,21 +255,28 @@
             @click="column.sortable && handleSort(column.key)"
           >
             <div :class="['flex items-center space-x-1', getHeaderContentAlignmentClass(column)]">
-              <button v-if="columnReordering && column.key !== 'select'" type="button"
+              <button
+                v-if="columnReordering && column.key !== 'select'"
+                type="button"
                 class="table-column-drag-handle inline-flex h-6 w-5 shrink-0 touch-none cursor-grab items-center justify-center text-gray-400 hover:text-gray-700 focus-visible:outline focus-visible:outline-2 active:cursor-grabbing dark:hover:text-gray-100"
-                :aria-label="t('common.moveColumn', { column: column.label })" :title="t('common.moveColumn', { column: column.label })"
+                :aria-label="t('common.moveColumn', { column: column.label })"
+                :title="t('common.moveColumn', { column: column.label })"
                 @click.stop
-                @keydown.left.prevent.stop="moveHeaderColumn(column.key, -1)" @keydown.up.prevent.stop="moveHeaderColumn(column.key, -1)"
-                @keydown.right.prevent.stop="moveHeaderColumn(column.key, 1)" @keydown.down.prevent.stop="moveHeaderColumn(column.key, 1)"
-                @keydown.home.prevent.stop="moveHeaderColumn(column.key, -columns.length)" @keydown.end.prevent.stop="moveHeaderColumn(column.key, columns.length)"
-              ><span aria-hidden="true">⋮⋮</span></button>
-              <slot
-                :name="`header-${column.key}`"
-                :column="column"
-                :sort-key="sortKey"
-                :sort-order="sortOrder"
+                @keydown.left.prevent.stop="moveHeaderColumn(column.key, -1)"
+                @keydown.up.prevent.stop="moveHeaderColumn(column.key, -1)"
+                @keydown.right.prevent.stop="moveHeaderColumn(column.key, 1)"
+                @keydown.down.prevent.stop="moveHeaderColumn(column.key, 1)"
+                @keydown.home.prevent.stop="moveHeaderColumn(column.key, -columns.length)"
+                @keydown.end.prevent.stop="moveHeaderColumn(column.key, columns.length)"
               >
-                <span>{{ column.label }}</span>
+                <span aria-hidden="true">
+                  ⋮⋮
+                </span>
+              </button>
+              <slot :name="`header-${column.key}`" :column="column" :sort-key="sortKey" :sort-order="sortOrder">
+                <span>
+                  {{ column.label }}
+                </span>
               </slot>
               <span
                 v-if="column.sortable"
@@ -206,23 +300,41 @@
                   <path d="M5 8L1.5 3.5h7L5 8z" />
                 </svg>
               </span>
+              <button v-if="identitySelection && column.key === 'id'" type="button" class="table-select-all" role="checkbox"
+                :aria-checked="allVisibleSelected ? true : someVisibleSelected ? 'mixed' : false"
+                :aria-label="t('common.selectAll')" :title="t('common.selectAll')" data-test="select-all"
+                @click.stop="toggleAllVisible(!allVisibleSelected)">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path v-if="allVisibleSelected" d="m4 8 3 3 5-6"/><path v-else-if="someVisibleSelected" d="M4 8h8"/></svg>
+              </button>
             </div>
+          </th>
+          <th v-if="hasRowDetails" scope="col" class="table-expand-heading">
+            <span class="sr-only">
+              {{ t('common.expand') }}
+            </span>
           </th>
         </VueDraggable>
       </thead>
-      <tbody class="table-body divide-y divide-gray-200 dark:divide-dark-700">
+      <tbody ref="documentBodyRef" class="table-body divide-y divide-gray-200 dark:divide-dark-700">
         <!-- Loading skeleton -->
-        <tr v-if="loading" v-for="i in 5" :key="i">
-          <td v-if="selectable" class="w-11 min-w-11 px-3 py-4">
-            <div class="mx-auto h-4 w-4 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
-          </td>
-          <td v-for="column in columns" :key="column.key" :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]">
-            <div class="animate-pulse">
-              <div class="h-4 w-3/4 rounded bg-gray-200 dark:bg-dark-700"></div>
+        <tr v-if="loading && !data.length" v-for="i in 5" :key="i">
+          <td v-if="selectable && !identitySelection" class="w-11 min-w-11 px-3 py-4">
+            <div class="mx-auto h-4 w-4 animate-pulse rounded bg-gray-200 dark:bg-dark-700">
             </div>
           </td>
+          <td
+            v-for="column in mainColumns"
+            :key="column.key"
+            :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]"
+          >
+            <div class="animate-pulse">
+              <div class="h-4 w-3/4 rounded bg-gray-200 dark:bg-dark-700">
+              </div>
+            </div>
+          </td>
+          <td v-if="hasRowDetails">
+          </td>
         </tr>
-
         <!-- Empty state -->
         <tr v-else-if="!data || data.length === 0">
           <td
@@ -231,11 +343,7 @@
           >
             <slot name="empty">
               <div class="flex flex-col items-center">
-                <Icon
-                  name="inbox"
-                  size="xl"
-                  class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500"
-                />
+                <Icon name="inbox" size="xl" class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500" />
                 <p class="text-lg font-medium text-gray-900 dark:text-gray-100">
                   {{ t('empty.noData') }}
                 </p>
@@ -243,62 +351,127 @@
             </slot>
           </td>
         </tr>
-
         <!-- Data rows: windowed when large, fully rendered when small (shared row/cell template) -->
         <template v-else>
           <tr v-if="virtualPaddingTop > 0" aria-hidden="true">
-            <td :colspan="tableColumnCount"
-                :style="{ height: virtualPaddingTop + 'px', padding: 0, border: 'none' }">
+            <td
+              :colspan="tableColumnCount"
+              :style="{ height: virtualPaddingTop + 'px', padding: 0, border: 'none' }"
+            >
             </td>
           </tr>
-          <tr
-            v-for="item in renderRows"
-            :key="resolveRowKey(item.row, item.index)"
-            :data-row-id="resolveRowKey(item.row, item.index)"
-            :data-index="item.index"
-            :ref="item.measure ? measureElement : undefined"
-            class="table-row"
-            :class="{
-              'cursor-pointer': clickableRows,
+          <template v-for="item in renderRows" :key="resolveRowKey(item.row, item.index)">
+            <tr v-if="item.gapBefore" aria-hidden="true"><td :colspan="tableColumnCount" :style="{ height: `${item.gapBefore}px`, padding: 0, border: 'none' }" /></tr>
+            <tr
+              v-bind="rowAttrs?.(item.row)"
+              :data-row-id="resolveRowKey(item.row, item.index)"
+              :data-index="item.index"
+              :aria-rowindex="item.index + 2"
+              :ref="open ? measureDocumentRow : item.measure ? measureElement : undefined"
+              class="table-row"
+              :class="{
+              'cursor-pointer': clickableRows || hasRowDetails,
               'is-selected': selectable && isRowSelected(item.row, item.index)
             }"
-            @click="clickableRows && emit('rowClick', item.row)"
-          >
-            <td v-if="selectable" class="w-11 min-w-11 px-3 py-4 text-center">
-              <input
-                type="checkbox"
-                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
-                :checked="isRowSelected(item.row, item.index)"
-                :aria-label="getRowSelectionLabel(item.row, item.index)"
-                data-test="select-row"
-                @click.stop
-                @change="toggleRowSelection(item.row, item.index, ($event.target as HTMLInputElement).checked)"
-              />
-            </td>
-            <td
-              v-for="(column, colIndex) in columns"
-              :key="column.key"
-              :data-column-key="column.key"
-              :class="[
+              @click="onRowClick($event, item.row, item.index)"
+            >
+              <td v-if="selectable && !identitySelection" class="w-11 min-w-11 px-3 py-4 text-center">
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
+                  :checked="isRowSelected(item.row, item.index)"
+                  :aria-label="getRowSelectionLabel(item.row, item.index)"
+                  data-test="select-row"
+                  @click.stop
+                  @change="toggleRowSelection(item.row, item.index, ($event.target as HTMLInputElement).checked)"
+                />
+              </td>
+              <td
+                v-for="(column, colIndex) in mainColumns"
+                :key="column.key"
+                :data-column-key="column.key"
+                :class="[
                 'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
                 getAdaptivePaddingClass(),
                 getStickyColumnClass(column, colIndex),
                 column.class
               ]"
+              >
+                <button
+                  v-if="identitySelection && column.key === 'id'"
+                  type="button"
+                  class="table-id-button"
+                  role="checkbox"
+                  :aria-checked="isRowSelected(item.row, item.index)"
+                  :aria-label="getRowSelectionLabel(item.row, item.index)"
+                  data-test="select-row"
+                  @click.stop="toggleRowSelection(item.row,item.index,!isRowSelected(item.row,item.index))"
+                >
+                  <slot name="cell-id" :row="item.row" :value="item.row.id">
+                    {{ item.row.id }}
+                  </slot>
+                </button>
+                <slot
+                  v-else
+                  :name="`cell-${column.key}`"
+                  :row="item.row"
+                  :value="item.row[column.key]"
+                  :expanded="actionsExpanded"
+                >
+                  {{ column.formatter
+                  ? column.formatter(item.row[column.key], item.row)
+                  : item.row[column.key] }}
+                </slot>
+              </td>
+              <td v-if="hasRowDetails" class="table-expand-cell">
+                <button
+                  type="button"
+                  class="table-details-toggle"
+                  :aria-label="t(isExpanded(item.row,item.index) ? 'common.collapse' : 'common.expand')"
+                  :aria-expanded="isExpanded(item.row,item.index)"
+                  :aria-controls="`${componentId}-details-${item.index}`"
+                  data-test="toggle-details"
+                  @click.stop="toggleDetails(item.row,item.index)"
+                >
+                  <Icon :name="isExpanded(item.row,item.index) ? 'chevronUp' : 'chevronDown'" size="sm" />
+                </button>
+              </td>
+            </tr>
+            <tr
+              v-if="hasRowDetails && isExpanded(item.row,item.index)"
+              :ref="open ? measureDocumentRow : undefined"
+              data-document-detail
+              class="table-detail-row"
+              :id="`${componentId}-details-${item.index}`"
             >
-              <slot :name="`cell-${column.key}`"
-                    :row="item.row"
-                    :value="item.row[column.key]"
-                    :expanded="actionsExpanded">
-                {{ column.formatter
-                   ? column.formatter(item.row[column.key], item.row)
-                   : item.row[column.key] }}
-              </slot>
-            </td>
-          </tr>
+              <td :colspan="tableColumnCount">
+                <slot name="row-details" :row="item.row" :columns="detailColumns" :render-cell="(column: Column) => renderDetailCell(item.row, column)">
+                  <dl class="table-details-grid">
+                    <div v-for="column in detailColumns" :key="column.key" :data-field="column.key">
+                      <dt>
+                        {{ column.label }}
+                      </dt>
+                      <dd>
+                        <slot
+                          :name="`cell-${column.key}`"
+                          :row="item.row"
+                          :value="item.row[column.key]"
+                          :expanded="actionsExpanded"
+                        >
+                          {{ column.formatter ? column.formatter(item.row[column.key],item.row) : item.row[column.key] }}
+                      </slot>
+                    </dd>
+                  </div>
+                </dl>
+                </slot>
+              </td>
+            </tr>
+          </template>
           <tr v-if="virtualPaddingBottom > 0" aria-hidden="true">
-            <td :colspan="tableColumnCount"
-                :style="{ height: virtualPaddingBottom + 'px', padding: 0, border: 'none' }">
+            <td
+              :colspan="tableColumnCount"
+              :style="{ height: virtualPaddingBottom + 'px', padding: 0, border: 'none' }"
+            >
             </td>
           </tr>
         </template>
@@ -308,16 +481,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch, nextTick, getCurrentInstance } from 'vue'
+import { inject, type Ref, computed, ref, onMounted, onUnmounted, watch, nextTick, getCurrentInstance, useId, useSlots } from 'vue'
 import { useVirtualizer, observeElementRect as observeElementRectDefault } from '@tanstack/vue-virtual'
 import { useI18n } from 'vue-i18n'
-import type { Column } from './types'
+import { defaultPrimaryColumnKeys, type Column } from './types'
 import Icon from '@/components/icons/Icon.vue'
+import TableSortControl from './TableSortControl.vue'
 import ColumnSettings from './ColumnSettings.vue'
 import { useTableColumns } from '@/composables/useTableColumns'
+import { useDocumentRows } from '@/composables/useDocumentRows'
 import { VueDraggable } from 'vue-draggable-plus'
 
 const { t } = useI18n()
+const inheritedToolbarTarget = inject<Ref<HTMLElement | null> | null>('tableToolbarTarget', null)
+const inheritedActionsTarget = inject<Ref<HTMLElement | null> | null>('tableActionsTarget', null)
+const toolbarReady = ref(false)
+onMounted(async () => { await nextTick(); toolbarReady.value = true })
+const resolvedToolbarTarget = computed(() => {
+  if (!toolbarReady.value) return undefined
+  const target = props.toolbarTarget || inheritedToolbarTarget?.value
+  return typeof target === 'string' ? document.querySelector(target) || undefined : target || undefined
+})
+const resolvedActionsTarget = computed(() => toolbarReady.value ? inheritedActionsTarget?.value : undefined)
 
 const desktopViewportQuery = '(min-width: 768px)'
 const isDesktopViewport = ref(
@@ -361,6 +546,10 @@ const observeElementRectNonZero = (
 // 检查是否可滚动
 const checkScrollable = () => {
   if (tableWrapperRef.value) {
+    wrapperWidth.value = Math.floor(Math.min(
+      tableWrapperRef.value.clientWidth,
+      tableWrapperRef.value.getBoundingClientRect().width
+    )) || 1080
     isScrollable.value = tableWrapperRef.value.scrollWidth > tableWrapperRef.value.clientWidth
   }
 }
@@ -480,9 +669,17 @@ onUnmounted(() => {
 
 interface Props {
   columns: Column[]
+  /** Open document flow; false is reserved for explicitly bounded workspaces. */
+  open?: boolean
+  /** Business fields to keep in the main row; other visible fields expand below it. */
+  primaryColumns?: string[]
+  /** Existing filter bar target. Keeps sort and column controls in the same toolbar. */
+  toolbarTarget?: string | HTMLElement | null
   /** Stable table identity for locally managed column preferences. */
   columnOrderKey?: string
   data: any[]
+  /** Additional DOM hooks without changing row identity or behavior. */
+  rowAttrs?: (row: any) => Record<string, unknown>
   loading?: boolean
   stickyFirstColumn?: boolean
   stickyActionsColumn?: boolean
@@ -526,6 +723,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
+  open: true,
   stickyFirstColumn: true,
   stickyActionsColumn: true,
   expandableActions: true,
@@ -535,37 +733,37 @@ const props = withDefaults(defineProps<Props>(), {
   selectedKeys: () => []
 })
 
-const requiredColumnKeys = [props.columns.find(column => column.key !== 'select')?.key, 'actions'].filter((key): key is string => !!key)
+const requiredColumnKeys = computed(() => props.columns.some(column => typeof column.primary === 'boolean')
+  ? props.selectable ? ['id'] : []
+  : [props.columns.find(column => column.key !== 'select')?.key, 'id', 'actions'].filter((key): key is string => !!key))
 const {
   columns: localColumns, orderedColumns: localOrderedColumns, hiddenColumns: localHiddenColumns,
   toggleColumn: toggleLocalColumn, setColumnOrder: setLocalColumnOrder, resetColumns: resetLocalColumns
-} = useTableColumns(props.columnOrderKey ?? '', () => props.columns, { fixed: ['select'], required: requiredColumnKeys })
-const columns = computed(() => props.columnOrderKey ? localColumns.value : props.columns)
+} = useTableColumns(props.columnOrderKey ?? '', () => props.columns, { fixed: ['select'], required: requiredColumnKeys, primary: () => props.primaryColumns })
 const controlledColumnOrder = !!getCurrentInstance()?.vnode.props?.onColumnReorder
-const columnReordering = computed(() => !!props.columnOrderKey || controlledColumnOrder)
+const columns = computed(() => controlledColumnOrder && !props.columnOrderKey ? props.columns : localColumns.value)
+const columnReordering = computed(() => true)
 function applyColumnOrder(keys: string[]) {
-  if (props.columnOrderKey) setLocalColumnOrder(keys)
+  if (!controlledColumnOrder || props.columnOrderKey) setLocalColumnOrder(keys)
   emit('columnReorder', keys)
 }
-const draggableHeaderColumns = computed({
-  get: () => columns.value,
-  set: columns => applyColumnOrder(columns.map(column => column.key))
-})
+function applyMainColumnOrder(moved: Column[]) {
+  const keys = moved.map(column => column.key).filter(key => key !== 'select' && columns.value.some(column => column.key === key))
+  let index = 0
+  applyColumnOrder(columns.value.map(column => keys.includes(column.key) ? keys[index++]! : column.key))
+}
+const draggableHeaderColumns = computed({ get: () => mainColumns.value, set: applyMainColumnOrder })
 function canMoveHeaderColumn(event: { related: HTMLElement; dragged: HTMLElement }) {
   return event.related.dataset.columnKey !== 'select' && event.dragged.dataset.columnKey !== 'select'
 }
-function reorderHeader(from: number, to: number) {
-  const keys = columns.value.map(column => column.key)
-  if (from < 0 || to < 0 || from === to || keys[from] === 'select' || keys[to] === 'select') return
-  keys.splice(to, 0, keys.splice(from, 1)[0]!)
-  applyColumnOrder(keys)
-}
 async function moveHeaderColumn(key: string, delta: number) {
-  const keys = columns.value.map(column => column.key)
-  const from = keys.indexOf(key)
-  const min = keys[0] === 'select' ? 1 : 0
-  const to = Math.max(min, Math.min(keys.length - 1, from + delta))
-  reorderHeader(from, to)
+  if (key === 'select') return
+  const movable = mainColumns.value.filter(column => column.key !== 'select')
+  const from = movable.findIndex(column => column.key === key)
+  const to = Math.max(0, Math.min(movable.length - 1, from + delta))
+  if (from < 0 || from === to) return
+  movable.splice(to, 0, movable.splice(from, 1)[0]!)
+  applyMainColumnOrder(movable)
   await nextTick()
   Array.from(tableWrapperRef.value?.querySelectorAll<HTMLElement>('th[data-column-key]') ?? [])
     .find(cell => cell.dataset.columnKey === key)?.querySelector('button')?.focus()
@@ -721,7 +919,62 @@ const resolveStableRowKey = (row: any): string | number | undefined => {
 
 const resolveRowKey = (row: any, index: number) => resolveStableRowKey(row) ?? index
 
-const dataColumns = computed(() => columns.value.filter(column => column.key !== 'select' && (columnReordering.value || column.key !== 'actions')))
+const identitySelection = computed(() => props.selectable && props.data.length > 0 && props.data.every(row => ['string', 'number'].includes(typeof row?.id) && resolveStableRowKey(row) !== undefined))
+const mainColumns = computed(() => {
+  const available = columns.value
+  let primary = available.filter(column => column.primary !== false)
+  if (!available.some(column => typeof column.primary === 'boolean')) {
+    const defaults = props.primaryColumns ? new Set(props.primaryColumns) : defaultPrimaryColumnKeys(available)
+    primary = available.filter(column => defaults.has(column.key) || requiredColumnKeys.value.includes(column.key))
+  }
+  if (identitySelection.value) {
+    const id = available.find(column => column.key === 'id') || { key: 'id', label: 'ID' }
+    primary = primary.filter(column => column.key !== 'select')
+    if (!primary.some(column => column.key === 'id')) primary.unshift(id)
+  }
+  return primary
+})
+const detailColumns = computed(() => columns.value.filter(column => !mainColumns.value.some(main => main.key === column.key) && !(identitySelection.value && column.key === 'select')))
+const slots = useSlots()
+const hasRowDetails = computed(() => detailColumns.value.length > 0 || Boolean(slots['row-details']))
+function renderDetailCell(row: any, column: Column) {
+  const value = row[column.key]
+  return slots[`cell-${column.key}`]?.({ row, value, expanded: actionsExpanded.value })
+    ?? (column.formatter ? column.formatter(value, row) : value)
+}
+const dataColumns = computed(() => mainColumns.value.filter(column => column.key !== 'select'))
+const expandedRows = ref(new Set<string | number>())
+const componentId = useId()
+const isExpanded = (row: any, index: number) => expandedRows.value.has(resolveRowKey(row, index))
+function toggleDetails(row: any, index: number) {
+  const key = resolveRowKey(row, index)
+  const next = new Set(expandedRows.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedRows.value = next
+}
+function onRowClick(event: MouseEvent, row: any, index: number) {
+  if (event.target instanceof Element && event.target.closest('button,a,input,select,textarea,label,[role="button"],[role="switch"],[role="checkbox"],[contenteditable="true"]')) return
+  if (window.getSelection()?.type === 'Range') return
+  if (props.clickableRows) emit('rowClick', row)
+  else if (hasRowDetails.value) toggleDetails(row, index)
+}
+watch(() => props.data, data => {
+  if (data.some(row => resolveStableRowKey(row) === undefined)) { expandedRows.value = new Set(); return }
+  const visible = new Set(data.map((row, index) => resolveRowKey(row, index)))
+  expandedRows.value = new Set([...expandedRows.value].filter(key => visible.has(key)))
+})
+const wrapperWidth = ref(1080)
+const fixedColumnWidth = (key: string) => columns.value.find(column => column.key === key)?.width ?? (key === 'select' ? 48 : key === 'id' ? 112 : ['status', 'enabled'].includes(key) ? 120 : key === 'actions' ? Math.max(168, (props.actionsCount || 0) * 36 + 24) : 0)
+const columnWeight = (key: string) => columns.value.find(column => column.key === key)?.weight ?? (['name', 'email', 'model'].includes(key) ? 1.8 : ['group', 'groups', 'usage', 'key'].includes(key) ? 1.4 : 1)
+const minimumTableWidth = computed(() => mainColumns.value.reduce((sum, column) => sum + (column.minWidth ?? (fixedColumnWidth(column.key) || 140)), hasRowDetails.value ? 44 : 0) + (props.selectable && !identitySelection.value ? 48 : 0))
+function columnWidth(key: string) {
+  const fixed = fixedColumnWidth(key)
+  if (fixed) return `${fixed}px`
+  const fixedTotal = mainColumns.value.reduce((sum, column) => sum + fixedColumnWidth(column.key), hasRowDetails.value ? 44 : 0) + (props.selectable && !identitySelection.value ? 48 : 0)
+  const totalWeight = mainColumns.value.reduce((sum, column) => sum + (fixedColumnWidth(column.key) ? 0 : columnWeight(column.key)), 0)
+  return `${Math.max(0, Math.max(wrapperWidth.value, minimumTableWidth.value) - fixedTotal) * columnWeight(key) / Math.max(1, totalWeight)}px`
+}
 const sortColumnLabels = new Map<string, string>()
 watch(() => props.columns, incoming => {
   incoming.forEach(column => { if (column.sortable) sortColumnLabels.set(column.key, column.label) })
@@ -734,9 +987,8 @@ const sortableColumns = computed(() => {
   }
   return visible
 })
-const mobileSortId = 'mobile-sort'
 const columnsSignature = computed(() =>
-  columns.value.map((column) => `${column.key}:${column.sortable ? '1' : '0'}`).join('|')
+  columns.value.map((column) => `${column.key}:${column.sortable ? '1' : '0'}:${column.primary === false ? 'detail' : 'main'}`).join('|')
 )
 
 watch(
@@ -814,7 +1066,7 @@ const sortedData = computed(() => {
     .map(item => item.row)
 })
 
-const tableColumnCount = computed(() => columns.value.length + (props.selectable ? 1 : 0))
+const tableColumnCount = computed(() => mainColumns.value.length + (props.selectable && !identitySelection.value ? 1 : 0) + (hasRowDetails.value ? 1 : 0))
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
 const visibleRowKeys = computed(() =>
   (sortedData.value ?? []).map((row, index) => resolveRowKey(row, index))
@@ -864,7 +1116,7 @@ const toggleAllVisible = (checked: boolean) => {
 // 是否启用虚拟化:仅桌面端且行数超过阈值时开启。小列表全量渲染,彻底绕开虚拟器的
 // 估算/测量/滚动补偿链路,消除可变行高导致的滚动抖动。
 const shouldVirtualize = computed(() =>
-  isDesktopViewport.value && (sortedData.value?.length ?? 0) > (props.virtualizeThreshold ?? 100)
+  !props.open && isDesktopViewport.value && (sortedData.value?.length ?? 0) > (props.virtualizeThreshold ?? 100)
 )
 
 const rowVirtualizer = useVirtualizer(computed(() => ({
@@ -886,14 +1138,27 @@ const rowVirtualizer = useVirtualizer(computed(() => ({
   useAnimationFrameWithResizeObserver: true,
 })))
 
+const documentBodyRef = ref<HTMLElement | null>(null)
+const {
+  rendered: documentRenderRows,
+  paddingTop: documentPaddingTop,
+  paddingBottom: documentPaddingBottom,
+  measure: measureDocumentRow
+} = useDocumentRows(
+  sortedData, documentBodyRef, resolveRowKey,
+  computed(() => props.open),
+  () => isDesktopViewport.value ? props.estimateRowHeight ?? 80 : 320
+)
 const virtualItems = computed(() => rowVirtualizer.value.getVirtualItems())
 
 const virtualPaddingTop = computed(() => {
+  if (props.open) return documentPaddingTop.value
   const items = virtualItems.value
   return items.length > 0 ? items[0].start : 0
 })
 
 const virtualPaddingBottom = computed(() => {
+  if (props.open) return documentPaddingBottom.value
   const items = virtualItems.value
   if (items.length === 0) return 0
   return rowVirtualizer.value.getTotalSize() - items[items.length - 1].end
@@ -946,7 +1211,8 @@ watch(
 
 // 统一的渲染行列表:虚拟化开启时只取窗口内的行(需 measure 交给虚拟器测量),
 // 关闭时取全部行(无需测量)。模板据此渲染,两种模式共用同一套单元格结构。
-const renderRows = computed<Array<{ index: number; row: any; measure: boolean }>>(() => {
+const renderRows = computed<Array<{ index: number; row: any; measure: boolean; gapBefore?: number }>>(() => {
+  if (props.open) return documentRenderRows.value.map(item => ({ ...item, measure: true }))
   const data = sortedData.value ?? []
   if (shouldVirtualize.value) {
     return virtualItems.value.map(vr => ({ index: vr.index, row: data[vr.index], measure: true }))
@@ -955,7 +1221,7 @@ const renderRows = computed<Array<{ index: number; row: any; measure: boolean }>
 })
 
 const hasActionsColumn = computed(() => {
-  return columns.value.some(column => column.key === 'actions')
+  return mainColumns.value.some(column => column.key === 'actions')
 })
 
 const hasSelectColumn = computed(() => {
@@ -964,6 +1230,7 @@ const hasSelectColumn = computed(() => {
 
 // 生成固定列的 CSS 类
 const getStickyColumnClass = (column: Column, index: number) => {
+  if (props.open) return ''
   const classes: string[] = []
 
   if (props.stickyFirstColumn) {
@@ -992,7 +1259,7 @@ const getStickyColumnClass = (column: Column, index: number) => {
 
 // 根据列数自适应调整内边距
 const getAdaptivePaddingClass = () => {
-  const columnCount = columns.value.length
+  const columnCount = mainColumns.value.length
 
   // 列数越多，内边距越小
   if (columnCount >= 10) {
@@ -1250,4 +1517,166 @@ div.table-wrapper:focus-within {
     scrollbar-width: thin;
   }
 }
+
+.table-tools {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:16px;
+  margin-bottom:12px;
+}
+
+.table-tools > .workspace-sort-control { width: 12rem; flex: 1 1 10rem; max-width: 16rem; }
+
+.table-wrapper.is-open {
+  flex:none;
+  overflow-x:auto;
+  overflow-y:hidden;
+  min-width:0;
+}
+
+.open-data-table {
+  table-layout:fixed;
+}
+
+.is-open .table-body, .is-open .table-row, .is-open .table-header, .is-open .sticky-header-cell {
+  background:transparent;
+}
+
+.is-open .table-header, .is-open .sticky-header-cell {
+  position:static;
+}
+
+.is-open .table-row:hover {
+  background:var(--theme-hover);
+}
+
+.is-open .table-row.is-selected, .table-record.is-selected {
+  background:var(--theme-selected);
+}
+
+.is-open th {
+  text-transform:none;
+  letter-spacing:normal;
+  border-bottom:1px solid var(--theme-border);
+  color:var(--theme-muted);
+}
+
+.is-open td {
+  white-space:normal;
+  overflow-wrap:anywhere;
+  border-bottom:1px solid var(--theme-border);
+  vertical-align:middle;
+}
+
+.is-open td :deep(.whitespace-nowrap) {
+  white-space:normal;
+}
+
+.is-open td :deep(.flex) {
+  min-width:0;
+}
+
+.table-record {
+  border-top:1px solid var(--theme-border);
+  padding:20px 0;
+  background:transparent;
+  border-radius:0;
+  min-width:0;
+}
+
+.table-record:last-child {
+  border-bottom:1px solid var(--theme-border);
+}
+
+.table-select-all { display:inline-flex;flex:none;width:24px;height:28px;align-items:center;justify-content:center; }
+
+.table-id-button {
+  min-width:40px;
+  min-height:32px;
+  border-radius:3px;
+  font-variant-numeric:tabular-nums;
+  text-align:left;
+  padding:4px 6px;
+  margin-left:-6px;
+  color:var(--theme-muted);
+}
+
+.table-id-button:hover {
+  background:var(--theme-hover);
+  color:var(--theme-foreground);
+}
+
+.table-id-button[aria-checked="true"], .table-id-button[aria-checked="mixed"] {
+  background:var(--theme-selected);
+  color:var(--theme-foreground);
+  outline:1px solid var(--ritel-control-border);
+}
+
+.table-details-toggle {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-width:32px;
+  min-height:32px;
+  color:var(--theme-muted);
+}
+
+.table-details-toggle:hover {
+  color:var(--theme-foreground);
+}
+
+.table-expand-heading {
+  position:relative;
+}
+
+.table-expand-cell {
+  padding:6px!important;
+}
+
+.table-detail-row > td {
+  padding:24px 16px 28px;
+}
+
+.table-details-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:24px 32px;
+}
+
+.table-details-grid > div {
+  min-width:0;
+}
+
+.table-details-grid dt {
+  margin-bottom:8px;
+  font-size:12px;
+  color:var(--theme-muted);
+}
+
+.table-details-grid dd {
+  min-width:0;
+  margin:0;
+  font-size:14px;
+  overflow-wrap:anywhere;
+}
+
+@media(max-width:767px) {
+  .table-tools {
+    gap:8px;
+  }
+
+  .table-details-grid {
+    grid-template-columns:1fr;
+    gap:18px;
+  }
+
+  .table-card [data-field] {
+    overflow-wrap:anywhere;
+  }
+
+}
+.table-tools.is-inline { margin: 0; padding: 0; }
 </style>

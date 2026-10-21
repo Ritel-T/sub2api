@@ -4,7 +4,8 @@ import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import LogRetentionSelect from './LogRetentionSelect.vue'
 import { opsAPI, type OpsRuntimeLogConfig, type OpsSystemLog, type OpsSystemLogSinkHealth } from '@/api/admin/ops'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import Select from '@/components/common/Select.vue'
 import { useAppStore } from '@/stores'
 import { extractApiErrorMessage } from '@/utils/apiError'
@@ -23,11 +24,14 @@ const props = withDefaults(defineProps<{
   refreshToken: 0
 })
 
-const loading = ref(false)
-const logs = ref<OpsSystemLog[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
+let logQuery: Record<string, any> = {}
+let appliedLogQuery: Record<string, any> = {}
+const list = useInfiniteList<OpsSystemLog>({
+  pageSize: 50,
+  keyOf: row => row.id,
+  fetchPage: page => opsAPI.listSystemLogs({ ...logQuery, page, page_size: 50 })
+})
+const { items: logs, loading, loadingMore, refreshing, error, hasMore } = list
 
 const health = ref<OpsSystemLogSinkHealth>({
   queue_depth: 0,
@@ -175,8 +179,6 @@ const toRFC3339 = (value: string) => {
 
 const buildQuery = () => {
   const query: Record<string, any> = {
-    page: page.value,
-    page_size: pageSize.value,
     time_range: filters.time_range
   }
 
@@ -208,18 +210,23 @@ const buildQuery = () => {
   return query
 }
 
-const fetchLogs = async () => {
-  loading.value = true
-  try {
-    const res = await opsAPI.listSystemLogs(buildQuery())
-    logs.value = res.items || []
-    total.value = res.total || 0
-  } catch (err: any) {
-    console.error('[OpsSystemLogTable] Failed to fetch logs', err)
-    appStore.showError(err?.response?.data?.detail || t('admin.ops.systemLogs.loadFailed'))
-  } finally {
-    loading.value = false
+function anchorLogQuery(query: Record<string, any>) {
+  const anchored = { ...query }
+  const duration = /^(\d+)(m|h|d)$/.exec(String(query.time_range))
+  if (duration && !query.start_time && !query.end_time) {
+    const end = Date.now()
+    const unit = duration[2] === 'd' ? 86400000 : duration[2] === 'h' ? 3600000 : 60000
+    anchored.start_time = new Date(end - Number(duration[1]) * unit).toISOString()
+    anchored.end_time = new Date(end).toISOString()
+    delete anchored.time_range
   }
+  return anchored
+}
+
+const fetchLogs = async () => {
+  appliedLogQuery = buildQuery()
+  logQuery = anchorLogQuery(appliedLogQuery)
+  await list.reset()
 }
 
 const fetchHealth = async () => {
@@ -328,7 +335,6 @@ const cleanupCurrentFilter = async () => {
     }
     const res = await opsAPI.cleanupSystemLogs(payload)
     appStore.showSuccess(t('admin.ops.systemLogs.cleanupSuccess', { count: res.deleted || 0 }))
-    page.value = 1
     await Promise.all([fetchLogs(), fetchHealth()])
   } catch (err: any) {
     console.error('[OpsSystemLogTable] Failed to cleanup logs', err)
@@ -355,36 +361,23 @@ const resetFilters = () => {
   filters.platform = props.platformFilter || ''
   filters.model = ''
   filters.q = ''
-  page.value = 1
   fetchLogs()
 }
 
 watch(() => props.platformFilter, (v) => {
   if (v && !filters.platform) {
     filters.platform = v
-    page.value = 1
     fetchLogs()
   }
 })
 
 watch(() => props.refreshToken, () => {
-  fetchLogs()
+  logQuery = anchorLogQuery(appliedLogQuery)
+  void list.refresh()
   fetchHealth()
 })
 
-const onPageChange = (next: number) => {
-  page.value = next
-  fetchLogs()
-}
-
-const onPageSizeChange = (next: number) => {
-  pageSize.value = next
-  page.value = 1
-  fetchLogs()
-}
-
 const applyFilters = () => {
-  page.value = 1
   fetchLogs()
 }
 
@@ -399,7 +392,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-900/60">
+  <section class="open-section">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('admin.ops.systemLogs.title') }}</h3>
@@ -413,7 +406,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-800/70">
+    <div class="open-section mb-4">
       <div class="mb-2 flex items-center justify-between">
         <div class="text-xs font-semibold text-gray-700 dark:text-gray-200">{{ t('admin.ops.systemLogs.runtimeConfig') }}</div>
         <span v-if="runtimeLoading" class="text-xs text-gray-500">{{ t('common.loading') }}</span>
@@ -542,7 +535,7 @@ onMounted(async () => {
       <button type="button" class="btn btn-secondary btn-sm" @click="fetchHealth">{{ t('admin.ops.systemLogs.refreshHealth') }}</button>
     </div>
 
-    <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-dark-700">
+    <div class="open-section overflow-hidden">
       <div v-if="loading" class="px-4 py-8 text-center text-sm text-gray-500">{{ t('common.loading') }}</div>
       <div v-else-if="!hasData" class="px-4 py-8 text-center text-sm text-gray-500">{{ t('admin.ops.systemLogs.empty') }}</div>
       <div v-else-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
@@ -589,12 +582,12 @@ onMounted(async () => {
           </tbody>
         </table>
       </div>
-      <Pagination
-        :total="total"
-        :page="page"
-        :page-size="pageSize"
-        @update:page="onPageChange"
-        @update:page-size="onPageSizeChange"
+      <InfiniteListSentinel
+        :loading="loading || loadingMore || refreshing"
+        :error="error"
+        :has-more="hasMore"
+        @load-more="list.loadMore"
+        @retry="list.retry"
       />
     </div>
   </section>

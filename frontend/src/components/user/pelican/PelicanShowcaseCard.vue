@@ -1,7 +1,7 @@
 <template>
   <article
     ref="cardRef"
-    class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/70 shadow-card backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:border-gray-300 hover:shadow-card-hover dark:border-dark-700/70 dark:bg-dark-800/60 dark:hover:border-primary-500/30"
+    class="group relative min-w-0 border-t border-gray-200 py-4 dark:border-dark-700"
     data-testid="pelican-showcase-card"
   >
     <div class="relative aspect-[4/3] overflow-hidden border-b border-gray-100 bg-gray-50 dark:border-dark-700/70 dark:bg-dark-900/40">
@@ -18,7 +18,7 @@
       </div>
     </div>
 
-    <div class="flex items-start justify-between gap-3 px-4 py-3">
+    <div class="flex items-start justify-between gap-3 py-3">
       <div class="min-w-0">
         <p class="truncate font-mono text-sm font-medium text-gray-900 dark:text-gray-100" :title="item.model_id">
           {{ item.model_id || '—' }}
@@ -39,7 +39,7 @@
     <!-- The iframe is not interactive content of a button, so a full-card overlay opens the preview. -->
     <button
       type="button"
-      class="absolute inset-0 z-10 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+      class="absolute inset-0 z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
       :aria-label="`${label} · ${t('pelicanShowcase.preview')}`"
       @click="emit('open')"
     />

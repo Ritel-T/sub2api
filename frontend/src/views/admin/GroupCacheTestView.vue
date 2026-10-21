@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="open-page space-y-6">
       <header class="flex flex-wrap items-start justify-between gap-4">
         <div><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('admin.groupCacheTest.title') }}</h1><p class="mt-2 max-w-3xl text-sm text-gray-500 dark:text-gray-400">{{ t('admin.groupCacheTest.description') }}</p></div>
         <button class="btn btn-secondary" :disabled="busy || loading" @click="loadGroups">{{ t('admin.groupCacheTest.reload') }}</button>
@@ -24,7 +24,7 @@
                 <label class="cache-field"><span>{{ t('admin.groupCacheTest.prefix') }}</span><select v-model.number="settings.prefixBlocks" class="input"><option v-for="count in [16, 48, 96, 128]" :key="count" :value="count">{{ t('admin.groupCacheTest.blocks', { count }) }}</option></select></label>
               </div>
               <p class="cache-hint">{{ t('admin.groupCacheTest.prefixHint', { count: prefixLength.toLocaleString() }) }}</p>
-              <details class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+              <details class="open-section">
                 <summary class="cursor-pointer text-sm font-medium">{{ t('admin.groupCacheTest.advanced') }}</summary>
                 <div class="mt-3 space-y-3">
                   <label class="cache-field"><span>{{ t('admin.groupCacheTest.interval') }}</span><input v-model.number="settings.intervalMs" class="input" type="number" min="0" max="10000" step="100" required /></label>
@@ -57,11 +57,21 @@
               </div>
               <p class="cache-hint">{{ t('admin.groupCacheTest.resultHint') }}</p>
               <div class="mt-4 overflow-x-auto">
-                <table class="cache-table"><thead><tr><th>{{ t('admin.groupCacheTest.round') }}</th><th>{{ t('admin.groupCacheTest.input') }}</th><th>{{ t('admin.groupCacheTest.cacheRead') }}</th><th>{{ t('admin.groupCacheTest.cacheWrite') }}</th><th>{{ t('admin.groupCacheTest.hitRate') }}</th><th>{{ t('admin.groupCacheTest.output') }}</th><th>{{ t('admin.groupCacheTest.firstText') }}</th><th>{{ t('admin.groupCacheTest.billed') }}</th></tr></thead><tbody>
-                  <tr v-for="round in selected.rounds" :key="round.index"><td><button class="text-left text-primary-600 underline underline-offset-4" :aria-expanded="detailIndex === round.index" @click="detailIndex = detailIndex === round.index ? null : round.index">{{ round.index === 1 ? t('admin.groupCacheTest.baseline') : t('admin.groupCacheTest.repeat', { index: round.index - 1 }) }}</button><small :class="round.status === 'failed' ? 'text-red-600' : ''">{{ t('admin.groupCacheTest.status.' + round.status) }}</small></td><td>{{ number(round.tokens?.input) }}</td><td>{{ number(round.tokens?.read) }}</td><td>{{ number(round.tokens?.write) }}</td><td>{{ percent(cacheHitRate(round.tokens)) }}</td><td>{{ number(round.tokens?.output) }}</td><td>{{ ms(round.firstTextMs) }}</td><td>{{ money(round.bill?.actualCost) }}<small>{{ t('admin.groupCacheTest.billing.' + round.billingState) }}</small></td></tr>
-                </tbody></table>
+                <DataTable
+ :columns="openRecordColumns"
+ :primary-columns="['round','input','cache_read','hit_rate','billed']"
+ :data="selected.rounds" row-key="index" >
+<template #cell-round="{ row: round }"><div><button class="text-left text-primary-600 underline underline-offset-4" :aria-expanded="detailIndex === round.index" @click="detailIndex = detailIndex === round.index ? null : round.index">{{ round.index === 1 ? t('admin.groupCacheTest.baseline') : t('admin.groupCacheTest.repeat', { index: round.index - 1 }) }}</button><small :class="round.status === 'failed' ? 'text-red-600' : ''">{{ t('admin.groupCacheTest.status.' + round.status) }}</small></div></template>
+<template #cell-input="{ row: round }"><div>{{ number(round.tokens?.input) }}</div></template>
+<template #cell-cache_read="{ row: round }"><div>{{ number(round.tokens?.read) }}</div></template>
+<template #cell-cache_write="{ row: round }"><div>{{ number(round.tokens?.write) }}</div></template>
+<template #cell-hit_rate="{ row: round }"><div>{{ percent(cacheHitRate(round.tokens)) }}</div></template>
+<template #cell-output="{ row: round }"><div>{{ number(round.tokens?.output) }}</div></template>
+<template #cell-first_text="{ row: round }"><div>{{ ms(round.firstTextMs) }}</div></template>
+<template #cell-billed="{ row: round }"><div>{{ money(round.bill?.actualCost) }}<small>{{ t('admin.groupCacheTest.billing.' + round.billingState) }}</small></div></template>
+</DataTable>
               </div>
-              <div v-if="detail" class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-900" data-testid="cache-detail">
+              <div v-if="detail" class="open-section mt-4" data-testid="cache-detail">
                 <h3 class="text-sm font-semibold">{{ t('admin.groupCacheTest.roundDetails', { index: detail.index }) }}</h3>
                 <p v-if="detail.error" role="alert" class="mt-2 text-sm text-red-600">{{ t('admin.groupCacheTest.errors.' + detail.error) }}<span v-if="detail.httpStatus"> · HTTP {{ detail.httpStatus }}</span></p>
                 <dl class="cache-details mt-3"><dt>{{ t('admin.groupCacheTest.requestId') }}</dt><dd class="break-all font-mono text-xs">{{ detail.requestId || t('admin.groupCacheTest.notReported') }}</dd><dt>{{ t('admin.groupCacheTest.modelReturned') }}</dt><dd>{{ detail.responseModel || '—' }}</dd><dt>{{ t('admin.groupCacheTest.tierReturned') }}</dt><dd>{{ detail.serviceTier || t('admin.groupCacheTest.notReported') }}</dd><dt>{{ t('admin.groupCacheTest.duration') }}</dt><dd>{{ ms(detail.durationMs) }}</dd></dl>
@@ -84,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import DataTable from '@/components/common/DataTable.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -207,10 +218,19 @@ watch(() => auth.user?.id, () => {
 })
 onMounted(() => { if (auth.user) history.value = loadCacheHistory(auth.user.id); void loadGroups() })
 onBeforeUnmount(() => { alive = false; generation++; keysController?.abort(); runController?.abort() })
+
+const openRecordColumns = computed(() => [{ key: 'round', label: t('admin.groupCacheTest.round'), sortable: false },
+  { key: 'input', label: t('admin.groupCacheTest.input'), sortable: false },
+  { key: 'cache_read', label: t('admin.groupCacheTest.cacheRead'), sortable: false },
+  { key: 'cache_write', label: t('admin.groupCacheTest.cacheWrite'), sortable: false },
+  { key: 'hit_rate', label: t('admin.groupCacheTest.hitRate'), sortable: false },
+  { key: 'output', label: t('admin.groupCacheTest.output'), sortable: false },
+  { key: 'first_text', label: t('admin.groupCacheTest.firstText'), sortable: false },
+  { key: 'billed', label: t('admin.groupCacheTest.billed'), sortable: false }])
 </script>
 
 <style scoped>
-.cache-panel { @apply min-w-0 rounded-xl border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-800; }
+.cache-panel { @apply min-w-0  p-5   border-t border-gray-200 dark:border-dark-700; }
 .cache-heading { @apply text-base font-semibold text-gray-900 dark:text-gray-100; }
 .cache-field { @apply flex flex-col gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300; }
 .cache-hint { @apply text-xs leading-5 text-gray-500 dark:text-gray-400; }

@@ -1,6 +1,6 @@
 <template>
-  <div class="stat-card">
-    <div :class="['stat-icon', iconClass]">
+  <div class="stat-card open-stat">
+    <div v-if="icon" :class="['stat-icon', iconClass]">
       <component v-if="icon" :is="icon" class="h-6 w-6" aria-hidden="true" />
     </div>
     <div class="min-w-0 flex-1">
@@ -79,3 +79,10 @@ const trendClass = computed(() => {
   return classes[props.changeType]
 })
 </script>
+
+<style scoped>
+.open-stat { background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 1.25rem 0; gap: .75rem; }
+.open-stat .stat-icon { background: transparent; border-radius: 0; width: auto; height: auto; padding: 0; }
+.open-stat .stat-label { white-space: normal; }
+.open-stat .stat-value { overflow-wrap: anywhere; }
+</style>

@@ -1,5 +1,5 @@
 <template>
-  <section class="card p-5" data-testid="harvest-policy-panel">
+  <section class="open-section" data-testid="harvest-policy-panel">
     <div class="mb-4 flex items-center justify-between gap-3">
       <h2 class="text-sm font-semibold">{{ localText('自动打票策略', 'Automatic harvest policy') }}</h2>
       <router-link to="/admin/proxies#harvest" class="text-sm text-primary-600">{{ localText('管理采票出口', 'Manage harvest exit') }}</router-link>
@@ -23,7 +23,7 @@
             v-model="form.openai_codex_ticket_enabled"
           />
         </div>
-        <div class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+        <div class="open-section flex items-center justify-between gap-4">
           <div class="min-w-0">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
               {{ t("admin.settings.gatewayForwarding.codexTicketFailClosed") }}
@@ -37,7 +37,7 @@
             v-model="form.openai_codex_ticket_fail_closed"
           />
         </div>
-        <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+        <div class="open-section">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
             {{ t("admin.settings.gatewayForwarding.codexTicketModels") }}
           </h3>
@@ -65,7 +65,7 @@
               <span>Sol (gpt-5.6-sol)</span>
             </label>
           </div>
-          <fieldset class="mt-3 rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+          <fieldset class="open-section mt-3">
             <legend class="px-1 text-sm font-semibold">{{ localText('自动打票范围', 'Automatic harvest scope') }}</legend>
             <select id="codex-ticket-harvest-scope" v-model="form.openai_codex_ticket_harvest_scope.mode" class="input" @change="changeHarvestScope">
               <option v-if="form.openai_codex_ticket_harvest_scope.mode === 'selected'" value="selected" disabled>{{ localText('旧分组范围（请选择账号范围）', 'Legacy group scope (choose an account scope)') }}</option>
@@ -82,7 +82,7 @@
             <option value="standby">{{ localText('提前准备备用（默认）', 'Prepare standby (default)') }}</option>
             <option value="fixed">{{ localText('固定主用，失效后再采集', 'Keep primary until invalid') }}</option>
           </select>
-          <div class="mt-3 rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+          <div class="open-section mt-3">
             <label class="flex items-center gap-2 text-sm" for="codex-ticket-candy-observation">
               <input id="codex-ticket-candy-observation" type="checkbox" v-model="form.openai_codex_ticket_candy_observation" />
               <span>{{ localText('启用糖果测试验证使用后的票据', 'Enable candy tests to observe tickets after use') }}</span>

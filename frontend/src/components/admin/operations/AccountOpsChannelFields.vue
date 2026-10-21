@@ -28,7 +28,7 @@
       <label v-if="hook.secret_configured && supportsSigning(hook) && !inputs[hook.id]!.url" class="flex items-center gap-2 text-xs text-gray-500">
         <input v-model="inputs[hook.id]!.clearSecret" type="checkbox" :data-testid="`account-ops-webhook-clear-secret-${hook.id}`" />{{ t('accountOps.clearSecret') }}
       </label>
-      <details v-if="detectedProvider(hook) === 'custom'" class="rounded-lg border border-gray-200 p-3 dark:border-dark-600" :open="!!hook.message_template">
+      <details v-if="detectedProvider(hook) === 'custom'" class="open-section" :open="!!hook.message_template">
         <summary class="cursor-pointer text-sm font-medium">{{ t('accountOps.webhookTemplate') }}</summary>
         <div class="mt-3 space-y-3">
           <p class="text-xs leading-5 text-gray-500">{{ t('accountOps.webhookTemplateHint') }}</p>

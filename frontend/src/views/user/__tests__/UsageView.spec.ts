@@ -278,13 +278,13 @@ describe('user UsageView', () => {
     await router.isReady()
     const wrapper = mountUsageView(router)
     await flushPromises()
-    expect(listMyErrorRequests).toHaveBeenLastCalledWith(expect.objectContaining({api_key_id:1,model:'gpt-6',status_code:429,category:'rate_limit',page:3,page_size:50,start_date:'2026-10-10'}))
+    expect(listMyErrorRequests).toHaveBeenLastCalledWith(expect.objectContaining({api_key_id:1,model:'gpt-6',status_code:429,category:'rate_limit',page:1,page_size:50,start_date:'2026-10-10'}))
     const button=wrapper.findAll('button').find(b=>b.text()==='Usage records')!
     await button.trigger('click'); await flushPromises()
     expect(router.currentRoute.value.query).toMatchObject({view:'records',tab:'usage',api_key_id:'1',model:'gpt-6'})
     expect(query).toHaveBeenLastCalledWith(expect.objectContaining({api_key_id:1,model:'gpt-6'}),expect.anything())
     router.back(); await flushPromises()
-    expect(listMyErrorRequests).toHaveBeenLastCalledWith(expect.objectContaining({page:3,status_code:429}))
+    expect(listMyErrorRequests).toHaveBeenLastCalledWith(expect.objectContaining({page:1,status_code:429}))
     wrapper.unmount()
   })
   it('opens billed-usage analysis without a request table and restores a real requested detail', async () => {
@@ -300,13 +300,13 @@ describe('user UsageView', () => {
     wrapper.unmount()
   })
 
-  it('keeps current error results when an older page finishes last', async () => {
+  it('keeps current error results when an older filter request finishes last', async () => {
     let oldResolve!: (result: unknown) => void
     let newResolve!: (result: unknown) => void
     listMyErrorRequests.mockReturnValueOnce(new Promise(resolve => oldResolve=resolve)).mockReturnValueOnce(new Promise(resolve => newResolve=resolve))
     const wrapper=mountUsageView(); await flushPromises()
     await wrapper.findAll('button').find(b=>b.text()==='Error records')!.trigger('click')
-    ;(wrapper.vm as unknown as {onErrorPage:(page:number)=>void}).onErrorPage(2)
+    ;(wrapper.vm as unknown as {applyErrorFilters:()=>void}).applyErrorFilters()
     newResolve({items:[{id:2,model:'latest'}],total:1}); await flushPromises()
     oldResolve({items:[{id:1,model:'obsolete'}],total:10}); await flushPromises()
     expect((wrapper.vm as unknown as {errorRows:{model:string}[]}).errorRows).toEqual([{id:2,model:'latest'}])

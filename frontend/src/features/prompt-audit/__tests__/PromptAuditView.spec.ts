@@ -40,8 +40,8 @@ const EndpointStub = defineComponent({
 })
 const PolicyStub = defineComponent({ props: ['draft', 'groups'], emits: ['update:draft'], template: '<div data-test="policy" />' })
 const EventsStub = defineComponent({
-  props: ['events', 'filters', 'selectedIds', 'loading', 'error', 'total', 'page', 'pageSize'],
-  emits: ['filters-change', 'search', 'selection', 'page', 'page-size', 'view', 'delete', 'batch-delete', 'preview-delete'],
+  props: ['events', 'filters', 'selectedIds', 'loading', 'error', 'hasMore', 'loadingMore'],
+  emits: ['filters-change', 'search', 'selection', 'load-more', 'retry', 'view', 'delete', 'batch-delete', 'preview-delete'],
   template: '<div data-test="events"><button data-test="preview" @click="$emit(\'preview-delete\')">preview</button><button data-test="change-filter" @click="$emit(\'filters-change\', { ...filters, keyword: \'changed\' })">change</button><button data-test="delete-one" @click="$emit(\'delete\', 5)">delete</button><button data-test="select-batch" @click="$emit(\'selection\', [5, 6])">select</button><button data-test="delete-batch" @click="$emit(\'batch-delete\')">batch</button></div>',
 })
 const DetailStub = defineComponent({ props: ['show', 'event', 'loading'], emits: ['close'], template: '<div data-test="detail" />' })
@@ -79,11 +79,74 @@ describe('PromptAuditView', () => {
     expect(mocks.getConfig).toHaveBeenCalledOnce()
     expect(mocks.getRuntime).toHaveBeenCalledOnce()
     expect(mocks.listGroups).toHaveBeenCalledOnce()
-    expect(mocks.listEvents).toHaveBeenCalledOnce()
     await flushPromises()
+    expect(mocks.listEvents).toHaveBeenCalledOnce()
     expect(wrapper.get('[data-test="runtime"]').text()).toContain('runtime offline')
     expect(wrapper.find('[data-test="endpoint"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="events"]').exists()).toBe(true)
+  })
+
+  it('appends events while preserving exact selected IDs for batch deletion', async () => {
+    mocks.listEvents
+      .mockResolvedValueOnce({ items: [{ id: 5 }, { id: 6 }], total: 3, pages: 2 })
+      .mockResolvedValueOnce({ items: [{ id: 7 }], total: 3, pages: 2 })
+    const wrapper = mountView()
+    await flushPromises()
+    const workspace = wrapper.getComponent(EventsStub)
+    workspace.vm.$emit('selection', [5, 6])
+    workspace.vm.$emit('load-more')
+    await flushPromises()
+    expect(workspace.props('events').map((event: { id: number }) => event.id)).toEqual([5, 6, 7])
+    expect(workspace.props('selectedIds')).toEqual([5, 6])
+    expect(mocks.listEvents.mock.calls.at(-1)?.slice(1, 3)).toEqual([2, 50])
+    expect(workspace.props('hasMore')).toBe(false)
+    await wrapper.get('[data-test="delete-batch"]').trigger('click')
+    await wrapper.get('[data-test="confirm-action"]').trigger('click')
+    await flushPromises()
+    expect(mocks.batchDeleteEvents).toHaveBeenCalledWith([5, 6])
+    wrapper.unmount()
+  })
+
+  it('does not merge a late old-filter append and aborts its API request', async () => {
+    let resolveOld!: (value: unknown) => void
+    mocks.listEvents.mockResolvedValueOnce({ items: [{ id: 5 }], total: 3, pages: 3 })
+    const wrapper = mountView()
+    await flushPromises()
+    const workspace = wrapper.getComponent(EventsStub)
+    mocks.listEvents.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
+    workspace.vm.$emit('load-more')
+    await flushPromises()
+    const signal = mocks.listEvents.mock.calls.at(-1)?.[3].signal as AbortSignal
+    mocks.listEvents.mockResolvedValueOnce({ items: [{ id: 9 }], total: 1, pages: 1 })
+    workspace.vm.$emit('search', { ...workspace.props('filters'), keyword: 'new' })
+    await flushPromises()
+    resolveOld({ items: [{ id: 7 }], total: 3, pages: 3 })
+    await flushPromises()
+    expect(signal.aborted).toBe(true)
+    expect(workspace.props('events')).toEqual([{ id: 9 }])
+    expect(mocks.listEvents.mock.calls.at(-1)?.[0].keyword).toBe('new')
+    wrapper.unmount()
+  })
+
+  it('retains the event list on append failure and retries the same batch explicitly', async () => {
+    mocks.listEvents.mockResolvedValueOnce({ items: [{ id: 5 }], total: 2, pages: 2 })
+    const wrapper = mountView()
+    await flushPromises()
+    const workspace = wrapper.getComponent(EventsStub)
+    mocks.listEvents.mockRejectedValueOnce(new Error('events offline'))
+    workspace.vm.$emit('load-more')
+    await flushPromises()
+    expect(workspace.props('events')).toEqual([{ id: 5 }])
+    expect(workspace.props('error')).toBe('events offline')
+    workspace.vm.$emit('load-more')
+    await flushPromises()
+    expect(mocks.listEvents).toHaveBeenCalledTimes(2)
+    mocks.listEvents.mockResolvedValueOnce({ items: [{ id: 6 }], total: 2, pages: 2 })
+    workspace.vm.$emit('retry')
+    await flushPromises()
+    expect(workspace.props('events')).toEqual([{ id: 5 }, { id: 6 }])
+    expect(mocks.listEvents.mock.calls.at(-1)?.slice(1, 3)).toEqual([2, 50])
+    wrapper.unmount()
   })
 
   it('separates configuration and audit events into page tabs', async () => {

@@ -10,7 +10,7 @@ const options = { fixed: ['select'], required: ['name', 'actions'] }
 const keys = (columns: { key: string }[]) => columns.map(column => column.key)
 describe('useTableColumns', () => {
   beforeEach(() => { localStorage.clear(); vi.restoreAllMocks() })
-  it('shows every column in the supplied default order', () => {
+  it('retains every column in the supplied default order', () => {
     const table = useTableColumns('table', defaults, options)
     expect(keys(table.columns.value)).toEqual(keys(defaults))
   })
@@ -26,7 +26,8 @@ describe('useTableColumns', () => {
     const table = useTableColumns('table', defaults, options)
     table.toggleColumn('status')
     table.setColumnOrder(['actions', 'name', 'id'])
-    expect(keys(table.columns.value)).toEqual(['select', 'actions', 'name', 'id'])
+    expect(keys(table.columns.value)).toEqual(['select', 'actions', 'status', 'name', 'id'])
+    expect(table.columns.value.find(column => column.key === 'status')?.primary).toBe(false)
     table.toggleColumn('status')
     expect(keys(table.columns.value)).toEqual(['select', 'actions', 'status', 'name', 'id'])
   })
@@ -50,7 +51,7 @@ describe('useTableColumns', () => {
     expect(keys(table.columns.value)).toEqual(['select', 'attr_7', 'name', 'actions', 'status', 'id'])
   })
 
-  it('restores all columns and default order and persists the reset', () => {
+  it('restores default main columns and order and persists the reset', () => {
     const table = useTableColumns('table', defaults, options)
     table.moveColumn('actions', 'name')
     table.toggleColumn('status')
@@ -64,6 +65,34 @@ describe('useTableColumns', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('full') })
     const table = useTableColumns('table', defaults, options)
     expect(() => table.toggleColumn('status')).not.toThrow()
-    expect(keys(table.columns.value)).not.toContain('status')
+    expect(table.columns.value.find(column => column.key === 'status')?.primary).toBe(false)
+  })
+
+  it('persists main-row promotion and demotion while keeping all detail fields available to data loaders', () => {
+    const source = [...defaults, { key: 'notes', label: 'Notes' }]
+    const config = { ...options, primary: ['name', 'status', 'actions'] }
+    const table = useTableColumns('details', source, config)
+    expect(table.hiddenColumns.has('notes')).toBe(true)
+    expect(table.isColumnVisible('notes')).toBe(true)
+    expect(table.isColumnVisible('missing')).toBe(false)
+    table.toggleColumn('notes')
+    table.toggleColumn('status')
+    const reopened = useTableColumns('details', source, config)
+    expect(reopened.isColumnPrimary('notes')).toBe(true)
+    expect(reopened.isColumnPrimary('status')).toBe(false)
+    expect(keys(reopened.columns.value)).toEqual(keys(source))
+    reopened.resetColumns()
+    expect(reopened.isColumnPrimary('notes')).toBe(false)
+    expect(reopened.isColumnPrimary('status')).toBe(true)
+  })
+
+  it('migrates old hide-only preferences to compact defaults while retaining saved ordering', () => {
+    localStorage.setItem('legacy', JSON.stringify({ order: ['actions', 'name', 'status'], hidden: ['status'] }))
+    const table = useTableColumns('legacy', [...defaults, { key: 'notes', label: 'Notes' }], { ...options, primary: ['name', 'status', 'actions'] })
+    expect(table.isColumnPrimary('status')).toBe(true)
+    expect(table.isColumnPrimary('notes')).toBe(false)
+    expect(keys(table.columns.value)).toEqual(['select', 'actions', 'name', 'status', 'id', 'notes'])
+    table.toggleColumn('notes')
+    expect(JSON.parse(localStorage.getItem('legacy')!).version).toBe(2)
   })
 })

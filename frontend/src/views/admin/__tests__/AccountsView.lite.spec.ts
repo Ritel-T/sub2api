@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 
 import AccountsView from '../AccountsView.vue'
 import UpstreamBillingRateCell from '@/components/account/UpstreamBillingRateCell.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 
 const {
   getBorrowRuntime,
@@ -19,6 +21,7 @@ const {
   probeUpstreamBilling,
   getAllProxies,
   getAllGroups,
+  deleteAccount,
   refreshCredentials,
   showError,
   showWarning
@@ -34,6 +37,7 @@ const {
   probeUpstreamBilling: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn(),
+  deleteAccount: vi.fn(),
   refreshCredentials: vi.fn(),
   showError: vi.fn(),
   showWarning: vi.fn()
@@ -50,7 +54,7 @@ vi.mock('@/api/admin', () => ({
       getUpstreamBillingProbeSettings,
       getUpstreamBillingRatesWithEtag,
       probeUpstreamBilling,
-      delete: vi.fn(),
+      delete: deleteAccount,
       batchClearError: vi.fn(),
       batchRefresh: vi.fn(),
       toggleSchedulable: vi.fn(),
@@ -78,6 +82,8 @@ vi.mock('vue-i18n', async () => {
 
 const DataTableStub = defineComponent({
   props: { data: { type: Array, default: () => [] } },
+  emits: ['sort'],
+  data: () => ({ expandedIds: new Set<number>() }),
   template: `
     <div>
       <div v-for="row in data" :key="row.id" :data-account-name="row.name">
@@ -85,7 +91,9 @@ const DataTableStub = defineComponent({
         <slot name="cell-status" :row="row" />
         <slot name="cell-capacity" :row="row" />
         <slot name="cell-upstream_billing_rate" :row="row" />
-        <slot name="cell-actions" :row="row" />
+        <div data-test="main-actions"><slot name="cell-actions" :row="row" /></div>
+        <button data-test="expand-row" @click="expandedIds.has(row.id) ? expandedIds.delete(row.id) : expandedIds.add(row.id)">Expand</button>
+        <slot v-if="expandedIds.has(row.id)" name="row-details" :row="row" :columns="[]" :render-cell="() => []" />
       </div>
     </div>
   `
@@ -117,7 +125,7 @@ function mountView(stubActionMenu = true) {
     global: {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
-        TablePageLayout: { template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+        TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
         DataTable: DataTableStub,
         AccountTableActions: { template: '<div><slot name="after" /></div>' },
         AccountTableFilters: true,
@@ -143,6 +151,7 @@ function mountView(stubActionMenu = true) {
         AccountTodayStatsCell: true,
         AccountGroupsCell: AccountGroupsCellStub,
         AccountUsageCell: true,
+        OpenAIQuotaResetCell: true,
         UpstreamBillingRateCell: true,
         HelpTooltip: true,
         Icon: true,
@@ -188,6 +197,7 @@ describe('admin AccountsView lite account list', () => {
     getAllGroups.mockReset().mockResolvedValue([{ id: 7, name: 'codex', platform: 'openai' }])
     getUpstreamBillingRatesWithEtag.mockReset().mockResolvedValue({ notModified: true, data: null })
     probeUpstreamBilling.mockReset()
+    deleteAccount.mockReset().mockResolvedValue(undefined)
     refreshCredentials.mockReset()
     showError.mockReset()
     showWarning.mockReset()
@@ -196,6 +206,67 @@ describe('admin AccountsView lite account list', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  it('appends pages without replacing rows and refreshes every loaded page atomically', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    localStorage.setItem('account-auto-refresh', JSON.stringify({ enabled: true, interval_seconds: 5 }))
+    const second = { ...listRow, id: 43, name: 'second row' }
+    listAccounts.mockImplementation(async (page: number) => ({
+      items: page === 1 ? [listRow] : [second], total: 2, page, page_size: 20, pages: 2
+    }))
+    const wrapper = mountView()
+    await flushPromises()
+    wrapper.findComponent(InfiniteListSentinel).vm.$emit('load-more')
+    await flushPromises()
+    expect(wrapper.findAll('[data-account-name]').map(row => row.attributes('data-account-name')))
+      .toEqual(['compact row', 'second row'])
+    expect(getBatchTodayStats).toHaveBeenLastCalledWith([42, 43])
+
+    let rejectSecond!: (reason: Error) => void
+    listWithEtag
+      .mockResolvedValueOnce({ notModified: false, etag: 'page-one', data: {
+        items: [{ ...listRow, name: 'updated row', updated_at: '2026-10-20T00:00:00Z' }],
+        total: 2, page: 1, page_size: 20, pages: 2
+      } })
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectSecond = reject }))
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(listWithEtag.mock.calls.map(call => call[0])).toEqual([1, 2])
+    expect(wrapper.findAll('[data-account-name]').map(row => row.attributes('data-account-name')))
+      .toEqual(['compact row', 'second row'])
+    rejectSecond(new Error('second page unavailable'))
+    await flushPromises()
+    expect(wrapper.findAll('[data-account-name]').map(row => row.attributes('data-account-name')))
+      .toEqual(['compact row', 'second row'])
+    expect(wrapper.findComponent(InfiniteListSentinel).props('error')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('cancels an appended page when sorting changes and ignores its late response', async () => {
+    let finishAppend!: (value: unknown) => void
+    listAccounts
+      .mockResolvedValueOnce({ items: [listRow], total: 2, page: 1, page_size: 20, pages: 2 })
+      .mockImplementationOnce(() => new Promise(resolve => { finishAppend = resolve }))
+      .mockResolvedValueOnce({
+        items: [{ ...listRow, id: 44, name: 'new order' }], total: 1, page: 1, page_size: 20, pages: 1
+      })
+    const wrapper = mountView()
+    await flushPromises()
+    wrapper.findComponent(InfiniteListSentinel).vm.$emit('load-more')
+    await flushPromises()
+    const signal = listAccounts.mock.calls[1][3].signal as AbortSignal
+    wrapper.findComponent(DataTableStub).vm.$emit('sort', 'name', 'desc')
+    await flushPromises()
+    expect(signal.aborted).toBe(true)
+    finishAppend({ items: [{ ...listRow, id: 43, name: 'stale append' }], total: 2, page: 2, page_size: 20, pages: 2 })
+    await flushPromises()
+    expect(wrapper.findAll('[data-account-name]').map(row => row.attributes('data-account-name')))
+      .toEqual(['new order'])
+    expect(listAccounts).toHaveBeenLastCalledWith(1, 20,
+      expect.objectContaining({ sort_by: 'name', sort_order: 'desc' }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    wrapper.unmount()
   })
 
   it('refreshes the saved cost after probing even with unchanged snapshot and default sorting', async () => {
@@ -305,24 +376,39 @@ describe('admin AccountsView lite account list', () => {
     wrapper.unmount()
   })
 
-  it('keeps the action menu open during internal scrolling but closes it on table scrolling', async () => {
+  it('keeps only edit in the main row and routes expanded delete through confirmation', async () => {
     const wrapper = mountView(false)
     await flushPromises()
-
-    const trigger = wrapper.findAll('button').find(button => button.text() === 'common.more')!
-    await trigger.trigger('click')
-    const menu = new DOMWrapper(document.body.querySelector('.action-menu-content')!)
-    menu.element.dispatchEvent(new Event('scroll'))
+    const row = wrapper.get('[data-account-name="compact row"]')
+    expect(row.findAll('[data-test="main-actions"] button').map(button => button.attributes('aria-label'))).toEqual(['common.edit'])
+    expect(wrapper.findComponent(AccountActionMenu).exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="common.more"]').exists()).toBe(false)
+    await row.get('[data-test="expand-row"]').trigger('click')
+    const menu = wrapper.getComponent(AccountActionMenu)
+    expect(menu.props('inline')).toBe(true)
+    expect(menu.props('account').id).toBe(42)
+    expect(menu.findAll('button').map(button => button.text())).toEqual([
+      'admin.accounts.testConnection', 'admin.accounts.viewStats', 'admin.scheduledTests.schedule',
+      'admin.accounts.pelicanTest.menu', 'admin.accounts.reAuthorize', 'admin.accounts.refreshToken',
+      'admin.accounts.createSparkShadow', 'admin.accounts.setPrivacy', 'common.delete',
+    ])
+    expect(document.body.querySelector('.action-menu-content')).toBeNull()
+    const deleteButton = menu.get('.account-delete-action')
+    await deleteButton.trigger('click')
+    expect(deleteAccount).not.toHaveBeenCalled()
+    let dialog = wrapper.findAllComponents(ConfirmDialog).find(item => item.props('show'))!
+    expect(dialog.props('danger')).toBe(true)
+    dialog.vm.$emit('cancel')
     await flushPromises()
-    expect(wrapper.findComponent(AccountActionMenu).props('show')).toBe(true)
-
-    menu.get('button').element.dispatchEvent(new Event('scroll'))
+    expect(deleteAccount).not.toHaveBeenCalled()
+    expect(dialog.props('show')).toBe(false)
+    await deleteButton.trigger('click')
+    dialog = wrapper.findAllComponents(ConfirmDialog).find(item => item.props('show'))!
+    dialog.vm.$emit('confirm')
     await flushPromises()
-    expect(wrapper.findComponent(AccountActionMenu).props('show')).toBe(true)
-
-    wrapper.getComponent(DataTableStub).element.dispatchEvent(new Event('scroll'))
-    await flushPromises()
-    expect(wrapper.findComponent(AccountActionMenu).props('show')).toBe(false)
+    expect(deleteAccount).toHaveBeenCalledTimes(1)
+    expect(deleteAccount).toHaveBeenCalledWith(42)
+    expect(dialog.props('show')).toBe(false)
     wrapper.unmount()
   })
 
@@ -386,13 +472,14 @@ describe('admin AccountsView lite account list', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const editButton = wrapper.findAll('button').find(button => button.text().includes('common.edit'))
+    const editButton = wrapper.get('[data-account-name="compact row"] button[aria-label="common.edit"]')
     expect(editButton).toBeTruthy()
     await editButton!.trigger('click')
     await flushPromises()
     expect(getById).toHaveBeenCalledWith(42)
     expect(wrapper.get('[data-test="edit-account"]').text()).toBe('compact row')
 
+    await wrapper.get('[data-test="expand-row"]').trigger('click')
     const menu = wrapper.findComponent(AccountActionMenu)
     menu.vm.$emit('test', listRow)
     await flushPromises()
@@ -415,6 +502,7 @@ describe('admin AccountsView lite account list', () => {
     const wrapper = mountView(false)
     await flushPromises()
 
+    await wrapper.get('[data-test="expand-row"]').trigger('click')
     wrapper.findComponent(AccountActionMenu).vm.$emit('refresh-token', listRow)
     await flushPromises()
 
@@ -430,7 +518,7 @@ describe('admin AccountsView lite account list', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const editButton = wrapper.findAll('button').find(button => button.text().includes('common.edit'))
+    const editButton = wrapper.get('[data-account-name="compact row"] button[aria-label="common.edit"]')
     await editButton!.trigger('click')
     await flushPromises()
 

@@ -1,16 +1,17 @@
 <template>
   <AppLayout>
-    <div class="space-y-4">
+    <div class="open-page space-y-4">
       <ConsoleObjectLinks v-if="contextUserId" kind="user" :id="contextUserId" context />
       <!-- Filters -->
-      <div class="card p-4">
-        <div class="flex flex-wrap items-center gap-3">
+      <div class="open-section">
+        <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
           <div class="flex-1 sm:max-w-64">
             <input v-model="orderSearch" type="text" :placeholder="t('payment.admin.searchOrders')" class="input" @input="debounceLoadOrders" />
           </div>
-          <Select v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="loadOrders" />
-          <Select v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="loadOrders" />
-          <Select v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="loadOrders" />
+          <Select v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="resetOrders" />
+          <Select v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="resetOrders" />
+          <Select v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="resetOrders" />
+          <div ref="tableToolbarTarget" class="min-w-0" />
           <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
             <button @click="loadOrders" :disabled="ordersLoading" class="btn btn-secondary" :title="t('common.refresh')">
               <Icon name="refresh" size="md" :class="ordersLoading ? 'animate-spin' : ''" />
@@ -57,7 +58,7 @@
           </div>
         </template>
       </OrderTable>
-      <Pagination v-if="orderPagination.total > 0" :page="orderPagination.page" :total="orderPagination.total" :page-size="orderPagination.page_size" @update:page="handleOrderPageChange" @update:pageSize="handleOrderPageSizeChange" />
+      <InfiniteListSentinel :loading="ordersLoading || ordersLoadingMore || ordersRefreshing" :error="ordersError" :has-more="hasMoreOrders" @load-more="loadMoreOrders" @retry="retryOrders" />
     </div>
 
     <!-- Order Detail Dialog -->
@@ -118,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { provide, ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { objectQueryId } from '../objectContext'
 import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
@@ -129,7 +130,8 @@ import { extractI18nErrorMessage } from '@/utils/apiError'
 import { formatOrderDateTime } from '@/components/payment/orderUtils'
 import type { PaymentOrder } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -148,16 +150,15 @@ interface AuditLog {
 }
 
 const { t } = useI18n()
+const tableToolbarTarget = ref<HTMLElement | null>(null)
+provide('tableToolbarTarget', tableToolbarTarget)
 const appStore = useAppStore()
 
 const route = useRoute()
 const contextUserId = computed(() => objectQueryId(route?.query?.user_id))
-watch(contextUserId, () => { orderPagination.page = 1; void loadOrders() })
-const ordersLoading = ref(false)
-const orders = ref<PaymentOrder[]>([])
 const orderSearch = ref('')
+const appliedOrderSearch = ref('')
 const orderFilters = reactive({ status: '', payment_type: '', order_type: '' })
-const orderPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const selectedOrder = ref<PaymentOrder | null>(null)
 const showDetailDialog = ref(false)
 const showRefundDialog = ref(false)
@@ -175,27 +176,31 @@ function paymentAmountSymbol(order: PaymentOrder | null | undefined): string {
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 function debounceLoadOrders() {
   if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => loadOrders(), 300)
+  debounceTimer = setTimeout(() => { appliedOrderSearch.value = orderSearch.value; void resetOrders() }, 300)
 }
 
-async function loadOrders() {
-  ordersLoading.value = true
-  try {
+const {
+  items: orders, loading: ordersLoading, loadingMore: ordersLoadingMore,
+  refreshing: ordersRefreshing, error: ordersError, hasMore: hasMoreOrders,
+  reset: resetOrders, refresh: loadOrders, loadMore: loadMoreOrders, retry: retryOrders,
+} = useInfiniteList<PaymentOrder>({
+  pageSize: 20,
+  keyOf: order => order.id,
+  fetchPage: async page => {
     const res = await adminPaymentAPI.getOrders({
-      page: orderPagination.page, page_size: orderPagination.page_size,
+      page, page_size: 20,
       user_id: contextUserId.value,
-      keyword: orderSearch.value || undefined, status: orderFilters.status || undefined,
+      keyword: appliedOrderSearch.value || undefined, status: orderFilters.status || undefined,
       payment_type: orderFilters.payment_type || undefined, order_type: orderFilters.order_type || undefined,
     })
-    orders.value = res.data.items || []
-    orderPagination.total = res.data.total || 0
-  } catch (err: unknown) {
-    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
-  } finally { ordersLoading.value = false }
-}
-
-function handleOrderPageChange(page: number) { orderPagination.page = page; loadOrders() }
-function handleOrderPageSizeChange(size: number) { orderPagination.page_size = size; orderPagination.page = 1; loadOrders() }
+    return { items: res.data.items || [], total: res.data.total }
+  },
+})
+watch(contextUserId, () => { void resetOrders() })
+watch(ordersError, error => {
+  if (error) appStore.showError(extractI18nErrorMessage(error, t, 'payment.errors', t('common.error')))
+})
+onUnmounted(() => { if (debounceTimer) clearTimeout(debounceTimer) })
 
 const statusFilterOptions = computed(() => [
   { value: '', label: t('payment.admin.allStatuses') },
@@ -318,5 +323,5 @@ async function handleQueryRefund(order: PaymentOrder) {
 
 function formatDateTime(dateStr: string): string { return formatOrderDateTime(dateStr) }
 
-onMounted(() => loadOrders())
+onMounted(() => resetOrders())
 </script>

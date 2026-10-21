@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-6xl space-y-4">
+    <div class="open-page mx-auto max-w-6xl space-y-4">
       <router-link
         to="/admin/support-tickets"
         class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
@@ -9,11 +9,11 @@
         {{ t('supportTickets.detail.back') }}
       </router-link>
 
-      <div v-if="loading && !detail" class="card h-64 animate-pulse" aria-busy="true"></div>
+      <div v-if="loading && !detail" class="bg-gray-200 dark:bg-dark-700 h-64 animate-pulse" aria-busy="true"></div>
       <p v-else-if="loadError" class="card p-6 text-sm text-red-600 dark:text-red-400" data-testid="ticket-load-error">{{ loadError }}</p>
       <div v-else-if="detail" class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div class="min-w-0 space-y-4">
-          <div class="card p-5">
+          <div class="open-section p-5">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="min-w-0">
                 <h2 class="break-words text-lg font-semibold text-gray-900 dark:text-white" data-testid="ticket-title">{{ detail.ticket.title }}</h2>
@@ -27,17 +27,17 @@
             </div>
           </div>
 
-          <div class="card p-5">
+          <div class="open-section p-5">
             <TicketConversation :messages="detail.messages" viewer="admin" />
           </div>
 
-          <div v-if="closed" class="card flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-gray-600 dark:text-gray-300" data-testid="ticket-closed">
+          <div v-if="closed" class="open-section flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-gray-600 dark:text-gray-300" data-testid="ticket-closed">
             <span>{{ detail.ticket.closed_by_role === 'user' ? t('supportTickets.admin.closedByUser') : t('supportTickets.admin.closedByAdmin') }}</span>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" data-testid="ticket-reopen" @click="setStatus('pending')">
               {{ t('supportTickets.admin.reopen') }}
             </button>
           </div>
-          <div v-else class="card p-5">
+          <div v-else class="open-section p-5">
             <TicketReplyBox v-model="reply" :placeholder="t('supportTickets.detail.adminReplyPlaceholder')" :sending="busy" @submit="send">
               <template #extra>
                 <label class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -51,7 +51,7 @@
         </div>
 
         <aside class="space-y-4">
-          <div class="card p-5" data-testid="ticket-user">
+          <div class="open-section p-5" data-testid="ticket-user">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('supportTickets.admin.userInfo') }}</h3>
             <p v-if="user?.deleted" class="mt-2 rounded-lg bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300">
               {{ t('supportTickets.admin.deletedUser') }}
@@ -96,7 +96,7 @@
             </dl>
           </div>
 
-          <div class="card space-y-2 p-5">
+          <div class="open-section space-y-2 p-5">
             <button
               v-if="!closed && detail.ticket.status !== 'processing'"
               type="button"

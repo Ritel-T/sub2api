@@ -191,7 +191,7 @@ const TablePageLayoutStub = {
 
 const DataTableStub = {
   name: 'DataTable',
-  props: { columns: Array, data: Array, selectedKeys: Array, selectable: Boolean },
+  props: { columns: Array, data: Array, selectedKeys: Array, selectable: { type: Boolean, default: true }, busyKeys: Object, rename: Function, sortKey: String, sortOrder: String },
   emits: ['sort', 'update:selectedKeys', 'column-reorder'],
   template: `
     <div>
@@ -207,10 +207,12 @@ const DataTableStub = {
         >
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
-        <slot name="cell-name" :value="row.name" :row="row" />
+        <slot name="cell-name" :value="row.name" :row="row">{{ row.name }}</slot>
+        <div data-test="key-status"><slot name="cell-status" :value="row.status" :row="row" /></div>
         <slot name="cell-actions" :row="row" />
         <div data-test="current-concurrency">
-          <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
+          <slot v-if="$slots['details-extra']" name="details-extra" :row="row" />
+          <slot v-else name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
         </div>
         <div
           v-if="columns.some((col) => col.key === 'last_used_ip')"
@@ -238,14 +240,14 @@ const SearchInputStub = {
   template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
 }
 
-const PaginationStub = {
-  name: 'Pagination',
-  props: ['page', 'total', 'pageSize'],
-  emits: ['update:page', 'update:pageSize'],
+const InfiniteListSentinelStub = {
+  name: 'InfiniteListSentinel',
+  props: ['loading', 'error', 'hasMore'],
+  emits: ['load-more', 'retry'],
   template: `
     <div>
-      <button data-test="page-size-50" @click="$emit('update:pageSize', 50)">50</button>
-      <button data-test="page-2" @click="$emit('update:page', 2)">2</button>
+      <button data-test="retry-page" @click="$emit('retry')">Retry</button>
+      <button data-test="load-more" @click="$emit('load-more')">More</button>
     </div>
   `,
 }
@@ -262,13 +264,14 @@ const mountView = async () => {
         AppLayout: AppLayoutStub,
         TablePageLayout: TablePageLayoutStub,
         DataTable: DataTableStub,
+        KeyWorkspaceTable: DataTableStub,
         ColumnSettings: {
           name: 'ColumnSettings',
           props: ['columns', 'hiddenColumns', 'requiredColumns'],
           emits: ['toggle', 'reorder', 'reset'],
           template: '<div data-test="column-settings" />'
         },
-        Pagination: PaginationStub,
+        InfiniteListSentinel: InfiniteListSentinelStub,
         BaseDialog: {
           props: ['show', 'title'],
           emits: ['close'],
@@ -341,6 +344,7 @@ describe('user KeysView column settings', () => {
     listKeys.mockReset()
     createKey.mockReset().mockResolvedValue(createApiKey())
     updateKey.mockReset().mockResolvedValue(createApiKey())
+    vi.mocked(keysAPI.toggleStatus).mockReset().mockResolvedValue(createApiKey())
     getConcurrency.mockReset().mockResolvedValue({
       queue_policy: { max_waiting: 7, timeout_seconds: 12 },
       items: [{ id: 1, current_concurrency: 3, current_waiting: 2 }],
@@ -561,14 +565,100 @@ describe('user KeysView column settings', () => {
     wrapper.unmount()
   })
 
+  it('renames through a minimal PUT, keeps the saved name while pending, and ignores duplicate edits', async () => {
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    const key = table.props('data')[0] as ApiKey
+    const pending = deferred<ApiKey>()
+    updateKey.mockReturnValueOnce(pending.promise)
+    const rename = table.props('rename') as (row: ApiKey, name: string) => Promise<boolean>
+    const result = rename(key, '  Production key  ')
+    await nextTick()
+    expect(updateKey).toHaveBeenCalledOnce()
+    expect(updateKey).toHaveBeenCalledWith(key.id, { name: 'Production key' })
+    expect(table.props('busyKeys').has(key.id)).toBe(true)
+    expect(table.props('data')[0].name).toBe('test-key')
+    expect(await rename(key, 'Duplicate request')).toBe(false)
+    expect(updateKey).toHaveBeenCalledOnce()
+    setKeys({ ...key, name: 'Production key' })
+    pending.resolve({ ...key, name: 'Production key' })
+    expect(await result).toBe(true)
+    await flushPromises()
+    expect(table.props('data')[0].name).toBe('Production key')
+    expect(table.props('busyKeys').has(key.id)).toBe(false)
+  })
+
+  it('retains the real name after a failed rename and allows an explicit retry', async () => {
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    const key = table.props('data')[0] as ApiKey
+    const calls = listKeys.mock.calls.length
+    const rename = table.props('rename') as (row: ApiKey, name: string) => Promise<boolean>
+    updateKey.mockRejectedValueOnce({ response: { data: { detail: 'Name rejected' } } })
+    expect(await rename(key, 'New name')).toBe(false)
+    await flushPromises()
+    expect(table.props('data')[0].name).toBe('test-key')
+    expect(table.props('busyKeys').has(key.id)).toBe(false)
+    expect(listKeys).toHaveBeenCalledTimes(calls)
+    expect(showError).toHaveBeenCalled()
+    updateKey.mockResolvedValueOnce({ ...key, name: 'New name' })
+    setKeys({ ...key, name: 'New name' })
+    expect(await rename(key, 'New name')).toBe(true)
+    await flushPromises()
+    expect(table.props('data')[0].name).toBe('New name')
+    expect(updateKey).toHaveBeenNthCalledWith(2, key.id, { name: 'New name' })
+  })
+
+  it.each(['quota_exhausted', 'expired'] as const)('preserves the %s status without exposing it as an ordinary enable action', async state => {
+    setKeys({ ...createApiKey(), status: state })
+    const wrapper = await mountView()
+    expect(wrapper.get('[data-test="key-status"]').text()).toContain(messages[`keys.status.${state}`])
+    expect(wrapper.find('[role="switch"]').exists()).toBe(false)
+    await wrapper.get('[data-test="key-status"] button').trigger('click')
+    expect(wrapper.find('#key-form').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'DataTable' }).props('data')[0].status).toBe(state)
+    expect(keysAPI.toggleStatus).not.toHaveBeenCalled()
+    expect(updateKey).not.toHaveBeenCalled()
+  })
+
+  it.each(['active', 'inactive'] as const)('switches %s once while pending and keeps the original status after a rejected request', async initialStatus => {
+    const key = { ...createApiKey(), status: initialStatus }
+    setKeys(key)
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    const pending = deferred<ApiKey>()
+    vi.mocked(keysAPI.toggleStatus).mockReturnValueOnce(pending.promise)
+    const target = initialStatus === 'active' ? 'inactive' : 'active'
+    const button = wrapper.get('[role="switch"]')
+    expect(button.attributes('aria-checked')).toBe(initialStatus === 'active' ? 'true' : 'false')
+    await button.trigger('click')
+    await button.trigger('click')
+    expect(keysAPI.toggleStatus).toHaveBeenCalledOnce()
+    expect(keysAPI.toggleStatus).toHaveBeenCalledWith(key.id, target)
+    expect(table.props('busyKeys').has(key.id)).toBe(true)
+    expect(table.props('data')[0].status).toBe(initialStatus)
+    pending.reject(new Error('Denied'))
+    await flushPromises()
+    expect(table.props('data')[0].status).toBe(initialStatus)
+    expect(table.props('busyKeys').has(key.id)).toBe(false)
+    expect(showError).toHaveBeenCalled()
+    vi.mocked(keysAPI.toggleStatus).mockResolvedValueOnce({ ...key, status: target })
+    setKeys({ ...key, status: target })
+    await button.trigger('click')
+    await flushPromises()
+    expect(keysAPI.toggleStatus).toHaveBeenCalledTimes(2)
+    expect(table.props('data')[0].status).toBe(target)
+    expect(button.attributes('aria-checked')).toBe(target === 'active' ? 'true' : 'false')
+  })
+
   it('shows all API key columns with frequently checked fields first', async () => {
     const wrapper = await mountView()
 
     expect(visibleColumnKeys(wrapper)).toEqual([
-      'name', 'key', 'status', 'group', 'usage', 'current_concurrency', 'rate_limit',
-      'last_used_at', 'expires_at', 'last_used_ip', 'id', 'created_at', 'actions',
+      'id', 'name', 'key', 'group', 'usage', 'current_concurrency', 'status', 'actions',
+      'rate_limit', 'last_used_at', 'expires_at', 'last_used_ip', 'created_at',
     ])
-    expect(wrapper.get('[data-test="key-id"]').text()).toBe('#1')
+    expect(wrapper.get('[data-test="key-id"]').text()).toBe('1')
     expect(visibleColumnMeta(wrapper).find((column) => column.key === 'id')?.sortable).toBe(true)
   })
 
@@ -585,15 +675,14 @@ describe('user KeysView column settings', () => {
     wrapper.unmount()
   })
 
-  it.each(['filter', 'page size', 'sort'])('clears selection on %s changes', async (change) => {
+  it.each(['filter', 'sort'])('clears selection on %s changes', async (change) => {
     const wrapper = await mountView()
     const table = wrapper.findComponent({ name: 'DataTable' })
     table.vm.$emit('update:selectedKeys', [1])
     await nextTick()
     if (change === 'filter') {
       wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
-    } else if (change === 'page size') {
-      await wrapper.get('[data-test="page-size-50"]').trigger('click')
+
     } else {
       table.vm.$emit('sort', 'created_at', 'asc')
     }
@@ -632,17 +721,22 @@ describe('user KeysView column settings', () => {
     wrapper.unmount()
   })
 
-  it('hides a column and persists the preference through the shared settings', async () => {
+  it('promotes a detail field to the main row and persists placement without removing data', async () => {
     const wrapper = await mountView()
     const settings = wrapper.findComponent({ name: 'ColumnSettings' })
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    const rateColumn = () => (table.props('columns') as Array<{ key: string; primary: boolean }>).find(column => column.key === 'rate_limit')
+    expect(rateColumn()?.primary).toBe(false)
     settings.vm.$emit('toggle', 'rate_limit')
     await nextTick()
 
-    expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
-    expect(JSON.parse(localStorage.getItem('table-columns:keys:v1') || '{}').hidden).toEqual(['rate_limit'])
+    expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
+    expect(rateColumn()?.primary).toBe(true)
+    expect(JSON.parse(localStorage.getItem('table-columns:keys:v1') || '{}').primary).toEqual({ rate_limit: true })
     settings.vm.$emit('toggle', 'rate_limit')
     await nextTick()
     expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
+    expect(rateColumn()?.primary).toBe(false)
   })
 
   it('shows the last used IP by default', async () => {
@@ -654,14 +748,31 @@ describe('user KeysView column settings', () => {
     expect(wrapper.get('[data-test="last-used-ip"]').text()).toBe('203.0.113.10')
   })
 
-  it('restores both column order and visibility on mount', async () => {
+  it('restores column order and main-row placement while retaining detail fields', async () => {
     localStorage.setItem('table-columns:keys:v1', JSON.stringify({
-      order: ['status', 'actions', 'name'], hidden: ['group', 'created_at'],
+      version: 2, order: ['status', 'actions', 'name'], primary: { group: false, created_at: true },
     }))
     const wrapper = await mountView()
-    expect(visibleColumnKeys(wrapper).slice(0, 3)).toEqual(['status', 'actions', 'name'])
-    expect(visibleColumnKeys(wrapper)).not.toContain('group')
-    expect(visibleColumnKeys(wrapper)).not.toContain('created_at')
+    expect(visibleColumnKeys(wrapper).slice(0, 4)).toEqual(['status', 'actions', 'name', 'id'])
+    const columns = wrapper.findComponent({ name: 'DataTable' }).props('columns') as Array<{ key: string; primary: boolean }>
+    expect(columns.find(column => column.key === 'group')?.primary).toBe(false)
+    expect(columns.find(column => column.key === 'created_at')?.primary).toBe(true)
+    expect(visibleColumnKeys(wrapper)).toHaveLength(13)
+  })
+
+  it('keeps the identifier visible while accepting saved and newly requested positions', async () => {
+    localStorage.setItem('table-columns:keys:v1', JSON.stringify({ order: ['name', 'id', 'actions'], hidden: ['id'] }))
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    const settings = wrapper.findComponent({ name: 'ColumnSettings' })
+    expect(visibleColumnKeys(wrapper).indexOf('id')).toBe(1)
+    settings.vm.$emit('toggle', 'id')
+    const requested = [...visibleColumnKeys(wrapper).filter(key => key !== 'id'), 'id']
+    table.vm.$emit('column-reorder', requested)
+    await nextTick()
+    expect(visibleColumnKeys(wrapper).at(-1)).toBe('id')
+    expect(visibleColumnKeys(wrapper)).toHaveLength(13)
+    expect(wrapper.get('[data-test="key-id"]').text()).toBe('1')
   })
 
   it('ignores the obsolete automatic hiding preferences', async () => {
@@ -677,7 +788,7 @@ describe('user KeysView column settings', () => {
     const wrapper = await mountView()
     const calls = listKeys.mock.calls.length
     const keys = visibleColumnKeys(wrapper)
-    const order = ['actions', ...keys.filter(key => key !== 'actions')]
+    const order = ['id', 'actions', ...keys.filter(key => key !== 'actions' && key !== 'id')]
     wrapper.findComponent({ name: 'DataTable' }).vm.$emit('column-reorder', order)
     await nextTick()
     expect(visibleColumnKeys(wrapper)).toEqual(order)
@@ -689,15 +800,15 @@ describe('user KeysView column settings', () => {
     const wrapper = await mountView()
     const settings = wrapper.findComponent({ name: 'ColumnSettings' })
     expect(settings.props('columns').map((column: { key: string }) => column.key)).toEqual(visibleColumnKeys(wrapper))
-    expect(settings.props('requiredColumns')).toEqual(['name', 'actions'])
+    expect(settings.props('requiredColumns')).toEqual(['id', 'name', 'actions'])
     settings.vm.$emit('toggle', 'rate_limit')
     settings.vm.$emit('reorder', ['actions', 'name'])
     await nextTick()
-    expect(visibleColumnKeys(wrapper)[0]).toBe('actions')
+    expect(visibleColumnKeys(wrapper).slice(0, 2)).toEqual(['id', 'actions'])
     settings.vm.$emit('reset')
     await nextTick()
     expect(visibleColumnKeys(wrapper)).toHaveLength(13)
-    expect(visibleColumnKeys(wrapper)[0]).toBe('name')
+    expect(visibleColumnKeys(wrapper)[0]).toBe('id')
   })
 
   it.each([0, 3])('keeps the concurrency badge at %s for an unlimited key', async (current) => {
@@ -705,7 +816,7 @@ describe('user KeysView column settings', () => {
       { id: 1, current_concurrency: current, current_waiting: 0 },
     ] })
     const wrapper = await mountView()
-    const cell = wrapper.get('[data-test="current-concurrency"]')
+    const cell = wrapper.get('[data-testid="detail-concurrency"]')
     const badge = cell.get('[title="Concurrency"]')
     expect(badge.find('svg').exists()).toBe(true)
     expect(badge.classes()).toContain(current === 0 ? 'bg-gray-100' : 'bg-emerald-50')
@@ -716,7 +827,7 @@ describe('user KeysView column settings', () => {
   it('shows current / max for a key with an additional concurrency limit', async () => {
     listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), concurrency_limit: 8 }], total: 1 })
     const wrapper = await mountView()
-    const cell = wrapper.get('[data-test="current-concurrency"]')
+    const cell = wrapper.get('[data-testid="detail-concurrency"]')
     expect(cell.text()).toContain('Concurrency 3 / 8')
     expect(cell.text()).toContain('Waiting 2 / 7')
   })
@@ -744,7 +855,7 @@ describe('user KeysView column settings', () => {
       setKeys({ ...createApiKey(), group_id: 42, concurrency_limit: limit })
       await wrapper.get('#key-form').trigger('submit')
       await flushPromises()
-      const cell = wrapper.get('[data-test="current-concurrency"]')
+      const cell = wrapper.get('[data-testid="detail-concurrency"]')
       expect(cell.get('[title="Concurrency"]').find('svg').exists()).toBe(true)
       const text = cell.text()
       if (limit === 0) expect(text).toBe('Concurrency 3')
@@ -854,11 +965,11 @@ describe('user KeysView column settings', () => {
     const wrapper = await mountView()
     await getButtonByText(wrapper, 'common.edit').trigger('click')
     expect(wrapper.get('#key-queue-policy').text()).toBe('Loading shared queue settings…')
-    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Concurrency — / 1')
+    expect(wrapper.get('[data-testid="detail-concurrency"]').text()).toContain('Concurrency — / 1')
     request.reject({ response: { status: 503 } })
     await flushPromises()
     expect(wrapper.get('#key-queue-policy').text()).toBe('Shared queue settings unavailable.')
-    expect(wrapper.get('[data-test="current-concurrency"]').text()).not.toContain('/ 20')
+    expect(wrapper.get('[data-testid="detail-concurrency"]').text()).not.toContain('/ 20')
     expect(showError).not.toHaveBeenCalled()
     await wrapper.get('#key-form').trigger('submit')
     await flushPromises()
@@ -877,7 +988,7 @@ describe('user KeysView column settings', () => {
       { id: 3, current_concurrency: 2, current_waiting: 0 },
     ] })
     const wrapper = await mountView()
-    const rows = wrapper.findAll('[data-test="current-concurrency"]').map(row => row.text())
+    const rows = wrapper.findAll('[data-testid="detail-concurrency"]').map(row => row.text())
     expect(rows[0]).toContain('Waiting 2 / 7')
     expect(rows[0]).not.toContain('Full')
     expect(rows[1]).toContain('Waiting 9 / 7 · Full')
@@ -888,7 +999,7 @@ describe('user KeysView column settings', () => {
     setKeys({ ...createApiKey(), concurrency_limit: 1 })
     getConcurrency.mockResolvedValue(snapshot(0, 2))
     const wrapper = await mountView()
-    const text = wrapper.get('[data-test="current-concurrency"]').text()
+    const text = wrapper.get('[data-testid="detail-concurrency"]').text()
     expect(text).toContain('Queuing globally disabled')
     expect(text).toContain('Waiting 2')
     expect(text).not.toContain('/ 0')
@@ -902,7 +1013,7 @@ describe('user KeysView column settings', () => {
     setKeys(key)
     getConcurrency.mockResolvedValue({ ...snapshot(), items: [] })
     const wrapper = await mountView()
-    const text = wrapper.get('[data-test="current-concurrency"]').text()
+    const text = wrapper.get('[data-testid="detail-concurrency"]').text()
     expect(text).toContain('Concurrency —')
     expect(text).toContain('Statistics unavailable')
     expect(text).not.toContain('No additional limit')
@@ -912,7 +1023,7 @@ describe('user KeysView column settings', () => {
     setKeys({ ...createApiKey(), concurrency_limit: 1 })
     getConcurrency.mockResolvedValue({ ...snapshot(), items: [] })
     const wrapper = await mountView()
-    const text = wrapper.get('[data-test="current-concurrency"]').text()
+    const text = wrapper.get('[data-testid="detail-concurrency"]').text()
     expect(text).toContain('Concurrency — / 1')
     expect(text).toContain('Waiting — / 7')
     expect(text).toContain('Statistics unavailable')
@@ -932,7 +1043,7 @@ describe('user KeysView column settings', () => {
     expect(getConcurrency).toHaveBeenCalledTimes(2)
     request.resolve(snapshot(4, 4))
     await flushPromises()
-    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Waiting 4 / 4 · Full')
+    expect(wrapper.get('[data-testid="detail-concurrency"]').text()).toContain('Waiting 4 / 4 · Full')
     expect(wrapper.get('#key-queue-policy').text()).toContain('4 waiting requests')
     expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('6')
     expect(listKeys).toHaveBeenCalledTimes(1)
@@ -947,10 +1058,10 @@ describe('user KeysView column settings', () => {
     setKeys({ ...createApiKey(), concurrency_limit: 1 })
     getConcurrency.mockResolvedValue(snapshot(7, 7))
     const wrapper = await mountView()
-    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Full')
+    expect(wrapper.get('[data-testid="detail-concurrency"]').text()).toContain('Full')
     getConcurrency.mockRejectedValueOnce({ response: { status: 503 } })
     await vi.advanceTimersByTimeAsync(5000)
-    const text = wrapper.get('[data-test="current-concurrency"]').text()
+    const text = wrapper.get('[data-testid="detail-concurrency"]').text()
     expect(text).toContain('Waiting 7 / 7')
     expect(text).toContain('Not updated')
     expect(text).not.toContain('Full')
@@ -958,8 +1069,8 @@ describe('user KeysView column settings', () => {
     expect(wrapper.get('#key-queue-policy').text()).toContain('Not updated')
     expect(showError).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(5000)
-    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Full')
-    expect(wrapper.get('[data-test="current-concurrency"]').text()).not.toContain('Not updated')
+    expect(wrapper.get('[data-testid="detail-concurrency"]').text()).toContain('Full')
+    expect(wrapper.get('[data-testid="detail-concurrency"]').text()).not.toContain('Not updated')
   })
 
   it('aborts on hide, ignores a late reply, and resumes only after the old request settles', async () => {
@@ -979,7 +1090,7 @@ describe('user KeysView column settings', () => {
     request.resolve(snapshot(99, 99))
     await flushPromises()
     expect(getConcurrency).toHaveBeenCalledTimes(2)
-    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Waiting 2 / 7')
+    expect(wrapper.get('[data-testid="detail-concurrency"]').text()).toContain('Waiting 2 / 7')
     expect(wrapper.text()).not.toContain('99')
     wrapper.unmount()
     await vi.advanceTimersByTimeAsync(10000)
@@ -987,7 +1098,7 @@ describe('user KeysView column settings', () => {
     expect(getConcurrency).toHaveBeenCalledTimes(2)
   })
 
-  it('cancels pagination statistics and discards late old-page policy and counts', async () => {
+  it('cancels statistics during append and refreshes counts for the accumulated keys', async () => {
     setKeys({ ...createApiKey(), concurrency_limit: 1 })
     const request = deferred<ApiKeyConcurrencySnapshot>()
     getConcurrency.mockReturnValueOnce(request.promise)
@@ -995,16 +1106,73 @@ describe('user KeysView column settings', () => {
     const signal = getConcurrency.mock.calls[0][1].signal as AbortSignal
     setKeys({ ...createApiKey(), id: 2, concurrency_limit: 2 })
     getConcurrency.mockResolvedValue({ ...snapshot(4), items: [{ id: 2, current_concurrency: 1, current_waiting: 0 }] })
-    await wrapper.get('[data-test="page-2"]').trigger('click')
+    await wrapper.get('[data-test="load-more"]').trigger('click')
     await flushPromises()
     expect(signal.aborted).toBe(true)
     expect(getConcurrency).toHaveBeenCalledTimes(1)
     request.resolve(snapshot(99, 99))
     await flushPromises()
-    expect(getConcurrency).toHaveBeenLastCalledWith([2], expect.any(Object))
-    const cell = wrapper.get('[data-test="current-concurrency"]')
+    expect(getConcurrency).toHaveBeenLastCalledWith([1, 2], expect.any(Object))
+    const cell = wrapper.findAll('[data-testid="detail-concurrency"]')[1]
     expect(cell.text()).toContain('Concurrency 1 / 2')
     expect(cell.text()).toContain('Waiting 0 / 4')
+  })
+
+  it('appends three key batches without losing selection and polls accumulated IDs in batches of 100', async () => {
+    const keys = Array.from({ length: 125 }, (_, index) => ({ ...createApiKey(), id: index + 1, name: `Key ${index + 1}` }))
+    listKeys.mockImplementation((page: number, size: number) => Promise.resolve({ items: keys.slice((page - 1) * size, page * size), total: 125, pages: 3 }))
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    table.vm.$emit('update:selectedKeys', [1])
+    await nextTick()
+    await wrapper.get('[data-test="load-more"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test="load-more"]').trigger('click')
+    await flushPromises()
+    expect(table.props('data')).toHaveLength(125)
+    expect(table.props('selectedKeys')).toEqual([1])
+    expect(getConcurrency.mock.calls.slice(-2).map(call => call[0].length)).toEqual([100, 25])
+    expect(getDashboardApiKeysUsage.mock.calls.map(call => call[0].length)).toEqual([50, 50, 25])
+    expect(wrapper.findComponent({ name: 'InfiniteListSentinel' }).props('hasMore')).toBe(false)
+    expect(wrapper.findComponent({ name: 'Pagination' }).exists()).toBe(false)
+  })
+
+  it('retains loaded keys when the next batch fails and retries only on request', async () => {
+    setKeys(createApiKey())
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    listKeys.mockRejectedValueOnce(new Error('Unavailable'))
+    await wrapper.get('[data-test="load-more"]').trigger('click')
+    await flushPromises()
+    expect(table.props('data').map((key: ApiKey) => key.id)).toEqual([1])
+    expect(wrapper.findComponent({ name: 'InfiniteListSentinel' }).props('loading')).toBe(false)
+    const calls = listKeys.mock.calls.length
+    await wrapper.get('[data-test="load-more"]').trigger('click')
+    await flushPromises()
+    expect(listKeys).toHaveBeenCalledTimes(calls)
+    listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), id: 2 }], total: 2, pages: 2 })
+    await wrapper.get('[data-test="retry-page"]').trigger('click')
+    await flushPromises()
+    expect(table.props('data').map((key: ApiKey) => key.id)).toEqual([1, 2])
+    expect(listKeys.mock.calls.at(-1)?.slice(0, 2)).toEqual([2, 50])
+  })
+
+  it('discards an old append after a new search and never mixes its usage statistics', async () => {
+    setKeys(createApiKey())
+    const wrapper = await mountView()
+    const pending = deferred<{ items: ApiKey[]; total: number; pages: number }>()
+    listKeys.mockReturnValueOnce(pending.promise)
+    await wrapper.get('[data-test="load-more"]').trigger('click')
+    const signal = listKeys.mock.calls.at(-1)?.[3].signal as AbortSignal
+    listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), id: 9 }], total: 1, pages: 1 })
+    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('update:modelValue', 'new')
+    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
+    await flushPromises()
+    pending.resolve({ items: [{ ...createApiKey(), id: 2 }], total: 2, pages: 2 })
+    await flushPromises()
+    expect(signal.aborted).toBe(true)
+    expect(wrapper.findComponent({ name: 'DataTable' }).props('data').map((key: ApiKey) => key.id)).toEqual([9])
+    expect(getDashboardApiKeysUsage.mock.calls.map(call => call[0])).toEqual([[1], [9]])
   })
 
   it('aborts an in-flight statistics request on unmount without scheduling another', async () => {
@@ -1031,10 +1199,10 @@ describe('user KeysView column settings', () => {
     first.resolve(snapshot(4, 2))
     await flushPromises()
     expect(getConcurrency.mock.calls[1][0]).toEqual([101])
-    expect(wrapper.findAll('[data-test="current-concurrency"]')[0].text()).toContain('Concurrency — / 1')
+    expect(wrapper.findAll('[data-testid="detail-concurrency"]')[0].text()).toContain('Concurrency — / 1')
     second.resolve({ ...snapshot(4), items: [{ id: 101, current_concurrency: 1, current_waiting: 3 }] })
     await flushPromises()
-    const rows = wrapper.findAll('[data-test="current-concurrency"]')
+    const rows = wrapper.findAll('[data-testid="detail-concurrency"]')
     expect(rows[0].text()).toContain('Waiting 2 / 4')
     expect(rows[100].text()).toContain('Waiting 3 / 4')
   })
@@ -1043,7 +1211,7 @@ describe('user KeysView column settings', () => {
     setKeys(...Array.from({ length: 101 }, (_, i) => ({ ...createApiKey(), id: i + 1, concurrency_limit: 1 })))
     getConcurrency.mockResolvedValueOnce(snapshot(4)).mockResolvedValueOnce(snapshot(8))
     const wrapper = await mountView()
-    const text = wrapper.findAll('[data-test="current-concurrency"]')[0].text()
+    const text = wrapper.findAll('[data-testid="detail-concurrency"]')[0].text()
     expect(text).toContain('Concurrency — / 1')
     expect(text).toContain('Shared queue settings unavailable.')
     expect(text).not.toContain('Waiting 2 / 4')
@@ -1076,7 +1244,7 @@ describe('user KeysView column settings', () => {
     expect(wrapper.findComponent({ name: 'DataTable' }).props('data').map((key: ApiKey) => key.id)).toEqual([2, 3])
     expect(listKeys).toHaveBeenCalledTimes(2)
     expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(2)
-    const rows = wrapper.findAll('[data-test="current-concurrency"]')
+    const rows = wrapper.findAll('[data-testid="detail-concurrency"]')
     expect(rows[0].text()).toContain('Concurrency 1 / 1')
     expect(rows[1].text()).toContain('Concurrency 8 / 1')
   })
@@ -1100,9 +1268,6 @@ describe('user KeysView column settings', () => {
     getAvailableGroups.mockResolvedValue([{ id: 42, name: 'OpenAI' }])
     const wrapper = await mountView()
 
-    await wrapper.get('[data-test="page-size-50"]').trigger('click')
-    await flushPromises()
-
     await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('update:modelValue', 'target')
     await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
     await flushPromises()
@@ -1113,7 +1278,7 @@ describe('user KeysView column settings', () => {
     await selects[1].vm.$emit('update:modelValue', 'active')
     await flushPromises()
 
-    await wrapper.get('[data-test="page-2"]').trigger('click')
+    await wrapper.get('[data-test="load-more"]').trigger('click')
     await flushPromises()
     const table = wrapper.findComponent({ name: 'DataTable' })
     table.vm.$emit('update:selectedKeys', [1])

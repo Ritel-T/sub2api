@@ -79,6 +79,11 @@
         >
           <Icon name="book" size="sm" aria-hidden="true" />
         </a>
+        <ThemeSwitcher class="console-theme" />
+        <LocaleSwitcher class="console-locale" />
+        <SubscriptionProgressMini
+          v-if="user && !authStore.isObserver && !appStore.backendModeEnabled && subscriptionFeatureEnabled"
+        />
         <div
           v-if="showBalance && workspace === 'personal'"
           class="console-balance"
@@ -86,11 +91,6 @@
           <span class="console-balance-amount" :aria-label="`${shellCopy.available}: ${formatMoney(availableBalance)}`">{{ formatMoney(availableBalance) }}</span>
           <span v-if="frozenBalance > 0" class="console-balance-frozen">{{ shellCopy.frozen }} {{ formatMoney(frozenBalance) }}</span>
         </div>
-        <ThemeSwitcher class="console-theme" />
-        <LocaleSwitcher class="console-locale" />
-        <SubscriptionProgressMini
-          v-if="user && !authStore.isObserver && !appStore.backendModeEnabled && subscriptionFeatureEnabled"
-        />
         <div v-if="user" class="relative" ref="dropdownRef">
           <button
             type="button"
@@ -337,12 +337,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 16px;
   height: 100%;
-  max-width: calc(1232px + 64px);
+  max-width: var(--console-content-width, 1296px);
   margin: 0 auto;
-  padding: 0 32px;
+  padding: 0 clamp(24px, 3vw, 64px);
 }
-@media (max-width: 1279px) { .console-top-bar-inner { padding: 0 24px; } }
-@media (max-width: 767px)  { .console-top-bar-inner { padding: 0 16px; } }
+@media (max-width: 767px)  { .console-top-bar-inner { padding: 0 20px; } }
 
 .console-top-bar-left {
   display: flex;

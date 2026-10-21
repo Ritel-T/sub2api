@@ -1,5 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import DataTable from '@/components/common/DataTable.vue'
 
 import AnnouncementReadStatusDialog from '../AnnouncementReadStatusDialog.vue'
 
@@ -43,10 +46,43 @@ const BaseDialogStub = {
 }
 
 describe('AnnouncementReadStatusDialog', () => {
+  afterEach(() => vi.useRealTimers())
   beforeEach(() => {
     getReadStatus.mockReset()
     showError.mockReset()
     vi.useFakeTimers()
+  })
+
+  it('appends read statuses, snapshots search, and isolates a different announcement', async () => {
+    const item = (id: number) => ({ user_id: id, email: `reader${id}@example.invalid`, balance: 1, eligible: true })
+    getReadStatus.mockResolvedValueOnce({ items: [item(1)], total: 3 })
+    const wrapper = mount(AnnouncementReadStatusDialog, {
+      props: { show: true, announcementId: 1 },
+      global: { stubs: { BaseDialog: BaseDialogStub, DataTable: true, Icon: true } },
+    })
+    await flushPromises()
+    await wrapper.get('input').setValue('alice')
+    getReadStatus.mockResolvedValueOnce({ items: [item(2)], total: 3 })
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
+    await flushPromises()
+    expect(getReadStatus).toHaveBeenLastCalledWith(1, 2, 50, expect.objectContaining({ search: '' }), expect.any(Object))
+    expect(wrapper.getComponent(DataTable).props('data')).toHaveLength(2)
+    let resolveOld!: (value: unknown) => void
+    getReadStatus.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more')
+    await flushPromises()
+    const oldSignal = getReadStatus.mock.calls.at(-1)![4].signal as AbortSignal
+    getReadStatus.mockResolvedValueOnce({ items: [item(9)], total: 1 })
+    await wrapper.setProps({ announcementId: 2 })
+    await flushPromises()
+    expect(oldSignal.aborted).toBe(true)
+    expect(getReadStatus).toHaveBeenLastCalledWith(2, 1, 50, expect.objectContaining({ search: '' }), expect.any(Object))
+    resolveOld({ items: [item(3)], total: 3 })
+    await flushPromises()
+    expect(wrapper.getComponent(DataTable).props('data')).toEqual([item(9)])
+    await vi.advanceTimersByTimeAsync(350)
+    expect(getReadStatus).toHaveBeenCalledTimes(4)
+    wrapper.unmount()
   })
 
   it('closes by aborting active requests and clearing debounced reloads', async () => {

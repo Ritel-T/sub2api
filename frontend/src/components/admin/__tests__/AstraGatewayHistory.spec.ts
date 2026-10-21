@@ -7,15 +7,16 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, te: () =
 beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); mocks.get.mockResolvedValue({ items: [{ gateway: 'chat.gateway.unified-196.api.openai.com', source_account_id: 299, target_account_id: 300, passes: 1, failures: 2, last_answer: '29', last_reason: 'target_candy_failed', last_pass: '2026-09-23T20:00:00Z' }], total: 21, unique_gateways: 3 }) })
 afterEach(() => vi.useRealTimers())
 describe('persistent gateway history', () => {
-  it('defaults to target pass history, searches host and paginates', async () => {
+  it('defaults to target pass history, searches host and appends batches', async () => {
     const w = mount(AstraGatewayHistory); await flushPromises()
-    expect(mocks.get).toHaveBeenCalledWith('', true, 1)
+    expect(mocks.get).toHaveBeenCalledWith('', true, 1, { signal: expect.any(AbortSignal) })
     expect(w.text()).toContain('unified-196'); expect(w.text()).toContain('#300'); expect(w.text()).toContain('29')
     await w.get('input[type="checkbox"]').setValue(false); await flushPromises()
     await w.get('input[maxlength]').setValue('unified-196'); await w.get('form').trigger('submit'); await flushPromises()
-    expect(mocks.get).toHaveBeenLastCalledWith('unified-196', false, 1)
-    await w.findAll('button').at(-1)!.trigger('click'); await flushPromises()
-    expect(mocks.get).toHaveBeenLastCalledWith('unified-196', false, 2)
+    expect(mocks.get).toHaveBeenLastCalledWith('unified-196', false, 1, { signal: expect.any(AbortSignal) })
+    w.getComponent({ name: 'InfiniteListSentinel' }).vm.$emit('load-more'); await flushPromises()
+    expect(mocks.get).toHaveBeenLastCalledWith('unified-196', false, 2, { signal: expect.any(AbortSignal) })
+    expect(w.findAll('tbody tr')).toHaveLength(1) // overlapping identity is updated, never duplicated
     w.unmount(); const count = mocks.get.mock.calls.length; await vi.advanceTimersByTimeAsync(15000); expect(mocks.get).toHaveBeenCalledTimes(count)
   })
   it('reports load failures instead of claiming an empty history', async () => {

@@ -1,9 +1,9 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
       <!-- Filters -->
       <template #filters>
-        <div class="card p-4 sm:p-6">
+        <div class="open-section">
           <div class="flex flex-wrap items-end justify-between gap-4">
             <!-- Left: filter fields -->
             <div class="flex flex-1 flex-wrap items-end gap-4">
@@ -148,14 +148,7 @@
 
       <!-- Pagination -->
       <template #pagination>
-        <Pagination
-          v-if="total > 0"
-          :total="total"
-          :page="page"
-          :page-size="pageSize"
-          @update:page="onPageChange"
-          @update:pageSize="onPageSizeChange"
-        />
+        <InfiniteListSentinel :loading="list.loading.value || list.loadingMore.value" :error="list.error.value" :has-more="list.hasMore.value" @load-more="list.loadMore" @retry="list.retry" />
       </template>
     </TablePageLayout>
 
@@ -360,7 +353,8 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import type { Column } from '@/components/common/types'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import Select from '@/components/common/Select.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -370,11 +364,12 @@ import { useAppStore } from '@/stores'
 const { t } = useI18n()
 const appStore = useAppStore()
 
-const loading = ref(false)
-const logs = ref<AuditLog[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
+let appliedQuery: ReturnType<typeof buildQuery>
+const list = useInfiniteList<AuditLog>({
+  keyOf: row => row.id, pageSize: 50,
+  fetchPage: async page => adminAPI.audit.list({ ...appliedQuery, page, page_size: 50 }),
+})
+const { items: logs, loading } = list
 
 const filters = reactive({
   q: '',
@@ -520,8 +515,8 @@ function buildTimeRangeQuery(): { start_time?: string; end_time?: string } {
 
 function buildQuery() {
   return {
-    page: page.value,
-    page_size: pageSize.value,
+    page: 1,
+    page_size: 50,
     q: filters.q || undefined,
     actor_email: filters.actor_email || undefined,
     action: filters.action || undefined,
@@ -534,20 +529,12 @@ function buildQuery() {
 }
 
 async function fetchLogs() {
-  loading.value = true
-  try {
-    const res = await adminAPI.audit.list(buildQuery())
-    logs.value = res.items
-    total.value = res.total
-  } catch (err: any) {
-    appStore.showError(err?.message || t('admin.audit.loadFailed'))
-  } finally {
-    loading.value = false
-  }
+  appliedQuery = buildQuery()
+  await list.reset()
+  if (list.error.value) appStore.showError((list.error.value as Error)?.message || t('admin.audit.loadFailed'))
 }
 
 function search() {
-  page.value = 1
   fetchLogs()
 }
 
@@ -563,17 +550,6 @@ function resetFilters() {
   customStartTime.value = ''
   customEndTime.value = ''
   search()
-}
-
-function onPageChange(p: number) {
-  page.value = p
-  fetchLogs()
-}
-
-function onPageSizeChange(ps: number) {
-  pageSize.value = ps
-  page.value = 1
-  fetchLogs()
 }
 
 // Detail dialog

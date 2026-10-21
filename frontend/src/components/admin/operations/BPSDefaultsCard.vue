@@ -1,13 +1,13 @@
 <template>
-  <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900" data-testid="bps-defaults-card">
-    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
+  <section class="open-section" data-testid="bps-defaults-card">
+    <header class="flex flex-wrap items-center justify-between gap-3 pb-5">
       <div class="flex items-center gap-3">
         <span class="rounded-xl bg-primary-50 px-3 py-2 text-xs font-bold tracking-wide text-primary-700 dark:bg-primary-950 dark:text-primary-300">BPS</span>
         <div><h2 class="text-lg font-semibold">{{ t('autoConfig.bps.title') }}</h2><p class="mt-1 text-xs text-gray-500">{{ t('autoConfig.bps.subtitle') }}</p></div>
       </div>
       <span class="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">ChatGPT OAuth</span>
     </header>
-    <div class="space-y-5 p-5">
+    <div class="space-y-6">
       <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('autoConfig.bps.scopeHint') }}</p>
       <div class="grid gap-6 lg:grid-cols-2">
         <div class="min-w-0 space-y-3">
@@ -18,13 +18,13 @@
         </div>
         <div class="space-y-3">
           <h3 class="text-sm font-semibold">{{ t('autoConfig.bps.options') }}</h3>
-          <label v-for="item in recommended" :key="item.key" class="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 p-3 dark:border-dark-700">
+          <label v-for="item in recommended" :key="item.key" class="flex cursor-pointer items-start gap-3 border-t border-gray-200 py-3 dark:border-dark-700">
             <input v-model="draft[item.key]" type="checkbox" class="mt-0.5" :data-testid="'bps-' + item.key" />
             <span><span class="block text-sm font-medium">{{ t('admin.accounts.openai.excelBPS' + item.label) }}</span><span class="mt-1 block text-xs leading-5 text-gray-500">{{ t('autoConfig.bps.' + item.key + 'Hint') }}</span></span>
           </label>
         </div>
       </div>
-      <details class="group rounded-xl border border-gray-200 dark:border-dark-700" data-testid="bps-advanced">
+      <details class="group border-t border-gray-200 dark:border-dark-700" data-testid="bps-advanced">
         <summary class="cursor-pointer px-4 py-3 text-sm font-medium">{{ t('autoConfig.bps.advanced') }}<span class="ml-2 text-xs font-normal text-gray-500">{{ t('autoConfig.bps.advancedHint') }}</span></summary>
         <div class="grid gap-5 border-t border-gray-100 p-4 md:grid-cols-2 dark:border-dark-700">
           <div v-for="item in advanced" :key="item.key">
@@ -37,7 +37,7 @@
         </div>
       </details>
       <div class="grid gap-3 md:grid-cols-2">
-        <label v-for="item in companions" :key="item.key" class="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 p-3 dark:border-dark-700">
+        <label v-for="item in companions" :key="item.key" class="flex cursor-pointer items-start gap-3 border-t border-gray-200 py-3 dark:border-dark-700">
           <input v-model="draft[item.key]" type="checkbox" class="mt-0.5" :data-testid="'bps-' + item.key" />
           <span><span class="block text-sm font-medium">{{ t('admin.accounts.openai.' + item.label) }}</span><span class="mt-1 block text-xs leading-5 text-gray-500">{{ t('autoConfig.bps.' + item.key + 'Hint') }}</span></span>
         </label>

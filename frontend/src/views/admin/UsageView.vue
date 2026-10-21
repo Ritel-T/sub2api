@@ -1,29 +1,54 @@
 <template>
   <AppLayout>
-    <ConsoleObjectLinks v-if="!props.observerMode && filters.user_id === objectQueryId(route.query.user_id) && objectQueryId(route.query.user_id)" kind="user" :id="objectQueryId(route.query.user_id)!" context class="mb-4" />
-    <ConsoleObjectLinks v-if="!props.observerMode && filters.account_id === objectQueryId(route.query.account_id) && objectQueryId(route.query.account_id)" kind="account" :id="objectQueryId(route.query.account_id)!" context class="mb-4" />
-    <div class="space-y-6">
-      <UsageStatsCards :stats="usageStats" />
-      <!-- Charts Section -->
-      <div class="space-y-4">
-        <div class="card p-4">
-          <div class="flex flex-wrap items-center gap-4">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
-              <DateRangePicker enable-time :preset="selectedPreset"
-                v-model:start-date="startDate"
-                v-model:end-date="endDate"
-                @change="onDateRangeChange"
-              />
-            </div>
-            <div class="ml-auto flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
-              <div class="w-28">
-                <Select v-model="granularity" :options="granularityOptions" @change="loadChartData" />
-              </div>
-            </div>
+    <ConsoleObjectLinks v-if="!props.observerMode && filters.user_id === objectQueryId(route.query.user_id) && objectQueryId(route.query.user_id)" kind="user" :id="objectQueryId(route.query.user_id)!" context class="open-page mb-4" />
+    <ConsoleObjectLinks v-if="!props.observerMode && filters.account_id === objectQueryId(route.query.account_id) && objectQueryId(route.query.account_id)" kind="account" :id="objectQueryId(route.query.account_id)!" context class="open-page mb-4" />
+    <div class="open-page space-y-6">
+      <div class="flex flex-wrap items-center border-b border-gray-200 px-2 dark:border-dark-700 sm:px-4">
+        <button
+          v-for="tab in detailTabs"
+          :key="tab.key"
+          type="button"
+          data-testid="usage-detail-tab"
+          class="-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-3 text-sm font-medium transition-colors sm:px-4"
+          :class="activeTab === tab.key
+            ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-dark-500 dark:hover:text-gray-200'"
+          @click="switchTab(tab.key)"
+        >
+          <Icon :name="tab.icon" size="sm" />
+          {{ tab.label }}
+        </button>
+      </div>
+      <UsageFilters v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="admin-usage-filters" data-testid="admin-usage-filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
+        <template #before-filters>
+          <div class="usage-time-filter">
+            <label class="input-label">{{ t('admin.dashboard.timeRange') }}</label>
+            <DateRangePicker enable-time :preset="selectedPreset"
+              v-model:start-date="startDate"
+              v-model:end-date="endDate"
+              @change="onDateRangeChange"
+            />
           </div>
-        </div>
+          <div class="usage-granularity-filter">
+            <label class="input-label">{{ t('admin.dashboard.granularity') }}</label>
+            <Select v-model="granularity" :options="granularityOptions" :aria-label="t('admin.dashboard.granularity')" @change="loadChartData" />
+          </div>
+        </template>
+        <template #after-reset>
+          <div ref="tableToolbarTarget" />
+          <ColumnSettings
+            v-if="activeTab !== 'ranking'"
+            :columns="activeTab === 'errors' ? errOrderedColumns : orderedColumns"
+            :hidden-columns="activeTab === 'errors' ? errHiddenColumns : hiddenColumns"
+            :required-columns="activeTab === 'errors' ? ERR_ALWAYS_VISIBLE : ALWAYS_VISIBLE"
+            @toggle="toggleCurrentColumn"
+            @reorder="setCurrentColumnOrder"
+            @reset="resetCurrentColumns"
+          />
+        </template>
+      </UsageFilters>
+      <UsageStatsCards :stats="usageStats" />
+      <div class="space-y-4">
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ModelDistributionChart
             v-model:source="modelDistributionSource"
@@ -69,42 +94,11 @@
           <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
         </div>
       </div>
-      <!-- 明细区：tab 栏 + 筛选 + 内容收进同一张卡片，消除割裂感 -->
-      <div class="card">
-        <div class="flex flex-wrap items-center border-b border-gray-200 px-2 dark:border-dark-700 sm:px-4">
-          <button
-            v-for="tab in detailTabs"
-            :key="tab.key"
-            type="button"
-            data-testid="usage-detail-tab"
-            class="-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-3 text-sm font-medium transition-colors sm:px-4"
-            :class="activeTab === tab.key
-              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-dark-500 dark:hover:text-gray-200'"
-            @click="switchTab(tab.key)"
-          >
-            <Icon :name="tab.icon" size="sm" />
-            {{ tab.label }}
-          </button>
-        </div>
-
-        <UsageFilters v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="border-b border-gray-100 dark:border-dark-700/50" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
-          <template #after-reset>
-            <ColumnSettings
-              v-if="activeTab !== 'ranking'"
-              :columns="activeTab === 'errors' ? errOrderedColumns : orderedColumns"
-              :hidden-columns="activeTab === 'errors' ? errHiddenColumns : hiddenColumns"
-              :required-columns="activeTab === 'errors' ? ERR_ALWAYS_VISIBLE : ALWAYS_VISIBLE"
-              @toggle="toggleCurrentColumn"
-              @reorder="setCurrentColumnOrder"
-              @reset="resetCurrentColumns"
-            />
-          </template>
-        </UsageFilters>
-
-        <div v-show="activeTab === 'usage'" class="overflow-hidden rounded-b-2xl">
+      <div class="open-section">
+        <div v-show="activeTab === 'usage'" class="min-w-0">
           <UsageTable
             enable-timing-details
+            :toolbar-target="activeTab === 'usage' ? tableToolbarTarget : null"
             flat
             :data="usageLogs"
             :loading="loading"
@@ -118,25 +112,27 @@
             @userClick="handleUserClick"
             @ipGeoBatchFailed="handleIpGeoBatchFailed"
           />
-          <Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" />
+          <InfiniteListSentinel :loading="logList.loading.value || logList.loadingMore.value" :error="logList.error.value" :has-more="logList.hasMore.value" @load-more="logList.loadMore" @retry="logList.retry" />
         </div>
-        <div v-show="activeTab === 'errors'" class="overflow-hidden rounded-b-2xl">
+        <div v-show="activeTab === 'errors'" class="min-w-0">
           <OpsErrorLogTable
+            :toolbar-target="activeTab === 'errors' ? tableToolbarTarget : null"
             flat
             :rows="errRows" :total="errTotal" :loading="errLoading"
-            :page="errPage" :page-size="errPageSize"
+            :loading-more="errorList.loadingMore.value" :error="errorList.error.value" :has-more="errorList.hasMore.value"
             :visible-column-keys="errVisibleColumnKeys"
+            :primary-column-keys="errPrimaryColumnKeys"
             @column-reorder="setErrColumnOrder"
             :user-clickable="!props.observerMode"
             @userClick="handleUserClick"
             @openErrorDetail="openError"
             @sort="onErrSort"
-            @update:page="onErrPage"
-            @update:pageSize="onErrPageSize"
+            @load-more="errorList.loadMore"
+            @retry="errorList.retry"
             @ipGeoBatchFailed="handleIpGeoBatchFailed" />
         </div>
         <!-- 懒挂载：首次切到该 tab 才请求排行数据，之后随筛选自动刷新 -->
-        <div v-if="!props.observerMode && rankingMounted" v-show="activeTab === 'ranking'" class="overflow-hidden rounded-b-2xl">
+        <div v-if="!props.observerMode && rankingMounted" v-show="activeTab === 'ranking'" class="min-w-0">
           <UserTokenRanking
             ref="rankingRef"
             :start-date="startDate"
@@ -180,13 +176,12 @@ import { useRoute } from 'vue-router'
 import { objectQueryId } from './objectContext'
 import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
 import { useAppStore } from '@/stores/app'; import { adminAPI } from '@/api/admin'; import { adminUsageAPI } from '@/api/admin/usage'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useTableColumns } from '@/composables/useTableColumns'
 import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import { formatReasoningEffort } from '@/utils/format'
 import { formatUsageCacheRate, showUsageCacheRate } from '@/utils/usageCacheRate'
 import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
-import AppLayout from '@/components/layout/AppLayout.vue'; import Pagination from '@/components/common/Pagination.vue'; import Select from '@/components/common/Select.vue'; import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import AppLayout from '@/components/layout/AppLayout.vue'; import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'; import { useInfiniteList } from '@/composables/useInfiniteList'; import Select from '@/components/common/Select.vue'; import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
@@ -209,7 +204,8 @@ type DistributionMetric = 'tokens' | 'actual_cost'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
 type ModelDistributionSource = 'requested' | 'upstream' | 'mapping'
 const route = useRoute()
-const usageStats = ref<AdminUsageStatsResponse | null>(null); const usageLogs = ref<AdminUsageLog[]>([]); const loading = ref(false); const exporting = ref(false)
+const tableToolbarTarget = ref<HTMLElement | null>(null)
+const usageStats = ref<AdminUsageStatsResponse | null>(null); const exporting = ref(false)
 const trendData = ref<TrendDataPoint[]>([]); const requestedModelStats = ref<ModelStat[]>([]); const upstreamModelStats = ref<ModelStat[]>([]); const mappingModelStats = ref<ModelStat[]>([]); const groupStats = ref<GroupStat[]>([]); const chartsLoading = ref(false); const modelStatsLoading = ref(false); const granularity = ref<'day' | 'hour'>('hour')
 const modelDistributionMetric = ref<DistributionMetric>('tokens')
 const modelDistributionSource = ref<ModelDistributionSource>('requested')
@@ -225,7 +221,7 @@ const inboundEndpointStats = ref<EndpointStat[]>([])
 const upstreamEndpointStats = ref<EndpointStat[]>([])
 const endpointPathStats = ref<EndpointStat[]>([])
 const endpointStatsLoading = ref(false)
-let abortController: AbortController | null = null; let exportAbortController: AbortController | null = null
+let exportAbortController: AbortController | null = null
 let chartReqSeq = 0
 let statsReqSeq = 0
 let modelStatsReqSeq = 0
@@ -278,7 +274,12 @@ const selectedPreset = ref<string | null>('last24Hours')
 const defaultRange = getLast24HoursRangeDates()
 const startDate = ref(defaultRange.start); const endDate = ref(defaultRange.end)
 const filters = ref<AdminUsageQueryParams>({ user_id: undefined, model: undefined, group_id: undefined, request_type: undefined, native_compaction_v2: null, billing_type: null, start_date: startDate.value, end_date: endDate.value })
-const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
+const logList = useInfiniteList<AdminUsageLog>({
+  keyOf: row => row.id, pageSize: 50,
+  fetchPage: (page, signal) => (props.observerMode ? observerUsageAPI.list : adminAPI.usage.list)(
+    buildUsageListParams(page, 50, false), { signal }),
+})
+const { items: usageLogs, loading } = logList
 const sortState = reactive({
   sort_by: 'created_at',
   sort_order: 'desc' as 'asc' | 'desc'
@@ -365,16 +366,7 @@ const buildUsageListParams = (
   }
 }
 
-const loadLogs = async () => {
-  abortController?.abort(); const c = new AbortController(); abortController = c; loading.value = true
-  try {
-    const res = await (props.observerMode ? observerUsageAPI.list : adminAPI.usage.list)(
-      buildUsageListParams(pagination.page, pagination.page_size, false),
-      { signal: c.signal }
-    )
-    if(!c.signal.aborted) { usageLogs.value = res.items; pagination.total = res.total }
-  } catch (error: any) { if(error?.name !== 'AbortError') console.error('Failed to load usage logs:', error) } finally { if(abortController === c) loading.value = false }
-}
+const loadLogs = () => logList.reset()
 const loadStats = async (force = false) => {
   const seq = ++statsReqSeq
   endpointStatsLoading.value = true
@@ -495,13 +487,11 @@ const loadChartData = async () => {
   } catch (error) { console.error('Failed to load chart data:', error) } finally { if (seq === chartReqSeq) chartsLoading.value = false }
 }
 const applyFilters = () => {
-  pagination.page = 1
   invalidateModelStatsCache()
   loadLogs()
   loadStats()
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
-  errPage.value = 1
   if (activeTab.value === 'errors') {
     loadAdminErrors()
   } else {
@@ -533,12 +523,9 @@ const resetFilters = () => {
   granularity.value = getGranularityForRange(startDate.value, endDate.value)
   applyFilters()
 }
-const handlePageChange = (p: number) => { pagination.page = p; loadLogs() }
-const handlePageSizeChange = (s: number) => { pagination.page_size = s; pagination.page = 1; loadLogs() }
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.sort_by = key
   sortState.sort_order = order
-  pagination.page = 1
   loadLogs()
 }
 
@@ -561,7 +548,7 @@ const exportToExcel = async () => {
   if (exporting.value) return; exporting.value = true; exportProgress.show = true
   const c = new AbortController(); exportAbortController = c
   try {
-    let p = 1; let total = pagination.total; let exportedCount = 0
+    let p = 1; let total = logList.total.value ?? 0; let exportedCount = 0
     const XLSX = await import('xlsx')
     const headers = [
       t('usage.time'), t('admin.usage.user'), t('usage.apiKeyFilter'),
@@ -675,6 +662,7 @@ const {
 } = useTableColumns('table-columns:admin-errors:v1', errAllColumns, { required: ERR_ALWAYS_VISIBLE })
 
 const errVisibleColumnKeys = computed(() => errColumns.value.map(column => column.key))
+const errPrimaryColumnKeys = computed(() => errColumns.value.filter(column => column.primary !== false).map(column => column.key))
 const toggleCurrentColumn = (key: string) =>
   activeTab.value === 'errors' ? toggleErrColumn(key) : toggleColumn(key)
 const setCurrentColumnOrder = (keys: string[]) =>
@@ -703,11 +691,6 @@ const switchTab = (tab: DetailTab) => {
 }
 
 // Error tab state
-const errRows = ref<OpsErrorLog[]>([])
-const errLoading = ref(false)
-const errPage = ref(1)
-const errPageSize = ref(20)
-const errTotal = ref(0)
 const errSortBy = ref('created_at')
 const errSortOrder = ref<'asc' | 'desc'>('desc')
 const showErrorModal = ref(false)
@@ -717,14 +700,14 @@ const selectedErrorId = ref<number | null>(null)
 const toRFC3339 = (d: string | undefined, endOfDay = false): string | undefined =>
   d ? parseDateBoundary(d, endOfDay).toISOString() : undefined
 
-const loadAdminErrors = async () => {
-  if (!canViewErrors.value) return
-  errLoading.value = true
-  try {
-    const resp = await (props.observerMode ? observerUsageAPI.listErrors : listErrorLogs)({
+const errorList = useInfiniteList<OpsErrorLog>({
+  keyOf: row => row.id, pageSize: 50,
+  fetchPage: async page => {
+    if (!canViewErrors.value) return { items: [], total: 0 }
+    return (props.observerMode ? observerUsageAPI.listErrors : listErrorLogs)({
       ...(props.observerMode ? { start_date: filters.value.start_date, end_date: filters.value.end_date, status_code: filters.value.status_code } : {}),
-      page: errPage.value,
-      page_size: errPageSize.value,
+      page,
+      page_size: 50,
       view: 'all',
       start_time: toRFC3339(filters.value.start_date),
       end_time: toRFC3339(filters.value.end_date, true),
@@ -739,24 +722,17 @@ const loadAdminErrors = async () => {
       sort_by: errSortBy.value,
       sort_order: errSortOrder.value,
     })
-    errRows.value = resp.items
-    errTotal.value = resp.total
-  } catch (error) {
-    console.error('Failed to load admin errors:', error)
-    appStore.showError(t('usage.errors.failedToLoad'))
-  } finally {
-    errLoading.value = false
-  }
-}
+  },
+})
+const { items: errRows, loading: errLoading } = errorList
+const errTotal = computed(() => errorList.total.value ?? 0)
+const loadAdminErrors = () => errorList.reset()
 
 const onErrSort = (sortBy: string, sortOrder: 'asc' | 'desc') => {
   errSortBy.value = sortBy
   errSortOrder.value = sortOrder
-  errPage.value = 1
   loadAdminErrors()
 }
-const onErrPage = (p: number) => { errPage.value = p; loadAdminErrors() }
-const onErrPageSize = (s: number) => { errPageSize.value = s; errPage.value = 1; loadAdminErrors() }
 const openError = (id: number) => { selectedErrorId.value = id; showErrorModal.value = true }
 
 watch(() => [route.query.user_id, route.query.account_id, route.query.start_date, route.query.end_date], () => {
@@ -774,7 +750,7 @@ onMounted(() => {
     void loadChartData()
   }, 120)
 })
-onUnmounted(() => { abortController?.abort(); exportAbortController?.abort() })
+onUnmounted(() => { exportAbortController?.abort() })
 
 watch(modelDistributionSource, (source) => {
   void loadModelStats(source)
@@ -782,3 +758,9 @@ watch(modelDistributionSource, (source) => {
 
 defineExpose({ requestedModelStats, refreshData })
 </script>
+
+<style scoped>
+.usage-time-filter { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.usage-granularity-filter { flex: 0 0 7rem; min-width: 0; }
+.admin-usage-filters :deep(.usage-filter-controls) { align-items: flex-end; }
+</style>

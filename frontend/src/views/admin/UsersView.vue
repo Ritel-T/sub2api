@@ -1,11 +1,129 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout open>
+      <template #actions>
+        <div class="workspace-page-header">
+          <h1 class="workspace-page-title">{{ t('admin.users.title') }}</h1>
+          <div class="workspace-header-actions">
+            <!-- Mobile: Secondary buttons (icon only) -->
+            <div class="flex items-center gap-2 md:contents">
+              <!-- Refresh Button -->
+              <button
+                @click="loadUsers"
+                :disabled="loading"
+                class="btn btn-secondary px-2 md:px-3"
+                :title="t('common.refresh')"
+              >
+                <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+              </button>
+              <!-- Filter Settings Dropdown -->
+              <div class="relative" ref="filterDropdownRef">
+                <button
+                  @click="showFilterDropdown = !showFilterDropdown"
+                  class="btn btn-secondary px-2 md:px-3"
+                  :title="t('admin.users.filterSettings')"
+                >
+                  <Icon name="filter" size="sm" class="md:mr-1.5" />
+                  <span class="hidden md:inline">{{ t('admin.users.filterSettings') }}</span>
+                </button>
+                <!-- Dropdown menu -->
+                <div
+                  v-if="showFilterDropdown"
+                  class="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                >
+                  <!-- Built-in filters -->
+                  <button
+                    v-for="filter in builtInFilters"
+                    :key="filter.key"
+                    @click="toggleBuiltInFilter(filter.key)"
+                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  >
+                    <span>{{ filter.name }}</span>
+                    <Icon
+                      v-if="visibleFilters.has(filter.key)"
+                      name="check"
+                      size="sm"
+                      class="text-primary-500"
+                      :stroke-width="2"
+                    />
+                  </button>
+                  <!-- Divider if custom attributes exist -->
+                  <div
+                    v-if="filterableAttributes.length > 0"
+                    class="my-1 border-t border-gray-100 dark:border-dark-700"
+                  ></div>
+                  <!-- Custom attribute filters -->
+                  <button
+                    v-for="attr in filterableAttributes"
+                    :key="attr.id"
+                    @click="toggleAttributeFilter(attr)"
+                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  >
+                    <span>{{ attr.name }}</span>
+                    <Icon
+                      v-if="visibleFilters.has(`attr_${attr.id}`)"
+                      name="check"
+                      size="sm"
+                      class="text-primary-500"
+                      :stroke-width="2"
+                    />
+                  </button>
+                </div>
+              </div>
+              <ColumnSettings
+                :columns="orderedColumns"
+                :hidden-columns="hiddenColumns"
+                :required-columns="['id', 'email', 'actions']"
+                @toggle="toggleColumn"
+                @reorder="setColumnOrder"
+                @reset="resetColumns"
+              />
+              <!-- Attributes Config Button -->
+              <button
+                @click="showAttributesModal = true"
+                class="btn btn-secondary px-2 md:px-3"
+                :title="t('admin.users.attributes.configButton')"
+              >
+                <Icon name="cog" size="sm" class="md:mr-1.5" />
+                <span class="hidden md:inline">{{ t('admin.users.attributes.configButton') }}</span>
+              </button>
+            </div>
+
+            <button
+              v-if="selectedCount > 0"
+              class="btn btn-secondary flex-1 md:flex-initial"
+              data-test="bulk-edit-limits"
+              @click="showBulkEditModal = true"
+            >
+              <Icon name="users" size="md" class="mr-2" />
+              {{ t('admin.users.bulkLimits.action', { count: selectedCount }) }}
+            </button>
+
+            <button
+              v-if="selectedCount > 0"
+              class="btn btn-danger flex-1 md:flex-initial"
+              data-test="bulk-delete-users"
+              :disabled="bulkDeleting"
+              @click="bulkDeleteIds = [...selectedIds]"
+            >
+              <Icon name="trash" size="md" class="mr-2" />
+              {{ t('admin.users.bulkDelete.action', { count: selectedCount }) }}
+            </button>
+
+            <!-- Create User Button (full width on mobile, auto width on desktop) -->
+            <button @click="showCreateModal = true" class="btn btn-primary flex-1 md:flex-initial">
+              <Icon name="plus" size="md" class="mr-2" />
+              {{ t('admin.users.createUser') }}
+            </button>
+          </div>
+        </div>
+      </template>
+
       <!-- Single Row: Search, Filters, and Actions -->
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="filter-controls">
           <!-- Left: Search + Active Filters -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
+          <div class="contents">
             <!-- Search Box -->
             <div class="relative w-full md:w-64">
               <Icon
@@ -124,119 +242,7 @@
             </template>
           </div>
 
-          <!-- Right: Actions and Settings -->
-          <div class="flex flex-wrap items-center justify-end gap-2">
-            <!-- Mobile: Secondary buttons (icon only) -->
-            <div class="flex items-center gap-2 md:contents">
-              <!-- Refresh Button -->
-              <button
-                @click="loadUsers"
-                :disabled="loading"
-                class="btn btn-secondary px-2 md:px-3"
-                :title="t('common.refresh')"
-              >
-                <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-              </button>
-              <!-- Filter Settings Dropdown -->
-              <div class="relative" ref="filterDropdownRef">
-                <button
-                  @click="showFilterDropdown = !showFilterDropdown"
-                  class="btn btn-secondary px-2 md:px-3"
-                  :title="t('admin.users.filterSettings')"
-                >
-                  <Icon name="filter" size="sm" class="md:mr-1.5" />
-                  <span class="hidden md:inline">{{ t('admin.users.filterSettings') }}</span>
-                </button>
-                <!-- Dropdown menu -->
-                <div
-                  v-if="showFilterDropdown"
-                  class="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-                >
-                  <!-- Built-in filters -->
-                  <button
-                    v-for="filter in builtInFilters"
-                    :key="filter.key"
-                    @click="toggleBuiltInFilter(filter.key)"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-                  >
-                    <span>{{ filter.name }}</span>
-                    <Icon
-                      v-if="visibleFilters.has(filter.key)"
-                      name="check"
-                      size="sm"
-                      class="text-primary-500"
-                      :stroke-width="2"
-                    />
-                  </button>
-                  <!-- Divider if custom attributes exist -->
-                  <div
-                    v-if="filterableAttributes.length > 0"
-                    class="my-1 border-t border-gray-100 dark:border-dark-700"
-                  ></div>
-                  <!-- Custom attribute filters -->
-                  <button
-                    v-for="attr in filterableAttributes"
-                    :key="attr.id"
-                    @click="toggleAttributeFilter(attr)"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-                  >
-                    <span>{{ attr.name }}</span>
-                    <Icon
-                      v-if="visibleFilters.has(`attr_${attr.id}`)"
-                      name="check"
-                      size="sm"
-                      class="text-primary-500"
-                      :stroke-width="2"
-                    />
-                  </button>
-                </div>
-              </div>
-              <ColumnSettings
-                :columns="orderedColumns"
-                :hidden-columns="hiddenColumns"
-                :required-columns="['email', 'actions']"
-                @toggle="toggleColumn"
-                @reorder="setColumnOrder"
-                @reset="resetColumns"
-              />
-              <!-- Attributes Config Button -->
-              <button
-                @click="showAttributesModal = true"
-                class="btn btn-secondary px-2 md:px-3"
-                :title="t('admin.users.attributes.configButton')"
-              >
-                <Icon name="cog" size="sm" class="md:mr-1.5" />
-                <span class="hidden md:inline">{{ t('admin.users.attributes.configButton') }}</span>
-              </button>
-            </div>
-
-            <button
-              v-if="selectedCount > 0"
-              class="btn btn-secondary flex-1 md:flex-initial"
-              data-test="bulk-edit-limits"
-              @click="showBulkEditModal = true"
-            >
-              <Icon name="users" size="md" class="mr-2" />
-              {{ t('admin.users.bulkLimits.action', { count: selectedCount }) }}
-            </button>
-
-            <button
-              v-if="selectedCount > 0"
-              class="btn btn-danger flex-1 md:flex-initial"
-              data-test="bulk-delete-users"
-              :disabled="bulkDeleting"
-              @click="bulkDeleteIds = [...selectedIds]"
-            >
-              <Icon name="trash" size="md" class="mr-2" />
-              {{ t('admin.users.bulkDelete.action', { count: selectedCount }) }}
-            </button>
-
-            <!-- Create User Button (full width on mobile, auto width on desktop) -->
-            <button @click="showCreateModal = true" class="btn btn-primary flex-1 md:flex-initial">
-              <Icon name="plus" size="md" class="mr-2" />
-              {{ t('admin.users.createUser') }}
-            </button>
-          </div>
+          <TableToolbarTarget />
         </div>
       </template>
 
@@ -580,18 +586,18 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
+            <div class="workspace-row-actions">
               <!-- Edit Button -->
-              <button
+              <button :title="t('common.edit')" :aria-label="t('common.edit')"
                 @click="handleEdit(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400 workspace-icon-action"
               >
                 <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t('common.edit') }}</span>
+                <span class="sr-only">{{ t('common.edit') }}</span>
               </button>
 
               <!-- Toggle Status Button (not for admin) -->
-              <button
+              <button :title="row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable')" :aria-label="row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable')" class="workspace-icon-action"
                 v-if="row.role !== 'admin'"
                 @click="handleToggleStatus(row)"
                 :class="[
@@ -603,17 +609,17 @@
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
                 <Icon v-else name="checkCircle" size="sm" />
-                <span class="text-xs">{{ row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable') }}</span>
+                <span class="sr-only">{{ row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable') }}</span>
               </button>
 
               <!-- More Actions Menu Trigger -->
-              <button
+              <button :title="t('common.more')" :aria-label="t('common.more')"
                 @click="openActionMenu(row, $event)"
-                class="action-menu-trigger flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white"
+                class="action-menu-trigger text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white workspace-icon-action"
                 :class="{ 'bg-gray-100 text-gray-900 dark:bg-dark-700 dark:text-white': activeMenuId === row.id }"
               >
                 <Icon name="more" size="sm" />
-                <span class="text-xs">{{ t('common.more') }}</span>
+                <span class="sr-only">{{ t('common.more') }}</span>
               </button>
             </div>
           </template>
@@ -631,14 +637,13 @@
 
       <!-- Pagination -->
       <template #pagination>
-      <Pagination
-        v-if="pagination.total > 0"
-        :page="pagination.page"
-        :total="pagination.total"
-        :page-size="pagination.page_size"
-        @update:page="handlePageChange"
-        @update:pageSize="handlePageSizeChange"
-      />
+      <InfiniteListSentinel
+          :loading="loading || continuousList.loadingMore.value"
+          :error="continuousList.error.value"
+          :has-more="continuousList.hasMore.value"
+          @load-more="continuousList.loadMore"
+          @retry="continuousList.retry"
+        />
       </template>
     </TablePageLayout>
 
@@ -762,10 +767,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
+import { watch,  ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { useTableColumns } from '@/composables/useTableColumns'
 import ColumnSettings from '@/components/common/ColumnSettings.vue'
@@ -783,7 +788,8 @@ import type { SelectOption } from '@/components/common/Select.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -878,25 +884,9 @@ const allColumns = computed<Column[]>(() => [
 ])
 
 const {
-  columns, orderedColumns, hiddenColumns, toggleColumn: toggleColumnPreference,
-  setColumnOrder, resetColumns: resetColumnPreferences
-} = useTableColumns('table-columns:users:v1', allColumns, { required: ['email', 'actions'] })
-
-const toggleColumn = (key: string) => {
-  const wasHidden = hiddenColumns.has(key)
-  toggleColumnPreference(key)
-  if (wasHidden && (key === 'usage' || key.startsWith('usage_') || key.startsWith('attr_') || key === 'balance_platform_quota')) {
-    refreshCurrentPageSecondaryData()
-  }
-  if (wasHidden && key === 'groups') loadAllGroups()
-}
-
-const resetColumns = () => {
-  const reloadGroups = hiddenColumns.has('groups')
-  resetColumnPreferences()
-  refreshCurrentPageSecondaryData()
-  if (reloadGroups) loadAllGroups()
-}
+  columns, orderedColumns, hiddenColumns, isColumnVisible, toggleColumn,
+  setColumnOrder, resetColumns
+} = useTableColumns('table-columns:users:v1', allColumns, { required: ['id', 'email', 'actions'] })
 
 // usage 主列或任意 usage_<platform> 子列可见时都需要批量拉取用量数据
 // 列 key → 平台名（'usage' 主列汇总所有平台时为 null）
@@ -912,16 +902,20 @@ const USAGE_COLUMN_PLATFORMS: Record<string, string | null> = {
 }
 const PLATFORM_USAGE_COLUMNS = USAGE_COLUMN_KEYS.filter((k) => k !== 'usage')
 const hasVisibleUsageColumn = computed(
-  () => !hiddenColumns.has('usage') || PLATFORM_USAGE_COLUMNS.some((k) => !hiddenColumns.has(k))
+  () => isColumnVisible('usage') || PLATFORM_USAGE_COLUMNS.some((k) => isColumnVisible(k))
 )
-const hasVisibleGroupsColumn = computed(() => !hiddenColumns.has('groups'))
-const hasVisiblePlatformQuotaColumn = computed(() => !hiddenColumns.has('balance_platform_quota'))
+const hasVisibleGroupsColumn = computed(() => isColumnVisible('groups'))
+const hasVisiblePlatformQuotaColumn = computed(() => isColumnVisible('balance_platform_quota'))
 const hasVisibleAttributeColumns = computed(() =>
-  attributeDefinitions.value.some((def) => def.enabled && !hiddenColumns.has(`attr_${def.id}`))
+  attributeDefinitions.value.some((def) => def.enabled && isColumnVisible(`attr_${def.id}`))
 )
 
-const users = ref<AdminUser[]>([])
-const loading = ref(false)
+const continuousList = useInfiniteList<AdminUser>({
+  fetchPage: fetchListPage,
+  keyOf: row => row.id,
+  pageSize: 50
+})
+const { items: users, loading } = continuousList
 const searchQuery = ref('')
 const USER_SORT_STORAGE_KEY = 'admin-users-table-sort'
 const loadInitialSortState = (): { sort_by: string; sort_order: 'asc' | 'desc' } => {
@@ -1098,8 +1092,8 @@ const getPlatformUsage = (userId: number, platform: string) =>
   usageStats.value[userId]?.by_platform?.find((p) => p.platform === platform)
 
 // 用量列前端排序：DataTable 工作在 server-side-sort 模式，所有 sortable
-// 字段都会触发后端查询，而用量列数据是异步批量拉取后再合并到当前页，
-// 因此采用独立的前端排序状态对当前页 users 做本地排序。
+// 字段都会触发后端查询，而用量列数据是异步批量拉取后再合并到已加载列表，
+// 因此采用独立的前端排序状态对已加载 users 做本地排序。
 // 排序状态独立于后端 sortState 持久化；缺失数据按 0 处理（desc 沉底、asc 置顶）。
 type UsageMetric = 'today' | 'total'
 type UsageSortState = { key: string; metric: UsageMetric; order: 'asc' | 'desc' } | null
@@ -1210,12 +1204,6 @@ const getUserSelectionLabel = (user: AdminUser) =>
 
 // User attribute values
 const userAttributeValues = ref<Record<number, Record<number, string>>>({})
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0,
-  pages: 0
-})
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -1240,7 +1228,6 @@ const closePlatformQuotaModal = () => {
   showPlatformQuotaModal.value = false
   platformQuotaUser.value = null
 }
-let abortController: AbortController | null = null
 let secondaryDataSeq = 0
 
 const loadUsersSecondaryData = async (
@@ -1259,7 +1246,7 @@ const loadUsersSecondaryData = async (
           const usageResponse = await adminAPI.dashboard.getBatchUsersUsage(userIds)
           if (signal?.aborted) return
           if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
-          usageStats.value = usageResponse.stats
+          usageStats.value = { ...usageStats.value, ...usageResponse.stats }
         } catch (e) {
           if (signal?.aborted) return
           console.error('Failed to load usage stats:', e)
@@ -1275,7 +1262,7 @@ const loadUsersSecondaryData = async (
           const attrResponse = await adminAPI.userAttributes.getBatchUserAttributes(userIds)
           if (signal?.aborted) return
           if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
-          userAttributeValues.value = attrResponse.attributes
+          userAttributeValues.value = { ...userAttributeValues.value, ...attrResponse.attributes }
         } catch (e) {
           if (signal?.aborted) return
           console.error('Failed to load user attribute values:', e)
@@ -1288,7 +1275,7 @@ const loadUsersSecondaryData = async (
     tasks.push(
       (async () => {
         try {
-          // 无批量端点：对当前页用户逐个拉取，分块并发（每批 6），批间检查中止条件，避免大 pageSize 时请求洪峰
+          // 无批量端点：对已加载用户逐个拉取，分块并发（每批 6），批间检查中止条件，避免大 pageSize 时请求洪峰
           const CHUNK = 6
           for (let i = 0; i < userIds.length; i += CHUNK) {
             if (signal?.aborted) return
@@ -1318,13 +1305,6 @@ const loadUsersSecondaryData = async (
   if (tasks.length > 0) {
     await Promise.allSettled(tasks)
   }
-}
-
-const refreshCurrentPageSecondaryData = () => {
-  const userIds = users.value.map((u) => u.id)
-  if (userIds.length === 0) return
-  const seq = ++secondaryDataSeq
-  void loadUsersSecondaryData(userIds, undefined, seq)
 }
 
 // Action Menu State
@@ -1456,104 +1436,71 @@ const handleAttributesModalClose = async () => {
   loadUsers()
 }
 
-const loadUsers = async () => {
-  abortController?.abort()
-  const currentAbortController = new AbortController()
-  abortController = currentAbortController
-  const { signal } = currentAbortController
-  loading.value = true
+async function fetchListPage(page: number, signal: AbortSignal) {
   try {
-    // Build attribute filters from active filters
     const attrFilters: Record<number, string> = {}
-    for (const [attrId, value] of Object.entries(activeAttributeFilters)) {
-      if (value) {
-        attrFilters[Number(attrId)] = value
-      }
-    }
-
-    const response = await adminAPI.users.list(
-      pagination.page,
-      pagination.page_size,
-      {
-        role: filters.role as any,
-        status: filters.status as any,
-        search: searchQuery.value || undefined,
-        group_name: filters.group || undefined,
-        api_key_group_id: filters.apiKeyGroup ?? undefined,
-        attributes: Object.keys(attrFilters).length > 0 ? attrFilters : undefined,
-        // 始终请求 subscriptions：列隐藏时仍需用于 UserPlatformQuotaModal 的 active-subscription 警示 banner
-        include_subscriptions: true,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order
-      },
-      { signal }
-    )
-    if (signal.aborted) {
-      return
-    }
-    users.value = response.items
-    pagination.total = response.total
-    pagination.pages = response.pages
-    usageStats.value = {}
-    userAttributeValues.value = {}
-    platformQuotaStats.value = {}
-
-    // Defer heavy secondary data so table can render first.
-    if (response.items.length > 0) {
-      const userIds = response.items.map((u) => u.id)
-      const seq = ++secondaryDataSeq
-      window.setTimeout(() => {
-        if (signal.aborted || seq !== secondaryDataSeq) return
-        void loadUsersSecondaryData(userIds, signal, seq)
-      }, 50)
-    }
-  } catch (error: any) {
-    const errorInfo = error as { name?: string; code?: string }
-    if (errorInfo?.name === 'AbortError' || errorInfo?.name === 'CanceledError' || errorInfo?.code === 'ERR_CANCELED') {
-      return
-    }
-    const message = error.response?.data?.detail || error.message || t('admin.users.failedToLoad')
-    appStore.showError(message)
-    console.error('Error loading users:', error)
-  } finally {
-    if (abortController === currentAbortController) {
-      loading.value = false
-    }
+    for (const [id, value] of Object.entries(activeAttributeFilters)) if (value) attrFilters[Number(id)] = value
+    return await adminAPI.users.list(page, 50, {
+      role: filters.role as any, status: filters.status as any,
+      search: searchQuery.value || undefined, group_name: filters.group || undefined,
+      api_key_group_id: filters.apiKeyGroup ?? undefined,
+      attributes: Object.keys(attrFilters).length ? attrFilters : undefined,
+      include_subscriptions: true, sort_by: sortState.sort_by, sort_order: sortState.sort_order
+    }, { signal })
+  } catch (error: unknown) {
+    if (!signal.aborted) appStore.showError(t('admin.users.failedToLoad'))
+    throw error
   }
 }
 
+const loadUsers = async () => {
+  clearSelection()
+  secondaryDataSeq++
+  secondaryController?.abort()
+  usageStats.value = {}
+  userAttributeValues.value = {}
+  platformQuotaStats.value = {}
+  await continuousList.reset()
+}
+
+let secondaryController: AbortController | null = null
+watch(users, (rows) => {
+  secondaryController?.abort()
+  secondaryController = new AbortController()
+  const signal = secondaryController.signal
+  const seq = ++secondaryDataSeq
+  if (!rows.length) return
+  const ids = rows.map(row => row.id)
+  void (async () => {
+    for (let start = 0; start < ids.length; start += 50) {
+      if (signal.aborted || seq !== secondaryDataSeq) return
+      await loadUsersSecondaryData(ids.slice(start, start + 50), signal, seq)
+    }
+  })()
+})
+
+
 const handleBulkLimitsSuccess = async () => {
   clearSelection()
-  await loadUsers()
+  await continuousList.refresh()
 }
 
 let searchTimeout: ReturnType<typeof setTimeout>
 const handleSearch = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
-    pagination.page = 1
+
     loadUsers()
   }, 300)
 }
 
-const handlePageChange = (page: number) => {
-  // 确保页码在有效范围内
-  const validPage = Math.max(1, Math.min(page, pagination.pages || 1))
-  pagination.page = validPage
-  loadUsers()
-}
 
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.page_size = pageSize
-  pagination.page = 1
-  loadUsers()
-}
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   clearUsageSort()
   sortState.sort_by = key
   sortState.sort_order = order
-  pagination.page = 1
+
   loadUsers()
 }
 
@@ -1577,7 +1524,7 @@ const toggleBuiltInFilter = (key: string) => {
     if (key === 'apiKeyGroup') loadAllGroupsForApiKeyFilter()
   }
   saveFiltersToStorage()
-  pagination.page = 1
+
   loadUsers()
 }
 
@@ -1592,7 +1539,7 @@ const toggleAttributeFilter = (attr: UserAttributeDefinition) => {
     activeAttributeFilters[attr.id] = ''
   }
   saveFiltersToStorage()
-  pagination.page = 1
+
   loadUsers()
 }
 
@@ -1708,11 +1655,11 @@ const confirmBulkDelete = async () => {
   removeSelectedIds(deletedIds)
   if (deletedIds.length > 0) {
     appStore.showSuccess(t('admin.users.bulkDelete.success', { count: deletedIds.length }))
-    pagination.page = 1
+
   }
   const failed = ids.length - deletedIds.length
   if (failed > 0) appStore.showError(t('admin.users.bulkDelete.failed', { count: failed }))
-  await loadUsers()
+  await continuousList.refresh()
   bulkDeleting.value = false
 }
 
@@ -1777,9 +1724,10 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  secondaryController?.abort()
+  secondaryDataSeq++
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', handleScroll, true)
   clearTimeout(searchTimeout)
-  abortController?.abort()
 })
 </script>

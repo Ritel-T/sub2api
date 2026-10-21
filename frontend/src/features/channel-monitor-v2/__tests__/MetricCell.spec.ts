@@ -13,7 +13,8 @@ describe('MetricCell', () => {
       },
     })
 
-    expect(wrapper.classes().join(' ') + wrapper.html()).toContain('stat-card')
+    expect(wrapper.get('.stat-label').text()).toBe('请求')
+    expect(wrapper.get('.stat-value').text()).toBe('1,234')
     expect(wrapper.text()).toContain('请求')
     expect(wrapper.text()).toContain('1,234')
     expect(wrapper.text()).toContain('12.5 RPM')
