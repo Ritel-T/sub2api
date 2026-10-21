@@ -268,7 +268,7 @@ watch(() => props.data.map(row => row.id), ids => {
 
 <style scoped>
 .key-workspace-table{min-width:0;color:var(--ritel-fg);font-family:var(--ritel-ui);font-size:14px;line-height:1.5;font-variant-numeric:lining-nums tabular-nums}
-.workspace-table-scroll{position:relative;overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--ritel-control-border) var(--ritel-bg)}
+.workspace-table-scroll{position:relative;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:var(--ritel-control-border) var(--ritel-bg)}
 table{width:100%;min-width:1080px;table-layout:fixed;border-collapse:collapse;background:transparent}
 th,td{padding:10px 8px;box-sizing:border-box;text-align:left;vertical-align:middle;border-bottom:1px solid var(--ritel-border)}
 th{height:52px;color:var(--ritel-muted);font-size:12px;font-weight:400;white-space:normal}td{min-height:68px;height:68px;overflow-wrap:anywhere}

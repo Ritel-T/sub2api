@@ -107,7 +107,7 @@
           <MihomoSettings v-else :section="activeManagementTab" @static-proxies-added="loadProxies" />
         </div>
         <div v-show="activeManagementTab === 'proxies'" ref="proxyTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <DataTable column-order-key="table-columns:proxies:v1"
+        <DataTable ref="proxyDataTableRef" column-order-key="table-columns:proxies:v1"
           :columns="columns"
           :data="proxies"
           :loading="loading"
@@ -1054,6 +1054,7 @@ const qualityCheckingProxyIds = ref<Set<number>>(new Set())
 const batchTesting = ref(false)
 const batchQualityChecking = ref(false)
 const proxyTableRef = ref<HTMLElement | null>(null)
+const proxyDataTableRef = ref<InstanceType<typeof DataTable> | null>(null)
 const {
   selectedSet: selectedProxyIds,
   selectedCount,
@@ -1074,6 +1075,12 @@ useSwipeSelect(proxyTableRef, {
   select,
   deselect,
   batchUpdate
+}, {
+  getVirtualizer: () => proxyDataTableRef.value?.virtualizer ?? null,
+  getScrollElement: () => proxyDataTableRef.value?.selectionScrollElement ?? null,
+  getContentOffset: () => proxyDataTableRef.value?.selectionContentOffset ?? 0,
+  getSortedData: () => proxyDataTableRef.value?.sortedData ?? proxies.value,
+  getRowId: (row: Proxy) => row.id
 })
 const accountsProxy = ref<Proxy | null>(null)
 const proxyAccounts = ref<ProxyAccountSummary[]>([])

@@ -1174,6 +1174,8 @@ const selectPage = () => {
 
 const swipeVirtualContext: SwipeSelectVirtualContext = {
   getVirtualizer: () => dataTableRef.value?.virtualizer ?? null,
+  getScrollElement: () => dataTableRef.value?.selectionScrollElement ?? null,
+  getContentOffset: () => dataTableRef.value?.selectionContentOffset ?? 0,
   getSortedData: () => dataTableRef.value?.sortedData ?? accounts.value,
   getRowId: (row: any) => row.id,
 }

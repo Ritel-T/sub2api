@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DataTable from '../DataTable.vue'
@@ -51,6 +51,18 @@ describe('DataTable', () => {
     localStorage.clear()
   })
 
+  it('exposes the active scroll owner for swipe selection even below the virtualization threshold', async () => {
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ key: 'id', label: 'ID' }], data: [{ id: 1 }]
+    } })
+    await nextTick()
+    expect((wrapper.vm as any).selectionScrollElement).toBe(window)
+    expect((wrapper.vm as any).virtualizer.options.getScrollElement()).toBe(window)
+    await wrapper.setProps({ open: false })
+    expect((wrapper.vm as any).selectionScrollElement).toBe(wrapper.get('.table-wrapper').element)
+    expect((wrapper.vm as any).virtualizer.options.getScrollElement()).toBe(wrapper.get('.table-wrapper').element)
+    wrapper.unmount()
+  })
   it('reorders header and cells, persists order, and keeps row sorting separate', async () => {
     const props = {
       columnOrderKey: 'test-order',
@@ -440,6 +452,7 @@ describe('DataTable', () => {
     const columns = ['id', 'name', 'status', 'group', 'usage', 'concurrency', 'actions', 'created_at', 'expires_at', 'notes'].map(key => ({ key, label: key, sortable: true }))
     const data = Array.from({ length: 120 }, (_, i) => ({ id: i + 1, name: `Row ${i + 1}`, notes: `Note ${i + 1}` }))
     const wrapper = mount(DataTable, { props: { columns, data }, slots: { 'cell-notes': '<strong data-test="note">Custom detail</strong>' } })
+    await flushPromises()
     expect((wrapper.vm as any).shouldVirtualize).toBe(false)
     expect(wrapper.findAll('tr.table-row').length).toBeGreaterThan(0)
     expect(wrapper.findAll('tr.table-row').length).toBeLessThan(120)

@@ -1143,7 +1143,9 @@ const {
   rendered: documentRenderRows,
   paddingTop: documentPaddingTop,
   paddingBottom: documentPaddingBottom,
-  measure: measureDocumentRow
+  measure: measureDocumentRow,
+  virtualizer: documentVirtualizer,
+  scrollElement: documentScrollElement
 } = useDocumentRows(
   sortedData, documentBodyRef, resolveRowKey,
   computed(() => props.open),
@@ -1320,7 +1322,9 @@ watch(
 )
 
 defineExpose({
-  virtualizer: rowVirtualizer,
+  virtualizer: computed(() => props.open ? documentVirtualizer.value : rowVirtualizer.value),
+  selectionScrollElement: computed(() => props.open ? documentScrollElement.value : tableWrapperRef.value),
+  selectionContentOffset: computed(() => props.open ? 0 : tableWrapperRef.value?.querySelector('thead')?.getBoundingClientRect().height ?? 0),
   shouldVirtualize,
   sortedData,
   resolveRowKey,

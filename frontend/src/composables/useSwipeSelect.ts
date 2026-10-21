@@ -31,7 +31,11 @@ export interface SwipeSelectAdapter {
 
 export interface SwipeSelectVirtualContext {
   /** Get the virtualizer instance */
-  getVirtualizer: () => Virtualizer<HTMLElement, Element> | null
+  getVirtualizer: () => Virtualizer<HTMLElement, Element> | Virtualizer<Window, Element> | null
+  /** Explicit scroll owner also works before the virtualizer is enabled. */
+  getScrollElement?: () => HTMLElement | Window | null
+  /** Header excluded by legacy item coordinates; document rows include it in scrollMargin. */
+  getContentOffset?: () => number
   /** Get all sorted data */
   getSortedData: () => any[]
   /** Get row ID from data row */
@@ -89,7 +93,7 @@ export function useSwipeSelect(
   let initialSelectedSnapshot = new Map<number, boolean>()
   let cachedRows: HTMLElement[] = []
   let marqueeEl: HTMLDivElement | null = null
-  let cachedScrollParent: HTMLElement | null = null
+  let cachedScrollParent: HTMLElement | Window | null = null
 
   const DRAG_THRESHOLD = 5
   const SCROLL_ZONE = 60
@@ -146,13 +150,16 @@ export function useSwipeSelect(
   function findRowIndexAtYVirtual(clientY: number): number {
     const virt = virtualContext!.getVirtualizer()
     if (!virt) return -1
-    const scrollEl = virt.scrollElement
+    const scrollEl = virtualContext!.getScrollElement?.() ?? virt.scrollElement
     if (!scrollEl) return -1
 
-    const scrollRect = scrollEl.getBoundingClientRect()
-    const thead = scrollEl.querySelector('thead')
-    const theadHeight = thead ? thead.getBoundingClientRect().height : 0
-    const contentY = clientY - scrollRect.top - theadHeight + scrollEl.scrollTop
+    const isDocumentScroll = !(scrollEl instanceof HTMLElement) || scrollEl === document.documentElement
+    const domRoot = isDocumentScroll ? containerRef.value : scrollEl as HTMLElement
+    const scrollRect = isDocumentScroll ? null : (scrollEl as HTMLElement).getBoundingClientRect()
+    const contentOffset = scrollRect ? virtualContext!.getContentOffset?.() ?? domRoot?.querySelector('thead')?.getBoundingClientRect().height ?? 0 : 0
+    const contentY = isDocumentScroll
+      ? clientY + window.scrollY
+      : clientY - scrollRect!.top - (scrollEl as HTMLElement).clientTop - contentOffset + (scrollEl as HTMLElement).scrollTop
 
     // Search in rendered virtualItems first
     const items = virt.getVirtualItems()
@@ -163,7 +170,7 @@ export function useSwipeSelect(
     // Virtualization disabled (small list rendered in full): the window is empty, so
     // locate the row via real DOM rows instead of the (now-misleading) height estimate.
     if (items.length === 0) {
-      const domIdx = findRowIndexByDomPosition(scrollEl, clientY)
+      const domIdx = domRoot ? findRowIndexByDomPosition(domRoot, clientY) : -1
       if (domIdx >= 0) return domIdx
     }
 
@@ -171,7 +178,7 @@ export function useSwipeSelect(
     const totalCount = virtualContext!.getSortedData().length
     if (totalCount === 0) return -1
     const est = virt.options.estimateSize(0)
-    const guess = Math.floor(contentY / est)
+    const guess = Math.floor((contentY - (virt.options.scrollMargin ?? 0)) / est)
     return Math.max(0, Math.min(totalCount - 1, guess))
   }
 
@@ -290,8 +297,8 @@ export function useSwipeSelect(
   function getScrollParent(el: HTMLElement): HTMLElement {
     let parent = el.parentElement
     while (parent && parent !== document.documentElement) {
-      const { overflow, overflowY } = getComputedStyle(parent)
-      if (/(auto|scroll)/.test(overflow + overflowY)) return parent
+      const { overflowY } = getComputedStyle(parent)
+      if (/(auto|scroll)/.test(overflowY) && parent.scrollHeight > parent.clientHeight) return parent
       parent = parent.parentElement
     }
     return document.documentElement
@@ -361,7 +368,7 @@ export function useSwipeSelect(
     // Skip clicks on any scrollbar (inner containers + document)
     if (isOnScrollbar(e)) return
 
-    if (target.closest('button, a, input, select, textarea, [role="button"], [role="menuitem"], [role="combobox"], [role="dialog"]')) return
+    if (target.closest('button, a, input, select, textarea, [role="button"], [role="menuitem"], [role="combobox"], [role="dialog"], [role="checkbox"], [role="switch"], [contenteditable="true"], [data-document-detail]')) return
     if (shouldPreferNativeTextSelection(target)) return
     if (shouldPreferNativeSelectionOutsideRows(target)) return
 
@@ -472,7 +479,7 @@ export function useSwipeSelect(
 
     // In virtual mode, scroll parent is the virtualizer's scroll element
     const virt = virtualContext!.getVirtualizer()
-    cachedScrollParent = virt?.scrollElement ?? (containerRef.value ? getScrollParent(containerRef.value) : null)
+    cachedScrollParent = virtualContext!.getScrollElement?.() ?? virt?.scrollElement ?? (containerRef.value ? getScrollParent(containerRef.value) : null)
 
     createMarquee()
     updateMarquee(clientY)
@@ -546,11 +553,12 @@ export function useSwipeSelect(
     if (!scrollEl) return
 
     let dy = 0
-    if (scrollEl === document.documentElement) {
+    const isDocumentScroll = !(scrollEl instanceof HTMLElement) || scrollEl === document.documentElement
+    if (isDocumentScroll) {
       if (e.clientY < SCROLL_ZONE) dy = -SCROLL_SPEED
       else if (e.clientY > window.innerHeight - SCROLL_ZONE) dy = SCROLL_SPEED
     } else {
-      const rect = scrollEl.getBoundingClientRect()
+      const rect = (scrollEl as HTMLElement).getBoundingClientRect()
       if (e.clientY < rect.top + SCROLL_ZONE) dy = -SCROLL_SPEED
       else if (e.clientY > rect.bottom - SCROLL_ZONE) dy = SCROLL_SPEED
     }
@@ -558,14 +566,23 @@ export function useSwipeSelect(
     if (dy !== 0) {
       const findIdx = virtualContext ? findRowIndexAtYVirtual : findRowIndexAtY
       const apply = virtualContext ? applyRangeVirtual : applyRange
+      const readScrollTop = () => isDocumentScroll ? window.scrollY : (scrollEl as HTMLElement).scrollTop
+      let lastObservedScrollTop = readScrollTop()
+      const updateSelectionAfterScroll = () => {
+        const scrollTop = readScrollTop()
+        if (scrollTop === lastObservedScrollTop) return
+        lastObservedScrollTop = scrollTop
+        const rowIdx = findIdx(lastMouseY)
+        if (rowIdx >= 0 && rowIdx !== lastEndIndex) apply(rowIdx)
+      }
       const step = () => {
-        const prevScrollTop = scrollEl.scrollTop
-        scrollEl.scrollTop += dy
-        // Only re-check selection if scroll actually moved
-        if (scrollEl.scrollTop !== prevScrollTop) {
-          const rowIdx = findIdx(lastMouseY)
-          if (rowIdx >= 0 && rowIdx !== lastEndIndex) apply(rowIdx)
-        }
+        if (!isDragging.value || cachedScrollParent !== scrollEl) return
+        // A browser can commit scrollBy after it returns. Observe movement since
+        // the previous frame as well as any synchronous element/window scroll.
+        updateSelectionAfterScroll()
+        if (isDocumentScroll) window.scrollBy(0, dy)
+        else (scrollEl as HTMLElement).scrollTop += dy
+        updateSelectionAfterScroll()
         scrollRAF = requestAnimationFrame(step)
       }
       scrollRAF = requestAnimationFrame(step)
