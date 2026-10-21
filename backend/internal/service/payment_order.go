@@ -23,6 +23,11 @@ import (
 // --- Order Creation ---
 
 func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest) (*CreateOrderResponse, error) {
+	if NormalizeVisibleMethod(req.PaymentType) == payment.TypeSquarespace {
+		if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+			return nil, err
+		}
+	}
 	if req.OrderType == "" {
 		req.OrderType = payment.OrderTypeBalance
 	}
@@ -929,7 +934,7 @@ func (s *PaymentService) GetOrder(ctx context.Context, orderID, userID int64) (*
 	if o.UserID != userID {
 		return nil, infraerrors.Forbidden("FORBIDDEN", "no permission for this order")
 	}
-	return o, nil
+	return s.paymentOrderForResponse(ctx, o), nil
 }
 
 func (s *PaymentService) GetOrderByID(ctx context.Context, orderID int64) (*dbent.PaymentOrder, error) {
@@ -937,7 +942,7 @@ func (s *PaymentService) GetOrderByID(ctx context.Context, orderID int64) (*dben
 	if err != nil {
 		return nil, infraerrors.NotFound("NOT_FOUND", "order not found")
 	}
-	return o, nil
+	return s.paymentOrderForResponse(ctx, o), nil
 }
 
 func (s *PaymentService) GetUserOrders(ctx context.Context, userID int64, p OrderListParams) ([]*dbent.PaymentOrder, int, error) {
@@ -959,6 +964,9 @@ func (s *PaymentService) GetUserOrders(ctx context.Context, userID int64, p Orde
 	orders, err := q.Order(dbent.Desc(paymentorder.FieldCreatedAt)).Limit(ps).Offset((pg - 1) * ps).All(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query user orders: %w", err)
+	}
+	for i, order := range orders {
+		orders[i] = s.paymentOrderForResponse(ctx, order)
 	}
 	return orders, total, nil
 }
@@ -993,6 +1001,9 @@ func (s *PaymentService) AdminListOrders(ctx context.Context, userID int64, p Or
 	orders, err := q.Order(dbent.Desc(paymentorder.FieldCreatedAt)).Limit(ps).Offset((pg - 1) * ps).All(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query admin orders: %w", err)
+	}
+	for i, order := range orders {
+		orders[i] = s.paymentOrderForResponse(ctx, order)
 	}
 	return orders, total, nil
 }

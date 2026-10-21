@@ -38,6 +38,11 @@ type paymentFulfillmentLease struct {
 // --- Payment Notification & Fulfillment ---
 
 func (s *PaymentService) HandlePaymentNotification(ctx context.Context, n *payment.PaymentNotification, pk string) error {
+	if strings.EqualFold(strings.TrimSpace(pk), payment.TypeSquarespace) {
+		if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+			return err
+		}
+	}
 	if n.Status != payment.NotificationStatusSuccess {
 		return nil
 	}
@@ -108,6 +113,9 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 	if err != nil {
 		slog.Error("order not found", "orderID", oid)
 		return nil
+	}
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return err
 	}
 	instanceProviderKey := ""
 	if inst, instErr := s.getOrderProviderInstance(ctx, o); instErr == nil && inst != nil {
@@ -186,6 +194,9 @@ func expectedNotificationProviderKey(registry *payment.Registry, orderPaymentTyp
 }
 
 func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, tradeNo string, paid float64, pk string, metadata map[string]string) error {
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return err
+	}
 	previousStatus := o.Status
 	now := time.Now()
 	grace := now.Add(-paymentGraceMinutes * time.Minute)
@@ -276,6 +287,9 @@ func (s *PaymentService) executeFulfillment(ctx context.Context, oid int64) erro
 	if err != nil {
 		return fmt.Errorf("get order: %w", err)
 	}
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return err
+	}
 	switch o.OrderType {
 	case payment.OrderTypeSubscription:
 		return s.ExecuteSubscriptionFulfillment(ctx, oid)
@@ -315,6 +329,9 @@ func (s *PaymentService) ExecuteBalanceFulfillment(ctx context.Context, oid int6
 	if err != nil {
 		return infraerrors.NotFound("NOT_FOUND", "order not found")
 	}
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return err
+	}
 	if o.OrderType != payment.OrderTypeBalance {
 		return infraerrors.BadRequest("INVALID_ORDER_TYPE", "order is not a balance order")
 	}
@@ -342,6 +359,9 @@ func (s *PaymentService) ExecuteBalanceFulfillment(ctx context.Context, oid int6
 }
 
 func (s *PaymentService) acquirePaymentFulfillmentLease(ctx context.Context, o *dbent.PaymentOrder) (*paymentFulfillmentLease, error) {
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return nil, err
+	}
 	if o == nil {
 		return nil, infraerrors.BadRequest("INVALID_STATUS", "nil payment order")
 	}
@@ -600,6 +620,9 @@ func (s *PaymentService) ExecuteSubscriptionFulfillment(ctx context.Context, oid
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		return infraerrors.NotFound("NOT_FOUND", "order not found")
+	}
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return err
 	}
 	if o.Status == OrderStatusCompleted {
 		return nil
@@ -980,6 +1003,9 @@ func (s *PaymentService) RetryFulfillment(ctx context.Context, oid int64) error 
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		return infraerrors.NotFound("NOT_FOUND", "order not found")
+	}
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return err
 	}
 	if o.PaidAt == nil {
 		return infraerrors.BadRequest("INVALID_STATUS", "order is not paid")

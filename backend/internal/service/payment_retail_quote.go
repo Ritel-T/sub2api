@@ -73,6 +73,11 @@ type retailQuoteClaims struct {
 }
 
 func (s *PaymentService) QuotePayment(ctx context.Context, req CreateOrderRequest) (*RetailQuoteResponse, error) {
+	if NormalizeVisibleMethod(req.PaymentType) == payment.TypeSquarespace {
+		if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+			return nil, err
+		}
+	}
 	if req.OrderType == "" {
 		req.OrderType = payment.OrderTypeBalance
 	}
@@ -441,6 +446,9 @@ func validateRetailCashRange(rawLimits, method string, quote *RetailQuote) error
 }
 
 func (s *PaymentService) retailReplayResponse(ctx context.Context, order *dbent.PaymentOrder, req CreateOrderRequest, cfg *PaymentConfig) (*CreateOrderResponse, error) {
+	if err := s.requirePaymentOrderActive(ctx, order); err != nil {
+		return nil, err
+	}
 	persisted := PaymentOrderRetailQuote(order)
 	expected, _ := json.Marshal(req.RetailQuote)
 	actual, _ := json.Marshal(persisted)

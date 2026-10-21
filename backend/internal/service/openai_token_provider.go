@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -147,7 +149,7 @@ func (p *OpenAITokenProvider) GetAccessToken(ctx context.Context, account *Accou
 		if token, err := p.tokenCache.GetAccessToken(ctx, cacheKey); err == nil && strings.TrimSpace(token) != "" {
 			slog.Debug("openai_token_cache_hit", "account_id", account.ID)
 			return token, nil
-		} else if err != nil {
+		} else if err != nil && !errors.Is(err, redis.Nil) {
 			slog.Warn("openai_token_cache_get_failed", "account_id", account.ID, "error", err)
 		}
 	}

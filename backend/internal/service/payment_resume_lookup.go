@@ -55,7 +55,7 @@ func (s *PaymentService) GetPublicOrderByResumeToken(ctx context.Context, token 
 		}
 	}
 
-	return order, nil
+	return s.paymentOrderForResponse(ctx, order), nil
 }
 
 func invalidResumeTokenMatchError() error {

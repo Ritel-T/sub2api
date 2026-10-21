@@ -1127,7 +1127,11 @@ func TestOpenAIResponsesWebSocket_FirstMessageTimeoutUsesConfig(t *testing.T) {
 	require.Less(t, elapsed, 4*time.Second)
 	require.Eventually(t, func() bool {
 		readTimeout, ok := logSink.FieldValueForMessage("openai.websocket_read_first_message_failed", "read_timeout")
-		return ok && readTimeout == time.Second &&
+		kind, _ := logSink.FieldValueForMessage("openai.websocket_read_first_message_failed", "failure_kind")
+		stage, _ := logSink.FieldValueForMessage("openai.websocket_read_first_message_failed", "stage")
+		upstreamStarted, _ := logSink.FieldValueForMessage("openai.websocket_read_first_message_failed", "upstream_started")
+		return ok && readTimeout == time.Second && kind == "first_message_timeout" &&
+			stage == "client_first_message" && upstreamStarted == false &&
 			logSink.ContainsMessageAtLevel("openai.websocket_read_first_message_failed", "warn")
 	}, time.Second, 10*time.Millisecond)
 }
@@ -3406,4 +3410,24 @@ func TestOpenAIResponsesWebSocketSimpleModeRechecksKeyWindows(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestOpenAIResponsesWebSocket_NormalCloseBeforeFirstMessageIsInfo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logSink, restore := captureHandlerStructuredLog(t)
+	defer restore()
+	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
+	wsServer := newOpenAIWSHandlerTestServer(t, h, middleware.AuthSubject{UserID: 1, Concurrency: 1})
+	defer wsServer.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	conn, _, err := coderws.Dial(ctx, "ws"+strings.TrimPrefix(wsServer.URL, "http")+"/openai/v1/responses", nil)
+	require.NoError(t, err)
+	defer func() { _ = conn.CloseNow() }()
+	require.NoError(t, conn.Close(coderws.StatusNormalClosure, "unused connection"))
+	require.Eventually(t, func() bool {
+		kind, _ := logSink.FieldValueForMessage("openai.websocket_read_first_message_failed", "failure_kind")
+		return kind == "normal_close" && logSink.ContainsMessageAtLevel("openai.websocket_read_first_message_failed", "info")
+	}, time.Second, 10*time.Millisecond)
+	require.False(t, logSink.ContainsMessageAtLevel("openai.websocket_read_first_message_failed", "warn"))
 }

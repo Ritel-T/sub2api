@@ -429,6 +429,9 @@ func validSquarespaceToken(value string) bool {
 }
 
 func (c *SquarespaceClient) verifiedToken(ctx context.Context) (string, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return "", err
+	}
 	if c.tokens == nil {
 		return "", squarespaceError("oauth_unconfigured")
 	}
@@ -464,6 +467,9 @@ func (c *SquarespaceClient) VerifyWebsite(ctx context.Context) error {
 }
 
 func (c *SquarespaceClient) fetchJSON(ctx context.Context, token, path string, query url.Values, out any) error {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return err
+	}
 	endpoint := squarespaceAPIBase + path
 	if len(query) > 0 {
 		endpoint += "?" + query.Encode()
@@ -802,6 +808,9 @@ func (s *Squarespace) MerchantIdentityMetadata() map[string]string {
 }
 
 func (s *Squarespace) CreatePayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return nil, err
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

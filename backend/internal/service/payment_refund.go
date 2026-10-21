@@ -188,6 +188,9 @@ func (s *PaymentService) validateRefundRequest(ctx context.Context, oid, uid int
 	if err != nil {
 		return nil, infraerrors.NotFound("NOT_FOUND", "order not found")
 	}
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return nil, err
+	}
 	if o.UserID != uid {
 		return nil, infraerrors.Forbidden("FORBIDDEN", "no permission")
 	}
@@ -212,6 +215,9 @@ func (s *PaymentService) PrepareRefund(ctx context.Context, oid int64, amt float
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		return nil, nil, infraerrors.NotFound("NOT_FOUND", "order not found")
+	}
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return nil, nil, err
 	}
 	if psStringValue(o.ProviderKey) == internalBalanceProvider {
 		return nil, nil, infraerrors.BadRequest("BALANCE_SUBSCRIPTION_REFUND_MANUAL", "site-credit subscription refunds require administrator handling")
@@ -311,6 +317,9 @@ func (s *PaymentService) invalidateRefundBalanceCache(ctx context.Context, userI
 }
 
 func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*RefundResult, error) {
+	if err := s.requirePaymentOrderActive(ctx, p.Order); err != nil {
+		return nil, err
+	}
 	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(p.OrderID), paymentorder.StatusIn(OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundFailed)).SetStatus(OrderStatusRefunding).Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("lock: %w", err)
@@ -438,6 +447,9 @@ func (s *PaymentService) QueryAndFinalizeRefund(ctx context.Context, oid int64) 
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		return nil, infraerrors.NotFound("NOT_FOUND", "order not found")
+	}
+	if err := s.requirePaymentOrderActive(ctx, o); err != nil {
+		return nil, err
 	}
 	if o.Status != OrderStatusRefundPending {
 		return nil, infraerrors.BadRequest("INVALID_STATUS", "only refund pending orders can be finalized")

@@ -24,6 +24,11 @@ func paymentRequestEnabled(cfg *PaymentConfig, req CreateOrderRequest) bool {
 	return cfg != nil && (cfg.Enabled || merchantTestUser(cfg, req.UserID) && NormalizeVisibleMethod(req.PaymentType) == "squarespace" && (req.OrderType == "" || req.OrderType == payment.OrderTypeBalance))
 }
 func requireSquarespaceProductionAccess(cfg *PaymentConfig, userID int64, selection *payment.InstanceSelection) error {
+	if selection != nil && selection.ProviderKey == payment.TypeSquarespace {
+		if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+			return err
+		}
+	}
 	if selection != nil && selection.ProviderKey == "squarespace" && selection.Config["productionApproved"] != "true" && !merchantTestUser(cfg, userID) {
 		return infraerrors.Forbidden("SQUARESPACE_PRODUCTION_NOT_APPROVED", "Squarespace payments are awaiting platform approval")
 	}
@@ -45,6 +50,9 @@ func (s *PaymentService) PaymentConfigForUser(ctx context.Context, cfg *PaymentC
 	}
 	types := make([]string, 0, len(cfg.EnabledTypes))
 	for _, method := range cfg.EnabledTypes {
+		if NormalizeVisibleMethod(method) == payment.TypeSquarespace && payment.SquarespacePaymentsPaused() {
+			continue
+		}
 		if !cfg.Enabled && (!out.MerchantTestAccess || method != "squarespace") {
 			continue
 		}
@@ -60,6 +68,9 @@ func (s *PaymentService) FilterPaymentMethodsForUser(ctx context.Context, cfg *P
 	out := map[string]MethodLimits{}
 	test := merchantTestUser(cfg, userID)
 	for method, limits := range methods {
+		if NormalizeVisibleMethod(method) == payment.TypeSquarespace && payment.SquarespacePaymentsPaused() {
+			continue
+		}
 		if !cfg.Enabled && (!test || method != "squarespace") {
 			continue
 		}

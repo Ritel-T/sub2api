@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
@@ -14,6 +15,9 @@ import (
 // ImportSquarespaceOAuth verifies the incoming access token's website before
 // atomically persisting the OAuth client and rotating token pair encrypted.
 func (s *PaymentConfigService) ImportSquarespaceOAuth(ctx context.Context, websiteID, clientID, clientSecret string, expectedVersion int64, pair *provider.SquarespaceOAuthTokenPair) error {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return err
+	}
 	if websiteID == "" || clientID == "" || clientSecret == "" || expectedVersion < 0 || pair == nil {
 		return infraerrors.BadRequest("INVALID_SQUARESPACE_OAUTH_IMPORT", "complete OAuth client and token pair are required")
 	}

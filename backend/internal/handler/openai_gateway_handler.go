@@ -2944,7 +2944,15 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			return
 		}
 		closeStatus, closeReason := summarizeWSCloseErrorForLog(err)
-		reqLog.Warn("openai.websocket_read_first_message_failed",
+		failureKind, normalClose := classifyOpenAIWSFirstMessageError(err)
+		logFailure := reqLog.Warn
+		if normalClose {
+			logFailure = reqLog.Info
+		}
+		logFailure("openai.websocket_read_first_message_failed",
+			zap.String("stage", "client_first_message"),
+			zap.String("failure_kind", failureKind),
+			zap.Bool("upstream_started", false),
 			zap.Error(err),
 			zap.String("client_ip", clientIP),
 			zap.String("close_status", closeStatus),
@@ -5323,6 +5331,28 @@ func clearCyberPolicyAttemptState(c *gin.Context, resetRecorded bool) {
 	if resetRecorded {
 		c.Set(cyberPolicyRecordedKey, false)
 	}
+}
+
+// classifyOpenAIWSFirstMessageError describes client ingress only. No account
+// has been selected and no upstream request has started at this stage. An EOF
+// or deadline does not establish that the client intended to preconnect.
+func classifyOpenAIWSFirstMessageError(err error) (kind string, normalClose bool) {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "first_message_timeout", false
+	}
+	if errors.Is(err, context.Canceled) {
+		return "request_canceled", true
+	}
+	if coderws.CloseStatus(err) == coderws.StatusNormalClosure {
+		return "normal_close", true
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return "transport_closed", false
+	}
+	if coderws.CloseStatus(err) != -1 {
+		return "websocket_close", false
+	}
+	return "read_error", false
 }
 
 func summarizeWSCloseErrorForLog(err error) (string, string) {

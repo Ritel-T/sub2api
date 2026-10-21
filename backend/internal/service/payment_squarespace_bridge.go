@@ -85,6 +85,9 @@ func (s *SquarespacePaymentBridge) SetRefundCacheInvalidators(balance squarespac
 	s.authCache = auth
 }
 func (s *SquarespacePaymentBridge) Start() {
+	if payment.SquarespacePaymentsPaused() {
+		return
+	}
 	if s == nil || s.payment == nil || s.client == nil || s.config == nil {
 		return
 	}
@@ -149,6 +152,9 @@ func (s *SquarespacePaymentBridge) Stop() {
 }
 
 func (s *SquarespacePaymentBridge) RunOnce(ctx context.Context) error {
+	if payment.SquarespacePaymentsPaused() {
+		return nil
+	}
 	if s == nil || s.client == nil || s.config == nil {
 		return nil
 	}
@@ -188,6 +194,9 @@ func (s *SquarespacePaymentBridge) RunOnce(ctx context.Context) error {
 }
 
 func (s *SquarespacePaymentBridge) syncWebsite(ctx context.Context, instance *dbent.PaymentProviderInstance, cfg map[string]string) error {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return err
+	}
 	website := cfg["websiteId"]
 	state, err := s.config.squarespaceSyncState(ctx, website)
 	if err != nil {
@@ -349,6 +358,9 @@ func (s *SquarespacePaymentBridge) settledUnchangedOrder(ctx context.Context, we
 }
 
 func (s *SquarespacePaymentBridge) observeOrder(ctx context.Context, website string, remote *provider.SquarespaceOrder) (*dbent.PaymentExternalOrder, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return nil, err
+	}
 	if remote == nil || remote.ID == "" || len(remote.ID) > 128 {
 		return nil, errors.New("invalid external order identifier")
 	}
@@ -385,6 +397,9 @@ func (s *SquarespacePaymentBridge) anomaly(ctx context.Context, ledgerID int64, 
 }
 
 func (s *SquarespacePaymentBridge) processExternalOrder(ctx context.Context, instance *dbent.PaymentProviderInstance, website string, remote *provider.SquarespaceOrder, docs []provider.SquarespaceTransactionDocument, ledger *dbent.PaymentExternalOrder) error {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return err
+	}
 	proof, code := verifySquarespaceProof(remote, docs)
 	if code != "" {
 		return s.anomaly(ctx, ledger.ID, code)
@@ -521,6 +536,9 @@ func (s *SquarespacePaymentBridge) processExternalOrder(ctx context.Context, ins
 }
 
 func (s *SquarespacePaymentBridge) bindExternalOrder(ctx context.Context, ledger *dbent.PaymentExternalOrder, local *dbent.PaymentOrder, remote *provider.SquarespaceOrder, proof *verifiedSquarespaceProof, bindingMethod string) (result *dbent.PaymentExternalOrder, err error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return nil, err
+	}
 	tx, err := s.client.Tx(ctx)
 	if err != nil {
 		return nil, err
@@ -658,6 +676,7 @@ func (s *SquarespacePaymentBridge) recoverBoundOrders(ctx context.Context, insta
 
 // Exported safe status DTOs deliberately omit ciphertext, tokens and credentials.
 type SquarespaceOAuthStatus struct {
+	PaymentsPaused   bool       `json:"payments_paused"`
 	Configured       bool       `json:"configured"`
 	TokenVersion     int64      `json:"token_version"`
 	RotationPhase    string     `json:"rotation_phase"`
@@ -672,7 +691,7 @@ func (s *PaymentConfigService) SquarespaceOAuthStatus(ctx context.Context, websi
 	if err != nil {
 		return nil, err
 	}
-	result := &SquarespaceOAuthStatus{Configured: row.EncryptedOauthTokens != "" && row.EncryptedOauthCredentials != "", TokenVersion: row.TokenVersion, RotationPhase: row.RotationPhase, LastErrorCode: row.LastErrorCode, LastSyncedAt: row.LastSyncedAt}
+	result := &SquarespaceOAuthStatus{PaymentsPaused: payment.SquarespacePaymentsPaused(), Configured: row.EncryptedOauthTokens != "" && row.EncryptedOauthCredentials != "", TokenVersion: row.TokenVersion, RotationPhase: row.RotationPhase, LastErrorCode: row.LastErrorCode, LastSyncedAt: row.LastSyncedAt}
 	if pair, _, loadErr := s.LoadSquarespaceOAuthTokens(ctx, websiteID); loadErr == nil {
 		if expires, parseErr := squarespaceOAuthExpiry(pair.AccessTokenExpiresAt); parseErr == nil {
 			result.AccessExpiresAt = &expires

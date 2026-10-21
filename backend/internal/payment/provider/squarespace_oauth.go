@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"io"
 	"math"
 	"net/http"
@@ -177,6 +178,9 @@ func (SquarespaceOAuthClient) GoString() string { return "SquarespaceOAuthClient
 // AuthorizeURL adds only offline access and the two read scopes. The caller must
 // store/check state and register the complete callback URI with Squarespace.
 func SquarespaceOfflineAuthorizeURL(clientID, redirectURI, state string) (string, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return "", err
+	}
 	if !validSquarespaceToken(clientID) || len(state) < 32 || !squarespaceIDPattern.MatchString(state) {
 		return "", squarespaceError("invalid_oauth_authorize_inputs")
 	}
@@ -207,6 +211,9 @@ func (c *SquarespaceOAuthClient) Refresh(ctx context.Context, refreshToken strin
 }
 
 func (c *SquarespaceOAuthClient) request(ctx context.Context, body url.Values) (*SquarespaceOAuthTokenPair, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, SquarespaceOAuthTokenEndpoint, strings.NewReader(body.Encode()))
 	if err != nil {
 		return nil, squarespaceError("invalid_oauth_request")

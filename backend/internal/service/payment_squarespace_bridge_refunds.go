@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/paymentexternalorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentexternalpayment"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
+	"github.com/Wei-Shaw/sub2api/internal/payment"
 )
 
 func (s *SquarespacePaymentBridge) refundCreditProof(ctx context.Context, local *dbent.PaymentOrder) (bool, error) {
@@ -38,6 +39,9 @@ func (s *SquarespacePaymentBridge) refundCreditProof(ctx context.Context, local 
 // applyObservedRefund records a refund already proved by Squarespace GETs. It
 // never calls the provider Refund API or creates another balance recharge.
 func (s *SquarespacePaymentBridge) applyObservedRefund(ctx context.Context, observed *dbent.PaymentExternalOrder, proof *verifiedSquarespaceProof, paymentState string) (err error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return err
+	}
 	if observed.LocalOrderID == nil {
 		return errors.New("unbound refund observation")
 	}

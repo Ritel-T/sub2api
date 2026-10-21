@@ -748,7 +748,7 @@ func isWeChatBrowser(c *gin.Context) bool {
 }
 
 func psHandlerPaymentURL(order *dbent.PaymentOrder) string {
-	if order == nil || order.PayURL == nil {
+	if order == nil || order.PayURL == nil || service.PaymentOrderSquarespacePaused(order) {
 		return ""
 	}
 	return *order.PayURL

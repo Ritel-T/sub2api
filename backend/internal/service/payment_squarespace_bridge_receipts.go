@@ -11,6 +11,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentexternalorder"
+	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 )
 
@@ -30,6 +31,9 @@ func (s *PaymentConfigService) NewSquarespaceManagedClient(ctx context.Context, 
 // a match by payment amount or payer email. The email is returned in memory only
 // by the dedicated claim GET and is neither logged nor persisted here.
 func (s *PaymentService) FindSquarespaceReceiptOrder(ctx context.Context, localOrder *dbent.PaymentOrder, receipt string) (*provider.SquarespaceOrder, []provider.SquarespaceTransactionDocument, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return nil, nil, err
+	}
 	number, err := normalizeSquarespaceReceiptNumber(receipt)
 	if err != nil {
 		return nil, nil, err
@@ -159,6 +163,9 @@ func SquarespaceReceiptQuoteHash(local *dbent.PaymentOrder) (string, error) {
 // BindVerifiedReceiptClaim requires one-time OTP authority established by the
 // claim service, then rechecks the frozen local quote before the unique binding.
 func (s *PaymentService) BindVerifiedReceiptClaim(ctx context.Context, localOrder *dbent.PaymentOrder, remote *provider.SquarespaceOrder, docs []provider.SquarespaceTransactionDocument) error {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return err
+	}
 	if localOrder == nil || remote == nil {
 		return errors.New("receipt claim proof missing")
 	}
@@ -218,6 +225,9 @@ func (s *PaymentService) BindVerifiedReceiptClaim(ctx context.Context, localOrde
 // ReconcileBoundSquarespaceReceipt never grants a new claim. It only continues
 // a fixed OTP-approved ledger binding after fresh official financial validation.
 func (s *PaymentService) ReconcileBoundSquarespaceReceipt(ctx context.Context, local *dbent.PaymentOrder) (bool, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return false, err
+	}
 	if local == nil || local.PaymentTradeNo == "" {
 		return false, nil
 	}

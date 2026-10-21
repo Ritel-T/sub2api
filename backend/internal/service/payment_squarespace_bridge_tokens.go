@@ -36,6 +36,9 @@ func (s *PaymentConfigService) squarespaceSyncState(ctx context.Context, website
 	if !dbent.IsNotFound(err) {
 		return nil, err
 	}
+	if payment.SquarespacePaymentsPaused() {
+		return &dbent.PaymentSyncState{ProviderKey: "squarespace", WebsiteID: websiteID, RotationPhase: "idle"}, nil
+	}
 	row, err = s.entClient.PaymentSyncState.Create().SetProviderKey("squarespace").SetWebsiteID(websiteID).Save(ctx)
 	if dbent.IsConstraintError(err) {
 		return s.entClient.PaymentSyncState.Query().Where(paymentsyncstate.ProviderKeyEQ("squarespace"), paymentsyncstate.WebsiteIDEQ(websiteID)).Only(ctx)
@@ -79,6 +82,9 @@ func (s *PaymentConfigService) saveRotatedSquarespaceOAuthTokens(ctx context.Con
 	return s.saveSquarespaceOAuthTokenPair(ctx, websiteID, clientID, owner.Version, pair, &owner)
 }
 func (s *PaymentConfigService) saveSquarespaceOAuthTokenPair(ctx context.Context, websiteID, clientID string, expectedVersion int64, pair *provider.SquarespaceOAuthTokenPair, owner *squarespaceRotationOwner) error {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return err
+	}
 	if err := validateSquarespaceTokenPair(pair); err != nil {
 		return err
 	}
@@ -194,6 +200,9 @@ type squarespaceDurableTokenSource struct {
 }
 
 func (s *squarespaceDurableTokenSource) AccessToken(ctx context.Context) (string, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return "", err
+	}
 	row, err := s.config.squarespaceSyncState(ctx, s.websiteID)
 	if err != nil {
 		return "", err
@@ -266,6 +275,9 @@ type squarespaceOAuthCredentials struct {
 // SaveSquarespaceOAuthCredentials stores credentials only in the dedicated
 // encrypted store. Public provider config and order snapshots never contain them.
 func (s *PaymentConfigService) SaveSquarespaceOAuthCredentials(ctx context.Context, websiteID, clientID, clientSecret string) error {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return err
+	}
 	if clientID == "" || clientSecret == "" {
 		return ErrSquarespaceReauthorizationRequired
 	}
@@ -295,6 +307,9 @@ func (s *PaymentConfigService) SaveSquarespaceOAuthCredentials(ctx context.Conte
 }
 
 func (s *PaymentConfigService) squarespaceTokenSource(ctx context.Context, websiteID string) (*squarespaceDurableTokenSource, error) {
+	if err := payment.RequireSquarespacePaymentsActive(); err != nil {
+		return nil, err
+	}
 	row, err := s.squarespaceSyncState(ctx, websiteID)
 	if err != nil {
 		return nil, err
