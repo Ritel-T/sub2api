@@ -29,8 +29,9 @@ the application's responsibility.
 
 ## Trusted client IPs
 
-`security.trust_forwarded_ip_for_api_key_acl` is enabled by default for upgrade
-compatibility. While enabled, raw forwarding headers take over client-IP
+`security.trust_forwarded_ip_for_api_key_acl` is disabled by default. New
+installations persist the configured mode, and upgrades preserve an existing
+administrator choice. When explicitly enabled, raw forwarding headers take over client-IP
 resolution for logs and security-sensitive paths. Custom headers from
 `security.forwarded_client_ip_headers` are checked in configured order before
 the built-in `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For` fallback.
@@ -49,10 +50,18 @@ headers are ignored completely when the switch is disabled. In that mode Gin's
 CIDR/IP addresses that connect directly to Sub2API. An explicit empty list
 trusts no forwarded client IPs.
 
-On the first upgrade to this mode, a legacy `false` value is changed to `true`
-only when `server.trusted_proxies` was not explicitly configured; explicit
-proxy policies remain in secure mode. New installations persist the configured
-custom header list during database initialization. Existing installations
+When `server.trusted_proxies` is omitted, only `127.0.0.1/32` and `::1/128`
+are trusted, so local Nginx/1Panel proxies can pass the visitor address without
+extra configuration. This trusts forwarding headers supplied by local
+processes; set an explicit empty list to disable that trust. Explicit lists
+replace the defaults. Docker bridge addresses, private subnets and CDN peers
+are never added automatically. Changes require restarting Sub2API. These
+defaults also apply to auth IP guards and IP risk control, which always use
+the trusted proxy chain regardless of the compatibility switch.
+
+A legacy `false` value remains `false`, including when no trusted-proxy policy
+was configured. New installations persist the configured custom header list
+during database initialization. Existing installations
 backfill a missing database value from the YAML configuration. A hidden
 migration marker prevents later administrator changes from being overwritten.
 If settings cannot be read or the persisted custom-header list is malformed,
@@ -74,6 +83,24 @@ server:
     - 127.0.0.1/32
     - ::1/128
 ```
+
+## First-run wizard
+
+The web setup listener defaults to `127.0.0.1:8080`. Use an SSH tunnel to access
+it remotely, or explicitly set `SERVER_HOST` behind a trusted TLS ingress.
+Every setup POST, including database and Redis connection tests, requires the
+`X-Setup-Token` header. Enter the generated token from the server startup log in
+the wizard, or configure a random `SETUP_TOKEN` of 32–256 printable non-space ASCII characters before
+starting the process. A configured token is not printed. The browser retains
+the token only in memory and clears it on successful installation. The token
+cannot authorize any setup operation once the installation marker exists.
+Protect the startup log as a credential-bearing file until installation ends.
+
+Wizard requests are limited to 64 KiB, four concurrent authenticated requests,
+a 30-second read deadline and a 120-second write deadline. These limits apply
+only to the first-run server, so they do not shorten normal model streams.
+Private database and Redis addresses remain usable by the authorized operator.
+CLI setup and `AUTO_SETUP` do not expose the web wizard and are unchanged.
 
 ## Nginx baseline
 

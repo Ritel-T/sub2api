@@ -94,7 +94,8 @@ func (s *OpenAIGatewayService) backfillOpenAIImagesB64JSON(
 // fetchOpenAIImageURLBase64 取得图片 url 内容的标准 base64 编码。
 // data: 形式的 url 直接取其 base64 载荷；其余 url 先沿用 base_url 的出站 URL 策略校验，
 // 再无条件拒绝回环、私网、链路本地等目的地（含重定向的每一跳），经账户代理下载，
-// 大小上限与 OAuth 路径的单图下载一致，且前 512 字节须嗅探为 png/jpeg/webp/gif。
+// PublicHostsOnly transport 将每一跳验证过的公网 IP 固定到实际直连/代理目的地，
+// 同时保留 Host 与 TLS 证书名；大小与 OAuth 单图一致，且须嗅探为 png/jpeg/webp/gif。
 func (s *OpenAIGatewayService) fetchOpenAIImageURLBase64(ctx context.Context, account *Account, rawURL string) (string, error) {
 	if strings.HasPrefix(strings.ToLower(rawURL), "data:") {
 		if encoded := normalizeOpenAIImageBase64(rawURL); encoded != "" {

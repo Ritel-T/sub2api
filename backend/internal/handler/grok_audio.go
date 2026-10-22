@@ -53,6 +53,11 @@ func (h *OpenAIGatewayHandler) GrokTTSStream(c *gin.Context) {
 	if c != nil && c.Request != nil {
 		query = c.Request.URL.Query()
 	}
+	if err := service.ValidateGrokVoiceQuery(query); err != nil {
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		h.errorResponse(c, http.StatusForbidden, "permission_error", err.Error())
+		return
+	}
 	h.serveGrokVoiceWebSocket(c, grokVoiceWebSocket{
 		name:    "tts_stream",
 		apiName: "TTS streaming API",
@@ -223,7 +228,11 @@ func (h *OpenAIGatewayHandler) serveGrokVoiceWebSocket(c *gin.Context, ws grokVo
 	result, proxyErr := ws.proxy(c.Request.Context(), conn, upstream)
 	if proxyErr != nil {
 		reqLog.Info("grok_"+ws.name+".proxy_failed", zap.Error(proxyErr))
-		if !isExpectedGrokRealtimeClose(proxyErr) {
+		if errors.Is(proxyErr, service.ErrGrokCustomVoiceUnavailable) {
+			_ = conn.Close(coderws.StatusPolicyViolation, service.ErrGrokCustomVoiceUnavailable.Error())
+			// A late rejected control must not erase speech already delivered
+			// upstream. Settle only the result observed before the rejection.
+		} else if !isExpectedGrokRealtimeClose(proxyErr) {
 			_ = conn.Close(coderws.StatusInternalError, "upstream voice websocket failed")
 			return
 		}
@@ -280,6 +289,11 @@ func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Voice API is not supported for this platform")
 		return
 	}
+	if endpoint == "custom-voices" || strings.HasPrefix(endpoint, "custom-voices/") {
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ErrGrokCustomVoiceUnavailable.Error())
+		return
+	}
 	if !h.ensureResponsesDependencies(c, nil) {
 		return
 	}
@@ -287,6 +301,16 @@ func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
 	body, err := readGrokVoiceGatewayBody(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+
+	if err := service.ValidateGrokVoiceRequest(endpoint, body); err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, service.ErrGrokCustomVoiceUnavailable) {
+			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+			status = http.StatusForbidden
+		}
+		h.errorResponse(c, status, "invalid_request_error", err.Error())
 		return
 	}
 

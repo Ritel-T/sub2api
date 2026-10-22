@@ -682,6 +682,11 @@ type UsageLog struct {
 	// BillingMode 计费模式：token/image
 	BillingMode *string `json:"billing_mode,omitempty"`
 
+	// UpstreamResponseModel is the model declared by the upstream response.
+	// End-user payloads include it only when the admin visibility setting is on.
+	// Omitted otherwise so mapped models stay hidden by default.
+	UpstreamResponseModel *string `json:"upstream_response_model,omitempty"`
+
 	CreatedAt time.Time `json:"created_at"`
 
 	User         *User             `json:"user,omitempty"`

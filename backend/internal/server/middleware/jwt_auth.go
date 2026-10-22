@@ -58,8 +58,16 @@ func jwtAuth(
 		}
 
 		// 验证token
-		claims, err := authService.ValidateToken(tokenString)
+		claims, err := authService.ValidateTokenContext(c.Request.Context(), tokenString)
 		if err != nil {
+			if errors.Is(err, service.ErrServiceUnavailable) {
+				AbortWithError(c, 503, "SERVICE_UNAVAILABLE", "Authentication temporarily unavailable")
+				return
+			}
+			if errors.Is(err, service.ErrTokenRevoked) {
+				AbortWithError(c, 401, "TOKEN_REVOKED", "Token has been revoked")
+				return
+			}
 			if errors.Is(err, service.ErrTokenExpired) {
 				AbortWithError(c, 401, "TOKEN_EXPIRED", "Token has expired")
 				return

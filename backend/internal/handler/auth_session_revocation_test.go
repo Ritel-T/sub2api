@@ -3,6 +3,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,10 @@ func TestAuthHandlerRevokeAllSessionsInvalidatesAccessTokens(t *testing.T) {
 			ExpireHour: 1,
 		},
 	}
-	authService := service.NewAuthService(nil, repo, nil, refreshTokenCache, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	epochRepo := &userHandlerEpochRepo{values: make(map[string]string)}
+	authService := service.NewAuthService(nil, repo, nil, refreshTokenCache, cfg, service.NewSettingService(epochRepo, cfg), nil, nil, nil, nil, nil, nil, nil)
+	oldToken, err := authService.GenerateToken(context.Background(), repo.user)
+	require.NoError(t, err)
 	handler := &AuthHandler{authService: authService}
 
 	recorder := httptest.NewRecorder()
@@ -47,10 +51,12 @@ func TestAuthHandlerRevokeAllSessionsInvalidatesAccessTokens(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, []int64{29}, refreshTokenCache.revokedUserIDs)
-	// users 表没有 token_version 列（见 resolvedTokenVersion：JWT 里的值由
-	// email+password_hash 指纹推导），所以自增 TokenVersion 只停留在内存里。
-	// 此前紧跟其后的整行 Update 不写任何有效数据，却会用旧快照覆盖并发写入的列，
-	// 已移除。会话撤销由上面的 refresh session 清理承担。
+	_, err = authService.ValidateToken(oldToken)
+	require.ErrorIs(t, err, service.ErrTokenRevoked)
+	_, err = authService.RefreshToken(context.Background(), oldToken)
+	require.ErrorIs(t, err, service.ErrTokenRevoked)
+	require.NotEmpty(t, epochRepo.values[service.AuthSessionEpochSettingPrefix+"29"])
+	// Session revocation is persistent and does not rewrite the user row.
 	require.Equal(t, int64(7), repo.user.TokenVersion)
 
 	var resp struct {

@@ -969,3 +969,66 @@ func TestTokenRefreshService_NonRetryableGrokFailureInvalidatesTokenCache(t *tes
 	require.Zero(t, setTempUnschedCalls)
 	require.Equal(t, 1, invalidator.count())
 }
+
+// overdueRefreshContext models a deadline whose cancellation callback has not
+// been scheduled yet. Err remains nil although the absolute deadline elapsed.
+type overdueRefreshContext struct {
+	context.Context
+	deadline time.Time
+}
+
+func (c overdueRefreshContext) Deadline() (time.Time, bool) { return c.deadline, true }
+
+func TestOAuthRefreshContextError_DeadlineDoesNotDependOnTimerCallback(t *testing.T) {
+	ctx := overdueRefreshContext{Context: context.Background(), deadline: time.Now().Add(-time.Second)}
+	require.NoError(t, ctx.Err())
+	require.ErrorIs(t, oauthRefreshContextError(ctx), context.DeadlineExceeded)
+	ctx.deadline = time.Now().Add(time.Hour)
+	require.NoError(t, oauthRefreshContextError(ctx))
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	require.ErrorIs(t, oauthRefreshContextError(canceled), context.Canceled)
+}
+
+func TestRateLimitedRefreshExecutor_DeadlineCrossedAtAdmissionDoesNotCallProvider(t *testing.T) {
+	ctx := &overdueRefreshContext{Context: context.Background(), deadline: time.Now().Add(time.Hour)}
+	provider := &poolHealthRefresher{newCredentials: map[string]any{"access_token": "must-not-be-requested"}}
+	released := false
+	executor := &rateLimitedOAuthRefreshExecutor{OAuthRefreshExecutor: provider, acquireRate: func(context.Context) (func(), error) {
+		ctx.deadline = time.Now().Add(-time.Second)
+		return func() { released = true }, nil
+	}}
+	account := grokPoolAccount(88)
+	credentials, err := executor.Refresh(ctx, &account)
+	require.NoError(t, ctx.Err())
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Nil(t, credentials)
+	require.Zero(t, provider.calls.Load())
+	require.True(t, released, "late rate admission must still release its permit")
+}
+
+type deadlineCrossingRefreshGate struct{ released bool }
+
+func (g *deadlineCrossingRefreshGate) acquire(ctx context.Context) (func(), error) {
+	deadline, _ := ctx.Deadline()
+	// The gate returns a permit after waiting past the budget instead of
+	// reporting cancellation. The caller must recheck before provider I/O.
+	time.Sleep(time.Until(deadline) + time.Millisecond)
+	return func() { g.released = true }, nil
+}
+
+func TestTokenRefreshService_DirectRateWaitPastDeadlineDoesNotCallProvider(t *testing.T) {
+	repo := &poolHealthAccountRepo{}
+	provider := &poolHealthRefresher{newCredentials: map[string]any{"access_token": "must-not-be-requested"}, ignoreContext: true}
+	svc := newPoolHealthService(repo, provider, config.TokenRefreshConfig{MaxRetries: 1})
+	svc.attemptTimeoutOverride = time.Millisecond
+	gate := &deadlineCrossingRefreshGate{}
+	account := grokPoolAccount(89)
+	err := svc.refreshWithRetryWithRateGate(context.Background(), &account, provider, nil, time.Hour, gate)
+	var timeoutErr *refreshAttemptTimeoutError
+	require.ErrorAs(t, err, &timeoutErr)
+	require.Zero(t, provider.calls.Load())
+	require.True(t, gate.released)
+	_, updated, _, _ := repo.snapshot()
+	require.Empty(t, updated)
+}

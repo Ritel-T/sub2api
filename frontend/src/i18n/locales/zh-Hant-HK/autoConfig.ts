@@ -129,4 +129,44 @@ export default {
     "modeHint": "兩種方式互斥；切換會重新填入模型和選項，關閉當前開關即關閉 BPS。",
     "adminOnly": "預設模板僅管理員可用，仍可使用初始配置並手動調整。"
   }
+,
+  admission: {
+    "pending": "待準入：21 連續 {count}/{required}",
+    "passed": "準入已通過",
+    "isolated": "已隔離：停止自動升檔",
+    "isolationPending": "隔離分組不可用，已暫停客戶調度并等待隔離",
+    "streak29": "29 連續 {count}/{required}",
+    "outcomes": {
+        "admission_passed": "準入通過，已開放調度",
+        "admission_isolated": "已移入隔離分組",
+        "admission_conflict": "準入快照不匹配，未修改帳號",
+        "admission_isolation_pending": "隔離分組不可用，已暫停客戶調度"
+    },
+    "title": "新 OpenAI 2FA 帳號先驗證再開放調度",
+    "hint": "僅作用于后續通過 2FA 導入新建的適用帳號；導入后固定 1 并發并關閉客戶調度，后臺測試繼續。重登和重復導入不會重新初始化。",
+    "model": "測試模型",
+    "effort": "思考等級",
+    "wait_seconds": "完成后等待（秒）",
+    "pass_count": "連續答對 21 次數",
+    "passed_concurrency": "通過后并發",
+    "isolation_count": "連續回答 29 次數",
+    "group": "隔離目標分組",
+    "chooseGroup": "請選擇啟用的 OpenAI 分組",
+    "unavailableGroup": "分組 #{id} 不可用，請重新選擇",
+    "active": "啟用",
+    "passHint": "連續 {count} 次完整答對 21 后，自動升至 {concurrency} 并發并打開調度。普通并發升檔從通過后開始計客戶成功請求。",
+    "isolationRule": "連續 {count} 次完整回答 29，移入所選隔離分組。",
+    "isolationHint": "隔離會移出全部原分組，保留代理和當前并發、停止自動升檔；測試繼續，后續答對不會自動恢復。此處配置保存后用于新帳號，已有帳號沿用導入時規則。其他答案、報錯或不完整回復會打斷連續計數。",
+    "invalid": "請填寫有效的測試模型、思考等級、正整數次數/并發/間隔，并選擇啟用的 OpenAI 隔離分組。",
+    "efforts": {
+        "none": "無",
+        "minimal": "極低",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "極高",
+        "max": "最大",
+        "ultra": "超高"
+    }
+},
 }

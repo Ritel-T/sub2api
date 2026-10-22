@@ -192,6 +192,8 @@ export default {
 
   // Setup Wizard
   setup: {
+    bootstrapToken: '安装令牌',
+    bootstrapTokenHint: '输入服务器启动日志中的令牌，或管理员配置的 SETUP_TOKEN。',
     title: 'Sub2API 安装向导',
     description: '配置您的 Sub2API 实例',
     database: {

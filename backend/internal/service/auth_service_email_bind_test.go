@@ -906,6 +906,16 @@ func (s *emailBindRefreshTokenCacheStub) GetRefreshToken(_ context.Context, toke
 	return &cloned, nil
 }
 
+func (s *emailBindRefreshTokenCacheStub) ConsumeRefreshToken(_ context.Context, tokenHash string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tokens[tokenHash]; !ok {
+		return false, nil
+	}
+	delete(s.tokens, tokenHash)
+	return true, nil
+}
+
 func (s *emailBindRefreshTokenCacheStub) DeleteRefreshToken(_ context.Context, tokenHash string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

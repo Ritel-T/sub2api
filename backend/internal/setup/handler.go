@@ -20,7 +20,7 @@ import (
 var installMutex sync.Mutex
 
 // RegisterRoutes registers setup wizard routes
-func RegisterRoutes(r *gin.Engine) {
+func RegisterRoutes(r *gin.Engine, bootstrapToken string) {
 	setup := r.Group("/setup")
 	{
 		// Status endpoint is always accessible (read-only)
@@ -28,7 +28,7 @@ func RegisterRoutes(r *gin.Engine) {
 
 		// All modification endpoints are protected by setupGuard
 		protected := setup.Group("")
-		protected.Use(setupGuard())
+		protected.Use(setupGuard(), bootstrapGuard(bootstrapToken), setupRequestLimits())
 		{
 			protected.POST("/test-db", testDatabase)
 			protected.POST("/test-redis", testRedis)

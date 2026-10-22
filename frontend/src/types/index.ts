@@ -309,6 +309,8 @@ export interface PublicSettings {
   usage_show_cache_rate?: boolean
   /** 是否向终端用户展示单条缓存率。缺失时按关闭处理。 */
   usage_show_cache_rate_to_users?: boolean
+  /** 是否向终端用户展示上游响应里声明的实际模型。缺失时按关闭处理。 */
+  usage_show_upstream_response_model_to_users?: boolean
 }
 
 export interface AuthResponse {
@@ -1884,6 +1886,7 @@ export interface AdminDataImportResult {
 }
 
 export interface CodexSessionImportRequest {
+  initialize_openai_two_fa?: boolean
   /** Skip matching accounts without replacing their credentials or settings. */
   skip_existing?: boolean
   content?: string
@@ -2015,6 +2018,9 @@ export interface UsageLog {
 
   // 计费模式
   billing_mode?: string | null
+
+  // 上游响应声明的实际模型。仅在管理员打开对用户可见时由用户接口返回。
+  upstream_response_model?: string | null
 
   created_at: string
 
@@ -2700,9 +2706,10 @@ export interface QualityBPSPolicy {
   hold_on_usage: boolean
 }
 export interface QualityPolicy {
+  admission?: import('@/utils/openaiTwoFAAdmission').OpenAITwoFAAdmissionConfig
   judge?: QualityJudgeConfig
   expected_answer: string
-  action: 'isolate_models' | 'remove_groups' | 'remove_models' | 'disable_scheduling' | 'enable_bps' | 'observe_only'
+  action: 'openai_two_fa_admission' | 'isolate_models' | 'remove_groups' | 'remove_models' | 'disable_scheduling' | 'enable_bps' | 'observe_only'
   remove_group_ids: number[]
   remove_models?: string[]
   recovery_concurrency?: number

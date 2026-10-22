@@ -38,3 +38,19 @@ func TestControlledExperimentMatchesBPSBeforePrism(t *testing.T) {
 	require.Empty(t, gateway.controlledRouteReason(ctx, account, "gpt-6.1-sol", "bps"))
 	require.Equal(t, "prism_not_enabled_for_account_model", gateway.controlledRouteReason(ctx, account, "gpt-6.1-sol", "prism"))
 }
+
+// SIWC is a new independent protocol. A stale dual-protocol flag must not let
+// either generic request builder bypass the existing protected BPS boundary.
+func TestExcelBPSProtectionPrecedesSIWCRequestBuilders(t *testing.T) {
+	account := isolatedExcelAccount()
+	account.Extra[OpenAISIWCEnabledKey] = true
+	gateway := openAIClientToolsTestService(&httpUpstreamRecorder{})
+	c, _ := isolationForwardContext(16, "/v1/responses")
+	body := []byte(`{"model":"gpt-6-astra","input":"test","stream":true}`)
+	_, err := gateway.buildUpstreamRequest(context.Background(), c, account, body, "unused", true, "", false)
+	require.True(t, IsOpenAITurnAdmissionError(err), "%v", err)
+	require.Contains(t, err.Error(), "basispoints_required_use_responses")
+	_, err = gateway.buildUpstreamRequestOpenAIPassthrough(context.Background(), c, account, body, "unused")
+	require.True(t, IsOpenAITurnAdmissionError(err), "%v", err)
+	require.Contains(t, err.Error(), "basispoints_required_use_responses")
+}

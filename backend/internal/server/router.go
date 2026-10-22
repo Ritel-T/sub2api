@@ -61,7 +61,11 @@ func SetupRouter(
 	// 解析模式按请求快照：兼容开关开启时信任原始转发头，关闭时使用 server.trusted_proxies。
 	r.Use(middleware2.SessionBindingContext(cfg))
 	r.Use(middleware2.Logger())
-	r.Use(middleware2.RequestTiming())
+	var connectionRecorder middleware2.ConnectionTraceRecorder
+	if handlers.Admin != nil && handlers.Admin.Usage != nil {
+		connectionRecorder = handlers.Admin.Usage
+	}
+	r.Use(middleware2.RequestTiming(connectionRecorder))
 	r.Use(middleware2.CORS(cfg.CORS))
 	r.Use(middleware2.SecurityHeaders(cfg.Security.CSP, func() []string {
 		if p := cachedFrameOrigins.Load(); p != nil {
@@ -70,6 +74,11 @@ func SetupRouter(
 		return nil
 	}))
 	r.Use(middleware2.ServerTiming(cfg.Server.EnableServerTiming))
+	// Run before embedded HTML and business handlers. Verified serverless IPs
+	// have already been attached by SessionBindingContext.
+	if settingService.IPRisk != nil {
+		r.Use(settingService.IPRisk.Middleware())
+	}
 
 	// Serve embedded frontend with settings injection if available
 	if cfg.RunsBackgroundJobs() && web.HasEmbeddedFrontend() {

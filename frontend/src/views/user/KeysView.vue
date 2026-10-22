@@ -27,13 +27,13 @@
             <div ref="sortToolbarTarget" class="inline-table-tools" />
             <div class="keys-table-tools">
               <button
-                @click="loadApiKeys"
-                :disabled="loading"
+                @click="refreshPage"
+                :disabled="loading || groupPricingLoading"
                 class="btn btn-secondary"
                 :title="t('common.refresh')"
                 :aria-label="t('common.refresh')"
               >
-                <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+                <Icon name="refresh" size="md" :class="loading || groupPricingLoading ? 'animate-spin' : ''" />
               </button>
               <ColumnSettings
                 :columns="orderedColumns"
@@ -1709,21 +1709,37 @@ const loadMoreKeys = () => updateKeyList(appendKeys)
 const retryKeys = () => updateKeyList(retryKeyPage)
 watch(listError, error => { if (error) appStore.showError(t('keys.failedToLoad')) })
 
-const loadGroups = async () => {
+const groupPricingLoading = ref(false)
+let groupPricingGeneration = 0
+
+const loadGroupPricing = async () => {
+  const generation = ++groupPricingGeneration
+  groupPricingLoading.value = true
   try {
-    groups.value = await userGroupsAPI.getAvailable()
+    const [availableGroups, rates] = await Promise.all([
+      userGroupsAPI.getAvailable(),
+      userGroupsAPI.getUserGroupRates()
+    ])
+    if (disposed || generation !== groupPricingGeneration) return
+    // Apply both together so a failed refresh cannot mix new defaults with old overrides.
+    groups.value = availableGroups
+    userGroupRates.value = rates
   } catch (error) {
-    console.error('Failed to load groups:', error)
+    if (disposed || generation !== groupPricingGeneration) return
+    console.error('Failed to load group pricing:', error)
+    appStore.showError(t('keys.failedToLoad'))
+  } finally {
+    if (generation === groupPricingGeneration) groupPricingLoading.value = false
   }
 }
 
-const loadUserGroupRates = async () => {
-  try {
-    userGroupRates.value = await userGroupsAPI.getUserGroupRates()
-  } catch (error) {
-    console.error('Failed to load user group rates:', error)
-  }
+const refreshPage = async () => {
+  await Promise.all([loadApiKeys(), loadGroupPricing()])
 }
+
+watch([showCreateModal, showEditModal], ([creating, editing]) => {
+  if (creating || editing) void loadGroupPricing()
+})
 
 const loadPublicSettings = async () => {
   try {
@@ -1904,6 +1920,7 @@ const openGroupSelector = (key: ApiKey) => {
     groupSelectorKeyId.value = null
     dropdownPosition.value = null
   } else {
+    void loadGroupPricing()
     const buttonEl = groupButtonRefs.value.get(key.id)
     if (buttonEl) {
       const rect = buttonEl.getBoundingClientRect()
@@ -2263,8 +2280,7 @@ function formatResetTime(resetAt: string | null): string {
 onMounted(() => {
   void applyConnectionRoute()
   loadApiKeys()
-  loadGroups()
-  loadUserGroupRates()
+  loadGroupPricing()
   loadPublicSettings()
   document.addEventListener('click', closeGroupSelector)
   document.addEventListener('visibilitychange', handleConcurrencyVisibility)

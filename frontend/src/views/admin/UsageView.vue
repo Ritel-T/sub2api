@@ -37,7 +37,7 @@
         <template #after-reset>
           <div ref="tableToolbarTarget" />
           <ColumnSettings
-            v-if="activeTab !== 'ranking'"
+            v-if="activeTab === 'usage' || activeTab === 'errors'"
             :columns="activeTab === 'errors' ? errOrderedColumns : orderedColumns"
             :hidden-columns="activeTab === 'errors' ? errHiddenColumns : hiddenColumns"
             :required-columns="activeTab === 'errors' ? ERR_ALWAYS_VISIBLE : ALWAYS_VISIBLE"
@@ -131,6 +131,11 @@
             @retry="errorList.retry"
             @ipGeoBatchFailed="handleIpGeoBatchFailed" />
         </div>
+        <UsageConnections
+          v-if="!props.observerMode && activeTab === 'connections'"
+          :filters="connectionFilters"
+          :refresh-key="connectionRefreshKey"
+        />
         <!-- 懒挂载：首次切到该 tab 才请求排行数据，之后随筛选自动刷新 -->
         <div v-if="!props.observerMode && rankingMounted" v-show="activeTab === 'ranking'" class="min-w-0">
           <UserTokenRanking
@@ -184,6 +189,7 @@ import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usag
 import AppLayout from '@/components/layout/AppLayout.vue'; import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'; import { useInfiniteList } from '@/composables/useInfiniteList'; import Select from '@/components/common/Select.vue'; import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
+import UsageConnections from '@/components/admin/usage/UsageConnections.vue'
 import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
@@ -506,6 +512,7 @@ const refreshData = () => {
     filters.value.start_date = range.start
     filters.value.end_date = range.end
   }
+  connectionRefreshKey.value++
   invalidateModelStatsCache()
   loadLogs()
   loadStats(true)
@@ -671,15 +678,26 @@ const resetCurrentColumns = () =>
   activeTab.value === 'errors' ? resetErrColumns() : resetColumns()
 
 // Detail tabs
-type DetailTab = 'usage' | 'errors' | 'ranking'
+type DetailTab = 'usage' | 'errors' | 'connections' | 'ranking'
 const activeTab = ref<DetailTab>('usage')
 const canViewErrors = computed(() => !props.observerMode || !!appStore.cachedPublicSettings?.allow_user_view_error_requests)
 const detailTabs = computed(() => [
   { key: 'usage' as const, label: t('usage.tabs.usage'), icon: 'document' as const },
   ...(canViewErrors.value ? [{ key: 'errors' as const, label: t('usage.tabs.errors'), icon: 'exclamationTriangle' as const }] : []),
+  ...(!props.observerMode ? [{ key: 'connections' as const, label: t('connections.title'), icon: 'clock' as const }] : []),
   ...(!props.observerMode ? [{ key: 'ranking' as const, label: t('usage.tabs.ranking'), icon: 'chart' as const }] : []),
 ])
 const usageFiltersRef = ref<InstanceType<typeof UsageFilters> | null>(null)
+const connectionRefreshKey = ref(0)
+const connectionFilters = computed(() => ({
+  start_time: toRFC3339(filters.value.start_date),
+  end_time: toRFC3339(filters.value.end_date, true),
+  user_id: filters.value.user_id ?? undefined,
+  api_key_id: filters.value.api_key_id ?? undefined,
+  account_id: filters.value.account_id ?? undefined,
+  group_id: filters.value.group_id ?? undefined,
+  model: filters.value.model || undefined,
+}))
 const rankingMounted = ref(false)
 const rankingRef = ref<InstanceType<typeof UserTokenRanking> | null>(null)
 

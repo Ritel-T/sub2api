@@ -125,7 +125,14 @@ func runSetupServer() {
 	r.Use(middleware.SecurityHeaders(config.CSPConfig{Enabled: true, Policy: config.DefaultCSPPolicy}, nil))
 
 	// Register setup routes
-	setup.RegisterRoutes(r)
+	bootstrapToken, generated, err := setup.BootstrapToken()
+	if err != nil {
+		log.Fatalf("Cannot initialize setup authorization: %v", err)
+	}
+	if generated {
+		log.Printf("Setup token (enter in the setup wizard): %s", bootstrapToken)
+	}
+	setup.RegisterRoutes(r, bootstrapToken)
 
 	// Serve embedded frontend if available
 	if web.HasEmbeddedFrontend() {
@@ -145,7 +152,10 @@ func runSetupServer() {
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           server.SetupHandler(r),
-		ReadHeaderTimeout: 30 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      120 * time.Second,
+		MaxHeaderBytes:    64 * 1024,
 		IdleTimeout:       120 * time.Second,
 		Protocols:         protocols,
 	}

@@ -192,6 +192,8 @@ export default {
 
   // Setup Wizard
   setup: {
+    bootstrapToken: 'Setup token',
+    bootstrapTokenHint: 'Enter the token from the server startup log, or the SETUP_TOKEN configured by your administrator.',
     title: 'Sub2API Setup',
     description: 'Configure your Sub2API instance',
     database: {

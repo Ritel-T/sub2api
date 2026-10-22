@@ -186,6 +186,7 @@ export interface ContentModerationAPIKeyLoad {
 }
 
 export interface ContentModerationLog {
+  evidence_status?: string
   engine_meta?: ModerationEngineMeta | null
   id: number
   request_id: string
@@ -287,10 +288,44 @@ export async function listLogs(
   return data
 }
 
-export async function unbanUser(userID: number): Promise<ContentModerationUnbanUserResponse> {
-  const { data } = await apiClient.post<ContentModerationUnbanUserResponse>(
-    `/admin/risk-control/users/${userID}/unban`
-  )
+export interface ModerationUserState {
+  user_id: number
+  version: number
+  generation: number
+  auto_ban_exempt: boolean
+  owned_disable: boolean
+  status: string
+  current_count: number
+  reason: string
+  actor_id: number | null
+  updated_at: string | null
+}
+
+export interface ModerationUserAction {
+  action: 'unban' | 'reset' | 'exemption'
+  version: number
+  reason: string
+  confirm: boolean
+  auto_ban_exempt?: boolean
+}
+
+export async function getModerationUser(userID: number): Promise<ModerationUserState> {
+  const { data } = await apiClient.get<ModerationUserState>(`/admin/risk-control/users/${userID}`)
+  return data
+}
+
+export async function manageModerationUser(userID: number, payload: ModerationUserAction): Promise<ModerationUserState> {
+  const { data } = await apiClient.post<ModerationUserState>(`/admin/risk-control/users/${userID}/actions`, payload)
+  return data
+}
+
+export async function listModerationUsers(params: { page: number; page_size: number; state: 'all' | 'exempt' | 'enforced'; user_id?: number }): Promise<{ items: ModerationUserState[]; total: number }> {
+  const { data } = await apiClient.get<{ items: ModerationUserState[]; total: number }>('/admin/risk-control/users', { params })
+  return data
+}
+
+export async function unbanUser(userID: number, payload: Omit<ModerationUserAction, 'action'>): Promise<ModerationUserState> {
+  const { data } = await apiClient.post<ModerationUserState>(`/admin/risk-control/users/${userID}/unban`, payload)
   return data
 }
 
@@ -313,6 +348,9 @@ export const riskControlAPI = {
   testAPIKeys,
   listLogs,
   unbanUser,
+  getModerationUser,
+  manageModerationUser,
+  listModerationUsers,
   deleteFlaggedHash,
   clearFlaggedHashes,
 }

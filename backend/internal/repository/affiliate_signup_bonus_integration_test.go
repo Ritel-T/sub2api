@@ -126,7 +126,11 @@ func (r *signupIntegrationSettings) GetValue(_ context.Context, key string) (str
 		service.SettingKeyAffiliateEnabled:     "true",
 		service.SettingKeyAffiliateSignupBonus: "5",
 	}
-	return values[key], nil
+	value, ok := values[key]
+	if !ok {
+		return "", service.ErrSettingNotFound
+	}
+	return value, nil
 }
 func (r *signupIntegrationSettings) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
 	out := map[string]string{}
@@ -134,7 +138,14 @@ func (r *signupIntegrationSettings) GetMultiple(ctx context.Context, keys []stri
 		if r.failBonusRead && key == service.SettingKeyAffiliateSignupBonus {
 			return nil, errors.New("settings read failure")
 		}
-		out[key], _ = r.GetValue(ctx, key)
+		value, err := r.GetValue(ctx, key)
+		if errors.Is(err, service.ErrSettingNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out[key] = value
 	}
 	return out, nil
 }

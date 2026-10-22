@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -80,9 +81,12 @@ func TestImageResultUploaderRewritesURL(t *testing.T) {
 	defer upstream.Close()
 
 	storage := &fakeImageStorage{}
-	uploader := NewImageResultUploader(storage, "images/", 0, nil)
+	client := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, upstream.Listener.Addr().String())
+	}}}
+	uploader := NewImageResultUploader(storage, "images/", 0, client)
 
-	result := json.RawMessage(`{"created":1,"data":[{"url":"` + upstream.URL + `/pic.png"}]}`)
+	result := json.RawMessage(`{"created":1,"data":[{"url":"http://8.8.8.8/pic.png"}]}`)
 	out, err := uploader.Rewrite(context.Background(), "imgtask_xyz", result)
 	require.NoError(t, err)
 
@@ -243,4 +247,44 @@ func TestImageTaskServiceCompleteOffloadFailureMarksFailed(t *testing.T) {
 	require.Equal(t, http.StatusBadGateway, got.HTTPStatus)
 	require.Contains(t, string(got.Error), "object storage")
 	require.NotContains(t, string(got.Result), "b64_json", "failed offload must not persist base64 to Redis")
+}
+
+func TestImageResultUploaderRejectsPrivateURLBeforeHTTP(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { calls++; _, _ = w.Write(pngBytes) }))
+	defer server.Close()
+	storage := &fakeImageStorage{}
+	uploader := NewImageResultUploader(storage, "images/", 0, nil)
+	result := json.RawMessage(`{"data":[{"url":"` + server.URL + `/private"}]}`)
+	_, err := uploader.Rewrite(t.Context(), "private", result)
+	require.ErrorContains(t, err, "not allowed")
+	require.Zero(t, calls)
+	require.Empty(t, storage.saved)
+}
+
+func TestImageResultUploaderRejectsNonImageAndOversizedBase64(t *testing.T) {
+	for _, raw := range []string{`{"data":[{"b64_json":"PGh0bWw+"}]}`, `{"data":[{"url":"data:image/png;base64,PGh0bWw+"}]}`} {
+		storage := &fakeImageStorage{}
+		_, err := NewImageResultUploader(storage, "images/", 0, nil).Rewrite(t.Context(), "html", json.RawMessage(raw))
+		require.ErrorContains(t, err, "not an allowed image")
+		require.Empty(t, storage.saved)
+	}
+	encoded := base64.StdEncoding.EncodeToString(pngBytes)
+	_, err := NewImageResultUploader(&fakeImageStorage{}, "images/", 3, nil).Rewrite(t.Context(), "large", json.RawMessage(`{"data":[{"b64_json":"`+encoded+`"}]}`))
+	require.ErrorContains(t, err, "exceeds 3 bytes")
+}
+
+func TestImageResultUploaderIgnoresForgedImageContentType(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("<html>internal secret</html>"))
+	}))
+	defer server.Close()
+	client := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
+	}}}
+	storage := &fakeImageStorage{}
+	_, err := NewImageResultUploader(storage, "images/", 0, client).Rewrite(t.Context(), "html", json.RawMessage(`{"data":[{"url":"http://8.8.8.8/a"}]}`))
+	require.ErrorContains(t, err, "not an allowed image")
+	require.Empty(t, storage.saved)
 }

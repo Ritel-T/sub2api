@@ -70,21 +70,21 @@ export async function getSetupStatus(): Promise<SetupStatus> {
 /**
  * Test database connection
  */
-export async function testDatabase(config: DatabaseConfig): Promise<void> {
-  await setupClient.post('/setup/test-db', config)
+export async function testDatabase(config: DatabaseConfig, bootstrapToken: string): Promise<void> {
+  await setupClient.post('/setup/test-db', config, { headers: { 'X-Setup-Token': bootstrapToken } })
 }
 
 /**
  * Test Redis connection
  */
-export async function testRedis(config: RedisConfig): Promise<void> {
-  await setupClient.post('/setup/test-redis', config)
+export async function testRedis(config: RedisConfig, bootstrapToken: string): Promise<void> {
+  await setupClient.post('/setup/test-redis', config, { headers: { 'X-Setup-Token': bootstrapToken } })
 }
 
 /**
  * Perform installation
  */
-export async function install(config: InstallRequest): Promise<InstallResponse> {
-  const response = await setupClient.post('/setup/install', config)
+export async function install(config: InstallRequest, bootstrapToken: string): Promise<InstallResponse> {
+  const response = await setupClient.post('/setup/install', config, { headers: { 'X-Setup-Token': bootstrapToken } })
   return response.data.data
 }

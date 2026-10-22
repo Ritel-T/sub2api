@@ -1,6 +1,10 @@
 import gelv from './gelv'
 import paymentRetail from './paymentRetail'
 import squarespaceProvider from './squarespaceProvider'
+import ipAudit from './ipAudit'
+import connections from './connections'
+import securityRecords from './securityRecords'
+import siwc from './siwc'
 import priorityScheduling from './priorityScheduling'
 import qualityOps from './qualityOps'
 import controlledExperiments from './controlledExperiments'
@@ -27,6 +31,10 @@ export default {
   gelv,
   paymentRetail,
   squarespaceProvider,
+  ipAudit,
+  connections,
+  securityRecords,
+  siwc,
   autoConfig,
   priorityScheduling,
   qualityOps,

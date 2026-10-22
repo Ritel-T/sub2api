@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/publicimagehttp"
 )
 
 const defaultImageMaxDownloadBytes int64 = 32 << 20 // 32 MiB
@@ -41,6 +43,13 @@ type ImageResultUploader struct {
 func NewImageResultUploader(storage ImageStorage, prefix string, maxDownloadBytes int64, httpClient *http.Client) *ImageResultUploader {
 	if httpClient == nil {
 		httpClient = defaultImageDownloadHTTPClient()
+	} else {
+		clone := *httpClient
+		clone.Transport = publicimagehttp.Wrap(clone.Transport)
+		if clone.Timeout <= 0 || clone.Timeout > 60*time.Second {
+			clone.Timeout = 60 * time.Second
+		}
+		httpClient = &clone
 	}
 	if maxDownloadBytes <= 0 {
 		maxDownloadBytes = defaultImageMaxDownloadBytes
@@ -54,7 +63,7 @@ func NewImageResultUploader(storage ImageStorage, prefix string, maxDownloadByte
 }
 
 func defaultImageDownloadHTTPClient() *http.Client {
-	return &http.Client{Timeout: 60 * time.Second}
+	return &http.Client{Timeout: 60 * time.Second, Transport: publicimagehttp.Wrap(nil)}
 }
 
 // Rewrite 将 result（上游生图响应 JSON）里的每张图片转存到对象存储，
@@ -115,11 +124,21 @@ func (u *ImageResultUploader) fetchImageBytes(ctx context.Context, item map[stri
 		var b64 string
 		if err := json.Unmarshal(raw, &b64); err == nil {
 			if b64 = strings.TrimSpace(b64); b64 != "" {
-				data, err := base64.StdEncoding.DecodeString(b64)
+				limit := u.maxDownloadBytes
+				if limit <= 0 {
+					limit = defaultImageMaxDownloadBytes
+				}
+				data, err := io.ReadAll(io.LimitReader(base64.NewDecoder(base64.StdEncoding, strings.NewReader(b64)), limit+1))
 				if err != nil {
 					return nil, "", fmt.Errorf("decode b64_json: %w", err)
 				}
-				return data, detectImageContentType(data), nil
+				if int64(len(data)) > limit {
+					return nil, "", fmt.Errorf("decoded b64_json exceeds %d bytes", limit)
+				}
+				if !isBackfillImageContent(data) {
+					return nil, "", errors.New("decoded b64_json is not an allowed image format")
+				}
+				return data, detectedImageContentType(data), nil
 			}
 		}
 	}
@@ -185,8 +204,8 @@ func (u *ImageResultUploader) decodeImageDataURL(rawURL string) ([]byte, string,
 	}
 
 	contentType := detectedImageContentType(data)
-	if contentType == "" {
-		contentType = declaredType
+	if !isBackfillImageContent(data) {
+		return nil, "", errors.New("decoded data URL is not an allowed image format")
 	}
 	return data, contentType, nil
 }
@@ -215,22 +234,15 @@ func (u *ImageResultUploader) download(ctx context.Context, rawURL string) ([]by
 	if int64(len(data)) > limit {
 		return nil, "", fmt.Errorf("downloaded image exceeds %d bytes", limit)
 	}
-	contentType := strings.TrimSpace(strings.Split(resp.Header.Get("Content-Type"), ";")[0])
-	if !strings.HasPrefix(contentType, "image/") {
-		contentType = detectImageContentType(data)
+	if !isBackfillImageContent(data) {
+		return nil, "", errors.New("download image: content is not an allowed image format")
 	}
+	contentType := detectedImageContentType(data)
 	return data, contentType, nil
 }
 
 func (u *ImageResultUploader) buildKey(taskID string, index int, contentType string) string {
 	return u.prefix + taskID + "-" + strconv.Itoa(index) + extensionForContentType(contentType)
-}
-
-func detectImageContentType(data []byte) string {
-	if ct := detectedImageContentType(data); ct != "" {
-		return ct
-	}
-	return "image/png"
 }
 
 func detectedImageContentType(data []byte) string {

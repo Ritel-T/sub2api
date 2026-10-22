@@ -389,4 +389,15 @@ export default {
   "bpsModelsRequired": "請選擇至少一個 BPS 生效的模型，或勾選對所有模型啟用",
   "bpsTargetGroupRequired": "已勾選「遇到 BPS 403 錯誤時自動調整分組」，請選擇目標分組",
   "bpsRequiresProbe": "自動開關 BPS 策略需要原生狀態探針。若要檢測 BPS 回答質量，請選糖果題和「BPS 通道（只檢測、記錄結果）」。"
+,
+  "modelShortcuts": "快捷模型標簽（點擊添加）",
+  "addModelShortcuts": "新增自定義標簽",
+  "modelShortcutsInput": "模型名稱（支持一次添加多個）",
+  "modelShortcutsPlaceholder": "用換行、空格或逗號分隔模型名稱",
+  "saveModelShortcuts": "保存標簽",
+  "removeModelShortcut": "刪除快捷標簽 {model}",
+  "modelShortcutsHint": "點擊標簽加入檢測模型，已選模型不會重復添加；門票探針會替換當前模型。自定義標簽按管理員保存在當前瀏覽器，后續新建和編輯均可復用。",
+  "modelShortcutTooLong": "每個模型名稱最多 100 個字符，請縮短后重試。",
+  "modelShortcutsLoadFailed": "無法讀取已保存的自定義標簽，內置標簽仍可使用。",
+  "modelShortcutsSaveFailed": "標簽僅在當前頁面生效，無法保存到瀏覽器供下次使用。",
 }

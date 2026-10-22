@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net"
 	"net/textproto"
 	"net/url"
 	"os"
@@ -1257,6 +1258,10 @@ type GatewayConfig struct {
 	GrokResponseHeaderTimeout int `mapstructure:"grok_response_header_timeout"`
 	// OpenAIFirstOutputTimeoutSeconds: native HTTP Responses 首个语义输出超时（秒），0表示禁用。
 	OpenAIFirstOutputTimeoutSeconds int `mapstructure:"openai_first_output_timeout_seconds"`
+	// HTTP submission deadline shared across retries; zero disables it.
+	OpenAIUploadTimeoutSeconds int `mapstructure:"openai_upload_timeout_seconds"`
+	// Shared HTTP budget before the first complete model output event; zero disables it.
+	OpenAIPreOutputBudgetSeconds int `mapstructure:"openai_pre_output_budget_seconds"`
 	// OpenAIHighEffortFirstOutputTimeoutSeconds: high/xhigh/max 推理的首个语义输出超时（秒）。
 	// 0 表示回退到 OpenAIFirstOutputTimeoutSeconds。
 	OpenAIHighEffortFirstOutputTimeoutSeconds int `mapstructure:"openai_high_effort_first_output_timeout_seconds"`
@@ -2450,7 +2455,7 @@ func setDefaults() {
 	viper.SetDefault("security.csp.enabled", true)
 	viper.SetDefault("security.csp.policy", DefaultCSPPolicy)
 	viper.SetDefault("security.proxy_probe.insecure_skip_verify", false)
-	viper.SetDefault("security.trust_forwarded_ip_for_api_key_acl", true)
+	viper.SetDefault("security.trust_forwarded_ip_for_api_key_acl", false)
 
 	// Security - disable direct fallback on proxy error
 	viper.SetDefault("security.proxy_fallback.allow_direct_on_error", false)
@@ -2760,6 +2765,8 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_response_header_timeout", 0)
 	viper.SetDefault("gateway.grok_response_header_timeout", 120)
 	viper.SetDefault("gateway.openai_first_output_timeout_seconds", 0)
+	viper.SetDefault("gateway.openai_upload_timeout_seconds", 0)
+	viper.SetDefault("gateway.openai_pre_output_budget_seconds", 0)
 	viper.SetDefault("gateway.openai_high_effort_first_output_timeout_seconds", 0)
 	viper.SetDefault("gateway.log_upstream_error_body", true)
 	viper.SetDefault("gateway.log_upstream_error_body_max_bytes", 2048)
@@ -3756,6 +3763,12 @@ func (c *Config) Validate() error {
 	if c.Gateway.GrokResponseHeaderTimeout < 0 || c.Gateway.GrokResponseHeaderTimeout > 1800 {
 		return fmt.Errorf("gateway.grok_response_header_timeout must be between 0-1800 seconds")
 	}
+	if c.Gateway.OpenAIUploadTimeoutSeconds < 0 || c.Gateway.OpenAIUploadTimeoutSeconds > 1800 {
+		return fmt.Errorf("gateway.openai_upload_timeout_seconds must be between 0-1800 seconds")
+	}
+	if c.Gateway.OpenAIPreOutputBudgetSeconds < 0 || c.Gateway.OpenAIPreOutputBudgetSeconds > 3600 {
+		return fmt.Errorf("gateway.openai_pre_output_budget_seconds must be between 0-3600 seconds")
+	}
 	if c.Gateway.OpenAIFirstOutputTimeoutSeconds < 0 || c.Gateway.OpenAIFirstOutputTimeoutSeconds > 600 ||
 		(c.Gateway.OpenAIFirstOutputTimeoutSeconds > 0 && c.Gateway.OpenAIFirstOutputTimeoutSeconds < 30) {
 		return fmt.Errorf("gateway.openai_first_output_timeout_seconds must be 0 or between 30-600 seconds")
@@ -4241,7 +4254,7 @@ func GetServerAddress() string {
 	// Support SERVER_HOST and SERVER_PORT environment variables
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.SetDefault("server.host", "0.0.0.0")
+	v.SetDefault("server.host", "127.0.0.1")
 	v.SetDefault("server.port", 8080)
 
 	// Try to read config file (ignore errors if not found)
@@ -4249,7 +4262,7 @@ func GetServerAddress() string {
 
 	host := v.GetString("server.host")
 	port := v.GetInt("server.port")
-	return fmt.Sprintf("%s:%d", host, port)
+	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
 // ValidateAbsoluteHTTPURL 验证是否为有效的绝对 HTTP(S) URL

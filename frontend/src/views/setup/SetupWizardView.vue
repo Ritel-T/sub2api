@@ -14,6 +14,23 @@
         <p class="mt-2 text-gray-500 dark:text-dark-400">{{ t('setup.description') }}</p>
       </div>
 
+      <div v-if="!installSuccess" class="mb-6">
+        <label for="setup-token" class="input-label">{{ t('setup.bootstrapToken') }}</label>
+        <input
+          id="setup-token"
+          v-model="bootstrapToken"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          class="input"
+          :disabled="installing"
+          aria-describedby="setup-token-hint"
+        />
+        <p id="setup-token-hint" class="mt-2 text-sm text-gray-500 dark:text-dark-400">
+          {{ t('setup.bootstrapTokenHint') }}
+        </p>
+      </div>
+
       <!-- Progress Steps -->
       <div class="mb-8">
         <div class="flex items-center justify-center">
@@ -516,6 +533,7 @@ const steps = computed(() => [
   { id: 'complete', title: t('setup.ready.title') }
 ])
 
+const bootstrapToken = ref('')
 const currentStep = ref(0)
 const errorMessage = ref('')
 const installSuccess = ref(false)
@@ -590,7 +608,7 @@ async function testDatabaseConnection() {
   dbConnected.value = false
 
   try {
-    await testDatabase(formData.database)
+    await testDatabase(formData.database, bootstrapToken.value)
     dbConnected.value = true
   } catch (error: unknown) {
     const err = error as { response?: { data?: { detail?: string; message?: string } }; message?: string }
@@ -607,7 +625,7 @@ async function testRedisConnection() {
   redisConnected.value = false
 
   try {
-    await testRedis(formData.redis)
+    await testRedis(formData.redis, bootstrapToken.value)
     redisConnected.value = true
   } catch (error: unknown) {
     const err = error as { response?: { data?: { detail?: string; message?: string } }; message?: string }
@@ -630,7 +648,8 @@ async function performInstall() {
   errorMessage.value = ''
 
   try {
-    await install(formData)
+    await install(formData, bootstrapToken.value)
+    bootstrapToken.value = ''
     installSuccess.value = true
     // Start polling for service restart
     waitForServiceRestart()

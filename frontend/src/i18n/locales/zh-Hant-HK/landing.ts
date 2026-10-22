@@ -192,6 +192,8 @@ export default {
 
   // Setup Wizard
   setup: {
+    bootstrapToken: '安裝權杖',
+    bootstrapTokenHint: '輸入伺服器啟動記錄中的權杖，或管理員設定的 SETUP_TOKEN。',
     title: 'Sub2API 安裝嚮導',
     description: '配置您的 Sub2API 實例',
     database: {

@@ -143,6 +143,7 @@ func provideCleanup(
 	openAIAutoReset *service.OpenAIQuotaAutoResetService,
 	promptAudit *securityaudit.PromptService,
 	pluginManager *service.PluginManager,
+	cyberModeration *service.ContentModerationService,
 ) func() {
 	if openAIGateway != nil {
 		openAIGateway.StartBPSWarmPool()
@@ -229,6 +230,12 @@ func provideCleanup(
 			{"APIKeyQueueWaiters", func() error {
 				if concurrencyService != nil {
 					concurrencyService.StopAPIKeyQueue()
+				}
+				return nil
+			}},
+			{"CyberEvidence", func() error {
+				if cyberModeration != nil && cyberModeration.CyberEvidence() != nil {
+					cyberModeration.CyberEvidence().Close()
 				}
 				return nil
 			}},

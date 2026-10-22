@@ -1,3 +1,4 @@
+import moderationUsers from './moderationUsers'
 import groupCacheTest from './groupCacheTest'
 import requestCapture from './requestCapture'
 import astraGateway from './astraGateway'
@@ -26,4 +27,6 @@ export default {
   ...promptAudit,
   ...plugins,
   ...harvestFlow,
+
+  ...moderationUsers,
 }

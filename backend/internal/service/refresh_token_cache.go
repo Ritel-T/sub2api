@@ -13,6 +13,7 @@ var ErrRefreshTokenNotFound = errors.New("refresh token not found")
 // RefreshTokenData 存储在Redis中的Refresh Token数据
 type RefreshTokenData struct {
 	UserID       int64     `json:"user_id"`
+	SessionEpoch string    `json:"session_epoch,omitempty"`
 	TokenVersion int64     `json:"token_version"`          // 用于检测密码更改后的Token失效
 	FamilyID     string    `json:"family_id"`              // Token家族ID，用于防重放攻击
 	BindingHash  string    `json:"binding_hash,omitempty"` // 会话指纹哈希（IP+UA），会话绑定开启时校验
@@ -39,6 +40,9 @@ type RefreshTokenCache interface {
 	// 返回 (nil, ErrRefreshTokenNotFound) 如果Token不存在
 	// 返回 (nil, err) 如果发生其他错误
 	GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshTokenData, error)
+
+	// ConsumeRefreshToken atomically removes a token, returning false if absent.
+	ConsumeRefreshToken(ctx context.Context, tokenHash string) (bool, error)
 
 	// DeleteRefreshToken 删除单个Refresh Token
 	// 用于Token轮转时使旧Token失效

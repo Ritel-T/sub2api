@@ -20,6 +20,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/Wei-Shaw/sub2api/internal/cyberevidence"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -317,6 +320,7 @@ type ContentModerationModelFilter struct {
 }
 
 type ContentModerationCheckInput struct {
+	moderationVersion  *int64
 	riskControlLogOnly bool // Captured at admission and retained by asynchronous tasks.
 	RequestID          string
 	UserID             int64
@@ -397,35 +401,38 @@ type ContentModerationDecision struct {
 }
 
 type ContentModerationLog struct {
-	EngineMeta        *ContentModerationEngineMeta `json:"engine_meta,omitempty"`
-	ID                int64                        `json:"id"`
-	RequestID         string                       `json:"request_id"`
-	UserID            *int64                       `json:"user_id,omitempty"`
-	UserEmail         string                       `json:"user_email"`
-	APIKeyID          *int64                       `json:"api_key_id,omitempty"`
-	APIKeyName        string                       `json:"api_key_name"`
-	GroupID           *int64                       `json:"group_id,omitempty"`
-	GroupName         string                       `json:"group_name"`
-	Endpoint          string                       `json:"endpoint"`
-	Provider          string                       `json:"provider"`
-	Model             string                       `json:"model"`
-	Mode              string                       `json:"mode"`
-	Action            string                       `json:"action"`
-	Flagged           bool                         `json:"flagged"`
-	HighestCategory   string                       `json:"highest_category"`
-	HighestScore      float64                      `json:"highest_score"`
-	MatchedKeyword    string                       `json:"matched_keyword"`
-	CategoryScores    map[string]float64           `json:"category_scores"`
-	ThresholdSnapshot map[string]float64           `json:"threshold_snapshot"`
-	InputExcerpt      string                       `json:"input_excerpt"`
-	UpstreamLatencyMS *int                         `json:"upstream_latency_ms,omitempty"`
-	Error             string                       `json:"error"`
-	ViolationCount    int                          `json:"violation_count"`
-	AutoBanned        bool                         `json:"auto_banned"`
-	EmailSent         bool                         `json:"email_sent"`
-	UserStatus        string                       `json:"user_status"`
-	QueueDelayMS      *int                         `json:"queue_delay_ms,omitempty"`
-	CreatedAt         time.Time                    `json:"created_at"`
+	moderationVersion    *int64
+	suppressNotification bool
+	EvidenceStatus       string                       `json:"evidence_status,omitempty"`
+	EngineMeta           *ContentModerationEngineMeta `json:"engine_meta,omitempty"`
+	ID                   int64                        `json:"id"`
+	RequestID            string                       `json:"request_id"`
+	UserID               *int64                       `json:"user_id,omitempty"`
+	UserEmail            string                       `json:"user_email"`
+	APIKeyID             *int64                       `json:"api_key_id,omitempty"`
+	APIKeyName           string                       `json:"api_key_name"`
+	GroupID              *int64                       `json:"group_id,omitempty"`
+	GroupName            string                       `json:"group_name"`
+	Endpoint             string                       `json:"endpoint"`
+	Provider             string                       `json:"provider"`
+	Model                string                       `json:"model"`
+	Mode                 string                       `json:"mode"`
+	Action               string                       `json:"action"`
+	Flagged              bool                         `json:"flagged"`
+	HighestCategory      string                       `json:"highest_category"`
+	HighestScore         float64                      `json:"highest_score"`
+	MatchedKeyword       string                       `json:"matched_keyword"`
+	CategoryScores       map[string]float64           `json:"category_scores"`
+	ThresholdSnapshot    map[string]float64           `json:"threshold_snapshot"`
+	InputExcerpt         string                       `json:"input_excerpt"`
+	UpstreamLatencyMS    *int                         `json:"upstream_latency_ms,omitempty"`
+	Error                string                       `json:"error"`
+	ViolationCount       int                          `json:"violation_count"`
+	AutoBanned           bool                         `json:"auto_banned"`
+	EmailSent            bool                         `json:"email_sent"`
+	UserStatus           string                       `json:"user_status"`
+	QueueDelayMS         *int                         `json:"queue_delay_ms,omitempty"`
+	CreatedAt            time.Time                    `json:"created_at"`
 }
 
 type ContentModerationLogFilter struct {
@@ -511,6 +518,7 @@ type ContentModerationHashCache interface {
 }
 
 type ContentModerationService struct {
+	cyberEvidence            *cyberevidence.Service
 	settingRepo              SettingRepository
 	repo                     ContentModerationRepository
 	hashCache                ContentModerationHashCache
@@ -852,6 +860,7 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			"protocol", input.Protocol)
 		return allow, nil
 	}
+	input.moderationVersion = s.CaptureModerationUserVersion(ctx, input.UserID)
 	_, input.riskControlLogOnly = runtimeSnapshot.allowlistedUsers[input.UserID]
 	// Keep audit evidence while ensuring all local rejection paths allow trusted users.
 	defer func() {
@@ -862,6 +871,10 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 		}
 	}()
 	cfg := runtimeSnapshot.config
+	if securityPenaltyOwnsEnforcement(ctx) {
+		cfg = cloneContentModerationConfig(cfg)
+		cfg.AutoBanEnabled = false
+	}
 	inGroupScope := cfg.includesGroup(input.GroupID)
 	inModelScope := cfg.includesModel(input.Model)
 	slog.Info("content_moderation.config_loaded",
@@ -1342,33 +1355,18 @@ func (s *ContentModerationService) ListLogs(ctx context.Context, filter ContentM
 	return s.repo.ListLogs(ctx, filter)
 }
 
-func (s *ContentModerationService) UnbanUser(ctx context.Context, userID int64) (*ContentModerationUnbanUserResult, error) {
-	if s == nil || s.userRepo == nil {
-		return nil, infraerrors.InternalServer("CONTENT_MODERATION_USER_REPOSITORY_UNAVAILABLE", "用户仓储不可用")
+// UnbanUser requires the same explicit confirmation and version as other user actions.
+func (s *ContentModerationService) UnbanUser(ctx context.Context, userID int64, actions ...ModerationUserAction) (*ContentModerationUnbanUserResult, error) {
+	if len(actions) != 1 {
+		return nil, infraerrors.BadRequest("MODERATION_CONFIRMATION_REQUIRED", "Reload current state and provide confirmation, version and reason")
 	}
-	if userID <= 0 {
-		return nil, infraerrors.BadRequest("INVALID_USER_ID", "用户 ID 无效")
-	}
-	user, err := s.userRepo.GetByID(ctx, userID)
+	in := actions[0]
+	in.Action = "unban"
+	state, err := s.ManageModerationUser(ctx, userID, in)
 	if err != nil {
-		if errors.Is(err, ErrUserNotFound) {
-			return nil, infraerrors.NotFound("USER_NOT_FOUND", "用户不存在")
-		}
-		return nil, fmt.Errorf("get content moderation unban user: %w", err)
+		return nil, err
 	}
-	if user.Status != StatusActive {
-		user.Status = StatusActive
-		if err := s.userRepo.Update(ctx, user, UserUpdateFields{Status: true}); err != nil {
-			return nil, fmt.Errorf("update content moderation unban user: %w", err)
-		}
-	}
-	if s.authCacheInvalidator != nil {
-		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
-	}
-	return &ContentModerationUnbanUserResult{
-		UserID: userID,
-		Status: StatusActive,
-	}, nil
+	return &ContentModerationUnbanUserResult{UserID: state.UserID, Status: state.Status}, nil
 }
 
 func (s *ContentModerationService) DeleteFlaggedInputHash(ctx context.Context, inputHash string) (*ContentModerationDeleteHashResult, error) {
@@ -1919,6 +1917,7 @@ func (s *ContentModerationService) buildLog(input ContentModerationCheckInput, c
 		action = ContentModerationActionAllow
 	}
 	return &ContentModerationLog{
+		moderationVersion: input.moderationVersion,
 		RequestID:         input.RequestID,
 		UserID:            userID,
 		UserEmail:         input.UserEmail,
@@ -1958,12 +1957,19 @@ func (s *ContentModerationService) persistContentModerationLog(ctx context.Conte
 	autoBanJustApplied := false
 	if applySideEffects {
 		autoBanJustApplied = s.applyFlaggedAccountSideEffects(ctx, cfg, log)
-		s.sendFlaggedNotificationSideEffects(ctx, cfg, log, autoBanJustApplied)
 	}
 	if s.repo != nil {
 		if err := s.repo.CreateLog(ctx, log); err != nil {
 			slog.Warn("content_moderation.create_log_failed", "user_id", contentModerationEmailUserID(log), "endpoint", log.Endpoint, "action", log.Action, "error", err)
 			return
+		}
+	}
+	if applySideEffects {
+		s.sendFlaggedNotificationSideEffects(ctx, cfg, log, autoBanJustApplied)
+		if log.EmailSent && s.repo != nil {
+			if err := s.repo.UpdateLogEmailSent(ctx, log.ID, true); err != nil {
+				slog.Warn("content_moderation.update_email_sent_failed", "log_id", log.ID, "error", err)
+			}
 		}
 	}
 }
@@ -1972,44 +1978,50 @@ func (s *ContentModerationService) applyFlaggedAccountSideEffects(ctx context.Co
 	if s == nil || cfg == nil || log == nil || !log.Flagged || log.UserID == nil || *log.UserID <= 0 {
 		return false
 	}
+	if repo, ok := s.repo.(ModerationUserRepository); ok {
+		if log.moderationVersion == nil {
+			log.suppressNotification = true
+			return false
+		}
+		requestID := log.RequestID
+		if requestID == "" {
+			requestID = uuid.NewString()
+		}
+		result, err := repo.ApplyModerationHit(ctx, ModerationHit{UserID: *log.UserID, Version: *log.moderationVersion, RequestID: requestID, Action: log.Action, Since: time.Now().Add(-time.Duration(cfg.ViolationWindowHours) * time.Hour), AutoBan: cfg.AutoBanEnabled && !securityPenaltyOwnsEnforcement(ctx), Threshold: cfg.BanThreshold, ExcludeCyber: cfg.CyberPolicyExcludeFromBanCount})
+		if err != nil {
+			log.suppressNotification = true
+			slog.Error("content_moderation.apply_hit_failed", "user_id", *log.UserID, "error", err)
+			return false
+		}
+		log.suppressNotification = !result.Accepted
+		log.ViolationCount = result.Count
+		log.AutoBanned = result.OwnedDisable
+		if result.BanApplied && s.authCacheInvalidator != nil {
+			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, *log.UserID)
+		}
+		return result.BanApplied
+	}
+	// Adapters without transactional ownership may record evidence but cannot disable users.
 	count := 1
 	if s.repo != nil && cfg.ViolationWindowHours > 0 {
-		since := time.Now().Add(-time.Duration(cfg.ViolationWindowHours) * time.Hour)
-		if n, err := s.repo.CountFlaggedByUserSince(ctx, *log.UserID, since, cfg.CyberPolicyExcludeFromBanCount); err == nil {
-			count = n + 1
+		n, err := s.repo.CountFlaggedByUserSince(ctx, *log.UserID, time.Now().Add(-time.Duration(cfg.ViolationWindowHours)*time.Hour), cfg.CyberPolicyExcludeFromBanCount)
+		if err != nil {
+			log.suppressNotification = true
+			return false
 		}
+		count += n
 	}
 	log.ViolationCount = count
-	autoBanJustApplied := false
-	if cfg.AutoBanEnabled && cfg.BanThreshold > 0 && count >= cfg.BanThreshold && s.userRepo != nil {
-		user, err := s.userRepo.GetByID(ctx, *log.UserID)
-		if err != nil {
-			slog.Warn("content_moderation.ban_get_user_failed", "user_id", *log.UserID, "error", err)
-			return false
-		}
-		if user.IsAdmin() {
+	if s.userRepo != nil && cfg.AutoBanEnabled && count >= cfg.BanThreshold {
+		if user, err := s.userRepo.GetByID(ctx, *log.UserID); err == nil && user.IsAdmin() {
 			slog.Warn("content_moderation.autoban_skipped_admin", "user_id", *log.UserID, "role", user.Role, "count", count, "threshold", cfg.BanThreshold)
-			// TODO: Disable the triggering API key instead when API key mutation is available here.
-			return false
 		}
-		if user.Status != StatusDisabled {
-			user.Status = StatusDisabled
-			if err := s.userRepo.Update(ctx, user, UserUpdateFields{Status: true}); err != nil {
-				slog.Warn("content_moderation.ban_update_user_failed", "user_id", *log.UserID, "error", err)
-				return false
-			}
-			if s.authCacheInvalidator != nil {
-				s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, *log.UserID)
-			}
-			autoBanJustApplied = true
-		}
-		log.AutoBanned = true
 	}
-	return autoBanJustApplied
+	return false
 }
 
 func (s *ContentModerationService) sendFlaggedNotificationSideEffects(ctx context.Context, cfg *ContentModerationConfig, log *ContentModerationLog, autoBanJustApplied bool) {
-	if s == nil || cfg == nil || log == nil || !log.Flagged {
+	if s == nil || cfg == nil || log == nil || !log.Flagged || log.suppressNotification {
 		return
 	}
 	if s.emailService == nil || strings.TrimSpace(log.UserEmail) == "" {
@@ -3037,21 +3049,23 @@ func maskSecretTail(secret string) string {
 
 // CyberPolicyRecordInput 是一次 cyber_policy 硬阻断的风控记录入参。
 type CyberPolicyRecordInput struct {
-	LogOnly         bool // Trusted platform user: retain evidence without penalties or notifications.
-	RequestID       string
-	UserID          int64
-	UserEmail       string
-	APIKeyID        int64
-	APIKeyName      string
-	GroupID         *int64
-	GroupName       string
-	Endpoint        string
-	Model           string
-	UpstreamMessage string
-	UpstreamBody    string
-	UpstreamStatus  int
-	UpstreamInTok   int
-	UpstreamOutTok  int
+	Evidence          cyberevidence.Prepared
+	ModerationVersion *int64
+	LogOnly           bool // Trusted platform user: retain evidence without penalties or notifications.
+	RequestID         string
+	UserID            int64
+	UserEmail         string
+	APIKeyID          int64
+	APIKeyName        string
+	GroupID           *int64
+	GroupName         string
+	Endpoint          string
+	Model             string
+	UpstreamMessage   string
+	UpstreamBody      string
+	UpstreamStatus    int
+	UpstreamInTok     int
+	UpstreamOutTok    int
 }
 
 // RecordCyberPolicyEvent 把一次 cyber_policy 硬阻断写入风控中心日志、计入违规计数、
@@ -3090,24 +3104,32 @@ func (s *ContentModerationService) RecordCyberPolicyEvent(ctx context.Context, i
 	if in.UpstreamInTok > 0 || in.UpstreamOutTok > 0 {
 		errBody = fmt.Sprintf("%s\nupstream_usage=in:%d,out:%d", errBody, in.UpstreamInTok, in.UpstreamOutTok)
 	}
+	evidenceStatus := strings.TrimSpace(in.Evidence.Status)
+	if evidenceStatus == "" {
+		// Callers without an attached evidence recorder must still expose an
+		// explicit non-saved state instead of an empty historical-looking value.
+		evidenceStatus = "unavailable"
+	}
 	log := &ContentModerationLog{
-		RequestID:       in.RequestID,
-		UserID:          userID,
-		UserEmail:       in.UserEmail,
-		APIKeyID:        apiKeyID,
-		APIKeyName:      in.APIKeyName,
-		GroupID:         cloneInt64Ptr(in.GroupID),
-		GroupName:       in.GroupName,
-		Endpoint:        in.Endpoint,
-		Provider:        "openai",
-		Model:           in.Model,
-		Mode:            "post_upstream",
-		Action:          ContentModerationActionCyberPolicy,
-		Flagged:         true,
-		HighestCategory: "cyber_policy",
-		HighestScore:    1.0,
-		Error:           trimRunes(redactContentModerationSecrets(errBody), maxModerationExcerptRunes*4),
-		CreatedAt:       time.Now(),
+		moderationVersion: in.ModerationVersion,
+		EvidenceStatus:    evidenceStatus,
+		RequestID:         in.RequestID,
+		UserID:            userID,
+		UserEmail:         in.UserEmail,
+		APIKeyID:          apiKeyID,
+		APIKeyName:        in.APIKeyName,
+		GroupID:           cloneInt64Ptr(in.GroupID),
+		GroupName:         in.GroupName,
+		Endpoint:          in.Endpoint,
+		Provider:          "openai",
+		Model:             in.Model,
+		Mode:              "post_upstream",
+		Action:            ContentModerationActionCyberPolicy,
+		Flagged:           true,
+		HighestCategory:   "cyber_policy",
+		HighestScore:      1.0,
+		Error:             trimRunes(redactContentModerationSecrets(errBody), maxModerationExcerptRunes*4),
+		CreatedAt:         time.Now(),
 	}
 	// 开关开时 cyber_policy 不参与封号计数：当次不判定（此处跳过），
 	// 历史行由 CountFlaggedByUserSince 的 excludeCyberPolicy 排除。
@@ -3124,8 +3146,12 @@ func (s *ContentModerationService) RecordCyberPolicyEvent(ctx context.Context, i
 		logPersisted = false
 		slog.Warn("content_moderation.cyber_create_log_failed", "user_id", in.UserID, "error", err)
 	}
+	if logPersisted && s.cyberEvidence != nil {
+		s.cyberEvidence.Enqueue(log.ID, in.Evidence)
+	}
+
 	emailSent := false
-	if !in.LogOnly && s.emailService != nil && strings.TrimSpace(log.UserEmail) != "" {
+	if !in.LogOnly && !log.suppressNotification && s.emailService != nil && strings.TrimSpace(log.UserEmail) != "" {
 		if err := s.sendCyberPolicyEmail(ctx, log); err != nil {
 			slog.Warn("content_moderation.cyber_email_failed", "user_id", in.UserID, "error", err)
 		} else {
@@ -3174,4 +3200,17 @@ func (s *ContentModerationService) sendCyberPolicyEmail(ctx context.Context, log
 	}
 	subject := fmt.Sprintf("[%s] 网络安全策略拦截 / Cyber Policy Notice", sanitizeEmailHeader(siteName))
 	return s.emailService.SendEmail(ctx, log.UserEmail, subject, buildCyberPolicyNoticeEmailBody(siteName, log))
+}
+
+func (s *ContentModerationService) CyberEvidence() *cyberevidence.Service {
+	if s == nil {
+		return nil
+	}
+	return s.cyberEvidence
+}
+
+// WithCyberEvidence attaches the optional post-upstream evidence recorder. Configure before serving.
+func (s *ContentModerationService) WithCyberEvidence(e *cyberevidence.Service) *ContentModerationService {
+	s.cyberEvidence = e
+	return s
 }

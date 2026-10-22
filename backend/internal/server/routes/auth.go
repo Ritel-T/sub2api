@@ -45,6 +45,9 @@ func RegisterAuthRoutes(
 	auth.Use(gin.HandlerFunc(auditLog))
 	auth.Use(middleware.AuthAbuseGuardWithOptions(redisClient, middleware.AuthAbuseGuardOptions{
 		LoginRateLimitEnabled: loginRateLimitEnabled,
+		RegistrationIPLimitEnabled: func(c *gin.Context) bool {
+			return settingService.IsRegistrationIPLimitEnabled(c.Request.Context())
+		},
 	}))
 	{
 		// 注册/登录/2FA/验证码发送均属于高风险入口，增加服务端兜底限流（Redis 故障时 fail-close）

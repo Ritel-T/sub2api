@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/iprisk"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"golang.org/x/sync/singleflight"
@@ -132,6 +133,7 @@ type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[i
 
 // SettingService 系统设置服务
 type SettingService struct {
+	IPRisk                             *iprisk.Manager     // Initialized before requests start.
 	Serverless                         *serverless.Manager // Initialized before requests start.
 	modelBillingCache                  modelBillingConfigCache
 	prioritySchedulingConfig           priorityConfigCache
@@ -392,12 +394,8 @@ func (s *SettingService) LoadForwardedClientIPSettings(ctx context.Context) erro
 	}
 	if values[settingKeyForwardedClientIPModeV2] != "true" {
 		updates[settingKeyForwardedClientIPModeV2] = "true"
-		// Before this migration, new installations persisted false by default.
-		// Restore compatibility only when no trusted-proxy policy was configured.
-		if headersErr == nil && hasStoredValue && !enabled && !s.cfg.Server.TrustedProxiesConfigured {
-			enabled = true
-			updates[SettingKeyAPIKeyACLTrustForwardedIP] = "true"
-		}
+		// Preserve the operator's stored mode. Absence of a proxy policy must
+		// never enable trust in attacker-controlled forwarding headers.
 	}
 	if len(updates) > 0 {
 		if err := s.settingRepo.SetMultiple(ctx, updates); err != nil {

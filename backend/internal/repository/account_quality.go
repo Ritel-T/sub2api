@@ -92,6 +92,17 @@ func (r *scheduledTestPlanRepository) ApplyQualityOutcome(ctx context.Context, p
 		return "", err
 	}
 
+	if plan.PelicanConfig.Quality.Action == service.QualityActionOpenAITwoFAAdmission {
+		action, applyErr := applyOpenAITwoFAAdmissionOutcome(ctx, tx, plan, until, outcome)
+		if applyErr != nil {
+			return "", applyErr
+		}
+		if err := tx.Commit(); err != nil {
+			return "", err
+		}
+		return action, nil
+	}
+
 	var raw []byte
 	err = tx.QueryRowContext(ctx, `SELECT state FROM account_quality_states WHERE plan_id=$1`, plan.ID).Scan(&raw)
 	if err != nil && err != sql.ErrNoRows {

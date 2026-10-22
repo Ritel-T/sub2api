@@ -79,9 +79,13 @@ func (s *userUsageRepoCapture) GetGroupStatsWithFilters(ctx context.Context, sta
 }
 
 func newUserUsageRequestTypeTestRouter(repo *userUsageRepoCapture) *gin.Engine {
+	return newUserUsageRequestTypeTestRouterWithSettings(repo, nil)
+}
+
+func newUserUsageRequestTypeTestRouterWithSettings(repo *userUsageRepoCapture, settings *service.SettingService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	usageSvc := service.NewUsageService(repo, nil, nil, nil)
-	handler := NewUsageHandler(usageSvc, nil, nil, nil)
+	handler := NewUsageHandler(usageSvc, nil, nil, settings)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42})
@@ -254,6 +258,39 @@ func TestUserUsageListKeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) 
 	require.NotContains(t, body, "upstream_model")
 	require.NotContains(t, body, "upstream_response_model")
 	require.NotContains(t, body, "upstream_model_mismatch")
+	require.NotContains(t, body, "billing_tier")
+	require.NotContains(t, body, "channel_id")
+	require.NotContains(t, body, `"account":`)
+}
+
+func TestUserUsageListIncludesUpstreamResponseModelOnlyWhenEnabled(t *testing.T) {
+	responseModel := "gpt-5.4-actual"
+	upstreamModel := "gpt-5.5"
+	mismatch := true
+	repo := &userUsageRepoCapture{listRows: []service.UsageLog{{
+		UserID:                42,
+		Model:                 "gpt-5.4",
+		RequestedModel:        "gpt-5.4",
+		UpstreamModel:         &upstreamModel,
+		UpstreamResponseModel: &responseModel,
+		UpstreamModelMismatch: &mismatch,
+	}}}
+	settings := service.NewSettingService(&settingHandlerPublicRepoStub{values: map[string]string{
+		service.SettingKeyUsageShowUpstreamResponseModelToUsers: "true",
+	}}, nil)
+	router := newUserUsageRequestTypeTestRouterWithSettings(repo, settings)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, `"upstream_response_model":"gpt-5.4-actual"`)
+	require.NotContains(t, body, `"upstream_model"`)
+	require.NotContains(t, body, "upstream_model_mismatch")
+	require.NotContains(t, body, "model_mapping_chain")
+	require.NotContains(t, body, "account_rate_multiplier")
 	require.NotContains(t, body, "billing_tier")
 	require.NotContains(t, body, "channel_id")
 	require.NotContains(t, body, `"account":`)

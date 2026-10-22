@@ -179,12 +179,14 @@
           :total-results="pagination.total"
           :selecting-all="selectingAllResults"
           :all-results-selected="allResultsSelected"
+          :can-export2fa="authStore.isAdmin"
           @delete="handleBulkDelete"
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
           @probe-upstream-billing="handleBulkProbeUpstreamBilling"
           @edit-selected="openBulkEditSelected"
           @edit-filtered="openBulkEditFiltered"
+          @export-2fa="export2faIds = [...selIds]"
           @clear="clearSelection"
           @select-page="selectPage"
           @select-all-results="handleSelectAllResults"
@@ -285,6 +287,7 @@
             </div>
           </template>
           <template #cell-schedulable="{ row }">
+            <SchedulableTimerControl v-if="authStore.isAdmin" :account-id="row.id" :refresh-key="timerRefreshKey" @executed="handleTimerExecuted" />
             <button role="switch" :aria-checked="row.schedulable" :aria-label="t('admin.accounts.columns.schedulable')" @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
             </button>
@@ -486,6 +489,7 @@
     <ErrorPassthroughRulesModal v-if="authStore.isAdmin" :show="showErrorPassthrough" @close="showErrorPassthrough = false" />
     <TLSFingerprintProfilesModal v-if="authStore.isAdmin" :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
     <TotpStepUpDialog :controller="accountExportStepUp" />
+    <BulkExport2FADialog v-if="authStore.isAdmin && export2faIds.length" :account-ids="export2faIds" @close="export2faIds = []" />
   </AppLayout>
 </template>
 
@@ -517,6 +521,7 @@ import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrs
 import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
+import BulkExport2FADialog from '@/components/admin/account/BulkExport2FADialog.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import AccountRowDetails from '@/components/admin/account/AccountRowDetails.vue'
 import OpenAIQuotaResetCell from '@/components/account/OpenAIQuotaResetCell.vue'
@@ -531,6 +536,7 @@ import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
+import SchedulableTimerControl from '@/components/account/SchedulableTimerControl.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
 import ExcelBPS403Badge from '@/components/account/ExcelBPS403Badge.vue'
 import UpstreamBillingRateCell from '@/components/account/UpstreamBillingRateCell.vue'
@@ -625,6 +631,7 @@ const showCreate = ref(false)
 const showEdit = ref(false)
 const showSync = ref(false)
 const showImportData = ref(false)
+const export2faIds = ref<number[]>([])
 const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
 const showBulkEdit = ref(false)
@@ -1452,6 +1459,7 @@ const isAnyModalOpen = computed(() => {
     showSync.value ||
     showImportData.value ||
     showExportDataDialog.value ||
+    export2faIds.value.length > 0 ||
     showBulkEdit.value ||
     showTempUnsched.value ||
     showDeleteDialog.value ||
@@ -2033,10 +2041,20 @@ const normalizeBulkSchedulableResult = (
     hasCounts: hasExplicitCounts
   }
 }
+const timerRefreshKey = ref(0)
+let timerListRefresh: ReturnType<typeof setTimeout> | undefined
+const handleTimerExecuted = () => {
+  if (timerListRefresh !== undefined) return
+  timerListRefresh = setTimeout(() => {
+    timerListRefresh = undefined
+    void load({ refreshTodayStats: false })
+  }, 150)
+}
 const handleBulkToggleSchedulable = async (schedulable: boolean) => {
   const accountIds = [...selIds.value]
   try {
     const result = await adminAPI.accounts.bulkUpdate(accountIds, { schedulable })
+    timerRefreshKey.value++
     const { successIds, failedIds, successCount, failedCount, hasIds, hasCounts } = normalizeBulkSchedulableResult(result, accountIds)
     if (!hasIds && !hasCounts) {
       appStore.showError(t('admin.accounts.bulkSchedulableResultUnknown'))
@@ -2128,17 +2146,42 @@ const openBulkEditSelected = () => {
 }
 
 const openBulkEditFiltered = async () => {
-  const filters = buildBulkEditFilterSnapshot()
-  const preview = await adminAPI.accounts.list(1, 100, filters)
-  const { selectedPlatforms, selectedTypes } = collectSelectionMetadata(preview.items)
-  bulkEditTarget.value = {
-    mode: 'filtered',
-    filters,
-    previewCount: preview.total,
-    selectedPlatforms,
-    selectedTypes
+  // A checked selection always wins, including queued clicks from the old toolbar.
+  if (selIds.value.length > 0) {
+    openBulkEditSelected()
+    return
   }
-  showBulkEdit.value = true
+  const filters = buildBulkEditFilterSnapshot()
+  const requestVersion = selectionRequestVersion.value
+  try {
+    // Freeze the complete preview as explicit IDs. Saving must never re-resolve
+    // a broader filter or silently include accounts created while editing.
+    const rows: Account[] = []
+    const accountIds = await fetchAllAccountIds(async (page, pageSize, requestFilters) => {
+      const result = await adminAPI.accounts.list(page, pageSize, requestFilters)
+      rows.push(...result.items)
+      return result
+    }, filters)
+    if (requestVersion !== selectionRequestVersion.value) return
+    if (selIds.value.length > 0) {
+      openBulkEditSelected()
+      return
+    }
+    if (accountIds.length === 0) {
+      appStore.showError(t('admin.accounts.bulkEdit.noSelection'))
+      return
+    }
+    const { selectedPlatforms, selectedTypes } = collectSelectionMetadata(rows)
+    bulkEditTarget.value = {
+      mode: 'selected',
+      accountIds,
+      selectedPlatforms,
+      selectedTypes
+    }
+    showBulkEdit.value = true
+  } catch {
+    appStore.showError(t('admin.accounts.bulkActions.selectAllFailed'))
+  }
 }
 
 const handleBulkUpdated = () => {
@@ -2483,6 +2526,7 @@ const handleToggleSchedulable = async (a: Account) => {
   togglingSchedulable.value = a.id
   try {
     const updated = await adminAPI.accounts.setSchedulable(a.id, nextSchedulable)
+    timerRefreshKey.value++
     updateSchedulableInList([a.id], updated?.schedulable ?? nextSchedulable)
     enterAutoRefreshSilentWindow()
   } catch (error) {
@@ -2590,6 +2634,7 @@ onMounted(async () => {
 onUnmounted(() => {
   filterReloadVersion++
   todayStatsReqSeq.value++
+  clearTimeout(timerListRefresh)
   concurrencyUpgradeRequest++
   upstreamBillingRateAbortController?.abort()
   if (usageBatchFlushTimer !== null) {

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,7 +26,13 @@ func NewGeminiTokenCache(rdb *redis.Client) service.GeminiTokenCache {
 
 func (c *geminiTokenCache) GetAccessToken(ctx context.Context, cacheKey string) (string, error) {
 	key := fmt.Sprintf("%s%s", oauthTokenKeyPrefix, cacheKey)
-	return c.rdb.Get(ctx, key).Result()
+	token, err := c.rdb.Get(ctx, key).Result()
+	if errors.Is(err, redis.Nil) {
+		// Preserve the adapter's legacy errors.Is(redis.Nil) behavior while
+		// exposing an implementation-independent miss through the service port.
+		return "", errors.Join(service.ErrTokenCacheMiss, err)
+	}
+	return token, err
 }
 
 func (c *geminiTokenCache) SetAccessToken(ctx context.Context, cacheKey string, token string, ttl time.Duration) error {

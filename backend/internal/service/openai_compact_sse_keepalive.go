@@ -137,7 +137,10 @@ func (k *openAICompactSSEKeepalive) beat() bool {
 		}
 		return false
 	}
-	k.writer.Flush()
+	if err := FlushGatewayResponse(k.writer); err != nil {
+		k.markStoppedLocked()
+		return false
+	}
 	return true
 }
 

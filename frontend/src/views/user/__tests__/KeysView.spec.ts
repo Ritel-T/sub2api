@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-import type { ApiKey, ApiKeyConcurrencySnapshot } from '@/types'
+import type { ApiKey, ApiKeyConcurrencySnapshot, Group } from '@/types'
 import { keysAPI } from '@/api'
 import KeysView from '../KeysView.vue'
 
@@ -209,6 +209,7 @@ const DataTableStub = {
         </div>
         <slot name="cell-name" :value="row.name" :row="row">{{ row.name }}</slot>
         <div data-test="key-status"><slot name="cell-status" :value="row.status" :row="row" /></div>
+        <div data-test="key-group"><slot name="cell-group" :row="row" /></div>
         <slot name="cell-actions" :row="row" />
         <div data-test="current-concurrency">
           <slot v-if="$slots['details-extra']" name="details-extra" :row="row" />
@@ -285,7 +286,11 @@ const mountView = async () => {
         UseKeyModal: true,
         BulkEditKeysModal: true,
         EndpointPopover: true,
-        GroupBadge: true,
+        GroupBadge: {
+          name: 'GroupBadge',
+          props: ['name', 'rateMultiplier', 'userRateMultiplier'],
+          template: '<span>{{ name }} {{ userRateMultiplier ?? rateMultiplier }}x</span>',
+        },
         GroupOptionItem: true,
         Teleport: true,
       },
@@ -1303,6 +1308,92 @@ describe('user KeysView column settings', () => {
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
+  })
+
+  describe('group pricing refresh', () => {
+    const group = {
+      id: 42, name: 'Example group', platform: 'openai',
+      rate_multiplier: 0.3, subscription_type: 'standard',
+    } as Group
+
+    const formOption = (wrapper: VueWrapper) => wrapper
+      .getComponent('[data-tour="key-form-group"]').props('options')
+      .find((option: { value: number }) => option.value === group.id)
+
+    beforeEach(() => {
+      setKeys({ ...createApiKey(), group_id: group.id, group })
+      getAvailableGroups.mockResolvedValue([group])
+      getUserGroupRates.mockResolvedValue({ 42: 1.3 })
+    })
+
+    it.each([0.5, 0, null])('refreshes the row after an override changes to %s', async (rate) => {
+      const wrapper = await mountView()
+      expect(wrapper.getComponent({ name: 'GroupBadge' }).text()).toContain('1.3x')
+      getUserGroupRates.mockResolvedValue(rate === null ? {} : { 42: rate })
+
+      await wrapper.get('button[title="Refresh"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.getComponent({ name: 'GroupBadge' }).text()).toContain(`${rate ?? 0.3}x`)
+      expect(getAvailableGroups).toHaveBeenCalledTimes(2)
+    })
+
+    it.each(['create', 'edit'])('refreshes pricing when opening the %s dialog', async (mode) => {
+      const wrapper = await mountView()
+      getAvailableGroups.mockResolvedValue([{ ...group, rate_multiplier: 0.4 }])
+      getUserGroupRates.mockResolvedValue({ 42: 0.5 })
+
+      await getButtonByText(wrapper, mode === 'create' ? 'Create API Key' : 'common.edit').trigger('click')
+      await flushPromises()
+
+      expect(formOption(wrapper)).toMatchObject({ rate: 0.4, userRate: 0.5 })
+      expect(wrapper.getComponent({ name: 'GroupBadge' }).text()).toContain('0.5x')
+      expect(getUserGroupRates).toHaveBeenCalledTimes(2)
+    })
+
+    it('refreshes the inline group selector without reloading the page', async () => {
+      const wrapper = await mountView()
+      getUserGroupRates.mockResolvedValue({ 42: 0.5 })
+
+      await wrapper.get('[data-test="key-group"] button').trigger('click')
+      await flushPromises()
+
+      const option = wrapper.findComponent({ name: 'GroupOptionItem' })
+      expect(option.props('userRateMultiplier')).toBe(0.5)
+      expect(wrapper.getComponent({ name: 'GroupBadge' }).text()).toContain('0.5x')
+    })
+
+    it('keeps the previous pricing together and reports a failed refresh', async () => {
+      const wrapper = await mountView()
+      getAvailableGroups.mockResolvedValue([{ ...group, rate_multiplier: 0.4 }])
+      getUserGroupRates.mockRejectedValueOnce(new Error('Unavailable'))
+
+      await wrapper.get('button[title="Refresh"]').trigger('click')
+      await flushPromises()
+
+      expect(showError).toHaveBeenCalledWith('keys.failedToLoad')
+      expect(wrapper.getComponent({ name: 'GroupBadge' }).text()).toContain('1.3x')
+      getUserGroupRates.mockResolvedValue({ 42: 0.5 })
+      await wrapper.get('button[title="Refresh"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.getComponent({ name: 'GroupBadge' }).text()).toContain('0.5x')
+    })
+
+    it('does not let an older refresh overwrite the dialog pricing', async () => {
+      const wrapper = await mountView()
+      const olderRates = deferred<Record<number, number>>()
+      getUserGroupRates.mockReturnValueOnce(olderRates.promise)
+      await wrapper.get('button[title="Refresh"]').trigger('click')
+
+      getUserGroupRates.mockResolvedValue({ 42: 0.5 })
+      await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
+      await flushPromises()
+      olderRates.resolve({ 42: 1.3 })
+      await flushPromises()
+
+      expect(formOption(wrapper)).toMatchObject({ userRate: 0.5 })
+      expect(wrapper.getComponent({ name: 'GroupBadge' }).text()).toContain('0.5x')
+    })
   })
 
   describe('create provider selection', () => {

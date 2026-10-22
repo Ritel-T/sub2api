@@ -427,6 +427,10 @@ func (s *userHandlerRefreshTokenCacheStub) GetRefreshToken(context.Context, stri
 	return nil, service.ErrRefreshTokenNotFound
 }
 
+func (s *userHandlerRefreshTokenCacheStub) ConsumeRefreshToken(context.Context, string) (bool, error) {
+	return false, nil
+}
+
 func (s *userHandlerRefreshTokenCacheStub) DeleteRefreshToken(context.Context, string) error {
 	return nil
 }
@@ -652,7 +656,10 @@ func TestUserHandlerUnbindIdentityRevokesAllUserSessionsWhenAuthServiceConfigure
 			ExpireHour: 1,
 		},
 	}
-	authService := service.NewAuthService(nil, repo, nil, refreshTokenCache, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	epochRepo := &userHandlerEpochRepo{values: make(map[string]string)}
+	authService := service.NewAuthService(nil, repo, nil, refreshTokenCache, cfg, service.NewSettingService(epochRepo, cfg), nil, nil, nil, nil, nil, nil, nil)
+	oldToken, tokenErr := authService.GenerateToken(context.Background(), repo.user)
+	require.NoError(t, tokenErr)
 	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil, nil, nil)
 
 	recorder := httptest.NewRecorder()
@@ -665,10 +672,10 @@ func TestUserHandlerUnbindIdentityRevokesAllUserSessionsWhenAuthServiceConfigure
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, []int64{23}, refreshTokenCache.revokedUserIDs)
-	// 撤销依赖的是 refresh session 清理，而不是 token_version：users 表没有这一列
-	// （见 resolvedTokenVersion，实际值由 email+password_hash 指纹推导），
-	// 所以此前"自增 TokenVersion 再整行写回"不持久化任何东西，
-	// 却会用旧快照覆盖并发写入的列。这里断言用户行未被改写。
+	_, tokenErr = authService.ValidateToken(oldToken)
+	require.ErrorIs(t, tokenErr, service.ErrTokenRevoked)
+	require.NotEmpty(t, epochRepo.values[service.AuthSessionEpochSettingPrefix+"23"])
+	// Persistent revocation must not rewrite unrelated user fields.
 	require.Equal(t, int64(4), repo.user.TokenVersion)
 }
 
@@ -827,4 +834,21 @@ func (s *userHandlerEmailCacheStub) IncrNotifyVerifyCodeAttempts(context.Context
 
 func (s *userHandlerEmailCacheStub) ConsumePasswordResetToken(context.Context, string, string) (bool, error) {
 	return false, nil
+}
+
+type userHandlerEpochRepo struct {
+	service.SettingRepository
+	values map[string]string
+}
+
+func (r *userHandlerEpochRepo) GetValue(_ context.Context, key string) (string, error) {
+	if v, ok := r.values[key]; ok {
+		return v, nil
+	}
+	return "", service.ErrSettingNotFound
+}
+
+func (r *userHandlerEpochRepo) Set(_ context.Context, key, value string) error {
+	r.values[key] = value
+	return nil
 }

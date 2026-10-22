@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	coderws "github.com/coder/websocket"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -366,4 +368,107 @@ func TestProxyGrokTTSStreamConnCountsDeliveredTextDeltaCharacters(t *testing.T) 
 	defer stub.mu.Unlock()
 	require.JSONEq(t, delta, stub.written[0])
 	require.JSONEq(t, `{"type":"text.done"}`, stub.written[1])
+}
+
+func TestForwardGrokVoicePrivateObjectsRejectedBeforeCredentials(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	for _, endpoint := range []string{"custom-voices", "custom-voices/shared123", "custom-voices/shared123/audio"} {
+		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodDelete} {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(method, "/v1/"+endpoint, nil)
+			_, err := svc.ForwardGrokVoice(context.Background(), c, &Account{Platform: PlatformGrok}, endpoint, nil, "application/json")
+			require.ErrorIs(t, err, ErrGrokCustomVoiceUnavailable)
+		}
+	}
+	_, err := svc.ForwardGrokVoice(context.Background(), nil, &Account{Platform: PlatformGrok}, "tts", []byte(`{"voice_id":"shared123"}`), "application/json")
+	require.ErrorIs(t, err, ErrGrokCustomVoiceUnavailable)
+}
+
+func TestOpenGrokTTSStreamRejectsCustomBeforeDial(t *testing.T) {
+	var dialed string
+	svc := &OpenAIGatewayService{openaiWSPassthroughDialer: grokVoiceURLCaptureDialer{url: &dialed}}
+	_, err := svc.OpenGrokTTSStream(context.Background(), &Account{Platform: PlatformGrok}, "token", url.Values{"voice": {"eve", "shared123"}})
+	require.ErrorIs(t, err, ErrGrokCustomVoiceUnavailable)
+	require.Empty(t, dialed)
+}
+
+func TestGrokVoiceWebSocketsRejectPrivateSelectionBeforeUpstreamWrite(t *testing.T) {
+	for _, realtime := range []bool{true, false} {
+		t.Run(fmt.Sprintf("realtime_%v", realtime), func(t *testing.T) {
+			stub := &grokRealtimeFrameUpstreamStub{toClient: make(chan grokRealtimeFrame)}
+			svc := &OpenAIGatewayService{}
+			results := make(chan error, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := coderws.Accept(w, r, nil)
+				if err != nil {
+					results <- err
+					return
+				}
+				defer func() { _ = conn.CloseNow() }()
+				upstream := &GrokRealtimeUpstream{conn: stub}
+				if realtime {
+					_, err = svc.ProxyGrokRealtimeConn(r.Context(), nil, conn, upstream)
+				} else {
+					_, err = svc.ProxyGrokTTSStreamConn(r.Context(), conn, upstream)
+				}
+				results <- err
+			}))
+			defer server.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			client, _, err := coderws.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
+			require.NoError(t, err)
+			defer func() { _ = client.CloseNow() }()
+			// Binary JSON is a control event too, rather than raw audio.
+			require.NoError(t, client.Write(ctx, coderws.MessageBinary, []byte(`{"type":"session.update","session":{"voice":"shared123"}}`)))
+			select {
+			case err := <-results:
+				require.ErrorIs(t, err, ErrGrokCustomVoiceUnavailable)
+			case <-ctx.Done():
+				t.Fatal("relay did not reject private voice")
+			}
+			stub.mu.Lock()
+			defer stub.mu.Unlock()
+			require.Empty(t, stub.written)
+		})
+	}
+}
+
+func TestGrokTTSStreamPolicyRejectionPreservesDeliveredCharacterCount(t *testing.T) {
+	stub := &grokTTSStreamUpstreamStub{toClient: make(chan []byte)}
+	svc := &OpenAIGatewayService{}
+	type result struct {
+		chars int64
+		err   error
+	}
+	results := make(chan result, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := coderws.Accept(w, r, nil)
+		if err != nil {
+			results <- result{err: err}
+			return
+		}
+		defer func() { _ = conn.CloseNow() }()
+		chars, err := svc.ProxyGrokTTSStreamConn(r.Context(), conn, &GrokRealtimeUpstream{conn: stub})
+		results <- result{chars, err}
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client, _, err := coderws.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	require.NoError(t, err)
+	defer func() { _ = client.CloseNow() }()
+	require.NoError(t, client.Write(ctx, coderws.MessageText, []byte(`{"type":"text.delta","delta":"hello"}`)))
+	require.NoError(t, client.Write(ctx, coderws.MessageText, []byte(`{"type":"session.update","session":{"voice":"shared123"}}`)))
+	select {
+	case got := <-results:
+		require.ErrorIs(t, got.err, ErrGrokCustomVoiceUnavailable)
+		require.EqualValues(t, 5, got.chars, "rejected later controls cannot erase already-delivered speech usage")
+	case <-ctx.Done():
+		t.Fatal("relay did not reject private voice")
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	require.Len(t, stub.written, 1)
+	require.Contains(t, stub.written[0], "text.delta")
 }

@@ -724,8 +724,10 @@ func TestAPIContracts(t *testing.T) {
 				"data": {
 					"registration_enabled": true,
 					"login_rate_limit_enabled": true,
+					"registration_ip_limit_enabled": true,
 					"email_verify_enabled": false,
 					"registration_email_suffix_whitelist": [],
+					"registration_email_alias_block_enabled": true,
 					"registration_email_domain_quota_enabled": false,
 					"promo_code_enabled": true,
 					"password_reset_enabled": false,
@@ -1094,7 +1096,8 @@ func TestAPIContracts(t *testing.T) {
 					"allow_user_view_error_requests": false,
 					"usage_show_long_context_badge": true,
 					"usage_show_cache_rate": true,
-					"usage_show_cache_rate_to_users": false
+					"usage_show_cache_rate_to_users": false,
+					"usage_show_upstream_response_model_to_users": false
 				}
 			}`,
 		},
@@ -1141,8 +1144,10 @@ func TestAPIContracts(t *testing.T) {
 				"data": {
 					"registration_enabled": true,
 					"login_rate_limit_enabled": true,
+					"registration_ip_limit_enabled": true,
 					"email_verify_enabled": false,
 					"registration_email_suffix_whitelist": [],
+					"registration_email_alias_block_enabled": true,
 					"registration_email_domain_quota_enabled": false,
 					"promo_code_enabled": true,
 					"password_reset_enabled": false,
@@ -1511,7 +1516,8 @@ func TestAPIContracts(t *testing.T) {
 					"allow_user_view_error_requests": false,
 					"usage_show_long_context_badge": true,
 					"usage_show_cache_rate": true,
-					"usage_show_cache_rate_to_users": false
+					"usage_show_cache_rate_to_users": false,
+					"usage_show_upstream_response_model_to_users": false
 				}
 			}`,
 		},

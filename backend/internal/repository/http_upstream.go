@@ -32,6 +32,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyurl"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/publicimagehttp"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/upstreamroute"
@@ -421,16 +422,33 @@ func (s *httpUpstreamService) httpClientForUpstreamRequest(client *http.Client, 
 		return client
 	}
 	ctx := req.Context()
+	if service.HTTPUpstreamPublicHostsOnly(ctx) {
+		clone := *client
+		// Regional transports enforce the pin after selecting their configured proxy.
+		if _, regional := clone.Transport.(*regionalUpstreamTransport); !regional {
+			clone.Transport = publicimagehttp.Wrap(clone.Transport)
+		}
+		priorRedirect := clone.CheckRedirect
+		clone.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+			if service.HTTPUpstreamRedirectsDisabled(ctx) {
+				return http.ErrUseLastResponse
+			}
+			if err := s.redirectChecker(next, via); err != nil {
+				return err
+			}
+			if priorRedirect != nil {
+				return priorRedirect(next, via)
+			}
+			return nil
+		}
+		return &clone
+	}
 	switch {
 	case service.HTTPUpstreamRedirectsDisabled(ctx):
 		clone := *client
 		clone.CheckRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
-		return &clone
-	case service.HTTPUpstreamPublicHostsOnly(ctx) && client.CheckRedirect == nil:
-		clone := *client
-		clone.CheckRedirect = s.redirectChecker
 		return &clone
 	default:
 		return client

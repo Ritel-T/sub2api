@@ -1,3 +1,7 @@
+import ipAudit from './ipAudit'
+import connections from './connections'
+import securityRecords from './securityRecords'
+import siwc from './siwc'
 import gelv from './gelv'
 import paymentRetail from './paymentRetail'
 import squarespaceProvider from './squarespaceProvider'
@@ -46,4 +50,9 @@ export default {
   ...batchImage,
   admin,
   ...misc,
+
+  ipAudit,
+  connections,
+  securityRecords,
+  siwc,
 }

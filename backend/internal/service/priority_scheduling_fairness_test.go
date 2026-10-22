@@ -154,6 +154,11 @@ func TestPriorityExplorationRequiresSafeUnknownAccount(t *testing.T) {
 		pool[i].account.Type = AccountTypeOAuth
 	}
 	pool[2].errorRate = 0.8
+	// Empty/new model-scoped evidence is not proof that the independently
+	// observed high runtime failure rate is safe for exploration.
+	require.Positive(t, cfg.ErrorRateWeight)
+	require.Zero(t, pool[2].priorityErrors.Successes)
+	require.Zero(t, pool[2].priorityErrors.Failures)
 	pool[3].loadKnown = false
 	req := OpenAIAccountScheduleRequest{Platform: PlatformOpenAI, RequestedModel: "gpt-test", UseUpstreamTokenCost: true}
 	require.Eventually(t, func() bool { _, ready := gateway.prioritySignals(req, cfg, pool); return ready }, time.Second, time.Millisecond)

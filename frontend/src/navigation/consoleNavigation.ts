@@ -111,6 +111,7 @@ const aliases: Record<string, string> = {
   '/admin/proxies': 'Proxies 代理',
   '/admin/risk-control': 'Risk control content moderation 风控 風控 内容 內容 审核 審核',
   '/admin/prompt-audit': 'Prompt audit 提示词 提示詞 审计 審計',
+  '/admin/ip-audit': 'IP audit 风险 風險 封禁 审计 審計',
   '/admin/redeem': 'Redeem codes 兑换 兌換',
   '/admin/promo-codes': 'Promotion codes 优惠 優惠',
   '/admin/subscriptions': 'Subscriptions 订阅 訂閱 套餐',
@@ -131,6 +132,7 @@ const aliases: Record<string, string> = {
   '/redeem': 'Redeem code 兑换 兌換',
   '/affiliate': 'Invite referral rebate 邀请 邀請 返利',
   '/profile': 'Account security password MFA 帳戶 账户 密码 密碼 安全',
+  '/security-records': 'Security records 安全 記錄 记录 限制',
   '/monitor': 'Service channel status 服務 服务 狀態 状态',
   '/support-tickets': 'Support help 工单 工單 帮助 幫助',
 }
@@ -179,6 +181,7 @@ const personalTable: Record<string, SectionKey> = {
   '/support-tickets': 'support',
   '/monitor': 'support',
   '/profile': 'account',
+  '/security-records': 'support',
 }
 
 const managementTable: Record<string, SectionKey> = {
@@ -206,6 +209,7 @@ const managementTable: Record<string, SectionKey> = {
   '/admin/channels/monitor': 'operations',
   '/admin/risk-control': 'operations',
   '/admin/prompt-audit': 'operations',
+  '/admin/ip-audit': 'operations',
   '/admin/orders/dashboard': 'revenue',
   '/admin/orders': 'revenue',
   '/admin/orders/plans': 'revenue',

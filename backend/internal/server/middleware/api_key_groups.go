@@ -19,6 +19,22 @@ func isMultiGroupBillingInfoRequest(c *gin.Context, key *service.APIKey) bool {
 }
 
 func selectAPIKeyRequestGroup(c *gin.Context, keys *service.APIKeyService, subscriptions *service.SubscriptionService, cfg *config.Config, key *service.APIKey, google bool) (*service.APIKey, error) {
+	var err error
+	key, err = applySecurityPenalty(c, keys, key)
+	if err != nil {
+		if google {
+			abortWithGoogleError(c, infraerrors.Code(err), infraerrors.Message(err))
+		} else {
+			AbortWithError(c, infraerrors.Code(err), infraerrors.Reason(err), infraerrors.Message(err))
+		}
+		return nil, err
+	}
+	if key == nil || c.IsAborted() {
+		return nil, nil
+	}
+	if target, ok := c.Get("security_penalty.original_group_id"); ok && target != nil {
+		return key, nil
+	}
 	if len(key.ConfiguredGroupIDs()) < 2 || isMultiGroupBillingInfoRequest(c, key) || c.Request.URL.Path == "/v1/usage" || isAsyncImageTaskRead(c.Request.Method, c.Request.URL.Path) {
 		return key, nil
 	}
@@ -49,8 +65,18 @@ func selectAPIKeyRequestGroup(c *gin.Context, keys *service.APIKeyService, subsc
 		kind = "video"
 	}
 	checkBilling := cfg.RunMode != config.RunModeSimple && c.Request.Method != http.MethodGet && !strings.HasSuffix(path, "/count_tokens")
+	penaltyConfig, penaltyErr := keys.SecurityPenaltyConfig(c.Request.Context())
+	if penaltyErr != nil {
+		return nil, infraerrors.ServiceUnavailable("security_penalty_unavailable", "请求权限检查暂时不可用")
+	}
 	accepts := func(candidate *service.APIKey) bool {
 		group := candidate.Group
+		// Binding the restricted target must not make the normal cheapest-group
+		// selector send healthy conversations there. Forced penalties returned
+		// above already passed the normal target authorization checks.
+		if penaltyConfig.Applies(key.UserID) && !penaltyConfig.ObserveOnly && penaltyConfig.Policy == "session_route_then_block" && penaltyConfig.TargetGroupID != nil && group.ID == *penaltyConfig.TargetGroupID {
+			return false
+		}
 		if checkBilling && !group.IsSubscriptionType() && apiKeyBalanceBelowAuthThreshold(candidate.User.Balance, cfg) {
 			return false
 		}

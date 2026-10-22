@@ -1,0 +1,18 @@
+export default {
+  title: '安全記錄', restricted: '當前模型請求權限受限', unrestricted: '當前未受模型請求限制',
+  loginUnaffected: '此處限制只針對模型 API 請求，不影響登錄和查看個人資料。',
+  observation: '當前為觀察模式，僅記錄命中，不執行新增處罰。',
+  reason: '原因 / 命中分類', until: '解除時間', session: '會話標識', count: '本周期命中次數',
+  originalHint: '展開可查看此帳號觸發審核的具體對話提示詞；原文僅限本人和管理員查看。',
+  showPrompt: '查看觸發提示詞原文', hidePrompt: '收起原文', empty: '暫無安全記錄', previous: '上一頁', next: '下一頁',
+  loadFailed: '無法獲取安全狀態或記錄，請刷新重試；當前狀態未知。', saveFailed: '保存失敗；如配置被更新，請刷新后重試。', saved: '處罰策略已保存',
+  policyTitle: '請求懲罰策略', policyHint: '獨立于登錄封禁。僅明確攔截的風險命中累計，節點故障不算違規；正常請求也會檢查已有處罰。',
+  enabled: '啟用請求懲罰', observeOnly: '僅觀察，不執行處罰', masterOff: '風控總開關已關閉，當前策略不生效。',
+  policy: '懲罰選項', sessionPolicy: '會話累計：達閾值拒絕該會話', userPolicy: '用戶累計：達閾值拒絕該用戶所有請求', tieredPolicy: '會話兩級：先轉受限分組，達閾值拒絕該會話',
+  threshold: '處罰閾值（次）', window: '累計時間窗口（小時）', duration: '處罰持續時間（小時）', targetGroup: '受限分組',
+  routeHint: '命中當次仍拒絕；后續請求才路由。目標必須已綁定至 API Key 并具備授權、余額或訂閱；不可用時拒絕，不回退正常分組。缺少明確會話標識時只記當次，不擴大處罰到其他會話。',
+  allGroups: '全部分組參與累計', exempt: '豁免用戶 ID（逗號分隔）',
+  releaseUser: '解除用戶 ID', releaseReason: '解除原因', release: '解除請求限制并清零次數', releaseConfirm: '解除該用戶所有會話和用戶級請求處罰，并保留歷史記錄？', released: '已解除請求處罰；歷史記錄已保留',
+  scopes: { session: '會話級', user: '用戶全部請求', request: '僅當次請求（缺少會話標識）' },
+  actions: { block: '拒絕請求', route: '轉入受限分組', record: '尚未達到閾值', observe: '僅觀察', none: '未受限' },
+}

@@ -2,8 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrTokenCacheMiss distinguishes an absent token from an unavailable cache
+// without coupling token providers to a particular cache implementation.
+var ErrTokenCacheMiss = errors.New("token cache miss")
 
 // GeminiTokenCache stores short-lived access tokens and coordinates refresh to avoid stampedes.
 type GeminiTokenCache interface {

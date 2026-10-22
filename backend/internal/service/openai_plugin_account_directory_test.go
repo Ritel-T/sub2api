@@ -93,7 +93,7 @@ func TestAccountReadableSnapshot_DenylistTripwire(t *testing.T) {
 	// InitialQualityPlan / SchedulerCredentialSHA256 = internal admission state,
 	// not readable plugin metadata.
 	stripped := map[string]struct{}{
-		"Credentials": {}, "Groups": {}, "AccountGroups": {}, "InitialQualityPlan": {}, "SchedulerCredentialSHA256": {},
+		"Credentials": {}, "Groups": {}, "AccountGroups": {}, "InitialQualityPlan": {}, "SchedulerCredentialSHA256": {}, "InitialAdmissionPlan": {},
 	}
 	// Fields intentionally exposed as readable metadata (incl. Extra and Proxy —
 	// the proxy password is already handed out via ResolveOutboundIdentity's URL).

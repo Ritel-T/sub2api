@@ -129,7 +129,8 @@ func TestLoadHTTPIngressSafetyDefaults(t *testing.T) {
 	require.Equal(t, 64*1024, cfg.Server.MaxHeaderBytes)
 	require.Empty(t, cfg.Server.TrustedProxies)
 	require.False(t, cfg.Server.TrustedProxiesConfigured)
-	require.True(t, cfg.TrustForwardedIPForAPIKeyACL())
+	require.Equal(t, []string{"127.0.0.1/32", "::1/128"}, cfg.Server.EffectiveTrustedProxies())
+	require.False(t, cfg.TrustForwardedIPForAPIKeyACL())
 	require.Equal(t, int64(32*1024*1024), cfg.Gateway.TextMaxBodySize)
 	require.True(t, cfg.APIKeyAuth.InvalidAbuse.Enabled)
 	require.Equal(t, 120, cfg.APIKeyAuth.InvalidAbuse.Threshold)
@@ -264,6 +265,7 @@ func TestLoadExplicitEmptyTrustedProxiesEnablesConfiguredMode(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cfg.Server.TrustedProxies)
 	require.True(t, cfg.Server.TrustedProxiesConfigured)
+	require.Empty(t, cfg.Server.EffectiveTrustedProxies())
 }
 
 func TestLoadExplicitTrustedProxiesEnablesConfiguredMode(t *testing.T) {
@@ -284,6 +286,7 @@ func TestLoadTrustedProxiesFromEnvironment(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"127.0.0.1/32", "::1/128"}, cfg.Server.TrustedProxies)
 	require.True(t, cfg.Server.TrustedProxiesConfigured)
+	require.Equal(t, cfg.Server.TrustedProxies, cfg.Server.EffectiveTrustedProxies())
 }
 
 func TestLoadExplicitEmptyTrustedProxiesFromEnvironment(t *testing.T) {
@@ -294,6 +297,7 @@ func TestLoadExplicitEmptyTrustedProxiesFromEnvironment(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cfg.Server.TrustedProxies)
 	require.True(t, cfg.Server.TrustedProxiesConfigured)
+	require.Empty(t, cfg.Server.EffectiveTrustedProxies())
 }
 
 func TestLoadTrustedProxiesPresenceFromYAML(t *testing.T) {
@@ -1355,6 +1359,28 @@ func TestGetServerAddressFromEnv(t *testing.T) {
 	address := GetServerAddress()
 	if address != "127.0.0.1:9090" {
 		t.Fatalf("GetServerAddress() = %q", address)
+	}
+}
+
+func TestGetServerAddressDefaultsToLoopback(t *testing.T) {
+	t.Setenv("CONFIG_FILE", filepath.Join(t.TempDir(), "absent.yaml"))
+	t.Setenv("DATA_DIR", "")
+	t.Setenv("SERVER_HOST", "")
+	t.Setenv("SERVER_PORT", "")
+	require.Equal(t, "127.0.0.1:8080", GetServerAddress())
+}
+
+func TestGetServerAddressAllowsExplicitExposureAndIPv6(t *testing.T) {
+	t.Setenv("CONFIG_FILE", filepath.Join(t.TempDir(), "absent.yaml"))
+	t.Setenv("DATA_DIR", "")
+	t.Setenv("SERVER_PORT", "9090")
+	for _, host := range []string{"0.0.0.0", "::1"} {
+		t.Setenv("SERVER_HOST", host)
+		want := "0.0.0.0:9090"
+		if host == "::1" {
+			want = "[::1]:9090"
+		}
+		require.Equal(t, want, GetServerAddress())
 	}
 }
 

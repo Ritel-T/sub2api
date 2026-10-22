@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/typesafe"
 )
 
 const (
@@ -57,7 +58,7 @@ func validModerationEngine(engine string) bool {
 func moderationEngineDefaults(engine string) *ContentModerationEngineConfig {
 	p := &ContentModerationEngineConfig{BaseURL: defaultContentModerationBaseURL, Model: defaultContentModerationModel, TimeoutMS: 3000, RetryCount: 2, Thresholds: ContentModerationDefaultThresholds()}
 	if engine == ContentModerationEngineTypeSafe {
-		p.BaseURL, p.Model = "https://api.typesafe.ai", "jev-latest"
+		p.BaseURL, p.Model = typesafe.DefaultBaseURL, typesafe.JevLatestModel
 	}
 	return p
 }
@@ -69,6 +70,13 @@ func (cfg *ContentModerationConfig) engineProfile(engine string) *ContentModerat
 			return moderationEngineDefaults(engine)
 		}
 		p = *cfg.TypeSafe
+		defaults := moderationEngineDefaults(engine)
+		if strings.TrimSpace(p.BaseURL) == "" {
+			p.BaseURL = defaults.BaseURL
+		}
+		if strings.TrimSpace(p.Model) == "" {
+			p.Model = defaults.Model
+		}
 	} else {
 		p = ContentModerationEngineConfig{BaseURL: cfg.BaseURL, Model: cfg.Model, ProxyID: cfg.ProxyID, APIKeys: cfg.apiKeys(), TimeoutMS: cfg.TimeoutMS, RetryCount: cfg.RetryCount, Thresholds: cfg.Thresholds}
 	}
@@ -141,6 +149,11 @@ func (s *ContentModerationService) updateEngineProfile(ctx context.Context, cfg 
 		}
 		if input.APIKey != nil {
 			p.APIKeys = normalizeModerationAPIKeys(append(p.APIKeys, *input.APIKey))
+		}
+	}
+	if engine == ContentModerationEngineTypeSafe {
+		if _, err := typesafe.SystemOneURL(p.BaseURL); err != nil {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_BASE_URL", "审计 Base URL 无效")
 		}
 	}
 	check := cloneContentModerationConfig(cfg)

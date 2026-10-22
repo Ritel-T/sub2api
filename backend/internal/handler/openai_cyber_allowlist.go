@@ -11,9 +11,12 @@ func (h *OpenAIGatewayHandler) cyberPolicyLogOnly(c *gin.Context, apiKey *servic
 
 // Both HTTP and WebSocket admission skip existing blocks for trusted users.
 // Session identity is still resolved and observed by the caller.
-func (h *OpenAIGatewayHandler) findBlockedCyberSessionForIdentity(c *gin.Context, apiKey *service.APIKey, identity service.CyberSessionIdentityResolution) string {
+// findBlockedCyberSessionForRequest also uses the content fingerprint fallback
+// when the client supplied no explicit session identity, so an identical retry
+// of a cyber-blocked request is rejected before account selection.
+func (h *OpenAIGatewayHandler) findBlockedCyberSessionForRequest(c *gin.Context, apiKey *service.APIKey, identity service.CyberSessionIdentityResolution, body []byte) string {
 	if apiKey == nil || h.cyberPolicyLogOnly(c, apiKey) {
 		return ""
 	}
-	return h.gatewayService.FindCyberSessionBlockedForIdentity(c.Request.Context(), identity)
+	return h.gatewayService.FindCyberSessionBlockedForIdentityAndBody(c.Request.Context(), apiKey.ID, identity, body)
 }

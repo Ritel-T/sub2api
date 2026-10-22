@@ -243,7 +243,7 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 		if plan.TriggerSource == quality5xxSource && plan.TriggerObservedAt != nil && s.qualityTrigger != nil {
 			freshSignal = s.qualityTrigger.signalIsCurrent(plan.AccountID, *plan.TriggerObservedAt)
 		}
-		if applyTriggeredQuality && freshSignal && qualityRoundHasResults(results) {
+		if applyTriggeredQuality && freshSignal && (qualityRoundHasResults(results) || plan.PelicanConfig.Quality.Action == QualityActionOpenAITwoFAAdmission) {
 			var actionErr error
 			qualityAction, actionErr = s.planRepo.ApplyQualityOutcome(saveCtx, plan, until, qualityRoundOutcome(results))
 			if actionErr != nil {
@@ -324,7 +324,12 @@ func (s *ScheduledTestRunnerService) runPelicanSample(ctx context.Context, plan 
 	// 探针题型的结果自带 correct/incorrect/unknown 判定，不经过判题模型。
 	if plan.PelicanConfig.Quality != nil && result.Status == "success" && !isOpenAICodexStateProbePlan(plan.PelicanConfig) {
 		var judgment *QualityJudgment
-		if plan.TriggerSource == quality5xxSource && isBuiltinCandyPlan(plan.PelicanConfig) {
+		if plan.PelicanConfig.Quality.Action == QualityActionOpenAITwoFAAdmission {
+			judgment = &QualityJudgment{Verdict: "incorrect", Reason: "builtin_admission", AccountID: plan.AccountID}
+			if strings.TrimSpace(result.ResponseText) == "21" {
+				judgment.Verdict = "correct"
+			}
+		} else if plan.TriggerSource == quality5xxSource && isBuiltinCandyPlan(plan.PelicanConfig) {
 			judgment = &QualityJudgment{Verdict: "incorrect", Reason: "builtin_candy", AccountID: plan.AccountID}
 			if CandyAnswerCorrect(result.ResponseText) {
 				judgment.Verdict = "correct"

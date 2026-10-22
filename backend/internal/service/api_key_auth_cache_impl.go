@@ -292,7 +292,9 @@ func (s *APIKeyService) loadAuthCacheEntry(ctx context.Context, key, cacheKey st
 	}
 	snapshot := s.snapshotFromAPIKey(ctx, apiKey)
 	if snapshot == nil {
-		return nil, fmt.Errorf("get api key: %w", ErrAPIKeyNotFound)
+		// A known key with a missing owner is an identity/business failure,
+		// never proof of an unknown anonymous credential. Do not negative-cache it.
+		return nil, fmt.Errorf("get api key: %w", ErrUserNotFound)
 	}
 	entry := &APIKeyAuthCacheEntry{Snapshot: snapshot}
 	s.setAuthCacheEntry(ctx, cacheKey, entry, s.authCfg.l2TTL)

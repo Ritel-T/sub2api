@@ -471,7 +471,9 @@ export default {
     invalidResetLinkHint: '此密碼重置連結無效或已過期。請重新請求一個新連結。',
     requestNewResetLink: '請求新的重置連結',
     invalidOrExpiredToken: '密碼重置連結無效或已過期。請重新請求一個新連結。'
-  },
+  ,
+  emailAliasNotAllowed: '不支持使用郵箱別名注冊，請去掉 Gmail 用戶名中的點號、+標簽或域名末尾的點號后重試。',
+},
 
   // Step-up（敏感操作二次驗證）
   stepUp: {

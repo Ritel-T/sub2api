@@ -702,3 +702,23 @@ func (s *notificationEmailTestSMTPServer) handleConn(conn net.Conn) {
 		}
 	}
 }
+
+func (r *notificationEmailMemorySettingRepo) ClaimBalanceEmailAttempt(_ context.Context, key, owner string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.values[key]; exists {
+		return false, nil
+	}
+	r.values[key] = owner
+	return true, nil
+}
+
+func (r *notificationEmailMemorySettingRepo) ReleaseBalanceEmailAttempt(_ context.Context, key, owner string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.values[key] != owner {
+		return false, nil
+	}
+	delete(r.values, key)
+	return true, nil
+}

@@ -23,6 +23,7 @@
           </div>
         </div>
 
+        <ModerationUsersSummary />
         <p class="text-sm text-gray-600 dark:text-gray-300" data-test="active-audit-engine">
           {{ t('admin.riskControl.activeEngine', { engine: engineLabel(status?.engine ?? savedEngine) }) }}
         </p>
@@ -323,7 +324,7 @@
                         @click="unbanUser(row)"
                       >
                         <Icon name="checkCircle" size="xs" :class="unbanningUserID === row.user_id ? 'animate-spin' : ''" />
-                        {{ unbanningUserID === row.user_id ? t('common.processing') : t('admin.riskControl.unbanUser') }}
+                        {{ t('admin.moderationUsers.title') }}
                       </button>
                     </div></template>
 <template #cell-latency="{ row: row }"><div class="whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
@@ -340,6 +341,7 @@
                         @click="openInputDetail(row)"
                       >
                         <span class="min-w-0 flex-1 truncate">{{ inputSummaryText(row) }}</span>
+                        <span v-if="row.action === 'cyber_policy'" class="text-xs">{{ evidenceStatusLabel(row.evidence_status) }}</span>
                         <Icon name="eye" size="xs" class="flex-shrink-0 text-gray-300 transition-colors group-hover:text-primary-500 dark:text-gray-500" />
                       </button>
                     </div></template>
@@ -388,7 +390,8 @@
               </div>
               <div>
                 <label class="input-label">{{ t('admin.riskControl.baseUrl') }}</label>
-                <input v-model.trim="configForm.base_url" data-test="audit-base-url" type="url" class="input" :placeholder="configForm.engine === 'typesafe' ? 'https://api.typesafe.ai' : 'https://api.openai.com'" />
+                <input ref="baseUrlInput" v-model.trim="configForm.base_url" data-test="audit-base-url" type="url" class="input" :placeholder="configForm.engine === 'typesafe' ? 'https://api.typesafe.ai' : 'https://api.openai.com'" />
+                <p v-if="configForm.engine === 'typesafe'" data-test="audit-base-url-hint" class="input-hint">{{ t('admin.riskControl.typeSafeBaseUrlHint') }}</p>
               </div>
               <div>
                 <label class="input-label">{{ t('admin.riskControl.model') }}</label>
@@ -578,6 +581,15 @@
                     <div class="min-w-0">
                       <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.apiKeyHealth') }}</p>
                       <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.apiKeyFreezeRule') }}</p>
+                      <button
+                        v-if="configForm.engine === 'typesafe'"
+                        data-test="audit-edit-base-url"
+                        type="button"
+                        class="mt-2 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        @click="baseUrlInput?.focus()"
+                      >
+                        {{ t('admin.riskControl.editBaseUrl') }}
+                      </button>
                     </div>
                     <span class="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-white px-2 py-0.5 text-[11px] font-medium leading-5 text-gray-600 shadow-sm dark:bg-dark-800 dark:text-gray-300">
                       {{ t('admin.riskControl.apiKeyRows', { count: apiKeyRows.length }) }}
@@ -1020,6 +1032,7 @@
           </div>
 
           <div v-else class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <CyberEvidenceSettings />
             <div>
               <label class="input-label">{{ t('admin.riskControl.hitRetentionDays') }}</label>
               <input v-model.number="configForm.hit_retention_days" type="number" min="1" max="3650" class="input" />
@@ -1056,6 +1069,7 @@
         @close="closeInputDetail"
       >
         <div v-if="inputDetailRow" class="space-y-5">
+          <CyberEvidencePanel v-if="inputDetailRow.action === 'cyber_policy'" :key="inputDetailRow.id" :log-id="inputDetailRow.id" />
           <div class="text-sm break-words" data-test="audit-engine-meta">
             <span class="font-medium">{{ t('admin.riskControl.auditSource') }}: </span>
             <template v-if="inputDetailRow.engine_meta">
@@ -1094,7 +1108,7 @@
           <div class="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-800">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.inputDetailContent') }}</p>
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t(inputDetailRow.action === 'cyber_policy' ? 'admin.riskControl.evidence.input' : 'admin.riskControl.inputDetailContent') }}</p>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {{ inputDetailRow.endpoint || '-' }} · {{ inputDetailRow.provider || '-' }} / {{ inputDetailRow.model || '-' }}
                 </p>
@@ -1104,6 +1118,10 @@
               </span>
             </div>
             <pre class="mt-4 max-h-[420px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-950 p-4 text-sm leading-6 text-gray-100 shadow-inner dark:bg-black/50">{{ inputDetailText }}</pre>
+            <template v-if="inputDetailRow.error">
+              <p class="mt-4 text-sm font-medium">{{ t(inputDetailRow.action === 'cyber_policy' ? 'admin.riskControl.evidence.reason' : 'admin.riskControl.errorDetail') }}</p>
+              <pre class="max-h-40 overflow-auto whitespace-pre-wrap break-words text-sm">{{ inputDetailRow.error }}</pre>
+            </template>
           </div>
         </div>
 
@@ -1112,6 +1130,9 @@
             <button type="button" class="btn btn-secondary" @click="closeInputDetail">{{ t('common.close') }}</button>
           </div>
         </template>
+      </BaseDialog>
+      <BaseDialog :show="recoveryUserID !== null" :title="t('admin.moderationUsers.title')" @close="recoveryUserID = null">
+        <ModerationUserPanel v-if="recoveryUserID !== null" :key="recoveryUserID" :user-id="recoveryUserID" @changed="loadLogs()" />
       </BaseDialog>
     </div>
   </AppLayout>
@@ -1123,6 +1144,10 @@ import { computed, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import ModerationUsersSummary from '@/components/admin/moderation/ModerationUsersSummary.vue'
+import ModerationUserPanel from '@/components/admin/moderation/ModerationUserPanel.vue'
+import CyberEvidencePanel from '@/components/admin/CyberEvidencePanel.vue'
+import CyberEvidenceSettings from '@/components/admin/CyberEvidenceSettings.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
@@ -1210,6 +1235,7 @@ const apiKeyTesting = ref(false)
 const hashActionLoading = ref(false)
 const unbanningUserID = ref<number | null>(null)
 const settingsOpen = ref(false)
+const baseUrlInput = ref<HTMLInputElement | null>(null)
 const activeSettingsTab = ref<SettingsTab>('basic')
 const groupSearch = ref('')
 const flaggedHashInput = ref('')
@@ -1643,7 +1669,8 @@ const riskThresholdRows = computed<RiskThresholdRow[]>(() => (
 
 const inputDetailText = computed(() => {
   if (!inputDetailRow.value) return '-'
-  return inputDetailRow.value.input_excerpt || inputDetailRow.value.error || '-'
+  // Upstream error text is never a substitute for the user's visible input.
+  return inputDetailRow.value.input_excerpt || (inputDetailRow.value.action === 'cyber_policy' ? t('admin.riskControl.evidence.noInputSummary') : '-')
 })
 
 const queueUsagePercent = computed(() => `${Math.min(100, Math.max(0, status.value?.queue_usage_percent ?? 0)).toFixed(1)}%`)
@@ -1926,11 +1953,18 @@ async function loadLogs() {
 }
 
 function canUnbanRow(row: ContentModerationLog): boolean {
-  return Boolean(row.auto_banned && row.user_id && row.user_status === 'disabled')
+  return Boolean(row.user_id)
+}
+
+function evidenceStatusLabel(state?: string): string {
+  const known = ['saved', 'pending', 'expired', 'deleted', 'storage_failed', 'queue_full', 'interrupted', 'disabled', 'encryption_unavailable', 'encryption_failed', 'capture_busy', 'capture_failed', 'request_exceeds_parse_limit', 'input_unavailable_or_invalid', 'no_visible_input', 'structured_input_exceeds_limit', 'unavailable']
+  if (!state) return t('admin.riskControl.evidence.status.historical_unavailable')
+  return t(`admin.riskControl.evidence.status.${known.includes(state) ? state : 'unavailable'}`)
 }
 
 function inputSummaryText(row: ContentModerationLog): string {
-  return row.input_excerpt || row.error || '-'
+  // Never present upstream rejection/error text as the user's input summary.
+  return row.input_excerpt || (row.action === 'cyber_policy' ? t('admin.riskControl.evidence.noInputSummary') : '-')
 }
 
 function openInputDetail(row: ContentModerationLog) {
@@ -1941,22 +1975,8 @@ function closeInputDetail() {
   inputDetailRow.value = null
 }
 
-async function unbanUser(row: ContentModerationLog) {
-  if (!row.user_id || unbanningUserID.value !== null) return
-  unbanningUserID.value = row.user_id
-  try {
-    const result = await adminAPI.riskControl.unbanUser(row.user_id)
-    logs.value = logs.value.map((item) => {
-      if (item.user_id !== row.user_id) return item
-      return { ...item, user_status: result.status }
-    })
-    appStore.showSuccess(t('admin.riskControl.unbanSuccess'))
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.unbanFailed')))
-  } finally {
-    unbanningUserID.value = null
-  }
-}
+const recoveryUserID = ref<number | null>(null)
+function unbanUser(row: ContentModerationLog) { recoveryUserID.value = row.user_id ?? null }
 
 async function deleteFlaggedHash() {
   if (!isFlaggedHashInputValid.value || hashActionLoading.value) return

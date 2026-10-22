@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,8 +21,8 @@ func TestOpenAITokenProvider_CacheMissDoesNotWarnButRedisFailureDoes(t *testing.
 		warn       bool
 	}{
 		{"empty_miss", nil, false},
-		{"redis_miss", redis.Nil, false},
-		{"wrapped_redis_miss", fmt.Errorf("cache get: %w", redis.Nil), false},
+		{"cache_miss", ErrTokenCacheMiss, false},
+		{"wrapped_cache_miss", fmt.Errorf("cache get: %w", ErrTokenCacheMiss), false},
 		{"redis_unavailable", errors.New("connection refused"), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

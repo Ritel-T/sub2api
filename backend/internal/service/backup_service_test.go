@@ -817,12 +817,12 @@ func TestBackupService_DownloadBackupPartsRejectsMismatchedMetadata(t *testing.T
 	}{
 		{
 			name: "size",
-			part: BackupPart{Index: 1, S3Key: "backups/mismatch/size", SizeBytes: 4},
+			part: BackupPart{Index: 1, S3Key: "backups/mismatch/size", SizeBytes: 4, SHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("abc")))},
 			want: "size mismatch",
 		},
 		{
 			name: "checksum",
-			part: BackupPart{Index: 1, S3Key: "backups/mismatch/checksum", SizeBytes: 3, SHA256: "bad-checksum"},
+			part: BackupPart{Index: 1, S3Key: "backups/mismatch/checksum", SizeBytes: 3, SHA256: strings.Repeat("0", 64)},
 			want: "checksum mismatch",
 		},
 	}

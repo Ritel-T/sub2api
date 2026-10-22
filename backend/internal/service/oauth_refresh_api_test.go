@@ -1107,3 +1107,32 @@ func TestAntigravityProviderRefreshPolicy(t *testing.T) {
 	require.Equal(t, ProviderLockHeldUseExistingToken, p.OnLockHeld)
 	require.Equal(t, time.Duration(0), p.FailureTTL)
 }
+
+func TestRefreshIfNeeded_AbsoluteDeadlineRejectsLateCredentialsBeforeTimerRuns(t *testing.T) {
+	account := &Account{ID: 86, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive}
+	repo := &refreshAPIAccountRepo{account: account}
+	executor := &refreshAPIExecutorStub{needsRefresh: true, credentials: map[string]any{"access_token": "late-token"}}
+	api := NewOAuthRefreshAPI(repo, nil)
+	ctx := overdueRefreshContext{Context: context.Background(), deadline: time.Now().Add(-time.Second)}
+	require.NoError(t, ctx.Err(), "model delayed timer notification, not a signaled cancellation")
+	result, err := api.RefreshIfNeeded(ctx, account, executor, time.Hour)
+	require.Zero(t, executor.refreshCalls, "expired caller must not rotate a refresh token")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Nil(t, result)
+	require.Zero(t, repo.updateCredentialsCalls, "late credentials must not be persisted despite Err still being nil")
+	require.Zero(t, repo.successCASCalls)
+}
+
+func TestRefreshIfNeeded_CredentialsArrivingPastAbsoluteDeadlineAreNotPersisted(t *testing.T) {
+	account := &Account{ID: 87, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive}
+	repo := &refreshAPIAccountRepo{account: account}
+	ctx := &overdueRefreshContext{Context: context.Background(), deadline: time.Now().Add(time.Hour)}
+	executor := &refreshAPIExecutorStub{needsRefresh: true, credentials: map[string]any{"access_token": "late-token"}, onRefresh: func() { ctx.deadline = time.Now().Add(-time.Second) }}
+	result, err := NewOAuthRefreshAPI(repo, nil).RefreshIfNeeded(ctx, account, executor, time.Hour)
+	require.Equal(t, 1, executor.refreshCalls)
+	require.NoError(t, ctx.Err())
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Nil(t, result)
+	require.Zero(t, repo.updateCredentialsCalls)
+	require.Zero(t, repo.successCASCalls)
+}

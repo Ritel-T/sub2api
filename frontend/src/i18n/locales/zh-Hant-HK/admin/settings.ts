@@ -1,3 +1,4 @@
+import ipRisk from './ipRisk'
 export default {
     settings: {
       title: '系統設定',
@@ -146,7 +147,7 @@ export default {
           enabled: '啟用風控中心',
           enabledHint: '關閉後管理員側邊欄入口隱藏，網關內容審計不會執行。',
           cyberSessionBlock: 'cyber 會話自動屏蔽',
-          cyberSessionBlockHint: '開啟後，僅對攜帶明確會話 ID 且被上游網絡安全策略(cyber_policy)攔截的會話，在 TTL 內執行本地屏蔽。同 Key 的不同會話互不影響。缺少會話 ID 時仍由上游審核，不根據 IP、用戶端類型、快取 key 或歷史長度推斷封鎖。',
+          cyberSessionBlockHint: '開啟后，對攜帶明確會話 ID 且被上游網絡安全策略(cyber_policy)攔截的會話，在 TTL 內執行本地屏蔽。缺少會話 ID 時，會用請求中可見內容的指紋攔截完全相同的重試；其它請求仍由上游審核。不根據 IP、客戶端類型、緩存 key 或歷史長度推斷封鎖。',
           riskControlUserAllowlist: '風控白名單',
           riskControlUserAllowlistHint: '輸入任意電郵關鍵詞進行模糊搜索。 白名單中的用戶不會觸發封號或本地屏蔽，但仍然無法突破上游攔截。該功能通常用於可信的下游中轉站。',
           cyberSessionBlockTTL: '屏蔽時長(秒)',
@@ -248,7 +249,10 @@ export default {
         totpHint: '允許用戶使用 Google Authenticator 等應用進行二次驗證',
         totpKeyNotConfigured:
           '請先在環境變量中配置 TOTP_ENCRYPTION_KEY。使用命令 openssl rand -hex 32 生成密鑰。'
-      },
+      ,
+  emailAliasBlock: '屏蔽郵箱別名注冊',
+  emailAliasBlockHint: '默認開啟：拒絕 Gmail/Googlemail 用戶名中帶點號、郵箱中帶 +標簽、域名末尾帶點號的地址注冊（含第三方新用戶注冊）。其他域名用戶名中的正常點號不受影響；已有帳號仍可登錄。關閉后仍會對同一郵箱的別名進行注冊去重。',
+},
       security: {
         loginRateLimit: '登入限流',
         loginRateLimitHint: '預設開啟。限制登入請求頻率，15 分鐘內驗證失敗 10 次後封禁 IP 1 小時。關閉後，密碼、二次驗證、Passkey 及第三方綁定登入將跳過頻率限制和 IP 封禁；儲存後立即生效，對管理員和普通用戶均有效。已有封禁在重新開啟後仍按原有效期生效。',
@@ -267,7 +271,10 @@ export default {
         sessionBindingHint: '將登入會話與用戶端 IP 和 User-Agent 綁定，任一變化即強制該會話失效並需重新登入（提升被盜憑證的利用門檻）。',
         auditRetention: '操作日誌保留天數',
         auditRetentionHint: '超過該天數的操作日誌將被自動清理；填 0 表示永久保留（僅支持手動清空）。'
-      },
+      ,
+  registrationIPLimit: '同 IP 注冊數量限制',
+  registrationIPLimitHint: '默認開啟，同一 IP 最多注冊 2 個帳號（含郵箱和第三方登錄注冊）。共享網絡可能導致正常用戶受限。關閉僅取消此數量限制，不影響驗證碼、郵箱驗證、請求限流和登錄防護；保存后立即生效。已有計數不會清空，關閉期間不累計，重新開啟后繼續使用保留的計數。',
+},
       panelRateLimit: {
         title: '面板接口限流',
         description: '限制面板 API 的請求頻率，防止高頻刷接口（如用量統計、儀表盤查詢）打爆數據庫',
@@ -1416,7 +1423,13 @@ export default {
       failedToSave: '儲存設定失敗',
       failedToTestSmtp: 'SMTP 連接測試失敗',
       failedToSendTestEmail: '發送測試電郵失敗'
-    },
+    ,
+  ipRisk,
+  upstream_response_model_to_users: {
+        label: '向用戶展示上游實際響應模型',
+        description: '開啟后，用戶在用量記錄中可以看到上游響應里聲明的實際模型。默認關閉，僅管理端可見。不影響計費，也不會展示映射后的請求模型或帳號信息。',
+      },
+},
 
     // Error Passthrough Rules
     errorPassthrough: {

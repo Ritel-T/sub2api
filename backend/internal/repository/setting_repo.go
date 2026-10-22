@@ -119,7 +119,7 @@ func (r *settingRepository) SetMultiple(ctx context.Context, settings map[string
 }
 
 func (r *settingRepository) GetAll(ctx context.Context) (map[string]string, error) {
-	settings, err := r.client.Setting.Query().All(ctx)
+	settings, err := r.client.Setting.Query().Where(setting.Not(setting.KeyHasPrefix(service.AuthSessionEpochSettingPrefix))).All(ctx)
 	if err != nil {
 		return nil, err
 	}

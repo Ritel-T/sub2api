@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/publicimagehttp"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/upstreamroute"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -64,7 +65,11 @@ func (t *regionalUpstreamTransport) RoundTrip(req *http.Request) (*http.Response
 		atomic.StoreInt64(&entry.lastUsed, time.Now().UnixNano())
 	}
 	start := time.Now()
-	resp, err := entry.client.Transport.RoundTrip(req)
+	transport := entry.client.Transport
+	if service.HTTPUpstreamPublicHostsOnly(req.Context()) {
+		transport = publicimagehttp.Wrap(transport)
+	}
+	resp, err := transport.RoundTrip(req)
 	if region != "" {
 		status := 0
 		if resp != nil {

@@ -380,7 +380,11 @@ func (w *apiKeyAdmissionWriter) WriteString(data string) (int, error) {
 	return w.ResponseWriter.WriteString(data)
 }
 
-func (w *apiKeyAdmissionWriter) Flush() {
+func (w *apiKeyAdmissionWriter) Flush() { _ = w.FlushError() }
+func (w *apiKeyAdmissionWriter) FlushError() error {
 	w.rejectIfLost()
-	w.ResponseWriter.Flush()
+	if w.writeErr != nil {
+		return w.writeErr
+	}
+	return service.FlushGatewayResponse(w.ResponseWriter)
 }

@@ -2869,6 +2869,10 @@ func (s *oauthPendingFlowRefreshTokenCacheStub) GetRefreshToken(context.Context,
 	return nil, service.ErrRefreshTokenNotFound
 }
 
+func (s *oauthPendingFlowRefreshTokenCacheStub) ConsumeRefreshToken(context.Context, string) (bool, error) {
+	return false, nil
+}
+
 func (s *oauthPendingFlowRefreshTokenCacheStub) DeleteRefreshToken(context.Context, string) error {
 	return nil
 }

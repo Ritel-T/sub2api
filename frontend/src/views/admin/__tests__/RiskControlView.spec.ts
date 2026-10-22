@@ -270,6 +270,53 @@ describe('admin RiskControlView', () => {
     wrapper.unmount()
   })
 
+  it('edits the TypeSafe URL from key availability and retains it after save and reload', async () => {
+    const frozenKey: ContentModerationAPIKeyStatus = {
+      index: 1, key_hash: 'fixture-hash', masked: '********ts01', status: 'frozen',
+      failure_count: 1, success_count: 0, last_error: 'typesafe API status 401',
+      last_latency_ms: 10, last_http_status: 401, last_tested: true, configured: true,
+      frozen_until: '2099-01-01T00:00:00Z',
+    }
+    let saved: ContentModerationConfig = {
+      ...baseConfig(), engine: 'typesafe', base_url: 'https://old.example/v1', model: 'jev-latest',
+      api_key_configured: true, api_key_count: 1, api_key_statuses: [frozenKey],
+    }
+    getConfig.mockImplementation(async () => saved)
+    getStatus.mockResolvedValue({ ...runtimeStatus(), engine: 'typesafe', api_key_statuses: [frozenKey] })
+    updateConfig.mockImplementation(async (payload: UpdateContentModerationConfig) => {
+      saved = { ...saved, base_url: payload.engine_configs!.typesafe!.base_url! }
+      return saved
+    })
+    const createWrapper = () => mount(RiskControlView, { attachTo: document.body, global: { stubs: { AppLayout: AppLayoutStub, BaseDialog: BaseDialogStub, Icon: true, Select: true, Toggle: true, Pagination: true, ModelWhitelistSelector: ModelWhitelistSelectorStub, ProxySelector: true } } })
+    let wrapper = createWrapper()
+    await flushPromises()
+    await findButtonByText(wrapper, 'admin.riskControl.openSettings').trigger('click')
+    expect(wrapper.get('[data-test="audit-key-statuses"]').text()).toContain('401')
+    await wrapper.get('[data-test="audit-edit-base-url"]').trigger('click')
+    expect(document.activeElement).toBe(wrapper.get('[data-test="audit-base-url"]').element)
+    expect(wrapper.get('[data-test="audit-base-url-hint"]').text()).toContain('admin.riskControl.typeSafeBaseUrlHint')
+    await wrapper.get('[data-test="audit-base-url"]').setValue('https://new.example/relay/v1/')
+    wrapper.findComponent('[data-test="audit-engine-select"]').vm.$emit('update:modelValue', 'openai')
+    await flushPromises()
+    wrapper.findComponent('[data-test="audit-engine-select"]').vm.$emit('update:modelValue', 'typesafe')
+    await flushPromises()
+    expect((wrapper.get('[data-test="audit-base-url"]').element as HTMLInputElement).value).toBe('https://new.example/relay/v1/')
+    await findButtonByText(wrapper, 'admin.riskControl.saveConfig').trigger('click')
+    await flushPromises()
+    expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ engine_configs: expect.objectContaining({
+      typesafe: expect.objectContaining({ base_url: 'https://new.example/relay/v1/', clear_api_key: false, delete_api_key_hashes: [] }),
+    }) }))
+    wrapper.unmount()
+    wrapper = createWrapper()
+    await flushPromises()
+    await findButtonByText(wrapper, 'admin.riskControl.openSettings').trigger('click')
+    expect((wrapper.get('[data-test="audit-base-url"]').element as HTMLInputElement).value).toBe('https://new.example/relay/v1/')
+    expect(wrapper.get('[data-test="audit-key-statuses"]').text()).toContain('admin.riskControl.apiKeyStatusFrozen')
+    expect(testAPIKeys).not.toHaveBeenCalled()
+    expect(showError).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('preserves both engine drafts and saves thresholds independently', async () => {
     const wrapper = mount(RiskControlView, { global: { stubs: { AppLayout: AppLayoutStub, BaseDialog: BaseDialogStub, Icon: true, Select: true, Toggle: true, Pagination: true, ModelWhitelistSelector: ModelWhitelistSelectorStub, ProxySelector: true } } })
     await flushPromises()

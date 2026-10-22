@@ -37,7 +37,7 @@ func TestOpenAIResponsesWebSocketCyberIdentityCompatibility(t *testing.T) {
 					t.Error(err)
 					return
 				}
-				defer conn.CloseNow()
+				defer func() { _ = conn.CloseNow() }()
 				for {
 					ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 					_, _, err := conn.Read(ctx)
@@ -130,7 +130,8 @@ func TestOpenAIResponsesWebSocketCyberIdentityCompatibility(t *testing.T) {
 			oldKey := service.CyberSessionExplicitBlockKey(h.apiKey.ID, keyCtx, []byte(payloads[0]))
 			keyCtx.Request.Header.Del("thread_id")
 			newKey := service.CyberSessionExplicitBlockKey(h.apiKey.ID, keyCtx, []byte(payloads[1]))
-			store := h.gatewayCache.(service.CyberSessionBlockStore)
+			store, ok := h.gatewayCache.(service.CyberSessionBlockStore)
+			require.True(t, ok)
 			matched, err := store.FindCyberSessionBlocked(context.Background(), []string{oldKey, newKey})
 			require.NoError(t, err)
 			require.Empty(t, matched, "a cyber hit with ambiguous identity must not poison the old header thread")

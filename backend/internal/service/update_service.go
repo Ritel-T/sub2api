@@ -214,15 +214,28 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 
 	for _, asset := range releaseAssets {
 		if strings.Contains(asset.Name, archiveName) && !strings.HasSuffix(asset.Name, ".txt") {
+			if downloadURL != "" {
+				return fmt.Errorf("multiple compatible release archives for %s/%s", runtime.GOOS, runtime.GOARCH)
+			}
 			downloadURL = asset.DownloadURL
 		}
 		if asset.Name == "checksums.txt" {
+			if checksumURL != "" {
+				return fmt.Errorf("multiple release checksum manifests")
+			}
 			checksumURL = asset.DownloadURL
 		}
 	}
 
 	if downloadURL == "" {
 		return fmt.Errorf("no compatible release found for %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
+
+	// Never install an executable whose release does not include a digest.
+	// This detects corruption; same-channel checksums do not authenticate the
+	// publisher if the release account itself is compromised.
+	if checksumURL == "" {
+		return fmt.Errorf("release checksum manifest is required")
 	}
 
 	// SECURITY: Validate download URL is from trusted domain
@@ -261,11 +274,8 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 		return fmt.Errorf("download failed: %w", err)
 	}
 
-	// Verify checksum if available
-	if checksumURL != "" {
-		if err := s.verifyChecksum(ctx, archivePath, checksumURL); err != nil {
-			return fmt.Errorf("checksum verification failed: %w", err)
-		}
+	if err := s.verifyChecksum(ctx, archivePath, checksumURL); err != nil {
+		return fmt.Errorf("checksum verification failed: %w", err)
 	}
 
 	// Extract binary from archive

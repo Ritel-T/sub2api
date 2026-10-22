@@ -143,6 +143,7 @@ const UsageTableStub = {
   emits: ['userClick', 'column-reorder'],
   template: '<div data-test="usage-table"><button class="user-click" @click="$emit(\'userClick\', 2)">user</button></div>',
 }
+const UsageConnectionsStub = { props: ['filters', 'refreshKey'], template: '<div data-test="connection-tab" />' }
 const UserTokenRankingStub = {
   emits: ['select-user'],
   template: '<div data-test="ranking"><button class="pick-user" @click="$emit(\'select-user\', 5, \'rank@test.com\')">pick</button></div>',
@@ -787,7 +788,8 @@ describe('admin UsageView ranking tab', () => {
         UserBalanceHistoryModal: true, Pagination: true, Select: true,
         DateRangePicker: true, Icon: true, TokenUsageTrend: true,
         ModelDistributionChart: true, GroupDistributionChart: true, EndpointDistributionChart: true,
-        UserTokenRanking: UserTokenRankingStub, OpsErrorLogTable: true, OpsErrorDetailModal: true,
+        UserTokenRanking: UserTokenRankingStub,
+        UsageConnections: UsageConnectionsStub, OpsErrorLogTable: true, OpsErrorDetailModal: true,
       } },
     })
     vi.advanceTimersByTime(120)
@@ -797,8 +799,13 @@ describe('admin UsageView ranking tab', () => {
     expect(wrapper.find('[data-test="ranking"]').exists()).toBe(false)
 
     const tabs = wrapper.findAll('[data-testid="usage-detail-tab"]')
-    expect(tabs).toHaveLength(3)
+    expect(tabs).toHaveLength(4)
+    expect(wrapper.find('[data-test="connection-tab"]').exists()).toBe(false)
     await tabs[2].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="connection-tab"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="ranking"]').exists()).toBe(false)
+    await tabs[3].trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-test="ranking"]').exists()).toBe(true)
 
@@ -917,6 +924,7 @@ describe('observer own usage view', () => {
     expect(wrapper.find('usage-cleanup-dialog-stub').exists()).toBe(false)
     expect(wrapper.find('user-balance-history-modal-stub').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('usage.tabs.ranking')
+    expect(wrapper.text()).not.toContain('connections.title')
     for (const name of ['model-distribution-chart-stub', 'group-distribution-chart-stub', 'endpoint-distribution-chart-stub']) {
       expect(wrapper.findComponent(name).props('enableBreakdown')).toBe(false)
     }

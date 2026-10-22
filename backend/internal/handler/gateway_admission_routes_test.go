@@ -37,7 +37,6 @@ func TestAPIKeyAdmissionRealForwardingHandlersRejectBeforeUpstream(t *testing.T)
 		{"tts_stream", true, h.GrokTTSStream},
 		{"tts", true, func(c *gin.Context) { h.GrokVoice(c, "tts") }},
 		{"stt", true, func(c *gin.Context) { h.GrokVoice(c, "stt") }},
-		{"custom_voices", true, func(c *gin.Context) { h.GrokVoice(c, "custom-voices") }},
 		{"codex_models", false, h.CodexModels},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

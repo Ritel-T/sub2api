@@ -1,0 +1,23 @@
+export default {
+  "protocol": "OpenAI 請求協議",
+  "codex": "Codex（保留現有 BPS / Prism 配置）",
+  "siwc": "SIWC API（Sign in with ChatGPT）",
+  "protocolHint": "授權完成后可隨時切換，保存帳號后生效。SIWC 使用 ChatGPT 套餐調用官方 Responses API，Codex 憑據獨立保留。",
+  "bound": "SIWC 已綁定（憑據存在，不代表實時可用性）",
+  "unbound": "SIWC 尚未綁定",
+  "automatic": "使用已保存的密碼 / 2FA 授權",
+  "browser": "瀏覽器授權",
+  "refresh": "刷新狀態",
+  "loginHint": "自動授權復用憑據守衛中已保存的密碼和 TOTP。首次同意授權或遇到額外驗證時，請使用瀏覽器授權；后續自動刷新令牌。",
+  "running": "SIWC 授權任務處理中…",
+  "continue": "打開 ChatGPT 授權頁面 ↗",
+  "authLink": "完整授權鏈接",
+  "authLinkHint": "點擊上方按鈕在新頁面授權，或復制此鏈接到瀏覽器打開。請使用該帳號登錄，并保留當前編輯窗口以提交回調。",
+  "copyLink": "復制授權鏈接",
+  "copyFailed": "復制失敗，請選中上方完整授權鏈接后手動復制。",
+  "invalidAuthorization": "授權接口未返回有效的鏈接或會話，請重新點擊瀏覽器授權。",
+  "callbackHint": "在新頁面完成授權后，瀏覽器會跳轉到本機回調地址。即使提示無法連接，也請復制地址欄的完整地址并粘貼到下方。",
+  "callback": "完整回調地址",
+  "complete": "完成綁定",
+  "failed": "SIWC 操作失敗，請刷新后重試"
+}

@@ -61,6 +61,9 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 			return nil, fmt.Errorf("invalid grok voice endpoint path")
 		}
 	}
+	if err := ValidateGrokVoiceRequest(endpoint, body); err != nil {
+		return nil, err
+	}
 	token, _, err := s.getRequestCredential(ctx, c, account)
 	if err != nil {
 		return nil, err
@@ -197,6 +200,9 @@ func (s *OpenAIGatewayService) OpenGrokTTSStream(ctx context.Context, account *A
 	if s == nil || account == nil || account.Platform != PlatformGrok {
 		return nil, fmt.Errorf("grok tts stream account is required")
 	}
+	if err := ValidateGrokVoiceQuery(clientQuery); err != nil {
+		return nil, err
+	}
 	query := url.Values{}
 	for _, field := range grokTTSStreamQueryFields {
 		if value := strings.TrimSpace(clientQuery.Get(field)); value != "" {
@@ -310,6 +316,10 @@ func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin
 			if grokRealtimeEventHasAudio(msg) {
 				audioObserved.Store(true)
 			}
+			if policyErr := validateGrokVoiceJSON(msg); policyErr != nil {
+				errCh <- policyErr
+				return
+			}
 			var raw json.RawMessage
 			if unmarshalErr := json.Unmarshal(msg, &raw); unmarshalErr != nil {
 				errCh <- fmt.Errorf("invalid realtime event: %w", unmarshalErr)
@@ -373,6 +383,10 @@ func (s *OpenAIGatewayService) ProxyGrokTTSStreamConn(ctx context.Context, clien
 			}
 			if kind != coderws.MessageText && kind != coderws.MessageBinary {
 				continue
+			}
+			if policyErr := validateGrokVoiceJSON(msg); policyErr != nil {
+				errCh <- policyErr
+				return
 			}
 			var raw json.RawMessage
 			if unmarshalErr := json.Unmarshal(msg, &raw); unmarshalErr != nil {

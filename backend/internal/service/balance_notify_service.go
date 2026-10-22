@@ -2,12 +2,16 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -39,19 +43,27 @@ type AccountQuotaReader interface {
 
 // BalanceNotifyService handles balance and quota threshold notifications.
 type BalanceNotifyService struct {
-	emailService             *EmailService
+	emailService interface {
+		SendEmail(context.Context, string, string, string) error
+	}
 	settingRepo              SettingRepository
 	accountRepo              AccountQuotaReader
 	notificationEmailService *NotificationEmailService
+	balanceMu                sync.Mutex
+	balanceAttempts          map[int64]balanceNotifyAttempt
+	balanceActive            int
 }
 
 // NewBalanceNotifyService creates a new BalanceNotifyService.
 func NewBalanceNotifyService(emailService *EmailService, settingRepo SettingRepository, accountRepo AccountQuotaReader) *BalanceNotifyService {
-	return &BalanceNotifyService{
-		emailService: emailService,
-		settingRepo:  settingRepo,
-		accountRepo:  accountRepo,
+	svc := &BalanceNotifyService{
+		settingRepo: settingRepo,
+		accountRepo: accountRepo,
 	}
+	if emailService != nil {
+		svc.emailService = emailService
+	}
+	return svc
 }
 
 func (s *BalanceNotifyService) SetNotificationEmailService(notificationEmailService *NotificationEmailService) {
@@ -120,18 +132,9 @@ func crossedDownward(oldV, newV, threshold float64) bool {
 
 // dispatchBalanceLowEmail collects recipients and sends the alert in a goroutine.
 func (s *BalanceNotifyService) dispatchBalanceLowEmail(ctx context.Context, user *User, newBalance, threshold float64, rechargeURL string) {
-	siteName := s.getSiteName(ctx)
-	recipients := s.collectBalanceNotifyRecipients(user)
-	slog.Info("CheckBalanceAfterDeduction: sending notification",
-		"user_id", user.ID, "recipients", recipients, "new_balance", newBalance, "threshold", threshold)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("panic in balance notification", "recover", r)
-			}
-		}()
-		s.sendBalanceLowEmails(recipients, user.ID, user.Username, user.Email, newBalance, threshold, siteName, rechargeURL)
-	}()
+	s.scheduleBalanceEmail(user, func(ctx context.Context, snapshot *User) {
+		s.sendResolvedBalanceEmail(ctx, snapshot, newBalance, threshold, rechargeURL)
+	})
 }
 
 // quotaDim describes one quota dimension for notification checking.
@@ -352,42 +355,90 @@ func (s *BalanceNotifyService) sendBalanceLowEmails(recipients []string, userID 
 	if displayName == "" {
 		displayName = userEmail
 	}
-	if s.notificationEmailService != nil {
-		fallbackRecipients := make([]string, 0, len(recipients))
-		for _, to := range recipients {
-			ctx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
-			err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
-				Event:          NotificationEmailEventBalanceLow,
-				RecipientEmail: to,
-				RecipientName:  displayName,
-				UserID:         userID,
-				SourceType:     "balance_low",
-				SourceID:       firstNonEmpty(strconv.FormatInt(userID, 10), userEmail),
-				ReminderKey:    time.Now().UTC().Format("2006-01-02"),
-				Variables: map[string]string{
-					"current_balance": fmt.Sprintf("%.2f", balance),
-					"threshold":       fmt.Sprintf("%.2f", threshold),
-					"recharge_url":    rechargeURL,
-				},
-			})
-			cancel()
-			if err != nil {
-				if shouldFallbackNotificationEmail(err) {
-					slog.Warn("template balance low notification failed; falling back to built-in body", "to", to, "err", err.Error())
-					fallbackRecipients = append(fallbackRecipients, to)
-				} else {
-					slog.Warn("template balance low notification delivery failed; not sending fallback to avoid duplicates", "to", to, "err", err.Error())
-				}
-			}
-		}
-		if len(fallbackRecipients) == 0 {
-			return
-		}
-		recipients = fallbackRecipients
-	}
+	// Share the existing daily delivery identity with post-deduction alerts.
+	reminderKey := time.Now().UTC().Format("2006-01-02")
+	sourceID := strconv.FormatInt(userID, 10)
+	delivery := &NotificationEmailService{settingRepo: s.settingRepo}
 	subject := fmt.Sprintf("[%s] 余额不足提醒 / Balance Low Alert", sanitizeEmailHeader(siteName))
 	body := s.buildBalanceLowEmailBody(html.EscapeString(displayName), balance, threshold, html.EscapeString(siteName), rechargeURL)
-	s.sendEmails(recipients, subject, body, "user_email", userEmail, "balance", balance)
+	for _, to := range recipients {
+		ctx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
+		func() {
+			defer cancel()
+			key := notificationEmailDeliveryKey(NotificationEmailEventBalanceLow, "balance_low", sourceID, to, reminderKey)
+			legacyKey := legacyNotificationEmailDeliveryKey(NotificationEmailEventBalanceLow, "balance_low", sourceID, to, reminderKey)
+			sent, err := delivery.deliveryExists(ctx, key, legacyKey)
+			if err != nil || sent {
+				return
+			}
+			unsubscribed, err := delivery.IsUnsubscribed(ctx, to, NotificationEmailEventBalanceLow)
+			if err != nil || unsubscribed {
+				return
+			}
+			attempts, ok := s.settingRepo.(balanceEmailAttemptStore)
+			if !ok {
+				slog.Warn("balance notification suppressed: durable attempt store unavailable", "user_id", userID)
+				return
+			}
+			attemptKey := balanceEmailAttemptKey(key)
+			owner := uuid.NewString()
+			claimed, err := attempts.ClaimBalanceEmailAttempt(ctx, attemptKey, owner)
+			if err != nil || !claimed {
+				return
+			}
+			// Only a transport-certified failure before SMTP DATA may release this
+			// durable claim. Unknown outcomes, panics and sent-marker failures must
+			// remain pending across processes and restarts to prevent duplicates.
+			var sendErr error
+			defer func() {
+				var notSent emailNotSentError
+				if !errors.As(sendErr, &notSent) {
+					return
+				}
+				releaseCtx, releaseCancel := context.WithTimeout(context.Background(), emailSendTimeout)
+				defer releaseCancel()
+				if _, err := attempts.ReleaseBalanceEmailAttempt(releaseCtx, attemptKey, owner); err != nil {
+					slog.Warn("balance notification unsent claim release failed", "user_id", userID)
+				}
+			}()
+			// Recheck the success marker after claiming: a previous delivery may
+			// have completed while this caller was preparing its claim.
+			sent, err = delivery.deliveryExists(ctx, key, legacyKey)
+			if err != nil || sent {
+				return
+			}
+			if s.notificationEmailService != nil {
+				err = s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
+					Event: NotificationEmailEventBalanceLow, RecipientEmail: to, RecipientName: displayName,
+					UserID: userID, SourceType: "balance_low", SourceID: sourceID, ReminderKey: reminderKey,
+					Variables: map[string]string{
+						"current_balance": fmt.Sprintf("%.2f", balance), "threshold": fmt.Sprintf("%.2f", threshold), "recharge_url": rechargeURL,
+					},
+				})
+				if err == nil {
+					return
+				}
+				if !shouldFallbackNotificationEmail(err) {
+					sendErr = err
+					slog.Warn("balance notification delivery did not complete; durable attempt retained unless definitely unsent", "user_id", userID)
+					return
+				}
+			}
+			// Built-in fallback observes preferences and writes the same success marker.
+			unsubscribed, err = delivery.IsUnsubscribed(ctx, to, NotificationEmailEventBalanceLow)
+			if err != nil || unsubscribed {
+				return
+			}
+			if err := s.emailService.SendEmail(ctx, to, subject, body); err != nil {
+				sendErr = err
+				slog.Warn("balance notification fallback did not complete; durable attempt retained unless definitely unsent", "user_id", userID)
+				return
+			}
+			if err := s.settingRepo.Set(ctx, key, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+				slog.Warn("balance notification delivery marker failed", "user_id", userID)
+			}
+		}()
+	}
 }
 
 // sendQuotaAlertEmails sends quota alert notification to admin emails.

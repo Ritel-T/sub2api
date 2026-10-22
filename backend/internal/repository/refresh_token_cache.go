@@ -65,6 +65,14 @@ func (c *refreshTokenCache) GetRefreshToken(ctx context.Context, tokenHash strin
 	return &data, nil
 }
 
+func (c *refreshTokenCache) ConsumeRefreshToken(ctx context.Context, tokenHash string) (bool, error) {
+	_, err := c.rdb.GetDel(ctx, refreshTokenKey(tokenHash)).Result()
+	if err == redis.Nil {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (c *refreshTokenCache) DeleteRefreshToken(ctx context.Context, tokenHash string) error {
 	key := refreshTokenKey(tokenHash)
 	return c.rdb.Del(ctx, key).Err()
