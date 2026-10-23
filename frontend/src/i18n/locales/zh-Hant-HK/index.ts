@@ -1,3 +1,4 @@
+import qq from './qq'
 import ipAudit from './ipAudit'
 import connections from './connections'
 import securityRecords from './securityRecords'
@@ -28,6 +29,7 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  qq,
   gelv,
   paymentRetail,
   squarespaceProvider,

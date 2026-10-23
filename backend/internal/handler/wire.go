@@ -264,7 +264,7 @@ func ProvideHandlers(
 var ProviderSet = wire.NewSet(
 	// Top-level handlers
 	NewAuthHandler,
-	NewUserHandler,
+	ProvideUserHandlerWithQQ,
 	NewAPIKeyHandler,
 	NewUsageHandler,
 	NewRedeemHandler,

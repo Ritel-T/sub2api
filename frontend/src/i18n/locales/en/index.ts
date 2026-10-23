@@ -1,3 +1,4 @@
+import qq from './qq'
 import gelv from './gelv'
 import paymentRetail from './paymentRetail'
 import squarespaceProvider from './squarespaceProvider'
@@ -28,6 +29,7 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  qq,
   gelv,
   paymentRetail,
   squarespaceProvider,

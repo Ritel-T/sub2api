@@ -125,7 +125,7 @@ func (s *SubscriptionExpiryService) sendExpiryReminders(ctx context.Context) {
 	if !s.expiryReminderEnabled(ctx) {
 		return
 	}
-	if !s.smtpConfigured(ctx) {
+	if !s.smtpConfigured(ctx) && (s.notificationEmailService.qq == nil || !s.notificationEmailService.qq.Enabled()) {
 		return
 	}
 

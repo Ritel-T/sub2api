@@ -17,6 +17,7 @@ func RegisterUserRoutes(
 	settingService *service.SettingService,
 	panelRateLimiter *middleware.PanelRateLimiter,
 ) {
+	v1.POST("/qq/webhook", h.User.QQWebhook)
 	authenticated := v1.Group("")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))
 	authenticated.Use(middleware.BackendModeUserGuard(settingService))
@@ -29,6 +30,11 @@ func RegisterUserRoutes(
 		user := authenticated.Group("/user")
 		{
 			user.GET("/profile", h.User.GetProfile)
+			user.GET("/qq", h.User.QQStatus)
+			user.POST("/qq/binding", h.User.QQIssue)
+			user.POST("/qq/confirm", h.User.QQConfirm)
+			user.DELETE("/qq", h.User.QQUnbind)
+			user.PUT("/qq/preferences", h.User.QQPreferences)
 			if h.Admin != nil && h.Admin.PromptAudit != nil {
 				user.GET("/security/summary", h.Admin.PromptAudit.MyPenaltySummary)
 				user.GET("/security/events", h.Admin.PromptAudit.MyPenaltyEvents)

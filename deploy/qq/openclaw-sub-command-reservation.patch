@@ -1,0 +1,27 @@
+--- a/dist/src/gateway.js
++++ b/dist/src/gateway.js
+@@ -32,6 +32,16 @@
+         : [{ type: "text", data: { text: typeof value.raw_message === "string"
+             ? value.raw_message.replace(/\[CQ:[^\]]*\]/g, "[消息段]") : "" } }];
+     return { ...value, message, sender: value.sender && typeof value.sender === "object" ? value.sender : {} };
++}
++// Private /sub commands belong exclusively to the Sub2API bridge.
++// Reserve before allowFrom, history, batching, reactions and model dispatch.
++export function isSub2APIPrivateCommand(event) {
++    if (event?.message_type !== "private") return false;
++    const text = Array.isArray(event.message)
++        ? event.message.filter(segment => segment?.type === "text")
++            .map(segment => String(segment.data?.text ?? "")).join("")
++        : String(event.raw_message ?? event.message ?? "");
++    return /^\/sub(?:\s|$)/.test(text.trimStart());
+ }
+ // Reconnect configuration
+ const RECONNECT_DELAYS = [1000, 2000, 5000, 10000, 30000, 60000];
+@@ -642,6 +652,7 @@
+             const bufferMessage = (rawEvent) => {
+                 const event = normalizeMessageEvent(rawEvent);
+                 if (!event || isAborted || abortSignal.aborted) return;
++                if (isSub2APIPrivateCommand(event)) return;
+                 const isGroup = event.message_type === "group";
+                 const { groupContext, lunaGate } = stateForEvent(event) ?? {};
+                 const senderId = String(event.user_id);

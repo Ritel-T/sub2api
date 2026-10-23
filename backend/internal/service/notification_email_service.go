@@ -80,6 +80,7 @@ var (
 )
 
 type NotificationEmailService struct {
+	qq           *QQNotificationService
 	settingRepo  SettingRepository
 	emailService *EmailService
 }
@@ -374,6 +375,15 @@ func (s *NotificationEmailService) PreviewTemplate(ctx context.Context, input No
 }
 
 func (s *NotificationEmailService) Send(ctx context.Context, input NotificationEmailSendInput) error {
+	if s.qq != nil {
+		email, err := s.qq.Route(ctx, input)
+		if err != nil {
+			slog.Warn("QQ notification dispatch failed", "user_id", input.UserID)
+		}
+		if !email {
+			return err
+		}
+	}
 	info, normalizedEvent, err := s.eventInfo(input.Event)
 	if err != nil {
 		return notificationEmailTemplateErr(err)

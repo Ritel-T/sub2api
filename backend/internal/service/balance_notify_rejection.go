@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+
 	"time"
 )
 
@@ -33,6 +35,15 @@ func (s *BalanceNotifyService) CheckBalanceOnRejection(user *User, balance float
 }
 
 func (s *BalanceNotifyService) sendResolvedBalanceEmail(ctx context.Context, user *User, balance, threshold float64, rechargeURL string) {
+	if s.notificationEmailService != nil && s.notificationEmailService.qq != nil {
+		email, err := s.notificationEmailService.qq.Route(ctx, NotificationEmailSendInput{Event: NotificationEmailEventBalanceLow, UserID: user.ID, SourceType: "balance_low", SourceID: fmt.Sprint(user.ID), ReminderKey: time.Now().UTC().Format("2006-01-02"), Variables: map[string]string{"current_balance": fmt.Sprintf("%.2f", balance), "threshold": fmt.Sprintf("%.2f", threshold)}})
+		if err != nil {
+			slog.Warn("QQ balance notification failed", "user_id", user.ID)
+		}
+		if !email {
+			return
+		}
+	}
 	recipients := s.collectBalanceNotifyRecipients(user)
 	if len(recipients) == 0 {
 		return

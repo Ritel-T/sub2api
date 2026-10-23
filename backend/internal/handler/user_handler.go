@@ -16,6 +16,7 @@ import (
 
 // UserHandler handles user-related requests
 type UserHandler struct {
+	qq                    *service.QQNotificationService
 	userService           *service.UserService
 	authService           *service.AuthService
 	emailService          *service.EmailService
