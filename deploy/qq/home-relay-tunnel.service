@@ -1,0 +1,28 @@
+[Unit]
+Description=Sub2API QQ restricted relay reverse tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/ssh -NT -o BatchMode=yes -o KexAlgorithms=curve25519-sha256 -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/sub2api-qq/ssh_known_hosts -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -i /etc/sub2api-qq/relay_ed25519 -p 22 -R 127.0.0.1:3103:127.0.0.1:3102 qq-relay@38.207.183.185
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=64M
+TasksMax=16
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

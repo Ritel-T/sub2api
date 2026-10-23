@@ -60,3 +60,8 @@ API Compose can add a pinned socat sidecar with only the runtime directory mount
 Before deployment: verify exact server OpenSSH version and `sshd -t` / `sshd -T -C user=qq-relay,...`; test denial of shell, SFTP, TCP forwards and local Unix forwarding; verify Unix forward and permissions, reboot/reconnect/stale-socket recovery and sidecar isolation. A socket/HTTP test proves transport only, not QQ delivery. No production receipt has been collected here.
 
 Primary specification references: OpenSSH `sshd_config(5)`, `sshd(8)`, `ssh(1)` at man.openbsd.org. The installed Ubuntu version must independently accept this configuration.
+## Dispatch timing and unbind boundary (review update)
+
+The home native friend lookup and single native send each use a 3-second socket timeout; API forwarding uses 8 seconds, backend HTTP dispatch 10 seconds, and the ingress webhook client 12 seconds. This reduces ordinary timeout inversions. These are socket-operation limits, not absolute wall-clock deadlines: slow partial reads and already accepted remote requests can outlive the caller. Serial ingress forwarding may also delay subsequent WS commands while one request is pending; commands older than five minutes are rejected instead of replayed.
+
+Unbind prevents future new dispatches after the backend rechecks its binding. It cannot retract an already accepted in-flight QQ send; a disconnected or timed-out request may complete remotely after unbind. Preserve unknown status and do not automatically resend. Do not advertise atomic cancellation of in-flight messages.

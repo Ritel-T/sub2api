@@ -63,6 +63,22 @@ class HTTPTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_native_timeout_budget_is_three_seconds(self):
+        with patch('bridge.post',return_value={'status':'ok','retcode':0,'data':[]}) as call:
+            self.bridge.native_call('get_friend_list',{})
+        self.assertEqual(call.call_args.kwargs['timeout'],3)
+
+    def test_webhook_default_timeout_is_twelve_seconds(self):
+        class Response:
+            status=204
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def read(self,*args):return b''
+        with patch('bridge.urllib.request.build_opener') as build:
+            build.return_value.open.return_value=Response()
+            post('https://example.invalid/api/v1/qq/webhook',b'{}',{})
+        self.assertEqual(build.return_value.open.call_args.kwargs['timeout'],12)
+
     def test_auth_and_path_reject_before_native_io(self):
         self.assertEqual(self.request(token='wrong')[0],403)
         self.assertEqual(self.request(path='/get_friend_list')[0],404)

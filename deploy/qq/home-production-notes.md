@@ -1,0 +1,18 @@
+# home-mini QQ rollout preparation, 2026-10-23 UTC
+
+- Dedicated sub2api-qq UID997/GID983 nologin account; root-owned /opt/sub2api-qq, root0700 /etc/sub2api-qq, root0600 bridge.env/key/known_hosts.
+- System python websockets16 existed only in ritel user-site. Built isolated Python3.12 venv without pip, copied exact installed websockets16 + dist-info, root-owned tree. UID997 import and hardened transient-systemd actual env/native get_status pass. Native get_login_info independently confirms3101772281; no messages sent.
+- bridge.py SHA050d7fa8c9dd612302ddc17ec1d8d7d48d64fefc5c5820c1fc37061edab0a6e4.
+- bridge.env SHAc2d1f0ff0b4062da26aaffc09530f543b637dd7a026edb8cc3de868293cc67dc. Root keeps shared secret recovery separately; native token extracted locally. Private upload staging removed after exact readback.
+- pinned ssh_known_hosts SHA3389d2a6f6e4ceeab3fa798d6e930d21c7f1d2260d5c08afe2c9ed36984570f1.
+- sub2api-qq-tunnel enabled/active at2026-10-23 16:56:44 UTC; PID102255/NRestarts0 at check. Connects qq-relay@38.207.183.185:22, reverse127.0.0.1:3103 -> home127.0.0.1:3102. Bridge remains inactive/disabled awaiting root coordination.
+- Dedicated key negative tests: shell/SFTP channels rejected; alternate remoteTCP3105 denied; localTCP-W administratively prohibited; remoteUnix /tmp/sub2api-qq-denial-20261023.sock denied. No remaining test processes. Initial parallel tests saw hybrid-KEX handshake stalls; final missing tests succeeded with command-specific KexAlgorithms=curve25519-sha256. Main tunnel keeps defaults.
+- OpenClaw unchanged original gateway SHA0b8db1326e469f867c1c238b9bfb0fb7928dd3e4e600768e70c366a00c95ef16; candidate SHA5a3f38e183af2a384c0900ebcfda363380d4c6d090d1d50565ec2ce604fba4f6 syntax verified using production pinned node.
+- home-install-reservation.py performs root-only backup/permission capture/CAS single-file replace, no restart. Backup destination /var/backups/sub2api-qq/<UTC>. Mount policy pins parent extensions inode2921280; directory identity stays unchanged. Credential pins unaffected.
+
+Subsequent readback16:58:25UTC: first tunnel process timed out after91s and restarted PID102499/NRestarts1. ActiveState alone was insufficient; root informed. Main default hybrid KEX is suspected pending narrow transport repair and independent API listener verification.
+
+Authorized narrow transport repair17:01:23UTC: unit adds KexAlgorithms=curve25519-sha256 and ConnectTimeout=15. Backup /var/backups/sub2api-qq/20261023T170122Z; after SHA18e2b50f3b5feaa057b7d6e6040d94737b07b4af8368a35df633322063c63003.17:02:48UTC independent readback: same PID103079, NRestarts0, enabled/active, TCP ESTAB, no new journal events across85s. Root separately verifies API3103 listener.
+
+17:06:54UTC authorized reservation source CAS applied; backup /var/backups/sub2api-qq/20261023T170654Z. Gateway restart17:06:55, PID105160/NRestarts0; readyz readytrue/failing[] and nativeQQ online/good. OneBot WebSocket connected/Gateway ready/Lifecycle connected17:07:32; natural group reply gate still processed. Runtime source read through /proc/105160/root verifies SHA5a3...; UID/GID65004 CapEff0 NoNewPrivs1, netns4026532641 preserved. Unit/dropin/config/policy hashes unchanged. No channels.start override used. User bare/sub failure at17:06:41 inbound/17:06:44 sandbox error belongs oldPID77771, predates patch. Existing private-owner unapproved workspace root error is separate, not repaired.
+Updated bridge source d3c5608d0e3a56e7a806a926ac00d6f6be41feca4f0a0028f1c009ab721da5d6 installed inactive after original SHA CAS; backup /var/backups/sub2api-qq/20261023T170758Z. Actual serviceUID config/native read check passed.

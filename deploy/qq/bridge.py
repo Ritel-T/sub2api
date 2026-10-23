@@ -27,14 +27,14 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def post(url, body, headers):
+def post(url, body, headers, timeout=12):
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", **headers})
     # Native credentials must never leave loopback through environment proxies.
     handlers = [NoRedirect()]
     if urllib.parse.urlsplit(url).hostname in ('127.0.0.1', '::1', 'localhost'):
         handlers.append(urllib.request.ProxyHandler({}))
     try:
-        opened = urllib.request.build_opener(*handlers).open(req, timeout=12)
+        opened = urllib.request.build_opener(*handlers).open(req, timeout=timeout)
     except urllib.error.HTTPError as error:
         error.close()
         raise
@@ -85,7 +85,7 @@ class Bridge:
             raise ValueError("relay and native credentials must differ")
 
     def native_call(self, action, payload):
-        return post(self.native + "/" + action, json.dumps(payload).encode(), {"Authorization": "Bearer " + self.native_token})
+        return post(self.native + "/" + action, json.dumps(payload).encode(), {"Authorization": "Bearer " + self.native_token}, timeout=3)
 
     def is_friend(self, user):
         result = self.native_call("get_friend_list", {})
