@@ -211,7 +211,7 @@ func (s *QQNotificationService) Webhook(ctx context.Context, body []byte) error 
 	if !ok {
 		return nil
 	}
-	if text != "/sub 余额" && text != "/sub 套餐" && text != "/sub 今日用量" && !strings.HasPrefix(text, "/sub 绑定 ") {
+	if text != "/sub" && text != "/sub 余额" && text != "/sub 套餐" && text != "/sub 今日用量" && !strings.HasPrefix(text, "/sub 绑定 ") {
 		return nil
 	}
 	if len(ev.MessageID.String()) > 30 {
@@ -248,7 +248,9 @@ func (s *QQNotificationService) Webhook(ctx context.Context, body []byte) error 
 	}
 	reply := ""
 	var boundUID int64
-	if strings.HasPrefix(text, "/sub 绑定 ") {
+	if text == "/sub" {
+		reply = "Sub2API QQ 助手\n请在控制台 → 个人设置 → QQ 通知生成绑定码，再私聊发送 /sub 绑定 绑定码，并返回控制台确认。\n绑定后可使用：\n/sub 余额\n/sub 套餐\n/sub 今日用量\n通知偏好与解绑请在控制台设置。"
+	} else if strings.HasPrefix(text, "/sub 绑定 ") {
 		code := strings.TrimPrefix(text, "/sub 绑定 ")
 		if !qqCode.MatchString(code) {
 			return nil

@@ -104,3 +104,44 @@ func TestQQDefaultAndAuthEmailUnchanged(t *testing.T) {
 		t.Fatal("default channel changed")
 	}
 }
+
+func TestQQBareSubHelpWithoutAccountAccess(t *testing.T) {
+	s, m := qqTestService(t)
+	var reply string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Message string `json:"message"`
+		}
+		if e := json.NewDecoder(r.Body).Decode(&payload); e != nil {
+			t.Error(e)
+		}
+		reply = payload.Message
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok","retcode":0,"data":{"message_id":123}}`))
+	}))
+	defer server.Close()
+	s.endpoint = server.URL
+	// Only event/rate-limit and delivery audit SQL is permitted; account queries fail the mock.
+	m.ExpectBegin()
+	m.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs("qq:234567").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.ExpectQuery("SELECT COUNT").WithArgs("234567").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	m.ExpectExec("INSERT INTO qq_inbound_events").WithArgs("123456:234567:9", "234567").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.ExpectCommit()
+	m.ExpectBegin()
+	m.ExpectExec("INSERT INTO qq_delivery_attempts").WithArgs("reply:123456:234567:9", int64(0), "234567").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.ExpectCommit()
+	m.ExpectExec("UPDATE qq_delivery_attempts").WithArgs("reply:123456:234567:9", "sent", "123").WillReturnResult(sqlmock.NewResult(0, 1))
+	ev := QQEvent{SelfID: "123456", UserID: "234567", MessageID: "9", Time: time.Now().Unix(), PostType: "message", MessageType: "private", SubType: "friend", Message: json.RawMessage(`[{"type":"text","data":{"text":"/sub"}}]`)}
+	body, _ := json.Marshal(ev)
+	if e := s.Webhook(context.Background(), body); e != nil {
+		t.Fatal(e)
+	}
+	for _, text := range []string{"控制台", "QQ 通知", "/sub 绑定", "/sub 余额", "/sub 套餐", "/sub 今日用量"} {
+		if !strings.Contains(reply, text) {
+			t.Errorf("missing help text %s", text)
+		}
+	}
+	if strings.Contains(reply, "当前余额") || strings.Contains(reply, "实际费用") {
+		t.Fatal("help contains account information")
+	}
+}
