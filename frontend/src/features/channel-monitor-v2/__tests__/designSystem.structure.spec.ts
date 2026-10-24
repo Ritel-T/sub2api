@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Structure contracts: channel-monitor-v2 + studio shells must use project
  * design-system utility classes rather than isolated flat RGB skins.

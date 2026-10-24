@@ -1,10 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, shallowMount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import { newBalancePurchase, readBalancePurchase, saveBalancePurchase } from '@/components/payment/balanceSubscriptionPurchase'
 import type { SubscriptionPlan } from '@/types/payment'
+
+// Always dispose watchers even when an assertion fails before a manual unmount.
+enableAutoUnmount(afterEach)
 
 const api = vi.hoisted(() => ({ checkout: vi.fn(), buy: vi.fn(), create: vi.fn(), refresh: vi.fn(), subscriptions: vi.fn(), quote: vi.fn(), refreshCurrent: vi.fn() }))
 const state = vi.hoisted(() => ({ auth: null as unknown as { user: { id: number, username: string, balance: number }, token: string }, subscriptions: [] as Array<Record<string, unknown>> }))
@@ -25,7 +28,7 @@ const plan: SubscriptionPlan = { id: 1, group_id: 3, group_platform: 'openai', g
   description: '', price: 138, currency: 'CNY', validity_days: 30, validity_unit: 'day', features: [], for_sale: true, sort_order: 0 }
 
 async function mountPage() {
-  const wrapper = shallowMount(PaymentView, { global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Teleport: true } } })
+  const wrapper = shallowMount(PaymentView, { global: { stubs: { AppHeading: false, AppLayout: { template: '<div><slot /></div>' }, Teleport: true } } })
   await flushPromises()
   return wrapper
 }
@@ -209,7 +212,7 @@ describe('subscription purchase using site credit', () => {
   it('ignores checkout responses after a mounted account change', async () => {
     let resolve!: (value: unknown) => void
     api.checkout.mockReturnValue(new Promise(r => { resolve = r }))
-    const wrapper = shallowMount(PaymentView, { global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Teleport: true } } })
+    const wrapper = shallowMount(PaymentView, { global: { stubs: { AppHeading: false, AppLayout: { template: '<div><slot /></div>' }, Teleport: true } } })
     state.auth.user.id = 8; state.auth.token = 'token-8'
     resolve({ data: { plans: [plan], methods: {}, balance_retail_pricing_enabled: true } }); await flushPromises()
     expect(wrapper.findComponent(SubscriptionPlanCard).exists()).toBe(false)

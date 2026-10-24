@@ -6,14 +6,20 @@
   "scripts": {
     "dev": "vite",
     "check:i18n": "vitest run src/i18n/__tests__/localeKeyCompleteness.spec.ts",
-    "build": "pnpm run check:i18n && vue-tsc -b && vite build",
+    "build": "pnpm run check:design && pnpm run check:i18n && vue-tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
-    "lint:check": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
+    "lint:check": "pnpm run check:design && pnpm run lint:code",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "check:design": "node scripts/check-typography.mjs && node scripts/check-confirmations.mjs && node scripts/check-controls.mjs",
+    "test:design": "node --test scripts/check-typography.test.mjs scripts/check-confirmations.test.mjs scripts/check-controls.test.mjs",
+    "lint:code": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
+    "verify:local": "pnpm run check:design && pnpm run lint:cached && pnpm run typecheck",
+    "verify:release": "pnpm run check:design && pnpm run test:design && pnpm run lint:code && pnpm run test:run && vue-tsc -b && vite build",
+    "lint:cached": "pnpm run lint:code --cache --cache-strategy content --cache-location node_modules/.cache/eslint"
   },
   "dependencies": {
     "@airwallex/components-sdk": "^1.30.2",

@@ -1,8 +1,8 @@
 <template>
   <div class="open-section">
-    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
+    <AppHeading as="h3" variant="subsection" class="mb-4 text-gray-900 dark:text-white">
       {{ t('payment.admin.dailyRevenue') }}
-    </h3>
+    </AppHeading>
     <div class="h-64">
       <div v-if="loading" class="flex h-full items-center justify-center">
         <LoadingSpinner size="md" />
@@ -19,6 +19,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'

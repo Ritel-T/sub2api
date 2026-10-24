@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import Select from '@/components/common/Select.vue'
@@ -16,13 +19,6 @@ const appStore = useAppStore()
 
 
 const PAGE_SIZE = 10
-
-const loading = ref(false)
-const loadingMore = ref(false)
-const events = ref<AlertEvent[]>([])
-const hasMore = ref(true)
-let listRequestId = 0
-onBeforeUnmount(() => { listRequestId++ })
 
 // Detail modal
 const showDetail = ref(false)
@@ -92,63 +88,22 @@ function buildQuery(overrides: Partial<AlertEventsQuery> = {}): AlertEventsQuery
   return { ...q, ...overrides }
 }
 
-async function loadFirstPage() {
-  const requestId = ++listRequestId
-  loadingMore.value = false
-  loading.value = true
-  try {
-    const data = await opsAPI.listAlertEvents(buildQuery())
-    if (requestId !== listRequestId) return
-    events.value = data
-    hasMore.value = data.length === PAGE_SIZE
-  } catch (err: any) {
-    if (requestId !== listRequestId) return
-    console.error('[OpsAlertEventsCard] Failed to load alert events', err)
-    appStore.showError(err?.response?.data?.detail || t('admin.ops.alertEvents.loadFailed'))
-    events.value = []
-    hasMore.value = false
-  } finally {
-    if (requestId === listRequestId) loading.value = false
-  }
-}
-
-async function loadMore() {
-  if (loadingMore.value || loading.value) return
-  if (!hasMore.value) return
-  const last = events.value[events.value.length - 1]
-  if (!last) return
-
-  const requestId = listRequestId
-  loadingMore.value = true
-  try {
-    const data = await opsAPI.listAlertEvents(
-      buildQuery({ before_fired_at: last.fired_at || last.created_at, before_id: last.id })
-    )
-    if (requestId !== listRequestId) return
-    if (!data.length) {
-      hasMore.value = false
-      return
+const cursors = new Map<number, Partial<AlertEventsQuery>>()
+const list = useInfiniteList<AlertEvent>({
+  pageSize: PAGE_SIZE, keyOf: event => event.id,
+  fetchPage: async (page, signal) => {
+    if (page === 1) cursors.clear()
+    const data = await opsAPI.listAlertEvents(buildQuery(cursors.get(page)))
+    if (!signal.aborted && data.length) {
+      const last = data[data.length - 1]
+      cursors.set(page + 1, { before_fired_at: last.fired_at || last.created_at, before_id: last.id })
     }
-    events.value = [...events.value, ...data]
-    if (data.length < PAGE_SIZE) hasMore.value = false
-  } catch (err: any) {
-    if (requestId !== listRequestId) return
-    console.error('[OpsAlertEventsCard] Failed to load more alert events', err)
-    hasMore.value = false
-  } finally {
-    if (requestId === listRequestId) loadingMore.value = false
+    return { items: data }
   }
-}
-
-const loadMoreTarget = ref<HTMLElement | null>(null)
-let loadMoreObserver: IntersectionObserver | null = null
-watch(loadMoreTarget, (target) => {
-  loadMoreObserver?.disconnect()
-  if (!target || typeof IntersectionObserver === 'undefined') return
-  loadMoreObserver = new IntersectionObserver(([entry]) => { if (entry?.isIntersecting) void loadMore() }, { rootMargin: '240px' })
-  loadMoreObserver.observe(target)
 })
-onBeforeUnmount(() => loadMoreObserver?.disconnect())
+const { items: events, loading, loadingMore, hasMore } = list
+const loadFirstPage = () => list.refresh()
+const loadMore = () => list.loadMore()
 
 function getDimensionString(event: AlertEvent | null | undefined, key: string): string {
   const v = event?.dimensions?.[key]
@@ -331,9 +286,7 @@ onMounted(() => {
 })
 
 watch([timeRange, severity, status, emailSent], () => {
-  events.value = []
-  hasMore.value = true
-  loadFirstPage()
+  void list.reset()
 })
 
 watch(historyRange, () => {
@@ -382,16 +335,16 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
   <div class="open-section">
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div>
-        <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('admin.ops.alertEvents.title') }}</h3>
+        <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.ops.alertEvents.title') }}</AppHeading>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.description') }}</p>
       </div>
 
       <div class="open-filter-toolbar flex flex-wrap items-center gap-2">
         <div ref="tableTools0" class="min-w-0" />
-        <Select :model-value="timeRange" :options="timeRangeOptions" class="w-[120px]" @change="timeRange = String($event || '24h')" />
-        <Select :model-value="severity" :options="severityOptions" class="w-[88px]" @change="severity = String($event || '')" />
-        <Select :model-value="status" :options="statusOptions" class="w-[110px]" @change="status = String($event || '')" />
-        <Select :model-value="emailSent" :options="emailSentOptions" class="w-[110px]" @change="emailSent = String($event || '')" />
+        <Select :aria-label="t('admin.dashboard.timeRange')" :model-value="timeRange" :options="timeRangeOptions" class="w-[120px]" @change="timeRange = String($event || '24h')" />
+        <Select :aria-label="t('common.severity')" :model-value="severity" :options="severityOptions" class="w-[88px]" @change="severity = String($event || '')" />
+        <Select :aria-label="t('common.status')" :model-value="status" :options="statusOptions" class="w-[110px]" @change="status = String($event || '')" />
+        <Select :aria-label="t('common.emailStatus')" :model-value="emailSent" :options="emailSentOptions" class="w-[110px]" @change="emailSent = String($event || '')" />
         <button
           class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
           :disabled="loading"
@@ -406,7 +359,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
     </div>
 
     <div v-if="loading" class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-      <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <svg role="status" :aria-label="t('common.loading')" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       </svg>
@@ -419,7 +372,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
 
     <div v-else class="open-section overflow-hidden">
       <div class="min-w-0">
-        <DataTable :toolbar-target="tableTools0"
+        <DataTable column-order-key="admin-ops-alert-events" :toolbar-target="tableTools0"
  :columns="openRecordColumns"
  :primary-columns="['time','status','title','duration']"
  :data="events" row-key="id"  clickable-rows @row-click="openDetail">
@@ -477,17 +430,12 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
                 </span>
               </div></template>
 </DataTable>
-        <button v-if="hasMore" ref="loadMoreTarget" type="button" class="btn btn-secondary my-5" :disabled="loadingMore || loading" @click="loadMore">{{ t('qualityOps.loadMore') }}</button>
-        <div v-if="loadingMore" class="flex items-center justify-center gap-2 py-3 text-xs text-gray-500 dark:text-gray-400">
-          <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          {{ t('admin.ops.alertEvents.loading') }}
-        </div>
+
 
       </div>
     </div>
+
+    <InfiniteListSentinel :loading="loading || loadingMore || list.refreshing.value" :error="list.error.value" :has-more="hasMore" @load-more="loadMore" @retry="list.retry" />
 
     <BaseDialog
       :show="showDetail"
@@ -527,7 +475,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
             <div class="flex flex-wrap gap-2">
               <div class="flex items-center gap-2 rounded-lg bg-white px-2 py-1 ring-1 ring-gray-200 dark:bg-dark-800 dark:ring-dark-700">
                 <span class="text-[11px] font-bold text-gray-600 dark:text-gray-300">{{ t('admin.ops.alertEvents.detail.silence') }}</span>
-                <Select
+                <Select :aria-label="t('admin.ops.alertEvents.detail.silence')"
                   :model-value="silenceDuration"
                   :options="silenceDurationOptions"
                   class="w-[110px]"
@@ -593,7 +541,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
               <div class="text-sm font-bold text-gray-900 dark:text-white">{{ t('admin.ops.alertEvents.detail.historyTitle') }}</div>
               <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.detail.historyHint') }}</div>
             </div>
-            <Select :model-value="historyRange" :options="historyRangeOptions" class="w-[140px]" @change="historyRange = String($event || '7d')" />
+            <Select :aria-label="t('admin.dashboard.timeRange')" :model-value="historyRange" :options="historyRangeOptions" class="w-[140px]" @change="historyRange = String($event || '7d')" />
           </div>
 
           <div v-if="historyLoading" class="py-6 text-center text-xs text-gray-500 dark:text-gray-400">

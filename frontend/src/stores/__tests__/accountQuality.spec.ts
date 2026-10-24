@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { reactive } from 'vue'
@@ -14,6 +15,7 @@ describe('quality workspace session state', () => {
   it('loads independent panels concurrently and retains visible rules while refreshing', async () => {
     const first = deferred<any[]>(); vi.mocked(listQualityPlans).mockReturnValueOnce(first.promise)
     const store = useAccountQualityStore(); const loading = store.refresh()
+    await Promise.resolve()
     expect(listQualityOperations).toHaveBeenCalled(); expect(getAllIncludingInactive).toHaveBeenCalled()
     first.resolve([{ id: 1, account_id: 12, account_name: 'named account' }]); await loading
     store.search = 'named'; const next = deferred<any[]>(); vi.mocked(listQualityPlans).mockReturnValueOnce(next.promise)
@@ -22,11 +24,43 @@ describe('quality workspace session state', () => {
     next.resolve([]); await refresh
   })
   it('discards a stale pagination response after a newer refresh', async () => {
-    const store = useAccountQualityStore(); store.operations = [{ id: 10 }] as any; store.cursor = 10
+    const store = useAccountQualityStore()
+    vi.mocked(listQualityOperations).mockResolvedValueOnce({ items: [{ id: 10 }] as any, next_cursor: 10 })
+    await store.refreshOperations()
     const append = deferred<any>(); vi.mocked(listQualityOperations).mockReturnValueOnce(append.promise).mockResolvedValueOnce({ items: [{ id: 20 }] as any, next_cursor: 0 })
-    const pending = store.refreshOperations(true); await store.refreshOperations()
+    const pending = store.refreshOperations(true); await Promise.resolve(); await store.refreshOperations()
     append.resolve({ items: [{ id: 9 }], next_cursor: 9 }); await pending
     expect(store.operations.map(o => o.id)).toEqual([20]); expect(store.cursor).toBe(0)
+  })
+  it('refreshes the loaded cursor window without dropping earlier pages', async () => {
+    vi.mocked(listQualityOperations).mockResolvedValueOnce({ items: [{ id: 20 }, { id: 19 }] as any, next_cursor: 19 }).mockResolvedValueOnce({ items: [{ id: 18 }, { id: 17 }] as any, next_cursor: 17 }).mockResolvedValueOnce({ items: [{ id: 21 }, { id: 20 }] as any, next_cursor: 20 }).mockResolvedValueOnce({ items: [{ id: 19 }, { id: 18 }] as any, next_cursor: 18 })
+    const store = useAccountQualityStore()
+    await store.refreshOperations(); await store.refreshOperations(true); await store.refreshOperations()
+    expect(vi.mocked(listQualityOperations).mock.calls.map(call => call[0])).toEqual([0, 19, 0, 20])
+    expect(store.operations.map(operation => operation.id)).toEqual([21, 20, 19, 18])
+    expect(store.cursor).toBe(18)
+  })
+  it('retains the loaded window on refresh failure and retries from its first cursor', async () => {
+    vi.mocked(listQualityOperations).mockResolvedValueOnce({ items: [{ id: 20 }] as any, next_cursor: 20 }).mockResolvedValueOnce({ items: [{ id: 19 }] as any, next_cursor: 19 }).mockResolvedValueOnce({ items: [{ id: 21 }] as any, next_cursor: 21 }).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ items: [{ id: 22 }] as any, next_cursor: 22 }).mockResolvedValueOnce({ items: [{ id: 21 }] as any, next_cursor: 0 })
+    const store = useAccountQualityStore()
+    await store.refreshOperations(); await store.refreshOperations(true); await store.refreshOperations()
+    expect(store.operations.map(operation => operation.id)).toEqual([20, 19])
+    expect(store.cursor).toBe(19); expect(store.operationsError).toBe('offline')
+    await store.retryOperations()
+    expect(vi.mocked(listQualityOperations).mock.calls.map(call => call[0])).toEqual([0, 20, 0, 21, 0, 22])
+    expect(store.operations.map(operation => operation.id)).toEqual([22, 21]); expect(store.cursor).toBe(0)
+  })
+  it('keeps append retry on the failed cursor and discards a response across an identity ABA change', async () => {
+    vi.mocked(listQualityOperations).mockResolvedValueOnce({ items: [{ id: 20 }] as any, next_cursor: 20 }).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ items: [{ id: 19 }] as any, next_cursor: 0 })
+    const store = useAccountQualityStore(); await store.refreshOperations(); await store.refreshOperations(true)
+    expect(store.operations.map(operation => operation.id)).toEqual([20]); await store.retryOperations()
+    expect(vi.mocked(listQualityOperations).mock.calls.map(call => call[0])).toEqual([0, 20, 20])
+    expect(store.operations.map(operation => operation.id)).toEqual([20, 19])
+    const late = deferred<any>(); vi.mocked(listQualityOperations).mockReturnValueOnce(late.promise)
+    const pending = store.refreshOperations(); await Promise.resolve()
+    state.auth.user = { id: 2, role: 'admin' }; state.auth.user = { id: 1, role: 'admin' }
+    late.resolve({ items: [{ id: 99 }], next_cursor: 99 }); await pending
+    expect(store.operations).toEqual([]); expect(store.cursor).toBe(0); expect(store.operationsLoaded).toBe(false)
   })
   it('clears cached data on logout and rejects an old session response', async () => {
     const store = useAccountQualityStore(); store.plans = [{ id: 1 }] as any

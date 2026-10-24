@@ -1,8 +1,8 @@
 <template>
   <div class="open-section">
-    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
+    <AppHeading as="h3" variant="subsection" class="mb-4 text-gray-900 dark:text-white">
       {{ t('payment.admin.topUsers') }}
-    </h3>
+    </AppHeading>
     <div
       v-if="!hasUsers(props.users)"
       class="flex h-32 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
@@ -38,6 +38,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { useI18n } from 'vue-i18n'
 import type { TopUserPaymentStats } from '@/types/payment'
 

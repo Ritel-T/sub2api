@@ -1,3 +1,4 @@
+@import url('./typography.css');
 @import url('./fonts/chiron/css/vf.css');
 @import url('./fonts/notosanscjkhk/fonts.css');
 @font-face{font-family:'Cinzel';src:url('./fonts/cinzel/Cinzel-variable.ttf') format('truetype');font-style:normal;font-weight:400 900;font-display:swap}
@@ -14,7 +15,8 @@
   --ritel-hover:#e8e4da;--ritel-selected:#e2ddd1;--ritel-selected-hover:#d6d0c2;
   --ritel-primary:#454238;--ritel-primary-hover:#27251f;--ritel-primary-soft:#e8e4da;
   --ritel-control-fill:#27251f;--ritel-control-hover:#454238;--ritel-on-control:#f7f5ef;
-  --ritel-control-border:#8c877b;--ritel-scrollbar:#a09a8d;
+  --ritel-field-height:44px;--ritel-field-height-compact:36px;--ritel-field-padding-block:10px;--ritel-field-padding-inline:16px;
+  --ritel-field-danger:#c94841;--ritel-control-border:#8c877b;--ritel-scrollbar:#a09a8d;
   --ritel-ui:'IBM Plex Sans','Noto Sans CJK HK',system-ui,'Microsoft JhengHei','Microsoft YaHei',sans-serif;
   --ritel-body:var(--ritel-ui);
   --ritel-display:'Cormorant Garamond','I.MingCP','Chiron Sung HK',Georgia,serif;
@@ -32,13 +34,12 @@
   --ritel-hover:#32322d;--ritel-selected:#383831;--ritel-selected-hover:#42423a;
   --ritel-primary:#eeece5;--ritel-primary-hover:#fffefa;--ritel-primary-soft:#32322d;
   --ritel-control-fill:#eeece5;--ritel-control-hover:#dcd9d0;--ritel-on-control:#232320;
-  --ritel-control-border:#858175;--ritel-scrollbar:#777469;
+  --ritel-field-danger:#ee9690;--ritel-control-border:#858175;--ritel-scrollbar:#777469;
 }
 .ritel-theme{font-family:var(--ritel-ui);font-synthesis:none;font-optical-sizing:auto;font-variant-numeric:lining-nums tabular-nums;background:var(--ritel-bg);color:var(--ritel-fg)}
 .ritel-theme :is(button,input,select,textarea){font-family:inherit;font-synthesis:none}
 .ritel-theme :is(code,pre,kbd,samp){font-family:var(--ritel-mono);font-synthesis:none}
-.ritel-theme h1,.ritel-display{font-family:var(--ritel-display);font-weight:600;font-synthesis:none}
-.ritel-theme :is(h2,h3){font-family:var(--ritel-ui);font-weight:600;font-synthesis:none}
+.ritel-display{font-family:var(--ritel-display);font-weight:600;font-synthesis:none}
 .ritel-heading{font-family:var(--ritel-heading);font-synthesis:none}
 .ritel-number-hero,[data-number=hero]{font-family:var(--ritel-heading);font-variant-numeric:oldstyle-nums proportional-nums;font-synthesis:none;letter-spacing:0}
 .ritel-number-display,[data-number=display]{font-family:var(--ritel-display);font-weight:500;font-variant-numeric:lining-nums proportional-nums;font-synthesis:none;letter-spacing:0}
@@ -51,7 +52,7 @@
    Avatars, status dots, radios, switches and spinners keep their functional circles. */
 .ritel-theme :where(button:not([role="switch"])){border-radius:var(--ritel-radius-control)}
 .ritel-theme :is(.button,.btn){border-radius:var(--ritel-radius-pill)}
-.ritel-theme :is(input:not([type="radio"]):not([type="checkbox"]):not([type="range"]),select,textarea){border-radius:var(--ritel-radius-field)}
+:where(.ritel-theme) :where(input:not([type="radio"]):not([type="checkbox"]):not([type="range"]),select,textarea){border-radius:var(--ritel-radius-field)}
 .ritel-theme :is(.card,.panel){border-radius:var(--ritel-radius-card)}
 .ritel-theme :is(dialog,.modal-content,.dialog-container){border-radius:var(--ritel-radius-dialog)}
 .ritel-theme :is([role="menu"],.dropdown){border-radius:var(--ritel-radius-menu)}

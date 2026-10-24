@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "rawHeadings": [
+    {
+      "file": "src/views/user/DashboardView.vue",
+      "tag": "h2",
+      "id": "overview-summary-title",
+      "class": "sr-only",
+      "expectedCount": 1,
+      "reason": "Accessible section name only; never a visible display heading."
+    },
+    {
+      "file": "src/components/admin/HarvestNodeRecords.vue",
+      "tag": "h3",
+      "id": "harvest-nodes-title",
+      "class": "sr-only",
+      "expectedCount": 1,
+      "reason": "Accessible region name only; never a visible display heading."
+    }
+  ],
+  "contentSelectors": [
+    {
+      "file": "src/components/modelPlaza/ModelPlazaContent.vue",
+      "selector": ".plaza-description :deep(h1),\n.plaza-description :deep(h2),\n.plaza-description :deep(h3)",
+      "expectedCount": 1,
+      "reason": "Sanitized administrator-authored model description rich text retains its document hierarchy."
+    },
+    {
+      "file": "src/views/user/CustomPageView.vue",
+      "selector": ".markdown-page-content h1",
+      "expectedCount": 1,
+      "reason": "Sanitized user-authored Markdown content retains its document hierarchy."
+    },
+    { "file": "src/views/user/CustomPageView.vue", "selector": ".markdown-page-content h2", "expectedCount": 1, "reason": "Sanitized user-authored Markdown document hierarchy." },
+    { "file": "src/views/user/CustomPageView.vue", "selector": ".markdown-page-content h3", "expectedCount": 1, "reason": "Sanitized user-authored Markdown document hierarchy." },
+    { "file": "src/views/user/CustomPageView.vue", "selector": ".markdown-page-content h4", "expectedCount": 1, "reason": "Sanitized user-authored Markdown document hierarchy." },
+    { "file": "src/styles/announcement-markdown.css", "selector": ".markdown-body h1", "expectedCount": 1, "reason": "Announcement rich text supplied by an administrator retains document hierarchy." },
+    { "file": "src/styles/announcement-markdown.css", "selector": ".markdown-body h2", "expectedCount": 1, "reason": "Announcement rich text supplied by an administrator retains document hierarchy." },
+    { "file": "src/styles/announcement-markdown.css", "selector": ".markdown-body h3", "expectedCount": 1, "reason": "Announcement rich text supplied by an administrator retains document hierarchy." },
+    { "file": "src/styles/announcement-markdown.css", "selector": ".markdown-body h4", "expectedCount": 1, "reason": "Announcement rich text supplied by an administrator retains document hierarchy." },
+    { "file": "src/views/public/LegalDocumentView.vue", "selector": ".legal-document-content :deep(h1)", "expectedCount": 1, "reason": "Rendered legal-document content; distinct from the authored page heading outside this wrapper." },
+    { "file": "src/views/public/LegalDocumentView.vue", "selector": ".legal-document-content :deep(h2)", "expectedCount": 1, "reason": "Rendered legal-document content hierarchy." },
+    { "file": "src/views/public/LegalDocumentView.vue", "selector": ".legal-document-content :deep(h3)", "expectedCount": 1, "reason": "Rendered legal-document content hierarchy." },
+    { "file": "src/views/public/LegalDocumentView.vue", "selector": ".legal-document-content :deep(h4)", "expectedCount": 1, "reason": "Rendered legal-document content hierarchy." },
+    { "file": "src/components/admin/AdminComplianceDialog.vue", "selector": ".legal-document-content :deep(h1)", "expectedCount": 1, "reason": "Rendered administrator legal-document content, outside the authored dialog title." },
+    { "file": "src/components/admin/AdminComplianceDialog.vue", "selector": ".legal-document-content :deep(h2)", "expectedCount": 1, "reason": "Rendered administrator legal-document content hierarchy."
+    }
+  ]
+}

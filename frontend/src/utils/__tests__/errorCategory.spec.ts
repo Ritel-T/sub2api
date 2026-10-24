@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { mapErrorCategory } from '../errorCategory'
 import { numericRequestTypeKind } from '../errorBadges'

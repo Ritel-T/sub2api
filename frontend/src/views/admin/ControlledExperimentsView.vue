@@ -1,8 +1,8 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page space-y-6">
       <header class="flex flex-wrap items-start justify-between gap-4">
-        <div><h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ t('controlledExperiments.title') }}</h1><p class="mt-2 max-w-4xl text-sm leading-6 text-gray-500">{{ t('controlledExperiments.intro') }}</p></div>
+        <div><AppHeading variant="page" as="h1" class="text-gray-900 dark:text-gray-100">{{ t('controlledExperiments.title') }}</AppHeading><p class="mt-2 max-w-4xl text-sm leading-6 text-gray-500">{{ t('controlledExperiments.intro') }}</p></div>
         <button class="btn btn-secondary" :disabled="loading || busy" @click="refresh">{{ t('controlledExperiments.refresh') }}</button>
       </header>
       <p v-if="error" role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{{ error }}</p>
@@ -55,16 +55,16 @@
 
       <div class="grid items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside class="open-section">
-          <h2 class="mb-4 font-semibold">{{ t('controlledExperiments.history') }}</h2>
+          <AppHeading variant="section" as="h2" class="mb-4">{{ t('controlledExperiments.history') }}</AppHeading>
           <p v-if="!runs.length" class="py-6 text-sm text-gray-500">{{ loading ? t('controlledExperiments.loading') : t('controlledExperiments.empty') }}</p>
           <button v-for="run in runs" :key="run.id" class="mb-2 w-full rounded-lg border p-3 text-left text-sm" :class="selectedId === run.id ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-700'" @click="selectRun(run.id)">
             <strong class="block truncate">#{{ run.id }} · {{ run.name }}</strong><span class="mt-1 block text-xs text-gray-500">{{ stateLabel(run.status) }} · {{ run.reserved_calls }}/{{ run.max_calls }}</span><time class="mt-1 block text-xs text-gray-400">{{ date(run.created_at) }}</time>
           </button>
-          <button v-if="hasMore" class="btn btn-secondary w-full" :disabled="loading" @click="loadMore">{{ t('controlledExperiments.more') }}</button>
+          <InfiniteListSentinel :loading="loading || runList.loading.value || runList.loadingMore.value || runList.refreshing.value" :error="runList.error.value" :has-more="runList.hasMore.value" @load-more="runList.loadMore" @retry="runList.retry" />
         </aside>
         <section v-if="report" class="min-w-0 space-y-5" aria-live="polite">
           <div class="open-section p-5">
-            <div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="font-semibold">#{{ report.run.id }} · {{ report.run.name }}</h2><p class="mt-1 text-sm text-gray-500">{{ stateLabel(report.run.status) }} · {{ t('controlledExperiments.budget', { used: report.run.reserved_calls, limit: report.run.max_calls }) }}</p></div><button class="btn btn-secondary" @click="exportReport">{{ t('controlledExperiments.export') }}</button></div>
+            <div class="flex flex-wrap items-center justify-between gap-3"><div><AppHeading variant="section" as="h2">#{{ report.run.id }} · {{ report.run.name }}</AppHeading><p class="mt-1 text-sm text-gray-500">{{ stateLabel(report.run.status) }} · {{ t('controlledExperiments.budget', { used: report.run.reserved_calls, limit: report.run.max_calls }) }}</p></div><button class="btn btn-secondary" @click="exportReport">{{ t('controlledExperiments.export') }}</button></div>
             <p class="mt-4 break-words text-sm"><span class="text-gray-500">{{ t('controlledExperiments.configuration') }}</span> · <code>{{ report.run.spec.model }}</code> · {{ report.run.spec.reasoning_effort }} · {{ report.run.spec.suite_version }} · {{ t('controlledExperiments.repetitions') }} {{ report.run.spec.repetitions }}</p>
             <p v-if="report.run.stop_reason" class="mt-2 text-xs text-gray-500">{{ report.run.stop_reason }}</p>
             <div class="mt-4 flex flex-wrap gap-3">
@@ -74,7 +74,7 @@
           </div>
           <div class="grid gap-4 xl:grid-cols-2">
             <article v-for="summary in report.routes" :key="summary.route_index" class="open-section p-5">
-              <h3 class="font-semibold">{{ routeLabel(summary.route_index) }}</h3>
+              <AppHeading variant="subsection" as="h3">{{ routeLabel(summary.route_index) }}</AppHeading>
               <p class="mt-2 break-words text-xs text-gray-500" data-testid="experiment-frozen-route">{{ t('controlledExperiments.mappedModel') }}: {{ report.run.spec.routes[summary.route_index].mapped_model }} · {{ t('controlledExperiments.parentAccount') }}: {{ report.run.spec.routes[summary.route_index].parent_account_id ?? '—' }} · {{ t('controlledExperiments.proxy') }}: {{ report.run.spec.routes[summary.route_index].proxy_id ?? '—' }}</p>
               <p class="mt-1 text-sm text-gray-500">{{ t('controlledExperiments.eligibility') }} · {{ stateLabel(summary.eligibility) }}</p>
               <p v-if="preflightFor(summary.route_index)" class="mt-2 break-words text-xs text-gray-500">{{ t('controlledExperiments.preflight') }}: {{ preflightLabel(preflightFor(summary.route_index)?.reason || '') }} · {{ t('controlledExperiments.catalog') }}: {{ preflightFor(summary.route_index)?.catalog }}</p>
@@ -94,11 +94,11 @@
             </article>
           </div>
           <article v-if="report.comparisons.length" class="open-section p-5">
-            <h3 class="font-semibold">{{ t('controlledExperiments.comparisons') }}</h3><p class="mb-4 mt-2 text-xs leading-5 text-gray-500">{{ t('controlledExperiments.comparisonHint') }}</p>
+            <AppHeading variant="subsection" as="h3">{{ t('controlledExperiments.comparisons') }}</AppHeading><p class="mb-4 mt-2 text-xs leading-5 text-gray-500">{{ t('controlledExperiments.comparisonHint') }}</p>
             <div class="overflow-x-auto"><table class="experiment-table"><thead><tr><th>{{ t('controlledExperiments.pair') }}</th><th>{{ t('controlledExperiments.paired') }}</th><th>{{ t('controlledExperiments.excluded') }}</th><th>{{ t('controlledExperiments.leftScore') }}</th><th>{{ t('controlledExperiments.rightScore') }}</th><th>{{ t('controlledExperiments.difference') }}</th></tr></thead><tbody><tr v-for="pair in report.comparisons" :key="`${pair.left}/${pair.right}`"><td>{{ pair.left + 1 }} ↔ {{ pair.right + 1 }}</td><td>{{ pair.paired_tasks }}</td><td>{{ pair.excluded_tasks }}</td><td>{{ percentage(pair.left_mean) }}</td><td>{{ percentage(pair.right_mean) }}</td><td>{{ percentage(pair.mean_difference) }}</td></tr></tbody></table></div>
           </article>
           <article class="open-section p-5">
-            <h3 class="mb-4 font-semibold">{{ t('controlledExperiments.submissions') }}</h3>
+            <AppHeading variant="subsection" as="h3" class="mb-4">{{ t('controlledExperiments.submissions') }}</AppHeading>
             <div class="overflow-x-auto"><table class="experiment-table"><thead><tr><th>{{ t('controlledExperiments.sequence') }}</th><th>{{ t('controlledExperiments.task') }}</th><th>{{ t('controlledExperiments.actual') }}</th><th>{{ t('controlledExperiments.result') }}</th><th>{{ t('controlledExperiments.score') }}</th><th>{{ t('controlledExperiments.evidence') }}</th></tr></thead><tbody>
               <tr v-for="attempt in report.attempts" :key="attempt.sequence" data-testid="experiment-attempt">
                 <td>{{ attempt.sequence }}</td><td><div>{{ attempt.phase === 'eligibility' ? t('controlledExperiments.eligibilityProbe') : attempt.task_id }}</div><div class="text-xs text-gray-400">{{ attempt.repetition }} / {{ attempt.turn }}</div></td>
@@ -117,18 +117,33 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { list as listAccounts } from '@/api/admin/accounts'
 import { controlledExperimentsAPI, type ExperimentChannel, type ExperimentInput, type ExperimentReport, type ExperimentRun, type ExperimentTask } from '@/api/admin/controlledExperiments'
 
 const { t, te } = useI18n()
 const channels: ExperimentChannel[] = ['native_http', 'native_ws', 'prism', 'bps']
 const efforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']
-const accounts = ref<{ id: number; name: string }[]>([]), tasks = ref<ExperimentTask[]>([]), runs = ref<ExperimentRun[]>([])
+const accounts = ref<{ id: number; name: string }[]>([]), tasks = ref<ExperimentTask[]>([])
 const report = ref<ExperimentReport | null>(null), selectedId = ref<number | null>(null)
-const loading = ref(false), busy = ref(false), error = ref(''), hasMore = ref(false)
+const loading = ref(false), busy = ref(false), error = ref('')
+const runCursors = new Map<number, number>()
+const runList = useInfiniteList<ExperimentRun>({
+  pageSize: 30, keyOf: run => run.id,
+  fetchPage: async (page, signal) => {
+    if (page === 1) runCursors.clear()
+    const data = await controlledExperimentsAPI.list(runCursors.get(page) ?? 0)
+    if (!signal.aborted && data.length) runCursors.set(page + 1, data[data.length - 1].id)
+    return { items: data }
+  }
+})
+const { items: runs } = runList
+
 const configurationReady = ref(false)
 const form = reactive<ExperimentInput>({ name: t('controlledExperiments.newRun'), model: 'gpt-6.1-sol', reasoning_effort: 'high', split: 'screen', repetitions: 1, max_calls: 50, timeout_seconds: 720, task_ids: [], routes: [{ account_id: 0, channel: 'native_http' }] })
 const splitTasks = computed(() => tasks.value.filter(task => task.split === form.split))
@@ -176,22 +191,18 @@ async function refresh() {
   loading.value = true; error.value = ''
   try {
     await loadConfiguration()
-    const data = await controlledExperimentsAPI.list()
-    runs.value = data; hasMore.value = data.length === 30
+    await runList.refresh()
+    const data = runs.value
     if (selectedId.value) await loadReport()
     else if (data.length) await selectRun(data[0].id)
   } catch (err) { showError(err) } finally { loading.value = false; schedulePoll() }
-}
-async function loadMore() {
-  loading.value = true
-  try { const data = await controlledExperimentsAPI.list(runs.value.at(-1)?.id); runs.value.push(...data); hasMore.value = data.length === 30 } catch (err) { showError(err) } finally { loading.value = false }
 }
 async function create() {
   if (!validForm.value || busy.value) return
   busy.value = true; error.value = ''
   try {
     const run = await controlledExperimentsAPI.create({ ...form, task_ids: [...form.task_ids], routes: form.routes.map(route => ({ ...route })) })
-    runs.value.unshift(run); await selectRun(run.id)
+    await selectRun(run.id); await runList.refresh()
   } catch (err) { showError(err) } finally { busy.value = false }
 }
 async function start() {

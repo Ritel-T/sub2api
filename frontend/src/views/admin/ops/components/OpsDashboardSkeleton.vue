@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
 interface Props {
   fullscreen?: boolean
 }
@@ -9,7 +10,7 @@ const props = withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <LoadingRegion class="space-y-6">
     <!-- Header (matches OpsDashboardHeader + overview blocks) -->
     <div :class="['rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700', props.fullscreen ? 'p-8' : 'p-6']">
       <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-4 dark:border-dark-700">
@@ -98,5 +99,5 @@ const props = withDefaults(defineProps<Props>(), {
         </div>
       </div>
     </div>
-  </div>
+  </LoadingRegion>
 </template>

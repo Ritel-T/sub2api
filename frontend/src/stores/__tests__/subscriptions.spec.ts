@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useSubscriptionStore } from '@/stores/subscriptions'
+import type { UserSubscription } from '@/types'
 
 // Mock subscriptions API
 const mockGetActiveSubscriptions = vi.fn()
@@ -44,15 +45,25 @@ const fakeSubscriptions = [
   },
 ]
 
+function deferred() {
+  let resolve!: (value: UserSubscription[]) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<UserSubscription[]>((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
+}
+
 describe('useSubscriptionStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()
-    vi.clearAllMocks()
+    mockGetActiveSubscriptions.mockReset()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {
+    vi.clearAllTimers()
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   // --- fetchActiveSubscriptions ---
@@ -234,6 +245,41 @@ describe('useSubscriptionStore', () => {
 
       vi.advanceTimersByTime(10 * 60 * 1000)
       expect(mockGetActiveSubscriptions).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('clearing in-flight subscriptions', () => {
+    it.each(['resolve', 'reject'] as const)('resets loading immediately and after the old request %s', async (outcome) => {
+      const pending = deferred()
+      mockGetActiveSubscriptions.mockReturnValueOnce(pending.promise)
+      const store = useSubscriptionStore()
+      const request = store.fetchActiveSubscriptions().catch(() => [])
+      expect(store.loading).toBe(true)
+      store.clear()
+      expect(store.loading).toBe(false)
+      if (outcome === 'resolve') pending.resolve([{ id: 1 } as UserSubscription])
+      else pending.reject(new Error('offline'))
+      await request
+      expect(store.loading).toBe(false)
+      expect(store.activeSubscriptions).toEqual([])
+    })
+
+    it('keeps a new request loading when an older cleared request finishes', async () => {
+      const older = deferred()
+      const newer = deferred()
+      mockGetActiveSubscriptions.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
+      const store = useSubscriptionStore()
+      const first = store.fetchActiveSubscriptions()
+      store.clear()
+      const second = store.fetchActiveSubscriptions()
+      older.resolve([{ id: 1 } as UserSubscription])
+      await first
+      expect(store.loading).toBe(true)
+      expect(store.activeSubscriptions).toEqual([])
+      newer.resolve([{ id: 2 } as UserSubscription])
+      await second
+      expect(store.loading).toBe(false)
+      expect(store.activeSubscriptions.map(item => item.id)).toEqual([2])
     })
   })
 })

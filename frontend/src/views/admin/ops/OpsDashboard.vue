@@ -1,5 +1,5 @@
 <template>
-  <component :is="isFullscreen ? 'div' : AppLayout" :class="isFullscreen ? 'flex min-h-screen flex-col justify-center bg-gray-50 dark:bg-dark-950' : ''">
+  <component :show-page-title="!opsEnabled || (loading && !hasLoadedOnce)" :is="isFullscreen ? 'div' : AppLayout" :class="isFullscreen ? 'flex min-h-screen flex-col justify-center bg-gray-50 dark:bg-dark-950' : ''">
     <div :class="[isFullscreen ? 'p-4 md:p-6' : '', 'open-page space-y-10 pb-12']">
       <div
         v-if="errorMessage"

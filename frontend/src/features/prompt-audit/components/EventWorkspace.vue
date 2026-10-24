@@ -2,7 +2,7 @@
   <section aria-labelledby="prompt-events-title" class="py-6">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 id="prompt-events-title" class="text-base font-semibold text-gray-950 dark:text-white">{{ t('admin.promptAudit.events.title') }}</h2>
+        <AppHeading as="h2" variant="section" id="prompt-events-title" class="text-gray-950 dark:text-white">{{ t('admin.promptAudit.events.title') }}</AppHeading>
         <p class="mt-1 text-sm text-gray-500 dark:text-dark-300">{{ t('admin.promptAudit.events.description') }}</p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -56,7 +56,7 @@
       </div>
     </form>
     <div v-if="error" role="alert" class="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{{ error }}</div>
-    <div class="mt-6 min-w-0 overflow-x-auto">
+    <div class="mt-6 min-w-0 overflow-x-auto overflow-y-hidden">
       <DataTable
         column-order-key="table-columns:prompt-audit-events:v1"
         :columns="columns"
@@ -105,6 +105,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, defineComponent, h, reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'

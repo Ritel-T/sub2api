@@ -46,7 +46,9 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       checker({
-        vueTsc: true
+        vueTsc: true,
+        // build and verify:release run vue-tsc before bundling; keep live dev checks.
+        enableBuild: false
       }),
       injectPublicSettings(backendUrl)
     ],

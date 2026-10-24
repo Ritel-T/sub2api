@@ -228,21 +228,21 @@ onBeforeUnmount(() => { if (searchTimeout) window.clearTimeout(searchTimeout) })
           </div>
 
           <div class="compact-select">
-            <Select :model-value="statusCode" :options="statusCodeSelectOptions" @update:model-value="statusCode = $event as any" />
+            <Select :aria-label="t('admin.ops.errorLog.status')" :model-value="statusCode" :options="statusCodeSelectOptions" @update:model-value="statusCode = $event as any" />
           </div>
 
           <div class="compact-select">
-            <Select :model-value="phase" :options="phaseSelectOptions" @update:model-value="phase = String($event ?? '')" />
+            <Select :aria-label="t('admin.ops.errorLog.type')" :model-value="phase" :options="phaseSelectOptions" @update:model-value="phase = String($event ?? '')" />
           </div>
 
           <div class="compact-select">
-            <Select :model-value="errorOwner" :options="ownerSelectOptions" @update:model-value="errorOwner = String($event ?? '')" />
+            <Select :aria-label="t('common.errorOwner')" :model-value="errorOwner" :options="ownerSelectOptions" @update:model-value="errorOwner = String($event ?? '')" />
           </div>
 
 
 
           <div class="compact-select">
-            <Select :model-value="viewMode" :options="viewModeSelectOptions" @update:model-value="viewMode = $event as any" />
+            <Select :aria-label="t('common.viewMode')" :model-value="viewMode" :options="viewModeSelectOptions" @update:model-value="viewMode = $event as any" />
           </div>
 
           <div class="flex items-center justify-end">

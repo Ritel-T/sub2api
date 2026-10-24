@@ -17,7 +17,7 @@ beforeEach(() => {
 })
 
 async function openCodeStep() {
-  const wrapper = mount(TotpSetupModal, { attachTo: document.body })
+  const wrapper = mount(TotpSetupModal, { attachTo: document.body, global: { stubs: { teleport: true } } })
   await flushPromises()
   await wrapper.get('input[type="password"]').setValue('password')
   await wrapper.get('.btn-primary').trigger('click')

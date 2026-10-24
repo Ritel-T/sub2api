@@ -1,6 +1,6 @@
 <template>
   <section class="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-dark-600" data-test="cyber-evidence">
-    <h3 class="font-semibold">{{ t('admin.riskControl.evidence.title') }}</h3>
+    <AppHeading as="h3" variant="subsection" >{{ t('admin.riskControl.evidence.title') }}</AppHeading>
     <p class="text-sm text-gray-500">{{ t('admin.riskControl.evidence.scope') }}</p>
     <p class="text-sm text-amber-700 dark:text-amber-300">{{ t('admin.riskControl.evidence.score') }}</p>
     <button type="button" class="btn btn-secondary" :disabled="busy" @click="load">{{ t('admin.riskControl.evidence.load') }}</button>
@@ -12,9 +12,9 @@
       <template v-else>
         <p class="text-sm">{{ record.payload.redaction_version }} · {{ record.payload.source }} · HTTP {{ record.payload.upstream_http_status ?? '-' }} · {{ record.payload.original_bytes }} bytes · {{ t(record.payload.truncated ? 'admin.riskControl.evidence.truncated' : 'admin.riskControl.evidence.complete') }}</p>
         <p class="text-sm">{{ t('admin.riskControl.evidence.expires') }}: {{ record.expires_at || '-' }}</p>
-        <h4 class="font-medium">{{ t('admin.riskControl.evidence.input') }}</h4>
+        <AppHeading as="h4" variant="minor" >{{ t('admin.riskControl.evidence.input') }}</AppHeading>
         <pre class="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-950 p-4 text-sm text-gray-100">{{ formattedInput }}</pre>
-        <h4 class="font-medium">{{ t('admin.riskControl.evidence.reason') }}</h4>
+        <AppHeading as="h4" variant="minor" >{{ t('admin.riskControl.evidence.reason') }}</AppHeading>
         <pre class="max-h-40 overflow-auto whitespace-pre-wrap break-words text-sm">{{ record.payload.upstream_reason || '-' }}</pre>
         <p class="text-xs text-gray-500">{{ t('admin.riskControl.evidence.redaction') }}</p>
       </template>
@@ -27,6 +27,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { deleteEvidence, exportEvidence, getEvidence, type CyberEvidence } from '@/api/admin/cyberEvidence'

@@ -9,7 +9,7 @@
       {{ t(siteMode === 'v2' ? 'channelMonitorV3.admin.modeBannerV2' : 'channelMonitorV3.admin.modeBanner', { mode: t(`channelMonitorV3.modes.${siteMode}`) }) }}
     </div>
 
-    <div v-if="loading && !settings" class="h-64 animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-800" />
+    <LoadingRegion v-if="loading && !settings" class="h-64 animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-800" />
     <p v-else-if="loadError" class="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-200">{{ loadError }}</p>
 
     <template v-else-if="settings && draft">
@@ -17,7 +17,7 @@
         <!-- Page-wide settings -->
         <div class="card min-w-0 !rounded-2xl" data-testid="monitor-v3-config">
           <div class="border-b border-gray-100 px-5 py-4 dark:border-dark-700">
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV3.admin.pageSettings') }}</h3>
+            <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('channelMonitorV3.admin.pageSettings') }}</AppHeading>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.admin.pageSettingsHint') }}</p>
             <p class="mt-2 text-xs" :class="stale ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'" data-testid="monitor-v3-freshness">
               {{ freshness }}
@@ -104,7 +104,7 @@
         <div class="card min-w-0 !rounded-2xl" data-testid="monitor-v3-layout">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
             <div>
-              <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV3.admin.components') }}</h3>
+              <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('channelMonitorV3.admin.components') }}</AppHeading>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.admin.componentsHint') }}</p>
             </div>
             <div class="flex gap-2">
@@ -192,7 +192,7 @@
       <div class="card !rounded-2xl" data-testid="monitor-v3-preview">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
           <div>
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV3.admin.preview') }}</h3>
+            <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('channelMonitorV3.admin.preview') }}</AppHeading>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.admin.previewHint') }}</p>
           </div>
           <router-link v-if="siteMode === 'v3'" to="/monitor" target="_blank" class="btn btn-secondary btn-sm">
@@ -240,7 +240,7 @@
       </template>
     </BaseDialog>
 
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteAction.busy.value"
       :show="deleting !== null"
       :title="t('common.delete')"
       :message="deleting ? t(deleting.kind === 'category' ? 'channelMonitorV3.admin.deleteCategoryConfirm' : 'channelMonitorV3.admin.deleteComponentConfirm', { name: deleting.name }) : ''"
@@ -255,9 +255,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
@@ -497,17 +500,22 @@ function moveComponent(section: Section, id: number, offset: number) {
   void persistOrder([], all)
 }
 
-async function confirmDelete() {
-  const target = deleting.value
-  deleting.value = null
-  if (!target) return
-  try {
-    if (target.kind === 'category') await deleteCategory(target.id)
-    else await deleteComponent(target.id)
-    await refreshAll()
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('channelMonitorV3.admin.saveFailed')))
-  }
+function confirmDelete() {
+  return confirmDeleteAction.run(async (isCurrent) => {
+    const target = deleting.value
+    if (!target) return
+    try {
+      if (target.kind === 'category') await deleteCategory(target.id)
+      else await deleteComponent(target.id)
+      if (!isCurrent()) return
+      deleting.value = null
+      await refreshAll()
+      if (!isCurrent()) return
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      appStore.showError(extractApiErrorMessage(err, t('channelMonitorV3.admin.saveFailed')))
+    }
+  })
 }
 
 onMounted(() => {
@@ -515,6 +523,10 @@ onMounted(() => {
   void loadPreview(null)
   void loadGroups()
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const confirmDeleteAction = useConfirmedAction(() => ({ active: deleting.value !== null, identity: deleting.value ? [deleting.value.kind, deleting.value.id] : null }))
+watch(() => ({ active: deleting.value !== null, identity: JSON.stringify(deleting.value ? [deleting.value.kind, deleting.value.id] : null) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { deleting.value = null } }, { flush: 'sync' })
 </script>
 
 <style scoped>

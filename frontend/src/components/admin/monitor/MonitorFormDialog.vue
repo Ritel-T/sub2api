@@ -57,7 +57,7 @@
           {{ t('admin.channelMonitor.form.linkedAccount') }} <span class="text-red-500">*</span>
         </label>
         <div data-testid="monitor-linked-account">
-          <Select
+          <Select :aria-label="t('admin.channelMonitor.form.linkedAccount')"
             v-model="accountSelectValue"
             :options="accountOptions"
             :placeholder="t('admin.channelMonitor.form.linkedAccountPlaceholder')"
@@ -167,7 +167,7 @@
 
       <div class="flex items-center justify-between">
         <label class="input-label mb-0">{{ t('admin.channelMonitor.form.enabled') }}</label>
-        <Toggle v-model="form.enabled" />
+        <Toggle :aria-label="t('admin.channelMonitor.form.enabled')" v-model="form.enabled" />
       </div>
 
       <!-- 高级设置区：请求模板 + 自定义 headers/body（仅探活模式有意义） -->
@@ -180,7 +180,7 @@
         <div class="mt-4 space-y-4">
           <div>
             <label class="input-label">{{ t('admin.channelMonitor.templateField.label') }}</label>
-            <Select
+            <Select :aria-label="t('admin.channelMonitor.templateField.label')"
               v-model="templateSelectValue"
               :options="templateOptions"
               :placeholder="t('admin.channelMonitor.templateField.placeholder')"

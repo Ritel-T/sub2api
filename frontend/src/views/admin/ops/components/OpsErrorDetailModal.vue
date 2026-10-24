@@ -2,7 +2,7 @@
   <BaseDialog :show="show" :title="title" width="full" :close-on-click-outside="true" @close="close">
     <div v-if="loading" class="flex items-center justify-center py-16">
       <div class="flex flex-col items-center gap-3">
-        <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
+        <div role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
         <div class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ t('admin.ops.errorDetail.loading') }}</div>
       </div>
     </div>
@@ -130,12 +130,12 @@
       </div>
 
       <div v-if="rootCauseMessage" class="rounded-xl bg-amber-50 p-6 dark:bg-amber-900/10">
-        <h3 class="text-sm font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">{{ t('admin.ops.errorDetail.rootCause') }}</h3>
+        <AppHeading variant="subsection" as="h3" class="text-amber-900 dark:text-amber-200">{{ t('admin.ops.errorDetail.rootCause') }}</AppHeading>
         <div class="mt-3 break-words text-sm font-medium text-amber-900 dark:text-amber-100">{{ rootCauseMessage }}</div>
       </div>
 
       <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
-        <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.diagnosticPayloads') }}</h3>
+        <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.diagnosticPayloads') }}</AppHeading>
         <div v-if="!diagnosticPayloadSections.length" class="mt-4 text-sm text-gray-500 dark:text-gray-400">{{ t('common.noData') }}</div>
         <div v-else class="mt-4 space-y-4">
           <div v-for="section in diagnosticPayloadSections" :key="section.key">
@@ -148,7 +148,7 @@
       <!-- Upstream errors list (only for request errors) -->
       <div v-if="showUpstreamList" class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetails.upstreamErrors') }}</h3>
+          <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.ops.errorDetails.upstreamErrors') }}</AppHeading>
           <div class="text-xs text-gray-500 dark:text-gray-400" v-if="correlatedUpstreamLoading">{{ t('common.loading') }}</div>
         </div>
 
@@ -229,6 +229,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { balanceErrorSource } from '../utils/balanceError'
 import { computed, ref, watch, inject } from 'vue'
 import { observerUsageAPI } from '@/api/observerUsage'

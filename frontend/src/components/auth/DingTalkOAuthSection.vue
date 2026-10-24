@@ -14,7 +14,7 @@
         <text
           x="12"
           y="17"
-          font-family="IBM Plex Sans, Noto Sans CJK HK, sans-serif"
+          font-family="var(--ritel-ui)"
           font-size="13"
           font-weight="bold"
           fill="white"

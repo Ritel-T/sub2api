@@ -363,3 +363,16 @@ describe('PelicanTestsView', () => {
     expect(signal.aborted).toBe(true)
   })
 })
+
+
+it('names each independent initial settings and plan loading region once', () => {
+  api.getShowcaseSettings.mockReturnValue(new Promise(() => {}))
+  api.listPlans.mockReturnValue(new Promise(() => {}))
+  wrapper = mountView()
+  for (const selector of ['[data-testid="pelican-showcase-settings"]', '[data-testid="pelican-group-tests"]']) {
+    const statuses = wrapper.get(selector).findAll('[role="status"]')
+    expect(statuses).toHaveLength(1)
+    expect(statuses[0].attributes('aria-label')).toBe('common.loading')
+    expect(statuses[0].attributes('aria-busy')).toBe('true')
+  }
+})

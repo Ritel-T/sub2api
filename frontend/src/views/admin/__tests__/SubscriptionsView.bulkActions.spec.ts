@@ -36,7 +36,7 @@ function mountView() {
         AppLayout: { template: '<div><slot /></div>' },
         TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
         DataTable: { name: 'DataTable', props: ['columns', 'data', 'selectedKeys'], emits: ['update:selectedKeys', 'sort', 'column-reorder'], template: '<div />' },
-        BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' },
+        BaseDialog: { name: 'BaseDialog', props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' },
         Pagination: true, Select: true, ConfirmDialog: true, Icon: true,
         GroupBadge: true, GroupOptionItem: true, EmptyState: true, Teleport: true, RouterLink: true
       }
@@ -67,6 +67,17 @@ async function select(ids: number[]) {
 }
 
 describe('subscription bulk operations', () => {
+  it('uses the shared dialog for the subscription guide and closes through its event', async () => {
+    (wrapper.vm as any).showGuideModal = true
+    await flushPromises()
+    const dialog = wrapper.findAllComponents({ name: 'BaseDialog' }).find(node => node.props('show'))!
+    expect(dialog).toBeDefined()
+    expect(dialog.text()).toContain('admin.subscriptions.guide.subtitle')
+    dialog.vm.$emit('close')
+    await flushPromises()
+    expect((wrapper.vm as any).showGuideModal).toBe(false)
+  })
+
   it('retains every field and persists main-row placement independently of free ordering and reset', async () => {
     wrapper.unmount()
     localStorage.setItem('subscription-hidden-columns', JSON.stringify(['usage', 'group']))

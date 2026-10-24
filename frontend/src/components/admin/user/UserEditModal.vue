@@ -31,7 +31,7 @@
       </div>
       <div>
         <label class="input-label">{{ t('admin.users.form.roleLabel') }}</label>
-        <Select
+        <Select :aria-label="t('admin.users.form.roleLabel')"
           v-model="form.role"
           :options="roleOptions"
           :searchable="false"

@@ -7,7 +7,7 @@
         <Icon name="link" size="md" class="text-white" />
       </div>
       <div class="flex-1">
-        <h4 class="mb-3 font-semibold text-primary-900 dark:text-primary-200">{{ oauthTitle }}</h4>
+        <AppHeading as="h4" variant="minor" class="mb-3 text-primary-900 dark:text-primary-200">{{ oauthTitle }}</AppHeading>
 
         <!-- Auth Method Selection -->
         <div v-if="showMethodSelection" class="mb-4">
@@ -589,9 +589,9 @@
               v-if="showHelpDialog && showHelp"
               class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30"
             >
-              <h5 class="mb-2 font-semibold text-amber-800 dark:text-amber-200">
+              <AppHeading as="h5" variant="minor" class="mb-2 text-amber-800 dark:text-amber-200">
                 {{ t('admin.accounts.oauth.howToGetSessionKey') }}
-              </h5>
+              </AppHeading>
               <ol
                 class="list-inside list-decimal space-y-1 text-xs text-amber-700 dark:text-amber-300"
               >
@@ -895,6 +895,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useClipboard } from '@/composables/useClipboard'

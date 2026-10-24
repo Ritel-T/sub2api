@@ -2,9 +2,9 @@
   <section v-if="state?.eligible" class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600" data-testid="ollama-cloud-usage-settings">
     <div class="flex items-start justify-between gap-4">
       <div>
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+        <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
           {{ t('admin.accounts.ollamaCloud.title') }}
-        </h3>
+        </AppHeading>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {{ t('admin.accounts.ollamaCloud.sessionSecurityHint') }}
         </p>
@@ -20,7 +20,7 @@
     </div>
 
     <div v-if="loading" class="flex h-20 items-center justify-center text-gray-400">
-      <Icon name="refresh" size="sm" class="animate-spin" />
+      <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="sm" class="animate-spin" />
     </div>
     <template v-else>
       <div v-if="!state.encryption_key_configured" class="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-200">
@@ -86,7 +86,7 @@
           class="btn btn-secondary btn-sm text-red-600 dark:text-red-400"
           :disabled="saving"
           data-testid="ollama-cloud-session-delete"
-          @click="showDeleteConfirm = true"
+          @click="deleteSession"
         >
           <Icon name="trash" size="xs" class="mr-1.5" />
           {{ t('admin.accounts.ollamaCloud.deleteSession') }}
@@ -113,7 +113,7 @@
             {{ t('admin.accounts.ollamaCloud.autoRefreshHint') }}
           </p>
         </div>
-        <Toggle
+        <Toggle :aria-label="t('admin.accounts.ollamaCloud.autoRefresh')"
           :model-value="state.auto_refresh_enabled"
           :disabled="saving"
           data-testid="ollama-cloud-auto-refresh"
@@ -122,27 +122,20 @@
       </div>
     </template>
 
-    <ConfirmDialog
-      :show="showDeleteConfirm"
-      :title="t('admin.accounts.ollamaCloud.deleteSession')"
-      :message="t('admin.accounts.ollamaCloud.deleteConfirm')"
-      :confirm-text="t('common.delete')"
-      :cancel-text="t('common.cancel')"
-      :danger="true"
-      @confirm="deleteSession"
-      @cancel="showDeleteConfirm = false"
-    />
+    <ConfirmationPrompt :confirmation="confirmation" />
   </section>
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import type { Account, OllamaCloudUsageState, OllamaCloudUsageWindow } from '@/types'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -155,7 +148,7 @@ const session = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const refreshing = ref(false)
-const showDeleteConfirm = ref(false)
+const confirmation = useConfirmation(() => ({ active: true, identity: props.account.id }))
 const snapshot = computed(() => state.value?.snapshot)
 const statusLabel = computed(() => {
   if (!snapshot.value) return t('admin.accounts.ollamaCloud.notRefreshed')
@@ -217,17 +210,26 @@ const saveSession = async () => {
 }
 
 const deleteSession = async () => {
-  saving.value = true
-  showDeleteConfirm.value = false
-  try {
-    applyState(await adminAPI.accounts.deleteOllamaCloudUsageSession(props.account.id))
-    session.value = ''
-    appStore.showSuccess(t('admin.accounts.ollamaCloud.sessionDeleted'))
-  } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.ollamaCloud.sessionDeleteFailed')))
-  } finally {
-    saving.value = false
-  }
+  if (saving.value) return
+  const accountId = props.account.id
+  await confirmation.run({
+    title: t('admin.accounts.ollamaCloud.deleteSession'),
+    message: t('admin.accounts.ollamaCloud.deleteConfirm'),
+    confirmText: t('common.delete'), danger: true
+  }, async (isCurrent) => {
+    saving.value = true
+    try {
+      const next = await adminAPI.accounts.deleteOllamaCloudUsageSession(accountId)
+      if (!isCurrent()) return
+      applyState(next)
+      session.value = ''
+      appStore.showSuccess(t('admin.accounts.ollamaCloud.sessionDeleted'))
+    } catch (error) {
+      if (isCurrent()) appStore.showError(extractApiErrorMessage(error, t('admin.accounts.ollamaCloud.sessionDeleteFailed')))
+    } finally {
+      saving.value = false
+    }
+  })
 }
 
 const setAutoRefresh = async (enabled: boolean) => {

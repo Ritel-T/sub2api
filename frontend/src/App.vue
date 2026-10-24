@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterView, useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, watch, provide } from 'vue'
 import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import AdminComplianceDialog from '@/components/admin/AdminComplianceDialog.vue'
@@ -10,6 +10,7 @@ import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore, useSupportTicketStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
 import { updateFavicon, BRAND_NAME, BRAND_FAVICON } from '@/utils/branding'
+import { ConfirmationSessionKey } from '@/composables/useConfirmation'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 
@@ -23,6 +24,12 @@ const announcementStore = useAnnouncementStore()
 const adminComplianceStore = useAdminComplianceStore()
 const supportTicketStore = useSupportTicketStore()
 const adminSettingsStore = useAdminSettingsStore()
+
+// A confirmation belongs to one authenticated identity and one route context.
+provide(ConfirmationSessionKey, () => ({
+  active: authStore.isAuthenticated,
+  identity: [authStore.user?.id, route.fullPath]
+}))
 
 function updateDocumentTitle() {
   const customMenuItems = [

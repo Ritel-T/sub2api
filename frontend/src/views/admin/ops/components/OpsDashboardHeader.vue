@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
@@ -863,7 +864,7 @@ function handleToolbarRefresh() {
     <!-- Top Toolbar -->
     <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-4 dark:border-dark-700">
       <div>
-        <h1 class="flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
+        <AppHeading variant="page" as="h1" class="flex items-center gap-2 text-gray-900 dark:text-white">
           <svg class="h-6 w-6 text-primary-500 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               stroke-linecap="round"
@@ -873,7 +874,7 @@ function handleToolbarRefresh() {
             />
           </svg>
           {{ t('admin.ops.title') }}
-        </h1>
+        </AppHeading>
 
         <div v-if="!props.fullscreen" class="mt-1 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
           <span class="flex items-center gap-1.5" :title="props.loading ? t('admin.ops.loadingText') : t('admin.ops.ready')">
@@ -895,14 +896,14 @@ function handleToolbarRefresh() {
 
       <div class="flex flex-wrap items-center gap-3">
         <template v-if="!props.fullscreen">
-          <Select
+          <Select :aria-label="t('admin.accounts.allPlatforms')"
             :model-value="platform"
             :options="platformOptions"
             class="w-full sm:w-[140px]"
             @update:model-value="handlePlatformChange"
           />
 
-          <Select
+          <Select :aria-label="t('admin.accounts.allGroups')"
             :model-value="groupId"
             :options="groupOptions"
             class="w-full sm:w-[160px]"
@@ -911,7 +912,7 @@ function handleToolbarRefresh() {
 
           <div class="mx-1 hidden h-4 w-[1px] bg-gray-200 dark:bg-dark-700 sm:block"></div>
 
-          <Select
+          <Select :aria-label="t('admin.dashboard.timeRange')"
             :model-value="timeRange"
             :options="timeRangeOptions"
             class="relative w-full sm:w-[150px]"
@@ -919,7 +920,7 @@ function handleToolbarRefresh() {
           />
         </template>
 
-        <Select
+        <Select :aria-label="t('common.queryMode')"
           v-if="false"
           :model-value="queryMode"
           :options="queryModeOptions"
@@ -1004,10 +1005,10 @@ function handleToolbarRefresh() {
               class="pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100 md:left-full md:top-0 md:ml-2 md:mt-0 md:translate-x-0"
             >
               <div class="rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10">
-                <h4 class="mb-3 border-b border-gray-100 pb-2 text-sm font-bold text-gray-900 dark:border-dark-700 dark:text-white flex items-center gap-2">
+                <AppHeading variant="minor" as="h4" class="mb-3 border-b border-gray-100 pb-2 text-gray-900 dark:border-dark-700 dark:text-white flex items-center gap-2">
                   <Icon name="brain" size="sm" class="text-primary-500 dark:text-primary-400" />
                   {{ t('admin.ops.diagnosis.title') }}
-                </h4>
+                </AppHeading>
 
                 <div class="space-y-3">
                   <div v-for="(item, idx) in diagnosisReport" :key="idx" class="flex gap-3">
@@ -1109,7 +1110,7 @@ function handleToolbarRefresh() {
                   <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-400 opacity-75"></span>
                   <span class="relative inline-flex h-3 w-3 rounded-full bg-primary-500 dark:bg-primary-400"></span>
                 </div>
-                <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ t('admin.ops.realtime.title') }}</h3>
+                <AppHeading variant="subsection" as="h3" class="text-gray-400">{{ t('admin.ops.realtime.title') }}</AppHeading>
                 <HelpTooltip v-if="!props.fullscreen" :content="t('admin.ops.tooltips.qps')" />
               </div>
 

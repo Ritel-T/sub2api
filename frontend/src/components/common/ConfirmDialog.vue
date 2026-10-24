@@ -1,28 +1,26 @@
 <template>
-  <BaseDialog :show="show" :title="title" width="narrow" @close="handleCancel">
+  <BaseDialog :show="effectiveShow" :title="title" width="narrow" :z-index="zIndex"
+    :close-on-escape="!interactionLocked" :show-close-button="!interactionLocked" @close="handleCancel">
     <div class="space-y-4">
       <p class="text-sm text-gray-600 dark:text-gray-400">{{ message }}</p>
       <slot></slot>
     </div>
 
     <template #footer>
-      <div class="flex justify-end space-x-3">
+      <div class="flex flex-wrap justify-end gap-3">
         <button
           @click="handleCancel"
           type="button"
-          class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:border-dark-600 dark:bg-dark-700 dark:text-gray-200 dark:hover:bg-dark-600 dark:focus:ring-offset-dark-800"
+          :disabled="interactionLocked"
+          class="btn btn-secondary"
         >
           {{ cancelText }}
         </button>
         <button
           @click="handleConfirm"
           type="button"
-          :class="[
-            'rounded-md px-4 py-2 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-800',
-            danger
-              ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
-              : 'bg-primary-600 hover:bg-primary-700 focus:ring-primary-500'
-          ]"
+          :disabled="busy || accepting" :aria-busy="busy"
+          class="btn" :class="danger ? 'btn-danger' : 'btn-primary'"
         >
           {{ confirmText }}
         </button>
@@ -32,9 +30,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from './BaseDialog.vue'
+import { useConfirmationContext } from '@/composables/useConfirmation'
 
 const { t } = useI18n()
 
@@ -45,6 +44,8 @@ interface Props {
   confirmText?: string
   cancelText?: string
   danger?: boolean
+  busy?: boolean
+  zIndex?: number
 }
 
 interface Emits {
@@ -53,19 +54,48 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  danger: false
+  danger: false,
+  busy: false,
+  zIndex: 50
 })
 
 const confirmText = computed(() => props.confirmText || t('common.confirm'))
 const cancelText = computed(() => props.cancelText || t('common.cancel'))
 
 const emit = defineEmits<Emits>()
+const accepting = ref(false)
+const acceptancePending = ref(false)
+const interactionLocked = computed(() => props.busy || acceptancePending.value)
+const invalidated = ref(false)
+const currentContext = useConfirmationContext()
+const effectiveShow = computed(() => props.show && !invalidated.value)
+watch(() => props.show, (show) => {
+  accepting.value = false
+  acceptancePending.value = false
+  invalidated.value = show && !currentContext().active
+}, { flush: 'sync', immediate: true })
+watch(currentContext, () => {
+  // Invalidate on every context transition, including A → B → A before render.
+  if (!props.show || invalidated.value) return
+  invalidated.value = true
+  emit('cancel')
+}, { deep: true, flush: 'sync' })
+watch(() => props.busy, (busy, wasBusy) => {
+  if (wasBusy && !busy) accepting.value = false
+}, { flush: 'sync' })
 
 const handleConfirm = () => {
+  if (!effectiveShow.value || props.busy || accepting.value) return
+  accepting.value = true
+  acceptancePending.value = true
   emit('confirm')
+  // Bridge the synchronous acceptance to the parent's next-render busy prop.
+  // An early-returning handler can still be cancelled after that render.
+  void nextTick(() => { acceptancePending.value = false })
 }
 
 const handleCancel = () => {
+  if (!effectiveShow.value || interactionLocked.value) return
   emit('cancel')
 }
 </script>

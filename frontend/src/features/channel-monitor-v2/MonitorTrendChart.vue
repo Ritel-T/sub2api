@@ -4,12 +4,12 @@
   >
     <div class="monitor-section-heading mb-4 flex shrink-0 flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
-        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+        <AppHeading as="h2" variant="section" class="flex items-center gap-2 text-gray-900 dark:text-white">
           <span class="inline-flex h-4 w-4 text-sky-500" aria-hidden="true">
             <Icon name="chart" size="sm" />
           </span>
           {{ t('channelMonitorV2.chart.title') }}
-        </h2>
+        </AppHeading>
         <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
           {{ t('channelMonitorV2.chart.description') }}
         </p>
@@ -37,7 +37,7 @@
     </div>
     <div class="monitor-section-body min-h-0 flex-1">
       <div v-if="loading" class="flex h-[280px] items-center justify-center sm:h-[300px]">
-        <div class="animate-pulse text-sm text-gray-400">{{ t('common.loading') }}</div>
+        <div class="animate-pulse text-sm text-gray-400" role="status" aria-busy="true">{{ t('common.loading') }}</div>
       </div>
       <div
         v-else-if="chartData"
@@ -58,6 +58,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { useI18n } from 'vue-i18n'
 import { useChartTheme } from '@/utils/chartTheme'
 import { computed, ref, watch } from 'vue'

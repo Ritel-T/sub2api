@@ -3,9 +3,9 @@
     <div class="space-y-6">
       <!-- Title -->
       <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+        <AppHeading variant="auth" as="h2" class="text-gray-900 dark:text-white">
           {{ t('auth.verifyYourEmail') }}
-        </h2>
+        </AppHeading>
         <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
           {{ t('auth.sendCodeDesc') }}
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ email }}</span>
@@ -178,6 +178,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { BRAND_NAME } from '@/utils/branding'
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'

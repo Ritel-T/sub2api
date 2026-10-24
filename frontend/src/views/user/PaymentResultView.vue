@@ -3,7 +3,7 @@
     <div class="open-page w-full max-w-xl py-8">
       <!-- Loading -->
       <div v-if="loading" class="flex items-center justify-center py-20">
-        <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+        <div role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
       <template v-else>
         <!-- Status Icon -->
@@ -17,7 +17,7 @@
           </div>
           <div v-else-if="isPending"
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
-            <div class="h-10 w-10 animate-spin rounded-full border-4 border-yellow-500 border-t-transparent"></div>
+            <div role="status" :aria-label="t('common.loading')" class="h-10 w-10 animate-spin rounded-full border-4 border-yellow-500 border-t-transparent"></div>
           </div>
           <div v-else
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
@@ -25,9 +25,9 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
-          <h2 class="mt-4 text-2xl font-bold text-gray-900 dark:text-white">
+          <AppHeading variant="empty" as="h2" class="mt-4 text-gray-900 dark:text-white">
             {{ statusTitle }}
-          </h2>
+          </AppHeading>
           <p v-if="isPending" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
             {{ t(isRetailOrder ? 'paymentRetail.creditProcessing' : 'payment.result.processingHint') }}
           </p>
@@ -104,6 +104,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

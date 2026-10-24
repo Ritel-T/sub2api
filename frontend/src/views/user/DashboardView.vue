@@ -1,32 +1,32 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page dashboard-overview">
       <header class="flex flex-wrap items-center justify-between gap-4">
-        <h1 class="text-3xl font-semibold">{{ copy.overview }}</h1>
+        <AppHeading variant="page" as="h1">{{ copy.overview }}</AppHeading>
         <button type="button" class="btn btn-secondary" :disabled="refreshing" @click="refreshAll">{{ copy.refresh }}</button>
       </header>
 
       <section class="dashboard-summary" :class="{ 'dashboard-summary-simple': authStore.isSimpleMode }" aria-labelledby="overview-summary-title">
         <h2 id="overview-summary-title" class="sr-only">{{ copy.overview }}</h2>
         <div v-if="!authStore.isSimpleMode" class="dashboard-balance" data-test="balance">
-          <h3 class="dashboard-metric-label">{{ copy.balance }}</h3>
+          <AppHeading variant="subtle" as="h3" class="dashboard-metric-label">{{ copy.balance }}</AppHeading>
           <p v-if="states.balance.loading" class="dashboard-metric-state" role="status">{{ copy.loading }}</p>
           <div v-else-if="states.balance.error" class="dashboard-metric-state" role="alert"><p>{{ copy.loadFailed }}</p><button type="button" class="btn btn-secondary mt-3" @click="loadBalance">{{ copy.retry }}</button></div>
           <p v-else-if="balance !== null" class="ritel-number-display dashboard-balance-value">${{ money(balance, 2) }}</p>
         </div>
         <div class="dashboard-spending" data-test="spending">
-          <h3 class="dashboard-metric-label">{{ copy.cost }}</h3>
+          <AppHeading variant="subtle" as="h3" class="dashboard-metric-label">{{ copy.cost }}</AppHeading>
           <p v-if="states.stats.loading && !stats" class="dashboard-metric-state" role="status">{{ copy.loading }}</p>
           <div v-else-if="states.stats.error" class="dashboard-metric-state" role="alert"><p>{{ copy.loadFailed }}</p><button type="button" class="btn btn-secondary mt-3" @click="loadStats">{{ copy.retry }}</button></div>
           <p v-else-if="stats" class="ritel-number-display dashboard-spending-value">${{ money(stats.today_actual_cost) }}</p>
         </div>
         <div class="dashboard-activity">
           <div data-test="requests">
-            <h3 class="dashboard-metric-label">{{ copy.requests }}</h3>
+            <AppHeading variant="subtle" as="h3" class="dashboard-metric-label">{{ copy.requests }}</AppHeading>
             <p class="ritel-number-display dashboard-activity-value">{{ !states.stats.error && stats ? stats.today_requests.toLocaleString() : '—' }}</p>
           </div>
           <div data-test="tokens">
-            <h3 class="dashboard-metric-label">{{ copy.tokens }}</h3>
+            <AppHeading variant="subtle" as="h3" class="dashboard-metric-label">{{ copy.tokens }}</AppHeading>
             <p class="ritel-number-display dashboard-activity-value">{{ !states.stats.error && stats ? stats.today_tokens.toLocaleString() : '—' }}</p>
           </div>
         </div>
@@ -35,7 +35,7 @@
       <UserDashboardQuickActions :active-key="activeKey" :total-keys="totalKeys" :loading="states.keys.loading" :error="states.keys.error" @retry="loadKeys" />
 
       <section v-if="hasAttention" class="open-section dashboard-attention" aria-labelledby="attention-title">
-        <h2 id="attention-title" class="text-lg font-semibold">{{ copy.attention }}</h2>
+        <AppHeading variant="section" as="h2" id="attention-title">{{ copy.attention }}</AppHeading>
         <ul class="divide-y divide-gray-200 dark:divide-dark-700">
           <li v-if="!states.errors.error && !states.errors.loading && errorCount !== null && errorCount > 0" class="dashboard-attention-item">
             <span>{{ copy.errors }} <strong class="tabular-nums">{{ errorCount.toLocaleString() }}</strong></span>
@@ -57,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
@@ -157,7 +158,7 @@ onBeforeUnmount(() => { alive = false; ownerGeneration++ })
 <style scoped>
 .dashboard-summary{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,.7fr);align-items:stretch;gap:2rem;padding:2rem 0 1rem}
 .dashboard-summary>div{min-width:0}
-.dashboard-metric-label{font-size:1rem;font-weight:400;color:var(--ritel-muted)}
+.dashboard-metric-label{color:var(--ritel-muted)}
 .dashboard-balance,.dashboard-spending{display:flex;flex-direction:column;justify-content:space-between}
 .dashboard-balance-value,.dashboard-spending-value{margin-block:1rem 0;line-height:1.1;overflow-wrap:anywhere;font-size:clamp(2.75rem,4.5vw,4.5rem)}
 .dashboard-activity{display:grid;grid-template-rows:1fr 1fr;gap:1rem}

@@ -1,17 +1,17 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page pb-12">
       <section
         class="open-section monitor-toolbar"
       >
         <header class="page-header mb-0 flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 px-5 py-4 dark:border-dark-700 sm:px-6">
           <div class="min-w-0">
-            <h1 class="page-title flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
+            <AppHeading variant="page" as="h1" class="page-title flex items-center gap-2 text-gray-900 dark:text-white">
               <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
                 <Icon name="chart" size="sm" />
               </span>
               {{ t('channelMonitorV2.title') }}
-            </h1>
+            </AppHeading>
             <div class="page-description mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span class="relative flex h-2 w-2 shrink-0">
                 <span
@@ -146,7 +146,7 @@
 
           <span class="mx-0.5 hidden h-5 w-px shrink-0 bg-gray-200 dark:bg-dark-700 md:block" aria-hidden="true"></span>
 
-          <Select
+          <Select :aria-label="t('channelMonitorV2.groupBy.label')"
             v-model="matrixGroupBy"
             :options="matrixGroupOptions"
             :placeholder="t('channelMonitorV2.groupBy.label')"
@@ -282,7 +282,7 @@
           v-else-if="loading"
           class="open-section flex min-h-[320px] items-center justify-center text-sm text-gray-400"
         >
-          <span class="animate-pulse">{{ t('common.loading') }}</span>
+          <span class="animate-pulse" role="status" aria-busy="true">{{ t('common.loading') }}</span>
         </div>
       </div>
 
@@ -453,13 +453,13 @@
 
           <div v-if="tabLoading" class="empty-state py-10 text-sm text-gray-400">{{ t('common.loading') }}</div>
           <div v-else-if="activeRowsEmpty" class="empty-state py-10">
-            <p class="empty-state-title text-base">
+            <AppHeading variant="empty" as="h3" class="empty-state-title">
               {{
                 bootstrapActive
                   ? t('channelMonitorV2.bootstrap.title')
                   : t('channelMonitorV2.empty.title')
               }}
-            </p>
+            </AppHeading>
             <p class="empty-state-description">
               {{
                 bootstrapActive
@@ -476,6 +476,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { useI18n } from 'vue-i18n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

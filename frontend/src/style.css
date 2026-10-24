@@ -1,3 +1,4 @@
+@import './styles/workspace-controls.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -223,15 +224,10 @@
 
   /* ============ 输入框样式 ============ */
   .input {
-    @apply w-full rounded-xl px-4 py-2.5 text-sm;
-    @apply bg-white dark:bg-dark-800;
-    @apply border border-gray-200 dark:border-dark-600;
-    @apply text-gray-900 dark:text-gray-100;
+    @apply w-full;
     @apply placeholder:text-gray-400 dark:placeholder:text-dark-400;
     @apply transition-all duration-200;
-    @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
-    @apply dark:focus:border-primary-400 dark:focus:ring-primary-400/30;
-    @apply disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-dark-900;
+
   }
 
   .dark .input[type='date'],
@@ -373,7 +369,7 @@
   }
 
   .table {
-    @apply w-full text-sm;
+    @apply w-full;
   }
 
   .table th {
@@ -471,7 +467,7 @@
   }
 
   .modal-title {
-    @apply text-lg font-semibold text-gray-900 dark:text-white;
+    @apply text-gray-900 dark:text-white;
   }
 
   .modal-body {
@@ -649,7 +645,7 @@
   }
 
   .page-title {
-    @apply text-2xl font-bold text-gray-900 dark:text-white;
+    @apply text-gray-900 dark:text-white;
   }
 
   .page-description {
@@ -668,7 +664,7 @@
   }
 
   .empty-state-title {
-    @apply mb-1 text-lg font-medium text-gray-900 dark:text-white;
+    @apply mb-1 text-gray-900 dark:text-white;
   }
 
   .empty-state-description {
@@ -871,38 +867,19 @@ code, pre, kbd, samp, .font-mono {
 }
 /* Cinzel is reserved for the wordmark and the sign-in/home hero; page titles use Cormorant,
    section and metric headings use the interface face. */
-h1, .page-title {
-  font-family: var(--ritel-display);
-  font-weight: 600;
-  font-synthesis: none;
-  letter-spacing: -.005em;
-}
-h2, h3 {
-  font-family: var(--ritel-ui);
-  font-weight: 600;
-  font-synthesis: none;
-  letter-spacing: 0;
-}
-.sidebar-brand-title, .ritel-auth-form h2, .ritel-home-hero h1 {
+.sidebar-brand-title {
   font-family: var(--ritel-heading);
   letter-spacing: -.025em;
 }
 :focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 4px; }
 ::selection { background: var(--theme-control-fill); color: var(--theme-on-control); }
-.text-xs { font-size: 12.5px; line-height: 1.5; }
-.text-sm { font-size: 14px; line-height: 1.5; }
-.text-base { font-size: 15px; }
-.text-\[9px\], .text-\[10px\], .text-\[11px\] { font-size: 12px; }
 /* Labels and table headers use sentence case; uppercase with wide tracking slows scanning. */
 .uppercase, th { text-transform: none; }
 .uppercase:is(.tracking-wide, .tracking-wider, .tracking-widest, [class*="tracking-["]), th.uppercase { letter-spacing: .01em; }
 select option { background: var(--theme-surface); color: var(--ritel-fg); }
 .input::placeholder, textarea::placeholder { color: var(--ritel-muted); opacity: 1; }
 .ritel-main { width: 100%; max-width: var(--console-content-width, 1296px); margin: 0 auto; padding: 32px; }
-.ritel-main h1 { font-size: 36px; line-height: 1.15; }
-.ritel-main :is(h2, h3) { font-size: 16px; line-height: 1.4; }
-.ritel-main :is(h2, h3)[class*=text-gray-500] { font-size: 13px; font-weight: 400; color: var(--ritel-muted); }
-.modal-title { font-family: var(--ritel-display); font-size: 24px; font-weight: 600; }
+.ritel-main :is(h2, h3)[class*=text-gray-500] { color: var(--ritel-muted); }
 .sidebar { background: var(--ritel-bg) !important; border-color: var(--ritel-border) !important; }
 .sidebar-header { height: 88px; border-color: var(--ritel-border) !important; }
 .sidebar-logo { border-radius: 0 !important; box-shadow: none !important; width: 44px; height: 40px; flex-shrink: 0; }
@@ -925,7 +902,6 @@ select option { background: var(--theme-surface); color: var(--ritel-fg); }
 .card-header { padding: 24px; }
 .btn, .btn-sm, .btn-md, .btn-lg, .btn-icon, .input, .dropdown-item, .tabs, .tab, .code-block, .code { box-shadow: none !important; }
 .btn, .btn-sm, .btn-md, .btn-lg, .btn-icon { border-radius: var(--ritel-radius-pill) !important; }
-.input { border-radius: var(--ritel-radius-field) !important; }
 .dropdown-item { border-radius: var(--ritel-radius-control) !important; }
 .code-block { border-radius: var(--ritel-radius-code) !important; }
 .code { border-radius: 6px !important; }
@@ -938,7 +914,6 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
 .btn-primary:hover { background: var(--theme-control-hover) !important; }
 .btn-secondary { background: transparent !important; border-color: var(--ritel-control-border); color: var(--ritel-fg); }
 .btn-secondary:hover { border-color: var(--ritel-fg); background: var(--theme-hover) !important; }
-.input { min-height: 44px; font-size: 14.5px; background: var(--theme-surface) !important; border-color: var(--ritel-control-border); }
 .input-label { font-size: 13.5px; margin-bottom: 10px; font-weight: 500; }
 .input-hint, .input-error-text { font-size: 12.5px; }
 .tabs { padding: 0; background: transparent !important; border-bottom: 1px solid var(--ritel-border); gap: 24px; }
@@ -949,7 +924,6 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
 .table th { background: var(--theme-surface); }
 .table td { font-size: 14px; }
 .page-header { margin-bottom: 32px; }
-.page-title { font-size: 36px; line-height: 1.2; }
 .page-description { font-size: 15px; line-height: 1.5; margin-top: 12px; }
 .stat-card { flex-direction: column; padding: 28px 24px; gap: 16px; }
 .stat-icon { border-radius: 0; background: transparent !important; color: var(--ritel-muted); width: 24px; height: 24px; }
@@ -969,7 +943,7 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
 .ritel-auth-header { border-bottom: 1px solid var(--ritel-border); }
 .ritel-auth-main { flex: 1; display: grid; align-items: center; padding: 72px 24px 104px; }
 .ritel-auth-form { width: 100%; max-width: 430px; margin: 0 auto; }
-.ritel-auth-form h2 { font-size: 36px; line-height: 1.2; margin-bottom: 16px; }
+.ritel-auth-form h2 { margin-bottom: 16px; }
 .ritel-auth-form input { font-size: 15px; }
 .ritel-auth-form .btn { min-height: 48px; }
 .ritel-auth-footer { margin-top: 32px; text-align: center; font-size: 14px; }
@@ -982,7 +956,6 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
 .ritel-home-main { flex: 1; width: min(100% - 96px, 1232px); margin: 0 auto; }
 .ritel-home-hero { padding: 96px 0 112px; text-align: center; }
 .ritel-home-symbol { width: 180px; height: 142px; object-fit: contain; margin: 0 auto 48px; }
-.ritel-home-hero h1 { font-weight: 400; font-size: clamp(56px, 8vw, 108px); line-height: 1.05; letter-spacing: -.04em; }
 .ritel-home-hero p { max-width: 720px; margin: 32px auto 0; font-size: clamp(20px, 2.5vw, 28px); color: var(--ritel-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ritel-home-cta { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; margin-top: 40px; }
 .ritel-home-cta .btn { min-height: 52px; min-width: 168px; font-size: 16px; }
@@ -1011,7 +984,6 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
   .ritel-metric-card { padding: 20px 8px; }
   .ritel-metric-card .ritel-number-display { font-size: 24px; }
   .ritel-metric-card .text-xs { font-size: 12px; }
-  .page-title { font-size: 30px; }
   .modal-content, .dialog-container { max-width: calc(100vw - 16px); }
   /* 16px keeps iOS Safari from zooming the page when a field is focused. */
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea, .input { font-size: 16px; }

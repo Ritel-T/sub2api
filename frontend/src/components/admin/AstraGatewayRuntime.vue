@@ -1,7 +1,7 @@
 <template>
   <section class="open-section space-y-4" aria-labelledby="astra-runtime-title">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 id="astra-runtime-title" class="font-semibold">{{ t(`${p}.runtimeTitle`) }}</h2><p class="mt-1 text-xs text-gray-500">{{ t(`${p}.runtimeHint`) }}</p></div>
+      <div><AppHeading as="h2" variant="section" id="astra-runtime-title" >{{ t(`${p}.runtimeTitle`) }}</AppHeading><p class="mt-1 text-xs text-gray-500">{{ t(`${p}.runtimeHint`) }}</p></div>
       <button type="button" class="btn btn-primary btn-sm" data-testid="prepare" :disabled="busy || setupBusy || dirty || !settings?.cookie_pool.enabled" @click="run('prepare')">{{ t(busy ? `${p}.testing` : `${p}.prepare`) }}</button>
     </div>
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
@@ -18,11 +18,11 @@
       </div>
       <p class="text-sm" data-testid="route-counts" :class="runtime.ready_routes ? 'text-emerald-600' : 'text-amber-600'">{{ t(`${p}.readyRoutes`, { n: runtime.ready_routes }) }} · {{ t(`${p}.readyTargets`, { n: readyTargetCount }) }} · {{ t(`${p}.readyModels`, { n: readyModelCount }) }} · {{ t(runtime.preparing ? `${p}.preparing` : `${p}.idle`) }}</p>
       <div v-if="runtime.cooldowns?.length" class="open-section text-sm" data-testid="rotation-cooldowns">
-        <h3 class="font-medium">{{ t(`${p}.cooldownTitle`) }}</h3>
+        <AppHeading as="h3" variant="subsection" >{{ t(`${p}.cooldownTitle`) }}</AppHeading>
         <p v-for="row in runtime.cooldowns" :key="`${row.account_id}:${row.gateway}`" class="mt-2 break-all">#{{ row.account_id }} · {{ row.gateway }} · {{ remaining(row.retry_at) }} s</p>
       </div>
       <div class="open-section space-y-2" data-testid="gateway-observations">
-        <h3 class="text-sm font-medium">{{ t(`${p}.gatewayInventory`) }}</h3>
+        <AppHeading as="h3" variant="subsection" >{{ t(`${p}.gatewayInventory`) }}</AppHeading>
         <p class="text-sm">{{ t(`${p}.gatewayCounts`, { n: runtime.gateways?.length || 0, repeats: repeatedGatewayHits, unknown: runtime.unknown_gateway_samples || 0 }) }}</p>
         <p v-if="runtime.gateways?.length === 1" class="text-xs text-amber-600">{{ t(`${p}.singleGateway`) }}</p>
         <p v-if="!runtime.gateways?.length" class="text-xs text-gray-500">{{ t(`${p}.noKnownGateway`) }}</p>
@@ -62,6 +62,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { gatewayBorrowReasonKey } from '@/utils/gatewayBorrowStatus'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'

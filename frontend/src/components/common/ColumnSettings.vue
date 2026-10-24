@@ -54,6 +54,7 @@ import { onClickOutside, useEventListener } from '@vueuse/core'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useI18n } from 'vue-i18n'
 import type { Column } from './types'
+import { useOwnedPopover } from '@/composables/overlayLifecycle'
 
 const props = withDefaults(defineProps<{
   columns: Column[]
@@ -68,6 +69,7 @@ const hintId = useId()
 const trigger = ref<HTMLButtonElement>()
 const panel = ref<HTMLElement>()
 const open = ref(false)
+useOwnedPopover(open, { root: () => panel.value, trigger: () => trigger.value, close: () => { open.value = false } })
 const position = ref<Record<string, string>>({})
 const draggableColumns = computed({
   get: () => props.columns.filter(column => column.key !== 'select'),
@@ -86,10 +88,7 @@ function place() {
     ...(flip ? { bottom: `${window.innerHeight - rect.top + 8}px` } : { top: `${rect.bottom + 8}px` })
   }
 }
-async function close(restoreFocus = false) {
-  open.value = false
-  if (restoreFocus) { await nextTick(); trigger.value?.focus() }
-}
+function close() { open.value = false }
 async function move(index: number, delta: number) {
   const columns = [...draggableColumns.value]
   const target = index + delta
@@ -111,7 +110,4 @@ watch(open, async value => {
 onClickOutside(panel, () => close(), { ignore: [trigger] })
 useEventListener(window, 'resize', () => { if (open.value) place() })
 useEventListener(window, 'scroll', () => { if (open.value) place() }, true)
-useEventListener(document, 'keydown', event => {
-  if (open.value && event.key === 'Escape') { event.preventDefault(); close(true) }
-})
 </script>

@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page guard-v2">
       <header class="page-heading">
         <div>
-          <h2 class="flex items-center gap-2"><Icon name="credentialOps" size="lg" class="shrink-0" aria-hidden="true" />{{ t('tokenGuardV2.title') }}</h2>
+          <AppHeading variant="page" as="h1" class="flex items-center gap-2"><Icon name="credentialOps" size="lg" class="shrink-0" aria-hidden="true" />{{ t('tokenGuardV2.title') }}</AppHeading>
           <p class="subtitle">{{ t('tokenGuardV2.description') }}</p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -72,7 +72,7 @@
           <div ref="tableTools0" class="min-w-0" />
         </div>
         <div class="table-wrap">
-          <DataTable :toolbar-target="tableTools0"
+          <DataTable column-order-key="admin-token-guard-v2-accounts" :toolbar-target="tableTools0"
  :columns="openRecordColumns"
  :primary-columns="['account','automation','inspection','failure_streak','actions']"
  :data="pagedAccounts" row-key="account_id" :loading="loading">
@@ -81,8 +81,8 @@
 <template #cell-configuration="{ row: item }"><div><span class="badge" :class="item.login_config?.configured ? 'ok' : 'danger'">{{ item.login_config?.configured ? t('tokenGuardV2.configured') : t('tokenGuardV2.incomplete') }}</span><small>{{ configurationDetail(item) }}</small></div></template>
 <template #cell-automation="{ row: item }"><div>
                   <div class="flex flex-col gap-2">
-                    <label class="inline-flex items-center gap-2" :title="t('tokenGuardV2.autoInspectHint')"><input type="checkbox" role="switch" class="automation-switch" :checked="item.enabled" :aria-label="t('tokenGuardV2.autoInspect')" :data-testid="'auto-inspect-' + item.account_id" :disabled="busyId !== 0 || loading" @change="toggleSwitch(item, 'enabled', $event)" />{{ t('tokenGuardV2.autoInspect') }}</label>
-                    <label class="inline-flex items-center gap-2" :title="t('tokenGuardV2.autoReloginHint')"><input type="checkbox" role="switch" class="automation-switch" :checked="item.auto_relogin_enabled" :aria-label="t('tokenGuardV2.autoRelogin')" :data-testid="'auto-relogin-' + item.account_id" :disabled="busyId !== 0 || loading" @change="toggleSwitch(item, 'auto_relogin_enabled', $event)" />{{ t('tokenGuardV2.autoRelogin') }}</label>
+                    <label class="inline-flex items-center gap-2" :title="t('tokenGuardV2.autoInspectHint')"><Toggle :model-value="item.enabled" :aria-label="t('tokenGuardV2.autoInspect')" :data-testid="'auto-inspect-' + item.account_id" :disabled="busyId !== 0 || loading" @update:model-value="(value: boolean) => toggleSwitch(item, 'enabled', value)" />{{ t('tokenGuardV2.autoInspect') }}</label>
+                    <label class="inline-flex items-center gap-2" :title="t('tokenGuardV2.autoReloginHint')"><Toggle :model-value="item.auto_relogin_enabled" :aria-label="t('tokenGuardV2.autoRelogin')" :data-testid="'auto-relogin-' + item.account_id" :disabled="busyId !== 0 || loading" @update:model-value="(value: boolean) => toggleSwitch(item, 'auto_relogin_enabled', value)" />{{ t('tokenGuardV2.autoRelogin') }}</label>
                   </div>
                 </div></template>
 <template #cell-inspection="{ row: item }"><div><span class="badge" :class="probeClass(item.probe_state)">{{ t(`tokenGuardV2.probeStates.${item.probe_state || 'pending'}`) }}</span><small>{{ item.blocked_reason || item.probe_detail || '-' }}</small></div></template>
@@ -101,7 +101,7 @@
 </DataTable>
           <div v-if="!loading && !filteredAccounts.length" class="empty-state">
             <Icon name="shield" size="xl" />
-            <h3>{{ t(accounts.length ? 'tokenGuardV2.noResultsTitle' : 'tokenGuardV2.emptyTitle') }}</h3>
+            <AppHeading variant="empty" as="h3">{{ t(accounts.length ? 'tokenGuardV2.noResultsTitle' : 'tokenGuardV2.emptyTitle') }}</AppHeading>
             <p>{{ t(accounts.length ? 'tokenGuardV2.noResultsHint' : 'tokenGuardV2.emptyHint') }}</p>
           </div>
         </div>
@@ -114,7 +114,7 @@
 
       <section v-else class="rules-card">
         <div class="rules-heading">
-          <div><h3>{{ t('tokenGuardV2.rulesTitle') }}</h3><p>{{ t('tokenGuardV2.rulesDescription') }}</p></div>
+          <div><AppHeading variant="subsection" as="h3">{{ t('tokenGuardV2.rulesTitle') }}</AppHeading><p>{{ t('tokenGuardV2.rulesDescription') }}</p></div>
           <span class="badge" :class="{ ok: !rulesDirty }">{{ t(rulesDirty ? 'tokenGuardV2.rulesUnsaved' : 'tokenGuardV2.rulesConfigurable') }}</span>
         </div>
         <form id="token-guard-v2-rules" class="rules-form" @submit.prevent="saveRulesConfig">
@@ -188,9 +188,17 @@
       </BaseDialog>
     </div>
   </AppLayout>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+const confirmation = useConfirmation()
+
 import DataTable from '@/components/common/DataTable.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -410,8 +418,10 @@ function openEdit(item: TokenGuardV2Account) {
 }
 function closeEditor() { if (!saving.value) editorOpen.value = false }
 
-async function load(silent = false) {
+let guardLoadVersion = 0
+async function load(silent = false, isCurrent: () => boolean = () => true) {
   if (loading.value || runtimeSaving.value || busyId.value) return
+  const owner = ++guardLoadVersion
   loading.value = true
   if (!silent) error.value = ''
   try {
@@ -421,6 +431,7 @@ async function load(silent = false) {
       listProxies(),
       listGroups('openai')
     ])
+    if (!isCurrent()) return
     Object.assign(status, guard)
     if (guard.runtime_settings && !runtimeSaving.value) {
       Object.assign(runtimeDraft, guard.runtime_settings)
@@ -431,9 +442,9 @@ async function load(silent = false) {
     proxies.value = managedProxies
     groups.value = openAIGroups
   } catch (value) {
-    if (!silent) error.value = message(value)
+    if (isCurrent() && !silent) error.value = message(value)
   } finally {
-    loading.value = false
+    if (owner === guardLoadVersion) loading.value = false
   }
 }
 
@@ -475,34 +486,35 @@ async function save() {
   }
 }
 
-async function act(item: TokenGuardV2Account, action: () => Promise<unknown>, successKey: string) {
+let guardActionVersion = 0
+async function act(item: TokenGuardV2Account, action: () => Promise<unknown>, successKey: string, isCurrent: () => boolean = () => true) {
   if (busyId.value) return
+  const owner = ++guardActionVersion
   busyId.value = item.account_id; error.value = ''; notice.value = ''
   try {
     await action()
+    if (!isCurrent()) return
     notice.value = t(successKey, { account: item.account_name })
-    await load(true)
+    await load(true, isCurrent)
   } catch (value) {
-    error.value = message(value)
+    if (isCurrent()) error.value = message(value)
   } finally {
-    busyId.value = 0
+    if (owner === guardActionVersion) busyId.value = 0
   }
 }
 
 const probe = (item: TokenGuardV2Account) => act(item, () => probeTokenGuardV2Account(item.account_id), 'tokenGuardV2.inspectionQueued')
 const relogin = (item: TokenGuardV2Account) => act(item, () => reloginTokenGuardV2Account(item.account_id), 'tokenGuardV2.reloginQueued')
-async function toggleSwitch(item: TokenGuardV2Account, field: 'enabled' | 'auto_relogin_enabled', event: Event) {
-  const input = event.target as HTMLInputElement
-  if (busyId.value) { input.checked = item[field]; return }
+async function toggleSwitch(item: TokenGuardV2Account, field: 'enabled' | 'auto_relogin_enabled', checked: boolean) {
+  if (busyId.value) return
   busyId.value = item.account_id; error.value = ''; notice.value = ''
   try {
-    const saved = await updateTokenGuardV2Switches(item.account_id, { [field]: !item[field] })
+    const saved = await updateTokenGuardV2Switches(item.account_id, { [field]: checked })
     Object.assign(item, saved)
     notice.value = t('tokenGuardV2.switchSaved')
   } catch (value) {
     error.value = message(value)
   } finally {
-    input.checked = item[field]
     busyId.value = 0
   }
 }
@@ -524,8 +536,11 @@ async function changeRuntime(field: keyof TokenGuardV2RuntimeSettings, event: Ev
 }
 
 const remove = async (item: TokenGuardV2Account) => {
-  if (!window.confirm(t('tokenGuardV2.removeConfirm', { account: item.account_name }))) return
-  await act(item, () => deleteTokenGuardV2Account(item.account_id), 'tokenGuardV2.removedNotice')
+  const accountId = item.account_id
+  await confirmation.run({ message: t('tokenGuardV2.removeConfirm', { account: item.account_name }), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async (isCurrent) => {
+    await act(item, () => deleteTokenGuardV2Account(accountId), 'tokenGuardV2.removedNotice', isCurrent)
+  if (!isCurrent()) return
+  })
 }
 
 
@@ -552,7 +567,6 @@ const openRecordColumns = computed(() => [{ key: 'account', label: t('tokenGuard
 .guard-v2 { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .page-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
 .eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
-.page-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:20px; @apply mb-5; }
 .summary-card,.table-card,.rules-card { @apply min-w-0 border-t border-gray-200 dark:border-dark-700; }
@@ -586,11 +600,10 @@ tbody tr:hover { @apply bg-gray-50/70 dark:bg-dark-800/50; }
 .link-btn:not(.danger-text) { @apply dark:text-primary-400; }
 .danger-text { @apply text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30; }
 .empty-state { @apply flex min-h-72 flex-col items-center justify-center gap-3 p-8 text-center text-gray-400; }
-.empty-state h3 { @apply text-sm font-medium text-gray-600 dark:text-gray-300; }
+.empty-state h3 { @apply text-gray-600 dark:text-gray-300; }
 .empty-state p { @apply max-w-md text-xs leading-5; }
 .rules-card { @apply p-5; }
 .rules-heading { @apply flex flex-wrap items-start justify-between gap-3; }
-.rules-heading h3 { @apply text-base font-semibold; }
 .rules-heading p { @apply mt-1 max-w-3xl text-xs leading-5 text-gray-500 dark:text-gray-400; }
 .rule-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); @apply mt-5 gap-3; }
 .rule-metrics label { @apply rounded-xl border border-gray-100 bg-gray-50/70 p-4 dark:border-dark-700 dark:bg-dark-800/60; }

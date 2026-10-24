@@ -17,7 +17,7 @@
         />
       </div>
 
-      <Select
+      <Select :aria-label="t('admin.channelMonitor.allProviders')"
         v-model="provider"
         :options="providerFilterOptions"
         :placeholder="t('admin.channelMonitor.allProviders')"
@@ -25,7 +25,7 @@
         @change="$emit('reload')"
       />
 
-      <Select
+      <Select :aria-label="t('admin.channelMonitor.enabledFilter')"
         v-model="enabled"
         :options="enabledFilterOptions"
         :placeholder="t('admin.channelMonitor.enabledFilter')"

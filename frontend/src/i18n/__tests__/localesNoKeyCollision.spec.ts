@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 
 import enAdminAccounts from '../locales/en/admin/accounts'

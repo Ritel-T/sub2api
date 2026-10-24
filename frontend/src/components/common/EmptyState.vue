@@ -24,13 +24,13 @@
     </div>
 
     <!-- Title -->
-    <h3 class="empty-state-title">
+    <AppHeading as="h3" variant="empty" class="empty-state-heading text-gray-900 dark:text-white">
       {{ displayTitle }}
-    </h3>
+    </AppHeading>
 
     <!-- Description -->
-    <p class="empty-state-description">
-      {{ description }}
+    <p v-if="displayDescription" class="empty-state-description">
+      {{ displayDescription }}
     </p>
 
     <!-- Action -->
@@ -52,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Component } from 'vue'
@@ -74,7 +75,12 @@ const props = withDefaults(defineProps<Props>(), {
   actionIcon: true
 })
 
-const displayTitle = computed(() => props.title || t('common.noData'))
+const displayTitle = computed(() => props.title || props.message || t('common.noData'))
+const displayDescription = computed(() => props.description)
 
 defineEmits(['action'])
 </script>
+
+<style scoped>
+.empty-state-heading { margin-bottom: .25rem; }
+</style>

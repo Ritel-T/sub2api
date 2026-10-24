@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <TablePageLayout open>
       <template #actions>
         <div class="workspace-page-header">
-          <h1 class="workspace-page-title">{{ t('admin.users.title') }}</h1>
+          <AppHeading variant="page" as="h1" class="workspace-page-title">{{ t('admin.users.title') }}</AppHeading>
           <div class="workspace-header-actions">
             <!-- Mobile: Secondary buttons (icon only) -->
             <div class="flex items-center gap-2 md:contents">
@@ -142,7 +142,7 @@
 
             <!-- Role Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('role')" class="w-full sm:w-32">
-              <Select
+              <Select :aria-label="t('admin.users.form.roleLabel')"
                 v-model="filters.role"
                 :options="[
                   { value: '', label: t('admin.users.allRoles') },
@@ -156,7 +156,7 @@
 
             <!-- Status Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('status')" class="w-full sm:w-32">
-              <Select
+              <Select :aria-label="t('common.status')"
                 v-model="filters.status"
                 :options="[
                   { value: '', label: t('admin.users.allStatus') },
@@ -169,7 +169,7 @@
 
             <!-- Group Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('group')" class="w-full sm:w-44">
-              <Select
+              <Select :aria-label="t('admin.users.searchAuthorizedGroups')"
                 v-model="filters.group"
                 :options="groupFilterOptions"
                 searchable
@@ -182,7 +182,7 @@
 
             <!-- API Key Group Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('apiKeyGroup')" class="w-full sm:w-44">
-              <Select
+              <Select :aria-label="t('admin.users.searchApiKeyGroups')"
                 v-model="filters.apiKeyGroup"
                 :options="apiKeyGroupFilterOptions"
                 searchable
@@ -219,7 +219,7 @@
                 <!-- Select/Multi-select type -->
                 <template v-else-if="['select', 'multi_select'].includes(getAttributeDefinition(Number(attrId))?.type || '')">
                   <div class="w-full">
-                    <Select
+                    <Select :aria-label="getAttributeDefinitionName(Number(attrId))"
                       :model-value="value"
                       :options="[
                         { value: '', label: getAttributeDefinitionName(Number(attrId)) },
@@ -733,8 +733,8 @@
       </div>
     </Teleport>
 
-    <ConfirmDialog :show="showDeleteDialog" :title="t('admin.users.deleteUser')" :message="t('admin.users.deleteConfirm', { email: deletingUser?.email })" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteAction.busy.value" :show="showDeleteDialog" :title="t('admin.users.deleteUser')" :message="t('admin.users.deleteConfirm', { email: deletingUser?.email })" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
+    <ConfirmDialog :busy="confirmBulkDeleteAction.busy.value"
       :show="bulkDeleteIds.length > 0"
       :title="t('admin.users.bulkDelete.title')"
       :message="t('admin.users.bulkDelete.confirm', { count: bulkDeleteIds.length })"
@@ -767,6 +767,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { watch,  ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -790,6 +791,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -1625,42 +1627,54 @@ const handleDelete = (user: AdminUser) => {
   showDeleteDialog.value = true
 }
 
-const confirmDelete = async () => {
-  if (!deletingUser.value) return
-  try {
-    await adminAPI.users.delete(deletingUser.value.id)
-    appStore.showSuccess(t('common.success'))
-    showDeleteDialog.value = false
-    deletingUser.value = null
-    loadUsers()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.users.failedToDelete'))
-    console.error('Error deleting user:', error)
-  }
-}
+function confirmDelete() {
+  return confirmDeleteAction.run(async (isCurrent) => {
+    const targetId = deletingUser.value?.id
+    if (targetId == null) return
 
-const confirmBulkDelete = async () => {
-  const ids = bulkDeleteIds.value
-  bulkDeleteIds.value = []
-  bulkDeleting.value = true
-  const deletedIds: number[] = []
-  for (const id of ids) {
+    if (!deletingUser.value) return
     try {
-      await adminAPI.users.delete(id)
-      deletedIds.push(id)
-    } catch (error) {
+      await adminAPI.users.delete(targetId)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('common.success'))
+      showDeleteDialog.value = false
+      deletingUser.value = null
+      loadUsers()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(error.response?.data?.detail || t('admin.users.failedToDelete'))
       console.error('Error deleting user:', error)
     }
-  }
-  removeSelectedIds(deletedIds)
-  if (deletedIds.length > 0) {
-    appStore.showSuccess(t('admin.users.bulkDelete.success', { count: deletedIds.length }))
+  })
+}
 
-  }
-  const failed = ids.length - deletedIds.length
-  if (failed > 0) appStore.showError(t('admin.users.bulkDelete.failed', { count: failed }))
-  await continuousList.refresh()
-  bulkDeleting.value = false
+function confirmBulkDelete() {
+  return confirmBulkDeleteAction.run(async (isCurrent) => {
+    const ids = [...bulkDeleteIds.value]
+    bulkDeleting.value = true
+    try {
+    const deletedIds: number[] = []
+    for (const id of ids) {
+      try {
+        await adminAPI.users.delete(id)
+        if (!isCurrent()) return
+        deletedIds.push(id)
+      } catch (error) {
+      if (!isCurrent()) return
+        console.error('Error deleting user:', error)
+      }
+    }
+    removeSelectedIds(deletedIds)
+    if (deletedIds.length > 0) {
+      appStore.showSuccess(t('admin.users.bulkDelete.success', { count: deletedIds.length }))
+
+    }
+    const failed = ids.length - deletedIds.length
+    if (failed > 0) appStore.showError(t('admin.users.bulkDelete.failed', { count: failed }))
+    bulkDeleteIds.value = []
+    await continuousList.refresh()
+    } finally { bulkDeleting.value = false }
+  })
 }
 
 const handleDeposit = (user: AdminUser) => {
@@ -1730,4 +1744,10 @@ onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll, true)
   clearTimeout(searchTimeout)
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const confirmDeleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: deletingUser.value?.id }))
+watch(() => ({ active: showDeleteDialog.value, identity: JSON.stringify(deletingUser.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeleteDialog.value = false } }, { flush: 'sync' })
+const confirmBulkDeleteAction = useConfirmedAction(() => ({ active: bulkDeleteIds.value.length > 0, identity: bulkDeleteIds.value }))
+watch(() => ({ active: bulkDeleteIds.value.length > 0, identity: JSON.stringify(bulkDeleteIds.value) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { bulkDeleteIds.value = [] } }, { flush: 'sync' })
 </script>

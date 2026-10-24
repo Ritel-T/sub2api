@@ -30,9 +30,9 @@
         class="absolute right-0 z-50 mt-2 w-[340px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-dark-700 dark:bg-dark-800"
       >
         <div class="border-b border-gray-100 p-3 dark:border-dark-700">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
             {{ t('subscriptionProgress.title') }}
-          </h3>
+          </AppHeading>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
             {{ t('subscriptionProgress.activeCount', { count: activeSubscriptions.length }) }}
           </p>
@@ -178,6 +178,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'

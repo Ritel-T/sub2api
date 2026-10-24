@@ -2,7 +2,7 @@
   <section class="open-section" aria-labelledby="continue-title">
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div>
-        <h2 id="continue-title" class="text-xl font-semibold">{{ copy.continue }}</h2>
+        <AppHeading as="h2" variant="section" id="continue-title" >{{ copy.continue }}</AppHeading>
         <p v-if="activeKey" class="mt-2 text-gray-500 dark:text-gray-400">{{ activeKey.name }}</p>
       </div>
       <div v-if="loading" role="status">{{ copy.loading }}</div>
@@ -17,6 +17,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import type { ApiKey } from '@/types'
 import { useOverviewCopy } from './overviewCopy'
 defineProps<{ activeKey: ApiKey | null; totalKeys: number | null; loading: boolean; error: boolean }>()

@@ -1,6 +1,6 @@
 <template>
   <section class="my-6 space-y-4 rounded-xl border p-5 dark:border-dark-600" data-testid="penalty-policy">
-    <h2 class="text-lg font-semibold">{{ t('securityRecords.policyTitle') }}</h2>
+    <AppHeading as="h2" variant="section" >{{ t('securityRecords.policyTitle') }}</AppHeading>
     <p class="text-sm text-gray-500">{{ t('securityRecords.policyHint') }}</p>
     <p v-if="error" role="alert" class="text-red-600">{{ error }}</p>
     <p v-if="notice" role="status" class="text-emerald-600">{{ notice }}</p>
@@ -31,8 +31,14 @@
     </form>
     <SecurityRecords ref="records" admin />
   </section>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getConfig, release, saveConfig, type PenaltyConfig } from './api'
@@ -69,15 +75,24 @@ async function save() {
   finally { saving.value = false }
 }
 async function unrestrict() {
-  if (!releaseUser.value || !releaseReason.value || !window.confirm(t('securityRecords.releaseConfirm'))) return
-  saving.value = true; error.value = ''; notice.value = ''
-  try {
-    await release(releaseUser.value, releaseReason.value)
-    notice.value = t('securityRecords.released')
-    releaseReason.value = ''
-    await records.value?.refresh()
-  } catch { error.value = t('securityRecords.saveFailed') }
-  finally { saving.value = false }
+  if (!releaseUser.value || !releaseReason.value) return
+  const user = releaseUser.value, reason = releaseReason.value
+  await confirmation.run({ message: t('securityRecords.releaseConfirm'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: true }, async (isCurrent) => {
+    saving.value = true; error.value = ''; notice.value = ''
+    try {
+      await release(user, reason)
+      if (!isCurrent()) return
+      notice.value = t('securityRecords.released')
+      releaseReason.value = ''
+      await records.value?.refresh()
+      if (!isCurrent()) return
+    } catch {
+      if (!isCurrent()) return error.value = t('securityRecords.saveFailed') }
+    finally { saving.value = false }
+  })
 }
 onMounted(load)
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: true, identity: [releaseUser.value, releaseReason.value] }))
 </script>

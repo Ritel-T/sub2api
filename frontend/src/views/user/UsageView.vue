@@ -1,13 +1,13 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page" :class="{ 'usage-records': usageView === 'records' }">
-      <h1 class="text-3xl">{{ consoleCopy[usageView] }}</h1>
+      <AppHeading variant="page" as="h1">{{ consoleCopy[usageView] }}</AppHeading>
       <div v-if="usageView === 'analysis' && analyticsErrors.size" role="alert" class="flex items-center justify-between gap-4 border border-red-500 p-4"><span>{{ t('usage.failedToLoad') }}</span><button type="button" class="btn btn-secondary" @click="refreshData">{{ t('common.refresh') }}</button></div>
       <div class="usage-filters">
         <div class="filter-controls usage-filter-controls">
           <div class="usage-date-filter">
             <span class="input-label">{{ t('admin.dashboard.timeRange') }}</span>
-            <DateRangePicker
+            <DateRangePicker data-field-role="filter" :aria-label="t('admin.dashboard.timeRange')"
               enable-time
               :preset="selectedPreset"
               v-model:start-date="startDate"
@@ -18,11 +18,11 @@
           <template v-if="activeTab === 'errors'">
             <div class="usage-filter-field">
               <label class="input-label">{{ t('usage.errors.keyName') }}</label>
-              <Select v-model="errorFilter.api_key_id" :options="errorKeyOptions" @change="applyErrorFilters" />
+              <Select :aria-label="t('usage.errors.keyName')" v-model="errorFilter.api_key_id" :options="errorKeyOptions" @change="applyErrorFilters" />
             </div>
             <div class="usage-filter-field">
               <label class="input-label">{{ t('usage.errors.model') }}</label>
-              <Select
+              <Select :aria-label="t('usage.errors.model')"
                 v-model="errorFilter.model"
                 :options="errorModelOptions"
                 searchable
@@ -34,48 +34,48 @@
             </div>
             <div class="usage-filter-field">
               <label class="input-label">{{ t('usage.errors.category') }}</label>
-              <Select v-model="errorFilter.category" :options="errorCategoryOptions" @change="applyErrorFilters" />
+              <Select :aria-label="t('usage.errors.category')" v-model="errorFilter.category" :options="errorCategoryOptions" @change="applyErrorFilters" />
             </div>
             <div class="usage-filter-field">
               <label class="input-label">{{ t('usage.errors.status') }}</label>
-              <Select v-model="errorFilter.status_code" :options="errorStatusOptions" @change="applyErrorFilters" />
+              <Select :aria-label="t('usage.errors.status')" v-model="errorFilter.status_code" :options="errorStatusOptions" @change="applyErrorFilters" />
             </div>
           </template>
           <template v-else>
             <div class="usage-filter-field">
               <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
-              <Select v-model="filters.api_key_id" :options="apiKeyOptions" @change="applyFilters" />
+              <Select :aria-label="t('usage.apiKeyFilter')" v-model="filters.api_key_id" :options="apiKeyOptions" @change="applyFilters" />
             </div>
             <div class="usage-filter-field">
               <label class="input-label">{{ t('usage.model') }}</label>
-              <Select v-model="filters.model" :options="modelOptions" searchable @change="applyFilters" />
+              <Select :aria-label="t('usage.model')" v-model="filters.model" :options="modelOptions" searchable @change="applyFilters" />
             </div>
 
             <div class="usage-filter-field">
               <label class="input-label">{{ t('admin.usage.group') }}</label>
-              <Select v-model="filters.group_id" :options="groupOptions" searchable @change="applyFilters" />
+              <Select :aria-label="t('admin.usage.group')" v-model="filters.group_id" :options="groupOptions" searchable @change="applyFilters" />
             </div>
             <div class="usage-filter-field">
               <label class="input-label">{{ t('usage.type') }}</label>
-              <Select v-model="filters.request_type" :options="requestTypeOptions" @change="applyFilters" />
+              <Select :aria-label="t('usage.type')" v-model="filters.request_type" :options="requestTypeOptions" @change="applyFilters" />
             </div>
             <div class="usage-filter-field">
               <label class="input-label">{{ t('usage.compactionFilter') }}</label>
-              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" @change="applyFilters" />
+              <Select :aria-label="t('usage.compactionFilter')" v-model="filters.native_compaction_v2" :options="compactionOptions" @change="applyFilters" />
             </div>
             <div v-if="subscriptionFeatureEnabled" class="usage-filter-field">
               <label class="input-label">{{ t('admin.usage.billingType') }}</label>
-              <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="applyFilters" />
+              <Select :aria-label="t('admin.usage.billingType')" v-model="filters.billing_type" :options="billingTypeOptions" @change="applyFilters" />
             </div>
             <div class="usage-filter-field">
               <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
-              <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
+              <Select :aria-label="t('admin.usage.billingMode')" v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
             </div>
           </template>
 
           <div v-if="usageView === 'analysis'" class="usage-granularity-filter">
             <span class="input-label">{{ t('admin.dashboard.granularity') }}</span>
-            <Select v-model="granularity" :options="granularityOptions" @change="onGranularityChange" />
+            <Select :aria-label="t('admin.dashboard.granularity')" v-model="granularity" :options="granularityOptions" @change="onGranularityChange" />
           </div>
           <div ref="sortToolbarTarget" class="inline-table-tools" />
           <div class="usage-filter-actions flex flex-wrap items-center gap-3">
@@ -212,6 +212,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
 import { computed, onMounted, onUnmounted, reactive, ref, watch, inject } from 'vue'
 import { useI18n } from 'vue-i18n'

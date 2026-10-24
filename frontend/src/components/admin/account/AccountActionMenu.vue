@@ -12,7 +12,7 @@
         <div :class="inline ? 'account-action-groups' : 'py-1'">
           <template v-if="account">
             <div :class="inline ? 'account-action-group' : undefined">
-            <h4 v-if="inline">{{ t('admin.accounts.details.diagnostics') }}</h4>
+            <AppHeading as="h4" variant="subtle" v-if="inline">{{ t('admin.accounts.details.diagnostics') }}</AppHeading>
             <div :class="inline ? 'account-action-items' : undefined">
             <button @click="$emit('test', account); $emit('close')" :class="itemClass">
               <Icon name="play" size="sm" :stroke-width="2" />
@@ -33,7 +33,7 @@
             </div>
             </div>
             <div :class="inline ? 'account-action-group' : undefined">
-            <h4 v-if="inline">{{ t('admin.accounts.details.management') }}</h4>
+            <AppHeading as="h4" variant="subtle" v-if="inline">{{ t('admin.accounts.details.management') }}</AppHeading>
             <div :class="inline ? 'account-action-items' : undefined">
             <button v-if="canDuplicate" @click="$emit('duplicate', account); $emit('close')" :class="itemClass">
               <Icon name="copy" size="sm" />
@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useResizeObserver, useWindowSize } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -184,7 +185,7 @@ onUnmounted(() => {
 <style scoped>
 .account-action-groups { display: grid; gap: 1rem; }
 .account-action-group { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: .75rem; align-items: start; }
-.account-action-group h4 { margin: 0; padding-top: .45rem; font-size: 12px; font-weight: 500; color: var(--ritel-muted); }
+.account-action-group h4 { margin: 0; padding-top: .45rem; color: var(--ritel-muted); }
 .account-action-items { display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
 .account-inline-action { display: inline-flex; align-items: center; gap: .4rem; min-height: 32px; padding: .3rem 0; font-size: 12px; white-space: nowrap; }
 .account-delete-action { color: var(--color-red-600, #dc2626); }

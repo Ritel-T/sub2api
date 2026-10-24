@@ -13,9 +13,9 @@
                   @search="applyFilters"
                 />
               </div>
-              <Select v-model="filters.apiKeyId" :options="apiKeyFilterOptions" class="w-full" @change="applyFilters" />
-              <Select v-model="filters.status" :options="statusFilterOptions" class="w-full" @change="applyFilters" />
-              <Select v-model="filters.downloaded" :options="downloadFilterOptions" class="w-full" @change="applyFilters" />
+              <Select :aria-label="t('batchImage.columns.apiKey')" v-model="filters.apiKeyId" :options="apiKeyFilterOptions" class="w-full" @change="applyFilters" />
+              <Select :aria-label="t('common.status')" v-model="filters.status" :options="statusFilterOptions" class="w-full" @change="applyFilters" />
+              <Select :aria-label="t('batchImage.columns.downloadStatus')" v-model="filters.downloaded" :options="downloadFilterOptions" class="w-full" @change="applyFilters" />
             </div>
             <div class="flex flex-wrap items-center justify-start gap-2 sm:justify-end 2xl:flex-shrink-0">
               <button type="button" class="btn btn-secondary" :disabled="loadingJobs" @click="resetFilters">
@@ -276,6 +276,7 @@
     <Teleport to="body">
       <div
         v-if="promptPopover.visible"
+        ref="promptPopoverRef"
         class="batch-prompt-popover fixed z-[9999] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-800 shadow-xl ring-1 ring-black/5 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-100 dark:ring-white/10"
         :style="promptPopover.style"
         @mouseenter="cancelPromptPopoverClose"
@@ -331,7 +332,7 @@
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('batchImage.detail.items') }}</h3>
+          <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('batchImage.detail.items') }}</AppHeading>
           <button type="button" class="btn btn-secondary btn-sm" :disabled="refreshing || loadingItems" @click="refreshDetail">
             <Icon name="refresh" size="sm" class="mr-1.5" :class="refreshing || loadingItems ? 'animate-spin' : ''" />
             {{ t('common.refresh') }}
@@ -438,7 +439,7 @@
           </table>
         </div>
         <div v-else class="rounded-lg border border-dashed border-gray-200 py-10 text-center dark:border-dark-700">
-          <Icon name="refresh" size="lg" class="mx-auto mb-3 text-gray-400" :class="loadingItems ? 'animate-spin' : ''" />
+          <Icon :role="loadingItems ? 'status' : undefined" :aria-label="loadingItems ? t('common.loading') : undefined" name="refresh" size="lg" class="mx-auto mb-3 text-gray-400" :class="loadingItems ? 'animate-spin' : ''" />
           <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
             {{ loadingItems ? t('batchImage.detail.loadingItems') : t('batchImage.detail.noItems') }}
           </p>
@@ -679,7 +680,7 @@
     <BaseDialog :show="showGuideModal" :title="t('batchImage.guide.title')" width="wide" @close="showGuideModal = false">
 	      <div class="space-y-5">
 	        <section class="space-y-3">
-	          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('batchImage.guide.uiTitle') }}</h3>
+	          <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('batchImage.guide.uiTitle') }}</AppHeading>
 	          <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:border-dark-700 dark:bg-dark-900/50 dark:text-gray-200">
 	            <p>{{ t('batchImage.guide.step1') }}</p>
 	            <p>{{ t('batchImage.guide.step2') }}</p>
@@ -689,7 +690,7 @@
 	        </section>
 	        <section class="space-y-3">
 	          <div class="flex flex-wrap items-center justify-between gap-3">
-	            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('batchImage.guide.skillTitle') }}</h3>
+	            <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('batchImage.guide.skillTitle') }}</AppHeading>
 	            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('batchImage.guide.skillDesc') }}</p>
 	          </div>
 	        <textarea
@@ -710,10 +711,17 @@
       </template>
     </BaseDialog>
   </AppLayout>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import { useOwnedPopover } from '@/composables/overlayLifecycle'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -888,6 +896,18 @@ let previewCacheCleanupTimer: ReturnType<typeof setInterval> | null = null
 let promptPopoverCloseTimer: ReturnType<typeof setTimeout> | null = null
 let promptPopoverOpenTimer: ReturnType<typeof setTimeout> | null = null
 let activePromptPopoverTarget: HTMLElement | null = null
+let restoringPromptFocus = false
+const promptPopoverRef = ref<HTMLElement | null>(null)
+useOwnedPopover(computed(() => promptPopover.visible), {
+  root: () => promptPopoverRef.value,
+  trigger: () => activePromptPopoverTarget,
+  close: () => {
+    // Registry restores the trigger synchronously. Its focus listener must not reopen the dismissed popup.
+    restoringPromptFocus = true
+    closePromptPopover()
+    void nextTick(() => { restoringPromptFocus = false })
+  }
+})
 
 const geminiApiKeys = computed(() =>
   apiKeys.value.filter((key) =>
@@ -1406,6 +1426,7 @@ function schedulePromptPopoverOpen(event: MouseEvent | PointerEvent, text: strin
 }
 
 function showPromptPopover(event: MouseEvent | FocusEvent, text: string) {
+  if (restoringPromptFocus && event.type.startsWith('focus')) return
   const value = String(text || '').trim()
   if (!value || value === '-') return
   const target = event.currentTarget as HTMLElement | null
@@ -1692,20 +1713,25 @@ function canDeleteRecord(job: Pick<BatchImageJob, 'status'>) {
 
 async function cancelSelected() {
   if (!currentJob.value) return
+  const jobId = currentJob.value.id
   const key = keyForSelectedBatch() || requireApiKey()
   if (!key) return
-  if (!window.confirm(batchImageText('cancelConfirm'))) return
-  cancelling.value = true
-  try {
-    const job = await cancelBatchImageJob(key.key, currentJob.value.id)
-    currentJob.value = job
-    upsertJob(job)
-    appStore.showSuccess(batchImageText('cancelled'))
-  } catch (error: any) {
-    appStore.showError(batchImageErrorMessage(error, batchImageText('cancelFailed')))
-  } finally {
-    cancelling.value = false
-  }
+  const keyValue = key.key
+  await confirmation.run({ message: batchImageText('cancelConfirm'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: true }, async (isCurrent) => {
+    cancelling.value = true
+    try {
+      const job = await cancelBatchImageJob(keyValue, jobId)
+      if (!isCurrent()) return
+      currentJob.value = job
+      upsertJob(job)
+      appStore.showSuccess(batchImageText('cancelled'))
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(batchImageErrorMessage(error, batchImageText('cancelFailed')))
+    } finally {
+      cancelling.value = false
+    }
+  })
 }
 
 async function downloadSelected() {
@@ -1830,39 +1856,48 @@ async function deleteJob(job: BatchImageJobRow) {
   closeMoreMenu()
   const key = apiKeyForJob(job)
   if (!key) return
-  if (!window.confirm(batchImageText('deleteConfirm'))) return
-  deletingBatchId.value = job.id
-  try {
-    await deleteBatchImageJobRecord(key.key, job.id)
-    removeJobFromList(job.id)
-    appStore.showSuccess(batchImageText('deleted'))
-  } catch (error: any) {
-    appStore.showError(batchImageErrorMessage(error, batchImageText('deleteFailed')))
-  } finally {
-    deletingBatchId.value = ''
-  }
+  const jobId = job.id
+  const keyValue = key.key
+  await confirmation.run({ message: batchImageText('deleteConfirm'), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async (isCurrent) => {
+    deletingBatchId.value = jobId
+    try {
+      await deleteBatchImageJobRecord(keyValue, jobId)
+      if (!isCurrent()) return
+      removeJobFromList(jobId)
+      appStore.showSuccess(batchImageText('deleted'))
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(batchImageErrorMessage(error, batchImageText('deleteFailed')))
+    } finally {
+      deletingBatchId.value = ''
+    }
+  })
 }
 
 async function deleteSelectedJobs() {
-  const rows = selectedRows.value.filter(job => canDeleteRecord(job))
+  const rows = selectedRows.value.filter(job => canDeleteRecord(job)).map(row => ({ id: row.id, key: apiKeyForJob(row)?.key }))
   if (bulkDeleting.value || rows.length === 0) return
-  if (!window.confirm(batchImageText('deleteSelectedConfirm'))) return
-  bulkDeleting.value = true
-  try {
-    for (const row of rows) {
-      const key = apiKeyForJob(row)
-      if (!key) continue
-      deletingBatchId.value = row.id
-      await deleteBatchImageJobRecord(key.key, row.id)
-      removeJobFromList(row.id)
+  await confirmation.run({ message: batchImageText('deleteSelectedConfirm'), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async (isCurrent) => {
+    bulkDeleting.value = true
+    const removedIds: string[] = []
+    try {
+      for (const row of rows) {
+        if (!row.key) continue
+        deletingBatchId.value = row.id
+        await deleteBatchImageJobRecord(row.key, row.id)
+        if (!isCurrent()) return
+        removedIds.push(row.id)
+      }
+      appStore.showSuccess(batchImageText('deleted'))
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(batchImageErrorMessage(error, batchImageText('deleteFailed')))
+    } finally {
+      if (isCurrent()) removedIds.forEach(removeJobFromList)
+      bulkDeleting.value = false
+      deletingBatchId.value = ''
     }
-    appStore.showSuccess(batchImageText('deleted'))
-  } catch (error: any) {
-    appStore.showError(batchImageErrorMessage(error, batchImageText('deleteFailed')))
-  } finally {
-    bulkDeleting.value = false
-    deletingBatchId.value = ''
-  }
+  })
 }
 
 function markJobDownloaded(batchId: string) {
@@ -2570,6 +2605,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', closePromptPopover)
   window.removeEventListener('scroll', closePromptPopover, true)
 })
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: true, identity: [currentJob.value?.id, selectedJobIds.value] }))
 </script>
 
 <style scoped>

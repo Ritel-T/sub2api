@@ -216,6 +216,7 @@
 
   <ConfirmDialog
     :show="confirmDelete.show"
+    :busy="deleteAction.busy.value"
     :title="t('common.delete')"
     :message="confirmDeleteMessage"
     :confirm-text="t('common.delete')"
@@ -240,6 +241,7 @@ import type {
 import type { ChannelMonitorTemplate } from '@/api/admin/channelMonitorTemplate'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import Icon from '@/components/icons/Icon.vue'
 import MonitorAdvancedRequestConfig from '@/components/admin/monitor/MonitorAdvancedRequestConfig.vue'
 import MonitorTemplateApplyPickerDialog from '@/components/admin/monitor/MonitorTemplateApplyPickerDialog.vue'
@@ -448,8 +450,12 @@ const confirmDelete = reactive<{ show: boolean; tpl: ChannelMonitorTemplate | nu
   tpl: null,
 })
 
+const deleteAction = useConfirmedAction(() => ({ active: props.show, identity: activeProvider.value }))
+watch(() => [props.show, activeProvider.value], () => { confirmDelete.show = false; confirmDelete.tpl = null }, { flush: 'sync' })
+
 function handleDelete(tpl: ChannelMonitorTemplate) {
-  confirmDelete.tpl = tpl
+  if (!props.show || deleteAction.busy.value || confirmDelete.show) return
+  confirmDelete.tpl = { ...tpl }
   confirmDelete.show = true
 }
 
@@ -464,16 +470,20 @@ const confirmDeleteMessage = computed(() => {
 
 async function doDelete() {
   const tpl = confirmDelete.tpl
-  confirmDelete.show = false
-  if (!tpl) return
-  try {
-    await adminAPI.channelMonitorTemplate.del(tpl.id)
-    appStore.showSuccess(t('admin.channelMonitor.template.deleteSuccess'))
-    await fetchTemplates()
-    emit('updated')
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('common.error')))
-  }
+  if (!props.show || !confirmDelete.show || !tpl) return
+  await deleteAction.run(async (isCurrent) => {
+    try {
+      await adminAPI.channelMonitorTemplate.del(tpl.id)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.channelMonitor.template.deleteSuccess'))
+      confirmDelete.show = false
+      confirmDelete.tpl = null
+      await fetchTemplates()
+      if (isCurrent()) emit('updated')
+    } catch (err: unknown) {
+      if (isCurrent()) appStore.showError(extractApiErrorMessage(err, t('common.error')))
+    }
+  })
 }
 
 // --- misc ---

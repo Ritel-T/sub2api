@@ -1,14 +1,14 @@
 <template>
   <div class="space-y-3">
     <label class="block text-xs">{{ t('admin.accounts.pelicanTest.question') }}</label>
-    <Select :model-value="modelValue.question_kind || 'pelican'" :options="questionOptions" @update:model-value="selectQuestion" />
+    <Select :aria-label="t('admin.accounts.pelicanTest.question')" :model-value="modelValue.question_kind || 'pelican'" :options="questionOptions" @update:model-value="selectQuestion" />
     <p v-if="isProbe" class="text-xs text-gray-500 dark:text-gray-400" data-testid="state-probe-hint">{{ t('admin.accounts.pelicanTest.stateProbeHint') }}</p>
     <template v-else>
       <TextArea :model-value="modelValue.prompt" :label="t('admin.accounts.pelicanTest.promptLabel')" :rows="3" @update:model-value="update('prompt', $event)" />
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label class="mb-1 block text-xs text-gray-600 dark:text-gray-400">{{ t('admin.accounts.pelicanTest.reasoning') }}</label>
-          <Select :model-value="modelValue.reasoning_effort" :options="reasoningOptions" @update:model-value="update('reasoning_effort', $event)" />
+          <Select :aria-label="t('admin.accounts.pelicanTest.reasoning')" :model-value="modelValue.reasoning_effort" :options="reasoningOptions" @update:model-value="update('reasoning_effort', $event)" />
         </div>
         <Input :model-value="String(modelValue.parallel_count)" type="number" :label="t('admin.accounts.pelicanTest.parallel')" :hint="t('admin.accounts.pelicanTest.parallelHint')" @update:model-value="update('parallel_count', Number($event))" />
       </div>

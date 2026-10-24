@@ -1,6 +1,12 @@
 <template>
-  <div class="relative" ref="containerRef">
+  <div class="relative" ref="containerRef" v-bind="wrapperAttrs()">
     <button
+      ref="triggerRef"
+      v-bind="fieldAttrs()"
+      :id="id"
+      :disabled="disabled"
+      :aria-label="ariaLabel || undefined"
+      :aria-invalid="ariaInvalid()"
       type="button"
       @click="toggle"
       :aria-expanded="isOpen"
@@ -24,10 +30,10 @@
     </button>
 
     <Transition name="date-picker-dropdown">
-      <div v-if="isOpen" :id="`${inputId}-panel`" role="dialog" :aria-label="displayValue" class="date-picker-dropdown" :style="dropdownStyle">
+      <div v-if="isOpen" ref="panelRef" :id="`${inputId}-panel`" role="dialog" :aria-label="displayValue" class="date-picker-dropdown" :style="dropdownStyle">
         <!-- Quick presets -->
         <div class="date-picker-presets">
-          <button
+          <button type="button"
             v-for="preset in presets"
             :key="preset.value"
             @click="selectPreset(preset)"
@@ -50,7 +56,8 @@
               v-model="startInput"
               :max="endInput || (!enableTime ? tomorrow() : undefined)"
               :aria-invalid="!validRange"
-              class="date-picker-input"
+              class="input date-picker-input"
+              :aria-describedby="!validRange ? `${inputId}-error` : undefined"
             />
           </div>
           <div class="date-picker-separator">
@@ -66,16 +73,17 @@
               :min="startInput || undefined"
               :max="!enableTime ? tomorrow() : undefined"
               :aria-invalid="!validRange"
-              class="date-picker-input"
+              class="input date-picker-input"
+              :aria-describedby="!validRange ? `${inputId}-error` : undefined"
             />
           </div>
         </div>
 
-        <p v-if="!validRange" role="alert" class="px-3 pb-2 text-xs text-red-600">{{ t('dates.invalidRange') }}</p>
+        <p v-if="!validRange" :id="`${inputId}-error`" role="alert" class="px-3 pb-2 text-xs text-red-600">{{ t('dates.invalidRange') }}</p>
 
         <!-- Apply button -->
         <div class="date-picker-actions">
-          <button @click="apply" :disabled="!validRange" class="date-picker-apply">
+          <button type="button" @click="apply" :disabled="!validRange" class="date-picker-apply">
             {{ t('dates.apply') }}
           </button>
         </div>
@@ -85,13 +93,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, useId } from 'vue'
-import type { CSSProperties } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, useId, useAttrs } from 'vue'
+import type { CSSProperties, HTMLAttributes } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import { useOwnedPopover } from '@/composables/overlayLifecycle'
 import { formatLocalDate, formatLocalMinute, getDatePresetRange, parseDateBoundary, parseLocalMinute } from '@/utils/dateRange'
 
+defineOptions({ inheritAttrs: false })
+
 interface Props {
+  id?: string
+  disabled?: boolean
+  error?: boolean
+  ariaLabel?: string
   startDate: string
   endDate: string
   enableTime?: boolean
@@ -105,11 +120,18 @@ interface Emits {
 }
 
 const props = defineProps<Props>()
+const attrs = useAttrs()
+const ariaInvalid = () => props.error ? true : attrs['aria-invalid'] as HTMLAttributes['aria-invalid']
+const wrapperAttrs = () => ({ class: attrs.class, style: attrs.style, 'data-field-role': attrs['data-field-role'], 'data-field-density': attrs['data-field-density'] })
+const fieldAttrs = () => Object.fromEntries(Object.entries(attrs).filter(([key]) => !['class', 'style', 'data-field-role', 'data-field-density'].includes(key)))
 const emit = defineEmits<Emits>()
 const { t, locale } = useI18n()
 const inputId = useId()
 const isOpen = ref(false)
 const containerRef = ref<HTMLElement | null>(null)
+const triggerRef = ref<HTMLButtonElement | null>(null)
+const panelRef = ref<HTMLElement | null>(null)
+useOwnedPopover(isOpen, { root: () => panelRef.value, trigger: () => triggerRef.value, close: () => { isOpen.value = false } })
 const localStartDate = ref(props.startDate)
 const localEndDate = ref(props.endDate)
 const activePreset = ref<string | null>(null)
@@ -223,6 +245,7 @@ const positionDropdown = () => {
   }
 }
 const toggle = () => {
+  if (props.disabled) return
   if (!isOpen.value) { syncDraft(); positionDropdown() }
   isOpen.value = !isOpen.value
 }
@@ -237,18 +260,16 @@ const apply = () => {
 const handleClickOutside = (event: MouseEvent) => {
   if (containerRef.value && !containerRef.value.contains(event.target as Node)) isOpen.value = false
 }
-const handleEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') isOpen.value = false }
+watch(() => props.disabled, disabled => { if (disabled) isOpen.value = false })
 watch(() => [props.startDate, props.endDate, props.preset], () => { if (!isOpen.value) syncDraft() })
 onMounted(() => {
   syncDraft()
   document.addEventListener('click', handleClickOutside)
-  document.addEventListener('keydown', handleEscape)
   window.addEventListener('resize', positionDropdown)
   window.addEventListener('scroll', positionDropdown, true)
 })
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
-  document.removeEventListener('keydown', handleEscape)
   window.removeEventListener('resize', positionDropdown)
   window.removeEventListener('scroll', positionDropdown, true)
 })
@@ -257,7 +278,7 @@ onUnmounted(() => {
 <style scoped>
 .date-picker-trigger {
   max-width: 100%;
-  @apply flex cursor-pointer items-center gap-2 text-sm;
+  @apply flex cursor-pointer items-center gap-2;
 }
 
 .date-picker-icon {
@@ -314,13 +335,7 @@ onUnmounted(() => {
   @apply mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400;
 }
 
-.date-picker-input {
-  @apply w-full rounded-md px-2 py-1.5 text-sm;
-  @apply bg-gray-50 dark:bg-dark-700;
-  @apply border border-gray-200 dark:border-dark-600;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
-}
+.date-picker-input { width: 100%; }
 
 .date-picker-input::-webkit-calendar-picker-indicator {
   @apply cursor-pointer opacity-60 hover:opacity-100;

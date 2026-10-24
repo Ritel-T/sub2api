@@ -4,12 +4,12 @@
       class="page-header mb-0 flex flex-wrap items-center justify-between gap-3 py-2"
     >
       <div class="min-w-0">
-        <h2 class="page-title flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
+        <AppHeading as="h2" variant="section" class="flex items-center gap-2 text-gray-900 dark:text-white">
           <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-500 dark:bg-blue-900/30 dark:text-blue-400">
             <Icon name="chart" size="sm" />
           </span>
           {{ t('channelMonitorV2.settings.title') }}
-        </h2>
+        </AppHeading>
         <p class="page-description mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           {{ t('channelMonitorV2.settings.description') }}
         </p>
@@ -43,7 +43,7 @@
       v-if="loading"
       class="open-section flex min-h-[200px] items-center justify-center text-sm text-gray-400"
     >
-      <span class="animate-pulse">{{ t('channelMonitorV2.settings.loading') }}</span>
+      <span class="animate-pulse" role="status" aria-busy="true">{{ t('channelMonitorV2.settings.loading') }}</span>
     </div>
 
     <template v-else-if="draft">
@@ -55,7 +55,7 @@
               {{ t('channelMonitorV2.settings.enableHint') }}
             </p>
           </div>
-          <Toggle v-model="draft.enabled" />
+          <Toggle :aria-label="t('channelMonitorV2.settings.enableTitle')" v-model="draft.enabled" />
         </div>
         <div class="flex flex-wrap items-center justify-between gap-4 py-5">
           <div>
@@ -111,7 +111,7 @@
 
       <div class="open-section overflow-hidden">
         <div class="monitor-section-heading mb-5">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.platformsTitle') }}</h3>
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.platformsTitle') }}</AppHeading>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
             {{ t('channelMonitorV2.settings.platformsHint') }}
           </p>
@@ -147,7 +147,7 @@
             data-testid="monitor-v2-platform-row"
             :data-platform="platform.platform"
           >
-            <Toggle v-model="platform.enabled" />
+            <Toggle :aria-label="platformLabel(platform.platform)" v-model="platform.enabled" />
             <div class="w-36 min-w-0">
               <strong class="block truncate text-sm font-medium text-gray-900 dark:text-white">{{ platformLabel(platform.platform) }}</strong>
               <small class="block truncate font-mono text-xs text-gray-400">
@@ -190,7 +190,7 @@
       <div class="open-section overflow-hidden">
         <div class="monitor-section-heading mb-5 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.groupsTitle') }}</h3>
+            <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.groupsTitle') }}</AppHeading>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
               {{
                 draft.group_ids.length
@@ -211,7 +211,7 @@
         </div>
         <div class="max-h-[min(40vh,420px)] overflow-y-auto py-3">
           <section v-for="section in groupSections" :key="section.platform" class="py-2" :data-testid="'monitor-v2-group-platform'" :data-platform="section.platform">
-            <h4 class="px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400">{{ platformLabel(section.platform) }}</h4>
+            <AppHeading as="h4" variant="subtle" class="px-3 py-1 text-gray-500 dark:text-gray-400">{{ platformLabel(section.platform) }}</AppHeading>
             <div
               v-for="(group, index) in section.groups"
               :key="group.id"
@@ -241,7 +241,7 @@
 
       <div class="open-section overflow-hidden">
         <div class="monitor-section-heading mb-5">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.errorsTitle') }}</h3>
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.errorsTitle') }}</AppHeading>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
             {{ t('channelMonitorV2.settings.errorsHint') }}
           </p>
@@ -278,7 +278,7 @@
 
       <div class="open-section overflow-hidden">
         <div class="monitor-section-heading mb-5">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.healthTitle') }}</h3>
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.healthTitle') }}</AppHeading>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
             {{ t('channelMonitorV2.settings.healthHint') }}
           </p>
@@ -345,6 +345,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Toggle from '@/components/common/Toggle.vue'

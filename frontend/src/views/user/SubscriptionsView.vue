@@ -1,10 +1,10 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page">
       <BillingNavigation class="subscription-heading" current="subscriptions" :settings="appStore.cachedPublicSettings" />
       <!-- Loading State -->
       <div v-if="loading" class="flex justify-center py-12">
-        <div
+        <div role="status" :aria-label="t('common.loading')"
           class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
         ></div>
       </div>
@@ -16,9 +16,9 @@
         >
           <Icon name="creditCard" size="xl" class="text-gray-400" />
         </div>
-        <h3 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
+        <AppHeading variant="empty" as="h3" class="mb-2 text-gray-900 dark:text-white">
           {{ t('userSubscriptions.noActiveSubscriptions') }}
-        </h3>
+        </AppHeading>
         <p class="text-gray-500 dark:text-dark-400">
           {{ t('userSubscriptions.noActiveSubscriptionsDesc') }}
         </p>
@@ -39,9 +39,9 @@
               <div :class="['h-1.5 w-1.5 shrink-0 rounded-full', platformAccentDotClass(subscription.group?.platform || '')]" />
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="font-semibold text-gray-900 dark:text-white">
+                  <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                     {{ subscription.group?.name || `Group #${subscription.group_id}` }}
-                  </h3>
+                  </AppHeading>
                   <span :class="['rounded-md border px-2 py-0.5 text-[11px] font-medium', platformBadgeClass(subscription.group?.platform || '')]">
                     {{ platformLabel(subscription.group?.platform || '') }}
                   </span>
@@ -248,6 +248,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -417,7 +418,6 @@ onMounted(() => {
 .subscription-heading{border-bottom:0;padding-bottom:0}
 
 .subscription-record{display:grid;gap:2rem;padding:2rem 0}
-.subscription-identity h3{font-size:1.35rem}
 .subscription-usage{min-width:0}
 @media(min-width:900px){.subscription-record{grid-template-columns:minmax(15rem,1fr) minmax(0,1.65fr);gap:clamp(2rem,5vw,6rem)}.subscription-usage{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.5rem}.subscription-usage>:first-child{grid-column:1/-1}.subscription-usage>:not(:first-child){margin-top:0}}
 </style>

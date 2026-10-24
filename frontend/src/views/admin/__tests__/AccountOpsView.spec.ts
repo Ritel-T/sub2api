@@ -42,13 +42,32 @@ describe('account operations tabs and independent saves', () => {
   })
 
   it('releases pagination when Refresh invalidates an in-flight page response', async () => {
-    vi.mocked(getAccountOpsEvents).mockResolvedValue({ items: [], has_more: true })
+    vi.mocked(getAccountOpsEvents).mockResolvedValue({ items: [{ id: 1, account_id: 1, account_name: 'One' }] as any, has_more: true })
     const wrapper = create(); await flushPromises()
     const old = deferred<{ items: []; has_more: boolean }>(); vi.mocked(getAccountOpsEvents).mockReturnValueOnce(old.promise)
     const page = (wrapper.vm as any).more()
     await (wrapper.vm as any).load()
     old.resolve({ items: [], has_more: false }); await page
     expect((wrapper.vm as any).loadingMore).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('preserves rows after a failed append and refreshes the complete loaded range', async () => {
+    const one = { id: 1, account_id: 1, account_name: 'One' }
+    const two = { id: 2, account_id: 2, account_name: 'Two' }
+    vi.mocked(getAccountOpsEvents).mockResolvedValueOnce({ items: [one] as any, has_more: true })
+      .mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ items: [two] as any, has_more: false })
+      .mockResolvedValueOnce({ items: [one] as any, has_more: true }).mockResolvedValueOnce({ items: [two] as any, has_more: false })
+    const wrapper = create(); await flushPromises()
+    await (wrapper.vm as any).more()
+    expect((wrapper.vm as any).events).toHaveLength(1)
+    expect((wrapper.vm as any).listError).toBeTruthy()
+    expect((wrapper.vm as any).hasMore).toBe(true)
+    await (wrapper.vm as any).more()
+    expect((wrapper.vm as any).events).toHaveLength(2)
+    await (wrapper.vm as any).load()
+    expect((wrapper.vm as any).events).toHaveLength(2)
+    expect(vi.mocked(getAccountOpsEvents).mock.calls.map(call => call[0])).toEqual([0, 1, 1, 0, 1])
     wrapper.unmount()
   })
 

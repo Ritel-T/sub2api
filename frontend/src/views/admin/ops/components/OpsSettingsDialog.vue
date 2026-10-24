@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -252,7 +253,7 @@ async function saveAllSettings() {
 
       <!-- 数据采集频率 -->
       <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
-        <h4 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.settings.dataCollection') }}</h4>
+        <AppHeading variant="minor" as="h4" class="mb-3 text-gray-900 dark:text-white">{{ t('admin.ops.settings.dataCollection') }}</AppHeading>
         <div>
           <label class="input-label">{{ t('admin.ops.settings.evaluationInterval') }}</label>
           <input
@@ -268,14 +269,14 @@ async function saveAllSettings() {
 
       <!-- 预警配置 -->
       <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
-        <h4 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.settings.alertConfig') }}</h4>
+        <AppHeading variant="minor" as="h4" class="mb-3 text-gray-900 dark:text-white">{{ t('admin.ops.settings.alertConfig') }}</AppHeading>
 
         <div class="space-y-4">
           <div class="flex items-center justify-between">
             <div>
               <label class="font-medium text-gray-900 dark:text-white">{{ t('admin.ops.settings.enableAlert') }}</label>
             </div>
-            <Toggle v-model="emailConfig.alert.enabled" />
+            <Toggle :aria-label="t('admin.ops.settings.enableAlert')" v-model="emailConfig.alert.enabled" />
           </div>
 
           <div v-if="emailConfig.alert.enabled">
@@ -309,21 +310,21 @@ async function saveAllSettings() {
 
           <div v-if="emailConfig.alert.enabled">
             <label class="input-label">{{ t('admin.ops.settings.minSeverity') }}</label>
-            <Select v-model="emailConfig.alert.min_severity" :options="severityOptions" />
+            <Select :aria-label="t('admin.ops.settings.minSeverity')" v-model="emailConfig.alert.min_severity" :options="severityOptions" />
           </div>
         </div>
       </div>
 
       <!-- 评估报告配置 -->
       <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
-        <h4 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.settings.reportConfig') }}</h4>
+        <AppHeading variant="minor" as="h4" class="mb-3 text-gray-900 dark:text-white">{{ t('admin.ops.settings.reportConfig') }}</AppHeading>
 
         <div class="space-y-4">
           <div class="flex items-center justify-between">
             <div>
               <label class="font-medium text-gray-900 dark:text-white">{{ t('admin.ops.settings.enableReport') }}</label>
             </div>
-            <Toggle v-model="emailConfig.report.enabled" />
+            <Toggle :aria-label="t('admin.ops.settings.enableReport')" v-model="emailConfig.report.enabled" />
           </div>
 
           <div v-if="emailConfig.report.enabled">
@@ -358,14 +359,14 @@ async function saveAllSettings() {
           <div v-if="emailConfig.report.enabled" class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div class="flex items-center justify-between">
               <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.dailySummary') }}</label>
-              <Toggle v-model="emailConfig.report.daily_summary_enabled" />
+              <Toggle :aria-label="t('admin.ops.settings.dailySummary')" v-model="emailConfig.report.daily_summary_enabled" />
             </div>
             <div v-if="emailConfig.report.daily_summary_enabled">
               <input v-model="emailConfig.report.daily_summary_schedule" type="text" class="input" placeholder="0 9 * * *" />
             </div>
             <div class="flex items-center justify-between">
               <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.weeklySummary') }}</label>
-              <Toggle v-model="emailConfig.report.weekly_summary_enabled" />
+              <Toggle :aria-label="t('admin.ops.settings.weeklySummary')" v-model="emailConfig.report.weekly_summary_enabled" />
             </div>
             <div v-if="emailConfig.report.weekly_summary_enabled">
               <input v-model="emailConfig.report.weekly_summary_schedule" type="text" class="input" placeholder="0 9 * * 1" />
@@ -376,7 +377,7 @@ async function saveAllSettings() {
 
       <!-- 指标阈值配置 -->
       <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
-        <h4 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.settings.metricThresholds') }}</h4>
+        <AppHeading variant="minor" as="h4" class="mb-3 text-gray-900 dark:text-white">{{ t('admin.ops.settings.metricThresholds') }}</AppHeading>
         <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.settings.metricThresholdsHint') }}</p>
 
         <div class="space-y-4">
@@ -442,11 +443,11 @@ async function saveAllSettings() {
         <div class="space-y-4 px-4 pb-4">
           <!-- 数据保留策略 -->
           <div class="space-y-3">
-            <h5 class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.dataRetention') }}</h5>
+            <AppHeading variant="minor" as="h5" class="text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.dataRetention') }}</AppHeading>
 
             <div class="flex items-center justify-between">
               <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.enableCleanup') }}</label>
-              <Toggle v-model="advancedSettings.data_retention.cleanup_enabled" />
+              <Toggle :aria-label="t('admin.ops.settings.enableCleanup')" v-model="advancedSettings.data_retention.cleanup_enabled" />
             </div>
 
             <div v-if="advancedSettings.data_retention.cleanup_enabled">
@@ -497,20 +498,20 @@ async function saveAllSettings() {
 
           <!-- 预聚合任务 -->
           <div class="space-y-3">
-            <h5 class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.aggregation') }}</h5>
+            <AppHeading variant="minor" as="h5" class="text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.aggregation') }}</AppHeading>
 
             <div class="flex items-center justify-between">
               <div>
                 <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.enableAggregation') }}</label>
                 <p class="mt-1 text-xs text-gray-500">{{ t('admin.ops.settings.aggregationHint') }}</p>
               </div>
-              <Toggle v-model="advancedSettings.aggregation.aggregation_enabled" />
+              <Toggle :aria-label="t('admin.ops.settings.enableAggregation')" v-model="advancedSettings.aggregation.aggregation_enabled" />
             </div>
           </div>
 
           <!-- OpenAI 账号配额自动暂停（全局默认阈值） -->
           <div class="space-y-3">
-            <h5 class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.openaiQuotaAutoPause') }}</h5>
+            <AppHeading variant="minor" as="h5" class="text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.openaiQuotaAutoPause') }}</AppHeading>
             <p class="text-xs text-gray-500">{{ t('admin.ops.settings.openaiQuotaAutoPauseHint') }}</p>
 
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -544,7 +545,7 @@ async function saveAllSettings() {
 
           <!-- Error Filtering -->
           <div class="space-y-3">
-            <h5 class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.errorFiltering') }}</h5>
+            <AppHeading variant="minor" as="h5" class="text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.errorFiltering') }}</AppHeading>
 
             <div class="flex items-center justify-between">
               <div>
@@ -553,7 +554,7 @@ async function saveAllSettings() {
                   {{ t('admin.ops.settings.ignoreCountTokensErrorsHint') }}
                 </p>
               </div>
-              <Toggle v-model="advancedSettings.ignore_count_tokens_errors" />
+              <Toggle :aria-label="t('admin.ops.settings.ignoreCountTokensErrors')" v-model="advancedSettings.ignore_count_tokens_errors" />
             </div>
 
             <div class="flex items-center justify-between">
@@ -563,7 +564,7 @@ async function saveAllSettings() {
                   {{ t('admin.ops.settings.ignoreContextCanceledHint') }}
                 </p>
               </div>
-              <Toggle v-model="advancedSettings.ignore_context_canceled" />
+              <Toggle :aria-label="t('admin.ops.settings.ignoreContextCanceled')" v-model="advancedSettings.ignore_context_canceled" />
             </div>
 
             <div class="flex items-center justify-between">
@@ -573,7 +574,7 @@ async function saveAllSettings() {
                   {{ t('admin.ops.settings.ignoreNoAvailableAccountsHint') }}
                 </p>
               </div>
-              <Toggle v-model="advancedSettings.ignore_no_available_accounts" />
+              <Toggle :aria-label="t('admin.ops.settings.ignoreNoAvailableAccounts')" v-model="advancedSettings.ignore_no_available_accounts" />
             </div>
 
             <div class="flex items-center justify-between">
@@ -583,13 +584,13 @@ async function saveAllSettings() {
                   {{ t('admin.ops.settings.ignoreInsufficientBalanceErrorsHint') }}
                 </p>
               </div>
-              <Toggle v-model="advancedSettings.ignore_insufficient_balance_errors" />
+              <Toggle :aria-label="t('admin.ops.settings.ignoreInsufficientBalanceErrors')" v-model="advancedSettings.ignore_insufficient_balance_errors" />
             </div>
           </div>
 
           <!-- Auto Refresh -->
           <div class="space-y-3">
-            <h5 class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.autoRefresh') }}</h5>
+            <AppHeading variant="minor" as="h5" class="text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.autoRefresh') }}</AppHeading>
 
             <div class="flex items-center justify-between">
               <div>
@@ -598,12 +599,12 @@ async function saveAllSettings() {
                   {{ t('admin.ops.settings.enableAutoRefreshHint') }}
                 </p>
               </div>
-              <Toggle v-model="advancedSettings.auto_refresh_enabled" />
+              <Toggle :aria-label="t('admin.ops.settings.enableAutoRefresh')" v-model="advancedSettings.auto_refresh_enabled" />
             </div>
 
             <div v-if="advancedSettings.auto_refresh_enabled">
               <label class="input-label">{{ t('admin.ops.settings.refreshInterval') }}</label>
-              <Select
+              <Select :aria-label="t('admin.ops.settings.refreshInterval')"
                 v-model="advancedSettings.auto_refresh_interval_seconds"
                 :options="[
                   { value: 15, label: t('admin.ops.settings.refreshInterval15s') },
@@ -616,7 +617,7 @@ async function saveAllSettings() {
 
           <!-- Dashboard Cards -->
           <div class="space-y-3">
-            <h5 class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.dashboardCards') }}</h5>
+            <AppHeading variant="minor" as="h5" class="text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.dashboardCards') }}</AppHeading>
 
             <div class="flex items-center justify-between">
               <div>
@@ -625,7 +626,7 @@ async function saveAllSettings() {
                   {{ t('admin.ops.settings.displayAlertEventsHint') }}
                 </p>
               </div>
-              <Toggle v-model="advancedSettings.display_alert_events" />
+              <Toggle :aria-label="t('admin.ops.settings.displayAlertEvents')" v-model="advancedSettings.display_alert_events" />
             </div>
 
             <div class="flex items-center justify-between">
@@ -635,7 +636,7 @@ async function saveAllSettings() {
                   {{ t('admin.ops.settings.displayOpenAITokenStatsHint') }}
                 </p>
               </div>
-              <Toggle v-model="advancedSettings.display_openai_token_stats" />
+              <Toggle :aria-label="t('admin.ops.settings.displayOpenAITokenStats')" v-model="advancedSettings.display_openai_token_stats" />
             </div>
           </div>
         </div>

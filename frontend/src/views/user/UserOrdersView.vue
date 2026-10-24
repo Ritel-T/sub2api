@@ -1,11 +1,11 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page">
       <BillingNavigation current="orders" :settings="appStore.cachedPublicSettings" />
       <!-- Filters -->
       <div class="open-section p-4">
         <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
-          <Select v-model="currentFilter" :options="statusFilters" class="w-36" @change="reset" />
+          <Select :aria-label="t('payment.orders.status')" v-model="currentFilter" :options="statusFilters" class="w-36" @change="reset" />
           <div ref="tableToolbarTarget" class="min-w-0" />
           <div class="flex flex-1 items-center justify-end gap-2">
             <button @click="fetchOrders" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
@@ -45,18 +45,12 @@
     </div>
 
     <!-- Cancel Confirm Dialog -->
-    <BaseDialog :show="!!cancelTargetId" :title="t('payment.orders.cancel')" width="narrow" @close="cancelTargetId = null">
-      <p class="text-sm text-gray-600 dark:text-gray-300">{{ t(orders.find(order => order.id === cancelTargetId)?.payment_type === 'squarespace' ? 'paymentRetail.claim.cancelHint' : 'payment.confirmCancel') }}</p>
-      <template #footer>
-        <div class="flex justify-end gap-3">
-          <button class="btn btn-secondary" @click="cancelTargetId = null">{{ t('common.cancel') }}</button>
-          <button class="btn btn-danger" :disabled="actionLoading" @click="confirmCancel">{{ actionLoading ? t('common.processing') : t('payment.orders.cancel') }}</button>
-        </div>
-      </template>
-    </BaseDialog>
+    <ConfirmDialog :show="!!cancelTargetId" :busy="cancelAction.busy.value || actionLoading" :title="t('payment.orders.cancel')"
+      :message="t(orders.find(order => order.id === cancelTargetId)?.payment_type === 'squarespace' ? 'paymentRetail.claim.cancelHint' : 'payment.confirmCancel')"
+      :confirm-text="t('payment.orders.cancel')" danger @confirm="confirmCancel" @cancel="closeCancelDialog" />
 
     <!-- Refund Dialog -->
-    <BaseDialog :show="!!refundTarget" :title="t('payment.orders.requestRefund')" @close="refundTarget = null">
+    <BaseDialog :show="!!refundTarget" :title="t('payment.orders.requestRefund')" :close-on-escape="!actionLoading" :show-close-button="!actionLoading" @close="closeRefundDialog">
       <div v-if="refundTarget" class="space-y-4">
         <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
           <div class="flex justify-between text-sm">
@@ -70,12 +64,12 @@
         </div>
         <div>
           <label class="input-label">{{ t('payment.refundReason') }}</label>
-          <textarea v-model="refundReason" rows="3" class="input mt-1 w-full" :placeholder="t('payment.refundReasonPlaceholder')" />
+          <textarea :disabled="actionLoading" v-model="refundReason" rows="3" class="input mt-1 w-full" :placeholder="t('payment.refundReasonPlaceholder')" />
         </div>
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <button class="btn btn-secondary" @click="refundTarget = null">{{ t('common.cancel') }}</button>
+          <button class="btn btn-secondary" @click="closeRefundDialog" :disabled="actionLoading">{{ t('common.cancel') }}</button>
           <button class="btn btn-primary" :disabled="actionLoading || !refundReason.trim()" @click="confirmRefund">{{ actionLoading ? t('common.processing') : t('payment.orders.requestRefund') }}</button>
         </div>
       </template>
@@ -84,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { provide, ref, computed, onMounted } from 'vue'
+import { provide, ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores'
@@ -98,6 +92,8 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import BillingNavigation from '@/components/user/BillingNavigation.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useConfirmedAction, useConfirmationContext } from '@/composables/useConfirmation'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -137,39 +133,50 @@ const { items: orders, loading, loadingMore, refreshing, error: listError, hasMo
 })
 const fetchOrders = () => refresh()
 
-function handleCancel(orderId: number) { cancelTargetId.value = orderId }
+function handleCancel(orderId: number) { if (!actionLoading.value) cancelTargetId.value = orderId }
+function closeCancelDialog() { if (!actionLoading.value) cancelTargetId.value = null }
+function closeRefundDialog() { if (!actionLoading.value) refundTarget.value = null }
 
-async function confirmCancel() {
-  if (!cancelTargetId.value) return
-  actionLoading.value = true
-  try {
-    await paymentAPI.cancelOrder(cancelTargetId.value)
-    appStore.showSuccess(t('common.success'))
-    cancelTargetId.value = null
-    await fetchOrders()
-  } catch (err: unknown) {
-    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
-  } finally {
-    actionLoading.value = false
-  }
+function confirmCancel() {
+  if (actionLoading.value || !cancelTargetId.value) return
+  const id = cancelTargetId.value
+  return cancelAction.run(async (isCurrent) => {
+    actionLoading.value = true
+    try {
+      await paymentAPI.cancelOrder(id)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('common.success'))
+      cancelTargetId.value = null
+      await fetchOrders()
+    } catch (err: unknown) {
+      if (isCurrent()) appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+    } finally { actionLoading.value = false }
+  })
 }
 
-function openRefundDialog(order: PaymentOrder) { refundTarget.value = order; refundReason.value = '' }
+function openRefundDialog(order: PaymentOrder) {
+  if (actionLoading.value) return
+  refundTarget.value = { ...order }
+  refundReason.value = ''
+}
 
-async function confirmRefund() {
-  if (!refundTarget.value || !refundReason.value.trim()) return
-  actionLoading.value = true
-  try {
-    await paymentAPI.requestRefund(refundTarget.value.id, { reason: refundReason.value.trim() })
-    appStore.showSuccess(t('common.success'))
-    refundTarget.value = null
-    refundReason.value = ''
-    await fetchOrders()
-  } catch (err: unknown) {
-    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
-  } finally {
-    actionLoading.value = false
-  }
+function confirmRefund() {
+  if (actionLoading.value || !refundTarget.value || !refundReason.value.trim()) return
+  const id = refundTarget.value.id
+  const reason = refundReason.value.trim()
+  return refundAction.run(async (isCurrent) => {
+    actionLoading.value = true
+    try {
+      await paymentAPI.requestRefund(id, { reason })
+      if (!isCurrent()) return
+      appStore.showSuccess(t('common.success'))
+      refundTarget.value = null
+      refundReason.value = ''
+      await fetchOrders()
+    } catch (err: unknown) {
+      if (isCurrent()) appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+    } finally { actionLoading.value = false }
+  })
 }
 
 function canRequestRefund(order: PaymentOrder): boolean {
@@ -187,4 +194,8 @@ async function loadRefundEligibility() {
 }
 
 onMounted(() => { fetchOrders(); loadRefundEligibility() })
+const cancelAction = useConfirmedAction(() => ({ active: cancelTargetId.value !== null, identity: cancelTargetId.value }))
+const refundAction = useConfirmedAction(() => ({ active: refundTarget.value !== null, identity: refundTarget.value?.id }))
+const orderSession = useConfirmationContext(() => ({ active: true, identity: authStore.user?.id }))
+watch(orderSession, () => { cancelTargetId.value = null; refundTarget.value = null; refundReason.value = '' }, { deep: true, flush: 'sync' })
 </script>

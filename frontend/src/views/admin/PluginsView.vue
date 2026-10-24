@@ -1,13 +1,13 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page space-y-6">
       <section
         class="flex flex-col gap-4 border-b border-gray-200 pb-5 dark:border-dark-700 sm:flex-row sm:items-end sm:justify-between"
       >
         <div class="min-w-0">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+          <AppHeading variant="page" as="h1" class="text-gray-900 dark:text-white">
             {{ t("admin.plugins.title") }}
-          </h2>
+          </AppHeading>
           <p class="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
             {{ t("admin.plugins.description") }}
           </p>
@@ -95,11 +95,11 @@
           >
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2">
-                <h3
-                  class="truncate text-base font-semibold text-gray-900 dark:text-white"
+                <AppHeading variant="subsection" as="h3"
+                  class="truncate text-gray-900 dark:text-white"
                 >
                   {{ plugin.name }}
-                </h3>
+                </AppHeading>
                 <span class="font-mono text-xs text-gray-500"
                   >v{{ plugin.version }}</span
                 >
@@ -330,9 +330,15 @@
       <TotpStepUpDialog :controller="pluginStepUp" />
     </div>
   </AppLayout>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
@@ -456,55 +462,68 @@ function setRollout(id: number, event: Event): void {
 }
 
 async function enablePlugin(plugin: PluginInstallation): Promise<void> {
-  let acceptUntested = false;
-  if (!plugin.compatibility.tested) {
-    acceptUntested = window.confirm(t("admin.plugins.confirmUntested"));
-    if (!acceptUntested) return;
-  }
-  busyID.value = plugin.id;
-  try {
-    await pluginStepUp.run(() =>
-      adminAPI.plugins.enable(
-        plugin.id,
-        rolloutValues.value[plugin.id] || 100,
-        acceptUntested,
-      ),
-    );
-    appStore.showSuccess(t("admin.plugins.enableSuccess"));
-    await loadPlugins();
-  } catch (error: unknown) {
-    reportSensitiveActionError(error);
-  } finally {
-    busyID.value = null;
+  if (busyID.value !== null || confirmation.busy.value) return;
+  const id = plugin.id;
+  const rollout = rolloutValues.value[id] || 100;
+  const tested = plugin.compatibility.tested;
+  const enable = async (isCurrent: () => boolean) => {
+    busyID.value = id;
+    try {
+      await pluginStepUp.run(() => { if (!isCurrent()) throw new Error('Confirmation context changed'); return adminAPI.plugins.enable(id, rollout, !tested) });
+      if (!isCurrent()) return;
+      appStore.showSuccess(t("admin.plugins.enableSuccess"));
+      await loadPlugins();
+    } catch (error: unknown) {
+      if (isCurrent()) reportSensitiveActionError(error);
+    } finally {
+      busyID.value = null;
+    }
+  };
+  if (!tested) {
+    await confirmation.run({ message: t("admin.plugins.confirmUntested"), title: t('common.confirm'), confirmText: t('common.confirm'), danger: false }, async (isCurrent) => enable(isCurrent));
+  } else {
+    await enable(() => true);
   }
 }
 
 async function disablePlugin(plugin: PluginInstallation): Promise<void> {
-  if (!window.confirm(t("admin.plugins.confirmDisable"))) return;
-  busyID.value = plugin.id;
-  try {
-    await pluginStepUp.run(() => adminAPI.plugins.disable(plugin.id));
-    appStore.showSuccess(t("admin.plugins.disableSuccess"));
-    await loadPlugins();
-  } catch (error: unknown) {
-    reportSensitiveActionError(error);
-  } finally {
-    busyID.value = null;
-  }
+  if (busyID.value !== null) return;
+  const id = plugin.id;
+  await confirmation.run({ message: t("admin.plugins.confirmDisable"), title: t('common.confirm'), confirmText: t('common.confirm'), danger: true }, async (isCurrent) => {
+    busyID.value = id;
+    try {
+      await pluginStepUp.run(() => { if (!isCurrent()) throw new Error('Confirmation context changed'); return adminAPI.plugins.disable(id) });
+      if (!isCurrent()) return
+      appStore.showSuccess(t("admin.plugins.disableSuccess"));
+      await loadPlugins();
+      if (!isCurrent()) return
+    } catch (error: unknown) {
+      if (!isCurrent()) return
+      reportSensitiveActionError(error);
+    } finally {
+      busyID.value = null;
+    }
+  })
 }
 
 async function uninstallPlugin(plugin: PluginInstallation): Promise<void> {
-  if (!window.confirm(t("admin.plugins.confirmUninstall"))) return;
-  busyID.value = plugin.id;
-  try {
-    await pluginStepUp.run(() => adminAPI.plugins.remove(plugin.id));
-    appStore.showSuccess(t("admin.plugins.uninstallSuccess"));
-    await loadPlugins();
-  } catch (error: unknown) {
-    reportSensitiveActionError(error);
-  } finally {
-    busyID.value = null;
-  }
+  if (busyID.value !== null) return;
+  const id = plugin.id;
+  await confirmation.run({ message: t("admin.plugins.confirmUninstall"), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async (isCurrent) => {
+    busyID.value = id;
+    try {
+      await pluginStepUp.run(() => { if (!isCurrent()) throw new Error('Confirmation context changed'); return adminAPI.plugins.remove(id) });
+      if (!isCurrent()) return
+      appStore.showSuccess(t("admin.plugins.uninstallSuccess"));
+      await loadPlugins();
+      if (!isCurrent()) return
+    } catch (error: unknown) {
+      if (!isCurrent()) return
+      reportSensitiveActionError(error);
+    } finally {
+      busyID.value = null;
+    }
+  })
 }
 
 async function testPlugin(plugin: PluginInstallation): Promise<void> {
@@ -731,4 +750,5 @@ onBeforeUnmount(() => {
   window.removeEventListener("message", handleBridgeMessage);
   closeConfiguration();
 });
+const confirmation = useConfirmation(() => ({ active: true, identity: plugins.value.map(plugin => plugin.id) }))
 </script>

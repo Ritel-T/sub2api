@@ -520,3 +520,42 @@ describe('OpenAIQuotaResetCell 自动用卡运行态', () => {
     wrapper.unmount()
   })
 })
+
+
+describe('reset confirmation ownership', () => {
+  const cachedAccount = (id: number) => makeAccount({ id, extra: { codex_reset_credit_snapshot: {
+    available_count: 1, credits: [{ expires_at: FUTURE_EXPIRY_EARLY }]
+  } } })
+  it('rejects an old confirmation after switching account identity', async () => {
+    const wrapper = mount(OpenAIQuotaResetCell, { props: { account: cachedAccount(1) } })
+    await resetButton(wrapper).trigger('click')
+    await wrapper.setProps({ account: cachedAccount(2) })
+    wrapper.getComponent(ConfirmDialog).vm.$emit('confirm')
+    await flushPromises()
+    expect(resetOpenAIQuota).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it.each(['success', 'failure'])('locks duplicate reset and ignores late %s after A to B to A', async outcome => {
+    let finish!: (value: unknown) => void
+    let fail!: (error: Error) => void
+    vi.mocked(resetOpenAIQuota).mockImplementationOnce(() => new Promise((resolve, reject) => { finish = resolve as any; fail = reject }))
+    const wrapper = mount(OpenAIQuotaResetCell, { props: { account: cachedAccount(1) } })
+    await resetButton(wrapper).trigger('click')
+    const dialog = wrapper.getComponent(ConfirmDialog)
+    dialog.vm.$emit('confirm')
+    dialog.vm.$emit('confirm')
+    await flushPromises()
+    expect(resetOpenAIQuota).toHaveBeenCalledTimes(1)
+    expect(dialog.props('busy')).toBe(true)
+    await wrapper.setProps({ account: cachedAccount(2) })
+    await wrapper.setProps({ account: cachedAccount(1) })
+    if (outcome === 'success') finish({ account: cachedAccount(1), windows_reset: 1, cache_refreshed: false })
+    else fail(new Error('old reset failed'))
+    await flushPromises()
+    expect(wrapper.emitted('account-updated')).toBeUndefined()
+    expect(wrapper.text()).not.toContain('old reset failed')
+    expect(wrapper.text()).not.toContain('admin.accounts.openaiQuotaReset.resetSuccess')
+    expect(dialog.props('show')).toBe(false)
+    wrapper.unmount()
+  })
+})

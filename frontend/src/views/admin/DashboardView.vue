@@ -98,7 +98,7 @@
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
                   >{{ t('admin.dashboard.timeRange') }}:</span
                 >
-                <DateRangePicker enable-time :preset="selectedPreset"
+                <DateRangePicker data-field-role="filter" :aria-label="t('admin.dashboard.timeRange')" enable-time :preset="selectedPreset"
                   v-model:start-date="startDate"
                   v-model:end-date="endDate"
                   @change="onDateRangeChange"
@@ -112,7 +112,7 @@
                   >{{ t('admin.dashboard.granularity') }}:</span
                 >
                 <div class="w-28">
-                  <Select
+                  <Select :aria-label="t('admin.dashboard.granularity')"
                     v-model="granularity"
                     :options="granularityOptions"
                     @change="loadChartData"
@@ -144,7 +144,7 @@
           <!-- User Usage Trend (Full Width) -->
           <div class="open-section">
             <div class="mb-4 flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.dashboard.recentUsage') }} (Top 12)</h3>
+              <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.dashboard.recentUsage') }} (Top 12)</AppHeading>
               <div class="flex gap-1" role="group" :aria-label="t('admin.dashboard.recentUsage')">
                 <button v-for="metric in (['tokens', 'actual_cost'] as const)" :key="metric" type="button"
                   class="rounded px-2 py-1 text-xs" :class="userTrendMetric === metric ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300'"
@@ -281,9 +281,9 @@
         <!-- Quick Actions -->
         <div class="open-section">
           <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">
               {{ t('admin.dashboard.quickActions') }}
-            </h2>
+            </AppHeading>
           </div>
           <div class="open-record-list">
             <button
@@ -334,6 +334,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
 import { useChartTheme } from '@/utils/chartTheme'
 import { ref, computed, onMounted } from 'vue'

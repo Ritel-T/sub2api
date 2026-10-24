@@ -1,7 +1,7 @@
 <template>
   <section class="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-800" aria-labelledby="country-filter-title">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h4 id="country-filter-title" class="text-sm font-semibold">{{ text('国家／地区过滤', 'Country / region filter') }}</h4>
+      <AppHeading variant="minor" as="h4" id="country-filter-title">{{ text('国家／地区过滤', 'Country / region filter') }}</AppHeading>
       <span class="text-xs text-gray-500">{{ text('预计可用', 'Eligible') }} {{ eligible }} / {{ nodes.length }}</span>
     </div>
     <p class="text-xs text-gray-500">{{ text('机场节点按最近的出口 IP 检测结果筛选。动态代理每次连接可能更换 IP，历史检测结果不用于准入。', 'Subscription nodes use the last exit-IP country check. Dynamic proxies may change IP on every connection; previous checks do not determine eligibility.') }}</p>
@@ -37,6 +37,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { localizeInlineText } from '@/i18n/inline'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

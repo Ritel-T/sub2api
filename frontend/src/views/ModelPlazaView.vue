@@ -1,6 +1,6 @@
 <template>
   <!-- 后台内嵌形态:?embedded=1 且已登录,套完整后台布局 -->
-  <AppLayout v-if="isEmbedded">
+  <AppLayout :show-page-title="false" v-if="isEmbedded">
     <ModelPlazaContent :response="data" :loading="loading" :error="loadFailed" embedded />
   </AppLayout>
 

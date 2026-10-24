@@ -2,19 +2,19 @@
   <div class="min-h-screen bg-gray-50 px-4 py-10 dark:bg-dark-900">
     <div class="mx-auto max-w-2xl">
       <div v-if="isProcessing" class="card p-6 text-center">
-        <div class="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
-        <h1 class="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
+        <div role="status" :aria-label="t('common.loading')" class="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
+        <AppHeading variant="auth" as="h1" class="mt-4 text-gray-900 dark:text-white">
           {{ t('auth.oauth.callbackTitle') }}
-        </h1>
+        </AppHeading>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
           {{ t('auth.oauth.callbackHint') }}
         </p>
       </div>
 
       <div v-else-if="needsRegistrationCompletion" class="card p-6">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <AppHeading variant="auth" as="h1" class="text-gray-900 dark:text-white">
           {{ t('auth.oidc.callbackTitle', { providerName }) }}
-        </h1>
+        </AppHeading>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
           {{ registrationHint }}
         </p>
@@ -80,9 +80,9 @@
       </div>
 
       <div v-else-if="invalidCallback" class="card p-6 text-center">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <AppHeading variant="auth" as="h1" class="text-gray-900 dark:text-white">
           {{ t('auth.oauth.invalidCallbackTitle') }}
-        </h1>
+        </AppHeading>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
           {{ t('auth.oauth.invalidCallbackHint') }}
         </p>
@@ -92,9 +92,9 @@
       </div>
 
       <div v-else class="card p-6">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <AppHeading variant="auth" as="h1" class="text-gray-900 dark:text-white">
           {{ t('auth.oauth.callbackTitle') }}
-        </h1>
+        </AppHeading>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
           {{ t('auth.oauth.callbackHint') }}
         </p>
@@ -146,6 +146,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

@@ -93,11 +93,12 @@ describe('Mihomo IP management', () => {
     await wrapper.get('#mihomo-dynamic-proxies').setValue('invalid'); await click('应用动态代理')
     expect(wrapper.get<HTMLTextAreaElement>('#mihomo-dynamic-proxies').element.value).toBe('invalid'); expect(wrapper.text()).toContain('invalid proxy format')
   })
-  it('paginates large pools and filters by source and status', async () => {
+  it('progressively reveals large pools and filters by source and status', async () => {
     get.mockResolvedValue({ data: { ...base, node_states: Array.from({ length: 1024 }, (_, i) => ({ name: 'node-' + i, display_name: '节点 ' + i, state: i === 900 ? 'failed' : 'enabled', dynamic: i >= 512, subscription_ids: i < 512 ? ['source-one'] : [] })) } })
     wrapper = mountPanel('nodes'); await flushPromises()
     expect(wrapper.findAll('[data-test="row"]')).toHaveLength(50); expect(wrapper.text()).toContain('1024')
-    await click('下一页'); expect(wrapper.text()).toContain('节点 50')
+    await click('加载更多'); expect(wrapper.text()).toContain('节点 50')
+    expect(wrapper.findAll('[data-test="row"]')).toHaveLength(100); expect(wrapper.text()).toContain('节点 0')
     await wrapper.get('select[aria-label="节点来源"]').setValue('source-one'); expect(wrapper.text()).toContain('512')
     await wrapper.get('select[aria-label="节点来源"]').setValue('dynamic'); await wrapper.get('select[aria-label="节点状态"]').setValue('failed')
     expect(wrapper.findAll('[data-test="row"]')).toHaveLength(1); expect(wrapper.text()).toContain('节点 900')

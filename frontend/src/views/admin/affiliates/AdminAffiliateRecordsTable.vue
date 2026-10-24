@@ -146,7 +146,7 @@
       @close="overviewDialog = false"
     >
       <div v-if="overviewLoading" class="flex justify-center py-8">
-        <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
+        <div role="status" :aria-label="t('common.loading')" class="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
       </div>
       <div v-else-if="selectedOverview" class="space-y-4">
         <div class="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800">

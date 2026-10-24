@@ -19,16 +19,16 @@
 
       <!-- Rules Table -->
       <div v-if="loading" class="flex items-center justify-center py-8">
-        <Icon name="refresh" size="lg" class="animate-spin text-gray-400" />
+        <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="lg" class="animate-spin text-gray-400" />
       </div>
 
       <div v-else-if="rules.length === 0" class="py-8 text-center">
         <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700">
           <Icon name="shield" size="lg" class="text-gray-400" />
         </div>
-        <h4 class="mb-1 text-sm font-medium text-gray-900 dark:text-white">
+        <AppHeading as="h4" variant="minor" class="mb-1 text-gray-900 dark:text-white">
           {{ t('admin.errorPassthrough.noRules') }}
-        </h4>
+        </AppHeading>
         <p class="text-sm text-gray-500 dark:text-gray-400">
           {{ t('admin.errorPassthrough.createFirstRule') }}
         </p>
@@ -161,20 +161,7 @@
                 </div>
               </td>
               <td class="px-3 py-2">
-                <button
-                  @click="toggleEnabled(rule)"
-                  :class="[
-                    'relative inline-flex h-4 w-7 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                    rule.enabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-                  ]"
-                >
-                  <span
-                    :class="[
-                      'pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                      rule.enabled ? 'translate-x-3' : 'translate-x-0'
-                    ]"
-                  />
-                </button>
+                <Toggle :model-value="!!rule.enabled" :aria-label="t('common.enabled')" @click="toggleEnabled(rule)" size="small" />
               </td>
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1">
@@ -252,9 +239,9 @@
 
         <!-- Match Conditions -->
         <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
-          <h4 class="mb-2 text-sm font-medium text-gray-900 dark:text-white">
+          <AppHeading as="h4" variant="minor" class="mb-2 text-gray-900 dark:text-white">
             {{ t('admin.errorPassthrough.form.matchConditions') }}
-          </h4>
+          </AppHeading>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -324,9 +311,9 @@
 
         <!-- Response Behavior -->
         <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
-          <h4 class="mb-2 text-sm font-medium text-gray-900 dark:text-white">
+          <AppHeading as="h4" variant="minor" class="mb-2 text-gray-900 dark:text-white">
             {{ t('admin.errorPassthrough.form.responseBehavior') }}
-          </h4>
+          </AppHeading>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -418,6 +405,7 @@
     <!-- Delete Confirmation -->
     <ConfirmDialog
       :show="showDeleteDialog"
+      :busy="deleteAction.busy.value"
       :title="t('admin.errorPassthrough.deleteRule')"
       :message="t('admin.errorPassthrough.deleteConfirm', { name: deletingRule?.name })"
       :confirm-text="t('common.delete')"
@@ -430,7 +418,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import Toggle from '@/components/common/Toggle.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import { ref, reactive, computed, watch, onScopeDispose } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
@@ -438,6 +428,7 @@ import { adminAPI } from '@/api/admin'
 import type { ErrorPassthroughRule } from '@/api/admin/errorPassthrough'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import Icon from '@/components/icons/Icon.vue'
 
 const props = defineProps<{
@@ -456,10 +447,14 @@ const appStore = useAppStore()
 
 const rules = ref<ErrorPassthroughRule[]>([])
 const loading = ref(false)
+let listRevision = 0
+onScopeDispose(() => { listRevision++ })
 const submitting = ref(false)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
+const deleteAction = useConfirmedAction(() => ({ active: props.show }))
+watch(() => props.show, () => { showDeleteDialog.value = false; deletingRule.value = null }, { flush: 'sync' })
 const editingRule = ref<ErrorPassthroughRule | null>(null)
 const deletingRule = ref<ErrorPassthroughRule | null>(null)
 
@@ -490,20 +485,27 @@ const platformOptions = CONCRETE_PLATFORM_OPTIONS
 
 // Load rules when dialog opens
 watch(() => props.show, (newVal) => {
+  listRevision++
+  loading.value = false
   if (newVal) {
     loadRules()
   }
 })
 
 const loadRules = async () => {
+  if (!props.show) return
+  const current = ++listRevision
   loading.value = true
   try {
-    rules.value = await adminAPI.errorPassthrough.list()
+    const result = await adminAPI.errorPassthrough.list()
+    if (current !== listRevision || !props.show) return
+    rules.value = result
   } catch (error) {
+    if (current !== listRevision || !props.show) return
     appStore.showError(t('admin.errorPassthrough.failedToLoad'))
     console.error('Error loading rules:', error)
   } finally {
-    loading.value = false
+    if (current === listRevision) loading.value = false
   }
 }
 
@@ -549,7 +551,8 @@ const handleEdit = (rule: ErrorPassthroughRule) => {
 }
 
 const handleDelete = (rule: ErrorPassthroughRule) => {
-  deletingRule.value = rule
+  if (!props.show || deleteAction.busy.value || showDeleteDialog.value) return
+  deletingRule.value = { ...rule }
   showDeleteDialog.value = true
 }
 
@@ -630,17 +633,22 @@ const toggleEnabled = async (rule: ErrorPassthroughRule) => {
 }
 
 const confirmDelete = async () => {
-  if (!deletingRule.value) return
-
-  try {
-    await adminAPI.errorPassthrough.delete(deletingRule.value.id)
-    appStore.showSuccess(t('admin.errorPassthrough.ruleDeleted'))
-    showDeleteDialog.value = false
-    deletingRule.value = null
-    loadRules()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.errorPassthrough.failedToDelete'))
-    console.error('Error deleting rule:', error)
-  }
+  const target = deletingRule.value
+  if (!props.show || !showDeleteDialog.value || !target) return
+  await deleteAction.run(async (isCurrent) => {
+    try {
+      await adminAPI.errorPassthrough.delete(target.id)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.errorPassthrough.ruleDeleted'))
+      showDeleteDialog.value = false
+      deletingRule.value = null
+      loadRules()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(error.response?.data?.detail || t('admin.errorPassthrough.failedToDelete'))
+      console.error('Error deleting rule:', error)
+    }
+  })
 }
+
 </script>

@@ -4,6 +4,7 @@
     <template v-if="isAdmin">
       <button
         @click="toggleDropdown"
+        :aria-busy="!currentVersion"
         class="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors"
         :class="[
           hasUpdate
@@ -16,6 +17,7 @@
         <span
           v-else
           class="h-3 w-12 animate-pulse rounded bg-gray-200 font-medium dark:bg-dark-600"
+          aria-hidden="true"
         ></span>
         <!-- Update indicator -->
         <span v-if="hasUpdate" class="relative flex h-2 w-2">
@@ -59,7 +61,7 @@
           <div class="p-4">
             <!-- Loading state -->
             <div v-if="loading" class="flex items-center justify-center py-6">
-              <svg class="h-6 w-6 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
+              <svg role="status" :aria-label="t('common.loading')" class="h-6 w-6 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
                 <circle
                   class="opacity-25"
                   cx="12"
@@ -423,7 +425,7 @@
                         v-else-if="rollbackVersionsLoading"
                         class="flex items-center justify-center py-4"
                       >
-                        <svg
+                        <svg role="status" :aria-label="t('common.loading')"
                           class="h-5 w-5 animate-spin text-primary-500"
                           fill="none"
                           viewBox="0 0 24 24"

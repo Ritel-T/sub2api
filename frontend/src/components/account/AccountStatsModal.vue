@@ -430,9 +430,9 @@
 
         <!-- Usage Trend Chart -->
         <div class="card p-4">
-          <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h3" variant="subsection" class="mb-4 text-gray-900 dark:text-white">
             {{ t('admin.accounts.stats.usageTrend') }}
-          </h3>
+          </AppHeading>
           <div class="h-64">
             <Line v-if="trendChartData" :data="trendChartData" :options="lineChartOptions" />
             <div
@@ -484,6 +484,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch, computed } from 'vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'

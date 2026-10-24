@@ -43,7 +43,7 @@
 
     <nav class="sidebar-nav" :aria-label="navText.navigation">
       <section v-for="section in sections" :key="section.key" class="console-drawer-section" :aria-labelledby="`console-drawer-${section.key}`">
-        <h2 :id="`console-drawer-${section.key}`" class="sidebar-section-title">{{ section.label }}</h2>
+        <AppHeading as="h2" variant="subtle" :id="`console-drawer-${section.key}`" class="sidebar-section-heading">{{ section.label }}</AppHeading>
         <router-link
           v-for="tab in section.tabs"
           :key="tab.path"
@@ -70,6 +70,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
@@ -209,7 +210,7 @@ onBeforeUnmount(() => {
   border-radius: var(--ritel-radius-pill);
 }
 .console-drawer-section + .console-drawer-section { margin-top: 24px; }
-.sidebar-section-title { margin-bottom: 8px; padding: 0 12px; }
+.sidebar-section-heading { margin-bottom: 8px; padding: 0 12px; color: var(--ritel-muted); }
 .sidebar-link { position: relative; margin-bottom: 2px; }
 .sidebar-label {
   display: block;

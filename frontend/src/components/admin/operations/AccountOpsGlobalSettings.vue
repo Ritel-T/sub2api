@@ -2,7 +2,7 @@
   <form id="account-ops-global-form" class="border-b border-gray-100 bg-gray-50/60 px-5 py-4 dark:border-dark-700 dark:bg-dark-800/40" @submit.prevent="save">
     <fieldset :disabled="busy || disabled" class="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
       <div>
-        <h4 class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ t('accountOps.globalSettings') }}</h4>
+        <AppHeading as="h4" variant="minor" class="text-gray-700 dark:text-gray-300">{{ t('accountOps.globalSettings') }}</AppHeading>
         <div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
           <label class="flex items-center gap-2 text-sm"><input v-model="draft.balance_low" type="checkbox" data-testid="global-balance-low" @change="dirty = true" />{{ t('accountOps.balance_low') }}</label>
           <label class="flex items-center gap-2 text-sm"><input v-model="draft.weekly_quota" type="checkbox" data-testid="global-weekly-quota" @change="dirty = true" />{{ t('accountOps.weekly_quota') }}</label>
@@ -19,6 +19,7 @@
   </form>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveAccountOpsNotificationSettings } from '@/api/admin/accountOps'

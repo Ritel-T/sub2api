@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -224,13 +228,13 @@ function anchorLogQuery(query: Record<string, any>) {
 }
 
 const fetchLogs = async () => {
-  appliedLogQuery = buildQuery()
+    appliedLogQuery = buildQuery()
   logQuery = anchorLogQuery(appliedLogQuery)
   await list.reset()
 }
 
 const fetchHealth = async () => {
-  try {
+    try {
     health.value = await opsAPI.getSystemLogSinkHealth()
   } catch {
     // 忽略健康数据读取失败，不影响主流程。
@@ -238,7 +242,7 @@ const fetchHealth = async () => {
 }
 
 const loadRuntimeConfig = async () => {
-  runtimeLoading.value = true
+    runtimeLoading.value = true
   runtimeConfigLoaded.value = false
   try {
     const cfg = await opsAPI.getRuntimeLogConfig()
@@ -261,7 +265,7 @@ const loadRuntimeConfig = async () => {
 }
 
 const saveRuntimeConfig = async () => {
-  if (!runtimeConfigLoaded.value || runtimeLoading.value) return
+    if (!runtimeConfigLoaded.value || runtimeLoading.value) return
   if (!Number.isInteger(runtimeConfig.retention_days) || runtimeConfig.retention_days < 1 || runtimeConfig.retention_days > 3650 ||
       !Number.isInteger(runtimeConfig.request_retention_days) || runtimeConfig.request_retention_days < 0 || runtimeConfig.request_retention_days > 3650) {
     appStore.showError(t('admin.ops.systemLogs.retentionDaysInvalid'))
@@ -289,61 +293,67 @@ const saveRuntimeConfig = async () => {
 }
 
 const resetRuntimeConfig = async () => {
-  const ok = window.confirm(t('admin.ops.systemLogs.resetRuntimeConfigConfirm'))
-  if (!ok) return
-
-  runtimeSaving.value = true
-  try {
-    const saved = await opsAPI.resetRuntimeLogConfig()
-    runtimeConfig.level = saved.level
-    runtimeConfig.persist_access_logs = saved.persist_access_logs
-    runtimeConfig.enable_sampling = saved.enable_sampling
-    runtimeConfig.sampling_initial = saved.sampling_initial
-    runtimeConfig.sampling_thereafter = saved.sampling_thereafter
-    runtimeConfig.caller = saved.caller
-    runtimeConfig.stacktrace_level = saved.stacktrace_level
-    runtimeConfig.retention_days = saved.retention_days
-    runtimeConfig.request_retention_days = saved.request_retention_days ?? 90
-    appStore.showSuccess(t('admin.ops.systemLogs.runtimeConfigReset'))
-    await fetchHealth()
-  } catch (err: any) {
-    console.error('[OpsSystemLogTable] Failed to reset runtime log config', err)
-    appStore.showError(err?.response?.data?.detail || t('admin.ops.systemLogs.runtimeConfigResetFailed'))
-  } finally {
-    runtimeSaving.value = false
-  }
+    await confirmation.run({ message: t('admin.ops.systemLogs.resetRuntimeConfigConfirm'), title: t('common.reset'), confirmText: t('common.reset'), danger: true }, async (isCurrent) => {
+    runtimeSaving.value = true
+    try {
+      const saved = await opsAPI.resetRuntimeLogConfig()
+      if (!isCurrent()) return
+      runtimeConfig.level = saved.level
+      runtimeConfig.persist_access_logs = saved.persist_access_logs
+      runtimeConfig.enable_sampling = saved.enable_sampling
+      runtimeConfig.sampling_initial = saved.sampling_initial
+      runtimeConfig.sampling_thereafter = saved.sampling_thereafter
+      runtimeConfig.caller = saved.caller
+      runtimeConfig.stacktrace_level = saved.stacktrace_level
+      runtimeConfig.retention_days = saved.retention_days
+      runtimeConfig.request_retention_days = saved.request_retention_days ?? 90
+      appStore.showSuccess(t('admin.ops.systemLogs.runtimeConfigReset'))
+      await fetchHealth()
+      if (!isCurrent()) return
+    } catch (err: any) {
+      if (!isCurrent()) return
+      console.error('[OpsSystemLogTable] Failed to reset runtime log config', err)
+      appStore.showError(err?.response?.data?.detail || t('admin.ops.systemLogs.runtimeConfigResetFailed'))
+    } finally {
+      runtimeSaving.value = false
+    }
+  })
 }
 
 const cleanupCurrentFilter = async () => {
-  const ok = window.confirm(t('admin.ops.systemLogs.cleanupConfirm'))
-  if (!ok) return
-  try {
-    const payload = {
-      start_time: toRFC3339(filters.start_time),
-      end_time: toRFC3339(filters.end_time),
-      host: filters.host.trim() || undefined,
-      level: filters.level.trim() || undefined,
-      component: filters.component.trim() || undefined,
-      request_id: filters.request_id.trim() || undefined,
-      client_request_id: filters.client_request_id.trim() || undefined,
-      user_id: filters.user_id.trim() ? Number.parseInt(filters.user_id.trim(), 10) : undefined,
-      api_key_id: filters.api_key_id.trim() ? Number.parseInt(filters.api_key_id.trim(), 10) : undefined,
-      account_id: filters.account_id.trim() ? Number.parseInt(filters.account_id.trim(), 10) : undefined,
-      platform: filters.platform.trim() || undefined,
-      model: filters.model.trim() || undefined,
-      q: filters.q.trim() || undefined
+      const payload = {
+        start_time: toRFC3339(filters.start_time),
+        end_time: toRFC3339(filters.end_time),
+        host: filters.host.trim() || undefined,
+        level: filters.level.trim() || undefined,
+        component: filters.component.trim() || undefined,
+        request_id: filters.request_id.trim() || undefined,
+        client_request_id: filters.client_request_id.trim() || undefined,
+        user_id: filters.user_id.trim() ? Number.parseInt(filters.user_id.trim(), 10) : undefined,
+        api_key_id: filters.api_key_id.trim() ? Number.parseInt(filters.api_key_id.trim(), 10) : undefined,
+        account_id: filters.account_id.trim() ? Number.parseInt(filters.account_id.trim(), 10) : undefined,
+        platform: filters.platform.trim() || undefined,
+        model: filters.model.trim() || undefined,
+        q: filters.q.trim() || undefined
+      }
+  await confirmation.run({ message: t('admin.ops.systemLogs.cleanupConfirm'), title: t('common.clear'), confirmText: t('common.clear'), danger: true }, async (isCurrent) => {
+    try {
+
+      const res = await opsAPI.cleanupSystemLogs(payload)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.ops.systemLogs.cleanupSuccess', { count: res.deleted || 0 }))
+      await Promise.all([fetchLogs(), fetchHealth()])
+      if (!isCurrent()) return
+    } catch (err: any) {
+      if (!isCurrent()) return
+      console.error('[OpsSystemLogTable] Failed to cleanup logs', err)
+      appStore.showError(
+        extractApiErrorMessage(err, t('admin.ops.systemLogs.cleanupFailed'), {
+          OPS_SYSTEM_LOG_CLEANUP_FILTER_REQUIRED: t('admin.ops.systemLogs.cleanupFilterRequired')
+        })
+      )
     }
-    const res = await opsAPI.cleanupSystemLogs(payload)
-    appStore.showSuccess(t('admin.ops.systemLogs.cleanupSuccess', { count: res.deleted || 0 }))
-    await Promise.all([fetchLogs(), fetchHealth()])
-  } catch (err: any) {
-    console.error('[OpsSystemLogTable] Failed to cleanup logs', err)
-    appStore.showError(
-      extractApiErrorMessage(err, t('admin.ops.systemLogs.cleanupFailed'), {
-        OPS_SYSTEM_LOG_CLEANUP_FILTER_REQUIRED: t('admin.ops.systemLogs.cleanupFilterRequired')
-      })
-    )
-  }
+  })
 }
 
 const resetFilters = () => {
@@ -384,18 +394,21 @@ const applyFilters = () => {
 const hasData = computed(() => logs.value.length > 0)
 
 onMounted(async () => {
-  if (props.platformFilter) {
+    if (props.platformFilter) {
     filters.platform = props.platformFilter
   }
   await Promise.all([fetchLogs(), fetchHealth(), loadRuntimeConfig()])
 })
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: true, identity: filters }))
 </script>
 
 <template>
   <section class="open-section">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('admin.ops.systemLogs.title') }}</h3>
+        <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.ops.systemLogs.title') }}</AppHeading>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.systemLogs.description') }}</p>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs">
@@ -414,11 +427,11 @@ onMounted(async () => {
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
         <label class="text-xs text-gray-600 dark:text-gray-300">
           {{ t('admin.ops.systemLogs.level') }}
-          <Select v-model="runtimeConfig.level" class="mt-1" :options="runtimeLevelOptions" />
+          <Select :aria-label="t('admin.ops.systemLogs.level')" v-model="runtimeConfig.level" class="mt-1" :options="runtimeLevelOptions" />
         </label>
         <label class="text-xs text-gray-600 dark:text-gray-300">
           {{ t('admin.ops.systemLogs.stacktraceThreshold') }}
-          <Select v-model="runtimeConfig.stacktrace_level" class="mt-1" :options="stacktraceLevelOptions" />
+          <Select :aria-label="t('admin.ops.systemLogs.stacktraceThreshold')" v-model="runtimeConfig.stacktrace_level" class="mt-1" :options="stacktraceLevelOptions" />
         </label>
         <label class="text-xs text-gray-600 dark:text-gray-300">
           {{ t('admin.ops.systemLogs.samplingInitial') }}
@@ -472,7 +485,7 @@ onMounted(async () => {
     <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
       <label class="text-xs text-gray-600 dark:text-gray-300">
         {{ t('admin.ops.systemLogs.timeRange') }}
-        <Select v-model="filters.time_range" class="mt-1" :options="timeRangeOptions" />
+        <Select :aria-label="t('admin.ops.systemLogs.timeRange')" v-model="filters.time_range" class="mt-1" :options="timeRangeOptions" />
       </label>
       <label class="text-xs text-gray-600 dark:text-gray-300">
         {{ t('admin.ops.systemLogs.startTime') }}
@@ -484,7 +497,7 @@ onMounted(async () => {
       </label>
       <label class="text-xs text-gray-600 dark:text-gray-300">
         {{ t('admin.ops.systemLogs.level') }}
-        <Select v-model="filters.level" class="mt-1" :options="filterLevelOptions" />
+        <Select :aria-label="t('admin.ops.systemLogs.level')" v-model="filters.level" class="mt-1" :options="filterLevelOptions" />
       </label>
       <label class="text-xs text-gray-600 dark:text-gray-300">
         {{ t('admin.ops.systemLogs.component') }}
@@ -591,4 +604,6 @@ onMounted(async () => {
       />
     </div>
   </section>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>

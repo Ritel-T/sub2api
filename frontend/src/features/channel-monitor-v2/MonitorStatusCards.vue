@@ -1,21 +1,21 @@
 <template>
   <div class="space-y-7" data-testid="monitor-status-cards">
-    <div v-if="loading && !items.length" class="space-y-4">
+    <LoadingRegion v-if="loading && !items.length" class="space-y-4">
       <div v-for="index in 6" :key="index" class="h-32 animate-pulse border-t border-gray-200 dark:border-dark-700" />
-    </div>
+    </LoadingRegion>
     <div v-else-if="!items.length" class="open-section py-16 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.empty.title') }}</div>
     <section v-for="platform in platforms" :key="platform.name" class="space-y-3" :data-platform="platform.name">
-      <h2 class="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+      <AppHeading as="h2" variant="section" class="flex items-center gap-2 text-gray-700 dark:text-gray-200">
         <span class="grid h-7 w-7 place-items-center rounded-full bg-gray-100 dark:bg-dark-700"><ProviderIcon :provider="platform.name" :size="17" /></span>
         {{ providerLabel(platform.name) }}
         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ platform.items.length }}</span>
-      </h2>
+      </AppHeading>
       <div class="monitor-service-list">
         <article v-for="row in platform.items" :key="`${row.platform}-${row.group_id}`" class="open-section monitor-service-record" data-testid="monitor-group-card">
           <header class="flex items-start gap-3">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300"><ProviderIcon :provider="row.platform" :size="23" /></span>
             <div class="min-w-0 flex-1">
-              <h3 class="truncate text-base font-semibold text-gray-900 dark:text-gray-100" :title="row.group_name">{{ row.group_name || `#${row.group_id}` }}</h3>
+              <AppHeading as="h3" variant="subsection" class="truncate text-gray-900 dark:text-gray-100" :title="row.group_name">{{ row.group_name || `#${row.group_id}` }}</AppHeading>
               <div class="mt-1 flex flex-wrap gap-1 text-xs">
                 <span class="rounded px-1.5 py-0.5" :class="providerBadgeClass(row.platform)">{{ providerLabel(row.platform) }}</span>
                 <span v-if="row.group_rate_multiplier != null" class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ t('channelMonitorV2.cards.groupRate', { value: row.group_rate_multiplier.toFixed(2) }) }}</span>
@@ -49,7 +49,7 @@
           </div>
 
           <section v-if="candyHistories(row).length" class="mt-4 border-t border-gray-100 pt-3 dark:border-dark-700/70" data-testid="candy-history">
-              <h4 class="text-xs font-medium text-gray-700 dark:text-gray-200">{{ t('channelMonitorV2.candy.title') }}</h4>
+              <AppHeading as="h4" variant="minor" class="text-gray-700 dark:text-gray-200">{{ t('channelMonitorV2.candy.title') }}</AppHeading>
               <div v-for="(history, historyIndex) in candyHistories(row)" :key="`${history.model}-${history.reasoning_effort}-${historyIndex}`" class="mt-2" data-testid="candy-model-history">
                 <div class="flex items-center justify-between gap-2 text-xs">
                   <p class="min-w-0 break-words text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ history.model }} · {{ history.reasoning_effort }} · {{ t('channelMonitorV2.candy.cadence', { minutes: history.interval_minutes }) }} · {{ t('channelMonitorV2.candy.window', { count: candyHistoryLimit(history) }) }}</p>
@@ -98,6 +98,8 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { MonitorCandyResult, MonitorCoverage, MonitorMatrixBucket, MonitorMatrixRow } from '@/api/channelMonitorV2'

@@ -1,15 +1,15 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page space-y-6">
       <header class="flex flex-wrap items-start justify-between gap-4">
-        <div><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('admin.groupCacheTest.title') }}</h1><p class="mt-2 max-w-3xl text-sm text-gray-500 dark:text-gray-400">{{ t('admin.groupCacheTest.description') }}</p></div>
+        <div><AppHeading variant="page" as="h1" class="text-gray-900 dark:text-white">{{ t('admin.groupCacheTest.title') }}</AppHeading><p class="mt-2 max-w-3xl text-sm text-gray-500 dark:text-gray-400">{{ t('admin.groupCacheTest.description') }}</p></div>
         <button class="btn btn-secondary" :disabled="busy || loading" @click="loadGroups">{{ t('admin.groupCacheTest.reload') }}</button>
       </header>
       <p v-if="error" role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{{ error }}</p>
       <p v-if="storageError" role="status" class="text-sm text-amber-600">{{ t('admin.groupCacheTest.storageError') }}</p>
       <div class="grid items-start gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
         <section class="cache-panel" aria-labelledby="cache-config-title">
-          <h2 id="cache-config-title" class="cache-heading">{{ t('admin.groupCacheTest.configuration') }}</h2>
+          <AppHeading variant="section" as="h2" id="cache-config-title" class="cache-heading">{{ t('admin.groupCacheTest.configuration') }}</AppHeading>
           <form class="mt-4 space-y-4" @submit.prevent="start">
             <fieldset :disabled="busy || loading" class="space-y-4">
               <label class="cache-field"><span>{{ t('admin.groupCacheTest.group') }}</span><select v-model="groupId" class="input" data-testid="cache-group"><option :value="null">{{ t('admin.groupCacheTest.selectGroup') }}</option><option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }} · {{ group.platform }}</option></select></label>
@@ -44,7 +44,7 @@
         </section>
         <div class="min-w-0 space-y-5">
           <section class="cache-panel" aria-labelledby="cache-results-title">
-            <div class="flex flex-wrap items-center justify-between gap-3"><h2 id="cache-results-title" class="cache-heading">{{ t('admin.groupCacheTest.results') }}</h2><div v-if="selected" class="flex flex-wrap gap-2"><button class="btn btn-secondary btn-sm" :disabled="busy || !hasPendingBills" data-testid="cache-reconcile" @click="refreshBills">{{ t('admin.groupCacheTest.reconcile') }}</button><button class="btn btn-secondary btn-sm" :disabled="busy" @click="download">{{ t('admin.groupCacheTest.export') }}</button></div></div>
+            <div class="flex flex-wrap items-center justify-between gap-3"><AppHeading variant="section" as="h2" id="cache-results-title" class="cache-heading">{{ t('admin.groupCacheTest.results') }}</AppHeading><div v-if="selected" class="flex flex-wrap gap-2"><button class="btn btn-secondary btn-sm" :disabled="busy || !hasPendingBills" data-testid="cache-reconcile" @click="refreshBills">{{ t('admin.groupCacheTest.reconcile') }}</button><button class="btn btn-secondary btn-sm" :disabled="busy" @click="download">{{ t('admin.groupCacheTest.export') }}</button></div></div>
             <div v-if="!selected" class="py-16 text-center"><p class="font-medium text-gray-700 dark:text-gray-200">{{ t('admin.groupCacheTest.emptyTitle') }}</p><p class="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">{{ t('admin.groupCacheTest.emptyHint') }}</p></div>
             <template v-else>
               <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"><strong>{{ selected.groupName }}</strong><span>{{ selected.settings.model }}</span><code class="text-xs">{{ CACHE_ENDPOINTS[selected.settings.protocol] }}</code><span role="status" aria-live="polite" class="ml-auto">{{ busy ? t(reconciling ? 'admin.groupCacheTest.reconciling' : 'admin.groupCacheTest.testing') : t('admin.groupCacheTest.status.' + selected.status) }}</span></div>
@@ -56,8 +56,8 @@
                 <div class="cache-stat"><span>{{ t('admin.groupCacheTest.billed') }}</span><strong>{{ money(knownCost) }}</strong><small>{{ t('admin.groupCacheTest.billsMatched', { count: matchedBills, total: selected.rounds.length }) }}</small></div>
               </div>
               <p class="cache-hint">{{ t('admin.groupCacheTest.resultHint') }}</p>
-              <div class="mt-4 overflow-x-auto">
-                <DataTable
+              <div class="mt-4 overflow-x-auto overflow-y-hidden">
+                <DataTable column-order-key="admin-group-cache-results"
  :columns="openRecordColumns"
  :primary-columns="['round','input','cache_read','hit_rate','billed']"
  :data="selected.rounds" row-key="index" >
@@ -72,17 +72,17 @@
 </DataTable>
               </div>
               <div v-if="detail" class="open-section mt-4" data-testid="cache-detail">
-                <h3 class="text-sm font-semibold">{{ t('admin.groupCacheTest.roundDetails', { index: detail.index }) }}</h3>
+                <AppHeading variant="subsection" as="h3">{{ t('admin.groupCacheTest.roundDetails', { index: detail.index }) }}</AppHeading>
                 <p v-if="detail.error" role="alert" class="mt-2 text-sm text-red-600">{{ t('admin.groupCacheTest.errors.' + detail.error) }}<span v-if="detail.httpStatus"> · HTTP {{ detail.httpStatus }}</span></p>
                 <dl class="cache-details mt-3"><dt>{{ t('admin.groupCacheTest.requestId') }}</dt><dd class="break-all font-mono text-xs">{{ detail.requestId || t('admin.groupCacheTest.notReported') }}</dd><dt>{{ t('admin.groupCacheTest.modelReturned') }}</dt><dd>{{ detail.responseModel || '—' }}</dd><dt>{{ t('admin.groupCacheTest.tierReturned') }}</dt><dd>{{ detail.serviceTier || t('admin.groupCacheTest.notReported') }}</dd><dt>{{ t('admin.groupCacheTest.duration') }}</dt><dd>{{ ms(detail.durationMs) }}</dd></dl>
-                <template v-if="detail.bill"><h4 class="mt-4 text-sm font-semibold">{{ t('admin.groupCacheTest.billDetails') }}</h4><dl class="cache-details mt-3"><dt>{{ t('admin.groupCacheTest.route') }}</dt><dd>{{ t('admin.groupCacheTest.routeValue', { group: detail.bill.groupId ?? '—', account: detail.bill.accountId ?? '—' }) }} · {{ detail.bill.upstreamModel || detail.bill.model }}</dd><dt>{{ t('admin.groupCacheTest.tier') }} / {{ t('admin.groupCacheTest.reasoning') }}</dt><dd>{{ detail.bill.serviceTier || '—' }} / {{ detail.bill.reasoningEffort || '—' }}</dd><dt>{{ t('admin.groupCacheTest.billedTokens') }}</dt><dd>{{ number(detail.bill.tokens.input) }} / {{ number(detail.bill.tokens.read) }} / {{ number(detail.bill.tokens.write) }} / {{ number(detail.bill.tokens.output) }}</dd><dt>{{ t('admin.groupCacheTest.componentCosts') }}</dt><dd>{{ money(detail.bill.inputCost) }} / {{ money(detail.bill.readCost) }} / {{ money(detail.bill.writeCost) }} / {{ money(detail.bill.outputCost) }}</dd><dt>{{ t('admin.groupCacheTest.standardCost') }}</dt><dd>{{ money(detail.bill.totalCost) }} · {{ t('admin.groupCacheTest.multiplier') }} {{ number(detail.bill.multiplier) }}</dd><dt>{{ t('admin.groupCacheTest.billed') }}</dt><dd>{{ money(detail.bill.actualCost) }}</dd><dt>{{ t('admin.groupCacheTest.serverFirstToken') }}</dt><dd>{{ ms(detail.bill.firstTokenMs) }}</dd></dl></template>
+                <template v-if="detail.bill"><AppHeading variant="minor" as="h4" class="mt-4">{{ t('admin.groupCacheTest.billDetails') }}</AppHeading><dl class="cache-details mt-3"><dt>{{ t('admin.groupCacheTest.route') }}</dt><dd>{{ t('admin.groupCacheTest.routeValue', { group: detail.bill.groupId ?? '—', account: detail.bill.accountId ?? '—' }) }} · {{ detail.bill.upstreamModel || detail.bill.model }}</dd><dt>{{ t('admin.groupCacheTest.tier') }} / {{ t('admin.groupCacheTest.reasoning') }}</dt><dd>{{ detail.bill.serviceTier || '—' }} / {{ detail.bill.reasoningEffort || '—' }}</dd><dt>{{ t('admin.groupCacheTest.billedTokens') }}</dt><dd>{{ number(detail.bill.tokens.input) }} / {{ number(detail.bill.tokens.read) }} / {{ number(detail.bill.tokens.write) }} / {{ number(detail.bill.tokens.output) }}</dd><dt>{{ t('admin.groupCacheTest.componentCosts') }}</dt><dd>{{ money(detail.bill.inputCost) }} / {{ money(detail.bill.readCost) }} / {{ money(detail.bill.writeCost) }} / {{ money(detail.bill.outputCost) }}</dd><dt>{{ t('admin.groupCacheTest.standardCost') }}</dt><dd>{{ money(detail.bill.totalCost) }} · {{ t('admin.groupCacheTest.multiplier') }} {{ number(detail.bill.multiplier) }}</dd><dt>{{ t('admin.groupCacheTest.billed') }}</dt><dd>{{ money(detail.bill.actualCost) }}</dd><dt>{{ t('admin.groupCacheTest.serverFirstToken') }}</dt><dd>{{ ms(detail.bill.firstTokenMs) }}</dd></dl></template>
                 <p class="mt-3 cache-hint">{{ t('admin.groupCacheTest.billingHint') }}</p>
               </div>
               <p v-if="hasPendingBills" class="mt-4 text-sm text-amber-700 dark:text-amber-300">{{ t('admin.groupCacheTest.pendingHint') }}</p>
             </template>
           </section>
           <section class="cache-panel" aria-labelledby="cache-history-title">
-            <div class="flex items-center justify-between gap-3"><h2 id="cache-history-title" class="cache-heading">{{ t('admin.groupCacheTest.history') }}</h2><button class="text-sm text-gray-500 underline" :disabled="busy || !history.length" @click="clearHistory">{{ t('admin.groupCacheTest.clearHistory') }}</button></div>
+            <div class="flex items-center justify-between gap-3"><AppHeading variant="section" as="h2" id="cache-history-title" class="cache-heading">{{ t('admin.groupCacheTest.history') }}</AppHeading><button class="text-sm text-gray-500 underline" :disabled="busy || !history.length" @click="clearHistory">{{ t('admin.groupCacheTest.clearHistory') }}</button></div>
             <p class="mt-2 cache-hint">{{ t('admin.groupCacheTest.historyHint') }}</p>
             <p v-if="!history.length" class="py-6 text-sm text-gray-500">{{ t('admin.groupCacheTest.noHistory') }}</p>
             <ul v-else class="mt-3 divide-y divide-gray-100 dark:divide-dark-700"><li v-for="run in history" :key="run.id"><button class="flex w-full flex-wrap items-center gap-x-4 gap-y-1 rounded p-3 text-left text-sm hover:bg-gray-50 disabled:opacity-50 dark:hover:bg-dark-700" :class="selected?.id === run.id ? 'bg-gray-50 dark:bg-dark-700' : ''" :disabled="busy" :aria-pressed="selected?.id === run.id" @click="selected = run; detailIndex = null"><span class="min-w-32 font-medium">{{ run.groupName }}</span><span>{{ run.settings.model }}</span><span class="text-xs text-gray-500">{{ date(run.startedAt) }}</span><span class="ml-auto">{{ t('admin.groupCacheTest.status.' + run.status) }} · {{ run.rounds.length }} / {{ run.settings.rounds }}</span></button></li></ul>
@@ -94,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
@@ -231,7 +232,7 @@ const openRecordColumns = computed(() => [{ key: 'round', label: t('admin.groupC
 
 <style scoped>
 .cache-panel { @apply min-w-0  p-5   border-t border-gray-200 dark:border-dark-700; }
-.cache-heading { @apply text-base font-semibold text-gray-900 dark:text-gray-100; }
+.cache-heading { @apply text-gray-900 dark:text-gray-100; }
 .cache-field { @apply flex flex-col gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300; }
 .cache-hint { @apply text-xs leading-5 text-gray-500 dark:text-gray-400; }
 .cache-stat { @apply flex flex-col gap-1 rounded-lg bg-gray-50 p-3 dark:bg-dark-900; }

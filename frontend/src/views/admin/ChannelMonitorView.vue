@@ -1,15 +1,15 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page w-full min-w-0 space-y-6 pb-8">
       <header
         class="open-section page-header mb-0 p-5"
       >
-        <h1 class="page-title flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
+        <AppHeading variant="page" as="h1" class="page-title flex items-center gap-2 text-gray-900 dark:text-white">
           <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
             <Icon name="chart" size="sm" />
           </span>
           {{ t('admin.channelMonitor.title') }}
-        </h1>
+        </AppHeading>
         <p class="page-description mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           {{ t(`channelMonitorV3.admin.description.${siteMode}`) }}
         </p>
@@ -128,7 +128,7 @@
           </template>
 
           <template #cell-enabled="{ row }">
-            <Toggle :modelValue="row.enabled" @update:modelValue="toggleEnabled(row)" />
+            <Toggle :aria-label="t('admin.channelMonitor.form.enabled') + ': ' + row.name" :modelValue="row.enabled" @update:modelValue="toggleEnabled(row)" />
           </template>
 
           <template #cell-actions="{ row }">
@@ -179,7 +179,7 @@
       @close="showRunResult = false"
     />
 
-    <ConfirmDialog
+    <ConfirmDialog :busy="applyModeAction.busy.value"
       :show="pendingMode !== null"
       :title="t('channelMonitorV3.admin.switchTitle')"
       :message="pendingMode ? t('channelMonitorV3.admin.switchConfirm', { mode: t(`channelMonitorV3.modes.${pendingMode}`), effect: t(`channelMonitorV3.admin.switchEffect.${pendingMode}`) }) : ''"
@@ -189,7 +189,7 @@
       @cancel="pendingMode = null"
     />
 
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteAction.busy.value"
       :show="showDeleteDialog"
       :title="t('common.delete')"
       :message="deleteConfirmMessage"
@@ -203,6 +203,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -220,6 +221,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -247,22 +249,27 @@ const adminMonitorTab = ref<'v3' | 'v2' | 'legacy'>(tabForMode(getChannelMonitor
 const pendingMode = ref<ChannelMonitorMode | null>(null)
 const switchingMode = ref(false)
 
-async function applyMode() {
-  const mode = pendingMode.value
-  pendingMode.value = null
-  if (!mode || mode === siteMode.value) return
-  switchingMode.value = true
-  try {
-    await setMonitorMode(mode)
-    // Sidebar, the user page and the runners all follow the public settings.
-    await appStore.fetchPublicSettings(true)
-    adminMonitorTab.value = tabForMode(mode)
-    appStore.showSuccess(t('channelMonitorV3.admin.switched', { mode: t(`channelMonitorV3.modes.${mode}`) }))
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('channelMonitorV3.admin.switchFailed')))
-  } finally {
-    switchingMode.value = false
-  }
+function applyMode() {
+  return applyModeAction.run(async (isCurrent) => {
+    const mode = pendingMode.value
+    if (!mode || mode === siteMode.value) return
+    switchingMode.value = true
+    try {
+      await setMonitorMode(mode)
+      if (!isCurrent()) return
+      // Sidebar, the user page and the runners all follow the public settings.
+      await appStore.fetchPublicSettings(true)
+      if (!isCurrent()) return
+      adminMonitorTab.value = tabForMode(mode)
+      pendingMode.value = null
+      appStore.showSuccess(t('channelMonitorV3.admin.switched', { mode: t(`channelMonitorV3.modes.${mode}`) }))
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      appStore.showError(extractApiErrorMessage(err, t('channelMonitorV3.admin.switchFailed')))
+    } finally {
+      switchingMode.value = false
+    }
+  })
 }
 const {
   providerLabel,
@@ -400,17 +407,24 @@ function handleDelete(row: ChannelMonitor) {
   showDeleteDialog.value = true
 }
 
-async function confirmDelete() {
-  if (!deleting.value) return
-  try {
-    await adminAPI.channelMonitor.del(deleting.value.id)
-    appStore.showSuccess(t('admin.channelMonitor.deleteSuccess'))
-    showDeleteDialog.value = false
-    deleting.value = null
-    reload()
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('common.error')))
-  }
+function confirmDelete() {
+  return confirmDeleteAction.run(async (isCurrent) => {
+    const targetId = deleting.value?.id
+    if (targetId == null) return
+
+    if (!deleting.value) return
+    try {
+      await adminAPI.channelMonitor.del(targetId)
+      if (!isCurrent()) return
+      deleting.value = null
+      appStore.showSuccess(t('admin.channelMonitor.deleteSuccess'))
+      showDeleteDialog.value = false
+        reload()
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      appStore.showError(extractApiErrorMessage(err, t('common.error')))
+    }
+  })
 }
 
 watch(adminMonitorTab, (tab) => {
@@ -422,4 +436,10 @@ onMounted(() => {
 onUnmounted(() => {
   if (searchTimeout) clearTimeout(searchTimeout)
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const applyModeAction = useConfirmedAction(() => ({ active: pendingMode.value !== null, identity: pendingMode.value }))
+watch(() => ({ active: pendingMode.value !== null, identity: JSON.stringify(pendingMode.value) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { pendingMode.value = null } }, { flush: 'sync' })
+const confirmDeleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: deleting.value?.id }))
+watch(() => ({ active: showDeleteDialog.value, identity: JSON.stringify(deleting.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeleteDialog.value = false } }, { flush: 'sync' })
 </script>

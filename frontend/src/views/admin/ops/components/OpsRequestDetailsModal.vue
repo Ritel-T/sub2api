@@ -195,7 +195,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.req
         <!-- Loading -->
         <div v-if="loading" class="flex flex-1 items-center justify-center py-16">
           <div class="flex flex-col items-center gap-3">
-            <svg class="h-8 w-8 animate-spin text-primary-500 dark:text-primary-400" fill="none" viewBox="0 0 24 24">
+            <svg role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin text-primary-500 dark:text-primary-400" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path
                 class="opacity-75"
@@ -216,7 +216,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.req
 
           <div v-else class="min-w-0">
             <div class="min-w-0">
-              <DataTable
+              <DataTable column-order-key="admin-ops-request-details"
  :columns="openRecordColumns"
  :primary-columns="['time','kind','model','latency','status','actions']"
  :data="requestRows" row-key="recordKey" >

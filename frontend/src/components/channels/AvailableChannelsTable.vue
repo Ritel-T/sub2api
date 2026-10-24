@@ -16,7 +16,7 @@
       <tbody v-if="loading">
         <tr>
           <td colspan="5" class="py-10 text-center">
-            <Icon name="refresh" size="lg" class="inline-block animate-spin text-gray-400" />
+            <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="lg" class="inline-block animate-spin text-gray-400" />
           </td>
         </tr>
       </tbody>
@@ -172,7 +172,7 @@
 
     <div data-testid="mobile-channels" class="w-full min-w-0 overflow-x-hidden lg:hidden">
       <div v-if="loading" data-testid="mobile-loading" class="py-10 text-center">
-        <Icon name="refresh" size="lg" class="inline-block animate-spin text-gray-400" />
+        <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="lg" class="inline-block animate-spin text-gray-400" />
       </div>
       <div v-else-if="rows.length === 0" data-testid="mobile-empty" class="py-12 text-center">
         <Icon name="inbox" size="xl" class="mx-auto mb-3 h-12 w-12 text-gray-400" />
@@ -185,9 +185,9 @@
         class="border-b border-gray-200 py-6 last:border-b-0 dark:border-dark-700"
       >
         <header class="mb-3 min-w-0">
-          <h3 class="break-words text-sm font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h3" variant="subsection" class="break-words text-gray-900 dark:text-white">
             {{ channel.name }}
-          </h3>
+          </AppHeading>
           <p class="mt-1 break-words text-xs leading-5 text-gray-500 dark:text-gray-400">
             {{ channel.description || '-' }}
           </p>
@@ -318,6 +318,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'

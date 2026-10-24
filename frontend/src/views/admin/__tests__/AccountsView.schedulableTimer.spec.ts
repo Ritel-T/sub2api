@@ -1,3 +1,4 @@
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -298,14 +299,31 @@ describe('account immediate scheduling without confirmation', () => {
     expect(wrapper.findComponent({ name: 'SchedulableTimerControl' }).props('refreshKey')).toBe(0)
   })
 
+  it('marks batch deletion dangerous and invalidates a changed selection', async () => {
+    await mountWithSelection()
+    await bulkButton('delete').trigger('click')
+    await flushPromises()
+    const confirmation = wrapper.findAllComponents(ConfirmDialog).find(dialog => dialog.props('show'))!
+    expect(confirmation.props('danger')).toBe(true)
+    expect(confirmation.props('confirmText')).toBe('common.delete')
+    await wrapper.get('[data-test="scheduling-7"] input').setValue(false)
+    await flushPromises()
+    confirmation.vm.$emit('confirm')
+    await flushPromises()
+    expect(batchDelete).not.toHaveBeenCalled()
+  })
+
   it('still requires confirmation for deleting accounts', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     await mountWithSelection()
     await bulkButton('delete').trigger('click')
     await flushPromises()
 
-    expect(confirm).toHaveBeenCalledTimes(1)
-    expect(confirm).toHaveBeenCalledWith('admin.accounts.bulkActions.confirmDelete')
+    expect(confirm).not.toHaveBeenCalled()
+    const confirmation = wrapper.findAllComponents(ConfirmDialog).find(dialog => dialog.props('show'))!
+    expect(confirmation.props('message')).toBe('admin.accounts.bulkActions.confirmDelete')
+    confirmation.vm.$emit('cancel')
+    await flushPromises()
     expect(batchDelete).not.toHaveBeenCalled()
     expect(selectedIds()).toEqual([7, 11])
   })

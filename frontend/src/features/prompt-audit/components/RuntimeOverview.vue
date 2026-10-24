@@ -2,9 +2,9 @@
   <section aria-labelledby="prompt-runtime-title" class="border-b border-gray-200 py-6 dark:border-dark-700/60">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 id="prompt-runtime-title" class="text-base font-semibold text-gray-950 dark:text-white">
+        <AppHeading as="h2" variant="section" id="prompt-runtime-title" class="text-gray-950 dark:text-white">
           {{ t('admin.promptAudit.runtime.title') }}
-        </h2>
+        </AppHeading>
         <p class="mt-1 text-sm text-gray-500 dark:text-dark-300">
           {{ t('admin.promptAudit.runtime.description') }}
         </p>
@@ -17,9 +17,9 @@
     <div v-if="error" role="alert" class="mt-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
       {{ error }}
     </div>
-    <div v-else-if="loading && !runtime" class="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-3 xl:grid-cols-[1.2fr_1fr_.7fr_.8fr_1fr_1.5fr]" aria-busy="true">
+    <LoadingRegion v-else-if="loading && !runtime" class="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-3 xl:grid-cols-[1.2fr_1fr_.7fr_.8fr_1fr_1.5fr]">
       <div v-for="index in 6" :key="index" class="h-16 animate-pulse rounded-xl bg-gray-100 dark:bg-dark-800" />
-    </div>
+    </LoadingRegion>
     <template v-else-if="runtime">
       <dl class="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-3 xl:grid-cols-[1.2fr_1fr_.7fr_.8fr_1fr_1.5fr]">
         <div v-for="item in statusItems" :key="item.label" class="min-w-0 py-3">
@@ -33,7 +33,7 @@
 
       <div class="mt-6 grid gap-8 border-t border-gray-200 pt-6 dark:border-dark-700 lg:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)]">
         <div class="min-w-0">
-          <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.promptAudit.runtime.guardMetrics') }}</h3>
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('admin.promptAudit.runtime.guardMetrics') }}</AppHeading>
           <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div v-for="metric in guardMetricItems" :key="metric.label" class="min-w-0 py-2">
               <p class="text-xs text-gray-500 dark:text-dark-400">{{ metric.label }}</p>
@@ -53,7 +53,7 @@
           </p>
         </div>
         <div class="min-w-0">
-          <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.promptAudit.runtime.latest') }}</h3>
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('admin.promptAudit.runtime.latest') }}</AppHeading>
           <p class="mt-2 text-sm text-gray-600 dark:text-dark-300">
             {{ runtime.last_processed_at ? formatDate(runtime.last_processed_at) : t('admin.promptAudit.common.never') }}
           </p>
@@ -72,6 +72,8 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PromptAuditRuntime } from '../types'

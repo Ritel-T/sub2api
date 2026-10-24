@@ -476,21 +476,7 @@
                 {{ t('admin.accounts.poolModeHint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="poolModeEnabled = !poolModeEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                poolModeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  poolModeEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!poolModeEnabled" :aria-label="t('admin.accounts.poolMode')" @click="poolModeEnabled = !poolModeEnabled" />
           </div>
           <div v-if="poolModeEnabled" class="rounded-lg theme-info-panel p-3">
             <p class="text-xs text-primary-700 dark:text-primary-300">
@@ -582,21 +568,7 @@
                 {{ t('admin.accounts.customErrorCodesHint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="customErrorCodesEnabled = !customErrorCodesEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                customErrorCodesEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  customErrorCodesEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!customErrorCodesEnabled" :aria-label="t('admin.accounts.customErrorCodes')" @click="customErrorCodesEnabled = !customErrorCodesEnabled" />
           </div>
 
           <div v-if="customErrorCodesEnabled" class="space-y-3">
@@ -776,22 +748,7 @@
               {{ t('admin.accounts.grokCustomBaseUrl.hint') }}
             </p>
           </div>
-          <button
-            type="button"
-            data-testid="grok-custom-base-url-toggle"
-            @click="grokOAuthCustomBaseUrlEnabled = !grokOAuthCustomBaseUrlEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              grokOAuthCustomBaseUrlEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                grokOAuthCustomBaseUrlEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!grokOAuthCustomBaseUrlEnabled" :aria-label="t('admin.accounts.grokCustomBaseUrl.title')" data-testid="grok-custom-base-url-toggle" @click="grokOAuthCustomBaseUrlEnabled = !grokOAuthCustomBaseUrlEnabled" />
         </div>
         <div v-if="grokOAuthCustomBaseUrlEnabled" class="space-y-2">
           <input
@@ -814,21 +771,7 @@
               {{ t('admin.accounts.headerOverride.hint') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="headerOverrideEnabled = !headerOverrideEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              headerOverrideEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                headerOverrideEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!headerOverrideEnabled" :aria-label="t('admin.accounts.headerOverride.title')" @click="headerOverrideEnabled = !headerOverrideEnabled" />
         </div>
 
         <div v-if="headerOverrideEnabled" class="space-y-3">
@@ -1393,21 +1336,7 @@
                 {{ t('admin.accounts.poolModeHint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="poolModeEnabled = !poolModeEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                poolModeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  poolModeEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!poolModeEnabled" :aria-label="t('admin.accounts.poolMode')" @click="poolModeEnabled = !poolModeEnabled" />
           </div>
           <div v-if="poolModeEnabled" class="rounded-lg theme-info-panel p-3">
             <p class="text-xs text-primary-700 dark:text-primary-300">
@@ -1574,21 +1503,7 @@
               {{ t('admin.accounts.tempUnschedulable.hint') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="tempUnschedEnabled = !tempUnschedEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              tempUnschedEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                tempUnschedEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!tempUnschedEnabled" :aria-label="t('admin.accounts.tempUnschedulable.title')" @click="tempUnschedEnabled = !tempUnschedEnabled" />
         </div>
 
         <div v-if="tempUnschedEnabled" class="space-y-3">
@@ -1799,21 +1714,7 @@
               {{ t('admin.accounts.interceptWarmupRequestsDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="interceptWarmupRequests = !interceptWarmupRequests"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              interceptWarmupRequests ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                interceptWarmupRequests ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!interceptWarmupRequests" :aria-label="t('admin.accounts.interceptWarmupRequests')" @click="interceptWarmupRequests = !interceptWarmupRequests" />
         </div>
       </div>
 
@@ -2107,21 +2008,7 @@
               {{ t('admin.accounts.openai.oauthPassthroughDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="openaiPassthroughEnabled = !openaiPassthroughEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openaiPassthroughEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openaiPassthroughEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!openaiPassthroughEnabled" :aria-label="t('admin.accounts.openai.oauthPassthrough')" @click="openaiPassthroughEnabled = !openaiPassthroughEnabled" />
         </div>
       </div>
 
@@ -2140,22 +2027,7 @@
               {{ t('admin.accounts.openai.flattenNamespacesDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            data-testid="edit-openai-flatten-namespaces-toggle"
-            @click="openaiFlattenNamespacesEnabled = !openaiFlattenNamespacesEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openaiFlattenNamespacesEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openaiFlattenNamespacesEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!openaiFlattenNamespacesEnabled" :aria-label="t('admin.accounts.openai.flattenNamespaces')" data-testid="edit-openai-flatten-namespaces-toggle" @click="openaiFlattenNamespacesEnabled = !openaiFlattenNamespacesEnabled" />
         </div>
       </div>
 
@@ -2235,7 +2107,7 @@
             </p>
           </div>
           <div class="w-52">
-            <Select v-model="openaiResponsesWebSocketV2Mode" data-testid="edit-openai-ws-mode-select" :options="openAIWSModeOptions" />
+            <Select :aria-label="t('admin.accounts.openai.wsMode')" v-model="openaiResponsesWebSocketV2Mode" data-testid="edit-openai-ws-mode-select" :options="openAIWSModeOptions" />
           </div>
         </div>
       </div>
@@ -2270,7 +2142,7 @@
             </p>
           </div>
           <div class="w-56">
-            <Select
+            <Select :aria-label="t('admin.accounts.openai.responsesMode')"
               v-model="openAIResponsesMode"
               :options="openAIResponsesModeOptions"
               :disabled="!openAITextGenerationCapabilityEnabled"
@@ -2324,24 +2196,7 @@
             {{ t('admin.accounts.openai.imagesUrlToB64JsonDesc') }}
           </p>
         </div>
-        <button
-          type="button"
-          data-testid="openai-images-url-to-b64-json-toggle"
-          role="switch"
-          :aria-checked="openAIImagesUrlToB64JsonEnabled"
-          @click="openAIImagesUrlToB64JsonEnabled = !openAIImagesUrlToB64JsonEnabled"
-          :class="[
-            'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-            openAIImagesUrlToB64JsonEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-          ]"
-        >
-          <span
-            :class="[
-              'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-              openAIImagesUrlToB64JsonEnabled ? 'translate-x-5' : 'translate-x-0'
-            ]"
-          />
-        </button>
+        <Toggle :model-value="openAIImagesUrlToB64JsonEnabled" :aria-label="t('admin.accounts.openai.imagesUrlToB64Json')" data-testid="openai-images-url-to-b64-json-toggle" @click="openAIImagesUrlToB64JsonEnabled = !openAIImagesUrlToB64JsonEnabled" />
       </div>
 
       <div
@@ -2375,9 +2230,9 @@
       >
         <div class="flex items-start justify-between gap-4">
           <div>
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+            <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
               {{ t('admin.accounts.opencodeGo.title') }}
-            </h3>
+            </AppHeading>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.opencodeGo.panelHint') }}
             </p>
@@ -2393,7 +2248,7 @@
         </div>
 
         <div v-if="opencodeGoLoading" class="flex h-20 items-center justify-center text-gray-400">
-          <Icon name="refresh" size="sm" class="animate-spin" />
+          <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="sm" class="animate-spin" />
         </div>
         <template v-else>
           <div
@@ -2443,7 +2298,7 @@
                 {{ t('admin.accounts.opencodeGo.autoRefreshHint') }}
               </p>
             </div>
-            <Toggle
+            <Toggle :aria-label="t('admin.accounts.opencodeGo.autoRefresh')"
               :model-value="opencodeGoState?.auto_refresh_enabled ?? false"
               :disabled="opencodeGoSaving"
               data-testid="opencode-go-auto-refresh"
@@ -2465,21 +2320,7 @@
               {{ t('admin.accounts.anthropic.apiKeyPassthroughDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="anthropicPassthroughEnabled = !anthropicPassthroughEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              anthropicPassthroughEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                anthropicPassthroughEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!anthropicPassthroughEnabled" :aria-label="t('admin.accounts.anthropic.apiKeyPassthrough')" @click="anthropicPassthroughEnabled = !anthropicPassthroughEnabled" />
         </div>
       </div>
 
@@ -2495,21 +2336,7 @@
               {{ t('admin.accounts.anthropic.stripClaudeCodeIdentityDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="anthropicStripClaudeCodeIdentityEnabled = !anthropicStripClaudeCodeIdentityEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              anthropicStripClaudeCodeIdentityEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                anthropicStripClaudeCodeIdentityEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!anthropicStripClaudeCodeIdentityEnabled" :aria-label="t('admin.accounts.anthropic.stripClaudeCodeIdentity')" @click="anthropicStripClaudeCodeIdentityEnabled = !anthropicStripClaudeCodeIdentityEnabled" />
         </div>
       </div>
 
@@ -2557,7 +2384,7 @@
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
-          <h3 class="input-label mb-0 text-base font-semibold">{{ t('admin.accounts.quotaControl.title') }}</h3>
+          <AppHeading as="h3" variant="subsection" class="mb-0">{{ t('admin.accounts.quotaControl.title') }}</AppHeading>
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.quotaControl.hint') }}
           </p>
@@ -2608,7 +2435,7 @@
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
-          <h3 class="input-label mb-0 text-base font-semibold">{{ t('admin.accounts.quotaControl.title') }}</h3>
+          <AppHeading as="h3" variant="subsection" class="mb-0">{{ t('admin.accounts.quotaControl.title') }}</AppHeading>
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.quotaLimitHint') }}
           </p>
@@ -2666,24 +2493,7 @@
               {{ t('admin.accounts.openai.longContextBillingDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            data-testid="openai-long-context-billing-toggle"
-            role="switch"
-            :aria-checked="openAILongContextBillingEnabled"
-            @click="openAILongContextBillingEnabled = !openAILongContextBillingEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openAILongContextBillingEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openAILongContextBillingEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="openAILongContextBillingEnabled" :aria-label="t('admin.accounts.openai.longContextBilling')" data-testid="openai-long-context-billing-toggle" @click="openAILongContextBillingEnabled = !openAILongContextBillingEnabled" />
         </div>
       </div>
 
@@ -2698,21 +2508,7 @@
               {{ t('admin.accounts.openai.codexCLIOnlyDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="codexCLIOnlyEnabled = !codexCLIOnlyEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              codexCLIOnlyEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                codexCLIOnlyEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!codexCLIOnlyEnabled" :aria-label="t('admin.accounts.openai.codexCLIOnly')" @click="codexCLIOnlyEnabled = !codexCLIOnlyEnabled" />
         </div>
         <div
           v-if="codexCLIOnlyEnabled"
@@ -2724,21 +2520,7 @@
               {{ t('admin.accounts.openai.codexCLIOnlyAppServerDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="codexCLIOnlyAppServerEnabled = !codexCLIOnlyAppServerEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              codexCLIOnlyAppServerEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                codexCLIOnlyAppServerEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!codexCLIOnlyAppServerEnabled" :aria-label="t('admin.accounts.openai.codexCLIOnlyAppServer')" @click="codexCLIOnlyAppServerEnabled = !codexCLIOnlyAppServerEnabled" />
         </div>
       </div>
 
@@ -2784,7 +2566,7 @@
             </p>
           </div>
           <div class="w-52 flex-shrink-0">
-            <Select v-model="codexFingerprintMode" data-testid="edit-codex-fingerprint-mode-select" :options="codexFingerprintModeOptions" />
+            <Select :aria-label="t('admin.accounts.openai.codexFingerprintMode')" v-model="codexFingerprintMode" data-testid="edit-codex-fingerprint-mode-select" :options="codexFingerprintModeOptions" />
           </div>
         </div>
       </div>
@@ -2802,7 +2584,7 @@
             </p>
           </div>
           <div class="w-44 flex-shrink-0">
-            <Select v-model="editPlanType" :options="planTypeOptions" />
+            <Select :aria-label="t('admin.accounts.openai.planType')" v-model="editPlanType" :options="planTypeOptions" />
           </div>
         </div>
       </div>
@@ -2819,7 +2601,7 @@
             </p>
           </div>
           <div class="w-44">
-            <Select v-model="openAICompactMode" :options="openAICompactModeOptions" />
+            <Select :aria-label="t('admin.accounts.openai.compactMode')" v-model="openAICompactMode" :options="openAICompactModeOptions" />
           </div>
         </div>
         <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300">
@@ -2875,21 +2657,7 @@
               {{ t('admin.accounts.autoPauseOnExpiredDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="autoPauseOnExpired = !autoPauseOnExpired"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              autoPauseOnExpired ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                autoPauseOnExpired ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!autoPauseOnExpired" :aria-label="t('admin.accounts.autoPauseOnExpired')" @click="autoPauseOnExpired = !autoPauseOnExpired" />
         </div>
       </div>
 
@@ -2900,22 +2668,7 @@
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('admin.accounts.autoPause5hDisabled') }}</label>
-            <button
-              type="button"
-              @click="autoPause5hDisabled = !autoPause5hDisabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                autoPause5hDisabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-              data-testid="auto-pause-5h-disabled"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  autoPause5hDisabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!autoPause5hDisabled" :aria-label="t('admin.accounts.autoPause5hDisabled')" @click="autoPause5hDisabled = !autoPause5hDisabled" data-testid="auto-pause-5h-disabled" />
           </div>
           <p class="input-hint">{{ t('admin.accounts.autoPauseDisabledHint') }}</p>
         </div>
@@ -2936,22 +2689,7 @@
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('admin.accounts.autoPause7dDisabled') }}</label>
-            <button
-              type="button"
-              @click="autoPause7dDisabled = !autoPause7dDisabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                autoPause7dDisabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-              data-testid="auto-pause-7d-disabled"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  autoPause7dDisabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!autoPause7dDisabled" :aria-label="t('admin.accounts.autoPause7dDisabled')" @click="autoPause7dDisabled = !autoPause7dDisabled" data-testid="auto-pause-7d-disabled" />
           </div>
           <p class="input-hint">{{ t('admin.accounts.autoPauseDisabledHint') }}</p>
         </div>
@@ -2983,22 +2721,7 @@
               {{ t('admin.accounts.autoResetCredit.hint') }}
             </p>
           </div>
-          <button
-            type="button"
-            data-testid="auto-reset-credit-enabled"
-            @click="autoResetCreditEnabled = !autoResetCreditEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              autoResetCreditEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                autoResetCreditEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!autoResetCreditEnabled" :aria-label="t('admin.accounts.autoResetCredit.title')" data-testid="auto-reset-credit-enabled" @click="autoResetCreditEnabled = !autoResetCreditEnabled" />
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
@@ -3037,7 +2760,7 @@
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
-          <h3 class="input-label mb-0 text-base font-semibold">{{ t('admin.accounts.quotaControl.title') }}</h3>
+          <AppHeading as="h3" variant="subsection" class="mb-0">{{ t('admin.accounts.quotaControl.title') }}</AppHeading>
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.quotaControl.hint') }}
           </p>
@@ -3052,21 +2775,7 @@
                 {{ t('admin.accounts.quotaControl.windowCost.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="windowCostEnabled = !windowCostEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                windowCostEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  windowCostEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!windowCostEnabled" :aria-label="t('admin.accounts.quotaControl.windowCost.label')" @click="windowCostEnabled = !windowCostEnabled" />
           </div>
 
           <div v-if="windowCostEnabled" class="grid grid-cols-2 gap-4">
@@ -3112,21 +2821,7 @@
                 {{ t('admin.accounts.quotaControl.sessionLimit.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="sessionLimitEnabled = !sessionLimitEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                sessionLimitEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  sessionLimitEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!sessionLimitEnabled" :aria-label="t('admin.accounts.quotaControl.sessionLimit.label')" @click="sessionLimitEnabled = !sessionLimitEnabled" />
           </div>
 
           <div v-if="sessionLimitEnabled" class="grid grid-cols-2 gap-4">
@@ -3199,21 +2894,7 @@
                 {{ t('admin.accounts.quotaControl.tlsFingerprint.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="tlsFingerprintEnabled = !tlsFingerprintEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                tlsFingerprintEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  tlsFingerprintEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!tlsFingerprintEnabled" :aria-label="t('admin.accounts.quotaControl.tlsFingerprint.label')" @click="tlsFingerprintEnabled = !tlsFingerprintEnabled" />
           </div>
           <!-- Profile selector -->
           <div v-if="tlsFingerprintEnabled" class="mt-3">
@@ -3234,21 +2915,7 @@
                 {{ t('admin.accounts.quotaControl.sessionIdMasking.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="sessionIdMaskingEnabled = !sessionIdMaskingEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                sessionIdMaskingEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  sessionIdMaskingEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!sessionIdMaskingEnabled" :aria-label="t('admin.accounts.quotaControl.sessionIdMasking.label')" @click="sessionIdMaskingEnabled = !sessionIdMaskingEnabled" />
           </div>
         </div>
 
@@ -3261,21 +2928,7 @@
                 {{ t('admin.accounts.quotaControl.cacheTTLOverride.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="cacheTTLOverrideEnabled = !cacheTTLOverrideEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                cacheTTLOverrideEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  cacheTTLOverrideEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!cacheTTLOverrideEnabled" :aria-label="t('admin.accounts.quotaControl.cacheTTLOverride.label')" @click="cacheTTLOverrideEnabled = !cacheTTLOverrideEnabled" />
           </div>
           <div v-if="cacheTTLOverrideEnabled" class="mt-3">
             <label class="input-label text-xs">{{ t('admin.accounts.quotaControl.cacheTTLOverride.target') }}</label>
@@ -3301,21 +2954,7 @@
                 {{ t('admin.accounts.quotaControl.customBaseUrl.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="customBaseUrlEnabled = !customBaseUrlEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                customBaseUrlEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  customBaseUrlEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="!!customBaseUrlEnabled" :aria-label="t('admin.accounts.quotaControl.customBaseUrl.label')" @click="customBaseUrlEnabled = !customBaseUrlEnabled" />
           </div>
           <div v-if="customBaseUrlEnabled" class="mt-3">
             <input
@@ -3331,7 +2970,7 @@
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div>
           <label class="input-label">{{ t('common.status') }}</label>
-          <Select v-model="form.status" :options="statusOptions" />
+          <Select :aria-label="t('common.status')" v-model="form.status" :options="statusOptions" />
         </div>
 
         <!-- Mixed Scheduling (only for antigravity accounts, read-only in edit mode) -->
@@ -3452,6 +3091,7 @@
   <!-- Mixed Channel Warning Dialog -->
   <ConfirmDialog
     :show="showMixedChannelWarning"
+    :busy="mixedAction.busy.value"
     :title="t('admin.accounts.mixedChannelWarningTitle')"
     :message="mixedChannelWarningMessageText"
     :confirm-text="t('common.confirm')"
@@ -3460,9 +3100,15 @@
     @confirm="handleMixedChannelConfirm"
     @cancel="handleMixedChannelCancel"
   />
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'
+
 import OpenAIRequestTimezoneField from '@/components/account/OpenAIRequestTimezoneField.vue'
 import SIWCAccountSettings from './SIWCAccountSettings.vue'
 import ExcelBPSCredentialStatus from './ExcelBPSCredentialStatus.vue'
@@ -3705,7 +3351,7 @@ const applyOpenCodeGoState = (next: OpenCodeGoUsageState) => {
 }
 
 const loadOpenCodeGoUsage = async () => {
-  opencodeGoLoading.value = true
+    opencodeGoLoading.value = true
   try {
     applyOpenCodeGoState(await adminAPI.accounts.getOpenCodeGoUsage(props.account!.id))
   } catch (error) {
@@ -3727,7 +3373,7 @@ const setOpenCodeGoAutoRefresh = async (enabled: boolean) => {
 }
 
 const refreshOpenCodeGoUsage = async () => {
-  opencodeGoRefreshing.value = true
+    opencodeGoRefreshing.value = true
   try {
     applyOpenCodeGoState(await adminAPI.accounts.refreshOpenCodeGoUsage(props.account!.id))
     appStore.showSuccess(t('admin.accounts.opencodeGo.refreshSuccess'))
@@ -5198,7 +4844,7 @@ const addAntigravityPresetMapping = (from: string, to: string) => {
 }
 
 const syncAntigravityUpstreamModels = async () => {
-  if (!props.account?.id || isSyncingAntigravityUpstream.value) return
+    if (!props.account?.id || isSyncingAntigravityUpstream.value) return
 
   isSyncingAntigravityUpstream.value = true
   try {
@@ -5246,16 +4892,16 @@ const syncAntigravityUpstreamModels = async () => {
 }
 
 // Error code toggle helper
-const toggleErrorCode = (code: number) => {
+const toggleErrorCode = async (code: number) => {
   const index = selectedErrorCodes.value.indexOf(code)
   if (index === -1) {
     // Adding code - check for 429/529 warning
     if (code === 429) {
-      if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
+      if (!await requestConfirmation({ message: t('admin.accounts.customErrorCodes429Warning'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: false })) {
         return
       }
     } else if (code === 529) {
-      if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
+      if (!await requestConfirmation({ message: t('admin.accounts.customErrorCodes529Warning'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: false })) {
         return
       }
     }
@@ -5266,8 +4912,8 @@ const toggleErrorCode = (code: number) => {
 }
 
 // Add custom error code from input
-const addCustomErrorCode = () => {
-  const code = customErrorCodeInput.value
+const addCustomErrorCode = async () => {
+    const code = customErrorCodeInput.value
   if (code === null || code < 100 || code > 599) {
     appStore.showError(t('admin.accounts.invalidErrorCode'))
     return
@@ -5278,11 +4924,11 @@ const addCustomErrorCode = () => {
   }
   // Check for 429/529 warning
   if (code === 429) {
-    if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
+    if (!await requestConfirmation({ message: t('admin.accounts.customErrorCodes429Warning'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: false })) {
       return
     }
   } else if (code === 529) {
-    if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
+    if (!await requestConfirmation({ message: t('admin.accounts.customErrorCodes529Warning'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: false })) {
       return
     }
   }
@@ -5603,6 +5249,17 @@ const buildMixedChannelDetails = (resp?: CheckMixedChannelResponse) => {
   }
 }
 
+const mixedContext = () => [props.show, props.account?.id, form.group_ids]
+const mixedAction = useConfirmedAction(() => ({ active: props.show, identity: mixedContext() }))
+let mixedRevision = 0
+let mixedExecutionCurrent: (() => boolean) | null = null
+const mixedCurrent = () => {
+  const revision = mixedRevision
+  const execution = mixedExecutionCurrent
+  return () => props.show && revision === mixedRevision && (!execution || execution())
+}
+watch(mixedContext, () => { submitting.value = false; mixedRevision++; clearMixedChannelDialog() }, { deep: true, flush: 'sync' })
+
 const clearMixedChannelDialog = () => {
   showMixedChannelWarning.value = false
   mixedChannelWarningDetails.value = null
@@ -5615,6 +5272,7 @@ const openMixedChannelDialog = (opts: {
   message?: string
   onConfirm: () => Promise<void>
 }) => {
+  if (!props.show || mixedAction.busy.value || showMixedChannelWarning.value) return
   mixedChannelWarningDetails.value = buildMixedChannelDetails(opts.response)
   mixedChannelWarningRawMessage.value =
     opts.message || opts.response?.message || t('admin.accounts.failedToUpdate')
@@ -5635,6 +5293,7 @@ const withAntigravityConfirmFlag = (payload: Record<string, unknown>) => {
 }
 
 const ensureAntigravityMixedChannelConfirmed = async (onConfirm: () => Promise<void>): Promise<boolean> => {
+  const isCurrent = mixedCurrent()
   if (!needsMixedChannelCheck()) {
     return true
   }
@@ -5651,6 +5310,7 @@ const ensureAntigravityMixedChannelConfirmed = async (onConfirm: () => Promise<v
       group_ids: form.group_ids,
       account_id: props.account.id
     })
+    if (!isCurrent()) return false
     if (!result.has_risk) {
       return true
     }
@@ -5663,6 +5323,7 @@ const ensureAntigravityMixedChannelConfirmed = async (onConfirm: () => Promise<v
     })
     return false
   } catch (error: any) {
+    if (!isCurrent()) return false
     appStore.showError(error.message || t('admin.accounts.failedToUpdate'))
     return false
   }
@@ -5678,7 +5339,7 @@ const handleClose = () => {
   emit('close')
 }
 
-const persistGrokMediaEligibility = async (accountID: number, updatedAccount: Account): Promise<Account> => {
+const persistGrokMediaEligibility = async (accountID: number, updatedAccount: Account, isCurrent: () => boolean): Promise<Account> => {
   if (
     !isGrokOAuthAccount.value ||
     grokMediaEligibilityMode.value === grokMediaEligibilityInitialMode.value ||
@@ -5689,6 +5350,7 @@ const persistGrokMediaEligibility = async (accountID: number, updatedAccount: Ac
 
   try {
     const state = await adminAPI.accounts.updateGrokMediaEligibility(accountID, grokMediaEligibilityMode.value)
+    if (!isCurrent()) return updatedAccount
     grokMediaEligibilityState.value = state
     grokMediaEligibilityInitialMode.value = state.mode
     const nextExtra = { ...((updatedAccount.extra as Record<string, unknown> | undefined) || {}) }
@@ -5699,6 +5361,7 @@ const persistGrokMediaEligibility = async (accountID: number, updatedAccount: Ac
     }
     updatedAccount.extra = nextExtra
   } catch (error: any) {
+    if (!isCurrent()) return updatedAccount
     appStore.showError(t('admin.accounts.grokMediaEligibility.partialSave'))
     try {
       const state = await loadGrokMediaEligibility(accountID)
@@ -5716,24 +5379,30 @@ const persistGrokMediaEligibility = async (accountID: number, updatedAccount: Ac
 }
 
 // 账号已保存后再同步自动开启 BPS 规则；规则失败只提示，不影响账号本身的保存结果。
-const saveAutoBPSRule = async (accountID: number) => {
+const saveAutoBPSRule = async (accountID: number, isCurrent: () => boolean) => {
   try {
     await autoBPS.saveFor(accountID)
   } catch (error) {
+    if (!isCurrent()) return
     appStore.showWarning(t('admin.accounts.openai.autoBPSSaveFailed', { error: extractApiErrorMessage(error, t('common.error')) }), 8000)
   }
 }
 
 const submitUpdateAccount = async (accountID: number, updatePayload: Record<string, unknown>) => {
+  const isCurrent = mixedCurrent()
   submitting.value = true
   try {
     let updatedAccount = await adminAPI.accounts.update(accountID, withAntigravityConfirmFlag(updatePayload))
-    updatedAccount = await persistGrokMediaEligibility(accountID, updatedAccount)
+    if (!isCurrent()) return
+    updatedAccount = await persistGrokMediaEligibility(accountID, updatedAccount, isCurrent)
+    if (!isCurrent()) return
     appStore.showSuccess(t('admin.accounts.accountUpdated'))
-    if (autoBPSSupported.value) await saveAutoBPSRule(accountID)
+    if (autoBPSSupported.value) await saveAutoBPSRule(accountID, isCurrent)
+    if (!isCurrent()) return
     emit('updated', updatedAccount)
     handleClose()
   } catch (error: any) {
+    if (!isCurrent()) return
     if (error.status === 409 && error.error === 'mixed_channel_warning' && needsMixedChannelCheck()) {
       openMixedChannelDialog({
         message: error.message,
@@ -5746,12 +5415,13 @@ const submitUpdateAccount = async (accountID: number, updatePayload: Record<stri
     }
     appStore.showError(error.message || t('admin.accounts.failedToUpdate'))
   } finally {
-    submitting.value = false
+    if (isCurrent()) submitting.value = false
   }
 }
 
 const handleSubmit = async () => {
-  if (bpsDefaults.loading.value) return
+  if (mixedAction.busy.value || submitting.value) return
+    if (bpsDefaults.loading.value) return
   if (!props.account) return
   const accountID = props.account.id
   if (props.account.platform === 'openai' && props.account.type === 'oauth' && !isSparkShadow.value && (excelBPSEnabled.value || excelBPS403RecoveryPending.value) && excelBPSAutoDisableOn403.value && excelBPSAutoRecoverOn403.value && !isValidBPSRecoveryInterval(excelBPSRecoveryIntervalMinutes.value)) {
@@ -6674,20 +6344,25 @@ const handleSubmit = async () => {
 // Handle mixed channel warning confirmation
 const handleMixedChannelConfirm = async () => {
   const action = mixedChannelWarningAction.value
-  if (!action) {
-    clearMixedChannelDialog()
-    return
-  }
-  clearMixedChannelDialog()
-  submitting.value = true
-  try {
-    await action()
-  } finally {
-    submitting.value = false
-  }
+  if (!props.show || !showMixedChannelWarning.value || !action) return
+  await mixedAction.run(async (isCurrent) => {
+    mixedExecutionCurrent = isCurrent
+    submitting.value = true
+    try {
+      await action()
+      if (isCurrent()) clearMixedChannelDialog()
+    } finally {
+      mixedExecutionCurrent = null
+      if (isCurrent()) submitting.value = false
+    }
+  })
 }
 
 const handleMixedChannelCancel = () => {
   clearMixedChannelDialog()
 }
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: props.show, identity: [props.account?.id, selectedErrorCodes.value, customErrorCodeInput.value] }))
+const requestConfirmation = confirmation.request
 </script>

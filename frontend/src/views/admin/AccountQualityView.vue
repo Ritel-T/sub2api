@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="open-page mb-4" />
     <div class="open-page quality-workspace">
       <div class="workspace-heading">
-        <div><h2>{{ t('qualityOps.workspaceTitle') }}</h2><p class="workspace-subtitle">{{ t('qualityOps.workspaceHint') }}</p></div>
+        <div><AppHeading variant="page" as="h1">{{ t('qualityOps.workspaceTitle') }}</AppHeading><p class="workspace-subtitle">{{ t('qualityOps.workspaceHint') }}</p></div>
         <div class="heading-actions"><span class="updated-label" aria-live="polite">{{ store.updatedAt ? t('qualityOps.updatedAt', { time: clock(store.updatedAt) }) : t('qualityOps.loading') }}</span><button class="btn btn-secondary" :disabled="refreshing" @click="load"><Icon name="refresh" size="sm" :class="{ 'animate-spin': refreshing }" />{{ t('qualityOps.refresh') }}</button><button class="btn btn-primary" @click="newPlan"><Icon name="plus" size="sm" />{{ t('qualityOps.create') }}</button></div>
       </div>
       <div v-if="error || notice" class="workspace-message" :class="error ? 'message-error' : 'message-success'" :role="error ? 'alert' : 'status'">{{ error || notice }}<button :aria-label="t('qualityOps.dismiss')" @click="error = ''; notice = ''"><Icon name="x" size="sm" /></button></div>
@@ -15,8 +15,8 @@
       </div>
       <div class="workspace-columns">
         <section class="workspace-panel rules-panel" aria-labelledby="quality-rules-heading">
-          <header class="panel-heading"><div><h3 id="quality-rules-heading">{{ t('qualityOps.ruleLibrary') }}<span class="count-label">{{ contextPlans.length }}</span></h3><p>{{ t('qualityOps.ruleLibraryHint') }}</p></div></header>
-          <div class="rule-search"><Icon name="search" size="sm" /><input v-model="store.search" :aria-label="t('qualityOps.search')" :placeholder="t('qualityOps.searchRule')" /><button v-if="store.search" :aria-label="t('qualityOps.clearSearch')" @click="store.search = ''"><Icon name="x" size="sm" /></button></div>
+          <header class="panel-heading"><div><AppHeading variant="subsection" as="h3" id="quality-rules-heading">{{ t('qualityOps.ruleLibrary') }}<span class="count-label">{{ contextPlans.length }}</span></AppHeading><p>{{ t('qualityOps.ruleLibraryHint') }}</p></div></header>
+          <div class="rule-search workspace-filter-controls"><Icon name="search" size="sm" /><input v-model="store.search" :aria-label="t('qualityOps.search')" :placeholder="t('qualityOps.searchRule')" /><button v-if="store.search" :aria-label="t('qualityOps.clearSearch')" @click="store.search = ''"><Icon name="x" size="sm" /></button></div>
           <div class="rule-selection-toolbar">
             <label class="rule-check-all"><input type="checkbox" data-testid="quality-select-rules" :checked="allFilteredSelected" :indeterminate="someFilteredSelected && !allFilteredSelected" :disabled="!filteredPlans.length || busy" @change="toggleFilteredSelection" />{{ t('qualityOps.selectFilteredRules') }}</label>
             <span aria-live="polite">{{ t('qualityOps.rulesSelected', { count: selectedRuleIds.length }) }}</span>
@@ -31,7 +31,7 @@
             <div v-if="store.rulesError" class="panel-error" role="alert">{{ store.rulesError }}<button @click="store.refreshRules(true)">{{ t('qualityOps.retry') }}</button></div>
             <div v-if="!store.rulesLoaded && store.rulesLoading" class="skeleton-stack" role="status" :aria-label="t('qualityOps.loading')"><div v-for="n in 4" :key="n" class="rule-skeleton"><span /><span /><span /></div></div>
             <section v-if="templates.length" class="template-section" data-testid="quality-templates" :aria-label="t('qualityOps.templateSection')">
-              <p class="template-section-title">{{ t('qualityOps.templateSection') }}<span>{{ t('qualityOps.templateSectionHint') }}</span></p>
+              <AppHeading variant="minor" as="h4" class="template-section-title">{{ t('qualityOps.templateSection') }}<span>{{ t('qualityOps.templateSectionHint') }}</span></AppHeading>
               <article v-for="tpl in templates" :key="tpl.id" class="template-card" :data-template-id="tpl.id">
                 <div class="rule-card-top"><span class="account-avatar template-avatar"><Icon name="users" size="sm" /></span><span class="min-w-0 flex-1"><strong :title="templateFilterSummary(tpl)" data-testid="quality-template-filter">{{ templateFilterSummary(tpl) }}</strong><span class="rule-meta">{{ t('qualityOps.templateTag', { id: tpl.id }) }}<span>·</span>{{ t('qualityOps.templateCovered', { count: tpl.plan_ids.length }) }}</span></span><button class="state-toggle" :class="tpl.enabled ? 'state-enabled' : 'state-paused'" :disabled="busy || !!templatePending[tpl.id]" :title="t('qualityOps.templatePauseHint')" data-testid="quality-template-toggle" @click="toggleTemplate(tpl)"><span />{{ t(tpl.enabled ? 'qualityOps.activeShort' : 'qualityOps.paused') }}</button></div>
                 <div class="rule-model"><code v-for="model in ruleModels(tpl)" :key="model">{{ model }}</code><span v-if="tpl.pelican_config?.question_kind === STATE_PROBE_QUESTION" class="probe-tag">{{ t('qualityOps.probeTag') }}</span></div>
@@ -51,9 +51,9 @@
           </div>
         </section>
         <section class="workspace-panel operations-panel" aria-labelledby="quality-operations-heading">
-          <header class="panel-heading"><div><h3 id="quality-operations-heading">{{ t('qualityOps.operations') }}</h3><p>{{ t('qualityOps.operationsSubtitle') }}</p></div><button class="icon-button" :disabled="store.operationsLoading" :aria-label="t('qualityOps.refreshOperations')" @click="refreshOperations"><Icon name="refresh" size="sm" :class="{ 'animate-spin': store.operationsLoading }" /></button></header>
-          <div class="operations-toolbar"><div class="scope-label"><span class="scope-dot" />{{ selectedPlan ? name(selectedPlan) : t('qualityOps.allAccounts') }}<button v-if="selectedPlan" :aria-label="t('qualityOps.clearScope')" @click="store.selectedPlanId = null"><Icon name="x" size="xs" /></button></div><select v-model="store.operationFilter" :aria-label="t('qualityOps.filterRecords')"><option value="all">{{ t('qualityOps.allOutcomes') }}</option><option value="attention">{{ t('qualityOps.needsAttention') }}</option><option value="passed">{{ t('qualityOps.passedRounds') }}</option><option value="failed">{{ t('qualityOps.otherRounds') }}</option></select></div>
-          <div v-if="store.operationsError" role="alert" class="panel-error">{{ store.operationsError }}<button @click="refreshOperations">{{ t('qualityOps.retry') }}</button></div>
+          <header class="panel-heading"><div><AppHeading variant="subsection" as="h3" id="quality-operations-heading">{{ t('qualityOps.operations') }}</AppHeading><p>{{ t('qualityOps.operationsSubtitle') }}</p></div><button class="icon-button" :disabled="store.operationsLoading" :aria-label="t('qualityOps.refreshOperations')" @click="refreshOperations"><Icon name="refresh" size="sm" :class="{ 'animate-spin': store.operationsLoading }" /></button></header>
+          <div class="operations-toolbar workspace-filter-controls"><div class="scope-label"><span class="scope-dot" />{{ selectedPlan ? name(selectedPlan) : t('qualityOps.allAccounts') }}<button v-if="selectedPlan" :aria-label="t('qualityOps.clearScope')" @click="store.selectedPlanId = null"><Icon name="x" size="xs" /></button></div><select class="input w-auto" v-model="store.operationFilter" :aria-label="t('qualityOps.filterRecords')"><option value="all">{{ t('qualityOps.allOutcomes') }}</option><option value="attention">{{ t('qualityOps.needsAttention') }}</option><option value="passed">{{ t('qualityOps.passedRounds') }}</option><option value="failed">{{ t('qualityOps.otherRounds') }}</option></select></div>
+          <div v-if="store.operationsError" role="alert" class="panel-error">{{ store.operationsError }}<button @click="store.retryOperations()">{{ t('qualityOps.retry') }}</button></div>
           <div class="operations-scroll" data-testid="operations-scroll" :aria-busy="store.operationsLoading">
             <table class="operations-table"><thead><tr><th>{{ t('qualityOps.time') }}</th><th>{{ t('qualityOps.accounts') }}</th><th>{{ t('qualityOps.testResult') }}</th><th>{{ t('qualityOps.accountAction') }}</th><th><span class="sr-only">{{ t('qualityOps.details') }}</span></th></tr></thead><tbody>
               <template v-if="!store.operationsLoaded && store.operationsLoading"><tr v-for="n in 6" :key="`loading-${n}`" class="loading-row"><td v-for="c in 5" :key="c"><span class="cell-skeleton" /></td></tr></template>
@@ -65,9 +65,10 @@
                 <td class="detail-cell"><button class="detail-button" :aria-label="t('qualityOps.openRound', { account: operation.account_name, time: date(operation.started_at) })" @click="operationDetails(operation)"><span>{{ t('qualityOps.details') }}</span><Icon name="arrowRight" size="sm" /></button></td>
               </tr>
             </tbody></table>
-            <div v-if="store.operationsLoaded && !filteredOperations.length" class="panel-empty"><Icon name="document" size="lg" /><h4>{{ t('qualityOps.noResults') }}</h4><p>{{ t('qualityOps.filteredEmptyHint') }}</p></div>
+            <div v-if="store.operationsLoaded && !filteredOperations.length" class="panel-empty"><Icon name="document" size="lg" /><AppHeading variant="empty" as="h4">{{ t('qualityOps.noResults') }}</AppHeading><p>{{ t('qualityOps.filteredEmptyHint') }}</p></div>
+            <InfiniteListSentinel :loading="store.moreLoading || store.operationsLoading" :error="store.operationsError" :has-more="!!store.cursor" :progress="store.operations.length" @load-more="moreOperations" @retry="store.retryOperations()" />
           </div>
-          <footer class="operations-footer"><span>{{ t('qualityOps.showingLoaded', { shown: filteredOperations.length, loaded: contextOperations.length }) }}</span><button v-if="store.cursor" :disabled="store.moreLoading || store.operationsLoading" @click="moreOperations">{{ store.moreLoading ? t('qualityOps.loading') : t('qualityOps.loadMore') }}<Icon name="arrowDown" size="xs" /></button><span v-else>{{ t('qualityOps.loadedEnd') }}</span></footer>
+          <footer class="operations-footer"><span>{{ t('qualityOps.showingLoaded', { shown: filteredOperations.length, loaded: contextOperations.length }) }}</span><span v-if="!store.cursor && !store.operationsLoading">{{ t('qualityOps.loadedEnd') }}</span></footer>
         </section>
       </div>
     </div>
@@ -88,9 +89,9 @@
         <p v-else-if="editing && planTemplate[editing]" class="template-hint" data-testid="quality-plan-template-hint">{{ t('qualityOps.planFromTemplate', { id: planTemplate[editing] }) }}</p>
         <QualityAccountSelector v-if="!editing" v-model="pickerAccountIds" v-model:search="search" v-model:group="accountGroup" v-model:type="accountType"
           v-model:statuses="accountStatuses" v-model:scope="accountScope"
-          :accounts="accounts" :groups="groups" :accounts-loading="accountsLoading" :selecting-accounts="selectingAccounts" :accounts-error="accountsError"
-          :account-page="accountPage" :account-pages="accountPages" :accounts-total="accountsTotal" :bulk="bulkEditing" :scope-locked="!!editingTemplate" :disabled-reason="accountDisabledReason"
-          @search="searchAccounts" @select-page="selectCurrentPage" @select-all="selectMatchingAccounts" @clear="clearAccountSelection" />
+          :accounts="accounts" :groups="groups" :accounts-loading="accountsLoading" :selecting-accounts="selectingAccounts" :accounts-error="accountPickerError" :list-error="accountListError"
+          :has-more="accountSearchActive && accountHasMore" :accounts-total="accountsTotal" :bulk="bulkEditing" :scope-locked="!!editingTemplate" :disabled-reason="accountDisabledReason"
+          @search="searchAccounts" @load-more="loadMoreAccounts" @retry="retryAccounts" @select-page="selectCurrentPage" @select-all="selectMatchingAccounts" @clear="clearAccountSelection" />
         <div v-if="editsField('test')" class="space-y-2">
           <label class="block space-y-1"><span>{{ t('qualityOps.questionKind') }}</span><select v-model="form.pelican_config.question_kind" class="input" data-testid="quality-question-kind" @change="selectQuestionKind"><option value="candy">{{ t('qualityOps.questionCandy') }}</option><option value="random_reasoning">{{ t('qualityOps.questionRandom') }}</option><option :value="STATE_PROBE_QUESTION">{{ t('qualityOps.questionStateProbe') }}</option></select></label>
           <p v-if="isProbe" class="text-sm text-gray-500" data-testid="quality-probe-hint">{{ t('qualityOps.probeHint') }}</p>
@@ -174,13 +175,13 @@
     </BaseDialog>
     <BaseDialog :show="!!historyPlan" :title="detailOperation ? t('qualityOps.roundDetail') : t('qualityOps.history')" placement="right" width="extra-wide" close-on-click-outside @close="closeDetails">
       <template v-if="historyPlan">
-        <div class="detail-heading"><span class="account-avatar">{{ detailAccountName.slice(0, 1) }}</span><div><h3>{{ detailAccountName }}</h3><p>{{ t('qualityOps.rule') }} {{ historyPlan.id }}<span class="mx-2">·</span>{{ detailOperation ? date(detailOperation.started_at) : t('qualityOps.historyHelp') }}</p></div><a class="account-management-link" href="/admin/accounts">{{ t('qualityOps.manageAccount') }}<Icon name="externalLink" size="xs" /></a></div>
+        <div class="detail-heading"><span class="account-avatar">{{ detailAccountName.slice(0, 1) }}</span><div><AppHeading variant="subsection" as="h3">{{ detailAccountName }}</AppHeading><p>{{ t('qualityOps.rule') }} {{ historyPlan.id }}<span class="mx-2">·</span>{{ detailOperation ? date(detailOperation.started_at) : t('qualityOps.historyHelp') }}</p></div><a class="account-management-link" href="/admin/accounts">{{ t('qualityOps.manageAccount') }}<Icon name="externalLink" size="xs" /></a></div>
         <div v-if="detailOperation" class="round-overview"><div><span>{{ t('qualityOps.testResult') }}</span><strong :class="allPassed(detailOperation) ? 'text-emerald-600' : 'text-rose-600'">{{ detailOperation.passed_count }} / {{ detailOperation.total_count }} {{ t('qualityOps.passed') }}</strong><span v-if="detailOperation.skipped_count">{{ t('qualityOps.skippedCount', { n: detailOperation.skipped_count }) }}</span></div><div><span>{{ t('qualityOps.accountAction') }}</span><strong>{{ operationLabel(detailOperation) }}</strong></div></div>
-        <aside v-if="detailAction === 'restore_conflict'" class="conflict-explanation" role="note"><Icon name="exclamationTriangle" size="md" /><div v-if="detailBPS"><h4>{{ t('qualityOps.conflictTitle') }}</h4><p>{{ t('qualityOps.bpsConflictExplanation') }}</p><details class="conflict-causes"><summary>{{ t('qualityOps.conflictChecks') }}</summary><ul><li>{{ t('qualityOps.bpsConflictOptions') }}</li><li>{{ t('qualityOps.bpsConflict403') }}</li><li>{{ t('qualityOps.bpsConflictAvailability') }}</li></ul></details><p class="conflict-limit">{{ t('qualityOps.conflictUnknown') }}</p><strong>{{ t('qualityOps.bpsConflictNextStep') }}</strong></div>
-          <div v-else><h4>{{ t('qualityOps.conflictTitle') }}</h4><p>{{ t('qualityOps.conflictExplanation') }}</p><details class="conflict-causes"><summary>{{ t('qualityOps.conflictChecks') }}</summary><ul><li>{{ t('qualityOps.conflictAccount') }}</li><li>{{ t('qualityOps.conflictMembership') }}</li><li>{{ t('qualityOps.conflictAvailability') }}</li></ul></details><p class="conflict-limit">{{ t('qualityOps.conflictUnknown') }}</p><strong>{{ t('qualityOps.conflictNextStep') }}</strong></div></aside>
+        <aside v-if="detailAction === 'restore_conflict'" class="conflict-explanation" role="note"><Icon name="exclamationTriangle" size="md" /><div v-if="detailBPS"><AppHeading variant="minor" as="h4">{{ t('qualityOps.conflictTitle') }}</AppHeading><p>{{ t('qualityOps.bpsConflictExplanation') }}</p><details class="conflict-causes"><summary>{{ t('qualityOps.conflictChecks') }}</summary><ul><li>{{ t('qualityOps.bpsConflictOptions') }}</li><li>{{ t('qualityOps.bpsConflict403') }}</li><li>{{ t('qualityOps.bpsConflictAvailability') }}</li></ul></details><p class="conflict-limit">{{ t('qualityOps.conflictUnknown') }}</p><strong>{{ t('qualityOps.bpsConflictNextStep') }}</strong></div>
+          <div v-else><AppHeading variant="minor" as="h4">{{ t('qualityOps.conflictTitle') }}</AppHeading><p>{{ t('qualityOps.conflictExplanation') }}</p><details class="conflict-causes"><summary>{{ t('qualityOps.conflictChecks') }}</summary><ul><li>{{ t('qualityOps.conflictAccount') }}</li><li>{{ t('qualityOps.conflictMembership') }}</li><li>{{ t('qualityOps.conflictAvailability') }}</li></ul></details><p class="conflict-limit">{{ t('qualityOps.conflictUnknown') }}</p><strong>{{ t('qualityOps.conflictNextStep') }}</strong></div></aside>
         <div v-else-if="detailAction" class="action-explanation"><Icon name="infoCircle" size="sm" /><p>{{ actionExplanation(detailAction) }}</p></div>
         <section v-if="detailModelResults" class="model-summary">
-          <h4>{{ t('qualityOps.roundModelAction') }}</h4>
+          <AppHeading variant="minor" as="h4">{{ t('qualityOps.roundModelAction') }}</AppHeading>
           <table data-testid="quality-model-summary"><thead><tr><th>{{ t('qualityOps.model') }}</th><th>{{ t('qualityOps.testResult') }}</th><th>{{ t(detailModelIsolation ? 'qualityOps.modelAction' : 'qualityOps.newCooldown') }}</th></tr></thead><tbody><tr v-for="model in detailTestModels" :key="model"><td><code>{{ model }}</code></td><td>{{ modelVerdictLabel(model) }}</td><td>{{ modelCooldownLabel(model) }}</td></tr></tbody></table>
         </section>
         <dl v-if="detailOperation?.pelican_config?.quality" class="detail-policy"><div><dt>{{ t(detailModelCooldown ? 'qualityOps.cooldownTargets' : detailBPS ? 'qualityOps.ruleAction' : 'qualityOps.targetGroups') }}</dt><dd>{{ detailModelCooldown ? detailOperation.pelican_config.quality.remove_models?.join(' / ') : operationGroups(detailOperation) }}<p v-if="detailModelCooldown">{{ t('qualityOps.cooldownTargetsHint') }}</p></dd></div><div><dt>{{ t(detailBPS ? 'qualityOps.bpsAutoDisableShort' : 'qualityOps.autoRestoreShort') }}</dt><dd>{{ t(detailOperation.pelican_config.quality.auto_restore ? 'qualityOps.on' : 'qualityOps.off') }}</dd></div></dl>
@@ -190,12 +191,12 @@
           <nav class="result-navigation" :aria-label="t('qualityOps.probes')"><p>{{ t('qualityOps.probes') }}<span>{{ results.length }}</span></p><button v-for="(result, index) in results" :key="result.id" :class="{ selected: selectedResultId === result.id }" :aria-pressed="selectedResultId === result.id" @click="selectResult(result)"><span>{{ detailOperation ? t('qualityOps.probeNumber', { n: index + 1 }) : date(result.started_at) }}</span><code v-if="result.status && result.pelican_config?.model_id" class="text-xs break-all">{{ result.pelican_config.model_id }}</code><span :class="resultTextClass(result)">{{ resultLabel(result) }}</span></button></nav>
           <section class="answer-detail" :aria-busy="answerLoading">
             <div v-if="answerLoading" class="detail-loading" role="status"><span class="cell-skeleton" /><span class="cell-skeleton" />{{ t('qualityOps.loadingAnswer') }}</div>
-            <template v-else-if="selectedResult"><header class="answer-heading"><h4>{{ t(isProbeResult(selectedResult) ? 'qualityOps.probeVerdictTitle' : 'qualityOps.answerAndVerdict') }}</h4><span class="outcome-badge" :class="resultTone(selectedResult)" data-testid="quality-result-badge">{{ resultLabel(selectedResult) }}</span></header>
+            <template v-else-if="selectedResult"><header class="answer-heading"><AppHeading variant="minor" as="h4">{{ t(isProbeResult(selectedResult) ? 'qualityOps.probeVerdictTitle' : 'qualityOps.answerAndVerdict') }}</AppHeading><span class="outcome-badge" :class="resultTone(selectedResult)" data-testid="quality-result-badge">{{ resultLabel(selectedResult) }}</span></header>
               <details v-if="selectedResult.pelican_config?.random_question" class="answer-reference" data-testid="quality-random-question-detail"><summary>{{ t('qualityOps.generatedQuestion') }} · {{ selectedResult.pelican_config.random_question.id }}</summary><pre class="whitespace-pre-wrap">{{ selectedResult.pelican_config.prompt }}</pre></details>
               <div v-if="selectedResult.status !== 'skipped' && !isProbeResult(selectedResult)" class="answer-reference"><span>{{ t('qualityOps.answer') }}</span><p>{{ selectedResult.pelican_config?.quality?.expected_answer || detailOperation?.pelican_config?.quality?.expected_answer || '—' }}</p></div>
-              <div class="response-heading">{{ t(selectedResult.status === 'skipped' ? 'qualityOps.skipReason' : isProbeResult(selectedResult) ? 'qualityOps.probeDetail' : 'qualityOps.actualAnswer') }}<span v-if="selectedResult.latency_ms">{{ (selectedResult.latency_ms / 1000).toFixed(1) }}s</span></div>
+              <AppHeading variant="minor" as="h5" class="response-heading">{{ t(selectedResult.status === 'skipped' ? 'qualityOps.skipReason' : isProbeResult(selectedResult) ? 'qualityOps.probeDetail' : 'qualityOps.actualAnswer') }}<span v-if="selectedResult.latency_ms">{{ (selectedResult.latency_ms / 1000).toFixed(1) }}s</span></AppHeading>
               <pre class="response-content">{{ resultContent(selectedResult) }}</pre>
-              <div v-if="selectedResult.quality_judgment && !isProbeResult(selectedResult)" class="judge-reason"><h5>{{ t('qualityOps.judgeReason') }}</h5><p>{{ selectedResult.quality_judgment.reason || '—' }}</p><span>{{ selectedResult.quality_judgment.model_id || '—' }} · {{ groupNames[selectedResult.quality_judgment.group_id || 0] || selectedResult.quality_judgment.group_id || '—' }}</span></div>
+              <div v-if="selectedResult.quality_judgment && !isProbeResult(selectedResult)" class="judge-reason"><AppHeading variant="minor" as="h5">{{ t('qualityOps.judgeReason') }}</AppHeading><p>{{ selectedResult.quality_judgment.reason || '—' }}</p><span>{{ selectedResult.quality_judgment.model_id || '—' }} · {{ groupNames[selectedResult.quality_judgment.group_id || 0] || selectedResult.quality_judgment.group_id || '—' }}</span></div>
             </template><div v-else-if="!detailsError" class="panel-empty">{{ t('qualityOps.noResults') }}</div>
           </section>
         </div>
@@ -223,6 +224,8 @@
 </template>
 
 <script setup lang="ts">
+import { useConfirmedAction, useConfirmationContext } from '@/composables/useConfirmation'
+import AppHeading from '@/components/common/AppHeading.vue'
 const contextRoute = useRoute()
 const contextAccountId = computed(() => objectQueryId(contextRoute?.query?.account_id))
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
@@ -233,6 +236,8 @@ import { objectQueryId } from './objectContext'
 import ConsoleObjectLinks from '@/components/admin/ConsoleObjectLinks.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import QualityAccountSelector from '@/components/admin/operations/QualityAccountSelector.vue'
 import Icon from '@/components/icons/Icon.vue'
 import QualityBPSSettings from '@/components/admin/operations/QualityBPSSettings.vue'
@@ -262,11 +267,10 @@ const accountNames = computed(() => {
   for (const account of accounts.value) names[account.id] = account.name
   return names
 })
-const accounts = ref<AccountListItem[]>([]), accountsLoading = ref(false)
-const search = ref(''), accountPage = ref(1), accountPages = ref(1)
+const search = ref(''), accountSearchActive = ref(false)
 const accountGroup = ref(''), accountType = ref(''), accountsError = ref(''), selectingAccounts = ref(false)
 // 状态筛选默认「正常」（全不勾 = 全部状态）；范围默认「所有匹配账户」，保存时按筛选自动包含。
-const accountStatuses = ref<string[]>(['active']), accountScope = ref<'all' | 'manual'>('all'), accountsTotal = ref(0)
+const accountStatuses = ref<string[]>(['active']), accountScope = ref<'all' | 'manual'>('all')
 function ruleScope(action?: QualityPolicy['action']) { return action === 'enable_bps' ? 'bps' : action === 'observe_only' ? 'observation' : 'quarantine' }
 const bulkSourceScope = ref('quarantine')
 const existingAccountIds = computed(() => new Set(plans.value.filter(plan =>
@@ -276,10 +280,23 @@ const selectableAccounts = computed(() => accounts.value.filter(account => !acco
 let accountSelectionRequest = 0
 const accountFilters = () => ({ search: search.value.trim(), group: accountGroup.value || undefined, type: accountType.value || undefined,
   status: accountStatuses.value.join(',') || undefined, lite: 'true', sort_by: 'id', sort_order: 'asc' as const })
+const accountList = useInfiniteList<AccountListItem>({
+  pageSize: 50,
+  keyOf: account => account.id,
+  fetchPage: async (page, signal) => {
+    const data = await accountsAPI.list(page, 50, accountFilters(), { signal })
+    if (!signal.aborted) rememberAccounts(data.items)
+    return { items: data.items, total: data.total, pages: Math.max(1, Math.ceil(data.total / 50)) }
+  },
+})
+const { items: accounts, hasMore: accountHasMore, error: accountListError } = accountList
+const accountsLoading = computed(() => accountList.loading.value || accountList.loadingMore.value || accountList.refreshing.value)
+const accountsTotal = computed(() => accountList.total.value ?? 0)
+const accountPickerError = computed(() => accountsError.value || (accountListError.value ? message(accountListError.value) : ''))
 function invalidateAccountRequests() {
-  accountRequest++; accountSelectionRequest++
-  accountsLoading.value = selectingAccounts.value = false
-  accounts.value = []; accountPage.value = accountPages.value = 1; accountsTotal.value = 0; accountsError.value = ''
+  accountSelectionRequest++
+  selectingAccounts.value = false; accountSearchActive.value = false
+  accountList.clear(); accountsError.value = ''
 }
 watch([search, accountGroup, accountType, accountStatuses], invalidateAccountRequests, { flush: 'sync' })
 function showAccountPicker() { return showForm.value && !editing.value }
@@ -322,7 +339,7 @@ const pending = ref<Record<number, string>>({}), deleteTargets = ref<ScheduledTe
 const deleteError = ref(''), deleteProgress = ref('')
 const discardPrompt = ref(false), initialForm = ref('')
 const judgeModels = ref<string[]>([])
-let judgeModelsRequest = 0, accountRequest = 0, detailRequest = 0, answerRequest = 0
+let judgeModelsRequest = 0, detailRequest = 0, answerRequest = 0
 let alive = true, poll: ReturnType<typeof setInterval> | undefined
 const historyPlan = ref<ScheduledTestPlan | null>(null), detailOperation = ref<QualityOperation | null>(null)
 const results = ref<ScheduledTestResult[]>([]), selectedResultId = ref<number | null>(null)
@@ -330,6 +347,10 @@ const selectedResult = ref<ScheduledTestResult | null>(null)
 const detailsLoading = ref(false), answerLoading = ref(false), detailsError = ref('')
 const loadedAnswers = new Map<number, ScheduledTestResult>()
 const identity = () => auth.user ? `${auth.user.id}:${auth.user.role}` : ''
+const deleteContext = useConfirmationContext(() => ({ active: !!identity(), identity: [identity(), contextAccountId.value] }))
+const deleteAction = useConfirmedAction(deleteContext)
+const templateDeleteAction = useConfirmedAction(deleteContext)
+watch(deleteContext, () => { deleteTargets.value = []; templateDeleteTarget.value = null }, { deep: true, flush: 'sync' })
 const refreshing = computed(() => store.rulesLoading || store.operationsLoading)
 const enabledCount = computed(() => contextPlans.value.filter(p => p.enabled).length)
 // 开 BPS 被 403 记录挡住或账号不支持 BPS 时，规则无法自动处理，也列为待处理。
@@ -509,20 +530,21 @@ const bpsTargetGroups = computed(() => groups.value.filter(group => group.platfo
 const formSnapshot = () => JSON.stringify([form.value, selectedAccounts.value, bulkRuleIds.value, bulkFields.value,
   editingTemplate.value ? [accountGroup.value, accountType.value, search.value, accountStatuses.value] : null])
 function message(e: unknown) { const err = e as { response?: { data?: { message?: string; error?: string } }; message?: string }; return err.response?.data?.message || err.response?.data?.error || err.message || t('qualityOps.error') }
-async function load() { await store.refresh() }
+async function load() {
+  await Promise.all([store.refresh(), showAccountPicker() && accountSearchActive.value ? accountList.refresh() : Promise.resolve()])
+}
 async function refreshOperations() { await store.refreshOperations() }
 async function moreOperations() { await store.refreshOperations(true) }
-async function searchAccounts(page = 1) {
+async function searchAccounts() {
   accountSelectionRequest++; selectingAccounts.value = false
-  const request = ++accountRequest
-  accountsLoading.value = true; accountsError.value = ''; accounts.value = []
-  try {
-    const data = await accountsAPI.list(page, 50, accountFilters())
-    if (!alive || request !== accountRequest) return
-    rememberAccounts(data.items)
-    accounts.value = data.items; accountPage.value = page; accountPages.value = Math.max(1, Math.ceil(data.total / 50)); accountsTotal.value = data.total
-  } catch (e) { if (alive && request === accountRequest) accountsError.value = message(e) }
-  finally { if (request === accountRequest) accountsLoading.value = false }
+  accountsError.value = ''; accountSearchActive.value = true
+  await accountList.reset()
+}
+function loadMoreAccounts() {
+  if (showAccountPicker() && accountSearchActive.value && !selectingAccounts.value) return accountList.loadMore()
+}
+function retryAccounts() {
+  if (showAccountPicker() && accountSearchActive.value && !selectingAccounts.value) return accountList.retry()
 }
 function selectCurrentPage() {
   if (accountsLoading.value || selectingAccounts.value) return
@@ -803,22 +825,27 @@ async function toggleTemplate(tpl: QualityRuleTemplate) {
   finally { delete templatePending.value[tpl.id] }
 }
 function openTemplateDelete() {
-  templateDeleteTarget.value = templates.value.find(tpl => tpl.id === editingTemplate.value) || null
+  if (templateDeleting.value || templateDeleteAction.busy.value || !deleteContext().active || templateDeleteTarget.value) return
+  const target = templates.value.find(tpl => tpl.id === editingTemplate.value)
+  templateDeleteTarget.value = target ? { ...target, plan_ids: [...target.plan_ids] } : null
   deletePlansWithTemplate.value = true
 }
 async function confirmTemplateDelete() {
-  if (!templateDeleteTarget.value || templateDeleting.value) return
+  const target = templateDeleteTarget.value
+  if (!target || templateDeleting.value) return
+  const removePlans = deletePlansWithTemplate.value && target.plan_ids.length > 0, scope = identity()
+  await templateDeleteAction.run(async (isCurrent) => {
   templateDeleting.value = true; error.value = ''; notice.value = ''
-  const target = templateDeleteTarget.value, removePlans = deletePlansWithTemplate.value && target.plan_ids.length > 0, scope = identity()
   try {
     const { deleted } = await deleteQualityTemplate(target.id, removePlans)
-    if (!alive || scope !== identity()) return
+    if (!isCurrent() || !alive || scope !== identity()) return
     templateDeleteTarget.value = null; showForm.value = false
     if (removePlans && historyPlan.value && target.plan_ids.includes(historyPlan.value.id)) closeDetails()
     notice.value = removePlans ? t('qualityOps.templateDeleted', { count: deleted }) : t('qualityOps.templateDeletedKept')
     await Promise.all([store.refreshRules(true), store.refreshOperations()])
-  } catch (e) { if (alive && scope === identity()) error.value = message(e) }
+  } catch (e) { if (isCurrent() && alive && scope === identity()) error.value = message(e) }
   finally { templateDeleting.value = false }
+  })
 }
 // 分组规则卡片上的筛选说明，例如「全部分组 · 全部类型 · 正常」。
 function templateFilterSummary(tpl: QualityRuleTemplate) {
@@ -833,14 +860,15 @@ function templateFilterSummary(tpl: QualityRuleTemplate) {
 }
 async function run(plan: ScheduledTestPlan) { await planAction(plan, 'run', () => runQualityPlan(plan.id)) }
 function requestDelete(ids: number[]) {
-  if (busy.value || selectingAccounts.value || ids.some(id => pending.value[id])) return
+  if (!deleteContext().active || deleteAction.busy.value || deleteTargets.value.length || busy.value || selectingAccounts.value || ids.some(id => pending.value[id])) return
   // Keep the confirmation scope fixed even if selection or search changes.
   const selected = new Set(ids)
-  deleteTargets.value = plans.value.filter(plan => selected.has(plan.id))
+  deleteTargets.value = plans.value.filter(plan => selected.has(plan.id)).map(plan => ({ ...plan }))
   deleteError.value = deleteProgress.value = ''
 }
 async function confirmDelete() {
   if (!deleteTargets.value.length || deleting.value || busy.value || deleteTargets.value.some(plan => pending.value[plan.id])) return
+  await deleteAction.run(async (isCurrent) => {
   deleting.value = busy.value = true
   deleteError.value = deleteProgress.value = error.value = notice.value = ''
   const targets = [...deleteTargets.value], scope = identity()
@@ -848,10 +876,10 @@ async function confirmDelete() {
   let completed = 0
   try {
     for (const plan of targets) {
-      if (!alive || scope !== identity()) return
+      if (!isCurrent() || !alive || scope !== identity()) return
       try {
         await scheduledTests.delete(plan.id)
-        if (!alive || scope !== identity()) return
+        if (!isCurrent() || !alive || scope !== identity()) return
         selectedRuleIds.value = selectedRuleIds.value.filter(id => id !== plan.id)
         bulkRuleIds.value = bulkRuleIds.value.filter(id => id !== plan.id)
         store.plans = plans.value.filter(item => item.id !== plan.id)
@@ -859,7 +887,7 @@ async function confirmDelete() {
         if (store.selectedPlanId === plan.id) store.selectedPlanId = null
         if (historyPlan.value?.id === plan.id) closeDetails()
       } catch (e) {
-        if (!alive || scope !== identity()) return
+        if (!isCurrent() || !alive || scope !== identity()) return
         failed.push(plan); failures.push(`#${plan.id}: ${message(e)}`)
       }
       completed++
@@ -874,6 +902,7 @@ async function confirmDelete() {
     }
     await Promise.all([store.refreshRules(true), store.refreshOperations()])
   } finally { deleting.value = busy.value = false }
+  })
 }
 async function loadJudgeModels() {
   const request = ++judgeModelsRequest
@@ -921,13 +950,13 @@ function retryDetails() {
   else if (historyPlan.value) void history(historyPlan.value)
 }
 function navigateOperation(offset: number) { const next = filteredOperations.value[operationIndex.value + offset]; if (next) void operationDetails(next) }
-watch(() => identity(), () => { error.value = notice.value = ''; closeDetails(); showForm.value = false; discardPrompt.value = false; deleteTargets.value = []; deleteError.value = deleteProgress.value = ''; editingTemplate.value = null; templateDeleteTarget.value = null; templatePending.value = {}; accounts.value = []; knownAccounts.clear(); selectedRuleIds.value = []; bulkRuleIds.value = []; bulkEditing.value = false; accountRequest++; judgeModelsRequest++ })
+watch(() => identity(), () => { error.value = notice.value = ''; closeDetails(); showForm.value = false; discardPrompt.value = false; deleteTargets.value = []; deleteError.value = deleteProgress.value = ''; editingTemplate.value = null; templateDeleteTarget.value = null; templatePending.value = {}; invalidateAccountRequests(); knownAccounts.clear(); selectedRuleIds.value = []; bulkRuleIds.value = []; bulkEditing.value = false; accountList.cancel(); judgeModelsRequest++ }, { flush: 'sync' })
 onMounted(() => {
   if (contextAccountId.value) { store.selectedPlanId = null; store.search = '' }
   void load()
   poll = setInterval(() => { if (document.visibilityState === 'visible' && !refreshing.value && !deleting.value) { void store.refreshRules(); void store.refreshOperations() } }, 30_000)
 })
-onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest++; answerRequest++; accountRequest++; judgeModelsRequest++; if (poll) clearInterval(poll); loadedAnswers.clear() })
+onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest++; answerRequest++; accountList.cancel(); judgeModelsRequest++; if (poll) clearInterval(poll); loadedAnswers.clear() })
 </script>
 
 <style scoped>
@@ -936,7 +965,6 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .quality-workspace > nav { margin-bottom: 0; max-width: 100%; }
 .workspace-heading { @apply flex flex-wrap items-center justify-between gap-4; }
 .workspace-eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
-.workspace-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .workspace-subtitle { @apply mt-1.5 text-sm text-gray-500 dark:text-gray-400; }
 .heading-actions { @apply flex flex-wrap items-center gap-2; }
 .heading-actions .btn, .detail-footer .btn { @apply inline-flex items-center gap-2; }
@@ -957,7 +985,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .workspace-columns { display: grid; grid-template-columns: clamp(320px, 30%, 480px) minmax(0, 1fr); gap: clamp(2rem, 4vw, 4rem); align-items: start; min-height: 0; }
 .workspace-panel { @apply flex min-h-0 min-w-0 flex-col border-t border-gray-200 dark:border-dark-700; }
 .panel-heading { @apply flex shrink-0 items-center justify-between gap-3 px-5 pb-4 pt-5; }
-.panel-heading h3 { @apply flex items-center gap-2 text-base font-semibold; }
+.panel-heading h3 { @apply flex items-center gap-2; }
 .panel-heading p { @apply mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400; }
 .count-label { @apply rounded-md bg-gray-100 px-1.5 py-0.5 text-xs tabular-nums text-gray-500 dark:bg-dark-800; }
 .icon-button { @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-dark-700 dark:hover:bg-dark-800; }
@@ -999,7 +1027,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .probe-tag { @apply rounded bg-violet-50 px-1.5 py-0.5 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300; }
 .template-tag { @apply rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300; }
 .template-section { @apply space-y-2 border-b border-dashed border-gray-200 pb-3 dark:border-dark-700; }
-.template-section-title { @apply flex flex-wrap items-baseline gap-x-2 text-xs font-semibold text-sky-700 dark:text-sky-300; }
+.template-section-title { @apply flex flex-wrap items-baseline gap-x-2 text-sky-700 dark:text-sky-300; }
 .template-section-title span { @apply font-normal text-gray-400; }
 .template-card { @apply border-b border-gray-200 py-5 dark:border-dark-700; }
 .template-card strong { overflow-wrap: anywhere; @apply block text-[13px] font-semibold leading-5; }
@@ -1016,7 +1044,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .operations-toolbar { @apply flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-t border-gray-100 bg-gray-50/60 px-5 py-3 dark:border-dark-700 dark:bg-dark-800/50; }
 .scope-label { overflow-wrap: anywhere; @apply flex min-w-0 items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300; max-width: 65%; }
 .scope-dot { @apply h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500; }
-.operations-toolbar select { @apply max-w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-600 dark:border-dark-600 dark:bg-dark-900 dark:text-gray-300; }
+.operations-toolbar select { max-width: 100%; }
 .operations-scroll { @apply min-h-0 flex-1 overflow-auto overscroll-contain; scrollbar-gutter: stable; }
 .operations-table { @apply w-full text-left text-xs; min-width: 620px; }
 .operations-table thead { @apply sticky top-0 z-10 bg-white text-gray-400 dark:bg-dark-900; box-shadow: 0 1px 0 rgb(148 163 184 / .15); }
@@ -1052,7 +1080,6 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .rule-skeleton span:last-child { @apply w-1/2; }
 .skeleton-stack { @apply space-y-3; }
 .detail-heading { @apply mb-5 flex items-center gap-3; }
-.detail-heading h3 { @apply text-base font-semibold; }
 .detail-heading p { @apply mt-1 text-xs text-gray-400; }
 .account-management-link { @apply ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-primary-600 dark:text-primary-400; }
 .round-overview { @apply mb-5 grid grid-cols-2 divide-x divide-gray-200 rounded-xl border border-gray-200 bg-gray-50 dark:divide-dark-700 dark:border-dark-700 dark:bg-dark-800; }
@@ -1061,7 +1088,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .round-overview strong { @apply mt-2 block text-sm font-semibold; }
 .conflict-explanation { @apply mb-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200; }
 .conflict-explanation > svg { @apply mt-0.5 shrink-0; }
-.conflict-explanation h4 { @apply mb-2 text-sm font-semibold; }
+.conflict-explanation h4 { @apply mb-2; }
 .conflict-explanation p, .conflict-explanation li, .conflict-explanation strong { @apply text-xs leading-6; }
 .conflict-causes summary { @apply cursor-pointer text-xs font-medium leading-7; }
 .conflict-explanation ul { @apply my-2 list-disc pl-4; }
@@ -1074,7 +1101,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .detail-policy dd { @apply min-w-0 break-words text-right text-gray-600 dark:text-gray-300; }
 .detail-policy dd p { @apply mt-1 text-gray-500 dark:text-gray-400; }
 .model-summary { @apply mb-5 min-w-0; }
-.model-summary h4 { @apply mb-2 text-sm font-semibold; }
+.model-summary h4 { @apply mb-2; }
 .model-summary table { @apply w-full table-fixed text-left text-xs; }
 .model-summary th { @apply py-2 font-normal text-gray-500 dark:text-gray-400; }
 .model-summary td { @apply break-words border-t border-gray-200 py-3 pr-3 dark:border-dark-700; }
@@ -1089,14 +1116,12 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .result-navigation button span + span { @apply mt-1.5 text-[10px]; }
 .answer-detail { @apply min-w-0 rounded-xl border border-gray-200 p-4 dark:border-dark-700; }
 .answer-heading { @apply mb-4 flex items-center justify-between gap-2; }
-.answer-heading h4 { @apply text-sm font-semibold; }
 .answer-reference { @apply rounded-lg bg-emerald-50/60 p-3 dark:bg-emerald-950/20; }
 .answer-reference span { @apply text-[11px] text-emerald-700 dark:text-emerald-400; }
 .answer-reference p { @apply mt-1 whitespace-pre-wrap break-words text-sm; }
-.response-heading { @apply mb-2 mt-4 flex justify-between text-xs text-gray-500; }
+.response-heading { @apply mb-2 mt-4 flex justify-between text-gray-500; }
 .response-content { @apply max-h-[40dvh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-4 font-sans text-sm leading-7 text-gray-800 dark:bg-dark-800 dark:text-gray-200; }
 .judge-reason { @apply mt-4 border-t border-gray-100 pt-4 dark:border-dark-700; }
-.judge-reason h5 { @apply text-xs font-semibold; }
 .judge-reason p { @apply mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-gray-600 dark:text-gray-300; }
 .judge-reason > span { @apply mt-3 block text-[10px] text-gray-400; }
 .detail-loading { @apply space-y-4 py-8 text-xs text-gray-400; }
@@ -1112,7 +1137,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 @media (min-width: 1280px) and (max-height: 900px) {
   .quality-workspace { gap: 12px; }
   .workspace-eyebrow, .workspace-subtitle { display: none; }
-  .workspace-heading h2 { font-size: 20px; }
   .summary-cell { padding-top: 10px; padding-bottom: 10px; }
   .summary-cell strong { font-size: 20px; }
   .panel-heading { padding-top: 12px; padding-bottom: 12px; }

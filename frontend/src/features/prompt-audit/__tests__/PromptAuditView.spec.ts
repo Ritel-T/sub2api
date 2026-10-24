@@ -321,4 +321,34 @@ describe('PromptAuditView', () => {
     }))
     expect(wrapper.find('[data-test="filter-delete-dialog"]').exists()).toBe(false)
   })
+  it('does not delete after the confirmation criteria change while minting a token', async () => {
+    let finish!: (value: unknown) => void
+    mocks.previewDelete.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-test="preview"]').trigger('click')
+    await wrapper.get('[data-test="dialog-confirm"]').trigger('click')
+    await wrapper.get('[data-test="dialog-confirm"]').trigger('click')
+    expect(mocks.previewDelete).toHaveBeenCalledTimes(1)
+    wrapper.findComponent(FilterDeleteStub).vm.$emit('criteria-change')
+    finish({ matched_count: 2, confirmation_token: 'old-token' })
+    await flushPromises()
+    expect(mocks.deleteEventsByFilter).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('discards a late preview result after criteria replacement', async () => {
+    let finish!: (value: unknown) => void
+    mocks.previewDelete.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-test="preview"]').trigger('click')
+    await wrapper.get('[data-test="dialog-preview"]').trigger('click')
+    wrapper.findComponent(FilterDeleteStub).vm.$emit('criteria-change')
+    finish({ matched_count: 999, confirmation_token: 'old-token' })
+    await flushPromises()
+    expect(wrapper.get('[data-test="dialog-preview-state"]').text()).toBe('none')
+    wrapper.unmount()
+  })
+
 })

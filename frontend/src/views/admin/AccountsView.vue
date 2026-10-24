@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <TablePageLayout open>
       <template #actions>
         <header class="accounts-page-heading">
-          <h1>{{ t('admin.accounts.title') }}</h1>
+          <AppHeading variant="page" as="h1">{{ t('admin.accounts.title') }}</AppHeading>
           <AccountTableActions
             :loading="loading"
             @refresh="handleManualRefresh"
@@ -288,9 +288,7 @@
           </template>
           <template #cell-schedulable="{ row }">
             <SchedulableTimerControl v-if="authStore.isAdmin" :account-id="row.id" :refresh-key="timerRefreshKey" @executed="handleTimerExecuted" />
-            <button role="switch" :aria-checked="row.schedulable" :aria-label="t('admin.accounts.columns.schedulable')" @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
-              <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
-            </button>
+            <Toggle :model-value="row.schedulable" :aria-label="t('admin.accounts.columns.schedulable')" @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')" size="small" />
           </template>
           <template #cell-today_stats="{ row }">
             <AccountTodayStatsCell
@@ -478,9 +476,9 @@
       @updated="handleBulkUpdated"
     />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
-    <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
-    <ConfirmDialog :show="showCreateShadowDialog" :title="t('admin.accounts.createSparkShadow')" :message="t('admin.accounts.createSparkShadowConfirm', { name: creatingShadowAcc?.name })" @confirm="confirmCreateSparkShadow" @cancel="showCreateShadowDialog = false" />
-    <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
+    <ConfirmDialog :show="showDeleteDialog" :busy="deleteAction.busy.value" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
+    <ConfirmDialog :show="showCreateShadowDialog" :busy="shadowAction.busy.value" :title="t('admin.accounts.createSparkShadow')" :message="t('admin.accounts.createSparkShadowConfirm', { name: creatingShadowAcc?.name })" @confirm="confirmCreateSparkShadow" @cancel="showCreateShadowDialog = false" />
+    <ConfirmDialog :show="showExportDataDialog" :busy="exportAction.busy.value" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
       <label v-if="authStore.isAdmin" class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="includeProxyOnExport" />
         <span>{{ t('admin.accounts.dataExportIncludeProxies') }}</span>
@@ -491,9 +489,16 @@
     <TotpStepUpDialog :controller="accountExportStepUp" />
     <BulkExport2FADialog v-if="authStore.isAdmin && export2faIds.length" :account-ids="export2faIds" @close="export2faIds = []" />
   </AppLayout>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'
+
 import { isValidAccountCostMultiplier } from '@/utils/accountCost'
 import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
 import { useDebounceFn, useIntervalFn } from '@vueuse/core'
@@ -563,7 +568,7 @@ const concurrencyUpgradeEnabled = ref(false)
 let concurrencyUpgradeRequest = 0
 
 const loadConcurrencyUpgradeState = async () => {
-  const request = ++concurrencyUpgradeRequest
+    const request = ++concurrencyUpgradeRequest
   try {
     const capabilities = await adminAPI.accounts.getManagementCapabilities()
     if (request === concurrencyUpgradeRequest) {
@@ -841,7 +846,7 @@ const handleAccountUsageLoaded = (accountID: number, usage: AccountUsageInfo) =>
 }
 
 const flushQueuedUsageBatch = async () => {
-  usageBatchFlushTimer = null
+    usageBatchFlushTimer = null
   const accountIDs = Array.from(pendingUsageBatchIds)
   const force = queuedUsageBatchForce
   pendingUsageBatchIds.clear()
@@ -938,7 +943,7 @@ const queueBatchedUsage = (account: Account, options?: { force?: boolean }) => {
 }
 
 const refreshTodayStatsBatch = async () => {
-  const accountIDs = accounts.value.map(account => account.id)
+    const accountIDs = accounts.value.map(account => account.id)
   const reqSeq = ++todayStatsReqSeq.value
   if (accountIDs.length === 0) {
     todayStatsByAccountId.value = {}
@@ -1220,11 +1225,11 @@ const load = async (options: AccountLoadOptions = {}) => {
 }
 
 const reload = async () => {
-  await load()
+    await load()
 }
 
 const loadMoreAccounts = async () => {
-  if (loading.value) return
+    if (loading.value) return
   if (hasPendingListSync.value) {
     await load()
     if (listError.value) return
@@ -1237,7 +1242,7 @@ const loadMoreAccounts = async () => {
 }
 
 const retryAccounts = async () => {
-  pollingAccounts = false
+    pollingAccounts = false
   await continuousList.retry()
   if (!listError.value) await refreshTodayStatsBatch()
 }
@@ -1544,7 +1549,7 @@ const mergeAccountsIncrementally = (nextRows: Account[]) => {
 }
 
 const refreshAccountsIncrementally = async () => {
-  if (autoRefreshFetching.value || loading.value) return
+    if (autoRefreshFetching.value || loading.value) return
   syncAccountListDerivedParams()
   autoRefreshFetching.value = true
   pollingAccounts = true
@@ -1565,13 +1570,13 @@ const refreshAccountsIncrementally = async () => {
   }
 }
 const handleManualRefresh = async () => {
-  await Promise.all([load(), loadUpstreamBillingProbeGlobalState()])
+    await Promise.all([load(), loadUpstreamBillingProbeGlobalState()])
   // Force usage cells to refetch /usage on explicit user refresh.
   usageManualRefreshToken.value += 1
 }
 
 const loadUpstreamBillingProbeGlobalState = async () => {
-  try {
+    try {
     const settings = await adminAPI.accounts.getUpstreamBillingProbeSettings()
     upstreamBillingProbeGloballyEnabled.value = settings.enabled
   } catch (error) {
@@ -1628,7 +1633,7 @@ const openTLSFingerprintProfiles = () => {
 }
 
 const syncPendingListChanges = async () => {
-  hasPendingListSync.value = false
+    hasPendingListSync.value = false
   await load()
   // Keep behavior consistent with manual refresh.
   usageManualRefreshToken.value += 1
@@ -1887,63 +1892,74 @@ const handleEdit = async (a: AccountListItem) => {
   showEdit.value = true
 }
 const handleBulkDelete = async () => {
-  const accountIds = [...selIds.value]
-  if (!confirm(t('admin.accounts.bulkActions.confirmDelete', { count: accountIds.length }))) return
-  try {
-    const result = await adminAPI.accounts.batchDelete(accountIds)
-    if (result.failed > 0) {
-      appStore.showError(t('admin.accounts.bulkActions.partialSuccess', {
-        success: result.success,
-        failed: result.failed
-      }))
-      setSelectedIds(result.failed_ids?.length ? result.failed_ids : accountIds)
-    } else {
-      appStore.showSuccess(t('admin.accounts.bulkActions.deleteSuccess', { count: result.success }))
-      clearSelection()
+    const accountIds = [...selIds.value]
+  await confirmation.run({ message: t('admin.accounts.bulkActions.confirmDelete', { count: accountIds.length }), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async (isCurrent) => {
+    try {
+      const result = await adminAPI.accounts.batchDelete(accountIds)
+      if (!isCurrent()) return
+      if (result.failed > 0) {
+        appStore.showError(t('admin.accounts.bulkActions.partialSuccess', {
+          success: result.success,
+          failed: result.failed
+        }))
+        setSelectedIds(result.failed_ids?.length ? result.failed_ids : accountIds)
+      } else {
+        appStore.showSuccess(t('admin.accounts.bulkActions.deleteSuccess', { count: result.success }))
+        clearSelection()
+      }
+      await reload()
+      if (!isCurrent()) return
+    } catch (error) {
+      if (!isCurrent()) return
+      console.error('Failed to bulk delete accounts:', error)
+      appStore.showError(String(error))
     }
-    await reload()
-  } catch (error) {
-    console.error('Failed to bulk delete accounts:', error)
-    appStore.showError(String(error))
-  }
+  })
 }
 const handleBulkResetStatus = async () => {
-  if (!confirm(t('common.confirm'))) return
-  try {
-    const result = await adminAPI.accounts.batchClearError(selIds.value)
-    if (result.failed > 0) {
-      appStore.showError(t('admin.accounts.bulkActions.partialSuccess', { success: result.success, failed: result.failed }))
-    } else {
-      appStore.showSuccess(t('admin.accounts.bulkActions.resetStatusSuccess', { count: result.success }))
-      clearSelection()
+    const accountIds = [...selIds.value]
+  await confirmation.run({ message: t('common.confirm'), title: t('common.reset'), confirmText: t('common.reset'), danger: true }, async (isCurrent) => {
+    try {
+      const result = await adminAPI.accounts.batchClearError(accountIds)
+      if (!isCurrent()) return
+      if (result.failed > 0) {
+        appStore.showError(t('admin.accounts.bulkActions.partialSuccess', { success: result.success, failed: result.failed }))
+      } else {
+        appStore.showSuccess(t('admin.accounts.bulkActions.resetStatusSuccess', { count: result.success }))
+        clearSelection()
+      }
+      reload()
+    } catch (error) {
+      if (!isCurrent()) return
+      console.error('Failed to bulk reset status:', error)
+      appStore.showError(String(error))
     }
-    reload()
-  } catch (error) {
-    console.error('Failed to bulk reset status:', error)
-    appStore.showError(String(error))
-  }
+  })
 }
 const handleBulkRefreshToken = async () => {
-  if (!confirm(t('common.confirm'))) return
-  const accountIds = [...selIds.value]
-  try {
-    const result = await adminAPI.accounts.batchRefresh(accountIds)
-    if (result.failed > 0) {
-      appStore.showError(t('admin.accounts.bulkActions.partialSuccess', { success: result.success, failed: result.failed }))
-      const failedIds = result.errors?.map(error => error.account_id) ?? []
-      setSelectedIds(failedIds.length > 0 ? failedIds : accountIds)
-    } else {
-      appStore.showSuccess(t('admin.accounts.bulkActions.refreshTokenSuccess', { count: result.success }))
-      clearSelection()
+    const accountIds = [...selIds.value]
+  await confirmation.run({ message: t('common.confirm'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: true }, async (isCurrent) => {
+    try {
+      const result = await adminAPI.accounts.batchRefresh(accountIds)
+      if (!isCurrent()) return
+      if (result.failed > 0) {
+        appStore.showError(t('admin.accounts.bulkActions.partialSuccess', { success: result.success, failed: result.failed }))
+        const failedIds = result.errors?.map(error => error.account_id) ?? []
+        setSelectedIds(failedIds.length > 0 ? failedIds : accountIds)
+      } else {
+        appStore.showSuccess(t('admin.accounts.bulkActions.refreshTokenSuccess', { count: result.success }))
+        clearSelection()
+      }
+      reload()
+    } catch (error) {
+      if (!isCurrent()) return
+      console.error('Failed to bulk refresh token:', error)
+      appStore.showError(String(error))
     }
-    reload()
-  } catch (error) {
-    console.error('Failed to bulk refresh token:', error)
-    appStore.showError(String(error))
-  }
+  })
 }
 const handleBulkProbeUpstreamBilling = async () => {
-  const accountIDs = [...selIds.value]
+    const accountIDs = [...selIds.value]
   if (accountIDs.length === 0) {
     appStore.showError(t('admin.accounts.upstreamBilling.noEligibleAccounts'))
     return
@@ -2104,7 +2120,7 @@ const buildBulkEditFilterSnapshot = () => {
 }
 
 const handleSelectAllResults = async () => {
-  if (selectingAllResults.value || pagination.total === 0) return
+    if (selectingAllResults.value || pagination.total === 0) return
 
   const requestVersion = ++selectionRequestVersion.value
   const filters = buildBulkEditFilterSnapshot()
@@ -2146,7 +2162,7 @@ const openBulkEditSelected = () => {
 }
 
 const openBulkEditFiltered = async () => {
-  // A checked selection always wins, including queued clicks from the old toolbar.
+    // A checked selection always wins, including queued clicks from the old toolbar.
   if (selIds.value.length > 0) {
     openBulkEditSelected()
     return
@@ -2293,7 +2309,7 @@ const patchUpstreamBillingSnapshot = (accountID: number, snapshot: UpstreamBilli
   })
 }
 const refreshAccountsAfterUpstreamBillingProbe = async () => {
-  enterAutoRefreshSilentWindow()
+    enterAutoRefreshSilentWindow()
   // Cost may change even when the active sort does not depend on upstream rates.
   await refreshUpstreamBillingRates(true)
 }
@@ -2317,27 +2333,40 @@ const handleAccountUpdated = (updatedAccount: Account) => {
   patchAccountInList(updatedAccount)
   enterAutoRefreshSilentWindow()
 }
+const deleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: deletingAcc.value?.id }))
+const shadowAction = useConfirmedAction(() => ({ active: showCreateShadowDialog.value, identity: creatingShadowAcc.value?.id }))
+const exportAction = useConfirmedAction(() => ({ active: showExportDataDialog.value, identity: selIds.value }))
+const exportIdsAtOpen = ref<number[]>([])
+const exportFiltersAtOpen = ref<ReturnType<typeof buildAccountQueryFilters>>()
+watch(selIds, () => { showExportDataDialog.value = false }, { deep: true, flush: 'sync' })
+watch(() => deletingAcc.value?.id, (id, oldId) => { if (oldId != null && id !== oldId) showDeleteDialog.value = false }, { flush: 'sync' })
+watch(() => creatingShadowAcc.value?.id, (id, oldId) => { if (oldId != null && id !== oldId) showCreateShadowDialog.value = false }, { flush: 'sync' })
+
 const formatExportTimestamp = () => {
   const now = new Date()
   const pad2 = (value: number) => String(value).padStart(2, '0')
   return `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`
 }
 const openExportDataDialog = () => {
+  if (exportAction.busy.value) return
   includeProxyOnExport.value = true
+  exportIdsAtOpen.value = [...selIds.value]
+  exportFiltersAtOpen.value = structuredClone(toRaw(buildAccountQueryFilters()))
   showExportDataDialog.value = true
 }
 const handleExportData = async () => {
-  if (exportingData.value) return
-  exportingData.value = true
+  const ids = [...exportIdsAtOpen.value]
+  const filters = exportFiltersAtOpen.value
+  const includeProxies = authStore.isAdmin && includeProxyOnExport.value
+  await exportAction.run(async (isCurrent) => {
+    exportingData.value = true
   try {
-    const dataPayload = await accountExportStepUp.run(() => adminAPI.accounts.exportData(
-      selIds.value.length > 0
-        ? { ids: selIds.value, includeProxies: authStore.isAdmin && includeProxyOnExport.value }
-        : {
-            includeProxies: authStore.isAdmin && includeProxyOnExport.value,
-            filters: buildAccountQueryFilters()
-          }
-    ))
+    const request = ids.length > 0 ? { ids, includeProxies } : { includeProxies, filters }
+    const dataPayload = await accountExportStepUp.run(() => {
+      if (!isCurrent()) throw new Error('Confirmation context changed')
+      return adminAPI.accounts.exportData(request)
+    })
+    if (!isCurrent()) return
     const timestamp = formatExportTimestamp()
     const filename = `sub2api-account-${timestamp}.json`
     const blob = new Blob([JSON.stringify(dataPayload, null, 2)], { type: 'application/json' })
@@ -2355,6 +2384,7 @@ const handleExportData = async () => {
       appStore.showSuccess(t('admin.accounts.dataExported'))
     }
   } catch (error: any) {
+    if (!isCurrent()) return
     if (isStepUpCancelled(error)) {
       // 用户主动取消 step-up 验证，静默返回，不弹错误提示。
     } else if (isStepUpBlocked(error)) {
@@ -2368,8 +2398,9 @@ const handleExportData = async () => {
     }
   } finally {
     exportingData.value = false
-    showExportDataDialog.value = false
+    if (isCurrent()) showExportDataDialog.value = false
   }
+  })
 }
 const accountExportStepUp = useStepUp()
 const closeTestModal = () => { showTest.value = false; testingAcc.value = null }
@@ -2502,25 +2533,48 @@ const onRevertFallback = async (a: Account) => {
   }
 }
 const handleCreateSparkShadow = (a: Account) => {
+  if (shadowAction.busy.value) return
   creatingShadowAcc.value = a
   showCreateShadowDialog.value = true
 }
 const confirmCreateSparkShadow = async () => {
-  const a = creatingShadowAcc.value
-  if (!a) return
-  try {
-    await adminAPI.accounts.createSparkShadow(a.id, { name: `${a.name} (Spark)` })
-    showCreateShadowDialog.value = false
-    creatingShadowAcc.value = null
-    appStore.showSuccess(t('admin.accounts.createSparkShadowSuccess'))
-    reload()
-  } catch (error: any) {
-    console.error('Failed to create spark shadow:', error)
-    appStore.showError(error?.response?.data?.message || t('admin.accounts.createSparkShadowFailed'))
-  }
+  const target = creatingShadowAcc.value && { id: creatingShadowAcc.value.id, name: creatingShadowAcc.value.name }
+  if (!target) return
+  await shadowAction.run(async (isCurrent) => {
+    try {
+      await adminAPI.accounts.createSparkShadow(target.id, { name: `${target.name} (Spark)` })
+      if (!isCurrent()) return
+      showCreateShadowDialog.value = false
+      creatingShadowAcc.value = null
+      appStore.showSuccess(t('admin.accounts.createSparkShadowSuccess'))
+      reload()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      console.error('Failed to create spark shadow:', error)
+      appStore.showError(error?.response?.data?.message || t('admin.accounts.createSparkShadowFailed'))
+    }
+  })
 }
-const handleDelete = (a: Account) => { deletingAcc.value = a; showDeleteDialog.value = true }
-const confirmDelete = async () => { if(!deletingAcc.value) return; try { await adminAPI.accounts.delete(deletingAcc.value.id); showDeleteDialog.value = false; deletingAcc.value = null; reload() } catch (error) { console.error('Failed to delete account:', error) } }
+const handleDelete = (a: Account) => {
+  if (deleteAction.busy.value) return
+  deletingAcc.value = a
+  showDeleteDialog.value = true
+}
+const confirmDelete = async () => {
+  const targetId = deletingAcc.value?.id
+  if (targetId == null) return
+  await deleteAction.run(async (isCurrent) => {
+    try {
+      await adminAPI.accounts.delete(targetId)
+      if (!isCurrent()) return
+      showDeleteDialog.value = false
+      deletingAcc.value = null
+      reload()
+    } catch (error) {
+      if (isCurrent()) console.error('Failed to delete account:', error)
+    }
+  })
+}
 const handleToggleSchedulable = async (a: Account) => {
   const nextSchedulable = !a.schedulable
   togglingSchedulable.value = a.id
@@ -2590,7 +2644,7 @@ const handleClickOutside = (event: MouseEvent) => {
 }
 
 onMounted(async () => {
-  if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
     desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
     isDesktopViewport.value = desktopViewportMediaQuery.matches
     desktopViewportListener = (event: MediaQueryListEvent) => {
@@ -2655,6 +2709,9 @@ onUnmounted(() => {
   desktopViewportListener = null
   desktopViewportMediaQuery = null
 })
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: true, identity: selIds.value }))
 </script>
 
 <style scoped>
@@ -2667,7 +2724,6 @@ onUnmounted(() => {
 }
 
 .accounts-page-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem; }
-.accounts-page-heading h1 { font-family: var(--ritel-display); font-size: clamp(2.25rem, 3vw, 3rem); font-weight: 400; line-height: 1.1; }
 .accounts-filter-row { width: 100%; padding-top: .5rem; }
 .accounts-filters { width: 100%; }
 

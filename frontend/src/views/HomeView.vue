@@ -22,7 +22,7 @@
     <main class="ritel-home-main">
       <section class="ritel-home-hero">
         <img :src="BRAND_LOGO" alt="" class="ritel-logo ritel-home-symbol" width="180" height="142" />
-        <h1>{{ BRAND_NAME }}</h1>
+        <AppHeading variant="hero" as="h1">{{ BRAND_NAME }}</AppHeading>
         <p>{{ siteSubtitle }}</p>
         <div class="ritel-home-cta">
           <router-link :to="isAuthenticated ? dashboardPath : '/login'" class="btn btn-primary">{{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }}<Icon name="arrowRight" size="md" /></router-link>
@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'

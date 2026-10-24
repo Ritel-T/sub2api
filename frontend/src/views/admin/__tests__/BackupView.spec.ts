@@ -1,9 +1,11 @@
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import BackupView from '../BackupView.vue'
 
 const {
+  showError,
   getS3Config,
   getImageStorageConfig,
   getSchedule,
@@ -12,6 +14,7 @@ const {
   listBackups,
   getDownloadURL,
 } = vi.hoisted(() => ({
+  showError: vi.fn(),
   getS3Config: vi.fn(),
   getImageStorageConfig: vi.fn(),
   getSchedule: vi.fn(),
@@ -44,7 +47,7 @@ vi.mock('@/api', () => ({
 
 vi.mock('@/stores', () => ({
   useAppStore: () => ({
-    showError: vi.fn(),
+    showError,
     showSuccess: vi.fn(),
     showWarning: vi.fn(),
   }),
@@ -92,6 +95,7 @@ function mountBackupView() {
 
 describe('admin BackupView', () => {
   beforeEach(() => {
+    showError.mockClear()
     getS3Config.mockResolvedValue({})
     getImageStorageConfig.mockResolvedValue({ config: {}, secret_configured: false })
     getSchedule.mockResolvedValue({ enabled: false, cron_expr: '', retain_days: 14, retain_count: 10 })
@@ -106,6 +110,61 @@ describe('admin BackupView', () => {
     wrappers.splice(0).forEach(wrapper => wrapper.unmount())
     vi.restoreAllMocks()
     document.body.innerHTML = ''
+  })
+
+  it('keeps a newer refresh locked when an older invalidated refresh finishes first', async () => {
+    const wrapper = mountBackupView()
+    await flushPromises()
+    let oldDone!: (value: unknown) => void
+    let newDone!: (value: unknown) => void
+    listBackups.mockImplementationOnce(() => new Promise(resolve => { oldDone = resolve }))
+      .mockImplementationOnce(() => new Promise(resolve => { newDone = resolve }))
+    const vm = wrapper.vm as any
+    let current = true
+    const oldLoad = vm.loadBackups(() => current)
+    current = false
+    const newLoad = vm.loadBackups()
+    oldDone({ items: [] })
+    await oldLoad
+    expect(vm.loadingBackups).toBe(true)
+    newDone({ items: [] })
+    await newLoad
+    expect(vm.loadingBackups).toBe(false)
+  })
+
+  it.each(['success', 'error'])('does not publish a stale confirmed refresh helper result: %s', async (outcome) => {
+    const wrapper = mountBackupView()
+    await flushPromises()
+    let finish!: (value: unknown) => void
+    let fail!: (value: unknown) => void
+    listBackups.mockImplementationOnce(() => new Promise((resolve, reject) => { finish = resolve; fail = reject }))
+    const vm = wrapper.vm as any
+    let current = true
+    const pending = vm.loadBackups(() => current)
+    current = false
+    vm.backups = [baseRecord('new-session')]
+    vm.loadingBackups = false
+    if (outcome === 'success') finish({ items: [baseRecord('old-session')] })
+    else fail(new Error('old refresh error'))
+    await pending
+    expect(vm.backups.map((item: { id: string }) => item.id)).toEqual(['new-session'])
+    expect(vm.loadingBackups).toBe(false)
+    expect(showError).not.toHaveBeenCalled()
+  })
+
+  it.each(['showR2Guide', 'downloadPartsModalOpen'])('uses the shared accessible close flow for %s', async (field) => {
+    const wrapper = mountBackupView()
+    await flushPromises()
+    ;(wrapper.vm as any)[field] = true
+    await flushPromises()
+    const dialog = document.body.querySelector('[role="dialog"]')!
+    expect(dialog).not.toBeNull()
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    expect(document.getElementById(dialog.getAttribute('aria-labelledby')!)?.textContent?.trim()).toBeTruthy()
+    expect(document.body.classList.contains('modal-open')).toBe(true)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect((wrapper.vm as any)[field]).toBe(false)
   })
 
   it.each(['backup', 'restore'])('does not resume %s polling after navigation during initial loading', async (operation) => {
@@ -286,7 +345,6 @@ describe('admin BackupView', () => {
 
   it('归档删除需要单独确认，有限归档不会显示永不过期', async () => {
     listBackups.mockResolvedValue({ items: [{ ...baseRecord('archived'), monthly_archive: { dates: ['2026-09-01', '2026-09-15'], retain_count: 12 } }] })
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const wrapper = mountBackupView()
     await flushPromises()
     expect(wrapper.text()).toContain('admin.backup.archive.badge')
@@ -294,10 +352,13 @@ describe('admin BackupView', () => {
     expect(wrapper.get('[data-field="expires_at"] dd').text()).toBe('admin.backup.archive.retainLatest')
     const button = wrapper.findAll('button').find(button => button.text() === 'common.delete')!
     await button.trigger('click')
-    expect(confirm).toHaveBeenCalledWith('admin.backup.archive.deleteConfirm')
+    const confirmation = wrapper.findAllComponents(ConfirmDialog).find(dialog => dialog.props('show'))!
+    expect(confirmation.props('message')).toBe('admin.backup.archive.deleteConfirm')
     expect(deleteBackup).not.toHaveBeenCalled()
-    confirm.mockReturnValue(true)
+    confirmation.vm.$emit('cancel')
+    await flushPromises()
     await button.trigger('click')
+    confirmation.vm.$emit('confirm')
     await flushPromises()
     expect(deleteBackup).toHaveBeenCalledWith('archived', true)
   })

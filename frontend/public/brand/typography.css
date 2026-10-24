@@ -1,0 +1,104 @@
+/* Authoritative typography roles. Family tokens and assets live in brand.css.
+   HTML heading levels describe document structure; data-type-role describes presentation. */
+:root {
+  --ritel-text-2xs: 12px; --ritel-text-xs: 12.5px; --ritel-text-sm: 14px; --ritel-text-base: 15px;
+  --ritel-text-lg: 18px; --ritel-text-xl: 20px; --ritel-text-2xl: 24px; --ritel-text-3xl: 30px;
+  --ritel-text-4xl: 36px; --ritel-text-5xl: 48px; --ritel-text-6xl: 60px;
+  --ritel-text-7xl: 72px; --ritel-text-8xl: 96px; --ritel-text-9xl: 128px;
+  --ritel-leading-body: 1.5;
+  --ritel-type-page-family: var(--ritel-display); --ritel-type-page-size: 36px; --ritel-type-page-weight: 600; --ritel-type-page-leading: 1.15; --ritel-type-page-tracking: -.01em;
+  --ritel-type-section-family: var(--ritel-ui); --ritel-type-section-size: 16px; --ritel-type-section-weight: 600; --ritel-type-section-leading: 1.4; --ritel-type-section-tracking: 0;
+  --ritel-type-subsection-family: var(--ritel-type-section-family); --ritel-type-subsection-size: var(--ritel-type-section-size); --ritel-type-subsection-weight: var(--ritel-type-section-weight); --ritel-type-subsection-leading: var(--ritel-type-section-leading); --ritel-type-subsection-tracking: var(--ritel-type-section-tracking);
+  --ritel-type-minor-family: var(--ritel-ui); --ritel-type-minor-size: 14px; --ritel-type-minor-weight: 600; --ritel-type-minor-leading: 1.5; --ritel-type-minor-tracking: 0;
+  --ritel-type-dialog-family: var(--ritel-display); --ritel-type-dialog-size: 24px; --ritel-type-dialog-weight: 600; --ritel-type-dialog-leading: 1.2; --ritel-type-dialog-tracking: -.01em;
+  --ritel-type-auth-family: var(--ritel-heading); --ritel-type-auth-size: 36px; --ritel-type-auth-weight: 600; --ritel-type-auth-leading: 1.2; --ritel-type-auth-tracking: -.025em;
+  --ritel-type-hero-family: var(--ritel-heading); --ritel-type-hero-size: clamp(56px, 8vw, 108px); --ritel-type-hero-weight: 400; --ritel-type-hero-leading: 1.05; --ritel-type-hero-tracking: -.04em;
+  --ritel-type-empty-family: var(--ritel-ui); --ritel-type-empty-size: 18px; --ritel-type-empty-weight: 500; --ritel-type-empty-leading: 1.4; --ritel-type-empty-tracking: 0;
+  --ritel-type-metric-family: var(--ritel-display); --ritel-type-metric-size: 36px; --ritel-type-metric-weight: 500; --ritel-type-metric-leading: 1.2; --ritel-type-metric-tracking: -.01em;
+  --ritel-type-subtle-family: var(--ritel-ui); --ritel-type-subtle-size: 13px; --ritel-type-subtle-weight: 400; --ritel-type-subtle-leading: 1.4; --ritel-type-subtle-tracking: 0;
+}
+@media (max-width: 767px) {
+  :root { --ritel-type-page-size: 28px; --ritel-type-auth-size: 28px; }
+}
+/* Equal specificity for every role; no page-specific selector or !important layer. */
+.ritel-type[data-type-role] {
+  font-family: var(--type-family);
+  font-size: var(--type-size);
+  font-weight: var(--type-weight);
+  line-height: var(--type-leading);
+  letter-spacing: var(--type-tracking);
+  font-synthesis: none;
+  font-variant-numeric: lining-nums proportional-nums;
+  text-wrap: balance;
+  text-transform: none;
+}
+.ritel-type[data-type-role="page"] {
+  --type-family: var(--ritel-type-page-family);
+  --type-size: var(--ritel-type-page-size);
+  --type-weight: var(--ritel-type-page-weight);
+  --type-leading: var(--ritel-type-page-leading);
+  --type-tracking: var(--ritel-type-page-tracking);
+}
+.ritel-type[data-type-role="section"] {
+  --type-family: var(--ritel-type-section-family);
+  --type-size: var(--ritel-type-section-size);
+  --type-weight: var(--ritel-type-section-weight);
+  --type-leading: var(--ritel-type-section-leading);
+  --type-tracking: var(--ritel-type-section-tracking);
+}
+.ritel-type[data-type-role="subsection"] {
+  --type-family: var(--ritel-type-subsection-family);
+  --type-size: var(--ritel-type-subsection-size);
+  --type-weight: var(--ritel-type-subsection-weight);
+  --type-leading: var(--ritel-type-subsection-leading);
+  --type-tracking: var(--ritel-type-subsection-tracking);
+}
+.ritel-type[data-type-role="minor"] {
+  --type-family: var(--ritel-type-minor-family);
+  --type-size: var(--ritel-type-minor-size);
+  --type-weight: var(--ritel-type-minor-weight);
+  --type-leading: var(--ritel-type-minor-leading);
+  --type-tracking: var(--ritel-type-minor-tracking);
+}
+.ritel-type[data-type-role="dialog"] {
+  --type-family: var(--ritel-type-dialog-family);
+  --type-size: var(--ritel-type-dialog-size);
+  --type-weight: var(--ritel-type-dialog-weight);
+  --type-leading: var(--ritel-type-dialog-leading);
+  --type-tracking: var(--ritel-type-dialog-tracking);
+}
+.ritel-type[data-type-role="auth"] {
+  --type-family: var(--ritel-type-auth-family);
+  --type-size: var(--ritel-type-auth-size);
+  --type-weight: var(--ritel-type-auth-weight);
+  --type-leading: var(--ritel-type-auth-leading);
+  --type-tracking: var(--ritel-type-auth-tracking);
+}
+.ritel-type[data-type-role="hero"] {
+  --type-family: var(--ritel-type-hero-family);
+  --type-size: var(--ritel-type-hero-size);
+  --type-weight: var(--ritel-type-hero-weight);
+  --type-leading: var(--ritel-type-hero-leading);
+  --type-tracking: var(--ritel-type-hero-tracking);
+}
+.ritel-type[data-type-role="empty"] {
+  --type-family: var(--ritel-type-empty-family);
+  --type-size: var(--ritel-type-empty-size);
+  --type-weight: var(--ritel-type-empty-weight);
+  --type-leading: var(--ritel-type-empty-leading);
+  --type-tracking: var(--ritel-type-empty-tracking);
+}
+.ritel-type[data-type-role="metric"] {
+  --type-family: var(--ritel-type-metric-family);
+  --type-size: var(--ritel-type-metric-size);
+  --type-weight: var(--ritel-type-metric-weight);
+  --type-leading: var(--ritel-type-metric-leading);
+  --type-tracking: var(--ritel-type-metric-tracking);
+}
+.ritel-type[data-type-role="subtle"] {
+  --type-family: var(--ritel-type-subtle-family);
+  --type-size: var(--ritel-type-subtle-size);
+  --type-weight: var(--ritel-type-subtle-weight);
+  --type-leading: var(--ritel-type-subtle-leading);
+  --type-tracking: var(--ritel-type-subtle-tracking);
+}

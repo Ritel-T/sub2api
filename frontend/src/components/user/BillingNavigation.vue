@@ -1,9 +1,10 @@
 <template>
   <header class="border-b border-gray-200 pb-5 dark:border-dark-700">
-    <h1 class="text-3xl font-semibold" data-testid="billing-page-title">{{ title || bt(`billing.${current}`) }}</h1>
+    <AppHeading as="h1" variant="page"  data-testid="billing-page-title">{{ title || bt(`billing.${current}`) }}</AppHeading>
   </header>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { useI18n } from 'vue-i18n'
 import type { PublicSettings } from '@/types'
 import { billingMessages, type BillingDestination } from './billingNavigation'

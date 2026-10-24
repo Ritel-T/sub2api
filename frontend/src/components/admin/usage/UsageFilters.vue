@@ -80,7 +80,7 @@
         <!-- Model Filter -->
         <div class="usage-filter-field">
           <label class="input-label">{{ t('usage.model') }}</label>
-          <Select v-model="filters.model" :options="modelOptions" searchable @change="emitChange" />
+          <Select :aria-label="t('usage.model')" v-model="filters.model" :options="modelOptions" searchable @change="emitChange" />
         </div>
 
         <!-- Account Filter -->
@@ -123,54 +123,54 @@
         <!-- Request Type Filter (usage only) -->
         <div v-if="mode !== 'errors' && mode !== 'connections'" class="usage-filter-field">
           <label class="input-label">{{ t('usage.type') }}</label>
-          <Select v-model="filters.request_type" :options="requestTypeOptions" @change="emitChange" />
+          <Select :aria-label="t('usage.type')" v-model="filters.request_type" :options="requestTypeOptions" @change="emitChange" />
         </div>
 
         <!-- Native compaction is independent of the transport request type. -->
         <div v-if="mode !== 'errors' && mode !== 'connections'" class="usage-filter-field">
           <label class="input-label">{{ t('usage.compactionFilter') }}</label>
-          <Select v-model="filters.native_compaction_v2" :options="compactionOptions" @change="emitChange" />
+          <Select :aria-label="t('usage.compactionFilter')" v-model="filters.native_compaction_v2" :options="compactionOptions" @change="emitChange" />
         </div>
 
         <!-- Billing Type Filter (usage only) -->
         <div v-if="mode !== 'errors' && mode !== 'connections'" class="usage-filter-field">
           <label class="input-label">{{ t('admin.usage.billingType') }}</label>
-          <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="emitChange" />
+          <Select :aria-label="t('admin.usage.billingType')" v-model="filters.billing_type" :options="billingTypeOptions" @change="emitChange" />
         </div>
 
         <!-- Billing Mode Filter (usage only；用户排行的 user-breakdown 接口不支持该维度) -->
         <div v-if="mode === 'usage'" class="usage-filter-field">
           <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
-          <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
+          <Select :aria-label="t('admin.usage.billingMode')" v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
         </div>
 
         <div v-if="mode === 'usage'" class="usage-filter-field">
           <label class="input-label">{{ t('admin.usage.upstreamModelAudit') }}</label>
-          <Select v-model="filters.upstream_model_mismatch" :options="upstreamModelMismatchOptions" @change="emitChange" />
+          <Select :aria-label="t('admin.usage.upstreamModelAudit')" v-model="filters.upstream_model_mismatch" :options="upstreamModelMismatchOptions" @change="emitChange" />
         </div>
 
         <!-- Error Phase Filter (errors only) -->
         <div v-if="mode === 'errors'" class="usage-filter-field">
           <label class="input-label">{{ t('admin.ops.errorLog.type') }}</label>
-          <Select v-model="filters.error_phase" :options="errorPhaseOptions" @change="emitChange" />
+          <Select :aria-label="t('admin.ops.errorLog.type')" v-model="filters.error_phase" :options="errorPhaseOptions" @change="emitChange" />
         </div>
 
         <!-- Error Category Filter (errors only) -->
         <div v-if="mode === 'errors'" class="usage-filter-field">
           <label class="input-label">{{ t('usage.errors.category') }}</label>
-          <Select v-model="filters.error_category" :options="errorCategoryOptions" @change="emitChange" />
+          <Select :aria-label="t('usage.errors.category')" v-model="filters.error_category" :options="errorCategoryOptions" @change="emitChange" />
         </div>
 
         <!-- Status Code Filter (errors only) -->
         <div v-if="mode === 'errors'" class="usage-filter-field">
           <label class="input-label">{{ t('admin.ops.errorLog.status') }}</label>
-          <Select v-model="filters.status_code" :options="statusCodeOptions" @change="emitChange" />
+          <Select :aria-label="t('admin.ops.errorLog.status')" v-model="filters.status_code" :options="statusCodeOptions" @change="emitChange" />
         </div>
 
         <!-- Group Filter -->
         <div class="usage-filter-field">
           <label class="input-label">{{ t('admin.usage.group') }}</label>
-          <Select v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
+          <Select :aria-label="t('admin.usage.group')" v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
         </div>
 
       </div>

@@ -1,6 +1,6 @@
 <template>
-  <BaseDialog :show="show" :title="t('admin.promptAudit.events.filterDeleteDialogTitle')" width="wide" @close="$emit('close')">
-    <div class="space-y-5 text-sm">
+  <BaseDialog :show="show" :title="t('admin.promptAudit.events.filterDeleteDialogTitle')" width="wide" :close-on-escape="!deleting" :show-close-button="!deleting" @close="requestClose">
+    <fieldset :disabled="deleting" class="space-y-5 text-sm">
       <p class="text-gray-500 dark:text-dark-300">{{ t('admin.promptAudit.events.filterDeleteDialogDesc') }}</p>
 
       <fieldset>
@@ -90,14 +90,14 @@
       <p v-else class="rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs text-gray-500 dark:border-dark-600 dark:text-dark-400" data-test="delete-preview-empty">
         {{ t('admin.promptAudit.events.filterDeleteNeedPreview') }}
       </p>
-    </div>
+    </fieldset>
 
     <template #footer>
       <div class="flex flex-wrap items-center justify-end gap-3">
         <p v-if="confirmDisabledReason" class="mr-auto text-xs text-gray-500 dark:text-dark-400" data-test="confirm-disabled-reason">
           {{ t(confirmDisabledReason) }}
         </p>
-        <button type="button" class="btn btn-secondary" @click="$emit('close')">{{ t('common.cancel') }}</button>
+        <button type="button" class="btn btn-secondary" @click="requestClose" :disabled="deleting">{{ t('common.cancel') }}</button>
         <button type="button" class="btn btn-secondary" :disabled="!canPreview || previewing || deleting" data-test="run-delete-preview" @click="requestPreview">
           {{ previewing ? t('admin.promptAudit.events.filterDeletePreviewing') : t('admin.promptAudit.events.filterDeletePreviewAction') }}
         </button>
@@ -144,6 +144,7 @@ const emit = defineEmits<{
   (event: 'criteria-change'): void
 }>()
 const { t, locale } = useI18n()
+function requestClose() { if (!props.deleting) emit('close') }
 
 const preset = ref<DeleteRangePreset>('7d')
 const local = reactive<PromptEventFilters>(emptyEventFilters())

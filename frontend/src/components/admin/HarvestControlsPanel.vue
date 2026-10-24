@@ -2,7 +2,7 @@
   <section class="open-section overflow-hidden" aria-labelledby="harvest-controls-title">
     <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 id="harvest-controls-title" class="text-sm font-semibold text-gray-900 dark:text-white">{{ t(`${prefix}.title`) }}</h2>
+        <AppHeading as="h2" variant="section" id="harvest-controls-title" class="text-gray-900 dark:text-white">{{ t(`${prefix}.title`) }}</AppHeading>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t(`${prefix}.description`) }}</p>
       </div>
       <div v-if="draft" class="flex flex-wrap items-center gap-2">
@@ -103,6 +103,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getCodexHarvestControls, saveCodexHarvestControls, type CodexHarvestControls, type CodexHarvestControlSnapshot, type CodexHarvestRuntime, type CodexHarvestSpeed } from '@/api/admin/codexHarvest'

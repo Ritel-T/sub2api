@@ -42,7 +42,7 @@
             >{{ t('pagination.perPage') }}:</span
           >
           <div class="page-size-select w-20">
-            <Select
+            <Select :aria-label="t('pagination.perPage')"
               :model-value="pageSize"
               :options="pageSizeSelectOptions"
               @update:model-value="handlePageSizeChange"

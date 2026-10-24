@@ -1,6 +1,6 @@
 <template>
-  <div class="w-full">
-    <label v-if="label" :for="id" class="input-label mb-1.5 block">
+  <div class="w-full" v-bind="wrapperAttrs()">
+    <label v-if="label" :for="fieldId" class="input-label mb-1.5 block">
       {{ label }}
       <span v-if="required" class="text-red-500">*</span>
     </label>
@@ -14,7 +14,10 @@
       </div>
 
       <input
-        :id="id"
+        v-bind="fieldAttrs()"
+        :id="fieldId"
+        :aria-invalid="ariaInvalid()"
+        :aria-describedby="describedBy()"
         ref="inputRef"
         :type="type"
         :value="modelValue"
@@ -46,17 +49,19 @@
       </div>
     </div>
     <!-- Hint / Error Text -->
-    <p v-if="error" class="input-error-text mt-1.5">
+    <p v-if="error" :id="descriptionId" class="input-error-text mt-1.5">
       {{ error }}
     </p>
-    <p v-else-if="hint" class="input-hint mt-1.5">
+    <p v-else-if="hint" :id="descriptionId" class="input-hint mt-1.5">
       {{ hint }}
     </p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useAttrs, useId, type HTMLAttributes } from 'vue'
+
+defineOptions({ inheritAttrs: false })
 
 interface Props {
   modelValue: string | number | null | undefined
@@ -78,6 +83,15 @@ const props = withDefaults(defineProps<Props>(), {
   required: false,
   readonly: false
 })
+
+const attrs = useAttrs()
+const ariaInvalid = () => props.error ? true : attrs['aria-invalid'] as HTMLAttributes['aria-invalid']
+const generatedId = useId()
+const fieldId = computed(() => props.id || `field-${generatedId}`)
+const descriptionId = computed(() => `${fieldId.value}-description`)
+const wrapperAttrs = () => ({ class: attrs.class, style: attrs.style })
+const fieldAttrs = () => Object.fromEntries(Object.entries(attrs).filter(([key]) => key !== 'class' && key !== 'style'))
+const describedBy = () => [attrs['aria-describedby'], props.error || props.hint ? descriptionId.value : undefined].filter(Boolean).join(' ') || undefined
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { opsAPI, type OpsAccountAvailabilityStatsResponse, type OpsConcurrencyStatsResponse, type OpsUserConcurrencyStatsResponse } from '@/api/admin/ops'
@@ -344,12 +345,12 @@ watch(
   <div class="open-section flex h-full flex-col">
     <!-- 头部 -->
     <div class="mb-4 flex shrink-0 items-center justify-between gap-3">
-      <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+      <AppHeading variant="subsection" as="h3" class="flex items-center gap-2 text-gray-900 dark:text-white">
         <svg class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
         {{ t('admin.ops.concurrency.title') }}
-      </h3>
+      </AppHeading>
       <div class="flex items-center gap-2">
         <!-- 用户视图切换按钮 -->
         <button

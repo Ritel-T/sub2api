@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <TablePageLayout open>
       <template #actions>
         <div class="workspace-page-header">
-          <h1 class="workspace-page-title">{{ t('admin.promo.title') }}</h1>
+          <AppHeading variant="page" as="h1" class="workspace-page-title">{{ t('admin.promo.title') }}</AppHeading>
           <div class="workspace-header-actions">
             <TableToolbarTarget kind="actions" />
             <button
@@ -34,7 +34,7 @@
               @input="handleSearch"
             />
           </div>
-          <Select
+          <Select :aria-label="t('admin.promo.status')"
             v-model="filters.status"
             :options="filterStatusOptions"
             class="w-36"
@@ -282,7 +282,7 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.promo.status') }}</label>
-          <Select v-model="editForm.status" :options="statusOptions" />
+          <Select :aria-label="t('admin.promo.status')" v-model="editForm.status" :options="statusOptions" />
         </div>
         <div>
           <label class="input-label">
@@ -327,7 +327,7 @@
       @close="showUsagesDialog = false"
     >
       <div v-if="usagesLoading" class="flex items-center justify-center py-8">
-        <Icon name="refresh" size="lg" class="animate-spin text-gray-400" />
+        <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="lg" class="animate-spin text-gray-400" />
       </div>
       <div v-else-if="usages.length === 0" class="py-8 text-center text-gray-500 dark:text-gray-400">
         {{ t('admin.promo.noUsages') }}
@@ -375,7 +375,7 @@
     </BaseDialog>
 
     <!-- Delete Confirmation Dialog -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteAction.busy.value"
       :show="showDeleteDialog"
       :title="t('admin.promo.deleteCode')"
       :message="t('admin.promo.deleteCodeConfirm')"
@@ -389,6 +389,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -403,6 +404,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -666,18 +668,25 @@ const handleDelete = (code: PromoCode) => {
   showDeleteDialog.value = true
 }
 
-const confirmDelete = async () => {
-  if (!deletingCode.value) return
+function confirmDelete() {
+  return confirmDeleteAction.run(async (isCurrent) => {
+    const targetId = deletingCode.value?.id
+    if (targetId == null) return
 
-  try {
-    await adminAPI.promo.delete(deletingCode.value.id)
-    appStore.showSuccess(t('admin.promo.codeDeleted'))
-    showDeleteDialog.value = false
-    deletingCode.value = null
-    loadCodes()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.promo.failedToDelete'))
-  }
+    if (!deletingCode.value) return
+
+    try {
+      await adminAPI.promo.delete(targetId)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.promo.codeDeleted'))
+      showDeleteDialog.value = false
+      deletingCode.value = null
+      loadCodes()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(error.response?.data?.detail || t('admin.promo.failedToDelete'))
+    }
+  })
 }
 
 // View Usages
@@ -698,4 +707,8 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimeout(searchTimeout)
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const confirmDeleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: deletingCode.value?.id }))
+watch(() => ({ active: showDeleteDialog.value, identity: JSON.stringify(deletingCode.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeleteDialog.value = false } }, { flush: 'sync' })
 </script>

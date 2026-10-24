@@ -3,9 +3,12 @@
     :show="show"
     :title="t('payment.admin.refundOrder')"
     width="normal"
-    @close="emit('cancel')"
+     :close-on-escape="!interactionLocked"
+    :show-close-button="!interactionLocked"
+    @close="cancel"
   >
-    <form id="refund-form" @submit.prevent="handleSubmit" class="space-y-4">
+    <form id="refund-form" @submit.prevent="handleSubmit" :aria-busy="interactionLocked" class="space-y-4">
+      <fieldset :disabled="interactionLocked" class="contents">
       <!-- Refund Request Info -->
       <div
         v-if="order?.refund_requested_at || order?.refund_request_reason"
@@ -143,17 +146,18 @@
           {{ t('payment.admin.forceRefund') }}
         </label>
       </div>
+      </fieldset>
     </form>
 
     <template #footer>
       <div class="flex justify-end gap-3">
-        <button type="button" @click="emit('cancel')" class="btn btn-secondary">
+        <button type="button" @click="cancel" :disabled="interactionLocked" class="btn btn-secondary">
           {{ t('common.cancel') }}
         </button>
         <button
           type="submit"
           form="refund-form"
-          :disabled="submitting || form.amount <= 0 || (requireForce && !form.force)"
+          :disabled="interactionLocked || form.amount <= 0 || (requireForce && !form.force)"
           class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 dark:focus:ring-offset-dark-800"
         >
           {{ submitting ? t('common.processing') : t('payment.admin.confirmRefund') }}
@@ -164,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, watch } from 'vue'
+import { reactive, computed, watch, ref, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import type { PaymentOrder } from '@/types/payment'
@@ -183,9 +187,14 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'confirm', data: { amount: number; reason: string; deduct_balance: boolean; force: boolean }): void
+  (e: 'confirm', data: { amount: number; reason: string; deduct_balance: boolean; force: boolean }, orderId: number): void
   (e: 'cancel'): void
 }>()
+
+const accepting = ref(false)
+const interactionLocked = computed(() => !!props.submitting || accepting.value)
+watch(() => props.submitting, (busy, previous) => { if (previous && !busy) accepting.value = false }, { flush: 'sync' })
+function cancel() { if (!interactionLocked.value) emit('cancel') }
 
 const creditedAmountSymbol = currencySymbol('USD')
 
@@ -217,8 +226,9 @@ const balanceInsufficient = computed(() => {
   return props.userBalance < form.amount
 })
 
-watch(() => props.show, (val) => {
-  if (val && props.order) {
+watch(() => [props.show, props.order?.id] as const, ([show]) => {
+  accepting.value = false
+  if (show && props.order) {
     // For REFUND_REQUESTED, pre-fill with the requested amount
     if (props.order.status === 'REFUND_REQUESTED' && props.order.refund_amount) {
       form.amount = props.order.refund_amount
@@ -229,15 +239,18 @@ watch(() => props.show, (val) => {
     form.deduct_balance = true
     form.force = false
   }
-})
+}, { immediate: true, flush: 'sync' })
 
 function formatDateTime(dateStr: string): string {
   return formatOrderDateTime(dateStr)
 }
 
 function handleSubmit() {
+  if (!props.show || !props.order || interactionLocked.value) return
   if (form.amount <= 0 || form.amount > maxRefundable.value) return
   if (props.requireForce && !form.force) return
-  emit('confirm', { ...form })
+  accepting.value = true
+  emit('confirm', { ...form }, props.order.id)
+  void nextTick(() => { if (!props.submitting) accepting.value = false })
 }
 </script>

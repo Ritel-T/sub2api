@@ -5,7 +5,7 @@
     <fieldset v-if="draft" :disabled="saving || loading" class="mt-5 min-w-0 space-y-3 border-t border-gray-200 pt-5 dark:border-dark-600" data-testid="pool-scheduling-panel">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h2 class="font-semibold">{{ t(`${p}.accountScheduling`) }}</h2>
+          <AppHeading as="h2" variant="section" >{{ t(`${p}.accountScheduling`) }}</AppHeading>
           <p class="mt-2 text-sm text-gray-500">{{ t(`${p}.ticketPoolSchedulingHint`) }}</p>
         </div>
         <Toggle :model-value="draft.ticket_pool_scheduling ?? false" @update:model-value="draft.ticket_pool_scheduling = $event" data-testid="account-scheduling-toggle" :aria-label="t(`${p}.accountScheduling`)" />
@@ -40,6 +40,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Toggle from '@/components/common/Toggle.vue'

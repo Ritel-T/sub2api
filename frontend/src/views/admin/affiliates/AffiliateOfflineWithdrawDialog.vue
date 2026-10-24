@@ -63,7 +63,7 @@
       >
         <div class="flex items-center justify-between text-sm">
           <span class="text-gray-500 dark:text-dark-400">{{ t('admin.affiliates.withdraw.availableQuota') }}</span>
-          <span
+          <span role="status" :aria-label="t('common.loading')"
             v-if="overviewLoading"
             class="h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
           ></span>

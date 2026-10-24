@@ -1,6 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+
+enableAutoUnmount(afterEach)
+
 import OpsSystemLogTable from '../OpsSystemLogTable.vue'
 import LogRetentionSelect from '../LogRetentionSelect.vue'
 import enLocale from '@/i18n/locales/en'
@@ -79,7 +83,6 @@ const sinkHealth = {
 describe('OpsSystemLogTable host support', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     mockListSystemLogs.mockResolvedValue({
       items: [
         {
@@ -104,7 +107,7 @@ describe('OpsSystemLogTable host support', () => {
   it('renders the host and sends it with list and cleanup filters', async () => {
     const wrapper = mount(OpsSystemLogTable, {
       global: {
-        stubs: {
+        stubs: { teleport: true,
           Select: SelectStub,
           Pagination: PaginationStub,
         },
@@ -128,6 +131,12 @@ describe('OpsSystemLogTable host support', () => {
     const cleanupButton = wrapper.findAll('button').find((button) => button.text() === 'admin.ops.systemLogs.cleanCurrentFilters')
     expect(cleanupButton).toBeDefined()
     await cleanupButton!.trigger('click')
+    expect(mockCleanupSystemLogs).not.toHaveBeenCalled()
+    await wrapper.getComponent(ConfirmationPrompt).get('.btn-secondary').trigger('click')
+    await flushPromises()
+    expect(mockCleanupSystemLogs).not.toHaveBeenCalled()
+    await cleanupButton!.trigger('click')
+    await wrapper.getComponent(ConfirmationPrompt).get('.btn-danger').trigger('click')
     await flushPromises()
 
     expect(mockCleanupSystemLogs).toHaveBeenCalledWith(expect.objectContaining({ host: 'api-node-2' }))
@@ -139,7 +148,7 @@ describe('OpsSystemLogTable host support', () => {
     mockListSystemLogs.mockResolvedValueOnce({ items: [first], total: 2 })
       .mockResolvedValueOnce({ items: [second], total: 2 })
       .mockResolvedValueOnce({ items: [{ ...first, id: 3, message: 'filtered record' }], total: 1 })
-    const wrapper = mount(OpsSystemLogTable, { global: { stubs: { Select: SelectStub } } })
+    const wrapper = mount(OpsSystemLogTable, { global: { stubs: { teleport: true, Select: SelectStub } } })
     await flushPromises()
     const host = wrapper.findAll('label').find(label => label.text().includes('admin.ops.systemLogs.host'))!
     await host.find('input').setValue('unapplied-host')
@@ -160,7 +169,7 @@ describe('OpsSystemLogTable host support', () => {
   it('keeps database access-log persistence opt-in', async () => {
     const wrapper = mount(OpsSystemLogTable, {
       global: {
-        stubs: {
+        stubs: { teleport: true,
           Select: SelectStub,
           Pagination: PaginationStub,
         },
@@ -184,7 +193,7 @@ describe('OpsSystemLogTable host support', () => {
 
 describe('rolling log retention settings', () => {
   const mountTable = () => mount(OpsSystemLogTable, {
-    global: { stubs: { Select: SelectStub, Pagination: PaginationStub } }
+    global: { stubs: { teleport: true, Select: SelectStub, Pagination: PaginationStub } }
   })
   const saveButton = (wrapper: ReturnType<typeof mountTable>) => wrapper.findAll('button').find(button => button.text() === 'admin.ops.systemLogs.saveAndApply')!
 

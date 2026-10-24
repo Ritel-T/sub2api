@@ -82,7 +82,7 @@ describe('TOTP 弹窗定时器清理', () => {
   it.each([TotpSetupModal, TotpDisableDialog])('does not start a cooldown after unmounting during send', async (component) => {
     let resolve!: (value: unknown) => void
     mocks.sendVerifyCode.mockReturnValueOnce(new Promise(res => { resolve = res }))
-    const wrapper = mount(component)
+    const wrapper = mount(component, { global: { stubs: { teleport: true } } })
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text().includes('profile.totp.sendCode'))!.trigger('click')
     wrapper.unmount()
@@ -92,7 +92,7 @@ describe('TOTP 弹窗定时器清理', () => {
   })
 
   it('TotpSetupModal 卸载时清理倒计时定时器', async () => {
-    const wrapper = mount(TotpSetupModal)
+    const wrapper = mount(TotpSetupModal, { global: { stubs: { teleport: true } } })
     await flushPromises()
 
     const sendButton = wrapper
@@ -112,7 +112,7 @@ describe('TOTP 弹窗定时器清理', () => {
   })
 
   it('TotpDisableDialog 卸载时清理倒计时定时器', async () => {
-    const wrapper = mount(TotpDisableDialog)
+    const wrapper = mount(TotpDisableDialog, { global: { stubs: { teleport: true } } })
     await flushPromises()
 
     const sendButton = wrapper
@@ -137,7 +137,7 @@ describe('TOTP 弹窗定时器清理', () => {
       response: { data: { message: 'setup failed' } }
     })
 
-    const wrapper = mount(TotpSetupModal)
+    const wrapper = mount(TotpSetupModal, { global: { stubs: { teleport: true } } })
     await flushPromises()
 
     await wrapper.get('input[type="password"]').setValue('correct horse battery staple')
@@ -155,7 +155,7 @@ describe('TOTP 弹窗定时器清理', () => {
       response: { data: { message: 'disable failed' } }
     })
 
-    const wrapper = mount(TotpDisableDialog)
+    const wrapper = mount(TotpDisableDialog, { global: { stubs: { teleport: true } } })
     await flushPromises()
 
     await wrapper.get('input[type="password"]').setValue('correct horse battery staple')

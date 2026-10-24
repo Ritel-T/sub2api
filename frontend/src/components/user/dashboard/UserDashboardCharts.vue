@@ -5,7 +5,7 @@
       <div class="flex flex-wrap items-center gap-4">
         <div class="flex items-center gap-2">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('dashboard.timeRange') }}:</span>
-          <DateRangePicker :start-date="startDate" :end-date="endDate" @update:startDate="$emit('update:startDate', $event)" @update:endDate="$emit('update:endDate', $event)" @change="$emit('dateRangeChange', $event)" />
+          <DateRangePicker data-field-role="filter" :aria-label="t('dashboard.timeRange')" :start-date="startDate" :end-date="endDate" @update:startDate="$emit('update:startDate', $event)" @update:endDate="$emit('update:endDate', $event)" @change="$emit('dateRangeChange', $event)" />
         </div>
         <button @click="$emit('refresh')" :disabled="loading" class="btn btn-secondary">
           {{ t('common.refresh') }}
@@ -13,7 +13,7 @@
         <div class="ml-auto flex items-center gap-2">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('dashboard.granularity') }}:</span>
           <div class="w-28">
-            <Select :model-value="granularity" :options="[{value:'day', label:t('dashboard.day')}, {value:'hour', label:t('dashboard.hour')}]" @update:model-value="$emit('update:granularity', $event)" @change="$emit('granularityChange')" />
+            <Select :aria-label="t('dashboard.granularity')" :model-value="granularity" :options="[{value:'day', label:t('dashboard.day')}, {value:'hour', label:t('dashboard.hour')}]" @update:model-value="$emit('update:granularity', $event)" @change="$emit('granularityChange')" />
           </div>
         </div>
       </div>
@@ -29,7 +29,7 @@
         <div v-if="loading" class="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm dark:bg-dark-800/50">
           <LoadingSpinner size="md" />
         </div>
-        <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('dashboard.modelDistribution') }}</h3>
+        <AppHeading as="h3" variant="subsection" class="mb-4 text-gray-900 dark:text-white">{{ t('dashboard.modelDistribution') }}</AppHeading>
         <div class="flex min-w-0 flex-col items-center gap-5">
           <div class="h-48 w-48 shrink-0">
             <Doughnut v-if="modelData" :data="modelData" :options="doughnutOptions" />
@@ -65,6 +65,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'

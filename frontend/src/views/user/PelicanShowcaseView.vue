@@ -74,7 +74,7 @@
       </section>
 
       <!-- First load -->
-      <div v-if="loading && !view" class="space-y-6">
+      <LoadingRegion v-if="loading && !view" class="space-y-6">
         <div v-for="row in 2" :key="row" class="flex gap-5 overflow-hidden">
           <div
             v-for="i in 5"
@@ -89,7 +89,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </LoadingRegion>
 
       <EmptyState
         v-else-if="view && !view.enabled"
@@ -119,7 +119,7 @@
             <PlatformIcon :platform="group.platform as GroupPlatform" size="sm" />
           </span>
           <div class="min-w-0">
-            <h2 class="truncate text-base font-semibold text-gray-900 dark:text-white">{{ group.name }}</h2>
+            <AppHeading variant="section" as="h2" class="truncate text-gray-900 dark:text-white">{{ group.name }}</AppHeading>
             <p class="text-xs text-gray-500 dark:text-gray-400">
               {{ platformLabel(group.platform) }}
               · {{ t('pelicanShowcase.itemCount', { count: group.items.length }) }}
@@ -202,7 +202,7 @@
             :title="previewTitle"
           />
           <div v-else class="flex h-full items-center justify-center p-6 text-sm text-gray-500">
-            <span v-if="!previewBody || previewBody.status === 'loading'" class="animate-pulse">{{ t('pelicanShowcase.itemLoading') }}</span>
+            <span v-if="!previewBody || previewBody.status === 'loading'" class="animate-pulse" role="status" aria-busy="true">{{ t('pelicanShowcase.itemLoading') }}</span>
             <span v-else-if="previewBody.status === 'invalid'">{{ t('pelicanShowcase.invalidHtml') }}</span>
             <span v-else class="text-red-500">{{ t('pelicanShowcase.itemLoadError') }}</span>
           </div>
@@ -227,7 +227,7 @@
       </template>
     </BaseDialog>
 
-    <ConfirmDialog
+    <ConfirmDialog :busy="removeItemAction.busy.value"
       :show="confirmingRemove"
       :title="t('pelicanShowcase.remove')"
       :message="t('pelicanShowcase.removeConfirm')"
@@ -240,10 +240,13 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
@@ -389,22 +392,26 @@ function closePreview() {
   confirmingRemove.value = false
 }
 
-async function removeItem() {
-  const target = preview.value
-  confirmingRemove.value = false
-  if (!target || removing.value) return
-  removing.value = true
-  try {
-    await removeShowcaseItem(target.item.id)
-    target.group.items = target.group.items.filter((item) => item.id !== target.item.id)
-    delete bodies[target.item.id]
-    closePreview()
-    appStore.showSuccess(t('pelicanShowcase.removed'))
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('pelicanShowcase.removeFailed')))
-  } finally {
-    removing.value = false
-  }
+function removeItem() {
+  return removeItemAction.run(async (isCurrent) => {
+    const target = preview.value
+    if (!target || removing.value) return
+    removing.value = true
+    try {
+      await removeShowcaseItem(target.item.id)
+      if (!isCurrent()) return
+      target.group.items = target.group.items.filter((item) => item.id !== target.item.id)
+      delete bodies[target.item.id]
+      closePreview()
+      confirmingRemove.value = false
+      appStore.showSuccess(t('pelicanShowcase.removed'))
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      appStore.showError(extractApiErrorMessage(err, t('pelicanShowcase.removeFailed')))
+    } finally {
+      removing.value = false
+    }
+  })
 }
 
 onMounted(load)
@@ -412,4 +419,8 @@ onBeforeUnmount(() => {
   alive = false
   loadController?.abort()
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const removeItemAction = useConfirmedAction(() => ({ active: confirmingRemove.value, identity: preview.value?.item.id }))
+watch(() => ({ active: confirmingRemove.value, identity: JSON.stringify(preview.value?.item.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { confirmingRemove.value = false } }, { flush: 'sync' })
 </script>

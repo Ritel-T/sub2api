@@ -4,12 +4,12 @@
       <!-- Header: name + badge + price -->
       <div class="subscription-offer-identity">
         <div class="min-w-0 flex-1">
-          <h3
+          <AppHeading as="h3" variant="subsection"
             :title="plan.name"
-            class="min-w-0 break-words [overflow-wrap:anywhere] text-xl font-semibold leading-7 text-gray-900 dark:text-white"
+            class="min-w-0 break-words [overflow-wrap:anywhere] text-gray-900 dark:text-white"
           >
             {{ plan.name }}
-          </h3>
+          </AppHeading>
           <p v-if="plan.description" class="mt-2 text-sm leading-relaxed text-gray-500 dark:text-dark-400">
             {{ plan.description }}
           </p>
@@ -98,6 +98,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SubscriptionPlan } from '@/types/payment'

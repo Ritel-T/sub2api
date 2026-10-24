@@ -57,7 +57,7 @@
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.selectTestModel') }}
         </label>
-        <Select
+        <Select :aria-label="t('admin.accounts.selectTestModel')"
           v-model="selectedModelId"
           :options="availableModels"
           :disabled="loadingModels || status === 'connecting'"
@@ -71,7 +71,7 @@
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.openai.testMode') }}
         </label>
-        <Select
+        <Select :aria-label="t('admin.accounts.openai.testMode')"
           v-model="testMode"
           :options="openAITestModeOptions"
           :disabled="status === 'connecting'"
@@ -101,7 +101,7 @@
             <span>{{ t('admin.accounts.readyToTest') }}</span>
           </div>
           <div v-else-if="status === 'connecting'" class="flex items-center gap-2 text-yellow-400">
-            <Icon name="refresh" size="sm" class="animate-spin" :stroke-width="2" />
+            <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="sm" class="animate-spin" :stroke-width="2" />
             <span>{{ t('admin.accounts.connectingToApi') }}</span>
           </div>
 
@@ -166,27 +166,9 @@
       </div>
 
       <!-- Image Lightbox -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="previewImageUrl"
-            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
-            @click.self="previewImageUrl = ''"
-          >
-            <button
-              class="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
-              @click="previewImageUrl = ''"
-            >
-              <Icon name="x" size="lg" :stroke-width="2" />
-            </button>
-            <img
-              :src="previewImageUrl"
-              alt="preview"
-              class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
-            />
-          </div>
-        </Transition>
-      </Teleport>
+      <BaseDialog :show="!!previewImageUrl" :title="t('admin.accounts.imageLightboxAlt')" width="full" :z-index="100" :close-on-click-outside="true" @close="previewImageUrl = ''">
+        <img :src="previewImageUrl || undefined" :alt="t('admin.accounts.imageLightboxAlt')" class="mx-auto max-h-[75vh] max-w-full object-contain" />
+      </BaseDialog>
 
       <!-- Test Info -->
       <div class="flex items-center justify-between px-1 text-xs text-gray-500 dark:text-gray-400">

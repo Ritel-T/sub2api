@@ -4,9 +4,9 @@
       v-if="!props.embedded"
       class="min-w-0"
     >
-      <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+      <AppHeading as="h2" variant="section" class="text-gray-900 dark:text-white">
         {{ t('profile.editProfile') }}
-      </h2>
+      </AppHeading>
     </div>
     <div :class="props.embedded ? '' : 'min-w-0'">
       <form @submit.prevent="handleUpdateProfile" class="space-y-4">
@@ -39,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'

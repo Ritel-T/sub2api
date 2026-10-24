@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'
@@ -153,7 +154,7 @@ const options = computed(() => {
 <template>
   <div class="open-section flex h-full flex-col">
     <div class="mb-4 flex shrink-0 items-center justify-between">
-      <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+      <AppHeading variant="subsection" as="h3" class="flex items-center gap-2 text-gray-900 dark:text-white">
         <svg class="h-4 w-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
             stroke-linecap="round"
@@ -164,7 +165,7 @@ const options = computed(() => {
         </svg>
         {{ t('admin.ops.errorTrend') }}
         <HelpTooltip :content="t('admin.ops.tooltips.errorTrend')" />
-      </h3>
+      </AppHeading>
       <div class="flex items-center gap-2">
         <button
           type="button"
@@ -188,7 +189,7 @@ const options = computed(() => {
     <div class="min-h-0 flex-1">
       <Line v-if="state === 'ready' && chartData" :data="chartData" :options="options" />
       <div v-else class="flex h-full items-center justify-center">
-        <div v-if="state === 'loading'" class="animate-pulse text-sm text-gray-400">{{ t('common.loading') }}</div>
+        <div v-if="state === 'loading'" class="animate-pulse text-sm text-gray-400" role="status" aria-busy="true">{{ t('common.loading') }}</div>
         <EmptyState v-else :title="t('common.noData')" :description="t('admin.ops.charts.emptyError')" />
       </div>
     </div>

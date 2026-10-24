@@ -95,6 +95,20 @@ function mountModal(extraProps: Record<string, unknown> = {}) {
 }
 
 describe('BulkEditAccountModal', () => {
+  it('keeps unselected batch switches disabled to keyboard activation', async () => {
+    const wrapper = mountModal({ selectedPlatforms: ['openai'], selectedTypes: ['oauth'] })
+    const toggle = wrapper.get<HTMLButtonElement>('#bulk-edit-openai-passthrough-toggle')
+    expect(toggle.element.disabled).toBe(true)
+    expect(toggle.attributes('role')).toBe('switch')
+    expect(toggle.attributes('aria-checked')).toBe('false')
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-checked')).toBe('false')
+    await wrapper.get('#bulk-edit-openai-passthrough-enabled').setValue(true)
+    expect(toggle.element.disabled).toBe(false)
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-checked')).toBe('true')
+    wrapper.unmount()
+  })
   it('repairs OAuth alias scope without replacing mappings or enabling BPS', async () => {
     const wrapper = mountModal({ selectedPlatforms: ['openai'], selectedTypes: ['oauth'] })
     await wrapper.get('[data-testid="enable-model-aliases"]').setValue(true)
@@ -1418,6 +1432,42 @@ describe('bulk BPS defaults integration', () => {
       openai_excel_bps: true, openai_excel_bps_ignore_encrypted_content: true,
       openai_excel_bps_auto_disable_on_403: true, openai_excel_bps_cache_creation_as_input: true
     }) }))
+    wrapper.unmount()
+  })
+})
+
+
+describe('bulk mixed-channel confirmation ownership', () => {
+  it('rejects stale acceptance after switching selected accounts', async () => {
+    const wrapper = mountModal()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.pendingUpdatesForConfirm = { priority: 3 }
+    vm.showMixedChannelWarning = true
+    vi.mocked(adminAPI.accounts.bulkUpdate).mockClear()
+    await wrapper.setProps({ accountIds: [33] })
+    await vm.handleMixedChannelConfirm()
+    expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('locks submitted account IDs and ignores completion after closing and reopening', async () => {
+    const wrapper = mountModal()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    let finish!: (result: any) => void
+    vi.mocked(adminAPI.accounts.bulkUpdate).mockClear().mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    vm.pendingUpdatesForConfirm = { priority: 3 }
+    vm.showMixedChannelWarning = true
+    const request = vm.handleMixedChannelConfirm()
+    void vm.handleMixedChannelConfirm()
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], { priority: 3, confirm_mixed_channel_risk: true })
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true, accountIds: [33] })
+    finish({ success: 2, failed: 0 })
+    await request
+    expect(wrapper.emitted('updated')).toBeUndefined()
+    expect(wrapper.emitted('close')).toBeUndefined()
     wrapper.unmount()
   })
 })

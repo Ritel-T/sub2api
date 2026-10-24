@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { create, getConcurrency, update } from '../keys'
 import { apiClient } from '../client'

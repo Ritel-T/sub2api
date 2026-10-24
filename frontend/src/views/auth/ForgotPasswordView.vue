@@ -3,9 +3,9 @@
     <div class="space-y-6">
       <!-- Title -->
       <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+        <AppHeading variant="auth" as="h2" class="text-gray-900 dark:text-white">
           {{ t('auth.forgotPasswordTitle') }}
-        </h2>
+        </AppHeading>
         <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
           {{ t('auth.forgotPasswordHint') }}
         </p>
@@ -19,9 +19,9 @@
               <Icon name="checkCircle" size="lg" class="text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <h3 class="text-lg font-semibold text-green-800 dark:text-green-200">
+              <AppHeading variant="section" as="h3" class="text-green-800 dark:text-green-200">
                 {{ t('auth.resetEmailSent') }}
-              </h3>
+              </AppHeading>
               <p class="mt-2 text-sm text-green-700 dark:text-green-300">
                 {{ t('auth.resetEmailSentHint') }}
               </p>
@@ -133,6 +133,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'

@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <div v-if="loading" class="flex items-center justify-center py-12">
-      <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+      <div role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
     </div>
     <div v-else-if="initError" class="open-section text-center">
       <p class="text-sm text-red-600 dark:text-red-400">{{ initError }}</p>

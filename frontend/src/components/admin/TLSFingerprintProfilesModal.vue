@@ -19,16 +19,16 @@
 
       <!-- Profiles Table -->
       <div v-if="loading" class="flex items-center justify-center py-8">
-        <Icon name="refresh" size="lg" class="animate-spin text-gray-400" />
+        <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="lg" class="animate-spin text-gray-400" />
       </div>
 
       <div v-else-if="profiles.length === 0" class="py-8 text-center">
         <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700">
           <Icon name="shield" size="lg" class="text-gray-400" />
         </div>
-        <h4 class="mb-1 text-sm font-medium text-gray-900 dark:text-white">
+        <AppHeading as="h4" variant="minor" class="mb-1 text-gray-900 dark:text-white">
           {{ t('admin.tlsFingerprintProfiles.noProfiles') }}
-        </h4>
+        </AppHeading>
         <p class="text-sm text-gray-500 dark:text-gray-400">
           {{ t('admin.tlsFingerprintProfiles.createFirstProfile') }}
         </p>
@@ -177,21 +177,7 @@
 
         <!-- GREASE Toggle -->
         <div class="flex items-center gap-3">
-          <button
-            type="button"
-            @click="form.enable_grease = !form.enable_grease"
-            :class="[
-              'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              form.enable_grease ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                form.enable_grease ? 'translate-x-4' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!form.enable_grease" :aria-label="t('admin.tlsFingerprintProfiles.form.enableGrease')" @click="form.enable_grease = !form.enable_grease" size="small" />
           <div>
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t('admin.tlsFingerprintProfiles.form.enableGrease') }}
@@ -315,6 +301,7 @@
     <!-- Delete Confirmation -->
     <ConfirmDialog
       :show="showDeleteDialog"
+      :busy="deleteAction.busy.value"
       :title="t('admin.tlsFingerprintProfiles.deleteProfile')"
       :message="t('admin.tlsFingerprintProfiles.deleteConfirmMessage', { name: deletingProfile?.name })"
       :confirm-text="t('common.delete')"
@@ -327,13 +314,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import Toggle from '@/components/common/Toggle.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import { ref, reactive, watch, onScopeDispose } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { TLSFingerprintProfile } from '@/api/admin/tlsFingerprintProfile'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import Icon from '@/components/icons/Icon.vue'
 
 const props = defineProps<{
@@ -352,10 +342,14 @@ const appStore = useAppStore()
 
 const profiles = ref<TLSFingerprintProfile[]>([])
 const loading = ref(false)
+let listRevision = 0
+onScopeDispose(() => { listRevision++ })
 const submitting = ref(false)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
+const deleteAction = useConfirmedAction(() => ({ active: props.show }))
+watch(() => props.show, () => { showDeleteDialog.value = false; deletingProfile.value = null }, { flush: 'sync' })
 const editingProfile = ref<TLSFingerprintProfile | null>(null)
 const deletingProfile = ref<TLSFingerprintProfile | null>(null)
 const yamlInput = ref('')
@@ -381,20 +375,27 @@ const form = reactive({
 
 // Load profiles when dialog opens
 watch(() => props.show, (newVal) => {
+  listRevision++
+  loading.value = false
   if (newVal) {
     loadProfiles()
   }
 })
 
 const loadProfiles = async () => {
+  if (!props.show) return
+  const current = ++listRevision
   loading.value = true
   try {
-    profiles.value = await adminAPI.tlsFingerprintProfiles.list()
+    const result = await adminAPI.tlsFingerprintProfiles.list()
+    if (current !== listRevision || !props.show) return
+    profiles.value = result
   } catch (error) {
+    if (current !== listRevision || !props.show) return
     appStore.showError(t('admin.tlsFingerprintProfiles.loadFailed'))
     console.error('Error loading TLS fingerprint profiles:', error)
   } finally {
-    loading.value = false
+    if (current === listRevision) loading.value = false
   }
 }
 
@@ -563,7 +564,8 @@ const handleEdit = (profile: TLSFingerprintProfile) => {
 }
 
 const handleDelete = (profile: TLSFingerprintProfile) => {
-  deletingProfile.value = profile
+  if (!props.show || deleteAction.busy.value || showDeleteDialog.value) return
+  deletingProfile.value = { ...profile }
   showDeleteDialog.value = true
 }
 
@@ -609,17 +611,22 @@ const handleSubmit = async () => {
 }
 
 const confirmDelete = async () => {
-  if (!deletingProfile.value) return
-
-  try {
-    await adminAPI.tlsFingerprintProfiles.delete(deletingProfile.value.id)
-    appStore.showSuccess(t('admin.tlsFingerprintProfiles.deleteSuccess'))
-    showDeleteDialog.value = false
-    deletingProfile.value = null
-    loadProfiles()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.tlsFingerprintProfiles.deleteFailed'))
-    console.error('Error deleting TLS fingerprint profile:', error)
-  }
+  const target = deletingProfile.value
+  if (!props.show || !showDeleteDialog.value || !target) return
+  await deleteAction.run(async (isCurrent) => {
+    try {
+      await adminAPI.tlsFingerprintProfiles.delete(target.id)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.tlsFingerprintProfiles.deleteSuccess'))
+      showDeleteDialog.value = false
+      deletingProfile.value = null
+      loadProfiles()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(error.response?.data?.detail || t('admin.tlsFingerprintProfiles.deleteFailed'))
+      console.error('Error deleting profile:', error)
+    }
+  })
 }
+
 </script>

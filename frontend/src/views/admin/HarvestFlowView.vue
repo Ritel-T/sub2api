@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page space-y-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('admin.harvestFlow.title') }}</h1>
+          <AppHeading variant="page" as="h1" class="text-gray-900 dark:text-white">{{ t('admin.harvestFlow.title') }}</AppHeading>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.harvestFlow.description') }}</p>
         </div>
         <div class="flex items-center gap-3">
@@ -121,7 +121,7 @@
 
         <div class="grid grid-cols-1 gap-6 xl:grid-cols-5">
           <div class="open-section p-5 xl:col-span-2">
-            <h2 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.harvestFlow.accounts') }}</h2>
+            <AppHeading variant="section" as="h2" class="mb-4 text-gray-900 dark:text-white">{{ t('admin.harvestFlow.accounts') }}</AppHeading>
             <div v-if="!snapshot.accounts?.length" class="text-sm text-gray-500">{{ t('admin.harvestFlow.noAccounts') }}</div>
             <div v-else class="grid grid-cols-1 gap-3">
               <div
@@ -179,7 +179,7 @@
 
           <div class="open-section min-w-0 p-5 xl:col-span-3">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.harvestFlow.events') }}</h2>
+              <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ t('admin.harvestFlow.events') }}</AppHeading>
               <div class="flex flex-wrap gap-1">
                 <button
                   v-for="filter in eventFilters"
@@ -234,6 +234,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import HarvestCoverageCard from '@/components/admin/HarvestCoverageCard.vue'
 import HarvestAccountCoverage from '@/components/admin/HarvestAccountCoverage.vue'
 import HarvestPolicyPanel from '@/components/admin/HarvestPolicyPanel.vue'

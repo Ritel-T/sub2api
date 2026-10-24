@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { stageScale, timingHealth } from '../requestTimingHealth'
 describe('request timing health interpretation', () => {

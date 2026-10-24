@@ -54,7 +54,7 @@
           {{ t('admin.accounts.pelicanTest.probe.requestFailed') }}：{{ probeError }}
         </div>
         <div v-if="running" class="flex items-center gap-2 rounded-lg border border-primary-200 bg-primary-50/60 px-3 py-3 text-sm text-primary-700 dark:border-primary-800/60 dark:bg-primary-900/20 dark:text-primary-300">
-          <Icon name="refresh" size="sm" class="animate-spin" />
+          <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="sm" class="animate-spin" />
           {{ t('admin.accounts.pelicanTest.probe.running') }}
         </div>
         <div v-else-if="probeResults.length === 0 && !probeError" class="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400">
@@ -124,7 +124,7 @@
       <template v-else>
       <div>
         <label class="input-label mb-1.5 block">{{ t('admin.accounts.pelicanTest.question') }}</label>
-        <Select data-testid="question-select" :model-value="questionKind" :options="questionOptions" :disabled="running" @update:model-value="selectQuestion" />
+        <Select :aria-label="t('admin.accounts.pelicanTest.question')" data-testid="question-select" :model-value="questionKind" :options="questionOptions" :disabled="running" @update:model-value="selectQuestion" />
         <p v-if="questionKind === 'candy'" class="mt-2 text-xs text-gray-500">{{ t('admin.accounts.pelicanTest.candyHint') }}</p>
       </div>
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -146,7 +146,7 @@
           />
           <div>
             <label class="input-label mb-1.5 block">{{ t('admin.accounts.pelicanTest.reasoning') }}</label>
-            <Select v-model="reasoningEffort" :options="reasoningOptions" :disabled="running" />
+            <Select :aria-label="t('admin.accounts.pelicanTest.reasoning')" v-model="reasoningEffort" :options="reasoningOptions" :disabled="running" />
           </div>
           <Input
             v-model="parallelCount"
@@ -188,7 +188,7 @@
             @click="activeTab = 'schedule'">{{ t('admin.accounts.pelicanTest.schedule') }}</button>
         </div>
         <span v-if="running" class="flex items-center gap-1.5 text-xs text-primary-600 dark:text-primary-300">
-          <Icon name="refresh" size="sm" class="animate-spin" />
+          <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="sm" class="animate-spin" />
           {{ t('admin.accounts.pelicanTest.running', { count: runs.length }) }}
         </span>
       </div>

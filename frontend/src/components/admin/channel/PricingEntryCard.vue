@@ -85,7 +85,7 @@
             <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
               {{ t('admin.channels.form.billingMode') }}
             </label>
-            <Select
+            <Select :aria-label="t('admin.channels.form.billingMode')"
               :modelValue="entry.billing_mode"
               @update:modelValue="emit('update', {
                 ...entry,

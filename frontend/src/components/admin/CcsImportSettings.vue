@@ -1,9 +1,9 @@
 <template>
   <section class="space-y-4 border-t border-gray-100 pt-5 dark:border-dark-700" aria-labelledby="ccs-import-settings-title">
     <div>
-      <h3 id="ccs-import-settings-title" class="font-medium text-gray-900 dark:text-white">
+      <AppHeading as="h3" variant="subsection" id="ccs-import-settings-title" class="text-gray-900 dark:text-white">
         {{ localText('CC Switch 一键导入配置', 'CC Switch import profiles') }}
-      </h3>
+      </AppHeading>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
         {{ localText('按 API Key 平台展示以下导入选项，顺序与此列表相同。删除全部配置可关闭导入选项。保存整页设置后生效。', 'Import options are shown for matching API key platforms in this order. Remove all profiles to disable import options. Save the settings page to apply changes.') }}
       </p>
@@ -94,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { localizeInlineText } from '@/i18n/inline'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

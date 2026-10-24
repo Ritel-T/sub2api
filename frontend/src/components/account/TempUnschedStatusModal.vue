@@ -7,7 +7,7 @@
   >
     <div class="space-y-4">
       <div v-if="loading" class="flex items-center justify-center py-8">
-        <svg class="h-6 w-6 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+        <svg role="status" :aria-label="t('common.loading')" class="h-6 w-6 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
           <circle
             class="opacity-25"
             cx="12"

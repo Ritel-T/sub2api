@@ -2,7 +2,7 @@
   <div data-test="squarespace-receipt-claim" class="open-section space-y-4">
     <button v-if="!expanded" data-test="start-receipt-claim" class="btn btn-secondary w-full" @click="expanded = true">{{ t('paymentRetail.claim.start') }}</button>
     <template v-else>
-      <h3 class="font-semibold text-gray-900 dark:text-white">{{ t('paymentRetail.claim.title') }}</h3>
+      <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('paymentRetail.claim.title') }}</AppHeading>
       <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">{{ t('paymentRetail.claim.hint') }}</p>
       <p v-if="accountEmail" class="break-all text-sm font-medium">{{ t('paymentRetail.balanceAccount') }}: {{ accountEmail }}</p>
       <div v-if="checking" class="space-y-2 text-sm text-gray-600 dark:text-gray-300" role="status">
@@ -35,6 +35,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { paymentAPI } from '@/api/payment'

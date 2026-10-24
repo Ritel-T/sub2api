@@ -4,9 +4,9 @@
       v-if="!props.embedded"
       class="min-w-0"
     >
-      <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+      <AppHeading as="h2" variant="section" class="text-gray-900 dark:text-white">
         {{ t('profile.avatar.title') }}
-      </h2>
+      </AppHeading>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
         {{ t('profile.avatar.description') }}
       </p>
@@ -79,6 +79,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { userAPI } from '@/api'

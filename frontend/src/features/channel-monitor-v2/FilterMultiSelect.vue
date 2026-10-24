@@ -79,6 +79,7 @@
 </template>
 
 <script setup lang="ts">
+import { useOwnedPopover } from '@/composables/overlayLifecycle'
 import type { CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
@@ -110,6 +111,7 @@ const containerRef = ref<HTMLElement | null>(null)
 const triggerRef = ref<HTMLButtonElement | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
+useOwnedPopover(isOpen, { root: () => dropdownRef.value, trigger: () => triggerRef.value, close: () => { isOpen.value = false } })
 const instanceId = `filter-select-${Math.random().toString(36).slice(2, 9)}`
 
 const selectionLabel = computed(() => {
@@ -198,10 +200,6 @@ function onDocumentMouseDown(event: MouseEvent) {
   close()
 }
 
-function onDocumentKeyDown(event: KeyboardEvent) {
-  if (event.key === 'Escape') close()
-}
-
 function onWindowChange() {
   if (isOpen.value) positionDropdown()
 }
@@ -211,12 +209,10 @@ watch(isOpen, async (open) => {
     await nextTick()
     positionDropdown()
     document.addEventListener('mousedown', onDocumentMouseDown)
-    document.addEventListener('keydown', onDocumentKeyDown)
     window.addEventListener('resize', onWindowChange)
     window.addEventListener('scroll', onWindowChange, true)
   } else {
     document.removeEventListener('mousedown', onDocumentMouseDown)
-    document.removeEventListener('keydown', onDocumentKeyDown)
     window.removeEventListener('resize', onWindowChange)
     window.removeEventListener('scroll', onWindowChange, true)
   }
@@ -224,7 +220,6 @@ watch(isOpen, async (open) => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onDocumentMouseDown)
-  document.removeEventListener('keydown', onDocumentKeyDown)
   window.removeEventListener('resize', onWindowChange)
   window.removeEventListener('scroll', onWindowChange, true)
 })

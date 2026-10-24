@@ -5,7 +5,7 @@
     <ConsoleTopBar />
     <ConsoleSectionTabs :inert="appStore.mobileOpen ? true : undefined" />
     <main id="console-main" ref="mainRef" class="ritel-main" :inert="appStore.mobileOpen ? true : undefined" tabindex="-1">
-      <ConsolePageTitle />
+      <ConsolePageTitle v-if="showPageTitle" />
       <slot />
     </main>
     <ConsoleBottomNav :inert="appStore.mobileOpen ? true : undefined" />
@@ -27,7 +27,7 @@ import ConsoleSectionTabs from './ConsoleSectionTabs.vue'
 import ConsolePageTitle from './ConsolePageTitle.vue'
 import ConsoleBottomNav from './ConsoleBottomNav.vue'
 
-defineProps<{ wide?: boolean }>()
+withDefaults(defineProps<{ wide?: boolean; showPageTitle?: boolean }>(), { showPageTitle: true })
 
 const route = useRoute()
 const { locale } = useI18n()

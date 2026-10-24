@@ -4,9 +4,9 @@
       v-if="!props.embedded"
       class="min-w-0"
     >
-      <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+      <AppHeading as="h2" variant="section" class="text-gray-900 dark:text-white">
         {{ t('profile.authBindings.title') }}
-      </h2>
+      </AppHeading>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
         {{ t('profile.authBindings.description') }}
       </p>
@@ -44,9 +44,9 @@
 
             <div class="min-w-0 flex-1 space-y-3">
               <div class="flex flex-wrap items-center gap-2">
-                <h3 class="font-medium text-gray-900 dark:text-white">
+                <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
                   {{ item.label }}
-                </h3>
+                </AppHeading>
                 <span
                   :data-testid="`profile-binding-${item.provider}-status`"
                   :class="['badge', item.bound ? 'badge-success' : 'badge-gray']"
@@ -196,6 +196,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'

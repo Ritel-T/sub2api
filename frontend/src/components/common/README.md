@@ -1,3 +1,7 @@
+# Current component contracts
+
+Follow [UI-CONSISTENCY.md](../../../UI-CONSISTENCY.md). The recipes below are historical: use BaseDialog rather than the old Modal name; business lists use continuous loading rather than Pagination. Column settings choose primary versus detail placement.
+
 # Common Components
 
 This directory contains reusable Vue 3 components built with Composition API, TypeScript, and TailwindCSS.

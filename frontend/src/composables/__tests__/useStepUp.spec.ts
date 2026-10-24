@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi } from 'vitest'
 import {
   useStepUp,
@@ -81,7 +82,8 @@ describe('useStepUp.run', () => {
     }
     const promise = stepUp.run(action)
     // The dialog should now be open, awaiting verification (after the first rejection is handled).
-    await vi.waitFor(() => expect(stepUp.visible.value).toBe(true))
+    await Promise.resolve()
+    expect(stepUp.visible.value).toBe(true)
     stepUp.onVerified()
     await expect(promise).resolves.toBe('ok')
     expect(calls).toBe(2)
@@ -92,7 +94,8 @@ describe('useStepUp.run', () => {
     const stepUp = useStepUp()
     const err = { status: 403, code: 'STEP_UP_REQUIRED' }
     const promise = stepUp.run(async () => { throw err })
-    await vi.waitFor(() => expect(stepUp.visible.value).toBe(true))
+    await Promise.resolve()
+    expect(stepUp.visible.value).toBe(true)
     stepUp.onCancel()
     await expect(promise).rejects.toBeInstanceOf(StepUpCancelledError)
     expect(stepUp.visible.value).toBe(false)

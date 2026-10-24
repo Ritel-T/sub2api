@@ -1,5 +1,5 @@
-import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
 
 const { showErrorMock } = vi.hoisted(() => ({
@@ -18,13 +18,15 @@ vi.mock('@/stores', () => ({
   }),
 }))
 
+enableAutoUnmount(afterEach)
+
 describe('TotpLoginModal', () => {
   beforeEach(() => {
     showErrorMock.mockReset()
   })
 
   it('sends verification errors to toast and does not render inline red text', async () => {
-    const wrapper = mount(TotpLoginModal, {
+    const wrapper = mount(TotpLoginModal, { global: { stubs: { teleport: true } },
       props: {
         tempToken: 'temp-token',
         userEmailMasked: 'u***@example.com',

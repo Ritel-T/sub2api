@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <TablePageLayout open>
       <template #actions>
         <div class="workspace-page-header">
-          <h1 class="workspace-page-title">{{ t('admin.proxies.title') }}</h1>
+          <AppHeading variant="page" as="h1" class="workspace-page-title">{{ t('admin.proxies.title') }}</AppHeading>
           <template v-if="activeManagementTab === 'proxies'"><div class="workspace-header-actions">
             <TableToolbarTarget kind="actions" />
             <button
@@ -81,7 +81,7 @@
           </div>
 
           <div class="w-full sm:w-40">
-            <Select
+            <Select :aria-label="t('admin.proxies.protocol')"
               v-model="filters.protocol"
               :options="protocolOptions"
               :placeholder="t('admin.proxies.allProtocols')"
@@ -89,7 +89,7 @@
             />
           </div>
           <div class="w-full sm:w-36">
-            <Select
+            <Select :aria-label="t('admin.proxies.status')"
               v-model="filters.status"
               :options="statusOptions"
               :placeholder="t('admin.proxies.allStatus')"
@@ -457,7 +457,7 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.proxies.protocol') }}</label>
-          <Select v-model="createForm.protocol" :options="protocolSelectOptions" />
+          <Select :aria-label="t('admin.proxies.protocol')" v-model="createForm.protocol" :options="protocolSelectOptions" />
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
@@ -535,7 +535,7 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.proxies.fallbackMode') }}</label>
-          <Select v-model="createForm.fallback_mode" :options="[
+          <Select :aria-label="t('admin.proxies.fallbackMode')" v-model="createForm.fallback_mode" :options="[
             { label: t('admin.proxies.fallbackNone'), value: 'none' },
             { label: t('admin.proxies.fallbackProxy'), value: 'proxy' },
             { label: t('admin.proxies.fallbackDirect'), value: 'direct' },
@@ -544,7 +544,7 @@
         </div>
         <div v-if="createForm.fallback_mode === 'proxy'">
           <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
-          <Select v-model="createForm.backup_proxy_id" :options="backupProxyOptions()" />
+          <Select :aria-label="t('admin.proxies.backupProxy')" v-model="createForm.backup_proxy_id" :options="backupProxyOptions()" />
         </div>
 
       </form>
@@ -698,7 +698,7 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.proxies.protocol') }}</label>
-          <Select v-model="editForm.protocol" :options="protocolSelectOptions" :disabled="!!editingProxy?.mihomo_node_id" />
+          <Select :aria-label="t('admin.proxies.protocol')" v-model="editForm.protocol" :options="protocolSelectOptions" :disabled="!!editingProxy?.mihomo_node_id" />
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
@@ -745,7 +745,7 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.proxies.status') }}</label>
-          <Select v-model="editForm.status" :options="editStatusOptions" />
+          <Select :aria-label="t('admin.proxies.status')" v-model="editForm.status" :options="editStatusOptions" />
         </div>
         <div>
           <label class="input-label">{{ t('admin.proxies.expiresAt') }}</label>
@@ -772,7 +772,7 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.proxies.fallbackMode') }}</label>
-          <Select v-model="editForm.fallback_mode" :options="[
+          <Select :aria-label="t('admin.proxies.fallbackMode')" v-model="editForm.fallback_mode" :options="[
             { label: t('admin.proxies.fallbackNone'), value: 'none' },
             { label: t('admin.proxies.fallbackProxy'), value: 'proxy' },
             { label: t('admin.proxies.fallbackDirect'), value: 'direct' },
@@ -781,7 +781,7 @@
         </div>
         <div v-if="editForm.fallback_mode === 'proxy'">
           <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
-          <Select v-model="editForm.backup_proxy_id" :options="backupProxyOptions(editingProxy?.id)" />
+          <Select :aria-label="t('admin.proxies.backupProxy')" v-model="editForm.backup_proxy_id" :options="backupProxyOptions(editingProxy?.id)" />
         </div>
 
       </form>
@@ -825,7 +825,7 @@
     </BaseDialog>
 
     <!-- Delete Confirmation Dialog -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteAction.busy.value"
       :show="showDeleteDialog"
       :title="t('admin.proxies.deleteProxy')"
       :message="t('admin.proxies.deleteConfirm', { name: deletingProxy?.name })"
@@ -837,7 +837,7 @@
     />
 
     <!-- Batch Delete Confirmation Dialog -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmBatchDeleteAction.busy.value"
       :show="showBatchDeleteDialog"
       :title="t('admin.proxies.batchDelete')"
       :message="t('admin.proxies.batchDeleteConfirm', { count: selectedCount })"
@@ -847,7 +847,7 @@
       @confirm="confirmBatchDelete"
       @cancel="showBatchDeleteDialog = false"
     />
-    <ConfirmDialog
+    <ConfirmDialog :busy="handleExportDataAction.busy.value"
       :show="showExportDataDialog"
       :title="t('admin.proxies.dataExport')"
       :message="t('admin.proxies.dataExportConfirmMessage')"
@@ -878,7 +878,7 @@
       @close="closeAccountsModal"
     >
       <div v-if="accountsLoading" class="flex items-center justify-center py-8 text-sm text-gray-500">
-        <Icon name="refresh" size="md" class="mr-2 animate-spin" />
+        <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="md" class="mr-2 animate-spin" />
         {{ t('common.loading') }}
       </div>
       <div v-else-if="proxyAccounts.length === 0" class="py-6 text-center text-sm text-gray-500">
@@ -918,6 +918,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -935,6 +936,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
@@ -1819,33 +1821,37 @@ const formatExportTimestamp = () => {
   return `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`
 }
 
-const handleExportData = async () => {
-  if (exportingData.value) return
-  exportingData.value = true
-  try {
-    const dataPayload = await adminAPI.proxies.exportData(
-      selectedCount.value > 0
-        ? { ids: Array.from(selectedProxyIds.value) }
-        : {
-            filters: buildProxyQueryFilters()
-          }
-    )
-    const timestamp = formatExportTimestamp()
-    const filename = `sub2api-proxy-${timestamp}.json`
-    const blob = new Blob([JSON.stringify(dataPayload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    link.click()
-    URL.revokeObjectURL(url)
-    appStore.showSuccess(t('admin.proxies.dataExported'))
-  } catch (error: any) {
-    appStore.showError(error?.message || t('admin.proxies.dataExportFailed'))
-  } finally {
-    exportingData.value = false
-    showExportDataDialog.value = false
-  }
+function handleExportData() {
+  return handleExportDataAction.run(async (isCurrent) => {
+    if (exportingData.value) return
+    exportingData.value = true
+    try {
+      const dataPayload = await adminAPI.proxies.exportData(
+        selectedCount.value > 0
+          ? { ids: Array.from(selectedProxyIds.value) }
+          : {
+              filters: buildProxyQueryFilters()
+            }
+      )
+      if (!isCurrent()) return
+      const timestamp = formatExportTimestamp()
+      const filename = `sub2api-proxy-${timestamp}.json`
+      const blob = new Blob([JSON.stringify(dataPayload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(url)
+      appStore.showSuccess(t('admin.proxies.dataExported'))
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(error?.message || t('admin.proxies.dataExportFailed'))
+    } finally {
+      exportingData.value = false
+      if (isCurrent()) showExportDataDialog.value = false
+    }
+  })
 }
 
 const handleDelete = (proxy: Proxy) => {
@@ -1864,47 +1870,58 @@ const openBatchDelete = () => {
   showBatchDeleteDialog.value = true
 }
 
-const confirmDelete = async () => {
-  if (!deletingProxy.value) return
+function confirmDelete() {
+  return confirmDeleteAction.run(async (isCurrent) => {
+    const targetId = deletingProxy.value?.id
+    if (targetId == null) return
 
-  try {
-    await adminAPI.proxies.delete(deletingProxy.value.id)
-    appStore.showSuccess(t('admin.proxies.proxyDeleted'))
-    showDeleteDialog.value = false
-    removeSelectedProxies([deletingProxy.value.id])
-    deletingProxy.value = null
-    loadProxies()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.proxies.failedToDelete'))
-    console.error('Error deleting proxy:', error)
-  }
+    if (!deletingProxy.value) return
+
+    try {
+      await adminAPI.proxies.delete(targetId)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.proxies.proxyDeleted'))
+      showDeleteDialog.value = false
+      removeSelectedProxies([targetId])
+      deletingProxy.value = null
+      loadProxies()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(error.response?.data?.detail || t('admin.proxies.failedToDelete'))
+      console.error('Error deleting proxy:', error)
+    }
+  })
 }
 
-const confirmBatchDelete = async () => {
-  const ids = Array.from(selectedProxyIds.value)
-  if (ids.length === 0) {
-    showBatchDeleteDialog.value = false
-    return
-  }
-
-  try {
-    const result = await adminAPI.proxies.batchDelete(ids)
-    const deleted = result.deleted_ids?.length || 0
-    const skipped = result.skipped?.length || 0
-
-    if (deleted > 0) {
-      appStore.showSuccess(t('admin.proxies.batchDeleteDone', { deleted, skipped }))
-    } else if (skipped > 0) {
-      appStore.showInfo(t('admin.proxies.batchDeleteSkipped', { skipped }))
+function confirmBatchDelete() {
+  return confirmBatchDeleteAction.run(async (isCurrent) => {
+    const ids = Array.from(selectedProxyIds.value)
+    if (ids.length === 0) {
+      showBatchDeleteDialog.value = false
+      return
     }
 
-    clearSelectedProxies()
-    showBatchDeleteDialog.value = false
-    loadProxies()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.proxies.batchDeleteFailed'))
-    console.error('Error batch deleting proxies:', error)
-  }
+    try {
+      const result = await adminAPI.proxies.batchDelete(ids)
+      if (!isCurrent()) return
+      const deleted = result.deleted_ids?.length || 0
+      const skipped = result.skipped?.length || 0
+
+      if (deleted > 0) {
+        appStore.showSuccess(t('admin.proxies.batchDeleteDone', { deleted, skipped }))
+      } else if (skipped > 0) {
+        appStore.showInfo(t('admin.proxies.batchDeleteSkipped', { skipped }))
+      }
+
+      clearSelectedProxies()
+      showBatchDeleteDialog.value = false
+      loadProxies()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(error.response?.data?.detail || t('admin.proxies.batchDeleteFailed'))
+      console.error('Error batch deleting proxies:', error)
+    }
+  })
 }
 
 const openAccountsModal = async (proxy: Proxy) => {
@@ -1995,4 +2012,12 @@ onUnmounted(() => {
   clearTimeout(searchTimeout)
   document.removeEventListener('click', closeCopyMenu)
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const confirmDeleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: deletingProxy.value?.id }))
+watch(() => ({ active: showDeleteDialog.value, identity: JSON.stringify(deletingProxy.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeleteDialog.value = false } }, { flush: 'sync' })
+const confirmBatchDeleteAction = useConfirmedAction(() => ({ active: showBatchDeleteDialog.value, identity: Array.from(selectedProxyIds.value) }))
+watch(() => ({ active: showBatchDeleteDialog.value, identity: JSON.stringify(Array.from(selectedProxyIds.value)) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showBatchDeleteDialog.value = false } }, { flush: 'sync' })
+const handleExportDataAction = useConfirmedAction(() => ({ active: showExportDataDialog.value, identity: [Array.from(selectedProxyIds.value), buildProxyQueryFilters()] }))
+watch(() => ({ active: showExportDataDialog.value, identity: JSON.stringify([Array.from(selectedProxyIds.value), buildProxyQueryFilters()]) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showExportDataDialog.value = false } }, { flush: 'sync' })
 </script>

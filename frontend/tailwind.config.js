@@ -30,10 +30,27 @@ export default {
         dark: darkNeutral
       },
       fontFamily: {
-        sans: ['IBM Plex Sans', 'Noto Sans CJK HK', 'system-ui', 'sans-serif'],
-        serif: ['Cormorant Garamond', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
-        display: ['Cinzel', 'I.MingCP', 'Chiron Sung HK', 'Georgia', 'serif'],
-        mono: ['IBM Plex Mono', 'Noto Sans CJK HK', 'ui-monospace', 'monospace']
+        sans: ['var(--ritel-ui)'],
+        serif: ['var(--ritel-display)'],
+        display: ['var(--ritel-display)'],
+        heading: ['var(--ritel-heading)'],
+        mono: ['var(--ritel-mono)']
+      },
+      fontSize: {
+        '2xs': ['var(--ritel-text-2xs)', { lineHeight: 'var(--ritel-leading-body)' }],
+        'xs': ['var(--ritel-text-xs)', { lineHeight: 'var(--ritel-leading-body)' }],
+        'sm': ['var(--ritel-text-sm)', { lineHeight: 'var(--ritel-leading-body)' }],
+        'base': ['var(--ritel-text-base)', { lineHeight: 'var(--ritel-leading-body)' }],
+        'lg': ['var(--ritel-text-lg)', { lineHeight: 'var(--ritel-leading-body)' }],
+        'xl': ['var(--ritel-text-xl)', { lineHeight: 'var(--ritel-leading-body)' }],
+        '2xl': ['var(--ritel-text-2xl)', { lineHeight: 'var(--ritel-leading-body)' }],
+        '3xl': ['var(--ritel-text-3xl)', { lineHeight: 'var(--ritel-leading-body)' }],
+        '4xl': ['var(--ritel-text-4xl)', { lineHeight: 'var(--ritel-leading-body)' }],
+        '5xl': ['var(--ritel-text-5xl)', { lineHeight: 'var(--ritel-leading-body)' }],
+        '6xl': ['var(--ritel-text-6xl)', { lineHeight: 'var(--ritel-leading-body)' }],
+        '7xl': ['var(--ritel-text-7xl)', { lineHeight: 'var(--ritel-leading-body)' }],
+        '8xl': ['var(--ritel-text-8xl)', { lineHeight: 'var(--ritel-leading-body)' }],
+        '9xl': ['var(--ritel-text-9xl)', { lineHeight: 'var(--ritel-leading-body)' }],
       },
       boxShadow: {
         glass: '0 8px 32px rgba(0, 0, 0, 0.08)',

@@ -1,11 +1,11 @@
 <template>
   <div>
     <!-- Loading state -->
-    <div v-if="props.loading && !props.stats" class="space-y-0.5">
+    <LoadingRegion :announce="false" v-if="props.loading && !props.stats" class="space-y-0.5">
       <div class="h-3 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
       <div class="h-3 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
       <div class="h-3 w-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-    </div>
+    </LoadingRegion>
 
     <!-- Error state -->
     <div v-else-if="props.error && !props.stats" class="text-xs text-red-500">
@@ -62,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import { useI18n } from 'vue-i18n'
 import { formatCurrency } from '@/utils/format'
 import type { WindowStats } from '@/types'

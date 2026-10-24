@@ -1,5 +1,5 @@
 <template>
-  <AppLayout wide>
+  <AppLayout :show-page-title="false" wide>
     <TablePageLayout open>
       <template #filters>
         <div class="keys-filters flex flex-col gap-3">
@@ -72,7 +72,7 @@
 
       <template #actions>
         <div class="keys-page-heading">
-          <h1>{{ t('keys.title') }}</h1>
+          <AppHeading variant="page" as="h1">{{ t('keys.title') }}</AppHeading>
           <div class="keys-primary-actions">
             <button @click="openConnectionPicker" class="btn btn-secondary" data-testid="connect-key-entry">{{ kc.connect }}</button>
             <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
@@ -250,7 +250,7 @@
           </template>
 
           <template #cell-status="{ row }">
-            <button v-if="row.status === 'active' || row.status === 'inactive'" class="keys-status-switch" role="switch" :aria-checked="row.status === 'active'" :aria-label="`${t('common.status')}: ${row.name}`" :title="t('keys.status.' + row.status)" :disabled="busyKeyIds.has(row.id) || loading" @click.stop="toggleKeyStatus(row)"><span class="keys-switch-track"><span /></span></button>
+            <Toggle :model-value="row.status === 'active'" v-if="row.status === 'active' || row.status === 'inactive'" :aria-label="`${t('common.status')}: ${row.name}`" :title="t('keys.status.' + row.status)" :disabled="busyKeyIds.has(row.id) || loading" @click.stop="toggleKeyStatus(row)" />
             <button v-else class="keys-blocked-status" :class="row.status === 'expired' ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'" :disabled="busyKeyIds.has(row.id)" :title="t('common.edit')" @click.stop="editKey(row)">{{ t('keys.status.' + row.status) }}</button>
           </template>
 
@@ -278,7 +278,7 @@
 
           <template #details-extra="{ row }">
             <div class="keys-extra-details">
-              <section><h3>{{ t('keys.group') }}</h3><GroupBadge
+              <section><AppHeading variant="subsection" as="h3">{{ t('keys.group') }}</AppHeading><GroupBadge
                   v-if="row.group"
                   :name="row.group.name"
                   :platform="row.group.platform"
@@ -290,7 +290,7 @@
                   :peak-end="row.group.peak_end"
                   :peak-rate-multiplier="row.group.peak_rate_multiplier"
                 /><div v-if="(row.group_ids?.length ?? 0) > 1" class="keys-extra-groups">{{ (row.group_ids ?? []).map((id: number) => groups.find(group => group.id === id)?.name || '#' + id).join(' · ') }}</div></section>
-              <section><h3>{{ t('keys.usage') }}</h3>
+              <section><AppHeading variant="subsection" as="h3">{{ t('keys.usage') }}</AppHeading>
             <div class="text-sm">
               <div class="flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
@@ -305,7 +305,7 @@
                 </span>
               </div>
               </div></section>
-              <section><h3>{{ t('keys.concurrencyAndWaiting') }}</h3><div data-testid="detail-concurrency">
+              <section><AppHeading variant="subsection" as="h3">{{ t('keys.concurrencyAndWaiting') }}</AppHeading><div data-testid="detail-concurrency">
             <span
               :title="t('keys.concurrencyCount')"
               :class="[
@@ -523,24 +523,7 @@
         <div v-if="!showEditModal" class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.customKeyLabel') }}</label>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="formData.use_custom_key"
-              :aria-label="t('keys.customKeyLabel')"
-              @click="formData.use_custom_key = !formData.use_custom_key"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.use_custom_key ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.use_custom_key ? 'translate-x-4' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="formData.use_custom_key" :aria-label="t('keys.customKeyLabel')" @click="formData.use_custom_key = !formData.use_custom_key" size="small" />
           </div>
           <div v-if="formData.use_custom_key">
             <input
@@ -557,7 +540,7 @@
 
         <div v-if="showEditModal">
           <label class="input-label">{{ t('keys.statusLabel') }}</label>
-          <Select
+          <Select :aria-label="t('keys.statusLabel')"
             v-model="formData.status"
             :options="statusOptions"
             :placeholder="t('keys.selectStatus')"
@@ -568,24 +551,7 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.ipRestriction') }}</label>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="formData.enable_ip_restriction"
-              :aria-label="t('keys.ipRestriction')"
-              @click="formData.enable_ip_restriction = !formData.enable_ip_restriction"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_ip_restriction ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_ip_restriction ? 'translate-x-4' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="formData.enable_ip_restriction" :aria-label="t('keys.ipRestriction')" @click="formData.enable_ip_restriction = !formData.enable_ip_restriction" size="small" />
           </div>
 
           <div v-if="formData.enable_ip_restriction" class="space-y-4 pt-2">
@@ -711,24 +677,7 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.rateLimitSection') }}</label>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="formData.enable_rate_limit"
-              :aria-label="t('keys.rateLimitColumn')"
-              @click="formData.enable_rate_limit = !formData.enable_rate_limit"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_rate_limit ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_rate_limit ? 'translate-x-4' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="formData.enable_rate_limit" :aria-label="t('keys.rateLimitColumn')" @click="formData.enable_rate_limit = !formData.enable_rate_limit" size="small" />
           </div>
 
           <div v-if="formData.enable_rate_limit" class="space-y-4 pt-2">
@@ -888,24 +837,7 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.expiration') }}</label>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="formData.enable_expiration"
-              :aria-label="t('keys.expiresAt')"
-              @click="formData.enable_expiration = !formData.enable_expiration"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_expiration ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_expiration ? 'translate-x-4' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle :model-value="formData.enable_expiration" :aria-label="t('keys.expiresAt')" @click="formData.enable_expiration = !formData.enable_expiration" size="small" />
           </div>
 
           <div v-if="formData.enable_expiration" class="space-y-4 pt-2">
@@ -1015,7 +947,7 @@
     />
 
     <!-- Delete Confirmation Dialog -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="handleDeleteAction.busy.value"
       :show="showDeleteDialog"
       :title="t('keys.deleteKey')"
       :message="t('keys.deleteConfirmMessage', { name: selectedKey?.name })"
@@ -1027,7 +959,7 @@
     />
 
     <!-- Reset Quota Confirmation Dialog -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="resetQuotaUsedAction.busy.value"
       :show="showResetQuotaDialog"
       :title="t('keys.resetQuotaTitle')"
       :message="t('keys.resetQuotaConfirmMessage', { name: selectedKey?.name, used: selectedKey?.quota_used?.toFixed(4) })"
@@ -1039,7 +971,7 @@
     />
 
     <!-- Reset Rate Limit Confirmation Dialog -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="resetRateLimitUsageAction.busy.value"
       :show="showResetRateLimitDialog"
       :title="t('keys.resetRateLimitTitle')"
       :message="t('keys.resetRateLimitConfirmMessage', { name: selectedKey?.name })"
@@ -1054,7 +986,7 @@
     <BaseDialog :show="showConnectionDialog" :title="kc.connect" width="normal" @close="closeConnection">
       <div v-if="connectionKey" class="space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 dark:border-dark-700">
-          <div><h3 class="font-medium">{{ connectionKey.name }}</h3><code>{{ maskApiKey(connectionKey.key) }}</code></div>
+          <div><AppHeading variant="subsection" as="h3">{{ connectionKey.name }}</AppHeading><code>{{ maskApiKey(connectionKey.key) }}</code></div>
           <button class="btn btn-secondary" @click="copyToClipboard(connectionKey.key, connectionKey.id)">{{ copiedKeyId === connectionKey.id ? t('keys.copied') : kc.copyKey }}</button>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
@@ -1066,7 +998,7 @@
       </div>
       <div v-else class="space-y-4">
         <label class="input-label" for="connection-key-search">{{ kc.chooseKey }}</label>
-        <form class="flex gap-2" @submit.prevent="loadConnectionKeys(1)">
+        <form class="workspace-filter-controls flex gap-2" @submit.prevent="loadConnectionKeys()">
           <input id="connection-key-search" v-model="connectionSearch" class="input" :placeholder="t('keys.searchPlaceholder')" />
           <button type="submit" class="btn btn-secondary">{{ kc.search }}</button>
         </form>
@@ -1077,7 +1009,7 @@
         </ul>
         <p v-if="!connectionLoading && !connectionError && !connectionKeys.length">{{ t('keys.noKeysYet') }}</p>
         <div class="flex flex-wrap justify-between gap-3">
-          <div class="flex gap-2" v-if="connectionPages > 1"><button class="btn btn-secondary" :disabled="connectionPage <= 1 || connectionLoading" @click="loadConnectionKeys(connectionPage - 1)">{{ kc.previous }}</button><span class="self-center">{{ connectionPage }} / {{ connectionPages }}</span><button class="btn btn-secondary" :disabled="connectionPage >= connectionPages || connectionLoading" @click="loadConnectionKeys(connectionPage + 1)">{{ kc.next }}</button></div>
+          <InfiniteListSentinel :loading="connectionLoading" :error="connectionError" :has-more="connectionPickerActive && connectionHasMore" :progress="connectionKeys.length" @load-more="connectionList.loadMore" @retry="retryConnectionKeys" />
           <button class="btn btn-primary" @click="createFromConnection">{{ t('keys.createKey') }}</button>
         </div>
       </div>
@@ -1208,6 +1140,8 @@
 </template>
 
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 	import { ref, computed, watch, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -1233,7 +1167,8 @@ import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
 	import KeyWorkspaceTable from '@/components/keys/KeyWorkspaceTable.vue'
 	import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
-	import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+	import { useConfirmedAction } from '@/composables/useConfirmation'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 	import EmptyState from '@/components/common/EmptyState.vue'
 	import Select from '@/components/common/Select.vue'
 	import SearchInput from '@/components/common/SearchInput.vue'
@@ -1457,13 +1392,21 @@ const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showConnectionDialog = ref(false)
 const connectionKey = ref<ApiKey | null>(null)
-const connectionKeys = ref<ApiKey[]>([])
 const connectionSearch = ref('')
-const connectionPage = ref(1)
-const connectionPages = ref(1)
-const connectionLoading = ref(false)
-const connectionError = ref('')
-let connectionRequest = 0
+const connectionQuery = ref('')
+const connectionPickerActive = ref(false)
+const connectionRouteLoading = ref(false)
+const connectionRouteError = ref('')
+const connectionList = useInfiniteList<ApiKey>({
+  pageSize: 10,
+  keyOf: key => key.id,
+  fetchPage: (page, signal) => keysAPI.list(page, 10, {
+    search: connectionQuery.value || undefined, sort_by: 'created_at', sort_order: 'desc'
+  }, { signal }),
+})
+const { items: connectionKeys, hasMore: connectionHasMore } = connectionList
+const connectionLoading = computed(() => connectionRouteLoading.value || connectionList.loading.value || connectionList.loadingMore.value)
+const connectionError = computed(() => connectionRouteError.value || (connectionList.error.value ? (connectionList.error.value as Error)?.message || t('keys.failedToLoad') : ''))
 const showUseKeyModal = ref(false)
 const showCodexQuickConfigModal = ref(false)
 const showCcsClientSelect = ref(false)
@@ -1758,37 +1701,32 @@ const clearConnectionQuery = () => {
   delete query.key_id
   void router.replace({ path: route.path, query })
 }
-const loadConnectionKeys = async (page = 1) => {
-  const request = ++connectionRequest
-  connectionLoading.value = true
-  connectionError.value = ''
-  try {
-    const result = await keysAPI.list(page, 10, { search: connectionSearch.value.trim() || undefined, sort_by: 'created_at', sort_order: 'desc' })
-    if (request !== connectionRequest || disposed) return
-    connectionKeys.value = result.items
-    connectionPage.value = result.page
-    connectionPages.value = result.pages
-  } catch (error: any) {
-    if (request === connectionRequest) connectionError.value = error?.message || t('keys.failedToLoad')
-  } finally {
-    if (request === connectionRequest) connectionLoading.value = false
-  }
+const loadConnectionKeys = () => {
+  connectionQuery.value = connectionSearch.value.trim()
+  connectionPickerActive.value = true
+  connectionRouteError.value = ''
+  return connectionList.reset()
 }
+const retryConnectionKeys = () => connectionPickerActive.value ? connectionList.retry() : applyConnectionRoute()
 const openConnectionPicker = () => {
+  ++connectionRouteRequest
+  connectionRouteLoading.value = false
   connectionKey.value = null
   showConnectionDialog.value = true
-  void loadConnectionKeys(1)
+  void loadConnectionKeys()
 }
 const openConnection = (key: ApiKey) => {
+  connectionPickerActive.value = false
+  connectionList.cancel()
   connectionKey.value = key
   showConnectionDialog.value = true
 }
 const closeConnection = () => {
   showConnectionDialog.value = false
   connectionKey.value = null
-  ++connectionRequest
+  connectionList.cancel()
   ++connectionRouteRequest
-  connectionLoading.value = false
+  connectionRouteLoading.value = false
   clearConnectionQuery()
 }
 const createFromConnection = () => {
@@ -1823,17 +1761,18 @@ const applyConnectionRoute = async () => {
   }
   // Resolve the requested object through the authenticated API, regardless of list filters/page.
   connectionKey.value = null
-  connectionKeys.value = []
-  connectionError.value = ''
-  connectionLoading.value = true
+  connectionPickerActive.value = false
+  connectionList.clear()
+  connectionRouteError.value = ''
+  connectionRouteLoading.value = true
   showConnectionDialog.value = true
   try {
     const key = await keysAPI.getById(id)
     if (request === connectionRouteRequest && !disposed) openConnection(key)
   } catch (error: any) {
-    if (request === connectionRouteRequest) connectionError.value = error?.message || t('keys.failedToLoad')
+    if (request === connectionRouteRequest) connectionRouteError.value = error?.message || t('keys.failedToLoad')
   } finally {
-    if (request === connectionRouteRequest) connectionLoading.value = false
+    if (request === connectionRouteRequest) connectionRouteLoading.value = false
   }
 }
 watch(() => [route?.query?.create, route?.query?.connect, route?.query?.key, route?.query?.key_id], () => { void applyConnectionRoute() })
@@ -2103,19 +2042,26 @@ const handleSubmit = async () => {
  * 优化：错误处理改进，优先显示后端返回的具体错误消息（如权限不足等），
  * 若后端未返回消息则显示默认的国际化文本
  */
-const handleDelete = async () => {
-  if (!selectedKey.value) return
+function handleDelete() {
+  return handleDeleteAction.run(async (isCurrent) => {
+    const targetId = selectedKey.value?.id
+    if (targetId == null) return
 
-  try {
-    await keysAPI.delete(selectedKey.value.id)
-    appStore.showSuccess(t('keys.keyDeletedSuccess'))
-    showDeleteDialog.value = false
-    loadApiKeys()
-  } catch (error: any) {
-    // 优先使用后端返回的错误消息，提供更具体的错误信息给用户
-    const errorMsg = error?.message || t('keys.failedToDelete')
-    appStore.showError(errorMsg)
-  }
+    if (!selectedKey.value) return
+
+    try {
+      await keysAPI.delete(targetId)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('keys.keyDeletedSuccess'))
+      showDeleteDialog.value = false
+      loadApiKeys()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      // 优先使用后端返回的错误消息，提供更具体的错误信息给用户
+      const errorMsg = error?.message || t('keys.failedToDelete')
+      appStore.showError(errorMsg)
+    }
+  })
 }
 
 const closeModals = () => {
@@ -2159,24 +2105,28 @@ const setExpirationDays = (days: number) => {
 }
 
 // Reset quota used for an API key
-const resetQuotaUsed = async () => {
-  const key = selectedKey.value
-  if (!key) return
-  showResetQuotaDialog.value = false
-  try {
-    const updatedKey = await keysAPI.update(key.id, { reset_quota: true })
-    appStore.showSuccess(t('keys.quotaResetSuccess'))
-    key.quota_used = updatedKey.quota_used
-    if (key.status !== updatedKey.status) {
-      key.status = updatedKey.status
-      if (selectedKey.value?.id === key.id) {
-        formData.value.status = updatedKey.status === 'active' ? 'active' : 'inactive'
+function resetQuotaUsed() {
+  return resetQuotaUsedAction.run(async (isCurrent) => {
+    const key = selectedKey.value
+    if (!key) return
+    try {
+      const updatedKey = await keysAPI.update(key.id, { reset_quota: true })
+      if (!isCurrent()) return
+      showResetQuotaDialog.value = false
+      appStore.showSuccess(t('keys.quotaResetSuccess'))
+      key.quota_used = updatedKey.quota_used
+      if (key.status !== updatedKey.status) {
+        key.status = updatedKey.status
+        if (selectedKey.value?.id === key.id) {
+          formData.value.status = updatedKey.status === 'active' ? 'active' : 'inactive'
+        }
       }
+    } catch (error: any) {
+      if (!isCurrent()) return
+      const errorMsg = error.response?.data?.detail || t('keys.failedToResetQuota')
+      appStore.showError(errorMsg)
     }
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || t('keys.failedToResetQuota')
-    appStore.showError(errorMsg)
-  }
+  })
 }
 
 // Show reset rate limit confirmation dialog (from edit modal)
@@ -2191,23 +2141,31 @@ const confirmResetRateLimitFromTable = (row: ApiKey) => {
 }
 
 // Reset rate limit usage for an API key
-const resetRateLimitUsage = async () => {
-  if (!selectedKey.value) return
-  showResetRateLimitDialog.value = false
-  try {
-    await keysAPI.update(selectedKey.value.id, { reset_rate_limit_usage: true })
-    appStore.showSuccess(t('keys.rateLimitResetSuccess'))
-    // Refresh key data
-    await loadApiKeys()
-    // Update the editing key with fresh data
-    const refreshedKey = apiKeys.value.find(k => k.id === selectedKey.value!.id)
-    if (refreshedKey) {
-      selectedKey.value = refreshedKey
+function resetRateLimitUsage() {
+  return resetRateLimitUsageAction.run(async (isCurrent) => {
+    const targetId = selectedKey.value?.id
+    if (targetId == null) return
+
+    if (!selectedKey.value) return
+    try {
+      await keysAPI.update(targetId, { reset_rate_limit_usage: true })
+      if (!isCurrent()) return
+      appStore.showSuccess(t('keys.rateLimitResetSuccess'))
+      // Refresh key data
+      await loadApiKeys()
+      if (!isCurrent()) return
+      // Update the editing key with fresh data
+      const refreshedKey = apiKeys.value.find(k => k.id === targetId)
+      if (refreshedKey) {
+        selectedKey.value = refreshedKey
+      }
+      showResetRateLimitDialog.value = false
+    } catch (error: any) {
+      if (!isCurrent()) return
+      const errorMsg = error.response?.data?.detail || t('keys.failedToResetRateLimit')
+      appStore.showError(errorMsg)
     }
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || t('keys.failedToResetRateLimit')
-    appStore.showError(errorMsg)
-  }
+  })
 }
 
 const importToCcswitch = (row: ApiKey) => {
@@ -2290,23 +2248,30 @@ onMounted(() => {
 onUnmounted(() => {
   disposed = true
   ++connectionRouteRequest
-  ++connectionRequest
+  connectionList.cancel()
   stopConcurrencyRefresh()
   document.removeEventListener('visibilitychange', handleConcurrencyVisibility)
   document.removeEventListener('click', closeGroupSelector)
   if (resetTimer) clearInterval(resetTimer)
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const handleDeleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: selectedKey.value?.id }))
+watch(() => ({ active: showDeleteDialog.value, identity: JSON.stringify(selectedKey.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeleteDialog.value = false } }, { flush: 'sync' })
+const resetQuotaUsedAction = useConfirmedAction(() => ({ active: showResetQuotaDialog.value, identity: selectedKey.value?.id }))
+watch(() => ({ active: showResetQuotaDialog.value, identity: JSON.stringify(selectedKey.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showResetQuotaDialog.value = false } }, { flush: 'sync' })
+const resetRateLimitUsageAction = useConfirmedAction(() => ({ active: showResetRateLimitDialog.value, identity: selectedKey.value?.id }))
+watch(() => ({ active: showResetRateLimitDialog.value, identity: JSON.stringify(selectedKey.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showResetRateLimitDialog.value = false } }, { flush: 'sync' })
 </script>
 
 <style scoped>
 .keys-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.keys-page-heading h1 { margin: 0; font: 600 36px/1.15 var(--ritel-display); letter-spacing: -.01em; }
+.keys-page-heading h1 { margin: 0; }
 .keys-primary-actions { display: flex; align-items: center; gap: 12px; }
 .keys-table-tools { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .keys-table-tools :deep(.btn){border-color:transparent;background:transparent;box-shadow:none}
 @media (max-width: 767px) {
   .keys-page-heading { flex-direction: column; align-items: stretch; gap: 20px; }
-  .keys-page-heading h1 { font-size: 28px; }
   .keys-primary-actions { flex-wrap: wrap; }
   .keys-primary-actions .btn { flex: 1; }
   .keys-row-actions { flex-wrap: wrap; }
@@ -2331,7 +2296,7 @@ onUnmounted(() => {
 .keys-concurrency-main{display:flex;align-items:center;gap:10px;max-width:100%;white-space:nowrap}.keys-waiting{display:inline-flex;align-items:center;gap:4px;color:var(--ritel-muted)}.keys-concurrency-notice{font-size:12px;overflow:hidden;text-overflow:ellipsis;color:var(--ritel-muted)}
 .keys-row-actions{display:flex;align-items:center;gap:16px}.keys-row-actions>button{min-height:44px;border:0;background:none;padding:0;font:inherit;cursor:pointer}.keys-row-actions>button:last-child{color:var(--ritel-muted)}
 .keys-status-switch{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer}.keys-switch-track{display:flex;align-items:center;width:32px;height:18px;border:1px solid var(--ritel-control-border);border-radius:999px;background:var(--ritel-surface-raised);padding:2px;box-sizing:border-box}.keys-switch-track>span{width:12px;height:12px;border-radius:50%;background:var(--ritel-muted);transition:transform .15s ease-out}.keys-status-switch[aria-checked=true] .keys-switch-track{background:#047857;border-color:#047857}.keys-status-switch[aria-checked=true] .keys-switch-track>span{transform:translateX(12px);background:#fffefa}.keys-blocked-status{min-height:44px;border:0;background:none;padding:0;font:inherit;font-size:12px;text-align:left;cursor:pointer}
-.keys-extra-details{display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;padding-top:24px}.keys-extra-details h3{font-size:12px;font-weight:500;color:var(--ritel-muted);margin-bottom:10px}.keys-extra-groups{font-size:12px;color:var(--ritel-muted);margin-top:8px}.keys-detail-actions{display:flex;gap:12px;margin-top:24px}
+.keys-extra-details{display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;padding-top:24px}.keys-extra-details h3{color:var(--ritel-muted);margin-bottom:10px}.keys-extra-groups{font-size:12px;color:var(--ritel-muted);margin-top:8px}.keys-detail-actions{display:flex;gap:12px;margin-top:24px}
 .keys-key-copy:disabled,.keys-group-button:disabled,.keys-row-actions>button:disabled,.keys-status-switch:disabled{opacity:.5;cursor:wait}
 @media(max-width:767px){.keys-extra-details{grid-template-columns:1fr;gap:24px}.keys-group-button{white-space:normal}.keys-row-actions{gap:24px}}
 @media(prefers-reduced-motion:reduce){.keys-switch-track>span{transition:none}}

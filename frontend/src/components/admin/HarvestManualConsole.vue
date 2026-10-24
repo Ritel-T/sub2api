@@ -2,7 +2,7 @@
   <section :class="embedded ? 'border-t border-gray-100 pt-5 dark:border-dark-700' : 'open-section overflow-visible'" aria-labelledby="harvest-console-title">
     <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 id="harvest-console-title" class="text-sm font-semibold text-gray-900 dark:text-white">{{ t(`${prefix}.title`) }}</h2>
+        <AppHeading as="h2" variant="section" id="harvest-console-title" class="text-gray-900 dark:text-white">{{ t(`${prefix}.title`) }}</AppHeading>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t(`${prefix}.description`) }}</p>
       </div>
     </div>
@@ -145,6 +145,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { streamManualCodexHarvest, type CodexHarvestFlowAccount, type ManualHarvestProgress } from '@/api/admin/accounts'

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { parse } from 'vue/compiler-sfc'
 import source from '@/views/admin/SettingsView.vue?raw'

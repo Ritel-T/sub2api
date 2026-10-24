@@ -119,7 +119,7 @@
             <div class="flex flex-col gap-3 md:flex-row md:items-end">
               <div class="w-full md:w-52">
                 <label class="input-label">{{ t('admin.announcements.form.conditionType') }}</label>
-                <Select
+                <Select :aria-label="t('admin.announcements.form.conditionType')"
                   :model-value="cond.type"
                   :options="conditionTypeOptions"
                   @update:model-value="(v) => setConditionType(groupIndex, condIndex, v as any)"
@@ -145,7 +145,7 @@
               <div v-else class="flex flex-1 flex-col gap-3 sm:flex-row">
                 <div class="w-full sm:w-44">
                   <label class="input-label">{{ t('admin.announcements.form.operator') }}</label>
-                  <Select
+                  <Select :aria-label="t('admin.announcements.form.operator')"
                     :model-value="cond.operator"
                     :options="balanceOperatorOptions"
                     @update:model-value="(v) => setOperator(groupIndex, condIndex, v as any)"

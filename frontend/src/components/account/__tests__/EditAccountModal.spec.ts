@@ -2838,3 +2838,54 @@ describe('EditAccountModal temp-unschedulable rule scope', () => {
     wrapper.unmount()
   })
 })
+
+
+describe('mixed-channel confirmation ownership', () => {
+  it('locks the callback and invalidates a parent close before late completion', async () => {
+    const wrapper = mountModal()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    let finish!: () => void
+    const callback = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    vm.openMixedChannelDialog({ message: 'risk', onConfirm: callback })
+    const request = vm.handleMixedChannelConfirm()
+    void vm.handleMixedChannelConfirm()
+    expect(callback).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    finish()
+    await request
+    expect(vm.showMixedChannelWarning).toBe(false)
+    expect(wrapper.emitted('created')).toBeUndefined()
+    expect(wrapper.emitted('updated')).toBeUndefined()
+  })
+  it('rejects a stale callback after its selected group identity changes', async () => {
+    const wrapper = mountModal()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const callback = vi.fn(async () => {})
+    vm.openMixedChannelDialog({ message: 'risk', onConfirm: callback })
+    vm.form.group_ids = [9123]
+    await flushPromises()
+    await vm.handleMixedChannelConfirm()
+    expect(callback).not.toHaveBeenCalled()
+  })
+})
+
+
+it('discards late edit API completion from a closed editor session', async () => {
+  const wrapper = mountModal()
+  await flushPromises()
+  const vm = wrapper.vm as any
+  let finish!: (result: any) => void
+  updateAccountMock.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  const request = vm.submitUpdateAccount(1, { name: 'A' })
+  await wrapper.setProps({ show: false })
+  await wrapper.setProps({ show: true })
+  finish({ id: 1 })
+  await request
+  expect(wrapper.emitted('created')).toBeUndefined()
+  expect(wrapper.emitted('updated')).toBeUndefined()
+  expect(wrapper.emitted('close')).toBeUndefined()
+  expect(vm.submitting).toBe(false)
+})

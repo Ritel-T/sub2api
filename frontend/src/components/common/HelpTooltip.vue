@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useOwnedPopover } from '@/composables/overlayLifecycle'
 import { useResizeObserver } from '@vueuse/core'
 import { onBeforeUnmount, onMounted, ref, useTemplateRef, nextTick } from 'vue'
 
@@ -14,6 +15,7 @@ const props = withDefaults(defineProps<{
 const show = ref(false)
 const triggerRef = useTemplateRef<HTMLElement>('trigger')
 const tooltipRef = useTemplateRef<HTMLElement>('tooltip')
+useOwnedPopover(show, { root: () => tooltipRef.value, trigger: () => triggerRef.value?.querySelector<HTMLElement>('button, [tabindex]') ?? triggerRef.value, close: () => { show.value = false } })
 const tooltipStyle = ref({ top: '0px', left: '0px' })
 const arrowLeft = ref('50%')
 const below = ref(false)
@@ -71,12 +73,6 @@ function onDocumentClick(event: MouseEvent) {
   closeTooltip()
 }
 
-function onDocumentKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    closeTooltip()
-  }
-}
-
 function onViewportChange() {
   if (!show.value) return
   updatePosition()
@@ -109,14 +105,12 @@ useResizeObserver(tooltipRef, () => {
 
 onMounted(() => {
   document.addEventListener('click', onDocumentClick, true)
-  document.addEventListener('keydown', onDocumentKeydown)
   window.addEventListener('resize', onViewportChange)
   window.addEventListener('scroll', onViewportChange, true)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClick, true)
-  document.removeEventListener('keydown', onDocumentKeydown)
   window.removeEventListener('resize', onViewportChange)
   window.removeEventListener('scroll', onViewportChange, true)
 })

@@ -21,9 +21,9 @@
           <div class="min-w-0 flex-1 space-y-5">
             <div class="space-y-3">
               <div class="flex flex-wrap items-center gap-2">
-                <h2 class="truncate text-2xl font-semibold text-gray-900 dark:text-white">
+                <AppHeading as="h2" variant="section" class="truncate text-gray-900 dark:text-white">
                   {{ displayName }}
-                </h2>
+                </AppHeading>
                 <span :class="['badge', user?.role === 'admin' ? 'badge-primary' : 'badge-gray']">
                   {{ user?.role === 'admin' ? t('profile.administrator') : t('profile.user') }}
                 </span>
@@ -106,9 +106,9 @@
         >
           <div class="mb-5 flex items-start justify-between gap-4">
             <div>
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
                 {{ t('profile.basicsTitle') }}
-              </h3>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t('profile.basicsDescription') }}
               </p>
@@ -156,9 +156,9 @@
           v-if="sourceHints.length"
           class="open-section"
         >
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
             {{ t('profile.linkedProfileSources') }}
-          </h3>
+          </AppHeading>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {{ t('profile.linkedProfileSourcesDescription') }}
           </p>
@@ -180,6 +180,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'

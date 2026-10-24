@@ -9,14 +9,14 @@
         {{ t('supportTickets.detail.back') }}
       </router-link>
 
-      <div v-if="loading && !detail" class="bg-gray-200 dark:bg-dark-700 h-64 animate-pulse" aria-busy="true"></div>
+      <LoadingRegion v-if="loading && !detail" class="bg-gray-200 dark:bg-dark-700 h-64 animate-pulse"></LoadingRegion>
       <p v-else-if="loadError" class="card p-6 text-sm text-red-600 dark:text-red-400" data-testid="ticket-load-error">{{ loadError }}</p>
       <div v-else-if="detail" class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div class="min-w-0 space-y-4">
           <div class="open-section p-5">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="min-w-0">
-                <h2 class="break-words text-lg font-semibold text-gray-900 dark:text-white" data-testid="ticket-title">{{ detail.ticket.title }}</h2>
+                <AppHeading variant="section" as="h2" class="break-words text-gray-900 dark:text-white" data-testid="ticket-title">{{ detail.ticket.title }}</AppHeading>
                 <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                   <span>{{ t('supportTickets.detail.number', { id: detail.ticket.id }) }}</span>
                   <span class="rounded-md bg-gray-100 px-1.5 py-0.5 dark:bg-dark-700">{{ detail.ticket.category || t('supportTickets.noCategory') }}</span>
@@ -42,7 +42,7 @@
               <template #extra>
                 <label class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                   <span class="whitespace-nowrap">{{ t('supportTickets.admin.replyStatus') }}</span>
-                  <Select v-model="replyStatus" :options="replyStatusOptions" class="w-52" data-testid="ticket-reply-status" />
+                  <Select :aria-label="t('supportTickets.admin.replyStatus')" v-model="replyStatus" :options="replyStatusOptions" class="w-52" data-testid="ticket-reply-status" />
                 </label>
               </template>
             </TicketReplyBox>
@@ -52,7 +52,7 @@
 
         <aside class="space-y-4">
           <div class="open-section p-5" data-testid="ticket-user">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('supportTickets.admin.userInfo') }}</h3>
+            <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('supportTickets.admin.userInfo') }}</AppHeading>
             <p v-if="user?.deleted" class="mt-2 rounded-lg bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300">
               {{ t('supportTickets.admin.deletedUser') }}
             </p>
@@ -125,7 +125,7 @@
       </div>
     </div>
 
-    <ConfirmDialog
+    <ConfirmDialog :busy="removeAction.busy.value || busy"
       :show="confirmDelete"
       :title="t('supportTickets.admin.deleteTitle')"
       :message="t('supportTickets.admin.deleteConfirm', { id: detail?.ticket.id ?? '', title: detail?.ticket.title ?? '' })"
@@ -138,10 +138,13 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -233,19 +236,22 @@ function setStatus(status: 'processing' | 'closed' | 'pending') {
   return run(() => setTicketStatus(ticketId.value, status), 'supportTickets.admin.statusUpdated')
 }
 
-async function remove() {
-  confirmDelete.value = false
-  busy.value = true
-  try {
-    await deleteTicket(ticketId.value)
-    appStore.showSuccess(t('supportTickets.admin.deleted'))
-    ticketStore.refresh(true)
-    router.push('/admin/support-tickets')
-  } catch (err) {
-    appStore.showError(supportTicketErrorMessage(err, t))
-  } finally {
-    busy.value = false
-  }
+function remove() {
+  if (busy.value) return
+  return removeAction.run(async (isCurrent) => {
+      const id = ticketId.value
+      busy.value = true
+      try {
+        await deleteTicket(id)
+        if (!isCurrent()) return
+        appStore.showSuccess(t('supportTickets.admin.deleted'))
+        ticketStore.refresh(true)
+        confirmDelete.value = false
+        router.push('/admin/support-tickets')
+      } catch (err) {
+        if (isCurrent()) appStore.showError(supportTicketErrorMessage(err, t))
+      } finally { busy.value = false }
+  })
 }
 
 async function copyEmail() {
@@ -264,6 +270,7 @@ function poll() {
 }
 
 watch(ticketId, () => {
+  confirmDelete.value = false
   detail.value = null
   load()
 })
@@ -276,4 +283,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
 })
+const removeAction = useConfirmedAction(() => ({ active: confirmDelete.value, identity: ticketId.value }))
+watch(ticketId, () => { confirmDelete.value = false }, { flush: 'sync' })
 </script>

@@ -618,13 +618,66 @@ describe('quality operations', () => {
     await wrapper.get('[data-testid="quality-account-group"]').setValue('21')
     await wrapper.get('#quality-account-search').setValue('  matching  ')
     await wrapper.get('#quality-account-search').trigger('keydown', { key: 'Enter' }); await flushPromises()
-    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ type, group: '21', search: 'matching', lite: 'true' }))
-    await wrapper.get('button[aria-label="qualityOps.nextAccountPage"]').trigger('click'); await flushPromises()
-    expect(accountsAPI.list).toHaveBeenLastCalledWith(2, 50, expect.objectContaining({ type, group: '21', search: 'matching' }))
+    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ type, group: '21', search: 'matching', lite: 'true' }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    await wrapper.get('#quality-rule-form .infinite-list-action').trigger('click'); await flushPromises()
+    expect(accountsAPI.list).toHaveBeenLastCalledWith(2, 50, expect.objectContaining({ type, group: '21', search: 'matching' }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
     await wrapper.get('[data-testid="quality-account-type"]').setValue(''); await flushPromises()
-    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ type: undefined, group: '21', search: 'matching' }))
+    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ type: undefined, group: '21', search: 'matching' }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
     wrapper.unmount()
   })
+
+  it('appends and deduplicates picker accounts, retries failed pages and selects loaded eligible accounts', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
+    vi.mocked(accountsAPI.list).mockResolvedValueOnce({ items: [{ id: 2, name: 'First' }], total: 51 } as any)
+    vm.newPlan(); vm.accountScope = 'manual'; await flushPromises()
+    vm.form.model_id = 'draft-model'; vm.selectedAccounts = [99]
+    vi.mocked(accountsAPI.list).mockRejectedValueOnce(new Error('append failed'))
+    await wrapper.get('#quality-rule-form .infinite-list-action').trigger('click'); await flushPromises()
+    expect(vm.accounts.map((a: any) => a.id)).toEqual([2])
+    expect(wrapper.get('#quality-rule-form .infinite-list-action').text()).toBe('Retry')
+    vi.mocked(accountsAPI.list).mockResolvedValueOnce({ items: [{ id: 2, name: 'Updated' }, { id: 3, name: 'Second' }], total: 51 } as any)
+    await wrapper.get('#quality-rule-form .infinite-list-action').trigger('click'); await flushPromises()
+    expect(vi.mocked(accountsAPI.list).mock.lastCall?.[0]).toBe(2)
+    expect(vm.accounts.map((a: any) => a.id)).toEqual([2, 3])
+    expect(vm.accounts[0].name).toBe('Updated')
+    await wrapper.get('[data-testid="quality-select-page"]').trigger('click')
+    expect(vm.selectedAccounts).toEqual([99, 2, 3])
+    expect(vm.form.model_id).toBe('draft-model')
+    expect(wrapper.find('#quality-rule-form .infinite-list-action').exists()).toBe(false)
+    wrapper.unmount()
+  })
+  it('invalidates in-flight picker appends when filters change without losing manual selection', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
+    vi.mocked(accountsAPI.list).mockResolvedValueOnce({ items: [{ id: 2, name: 'Old' }], total: 51 } as any)
+    vm.newPlan(); vm.accountScope = 'manual'; await flushPromises(); vm.selectedAccounts = [2]
+    let finishOld!: (data: any) => void
+    vi.mocked(accountsAPI.list).mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve }))
+    await wrapper.get('#quality-rule-form .infinite-list-action').trigger('click'); await flushPromises()
+    const oldSignal = vi.mocked(accountsAPI.list).mock.lastCall?.[3]?.signal as AbortSignal
+    vi.mocked(accountsAPI.list).mockResolvedValueOnce({ items: [{ id: 4, name: 'New filter' }], total: 1 } as any)
+    await wrapper.get('[data-testid="quality-account-group"]').setValue('21'); await flushPromises()
+    finishOld({ items: [{ id: 3, name: 'Late old result' }], total: 51 }); await flushPromises()
+    expect(oldSignal.aborted).toBe(true)
+    expect(vm.accounts.map((a: any) => a.id)).toEqual([4]); expect(vm.selectedAccounts).toEqual([2])
+    wrapper.unmount()
+  })
+  it('refreshes every loaded picker page while preserving the form draft and selection', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
+    vi.mocked(accountsAPI.list).mockResolvedValueOnce({ items: [{ id: 2, name: 'First' }], total: 51 } as any)
+    vm.newPlan(); vm.accountScope = 'manual'; await flushPromises()
+    vi.mocked(accountsAPI.list).mockResolvedValueOnce({ items: [{ id: 3, name: 'Second' }], total: 51 } as any)
+    await wrapper.get('#quality-rule-form .infinite-list-action').trigger('click'); await flushPromises()
+    vm.form.model_id = 'draft-model'; vm.selectedAccounts = [2, 3]
+    vi.mocked(accountsAPI.list).mockClear()
+      .mockResolvedValueOnce({ items: [{ id: 2, name: 'Fresh first' }], total: 51 } as any)
+      .mockResolvedValueOnce({ items: [{ id: 3, name: 'Fresh second' }], total: 51 } as any)
+    await vm.load(); await flushPromises()
+    expect(vi.mocked(accountsAPI.list).mock.calls.map(call => call[0])).toEqual([1, 2])
+    expect(vm.accounts.map((a: any) => a.name)).toEqual(['Fresh first', 'Fresh second'])
+    expect(vm.form.model_id).toBe('draft-model'); expect(vm.selectedAccounts).toEqual([2, 3])
+    wrapper.unmount()
+  })
+
   it('selects only eligible accounts on this page and keeps selections across filters', async () => {
     vi.mocked(listQualityPlans).mockResolvedValue([{ id: 4, account_id: 1 }] as any)
     vi.mocked(accountsAPI.list).mockResolvedValue({ items: [{ id: 1, name: 'Rule exists' }, { id: 2, name: 'New account' }], total: 51 } as any)
@@ -635,7 +688,7 @@ describe('quality operations', () => {
     expect(vm.selectedAccounts).toEqual([99, 2])
     expect(wrapper.get('input[type="checkbox"][value="1"]').attributes('disabled')).toBeDefined()
     await wrapper.get('[data-testid="quality-account-group"]').setValue('ungrouped'); await flushPromises()
-    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ group: 'ungrouped' }))
+    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ group: 'ungrouped' }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(vm.selectedAccounts).toEqual([99, 2])
     await wrapper.get('[data-testid="quality-clear-selection"]').trigger('click')
     expect(vm.selectedAccounts).toEqual([])
@@ -1140,7 +1193,7 @@ describe('quality operations', () => {
       : { items: [{ id: 6, name: 'Setup', platform: 'openai', type: 'setup-token' }, { id: 4, name: 'OAuth', platform: 'openai', type: 'oauth' }], total: 51 }) as any)
     const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
     vm.newPlan(); await flushPromises()
-    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ status: 'active' }))
+    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ status: 'active' }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect((wrapper.get('[data-testid="quality-account-status-active"]').element as HTMLInputElement).checked).toBe(true)
     expect((wrapper.get('[data-testid="quality-account-scope-all"]').element as HTMLInputElement).checked).toBe(true)
     expect(wrapper.find('[data-testid="quality-select-all"]').exists()).toBe(false)
@@ -1178,7 +1231,7 @@ describe('quality operations', () => {
     vm.newPlan(); await flushPromises()
     await wrapper.get('[data-testid="quality-account-status-rate_limited"]').setValue(true); await flushPromises()
     expect(vm.accountStatuses).toEqual(['active', 'rate_limited'])
-    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ status: 'active,rate_limited' }))
+    expect(accountsAPI.list).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ status: 'active,rate_limited' }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
     await wrapper.get('[data-testid="quality-account-status-active"]').setValue(false)
     await wrapper.get('[data-testid="quality-account-status-rate_limited"]').setValue(false); await flushPromises()
     expect(vi.mocked(accountsAPI.list).mock.lastCall![2]).toHaveProperty('status', undefined)
@@ -1331,6 +1384,41 @@ describe('quality operations', () => {
     expect(wrapper.find('pre img').exists()).toBe(false)
     wrapper.unmount()
   })
+
+  it.each(['rule', 'template'])('rejects %s deletion before acceptance after same-tick auth ABA', async kind => {
+    vi.mocked(listQualityPlans).mockResolvedValue(rules())
+    vi.mocked(listQualityTemplates).mockResolvedValue([groupRule()])
+    const wrapper = mountView(); await flushPromises()
+    const vm = wrapper.vm as any
+    if (kind === 'rule') vm.requestDelete([1])
+    else { vm.editingTemplate = 7; vm.openTemplateDelete() }
+    useAuthStore().user!.id = 2; useAuthStore().user!.id = 1
+    if (kind === 'rule') await vm.confirmDelete()
+    else await vm.confirmTemplateDelete()
+    expect(scheduledTests.delete).not.toHaveBeenCalled()
+    expect(deleteQualityTemplate).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it.each(['rule', 'template'])('suppresses late %s deletion after same-tick auth ABA', async kind => {
+    vi.mocked(listQualityPlans).mockResolvedValue(rules())
+    vi.mocked(listQualityTemplates).mockResolvedValue([groupRule()])
+    const wrapper = mountView(); await flushPromises()
+    const vm = wrapper.vm as any
+    let finish!: (value: any) => void
+    const pending = new Promise(resolve => { finish = resolve })
+    if (kind === 'rule') { vi.mocked(scheduledTests.delete).mockReturnValueOnce(pending as any); vm.requestDelete([1]) }
+    else { vi.mocked(deleteQualityTemplate).mockReturnValueOnce(pending as any); vm.editingTemplate = 7; vm.openTemplateDelete() }
+    const request = kind === 'rule' ? vm.confirmDelete() : vm.confirmTemplateDelete()
+    useAuthStore().user!.id = 2; useAuthStore().user!.id = 1
+    const ruleReads = vi.mocked(listQualityPlans).mock.calls.length
+    finish({ deleted: 1 }); await request; await flushPromises()
+    expect(vm.notice).toBe('')
+    expect(vm.deleteTargets).toEqual([])
+    expect(vm.templateDeleteTarget).toBe(null)
+    expect(listQualityPlans).toHaveBeenCalledTimes(ruleReads)
+    wrapper.unmount()
+  })
+
 })
 
 vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))

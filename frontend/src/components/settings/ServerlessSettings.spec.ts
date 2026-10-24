@@ -4,7 +4,7 @@ import ServerlessSettings from './ServerlessSettings.vue'
 import { apiClient } from '@/api/client'
 
 vi.mock('@/api/client', () => ({ apiClient: { get: vi.fn(), put: vi.fn(), post: vi.fn() } }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ locale: { value: 'zh-CN' } }) }))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ locale: { value: 'zh-CN' }, t: (key: string) => key }) }))
 const pod = { id: 'us-one', boot: 'boot', endpoint: 'https://pod.example.com', region: 'US', version: 'test', ready: true, at: 100 }
 const config = () => ({ enabled: false, pods: [], regions: [] })
 beforeEach(() => {

@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page">
       <BillingNavigation current="affiliate" :settings="appStore.cachedPublicSettings" :simple-mode="authStore.isSimpleMode" />
       <div v-if="loading" class="flex justify-center py-12">
-        <div
+        <div role="status" :aria-label="t('common.loading')"
           class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
         ></div>
       </div>
@@ -46,7 +46,7 @@
         </div>
 
         <div class="open-section p-6">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.title') }}</h3>
+          <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('affiliate.title') }}</AppHeading>
           <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.description') }}</p>
 
           <div
@@ -107,7 +107,7 @@
         <div class="open-section p-6">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.transfer.title') }}</h3>
+              <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('affiliate.transfer.title') }}</AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.transfer.description') }}</p>
             </div>
             <button
@@ -126,7 +126,7 @@
         </div>
 
         <div class="open-section p-6">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.invitees.title') }}</h3>
+          <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('affiliate.invitees.title') }}</AppHeading>
           <div v-if="detail.invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
             {{ t('affiliate.invitees.empty') }}
           </div>
@@ -161,6 +161,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'

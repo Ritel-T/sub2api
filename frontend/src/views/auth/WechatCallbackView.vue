@@ -2,9 +2,9 @@
   <AuthLayout>
     <div class="space-y-6">
       <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+        <AppHeading variant="auth" as="h2" class="text-gray-900 dark:text-white">
           {{ t('auth.oidc.callbackTitle', { providerName }) }}
-        </h2>
+        </AppHeading>
         <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
           {{
             isProcessing
@@ -316,6 +316,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'

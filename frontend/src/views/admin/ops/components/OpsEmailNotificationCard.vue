@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -184,7 +185,7 @@ onMounted(() => {
   <div class="open-section">
     <div class="mb-4 flex items-start justify-between gap-4">
       <div>
-        <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('admin.ops.email.title') }}</h3>
+        <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.ops.email.title') }}</AppHeading>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.email.description') }}</p>
       </div>
       <div class="flex items-center gap-2">
@@ -209,7 +210,7 @@ onMounted(() => {
 
     <div v-else class="space-y-6">
       <div class="open-section">
-        <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.email.alertTitle') }}</h4>
+        <AppHeading variant="minor" as="h4" class="mb-2 text-gray-900 dark:text-white">{{ t('admin.ops.email.alertTitle') }}</AppHeading>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div class="text-xs text-gray-600 dark:text-gray-300">
             {{ t('common.enabled') }}:
@@ -235,7 +236,7 @@ onMounted(() => {
       </div>
 
       <div class="open-section">
-        <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.email.reportTitle') }}</h4>
+        <AppHeading variant="minor" as="h4" class="mb-2 text-gray-900 dark:text-white">{{ t('admin.ops.email.reportTitle') }}</AppHeading>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div class="text-xs text-gray-600 dark:text-gray-300">
             {{ t('common.enabled') }}:
@@ -264,7 +265,7 @@ onMounted(() => {
         </ul>
       </div>
       <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
-        <h4 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.email.alertTitle') }}</h4>
+        <AppHeading variant="minor" as="h4" class="mb-3 text-gray-900 dark:text-white">{{ t('admin.ops.email.alertTitle') }}</AppHeading>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('common.enabled') }}</div>
@@ -276,7 +277,7 @@ onMounted(() => {
 
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.minSeverity') }}</div>
-            <Select v-model="draft.alert.min_severity" :options="severityOptions" />
+            <Select :aria-label="t('admin.ops.email.minSeverity')" v-model="draft.alert.min_severity" :options="severityOptions" />
           </div>
 
           <div class="md:col-span-2">
@@ -334,7 +335,7 @@ onMounted(() => {
       </div>
 
       <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
-        <h4 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.email.reportTitle') }}</h4>
+        <AppHeading variant="minor" as="h4" class="mb-3 text-gray-900 dark:text-white">{{ t('admin.ops.email.reportTitle') }}</AppHeading>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('common.enabled') }}</div>

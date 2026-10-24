@@ -2,7 +2,7 @@
   <div class="account-row-details">
     <div class="account-detail-overview">
       <section v-if="statColumns.length" class="account-detail-stats">
-        <h3>{{ t('admin.accounts.details.statistics') }}</h3>
+        <AppHeading as="h3" variant="minor">{{ t('admin.accounts.details.statistics') }}</AppHeading>
         <dl>
           <div v-for="column in statColumns" :key="column.key" :data-field="column.key">
             <dt v-if="column.key !== 'today_stats'">{{ column.label }}</dt>
@@ -11,7 +11,7 @@
         </dl>
       </section>
       <section v-if="propertyColumns.length" class="account-detail-properties">
-        <h3>{{ t('admin.accounts.details.configuration') }}</h3>
+        <AppHeading as="h3" variant="minor">{{ t('admin.accounts.details.configuration') }}</AppHeading>
         <dl>
           <div v-for="column in propertyColumns" :key="column.key" :data-field="column.key" :class="{ 'is-wide': column.key === 'notes' }">
             <dt>{{ column.label }}</dt>
@@ -21,21 +21,22 @@
       </section>
     </div>
     <section class="account-detail-actions">
-      <h3>{{ t('admin.accounts.details.actions') }}</h3>
+      <AppHeading as="h3" variant="minor">{{ t('admin.accounts.details.actions') }}</AppHeading>
       <slot name="actions" />
       <div v-if="$slots.supplementary" class="account-detail-extra">
-        <h4>{{ t('admin.accounts.details.extras') }}</h4>
+        <AppHeading as="h4" variant="subtle">{{ t('admin.accounts.details.extras') }}</AppHeading>
         <slot name="supplementary" />
       </div>
     </section>
     <div v-if="linkColumn" class="account-detail-links">
-      <h4>{{ t('admin.accounts.details.links') }}</h4>
+      <AppHeading as="h4" variant="subtle">{{ t('admin.accounts.details.links') }}</AppHeading>
       <Cell :column="linkColumn" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, type VNodeChild } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Column } from '@/components/common/types'
@@ -50,8 +51,9 @@ const Cell = ({ column }: { column: Column }) => props.renderCell(column)
 
 <style scoped>
 .account-row-details { display: grid; gap: 1rem; padding: 0; white-space: normal; }
-h3 { margin: 0 0 .75rem; font-size: 13px; font-weight: 600; color: var(--ritel-text); }
-h4, dt { color: var(--ritel-muted); font-size: 12px; font-weight: 400; }
+h3 { margin: 0 0 .75rem; color: var(--ritel-text); }
+h4, dt { color: var(--ritel-muted); }
+dt { font-size: 12px; font-weight: 400; }
 h4 { margin: 0; padding-top: .45rem; }
 dd { margin: .25rem 0 0; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
 .account-detail-overview { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 3fr); gap: 2rem; }

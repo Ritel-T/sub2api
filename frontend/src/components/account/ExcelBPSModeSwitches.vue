@@ -7,13 +7,7 @@
             <p class="text-sm font-medium">{{ t('autoConfig.bps.mode.' + choice) }}</p>
             <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('autoConfig.bps.mode.' + choice + 'Hint') }}</p>
           </div>
-          <button type="button" role="switch" :aria-checked="enabled && mode === choice"
-            :aria-label="t('autoConfig.bps.mode.' + choice)" :disabled="loading || choice === 'defaults' && !available && !(enabled && mode === choice)"
-            :data-testid="choice === 'initial' ? prefix + '-toggle' : prefix + '-defaults-toggle'" :data-mode="choice"
-            class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            :class="enabled && mode === choice ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'" @click="$emit('toggle', choice)">
-            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform" :class="enabled && mode === choice ? 'translate-x-5' : 'translate-x-0'" />
-          </button>
+          <Toggle :model-value="enabled && mode === choice" :aria-label="t('autoConfig.bps.mode.' + choice)" :disabled="loading || choice === 'defaults' && !available && !(enabled && mode === choice)" :data-testid="choice === 'initial' ? prefix + '-toggle' : prefix + '-defaults-toggle'" :data-mode="choice" @click="$emit('toggle', choice)" />
         </div>
       </div>
     </div>
@@ -29,6 +23,7 @@
 </template>
 
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
 import { useI18n } from 'vue-i18n'
 import type { ExcelBPSMode } from '@/utils/excelBPSDefaults'
 withDefaults(defineProps<{ enabled: boolean; mode: ExcelBPSMode; loading: boolean; failed: boolean; applied: boolean; available?: boolean; prefix?: string }>(), { available: true, prefix: 'excel-bps' })

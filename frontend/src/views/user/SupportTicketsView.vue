@@ -1,7 +1,7 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page support-workspace">
-      <h1 class="text-3xl font-semibold">{{ t('nav.supportTickets') }}</h1>
+      <AppHeading variant="page" as="h1">{{ t('nav.supportTickets') }}</AppHeading>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="inline-flex flex-wrap gap-5 border-b border-gray-200 dark:border-dark-700" role="group" :aria-label="t('supportTickets.columns.status')">
           <button
@@ -33,9 +33,9 @@
         {{ t('supportTickets.form.openCount', { count: summary.open_count, max: summary.max_open }) }}
       </p>
 
-      <div v-if="loading && !tickets.length" class="open-record-list" aria-busy="true">
+      <LoadingRegion v-if="loading && !tickets.length" class="open-record-list">
         <div v-for="index in 3" :key="index" class="open-section h-20 animate-pulse"></div>
-      </div>
+      </LoadingRegion>
       <p v-else-if="loadError && !tickets.length" class="open-section p-6 text-sm text-red-600 dark:text-red-400">{{ loadError }}</p>
       <div v-else-if="!tickets.length" class="open-section" data-testid="ticket-empty">
         <EmptyState :title="t('supportTickets.empty')" :description="t('supportTickets.emptyHint')" />
@@ -86,6 +86,8 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'

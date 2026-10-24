@@ -1,9 +1,9 @@
 <template>
   <div class="open-settings-section">
     <div class="min-w-0">
-      <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+      <AppHeading as="h2" variant="section" class="text-gray-900 dark:text-white">
         {{ t('profile.balanceNotify.title') }}
-      </h2>
+      </AppHeading>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
         {{ t('profile.balanceNotify.description') }}
       </p>
@@ -157,6 +157,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'

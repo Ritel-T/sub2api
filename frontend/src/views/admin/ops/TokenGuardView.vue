@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page token-guard">
       <header class="ops-heading">
         <div>
-          <h2>{{ t('tokenGuard.title') }}</h2>
+          <AppHeading variant="page" as="h1">{{ t('tokenGuard.title') }}</AppHeading>
           <p class="subtitle">{{ t('tokenGuard.description') }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -28,10 +28,10 @@
 
       <div class="ops-columns">
         <section class="settings-card">
-          <div class="section-title"><span class="icon-tile"><Icon name="shield" size="md" /></span><div><h3>{{ t('tokenGuard.title') }}</h3><p>{{ t('tokenGuard.enabledHint') }}</p></div></div>
+          <div class="section-title"><span class="icon-tile"><Icon name="shield" size="md" /></span><div><AppHeading variant="subsection" as="h3">{{ t('tokenGuard.title') }}</AppHeading><p>{{ t('tokenGuard.enabledHint') }}</p></div></div>
           <form v-if="draft" class="settings-form" @submit.prevent="save">
             <fieldset :disabled="saving">
-              <label class="enable-row"><span><strong>{{ t('tokenGuard.enabled') }}</strong><small>{{ t('tokenGuard.enabledHint') }}</small></span><input v-model="draft.enabled" type="checkbox" role="switch" :aria-label="t('tokenGuard.enabled')" /></label>
+              <label class="enable-row"><span><strong>{{ t('tokenGuard.enabled') }}</strong><small>{{ t('tokenGuard.enabledHint') }}</small></span><Toggle v-model="draft.enabled" :aria-label="t('tokenGuard.enabled')" /></label>
               <label class="field-label">{{ t('tokenGuard.groupIds') }}</label>
               <Select
                 v-model="selectedGroupIds"
@@ -87,7 +87,7 @@
 
         <div class="stack">
           <section class="events-card">
-            <header class="events-heading"><div><h3>{{ t('tokenGuard.accounts') }}<span>{{ accounts.length + managedAccounts.length }}</span></h3><p>{{ remote?.runtime.last_message || t('tokenGuard.description') }}</p></div></header>
+            <header class="events-heading"><div><AppHeading variant="subsection" as="h3">{{ t('tokenGuard.accounts') }}<span>{{ accounts.length + managedAccounts.length }}</span></AppHeading><p>{{ remote?.runtime.last_message || t('tokenGuard.description') }}</p></div></header>
             <p v-if="managedAccounts.length" class="managed-hint" data-testid="token-guard-managed-hint">{{ t('tokenGuard.managedHint') }}</p>
             <p v-if="managedLoadFailed" class="managed-hint warn" role="alert">{{ t('tokenGuard.managedLoadFailed') }}</p>
             <div class="events-scroll">
@@ -115,12 +115,12 @@
                   </tr>
                 </tbody>
               </table>
-              <div v-if="!accounts.length && !managedAccounts.length" class="empty-state"><Icon name="shield" size="xl" /><h4>{{ t('tokenGuard.noAccounts') }}</h4></div>
+              <div v-if="!accounts.length && !managedAccounts.length" class="empty-state"><Icon name="shield" size="xl" /><AppHeading variant="empty" as="h4">{{ t('tokenGuard.noAccounts') }}</AppHeading></div>
             </div>
           </section>
 
           <section class="events-card">
-            <header class="events-heading"><div><h3>{{ t('tokenGuard.events') }}<span>{{ events.length }}</span></h3><p>{{ remote?.runtime.last_message || '-' }}</p></div></header>
+            <header class="events-heading"><div><AppHeading variant="subsection" as="h3">{{ t('tokenGuard.events') }}<span>{{ events.length }}</span></AppHeading><p>{{ remote?.runtime.last_message || '-' }}</p></div></header>
             <div class="events-scroll short">
               <table>
                 <thead><tr><th>时间</th><th>{{ t('tokenGuard.account') }}</th><th>类型</th><th>详情</th></tr></thead>
@@ -133,7 +133,7 @@
                   </tr>
                 </tbody>
               </table>
-              <div v-if="!events.length" class="empty-state"><Icon name="infoCircle" size="xl" /><h4>{{ t('tokenGuard.noEvents') }}</h4></div>
+              <div v-if="!events.length" class="empty-state"><Icon name="infoCircle" size="xl" /><AppHeading variant="empty" as="h4">{{ t('tokenGuard.noEvents') }}</AppHeading></div>
             </div>
           </section>
         </div>
@@ -143,6 +143,8 @@
 </template>
 
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
@@ -369,7 +371,6 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 .token-guard { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .ops-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
 .eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
-.ops-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 
 .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 20px; @apply mb-5; }
@@ -383,7 +384,6 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 .settings-card, .events-card { @apply min-w-0 min-w-0 border-t border-gray-200 dark:border-dark-700; }
 .section-title { @apply flex items-center gap-3 border-b border-gray-100 p-5 dark:border-dark-700; }
 .icon-tile { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30 dark:text-primary-400; }
-.section-title h3, .events-heading h3 { @apply text-base font-semibold; }
 .section-title p, .events-heading p { @apply mt-1 text-xs text-gray-400; }
 .settings-form { @apply p-5; }
 .enable-row { @apply mb-6 flex items-center justify-between gap-4; }
@@ -425,7 +425,6 @@ td.detail { max-width: 24rem; @apply whitespace-normal leading-5 text-gray-500 d
 .managed-badge { @apply ml-2 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300; }
 .link-btn { @apply inline-block rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:hover:bg-dark-800 dark:text-primary-400; }
 .empty-state { @apply flex min-h-56 flex-col items-center justify-center gap-3 p-6 text-center text-gray-400; }
-.empty-state h4 { @apply text-sm font-medium; }
 .empty-state p { @apply max-w-sm text-xs leading-relaxed; }
 
 .error-banner { @apply mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300; }

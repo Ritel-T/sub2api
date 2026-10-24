@@ -1,9 +1,8 @@
 <template>
-  <div class="fixed inset-0 z-[60] overflow-y-auto bg-[#f6f8f7] p-4 dark:bg-dark-950 sm:p-6" role="dialog" aria-modal="true" :aria-label="t('admin.accounts.pelicanTest.history')" @keydown.esc.stop="selected = null">
+  <BaseDialog :show="true" :title="t('admin.accounts.pelicanTest.history')" width="full" :fullscreen="true" :z-index="60" @close="$emit('close')">
     <div class="mx-auto max-w-[1800px]">
       <header class="mb-4 flex items-center justify-between gap-4">
         <div>
-          <h2 class="text-xl font-semibold">{{ t('admin.accounts.pelicanTest.history') }}</h2>
           <p class="text-sm text-gray-500">{{ t('admin.accounts.pelicanTest.dashboardHint') }}</p>
           <p class="text-xs text-gray-500" data-testid="record-count">{{ t('admin.accounts.pelicanTest.recordCount', { count: cards.length }) }}</p>
         </div>
@@ -15,7 +14,7 @@
       <div v-else-if="cards.length" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article v-for="card in visibleCards" :key="card.key" class="relative min-w-0 border-t border-gray-200 dark:border-dark-700" data-testid="pelican-record-card">
           <div class="py-4">
-            <h3 class="font-semibold">{{ card.account.name }}</h3>
+            <AppHeading as="h3" variant="subsection" >{{ card.account.name }}</AppHeading>
             <p class="mt-1 text-xs text-gray-500">#{{ card.account.id }}<span v-if="card.resultId"> · {{ t('admin.accounts.pelicanTest.recordId') }} #{{ card.resultId }}</span></p>
             <div class="mt-3 flex justify-between gap-2 text-xs">
               <span :class="statusClass(card.record)" data-testid="record-status">{{ statusLabel(card.record) }}</span>
@@ -40,25 +39,26 @@
       <div v-else class="border-t border-gray-200 py-20 text-center text-sm text-gray-500 dark:border-dark-700">{{ t('admin.accounts.pelicanTest.noHistory') }}</div>
       <button v-if="cards.length > visibleLimit" type="button" class="btn btn-secondary mt-4" data-testid="load-more" @click="showMore">{{ t('admin.accounts.pelicanTest.moreRecords') }}</button>
     </div>
-    <div v-if="selected" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" data-testid="record-detail" @click.self="selected = null">
-      <div class="flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white dark:bg-dark-800">
-        <header class="flex items-center justify-between gap-3 border-b px-4 py-3">
-          <div class="text-sm">
-            <strong>{{ selected.account.name }}</strong>
-            <p>{{ sourceLabel(selected.record.source) }} · {{ selected.record.modelId || '—' }} / {{ selected.record.reasoningEffort || '—' }} · {{ duration(selected.record.durationMs) }}</p>
-            <p class="text-xs text-gray-500">{{ formatDate(selected.record.startedAt) }}</p>
-          </div>
-          <button type="button" class="btn btn-secondary" @click="selected = null">{{ t('common.close') }}</button>
-        </header>
-        <iframe v-if="selected.record.html" :srcdoc="selected.record.html" class="min-h-0 w-full flex-1 border-0" sandbox="allow-scripts" referrerpolicy="no-referrer" :title="selected.account.name" />
-        <p v-else-if="!selected.loaded && !selected.loadError" class="py-4">{{ t('common.loading') }}...</p>
-        <pre v-else class="overflow-auto whitespace-pre-wrap p-4 text-sm">{{ detailText(selected) }}</pre>
-      </div>
-    </div>
-  </div>
+    <BaseDialog :show="!!selected" :title="selected?.account.name || t('admin.accounts.pelicanTest.preview')" width="full" :z-index="70" body-class="flex min-h-0 flex-col" :close-on-click-outside="true" @close="selected = null">
+      <template v-if="selected">
+        <div class="mb-3 text-sm text-gray-500 dark:text-gray-400">
+          <p>{{ sourceLabel(selected.record.source) }} · {{ selected.record.modelId || '—' }} / {{ selected.record.reasoningEffort || '—' }} · {{ duration(selected.record.durationMs) }}</p>
+          <p class="text-xs">{{ formatDate(selected.record.startedAt) }}</p>
+        </div>
+        <div data-testid="record-detail" class="flex min-h-0 flex-1 flex-col">
+          <iframe v-if="selected.record.html" :srcdoc="selected.record.html" class="h-[70vh] w-full border-0" sandbox="allow-scripts" referrerpolicy="no-referrer" :title="selected.account.name" />
+          <p v-else-if="!selected.loaded && !selected.loadError" class="py-4">{{ t('common.loading') }}...</p>
+          <pre v-else class="overflow-auto whitespace-pre-wrap text-sm">{{ detailText(selected) }}</pre>
+        </div>
+      </template>
+      <template #footer><button type="button" class="btn btn-secondary" @click="selected = null">{{ t('common.close') }}</button></template>
+    </BaseDialog>
+  </BaseDialog>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import { useI18n } from 'vue-i18n'
 import { scheduledTestsAPI } from '@/api/admin/scheduledTests'
 import type { PelicanHistoryResult } from '@/api/admin/scheduledTests'

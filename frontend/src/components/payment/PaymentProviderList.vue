@@ -4,9 +4,9 @@
     <div class="pb-5">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h2" variant="section" class="text-gray-900 dark:text-white">
             {{ t('admin.settings.payment.providerManagement') }}
-          </h2>
+          </AppHeading>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.settings.payment.providerManagementDesc') }}
           </p>
@@ -39,7 +39,7 @@
     <div class="min-w-0">
       <!-- Loading -->
       <div v-if="loading && !providers.length" class="flex items-center justify-center py-6">
-        <div class="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+        <div role="status" :aria-label="t('common.loading')" class="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
       </div>
 
       <!-- Provider cards (draggable) -->
@@ -92,6 +92,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { VueDraggable } from 'vue-draggable-plus'

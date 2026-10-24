@@ -14,7 +14,7 @@
 
       <!-- Loading State -->
       <div v-if="loading" class="flex justify-center py-12">
-        <svg class="h-8 w-8 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
+        <svg role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
         </svg>
@@ -134,7 +134,7 @@
       <!-- Type -->
       <div>
         <label class="input-label">{{ t('admin.users.attributes.type') }}</label>
-        <Select
+        <Select :aria-label="t('admin.users.attributes.type')"
           v-model="form.type"
           :options="attributeTypes.map(type => ({ value: type, label: t(`admin.users.attributes.types.${type}`) }))"
         />
@@ -224,16 +224,7 @@
   </BaseDialog>
 
   <!-- Delete Confirmation -->
-  <ConfirmDialog
-    :show="showDeleteDialog"
-    :title="t('admin.users.attributes.deleteAttribute')"
-    :message="t('admin.users.attributes.deleteConfirm', { name: deletingAttribute?.name })"
-    :confirm-text="t('common.delete')"
-    :cancel-text="t('common.cancel')"
-    :danger="true"
-    @confirm="handleDelete"
-    @cancel="showDeleteDialog = false"
-  />
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
@@ -243,7 +234,8 @@ import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { UserAttributeDefinition, UserAttributeType, UserAttributeOption } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
@@ -268,9 +260,8 @@ const loading = ref(false)
 const saving = ref(false)
 const attributes = ref<UserAttributeDefinition[]>([])
 const showEditModal = ref(false)
-const showDeleteDialog = ref(false)
+const confirmation = useConfirmation(() => ({ active: props.show }))
 const editingAttribute = ref<UserAttributeDefinition | null>(null)
-const deletingAttribute = ref<UserAttributeDefinition | null>(null)
 const getOptionKey = createStableObjectKeyResolver<UserAttributeOption>('user-attr-option')
 
 const form = reactive({
@@ -380,28 +371,29 @@ const handleSave = async () => {
   }
 }
 
-const confirmDelete = (attr: UserAttributeDefinition) => {
-  deletingAttribute.value = attr
-  showDeleteDialog.value = true
-}
-
-const handleDelete = async () => {
-  if (!deletingAttribute.value) return
-
-  try {
-    await adminAPI.userAttributes.deleteDefinition(deletingAttribute.value.id)
-    appStore.showSuccess(t('admin.users.attributes.deleted'))
-    showDeleteDialog.value = false
-    deletingAttribute.value = null
-    loadAttributes()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.users.attributes.failedToDelete'))
-  }
+const confirmDelete = async (attr: UserAttributeDefinition) => {
+  const targetId = attr.id
+  await confirmation.run({
+    title: t('admin.users.attributes.deleteAttribute'),
+    message: t('admin.users.attributes.deleteConfirm', { name: attr.name }),
+    confirmText: t('common.delete'), danger: true
+  }, async (isCurrent) => {
+    try {
+      await adminAPI.userAttributes.deleteDefinition(targetId)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.users.attributes.deleted'))
+      await loadAttributes()
+    } catch (error: any) {
+      if (isCurrent()) appStore.showError(error.response?.data?.detail || t('admin.users.attributes.failedToDelete'))
+    }
+  })
 }
 
 watch(() => props.show, (isShow) => {
   if (isShow) {
     loadAttributes()
+  } else {
+    closeEditModal()
   }
-})
+}, { flush: 'sync' })
 </script>

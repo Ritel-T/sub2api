@@ -2,9 +2,9 @@
   <div class="min-h-screen bg-gray-50 px-4 py-10 dark:bg-dark-900">
     <div class="mx-auto max-w-2xl">
       <div class="card p-6">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <AppHeading variant="auth" as="h1" class="text-gray-900 dark:text-white">
           {{ callbackTitleText }}
-        </h1>
+        </AppHeading>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
           {{ errorMessage || callbackProcessingText }}
         </p>
@@ -13,7 +13,7 @@
           v-if="!errorMessage"
           class="mt-6 flex items-center justify-center py-10"
         >
-          <div
+          <div role="status" :aria-label="t('common.loading')"
             class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"
           ></div>
         </div>
@@ -39,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

@@ -584,13 +584,13 @@ const baseSettingsResponse = {
   },
 };
 
-function mountView() {
+function mountView(realToggle = false) {
   return mount(SettingsView, {
     global: {
       stubs: {
         AppLayout: AppLayoutStub,
         Select: SelectStub,
-        Toggle: ToggleStub,
+        Toggle: realToggle ? false : ToggleStub,
         Icon: true,
         ConfirmDialog: true,
         PaymentProviderList: true,
@@ -669,6 +669,42 @@ describe("admin SettingsView email domain quota copy", () => {
 });
 
 describe("admin SettingsView payment visible method controls", () => {
+  it.each(['web-search', 'affiliate', 'affiliate-batch'])('keeps %s open while busy and closes with Escape after completion', async (kind) => {
+    const wrapper = mountView();
+    await flushPromises();
+    const vm = wrapper.vm as any;
+    const change = (open: boolean, busy: boolean) => {
+      if (kind === 'web-search') { vm.wsTestDialogOpen = open; vm.wsTestLoading = busy; }
+      else if (kind === 'affiliate') { vm.affiliateModal.open = open; vm.affiliateModal.saving = busy; }
+      else { vm.affiliateBatchModal.open = open; vm.affiliateBatchModal.saving = busy; }
+    };
+    change(true, true);
+    await flushPromises();
+    expect(document.body.querySelector('[role="dialog"][aria-modal="true"]')).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await flushPromises();
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+    change(true, false);
+    await flushPromises();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await flushPromises();
+    expect(kind === 'web-search' ? vm.wsTestDialogOpen : kind === 'affiliate' ? vm.affiliateModal.open : vm.affiliateBatchModal.open).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('exposes the same switch state for all three payment toggles', async () => {
+    const wrapper = mountView(true);
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    for (const label of ['cancelRateLimit', 'alipayForceQRCode', 'alipayMobilePrecreateDeepLink']) {
+      const control = wrapper.get('[role="switch"][aria-label="admin.settings.payment.' + label + '"]');
+      const previous = control.attributes('aria-checked');
+      await control.trigger('click');
+      expect(control.attributes('aria-checked')).toBe(previous === 'true' ? 'false' : 'true');
+    }
+    wrapper.unmount();
+  });
+
   beforeEach(() => {
     getSettings.mockReset();
     updateSettings.mockReset();
@@ -2873,5 +2909,38 @@ describe("admin SettingsView platform quota matrix", () => {
     const quotas = payload["default_platform_quotas"] as Record<string, Record<string, unknown>>;
     // 不管输入是什么，提交值应为 null（而非 "" 或 NaN）
     expect(quotas["anthropic"]?.["daily"]).toBe(null);
+  });
+});
+
+describe('settings direct confirmation lifecycle', () => {
+  it.each(['provider', 'affiliate'])('locks %s and suppresses stale completion after changing tabs', async kind => {
+    const wrapper = mountView();
+    await flushPromises();
+    const vm = wrapper.vm as any;
+    vm.activeTab = kind === 'provider' ? 'payment' : 'features';
+    await flushPromises();
+    let finish!: () => void;
+    const pending = vi.fn(() => new Promise<void>(resolve => { finish = resolve }));
+    if (kind === 'provider') {
+      deleteProvider.mockReset().mockImplementation(pending);
+      const target = { id: 7 };
+      vm.confirmDeleteProvider(target);
+      target.id = 8;
+    } else {
+      vm.openAffiliateConfirm('reset', 'reset account A', 'Delete', pending);
+    }
+    const submit = kind === 'provider' ? vm.handleDeleteProvider : vm.handleAffiliateConfirm;
+    const request = submit();
+    void submit();
+    expect(pending).toHaveBeenCalledTimes(1);
+    if (kind === 'provider') expect(deleteProvider).toHaveBeenCalledWith(7);
+    showError.mockClear(); showSuccess.mockClear();
+    vm.activeTab = 'security';
+    await flushPromises();
+    finish();
+    await request;
+    expect(showError).not.toHaveBeenCalled();
+    expect(showSuccess).not.toHaveBeenCalled();
+    expect(kind === 'provider' ? vm.showDeleteProviderDialog : vm.affiliateConfirmDialog.show).toBe(false);
   });
 });

@@ -181,9 +181,9 @@
         >
           <div class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="min-w-0">
-              <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+              <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
                 {{ t('keys.useKeyModal.codexModelCatalog.title') }}
-              </h3>
+              </AppHeading>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {{ t('keys.useKeyModal.codexModelCatalog.description') }}
               </p>
@@ -269,6 +269,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, h, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useKeyConnectionCopy } from './keyConnectionCopy'

@@ -197,22 +197,7 @@
           role="group"
           aria-labelledby="bulk-edit-openai-passthrough-label"
         >
-          <button
-            id="bulk-edit-openai-passthrough-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openaiPassthroughEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="openaiPassthroughEnabled = !openaiPassthroughEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openaiPassthroughEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!openaiPassthroughEnabled" :aria-label="t('admin.accounts.openai.oauthPassthrough')" :disabled="!enableOpenAIPassthrough" id="bulk-edit-openai-passthrough-toggle" @click="openaiPassthroughEnabled = !openaiPassthroughEnabled" />
         </div>
       </div>
 
@@ -248,22 +233,7 @@
           role="group"
           aria-labelledby="bulk-edit-openai-flatten-namespaces-label"
         >
-          <button
-            id="bulk-edit-openai-flatten-namespaces-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openaiFlattenNamespacesEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="openaiFlattenNamespacesEnabled = !openaiFlattenNamespacesEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openaiFlattenNamespacesEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!openaiFlattenNamespacesEnabled" :aria-label="t('admin.accounts.openai.flattenNamespaces')" :disabled="!enableOpenAIFlattenNamespaces" id="bulk-edit-openai-flatten-namespaces-toggle" @click="openaiFlattenNamespacesEnabled = !openaiFlattenNamespacesEnabled" />
         </div>
       </div>
 
@@ -299,25 +269,7 @@
           role="group"
           aria-labelledby="bulk-edit-openai-long-context-billing-label"
         >
-          <button
-            type="button"
-            data-testid="bulk-edit-openai-long-context-billing-toggle"
-            role="switch"
-            :disabled="!enableOpenAILongContextBilling"
-            :aria-checked="openAILongContextBillingEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openAILongContextBillingEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="openAILongContextBillingEnabled = !openAILongContextBillingEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openAILongContextBillingEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="openAILongContextBillingEnabled" :aria-label="t('admin.accounts.openai.longContextBilling')" data-testid="bulk-edit-openai-long-context-billing-toggle" :disabled="!enableOpenAILongContextBilling" @click="openAILongContextBillingEnabled = !openAILongContextBillingEnabled" />
         </div>
         <p
           class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
@@ -725,21 +677,7 @@
           />
         </div>
         <div v-if="enableInterceptWarmup" id="bulk-edit-intercept-warmup-body" class="mt-3">
-          <button
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              interceptWarmupRequests ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="interceptWarmupRequests = !interceptWarmupRequests"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                interceptWarmupRequests ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!interceptWarmupRequests" :aria-label="t('admin.accounts.interceptWarmupRequests')" @click="interceptWarmupRequests = !interceptWarmupRequests" />
         </div>
       </div>
 
@@ -767,21 +705,7 @@
           />
         </div>
         <div v-if="enableHeaderOverride" id="bulk-edit-header-override-body" class="mt-3 space-y-3">
-          <button
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              headerOverrideEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="headerOverrideEnabled = !headerOverrideEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                headerOverrideEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!headerOverrideEnabled" :aria-label="t('admin.accounts.headerOverride.title')" @click="headerOverrideEnabled = !headerOverrideEnabled" />
 
           <div v-if="headerOverrideEnabled" class="space-y-3">
             <div class="rounded-lg theme-info-panel p-3">
@@ -1069,22 +993,7 @@
           <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.openai.codexCLIOnlyDesc') }}
           </p>
-          <button
-            id="bulk-edit-openai-codex-cli-only-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              codexCLIOnlyEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="codexCLIOnlyEnabled = !codexCLIOnlyEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                codexCLIOnlyEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!codexCLIOnlyEnabled" :aria-label="t('admin.accounts.openai.codexCLIOnly')" :disabled="!enableCodexCLIOnly" id="bulk-edit-openai-codex-cli-only-toggle" @click="codexCLIOnlyEnabled = !codexCLIOnlyEnabled" />
         </div>
       </div>
 
@@ -1113,22 +1022,7 @@
           <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.openai.codexCLIOnlyAppServerDesc') }}
           </p>
-          <button
-            id="bulk-edit-openai-codex-app-server-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              codexCLIOnlyAppServerEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="codexCLIOnlyAppServerEnabled = !codexCLIOnlyAppServerEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                codexCLIOnlyAppServerEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle :model-value="!!codexCLIOnlyAppServerEnabled" :aria-label="t('admin.accounts.openai.codexCLIOnlyAppServer')" :disabled="!enableCodexCLIOnlyAppServer" id="bulk-edit-openai-codex-app-server-toggle" @click="codexCLIOnlyAppServerEnabled = !codexCLIOnlyAppServerEnabled" />
         </div>
       </div>
 
@@ -1147,7 +1041,7 @@
           <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.openai.codexFingerprintModeDesc') }}
           </p>
-          <Select v-model="codexFingerprintMode" data-testid="bulk-codex-fingerprint-mode-select" :options="codexFingerprintModeOptions" />
+          <Select :aria-label="t('admin.accounts.openai.codexFingerprintMode')" v-model="codexFingerprintMode" data-testid="bulk-codex-fingerprint-mode-select" :options="codexFingerprintModeOptions" />
         </div>
       </div>
 
@@ -1551,6 +1445,7 @@
 
   <ConfirmDialog
     :show="showMixedChannelWarning"
+    :busy="mixedAction.busy.value"
     :title="t('admin.accounts.mixedChannelWarningTitle')"
     :message="mixedChannelWarningMessage"
     :confirm-text="t('common.confirm')"
@@ -1559,9 +1454,15 @@
     @confirm="handleMixedChannelConfirm"
     @cancel="handleMixedChannelCancel"
   />
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'
+
 import { DEFAULT_ACCOUNT_COST_MULTIPLIER, isValidAccountCostMultiplier } from '@/utils/accountCost'
 
 import { ref, watch, computed } from 'vue'
@@ -2009,16 +1910,16 @@ const addPresetMapping = (from: string, to: string) => {
 }
 
 // Error code helpers
-const toggleErrorCode = (code: number) => {
+const toggleErrorCode = async (code: number) => {
   const index = selectedErrorCodes.value.indexOf(code)
   if (index === -1) {
     // Adding code - check for 429/529 warning
     if (code === 429) {
-      if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
+      if (!await requestConfirmation({ message: t('admin.accounts.customErrorCodes429Warning'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: false })) {
         return
       }
     } else if (code === 529) {
-      if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
+      if (!await requestConfirmation({ message: t('admin.accounts.customErrorCodes529Warning'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: false })) {
         return
       }
     }
@@ -2028,8 +1929,8 @@ const toggleErrorCode = (code: number) => {
   }
 }
 
-const addCustomErrorCode = () => {
-  const code = customErrorCodeInput.value
+const addCustomErrorCode = async () => {
+    const code = customErrorCodeInput.value
   if (code === null || code < 100 || code > 599) {
     appStore.showError(t('admin.accounts.invalidErrorCode'))
     return
@@ -2040,11 +1941,11 @@ const addCustomErrorCode = () => {
   }
   // Check for 429/529 warning
   if (code === 429) {
-    if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
+    if (!await requestConfirmation({ message: t('admin.accounts.customErrorCodes429Warning'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: false })) {
       return
     }
   } else if (code === 529) {
-    if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
+    if (!await requestConfirmation({ message: t('admin.accounts.customErrorCodes529Warning'), title: t('common.confirm'), confirmText: t('common.confirm'), danger: false })) {
       return
     }
   }
@@ -2354,6 +2255,7 @@ const handleClose = () => {
 
 // 预检查：提交前调接口检测，有风险就弹窗阻止，返回 false 表示需要用户确认
 const preCheckMixedChannelRisk = async (built: Record<string, unknown>): Promise<boolean> => {
+  const isCurrent = mixedCurrent()
   if (!canPreCheck()) return true
   if (mixedChannelConfirmed.value) return true
 
@@ -2362,6 +2264,7 @@ const preCheckMixedChannelRisk = async (built: Record<string, unknown>): Promise
       platform: targetSelectedPlatforms.value[0],
       group_ids: groupIds.value
     })
+    if (!isCurrent()) return false
     if (!result.has_risk) return true
 
     pendingUpdatesForConfirm.value = built
@@ -2369,13 +2272,15 @@ const preCheckMixedChannelRisk = async (built: Record<string, unknown>): Promise
     showMixedChannelWarning.value = true
     return false
   } catch (error: any) {
+    if (!isCurrent()) return false
     appStore.showError(error.message || t('admin.accounts.bulkEdit.failed'))
     return false
   }
 }
 
 const handleSubmit = async () => {
-  if (bpsDefaults.loading.value) return
+  if (mixedAction.busy.value || submitting.value) return
+    if (bpsDefaults.loading.value) return
   if (targetMode.value === 'selected' && targetAccountIds.value.length === 0) {
     appStore.showError(t('admin.accounts.bulkEdit.noSelection'))
     return
@@ -2474,6 +2379,7 @@ const handleSubmit = async () => {
 }
 
 const submitBulkUpdate = async (baseUpdates: Record<string, unknown>) => {
+  const isCurrent = mixedCurrent()
   // 无论是预检查确认还是 409 兜底确认，只要 mixedChannelConfirmed 为 true 就带上 flag
   const updates = mixedChannelConfirmed.value
     ? { ...baseUpdates, confirm_mixed_channel_risk: true }
@@ -2488,6 +2394,7 @@ const submitBulkUpdate = async (baseUpdates: Record<string, unknown>) => {
         ...updates
       })
       : await adminAPI.accounts.bulkUpdate([...targetAccountIds.value], updates)
+    if (!isCurrent()) return
     const success = res.success || 0
     const failed = res.failed || 0
     const inherited = res.long_context_inherited_count || 0
@@ -2516,6 +2423,7 @@ const submitBulkUpdate = async (baseUpdates: Record<string, unknown>) => {
       handleClose()
     }
   } catch (error: any) {
+    if (!isCurrent()) return
     // 兜底：多平台混合场景下，预检查跳过，由后端 409 触发确认框
     if (error.status === 409 && error.error === 'mixed_channel_warning') {
       pendingUpdatesForConfirm.value = baseUpdates
@@ -2532,16 +2440,33 @@ const submitBulkUpdate = async (baseUpdates: Record<string, unknown>) => {
       console.error('Error bulk updating accounts:', error)
     }
   } finally {
-    submitting.value = false
+    if (isCurrent()) submitting.value = false
   }
 }
 
+const mixedContext = () => [props.show, props.accountIds, props.target]
+const mixedAction = useConfirmedAction(() => ({ active: props.show, identity: mixedContext() }))
+let mixedRevision = 0
+let mixedExecutionCurrent: (() => boolean) | null = null
+const mixedCurrent = () => {
+  const revision = mixedRevision
+  const execution = mixedExecutionCurrent
+  return () => props.show && mixedRevision === revision && (!execution || execution())
+}
+watch(mixedContext, () => { submitting.value = false; mixedRevision++; handleMixedChannelCancel() }, { deep: true, flush: 'sync' })
 const handleMixedChannelConfirm = async () => {
-  showMixedChannelWarning.value = false
-  mixedChannelConfirmed.value = true
-  if (pendingUpdatesForConfirm.value) {
-    await submitBulkUpdate(pendingUpdatesForConfirm.value)
-  }
+  const updates = pendingUpdatesForConfirm.value
+  if (!props.show || !showMixedChannelWarning.value || !updates) return
+  await mixedAction.run(async (isCurrent) => {
+    mixedExecutionCurrent = isCurrent
+    mixedChannelConfirmed.value = true
+    try {
+      await submitBulkUpdate(updates)
+      if (isCurrent()) handleMixedChannelCancel()
+    } finally {
+      mixedExecutionCurrent = null
+    }
+  })
 }
 
 const handleMixedChannelCancel = () => {
@@ -2645,4 +2570,8 @@ watch(
     }
   }
 )
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: props.show, identity: [props.accountIds, props.target, selectedErrorCodes.value, customErrorCodeInput.value] }))
+const requestConfirmation = confirmation.request
 </script>

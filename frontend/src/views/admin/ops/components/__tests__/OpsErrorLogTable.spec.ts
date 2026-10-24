@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import OpsErrorLogTable from '../OpsErrorLogTable.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -13,6 +13,8 @@ vi.mock('vue-i18n', async (importOriginal) => {
     useI18n: () => ({ t: (key: string) => key }),
   }
 })
+
+beforeEach(() => localStorage.clear())
 
 const TooltipStub = { template: '<div><slot /></div>' }
 const PaginationStub = { template: '<div class="pagination-stub" />' }
@@ -128,6 +130,18 @@ describe('OpsErrorLogTable column order', () => {
     wrapper.unmount()
   })
 
+  it('persists standalone dialog columns across remount without taking over controlled column preferences', async () => {
+    const wrapper = mountTable({})
+    await wrapper.get('th[data-column-key="message"] button').trigger('keydown', { key: 'Home' })
+    expect(localStorage.getItem('admin-ops-error-details')).toBeTruthy()
+    wrapper.unmount()
+    const reopened = mountTable({})
+    expect(reopened.findAll('th[data-column-key]')[0].attributes('data-column-key')).toBe('message')
+    reopened.unmount()
+    const controlled = mountTable({}, vi.fn())
+    expect(controlled.getComponent(DataTable).props('columnOrderKey')).toBeUndefined()
+    controlled.unmount()
+  })
   it('forwards header reordering without altering requested data sorting', async () => {
     const wrapper = mountTable({}, vi.fn())
     wrapper.findComponent(DataTable).vm.$emit('columnReorder', ['message', 'created_at', 'user'])

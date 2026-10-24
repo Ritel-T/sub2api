@@ -14,9 +14,9 @@
 
       <!-- 操作区：添加用户 -->
       <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
-        <h4 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+        <AppHeading as="h4" variant="minor" class="mb-2 text-gray-700 dark:text-gray-300">
           {{ t('admin.groups.addUserDeniedModels') }}
-        </h4>
+        </AppHeading>
         <div class="space-y-2">
           <div class="relative">
             <input
@@ -83,7 +83,7 @@
 
       <!-- 加载状态 -->
       <div v-if="loading" class="flex justify-center py-6">
-        <svg class="h-6 w-6 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
+        <svg role="status" :aria-label="t('common.loading')" class="h-6 w-6 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -91,9 +91,9 @@
 
       <!-- 列表 -->
       <div v-else>
-        <h4 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+        <AppHeading as="h4" variant="minor" class="mb-2 text-gray-700 dark:text-gray-300">
           {{ t('admin.groups.userDeniedModels') }} ({{ localEntries.length }})
-        </h4>
+        </AppHeading>
 
         <div v-if="localEntries.length === 0" class="py-6 text-center text-sm text-gray-400 dark:text-gray-500">
           {{ t('admin.groups.noUserDeniedModels') }}
@@ -202,6 +202,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

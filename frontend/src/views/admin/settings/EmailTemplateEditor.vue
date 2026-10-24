@@ -4,9 +4,9 @@
       class="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-start lg:justify-between"
     >
       <div>
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">
           {{ t("admin.settings.emailTemplates.title") }}
-        </h2>
+        </AppHeading>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {{ t("admin.settings.emailTemplates.description") }}
         </p>
@@ -44,7 +44,7 @@
         v-if="loadingList"
         class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400"
       >
-        <span
+        <span role="status" :aria-label="t('common.loading')"
           class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
         ></span>
         {{ t("common.loading") }}
@@ -227,9 +227,15 @@
       </template>
     </div>
   </div>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+
 import { localizeInlineText } from '@/i18n/inline'
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -685,22 +691,27 @@ async function refreshPreview() {
 
 async function restoreOfficial() {
   if (!selectedEvent.value || !selectedLocale.value) return;
-  if (!window.confirm(t("admin.settings.emailTemplates.restoreConfirm"))) return;
-
-  restoring.value = true;
-  try {
-    const template = await adminAPI.settings.restoreOfficialEmailTemplate(
-      selectedEvent.value,
-      selectedLocale.value,
-    );
-    applyTemplate(template);
-    await refreshPreview();
-    appStore.showSuccess(t("admin.settings.emailTemplates.restoreSuccess"));
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t("common.error")));
-  } finally {
-    restoring.value = false;
-  }
+  const event = selectedEvent.value;
+  const locale = selectedLocale.value;
+  await confirmation.run({ message: t("admin.settings.emailTemplates.restoreConfirm"), title: t('common.reset'), confirmText: t('common.reset'), danger: true }, async (isCurrent) => {
+    restoring.value = true;
+    try {
+      const template = await adminAPI.settings.restoreOfficialEmailTemplate(
+        event,
+        locale,
+      );
+      if (!isCurrent()) return
+      applyTemplate(template);
+      await refreshPreview();
+      if (!isCurrent()) return
+      appStore.showSuccess(t("admin.settings.emailTemplates.restoreSuccess"));
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      appStore.showError(extractApiErrorMessage(err, t("common.error")));
+    } finally {
+      restoring.value = false;
+    }
+  })
 }
 
 async function copyPlaceholder(placeholder: string) {
@@ -722,4 +733,7 @@ watch([selectedEvent, selectedLocale], ([eventValue, localeValue], [oldEvent, ol
 onMounted(() => {
   void loadTemplateList();
 });
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: true, identity: [selectedEvent.value, selectedLocale.value] }))
 </script>

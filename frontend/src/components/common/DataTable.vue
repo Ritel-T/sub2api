@@ -24,7 +24,8 @@
     </Teleport>
   </div>
   </Teleport>
-  <div v-if="!isDesktopViewport" ref="documentBodyRef" class="table-mobile-records">
+  <span v-if="loading" role="status" class="sr-only">{{ t('common.loading') }}</span>
+  <div v-if="!isDesktopViewport" ref="documentBodyRef" class="table-mobile-records" :aria-busy="loading">
     <template v-if="loading && !data.length">
       <div v-for="i in 5" :key="i" class="table-record p-4">
         <div class="space-y-3">
@@ -200,7 +201,7 @@
       'is-scrollable': isScrollable
     }"
   >
-    <table
+    <table :aria-busy="loading"
       class="w-full divide-y divide-gray-200 dark:divide-dark-700"
       :aria-rowcount="sortedData.length + 1"
       :class="{ 'open-data-table': open }"

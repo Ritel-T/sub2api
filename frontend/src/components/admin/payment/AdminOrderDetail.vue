@@ -78,9 +78,9 @@
         v-if="order.refund_amount"
         class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20"
       >
-        <h4 class="mb-2 text-sm font-semibold text-red-700 dark:text-red-400">
+        <AppHeading as="h4" variant="minor" class="mb-2 text-red-700 dark:text-red-400">
           {{ t('payment.admin.refundInfo') }}
-        </h4>
+        </AppHeading>
         <div class="grid grid-cols-2 gap-2 text-sm">
           <div>
             <span class="text-red-600 dark:text-red-400">{{ t('payment.admin.refundAmount') }}:</span>
@@ -121,6 +121,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'

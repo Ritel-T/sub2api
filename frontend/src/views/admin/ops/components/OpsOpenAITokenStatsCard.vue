@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
@@ -103,19 +104,19 @@ const openRecordColumns = computed(() => [{ key: 'model', label: t('admin.ops.op
 <template>
   <section class="open-section md:p-5">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <h3 class="text-sm font-bold text-gray-900 dark:text-white">
+      <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
         {{ t('admin.ops.openaiTokenStats.title') }}
-      </h3>
+      </AppHeading>
       <div class="open-filter-toolbar flex flex-wrap items-center gap-2">
         <div ref="tableTools0" class="min-w-0" />
         <div class="w-36">
-          <Select v-model="timeRange" :options="timeRangeOptions" />
+          <Select :aria-label="t('admin.dashboard.timeRange')" v-model="timeRange" :options="timeRangeOptions" />
         </div>
         <div class="w-36">
-          <Select v-model="viewMode" :options="viewModeOptions" />
+          <Select :aria-label="t('common.viewMode')" v-model="viewMode" :options="viewModeOptions" />
         </div>
         <div v-if="viewMode === 'topn'" class="w-28">
-          <Select v-model="topN" :options="topNOptions" />
+          <Select :aria-label="t('common.resultLimit')" v-model="topN" :options="topNOptions" />
         </div>
       </div>
     </div>
@@ -136,7 +137,7 @@ const openRecordColumns = computed(() => [{ key: 'model', label: t('admin.ops.op
 
     <div v-else class="space-y-3">
       <div class="open-section overflow-hidden">
-        <div class="min-w-0 overflow-x-auto">
+        <div class="min-w-0 overflow-x-auto overflow-y-hidden">
           <div v-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
             <div v-for="row in items" :key="row.model" class="space-y-2 p-3">
               <div class="break-all text-xs font-medium text-gray-900 dark:text-gray-100">{{ row.model }}</div>
@@ -168,7 +169,7 @@ const openRecordColumns = computed(() => [{ key: 'model', label: t('admin.ops.op
               </div>
             </div>
           </div>
-          <DataTable v-else :toolbar-target="tableTools0"
+          <DataTable column-order-key="admin-ops-openai-token-stats" v-else :toolbar-target="tableTools0"
  :columns="openRecordColumns"
  :primary-columns="['model','request_count','avg_tokens_per_sec','avg_first_token_ms','total_output_tokens']"
  :data="items" row-key="model" >

@@ -20,7 +20,7 @@
             {{ t('admin.settings.payment.providerKey') }}
             <span class="text-red-500">*</span>
           </label>
-          <Select
+          <Select :aria-label="t('admin.settings.payment.providerKey')"
             v-model="form.provider_key"
             :options="(!!editing ? allKeyOptions : enabledKeyOptions) as SelectOption[]"
             :disabled="!!editing"
@@ -73,9 +73,9 @@
       <div v-if="form.provider_key === 'easypay'" class="space-y-3 rounded-lg border border-gray-100 p-3 dark:border-dark-700">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <h5 class="text-sm font-medium text-gray-900 dark:text-white">
+            <AppHeading as="h5" variant="minor" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.payment.easypayCustomMethods') }}
-            </h5>
+            </AppHeading>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.payment.easypayCustomMethodsHint') }}
             </p>
@@ -117,9 +117,9 @@
       <!-- Config fields -->
       <div class="border-t border-gray-200 pt-4 dark:border-dark-700">
         <div class="mb-3 flex items-center gap-2">
-          <h4 class="text-sm font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h4" variant="minor" class="text-gray-900 dark:text-white">
             {{ t('admin.settings.payment.providerConfig') }}
-          </h4>
+          </AppHeading>
           <HelpTooltip v-if="paymentGuide" trigger="click" width-class="w-80">
             <template #trigger>
               <button
@@ -192,7 +192,7 @@
                 <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
               </button>
             </div>
-            <Select
+            <Select :aria-label="field.label"
               v-else-if="field.options?.length"
               v-model="config[field.key]"
               :options="field.options"
@@ -246,9 +246,9 @@
       <!-- Per-type limits (collapsible) -->
       <div v-if="limitableTypes.length" class="border-t border-gray-200 pt-4 dark:border-dark-700">
         <button type="button" @click="limitsExpanded = !limitsExpanded" class="flex w-full items-center justify-between">
-          <h4 class="text-sm font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h4" variant="minor" class="text-gray-900 dark:text-white">
             {{ t('admin.settings.payment.limitsTitle') }}
-          </h4>
+          </AppHeading>
           <svg :class="['h-4 w-4 text-gray-400 transition-transform', limitsExpanded && 'rotate-180']" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
         </button>
         <div v-show="limitsExpanded" class="mt-3 space-y-3">
@@ -305,6 +305,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { reactive, computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'

@@ -145,6 +145,50 @@ describe('admin RedeemView batch update', () => {
     getAllGroups.mockResolvedValue([])
   })
 
+  it('retains native form association and busy close protection after moving actions into the shared footer', async () => {
+    const wrapper = mount(RedeemView, { attachTo: document.body, global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' },
+      TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+      DataTable: DataTableStub, Select: SelectStub, ConfirmDialog: true, Icon: true, GroupBadge: true, GroupOptionItem: true, Teleport: true
+    } } })
+    await flushPromises()
+    const vm = wrapper.vm as any
+    for (const [open, busy, formId] of [
+      ['showGenerateDialog', 'generating', 'redeem-generate-form'],
+      ['showBatchUpdateDialog', 'batchUpdating', 'redeem-batch-update-form']
+    ]) {
+      vm[open] = true
+      await flushPromises()
+      const form = wrapper.get('#' + formId).element as HTMLFormElement
+      const submit = wrapper.get('button[form="' + formId + '"]').element as HTMLButtonElement
+      expect(submit.form).toBe(form)
+      expect(form.contains(submit)).toBe(false)
+      if (open === 'showGenerateDialog') {
+        const count = form.querySelector('input[max="100"]') as HTMLInputElement
+        count.value = '0'
+        expect(form.checkValidity()).toBe(false)
+      }
+      vm[busy] = true
+      await flushPromises()
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(vm[open]).toBe(true)
+      expect((wrapper.get('button[form="' + formId + '"]').element as HTMLButtonElement).disabled).toBe(true)
+      vm[busy] = false
+      await flushPromises()
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(vm[open]).toBe(false)
+    }
+    vm.showResultDialog = true
+    await flushPromises()
+    expect(wrapper.get('[role="dialog"]').text()).toContain('admin.redeem.generatedSuccessfully')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(vm.showResultDialog).toBe(false)
+    wrapper.unmount()
+  })
+
   it('submits only checked fields for selected redeem codes', async () => {
     const wrapper = mount(RedeemView, {
       attachTo: document.body,

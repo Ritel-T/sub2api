@@ -11,7 +11,7 @@
         :label="t('modelTrace.model')" :hint="t('modelTrace.modelHint')" @update:model-value="emit('update:modelId', $event)" />
       <div>
         <label class="input-label mb-1.5 block">{{ t('modelTrace.effort') }}</label>
-        <Select v-model="effort" :options="effortOptions" :disabled="running" />
+        <Select :aria-label="t('modelTrace.effort')" v-model="effort" :options="effortOptions" :disabled="running" />
         <p class="input-hint">{{ t('modelTrace.effortHint') }}</p>
       </div>
     </div>
@@ -25,7 +25,7 @@
 
     <section v-if="result" class="open-section space-y-3" data-testid="modeltrace-result">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h3 class="font-semibold text-gray-900 dark:text-gray-100">{{ t(`modelTrace.status.${result.status}`) }}</h3>
+        <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-gray-100">{{ t(`modelTrace.status.${result.status}`) }}</AppHeading>
         <span class="text-xs text-gray-500">{{ result.analysis?.used_outputs || 0 }} / 3 · {{ result.requested_model }} · {{ result.reasoning_effort || t('modelTrace.providerDefault') }}</span>
       </div>
       <p v-if="result.analysis" class="text-sm text-gray-800 dark:text-gray-200">
@@ -69,7 +69,7 @@
 
     <section v-if="history.length" class="space-y-2">
       <div class="flex items-center justify-between gap-3">
-        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('modelTrace.history') }}</h3>
+        <AppHeading as="h3" variant="subsection" class="text-gray-800 dark:text-gray-200">{{ t('modelTrace.history') }}</AppHeading>
         <button type="button" class="text-xs text-gray-500" :disabled="running" @click="clearHistory">{{ t('modelTrace.clear') }}</button>
       </div>
       <p class="text-xs text-gray-500">{{ t('modelTrace.historyHint') }}</p>
@@ -82,6 +82,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account } from '@/types'

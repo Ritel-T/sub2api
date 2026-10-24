@@ -187,3 +187,41 @@ describe('DateRangePicker', () => {
     ])
   })
 })
+
+describe('date field accessibility contract', () => {
+  it('forwards label and description to the real field, while disabled closes and blocks interaction', async () => {
+    const wrapper = mount(DateRangePicker, {
+      props: { startDate: '2026-09-09', endDate: '2026-09-10', id: 'report-range' },
+      attrs: { class: 'field-layout', 'aria-labelledby': 'range-label', 'aria-describedby': 'range-hint' }
+    })
+    const trigger = wrapper.get('.date-picker-trigger')
+    expect(trigger.attributes('id')).toBe('report-range')
+    expect(trigger.attributes('aria-labelledby')).toBe('range-label')
+    expect(trigger.attributes('aria-describedby')).toBe('range-hint')
+    expect(wrapper.get('.field-layout').attributes('aria-labelledby')).toBeUndefined()
+    await trigger.trigger('click')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+    await wrapper.setProps({ disabled: true })
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(trigger.attributes('disabled')).toBeDefined()
+    await trigger.trigger('click')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('names the field and associates invalid draft boundaries with one error', async () => {
+    const wrapper = mount(DateRangePicker, { props: { startDate: '2026-09-09', endDate: '2026-09-10', ariaLabel: 'Report period', error: true } })
+    expect(wrapper.get('.date-picker-trigger').attributes('aria-label')).toBe('Report period')
+    expect(wrapper.get('.date-picker-trigger').attributes('aria-invalid')).toBe('true')
+    await wrapper.get('.date-picker-trigger').trigger('click')
+    await wrapper.findAll('input')[1].setValue('2026-09-08')
+    const errorId = wrapper.get('[role="alert"]').attributes('id')
+    expect(errorId).toBeTruthy()
+    for (const input of wrapper.findAll('input')) {
+      expect(input.attributes('aria-invalid')).toBe('true')
+      expect(input.attributes('aria-describedby')).toBe(errorId)
+    }
+    expect(wrapper.findAll('button').every(button => button.attributes('type') === 'button')).toBe(true)
+    wrapper.unmount()
+  })
+})

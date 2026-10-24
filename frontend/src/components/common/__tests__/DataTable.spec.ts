@@ -687,3 +687,19 @@ describe('DataTable', () => {
     wrapper.unmount()
   })
 })
+
+
+it.each(['desktop', 'mobile'])('exposes one loading status and keeps the %s table structure', async (viewport) => {
+  if (viewport === 'desktop') stubDesktopMatchMedia()
+  else stubMobileMatchMedia()
+  const wrapper = mount(DataTable, { props: { columns: [{ key: 'id', label: 'ID' }], data: [], loading: true } })
+  expect(wrapper.findAll('[role="status"]')).toHaveLength(1)
+  expect(wrapper.get('[role="status"]').text()).toBe('common.loading')
+  const body = wrapper.get(viewport === 'desktop' ? 'table' : '.table-mobile-records')
+  expect(body.attributes('aria-busy')).toBe('true')
+  if (viewport === 'desktop') expect(wrapper.get('tbody').element.parentElement?.tagName).toBe('TABLE')
+  await wrapper.setProps({ loading: false })
+  expect(wrapper.find('[role="status"]').exists()).toBe(false)
+  expect(body.attributes('aria-busy')).toBe('false')
+  wrapper.unmount()
+})

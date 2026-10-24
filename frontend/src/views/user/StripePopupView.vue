@@ -40,7 +40,7 @@
 
       <!-- Loading / Redirecting -->
       <div v-else class="flex items-center justify-center py-8">
-        <div
+        <div role="status" :aria-label="t('common.loading')"
           class="h-8 w-8 animate-spin rounded-full border-2 border-t-transparent"
           :style="{ borderColor: methodColor, borderTopColor: 'transparent' }"
         />

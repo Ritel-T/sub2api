@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <TablePageLayout open>
       <template #actions>
         <header class="groups-page-heading">
-          <h1>{{ t('admin.groups.title') }}</h1>
+          <AppHeading variant="page" as="h1">{{ t('admin.groups.title') }}</AppHeading>
           <!-- Right: actions -->
           <div
             class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto"
@@ -67,21 +67,21 @@
                 @input="handleSearch"
               />
             </div>
-            <Select
+            <Select :aria-label="t('admin.groups.form.platform')"
               v-model="filters.platform"
               :options="platformFilterOptions"
               :placeholder="t('admin.groups.allPlatforms')"
               class="w-44"
               @change="loadGroups"
             />
-            <Select
+            <Select :aria-label="t('common.status')"
               v-model="filters.status"
               :options="statusOptions"
               :placeholder="t('admin.groups.allStatus')"
               class="w-40"
               @change="loadGroups"
             />
-            <Select
+            <Select :aria-label="t('admin.groups.allGroups')"
               v-if="!authStore.isSimpleMode"
               v-model="filters.is_exclusive"
               :options="exclusiveOptions"
@@ -521,7 +521,7 @@
           <label class="input-label">{{
             t("admin.groups.form.platform")
           }}</label>
-          <Select
+          <Select :aria-label="t('admin.groups.form.platform')"
             v-model="createForm.platform"
             data-testid="create-group-platform"
             :options="platformOptions"
@@ -737,7 +737,7 @@
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <Toggle v-model="createForm.is_exclusive" />
+            <Toggle :aria-label="t('admin.groups.form.exclusive')" v-model="createForm.is_exclusive" />
             <span class="text-sm text-gray-500 dark:text-gray-400">
               {{
                 createForm.is_exclusive
@@ -754,7 +754,7 @@
             <label class="input-label">{{
               t("admin.groups.subscription.type")
             }}</label>
-            <Select
+            <Select :aria-label="t('admin.groups.subscription.type')"
               v-model="createForm.subscription_type"
               data-testid="create-subscription-type"
               :options="subscriptionTypeOptions"
@@ -810,7 +810,7 @@
             </div>
             <div data-testid="create-subscription-fallback">
               <label class="input-label">{{ t("admin.groups.subscription.fallbackGroup") }}</label>
-              <Select
+              <Select :aria-label="t('admin.groups.subscription.fallbackGroup')"
                 v-model="createForm.subscription_fallback_group_id"
                 data-testid="create-subscription-fallback-select"
                 :options="subscriptionFallbackOptions"
@@ -831,7 +831,7 @@
                 {{ t("admin.groups.modelAllowlist.hint") }}
               </p>
             </div>
-            <Toggle v-model="createModelAllowlistState.enabled" />
+            <Toggle :aria-label="t('admin.groups.modelAllowlist.title')" v-model="createModelAllowlistState.enabled" />
           </div>
           <div
             v-if="createModelAllowlistState.enabled"
@@ -1431,7 +1431,7 @@
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <Toggle v-model="createForm.mcp_xml_inject" />
+            <Toggle :aria-label="t('admin.groups.mcpXml.title')" v-model="createForm.mcp_xml_inject" />
             <span class="text-sm text-gray-500 dark:text-gray-400">
               {{
                 createForm.mcp_xml_inject
@@ -1473,7 +1473,7 @@
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <Toggle v-model="createForm.claude_code_only" />
+            <Toggle :aria-label="t('admin.groups.claudeCode.title')" v-model="createForm.claude_code_only" />
             <span class="text-sm text-gray-500 dark:text-gray-400">
               {{
                 createForm.claude_code_only
@@ -1487,7 +1487,7 @@
             <label class="input-label">{{
               t("admin.groups.claudeCode.fallbackGroup")
             }}</label>
-            <Select
+            <Select :aria-label="t('admin.groups.claudeCode.fallbackGroup')"
               v-model="createForm.fallback_group_id"
               :options="fallbackGroupOptions"
               :placeholder="t('admin.groups.claudeCode.noFallback')"
@@ -1503,9 +1503,9 @@
           v-if="createForm.platform === 'openai'"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.webSearchPricing.title") }}
-          </h4>
+          </AppHeading>
           <div>
             <label class="input-label">{{
               t("admin.groups.webSearchPricing.pricePerCall")
@@ -1537,7 +1537,7 @@
         <div class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
-              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
+              <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</AppHeading>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(createForm.model_pricing)">
@@ -1558,9 +1558,9 @@
           v-if="createForm.platform === 'grok'"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-1">
             {{ t("admin.groups.explicitPricing.title") }}
-          </h4>
+          </AppHeading>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
             {{ t("admin.groups.explicitPricing.description") }}
           </p>
@@ -1620,9 +1620,9 @@
           v-if="supportsGroupOpenAIFast(createForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.openaiFast.title") }}
-          </h4>
+          </AppHeading>
           <div class="flex items-center justify-between gap-4">
             <label class="text-sm text-gray-600 dark:text-gray-400">
               {{ t("admin.groups.openaiFast.force") }}
@@ -1656,14 +1656,14 @@
           v-if="supportsLivePlatform(createForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.openaiLive.title") }}
-          </h4>
+          </AppHeading>
           <div class="flex items-center justify-between">
             <label class="text-sm text-gray-600 dark:text-gray-400">{{
               t("admin.groups.openaiLive.allow")
             }}</label>
-            <Toggle
+            <Toggle :aria-label="t('admin.groups.openaiLive.allow')"
               :model-value="createForm.allow_live"
               @update:model-value="toggleLive('create')"
             />
@@ -1678,16 +1678,16 @@
           v-if="supportsMessagesDispatchPlatform(createForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.openaiMessages.title") }}
-          </h4>
+          </AppHeading>
 
           <!-- 允许 Messages 调度开关 -->
           <div class="flex items-center justify-between">
             <label class="text-sm text-gray-600 dark:text-gray-400">{{
               t("admin.groups.openaiMessages.allowDispatch")
             }}</label>
-            <Toggle v-model="createForm.allow_messages_dispatch" />
+            <Toggle :aria-label="t('admin.groups.openaiMessages.allowDispatch')" v-model="createForm.allow_messages_dispatch" />
           </div>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {{ t("admin.groups.openaiMessages.allowDispatchHint") }}
@@ -1894,9 +1894,9 @@
           "
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4 space-y-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.accountFilters.title") }}
-          </h4>
+          </AppHeading>
 
           <!-- require_oauth_only toggle -->
           <div class="flex items-center justify-between">
@@ -1912,7 +1912,7 @@
                 }}
               </p>
             </div>
-            <Toggle v-model="createForm.require_oauth_only" />
+            <Toggle :aria-label="t('admin.groups.accountFilters.oauthOnly')" v-model="createForm.require_oauth_only" />
           </div>
 
           <!-- require_privacy_set toggle -->
@@ -1929,7 +1929,7 @@
                 }}
               </p>
             </div>
-            <Toggle v-model="createForm.require_privacy_set" />
+            <Toggle :aria-label="t('admin.groups.accountFilters.privacySetOnly')" v-model="createForm.require_privacy_set" />
           </div>
         </div>
 
@@ -1944,7 +1944,7 @@
           <label class="input-label">{{
             t("admin.groups.invalidRequestFallback.title")
           }}</label>
-          <Select
+          <Select :aria-label="t('admin.groups.invalidRequestFallback.title')"
             v-model="createForm.fallback_group_id_on_invalid_request"
             :options="invalidRequestFallbackOptions"
             :placeholder="t('admin.groups.invalidRequestFallback.noFallback')"
@@ -1986,7 +1986,7 @@
           </div>
           <!-- 启用开关 -->
           <div class="flex items-center gap-3 mb-3">
-            <Toggle v-model="createForm.model_routing_enabled" />
+            <Toggle :aria-label="t('admin.groups.modelRouting.title')" v-model="createForm.model_routing_enabled" />
             <span class="text-sm text-gray-500 dark:text-gray-400">
               {{
                 createForm.model_routing_enabled
@@ -2208,7 +2208,7 @@
           <label class="input-label">{{
             t("admin.groups.form.platform")
           }}</label>
-          <Select
+          <Select :aria-label="t('admin.groups.form.platform')"
             v-model="editForm.platform"
             :options="platformOptions"
             :disabled="true"
@@ -2421,7 +2421,7 @@
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <Toggle v-model="editForm.is_exclusive" />
+            <Toggle :aria-label="t('admin.groups.form.exclusive')" v-model="editForm.is_exclusive" />
             <span class="text-sm text-gray-500 dark:text-gray-400">
               {{
                 editForm.is_exclusive
@@ -2433,7 +2433,7 @@
         </div>
         <div>
           <label class="input-label">{{ t("admin.groups.form.status") }}</label>
-          <Select v-model="editForm.status" :options="editStatusOptions" />
+          <Select :aria-label="t('admin.groups.form.status')" v-model="editForm.status" :options="editStatusOptions" />
         </div>
 
         <!-- Subscription Configuration -->
@@ -2442,7 +2442,7 @@
             <label class="input-label">{{
               t("admin.groups.subscription.type")
             }}</label>
-            <Select
+            <Select :aria-label="t('admin.groups.subscription.type')"
               v-model="editForm.subscription_type"
               :options="subscriptionTypeOptions"
               :disabled="true"
@@ -2498,7 +2498,7 @@
             </div>
             <div data-testid="edit-subscription-fallback">
               <label class="input-label">{{ t("admin.groups.subscription.fallbackGroup") }}</label>
-              <Select
+              <Select :aria-label="t('admin.groups.subscription.fallbackGroup')"
                 v-model="editForm.subscription_fallback_group_id"
                 data-testid="edit-subscription-fallback-select"
                 :options="subscriptionFallbackOptionsForEdit"
@@ -2519,7 +2519,7 @@
                 {{ t("admin.groups.modelAllowlist.hint") }}
               </p>
             </div>
-            <Toggle v-model="editModelAllowlistState.enabled" />
+            <Toggle :aria-label="t('admin.groups.modelAllowlist.title')" v-model="editModelAllowlistState.enabled" />
           </div>
           <div
             v-if="editModelAllowlistState.enabled"
@@ -3119,7 +3119,7 @@
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <Toggle v-model="editForm.mcp_xml_inject" />
+            <Toggle :aria-label="t('admin.groups.mcpXml.title')" v-model="editForm.mcp_xml_inject" />
             <span class="text-sm text-gray-500 dark:text-gray-400">
               {{
                 editForm.mcp_xml_inject
@@ -3161,7 +3161,7 @@
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <Toggle v-model="editForm.claude_code_only" />
+            <Toggle :aria-label="t('admin.groups.claudeCode.title')" v-model="editForm.claude_code_only" />
             <span class="text-sm text-gray-500 dark:text-gray-400">
               {{
                 editForm.claude_code_only
@@ -3175,7 +3175,7 @@
             <label class="input-label">{{
               t("admin.groups.claudeCode.fallbackGroup")
             }}</label>
-            <Select
+            <Select :aria-label="t('admin.groups.claudeCode.fallbackGroup')"
               v-model="editForm.fallback_group_id"
               :options="fallbackGroupOptionsForEdit"
               :placeholder="t('admin.groups.claudeCode.noFallback')"
@@ -3191,9 +3191,9 @@
           v-if="editForm.platform === 'openai'"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.webSearchPricing.title") }}
-          </h4>
+          </AppHeading>
           <div>
             <label class="input-label">{{
               t("admin.groups.webSearchPricing.pricePerCall")
@@ -3235,7 +3235,7 @@
         <div class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
-              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
+              <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</AppHeading>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(editForm.model_pricing)">
@@ -3256,9 +3256,9 @@
           v-if="editForm.platform === 'grok'"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-1">
             {{ t("admin.groups.explicitPricing.title") }}
-          </h4>
+          </AppHeading>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
             {{ t("admin.groups.explicitPricing.description") }}
           </p>
@@ -3318,9 +3318,9 @@
           v-if="supportsGroupOpenAIFast(editForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.openaiFast.title") }}
-          </h4>
+          </AppHeading>
           <div class="flex items-center justify-between gap-4">
             <label class="text-sm text-gray-600 dark:text-gray-400">
               {{ t("admin.groups.openaiFast.force") }}
@@ -3354,14 +3354,14 @@
           v-if="supportsLivePlatform(editForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.openaiLive.title") }}
-          </h4>
+          </AppHeading>
           <div class="flex items-center justify-between">
             <label class="text-sm text-gray-600 dark:text-gray-400">{{
               t("admin.groups.openaiLive.allow")
             }}</label>
-            <Toggle
+            <Toggle :aria-label="t('admin.groups.openaiLive.allow')"
               :model-value="editForm.allow_live"
               @update:model-value="toggleLive('edit')"
             />
@@ -3376,16 +3376,16 @@
           v-if="supportsMessagesDispatchPlatform(editForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.openaiMessages.title") }}
-          </h4>
+          </AppHeading>
 
           <!-- 允许 Messages 调度开关 -->
           <div class="flex items-center justify-between">
             <label class="text-sm text-gray-600 dark:text-gray-400">{{
               t("admin.groups.openaiMessages.allowDispatch")
             }}</label>
-            <Toggle v-model="editForm.allow_messages_dispatch" />
+            <Toggle :aria-label="t('admin.groups.openaiMessages.allowDispatch')" v-model="editForm.allow_messages_dispatch" />
           </div>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {{ t("admin.groups.openaiMessages.allowDispatchHint") }}
@@ -3591,9 +3591,9 @@
           "
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4 space-y-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300 mb-3">
             {{ t("admin.groups.accountFilters.title") }}
-          </h4>
+          </AppHeading>
 
           <!-- require_oauth_only toggle -->
           <div class="flex items-center justify-between">
@@ -3609,7 +3609,7 @@
                 }}
               </p>
             </div>
-            <Toggle v-model="editForm.require_oauth_only" />
+            <Toggle :aria-label="t('admin.groups.accountFilters.oauthOnly')" v-model="editForm.require_oauth_only" />
           </div>
 
           <!-- require_privacy_set toggle -->
@@ -3626,7 +3626,7 @@
                 }}
               </p>
             </div>
-            <Toggle v-model="editForm.require_privacy_set" />
+            <Toggle :aria-label="t('admin.groups.accountFilters.privacySetOnly')" v-model="editForm.require_privacy_set" />
           </div>
         </div>
 
@@ -3641,7 +3641,7 @@
           <label class="input-label">{{
             t("admin.groups.invalidRequestFallback.title")
           }}</label>
-          <Select
+          <Select :aria-label="t('admin.groups.invalidRequestFallback.title')"
             v-model="editForm.fallback_group_id_on_invalid_request"
             :options="invalidRequestFallbackOptionsForEdit"
             :placeholder="t('admin.groups.invalidRequestFallback.noFallback')"
@@ -3683,7 +3683,7 @@
           </div>
           <!-- 启用开关 -->
           <div class="flex items-center gap-3 mb-3">
-            <Toggle v-model="editForm.model_routing_enabled" />
+            <Toggle :aria-label="t('admin.groups.modelRouting.title')" v-model="editForm.model_routing_enabled" />
             <span class="text-sm text-gray-500 dark:text-gray-400">
               {{
                 editForm.model_routing_enabled
@@ -3871,6 +3871,7 @@
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
       :show="showDeleteDialog"
+      :busy="deleteAction.busy.value"
       :title="t('admin.groups.deleteGroup')"
       :message="deleteConfirmMessage"
       :confirm-text="t('common.delete')"
@@ -3882,6 +3883,7 @@
 
     <ConfirmDialog
       :show="showUnsupportedLiveConfirm"
+      :busy="liveAction.busy.value"
       :title="t('admin.groups.openaiLive.unsupportedTitle')"
       :message="t('admin.groups.openaiLive.unsupportedMessage')"
       :confirm-text="t('admin.groups.openaiLive.enableAnyway')"
@@ -4009,9 +4011,9 @@
       <div class="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
         <section class="min-w-0">
           <div class="mb-3 flex items-center justify-between gap-3">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
               {{ t("admin.groups.compositeRoutes.routes") }}
-            </h3>
+            </AppHeading>
             <button
               type="button"
               class="btn btn-secondary btn-sm"
@@ -4129,13 +4131,13 @@
         <section class="space-y-5">
           <form class="space-y-3" @submit.prevent="saveCompositeRoute">
             <div class="flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                 {{
                   compositeRouteEditingId
                     ? t("admin.groups.compositeRoutes.editRoute")
                     : t("admin.groups.compositeRoutes.addRoute")
                 }}
-              </h3>
+              </AppHeading>
               <button
                 v-if="compositeRouteEditingId"
                 type="button"
@@ -4164,7 +4166,7 @@
                 <label class="input-label">{{
                   t("admin.groups.compositeRoutes.matchType")
                 }}</label>
-                <Select
+                <Select :aria-label="t('admin.groups.compositeRoutes.matchType')"
                   v-model="compositeRouteForm.match_type"
                   :options="compositeRouteMatchOptions"
                 />
@@ -4173,7 +4175,7 @@
                 <label class="input-label">{{
                   t("admin.groups.compositeRoutes.endpoint")
                 }}</label>
-                <Select
+                <Select :aria-label="t('admin.groups.compositeRoutes.endpoint')"
                   v-model="compositeRouteForm.endpoint"
                   :options="compositeRouteEndpointOptions"
                 />
@@ -4185,7 +4187,7 @@
                 <label class="input-label">{{
                   t("admin.groups.compositeRoutes.targetPlatform")
                 }}</label>
-                <Select
+                <Select :aria-label="t('admin.groups.compositeRoutes.targetPlatform')"
                   v-model="compositeRouteForm.target_platform"
                   :options="compositeRoutePlatformOptions"
                 />
@@ -4256,9 +4258,9 @@
           </form>
 
           <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-            <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="subsection" as="h3" class="mb-3 text-gray-900 dark:text-white">
               {{ t("admin.groups.compositeRoutes.preview") }}
-            </h3>
+            </AppHeading>
             <div class="space-y-3">
               <input
                 v-model.trim="compositePreviewModel"
@@ -4268,7 +4270,7 @@
                 @keyup.enter="previewCompositeRoute"
               />
               <div class="flex gap-2">
-                <Select
+                <Select :aria-label="t('admin.groups.compositeRoutes.endpoint')"
                   v-model="compositePreviewEndpoint"
                   :options="compositeRouteEndpointOptions"
                   class="min-w-0 flex-1"
@@ -4376,9 +4378,15 @@
       @success="loadGroups"
     />
   </AppLayout>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'
+
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
@@ -4731,7 +4739,7 @@ const fallbackGroupOptionsForEdit = computed(() => {
 const subscriptionFallbackGroups = ref<AdminGroup[]>([]);
 const subscriptionFallbackGroupsLoading = ref(false);
 const loadSubscriptionFallbackGroups = async () => {
-  subscriptionFallbackGroupsLoading.value = true;
+    subscriptionFallbackGroupsLoading.value = true;
   try {
     subscriptionFallbackGroups.value = (await adminAPI.groups.getAll()) || [];
   } catch {
@@ -5611,7 +5619,7 @@ const deleteConfirmMessage = computed(() => {
 });
 
 const loadLiveCapability = async () => {
-  if (liveCapability.value) return liveCapability.value;
+    if (liveCapability.value) return liveCapability.value;
   if (!liveCapabilityRequest) {
     liveCapabilityRequest = adminAPI.groups
       .getLiveCapability()
@@ -5638,10 +5646,15 @@ const toggleLive = async (target: "create" | "edit") => {
   pendingLiveForm.value = target;
 };
 
-const confirmUnsupportedLive = () => {
-  if (pendingLiveForm.value === "create") createForm.allow_live = true;
-  if (pendingLiveForm.value === "edit") editForm.allow_live = true;
-  pendingLiveForm.value = null;
+const liveAction = useConfirmedAction(() => ({ active: showUnsupportedLiveConfirm.value, identity: [pendingLiveForm.value, editingGroup.value?.id] }))
+watch(() => [showCreateModal.value, showEditModal.value, editingGroup.value?.id], () => { pendingLiveForm.value = null }, { flush: 'sync' })
+const confirmUnsupportedLive = async () => {
+  const target = pendingLiveForm.value
+  await liveAction.run(() => {
+    if (target === "create" && showCreateModal.value) createForm.allow_live = true;
+    if (target === "edit" && showEditModal.value) editForm.allow_live = true;
+    pendingLiveForm.value = null;
+  })
 };
 
 const cancelUnsupportedLive = () => {
@@ -5664,7 +5677,7 @@ async function fetchListPage(page: number, signal: AbortSignal) {
 }
 
 const loadGroups = async () => {
-  await continuousList.reset()
+    await continuousList.reset()
 }
 
 watch(groups, (rows) => {
@@ -5702,7 +5715,7 @@ const getQuotaUsageClass = (
 };
 
 const loadUsageSummary = async () => {
-  if (!hasVisibleUsageSummaryConsumer.value) {
+    if (!hasVisibleUsageSummaryConsumer.value) {
     usageLoading.value = false;
     return;
   }
@@ -5726,7 +5739,7 @@ const loadUsageSummary = async () => {
 };
 
 const loadCapacitySummary = async () => {
-  if (!hasVisibleCapacityColumn.value) {
+    if (!hasVisibleCapacityColumn.value) {
     return;
   }
   try {
@@ -5906,7 +5919,7 @@ const validateGroupReasoningMultipliers = (pricing: PricingFormEntry[]): boolean
 };
 
 const handleCreateGroup = async () => {
-  if (!createForm.name.trim()) {
+    if (!createForm.name.trim()) {
     appStore.showError(t("admin.groups.nameRequired"));
     return;
   }
@@ -6250,7 +6263,7 @@ const closeEditModal = () => {
 };
 
 const handleUpdateGroup = async () => {
-  if (!editingGroup.value) return;
+    if (!editingGroup.value) return;
   if (!editForm.name.trim()) {
     appStore.showError(t("admin.groups.nameRequired"));
     return;
@@ -6534,18 +6547,29 @@ const toCompositeRouteInput = (): CompositeModelRouteInput => ({
   notes: compositeRouteForm.notes.trim(),
 });
 
+let compositeRoutesLoadVersion = 0;
+watch(
+  () => [showCompositeRoutesModal.value, compositeRoutesGroup.value?.id],
+  () => { compositeRoutesLoadVersion++; },
+  { flush: "sync" },
+);
+onUnmounted(() => { compositeRoutesLoadVersion++; });
 const loadCompositeRoutes = async () => {
-  if (!compositeRoutesGroup.value) return;
+  if (!compositeRoutesGroup.value || !showCompositeRoutesModal.value) return;
+  const groupId = compositeRoutesGroup.value.id;
+  const version = ++compositeRoutesLoadVersion;
+  const isCurrent = () => version === compositeRoutesLoadVersion
+    && showCompositeRoutesModal.value && compositeRoutesGroup.value?.id === groupId;
   compositeRoutesLoading.value = true;
   try {
-    const routes = await adminAPI.groups.listCompositeRoutes(
-      compositeRoutesGroup.value.id,
-    );
+    const routes = await adminAPI.groups.listCompositeRoutes(groupId);
+    if (!isCurrent()) return;
     compositeRoutes.value = routes.sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
       return a.id - b.id;
     });
   } catch (error: any) {
+    if (!isCurrent()) return;
     appStore.showError(
       error.response?.data?.detail ||
         error.response?.data?.message ||
@@ -6553,7 +6577,7 @@ const loadCompositeRoutes = async () => {
     );
     console.error("Error loading composite routes:", error);
   } finally {
-    compositeRoutesLoading.value = false;
+    if (isCurrent()) compositeRoutesLoading.value = false;
   }
 };
 
@@ -6588,7 +6612,7 @@ const editCompositeRoute = (route: CompositeModelRoute) => {
 };
 
 const saveCompositeRoute = async () => {
-  if (!compositeRoutesGroup.value) return;
+    if (!compositeRoutesGroup.value) return;
   if (!compositeRouteForm.public_model.trim()) {
     appStore.showError(t("admin.groups.compositeRoutes.publicModelRequired"));
     return;
@@ -6626,29 +6650,35 @@ const saveCompositeRoute = async () => {
 
 const deleteCompositeRoute = async (route: CompositeModelRoute) => {
   if (!compositeRoutesGroup.value) return;
-  if (!window.confirm(t("admin.groups.compositeRoutes.deleteConfirm"))) return;
-  try {
-    await adminAPI.groups.deleteCompositeRoute(
-      compositeRoutesGroup.value.id,
-      route.id,
-    );
-    if (compositeRouteEditingId.value === route.id) {
-      resetCompositeRouteForm();
+  const groupId = compositeRoutesGroup.value.id;
+  const routeId = route.id;
+  await confirmation.run({ message: t("admin.groups.compositeRoutes.deleteConfirm"), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async (isCurrent) => {
+    try {
+      await adminAPI.groups.deleteCompositeRoute(
+        groupId,
+        routeId,
+      );
+      if (!isCurrent()) return
+      if (compositeRouteEditingId.value === route.id) {
+        resetCompositeRouteForm();
+      }
+      appStore.showSuccess(t("admin.groups.compositeRoutes.routeDeleted"));
+      await loadCompositeRoutes();
+      if (!isCurrent()) return
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(
+        error.response?.data?.detail ||
+          error.response?.data?.message ||
+          t("admin.groups.compositeRoutes.failedToDelete"),
+      );
+      console.error("Error deleting composite route:", error);
     }
-    appStore.showSuccess(t("admin.groups.compositeRoutes.routeDeleted"));
-    await loadCompositeRoutes();
-  } catch (error: any) {
-    appStore.showError(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        t("admin.groups.compositeRoutes.failedToDelete"),
-    );
-    console.error("Error deleting composite route:", error);
-  }
+  })
 };
 
 const previewCompositeRoute = async () => {
-  if (!compositeRoutesGroup.value || !compositePreviewModel.value.trim()) {
+    if (!compositeRoutesGroup.value || !compositePreviewModel.value.trim()) {
     return;
   }
   compositePreviewLoading.value = true;
@@ -6672,26 +6702,31 @@ const previewCompositeRoute = async () => {
   }
 };
 
+const deleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: deletingGroup.value?.id }))
+watch(() => deletingGroup.value?.id, (id, oldId) => { if (oldId != null && id !== oldId) showDeleteDialog.value = false }, { flush: 'sync' })
 const handleDelete = (group: AdminGroup) => {
+  if (deleteAction.busy.value) return;
   deletingGroup.value = group;
   showDeleteDialog.value = true;
 };
 
 const confirmDelete = async () => {
-  if (!deletingGroup.value) return;
-
-  try {
-    await adminAPI.groups.delete(deletingGroup.value.id);
-    appStore.showSuccess(t("admin.groups.groupDeleted"));
-    showDeleteDialog.value = false;
-    deletingGroup.value = null;
-    loadGroups();
-  } catch (error: any) {
-    appStore.showError(
-      error.response?.data?.detail || t("admin.groups.failedToDelete"),
-    );
-    console.error("Error deleting group:", error);
-  }
+  const targetId = deletingGroup.value?.id;
+  if (targetId == null) return;
+  await deleteAction.run(async (isCurrent) => {
+    try {
+      await adminAPI.groups.delete(targetId);
+      if (!isCurrent()) return;
+      appStore.showSuccess(t("admin.groups.groupDeleted"));
+      showDeleteDialog.value = false;
+      deletingGroup.value = null;
+      loadGroups();
+    } catch (error: any) {
+      if (!isCurrent()) return;
+      appStore.showError(error.response?.data?.detail || t("admin.groups.failedToDelete"));
+      console.error("Error deleting group:", error);
+    }
+  })
 };
 
 // 监听 subscription_type 变化，订阅模式时 is_exclusive 默认为 true；标准模式清空高峰配置
@@ -6870,7 +6905,7 @@ const handleClickOutside = (event: MouseEvent) => {
 
 // 打开排序弹窗
 const openSortModal = async () => {
-  try {
+    try {
     // 获取所有分组（不分页）
     const allGroups = await adminAPI.groups.getAll();
     // 按 sort_order 排序
@@ -6892,7 +6927,7 @@ const closeSortModal = () => {
 
 // 保存排序
 const saveSortOrder = async () => {
-  sortSubmitting.value = true;
+    sortSubmitting.value = true;
   try {
     const updates = sortableGroups.value.map((g, index) => ({
       id: g.id,
@@ -6926,10 +6961,12 @@ onUnmounted(() => {
   accountSearchRunner.clearAll();
   clearAllAccountSearchState();
 });
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: showCompositeRoutesModal.value, identity: compositeRoutesGroup.value?.id }))
 </script>
 
 <style scoped>
 .groups-page-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1.25rem; }
-.groups-page-heading h1 { font-family:var(--ritel-display); font-size:clamp(2.25rem,3vw,3rem); font-weight:400; line-height:1.1; }
 @media (max-width:767px) { .groups-page-heading { gap:.875rem; } }
 </style>

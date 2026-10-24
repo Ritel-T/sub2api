@@ -38,10 +38,15 @@
     <template #footer><button type="button" class="btn btn-secondary" @click="close">{{ t('tokenGuardV2.totpManage.close') }}</button></template>
   </BaseDialog>
   <OpenAISessionExportDialog v-if="sessionExportOpen" :account="sessionExportAccount" @close="sessionExportOpen = false" />
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation, useConfirmationContext } from '@/composables/useConfirmation'
+
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode'
 import { BaseDialog } from '@/components/common'
@@ -50,6 +55,8 @@ import OpenAISessionExportDialog from '@/components/account/OpenAISessionExportD
 
 const props = defineProps<{ accountId: number; accountName: string; configured: boolean }>()
 const { t } = useI18n()
+const ownerContext = useConfirmationContext(() => ({ active: true, identity: props.accountId }))
+watch(ownerContext, close, { deep: true, flush: 'sync' })
 const opened = ref(false), busy = ref(false), loaded = ref(false)
 const task = ref<TOTPRotation | null>(null)
 const error = ref(''), qr = ref('')
@@ -63,7 +70,7 @@ let generation = 0
 function clearExport() { exported.value = null; qr.value = '' }
 function close() {
   generation++; opened.value = false; busy.value = false; loaded.value = false; includePassword.value = false; sessionExportOpen.value = false
-  clearExport(); error.value = ''; if (timer) clearInterval(timer); timer = undefined
+  clearExport(); task.value = null; error.value = ''; if (timer) clearInterval(timer); timer = undefined
 }
 async function refresh() {
   const current = generation
@@ -81,18 +88,21 @@ async function open() {
   if (opened.value) timer = setInterval(() => { if (!busy.value) void refresh() }, 3000)
 }
 async function start() {
-  if (!window.confirm(t('tokenGuardV2.totpManage.confirm', { account: props.accountName }))) return
-  const current = generation
-  await perform(async () => { const result = await rotateTOTP(props.accountId); if (opened.value && current === generation) task.value = result })
+  const accountId = props.accountId
+  await confirmation.run({ message: t('tokenGuardV2.totpManage.confirm', { account: props.accountName }), title: t('common.confirm'), confirmText: t('common.confirm'), danger: true }, async (isCurrent) => {
+    const current = generation
+    await perform(async () => { const result = await rotateTOTP(accountId); if (isCurrent() && opened.value && current === generation) task.value = result }, isCurrent)
+    if (!isCurrent()) return
+  })
 }
 async function verify(action: 'verify_new' | 'verify_old') {
   if (!task.value) return
   const id = task.value.task_id
   await perform(async () => { await verifyTOTP(props.accountId, id, action); await refresh() })
 }
-async function perform(work: () => Promise<void>) {
+async function perform(work: () => Promise<void>, isCurrent: () => boolean = () => true) {
   const current = generation; busy.value = true; error.value = ''; clearExport()
-  try { await work() } catch { if (opened.value && current === generation) error.value = t('tokenGuardV2.error') }
+  try { await work() } catch { if (isCurrent() && ownerContext().active && opened.value && current === generation) error.value = t('tokenGuardV2.error') }
   finally { if (current === generation) busy.value = false }
 }
 async function reveal() {
@@ -117,4 +127,7 @@ function download(format: 'json' | 'txt') {
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 onBeforeUnmount(close)
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: opened.value, identity: props.accountId }))
 </script>

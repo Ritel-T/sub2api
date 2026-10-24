@@ -6,9 +6,9 @@
     <form v-else @submit.prevent="save">
       <fieldset :disabled="saving">
         <div>
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
             {{ t("admin.settings.gatewayForwarding.codexTicketHarvestProxy") }}
-          </h3>
+          </AppHeading>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {{ t("admin.settings.gatewayForwarding.codexTicketHarvestProxyDesc") }}
           </p>
@@ -101,6 +101,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { localizeInlineText } from '@/i18n/inline'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'

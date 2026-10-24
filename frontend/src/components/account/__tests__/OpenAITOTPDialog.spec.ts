@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { reactive } from 'vue'
+import { ConfirmationSessionKey } from '@/composables/useConfirmation'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import OpenAITOTPDialog from '../OpenAITOTPDialog.vue'
 
 const api = vi.hoisted(() => ({ status: vi.fn(), rotate: vi.fn(), verify: vi.fn(), export: vi.fn(), session: vi.fn(), sessionStatus: vi.fn(), sessionDownload: vi.fn() }))
@@ -10,14 +13,74 @@ vi.mock('@/components/auth/TotpStepUpDialog.vue', () => ({ default: { name: 'Tot
 let wrapper: VueWrapper
 const dialog = { props: ['show'], emits: ['close'], template: '<div v-if="show"><slot/><slot name="footer"/><button data-testid="close" @click="$emit(\'close\')">close</button></div>' }
 const exported = { email: 'owner@example.test', secret: 'SYNTHETIC-SECRET', otpauth_uri: 'otpauth://synthetic', source: 'current', state: 'succeeded' }
-async function open() {
-  wrapper = mount(OpenAITOTPDialog, { props: { accountId: 42, accountName: 'Test account', configured: true }, global: { stubs: { BaseDialog: dialog } } })
+async function open(provide = {}) {
+  wrapper = mount(OpenAITOTPDialog, { props: { accountId: 42, accountName: 'Test account', configured: true }, global: { provide, stubs: { BaseDialog: dialog } } })
   await wrapper.get('[data-testid="totp-manage"]').trigger('click'); await flushPromises()
 }
 beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); api.status.mockResolvedValue(null); api.export.mockResolvedValue(exported); api.session.mockResolvedValue({ id: 9, account_id: 42, status: 'queued', stage: 'queued', attempt: 1 }); api.sessionStatus.mockResolvedValue({ id: 9, account_id: 42, status: 'succeeded', stage: 'succeeded', attempt: 1 }); api.sessionDownload.mockResolvedValue({ accessToken: 'token', sessionToken: 'session' }) })
 afterEach(() => { wrapper?.unmount(); vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('2FA rotation and credential export', () => {
+  it('discards a rejected A rotation while the replacement account dialog is closed', async () => {
+    let reject!: (error: Error) => void
+    api.rotate.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail }))
+    await open()
+    await wrapper.get('[data-testid="totp-rotate"]').trigger('click')
+    wrapper.getComponent(ConfirmationPrompt).props('confirmation').settle(true)
+    expect(api.rotate).toHaveBeenCalledWith(42)
+    await wrapper.setProps({ accountId: 43, accountName: 'B' })
+    reject(new Error('Old A rotation failed'))
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it.each(['replace-account', 'session-close'])('ignores a late rotation rejection after %s', async (change) => {
+    const session = reactive({ active: true, identity: 1 })
+    let reject!: (reason: unknown) => void
+    api.rotate.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail }))
+    await open({ [ConfirmationSessionKey as symbol]: () => session })
+    await wrapper.get('[data-testid="totp-rotate"]').trigger('click')
+    wrapper.getComponent(ConfirmationPrompt).props('confirmation').settle(true)
+    await flushPromises()
+    expect(api.rotate).toHaveBeenCalledWith(42)
+    if (change === 'replace-account') await wrapper.setProps({ accountId: 43, accountName: 'Replacement' })
+    else { session.active = false; await flushPromises(); session.active = true }
+    await wrapper.get('[data-testid="totp-manage"]').trigger('click')
+    await flushPromises()
+    reject(new Error('old rotation failure'))
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('tokenGuardV2.error')
+    expect(wrapper.get('[data-testid="totp-rotate"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('clears account A credentials and ignores its late export under account B', async () => {
+    let finish!: (value: typeof exported) => void
+    api.export.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    await open()
+    await wrapper.get('[data-testid="totp-export"]').trigger('click')
+    await wrapper.setProps({ accountId: 43, accountName: 'Replacement' })
+    await wrapper.get('[data-testid="totp-manage"]').trigger('click')
+    await flushPromises()
+    finish(exported)
+    await flushPromises()
+    expect(wrapper.find('[data-testid="totp-export-result"]').exists()).toBe(false)
+    expect(wrapper.html()).not.toContain(exported.secret)
+    expect(api.status).toHaveBeenLastCalledWith(43)
+  })
+
+  it.each(['close', 'replace-account'])('rejects an old rotation confirmation after %s', async (change) => {
+    await open()
+    await wrapper.get('[data-testid="totp-rotate"]').trigger('click')
+    const confirmation = wrapper.getComponent(ConfirmationPrompt).props('confirmation')
+    expect(confirmation.show.value).toBe(true)
+    if (change === 'close') await wrapper.get('[data-testid="close"]').trigger('click')
+    else await wrapper.setProps({ accountId: 43, accountName: 'Replacement account' })
+    confirmation.settle(true)
+    await flushPromises()
+    expect(api.rotate).not.toHaveBeenCalled()
+    expect(confirmation.show.value).toBe(false)
+  })
+
   it('does not fetch secrets until explicitly requested and omits password by default', async () => {
     await open(); expect(api.export).not.toHaveBeenCalled()
     await wrapper.get('[data-testid="totp-export"]').trigger('click'); await flushPromises()
@@ -51,10 +114,15 @@ describe('2FA rotation and credential export', () => {
     expect(wrapper.find('[data-testid="totp-export-result"]').exists()).toBe(false)
   })
   it('requires an explicit confirmation before queuing a replacement', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     await open(); await wrapper.get('[data-testid="totp-rotate"]').trigger('click'); expect(api.rotate).not.toHaveBeenCalled()
-    confirm.mockReturnValue(true); api.rotate.mockResolvedValue({ task_id: 7, state: 'queued' })
-    await wrapper.get('[data-testid="totp-rotate"]').trigger('click'); await flushPromises()
+    const confirmation = wrapper.getComponent(ConfirmationPrompt)
+    expect(confirmation.text()).toContain('tokenGuardV2')
+    await confirmation.get('.btn-secondary').trigger('click'); await flushPromises()
+    expect(api.rotate).not.toHaveBeenCalled()
+    api.rotate.mockResolvedValue({ task_id: 7, state: 'queued' })
+    await wrapper.get('[data-testid="totp-rotate"]').trigger('click')
+    expect(api.rotate).not.toHaveBeenCalled()
+    await confirmation.get('.btn-danger').trigger('click'); await flushPromises()
     expect(api.rotate).toHaveBeenCalledOnce(); expect(wrapper.get('[data-testid="totp-rotate"]').attributes('disabled')).toBeDefined()
   })
   it('starts ChatGPT Session export from the 2FA management dialog', async () => {

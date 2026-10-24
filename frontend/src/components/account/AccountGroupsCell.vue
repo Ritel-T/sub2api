@@ -81,7 +81,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
+import { useOwnedPopover } from '@/composables/overlayLifecycle'
 import { useI18n } from 'vue-i18n'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import type { Group } from '@/types'
@@ -100,6 +101,7 @@ const { t } = useI18n()
 const moreButtonRef = ref<HTMLElement | null>(null)
 const popoverRef = ref<HTMLElement | null>(null)
 const showPopover = ref(false)
+useOwnedPopover(showPopover, { root: () => popoverRef.value, trigger: () => moreButtonRef.value, close: () => { showPopover.value = false } })
 
 // 显示的分组（最多显示 maxDisplay 个）
 const displayGroups = computed(() => {
@@ -144,18 +146,4 @@ const popoverStyle = computed(() => {
   }
 })
 
-// 关闭 popover 的键盘事件
-const handleKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Escape') {
-    showPopover.value = false
-  }
-}
-
-onMounted(() => {
-  window.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
-})
 </script>

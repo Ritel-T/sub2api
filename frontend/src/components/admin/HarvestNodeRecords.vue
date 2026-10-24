@@ -3,15 +3,18 @@
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
       <div>
         <h3 id="harvest-nodes-title" class="sr-only">{{ t(`${prefix}.title`) }}</h3>
-        <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ t(`${prefix}.resetHint`) }} · {{ page.total }}</p>
+        <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ t(`${prefix}.resetHint`) }} · {{ total ?? 0 }}</p>
       </div>
-      <button type="button" data-testid="reset-all-nodes" class="btn btn-secondary btn-sm" :disabled="busy || page.total === 0" @click="reset(0)">{{ t(`${prefix}.resetAll`) }}</button>
+      <button type="button" data-testid="reset-all-nodes" class="btn btn-secondary btn-sm" :disabled="busy || !total" @click="reset(0)">{{ t(`${prefix}.resetAll`) }}</button>
     </div>
     <p v-if="error" role="alert" class="mb-3 text-sm text-red-600">{{ error }}</p>
-    <div class="divide-y divide-gray-200 dark:divide-dark-700">
+    <div ref="listBody" class="divide-y divide-gray-200 dark:divide-dark-700">
+      <div v-if="paddingTop" aria-hidden="true" :style="{ height: `${paddingTop}px` }" />
+      <template v-for="{ row: node, index, gapBefore } in rendered" :key="node.id">
+      <div v-if="gapBefore" aria-hidden="true" :style="{ height: `${gapBefore}px` }" />
       <article
-        v-for="node in page.items"
-        :key="node.id"
+        :ref="measure"
+        :data-index="index"
         class="py-4"
       >
         <div class="flex items-start justify-between gap-2">
@@ -38,15 +41,13 @@
           <span v-if="cooling(node.cooldown_until) !== '—'">{{ t(`${prefix}.cooldown`) }} {{ cooling(node.cooldown_until) }}</span>
         </div>
       </article>
-      <p v-if="page.items.length === 0" class="py-8 text-center text-sm text-gray-500">{{ loading ? t(`${prefix}.loading`) : t(`${prefix}.empty`) }}</p>
+      </template>
+      <div v-if="paddingBottom" aria-hidden="true" :style="{ height: `${paddingBottom}px` }" />
+      <p v-if="items.length === 0" class="py-8 text-center text-sm text-gray-500">{{ loading ? t(`${prefix}.loading`) : t(`${prefix}.empty`) }}</p>
     </div>
+    <InfiniteListSentinel :loading="busy" :error="list.error.value" :has-more="list.hasMore.value && !resetting" @load-more="list.loadMore" @retry="list.retry" />
     <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500">
       <p>{{ t(`${prefix}.legend`) }}</p>
-      <div class="flex items-center gap-2">
-        <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || offset === 0" @click="move(-1)">{{ t(`${prefix}.previous`) }}</button>
-        <span>{{ Math.floor(offset / limit) + 1 }} / {{ Math.max(1, Math.ceil(page.total / limit)) }}</span>
-        <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || offset + limit >= page.total" @click="move(1)">{{ t(`${prefix}.next`) }}</button>
-      </div>
     </div>
   </section>
 </template>
@@ -54,19 +55,26 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getCodexHarvestNodes, resetCodexHarvestNodes, type CodexHarvestNodePage } from '@/api/admin/codexHarvest'
+import { getCodexHarvestNodes, resetCodexHarvestNodes, type CodexHarvestNodeRecord } from '@/api/admin/codexHarvest'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useDocumentRows } from '@/composables/useDocumentRows'
 
 const props = defineProps<{ refreshKey?: string; accountNames?: Record<number, string> }>()
 const { t, te } = useI18n()
 const prefix = 'admin.harvestFlow.nodes'
-const page = ref<CodexHarvestNodePage>({ items: [], total: 0 })
-const offset = ref(0)
 const limit = 8
-const loading = ref(false)
 const resetting = ref(false)
-const busy = computed(() => loading.value || resetting.value)
-const error = ref('')
-let requestId = 0
+const resetError = ref('')
+const list = useInfiniteList<CodexHarvestNodeRecord>({
+  pageSize: limit, keyOf: item => item.id,
+  fetchPage: page => getCodexHarvestNodes((page - 1) * limit, limit)
+})
+const { items, total, loading } = list
+const busy = computed(() => loading.value || list.loadingMore.value || list.refreshing.value || resetting.value)
+const error = computed(() => resetError.value || (list.error.value ? t(`${prefix}.loadFailed`) : ''))
+const listBody = ref<HTMLElement | null>(null)
+const { rendered, paddingTop, paddingBottom, measure } = useDocumentRows(items, listBody, item => item.id, computed(() => true), () => 124)
 let disposed = false
 const clock = (value: string | null) => value ? new Date(value).toLocaleString() : '—'
 const cooling = (value: string | null) => value && new Date(value).getTime() > Date.now() ? clock(value) : '—'
@@ -74,42 +82,27 @@ const resultLabel = (result: string) => te(`admin.harvestFlow.results.${result}`
 
 async function refresh() {
   if (disposed || resetting.value) return
-  const id = ++requestId
-  loading.value = true
-  try {
-    const data = await getCodexHarvestNodes(offset.value, limit)
-    if (disposed || id !== requestId) return
-    page.value = data
-    error.value = ''
-    if (offset.value > 0 && offset.value >= data.total) { offset.value = 0; void refresh() }
-  } catch {
-    if (!disposed && id === requestId) error.value = t(`${prefix}.loadFailed`)
-  } finally {
-    if (!disposed && id === requestId) loading.value = false
-  }
+  resetError.value = ''
+  await list.refresh()
 }
 
 async function reset(id: number) {
   if (resetting.value) return
-  ++requestId
+  list.cancel()
   resetting.value = true
-  loading.value = false
-  error.value = ''
+  resetError.value = ''
   try {
     await resetCodexHarvestNodes(id)
     if (disposed) return
-    offset.value = 0
-    page.value = { items: [], total: 0 }
   } catch {
-    if (!disposed) error.value = t(`${prefix}.resetFailed`)
+    if (!disposed) resetError.value = t(`${prefix}.resetFailed`)
     return
   } finally {
     if (!disposed) resetting.value = false
   }
   if (!disposed) await refresh()
 }
-function move(direction: number) { offset.value = Math.max(0, offset.value + direction * limit); void refresh() }
 watch(() => props.refreshKey, () => { if (!busy.value) void refresh() })
 onMounted(() => { void refresh() })
-onBeforeUnmount(() => { disposed = true; requestId++ })
+onBeforeUnmount(() => { disposed = true })
 </script>

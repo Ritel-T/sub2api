@@ -1,5 +1,6 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises } from '@vue/test-utils'
+import { setImmediate as flushPromises } from 'node:timers/promises'
 import { bulkUpdate } from '../keys'
 
 const { put } = vi.hoisted(() => ({ put: vi.fn() }))

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'

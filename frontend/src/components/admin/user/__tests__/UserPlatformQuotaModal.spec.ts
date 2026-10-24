@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const apiMocks = vi.hoisted(() => ({
@@ -49,6 +49,10 @@ vi.mock('@/components/common/BaseDialog.vue', () => ({
   },
 }))
 
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+
+enableAutoUnmount(afterEach)
+
 import UserPlatformQuotaModal from '../UserPlatformQuotaModal.vue'
 import type { PlatformQuotaUpdateItem, UserSubscription } from '@/types'
 
@@ -75,6 +79,43 @@ beforeEach(() => {
 })
 
 describe('UserPlatformQuotaModal', () => {
+  it('does not apply a completed reset to a replacement user', async () => {
+    let finish!: (value: { platform_quotas: unknown[] }) => void
+    apiMocks.resetPlatformQuotaWindow.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const wrapper = await mountAndOpen()
+    const vm = wrapper.vm as any
+    const reset = vm.onReset('anthropic', 'daily')
+    await flushPromises()
+    const confirmation = wrapper.getComponent(ConfirmationPrompt).props('confirmation')
+    confirmation.settle(true)
+    confirmation.settle(true)
+    await flushPromises()
+    expect(apiMocks.resetPlatformQuotaWindow).toHaveBeenCalledTimes(1)
+    expect(apiMocks.resetPlatformQuotaWindow).toHaveBeenCalledWith(99, 'anthropic', 'daily')
+    await wrapper.setProps({ user: { ...makeUser(), id: 100 } })
+    await flushPromises()
+    finish({ platform_quotas: [{ platform: 'anthropic', daily_limit_usd: 12345 }] })
+    await reset
+    await flushPromises()
+    expect(wrapper.findAll('input[type=number]').some(input => (input.element as HTMLInputElement).value === '12345')).toBe(false)
+    expect(confirmation.busy.value).toBe(false)
+  })
+
+  it.each(['close', 'replace-user'])('cancels a pending quota reset when the parent context changes: %s', async (change) => {
+    const wrapper = await mountAndOpen()
+    const vm = wrapper.vm as any
+    const reset = vm.onReset('anthropic', 'daily')
+    await flushPromises()
+    const confirmation = wrapper.getComponent(ConfirmationPrompt).props('confirmation')
+    expect(confirmation.show.value).toBe(true)
+    if (change === 'close') await wrapper.setProps({ show: false })
+    else await wrapper.setProps({ user: { ...makeUser(), id: 100 } })
+    confirmation.settle(true)
+    await reset
+    expect(apiMocks.resetPlatformQuotaWindow).not.toHaveBeenCalled()
+    expect(confirmation.show.value).toBe(false)
+  })
+
   it.each([0, 4, 14, 17])('does not turn a negative limit in input %s into unlimited', async (index) => {
     const w = await mountAndOpen()
     await w.findAll('input[type=number]')[index].setValue('-1')
@@ -181,7 +222,6 @@ describe('UserPlatformQuotaModal', () => {
   })
 
   it('全部清空把所有 limit 置 null（确认通过）', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     apiMocks.getPlatformQuotas.mockResolvedValueOnce({
       platform_quotas: [
         { platform: 'anthropic', daily_limit_usd: 10, weekly_limit_usd: 50, monthly_limit_usd: 100,
@@ -193,17 +233,16 @@ describe('UserPlatformQuotaModal', () => {
     const clearBtn = buttons.find((b) => b.text() === 'admin.users.platformQuota.clearAll')
     expect(clearBtn).toBeTruthy()
     await clearBtn!.trigger('click')
+    expect(w.getComponent(ConfirmationPrompt).find('.btn-danger').exists()).toBe(true)
+    await w.getComponent(ConfirmationPrompt).get('.btn-danger').trigger('click')
     await flushPromises()
-    expect(confirmSpy).toHaveBeenCalledTimes(1)
     const inputs = w.findAll('input[type=number]')
     for (const inp of inputs) {
       expect((inp.element as HTMLInputElement).value).toBe('')
     }
-    confirmSpy.mockRestore()
   })
 
   it('全部清空 confirm 取消则保持原值', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     apiMocks.getPlatformQuotas.mockResolvedValueOnce({
       platform_quotas: [
         { platform: 'anthropic', daily_limit_usd: 10, weekly_limit_usd: 50, monthly_limit_usd: 100,
@@ -213,13 +252,13 @@ describe('UserPlatformQuotaModal', () => {
     const w = await mountAndOpen()
     const clearBtn = w.findAll('button').find((b) => b.text() === 'admin.users.platformQuota.clearAll')
     await clearBtn!.trigger('click')
+    expect(w.getComponent(ConfirmationPrompt).find('.btn-danger').exists()).toBe(true)
+    await w.getComponent(ConfirmationPrompt).get('.btn-secondary').trigger('click')
     await flushPromises()
-    expect(confirmSpy).toHaveBeenCalledTimes(1)
     // anthropic daily 应保持 10（未被清空）
     const inputs = w.findAll('input[type=number]')
     const dailyVal = (inputs[0].element as HTMLInputElement).value
     expect(dailyVal).toBe('10')
-    confirmSpy.mockRestore()
   })
 
   // 只有已保存限额的平台在后端有配额记录，重置按钮才可用
@@ -258,25 +297,25 @@ describe('UserPlatformQuotaModal', () => {
 
   it('重置按钮 confirm 取消则不调用 API', async () => {
     apiMocks.getPlatformQuotas.mockResolvedValue(anthropicConfigured)
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const w = await mountAndOpen()
     const resetBtns = w.findAll('button').filter((b) => b.text() === '↻')
     expect(resetBtns.length).toBeGreaterThan(0)
     await resetBtns[0].trigger('click')
+    expect(w.getComponent(ConfirmationPrompt).find('.btn-danger').exists()).toBe(true)
+    await w.getComponent(ConfirmationPrompt).get('.btn-secondary').trigger('click')
     await flushPromises()
     expect(apiMocks.resetPlatformQuotaWindow).not.toHaveBeenCalled()
-    confirmSpy.mockRestore()
   })
 
   it('重置按钮 confirm 确认则调用 API', async () => {
     apiMocks.getPlatformQuotas.mockResolvedValue(anthropicConfigured)
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const w = await mountAndOpen()
     const resetBtns = w.findAll('button').filter((b) => b.text() === '↻')
     await resetBtns[0].trigger('click') // 第一个是 anthropic.daily
+    expect(w.getComponent(ConfirmationPrompt).find('.btn-danger').exists()).toBe(true)
+    await w.getComponent(ConfirmationPrompt).get('.btn-danger').trigger('click')
     await flushPromises()
     expect(apiMocks.resetPlatformQuotaWindow).toHaveBeenCalledWith(99, 'anthropic', 'daily')
-    confirmSpy.mockRestore()
   })
 
   describe('subscription warning banner', () => {

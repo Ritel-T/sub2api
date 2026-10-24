@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { effectScope } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useInfiniteList, type InfiniteListOptions, type InfinitePage } from '../useInfiniteList'

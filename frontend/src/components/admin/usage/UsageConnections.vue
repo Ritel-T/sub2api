@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4 p-4 sm:p-6" data-testid="usage-connections">
     <p class="rounded-lg bg-sky-50 p-3 text-sm text-sky-800 dark:bg-sky-950/30 dark:text-sky-200">{{ t('connections.scope') }}</p>
-    <form class="flex flex-wrap items-end gap-3" @submit.prevent="reload()">
+    <form class="workspace-filter-controls flex flex-wrap items-end gap-3" @submit.prevent="reload()">
       <label class="text-sm">{{ t('connections.state') }}<select v-model="state" class="input mt-1" @change="reload()"><option v-for="s in states" :key="s" :value="s">{{ t(`connections.states.${s}`) }}</option></select></label>
       <label class="text-sm">{{ t('connections.source') }}<select v-model="source" class="input mt-1" @change="reload()"><option v-for="s in sources" :key="s" :value="s">{{ t(`connections.sources.${s}`) }}</option></select></label>
       <label class="text-sm">{{ t('connections.host') }}<input v-model="host" class="input mt-1" maxlength="255" placeholder="api.example.com" /></label>
@@ -11,8 +11,8 @@
       <button class="btn btn-secondary" type="button" @click="resetLocal">{{ t('common.reset') }}</button>
     </form>
     <p class="text-xs text-gray-500">{{ t('connections.identityScope') }}</p>
-    <div v-if="error" role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{{ error }} <button class="underline" @click="load">{{ t('requestTiming.retry') }}</button></div>
-    <DataTable :columns="columns" :data="rows" :loading="loading" row-key="trace_id">
+    <div v-if="error" role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{{ t('connections.loadError') }}</div>
+    <DataTable column-order-key="admin-usage-connections" :columns="columns" :data="rows" :loading="loading" row-key="trace_id">
       <template #cell-started_at="{ row }"><span class="whitespace-nowrap">{{ formatDateTime(row.started_at) }}</span></template>
       <template #cell-url="{ row }"><span class="block text-xs text-gray-500">{{ row.method }} · {{ row.http_version || '—' }} · {{ row.tls_version || '—' }}</span><span class="break-all font-mono text-xs">{{ url(row) }}</span></template>
       <template #cell-source="{ row }">{{ t(`connections.sources.${row.source}`) }}<span v-if="row.legacy" class="block text-xs text-gray-500">{{ t('connections.legacy') }}</span></template>
@@ -20,13 +20,10 @@
       <template #cell-state="{ row }"><span class="rounded px-2 py-1 text-xs" :class="stateClass(row.state)">{{ t(`connections.states.${row.state}`) }}</span><span class="mt-1 block text-xs text-gray-500">HTTP {{ row.legacy && !row.detail.version ? '—' : row.detail.status || '—' }}</span><span v-if="row.detail.auth_rejection || row.error_type" class="mt-1 block text-xs text-gray-500">{{ row.detail.auth_rejection || row.error_type }} · {{ row.error_status || row.detail.status }}</span></template>
       <template #cell-model="{ row }">{{ row.model || '—' }}<span v-if="row.account_id" class="block text-xs text-gray-500">{{ row.account_name || `#${row.account_id}` }}</span></template>
       <template #cell-total="{ row }">{{ elapsed(row) }}<span class="block text-xs text-gray-500">{{ row.detail.downstream_bytes == null || (row.network_error === 'tls_error' && !row.detail.status) || (row.legacy && !row.detail.version) ? t('requestTiming.missing') : t('connections.bytes', { count: row.detail.downstream_bytes }) }}</span></template>
-      <template #cell-actions="{ row }"><button class="btn btn-secondary btn-sm" @click="selected = row">{{ t('connections.details') }}</button></template>
+      <template #cell-actions="{ row }"><button type="button" class="workspace-icon-action" :title="t('connections.details')" :aria-label="t('connections.details')" @click="selected = row"><Icon name="eye" size="sm" /></button></template>
       <template #empty><p class="p-6 text-center text-sm text-gray-500">{{ t('connections.empty') }}</p></template>
     </DataTable>
-    <div class="flex items-center justify-between gap-3 text-sm">
-      <span>{{ t('connections.page', { page }) }}</span>
-      <div class="flex gap-2"><button class="btn btn-secondary" :disabled="loading || page <= 1" @click="changePage(-1)">{{ t('connections.previous') }}</button><button class="btn btn-secondary" :disabled="loading || !hasMore || page >= 500" @click="changePage(1)">{{ t('connections.next') }}</button></div>
-    </div>
+    <InfiniteListSentinel :loading="loading || loadingMore || refreshing" :has-more="hasMore" :error="error" :progress="rows.length" @load-more="loadMore" @retry="retry" />
     <OpsErrorDetailModal v-model:show="showErrorDetail" :error-id="errorDetailId" error-type="request" />
     <BaseDialog :show="!!selected" :title="t('connections.details')" width="extra-wide" close-on-click-outside @close="selected = null">
       <div v-if="selected" class="space-y-5">
@@ -36,30 +33,42 @@
         </dl>
         <button v-if="selected.error_log_id" class="btn btn-secondary" @click="openError(selected)">{{ t('connections.errorDetail') }}</button>
         <p v-if="selected.detail.truncated" class="text-sm text-amber-600">{{ t('requestTiming.truncated') }}</p>
-        <section><h4 class="mb-3 font-semibold">{{ t('requestTiming.timeline') }}</h4><p v-if="!events.length" class="text-sm text-gray-500">{{ t('connections.noTimeline') }}</p><ol v-else class="space-y-2 border-l border-primary-200 pl-4 dark:border-primary-800"><li v-for="[name, value] in events" :key="name" class="flex justify-between gap-4 text-sm"><span>{{ field(name) }}</span><span class="tabular-nums">{{ ms(value) }}</span></li></ol></section>
-        <section v-if="selected.detail.attempts?.length"><h4 class="mb-3 font-semibold">{{ t('requestTiming.attempt') }}</h4><div v-for="a in selected.detail.attempts" :key="a.number" class="mb-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-dark-600"><p>#{{ a.number }} · {{ a.kind }} · {{ t('requestTiming.account') }} #{{ a.account_id }} · HTTP {{ a.status || '—' }}</p><p class="mt-1 text-xs text-gray-500">{{ a.cleanup_canceled ? t('requestTiming.health.normalClose') : a.error ? field(a.error) : t('requestTiming.health.noTransportError') }} · {{ a.terminal || '—' }}</p></div></section>
+        <section><AppHeading as="h4" variant="minor" class="mb-3">{{ t('requestTiming.timeline') }}</AppHeading><p v-if="!events.length" class="text-sm text-gray-500">{{ t('connections.noTimeline') }}</p><ol v-else class="space-y-2 border-l border-primary-200 pl-4 dark:border-primary-800"><li v-for="[name, value] in events" :key="name" class="flex justify-between gap-4 text-sm"><span>{{ field(name) }}</span><span class="tabular-nums">{{ ms(value) }}</span></li></ol></section>
+        <section v-if="selected.detail.attempts?.length"><AppHeading as="h4" variant="minor" class="mb-3">{{ t('requestTiming.attempt') }}</AppHeading><div v-for="a in selected.detail.attempts" :key="a.number" class="mb-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-dark-600"><p>#{{ a.number }} · {{ a.kind }} · {{ t('requestTiming.account') }} #{{ a.account_id }} · HTTP {{ a.status || '—' }}</p><p class="mt-1 text-xs text-gray-500">{{ a.cleanup_canceled ? t('requestTiming.health.normalClose') : a.error ? field(a.error) : t('requestTiming.health.noTransportError') }} · {{ a.terminal || '—' }}</p></div></section>
       </div>
     </BaseDialog>
   </div>
 </template>
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { isCancel } from 'axios'
 import DataTable from '@/components/common/DataTable.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import Icon from '@/components/icons/Icon.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
 import { formatDateTime } from '@/utils/format'
 import { listConnections, type ConnectionQuery, type ConnectionTrace, type ConnectionState } from '@/api/admin/usageConnections'
 const props = defineProps<{ filters: ConnectionQuery; refreshKey: number }>()
 const { t, te } = useI18n()
 const state = ref('all'), source = ref('all'), host = ref(''), requestId = ref(''), clientIp = ref('')
-const rows = ref<ConnectionTrace[]>([]), page = ref(1), hasMore = ref(false), loading = ref(false), error = ref(''), selected = ref<ConnectionTrace | null>(null)
+const selected = ref<ConnectionTrace | null>(null)
 const showErrorDetail = ref(false), errorDetailId = ref<number | null>(null)
 function openError(r: ConnectionTrace) { errorDetailId.value = r.error_log_id; selected.value = null; showErrorDetail.value = true }
 const states = ['all', 'abnormal', 'client_disconnected', 'downstream_write_failed', 'incomplete', 'failed', 'canceled', 'edge_failed', 'completed', 'edge_completed', 'unknown']
 const sources = ['all', 'edge', 'application', 'nginx', 'caddy']
-let controller: AbortController | undefined
+// Keep pagination and refresh on the submitted query while text inputs are edited.
+let query: ConnectionQuery = {}
+const { items: rows, loading, loadingMore, refreshing, error, hasMore, reset, loadMore, refresh, retry } = useInfiniteList<ConnectionTrace>({
+  pageSize: 20,
+  keyOf: row => row.trace_id,
+  fetchPage: async (page, signal) => {
+    const result = await listConnections({ ...query, page, page_size: 20 }, signal)
+    return { items: result.items, pages: result.has_more ? 500 : page }
+  }
+})
 const columns = computed(() => [
   { key: 'started_at', label: t('usage.time') }, { key: 'source', label: t('connections.source') }, { key: 'url', label: 'URL' },
   { key: 'user', label: t('admin.usage.user') }, { key: 'model', label: t('usage.model') }, { key: 'state', label: t('connections.state') },
@@ -85,21 +94,13 @@ function summary(r: ConnectionTrace) {
     ...['body_complete', 'client_disconnect', 'downstream_error', 'canceled'].map(key => ({ label: field(key), value: application && typeof r.detail[key as 'body_complete'] === 'boolean' ? yes(r.detail[key as 'body_complete']) : missing }))
   ]
 }
-async function load() {
-  controller?.abort()
-  const current = new AbortController(); controller = current
-  loading.value = true; error.value = ''; rows.value = []; hasMore.value = false
-  try {
-    const result = await listConnections({ ...props.filters, state: state.value, source: source.value, host: host.value.trim() || undefined, request_id: requestId.value.trim() || undefined, client_ip: clientIp.value.trim() || undefined, page: page.value, page_size: 20 }, current.signal)
-    if (current.signal.aborted) return
-    rows.value = result.items; hasMore.value = result.has_more
-  } catch (e) {
-    if (!current.signal.aborted && !isCancel(e)) error.value = t('connections.loadError')
-  } finally { if (controller === current) loading.value = false }
+function closeDetails() { selected.value = null; showErrorDetail.value = false; errorDetailId.value = null }
+function reload() {
+  query = { ...props.filters, state: state.value, source: source.value, host: host.value.trim() || undefined, request_id: requestId.value.trim() || undefined, client_ip: clientIp.value.trim() || undefined }
+  closeDetails()
+  void reset()
 }
-function reload() { page.value = 1; selected.value = null; void load() }
-function changePage(delta: number) { page.value += delta; selected.value = null; void load() }
 function resetLocal() { state.value = 'all'; source.value = 'all'; host.value = ''; requestId.value = ''; clientIp.value = ''; reload() }
-watch(() => [props.filters, props.refreshKey], reload, { deep: true, immediate: true })
-onUnmounted(() => controller?.abort())
+watch(() => props.filters, reload, { deep: true, immediate: true, flush: 'sync' })
+watch(() => props.refreshKey, () => { closeDetails(); void refresh() })
 </script>

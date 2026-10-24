@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div
+    <LoadingRegion
       v-if="loading && items.length === 0"
       class="monitor-record-list"
     >
@@ -23,7 +23,7 @@
         </div>
         <div class="mt-6 h-5 w-full rounded bg-gray-100 dark:bg-dark-900/40"></div>
       </div>
-    </div>
+    </LoadingRegion>
 
     <EmptyState
       v-else-if="items.length === 0"
@@ -49,6 +49,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import { useI18n } from 'vue-i18n'
 import type { UserMonitorView, UserMonitorDetail } from '@/api/channelMonitor'
 import EmptyState from '@/components/common/EmptyState.vue'

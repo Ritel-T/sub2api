@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { buildQualityRulePatch, qualityBPSError, qualityBPSForm, qualityBPSPayload, type QualityRuleDraft } from '../qualityRulePatch'
 import type { QualityBPSPolicy, ScheduledTestPlan } from '@/types'

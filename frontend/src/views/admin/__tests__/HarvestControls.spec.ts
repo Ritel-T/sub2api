@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import HarvestControlsPanel from '@/components/admin/HarvestControlsPanel.vue'
 import HarvestNodeRecords from '@/components/admin/HarvestNodeRecords.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import type { CodexHarvestControlSnapshot, CodexHarvestControls, CodexHarvestNodePage } from '@/api/admin/codexHarvest'
 
 const api = vi.hoisted(() => ({ getControls: vi.fn(), save: vi.fn(), getNodes: vi.fn(), reset: vi.fn() }))
@@ -210,6 +211,34 @@ describe('Harvest controls draft and request ordering', () => {
 })
 
 describe('Harvest node resets', () => {
+  it('appends offset pages, keeps rows on failure and retries the failed offset', async () => {
+    const first = { ...nodes(), total: 2 }
+    const second = { total: 2, items: [{ ...nodes().items[0], id: 8, node_name: 'Next node' }] }
+    api.getNodes.mockResolvedValueOnce(first).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(second)
+    wrapper = mount(HarvestNodeRecords); await flushPromises()
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more'); await flushPromises()
+    expect(wrapper.text()).toContain('Known node')
+    expect(wrapper.getComponent(InfiniteListSentinel).props('error')).toBeTruthy()
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('retry'); await flushPromises()
+    expect(wrapper.text()).toContain('Known node')
+    expect(wrapper.text()).toContain('Next node')
+    expect(api.getNodes.mock.calls).toEqual([[0, 8], [8, 8], [8, 8]])
+  })
+
+  it('refreshes every loaded offset and keeps the loaded rows until complete', async () => {
+    const first = { ...nodes(), total: 2 }
+    const second = { total: 2, items: [{ ...nodes().items[0], id: 8, node_name: 'Next node' }] }
+    const update = deferred<CodexHarvestNodePage>()
+    api.getNodes.mockResolvedValueOnce(first).mockResolvedValueOnce(second).mockResolvedValueOnce(first).mockReturnValueOnce(update.promise)
+    wrapper = mount(HarvestNodeRecords); await flushPromises()
+    wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more'); await flushPromises()
+    await wrapper.setProps({ refreshKey: 'poll' }); await flushPromises()
+    expect(wrapper.text()).toContain('Next node')
+    update.resolve({ total: 2, items: [{ ...second.items[0], node_name: 'Updated node' }] }); await flushPromises()
+    expect(wrapper.text()).toContain('Updated node')
+    expect(api.getNodes.mock.calls).toEqual([[0, 8], [8, 8], [0, 8], [8, 8]])
+  })
+
   it('resets one record without resetting accounts or tickets', async () => {
     api.reset.mockResolvedValue(undefined)
     api.getNodes.mockResolvedValueOnce(nodes()).mockResolvedValue(empty)

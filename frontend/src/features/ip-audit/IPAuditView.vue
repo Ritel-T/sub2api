@@ -1,7 +1,7 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="w-full min-w-0 pb-8">
-      <h1 class="mb-4 text-2xl font-semibold">{{ t('ipAudit.title') }}</h1>
+      <AppHeading as="h1" variant="page" class="mb-4">{{ t('ipAudit.title') }}</AppHeading>
       <div class="mb-4 flex flex-wrap gap-1" role="tablist" :aria-label="t('ipAudit.title')">
         <button
           v-for="tab in tabs"
@@ -23,6 +23,7 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

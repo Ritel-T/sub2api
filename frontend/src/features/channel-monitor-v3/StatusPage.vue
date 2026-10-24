@@ -14,10 +14,10 @@
       </button>
     </div>
 
-    <div v-if="!status && loading" class="space-y-4" aria-busy="true">
+    <LoadingRegion v-if="!status && loading" class="space-y-4">
       <div class="h-40 animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-800" />
       <div class="h-96 animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-800" />
-    </div>
+    </LoadingRegion>
 
     <template v-else-if="status">
       <section
@@ -27,7 +27,7 @@
       >
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <h2 class="truncate text-lg font-bold text-gray-900 dark:text-white sm:text-xl" :title="status.featured.description || status.featured.name">{{ status.featured.name }}</h2>
+            <AppHeading as="h2" variant="section" class="truncate text-gray-900 dark:text-white" :title="status.featured.description || status.featured.name">{{ status.featured.name }}</AppHeading>
             <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
               <StatusDot :status="status.featured.status" :label="t(`channelMonitorV3.status.${status.featured.status}`)" />
               <span data-testid="monitor-v3-featured-status">{{ t(`channelMonitorV3.headline.${status.featured.status}`) }}</span>
@@ -66,7 +66,7 @@
         data-testid="monitor-v3-system"
       >
         <header class="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <h2 class="text-lg font-bold text-gray-900 dark:text-white sm:text-xl">{{ t('channelMonitorV3.page.systemStatus') }}</h2>
+          <AppHeading as="h2" variant="section" class="text-gray-900 dark:text-white">{{ t('channelMonitorV3.page.systemStatus') }}</AppHeading>
           <div class="flex flex-wrap items-center gap-1 text-xs text-gray-600 sm:gap-2 sm:text-sm dark:text-gray-300">
             <button
               type="button"
@@ -236,6 +236,8 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'

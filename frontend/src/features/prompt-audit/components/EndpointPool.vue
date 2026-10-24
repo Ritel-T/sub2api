@@ -2,7 +2,7 @@
   <section aria-labelledby="prompt-pool-title" class="border-b border-gray-200 py-6 dark:border-dark-700/60">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 id="prompt-pool-title" class="text-base font-semibold text-gray-950 dark:text-white">{{ t('admin.promptAudit.pool.title') }}</h2>
+        <AppHeading as="h2" variant="section" id="prompt-pool-title" class="text-gray-950 dark:text-white">{{ t('admin.promptAudit.pool.title') }}</AppHeading>
         <p class="mt-1 text-sm text-gray-500 dark:text-dark-300">{{ t('admin.promptAudit.pool.description') }}</p>
       </div>
       <button type="button" class="btn btn-primary btn-sm" data-test="add-endpoint" @click="openCreate">
@@ -30,20 +30,7 @@
           class="group grid gap-4 py-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] xl:items-center xl:gap-5"
         >
           <div class="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="endpoint.enabled"
-              :aria-label="t('admin.promptAudit.pool.toggleNode', { name: endpoint.name })"
-              class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-              :class="endpoint.enabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'"
-              @click="toggleEndpoint(endpoint.id)"
-            >
-              <span
-                class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ease-in-out"
-                :class="endpoint.enabled ? 'translate-x-5' : 'translate-x-0'"
-              />
-            </button>
+            <Toggle :model-value="endpoint.enabled" :aria-label="t('admin.promptAudit.pool.toggleNode', { name: endpoint.name })" @click="toggleEndpoint(endpoint.id)" />
             <div class="min-w-0">
               <div class="flex min-w-0 items-center gap-2">
                 <p class="truncate font-semibold text-gray-950 dark:text-white">{{ endpoint.name }}</p>
@@ -136,9 +123,16 @@
       </template>
     </BaseDialog>
   </section>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -183,9 +177,11 @@ function saveEditor() {
 function toggleEndpoint(id: string) {
   emit('update:endpoints', props.endpoints.map((item) => item.id === id ? { ...item, enabled: !item.enabled } : cloneData(item)))
 }
-function removeEndpoint(endpoint: PromptAuditEndpointDraft) {
-  if (!window.confirm(t('admin.promptAudit.pool.deleteConfirm', { name: endpoint.name }))) return
-  emit('update:endpoints', props.endpoints.filter((item) => item.id !== endpoint.id).map((item) => cloneData(item)))
+async function removeEndpoint(endpoint: PromptAuditEndpointDraft) {
+  const endpointId = endpoint.id
+  await confirmation.run({ message: t('admin.promptAudit.pool.deleteConfirm', { name: endpoint.name }), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async () => {
+    emit('update:endpoints', props.endpoints.filter((item) => item.id !== endpointId).map((item) => cloneData(item)))
+  })
 }
 function hasCredential(endpoint: PromptAuditEndpointDraft): boolean {
   return Boolean(endpoint.token.trim() || (endpoint.has_token && !endpoint.clear_token))
@@ -193,4 +189,5 @@ function hasCredential(endpoint: PromptAuditEndpointDraft): boolean {
 function credentialInvalid(endpoint: PromptAuditEndpointDraft): boolean {
   return endpoint.token_status === 'invalid' && !endpoint.token.trim() && !endpoint.clear_token
 }
+const confirmation = useConfirmation(() => ({ active: true, identity: props.endpoints }))
 </script>

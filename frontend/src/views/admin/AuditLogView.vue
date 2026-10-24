@@ -42,22 +42,22 @@
 
               <div class="w-full sm:w-auto sm:min-w-[140px]">
                 <label class="input-label">{{ t('admin.audit.filters.method') }}</label>
-                <Select v-model="filters.method" :options="methodOptions" @change="search" />
+                <Select :aria-label="t('admin.audit.filters.method')" v-model="filters.method" :options="methodOptions" @change="search" />
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[170px]">
                 <label class="input-label">{{ t('admin.audit.filters.authMethod') }}</label>
-                <Select v-model="filters.auth_method" :options="authMethodOptions" @change="search" />
+                <Select :aria-label="t('admin.audit.filters.authMethod')" v-model="filters.auth_method" :options="authMethodOptions" @change="search" />
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[140px]">
                 <label class="input-label">{{ t('admin.audit.filters.result') }}</label>
-                <Select v-model="filters.success" :options="resultOptions" @change="search" />
+                <Select :aria-label="t('admin.audit.filters.result')" v-model="filters.success" :options="resultOptions" @change="search" />
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[170px]">
                 <label class="input-label">{{ t('admin.dashboard.timeRange') }}</label>
-                <Select
+                <Select :aria-label="t('admin.dashboard.timeRange')"
                   :model-value="timeRange"
                   :options="timeRangeOptions"
                   @update:model-value="handleTimeRangeChange"
@@ -162,7 +162,7 @@
     >
       <div v-if="detailLoading" class="flex items-center justify-center py-16">
         <div class="flex flex-col items-center gap-3">
-          <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
+          <div role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
           <div class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ t('common.loading') }}</div>
         </div>
       </div>
@@ -236,9 +236,9 @@
 
         <!-- User-Agent -->
         <section>
-          <h4 class="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
+          <AppHeading variant="minor" as="h4" class="mb-1.5 text-gray-400">
             {{ t('admin.audit.detail.userAgent') }}
-          </h4>
+          </AppHeading>
           <div class="break-all rounded-xl bg-gray-50 p-3 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">
             {{ detail.user_agent || '—' }}
           </div>
@@ -246,17 +246,17 @@
 
         <!-- Request body (redacted) -->
         <section v-if="detail.request_body">
-          <h4 class="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
+          <AppHeading variant="minor" as="h4" class="mb-1.5 text-gray-400">
             {{ t('admin.audit.detail.requestBody') }}
-          </h4>
+          </AppHeading>
           <pre class="max-h-72 overflow-auto rounded-xl bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">{{ prettyBody(detail.request_body) }}</pre>
         </section>
 
         <!-- Extra -->
         <section v-if="detail.extra && Object.keys(detail.extra).length">
-          <h4 class="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
+          <AppHeading variant="minor" as="h4" class="mb-1.5 text-gray-400">
             {{ t('admin.audit.detail.extra') }}
-          </h4>
+          </AppHeading>
           <pre class="max-h-48 overflow-auto rounded-xl bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">{{ JSON.stringify(detail.extra, null, 2) }}</pre>
         </section>
       </div>
@@ -295,7 +295,7 @@
     </BaseDialog>
 
     <!-- Clear confirmation → step-up TOTP -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="clearConfirmationAction.busy.value"
       :show="clearConfirmVisible"
       :title="t('admin.audit.clearConfirm.title')"
       :message="t('admin.audit.clearConfirm.message')"
@@ -345,6 +345,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type AuditLog } from '@/api/admin'
@@ -357,6 +358,7 @@ import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import Select from '@/components/common/Select.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores'
@@ -607,9 +609,11 @@ async function openClearDialog() {
 }
 
 function onClearConfirmed() {
-  clearConfirmVisible.value = false
-  clearTotpCode.value = ''
-  clearTotpVisible.value = true
+  return clearConfirmationAction.run(() => {
+    clearConfirmVisible.value = false
+    clearTotpCode.value = ''
+    clearTotpVisible.value = true
+  })
 }
 
 function cancelClearTotp() {
@@ -658,4 +662,5 @@ function statusDotClass(status: number): string {
 }
 
 onMounted(fetchLogs)
+const clearConfirmationAction = useConfirmedAction(() => ({ active: clearConfirmVisible.value }))
 </script>

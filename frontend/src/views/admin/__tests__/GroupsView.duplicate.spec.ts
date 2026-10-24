@@ -7,6 +7,7 @@ import GroupsView from '@/views/admin/GroupsView.vue'
 import { adminAPI } from '@/api/admin'
 
 const {
+  listCompositeRoutes,
   listGroups,
   duplicateGroup,
   updateGroup,
@@ -17,6 +18,7 @@ const {
   showSuccess,
   showError
 } = vi.hoisted(() => ({
+  listCompositeRoutes: vi.fn(),
   listGroups: vi.fn(),
   duplicateGroup: vi.fn(),
   updateGroup: vi.fn(),
@@ -34,6 +36,7 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     groups: {
       list: listGroups,
+      listCompositeRoutes,
       duplicate: duplicateGroup,
       getModelAllowlistCandidates,
       getUsageSummary,
@@ -181,8 +184,8 @@ describe('GroupsView duplicate action', () => {
     localStorage.clear()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     for (const fn of [
-      listGroups,
-      duplicateGroup,
+      listCompositeRoutes,
+      listGroups,      duplicateGroup,
       updateGroup,
       getModelAllowlistCandidates,
       getUsageSummary,
@@ -215,6 +218,47 @@ describe('GroupsView duplicate action', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it.each(['success', 'error'])('ignores an old composite route load after switching groups: %s', async (outcome) => {
+    let finishA!: (value: unknown) => void
+    let failA!: (value: unknown) => void
+    let finishB!: (value: unknown) => void
+    listCompositeRoutes.mockImplementationOnce(() => new Promise((resolve, reject) => { finishA = resolve; failA = reject }))
+      .mockImplementationOnce(() => new Promise(resolve => { finishB = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const loadingA = vm.handleCompositeRoutes(sourceGroup)
+    const loadingB = vm.handleCompositeRoutes({ ...sourceGroup, id: 43 })
+    if (outcome === 'success') finishA([{ id: 1, priority: 1 }])
+    else failA(new Error('stale A error'))
+    await loadingA
+    await flushPromises()
+    expect(vm.compositeRoutes).toEqual([])
+    expect(vm.compositeRoutesLoading).toBe(true)
+    expect(showError).not.toHaveBeenCalled()
+    finishB([{ id: 2, priority: 1 }])
+    await loadingB
+    expect(vm.compositeRoutes).toEqual([{ id: 2, priority: 1 }])
+    expect(vm.compositeRoutesLoading).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('rejects an old route load after close and reopen of the same group', async () => {
+    let finishOld!: (value: unknown) => void
+    listCompositeRoutes.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve }))
+      .mockResolvedValueOnce([{ id: 3, priority: 1 }])
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const oldLoad = vm.handleCompositeRoutes(sourceGroup)
+    vm.closeCompositeRoutesModal()
+    await vm.handleCompositeRoutes(sourceGroup)
+    finishOld([{ id: 1, priority: 1 }])
+    await oldLoad
+    expect(vm.compositeRoutes).toEqual([{ id: 3, priority: 1 }])
+    wrapper.unmount()
   })
 
   it('duplicates the selected group, reports success, and refreshes the list', async () => {

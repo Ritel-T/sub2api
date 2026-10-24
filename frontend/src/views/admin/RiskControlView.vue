@@ -1,14 +1,14 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="loading">
     <div class="open-page space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-16">
-        <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
+        <div role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
       </div>
 
       <template v-else>
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.title') }}</h1>
+            <AppHeading variant="page" as="h1" class="text-gray-900 dark:text-white">{{ t('admin.riskControl.title') }}</AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.description') }}</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -69,7 +69,7 @@
           <div data-test="pre-block-sync-card" class="open-section">
             <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockSyncStatus') }}</h2>
+                <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockSyncStatus') }}</AppHeading>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.preBlockSyncHint') }}</p>
               </div>
               <span class="inline-flex w-fit items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300">
@@ -96,7 +96,7 @@
           <div data-test="pre-block-api-key-load-card" class="open-section">
             <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockAPIKeyLoad') }}</h2>
+                <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockAPIKeyLoad') }}</AppHeading>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {{ t('admin.riskControl.preBlockAPIKeyLoadHint') }}
                 </p>
@@ -162,7 +162,7 @@
         <div v-if="showWorkerRuntimeCard" class="open-section">
           <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.workerStatus') }}</h2>
+              <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ t('admin.riskControl.workerStatus') }}</AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.workerStatusHint') }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -242,7 +242,7 @@
           <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.records') }}</h2>
+                <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ t('admin.riskControl.records') }}</AppHeading>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.recordsHint') }}</p>
               </div>
               <button type="button" class="btn btn-secondary inline-flex items-center gap-2" :disabled="logsLoading" @click="loadLogs">
@@ -273,17 +273,17 @@
 
             <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
               <div ref="tableTools0" class="min-w-0" />
-              <Select class="w-40" v-model="filters.result" :options="resultOptions" @change="reloadLogsFromFirstPage" />
-              <Select class="w-40" v-model="filters.group_id" :options="groupFilterOptions" @change="reloadLogsFromFirstPage" />
-              <Select class="w-40" v-model="filters.endpoint" :options="endpointOptions" @change="reloadLogsFromFirstPage" />
+              <Select :aria-label="t('admin.riskControl.auditTestResult')" class="w-40" v-model="filters.result" :options="resultOptions" @change="reloadLogsFromFirstPage" />
+              <Select :aria-label="t('admin.riskControl.filters.allGroups')" class="w-40" v-model="filters.group_id" :options="groupFilterOptions" @change="reloadLogsFromFirstPage" />
+              <Select :aria-label="t('admin.riskControl.filters.allEndpoints')" class="w-40" v-model="filters.endpoint" :options="endpointOptions" @change="reloadLogsFromFirstPage" />
               <input v-model.trim="filters.search" type="search" class="input w-auto min-w-0" :placeholder="t('admin.riskControl.filters.search')" @keyup.enter="reloadLogsFromFirstPage" />
               <input v-model="filters.from" type="datetime-local" class="input w-auto min-w-0" :title="t('admin.riskControl.filters.from')" @change="reloadLogsFromFirstPage" />
               <input v-model="filters.to" type="datetime-local" class="input w-auto min-w-0" :title="t('admin.riskControl.filters.to')" @change="reloadLogsFromFirstPage" />
             </div>
           </div>
 
-          <div class="overflow-x-auto">
-            <DataTable :toolbar-target="tableTools0"
+          <div class="overflow-x-auto overflow-y-hidden">
+            <DataTable column-order-key="admin-risk-records" :toolbar-target="tableTools0"
  :columns="openRecordColumns"
  :primary-columns="['time','group','user','result','highest','input']"
  :data="logs" row-key="id" :loading="logsLoading">
@@ -354,7 +354,7 @@
 
       <BaseDialog :show="settingsOpen" :title="t('admin.riskControl.settingsTitle')" width="extra-wide" @close="settingsOpen = false">
         <div class="space-y-6">
-          <div class="flex gap-2 overflow-x-auto border-b border-gray-100 pb-3 dark:border-dark-700">
+          <div class="flex gap-2 overflow-x-auto overflow-y-hidden border-b border-gray-100 pb-3 dark:border-dark-700">
             <button
               v-for="tab in settingsTabs"
               :key="tab.id"
@@ -374,16 +374,16 @@
                   <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.riskControl.enabled') }}</p>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.enabledHint') }}</p>
                 </div>
-                <Toggle v-model="configForm.enabled" />
+                <Toggle :aria-label="t('admin.riskControl.enabled')" v-model="configForm.enabled" />
               </div>
               <div>
                 <label class="input-label">{{ t('admin.riskControl.mode') }}</label>
-                <Select v-model="configForm.mode" :options="modeOptions" />
+                <Select :aria-label="t('admin.riskControl.mode')" v-model="configForm.mode" :options="modeOptions" />
                 <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ modeDescription(configForm.mode) }}</p>
               </div>
               <div>
                 <label class="input-label">{{ t('admin.riskControl.engine') }}</label>
-                <Select data-test="audit-engine-select" :model-value="configForm.engine" :options="engineOptions" :disabled="apiKeyTesting || saving" @update:model-value="switchEngine" />
+                <Select :aria-label="t('admin.riskControl.engine')" data-test="audit-engine-select" :model-value="configForm.engine" :options="engineOptions" :disabled="apiKeyTesting || saving" @update:model-value="switchEngine" />
               </div>
               <div v-if="configForm.engine === 'typesafe'" class="lg:col-span-2 text-sm text-amber-700 dark:text-amber-300" role="status">
                 {{ t('admin.riskControl.typeSafeNotice') }}
@@ -704,7 +704,7 @@
           <div v-else-if="activeSettingsTab === 'scope'" class="space-y-5">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.groupScope') }}</h3>
+                <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.riskControl.groupScope') }}</AppHeading>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.groupScopeHint') }}</p>
               </div>
               <div class="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
@@ -759,7 +759,7 @@
             <div class="space-y-4 rounded-lg border border-gray-100 p-4 dark:border-dark-700">
               <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.modelFilter') }}</h3>
+                  <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.riskControl.modelFilter') }}</AppHeading>
                   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.modelFilterHint') }}</p>
                 </div>
                 <span class="inline-flex w-fit rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300">
@@ -817,7 +817,7 @@
                 <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.riskControl.recordNonHits') }}</p>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.recordNonHitsHint') }}</p>
               </div>
-              <Toggle v-model="configForm.record_non_hits" />
+              <Toggle :aria-label="t('admin.riskControl.recordNonHits')" v-model="configForm.record_non_hits" />
             </div>
             <div class="space-y-4 rounded-lg border border-gray-100 p-4 dark:border-dark-700 lg:col-span-2">
               <div class="flex items-center justify-between gap-4">
@@ -825,7 +825,7 @@
                   <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.riskControl.preHashCheck') }}</p>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.preHashCheckHint') }}</p>
                 </div>
-                <Toggle v-model="configForm.pre_hash_check_enabled" />
+                <Toggle :aria-label="t('admin.riskControl.preHashCheck')" v-model="configForm.pre_hash_check_enabled" />
               </div>
               <div class="rounded-lg bg-gray-50 p-3 dark:bg-dark-900/30">
                 <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -881,21 +881,21 @@
                   <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.riskControl.emailOnHit') }}</p>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.emailOnHitHint') }}</p>
                 </div>
-                <Toggle v-model="configForm.email_on_hit" />
+                <Toggle :aria-label="t('admin.riskControl.emailOnHit')" v-model="configForm.email_on_hit" />
               </div>
               <div class="flex items-center justify-between rounded-lg border border-gray-100 p-4 dark:border-dark-700">
                 <div>
                   <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.riskControl.autoBan') }}</p>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.autoBanHint') }}</p>
                 </div>
-                <Toggle v-model="configForm.auto_ban_enabled" />
+                <Toggle :aria-label="t('admin.riskControl.autoBan')" v-model="configForm.auto_ban_enabled" />
               </div>
               <div class="flex items-center justify-between rounded-lg border border-gray-100 p-4 dark:border-dark-700 lg:col-span-2">
                 <div>
                   <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.riskControl.cyberPolicyExcludeBan') }}</p>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.cyberPolicyExcludeBanHint') }}</p>
                 </div>
-                <Toggle v-model="configForm.cyber_policy_exclude_from_ban_count" />
+                <Toggle :aria-label="t('admin.riskControl.cyberPolicyExcludeBan')" v-model="configForm.cyber_policy_exclude_from_ban_count" />
               </div>
               <div>
                 <label class="input-label">{{ t('admin.riskControl.banThreshold') }}</label>
@@ -913,7 +913,7 @@
             <p v-if="configForm.engine === 'typesafe'" class="text-sm text-amber-700 dark:text-amber-300">{{ t('admin.riskControl.typeSafeThresholds') }}</p>
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.riskThresholds') }}</h3>
+                <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.riskControl.riskThresholds') }}</AppHeading>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.riskThresholdsHint') }}</p>
               </div>
               <button
@@ -1136,9 +1136,16 @@
       </BaseDialog>
     </div>
   </AppLayout>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+const confirmation = useConfirmation()
+
 import DataTable from '@/components/common/DataTable.vue'
 import { computed, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -1233,6 +1240,7 @@ const saving = ref(false)
 const statusLoading = ref(false)
 const apiKeyTesting = ref(false)
 const hashActionLoading = ref(false)
+let hashActionVersion = 0
 const unbanningUserID = ref<number | null>(null)
 const settingsOpen = ref(false)
 const baseUrlInput = ref<HTMLInputElement | null>(null)
@@ -1860,21 +1868,25 @@ async function loadAll() {
   }
 }
 
-async function loadStatus(silent = true) {
+let riskStatusLoadVersion = 0
+async function loadStatus(silent = true, isCurrent: () => boolean = () => true) {
+  const owner = ++riskStatusLoadVersion
   statusLoading.value = true
   try {
     const runtimeStatus = await adminAPI.riskControl.getStatus()
+    if (!isCurrent()) return
     status.value = runtimeStatus
     if ((runtimeStatus.engine ?? 'openai') === configForm.engine && Array.isArray(runtimeStatus.api_key_statuses)) {
       configForm.api_key_statuses = [...runtimeStatus.api_key_statuses]
       prunePendingDeleteAPIKeyHashes()
     }
   } catch (err: unknown) {
+    if (!isCurrent()) return
     if (!silent) {
       appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.statusFailed')))
     }
   } finally {
-    statusLoading.value = false
+    if (owner === riskStatusLoadVersion) statusLoading.value = false
   }
 }
 
@@ -1995,18 +2007,22 @@ async function deleteFlaggedHash() {
 
 async function clearFlaggedHashes() {
   if (hashActionLoading.value) return
-  const confirmed = window.confirm(t('admin.riskControl.clearFlaggedHashesConfirm'))
-  if (!confirmed) return
-  hashActionLoading.value = true
-  try {
-    const result = await adminAPI.riskControl.clearFlaggedHashes()
-    await loadStatus(true)
-    appStore.showSuccess(t('admin.riskControl.flaggedHashesCleared', { count: result.deleted }))
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.flaggedHashesClearFailed')))
-  } finally {
-    hashActionLoading.value = false
-  }
+  await confirmation.run({ message: t('admin.riskControl.clearFlaggedHashesConfirm'), title: t('common.clear'), confirmText: t('common.clear'), danger: true }, async (isCurrent) => {
+    const owner = ++hashActionVersion
+    hashActionLoading.value = true
+    try {
+      const result = await adminAPI.riskControl.clearFlaggedHashes()
+      if (!isCurrent()) return
+      await loadStatus(true, isCurrent)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.riskControl.flaggedHashesCleared', { count: result.deleted }))
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.flaggedHashesClearFailed')))
+    } finally {
+      if (owner === hashActionVersion) hashActionLoading.value = false
+    }
+  })
 }
 
 function openSettings() {

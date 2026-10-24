@@ -30,9 +30,9 @@
     <main class="key-usage-workspace flex-1 w-full max-w-[1520px] mx-auto px-5 py-12 sm:px-8">
       <!-- Hero -->
       <div class="text-center mb-12">
-        <h1 class="text-3xl sm:text-4xl font-bold tracking-tight mb-3 text-gray-900 dark:text-white">
+        <AppHeading variant="page" as="h1" class="mb-3 text-gray-900 dark:text-white">
           {{ t('keyUsage.title') }}
-        </h1>
+        </AppHeading>
         <p class="text-gray-500 dark:text-dark-400 text-base max-w-md mx-auto">
           {{ t('keyUsage.subtitle') }}
         </p>
@@ -120,7 +120,7 @@
       <!-- Results Container -->
       <div v-if="showResults">
         <!-- Loading Skeleton -->
-        <div v-if="showLoading" class="open-page">
+        <LoadingRegion v-if="showLoading" class="open-page">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="open-section py-8">
               <div class="skeleton h-5 w-24 mb-6"></div>
@@ -140,7 +140,7 @@
               <div class="skeleton h-4 w-2/3"></div>
             </div>
           </div>
-        </div>
+        </LoadingRegion>
 
         <!-- Result Content -->
         <div v-else-if="resultData" class="open-page">
@@ -159,7 +159,7 @@
 
           <section v-if="ringItems.length" class="open-metric-strip key-usage-quotas">
             <div v-for="(ring, i) in ringItems" :key="ring.title" class="key-usage-quota">
-              <h2 class="text-sm text-gray-500 dark:text-dark-400">{{ ring.title }}</h2>
+              <AppHeading variant="subtle" as="h2" class="text-gray-500 dark:text-dark-400">{{ ring.title }}</AppHeading>
               <p class="ritel-number-display mt-3 text-3xl">{{ ring.amount }}</p>
               <template v-if="!ring.isBalance">
                 <div class="key-usage-meter" role="meter" :aria-label="ring.title" :aria-valuenow="ring.pct" aria-valuemin="0" aria-valuemax="100">
@@ -178,7 +178,7 @@
               class="open-section"
             >
               <div class="pb-5">
-                <h3 class="text-xl font-medium text-gray-900 dark:text-white">{{ t('keyUsage.detailInfo') }}</h3>
+                <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('keyUsage.detailInfo') }}</AppHeading>
               </div>
               <div class="divide-y divide-gray-100 dark:divide-dark-800">
                 <div
@@ -211,7 +211,7 @@
               class="open-section"
             >
               <div class="pb-5">
-                <h3 class="text-xl font-medium text-gray-900 dark:text-white">{{ t('keyUsage.tokenStats') }}</h3>
+                <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('keyUsage.tokenStats') }}</AppHeading>
               </div>
               <div class="key-usage-statistics">
                 <div
@@ -233,7 +233,7 @@
             class="open-section"
           >
             <div class="flex flex-col gap-3 pb-5 sm:flex-row sm:items-center sm:justify-between">
-              <h3 class="text-xl font-medium text-gray-900 dark:text-white">{{ t('keyUsage.dailyDetail') }}</h3>
+              <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('keyUsage.dailyDetail') }}</AppHeading>
               <div class="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 dark:border-dark-700 dark:bg-dark-950">
                 <button
                   v-for="option in dailyUsageOptions"
@@ -267,7 +267,7 @@
             class="open-section"
           >
             <div class="pb-5">
-              <h3 class="text-xl font-medium text-gray-900 dark:text-white">{{ t('keyUsage.modelStats') }}</h3>
+              <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('keyUsage.modelStats') }}</AppHeading>
             </div>
             <DataTable :data="modelStats" :columns="modelColumns" :primary-columns="['model', 'requests', 'total_tokens', 'cost']" row-key="model" column-order-key="public-key-usage-models:v1">
               <template #cell-model="{ value }">{{ value || '-' }}</template>
@@ -311,6 +311,8 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'

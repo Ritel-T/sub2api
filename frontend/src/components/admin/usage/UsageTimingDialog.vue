@@ -22,7 +22,7 @@
           <select v-model="selected" class="input mt-2 w-full"><option v-for="(item, i) in traces" :key="item.trace_id" :value="i">{{ formatDateTime(item.started_at) }} · {{ ms(item.total_ms) }}</option></select>
         </label>
         <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/30">
-          <h4 class="font-semibold text-sky-900 dark:text-sky-200">{{ t('requestTiming.health.guideTitle') }}</h4>
+          <AppHeading as="h4" variant="minor" class="text-sky-900 dark:text-sky-200">{{ t('requestTiming.health.guideTitle') }}</AppHeading>
           <p class="mt-1 text-sm text-sky-800 dark:text-sky-300">{{ diagnosis }}</p>
           <p v-if="largestStage" class="mt-2 text-sm text-sky-800 dark:text-sky-300">{{ t('requestTiming.health.largest', { stage: label(largestStage.name), time: ms(largestStage.end_ms - largestStage.start_ms) }) }}</p>
           <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
@@ -36,12 +36,12 @@
         <p v-if="trace.truncated" class="text-amber-600">{{ t('requestTiming.truncated') }}</p>
         <div class="grid gap-4 lg:grid-cols-3">
           <section v-for="group in groups" :key="group.title" class="rounded-xl border border-gray-200 p-4 dark:border-dark-600">
-            <h4 class="mb-4 font-semibold">{{ group.title }}</h4>
+            <AppHeading as="h4" variant="minor" class="mb-4">{{ group.title }}</AppHeading>
             <dl class="space-y-3"><div v-for="row in group.rows" :key="row.name" class="flex justify-between gap-4 text-sm"><dt class="text-gray-500">{{ row.name }}</dt><dd class="shrink-0 text-right font-medium tabular-nums" :class="TIMING_TEXT[row.health]">{{ row.value }}<span v-if="row.health !== 'neutral'" class="mt-0.5 block text-[10px] font-normal">{{ healthLabel(row.health) }}</span></dd></div></dl>
           </section>
         </div>
         <section class="rounded-xl border border-gray-200 p-4 dark:border-dark-600">
-          <h4 class="mb-3 font-semibold">{{ t('requestTiming.timeline') }}</h4>
+          <AppHeading as="h4" variant="minor" class="mb-3">{{ t('requestTiming.timeline') }}</AppHeading>
           <p class="mb-3 text-xs text-gray-500">{{ t('requestTiming.overlap') }}</p>
           <div v-for="(span, i) in orderedSpans" :key="i" class="mb-3">
             <div class="flex justify-between gap-2 text-xs"><span>{{ label(span.name) }}</span><span :class="TIMING_TEXT[spanHealth(span)]">{{ ms(span.start_ms) }} → {{ ms(span.end_ms) }} · <strong>{{ ms(span.end_ms - span.start_ms) }}</strong></span></div>
@@ -49,7 +49,7 @@
           </div>
         </section>
         <section v-for="attempt in trace.attempts" :key="attempt.number" class="rounded-xl border border-gray-200 p-4 dark:border-dark-600">
-          <h4 class="font-semibold">{{ attemptTitle(attempt) }} · {{ t('requestTiming.account') }} #{{ attempt.account_id }} · {{ attempt.proxy_id > 0 ? `${t('requestTiming.proxy')} #${attempt.proxy_id}` : t('requestTiming.direct') }}</h4>
+          <AppHeading as="h4" variant="minor" >{{ attemptTitle(attempt) }} · {{ t('requestTiming.account') }} #{{ attempt.account_id }} · {{ attempt.proxy_id > 0 ? `${t('requestTiming.proxy')} #${attempt.proxy_id}` : t('requestTiming.direct') }}</AppHeading>
           <div class="mt-3 grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
             <div v-for="row in attemptRows(attempt)" :key="row.name" class="flex justify-between gap-4"><span class="text-gray-500">{{ row.name }}</span><span class="text-right font-medium tabular-nums" :class="TIMING_TEXT[row.health]">{{ row.value }}<span v-if="row.health !== 'neutral'" class="mt-0.5 block text-[10px] font-normal">{{ healthLabel(row.health) }}</span></span></div>
           </div>
@@ -60,6 +60,7 @@
   </BaseDialog>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { inject, computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWindowSize } from '@vueuse/core'

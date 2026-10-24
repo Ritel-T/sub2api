@@ -77,7 +77,7 @@
 
     <template v-else-if="retailSettlementPending">
       <div class="open-section space-y-4 text-center">
-        <div class="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+        <div role="status" :aria-label="t('common.loading')" class="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
         <p>{{ t('paymentRetail.creditProcessing') }}</p>
       </div>
     </template>
@@ -96,7 +96,7 @@
       <template v-if="!deepLinkFallbackVisible">
         <div class="open-section">
           <div class="flex flex-col items-center space-y-4 py-4 text-center">
-            <div
+            <div role="status" :aria-label="t('common.loading')"
               v-if="deepLinkState === 'launching'"
               class="h-10 w-10 animate-spin rounded-full border-4 border-[#00AEEF] border-t-transparent"
             ></div>
@@ -222,7 +222,7 @@
     <template v-else>
       <div class="open-section">
         <div class="flex flex-col items-center space-y-4 py-4">
-          <div class="h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+          <div role="status" :aria-label="t('common.loading')" class="h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.payInNewWindowHint') }}</p>
           <button v-if="payUrl" class="btn btn-secondary text-sm" @click="reopenPopup">
             {{ t('payment.qr.openPayWindow') }}

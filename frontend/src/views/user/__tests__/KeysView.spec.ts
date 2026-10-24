@@ -467,10 +467,41 @@ describe('user KeysView column settings', () => {
     listKeys.mockResolvedValue({ items: [{ ...createApiKey(), id: 42, name: 'Billing app' }], total: 12, page: 1, page_size: 10, pages: 2 })
     await wrapper.get('#connection-key-search').element.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     await flushPromises()
-    expect(listKeys).toHaveBeenLastCalledWith(1, 10, expect.objectContaining({ search: 'Billing app' }))
-    await getButtonByText(wrapper, 'Next').trigger('click')
+    expect(listKeys).toHaveBeenLastCalledWith(1, 10, expect.objectContaining({ search: 'Billing app' }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    listKeys.mockResolvedValue({ items: [{ ...createApiKey(), id: 43, name: 'Second billing key' }], total: 12, page: 2, page_size: 10, pages: 2 })
+    await wrapper.get('#connection-key-search').setValue('Unsubmitted search')
+    await wrapper.get('[role="dialog"] [data-test="load-more"]').trigger('click')
     await flushPromises()
-    expect(listKeys).toHaveBeenLastCalledWith(2, 10, expect.objectContaining({ search: 'Billing app' }))
+    expect(listKeys).toHaveBeenLastCalledWith(2, 10, expect.objectContaining({ search: 'Billing app' }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    expect(wrapper.find('[data-testid="choose-connection-key-42"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="choose-connection-key-43"]').exists()).toBe(true)
+    expect(wrapper.findAllComponents({ name: 'InfiniteListSentinel' }).at(-1)!.props('hasMore')).toBe(false)
+  })
+
+
+  it('retries a failed chooser append and rejects obsolete results after a new search', async () => {
+    routeState.query = { connect: '1' }
+    const wrapper = await mountView()
+    const vm = wrapper.vm as any
+    listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), id: 42 }], total: 12, page: 1, pages: 2 })
+    await vm.loadConnectionKeys(); await flushPromises()
+    listKeys.mockRejectedValueOnce(new Error('temporarily unavailable'))
+    await wrapper.get('[role="dialog"] [data-test="load-more"]').trigger('click'); await flushPromises()
+    expect(wrapper.find('[data-testid="choose-connection-key-42"]').exists()).toBe(true)
+    expect(wrapper.findAllComponents({ name: 'InfiniteListSentinel' }).at(-1)!.props('error')).toBe('temporarily unavailable')
+    let finishOld!: (data: any) => void
+    listKeys.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve }))
+    await wrapper.get('[role="dialog"] [data-test="retry-page"]').trigger('click'); await flushPromises()
+    expect(listKeys.mock.lastCall?.[0]).toBe(2)
+    const oldSignal = listKeys.mock.lastCall?.[3]?.signal as AbortSignal
+    await wrapper.get('#connection-key-search').setValue('new')
+    listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), id: 99 }], total: 1, page: 1, pages: 1 })
+    await vm.loadConnectionKeys(); await flushPromises()
+    finishOld({ items: [{ ...createApiKey(), id: 43 }], total: 12, page: 2, pages: 2 }); await flushPromises()
+    expect(oldSignal.aborted).toBe(true)
+    expect(wrapper.find('[data-testid="choose-connection-key-99"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="choose-connection-key-42"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="choose-connection-key-43"]').exists()).toBe(false)
   })
 
   it('clears a previously set quota when its amount is zero', async () => {

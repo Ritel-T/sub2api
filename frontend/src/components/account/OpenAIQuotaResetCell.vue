@@ -174,6 +174,7 @@
 
     <ConfirmDialog
       :show="showResetConfirm"
+      :busy="resetting"
       :title="t('admin.accounts.openaiQuotaReset.confirmTitle')"
       :message="t('admin.accounts.openaiQuotaReset.confirmMessage', { count: availableResetCount })"
       :confirm-text="t('admin.accounts.openaiQuotaReset.reset')"
@@ -196,6 +197,7 @@ import {
   type OpenAIQuotaResetResult
 } from '@/api/admin/accounts'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import OpenAIReferralCell from '@/components/account/OpenAIReferralCell.vue'
 
 const props = withDefaults(defineProps<{
@@ -214,7 +216,9 @@ const { t } = useI18n()
 const visible = computed(() => props.account.platform === 'openai' && props.account.type === 'oauth')
 
 const loading = ref(false)
-const resetting = ref(false)
+const resetAction = useConfirmedAction(() => ({ active: visible.value, identity: [props.account.id, props.account.parent_account_id] }))
+const resetting = resetAction.busy
+const resetTarget = ref<number | null>(null)
 const error = ref<string | null>(null)
 const data = ref<OpenAIQuotaUsage | null>(null)
 const cachedData = ref<OpenAIQuotaUsage | null>(null)
@@ -479,25 +483,28 @@ const openResetConfirm = () => {
     error.value = t('admin.accounts.openaiQuotaReset.noCreditsAvailable')
     return
   }
+  if (showResetConfirm.value) return
+  resetTarget.value = props.account.id
   showResetConfirm.value = true
 }
 
 const confirmReset = async () => {
-  showResetConfirm.value = false
-  if (resetting.value) return
+  const accountID = resetTarget.value
+  if (!showResetConfirm.value || accountID === null || accountID !== props.account.id || resetting.value || !visible.value) return
   if (!canReset.value) {
     error.value = t('admin.accounts.openaiQuotaReset.noCreditsAvailable')
     return
   }
-  resetting.value = true
-  const accountID = props.account.id
+  await resetAction.run(async (isCurrent) => {
   creditsCacheWarning.value = false
   error.value = null
   resetMessage.value = null
   resetWarning.value = null
   try {
     const result: OpenAIQuotaResetResult = await resetOpenAIQuota(accountID)
-    if (props.account.id !== accountID) return
+    if (!isCurrent()) return
+    showResetConfirm.value = false
+    resetTarget.value = null
     updateCredits(result.quota ?? null)
     showResetCreditDetails.value = false
     if (result.cache_refreshed && result.quota) {
@@ -523,15 +530,14 @@ const confirmReset = async () => {
       })
     }
   } catch (e) {
-    if (props.account.id !== accountID) return
+    if (!isCurrent()) return
     error.value = extractErrorMessage(e)
-  } finally {
-    if (props.account.id === accountID) resetting.value = false
   }
+  })
 }
 
 watch(
-  () => props.account.id,
+  () => [props.account.id, props.account.parent_account_id, visible.value],
   () => {
     // Account row may be reused across paginated lists; reset local state.
     cachedData.value = readCachedResetCredits(props.account)
@@ -542,10 +548,11 @@ watch(
     resetMessage.value = null
     resetWarning.value = null
     loading.value = false
-    resetting.value = false
     showResetConfirm.value = false
+    resetTarget.value = null
     showResetCreditDetails.value = false
-  }
+  },
+  { flush: 'sync' }
 )
 
 watch(

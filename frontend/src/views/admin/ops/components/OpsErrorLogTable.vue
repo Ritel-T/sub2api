@@ -8,6 +8,7 @@
         :columns="columns"
         :primary-columns="['created_at', 'message', 'user', 'model', 'status', 'actions']"
         v-on="columnOrderListeners"
+        :column-order-key="columnOrderListeners.columnReorder ? undefined : 'admin-ops-error-details'"
         :data="rows"
         :loading="loading"
         clickable-rows

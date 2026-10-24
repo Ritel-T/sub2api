@@ -112,9 +112,14 @@
       </div>
     </template>
   </BaseDialog>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+
 import { ref, reactive, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -195,37 +200,43 @@ function formatUsage(n: number): string {
   return n.toFixed(2)
 }
 
+let loadVersion = 0
 async function load() {
   if (!props.user) return
+  const version = ++loadVersion
+  const userId = props.user.id
+  const current = () => version === loadVersion && props.show && props.user?.id === userId
   loading.value = true
   try {
-    const data = await adminAPI.users.getPlatformQuotas(props.user.id)
+    const data = await adminAPI.users.getPlatformQuotas(userId)
+    if (!current()) return
     quotas.value = normalize(data.platform_quotas || [])
     savedConfigured.value = configuredPlatforms(data.platform_quotas || [])
   } catch {
+    if (!current()) return
     appStore.showError(t('admin.users.platformQuota.loadFailed'))
     quotas.value = platformQuotaPlatforms().map(emptyRow)
     savedConfigured.value = new Set()
   } finally {
-    loading.value = false
+    if (current()) loading.value = false
   }
 }
 
 watch(
-  () => props.show,
-  (s) => { if (s && props.user) load() },
+  () => [props.show, props.user?.id] as const,
+  ([show]) => { loadVersion++; if (show && props.user) void load() },
 )
 
-function onClearAll() {
+async function onClearAll() {
   // 二次确认：一键清空全部平台的 daily/weekly/monthly 限额属于高风险批量操作，
   // 误点后所有平台变为"无限额"，且本地无 undo 机制（需要逐个手动重填或取消保存）。
-  const confirmed = window.confirm(t('admin.users.platformQuota.clearAllConfirm'))
-  if (!confirmed) return
-  for (const row of quotas.value) {
-    row.daily_limit_usd = null
-    row.weekly_limit_usd = null
-    row.monthly_limit_usd = null
-  }
+  await confirmation.run({ message: t('admin.users.platformQuota.clearAllConfirm'), title: t('common.clear'), confirmText: t('common.clear'), danger: true }, async () => {
+    for (const row of quotas.value) {
+      row.daily_limit_usd = null
+      row.weekly_limit_usd = null
+      row.monthly_limit_usd = null
+    }
+  })
 }
 
 async function onSave() {
@@ -274,22 +285,26 @@ function normalizeLimit(v: number | null | undefined): number | null {
 
 async function onReset(platform: PlatformQuotaPlatform, quotaWindow: PlatformQuotaWindow) {
   if (!props.user) return
+  const userId = props.user.id
   const windowLabel = t(`admin.users.platformQuota.window${quotaWindow.charAt(0).toUpperCase() + quotaWindow.slice(1)}`)
-  const confirmed = window.confirm(
-    t('admin.users.platformQuota.reset.confirm', { platform, window: windowLabel })
-  )
-  if (!confirmed) return
-  const key = `${platform}.${quotaWindow}`
-  resetting[key] = true
-  try {
-    const data = await adminAPI.users.resetPlatformQuotaWindow(props.user.id, platform, quotaWindow)
-    quotas.value = normalize(data.platform_quotas || [])
-    savedConfigured.value = configuredPlatforms(data.platform_quotas || [])
-    appStore.showSuccess(t('admin.users.platformQuota.reset.success', { platform, window: windowLabel }))
-  } catch (e: any) {
-    appStore.showError(e?.response?.data?.message || t('admin.users.platformQuota.reset.failed'))
-  } finally {
-    resetting[key] = false
-  }
+  await confirmation.run({ message: t('admin.users.platformQuota.reset.confirm', { platform, window: windowLabel }), title: t('common.reset'), confirmText: t('common.reset'), danger: true }, async (isCurrent) => {
+    const key = `${platform}.${quotaWindow}`
+    resetting[key] = true
+    try {
+      const data = await adminAPI.users.resetPlatformQuotaWindow(userId, platform, quotaWindow)
+      if (!isCurrent()) return
+      quotas.value = normalize(data.platform_quotas || [])
+      savedConfigured.value = configuredPlatforms(data.platform_quotas || [])
+      appStore.showSuccess(t('admin.users.platformQuota.reset.success', { platform, window: windowLabel }))
+    } catch (e: any) {
+      if (!isCurrent()) return
+      appStore.showError(e?.response?.data?.message || t('admin.users.platformQuota.reset.failed'))
+    } finally {
+      resetting[key] = false
+    }
+  })
 }
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: props.show, identity: props.user?.id }))
 </script>

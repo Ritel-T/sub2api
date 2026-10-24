@@ -1,37 +1,52 @@
-/* Fields share a quiet baseline; menus retain a bounded surface. */
-.select-trigger,
-.date-picker-trigger {
-  min-height: 44px;
-  border: 0;
-  border-bottom: 1px solid var(--ritel-control-border);
-  border-radius: 0;
-  background: transparent;
-  padding: 10px 4px;
+@layer components {
+/* Edit fields are bounded. Only an explicit filter role uses the quiet baseline.
+ * Set geometry here for native and shared controls; consumers keep layout only. */
+:is(.input, .select-trigger, .date-picker-trigger, .date-picker-input) {
+  min-height: var(--ritel-field-height);
+  font-size: var(--ritel-text-sm);
+  line-height: var(--ritel-leading-body);
+  padding: var(--ritel-field-padding-block) var(--ritel-field-padding-inline);
+  border: 1px solid var(--ritel-control-border);
+  border-radius: var(--ritel-radius-field);
+  background: var(--theme-surface);
   color: var(--ritel-fg);
   box-shadow: none;
   transition: border-color 160ms, color 160ms;
 }
-.select-trigger:hover,
-.date-picker-trigger:hover { border-bottom-color: var(--ritel-muted); }
-.select-trigger-open,
-.date-picker-trigger-open { border-bottom-color: var(--ritel-fg); box-shadow: none; }
-.select-trigger:focus-visible,
-.date-picker-trigger:focus-visible {
+:is(.input, .select-trigger, .date-picker-trigger):hover:not(:disabled):not(.input-error):not(.select-trigger-error):not([aria-invalid="true"]) { border-color: var(--ritel-muted); }
+:is(.select-trigger-open, .date-picker-trigger-open) { border-color: var(--ritel-fg); }
+:is(.input, .select-trigger, .date-picker-trigger, .date-picker-input):focus-visible {
   outline: 2px solid var(--ritel-focus);
   outline-offset: 3px;
   box-shadow: none;
 }
-.select-trigger-error { border-bottom-color: #c94841; }
-.select-trigger-disabled { background: transparent; }
-.input.workspace-search-input,
-.table-filter-workspace input.input {
-  border: 0;
-  border-bottom: 1px solid var(--ritel-control-border);
-  border-radius: 0 !important;
-  background: transparent !important;
+:is(input.input, textarea.input, button.select-trigger, button.date-picker-trigger, input.date-picker-input):disabled {
+  background: var(--theme-surface-inset);
+  cursor: not-allowed;
+  opacity: .6;
 }
-.input.workspace-search-input:focus-visible,
-.table-filter-workspace input.input:focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 3px; }
+:is(.input, .select-trigger, .date-picker-trigger, .date-picker-input):is(.input-error, .select-trigger-error, [aria-invalid="true"]) {
+  border-color: var(--ritel-field-danger);
+}
+/* Keep selectors attached to fields so nested popovers retain their own edit role. */
+.workspace-search-input,
+:is([data-field-role="filter"], .table-filter-workspace, .open-filter-toolbar, .filter-controls, .workspace-filter-controls)
+  :where(input.input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select.input, .select-trigger, .date-picker-trigger) {
+  border-width: 0 0 1px;
+  border-radius: 0;
+  padding-inline: 4px;
+  background: transparent;
+}
+@media (max-width: 767px) {
+  :is(.input, .select-trigger, .date-picker-trigger, .date-picker-input) { font-size: 16px; }
+}
+/* Compact fields are an explicit density variant, never inferred from page identity. */
+[data-field-density="compact"] :is(.input, .select-trigger, .date-picker-trigger) {
+  min-height: var(--ritel-field-height-compact);
+  padding-block: 6px;
+}
+}
+
 .workspace-row-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; }
 button.workspace-icon-action {
   position: relative;

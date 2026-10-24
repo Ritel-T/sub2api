@@ -72,6 +72,7 @@
                 :options="matchTypeOptions"
                 :placeholder="t('admin.groups.form.reasoningEffortMatchTypePlaceholder')"
                 :error="showValidation && !!groupErrors(group.id).match_type"
+              :aria-describedby="showValidation && groupErrors(group.id).match_type ? `${idPrefix}-${group.id}-match-type-error` : undefined"
                 :aria-label="t('admin.groups.form.reasoningEffortMatchType')"
                 :searchable="false"
                 clearable
@@ -79,6 +80,7 @@
               />
               <p
                 v-if="showValidation && groupErrors(group.id).match_type"
+              :id="`${idPrefix}-${group.id}-match-type-error`"
                 class="mt-1 text-xs text-red-600 dark:text-red-400"
                 role="alert"
               >
@@ -139,6 +141,7 @@
                 :options="reasoningEffortSourceOptions"
                 :placeholder="t('admin.groups.form.reasoningEffortFromPlaceholder')"
                 :error="showValidation && !!pairErrors(pair.id).from"
+              :aria-describedby="showValidation && pairErrors(pair.id).from ? `${idPrefix}-${pair.id}-from-error` : undefined"
                 :aria-label="t('admin.groups.form.reasoningEffortFrom')"
                 :searchable="false"
                 clearable
@@ -146,6 +149,7 @@
               />
               <p
                 v-if="showValidation && pairErrors(pair.id).from"
+              :id="`${idPrefix}-${pair.id}-from-error`"
                 class="mt-1 text-xs text-red-600 dark:text-red-400"
                 role="alert"
               >
@@ -167,6 +171,7 @@
                 :options="reasoningEffortTargetOptions"
                 :placeholder="t('admin.groups.form.reasoningEffortToPlaceholder')"
                 :error="showValidation && !!pairErrors(pair.id).to"
+              :aria-describedby="showValidation && pairErrors(pair.id).to ? `${idPrefix}-${pair.id}-to-error` : undefined"
                 :aria-label="t('admin.groups.form.reasoningEffortTo')"
                 :searchable="false"
                 clearable
@@ -174,6 +179,7 @@
               />
               <p
                 v-if="showValidation && pairErrors(pair.id).to"
+              :id="`${idPrefix}-${pair.id}-to-error`"
                 class="mt-1 text-xs text-red-600 dark:text-red-400"
                 role="alert"
               >

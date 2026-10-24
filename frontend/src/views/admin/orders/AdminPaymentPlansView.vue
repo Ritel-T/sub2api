@@ -38,19 +38,7 @@
           <span class="text-sm">{{ value }} {{ t('payment.admin.' + (row.validity_unit || 'days')) }}</span>
         </template>
         <template #cell-for_sale="{ value, row }">
-          <button
-            type="button"
-            :class="[
-              'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              value ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600'
-            ]"
-            @click="toggleForSale(row)"
-          >
-            <span :class="[
-              'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-              value ? 'translate-x-4' : 'translate-x-0'
-            ]" />
-          </button>
+          <Toggle :model-value="!!value" :aria-label="t('payment.admin.forSale')" @click="toggleForSale(row)" size="small" />
         </template>
         <template #cell-actions="{ row }">
           <div class="workspace-row-actions">
@@ -70,12 +58,13 @@
     <!-- Plan Edit Dialog -->
     <PlanEditDialog :show="showPlanDialog" :plan="editingPlan" :groups="groups" :payment-config="paymentConfig" @close="showPlanDialog = false" @saved="loadPlans" />
 
-    <ConfirmDialog :show="showDeletePlanDialog" :title="t('payment.admin.deletePlan')" :message="t('payment.admin.deletePlanConfirm')" :confirm-text="t('common.delete')" danger @confirm="handleDeletePlan" @cancel="showDeletePlanDialog = false" />
+    <ConfirmDialog :busy="handleDeletePlanAction.busy.value" :show="showDeletePlanDialog" :title="t('payment.admin.deletePlan')" :message="t('payment.admin.deletePlanConfirm')" :confirm-text="t('common.delete')" danger @confirm="handleDeletePlan" @cancel="showDeletePlanDialog = false" />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import Toggle from '@/components/common/Toggle.vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
@@ -87,6 +76,7 @@ import type { AdminGroup } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -186,10 +176,15 @@ async function toggleForSale(plan: SubscriptionPlan) {
 }
 
 function confirmDeletePlan(plan: SubscriptionPlan) { deletingPlanId.value = plan.id; showDeletePlanDialog.value = true }
-async function handleDeletePlan() {
-  if (!deletingPlanId.value) return
-  try { await adminPaymentAPI.deletePlan(deletingPlanId.value); appStore.showSuccess(t('common.deleted')); showDeletePlanDialog.value = false; loadPlans() }
-  catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
+function handleDeletePlan() {
+  return handleDeletePlanAction.run(async (isCurrent) => {
+    const targetId = deletingPlanId.value
+    if (targetId == null) return
+
+    if (!targetId) return
+    try { await adminPaymentAPI.deletePlan(targetId); if (!isCurrent()) return; appStore.showSuccess(t('common.deleted')); showDeletePlanDialog.value = false; loadPlans() }
+    catch (err: unknown) { if (!isCurrent()) return; appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
+  })
 }
 
 // ==================== Lifecycle ====================
@@ -199,4 +194,8 @@ onMounted(() => {
   loadPaymentConfig()
   loadPlans()
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const handleDeletePlanAction = useConfirmedAction(() => ({ active: showDeletePlanDialog.value, identity: deletingPlanId.value }))
+watch(() => ({ active: showDeletePlanDialog.value, identity: JSON.stringify(deletingPlanId.value) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeletePlanDialog.value = false } }, { flush: 'sync' })
 </script>

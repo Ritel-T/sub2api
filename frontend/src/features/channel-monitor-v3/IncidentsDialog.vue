@@ -2,15 +2,18 @@
   <BaseDialog :show="show" :title="t('channelMonitorV3.incidents.title')" width="wide" close-on-click-outside @close="emit('close')">
     <div class="space-y-3" data-testid="monitor-v3-incident-list">
       <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.incidents.hint', { since: since ? formatMonitorV3Full(since) : '—' }) }}</p>
-      <div v-if="loading && !items.length" class="space-y-2">
+      <LoadingRegion v-if="loading && !items.length" class="space-y-2">
         <div v-for="index in 3" :key="index" class="h-16 animate-pulse rounded-xl bg-gray-100 dark:bg-dark-700" />
-      </div>
-      <p v-else-if="error" class="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-300">{{ error }}</p>
-      <p v-else-if="!items.length" class="py-10 text-center text-sm text-gray-500 dark:text-gray-400" data-testid="monitor-v3-incidents-empty">
+      </LoadingRegion>
+      <p v-if="error" role="alert" class="text-sm text-red-600 dark:text-red-300">{{ error }}</p>
+      <p v-if="!loading && !error && !items.length" class="py-10 text-center text-sm text-gray-500 dark:text-gray-400" data-testid="monitor-v3-incidents-empty">
         {{ t('channelMonitorV3.incidents.empty') }}
       </p>
-      <ul v-else class="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 dark:divide-dark-700 dark:border-dark-700">
-        <li v-for="item in items" :key="`${item.component_id}-${item.started_at}`" class="px-4 py-3" data-testid="monitor-v3-incident">
+      <ul ref="listBody" class="divide-y divide-gray-100 dark:divide-dark-700">
+        <li v-if="paddingTop" aria-hidden="true" :style="{ height: `${paddingTop}px` }" />
+        <template v-for="{ row: item, index, gapBefore } in rendered" :key="`${item.component_id}-${item.started_at}`">
+        <li v-if="gapBefore" aria-hidden="true" :style="{ height: `${gapBefore}px` }" />
+        <li :ref="measure" :data-index="index" class="py-3" data-testid="monitor-v3-incident">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex min-w-0 items-center gap-2">
               <StatusDot :status="item.ended_at ? 'operational' : 'down'" />
@@ -33,25 +36,27 @@
             {{ formatMonitorV3Full(item.started_at) }} → {{ item.ended_at ? formatMonitorV3Full(item.ended_at) : t('channelMonitorV3.incidents.now') }}
           </p>
         </li>
+        </template>
+        <li v-if="paddingBottom" aria-hidden="true" :style="{ height: `${paddingBottom}px` }" />
       </ul>
+      <InfiniteListSentinel :loading="loading || list.loadingMore.value || list.refreshing.value" :error="list.error.value" :has-more="show && list.hasMore.value" @load-more="list.loadMore" @retry="list.retry" />
     </div>
     <template #footer>
       <div class="flex w-full items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
-        <span>{{ t('channelMonitorV3.incidents.total', { count: total }) }}</span>
-        <div class="flex items-center gap-2">
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="loading || page <= 1" @click="load(page - 1)">{{ t('channelMonitorV3.incidents.prev') }}</button>
-          <span class="tabular-nums">{{ page }} / {{ pages }}</span>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="loading || page >= pages" @click="load(page + 1)">{{ t('channelMonitorV3.incidents.next') }}</button>
-        </div>
+        <span>{{ t('channelMonitorV3.incidents.total', { count: total ?? 0 }) }}</span>
       </div>
     </template>
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useDocumentRows } from '@/composables/useDocumentRows'
 import { getIncidents, type MonitorV3Incident } from '@/api/channelMonitorV3'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import StatusDot from './StatusDot.vue'
@@ -61,35 +66,20 @@ const PAGE_SIZE = 20
 const props = defineProps<{ show: boolean; admin: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 const { t, te } = useI18n()
-const items = ref<MonitorV3Incident[]>([])
 const since = ref('')
-const total = ref(0)
-const page = ref(1)
-const loading = ref(false)
-const error = ref('')
-const pages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
-let controller: AbortController | undefined
-
-async function load(next: number) {
-  controller?.abort()
-  const current = new AbortController()
-  controller = current
-  loading.value = true
-  error.value = ''
-  try {
-    const result = await getIncidents(next, PAGE_SIZE, props.admin, current.signal)
-    if (current.signal.aborted) return
-    items.value = result.items || []
-    since.value = result.since
-    total.value = result.total
-    page.value = result.page
-  } catch (err: unknown) {
-    if (current.signal.aborted) return
-    error.value = extractApiErrorMessage(err, t('channelMonitorV3.incidents.loadFailed'))
-  } finally {
-    if (controller === current) loading.value = false
+const keyOf = (item: MonitorV3Incident) => `${item.component_id}-${item.started_at}`
+const list = useInfiniteList<MonitorV3Incident>({
+  pageSize: PAGE_SIZE, keyOf,
+  fetchPage: async (page, signal) => {
+    const result = await getIncidents(page, PAGE_SIZE, props.admin, signal)
+    if (!signal.aborted) since.value = result.since
+    return { items: result.items || [], total: result.total }
   }
-}
+})
+const { items, total, loading } = list
+const error = computed(() => list.error.value ? extractApiErrorMessage(list.error.value, t('channelMonitorV3.incidents.loadFailed')) : '')
+const listBody = ref<HTMLElement | null>(null)
+const { rendered, paddingTop, paddingBottom, measure } = useDocumentRows(items, listBody, keyOf, computed(() => props.show), () => 108)
 
 function reason(category?: string) {
   const key = `channelMonitorV3.errors.${category || 'other'}`
@@ -104,8 +94,9 @@ function duration(item: MonitorV3Incident) {
   return t('channelMonitorV3.incidents.hours', { hours, minutes: minutes % 60 })
 }
 
-watch(() => props.show, (open) => {
-  if (open) void load(1)
-  else controller?.abort()
+watch(() => [props.show, props.admin], () => {
+  since.value = ''
+  if (props.show) void list.reset()
+  else list.clear()
 }, { immediate: true })
 </script>

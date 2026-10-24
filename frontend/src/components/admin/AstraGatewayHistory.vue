@@ -1,6 +1,6 @@
 <template>
   <section class="open-section space-y-3" aria-labelledby="astra-history-title">
-    <h2 id="astra-history-title" class="font-semibold">{{ t(`${p}.historyTitle`) }}</h2>
+    <AppHeading as="h2" variant="section" id="astra-history-title" >{{ t(`${p}.historyTitle`) }}</AppHeading>
     <p class="text-xs text-gray-500">{{ t(`${p}.historyHint`) }}</p>
     <form class="flex flex-wrap items-center gap-3" @submit.prevent="search">
       <input v-model="host" class="input w-72" :placeholder="t(`${p}.historySearch`)" :aria-label="t(`${p}.historySearch`)" maxlength="200" />
@@ -20,6 +20,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getAstraGatewayHistory, type AstraGatewayHistoryRecord } from '@/api/admin/astraGateway'

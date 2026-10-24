@@ -1,7 +1,7 @@
 <template>
   <section class="mt-5 border-t border-gray-200 pt-5 dark:border-dark-600" aria-labelledby="backup-archive-title">
     <div class="mb-3 flex items-center justify-between gap-3">
-      <h4 id="backup-archive-title" class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.backup.archive.title') }}</h4>
+      <AppHeading as="h4" variant="minor" id="backup-archive-title" class="text-gray-900 dark:text-white">{{ t('admin.backup.archive.title') }}</AppHeading>
       <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <input data-testid="archive-enabled" type="checkbox" :checked="modelValue.enabled" @change="update({ enabled: ($event.target as HTMLInputElement).checked })" />
         {{ t('admin.backup.archive.enabled') }}
@@ -66,6 +66,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'

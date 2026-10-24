@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), delete: vi.fn() }))
 vi.mock('../../client', () => ({ apiClient: mocks }))
-import { canStreamExport, exportCapture, getContent, listRecords, createTask } from '../requestCaptures'
+import { canStreamExport, exportCapture, getContent, listRecords, listTasks, createTask } from '../requestCaptures'
 afterEach(() => { vi.clearAllMocks(); Reflect.deleteProperty(window, 'showSaveFilePicker') })
 describe('request capture API', () => {
   it('streams authenticated export to disk without a Blob', async () => {
@@ -22,8 +22,11 @@ describe('request capture API', () => {
   })
   it('sends pagination, exact request filters and bounded preview offsets', async () => {
     mocks.get.mockResolvedValue({ data: {} }); mocks.post.mockResolvedValue({ data: {} })
-    await listRecords('task', 2, 'request-id', true)
-    expect(mocks.get).toHaveBeenLastCalledWith('/admin/request-captures/task/requests', { params: { page: 2, page_size: 20, request_id: 'request-id', errors_only: true } })
+    const signal = new AbortController().signal
+    await listTasks(2, signal)
+    expect(mocks.get).toHaveBeenLastCalledWith('/admin/request-captures', { params: { page: 2, page_size: 20 }, signal })
+    await listRecords('task', 2, 'request-id', true, signal)
+    expect(mocks.get).toHaveBeenLastCalledWith('/admin/request-captures/task/requests', { params: { page: 2, page_size: 20, request_id: 'request-id', errors_only: true }, signal })
     await getContent('task', 'record', 'a.txt', 262144)
     expect(mocks.get).toHaveBeenLastCalledWith('/admin/request-captures/task/requests/record/content/a.txt', { params: { offset: 262144 } })
     const body = { target_type: 'account' as const, target_id: 2, duration_minutes: 1, save_media: false }

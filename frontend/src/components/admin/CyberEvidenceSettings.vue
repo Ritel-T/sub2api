@@ -1,6 +1,6 @@
 <template>
   <section class="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-dark-600 lg:col-span-2">
-    <h3 class="font-semibold">{{ t('admin.riskControl.evidence.settings') }}</h3>
+    <AppHeading as="h3" variant="subsection" >{{ t('admin.riskControl.evidence.settings') }}</AppHeading>
     <p class="text-sm text-gray-500">{{ t('admin.riskControl.evidence.policy') }}</p>
     <button type="button" class="btn btn-secondary" :disabled="busy" @click="load">{{ t('admin.riskControl.evidence.loadConfig') }}</button>
     <p v-if="message" role="status">{{ message }}</p>
@@ -14,6 +14,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getEvidenceConfig, updateEvidenceConfig, type EvidenceConfig, type EvidenceRuntime } from '@/api/admin/cyberEvidence'

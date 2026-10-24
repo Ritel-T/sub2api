@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -240,7 +241,7 @@ onMounted(() => {
   <div class="open-section">
     <div class="mb-4 flex items-start justify-between gap-4">
       <div>
-        <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('admin.ops.runtime.title') }}</h3>
+        <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.ops.runtime.title') }}</AppHeading>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.runtime.description') }}</p>
       </div>
       <button
@@ -263,7 +264,7 @@ onMounted(() => {
     <div v-else class="space-y-6">
       <div class="open-section">
         <div class="mb-3 flex items-center justify-between">
-          <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.runtime.alertTitle') }}</h4>
+          <AppHeading variant="minor" as="h4" class="text-gray-900 dark:text-white">{{ t('admin.ops.runtime.alertTitle') }}</AppHeading>
           <button class="btn btn-sm btn-secondary" @click="openAlertEditor">{{ t('common.edit') }}</button>
         </div>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">

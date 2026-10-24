@@ -1,7 +1,7 @@
 <template>
   <section aria-labelledby="prompt-policy-title" class="py-6">
     <div>
-      <h2 id="prompt-policy-title" class="text-base font-semibold text-gray-950 dark:text-white">{{ t('admin.promptAudit.policy.title') }}</h2>
+      <AppHeading as="h2" variant="section" id="prompt-policy-title" class="text-gray-950 dark:text-white">{{ t('admin.promptAudit.policy.title') }}</AppHeading>
       <p class="mt-1 text-sm text-gray-500 dark:text-dark-300">{{ t('admin.promptAudit.policy.description') }}</p>
     </div>
 
@@ -72,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PromptAuditDraft, PromptAuditGroup } from '../types'

@@ -3,7 +3,7 @@
     <div class="open-page admin-settings-workspace space-y-10">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
-        <div
+        <div role="status" :aria-label="t('common.loading')"
           class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"
         ></div>
       </div>
@@ -51,9 +51,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-admin-api-key" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-admin-api-key" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.adminApiKey.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.adminApiKey.description") }}
               </p>
@@ -81,7 +81,7 @@
                 v-if="adminApiKeyLoading"
                 class="flex items-center gap-2 text-gray-500"
               >
-                <div
+                <div role="status" :aria-label="t('common.loading')"
                   class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
                 ></div>
                 {{ t("common.loading") }}
@@ -209,7 +209,7 @@
           <ServerlessSettings v-if="activeTab === 'gateway'" />
           <div class="open-settings-section" data-testid="prism-browser-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ localText("Prism 浏览器桥", "Prism browser bridge") }}</h2>
+              <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ localText("Prism 浏览器桥", "Prism browser bridge") }}</AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ localText("账号可单独选择 Prism 模型范围。", "Choose the Prism model scope for each account.") }}</p>
             </div>
             <div class="settings-section-fields">
@@ -232,9 +232,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-overload-cooldown" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-overload-cooldown" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.overloadCooldown.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.overloadCooldown.description") }}
               </p>
@@ -245,7 +245,7 @@
                 v-if="overloadCooldownLoading"
                 class="flex items-center gap-2 text-gray-500"
               >
-                <div
+                <div role="status" :aria-label="t('common.loading')"
                   class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
                 ></div>
                 {{ t("common.loading") }}
@@ -261,7 +261,7 @@
                       {{ t("admin.settings.overloadCooldown.enabledHint") }}
                     </p>
                   </div>
-                  <Toggle v-model="overloadCooldownForm.enabled" />
+                  <Toggle :aria-label="t('admin.settings.overloadCooldown.enabled')" v-model="overloadCooldownForm.enabled" />
                 </div>
 
                 <div
@@ -336,9 +336,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-rate-limit429cooldown" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-rate-limit429cooldown" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.rateLimit429Cooldown.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.rateLimit429Cooldown.description") }}
               </p>
@@ -349,7 +349,7 @@
                 v-if="rateLimit429CooldownLoading"
                 class="flex items-center gap-2 text-gray-500"
               >
-                <div
+                <div role="status" :aria-label="t('common.loading')"
                   class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
                 ></div>
                 {{ t("common.loading") }}
@@ -365,7 +365,7 @@
                       {{ t("admin.settings.rateLimit429Cooldown.enabledHint") }}
                     </p>
                   </div>
-                  <Toggle v-model="rateLimit429CooldownForm.enabled" />
+                  <Toggle :aria-label="t('admin.settings.rateLimit429Cooldown.enabled')" v-model="rateLimit429CooldownForm.enabled" />
                 </div>
 
                 <div
@@ -446,9 +446,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-stream-timeout" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-stream-timeout" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.streamTimeout.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.streamTimeout.description") }}
               </p>
@@ -460,7 +460,7 @@
                 v-if="streamTimeoutLoading"
                 class="flex items-center gap-2 text-gray-500"
               >
-                <div
+                <div role="status" :aria-label="t('common.loading')"
                   class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
                 ></div>
                 {{ t("common.loading") }}
@@ -477,7 +477,7 @@
                       {{ t("admin.settings.streamTimeout.enabledHint") }}
                     </p>
                   </div>
-                  <Toggle v-model="streamTimeoutForm.enabled" />
+                  <Toggle :aria-label="t('admin.settings.streamTimeout.enabled')" v-model="streamTimeoutForm.enabled" />
                 </div>
 
                 <!-- Settings - Only show when enabled -->
@@ -629,9 +629,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-rectifier" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-rectifier" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.rectifier.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.rectifier.description") }}
               </p>
@@ -643,7 +643,7 @@
                 v-if="rectifierLoading"
                 class="flex items-center gap-2 text-gray-500"
               >
-                <div
+                <div role="status" :aria-label="t('common.loading')"
                   class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
                 ></div>
                 {{ t("common.loading") }}
@@ -660,7 +660,7 @@
                       {{ t("admin.settings.rectifier.enabledHint") }}
                     </p>
                   </div>
-                  <Toggle v-model="rectifierForm.enabled" />
+                  <Toggle :aria-label="t('admin.settings.rectifier.enabled')" v-model="rectifierForm.enabled" />
                 </div>
 
                 <!-- Sub-toggles (only show when master is enabled) -->
@@ -683,7 +683,7 @@
                         }}
                       </p>
                     </div>
-                    <Toggle
+                    <Toggle :aria-label="t('admin.settings.rectifier.thinkingSignature')"
                       v-model="rectifierForm.thinking_signature_enabled"
                     />
                   </div>
@@ -701,7 +701,7 @@
                         {{ t("admin.settings.rectifier.thinkingBudgetHint") }}
                       </p>
                     </div>
-                    <Toggle v-model="rectifierForm.thinking_budget_enabled" />
+                    <Toggle :aria-label="t('admin.settings.rectifier.thinkingBudget')" v-model="rectifierForm.thinking_budget_enabled" />
                   </div>
 
                   <!-- API Key Signature Rectifier -->
@@ -717,7 +717,7 @@
                         {{ t("admin.settings.rectifier.apikeySignatureHint") }}
                       </p>
                     </div>
-                    <Toggle v-model="rectifierForm.apikey_signature_enabled" />
+                    <Toggle :aria-label="t('admin.settings.rectifier.apikeySignature')" v-model="rectifierForm.apikey_signature_enabled" />
                   </div>
 
                   <!-- Custom Patterns (only when apikey_signature_enabled) -->
@@ -831,9 +831,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-beta-policy" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-beta-policy" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.betaPolicy.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.betaPolicy.description") }}
               </p>
@@ -845,7 +845,7 @@
                 v-if="betaPolicyLoading"
                 class="flex items-center gap-2 text-gray-500"
               >
-                <div
+                <div role="status" :aria-label="t('common.loading')"
                   class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
                 ></div>
                 {{ t("common.loading") }}
@@ -879,7 +879,7 @@
                       >
                         {{ t("admin.settings.betaPolicy.action") }}
                       </label>
-                      <Select
+                      <Select :aria-label="t('admin.settings.betaPolicy.action')"
                         :modelValue="rule.action"
                         @update:modelValue="rule.action = $event as any"
                         :options="betaPolicyActionOptions"
@@ -893,7 +893,7 @@
                       >
                         {{ t("admin.settings.betaPolicy.scope") }}
                       </label>
-                      <Select
+                      <Select :aria-label="t('admin.settings.betaPolicy.scope')"
                         :modelValue="rule.scope"
                         @update:modelValue="rule.scope = $event as any"
                         :options="betaPolicyScopeOptions"
@@ -1041,7 +1041,7 @@
                     >
                       {{ t("admin.settings.betaPolicy.fallbackAction") }}
                     </label>
-                    <Select
+                    <Select :aria-label="t('admin.settings.betaPolicy.fallbackAction')"
                       :modelValue="rule.fallback_action || 'pass'"
                       @update:modelValue="rule.fallback_action = $event as any"
                       :options="betaPolicyActionOptions"
@@ -1113,9 +1113,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-openai-fast-policy" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-openai-fast-policy" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.openaiFastPolicy.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.openaiFastPolicy.description") }}
               </p>
@@ -1217,7 +1217,7 @@
                     >
                       {{ t("admin.settings.openaiFastPolicy.serviceTier") }}
                     </label>
-                    <Select
+                    <Select :aria-label="t('admin.settings.openaiFastPolicy.serviceTier')"
                       :modelValue="rule.service_tier"
                       @update:modelValue="
                         rule.service_tier = $event as
@@ -1237,7 +1237,7 @@
                     >
                       {{ t("admin.settings.openaiFastPolicy.action") }}
                     </label>
-                    <Select
+                    <Select :aria-label="t('admin.settings.openaiFastPolicy.action')"
                       :modelValue="rule.action"
                       @update:modelValue="
                         rule.action = $event as
@@ -1257,7 +1257,7 @@
                     >
                       {{ t("admin.settings.openaiFastPolicy.scope") }}
                     </label>
-                    <Select
+                    <Select :aria-label="t('admin.settings.openaiFastPolicy.scope')"
                       :modelValue="rule.scope"
                       @update:modelValue="
                         rule.scope = $event as
@@ -1399,7 +1399,7 @@
                   >
                     {{ t("admin.settings.openaiFastPolicy.fallbackAction") }}
                   </label>
-                  <Select
+                  <Select :aria-label="t('admin.settings.openaiFastPolicy.fallbackAction')"
                     :modelValue="rule.fallback_action || 'pass'"
                     @update:modelValue="
                       rule.fallback_action = $event as
@@ -1470,9 +1470,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-registration" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-registration" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.registration.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.registration.description") }}
               </p>
@@ -1491,7 +1491,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle v-model="form.registration_enabled" />
+                <Toggle :aria-label="t('admin.settings.registration.enableRegistration')" v-model="form.registration_enabled" />
               </div>
 
               <!-- Email Verification -->
@@ -1506,7 +1506,7 @@
                     {{ t("admin.settings.registration.emailVerificationHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.email_verify_enabled" />
+                <Toggle :aria-label="t('admin.settings.registration.emailVerification')" v-model="form.email_verify_enabled" />
               </div>
 
               <!-- Email Suffix Whitelist -->
@@ -1609,7 +1609,7 @@
                     {{ t("admin.settings.registration.emailDomainQuotaHint") }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t('admin.settings.registration.emailDomainQuota')"
                   v-model="form.registration_email_domain_quota_enabled"
                 />
               </div>
@@ -1626,7 +1626,7 @@
                     {{ t("admin.settings.registration.promoCodeHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.promo_code_enabled" />
+                <Toggle :aria-label="t('admin.settings.registration.promoCode')" v-model="form.promo_code_enabled" />
               </div>
 
               <!-- Invitation Code -->
@@ -1641,7 +1641,7 @@
                     {{ t("admin.settings.registration.invitationCodeHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.invitation_code_enabled" />
+                <Toggle :aria-label="t('admin.settings.registration.invitationCode')" v-model="form.invitation_code_enabled" />
               </div>
               <!-- Password Reset - Only show when email verification is enabled -->
               <div
@@ -1656,7 +1656,7 @@
                     {{ t("admin.settings.registration.passwordResetHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.password_reset_enabled" />
+                <Toggle :aria-label="t('admin.settings.registration.passwordReset')" v-model="form.password_reset_enabled" />
               </div>
               <!-- Frontend URL - Only show when password reset is enabled -->
               <div
@@ -1713,7 +1713,7 @@
                     {{ t("admin.settings.security.loginRateLimitHint") }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t('admin.settings.security.loginRateLimit')"
                   v-model="form.login_rate_limit_enabled"
                   data-testid="login-rate-limit-toggle"
                 />
@@ -1738,7 +1738,7 @@
                     {{ t("admin.settings.registration.totpKeyNotConfigured") }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t('admin.settings.registration.totp')"
                   v-model="form.totp_enabled"
                   :disabled="!form.totp_encryption_key_configured"
                 />
@@ -1758,7 +1758,7 @@
                       {{ t("admin.settings.security.passkeyHint") }}
                     </p>
                   </div>
-                  <Toggle
+                  <Toggle :aria-label="t('admin.settings.security.passkey')"
                     v-model="form.passkey_enabled"
                     data-testid="passkey-toggle"
                     :disabled="!form.passkey_configured"
@@ -1815,7 +1815,7 @@
                     {{ t("admin.settings.security.stepUpHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.step_up_enabled" />
+                <Toggle :aria-label="t('admin.settings.security.stepUp')" v-model="form.step_up_enabled" />
               </div>
 
               <!-- 会话 IP/UA 绑定 -->
@@ -1830,7 +1830,7 @@
                     {{ t("admin.settings.security.sessionBindingHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.session_binding_enabled" />
+                <Toggle :aria-label="t('admin.settings.security.sessionBinding')" v-model="form.session_binding_enabled" />
               </div>
 
               <!-- 审计日志保留天数 -->
@@ -1862,9 +1862,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-api-key-acl" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-api-key-acl" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.apiKeyAcl.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.apiKeyAcl.description") }}
               </p>
@@ -1880,7 +1880,7 @@
                     {{ t("admin.settings.apiKeyAcl.trustForwardedIpHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.api_key_acl_trust_forwarded_ip" />
+                <Toggle :aria-label="t('admin.settings.apiKeyAcl.trustForwardedIp')" v-model="form.api_key_acl_trust_forwarded_ip" />
               </div>
 
               <div
@@ -1958,9 +1958,9 @@
                   size="md"
                   class="text-primary-500"
                 />
-                <h2 id="settings-section-panel-rate-limit" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+                <AppHeading variant="section" as="h2" id="settings-section-panel-rate-limit" tabindex="-1" class="text-gray-900 dark:text-white">
                   {{ t("admin.settings.panelRateLimit.title") }}
-                </h2>
+                </AppHeading>
               </div>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.panelRateLimit.description") }}
@@ -1972,7 +1972,7 @@
                 v-if="panelRateLimitLoading"
                 class="flex items-center gap-2 text-gray-500"
               >
-                <div
+                <div role="status" :aria-label="t('common.loading')"
                   class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
                 ></div>
                 {{ t("common.loading") }}
@@ -2004,7 +2004,7 @@
                       {{ t("admin.settings.panelRateLimit.enabledHint") }}
                     </p>
                   </div>
-                  <Toggle v-model="panelRateLimitForm.enabled" />
+                  <Toggle :aria-label="t('admin.settings.panelRateLimit.enabled')" v-model="panelRateLimitForm.enabled" />
                 </div>
 
                 <div
@@ -2094,7 +2094,7 @@
                         {{ t("admin.settings.panelRateLimit.exemptAdminHint") }}
                       </p>
                     </div>
-                    <Toggle v-model="panelRateLimitForm.exempt_admin" />
+                    <Toggle :aria-label="t('admin.settings.panelRateLimit.exemptAdmin')" v-model="panelRateLimitForm.exempt_admin" />
                   </div>
                 </div>
 
@@ -2146,9 +2146,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-captcha" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-captcha" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.captcha.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.captcha.description") }}
               </p>
@@ -2165,7 +2165,7 @@
                     {{ t("admin.settings.captcha.enableHint") }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t('admin.settings.captcha.enable')"
                   v-model="captchaMasterEnabled"
                   data-testid="captcha-enabled-toggle"
                 />
@@ -2321,9 +2321,9 @@
                   </div>
                   <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div class="md:col-span-2">
-                      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                      <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                         {{ t("admin.settings.tencentCaptcha.appCredentialsTitle") }}
-                      </h3>
+                      </AppHeading>
                       <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         {{ t("admin.settings.tencentCaptcha.appCredentialsHint") }}
                       </p>
@@ -2356,9 +2356,9 @@
                       </p>
                     </div>
                     <div class="border-t border-gray-100 pt-5 md:col-span-2 dark:border-dark-700">
-                      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                      <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                         {{ t("admin.settings.tencentCaptcha.cloudCredentialsTitle") }}
-                      </h3>
+                      </AppHeading>
                       <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         {{ t("admin.settings.tencentCaptcha.cloudCredentialsHint") }}
                       </p>
@@ -2553,9 +2553,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-linuxdo" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-linuxdo" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.linuxdo.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.linuxdo.description") }}
               </p>
@@ -2571,7 +2571,7 @@
                     {{ t("admin.settings.linuxdo.enableHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.linuxdo_connect_enabled" />
+                <Toggle :aria-label="t('admin.settings.linuxdo.enable')" v-model="form.linuxdo_connect_enabled" />
               </div>
 
               <div
@@ -2674,9 +2674,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-email-oauth" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-email-oauth" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ localText("邮箱快捷登录", "Email OAuth Sign-in") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{
                   localText(
@@ -2692,9 +2692,9 @@
                 <div class="open-section">
                   <div class="flex items-start justify-between gap-4">
                     <div>
-                      <h3 class="font-medium text-gray-900 dark:text-white">
+                      <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                         GitHub
-                      </h3>
+                      </AppHeading>
                       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                         {{
                           localText(
@@ -2704,7 +2704,7 @@
                         }}
                       </p>
                     </div>
-                    <Toggle v-model="form.github_oauth_enabled" />
+                    <Toggle :aria-label="'GitHub'" v-model="form.github_oauth_enabled" />
                   </div>
 
                   <div v-if="form.github_oauth_enabled" class="mt-4 space-y-4">
@@ -2789,9 +2789,9 @@
                 <div class="open-section">
                   <div class="flex items-start justify-between gap-4">
                     <div>
-                      <h3 class="font-medium text-gray-900 dark:text-white">
+                      <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                         Google
-                      </h3>
+                      </AppHeading>
                       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                         {{
                           localText(
@@ -2801,7 +2801,7 @@
                         }}
                       </p>
                     </div>
-                    <Toggle v-model="form.google_oauth_enabled" />
+                    <Toggle :aria-label="'Google'" v-model="form.google_oauth_enabled" />
                   </div>
 
                   <div v-if="form.google_oauth_enabled" class="mt-4 space-y-4">
@@ -2890,9 +2890,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-wechat-connect" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-wechat-connect" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.wechatConnect.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.wechatConnect.description") }}
               </p>
@@ -2908,7 +2908,7 @@
                     {{ t("admin.settings.wechatConnect.enabledHint") }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t('admin.settings.wechatConnect.enabledLabel')"
                   v-model="form.wechat_connect_enabled"
                   data-testid="wechat-connect-enabled"
                 />
@@ -2924,9 +2924,9 @@
                   >
                     <div class="flex items-start justify-between gap-4">
                       <div>
-                        <h3 class="font-medium text-gray-900 dark:text-white">
+                        <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                           {{ localText("PC 应用", "PC App") }}
-                        </h3>
+                        </AppHeading>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                           {{
                             localText(
@@ -2936,7 +2936,7 @@
                           }}
                         </p>
                       </div>
-                      <Toggle
+                      <Toggle :aria-label="localText('PC 应用', 'PC App')"
                         :model-value="form.wechat_connect_open_enabled"
                         data-testid="wechat-connect-open-enabled"
                         @update:model-value="handleWeChatOpenEnabledChange"
@@ -2997,9 +2997,9 @@
                   >
                     <div class="flex items-start justify-between gap-4">
                       <div>
-                        <h3 class="font-medium text-gray-900 dark:text-white">
+                        <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                           {{ localText("公众号", "Official Account") }}
-                        </h3>
+                        </AppHeading>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                           {{
                             localText(
@@ -3009,7 +3009,7 @@
                           }}
                         </p>
                       </div>
-                      <Toggle
+                      <Toggle :aria-label="localText('公众号', 'Official Account')"
                         :model-value="form.wechat_connect_mp_enabled"
                         data-testid="wechat-connect-mp-enabled"
                         @update:model-value="handleWeChatMPEnabledChange"
@@ -3075,9 +3075,9 @@
                   >
                     <div class="flex items-start justify-between gap-4">
                       <div>
-                        <h3 class="font-medium text-gray-900 dark:text-white">
+                        <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                           {{ localText("移动应用", "Mobile App") }}
-                        </h3>
+                        </AppHeading>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                           {{
                             localText(
@@ -3087,7 +3087,7 @@
                           }}
                         </p>
                       </div>
-                      <Toggle
+                      <Toggle :aria-label="localText('移动应用', 'Mobile App')"
                         :model-value="form.wechat_connect_mobile_enabled"
                         data-testid="wechat-connect-mobile-enabled"
                         @update:model-value="handleWeChatMobileEnabledChange"
@@ -3235,9 +3235,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-dingtalk" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-dingtalk" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.dingtalk.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.dingtalk.description") }}
               </p>
@@ -3253,7 +3253,7 @@
                     {{ t("admin.settings.dingtalk.enableHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.dingtalk_connect_enabled" />
+                <Toggle :aria-label="t('admin.settings.dingtalk.enable')" v-model="form.dingtalk_connect_enabled" />
               </div>
 
               <div
@@ -3375,7 +3375,7 @@
                         {{ t("admin.settings.dingtalk.bypassRegistrationHint") }}
                       </p>
                     </div>
-                    <Toggle v-model="form.dingtalk_connect_bypass_registration" />
+                    <Toggle :aria-label="t('admin.settings.dingtalk.bypassRegistration')" v-model="form.dingtalk_connect_bypass_registration" />
                   </div>
 
                   <!-- 身份同步开关（仅 internal_only 模式下可见） -->
@@ -3392,7 +3392,7 @@
                           {{ t("admin.settings.dingtalk.syncDisplayNameHint") }}
                         </p>
                       </div>
-                      <Toggle v-model="form.dingtalk_connect_sync_display_name" />
+                      <Toggle :aria-label="t('admin.settings.dingtalk.syncDisplayName')" v-model="form.dingtalk_connect_sync_display_name" />
                     </div>
                     <div v-if="form.dingtalk_connect_sync_display_name" class="space-y-2">
                       <div class="flex items-center gap-2">
@@ -3438,7 +3438,7 @@
                           {{ t("admin.settings.dingtalk.syncCorpEmailPermissionHint") }}
                         </p>
                       </div>
-                      <Toggle v-model="form.dingtalk_connect_sync_corp_email" />
+                      <Toggle :aria-label="t('admin.settings.dingtalk.syncCorpEmail')" v-model="form.dingtalk_connect_sync_corp_email" />
                     </div>
                     <div v-if="form.dingtalk_connect_sync_corp_email" class="space-y-2">
                       <div class="flex items-center gap-2">
@@ -3484,7 +3484,7 @@
                           {{ t("admin.settings.dingtalk.syncDeptPermissionHint") }}
                         </p>
                       </div>
-                      <Toggle v-model="form.dingtalk_connect_sync_dept" />
+                      <Toggle :aria-label="t('admin.settings.dingtalk.syncDept')" v-model="form.dingtalk_connect_sync_dept" />
                     </div>
                     <div v-if="form.dingtalk_connect_sync_dept" class="space-y-2">
                       <div class="flex items-center gap-2">
@@ -3526,9 +3526,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-oidc" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-oidc" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.oidc.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.oidc.description") }}
               </p>
@@ -3544,7 +3544,7 @@
                     {{ t("admin.settings.oidc.enableHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.oidc_connect_enabled" />
+                <Toggle :aria-label="t('admin.settings.oidc.enable')" v-model="form.oidc_connect_enabled" />
               </div>
 
               <div
@@ -3844,7 +3844,7 @@
                         {{ t("admin.settings.oidc.usePkce") }}
                       </label>
                     </div>
-                    <Toggle
+                    <Toggle :aria-label="t('admin.settings.oidc.usePkce')"
                       v-model="form.oidc_connect_use_pkce"
                       data-testid="oidc-connect-use-pkce"
                     />
@@ -3858,7 +3858,7 @@
                         {{ t("admin.settings.oidc.validateIdToken") }}
                       </label>
                     </div>
-                    <Toggle
+                    <Toggle :aria-label="t('admin.settings.oidc.validateIdToken')"
                       v-model="form.oidc_connect_validate_id_token"
                       data-testid="oidc-connect-validate-id-token"
                     />
@@ -3872,7 +3872,7 @@
                         {{ t("admin.settings.oidc.requireEmailVerified") }}
                       </label>
                     </div>
-                    <Toggle
+                    <Toggle :aria-label="t('admin.settings.oidc.requireEmailVerified')"
                       v-model="form.oidc_connect_require_email_verified"
                     />
                   </div>
@@ -3942,9 +3942,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-defaults" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-defaults" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.defaults.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.defaults.description") }}
               </p>
@@ -4048,7 +4048,7 @@
                       >
                         {{ t("admin.settings.defaults.subscriptionGroup") }}
                       </label>
-                      <Select
+                      <Select :aria-label="t('admin.settings.defaults.subscriptionGroup')"
                         v-model="item.group_id"
                         class="default-sub-group-select"
                         :options="defaultSubscriptionGroupOptions"
@@ -4218,9 +4218,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-auth-source-defaults" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-auth-source-defaults" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.authSourceDefaults.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.authSourceDefaults.description") }}
               </p>
@@ -4238,7 +4238,7 @@
                     {{ t("admin.settings.authSourceDefaults.requireEmailHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.force_email_on_third_party_signup" />
+                <Toggle :aria-label="t('admin.settings.authSourceDefaults.requireEmailLabel')" v-model="form.force_email_on_third_party_signup" />
               </div>
 
               <div class="space-y-4">
@@ -4256,7 +4256,7 @@
                         {{ authSource.description }}
                       </p>
                     </div>
-                    <Toggle
+                    <Toggle :aria-label="authSource.title"
                       v-model="
                         authSourceDefaults[authSource.source].grant_on_signup
                       "
@@ -4324,7 +4324,7 @@
                           {{ t("admin.settings.authSourceDefaults.grantOnFirstBindHint") }}
                         </p>
                       </div>
-                      <Toggle
+                      <Toggle :aria-label="t('admin.settings.authSourceDefaults.grantOnFirstBindLabel')"
                         v-model="
                           authSourceDefaults[authSource.source]
                             .grant_on_first_bind
@@ -4381,7 +4381,7 @@
                           >
                             {{ t("admin.settings.defaults.subscriptionGroup") }}
                           </label>
-                          <Select
+                          <Select :aria-label="t('admin.settings.defaults.subscriptionGroup')"
                             v-model="item.group_id"
                             class="default-sub-group-select"
                             :options="defaultSubscriptionGroupOptions"
@@ -4564,9 +4564,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-claude-code" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-claude-code" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.claudeCode.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.claudeCode.description") }}
               </p>
@@ -4619,9 +4619,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-gateway-forwarding-codex-hardening-title" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-gateway-forwarding-codex-hardening-title" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.gatewayForwarding.codexHardeningTitle") }}
-              </h2>
+              </AppHeading>
             </div>
             <div class="settings-section-fields">
             <div class="p-6 space-y-4">
@@ -4634,9 +4634,9 @@
                   </div>
                 </div>
                 <div>
-                  <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+                  <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                     {{ t("admin.settings.gatewayForwarding.codexClientRestrictionTitle") }}
-                  </h3>
+                  </AppHeading>
                   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     {{ t("admin.settings.gatewayForwarding.codexHardeningDesc") }}
                   </p>
@@ -4744,7 +4744,7 @@
                       }}
                     </p>
                   </div>
-                  <Toggle
+                  <Toggle :aria-label="t('admin.settings.gatewayForwarding.codexAllowAppServer')"
                     v-model="form.codex_cli_only_allow_app_server_clients"
                   />
                 </div>
@@ -4878,9 +4878,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-upstream-billing-probe" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-upstream-billing-probe" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.upstreamBillingProbe.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.upstreamBillingProbe.description") }}
               </p>
@@ -4891,7 +4891,7 @@
                 v-if="upstreamBillingProbeLoading"
                 class="flex items-center gap-2 text-gray-500"
               >
-                <div
+                <div role="status" :aria-label="t('common.loading')"
                   class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
                 ></div>
                 {{ t("common.loading") }}
@@ -4965,9 +4965,9 @@
           <!-- Ollama Cloud Usage Settings -->
           <div class="open-settings-section" data-testid="ollama-cloud-usage-global-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h2 id="settings-section-ollama-cloud-usage" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-ollama-cloud-usage" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.ollamaCloudUsage.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.ollamaCloudUsage.description") }}
               </p>
@@ -4975,7 +4975,7 @@
             <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div v-if="ollamaCloudUsageLoading" class="flex items-center gap-2 text-gray-500">
-                <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
+                <div role="status" :aria-label="t('common.loading')" class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
                 {{ t("common.loading") }}
               </div>
               <template v-else>
@@ -5052,9 +5052,9 @@
           <!-- OpenCode Go Usage Settings -->
           <div class="open-settings-section" data-testid="opencode-go-usage-global-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h2 id="settings-section-opencode-go-usage" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-opencode-go-usage" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.opencodeGoUsage.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.opencodeGoUsage.description") }}
               </p>
@@ -5062,7 +5062,7 @@
             <div class="settings-section-fields">
             <div class="space-y-5 p-6">
               <div v-if="opencodeGoUsageLoading" class="flex items-center gap-2 text-gray-500">
-                <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
+                <div role="status" :aria-label="t('common.loading')" class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
                 {{ t("common.loading") }}
               </div>
               <template v-else>
@@ -5141,9 +5141,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-scheduling" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-scheduling" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.scheduling.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.scheduling.description") }}
               </p>
@@ -5161,7 +5161,7 @@
                     {{ t("admin.settings.scheduling.allowUngroupedKeyHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.allow_ungrouped_key_scheduling" />
+                <Toggle :aria-label="t('admin.settings.scheduling.allowUngroupedKey')" v-model="form.allow_ungrouped_key_scheduling" />
               </div>
 
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
@@ -5252,7 +5252,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t('admin.settings.openaiExperimentalScheduler.lowRatePriorityTitle')"
                   v-model="form.openai_low_upstream_rate_priority_enabled"
                   data-testid="openai-low-rate-priority-toggle"
                 />
@@ -5302,7 +5302,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t('admin.settings.openaiExperimentalScheduler.title')"
                   v-model="form.openai_advanced_scheduler_enabled"
                   data-testid="openai-advanced-scheduler-toggle"
                 />
@@ -5324,7 +5324,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle v-model="form.openai_advanced_scheduler_sticky_weighted_enabled" />
+                <Toggle :aria-label="t('admin.settings.openaiExperimentalScheduler.stickyWeightedTitle')" v-model="form.openai_advanced_scheduler_sticky_weighted_enabled" />
               </div>
 
               <div
@@ -5343,7 +5343,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle v-model="form.openai_advanced_scheduler_subscription_priority_enabled" />
+                <Toggle :aria-label="t('admin.settings.openaiExperimentalScheduler.subscriptionPriorityTitle')" v-model="form.openai_advanced_scheduler_subscription_priority_enabled" />
               </div>
 
               <div
@@ -5423,9 +5423,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-gateway-forwarding" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-gateway-forwarding" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.gatewayForwarding.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.gatewayForwarding.description") }}
               </p>
@@ -5467,7 +5467,7 @@
                       {{ t("admin.settings.gatewayForwarding.grokCrossClientMapHint") }}
                     </p>
                   </div>
-                  <Toggle
+                  <Toggle :aria-label="t('admin.settings.gatewayForwarding.grokCrossClientMap')"
                     v-model="form.grok_cross_client_model_map_enabled"
                     data-testid="grok-cross-client-model-map-toggle"
                   />
@@ -5505,7 +5505,7 @@
                       {{ t("admin.settings.gatewayForwarding.grokVideoSourceURLHint") }}
                     </p>
                   </div>
-                  <Toggle
+                  <Toggle :aria-label="t('admin.settings.gatewayForwarding.grokVideoSourceURL')"
                     v-model="form.grok_video_source_url_enabled"
                     data-testid="grok-video-source-url-toggle"
                   />
@@ -5557,7 +5557,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle v-model="form.enable_fingerprint_unification" />
+                <Toggle :aria-label="t( 'admin.settings.gatewayForwarding.fingerprintUnification', )" v-model="form.enable_fingerprint_unification" />
               </div>
 
               <!-- Metadata Passthrough -->
@@ -5578,7 +5578,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle v-model="form.enable_metadata_passthrough" />
+                <Toggle :aria-label="t('admin.settings.gatewayForwarding.metadataPassthrough')" v-model="form.enable_metadata_passthrough" />
               </div>
 
               <!-- CCH Signing -->
@@ -5593,7 +5593,7 @@
                     {{ t("admin.settings.gatewayForwarding.cchSigningHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.enable_cch_signing" />
+                <Toggle :aria-label="t('admin.settings.gatewayForwarding.cchSigning')" v-model="form.enable_cch_signing" />
               </div>
 
               <!-- Claude OAuth System Prompt Injection -->
@@ -5616,7 +5616,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t( 'admin.settings.gatewayForwarding.claudeOAuthSystemPromptInjection', )"
                   v-model="form.enable_claude_oauth_system_prompt_injection"
                 />
               </div>
@@ -5707,7 +5707,7 @@
                         >
                           <Icon name="arrowDown" size="xs" />
                         </button>
-                        <Toggle v-model="block.enabled" />
+                        <Toggle :aria-label="t('admin.settings.gatewayForwarding.systemBlockText') + ' ' + (index + 1)" v-model="block.enabled" />
                         <button
                           type="button"
                           class="btn btn-secondary btn-sm px-2 text-red-600 hover:text-red-700 dark:text-red-400"
@@ -5730,7 +5730,7 @@
                               )
                             }}
                           </label>
-                          <Select
+                          <Select :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockPreset', )"
                             v-model="block.preset"
                             :options="claudeOAuthSystemPromptPresetOptions"
                             @change="
@@ -5749,7 +5749,7 @@
                               )
                             }}
                           </label>
-                          <Select
+                          <Select :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockType', )"
                             v-model="block.type"
                             :options="claudeOAuthSystemPromptBlockTypeOptions"
                           />
@@ -5785,10 +5785,10 @@
                               }}
                             </label>
                           </div>
-                          <Toggle v-model="block.cacheControlEnabled" />
+                          <Toggle :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockCacheControl', )" v-model="block.cacheControlEnabled" />
                         </div>
                         <div v-if="block.cacheControlEnabled">
-                          <Select
+                          <Select :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockCacheControl', )"
                             v-model="block.cacheControlTTL"
                             :options="claudeOAuthSystemPromptCacheTTLOptions"
                           />
@@ -5847,7 +5847,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t( 'admin.settings.gatewayForwarding.anthropicCacheTTL1hInjection', )"
                   v-model="form.enable_anthropic_cache_ttl_1h_injection"
                 />
               </div>
@@ -5872,7 +5872,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle v-model="form.rewrite_message_cache_control" />
+                <Toggle :aria-label="t( 'admin.settings.gatewayForwarding.rewriteMessageCacheControl', )" v-model="form.rewrite_message_cache_control" />
               </div>
 
               <!-- 客户端 dateline 归一化（仅 Anthropic OAuth/SetupToken） -->
@@ -5895,7 +5895,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t( 'admin.settings.gatewayForwarding.clientDatelineNormalization', )"
                   v-model="form.enable_client_dateline_normalization"
                 />
               </div>
@@ -6016,7 +6016,7 @@
                     {{ codexSyncedVersionLabel }}
                   </p>
                 </div>
-                <Toggle v-model="form.openai_codex_version_auto_sync_enabled" />
+                <Toggle :aria-label="t( 'admin.settings.gatewayForwarding.openaiCodexVersionAutoSync', )" v-model="form.openai_codex_version_auto_sync_enabled" />
               </div>
 
               <!-- Claude Code 客户端版本号 -->
@@ -6071,7 +6071,7 @@
                     {{ claudeSyncedVersionLabel }}
                   </p>
                 </div>
-                <Toggle v-model="form.claude_code_version_auto_sync_enabled" />
+                <Toggle :aria-label="t( 'admin.settings.gatewayForwarding.claudeCodeVersionAutoSync', )" v-model="form.claude_code_version_auto_sync_enabled" />
               </div>
 
             </div>
@@ -6084,9 +6084,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-web-search-emulation" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-web-search-emulation" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.webSearchEmulation.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.webSearchEmulation.description") }}
               </p>
@@ -6105,7 +6105,7 @@
                     {{ t("admin.settings.webSearchEmulation.enabledHint") }}
                   </p>
                 </div>
-                <Toggle v-model="webSearchConfig.enabled" />
+                <Toggle :aria-label="t('admin.settings.webSearchEmulation.enabled')" v-model="webSearchConfig.enabled" />
               </div>
 
               <!-- Providers -->
@@ -6157,7 +6157,7 @@
                           d="M9 5l7 7-7 7"
                         />
                       </svg>
-                      <Select
+                      <Select :aria-label="t('admin.settings.webSearchEmulation.providers')"
                         v-model="provider.type"
                         :options="[
                           { value: 'brave', label: 'Brave Search' },
@@ -6436,20 +6436,8 @@
           </div>
 
           <!-- Web Search Test Dialog -->
-          <div
-            v-if="wsTestDialogOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-            @click.self="wsTestDialogOpen = false"
-          >
-            <div
-              class="mx-4 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-dark-800"
-            >
-              <h3
-                class="mb-4 text-lg font-semibold text-gray-900 dark:text-white"
-              >
-                {{ t("admin.settings.webSearchEmulation.testResultTitle") }}
-              </h3>
-              <div class="flex items-center gap-2">
+          <BaseDialog :show="wsTestDialogOpen" :title="t('admin.settings.webSearchEmulation.testResultTitle')" width="normal" :close-on-escape="!wsTestLoading" :close-on-click-outside="!wsTestLoading" :show-close-button="!wsTestLoading" @close="!wsTestLoading && (wsTestDialogOpen = false)">
+<div class="flex items-center gap-2">
                 <input
                   v-model="wsTestQuery"
                   type="text"
@@ -6506,24 +6494,23 @@
                   </p>
                 </div>
               </div>
-              <div class="mt-4 flex justify-end">
-                <button
+      <template #footer>
+<button
                   type="button"
                   class="btn btn-secondary btn-sm"
-                  @click="wsTestDialogOpen = false"
+                  @click="wsTestDialogOpen = false" :disabled="wsTestLoading"
                 >
                   {{ t("common.close") }}
                 </button>
-              </div>
-            </div>
-          </div>
+      </template>
+    </BaseDialog>
 
         <!-- Usage Records Settings -->
         <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-usage-records" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-usage-records" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.usageRecords.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.usageRecords.description') }}
             </p>
@@ -6634,9 +6621,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-site" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-site" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.site.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.site.description") }}
               </p>
@@ -6648,14 +6635,14 @@
                 class="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
               >
                 <div>
-                  <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                  <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                     {{ t("admin.settings.site.backendMode") }}
-                  </h3>
+                  </AppHeading>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {{ t("admin.settings.site.backendModeDescription") }}
                   </p>
 	                </div>
-	                <Toggle v-model="form.backend_mode_enabled" />
+	                <Toggle :aria-label="t('admin.settings.site.backendMode')" v-model="form.backend_mode_enabled" />
 	              </div>
 
 	              <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -6715,9 +6702,9 @@
 
               <!-- Global Table Preferences -->
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
-                <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                   {{ t("admin.settings.site.tablePreferencesTitle") }}
-                </h3>
+                </AppHeading>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {{ t("admin.settings.site.tablePreferencesDescription") }}
                 </p>
@@ -6977,7 +6964,7 @@
                     {{ t("admin.settings.site.compactHomeHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.compact_home_enabled" data-testid="compact-home-toggle" />
+                <Toggle :aria-label="t('admin.settings.site.compactHome')" v-model="form.compact_home_enabled" data-testid="compact-home-toggle" />
               </div>
 
               <!-- Hide CCS Import Button -->
@@ -6992,7 +6979,7 @@
                     {{ t("admin.settings.site.hideCcsImportButtonHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.hide_ccs_import_button" />
+                <Toggle :aria-label="t('admin.settings.site.hideCcsImportButton')" v-model="form.hide_ccs_import_button" />
               </div>
               <CcsImportSettings ref="ccsImportSettings" v-model="form.ccs_import_config" :base-url="form.api_base_url || currentOrigin" />
             </div>
@@ -7005,9 +6992,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-custom-menu" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-custom-menu" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.customMenu.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.customMenu.description") }}
               </p>
@@ -7213,9 +7200,9 @@
 	            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
 	              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 	                <div>
-	                  <h2 id="settings-section-login-agreement" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+	                  <AppHeading variant="section" as="h2" id="settings-section-login-agreement" tabindex="-1" class="text-gray-900 dark:text-white">
 	                    {{ localText("登录条款确认", "Login agreement") }}
-	                  </h2>
+	                  </AppHeading>
 	                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
 	                    {{
 	                      localText(
@@ -7229,7 +7216,7 @@
 	                  <span class="text-sm text-gray-600 dark:text-gray-300">
 	                    {{ form.login_agreement_enabled ? localText("已启用", "Enabled") : localText("未启用", "Disabled") }}
 	                  </span>
-	                  <Toggle v-model="form.login_agreement_enabled" />
+	                  <Toggle :aria-label="localText('登录条款确认', 'Login agreement')" v-model="form.login_agreement_enabled" />
 	                </div>
 	              </div>
 	            </div>
@@ -7296,9 +7283,9 @@
               <div>
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                    <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                       {{ localText("协议文档", "Agreement documents") }}
-                    </h3>
+                    </AppHeading>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       {{
                         localText(
@@ -7416,18 +7403,18 @@
         <div v-show="activeTab === 'features'" class="space-y-6">
         <div class="open-settings-section" data-testid="protocol-feature-switches">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ localText("协议功能", "Protocol features") }}</h2>
+            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ localText("协议功能", "Protocol features") }}</AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ localText("关闭后立即停止使用对应协议，并隐藏账号编辑中的相关选项。", "Disabling a protocol stops its use immediately and hides its account editor options.") }}</p>
           </div>
             <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between gap-4">
               <span class="font-medium text-gray-900 dark:text-white">{{ localText("Excel / BPS 协议", "Excel / BPS protocol") }}</span>
-              <Toggle v-model="form.excel_bps_enabled" />
+              <Toggle :aria-label="localText('Excel / BPS 协议', 'Excel / BPS protocol')" v-model="form.excel_bps_enabled" />
             </div>
             <div class="flex items-center justify-between gap-4">
               <span class="font-medium text-gray-900 dark:text-white">{{ localText("Prism 浏览器桥", "Prism browser bridge") }}</span>
-              <Toggle v-model="form.prism_browser_enabled" />
+              <Toggle :aria-label="localText('Prism 浏览器桥', 'Prism browser bridge')" v-model="form.prism_browser_enabled" />
             </div>
           </div>
 
@@ -7435,14 +7422,14 @@
           </div>
         <div class="open-settings-section" data-testid="request-capture-settings">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-request-capture" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.requestCapture.title') }}</h2>
+            <AppHeading variant="section" as="h2" id="settings-section-request-capture" tabindex="-1" class="text-gray-900 dark:text-white">{{ t('admin.requestCapture.title') }}</AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.requestCapture.description') }}</p>
           </div>
             <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between gap-4">
               <label for="request-capture-enabled" class="input-label">{{ t('admin.requestCapture.enabled') }}</label>
-              <Toggle id="request-capture-enabled" v-model="form.request_capture_enabled" />
+              <Toggle :aria-label="t('admin.requestCapture.enabled')" id="request-capture-enabled" v-model="form.request_capture_enabled" />
             </div>
             <div class="grid gap-5 md:grid-cols-2">
               <label class="space-y-1"><span class="input-label">{{ t('admin.requestCapture.quota') }}</span><input v-model.number="form.request_capture_quota_mib" class="input" type="number" min="1" step="1" required /></label>
@@ -7456,9 +7443,9 @@
           </div>
         <div class="open-settings-section" data-testid="excel-bps-image-settings">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-features-excel-bps-images" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-excel-bps-images" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.excelBpsImages.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.excelBpsImages.description') }}
             </p>
@@ -7474,7 +7461,7 @@
                   {{ t('admin.settings.features.excelBpsImages.enabledHint') }}
                 </p>
               </div>
-              <Toggle id="excel-bps-image-enabled" v-model="form.excel_bps_image_relay_enabled" />
+              <Toggle :aria-label="t('admin.settings.features.excelBpsImages.enabled')" id="excel-bps-image-enabled" v-model="form.excel_bps_image_relay_enabled" />
             </div>
             <div v-if="form.excel_bps_image_relay_enabled">
               <label for="excel-bps-image-mode" class="input-label">{{ t('admin.settings.features.excelBpsImages.mode') }}</label>
@@ -7515,7 +7502,7 @@
                   <p class="text-xs text-gray-500 sm:col-span-2">{{ t('admin.settings.features.excelBpsImages.policyMarginsHint') }}</p>
                 </div>
               </div>
-              <h4 class="mt-6 input-label">{{ t('admin.settings.features.excelBpsImages.requestLimitsTitle') }}</h4>
+              <AppHeading variant="minor" as="h4" class="mt-6 mb-2.5 block text-gray-700 dark:text-gray-300">{{ t('admin.settings.features.excelBpsImages.requestLimitsTitle') }}</AppHeading>
               <div class="mt-5 grid gap-4 sm:grid-cols-4">
                 <div class="space-y-1">
                   <label for="excel-bps-image-body-limit" class="input-label">{{ t('admin.settings.features.excelBpsImages.bodyLimit') }}</label>
@@ -7542,7 +7529,7 @@
                 {{ t('admin.settings.features.excelBpsImages.nativeRetentionHint', { maxImages: form.excel_bps_image_max_images }) }}
               </p>
               <template v-if="form.excel_bps_image_mode === 'relay'">
-                <h4 class="mt-6 input-label">{{ t('admin.settings.features.excelBpsImages.imageLimitsTitle') }}</h4>
+                <AppHeading variant="minor" as="h4" class="mt-6 mb-2.5 block text-gray-700 dark:text-gray-300">{{ t('admin.settings.features.excelBpsImages.imageLimitsTitle') }}</AppHeading>
                 <div class="mt-3 grid gap-4 sm:grid-cols-3">
                   <div class="space-y-1">
                     <label for="excel-bps-image-max-image-mib" class="input-label">{{ t('admin.settings.features.excelBpsImages.maxImageMiB') }}</label>
@@ -7582,9 +7569,9 @@
 
         <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-features-channel-monitor" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-channel-monitor" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.channelMonitor.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.channelMonitor.description') }}
             </p>
@@ -7609,7 +7596,7 @@
                   {{ t('admin.settings.features.channelMonitor.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.channel_monitor_enabled" />
+              <Toggle :aria-label="t('admin.settings.features.channelMonitor.enabled')" v-model="form.channel_monitor_enabled" />
             </div>
 
             <div v-if="form.channel_monitor_enabled" class="space-y-5">
@@ -7669,7 +7656,7 @@
                       {{ t('admin.settings.features.channelMonitor.hideThroughputHint') }}
                     </p>
                   </div>
-                  <Toggle v-model="form.channel_monitor_hide_throughput" />
+                  <Toggle :aria-label="t('admin.settings.features.channelMonitor.hideThroughput')" v-model="form.channel_monitor_hide_throughput" />
                 </div>
                 <div class="flex items-start justify-between gap-4">
                   <div class="min-w-0">
@@ -7680,7 +7667,7 @@
                       {{ t('admin.settings.features.channelMonitor.hideUserRankingHint') }}
                     </p>
                   </div>
-                  <Toggle v-model="form.channel_monitor_hide_user_ranking" />
+                  <Toggle :aria-label="t('admin.settings.features.channelMonitor.hideUserRanking')" v-model="form.channel_monitor_hide_user_ranking" />
                 </div>
               </div>
 
@@ -7693,7 +7680,7 @@
                     {{ t('admin.settings.features.channelMonitor.showQuotaHint') }}
                   </p>
                 </div>
-                <Toggle v-model="form.channel_monitor_show_quota" />
+                <Toggle :aria-label="t('admin.settings.features.channelMonitor.showQuota')" v-model="form.channel_monitor_show_quota" />
               </div>
             </div>
           </div>
@@ -7703,9 +7690,9 @@
 
         <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-features-available-channels" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-available-channels" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.availableChannels.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.availableChannels.description') }}
             </p>
@@ -7730,7 +7717,7 @@
                   {{ t('admin.settings.features.availableChannels.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.available_channels_enabled" />
+              <Toggle :aria-label="t('admin.settings.features.availableChannels.enabled')" v-model="form.available_channels_enabled" />
             </div>
           </div>
 
@@ -7740,9 +7727,9 @@
         <!-- The Pelican showcase is configured with its group tests under Smart Ops. -->
         <div class="open-settings-section" data-testid="pelican-showcase-moved">
           <div class="px-6 py-4">
-            <h2 id="settings-section-features-pelican-showcase" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-pelican-showcase" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.pelicanShowcase.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.pelicanShowcase.movedHint') }}
               <router-link
@@ -7758,9 +7745,9 @@
 
         <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-features-model-plaza" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-model-plaza" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.modelPlaza.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.modelPlaza.description') }}
             </p>
@@ -7776,7 +7763,7 @@
                   {{ t('admin.settings.features.modelPlaza.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.model_plaza_enabled" />
+              <Toggle :aria-label="t('admin.settings.features.modelPlaza.enabled')" v-model="form.model_plaza_enabled" />
             </div>
 
             <div v-if="form.model_plaza_enabled" class="flex items-center justify-between">
@@ -7788,7 +7775,7 @@
                   {{ t('admin.settings.features.modelPlaza.requireAuthHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.model_plaza_require_auth" />
+              <Toggle :aria-label="t('admin.settings.features.modelPlaza.requireAuth')" v-model="form.model_plaza_require_auth" />
             </div>
 
             <div v-if="form.model_plaza_enabled">
@@ -7811,9 +7798,9 @@
 
         <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-features-site-billing-mode" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-site-billing-mode" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.siteBillingMode.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.siteBillingMode.description') }}
             </p>
@@ -7830,7 +7817,7 @@
                 </p>
               </div>
               <div class="w-full shrink-0 sm:w-56">
-                <Select
+                <Select :aria-label="t('admin.settings.features.siteBillingMode.label')"
                   :modelValue="siteBillingMode"
                   :options="siteBillingModeOptions"
                   @update:modelValue="siteBillingMode = $event as SiteBillingMode"
@@ -7844,9 +7831,9 @@
 
         <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-features-plugin-management" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-plugin-management" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.pluginManagement.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.pluginManagement.description') }}
             </p>
@@ -7862,7 +7849,7 @@
                   {{ t('admin.settings.features.pluginManagement.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.plugin_management_enabled" />
+              <Toggle :aria-label="t('admin.settings.features.pluginManagement.enabled')" v-model="form.plugin_management_enabled" />
             </div>
           </div>
 
@@ -7871,9 +7858,9 @@
 
         <div class="open-settings-section" data-testid="support-ticket-settings">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-features-support-tickets" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-support-tickets" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.supportTickets.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.supportTickets.description') }}
             </p>
@@ -7898,7 +7885,7 @@
                   {{ t('admin.settings.features.supportTickets.enabledHint') }}
                 </p>
               </div>
-              <Toggle id="support-ticket-enabled" v-model="form.support_ticket_enabled" />
+              <Toggle :aria-label="t('admin.settings.features.supportTickets.enabled')" id="support-ticket-enabled" v-model="form.support_ticket_enabled" />
             </div>
             <template v-if="form.support_ticket_enabled">
               <div>
@@ -7979,9 +7966,9 @@
 
         <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-features-risk-control" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-risk-control" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.riskControl.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.riskControl.description') }}
             </p>
@@ -8006,7 +7993,7 @@
                   {{ t('admin.settings.features.riskControl.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.risk_control_enabled" />
+              <Toggle :aria-label="t('admin.settings.features.riskControl.enabled')" v-model="form.risk_control_enabled" />
             </div>
 
             <div>
@@ -8030,7 +8017,7 @@
                   {{ t('admin.settings.features.riskControl.cyberSessionBlockHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.cyber_session_block_enabled" />
+              <Toggle :aria-label="t('admin.settings.features.riskControl.cyberSessionBlock')" v-model="form.cyber_session_block_enabled" />
             </div>
 
             <div v-if="form.cyber_session_block_enabled">
@@ -8059,7 +8046,7 @@
                     {{ t('admin.settings.features.riskControl.cyberSessionIdentityStrictHint') }}
                   </p>
                 </div>
-                <Toggle v-model="form.cyber_session_identity_strict_enabled" />
+                <Toggle :aria-label="t('admin.settings.features.riskControl.cyberSessionIdentityStrict')" v-model="form.cyber_session_identity_strict_enabled" />
               </div>
             </div>
           </div>
@@ -8070,9 +8057,9 @@
         <!-- Affiliate (邀请返利) feature card -->
         <div class="open-settings-section">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 id="settings-section-features-affiliate" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" id="settings-section-features-affiliate" tabindex="-1" class="text-gray-900 dark:text-white">
               {{ t('admin.settings.features.affiliate.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.settings.features.affiliate.description') }}
             </p>
@@ -8088,7 +8075,7 @@
                   {{ t('admin.settings.features.affiliate.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.affiliate_enabled" />
+              <Toggle :aria-label="t('admin.settings.features.affiliate.enabled')" v-model="form.affiliate_enabled" />
             </div>
 
             <div v-if="form.affiliate_enabled" class="space-y-6">
@@ -8156,7 +8143,7 @@
                     {{ t('admin.settings.features.affiliate.adminRechargeRebateHint') }}
                   </p>
                 </div>
-                <Toggle v-model="form.affiliate_admin_recharge_enabled" />
+                <Toggle :aria-label="t('admin.settings.features.affiliate.adminRechargeRebate')" v-model="form.affiliate_admin_recharge_enabled" />
               </div>
 
               <div>
@@ -8234,9 +8221,9 @@
               <div class="border-t border-gray-100 pt-6 dark:border-dark-700">
                 <div class="mb-3 flex items-center justify-between">
                   <div>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                    <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                       {{ t('admin.settings.features.affiliate.customUsers.title') }}
-                    </h3>
+                    </AppHeading>
                     <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                       {{ t('admin.settings.features.affiliate.customUsers.description') }}
                     </p>
@@ -8352,16 +8339,8 @@
           </div>
 
         <!-- Affiliate add/edit modal -->
-        <div
-          v-if="affiliateModal.open"
-          class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          @click.self="closeAffiliateModal"
-        >
-          <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-dark-900">
-            <h3 class="mb-4 text-lg font-semibold">
-              {{ affiliateModal.mode === 'add' ? t('admin.settings.features.affiliate.modal.addTitle') : t('admin.settings.features.affiliate.modal.editTitle') }}
-            </h3>
-            <div class="space-y-4">
+        <BaseDialog :show="affiliateModal.open" :title="affiliateModal.mode === 'add' ? t('admin.settings.features.affiliate.modal.addTitle') : t('admin.settings.features.affiliate.modal.editTitle')" width="narrow" :close-on-escape="!affiliateModal.saving" :close-on-click-outside="!affiliateModal.saving" :show-close-button="!affiliateModal.saving" @close="!affiliateModal.saving && (closeAffiliateModal())">
+<div class="space-y-4">
               <div v-if="affiliateModal.mode === 'add'">
                 <label class="input-label">{{ t('admin.settings.features.affiliate.modal.userLabel') }}</label>
                 <!-- Chip showing the picked user; clicking it re-opens the search -->
@@ -8450,8 +8429,8 @@
                 </p>
               </div>
             </div>
-
-            <div class="mt-6 flex items-center justify-between gap-3">
+      <template #footer>
+<div class="flex w-full flex-wrap items-center justify-between gap-3">
               <p
                 v-if="!affiliateModalCanSubmit"
                 class="text-xs text-gray-500 dark:text-gray-400"
@@ -8460,7 +8439,7 @@
               </p>
               <span v-else></span>
               <div class="flex gap-2">
-                <button type="button" class="btn btn-secondary" @click="closeAffiliateModal">
+                <button type="button" class="btn btn-secondary" @click="closeAffiliateModal" :disabled="affiliateModal.saving">
                   {{ t('common.cancel') }}
                 </button>
                 <button
@@ -8473,20 +8452,12 @@
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+      </template>
+    </BaseDialog>
 
         <!-- Affiliate batch rate modal -->
-        <div
-          v-if="affiliateBatchModal.open"
-          class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          @click.self="affiliateBatchModal.open = false"
-        >
-          <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-dark-900">
-            <h3 class="mb-4 text-lg font-semibold">
-              {{ t('admin.settings.features.affiliate.batchModal.title', { count: affiliateState.selected.length }) }}
-            </h3>
-            <p class="mb-4 text-sm text-gray-500">
+        <BaseDialog :show="affiliateBatchModal.open" :title="t('admin.settings.features.affiliate.batchModal.title', { count: affiliateState.selected.length })" width="narrow" :close-on-escape="!affiliateBatchModal.saving" :close-on-click-outside="!affiliateBatchModal.saving" :show-close-button="!affiliateBatchModal.saving" @close="!affiliateBatchModal.saving && (affiliateBatchModal.open = false)">
+<p class="mb-4 text-sm text-gray-500">
               {{ t('admin.settings.features.affiliate.batchModal.hint') }}
             </p>
             <div class="relative">
@@ -8504,8 +8475,8 @@
             <p class="mt-2 text-xs text-gray-400">
               {{ t('admin.settings.features.affiliate.batchModal.clearHint') }}
             </p>
-            <div class="mt-6 flex justify-end gap-2">
-              <button type="button" class="btn btn-secondary" @click="affiliateBatchModal.open = false">
+      <template #footer>
+<button type="button" class="btn btn-secondary" @click="affiliateBatchModal.open = false" :disabled="affiliateBatchModal.saving">
                 {{ t('common.cancel') }}
               </button>
               <button
@@ -8516,9 +8487,8 @@
               >
                 {{ affiliateBatchModal.saving ? t('common.saving') : t('common.save') }}
               </button>
-            </div>
-          </div>
-        </div>
+      </template>
+    </BaseDialog>
 
         </div><!-- /Tab: Features -->
 
@@ -8530,9 +8500,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-payment" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-payment" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.payment.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.payment.description") }}
                 <a
@@ -8570,7 +8540,7 @@
                     {{ t("admin.settings.payment.enabledHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.payment_enabled" />
+                <Toggle :aria-label="t('admin.settings.payment.enabled')" v-model="form.payment_enabled" />
               </div>
               <template v-if="form.payment_enabled">
                 <!-- Row 1: Product name -->
@@ -8817,7 +8787,7 @@
                     <label class="input-label">{{
                       t("admin.settings.payment.loadBalanceStrategy")
                     }}</label>
-                    <Select
+                    <Select :aria-label="t('admin.settings.payment.loadBalanceStrategy')"
                       v-model="form.payment_load_balance_strategy"
                       :options="loadBalanceOptions"
                       class="w-40"
@@ -8828,29 +8798,11 @@
                       t("admin.settings.payment.cancelRateLimit")
                     }}</label>
                     <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        :class="[
-                          'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                          form.payment_cancel_rate_limit_enabled
-                            ? 'bg-primary-500'
-                            : 'bg-gray-300 dark:bg-dark-600',
-                        ]"
-                        @click="
+                      <Toggle :model-value="form.payment_cancel_rate_limit_enabled" :aria-label="t('admin.settings.payment.cancelRateLimit')" @click="
                           form.payment_cancel_rate_limit_enabled =
                             !form.payment_cancel_rate_limit_enabled
-                        "
-                      >
-                        <span
-                          :class="[
-                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                            form.payment_cancel_rate_limit_enabled
-                              ? 'translate-x-5'
-                              : 'translate-x-0',
-                          ]"
-                        />
-                      </button>
-                      <Select
+                        " />
+                      <Select :aria-label="t('common.windowMode')"
                         v-model="form.payment_cancel_rate_limit_window_mode"
                         :options="cancelRateLimitModeOptions"
                         class="w-24"
@@ -8875,7 +8827,7 @@
                         class="input w-14 text-center"
                         :disabled="!form.payment_cancel_rate_limit_enabled"
                       />
-                      <Select
+                      <Select :aria-label="t('common.timeUnit')"
                         v-model="form.payment_cancel_rate_limit_unit"
                         :options="cancelRateLimitUnitOptions"
                         class="w-28"
@@ -8918,28 +8870,10 @@
                       t("admin.settings.payment.alipayForceQRCode")
                     }}</label>
                     <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        :class="[
-                          'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                          form.payment_alipay_force_qrcode
-                            ? 'bg-primary-500'
-                            : 'bg-gray-300 dark:bg-dark-600',
-                        ]"
-                        @click="
+                      <Toggle :model-value="!!form.payment_alipay_force_qrcode" :aria-label="t('admin.settings.payment.alipayForceQRCode')" @click="
                           form.payment_alipay_force_qrcode =
                             !form.payment_alipay_force_qrcode
-                        "
-                      >
-                        <span
-                          :class="[
-                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                            form.payment_alipay_force_qrcode
-                              ? 'translate-x-5'
-                              : 'translate-x-0',
-                          ]"
-                        />
-                      </button>
+                        " />
                       <span class="text-sm text-gray-500 dark:text-gray-400">{{
                         t("admin.settings.payment.alipayForceQRCodeHint")
                       }}</span>
@@ -8950,28 +8884,10 @@
                       t("admin.settings.payment.alipayMobilePrecreateDeepLink")
                     }}</label>
                     <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        :class="[
-                          'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                          form.payment_alipay_mobile_precreate_deep_link
-                            ? 'bg-primary-500'
-                            : 'bg-gray-300 dark:bg-dark-600',
-                        ]"
-                        @click="
+                      <Toggle :model-value="!!form.payment_alipay_mobile_precreate_deep_link" :aria-label="t('admin.settings.payment.alipayMobilePrecreateDeepLink')" @click="
                           form.payment_alipay_mobile_precreate_deep_link =
                             !form.payment_alipay_mobile_precreate_deep_link
-                        "
-                      >
-                        <span
-                          :class="[
-                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                            form.payment_alipay_mobile_precreate_deep_link
-                              ? 'translate-x-5'
-                              : 'translate-x-0',
-                          ]"
-                        />
-                      </button>
+                        " />
                       <span class="text-sm text-gray-500 dark:text-gray-400">{{
                         t("admin.settings.payment.alipayMobilePrecreateDeepLinkHint")
                       }}</span>
@@ -9098,9 +9014,9 @@
                   class="mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500"
                 />
                 <div>
-                  <h3 class="font-medium text-gray-900 dark:text-white">
+                  <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                     {{ t("admin.settings.emailTabDisabledTitle") }}
-                  </h3>
+                  </AppHeading>
                   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     {{ t("admin.settings.emailTabDisabledHint") }}
                   </p>
@@ -9115,9 +9031,9 @@
               class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
               <div>
-                <h2 id="settings-section-smtp" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+                <AppHeading variant="section" as="h2" id="settings-section-smtp" tabindex="-1" class="text-gray-900 dark:text-white">
                   {{ t("admin.settings.smtp.title") }}
-                </h2>
+                </AppHeading>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {{ t("admin.settings.smtp.description") }}
                 </p>
@@ -9268,7 +9184,7 @@
                     {{ t("admin.settings.smtp.useTlsHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.smtp_use_tls" />
+                <Toggle :aria-label="t('admin.settings.smtp.useTls')" v-model="form.smtp_use_tls" />
               </div>
             </div>
 
@@ -9280,9 +9196,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 id="settings-section-test-email" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="section" as="h2" id="settings-section-test-email" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.testEmail.title") }}
-              </h2>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.testEmail.description") }}
               </p>
@@ -9350,9 +9266,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h3 class="text-base font-medium text-gray-900 dark:text-white">
+              <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.subscriptionExpiryNotify.title") }}
-              </h3>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.subscriptionExpiryNotify.description") }}
               </p>
@@ -9370,7 +9286,7 @@
                     {{ t("admin.settings.subscriptionExpiryNotify.enabledHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.subscription_expiry_notify_enabled" />
+                <Toggle :aria-label="t('admin.settings.subscriptionExpiryNotify.enabled')" v-model="form.subscription_expiry_notify_enabled" />
               </div>
             </div>
 
@@ -9384,9 +9300,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h3 class="text-base font-medium text-gray-900 dark:text-white">
+              <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.balanceNotify.title") }}
-              </h3>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.balanceNotify.description") }}
               </p>
@@ -9398,7 +9314,7 @@
                   class="mb-0 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >{{ t("admin.settings.balanceNotify.enabled") }}</label
                 >
-                <Toggle v-model="form.balance_low_notify_enabled" />
+                <Toggle :aria-label="t('admin.settings.balanceNotify.enabled')" v-model="form.balance_low_notify_enabled" />
               </div>
               <div v-if="form.balance_low_notify_enabled">
                 <label
@@ -9447,9 +9363,9 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h3 class="text-base font-medium text-gray-900 dark:text-white">
+              <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.quotaNotify.title") }}
-              </h3>
+              </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.quotaNotify.description") }}
               </p>
@@ -9461,7 +9377,7 @@
                   class="mb-0 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >{{ t("admin.settings.quotaNotify.enabled") }}</label
                 >
-                <Toggle v-model="form.account_quota_notify_enabled" />
+                <Toggle :aria-label="t('admin.settings.quotaNotify.enabled')" v-model="form.account_quota_notify_enabled" />
               </div>
               <div v-if="form.account_quota_notify_enabled">
                 <label
@@ -9579,6 +9495,7 @@
       />
       <ConfirmDialog
         :show="showDeleteProviderDialog"
+        :busy="providerDeleteAction.busy.value"
         :title="t('admin.settings.payment.deleteProvider')"
         :message="t('admin.settings.payment.deleteProviderConfirm')"
         :confirm-text="t('common.delete')"
@@ -9588,6 +9505,7 @@
       />
       <ConfirmDialog
         :show="affiliateConfirmDialog.show"
+        :busy="affiliateAction.busy.value"
         :title="affiliateConfirmDialog.title"
         :message="affiliateConfirmDialog.message"
         :confirm-text="affiliateConfirmDialog.confirmText"
@@ -9599,9 +9517,16 @@
       <TotpStepUpDialog :controller="settingsStepUp" />
     </div>
   </AppLayout>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'
+
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import { localizeInlineText } from "@/i18n/inline";
 import { excelBPSImageLimits } from "@/utils/excelBPSImageLimits";
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
@@ -11060,19 +10985,22 @@ function quotaPercentage(provider: WebSearchProviderConfig): number {
 async function resetWebSearchUsage(idx: number) {
   const provider = webSearchConfig.providers[idx];
   if (!provider) return;
-  if (!confirm(t("admin.settings.webSearchEmulation.resetUsageConfirm")))
-    return;
-  try {
-    await adminAPI.settings.resetWebSearchUsage({
-      provider_type: provider.type,
-    });
-    provider.quota_used = 0;
-    appStore.showSuccess(
-      t("admin.settings.webSearchEmulation.resetUsageSuccess"),
-    );
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t("common.error")));
-  }
+  const providerType = provider.type;
+  await confirmation.run({ message: t("admin.settings.webSearchEmulation.resetUsageConfirm"), title: t('common.reset'), confirmText: t('common.reset'), danger: true }, async (isCurrent) => {
+    try {
+      await adminAPI.settings.resetWebSearchUsage({
+        provider_type: providerType,
+      });
+      if (!isCurrent()) return
+      provider.quota_used = 0;
+      appStore.showSuccess(
+        t("admin.settings.webSearchEmulation.resetUsageSuccess"),
+      );
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      appStore.showError(extractApiErrorMessage(err, t("common.error")));
+    }
+  })
 }
 
 async function copyApiKey(idx: number) {
@@ -12831,16 +12759,20 @@ async function loadAdminApiKey() {
   }
 }
 
-async function createAdminApiKey() {
+async function createAdminApiKey(guard?: (() => boolean) | Event) {
+  const isCurrent = typeof guard === 'function' ? guard : () => true;
+  if (adminApiKeyOperating.value) return;
   adminApiKeyOperating.value = true;
   try {
     const result = await adminAPI.settings.regenerateAdminApiKey();
+    if (!isCurrent()) return;
     newAdminApiKey.value = result.key;
     adminApiKeyExists.value = true;
     adminApiKeyMasked.value =
       result.key.substring(0, 10) + "..." + result.key.slice(-4);
     appStore.showSuccess(t("admin.settings.adminApiKey.keyGenerated"));
   } catch (error: unknown) {
+    if (!isCurrent()) return;
     appStore.showError(extractApiErrorMessage(error, t("common.error")));
   } finally {
     adminApiKeyOperating.value = false;
@@ -12848,24 +12780,29 @@ async function createAdminApiKey() {
 }
 
 async function regenerateAdminApiKey() {
-  if (!confirm(t("admin.settings.adminApiKey.regenerateConfirm"))) return;
-  await createAdminApiKey();
+  await confirmation.run({ message: t("admin.settings.adminApiKey.regenerateConfirm"), title: t('common.confirm'), confirmText: t('common.confirm'), danger: true }, async (isCurrent) => {
+    await createAdminApiKey(isCurrent);
+  if (!isCurrent()) return
+  })
 }
 
 async function deleteAdminApiKey() {
-  if (!confirm(t("admin.settings.adminApiKey.deleteConfirm"))) return;
-  adminApiKeyOperating.value = true;
-  try {
-    await adminAPI.settings.deleteAdminApiKey();
-    adminApiKeyExists.value = false;
-    adminApiKeyMasked.value = "";
-    newAdminApiKey.value = "";
-    appStore.showSuccess(t("admin.settings.adminApiKey.keyDeleted"));
-  } catch (error: unknown) {
-    appStore.showError(extractApiErrorMessage(error, t("common.error")));
-  } finally {
-    adminApiKeyOperating.value = false;
-  }
+  await confirmation.run({ message: t("admin.settings.adminApiKey.deleteConfirm"), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async (isCurrent) => {
+    adminApiKeyOperating.value = true;
+    try {
+      await adminAPI.settings.deleteAdminApiKey();
+      if (!isCurrent()) return
+      adminApiKeyExists.value = false;
+      adminApiKeyMasked.value = "";
+      newAdminApiKey.value = "";
+      appStore.showSuccess(t("admin.settings.adminApiKey.keyDeleted"));
+    } catch (error: unknown) {
+      if (!isCurrent()) return
+      appStore.showError(extractApiErrorMessage(error, t("common.error")));
+    } finally {
+      adminApiKeyOperating.value = false;
+    }
+  })
 }
 
 function copyNewKey() {
@@ -13704,6 +13641,7 @@ async function handleToggleType(provider: ProviderInstance, type: string) {
 }
 
 function confirmDeleteProvider(provider: ProviderInstance) {
+  if (providerDeleteAction.busy.value || showDeleteProviderDialog.value) return;
   deletingProviderId.value = provider.id;
   showDeleteProviderDialog.value = true;
 }
@@ -13726,16 +13664,23 @@ async function handleReorderProviders(
   }
 }
 
+const providerDeleteAction = useConfirmedAction(() => ({ active: activeTab.value === 'payment' }));
+watch(activeTab, () => { showDeleteProviderDialog.value = false; deletingProviderId.value = null }, { flush: 'sync' });
 async function handleDeleteProvider() {
-  if (!deletingProviderId.value) return;
-  try {
-    await adminAPI.payment.deleteProvider(deletingProviderId.value);
-    appStore.showSuccess(t("common.deleted"));
-    showDeleteProviderDialog.value = false;
-    loadProviders();
-  } catch (err: unknown) {
-    appStore.showError(extractI18nErrorMessage(err, t, "payment.errors", t("common.error")));
-  }
+  const id = deletingProviderId.value;
+  if (!showDeleteProviderDialog.value || !id) return;
+  await providerDeleteAction.run(async (isCurrent) => {
+    try {
+      await adminAPI.payment.deleteProvider(id);
+      if (!isCurrent()) return;
+      appStore.showSuccess(t("common.deleted"));
+      showDeleteProviderDialog.value = false;
+      deletingProviderId.value = null;
+      loadProviders();
+    } catch (err: unknown) {
+      if (isCurrent()) appStore.showError(extractI18nErrorMessage(err, t, "payment.errors", t("common.error")));
+    }
+  });
 }
 
 onMounted(() => {
@@ -13827,12 +13772,16 @@ const affiliateConfirmDialog = reactive<{
   pending: null,
 });
 
+const affiliateAction = useConfirmedAction(() => ({ active: activeTab.value === 'features', identity: affiliateState.selected }));
+watch(() => [activeTab.value, affiliateState.selected], () => { cancelAffiliateConfirm() }, { deep: true, flush: 'sync' });
+
 function openAffiliateConfirm(
   title: string,
   message: string,
   confirmText: string,
   fn: () => Promise<unknown>,
 ) {
+  if (affiliateAction.busy.value || affiliateConfirmDialog.show || activeTab.value !== 'features') return;
   affiliateConfirmDialog.title = title;
   affiliateConfirmDialog.message = message;
   affiliateConfirmDialog.confirmText = confirmText;
@@ -13842,16 +13791,18 @@ function openAffiliateConfirm(
 
 async function handleAffiliateConfirm() {
   const fn = affiliateConfirmDialog.pending;
-  affiliateConfirmDialog.show = false;
-  affiliateConfirmDialog.pending = null;
-  if (!fn) return;
-  try {
-    await fn();
-    appStore.showSuccess(t("common.saved"));
-    await loadAffiliateUsers();
-  } catch (err) {
-    appStore.showError(extractApiErrorMessage(err, t("common.error")));
-  }
+  if (!affiliateConfirmDialog.show || !fn) return;
+  await affiliateAction.run(async (isCurrent) => {
+    try {
+      await fn();
+      if (!isCurrent()) return;
+      cancelAffiliateConfirm();
+      appStore.showSuccess(t("common.saved"));
+      await loadAffiliateUsers();
+    } catch (err) {
+      if (isCurrent()) appStore.showError(extractApiErrorMessage(err, t("common.error")));
+    }
+  });
 }
 
 function cancelAffiliateConfirm() {
@@ -14039,13 +13990,14 @@ async function submitAffiliateModal() {
 // calls the backend "reset all" endpoint that clears both the exclusive rate
 // AND regenerates the invite code as a system random one.
 function askResetAffiliateUser(entry: AffiliateAdminEntry) {
+  const userId = entry.user_id;
   openAffiliateConfirm(
     t("admin.settings.features.affiliate.customUsers.resetTitle"),
     t("admin.settings.features.affiliate.customUsers.resetMessage", {
       email: entry.email || `#${entry.user_id}`,
     }),
     t("common.delete"),
-    () => affiliatesAPI.clearUserSettings(entry.user_id),
+    () => affiliatesAPI.clearUserSettings(userId),
   );
 }
 
@@ -14105,6 +14057,9 @@ watch(
     }
   },
 );
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: true, identity: [activeTab.value, webSearchConfig.providers.map(provider => provider.type)] }))
 </script>
 
 <style scoped>
@@ -14160,7 +14115,6 @@ h2[id^="settings-section-"]:target {
 .settings-section-fields > div { padding-inline: 0; }
 .settings-section-fields > :first-child { padding-top: 0; }
 .settings-section-fields > :last-child { padding-bottom: 0; }
-.admin-settings-workspace .open-settings-section h2 { font-family: var(--ritel-display); font-size: 1.65rem; font-weight: 400; line-height: 1.2; }
 .admin-settings-workspace .open-settings-section > :first-child p { max-width: 38ch; margin-top: .75rem; line-height: 1.6; }
 @media (min-width: 1100px) { .admin-settings-workspace .open-settings-section { grid-template-columns: minmax(14rem, .8fr) minmax(0, 2.2fr); } }
 </style>

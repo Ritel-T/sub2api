@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, shallowMount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 import { formatPaymentAmount } from '@/components/payment/currency'
@@ -8,6 +8,9 @@ import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
 import type { CheckoutInfoResponse, MethodLimit, SubscriptionPlan } from '@/types/payment'
+
+// Always dispose watchers even when an assertion fails before a manual unmount.
+enableAutoUnmount(afterEach)
 
 const routeState = vi.hoisted(() => ({
   path: '/purchase',
@@ -251,7 +254,7 @@ async function mountSubscriptionConfirm(
 
   const wrapper = shallowMount(PaymentView, {
     global: {
-      stubs: {
+      stubs: { AppHeading: false,
         AppLayout: {
           template: '<div><slot /></div>',
         },
@@ -292,7 +295,7 @@ async function mountSubscriptionPlanList(planCount: number) {
 
   const wrapper = shallowMount(PaymentView, {
     global: {
-      stubs: {
+      stubs: { AppHeading: false,
         AppLayout: {
           template: '<div><slot /></div>',
         },
@@ -319,9 +322,10 @@ describe('PaymentView help text', () => {
     getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({ help_text, help_image_url }))
     const wrapper = shallowMount(PaymentView, {
       global: {
-        stubs: {
+        stubs: { AppHeading: false,
           AppLayout: { template: '<div><slot /></div>' },
           Teleport: true,
+          BaseDialog: false,
           Transition: false,
         },
       },
@@ -450,7 +454,7 @@ describe('PaymentView recharge rate preview', () => {
 
     const wrapper = shallowMount(PaymentView, {
       global: {
-        stubs: {
+        stubs: { AppHeading: false,
           AppLayout: { template: '<div><slot /></div>' },
           Teleport: true,
           Transition: false,
@@ -617,7 +621,7 @@ describe('PaymentView payment recovery', () => {
 
     const wrapper = shallowMount(PaymentView, {
       global: {
-        stubs: {
+        stubs: { AppHeading: false,
           AppLayout: {
             template: '<div><slot /></div>',
           },
@@ -674,7 +678,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     shallowMount(PaymentView, {
       global: {
-        stubs: {
+        stubs: { AppHeading: false,
           Teleport: true,
           Transition: false,
         },
@@ -698,7 +702,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
   it('checks the original order after a JSAPI failure instead of creating a replacement', async () => {
     createOrder.mockResolvedValue(jsapiOrderFixture('resume-token-123'))
     bridgeInvoke.mockImplementation((_action, _payload, callback) => callback({ err_msg: 'get_brand_wcpay_request:fail' }))
-    shallowMount(PaymentView, { global: { stubs: { Teleport: true, Transition: false } } })
+    shallowMount(PaymentView, { global: { stubs: { AppHeading: false, Teleport: true, Transition: false } } })
     await flushPromises(); await flushPromises()
     expect(createOrder).toHaveBeenCalledTimes(1)
     expect(routerPush).toHaveBeenCalledWith({ path: '/payment/result', query: { order_id: '123', out_trade_no: 'sub2_jsapi_123', resume_token: 'resume-token-123' } })
@@ -712,7 +716,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     shallowMount(PaymentView, {
       global: {
-        stubs: {
+        stubs: { AppHeading: false,
           Teleport: true,
           Transition: false,
         },
@@ -733,7 +737,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     const wrapper = shallowMount(PaymentView, {
       global: {
-        stubs: {
+        stubs: { AppHeading: false,
           Teleport: true,
           Transition: false,
         },
@@ -778,7 +782,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     shallowMount(PaymentView, {
       global: {
-        stubs: {
+        stubs: { AppHeading: false,
           Teleport: true,
           Transition: false,
         },
@@ -816,7 +820,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     shallowMount(PaymentView, {
       global: {
-        stubs: {
+        stubs: { AppHeading: false,
           Teleport: true,
           Transition: false,
         },
@@ -846,7 +850,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
   it('does not retry order creation after an unknown gateway outcome', async () => {
     routeState.query = { wechat_resume: '1', wechat_resume_token: 'resume-unknown', payment_type: 'wxpay_direct' }
     createOrder.mockRejectedValueOnce({ reason: 'PAYMENT_GATEWAY_ERROR', message: 'unknown outcome' })
-    shallowMount(PaymentView, { global: { stubs: { Teleport: true, Transition: false } } })
+    shallowMount(PaymentView, { global: { stubs: { AppHeading: false, Teleport: true, Transition: false } } })
     await flushPromises(); await flushPromises()
     expect(createOrder).toHaveBeenCalledTimes(1)
     expect(routerPush).not.toHaveBeenCalled()
@@ -855,7 +859,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
   it('checks a returned order identity when checkout instructions are unavailable', async () => {
     routeState.query = { wechat_resume: '1', wechat_resume_token: 'resume-unknown', payment_type: 'wxpay_direct' }
     createOrder.mockResolvedValueOnce({ order_id: 778, amount: 88, pay_amount: 88, payment_type: 'wxpay', expires_at: '2099-01-01T00:10:00.000Z', out_trade_no: 'original-778' })
-    shallowMount(PaymentView, { global: { stubs: { Teleport: true, Transition: false } } })
+    shallowMount(PaymentView, { global: { stubs: { AppHeading: false, Teleport: true, Transition: false } } })
     await flushPromises(); await flushPromises()
     expect(createOrder).toHaveBeenCalledTimes(1)
     expect(routerPush).toHaveBeenCalledWith({ path: '/payment/result', query: { order_id: '778', out_trade_no: 'original-778' } })
@@ -882,7 +886,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     shallowMount(PaymentView, {
       global: {
-        stubs: {
+        stubs: { AppHeading: false,
           Teleport: true,
           Transition: false,
         },

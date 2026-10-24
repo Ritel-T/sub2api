@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * useNavigationLoading 组合式函数单元测试
  */

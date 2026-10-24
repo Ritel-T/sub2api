@@ -119,11 +119,6 @@
 .workspace-page-title {
   margin: 0;
   color: var(--ritel-fg);
-  font-family: var(--ritel-display);
-  font-size: 36px;
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: -.01em;
 }
 .workspace-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .workspace-page-header + [role="group"] { margin-top: 24px; }
@@ -134,7 +129,6 @@
 }
 
 @media (max-width: 767px) {
-  .workspace-page-title { font-size: 28px; }
   .workspace-header-actions { justify-content: flex-start; }
   .ritel-main { padding: 28px 20px 96px; }
   .ritel-app { --workspace-section-gap: 32px; --workspace-column-gap: 24px; }

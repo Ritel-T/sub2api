@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="w-full min-w-0" :class="activeTab === 'config' && draft ? 'pb-28' : 'pb-8'">
       <header class="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 class="mt-1 text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">{{ t('admin.promptAudit.title') }}</h1>
+          <AppHeading as="h1" variant="page" class="mt-1 text-gray-950 dark:text-white">{{ t('admin.promptAudit.title') }}</AppHeading>
           <p class="mt-2 max-w-3xl text-sm text-gray-500 dark:text-dark-300">{{ t('admin.promptAudit.description') }}</p>
         </div>
         <div v-if="draft" class="text-right text-xs text-gray-500 dark:text-dark-400">
@@ -109,7 +109,7 @@
       </div>
     </div>
 
-    <ConfirmDialog
+    <ConfirmDialog :busy="blockingConfirmationAction.busy.value"
       :show="showBlockingConfirmation"
       :title="t('admin.promptAudit.blockingConfirm.title')"
       :message="t('admin.promptAudit.blockingConfirm.message')"
@@ -118,7 +118,7 @@
       @confirm="confirmBlocking"
       @cancel="showBlockingConfirmation = false"
     />
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmIDDeleteAction.busy.value"
       :show="deleteRequest.mode !== ''"
       :title="t('admin.promptAudit.events.deleteConfirmTitle')"
       :message="t('admin.promptAudit.events.deleteConfirmMessage', { count: deleteRequest.ids.length })"
@@ -132,7 +132,7 @@
       :initial-filters="filters"
       :preview="deletePreview"
       :previewing="loading.previewing"
-      :deleting="loading.deleting"
+      :deleting="loading.deleting || filterDeleteAction.busy.value"
       @close="closeFilterDelete"
       @preview="runFilterDeletePreview"
       @confirm="confirmFilterDelete"
@@ -143,12 +143,14 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { routeLocationKey, routerKey } from 'vue-router'
 import PenaltyPolicyPanel from '@/features/security-penalties/PenaltyPolicyPanel.vue'
 import { computed, defineComponent, h, inject, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useConfirmedAction, useConfirmationContext } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
@@ -312,8 +314,10 @@ function setBlocking(value: boolean) {
   replaceDraft({ ...draft.value, blocking_enabled: value })
 }
 function confirmBlocking() {
-  showBlockingConfirmation.value = false
-  if (draft.value) replaceDraft({ ...draft.value, blocking_enabled: true })
+  return blockingConfirmationAction.run(() => {
+    showBlockingConfirmation.value = false
+    if (draft.value) replaceDraft({ ...draft.value, blocking_enabled: true })
+  })
 }
 function resetDraft() {
   if (serverConfig.value) draft.value = cloneData(serverConfig.value)
@@ -369,24 +373,30 @@ async function openEvent(id: number) {
   finally { loading.detail = false }
 }
 function closeEventDetail() { showEventDetail.value = false; activeEvent.value = null }
-function requestSingleDelete(id: number) { deleteRequest.mode = 'single'; deleteRequest.ids = [id] }
-function requestBatchDelete() { if (selectedEventIds.value.length) { deleteRequest.mode = 'batch'; deleteRequest.ids = [...selectedEventIds.value] } }
+function requestSingleDelete(id: number) { if (deleteRequest.mode) return; deleteRequest.ids = [id]; deleteRequest.mode = 'single' }
+function requestBatchDelete() { if (selectedEventIds.value.length) { if (deleteRequest.mode) return; deleteRequest.ids = [...selectedEventIds.value]; deleteRequest.mode = 'batch' } }
 function clearDeleteRequest() { deleteRequest.mode = ''; deleteRequest.ids = [] }
-async function confirmIDDelete() {
-  const mode = deleteRequest.mode
-  const ids = [...deleteRequest.ids]
-  clearDeleteRequest()
-  if (!mode || ids.length === 0) return
-  loading.deleting = true
-  try {
-    const result = mode === 'single' ? await promptAuditAPI.deleteEvent(ids[0]) : await promptAuditAPI.batchDeleteEvents(ids)
-    selectedEventIds.value = selectedEventIds.value.filter(id => !ids.includes(id))
-    appStore.showSuccess(t('admin.promptAudit.messages.deleted', { count: result.deleted_events }))
-    await Promise.allSettled([loadEvents(), loadRuntime()])
-  } catch (error) { appStore.showError(errorMessage(error, 'admin.promptAudit.errors.delete')) }
-  finally { loading.deleting = false }
+function confirmIDDelete() {
+  return confirmIDDeleteAction.run(async (isCurrent) => {
+    const mode = deleteRequest.mode
+    const ids = [...deleteRequest.ids]
+    if (!mode || ids.length === 0) return
+    loading.deleting = true
+    try {
+      const result = mode === 'single' ? await promptAuditAPI.deleteEvent(ids[0]) : await promptAuditAPI.batchDeleteEvents(ids)
+      if (!isCurrent()) return
+      selectedEventIds.value = selectedEventIds.value.filter(id => !ids.includes(id))
+      clearDeleteRequest()
+      appStore.showSuccess(t('admin.promptAudit.messages.deleted', { count: result.deleted_events }))
+      await Promise.allSettled([loadEvents(), loadRuntime()])
+      if (!isCurrent()) return
+    } catch (error) { if (isCurrent()) appStore.showError(errorMessage(error, 'admin.promptAudit.errors.delete')) }
+    finally { loading.deleting = false }
+  })
 }
+const filterDeleteRevision = ref(0)
 function clearDeletePreview() {
+  filterDeleteRevision.value++
   deletePreview.value = null
   deletePreviewFilters.value = null
 }
@@ -395,45 +405,71 @@ function requestFilterDeletePreview() {
   showFilterDelete.value = true
 }
 function closeFilterDelete() {
+  if (loading.deleting) return
+  resetFilterDelete()
+}
+function resetFilterDelete() {
   showFilterDelete.value = false
   clearDeletePreview()
 }
 async function runFilterDeletePreview(value: PromptEventFilters) {
+  if (loading.previewing || loading.deleting || !showFilterDelete.value) return
+  const revision = filterDeleteRevision.value
+  const snapshot = cloneData(value)
   loading.previewing = true
   try {
-    deletePreview.value = await promptAuditAPI.previewDelete(value)
-    deletePreviewFilters.value = cloneData(value)
+    const result = await promptAuditAPI.previewDelete(snapshot)
+    if (!showFilterDelete.value || revision !== filterDeleteRevision.value) return
+    deletePreview.value = result
+    deletePreviewFilters.value = snapshot
   } catch (error) {
+    if (!showFilterDelete.value || revision !== filterDeleteRevision.value) return
     clearDeletePreview()
     appStore.showError(errorMessage(error, 'admin.promptAudit.errors.previewDelete'))
   } finally { loading.previewing = false }
 }
-async function confirmFilterDelete(filters?: PromptEventFilters) {
-  if (loading.deleting) return
-  loading.deleting = true
-  try {
-    let preview = deletePreview.value
-    let previewFilters = deletePreviewFilters.value ? cloneData(deletePreviewFilters.value) : null
-    // One-click path: no fresh preview (never requested, or cleared by a
-    // criteria change) — mint the confirmation token on the fly from the
-    // criteria the dialog just emitted, then delete in the same action.
-    if ((!preview || !previewFilters) && filters) {
-      preview = await promptAuditAPI.previewDelete(filters)
-      previewFilters = cloneData(filters)
-    }
-    if (!preview || !previewFilters) return
-    const result = await promptAuditAPI.deleteEventsByFilter(previewFilters, preview)
-    closeFilterDelete()
-    appStore.showSuccess(t('admin.promptAudit.messages.deleted', { count: result.deleted_events }))
-    await Promise.allSettled([loadEvents(), loadRuntime()])
-  } catch (error) {
-    clearDeletePreview()
-    appStore.showError(errorMessage(error, 'admin.promptAudit.errors.deleteConfirmation'))
-  } finally { loading.deleting = false }
+function confirmFilterDelete(filters?: PromptEventFilters) {
+  if (loading.deleting || loading.previewing) return
+  const criteria = filters ? cloneData(filters) : undefined
+  return filterDeleteAction.run(async (isCurrent) => {
+    loading.deleting = true
+    try {
+      let preview = deletePreview.value
+      let previewFilters = deletePreviewFilters.value ? cloneData(deletePreviewFilters.value) : null
+      // Preserve the existing one-click flow and use the exact captured criteria.
+      if ((!preview || !previewFilters) && criteria) {
+        preview = await promptAuditAPI.previewDelete(criteria)
+        if (!isCurrent()) return
+        previewFilters = criteria
+      }
+      if (!preview || !previewFilters || !isCurrent()) return
+      const result = await promptAuditAPI.deleteEventsByFilter(previewFilters, preview)
+      if (!isCurrent()) return
+      resetFilterDelete()
+      appStore.showSuccess(t('admin.promptAudit.messages.deleted', { count: result.deleted_events }))
+      await Promise.allSettled([loadEvents(), loadRuntime()])
+    } catch (error) {
+      if (!isCurrent()) return
+      clearDeletePreview()
+      appStore.showError(errorMessage(error, 'admin.promptAudit.errors.deleteConfirmation'))
+    } finally { loading.deleting = false }
+  })
 }
+const filterDeleteAction = useConfirmedAction(() => ({ active: showFilterDelete.value, identity: filterDeleteRevision.value }))
+const filterDeleteSession = useConfirmationContext(() => ({ active: true, identity: activeTab.value }))
+watch(filterDeleteSession, resetFilterDelete, { deep: true, flush: 'sync' })
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value))
 }
 
 onMounted(loadInitial)
+
+watch(draft, () => { showBlockingConfirmation.value = false }, { flush: 'sync' })
+
+const blockingConfirmationAction = useConfirmedAction(() => ({ active: showBlockingConfirmation.value, identity: draft.value }))
+
+// Direct confirmations share one execution and stale-context contract.
+const confirmIDDeleteAction = useConfirmedAction(() => ({ active: deleteRequest.mode !== '', identity: [deleteRequest.mode, deleteRequest.ids] }))
+watch(() => ({ active: deleteRequest.mode !== '', identity: JSON.stringify([deleteRequest.mode, deleteRequest.ids]) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { clearDeleteRequest() } }, { flush: 'sync' })
 </script>

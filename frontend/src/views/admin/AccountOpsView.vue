@@ -24,10 +24,10 @@
         class="open-section overflow-hidden">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-5 dark:border-dark-700">
           <div>
-            <h2 class="text-base font-semibold">{{ t('accountOps.recordsTab') }}</h2>
+            <AppHeading variant="section" as="h2">{{ t('accountOps.recordsTab') }}</AppHeading>
             <p class="mt-1 text-xs text-gray-500">{{ t('accountOps.recordsOnceHint') }}</p>
           </div>
-          <div class="flex flex-wrap gap-2"><input v-model="query" class="input w-48 text-sm" :placeholder="t('accountOps.search')"
+          <div class="workspace-filter-controls flex flex-wrap gap-2"><input v-model="query" class="input w-48 text-sm" :placeholder="t('accountOps.search')"
               :aria-label="t('accountOps.search')" /><select v-model="kind" class="input w-auto text-sm"
               :aria-label="t('accountOps.alertTypes')">
               <option value="all">{{ t('accountOps.allTypes') }}</option>
@@ -89,8 +89,8 @@
             class="btn btn-secondary mt-1" @click="selectTab('settings')">{{ t('accountOps.settingsTab') }}</button>
         </div>
         <div class="flex items-center justify-between gap-3 border-t border-gray-100 px-5 py-3 text-xs text-gray-500 dark:border-dark-700">
-          <span>{{ t('accountOps.noRawErrors') }}</span><button v-if="hasMore" :disabled="loadingMore" class="text-primary-600"
-            @click="more">{{ t(loadingMore ? 'common.loading' : 'qualityOps.loadMore') }}</button></div>
+          <span>{{ t('accountOps.noRawErrors') }}</span></div>
+        <InfiniteListSentinel :loading="loading || loadingMore" :error="listError" :has-more="hasMore" @load-more="more" @retry="retryEvents" />
       </section>
       <section v-if="activeTab === 'settings' && remote" id="ops-panel-settings" role="tabpanel" aria-labelledby="ops-tab-settings"
         class="space-y-5">
@@ -98,7 +98,7 @@
           data-testid="account-ops-channels">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
             <div>
-              <h2 class="text-sm font-semibold">{{ t('accountOps.notificationChannels') }}</h2>
+              <AppHeading variant="section" as="h2">{{ t('accountOps.notificationChannels') }}</AppHeading>
               <p class="mt-1 text-xs text-gray-500">{{ t('accountOps.channelSummaryHint') }}</p>
             </div>
           </div>
@@ -139,7 +139,7 @@
         <section class="open-section" data-testid="account-ops-groups">
           <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
             <div>
-              <h2 class="text-sm font-semibold">{{ t('accountOps.accountGroups') }}</h2>
+              <AppHeading variant="section" as="h2">{{ t('accountOps.accountGroups') }}</AppHeading>
               <p class="mt-1 text-xs text-gray-500">{{ t('accountOps.accountGroupsSummary', { count: accountGroups.length }) }}</p>
             </div>
             <button type="button" class="btn btn-secondary text-sm" :disabled="thresholdLoading || mutating" data-testid="edit-account-groups" @click="showGroupDialog = true">{{ t('common.edit') }}</button>
@@ -171,6 +171,7 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 const contextRoute = useRoute()
 const contextAccountId = computed(() => objectQueryId(contextRoute?.query?.account_id))
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
@@ -187,6 +188,7 @@ import Icon from '@/components/icons/Icon.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import AccountOpsRuleList from '@/components/admin/operations/AccountOpsRuleList.vue'
 import AccountOpsBatchRuleDialog from '@/components/admin/operations/AccountOpsBatchRuleDialog.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import AccountOpsDeliveryDetails from '@/components/admin/operations/AccountOpsDeliveryDetails.vue'
 import AccountOpsWebhookDialog from '@/components/admin/operations/AccountOpsWebhookDialog.vue'
 import AccountOpsEmailDialog from '@/components/admin/operations/AccountOpsEmailDialog.vue'
@@ -200,6 +202,8 @@ const { t } = useI18n(), auth = useAuthStore(), app = useAppStore()
 const { remote, events, hasMore } = storeToRefs(useAccountOpsStore())
 const tabs = ['settings','records'] as const, activeTab = ref<'records'|'settings'>('settings')
 const loading = ref(false), loadingMore = ref(false), mutating = ref(false)
+const listError = ref<unknown>(null)
+let failedListOperation: 'refresh' | 'append' = 'refresh'
 const thresholdAccounts = ref<AccountOpsThresholdAccount[]>([]), thresholdLoading = ref(false), thresholdReady = ref(false), thresholdError = ref('')
 const accountGroups = ref<AccountOpsGroup[]>([]), showGroupDialog = ref(false)
 const enabledDraft = ref(false), globalSaving = ref(false), showAddChannel = ref(false)
@@ -227,10 +231,32 @@ async function load() {
   const current=++version;loading.value=true
   await Promise.allSettled([
     getAccountOpsSettings().then(s=>{if(alive&&current===version)remote.value={...s,config:normalize(s.config)}}).catch(e=>{if(alive&&current===version)app.showError(message(e))}),
-    getAccountOpsEvents().then(p=>{if(alive&&current===version){events.value=p.items;hasMore.value=p.has_more}}).catch(e=>{if(alive&&current===version)app.showError(message(e))})
+    refreshEvents(current)
   ])
   if(alive&&current===version)loading.value=false
 }
+async function refreshEvents(current: number) {
+  const minimum = events.value.length
+  listError.value = null
+  failedListOperation = 'refresh'
+  loadingMore.value = false
+  try {
+    let offset = 0, more = true
+    const merged = new Map<string | number, AccountOpsEvent>()
+    do {
+      const result = await getAccountOpsEvents(offset)
+      if (!alive || current !== version) return
+      for (const event of result.items) merged.set(eventKey(event), event)
+      offset += result.items.length
+      more = result.has_more && result.items.length > 0
+    } while (more && offset < minimum)
+    events.value = [...merged.values()]
+    hasMore.value = more
+  } catch (cause) {
+    if (alive && current === version) { listError.value = cause; app.showError(message(cause)) }
+  }
+}
+function retryEvents() { if (failedListOperation === 'append') void more(); else void load() }
 async function refresh() {
   if (mutating.value || globalSaving.value) return
   await Promise.all([load(), ...(activeTab.value === 'settings' ? [loadAccounts()] : [])])
@@ -278,8 +304,21 @@ async function toggleGroup(_group:AccountOpsGroup, accounts:AccountOpsThresholdA
 }
 async function removeWebhook(id:string){await mutate(()=>deleteAccountOpsWebhook(id))}
 async function testWebhook(id:string){if(testingId.value)return;const current=++testSequence;testingId.value=id;try{await testAccountOpsWebhook(id);if(alive&&current===testSequence)app.showSuccess(t('accountOps.testSuccess'))}catch(e){if(alive&&current===testSequence)app.showError(message(e))}finally{if(alive&&current===testSequence)testingId.value=null}}
-async function more(){if(loadingMore.value||loading.value)return;const current=version, sequence=++paginationSequence;loadingMore.value=true;try{const p=await getAccountOpsEvents(events.value.length);if(alive&&current===version){const merged=new Map([...events.value,...p.items].map(e=>[eventKey(e),e]));events.value=[...merged.values()];hasMore.value=p.has_more}}catch(e){if(alive&&current===version)app.showError(message(e))}finally{if(alive&&sequence===paginationSequence)loadingMore.value=false}}
-watch(()=>auth.user?`${auth.user.id}:${auth.user.role}`:'',()=>{version++;accountsVersion++;testSequence++;mutationSequence++;paginationSequence++;loading.value=loadingMore.value=mutating.value=thresholdLoading.value=false;thresholdAccounts.value=[];accountGroups.value=[];thresholdReady.value=false;showWebhook.value=showEmail.value=showAddChannel.value=showGroupDialog.value=false;testingId.value=null;enabledDraft.value=globalSaving.value=false;activeTab.value='settings';batchAccounts.value=[]},{flush:'sync'})
+async function more() {
+  if (loadingMore.value || loading.value || !hasMore.value) return
+  const current = version, sequence = ++paginationSequence
+  listError.value = null; failedListOperation = 'append'; loadingMore.value = true
+  try {
+    const result = await getAccountOpsEvents(events.value.length)
+    if (alive && current === version) {
+      const merged = new Map([...events.value, ...result.items].map(event => [eventKey(event), event]))
+      events.value = [...merged.values()]; hasMore.value = result.has_more && result.items.length > 0
+    }
+  } catch (cause) { if (alive && current === version) { listError.value = cause; app.showError(message(cause)) } }
+  finally { if (alive && current === version && sequence === paginationSequence) loadingMore.value = false }
+}
+
+watch(()=>auth.user?`${auth.user.id}:${auth.user.role}`:'',()=>{version++;accountsVersion++;testSequence++;mutationSequence++;paginationSequence++;listError.value=null;loading.value=loadingMore.value=mutating.value=thresholdLoading.value=false;thresholdAccounts.value=[];accountGroups.value=[];thresholdReady.value=false;showWebhook.value=showEmail.value=showAddChannel.value=showGroupDialog.value=false;testingId.value=null;enabledDraft.value=globalSaving.value=false;activeTab.value='settings';batchAccounts.value=[]},{flush:'sync'})
 onMounted(()=>{void load();void loadAccounts();timer=setInterval(()=>{if(document.visibilityState==='visible'&&!loadingMore.value&&!mutating.value&&!globalSaving.value){void load();if(activeTab.value==='settings')void loadAccounts()}},30000)})
 onBeforeUnmount(()=>{alive=false;version++;accountsVersion++;testSequence++;mutationSequence++;paginationSequence++;if(timer)clearInterval(timer)})
 </script>

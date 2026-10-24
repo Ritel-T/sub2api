@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page pelican-tests">
       <header class="ops-heading">
         <div>
-          <h2>{{ t('pelicanTests.title') }}</h2>
+          <AppHeading variant="page" as="h1">{{ t('pelicanTests.title') }}</AppHeading>
           <p class="subtitle">{{ t('pelicanTests.description') }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -26,16 +26,16 @@
         <section class="settings-card" data-testid="pelican-showcase-settings">
           <div class="section-title">
             <span class="icon-tile"><Icon name="eye" size="md" /></span>
-            <div><h3>{{ t('pelicanTests.showcase.title') }}</h3><p>{{ t('pelicanTests.showcase.hint') }}</p></div>
+            <div><AppHeading variant="subsection" as="h3">{{ t('pelicanTests.showcase.title') }}</AppHeading><p>{{ t('pelicanTests.showcase.hint') }}</p></div>
           </div>
-          <div v-if="!draft" class="space-y-4 p-5" role="status">
+          <LoadingRegion v-if="!draft" class="space-y-4 p-5">
             <span v-for="n in 4" :key="n" class="block h-8 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-800" />
-          </div>
+          </LoadingRegion>
           <form v-else class="settings-form" @submit.prevent="saveSettings">
             <fieldset :disabled="savingSettings">
               <div class="enable-row">
                 <span><strong>{{ t('pelicanTests.showcase.enabled') }}</strong><small>{{ t('pelicanTests.showcase.enabledHint') }}</small></span>
-                <Toggle v-model="draft.enabled" data-testid="pelican-showcase-enabled" />
+                <Toggle :aria-label="t('pelicanTests.showcase.enabled')" v-model="draft.enabled" data-testid="pelican-showcase-enabled" />
               </div>
               <div class="enable-row mt-5">
                 <span><strong>{{ t('pelicanTests.showcase.apiEnabled') }}</strong><small>{{ t('pelicanTests.showcase.apiEnabledHint') }}</small></span>
@@ -55,7 +55,7 @@
               <p class="field-hint">{{ t('pelicanTests.showcase.maxItemsHint') }}</p>
               <div class="enable-row mt-5 mb-0">
                 <span><strong>{{ t('pelicanTests.showcase.autoCleanup') }}</strong><small>{{ t('pelicanTests.showcase.autoCleanupHint') }}</small></span>
-                <Toggle v-model="draft.auto_cleanup" data-testid="pelican-showcase-auto-cleanup" />
+                <Toggle :aria-label="t('pelicanTests.showcase.autoCleanup')" v-model="draft.auto_cleanup" data-testid="pelican-showcase-auto-cleanup" />
               </div>
               <template v-if="draft.auto_cleanup">
                 <label class="field-label" for="pelican-showcase-retention">{{ t('pelicanTests.showcase.retentionDays') }}</label>
@@ -77,11 +77,11 @@
 
         <section class="plans-card" data-testid="pelican-group-tests">
           <header class="panel-heading">
-            <div><h3>{{ t('pelicanTests.plans.title') }}<span class="count">{{ plans.length }}</span></h3><p>{{ t('pelicanTests.plans.hint') }}</p></div>
+            <div><AppHeading variant="subsection" as="h3">{{ t('pelicanTests.plans.title') }}<span class="count">{{ plans.length }}</span></AppHeading><p>{{ t('pelicanTests.plans.hint') }}</p></div>
           </header>
-          <div v-if="!plansLoaded" class="space-y-3 p-5" role="status">
+          <LoadingRegion v-if="!plansLoaded" class="space-y-3 p-5">
             <span v-for="n in 3" :key="n" class="block h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-dark-800" />
-          </div>
+          </LoadingRegion>
           <div v-else-if="!plans.length" class="empty-state">
             <Icon name="beaker" size="xl" />
             <p>{{ t('pelicanTests.plans.empty') }}</p>
@@ -152,10 +152,10 @@
 
       <section class="history-card" data-testid="pelican-test-history">
         <header class="panel-heading">
-          <div><h3>{{ t('pelicanTests.history.title') }}</h3><p>{{ t('pelicanTests.history.hint') }}</p></div>
+          <div><AppHeading variant="subsection" as="h3">{{ t('pelicanTests.history.title') }}</AppHeading><p>{{ t('pelicanTests.history.hint') }}</p></div>
         </header>
         <div class="history-scroll">
-          <DataTable
+          <DataTable column-order-key="admin-pelican-history"
  :columns="openRecordColumns"
  :primary-columns="['time','group','model','result','cost','actions']"
  :data="results" :row-attrs="row => ({ 'data-testid': `pelican-result-${row.id}` })" row-key="id" :loading="resultsLoading">
@@ -246,7 +246,7 @@
         </div>
         <div class="enable-row mb-0">
           <span><strong>{{ t('pelicanTests.editor.enabled') }}</strong></span>
-          <Toggle v-model="editor.form.enabled" data-testid="pelican-test-enabled" />
+          <Toggle :aria-label="t('pelicanTests.editor.enabled')" v-model="editor.form.enabled" data-testid="pelican-test-enabled" />
         </div>
       </form>
       <template #footer>
@@ -272,7 +272,7 @@
         <div class="min-h-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 dark:border-dark-700 dark:bg-dark-900">
           <PelicanArtworkPreview v-if="preview.status === 'ready'" :html="preview.html" :title="previewTitle" />
           <div v-else class="flex h-full items-center justify-center p-6 text-sm text-gray-500">
-            <span v-if="preview.status === 'loading'" class="animate-pulse">{{ t('pelicanTests.history.previewLoading') }}</span>
+            <span v-if="preview.status === 'loading'" class="animate-pulse" role="status" aria-busy="true">{{ t('pelicanTests.history.previewLoading') }}</span>
             <span v-else-if="preview.status === 'invalid'">{{ t('pelicanTests.history.invalidHtml') }}</span>
             <span v-else class="text-red-500">{{ t('pelicanTests.history.previewLoadFailed') }}</span>
           </div>
@@ -292,7 +292,7 @@
       @close="showApiInfo = false"
     />
 
-    <ConfirmDialog
+    <ConfirmDialog :busy="removePlanAction.busy.value"
       :show="deleting !== null"
       :title="t('pelicanTests.plans.deleteTitle')"
       :message="t('pelicanTests.plans.deleteConfirm')"
@@ -305,6 +305,8 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
@@ -313,6 +315,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Select from '@/components/common/Select.vue'
@@ -592,21 +595,26 @@ async function runNow(plan: PelicanGroupTestPlan) {
   }
 }
 
-async function removePlan() {
-  const plan = deleting.value
-  deleting.value = null
-  if (!plan) return
-  pending[plan.id] = 'delete'
-  try {
-    await pelicanTestsAPI.deletePlan(plan.id)
-    plans.value = plans.value.filter((item) => item.id !== plan.id)
-    succeed(t('pelicanTests.plans.deleted'))
-    await loadResults()
-  } catch (err: unknown) {
-    fail(err, t('pelicanTests.plans.actionFailed'))
-  } finally {
-    delete pending[plan.id]
-  }
+function removePlan() {
+  return removePlanAction.run(async (isCurrent) => {
+    const plan = deleting.value
+    if (!plan) return
+    pending[plan.id] = 'delete'
+    try {
+      await pelicanTestsAPI.deletePlan(plan.id)
+      if (!isCurrent()) return
+      plans.value = plans.value.filter((item) => item.id !== plan.id)
+      deleting.value = null
+      succeed(t('pelicanTests.plans.deleted'))
+      await loadResults()
+      if (!isCurrent()) return
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      fail(err, t('pelicanTests.plans.actionFailed'))
+    } finally {
+      delete pending[plan.id]
+    }
+  })
 }
 
 async function openPreview(result: PelicanGroupTestResult) {
@@ -638,20 +646,22 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('pelicanTests.
   { key: 'duration', label: t('pelicanTests.history.duration'), sortable: false },
   { key: 'cost', label: t('pelicanTests.cost.column'), sortable: false },
   { key: 'actions', label: "Actions", sortable: false }])
+
+// Direct confirmations share one execution and stale-context contract.
+const removePlanAction = useConfirmedAction(() => ({ active: deleting.value !== null, identity: deleting.value?.id }))
+watch(() => ({ active: deleting.value !== null, identity: JSON.stringify(deleting.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { deleting.value = null } }, { flush: 'sync' })
 </script>
 
 <style scoped>
 .pelican-tests { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .ops-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
 .eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
-.ops-heading h2 { @apply text-2xl font-semibold tracking-tight; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 .ops-columns { display: grid; grid-template-columns: minmax(300px, .32fr) minmax(0, .68fr); gap: 20px; align-items: start; }
 .settings-card, .plans-card, .history-card { @apply min-w-0 overflow-hidden     border-t border-gray-200 dark:border-dark-700; }
 .history-card { @apply mt-5; }
 .section-title { @apply flex items-center gap-3 border-b border-gray-100 p-5 dark:border-dark-700; }
 .icon-tile { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/30 dark:text-primary-400; }
-.section-title h3, .panel-heading h3 { @apply text-base font-semibold; }
 .section-title p, .panel-heading p { @apply mt-1 text-xs leading-relaxed text-gray-400; }
 .settings-form { @apply p-5; }
 .enable-row { @apply mb-2 flex items-center justify-between gap-4; }

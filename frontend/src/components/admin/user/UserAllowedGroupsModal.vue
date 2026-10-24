@@ -14,7 +14,7 @@
 
       <!-- 加载状态 -->
       <div v-if="loading" class="flex justify-center py-12">
-        <svg class="h-10 w-10 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
+        <svg role="status" :aria-label="t('common.loading')" class="h-10 w-10 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -25,7 +25,7 @@
         <div v-if="exclusiveGroups.length > 0">
           <div class="mb-3 flex items-center gap-2">
             <div class="h-1.5 w-1.5 rounded-full bg-purple-500"></div>
-            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.users.exclusiveGroups') }}</h4>
+            <AppHeading as="h4" variant="minor" class="text-gray-700 dark:text-gray-300">{{ t('admin.users.exclusiveGroups') }}</AppHeading>
             <span class="text-xs text-gray-400">({{ exclusiveGroupConfigs.filter(c => c.isSelected).length }}/{{ exclusiveGroupConfigs.length }})</span>
           </div>
           <div class="grid gap-3">
@@ -97,9 +97,9 @@
         <div v-if="publicGroups.length > 0">
           <div class="mb-3 flex flex-wrap items-center gap-2">
             <div class="h-1.5 w-1.5 rounded-full bg-green-500"></div>
-            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <AppHeading as="h4" variant="minor" class="text-gray-700 dark:text-gray-300">
               {{ restrictPublicGroups ? t('admin.users.publicGroupsRestricted') : t('admin.users.publicGroups') }}
-            </h4>
+            </AppHeading>
             <span class="text-xs text-gray-400">({{ publicGroupConfigs.length }})</span>
             <label class="ml-auto flex cursor-pointer items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
               <input
@@ -201,6 +201,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

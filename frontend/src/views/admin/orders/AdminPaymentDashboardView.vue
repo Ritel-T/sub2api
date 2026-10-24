@@ -33,7 +33,7 @@
         <DailyRevenueChart :data="stats.daily_series || []" :loading="loading" />
         <div class="open-main-aside">
           <div class="open-section">
-            <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('payment.admin.paymentDistribution') }}</h3>
+            <AppHeading variant="subsection" as="h3" class="mb-4 text-gray-900 dark:text-white">{{ t('payment.admin.paymentDistribution') }}</AppHeading>
             <div v-if="!stats.payment_methods?.length" class="flex h-32 items-center justify-center text-sm text-gray-500 dark:text-gray-400">{{ t('payment.admin.noData') }}</div>
             <div v-else class="space-y-3">
               <div v-for="method in stats.payment_methods" :key="method.type" class="flex items-center justify-between">
@@ -49,7 +49,7 @@
             </div>
           </div>
           <div class="open-section">
-            <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('payment.admin.topUsers') }}</h3>
+            <AppHeading variant="subsection" as="h3" class="mb-4 text-gray-900 dark:text-white">{{ t('payment.admin.topUsers') }}</AppHeading>
             <div v-if="!hasTopUsers(stats.top_users)" class="flex h-32 items-center justify-center text-sm text-gray-500 dark:text-gray-400">{{ t('payment.admin.noData') }}</div>
             <div v-else class="space-y-2">
               <div v-for="[currency, users] in sortedTopUsers(stats.top_users)" :key="currency" class="space-y-2">
@@ -71,6 +71,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

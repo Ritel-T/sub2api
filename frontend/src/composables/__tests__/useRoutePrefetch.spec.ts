@@ -43,16 +43,11 @@ const createMockRouter = (): Router => {
 }
 
 describe('useRoutePrefetch', () => {
-  let originalRequestIdleCallback: typeof window.requestIdleCallback
-  let originalCancelIdleCallback: typeof window.cancelIdleCallback
   let mockRouter: Router
 
   beforeEach(() => {
+    vi.useFakeTimers()
     mockRouter = createMockRouter()
-
-    // 保存原始函数
-    originalRequestIdleCallback = window.requestIdleCallback
-    originalCancelIdleCallback = window.cancelIdleCallback
 
     // Mock requestIdleCallback 立即执行
     vi.stubGlobal('requestIdleCallback', (cb: IdleRequestCallback) => {
@@ -63,10 +58,10 @@ describe('useRoutePrefetch', () => {
   })
 
   afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
-    // 恢复原始函数
-    window.requestIdleCallback = originalRequestIdleCallback
-    window.cancelIdleCallback = originalCancelIdleCallback
   })
 
   describe('_isAdminRoute', () => {
@@ -119,7 +114,7 @@ describe('useRoutePrefetch', () => {
       triggerPrefetch(route)
 
       // 等待 requestIdleCallback 执行
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await vi.advanceTimersByTimeAsync(0)
 
       expect(prefetchedRoutes.value.has('/admin/dashboard')).toBe(true)
     })
@@ -129,11 +124,11 @@ describe('useRoutePrefetch', () => {
       const route = createMockRoute('/admin/dashboard')
 
       triggerPrefetch(route)
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await vi.advanceTimersByTimeAsync(0)
 
       // 第二次触发
       triggerPrefetch(route)
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await vi.advanceTimersByTimeAsync(0)
 
       // 只应该预加载一次
       expect(prefetchedRoutes.value.size).toBe(1)
@@ -164,7 +159,7 @@ describe('useRoutePrefetch', () => {
       triggerPrefetch(createMockRoute('/admin/users'))
 
       // 等待执行
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await vi.advanceTimersByTimeAsync(0)
 
       // 只有最后一个路由应该被预加载
       expect(prefetchedRoutes.value.has('/admin/users')).toBe(true)
@@ -177,7 +172,7 @@ describe('useRoutePrefetch', () => {
       const route = createMockRoute('/admin/dashboard')
 
       triggerPrefetch(route)
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await vi.advanceTimersByTimeAsync(0)
 
       expect(prefetchedRoutes.value.size).toBeGreaterThan(0)
 
@@ -212,8 +207,10 @@ describe('useRoutePrefetch', () => {
 
       triggerPrefetch(route)
 
-      // 等待超时执行
-      await new Promise((resolve) => setTimeout(resolve, 2100))
+      // 到达实际 2000ms 超时边界才执行，不进行真实等待。
+      await vi.advanceTimersByTimeAsync(1999)
+      expect(prefetchedRoutes.value.has('/dashboard')).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
 
       expect(prefetchedRoutes.value.has('/dashboard')).toBe(true)
     })
@@ -235,7 +232,7 @@ describe('useRoutePrefetch', () => {
       const route = createMockRoute('/admin/dashboard')
 
       triggerPrefetch(route)
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await vi.advanceTimersByTimeAsync(0)
 
       // 没有 router，无法获取组件，所以不会预加载
       expect(prefetchedRoutes.value.size).toBe(0)

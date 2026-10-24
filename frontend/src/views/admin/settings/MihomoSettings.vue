@@ -23,7 +23,7 @@
 
     <template v-if="section === 'subscriptions'">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 class="font-semibold">{{ text('Mihomo 订阅', 'Mihomo subscriptions') }}</h2><p class="mt-1 text-xs text-gray-500">{{ text('按订阅管理来源；地址和令牌不回显。添加订阅不会替换其他来源。', 'Manage each source independently. URLs and tokens stay hidden; adding a subscription preserves other sources.') }}</p></div>
+        <div><AppHeading variant="section" as="h2">{{ text('Mihomo 订阅', 'Mihomo subscriptions') }}</AppHeading><p class="mt-1 text-xs text-gray-500">{{ text('按订阅管理来源；地址和令牌不回显。添加订阅不会替换其他来源。', 'Manage each source independently. URLs and tokens stay hidden; adding a subscription preserves other sources.') }}</p></div>
         <button type="button" class="btn btn-primary" :disabled="busy || !status?.installed" @click="openSubscription()">{{ text('添加订阅', 'Add subscription') }}</button>
       </div>
       <div class="open-section">
@@ -38,7 +38,7 @@
         </div>
         <p class="mt-2 text-xs text-gray-500">{{ text('仅影响订阅文件下载，不改变打票或账号业务出口。自动模式在代理下载失败或内容无效时尝试直连；仅代理模式不会回退直连。', 'Only affects subscription downloads, not ticket or account traffic. Auto retries direct after a failed or invalid proxy response; proxy-only never falls back to direct.') }}</p>
       </div>
-      <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
+      <div class="open-filter-toolbar workspace-filter-controls flex flex-wrap items-center gap-3">
         <div ref="tableTools0" class="min-w-0" />
         <input v-model="search" type="search" class="input sm:max-w-xs" :placeholder="text('搜索订阅名称', 'Search subscription names')" :aria-label="text('搜索订阅', 'Search subscriptions')" />
         <div v-if="selected.length" class="flex flex-wrap items-center gap-2 text-sm">
@@ -69,7 +69,7 @@
 
     <template v-if="section === 'dynamic' || section === 'nodes'">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 class="font-semibold">{{ section === 'dynamic' ? text('动态代理', 'Dynamic proxies') : text('节点管理', 'Node management') }}</h2><p class="mt-1 text-xs text-gray-500">{{ text('测试连接与质量检测通过独立内核只经该节点出口，不调用模型，也不改变节点状态；“检测”会按结果标记检测失败或恢复节点。订阅节点从所属订阅移除；动态代理可单独删除。', 'Test connection and quality check route through an isolated kernel using only that node; they call no models and never change node state. “Probe” marks the node failed or recovers it. Remove subscription nodes through their source; dynamic proxies can be deleted individually.') }}</p></div>
+        <div><AppHeading variant="section" as="h2">{{ section === 'dynamic' ? text('动态代理', 'Dynamic proxies') : text('节点管理', 'Node management') }}</AppHeading><p class="mt-1 text-xs text-gray-500">{{ text('测试连接与质量检测通过独立内核只经该节点出口，不调用模型，也不改变节点状态；“检测”会按结果标记检测失败或恢复节点。订阅节点从所属订阅移除；动态代理可单独删除。', 'Test connection and quality check route through an isolated kernel using only that node; they call no models and never change node state. “Probe” marks the node failed or recovers it. Remove subscription nodes through their source; dynamic proxies can be deleted individually.') }}</p></div>
         <div class="flex flex-wrap gap-2">
           <button type="button" class="btn btn-secondary" :disabled="!status?.installed || batchTesting || !nodeBatchTargets.length" @click="batchTestNodes">{{ t('admin.proxies.testConnection') }}</button>
           <button type="button" class="btn btn-secondary" :disabled="!status?.installed || batchQualityChecking || !nodeBatchTargets.length" @click="batchCheckNodeQuality">{{ t('admin.proxies.batchQualityCheck') }}</button>
@@ -78,7 +78,7 @@
           <button v-if="section === 'dynamic'" type="button" class="btn btn-primary" :disabled="busy || !status?.installed" @click="dynamicDialog = true">{{ text('导入动态代理', 'Import dynamic proxies') }}</button>
         </div>
       </div>
-      <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
+      <div class="open-filter-toolbar workspace-filter-controls flex flex-wrap items-center gap-3">
         <div ref="tableTools1" class="min-w-0" />
         <input v-model="search" type="search" class="input sm:max-w-xs" :placeholder="text('搜索节点名称或地区', 'Search node names or regions')" :aria-label="text('搜索节点', 'Search nodes')" />
         <select v-model="nodeState" class="input w-auto" :aria-label="text('节点状态', 'Node status')">
@@ -90,7 +90,7 @@
         </select>
         <span class="text-xs text-gray-500" data-testid="node-batch-scope">{{ selectedNodes.length ? text(`批量检测已选的 ${nodeBatchTargets.length} 个节点`, `Batch checks cover ${nodeBatchTargets.length} selected nodes`) : text(`未选择时批量检测当前筛选的全部 ${nodeBatchTargets.length} 个节点`, `Without a selection, batch checks cover all ${nodeBatchTargets.length} filtered nodes`) }}</span>
       </div>
-      <DataTable :toolbar-target="tableTools1" column-order-key="table-columns:mihomo-nodes:v1" v-model:selected-keys="selectedNodes" :columns="nodeColumns" :data="pagedNodes" row-key="name" selectable :loading="loading">
+      <DataTable :toolbar-target="tableTools1" column-order-key="table-columns:mihomo-nodes:v1" v-model:selected-keys="selectedNodes" :columns="nodeColumns" :data="visibleNodes" row-key="name" selectable :loading="loading">
         <template #cell-display_name="{ row }"><span>{{ row.display_name || row.name }}</span><span v-if="row.static_proxy" class="badge badge-primary ml-2">{{ text('已添加静态代理', 'Static proxy added') }}</span></template>
         <template #cell-source="{ row }">{{ nodeSourceLabel(row) }}</template>
         <template #cell-state="{ row }"><span class="badge" :class="row.state === 'enabled' ? 'badge-success' : 'badge-gray'">{{ stateLabel(row.state) }}</span></template>
@@ -119,14 +119,12 @@
           </div>
         </template>
       </DataTable>
-      <div class="flex items-center justify-between text-sm">
-        <span>{{ text('共', 'Total') }} {{ filteredNodes.length }} {{ text('个节点', 'nodes') }} · {{ page }} / {{ totalPages }}</span>
-        <div class="flex gap-2"><button type="button" class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="page--">{{ text('上一页', 'Previous') }}</button><button type="button" class="btn btn-secondary btn-sm" :disabled="page >= totalPages" @click="page++">{{ text('下一页', 'Next') }}</button></div>
-      </div>
+      <p class="text-sm">{{ text('共', 'Total') }} {{ filteredNodes.length }} {{ text('个节点', 'nodes') }}</p>
+      <InfiniteListSentinel :loading="loading" :has-more="visibleNodes.length < filteredNodes.length" :progress="visibleNodes.length" @load-more="visibleNodeCount += 50" />
     </template>
 
     <template v-if="section === 'kernel'">
-      <h2 class="font-semibold">{{ text('内核与地区规则', 'Kernel and region rules') }}</h2>
+      <AppHeading variant="section" as="h2">{{ text('内核与地区规则', 'Kernel and region rules') }}</AppHeading>
       <div class="flex flex-wrap gap-2">
         <button v-if="status && !status.installed" type="button" class="btn btn-primary" :disabled="busy || !status.supported" @click="operate('install')">{{ text('检测并安装', 'Install kernel') }}</button>
         <button v-else-if="!status?.running" type="button" class="btn btn-secondary" :disabled="busy || !status?.nodes" @click="operate('start')">{{ text('启动内核', 'Start kernel') }}</button>
@@ -185,19 +183,22 @@ http://username:password@hostname:port</pre></details>
       </div>
       <template #footer><button type="button" class="btn btn-primary" :disabled="busy || !dynamicProxies.trim()" @click="saveDynamic">{{ text('应用动态代理', 'Apply dynamic proxies') }}</button></template>
     </BaseDialog>
-    <ConfirmDialog :show="!!confirmation" :title="text('确认变更代理来源', 'Confirm proxy source changes')" :message="confirmation?.message || ''" danger @cancel="confirmation = undefined" @confirm="confirmActions" />
+    <ConfirmDialog :busy="confirmActionsAction.busy.value || busy" :show="!!confirmation" :title="text('确认变更代理来源', 'Confirm proxy source changes')" :message="confirmation?.message || ''" danger @cancel="confirmation = undefined" @confirm="confirmActions" />
     <ProxyQualityReportDialog :show="!!qualityReport" :name="qualityReportName" :report="qualityReport" @close="qualityReport = null" />
   </div>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { localizeInlineText } from '@/i18n/inline'
 import { computed, ref, onMounted, onUnmounted, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiClient } from '@/api/client'
 import { useAppStore } from '@/stores/app'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ProxyQualityReportDialog from '@/components/admin/proxy/ProxyQualityReportDialog.vue'
 import MihomoCountryFilter from './MihomoCountryFilter.vue'
@@ -256,7 +257,7 @@ const nodeQualityTimeout = 150000
 const search = ref('')
 const nodeState = ref('')
 const nodeSource = ref('')
-const page = ref(1)
+const visibleNodeCount = ref(50)
 const nodeStates = ['enabled', 'disabled', 'failed', 'used', 'country_excluded']
 const confirmation = ref<{ actions: string[]; message: string; payload?: Payload }>()
 const stateLabel = (state: string) => ({ enabled: text('启用', 'Enabled'), disabled: text('停用', 'Disabled'), failed: text('检测失败', 'Failed'), used: text('已使用', 'Used'), country_excluded: text('地区已排除', 'Region excluded') }[state] || state)
@@ -279,8 +280,7 @@ const filteredNodes = computed(() => (status.value?.node_states || []).filter(n 
   (!nodeSource.value || (nodeSource.value === 'dynamic' ? n.dynamic : n.subscription_ids?.includes(nodeSource.value))) &&
   ((n.display_name || n.name) + ' ' + (n.country_code || '')).toLowerCase().includes(search.value.trim().toLowerCase())
 ))
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredNodes.value.length / 50)))
-const pagedNodes = computed(() => filteredNodes.value.slice((page.value - 1) * 50, page.value * 50))
+const visibleNodes = computed(() => filteredNodes.value.slice(0, visibleNodeCount.value))
 const selectedNodeTargets = computed(() => {
   const selected = new Set(selectedNodes.value)
   return filteredNodes.value.filter(node => selected.has(node.name))
@@ -291,9 +291,8 @@ const nodeBatchTargets = computed(() => {
   const chosen = new Set(selectedNodes.value)
   return filteredNodes.value.filter(n => chosen.has(n.name))
 })
-watch([search, nodeState, nodeSource, () => props.section], () => { page.value = 1; selected.value = []; selectedNodes.value = [] })
+watch([search, nodeState, nodeSource, () => props.section], () => { visibleNodeCount.value = 50; selected.value = []; selectedNodes.value = [] })
 watch(() => props.section, () => { search.value = ''; nodeSource.value = ''; nodeState.value = '' })
-watch(totalPages, count => { page.value = Math.min(page.value, count) })
 function nodeSourceLabel(node: ManagedNode) {
   if (node.dynamic) return text('动态代理', 'Dynamic proxy')
   return node.subscription_ids?.map(id => status.value?.subscription_items?.find(s => s.id === id)?.label || id.slice(0, 8)).join(', ') || text('订阅（待更新来源）', 'Subscription (refresh to identify)')
@@ -486,21 +485,26 @@ async function refresh() {
   } catch { if (!disposed) error.value = text('无法读取内核状态', 'Cannot read kernel status') }
   finally { loading.value = false; scheduleRefresh() }
 }
-async function operate(action: string, payload: Payload = {}): Promise<boolean> {
+async function operate(action: string, payload: Payload = {}, isCurrent: () => boolean = () => !disposed): Promise<boolean> {
   pending.value = true; error.value = ''; success.value = ''
   if (timer) clearTimeout(timer)
   try {
-    status.value = (await apiClient.post<Status>('/admin/system/mihomo', { action, subscriptions: [], dynamic_proxies: [], append: false, ...payload })).data
+    const response = await apiClient.post<Status>('/admin/system/mihomo', { action, subscriptions: [], dynamic_proxies: [], append: false, ...payload })
+    if (!isCurrent()) return false
+    status.value = response.data
     while (status.value.busy && !disposed) {
       await new Promise(resolve => setTimeout(resolve, 1500))
-      if (disposed) return false
-      status.value = (await apiClient.get<Status>('/admin/system/mihomo')).data
+      if (!isCurrent()) return false
+      const response = await apiClient.get<Status>('/admin/system/mihomo')
+      if (!isCurrent()) return false
+      status.value = response.data
     }
-    if (disposed) return false
+    if (!isCurrent()) return false
     if (status.value.error) { error.value = status.value.error; return false }
     success.value = text('变更已应用', 'Changes applied')
     return true
   } catch (cause: unknown) {
+    if (!isCurrent()) return false
     error.value = (cause as { message?: string })?.message || text('操作未完成，请重试', 'Operation failed. Please retry.')
     return false
   } finally { pending.value = false; scheduleRefresh() }
@@ -536,15 +540,18 @@ async function saveDynamic() {
 function confirmRemoval(actions: string[]) {
   confirmation.value = { actions, message: text('移除这些来源及其独有节点？其他来源会保留，正在使用被移除出口的会话可能受影响。移除最后一个来源后将拒绝代理流量。', 'Remove these sources and their exclusive nodes? Other sources are preserved; sessions using removed exits may be affected. Removing the last source rejects proxy traffic.') }
 }
-async function confirmActions() {
+function confirmActions() {
+ return confirmActionsAction.run(async (isCurrent) => {
   const task = confirmation.value
-  confirmation.value = undefined
-  if (!task) return
+  if (!task || busy.value) return
   for (const action of task.actions) {
-    if (!await operate(action, task.payload)) return
+    if (!isCurrent() || !await operate(action, task.payload, isCurrent)) return
+    if (!isCurrent()) return
     selected.value = selected.value.filter(id => !action.endsWith('/' + id))
   }
   if (task.actions.includes('dynamic_replace')) { dynamicProxies.value = ''; dynamicDialog.value = false }
+  confirmation.value = undefined
+ })
 }
 async function batchSubscriptions(action: string) {
   const targets = [...selected.value]
@@ -563,4 +570,7 @@ async function importFile(event: Event) {
 }
 onMounted(refresh)
 onUnmounted(() => { disposed = true; if (timer) clearTimeout(timer) })
+const confirmActionsAction = useConfirmedAction(() => ({ active: !!confirmation.value, identity: [props.section, confirmation.value] }))
+watch(() => props.section, () => { confirmation.value = undefined }, { flush: 'sync' })
+watch(dynamicDialog, (show, previous) => { if (previous && !show && confirmation.value?.actions.includes('dynamic_replace')) confirmation.value = undefined }, { flush: 'sync' })
 </script>

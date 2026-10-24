@@ -87,9 +87,14 @@
       </div>
     </template>
   </BaseDialog>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
@@ -164,7 +169,7 @@ watch(
 )
 
 const handleSubmit = async () => {
-  if (!canSubmit.value) return
+    if (!canSubmit.value) return
 
   const request: BatchUpdateUserLimitsRequest = {
     user_ids: [...props.selectedIds],
@@ -186,28 +191,30 @@ const handleSubmit = async () => {
     )
   }
 
-  const confirmed = window.confirm(
-    t('admin.users.bulkLimits.confirm', {
+  await confirmation.run({ message: t('admin.users.bulkLimits.confirm', {
       count: props.selectedIds.length,
       fields: fields.join(', ')
-    })
-  )
-  if (!confirmed) return
-
-  submitting.value = true
-  try {
-    const result = await adminAPI.users.batchUpdateLimits(request)
-    appStore.showSuccess(
-      t('admin.users.bulkLimits.success', { count: result.affected })
-    )
-    emit('success', result.affected)
-    emit('close')
-  } catch (error: any) {
-    appStore.showError(
-      extractApiErrorMessage(error, t('admin.users.bulkLimits.failed'))
-    )
-  } finally {
-    submitting.value = false
-  }
+    }), title: t('common.apply'), confirmText: t('common.apply'), danger: true }, async (isCurrent) => {
+    submitting.value = true
+    try {
+      const result = await adminAPI.users.batchUpdateLimits(request)
+      if (!isCurrent()) return
+      appStore.showSuccess(
+        t('admin.users.bulkLimits.success', { count: result.affected })
+      )
+      emit('success', result.affected)
+      emit('close')
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(
+        extractApiErrorMessage(error, t('admin.users.bulkLimits.failed'))
+      )
+    } finally {
+      submitting.value = false
+    }
+  })
 }
+
+// Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+const confirmation = useConfirmation(() => ({ active: props.show, identity: props.selectedIds }))
 </script>

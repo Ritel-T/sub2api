@@ -1,18 +1,18 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="open-page mb-4" />
     <div class="open-page min-w-0 space-y-5">
-      <header><h1 class="text-2xl font-semibold">{{ t('priorityScheduling.title') }}</h1><p class="mt-2 text-sm text-gray-500">{{ t('priorityScheduling.description') }}</p></header>
+      <header><AppHeading variant="page" as="h1">{{ t('priorityScheduling.title') }}</AppHeading><p class="mt-2 text-sm text-gray-500">{{ t('priorityScheduling.description') }}</p></header>
       <p class="rounded-xl bg-primary-50 p-4 text-sm leading-6 text-primary-800 dark:bg-primary-950/30 dark:text-primary-200">{{ t('priorityScheduling.scopeNote') }}</p>
       <div v-if="error" role="alert" class="text-red-600">{{ error }} <button v-if="!draft" class="underline" @click="load">{{ t('priorityScheduling.retry') }}</button></div>
       <p v-if="notice" role="status" class="text-emerald-600">{{ notice }}</p>
       <p v-if="loading">{{ t('priorityScheduling.loading') }}</p>
       <form v-if="draft" class="card p-5" @submit.prevent="save">
         <fieldset :disabled="saving" class="min-w-0 space-y-5">
-          <label class="flex items-center gap-3 font-medium"><input v-model="draft.enabled" data-testid="enabled" type="checkbox" role="switch" />{{ t('priorityScheduling.enabled') }}</label>
+          <label class="flex items-center gap-3 font-medium"><Toggle v-model="draft.enabled" data-testid="enabled" :aria-label="t('priorityScheduling.enabled')" />{{ t('priorityScheduling.enabled') }}</label>
           <label class="block text-sm"><span class="flex items-center gap-3"><input v-model="draft.balance_protocols" data-testid="balance-protocols" type="checkbox" />{{ t('priorityScheduling.balanceProtocols') }}</span><small class="mt-1 block text-gray-500">{{ t('priorityScheduling.balanceProtocolsHint') }}</small></label>
           <section class="open-section">
-            <label class="flex items-center gap-3 font-medium"><input v-model="draft.oauth_quota_priority" data-testid="oauth-quota-priority" type="checkbox" role="switch" />{{ t('priorityScheduling.oauthQuotaPriority') }}</label>
+            <label class="flex items-center gap-3 font-medium"><Toggle :model-value="!!draft.oauth_quota_priority" @update:model-value="draft.oauth_quota_priority = $event" data-testid="oauth-quota-priority" :aria-label="t('priorityScheduling.oauthQuotaPriority')" />{{ t('priorityScheduling.oauthQuotaPriority') }}</label>
             <p class="mt-2 text-sm leading-6 text-gray-500">{{ t('priorityScheduling.oauthQuotaHint') }}</p>
             <label v-if="draft.oauth_quota_priority" class="mt-3 block max-w-xs"><span class="field-title">{{ t('priorityScheduling.oauthQuotaThreshold') }}</span><input v-model.number="draft.oauth_quota_threshold" data-testid="oauth-quota-threshold" type="number" min="1" max="100" step="1" required class="input w-full" /></label>
           </section>
@@ -31,14 +31,14 @@
                 <label><span class="field-title">{{ t('priorityScheduling.latencyMeasurement') }}</span><select v-model="draft.latency_measurement" data-testid="latency-measurement" class="input w-full"><option value="legacy_forward">{{ t('priorityScheduling.legacyForward') }}</option><option value="attributed_v1">{{ t('priorityScheduling.attributedV1') }}</option></select></label>
               </div>
               <p class="mb-3 text-xs leading-5 text-gray-500">{{ t('priorityScheduling.measurementHint') }}</p>
-              <h2 class="mb-3 font-medium">{{ t('priorityScheduling.thresholds') }}</h2><div class="grid gap-3 sm:grid-cols-2"><label v-for="field in fields" :key="field.key"><span class="field-title">{{ t(`priorityScheduling.${field.key}`) }}</span><input v-model.number="draft[field.key]" type="number" :data-testid="field.key" :min="field.min" :max="field.max" step="1" required class="input w-full" /></label></div><p class="mt-3 text-xs leading-5 text-gray-500">{{ t('priorityScheduling.latencyPenaltyHint') }}</p></section>
+              <AppHeading variant="section" as="h2" class="mb-3">{{ t('priorityScheduling.thresholds') }}</AppHeading><div class="grid gap-3 sm:grid-cols-2"><label v-for="field in fields" :key="field.key"><span class="field-title">{{ t(`priorityScheduling.${field.key}`) }}</span><input v-model.number="draft[field.key]" type="number" :data-testid="field.key" :min="field.min" :max="field.max" step="1" required class="input w-full" /></label></div><p class="mt-3 text-xs leading-5 text-gray-500">{{ t('priorityScheduling.latencyPenaltyHint') }}</p></section>
           </div>
           <div class="grid gap-5 sm:grid-cols-2"><label><span class="field-title">{{ t('priorityScheduling.groupIds') }}</span><input v-model="groups" class="input w-full" data-testid="groups" /><small class="text-gray-500">{{ t('priorityScheduling.groupHint') }}</small></label><label><span class="field-title">{{ t('priorityScheduling.models') }}</span><textarea v-model="modelsText" class="input w-full" rows="3" /><small class="text-gray-500">{{ t('priorityScheduling.modelHint') }}</small></label></div>
           <button class="btn btn-primary" type="submit">{{ t(saving ? 'priorityScheduling.saving' : 'priorityScheduling.save') }}</button>
         </fieldset>
       </form>
       <section class="open-section p-5">
-        <header class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-lg font-semibold">{{ t('priorityScheduling.recent') }}</h2><button class="btn btn-secondary" :disabled="refreshing" @click="refresh">{{ t('priorityScheduling.refresh') }}</button></header>
+        <header class="flex flex-wrap items-center justify-between gap-3"><AppHeading variant="section" as="h2">{{ t('priorityScheduling.recent') }}</AppHeading><button class="btn btn-secondary" :disabled="refreshing" @click="refresh">{{ t('priorityScheduling.refresh') }}</button></header>
         <p class="my-3 text-xs leading-5 text-gray-500">{{ t('priorityScheduling.snapshotHint') }}</p>
         <p v-if="snapshot && contextAccountId && !visibleCandidates.length" class="py-4 text-sm">{{ t('common.noData') }}</p>
         <p v-if="snapshotError" role="alert" class="text-red-600">{{ snapshotError }}</p>
@@ -50,7 +50,7 @@
           <p v-if="snapshot.history_error && snapshot.history_ready" class="text-sm text-amber-600">{{ t('priorityScheduling.historyRetry') }}</p>
           <p v-if="snapshot.evaluated_at" data-testid="priority-evaluated-at" class="mb-3 text-xs text-gray-500">{{ t('priorityScheduling.evaluatedAt') }}: {{ new Date(snapshot.evaluated_at).toLocaleString() }}<template v-if="snapshot.history_observed_at"> · {{ t('priorityScheduling.historyObservedAt') }}: {{ new Date(snapshot.history_observed_at).toLocaleString() }}</template></p>
           <p class="mb-3 text-xs text-gray-500">P{{ snapshot.latency_percentile ?? 90 }} · {{ snapshot.latency_measurement ?? 'legacy_forward' }} · {{ t('priorityScheduling.window_minutes') }}: {{ snapshot.window_minutes ?? '—' }} · {{ t('priorityScheduling.configRevision') }}: {{ snapshot.config_revision ?? '—' }}<template v-if="snapshot.history_window_end"> · {{ t('priorityScheduling.windowEnd') }}: {{ new Date(snapshot.history_window_end).toLocaleString() }}</template></p>
-          <div v-if="visibleCandidates.length" data-testid="priority-candidate-scroll" class="overflow-x-auto"><DataTable
+          <div v-if="visibleCandidates.length" data-testid="priority-candidate-scroll" class="overflow-x-auto overflow-y-hidden"><DataTable column-order-key="admin-priority-candidates"
  :columns="openRecordColumns"
  :primary-columns="openRecordColumns.map(column => column.key)"
  :data="visibleCandidates" row-key="account_id" >
@@ -71,6 +71,8 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 const contextRoute = useRoute()
 const contextAccountId = computed(() => objectQueryId(contextRoute?.query?.account_id))

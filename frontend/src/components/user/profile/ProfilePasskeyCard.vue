@@ -2,9 +2,9 @@
   <div class="open-settings-section">
     <div class="flex items-start justify-between min-w-0">
       <div>
-        <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+        <AppHeading as="h2" variant="section" class="text-gray-900 dark:text-white">
           {{ t('profile.passkey.title') }}
-        </h2>
+        </AppHeading>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {{ t('profile.passkey.description') }}
         </p>
@@ -70,7 +70,7 @@
         </form>
 
         <div v-if="loading" class="flex justify-center py-6">
-          <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-500"></div>
+          <div role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-500"></div>
         </div>
 
         <div
@@ -129,55 +129,63 @@
       </div>
     </div>
 
-    <!-- 删除确认：吊销凭据需验证当前密码，防止被窃会话静默移除 Passkey -->
-    <div v-if="deleteTarget" class="fixed inset-0 z-50 overflow-y-auto">
-      <div class="flex min-h-full items-center justify-center p-4">
-        <div class="fixed inset-0 bg-black/50 transition-opacity" @click="closeDeleteDialog"></div>
-        <div
-          class="relative w-full max-w-md transform rounded-xl bg-white p-6 shadow-xl transition-all dark:bg-dark-800"
-        >
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-            {{ t('profile.passkey.deleteTitle') }}
-          </h3>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {{ t('profile.passkey.deleteConfirm', { name: deleteTarget.name }) }}
-          </p>
-          <form class="mt-4 space-y-4" @submit.prevent="confirmDelete">
-            <div>
-              <label for="passkey-delete-password" class="input-label">{{
-                t('profile.currentPassword')
-              }}</label>
-              <input
-                id="passkey-delete-password"
-                v-model="deletePassword"
-                type="password"
-                autocomplete="current-password"
-                class="input"
-                :placeholder="t('profile.passkey.passwordPlaceholder')"
-                autofocus
-              />
-            </div>
-            <div class="flex justify-end gap-3">
-              <button type="button" class="btn btn-secondary" :disabled="busy" @click="closeDeleteDialog">
-                {{ t('common.cancel') }}
-              </button>
-              <button
-                type="submit"
-                class="btn btn-danger"
-                :disabled="busy || deletePassword.length === 0"
-              >
-                {{ busy ? t('common.processing') : t('common.delete') }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+    <BaseDialog
+      :show="!!renameTarget"
+      :title="t('profile.passkey.renamePrompt')"
+      width="narrow"
+      :show-close-button="!busy"
+      :close-on-escape="!busy"
+      :close-on-click-outside="!busy"
+      @close="closeRenameDialog"
+    >
+      <form :id="renameFormId" @submit.prevent="confirmRename">
+        <label :for="renameInputId" class="input-label">{{ t('profile.passkey.name') }}</label>
+        <input
+          :id="renameInputId"
+          v-model="renameName"
+          class="input"
+          maxlength="100"
+          :disabled="busy"
+          :placeholder="t('profile.passkey.namePlaceholder')"
+          autofocus
+        />
+      </form>
+      <template #footer>
+        <button type="button" class="btn btn-secondary" :disabled="busy" @click="closeRenameDialog">
+          {{ t('common.cancel') }}
+        </button>
+        <button type="submit" :form="renameFormId" class="btn btn-primary" :disabled="busy || !canRename">
+          {{ busy ? t('common.processing') : t('common.save') }}
+        </button>
+      </template>
+    </BaseDialog>
+
+    <!-- Revocation retains the current-password confirmation and original request flow. -->
+    <BaseDialog :show="!!deleteTarget" :title="t('profile.passkey.deleteTitle')" width="narrow"
+      :show-close-button="!busy" :close-on-escape="!busy" :close-on-click-outside="!busy" @close="requestDeleteClose">
+      <p v-if="deleteTarget" class="text-sm text-gray-500 dark:text-gray-400">
+        {{ t('profile.passkey.deleteConfirm', { name: deleteTarget.name }) }}
+      </p>
+      <form :id="deleteFormId" class="mt-4 space-y-4" @submit.prevent="confirmDelete">
+        <label for="passkey-delete-password" class="input-label">{{ t('profile.currentPassword') }}</label>
+        <input id="passkey-delete-password" v-model="deletePassword" type="password" autocomplete="current-password"
+          class="input" :disabled="busy" :placeholder="t('profile.passkey.passwordPlaceholder')" autofocus />
+      </form>
+      <template #footer>
+        <button type="button" class="btn btn-secondary" :disabled="busy" @click="requestDeleteClose">{{ t('common.cancel') }}</button>
+        <button type="submit" :form="deleteFormId" class="btn btn-danger" :disabled="busy || deletePassword.length === 0">
+          {{ busy ? t('common.processing') : t('common.delete') }}
+        </button>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import { computed, ref, watch, useId } from 'vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useConfirmedAction, useConfirmationContext } from '@/composables/useConfirmation'
 import { useI18n } from 'vue-i18n'
 import { passkeyAPI, type PasskeyCredentialSummary } from '@/api'
 import { Icon } from '@/components/icons'
@@ -187,6 +195,12 @@ const props = defineProps<{ enabled: boolean }>()
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const deleteFormId = useId()
+const renameFormId = useId()
+const renameInputId = useId()
+const renameTarget = ref<PasskeyCredentialSummary | null>(null)
+const renameName = ref('')
+const canRename = computed(() => !!renameName.value.trim() && renameName.value.trim() !== renameTarget.value?.name)
 const supported = passkeyAPI.isSupported()
 const loading = ref(false)
 const busy = ref(false)
@@ -196,6 +210,9 @@ const newPassword = ref('')
 const deleteTarget = ref<PasskeyCredentialSummary | null>(null)
 const deletePassword = ref('')
 const credentials = ref<PasskeyCredentialSummary[]>([])
+const deleteContext = useConfirmationContext(() => ({ active: props.enabled }))
+const deleteAction = useConfirmedAction(deleteContext)
+watch(deleteContext, () => { closeDeleteDialog() }, { deep: true, flush: 'sync' })
 
 // apiClient 拦截器把错误规范化为 { code, reason, message }；
 // 透出后端消息（如密码错误），否则回退到通用文案。
@@ -225,7 +242,7 @@ async function loadCredentials(): Promise<void> {
 }
 
 async function addPasskey(): Promise<void> {
-  if (newPassword.value.length === 0) return
+  if (busy.value || newPassword.value.length === 0) return
   busy.value = true
   try {
     await passkeyAPI.register(newName.value.trim(), newPassword.value)
@@ -247,13 +264,28 @@ function cancelAdd(): void {
   newPassword.value = ''
 }
 
-async function renamePasskey(credential: PasskeyCredentialSummary): Promise<void> {
-  const name = window.prompt(t('profile.passkey.renamePrompt'), credential.name)?.trim()
-  if (!name || name === credential.name) return
+function renamePasskey(credential: PasskeyCredentialSummary): void {
+  if (busy.value) return
+  renameTarget.value = credential
+  renameName.value = credential.name
+}
+
+function closeRenameDialog(): void {
+  if (busy.value) return
+  renameTarget.value = null
+  renameName.value = ''
+}
+
+async function confirmRename(): Promise<void> {
+  const credential = renameTarget.value
+  const name = renameName.value.trim()
+  if (busy.value || !credential || !canRename.value) return
   busy.value = true
   try {
     await passkeyAPI.rename(credential.id, name)
     credential.name = name
+    renameTarget.value = null
+    renameName.value = ''
     appStore.showSuccess(t('profile.passkey.renamed'))
   } catch {
     appStore.showError(t('profile.passkey.renameFailed'))
@@ -263,8 +295,13 @@ async function renamePasskey(credential: PasskeyCredentialSummary): Promise<void
 }
 
 function deletePasskey(credential: PasskeyCredentialSummary): void {
-  deleteTarget.value = credential
+  if (busy.value || deleteAction.busy.value || deleteTarget.value || !deleteContext().active) return
+  deleteTarget.value = { ...credential }
   deletePassword.value = ''
+}
+
+function requestDeleteClose(): void {
+  if (!busy.value) closeDeleteDialog()
 }
 
 function closeDeleteDialog(): void {
@@ -274,19 +311,23 @@ function closeDeleteDialog(): void {
 
 async function confirmDelete(): Promise<void> {
   const credential = deleteTarget.value
-  if (!credential || deletePassword.value.length === 0) return
-  busy.value = true
-  try {
-    await passkeyAPI.remove(credential.id, deletePassword.value)
-    credentials.value = credentials.value.filter((item) => item.id !== credential.id)
-    appStore.showSuccess(t('profile.passkey.deleted'))
-    closeDeleteDialog()
-  } catch (error) {
-    // 密码错误等失败保持对话框打开，允许重试
-    appStore.showError(extractErrorMessage(error, t('profile.passkey.deleteFailed')))
-  } finally {
-    busy.value = false
-  }
+  const password = deletePassword.value
+  if (!credential || busy.value || password.length === 0) return
+  await deleteAction.run(async (isCurrent) => {
+    busy.value = true
+    try {
+      await passkeyAPI.remove(credential.id, password)
+      if (!isCurrent()) return
+      credentials.value = credentials.value.filter((item) => item.id !== credential.id)
+      appStore.showSuccess(t('profile.passkey.deleted'))
+      closeDeleteDialog()
+    } catch (error) {
+      // Password failures remain editable in the same live session.
+      if (isCurrent()) appStore.showError(extractErrorMessage(error, t('profile.passkey.deleteFailed')))
+    } finally {
+      busy.value = false
+    }
+  })
 }
 
 function formatDate(value: string): string {

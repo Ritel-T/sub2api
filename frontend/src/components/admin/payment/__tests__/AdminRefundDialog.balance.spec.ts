@@ -15,7 +15,7 @@ async function openRefund(overrides: Partial<PaymentOrder> = {}) {
   }
   const wrapper = mount(AdminRefundDialog, {
     props: { show: false, order, userBalance: 50 },
-    global: { stubs: { BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' } } }
+    global: { stubs: { BaseDialog: { name: 'BaseDialog', template: '<div><slot /><slot name="footer" /></div>' } } }
   })
   await wrapper.setProps({ show: true })
   return wrapper
@@ -50,4 +50,33 @@ describe('refund balance warning', () => {
     await wrapper.get('#deduct-balance').setValue(false)
     expect(wrapper.text()).not.toContain(warning)
   })
+  it('blocks duplicate same-turn submit and all busy close paths, then allows retry', async () => {
+    const wrapper = await openRefund()
+    await wrapper.get('textarea').setValue('requested')
+    const form = wrapper.get('form')
+    const first = form.trigger('submit')
+    const second = form.trigger('submit')
+    await Promise.all([first, second])
+    expect(wrapper.emitted('confirm')).toHaveLength(1)
+    expect(wrapper.emitted('confirm')![0][1]).toBe(1)
+    await wrapper.setProps({ submitting: true })
+    await form.trigger('submit')
+    wrapper.findComponent({ name: 'BaseDialog' }).vm.$emit('close')
+    expect(wrapper.emitted('cancel')).toBeUndefined()
+    expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined()
+    await wrapper.setProps({ submitting: false })
+    await form.trigger('submit')
+    expect(wrapper.emitted('confirm')).toHaveLength(2)
+  })
+
+  it('resets reason, amount and force when an open form switches orders', async () => {
+    const wrapper = await openRefund()
+    await wrapper.get('textarea').setValue('reason A')
+    await wrapper.get('input[type="number"]').setValue(25)
+    const previous = wrapper.props('order')!
+    await wrapper.setProps({ order: { ...previous, id: 2, amount: 40, refund_request_reason: 'reason B' } })
+    expect((wrapper.get('input[type="number"]').element as HTMLInputElement).value).toBe('40')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('reason B')
+  })
+
 })

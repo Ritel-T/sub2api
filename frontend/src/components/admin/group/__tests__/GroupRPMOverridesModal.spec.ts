@@ -17,7 +17,7 @@ beforeEach(() => {
   mocks.batchSetGroupRPMOverrides.mockResolvedValue(undefined)
 })
 
-async function selectUser() {
+async function openEditor() {
   const wrapper = mount(GroupRPMOverridesModal, {
     props: { show: false, group: { id: 1, name: 'Group', platform: 'openai' } as AdminGroup },
     global: { stubs: {
@@ -27,6 +27,11 @@ async function selectUser() {
   })
   await wrapper.setProps({ show: true })
   await flushPromises()
+  return wrapper
+}
+
+async function selectUser() {
+  const wrapper = await openEditor()
   await wrapper.get('input[type="text"]').setValue('user')
   await vi.advanceTimersByTimeAsync(300)
   await flushPromises()
@@ -54,5 +59,27 @@ describe('GroupRPMOverridesModal new override validation', () => {
     await wrapper.findAll('button').find(b => b.text() === 'common.save')!.trigger('click')
     await flushPromises()
     expect(mocks.batchSetGroupRPMOverrides).toHaveBeenCalledWith(1, [{ user_id: 7, rpm_override: value }])
+  })
+})
+
+describe('existing RPM override edits', () => {
+  beforeEach(() => {
+    mocks.getGroupRPMOverrides.mockResolvedValue([
+      { user_id: 7, user_email: 'user@example.com', user_name: '', user_status: 'active', rpm_override: 100 }
+    ])
+  })
+  it.each(['', '1.5', '-1'])('does not save invalid RPM %j', async (value) => {
+    const wrapper = await openEditor()
+    await wrapper.get('tbody input[type="number"]').setValue(value)
+    expect(wrapper.findAll('button').some(button => button.text() === 'common.save')).toBe(false)
+    expect(mocks.batchSetGroupRPMOverrides).not.toHaveBeenCalled()
+  })
+
+  it.each([['0', 0], ['200', 200], ['1e3', 1000]])('saves %s as %i', async (input, expected) => {
+    const wrapper = await openEditor()
+    await wrapper.get('tbody input[type="number"]').setValue(input)
+    await wrapper.findAll('button').find(button => button.text() === 'common.save')!.trigger('click')
+    await flushPromises()
+    expect(mocks.batchSetGroupRPMOverrides).toHaveBeenCalledWith(1, [{ user_id: 7, rpm_override: expected }])
   })
 })

@@ -12,7 +12,7 @@
         :title="label"
       />
       <div v-else class="absolute inset-0 flex items-center justify-center p-4 text-center text-xs text-gray-400 dark:text-gray-500">
-        <span v-if="!body || body.status === 'loading'" class="animate-pulse">{{ t('pelicanShowcase.itemLoading') }}</span>
+        <span v-if="!body || body.status === 'loading'" class="animate-pulse" role="status" aria-busy="true">{{ t('pelicanShowcase.itemLoading') }}</span>
         <span v-else-if="body.status === 'invalid'">{{ t('pelicanShowcase.invalidHtml') }}</span>
         <span v-else class="text-red-500 dark:text-red-400">{{ t('pelicanShowcase.itemLoadError') }}</span>
       </div>

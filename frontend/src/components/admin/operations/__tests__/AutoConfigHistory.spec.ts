@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import AutoConfigHistory from '../AutoConfigHistory.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { getAutoConfigEvents, type AutoConfigEvent, type AutoConfigEventsPage } from '@/api/admin/autoConfig'
 
 vi.mock('vue-i18n', async () => {
@@ -74,30 +75,43 @@ describe('AutoConfigHistory', () => {
     expect(w.get('details').text()).toContain('首次加入分组：#3')
     expect(w.get('details').text()).toContain('允许升级的账号分组：#5')
   })
-  it('uses a cursor for older events and refresh replaces the list', async () => {
-    vi.mocked(getAutoConfigEvents).mockResolvedValueOnce({ items: [event(8)], has_more: true }).mockResolvedValueOnce({ items: [event(7)], has_more: false }).mockResolvedValueOnce({ items: [event(9)], has_more: true })
+  it('rebuilds the cursor chain and refreshes all loaded pages atomically', async () => {
+    vi.mocked(getAutoConfigEvents).mockResolvedValueOnce({ items: [event(8)], has_more: true }).mockResolvedValueOnce({ items: [event(7)], has_more: true }).mockResolvedValueOnce({ items: [event(9)], has_more: true }).mockResolvedValueOnce({ items: [event(8)], has_more: true })
     const w = render(); await flushPromises()
-    await w.get('[data-testid=history-more]').trigger('click'); await flushPromises()
+    w.getComponent(InfiniteListSentinel).vm.$emit('load-more'); await flushPromises()
     expect(getAutoConfigEvents).toHaveBeenLastCalledWith({ limit: 20, kind: '', before: 8 })
     expect(w.findAll('[data-testid=history-row]')).toHaveLength(2)
     await w.get('[data-testid=history-refresh]').trigger('click'); await flushPromises()
-    expect(getAutoConfigEvents).toHaveBeenLastCalledWith({ limit: 20, kind: '', before: undefined })
-    expect(w.findAll('[data-testid=history-row]')).toHaveLength(1)
+    expect(vi.mocked(getAutoConfigEvents).mock.calls.map(call => call[0]?.before)).toEqual([undefined, 8, undefined, 9])
+    expect(w.findAll('[data-testid=history-row]')).toHaveLength(2)
+    expect(w.getComponent(InfiniteListSentinel).props('hasMore')).toBe(true)
+  })
+  it('preserves the whole loaded window when the second refresh page fails and retries the refresh', async () => {
+    vi.mocked(getAutoConfigEvents).mockResolvedValueOnce({ items: [event(8)], has_more: true }).mockResolvedValueOnce({ items: [event(7)], has_more: true }).mockResolvedValueOnce({ items: [event(9)], has_more: true }).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ items: [event(10)], has_more: true }).mockResolvedValueOnce({ items: [event(9)], has_more: false })
+    const w = render(); await flushPromises()
+    w.getComponent(InfiniteListSentinel).vm.$emit('load-more'); await flushPromises()
+    await w.get('[data-testid=history-refresh]').trigger('click'); await flushPromises()
+    expect(w.findAll('[data-testid=history-row]')).toHaveLength(2)
+    expect(w.get('[role=alert]').text()).toContain('日志加载失败')
+    await w.get('[data-testid=history-retry]').trigger('click'); await flushPromises()
+    expect(vi.mocked(getAutoConfigEvents).mock.calls.map(call => call[0]?.before)).toEqual([undefined, 8, undefined, 9, undefined, 10])
+    expect(w.findAll('[data-testid=history-row]')).toHaveLength(2)
+    expect(w.getComponent(InfiniteListSentinel).props('hasMore')).toBe(false)
   })
   it('ignores an older pending response after changing filter', async () => {
     let resolve!: (page: AutoConfigEventsPage) => void
     vi.mocked(getAutoConfigEvents).mockReturnValueOnce(new Promise(r => { resolve = r })).mockResolvedValueOnce({ items: [event(7, 'failure_cooldown')], has_more: false })
-    const w = render()
+    const w = render(); await flushPromises()
     await w.get('[data-testid=history-kind]').setValue('failure_cooldown'); await flushPromises()
     resolve({ items: [event(8)], has_more: true }); await flushPromises()
     expect(getAutoConfigEvents).toHaveBeenLastCalledWith({ limit: 20, kind: 'failure_cooldown', before: undefined })
     expect(w.get('[data-testid=history-row]').text()).toContain('失败冷却')
-    expect(w.find('[data-testid=history-more]').exists()).toBe(false)
+    expect(w.getComponent(InfiniteListSentinel).props('hasMore')).toBe(false)
   })
   it('preserves loaded rows after a pagination error and retries that cursor', async () => {
     vi.mocked(getAutoConfigEvents).mockResolvedValueOnce({ items: [event(8)], has_more: true }).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ items: [event(7)], has_more: false })
     const w = render(); await flushPromises()
-    await w.get('[data-testid=history-more]').trigger('click'); await flushPromises()
+    w.getComponent(InfiniteListSentinel).vm.$emit('load-more'); await flushPromises()
     expect(w.findAll('[data-testid=history-row]')).toHaveLength(1)
     expect(w.get('[role=alert]').text()).toContain('日志加载失败')
     await w.get('[data-testid=history-retry]').trigger('click'); await flushPromises()
@@ -114,7 +128,7 @@ describe('AutoConfigHistory', () => {
   it('clears private history and discards pending responses after logout', async () => {
     let resolve!: (page: AutoConfigEventsPage) => void
     vi.mocked(getAutoConfigEvents).mockReturnValueOnce(new Promise(r => { resolve = r }))
-    const w = render(); state.auth.user = null
+    const w = render(); await flushPromises(); state.auth.user = null
     resolve({ items: [event(8)], has_more: true }); await flushPromises()
     expect(w.findAll('[data-testid=history-row]')).toHaveLength(0)
     expect(getAutoConfigEvents).toHaveBeenCalledTimes(1)

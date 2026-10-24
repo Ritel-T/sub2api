@@ -2,7 +2,7 @@
   <div class="space-y-10">
     <!-- 页头(独立形态下展示标题;后台形态由控制台布局提供页面标题) -->
     <div v-if="!embedded">
-      <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">{{ t('modelPlaza.title') }}</h1>
+      <AppHeading as="h1" variant="page" class="text-gray-900 dark:text-white">{{ t('modelPlaza.title') }}</AppHeading>
       <p class="mt-1.5 text-sm text-gray-500 dark:text-dark-400">{{ t('modelPlaza.description') }}</p>
     </div>
 
@@ -24,7 +24,7 @@
 
     <!-- 加载/错误/空 -->
     <div v-if="loading" class="flex min-h-[240px] items-center justify-center">
-      <div class="h-8 w-8 animate-spin rounded-full border-2 border-primary-600/25 border-t-primary-600 dark:border-primary-400/25 dark:border-t-primary-400"></div>
+      <div role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin rounded-full border-2 border-primary-600/25 border-t-primary-600 dark:border-primary-400/25 dark:border-t-primary-400"></div>
     </div>
     <div
       v-else-if="error"
@@ -63,6 +63,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'

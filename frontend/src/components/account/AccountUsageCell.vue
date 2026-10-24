@@ -9,7 +9,7 @@
       "
     >
       <!-- Loading state -->
-      <div v-if="loading" class="space-y-1.5">
+      <LoadingRegion :announce="false" v-if="loading" class="space-y-1.5">
         <!-- OAuth: 3 rows, Setup Token: 1 row -->
         <div class="flex items-center gap-1">
           <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
@@ -28,7 +28,7 @@
             <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
           </div>
         </template>
-      </div>
+      </LoadingRegion>
 
       <!-- Error state -->
       <div v-else-if="error" class="text-xs text-red-500">
@@ -185,7 +185,7 @@
           </template>
         </OpenAIQuotaResetCell>
       </div>
-      <div v-else-if="loading" class="space-y-1.5">
+      <LoadingRegion :announce="false" v-else-if="loading" class="space-y-1.5">
         <div class="flex items-center gap-1">
           <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
           <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
@@ -196,7 +196,7 @@
           <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
           <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
         </div>
-      </div>
+      </LoadingRegion>
       <div v-else>
         <div class="text-xs text-gray-400">-</div>
         <!-- Always allow on-demand upstream quota query, even before local data exists. -->
@@ -298,13 +298,13 @@
       </div>
 
       <!-- Loading state -->
-      <div v-else-if="loading" class="space-y-1.5">
+      <LoadingRegion :announce="false" v-else-if="loading" class="space-y-1.5">
         <div class="flex items-center gap-1">
           <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
           <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
           <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
         </div>
-      </div>
+      </LoadingRegion>
 
       <!-- Error state -->
       <div v-else-if="error" class="text-xs text-red-500">
@@ -361,13 +361,13 @@
 
     <!-- Grok OAuth accounts: passive xAI quota headers + local Sub2API usage -->
     <template v-else-if="account.platform === 'grok' && account.type === 'oauth'">
-      <div v-if="loading" class="space-y-1.5">
+      <LoadingRegion :announce="false" v-if="loading" class="space-y-1.5">
         <div class="flex items-center gap-1">
           <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
           <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
           <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
         </div>
-      </div>
+      </LoadingRegion>
       <div v-else-if="error" class="text-xs text-red-500">
         {{ error }}
       </div>
@@ -561,21 +561,21 @@
             </span>
           </div>
         </div>
-        <div
+        <LoadingRegion :announce="false"
           v-else-if="!compact && showGeminiTodayStats && todayStatsLoading"
           class="mb-0.5 flex items-center gap-1"
         >
           <div class="h-3 w-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
           <div class="h-3 w-8 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
           <div class="h-3 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-        </div>
-        <div v-if="loading" class="space-y-1">
+        </LoadingRegion>
+        <LoadingRegion :announce="false" v-if="loading" class="space-y-1">
           <div class="flex items-center gap-1">
             <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
             <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
             <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
           </div>
-        </div>
+        </LoadingRegion>
         <div v-else-if="error" class="text-xs text-red-500">
           {{ error }}
         </div>
@@ -654,14 +654,14 @@
         </div>
       </div>
       <!-- Loading skeleton for today stats -->
-      <div
+      <LoadingRegion :announce="false"
         v-else-if="!compact && todayStatsLoading"
         class="mb-0.5 flex items-center gap-1"
       >
         <div class="h-3 w-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
         <div class="h-3 w-8 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
         <div class="h-3 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-      </div>
+      </LoadingRegion>
 
       <!-- API Key accounts with quota limits: show progress bars -->
       <UsageProgressBar
@@ -695,6 +695,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import ExcelBPSCredentialStatus from './ExcelBPSCredentialStatus.vue'
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'

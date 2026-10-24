@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <TablePageLayout open>
       <template #actions>
         <div class="workspace-page-header">
-          <h1 class="workspace-page-title">{{ t('admin.announcements.title') }}</h1>
+          <AppHeading variant="page" as="h1" class="workspace-page-title">{{ t('admin.announcements.title') }}</AppHeading>
           <div class="workspace-header-actions">
             <TableToolbarTarget kind="actions" />
             <button
@@ -34,7 +34,7 @@
               @input="handleSearch"
             />
           </div>
-          <Select
+          <Select :aria-label="t('admin.announcements.form.status')"
             v-model="filters.status"
             :options="statusFilterOptions"
             class="w-40"
@@ -195,11 +195,11 @@
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label class="input-label">{{ t('admin.announcements.form.status') }}</label>
-            <Select v-model="form.status" :options="statusOptions" />
+            <Select :aria-label="t('admin.announcements.form.status')" v-model="form.status" :options="statusOptions" />
           </div>
           <div>
             <label class="input-label">{{ t('admin.announcements.form.notifyMode') }}</label>
-            <Select v-model="form.notify_mode" :options="notifyModeOptions" />
+            <Select :aria-label="t('admin.announcements.form.notifyMode')" v-model="form.notify_mode" :options="notifyModeOptions" />
             <p class="input-hint">{{ t('admin.announcements.form.notifyModeHint') }}</p>
           </div>
         </div>
@@ -236,7 +236,7 @@
     </BaseDialog>
 
     <!-- Delete Confirmation -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteAction.busy.value"
       :show="showDeleteDialog"
       :title="t('admin.announcements.deleteAnnouncement')"
       :message="t('admin.announcements.deleteConfirm')"
@@ -263,8 +263,9 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
@@ -278,6 +279,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -563,19 +565,27 @@ function handleDelete(row: Announcement) {
   showDeleteDialog.value = true
 }
 
-async function confirmDelete() {
-  if (!deletingAnnouncement.value) return
+function confirmDelete() {
+  return confirmDeleteAction.run(async (isCurrent) => {
+    const targetId = deletingAnnouncement.value?.id
+    if (targetId == null) return
 
-  try {
-    await adminAPI.announcements.delete(deletingAnnouncement.value.id)
-    appStore.showSuccess(t('common.success'))
-    showDeleteDialog.value = false
-    deletingAnnouncement.value = null
-    await loadAnnouncements()
-  } catch (error: any) {
-    console.error('Failed to delete announcement:', error)
-    appStore.showError(error.response?.data?.detail || t('admin.announcements.failedToDelete'))
-  }
+    if (!deletingAnnouncement.value) return
+
+    try {
+      await adminAPI.announcements.delete(targetId)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('common.success'))
+      showDeleteDialog.value = false
+      deletingAnnouncement.value = null
+      await loadAnnouncements()
+      if (!isCurrent()) return
+    } catch (error: any) {
+      if (!isCurrent()) return
+      console.error('Failed to delete announcement:', error)
+      appStore.showError(error.response?.data?.detail || t('admin.announcements.failedToDelete'))
+    }
+  })
 }
 
 // ===== Read status =====
@@ -600,4 +610,8 @@ onMounted(async () => {
 onUnmounted(() => {
   if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer)
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const confirmDeleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: deletingAnnouncement.value?.id }))
+watch(() => ({ active: showDeleteDialog.value, identity: JSON.stringify(deletingAnnouncement.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeleteDialog.value = false } }, { flush: 'sync' })
 </script>

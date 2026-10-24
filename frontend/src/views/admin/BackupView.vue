@@ -4,9 +4,9 @@
       <div class="open-section">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
               {{ t('admin.backup.s3.title') }}
-            </h3>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.backup.s3.descriptionPrefix') }}
               <button type="button" class="text-primary-600 underline hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300" @click="showR2Guide = true">Cloudflare R2</button>
@@ -58,9 +58,9 @@
       <div class="open-section">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
               {{ t('admin.backup.imageStorage.title') }}
-            </h3>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.backup.imageStorage.description') }}
             </p>
@@ -132,9 +132,9 @@
       <!-- Schedule Config -->
       <div class="open-section" data-testid="backup-schedule">
         <div class="mb-4">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+          <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
             {{ t('admin.backup.schedule.title') }}
-          </h3>
+          </AppHeading>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {{ t('admin.backup.schedule.description') }}
           </p>
@@ -149,7 +149,7 @@
             <input v-model="scheduleForm.cron_expr" class="input w-full" placeholder="0 2 * * *" />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.schedule.cronHint') }}</p>
           </div>
-          <h4 class="mt-2 text-sm font-medium text-gray-900 dark:text-white md:col-span-2">{{ t('admin.backup.schedule.ordinaryRetention') }}</h4>
+          <AppHeading variant="minor" as="h4" class="mt-2 text-gray-900 dark:text-white md:col-span-2">{{ t('admin.backup.schedule.ordinaryRetention') }}</AppHeading>
           <div>
             <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.schedule.retainDays') }}</label>
             <input v-model.number="scheduleForm.retain_days" data-testid="backup-retain-days" type="number" min="0" step="1" class="input w-full" />
@@ -179,9 +179,9 @@
       <div class="open-section">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
               {{ t('admin.backup.operations.title') }}
-            </h3>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t('admin.backup.operations.description') }}
             </p>
@@ -194,14 +194,14 @@
             <button type="button" class="btn btn-primary btn-sm" :disabled="creatingBackup" @click="createBackup">
               {{ creatingBackup ? t('admin.backup.operations.backing') : t('admin.backup.operations.createBackup') }}
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="loadingBackups" @click="loadBackups">
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="loadingBackups" @click="loadBackups()">
               {{ loadingBackups ? t('common.loading') : t('common.refresh') }}
             </button>
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <DataTable
+        <div class="overflow-x-auto overflow-y-hidden">
+          <DataTable column-order-key="admin-backup-archives"
  :columns="openRecordColumns"
  :primary-columns="['id','status','file_name','size','started_at','actions']"
  :data="backups" row-key="id" :loading="loadingBackups">
@@ -268,24 +268,15 @@
     </div>
 
     <!-- Cloudflare R2 Setup Guide Modal -->
-    <teleport to="body">
-      <transition name="modal">
-        <div v-if="showR2Guide" class="fixed inset-0 z-50 flex items-center justify-center p-4" @mousedown.self="showR2Guide = false">
-          <div class="fixed inset-0 bg-black/50" @click="showR2Guide = false"></div>
-          <div class="relative max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-dark-800">
-            <button type="button" class="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" @click="showR2Guide = false">
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-
-            <h2 class="mb-4 text-lg font-bold text-gray-900 dark:text-white">{{ t('admin.backup.r2Guide.title') }}</h2>
-            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.backup.r2Guide.intro') }}</p>
+    <BaseDialog :show="showR2Guide" :title="t('admin.backup.r2Guide.title')" width="wide" :close-on-click-outside="true" @close="showR2Guide = false">
+<p class="mb-4 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.backup.r2Guide.intro') }}</p>
 
             <!-- Step 1 -->
             <div class="mb-5">
-              <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="subsection" as="h3" class="mb-2 flex items-center gap-2 text-gray-900 dark:text-white">
                 <span class="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">1</span>
                 {{ t('admin.backup.r2Guide.step1.title') }}
-              </h3>
+              </AppHeading>
               <ol class="ml-8 list-decimal space-y-1 text-sm text-gray-600 dark:text-gray-300">
                 <li>{{ t('admin.backup.r2Guide.step1.line1') }}</li>
                 <li>{{ t('admin.backup.r2Guide.step1.line2') }}</li>
@@ -295,10 +286,10 @@
 
             <!-- Step 2 -->
             <div class="mb-5">
-              <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="subsection" as="h3" class="mb-2 flex items-center gap-2 text-gray-900 dark:text-white">
                 <span class="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">2</span>
                 {{ t('admin.backup.r2Guide.step2.title') }}
-              </h3>
+              </AppHeading>
               <ol class="ml-8 list-decimal space-y-1 text-sm text-gray-600 dark:text-gray-300">
                 <li>{{ t('admin.backup.r2Guide.step2.line1') }}</li>
                 <li>{{ t('admin.backup.r2Guide.step2.line2') }}</li>
@@ -312,20 +303,20 @@
 
             <!-- Step 3 -->
             <div class="mb-5">
-              <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="subsection" as="h3" class="mb-2 flex items-center gap-2 text-gray-900 dark:text-white">
                 <span class="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">3</span>
                 {{ t('admin.backup.r2Guide.step3.title') }}
-              </h3>
+              </AppHeading>
               <p class="ml-8 text-sm text-gray-600 dark:text-gray-300">{{ t('admin.backup.r2Guide.step3.desc') }}</p>
               <code class="ml-8 mt-1 block rounded bg-gray-100 px-3 py-2 text-xs text-gray-800 dark:bg-dark-700 dark:text-gray-200">https://&lt;{{ t('admin.backup.r2Guide.step3.accountId') }}&gt;.r2.cloudflarestorage.com</code>
             </div>
 
             <!-- Step 4: Fill form -->
             <div class="mb-5">
-              <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+              <AppHeading variant="subsection" as="h3" class="mb-2 flex items-center gap-2 text-gray-900 dark:text-white">
                 <span class="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">4</span>
                 {{ t('admin.backup.r2Guide.step4.title') }}
-              </h3>
+              </AppHeading>
               <div class="ml-8 overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600">
                 <table class="w-full text-sm">
                   <tbody>
@@ -342,34 +333,13 @@
             <div class="rounded-lg bg-green-50 p-3 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-300">
               {{ t('admin.backup.r2Guide.freeTier') }}
             </div>
-
-            <div class="mt-4 text-right">
-              <button type="button" class="btn btn-primary btn-sm" @click="showR2Guide = false">{{ t('common.close') }}</button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </teleport>
+      <template #footer>
+<button type="button" class="btn btn-primary btn-sm" @click="showR2Guide = false">{{ t('common.close') }}</button>
+      </template>
+    </BaseDialog>
     <!-- 分卷下载链接 -->
-    <teleport to="body">
-      <transition name="modal">
-        <div
-          v-if="downloadPartsModalOpen"
-          class="fixed inset-0 z-50 flex items-center justify-center p-4"
-          @mousedown.self="closeDownloadParts"
-        >
-          <div class="fixed inset-0 bg-black/50" @click="closeDownloadParts"></div>
-          <div class="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-dark-800">
-            <button
-              type="button"
-              class="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-              :aria-label="t('common.close')"
-              @click="closeDownloadParts"
-            >
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-            <h2 class="mb-1 text-lg font-bold text-gray-900 dark:text-white">{{ t('admin.backup.actions.downloadParts') }}</h2>
-            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.backup.actions.downloadPartsHint') }}</p>
+    <BaseDialog :show="downloadPartsModalOpen" :title="t('admin.backup.actions.downloadParts')" width="normal" :close-on-click-outside="true" @close="closeDownloadParts">
+<p class="mb-4 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.backup.actions.downloadPartsHint') }}</p>
             <div class="space-y-2">
               <div
                 v-for="part in downloadParts"
@@ -385,17 +355,22 @@
                 </a>
               </div>
             </div>
-            <div class="mt-4 text-right">
-              <button type="button" class="btn btn-primary btn-sm" @click="closeDownloadParts">{{ t('common.close') }}</button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </teleport>
+      <template #footer>
+<button type="button" class="btn btn-primary btn-sm" @click="closeDownloadParts">{{ t('common.close') }}</button>
+      </template>
+    </BaseDialog>
     <TotpStepUpDialog :controller="backupStepUp" />
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+const confirmation = useConfirmation()
+
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -772,15 +747,19 @@ async function saveSchedule() {
   }
 }
 
-async function loadBackups() {
+let backupListLoadVersion = 0
+async function loadBackups(isCurrent: () => boolean = () => true) {
+  const owner = ++backupListLoadVersion
   loadingBackups.value = true
   try {
     const result = await adminAPI.backup.listBackups()
+    if (!isCurrent()) return
     backups.value = result.items || []
   } catch (error) {
+    if (!isCurrent()) return
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   } finally {
-    loadingBackups.value = false
+    if (owner === backupListLoadVersion) loadingBackups.value = false
   }
 }
 
@@ -839,37 +818,44 @@ function closeDownloadParts() {
 }
 
 async function restoreBackup(id: string) {
-  if (!window.confirm(t('admin.backup.actions.restoreConfirm'))) return
-  const password = window.prompt(t('admin.backup.actions.restorePasswordPrompt'))
-  if (!password) return
-  restoringId.value = id
-  try {
-    const record = await backupStepUp.run(() => adminAPI.backup.restoreBackup(id, password))
-    updateRecordInList(record)
-    startRestorePolling(id)
-  } catch (error: any) {
-    restoringId.value = ''
-    if (isStepUpCancelled(error)) return
-    if (reportStepUpBlocked(error)) return
-    // apiClient 拦截器把 HTTP 错误归一化为顶层 { status } 平面对象（无 response 字段）
-    if (error?.status === 409 || error?.response?.status === 409) {
-      appStore.showWarning(t('admin.backup.operations.restoreRunning'))
-    } else {
-      appStore.showError(error?.message || t('errors.networkError'))
+  await confirmation.run({ message: t('admin.backup.actions.restoreConfirm'), title: t('common.reset'), confirmText: t('common.reset'), danger: true }, async (isCurrent) => {
+    const password = window.prompt(t('admin.backup.actions.restorePasswordPrompt'))
+    if (!password) return
+    restoringId.value = id
+    try {
+      const record = await backupStepUp.run(() => { if (!isCurrent()) throw new Error('Confirmation context changed'); return adminAPI.backup.restoreBackup(id, password) })
+      if (!isCurrent()) return
+      updateRecordInList(record)
+      startRestorePolling(id)
+    } catch (error: any) {
+      if (!isCurrent()) return
+      restoringId.value = ''
+      if (isStepUpCancelled(error)) return
+      if (reportStepUpBlocked(error)) return
+      // apiClient 拦截器把 HTTP 错误归一化为顶层 { status } 平面对象（无 response 字段）
+      if (error?.status === 409 || error?.response?.status === 409) {
+        appStore.showWarning(t('admin.backup.operations.restoreRunning'))
+      } else {
+        appStore.showError(error?.message || t('errors.networkError'))
+      }
     }
-  }
+  })
 }
 
 async function removeBackup(id: string) {
   const archived = !!backups.value.find(record => record.id === id)?.monthly_archive
-  if (!window.confirm(t(archived ? 'admin.backup.archive.deleteConfirm' : 'admin.backup.actions.deleteConfirm'))) return
-  try {
-    await adminAPI.backup.deleteBackup(id, archived)
-    appStore.showSuccess(t('admin.backup.actions.deleted'))
-    await loadBackups()
-  } catch (error) {
-    appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
-  }
+  await confirmation.run({ message: t(archived ? 'admin.backup.archive.deleteConfirm' : 'admin.backup.actions.deleteConfirm'), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async (isCurrent) => {
+    try {
+      await adminAPI.backup.deleteBackup(id, archived)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.backup.actions.deleted'))
+      await loadBackups(isCurrent)
+      if (!isCurrent()) return
+    } catch (error) {
+      if (!isCurrent()) return
+      appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
+    }
+  })
 }
 
 function statusClass(status: string): string {
@@ -900,7 +886,7 @@ function formatDate(value?: string): string {
 }
 
 onMounted(async () => {
-  document.addEventListener('visibilitychange', handleVisibilityChange)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
   await Promise.all([loadS3Config(), loadImageStorageConfig(), loadSchedule(), loadBackups()])
 
   // 如果有正在 running 的备份，恢复轮询

@@ -4,7 +4,7 @@
     <div :class="embedded ? 'flex flex-wrap items-start justify-between gap-4' : 'flex flex-wrap items-start justify-between gap-4 p-5'">
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-2">
-          <h2 id="gateway-borrow-title" class="text-sm font-semibold text-gray-900 dark:text-white">{{ t(`${p}.borrowTitle`) }}</h2>
+          <AppHeading as="h2" variant="section" id="gateway-borrow-title" class="text-gray-900 dark:text-white">{{ t(`${p}.borrowTitle`) }}</AppHeading>
           <span class="rounded-full px-2 py-0.5 text-xs" :class="saved?.cookie_pool.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-dark-700'">{{ t(loading && !saved ? 'common.loading' : saved?.cookie_pool.enabled ? `${p}.enabled` : `${p}.disabled`) }}</span>
           <span v-if="dirty && draft" class="text-xs text-amber-600">{{ t(`${p}.unsaved`) }}</span>
         </div>
@@ -17,7 +17,7 @@
     <div v-if="expanded" id="gateway-borrow-content" :class="embedded ? 'mt-5 space-y-5' : 'space-y-5 border-t border-gray-100 p-5 dark:border-dark-700'">
       <header class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t(`${p}.configuration`) }}</h3>
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t(`${p}.configuration`) }}</AppHeading>
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t(`${p}.description`) }}</p>
         </div>
         <div class="flex items-center gap-2">
@@ -34,7 +34,7 @@
         <fieldset :disabled="saving || loading" class="space-y-6">
           <section class="rounded-xl border border-primary-200 bg-primary-50 p-4 dark:border-primary-800 dark:bg-primary-900/20" data-testid="auto-quality-section">
             <div class="flex items-start justify-between gap-4">
-              <div><h2 class="text-sm font-semibold">{{ t(`${p}.autoQuality`) }}</h2><p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ t(`${p}.autoQualityHint`) }}</p></div>
+              <div><AppHeading as="h2" variant="section" >{{ t(`${p}.autoQuality`) }}</AppHeading><p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ t(`${p}.autoQualityHint`) }}</p></div>
               <Toggle :model-value="draft.auto_quality ?? false" :disabled="saved?.auto_quality" @update:model-value="setAutoQuality" data-testid="auto-quality-toggle" :aria-label="t(`${p}.autoQuality`)" />
             </div>
             <p v-if="saved?.auto_quality" class="mt-3 text-xs leading-6 text-gray-500" data-testid="auto-managed-hint">{{ t(`${p}.autoManagedHint`) }}</p>
@@ -43,15 +43,15 @@
           <section class="open-section sm:p-6" aria-labelledby="astra-cookie-title">
             <div class="flex items-start justify-between gap-4">
               <div>
-                <h2 id="astra-cookie-title" class="font-semibold text-gray-900 dark:text-white">{{ t(`${p}.cookieTitle`) }}</h2>
+                <AppHeading as="h2" variant="section" id="astra-cookie-title" class="text-gray-900 dark:text-white">{{ t(`${p}.cookieTitle`) }}</AppHeading>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t(`${p}.cookieDescription`) }}</p>
               </div>
               <Toggle v-model="draft.cookie_pool.enabled" :disabled="draft.auto_quality" data-testid="cookie-toggle" :aria-label="t(`${p}.cookieTitle`)" />
             </div>
             <p class="mt-3 text-xs text-gray-500">{{ t(`${p}.savedState`) }}：{{ t(saved?.cookie_pool.enabled ? `${p}.enabled` : `${p}.disabled`) }}</p>
             <div v-if="draft.auto_quality" class="mt-5 grid gap-4 md:grid-cols-2" data-testid="automatic-accounts">
-              <div class="open-section"><h3 class="text-sm font-medium">{{ t(`${p}.sources`) }}</h3><p class="mt-2 text-xs text-gray-500">{{ draft.cookie_pool.source_account_ids.map(id => `#${id}`).join(', ') || t(`${p}.autoAwaitingSources`) }}</p></div>
-              <div class="open-section"><h3 class="text-sm font-medium">{{ t(`${p}.targets`) }}</h3><p v-if="!automaticTargets.length" class="mt-2 text-xs text-gray-500">{{ t(`${p}.autoNoTargets`) }}</p><p v-for="row in automaticTargets" :key="row.id" class="mt-2 text-xs text-gray-500">#{{ row.id }} · {{ row.models.join(' / ') }}</p></div>
+              <div class="open-section"><AppHeading as="h3" variant="subsection" >{{ t(`${p}.sources`) }}</AppHeading><p class="mt-2 text-xs text-gray-500">{{ draft.cookie_pool.source_account_ids.map(id => `#${id}`).join(', ') || t(`${p}.autoAwaitingSources`) }}</p></div>
+              <div class="open-section"><AppHeading as="h3" variant="subsection" >{{ t(`${p}.targets`) }}</AppHeading><p v-if="!automaticTargets.length" class="mt-2 text-xs text-gray-500">{{ t(`${p}.autoNoTargets`) }}</p><p v-for="row in automaticTargets" :key="row.id" class="mt-2 text-xs text-gray-500">#{{ row.id }} · {{ row.models.join(' / ') }}</p></div>
               <p class="text-xs text-gray-500 md:col-span-2">{{ t(`${p}.autoSelectionHint`) }}</p>
             </div>
             <div v-else class="mt-5 grid gap-4 md:grid-cols-2" data-testid="manual-accounts">
@@ -61,14 +61,14 @@
             </div>
             <div class="open-section mt-4 flex items-start justify-between gap-4">
               <div>
-                <h3 class="text-sm font-medium">{{ t(`${p}.ipAffinity`) }}</h3>
+                <AppHeading as="h3" variant="subsection" >{{ t(`${p}.ipAffinity`) }}</AppHeading>
                 <p id="astra-ip-affinity-hint" class="mt-1 text-xs leading-6 text-gray-500 dark:text-gray-400">{{ t(`${p}.ipAffinityHint`) }}</p>
               </div>
               <Toggle :model-value="draft.cookie_pool.ip_affinity ?? false" @update:model-value="setAffinity" data-testid="ip-affinity-toggle" :aria-label="t(`${p}.ipAffinity`)" aria-describedby="astra-ip-affinity-hint" />
             </div>
             <div class="open-section mt-4">
               <div class="flex items-start justify-between gap-4">
-                <div><h3 class="text-sm font-medium">{{ t(`${p}.rotateNodes`) }}</h3><p id="astra-rotation-hint" class="mt-1 text-xs leading-6 text-gray-500 dark:text-gray-400">{{ t(`${p}.rotateNodesHint`) }}</p></div>
+                <div><AppHeading as="h3" variant="subsection" >{{ t(`${p}.rotateNodes`) }}</AppHeading><p id="astra-rotation-hint" class="mt-1 text-xs leading-6 text-gray-500 dark:text-gray-400">{{ t(`${p}.rotateNodesHint`) }}</p></div>
                 <Toggle :model-value="draft.cookie_pool.rotate_nodes ?? false" @update:model-value="setRotation" data-testid="rotation-toggle" :aria-label="t(`${p}.rotateNodes`)" aria-describedby="astra-rotation-hint" />
               </div>
               <label v-if="draft.cookie_pool.rotate_nodes" class="mt-3 flex items-center gap-3 text-sm">{{ t(`${p}.maxNodeAttempts`) }}<input v-model.number="draft.cookie_pool.max_node_attempts" data-testid="node-attempts" class="input w-24" type="number" min="1" max="10" required /></label>
@@ -81,7 +81,7 @@
           <section v-if="!draft.auto_quality" class="open-section sm:p-6" aria-labelledby="astra-ws-title">
             <div class="flex items-start justify-between gap-4">
               <div>
-                <h2 id="astra-ws-title" class="font-semibold text-gray-900 dark:text-white">{{ t(`${p}.wsTitle`) }}</h2>
+                <AppHeading as="h2" variant="section" id="astra-ws-title" class="text-gray-900 dark:text-white">{{ t(`${p}.wsTitle`) }}</AppHeading>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t(`${p}.wsDescription`) }}</p>
               </div>
               <Toggle v-model="draft.ws_session.enabled" data-testid="ws-toggle" :aria-label="t(`${p}.wsTitle`)" />
@@ -104,6 +104,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'

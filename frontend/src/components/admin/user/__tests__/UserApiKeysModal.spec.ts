@@ -78,3 +78,32 @@ describe('user API key loading', () => {
     expect(wrapper.text()).not.toContain('first-user-key')
   })
 })
+
+describe('user API keys owned group portal', () => {
+  it('Tabs into sibling portal and consumes Escape before parent', async () => {
+    getKeys.mockResolvedValueOnce(keys(1, 'first-user-key'))
+    const wrapper = mount(UserApiKeysModal, { attachTo: document.body, props: { show: false, user: user(1) }, global: { stubs: { transition: true, GroupBadge: true, GroupOptionItem: true } } })
+    await wrapper.setProps({ show: true }); await flushPromises()
+    const trigger = document.querySelector<HTMLButtonElement>('.modal-body button')!
+    trigger.click(); await flushPromises(); trigger.focus()
+    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    const portal = document.querySelector<HTMLElement>('.fixed.z-\\[100000020\\]')
+    expect(portal?.contains(document.activeElement)).toBe(true)
+    document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(document.activeElement).toBe(trigger)
+    expect(wrapper.emitted('close')).toBeUndefined()
+    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+  it('dismisses group portal on hide and does not reopen it next time', async () => {
+    getKeys.mockResolvedValue(keys(1, 'first-user-key'))
+    const wrapper = mount(UserApiKeysModal, { attachTo: document.body, props: { show: false, user: user(1) }, global: { stubs: { transition: true, GroupBadge: true, GroupOptionItem: true } } })
+    await wrapper.setProps({ show: true }); await flushPromises()
+    document.querySelector<HTMLButtonElement>('.modal-body button')!.click(); await flushPromises()
+    await wrapper.setProps({ show: false }); await flushPromises()
+    expect(document.querySelector('.fixed.z-\\[100000020\\]')).toBeNull()
+    await wrapper.setProps({ show: true }); await flushPromises()
+    expect(document.querySelector('.fixed.z-\\[100000020\\]')).toBeNull()
+  })
+})

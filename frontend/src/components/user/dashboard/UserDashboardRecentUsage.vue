@@ -1,7 +1,7 @@
 <template>
   <section class="open-section" aria-labelledby="recent-title">
     <header class="flex flex-wrap items-center justify-between gap-3 pb-4">
-      <h2 id="recent-title" class="text-xl font-semibold">{{ copy.recent }}</h2>
+      <AppHeading as="h2" variant="section" id="recent-title" >{{ copy.recent }}</AppHeading>
       <router-link to="/usage?view=records" class="underline underline-offset-4">{{ copy.allRequests }}</router-link>
     </header>
     <div v-if="loading" class="py-6" role="status">{{ copy.loading }}</div>
@@ -23,6 +23,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime } from '@/utils/format'

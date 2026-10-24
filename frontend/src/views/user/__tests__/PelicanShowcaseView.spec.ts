@@ -255,3 +255,15 @@ describe('PelicanShowcaseView', () => {
     expect(wrapper.get('[data-testid="showcase-group-2"]').text()).toContain('pelicanShowcase.groupEmpty')
   })
 })
+
+
+it('announces the whole initial gallery placeholder once', async () => {
+  getShowcase.mockReturnValue(new Promise(() => {}))
+  wrapper = mountView()
+  await wrapper.vm.$nextTick()
+  const statuses = wrapper.findAll('[role="status"]')
+  expect(statuses).toHaveLength(1)
+  expect(statuses[0].attributes('aria-label')).toBe('common.loading')
+  expect(statuses[0].attributes('aria-busy')).toBe('true')
+  expect(wrapper.findAll('.animate-pulse')).toHaveLength(30)
+})

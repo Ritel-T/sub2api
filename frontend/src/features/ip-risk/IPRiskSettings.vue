@@ -32,7 +32,7 @@
               </div>
             </section>
             <section class="space-y-3">
-              <div class="flex items-center justify-between gap-2"><h3 class="font-medium">{{ tr('blacklist') }}</h3>
+              <div class="flex items-center justify-between gap-2"><AppHeading as="h3" variant="subsection" >{{ tr('blacklist') }}</AppHeading>
                 <button type="button" class="btn btn-secondary btn-sm" data-testid="risk-add-rule" @click="addRule">{{ tr('addRule') }}</button>
               </div>
               <div v-for="(rule, index) in draft.blacklist" :key="index" class="grid gap-2 rounded border border-gray-200 p-3 md:grid-cols-2 dark:border-dark-700">
@@ -62,7 +62,7 @@
               </div>
             </section>
             <section class="space-y-3">
-              <h3 class="font-medium">{{ tr('automatic') }}</h3>
+              <AppHeading as="h3" variant="subsection" >{{ tr('automatic') }}</AppHeading>
               <p class="text-xs text-gray-500">{{ tr('counterHint') }}</p>
               <div v-for="key in counterKeys" :key="key" class="grid items-end gap-3 sm:grid-cols-3">
                 <span class="text-sm">{{ tr(key) }}</span>
@@ -76,7 +76,7 @@
               </div>
             </section>
             <section class="space-y-3 border-t pt-4" data-testid="anonymous-settings">
-              <h3 class="font-medium">{{ tr('anonymousTitle') }}</h3>
+              <AppHeading as="h3" variant="subsection" >{{ tr('anonymousTitle') }}</AppHeading>
               <p class="text-xs text-gray-500">{{ tr('anonymousHint') }}</p>
               <label class="flex items-center gap-2 text-sm"><input v-model="draft.anonymous_api.enabled" type="checkbox" data-testid="anonymous-enabled" />{{ tr('anonymousEnabled') }}</label>
               <div class="grid gap-3 sm:grid-cols-2">
@@ -92,7 +92,7 @@
           </fieldset>
         </form>
         <section class="space-y-3 border-t pt-4" data-testid="anonymous-bans">
-          <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="font-medium">{{ tr('anonymousBans') }}</h3><button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refreshRecords">{{ tr('refreshRecords') }}</button></div>
+          <div class="flex flex-wrap items-center justify-between gap-2"><AppHeading as="h3" variant="subsection" >{{ tr('anonymousBans') }}</AppHeading><button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refreshRecords">{{ tr('refreshRecords') }}</button></div>
           <p class="text-xs text-gray-500">{{ tr('anonymousUnbanHint') }}</p>
           <div class="flex flex-wrap items-center gap-2">
             <input v-model="anonymousReleaseIP" class="input" :placeholder="tr('anonymousExactIP')" :aria-label="tr('anonymousExactIP')" data-testid="anonymous-release-ip" />
@@ -105,7 +105,7 @@
           <p v-if="!anonymousBans.length" class="text-xs text-gray-500">{{ tr('noBans') }}</p>
         </section>
         <section class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700">
-          <h3 class="font-medium">{{ tr('checkTitle') }}</h3>
+          <AppHeading as="h3" variant="subsection" >{{ tr('checkTitle') }}</AppHeading>
           <p class="text-xs text-gray-500">{{ tr('checkHint') }}</p>
           <div class="flex flex-wrap items-center gap-2">
             <input v-model="checkIP" class="input" :placeholder="tr('network')" :aria-label="tr('checkIP')" data-testid="risk-check-ip" />
@@ -116,7 +116,7 @@
           <p v-if="checkResult" role="status" class="text-sm">{{ label(checkResult.decision) }} · {{ label(checkResult.reason) }} · {{ checkResult.country || '—' }} · {{ checkResult.network }}</p>
         </section>
         <section class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700">
-          <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="font-medium">{{ tr('bans') }}</h3><button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refreshRecords">{{ tr('refreshRecords') }}</button></div>
+          <div class="flex flex-wrap items-center justify-between gap-2"><AppHeading as="h3" variant="subsection" >{{ tr('bans') }}</AppHeading><button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refreshRecords">{{ tr('refreshRecords') }}</button></div>
           <p class="text-xs text-gray-500">{{ tr('bansHint') }}</p>
           <div v-for="ban in bans" :key="`${ban.observe_only}-${ban.network}`" class="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 p-3 text-sm dark:border-dark-700">
             <span><code>{{ ban.network }}</code> · {{ label(ban.reason) }} · {{ ban.observe_only ? tr('observeOnly') : tr('enforced') }} · {{ tr('expiresAt') }} {{ date(ban.expires_at) }}</span>
@@ -125,7 +125,7 @@
           <p v-if="!bans.length" class="text-xs text-gray-500">{{ tr('noBans') }}</p>
         </section>
         <section class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700">
-          <h3 class="font-medium">{{ tr('events') }}</h3>
+          <AppHeading as="h3" variant="subsection" >{{ tr('events') }}</AppHeading>
           <p class="text-xs text-gray-500">{{ tr('eventsHint') }}</p>
           <div class="flex flex-wrap items-center gap-2">
             <input v-model="filterIP" class="input" :placeholder="tr('filterIP')" :aria-label="tr('filterIP')" />
@@ -154,6 +154,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { onMounted, onBeforeUnmount, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ipRiskAPI, type IPBan, type IPBlockRule, type IPRiskConfig, type IPRiskEvent, type IPRiskSnapshot } from './api'

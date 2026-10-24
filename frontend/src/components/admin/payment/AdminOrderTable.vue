@@ -11,19 +11,19 @@
             @input="handleSearch"
           />
         </div>
-        <Select
+        <Select :aria-label="t('payment.orders.status')"
           v-model="filters.status"
           :options="statusFilterOptions"
           class="w-36"
           @change="emitFiltersChanged"
         />
-        <Select
+        <Select :aria-label="t('payment.orders.paymentMethod')"
           v-model="filters.payment_type"
           :options="paymentTypeFilterOptions"
           class="w-40"
           @change="emitFiltersChanged"
         />
-        <Select
+        <Select :aria-label="t('payment.orders.orderType')"
           v-model="filters.order_type"
           :options="orderTypeFilterOptions"
           class="w-36"

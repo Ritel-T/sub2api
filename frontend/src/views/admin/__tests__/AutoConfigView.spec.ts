@@ -29,10 +29,10 @@ beforeEach(() => {
 describe('AutoConfigView', () => {
  it('starts with the Luna 10x rule disabled and saves model billing independently', async () => {
   const w = mount(AutoConfigView); await flushPromises()
-  expect(w.get<HTMLInputElement>('[data-testid="model-billing-enabled"]').element.checked).toBe(false)
+  expect(w.get('[data-testid="model-billing-enabled"]').attributes('aria-checked')).toBe('false')
   expect(w.get<HTMLInputElement>('[data-testid="model-billing-model-0"]').element.value).toBe('gpt-6-luna*')
   expect(w.get<HTMLInputElement>('[data-testid="model-billing-multiplier-0"]').element.value).toBe('10')
-  await w.get('[data-testid="model-billing-enabled"]').setValue(true)
+  await w.get('[data-testid="model-billing-enabled"]').trigger('click')
   await w.get('[data-testid="model-billing-multiplier-0"]').setValue(2.5)
   await w.get('[data-testid="model-billing-add"]').trigger('click')
   expect(w.get<HTMLInputElement>('[data-testid="model-billing-multiplier-1"]').element.value).toBe('10')
@@ -51,14 +51,14 @@ describe('AutoConfigView', () => {
  })
  it('requires a rule when enabled and rejects duplicate patterns', async () => {
   const w = mount(AutoConfigView); await flushPromises()
-  await w.get('[data-testid="model-billing-enabled"]').setValue(true)
+  await w.get('[data-testid="model-billing-enabled"]').trigger('click')
   await w.get('[data-testid="model-billing-add"]').trigger('click')
   await w.get('[data-testid="model-billing-model-1"]').setValue(' GPT-6-LUNA* ')
   await w.get('form').trigger('submit'); expect(saveAutoConfig).not.toHaveBeenCalled()
   await w.get('[data-testid="model-billing-remove-1"]').trigger('click')
   await w.get('[data-testid="model-billing-remove-0"]').trigger('click')
   await w.get('form').trigger('submit'); expect(saveAutoConfig).not.toHaveBeenCalled()
-  await w.get('[data-testid="model-billing-enabled"]').setValue(false)
+  await w.get('[data-testid="model-billing-enabled"]').trigger('click')
   await w.get('form').trigger('submit'); await flushPromises()
   expect(saveAutoConfig).toHaveBeenCalledWith({ ...config, model_billing: { enabled: false, rules: [] } })
   w.unmount()
@@ -71,7 +71,7 @@ describe('AutoConfigView', () => {
   expect(w.get('[data-testid="initial-model-mappings"]').element.closest('section')).toBe(w.get('[data-testid="initial-enabled"]').element.closest('section'))
   expect(w.get<HTMLInputElement>('[data-testid="mapping-from-0"]').element.value).toBe('gpt-5.4')
   expect(w.get<HTMLInputElement>('[data-testid="mapping-to-0"]').element.value).toBe('gpt-5.5')
-  await w.get('[data-testid="initial-enabled"]').setValue(true)
+  await w.get('[data-testid="initial-enabled"]').trigger('click')
   await w.get('[data-testid="initial-group-5"]').setValue(true)
   await w.get('[data-testid="mapping-to-0"]').setValue(' custom-model ')
   await w.get('form').trigger('submit'); await flushPromises()
@@ -110,7 +110,7 @@ describe('AutoConfigView', () => {
  it('saves model mappings and billing rules together without resetting either', async () => {
   const w = mount(AutoConfigView); await flushPromises()
   await w.get('[data-testid="mapping-to-0"]').setValue('gpt-6-luna')
-  await w.get('[data-testid="model-billing-enabled"]').setValue(true)
+  await w.get('[data-testid="model-billing-enabled"]').trigger('click')
   await w.get('[data-testid="model-billing-multiplier-0"]').setValue(12.5)
   await w.get('form').trigger('submit'); await flushPromises()
   expect(saveAutoConfig).toHaveBeenLastCalledWith({
@@ -153,7 +153,7 @@ describe('AutoConfigView', () => {
 
  it('saves initial OAuth values without enabling upgrades', async () => {
   const w = mount(AutoConfigView); await flushPromises()
-  await w.get('[data-testid="initial-enabled"]').setValue(true); await w.get('[data-testid="initial-group-5"]').setValue(true)
+  await w.get('[data-testid="initial-enabled"]').trigger('click'); await w.get('[data-testid="initial-group-5"]').setValue(true)
   await w.get('[data-testid="priority"]').setValue(0); await w.get('[data-testid="load_factor"]').setValue(90); await w.get('[data-testid="concurrency"]').setValue(7)
   expect(w.find('[data-testid="initial-group-6"]').exists()).toBe(false)
   await w.get('form').trigger('submit'); await flushPromises()
@@ -161,7 +161,7 @@ describe('AutoConfigView', () => {
   expect(saveAutoConfig).toHaveBeenCalledWith({ ...config, enabled: true, priority: 0, load_factor: 90, concurrency: 7, group_ids: [5] }); w.unmount()
  })
  it('enables upgrades independently and validates scope', async () => {
-  const w = mount(AutoConfigView); await flushPromises(); await w.get('[data-testid="upgrade-enabled"]').setValue(true)
+  const w = mount(AutoConfigView); await flushPromises(); await w.get('[data-testid="upgrade-enabled"]').trigger('click')
   await w.get('form').trigger('submit'); expect(saveAutoConfig).not.toHaveBeenCalled()
   await w.get('[data-testid="upgrade-group-6"]').setValue(true); await w.get('form').trigger('submit'); await flushPromises()
   expect(saveAutoConfig).toHaveBeenCalledWith({ ...config, upgrade_enabled: true, upgrade_group_ids: [6] }); w.unmount()
@@ -222,8 +222,8 @@ it('preserves the saved quality copy if listing fails and allows opting out', as
 describe('new 2FA admission configuration', () => {
  it('saves independently and validates active OpenAI isolation groups', async () => {
   const w = mount(AutoConfigView); await flushPromises()
-  expect(w.get<HTMLInputElement>('[data-testid="admission-enabled"]').element.checked).toBe(false)
-  await w.get('[data-testid="admission-enabled"]').setValue(true)
+  expect(w.get('[data-testid="admission-enabled"]').attributes('aria-checked')).toBe('false')
+  await w.get('[data-testid="admission-enabled"]').trigger('click')
   await w.get('form').trigger('submit'); await flushPromises()
   expect(saveAutoConfig).not.toHaveBeenCalled()
   await w.get('[data-testid="admission-group"]').setValue('5')

@@ -5,12 +5,7 @@
         <label class="input-label mb-0">{{ t('admin.accounts.openai.autoBPS') }}</label>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.autoBPSDesc') }}</p>
       </div>
-      <button type="button" role="switch" :aria-checked="draft.enabled" :disabled="locked"
-        :aria-label="t('admin.accounts.openai.autoBPS')" data-testid="account-auto-bps-toggle"
-        @click="draft.enabled = !draft.enabled"
-        :class="['relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50', draft.enabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600']">
-        <span :class="['pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition', draft.enabled ? 'translate-x-5' : 'translate-x-0']" />
-      </button>
+      <Toggle :model-value="draft.enabled" :disabled="locked" :aria-label="t('admin.accounts.openai.autoBPS')" data-testid="account-auto-bps-toggle" @click="draft.enabled = !draft.enabled" />
     </div>
     <p v-if="loading" class="mt-2 text-xs text-gray-500" data-testid="account-auto-bps-loading">{{ t('admin.accounts.openai.autoBPSLoading') }}</p>
     <p v-else-if="loadError" class="mt-2 text-xs text-red-600 dark:text-red-400" data-testid="account-auto-bps-load-error">{{ t('admin.accounts.openai.autoBPSLoadFailed', { error: loadError }) }}</p>
@@ -27,6 +22,7 @@
 </template>
 
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
 // 添加/编辑 OpenAI OAuth 账号时的「降智后自动开启 BPS」开关，设置项与质量运维规则共用 QualityBPSSettings。
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

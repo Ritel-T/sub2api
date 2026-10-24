@@ -263,3 +263,70 @@ describe('Select multiple mode', () => {
     expect(wrapper.emitted('update:modelValue')).toEqual([[[]]])
   })
 })
+
+describe('Select field semantics', () => {
+  it('keeps native label associations and forwards field attributes to the trigger', async () => {
+    const wrapper = mount({
+      components: { Select },
+      template: '<div><label for="category">Category</label><p id="category-hint">Required for routing</p><Select id="category" model-value="one" :options="[{value: &quot;one&quot;, label: &quot;One&quot;}]" class="layout-width" data-field-role="filter" data-field-density="compact" aria-describedby="category-hint" aria-required="true" :error="true" /></div>',
+    })
+    unmountWrapper = () => wrapper.unmount()
+    const trigger = wrapper.get('.select-trigger')
+    expect((trigger.element as HTMLButtonElement).labels?.[0].textContent).toBe('Category')
+    expect(trigger.attributes('aria-label')).toBeUndefined()
+    expect(trigger.attributes('aria-describedby')).toBe('category-hint')
+    expect(trigger.attributes('aria-invalid')).toBe('true')
+    expect(trigger.attributes('aria-required')).toBe('true')
+    expect(wrapper.get('.layout-width').element.tagName).toBe('DIV')
+    expect(wrapper.get('.layout-width').attributes('aria-describedby')).toBeUndefined()
+    expect(wrapper.get('.layout-width').attributes('data-field-role')).toBe('filter')
+    expect(wrapper.get('.layout-width').attributes('data-field-density')).toBe('compact')
+    expect(trigger.attributes('data-field-role')).toBeUndefined()
+  })
+
+  it('preserves labelledby and description props while updating error and disabled states', async () => {
+    const wrapper = mount(Select, {
+      props: { modelValue: null, options: [], ariaDescribedby: 'hint', error: true },
+      attrs: { 'aria-labelledby': 'business-label', 'aria-invalid': 'grammar' },
+    })
+    unmountWrapper = () => wrapper.unmount()
+    const trigger = wrapper.get('.select-trigger')
+    expect(trigger.attributes('aria-labelledby')).toBe('business-label')
+    expect(trigger.attributes('aria-describedby')).toBe('hint')
+    expect(trigger.attributes('aria-invalid')).toBe('true')
+    await wrapper.setProps({ error: false, disabled: true })
+    expect(trigger.attributes('aria-invalid')).toBe('grammar')
+    expect(trigger.attributes('disabled')).toBeDefined()
+    await trigger.trigger('click')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+  })
+
+  it('renders a localized, separately focusable clear button and labels the popup', async () => {
+    const wrapper = mount(Select, {
+      attachTo: document.body,
+      props: { modelValue: 'one', options: [{ value: 'one', label: 'One' }], clearable: true, ariaLabel: 'Category' },
+    })
+    unmountWrapper = () => wrapper.unmount()
+    const trigger = wrapper.get('.select-trigger')
+    const clear = wrapper.get('.select-clear')
+    expect(clear.element.tagName).toBe('BUTTON')
+    expect(clear.attributes('tabindex')).toBeUndefined()
+    expect(clear.attributes('aria-label')).toBe('common.clear')
+    expect(trigger.find('button, [role="button"]').exists()).toBe(false)
+    expect(clear.attributes('aria-describedby')).toBe(trigger.attributes('id'))
+    await trigger.trigger('click')
+    await nextTick()
+    const popup = document.querySelector('[role="listbox"]')!
+    expect(popup.getAttribute('aria-labelledby')).toBe(trigger.attributes('id'))
+    expect(trigger.attributes('aria-controls')).toBe(popup.id)
+    expect(trigger.attributes('aria-haspopup')).toBe('listbox')
+    ;(clear.element as HTMLButtonElement).focus()
+    await clear.trigger('click')
+    expect(wrapper.emitted('update:modelValue')).toEqual([[null]])
+    await wrapper.setProps({ modelValue: null })
+    expect(wrapper.find('.select-clear').exists()).toBe(false)
+    expect(document.activeElement).toBe(trigger.element)
+    await wrapper.setProps({ disabled: true })
+    expect(wrapper.find('.select-clear').exists()).toBe(false)
+  })
+})

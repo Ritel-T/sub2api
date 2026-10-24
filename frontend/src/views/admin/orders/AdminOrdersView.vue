@@ -8,9 +8,9 @@
           <div class="flex-1 sm:max-w-64">
             <input v-model="orderSearch" type="text" :placeholder="t('payment.admin.searchOrders')" class="input" @input="debounceLoadOrders" />
           </div>
-          <Select v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="resetOrders" />
-          <Select v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="resetOrders" />
-          <Select v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="resetOrders" />
+          <Select :aria-label="t('payment.orders.status')" v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="resetOrders" />
+          <Select :aria-label="t('payment.orders.paymentMethod')" v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="resetOrders" />
+          <Select :aria-label="t('payment.orders.orderType')" v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="resetOrders" />
           <div ref="tableToolbarTarget" class="min-w-0" />
           <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
             <button @click="loadOrders" :disabled="ordersLoading" class="btn btn-secondary" :title="t('common.refresh')">
@@ -114,7 +114,7 @@
       </div>
     </BaseDialog>
 
-    <AdminRefundDialog :show="showRefundDialog" :order="selectedOrder" :submitting="refundSubmitting" :require-force="refundRequireForce" :warning="refundWarning" @confirm="handleRefund" @cancel="closeRefundDialog" />
+    <AdminRefundDialog :show="showRefundDialog" :order="refundOrder" :submitting="refundSubmitting" :require-force="refundRequireForce" :warning="refundWarning" @confirm="handleRefund" @cancel="closeRefundDialog" />
   </AppLayout>
 </template>
 
@@ -131,6 +131,7 @@ import { formatOrderDateTime } from '@/components/payment/orderUtils'
 import type { PaymentOrder } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useConfirmedAction, useConfirmationContext } from '@/composables/useConfirmation'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -162,7 +163,7 @@ const orderFilters = reactive({ status: '', payment_type: '', order_type: '' })
 const selectedOrder = ref<PaymentOrder | null>(null)
 const showDetailDialog = ref(false)
 const showRefundDialog = ref(false)
-const refundSubmitting = ref(false)
+const refundOrder = ref<PaymentOrder | null>(null)
 const refundRequireForce = ref(false)
 const refundWarning = ref('')
 const refundQueryingIds = ref(new Set<number>())
@@ -254,13 +255,19 @@ async function handleRetryOrder(order: PaymentOrder) {
 }
 
 function openRefundDialog(order: PaymentOrder) {
-  selectedOrder.value = order
+  refundOrder.value = { ...order }
   refundRequireForce.value = false
   refundWarning.value = ''
   showRefundDialog.value = true
 }
 
 function closeRefundDialog() {
+  if (refundSubmitting.value) return
+  resetRefundDialog()
+}
+
+function resetRefundDialog() {
+  refundOrder.value = null
   showRefundDialog.value = false
   refundRequireForce.value = false
   refundWarning.value = ''
@@ -270,34 +277,29 @@ function isRefundPendingWarning(warning: string | undefined): boolean {
   return /pending|处理中|待/.test(String(warning || '').toLowerCase())
 }
 
-async function handleRefund(data: { amount: number; reason: string; deduct_balance: boolean; force: boolean }) {
-  if (!selectedOrder.value) return
-  refundSubmitting.value = true
-  try {
-    const res = await adminPaymentAPI.refundOrder(selectedOrder.value.id, { amount: data.amount, reason: data.reason, deduct_balance: data.deduct_balance, force: data.force })
-    if (res.data.success) {
-      appStore.showSuccess(t('payment.admin.refundSuccess'))
-      closeRefundDialog()
-      loadOrders()
-      return
+function handleRefund(data: { amount: number; reason: string; deduct_balance: boolean; force: boolean }, orderId: number) {
+  if (refundOrder.value?.id !== orderId) return
+  const payload = { amount: data.amount, reason: data.reason, deduct_balance: data.deduct_balance, force: data.force }
+  return refundAction.run(async (isCurrent) => {
+    try {
+      const res = await adminPaymentAPI.refundOrder(orderId, payload)
+      if (!isCurrent()) return
+      if (res.data.success || isRefundPendingWarning(res.data.warning)) {
+        appStore.showSuccess(t(res.data.success ? 'payment.admin.refundSuccess' : 'payment.admin.refundPending'))
+        resetRefundDialog()
+        loadOrders()
+        return
+      }
+      if (res.data.require_force) {
+        refundRequireForce.value = true
+        refundWarning.value = res.data.warning || ''
+        return
+      }
+      appStore.showError(res.data.warning || t('common.error'))
+    } catch (err: unknown) {
+      if (isCurrent()) appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
     }
-    if (isRefundPendingWarning(res.data.warning)) {
-      appStore.showSuccess(t('payment.admin.refundPending'))
-      closeRefundDialog()
-      loadOrders()
-      return
-    }
-    if (res.data.require_force) {
-      // Backend needs an explicit force confirmation (e.g. the user spent their
-      // balance after requesting the refund). Keep the dialog open and surface
-      // the force checkbox instead of dropping the admin back to the list.
-      refundRequireForce.value = true
-      refundWarning.value = res.data.warning || ''
-      return
-    }
-    appStore.showError(res.data.warning || t('common.error'))
-  } catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
-  finally { refundSubmitting.value = false }
+  })
 }
 
 async function handleQueryRefund(order: PaymentOrder) {
@@ -324,4 +326,8 @@ async function handleQueryRefund(order: PaymentOrder) {
 function formatDateTime(dateStr: string): string { return formatOrderDateTime(dateStr) }
 
 onMounted(() => resetOrders())
+const refundAction = useConfirmedAction(() => ({ active: showRefundDialog.value, identity: refundOrder.value?.id }))
+const refundSubmitting = refundAction.busy
+const refundSession = useConfirmationContext(() => ({ active: true, identity: contextUserId.value }))
+watch(refundSession, resetRefundDialog, { deep: true, flush: 'sync' })
 </script>

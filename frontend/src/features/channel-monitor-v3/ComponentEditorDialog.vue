@@ -64,14 +64,14 @@
             <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('channelMonitorV3.editor.showMultiplier') }}</span>
             <span class="block text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.editor.showMultiplierHint') }}</span>
           </span>
-          <Toggle v-model="form.show_multiplier" />
+          <Toggle :aria-label="t('channelMonitorV3.editor.showMultiplier')" v-model="form.show_multiplier" />
         </label>
         <label class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-dark-600">
           <span>
             <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('channelMonitorV3.editor.enabled') }}</span>
             <span class="block text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.editor.enabledHint') }}</span>
           </span>
-          <Toggle v-model="form.enabled" />
+          <Toggle :aria-label="t('channelMonitorV3.editor.enabled')" v-model="form.enabled" />
         </label>
       </div>
       <p v-if="error" class="text-sm text-red-600 dark:text-red-400" role="alert">{{ error }}</p>

@@ -1,6 +1,6 @@
 <template>
   <div data-test="squarespace-instructions" class="open-section space-y-4">
-    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('paymentRetail.checkoutTitle') }}</h3>
+    <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('paymentRetail.checkoutTitle') }}</AppHeading>
     <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">{{ t(claimMode === 'receipt_otp' ? 'paymentRetail.receiptCheckoutHint' : claimMode === 'reference' ? 'paymentRetail.checkoutHint' : 'paymentRetail.claim.serviceUnavailable') }}</p>
     <p v-if="claimMode === 'receipt_otp' && accountEmail" class="break-all text-sm font-medium text-gray-900 dark:text-white">{{ t('paymentRetail.balanceAccount') }}: {{ accountEmail }}</p>
     <RetailQuoteSummary :quote="quote" />
@@ -31,6 +31,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'

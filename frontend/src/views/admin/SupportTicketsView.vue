@@ -14,8 +14,8 @@
               @input="onKeyword"
             />
           </div>
-          <Select v-model="status" :options="statusOptions" class="w-36" data-testid="ticket-status-filter" />
-          <Select
+          <Select :aria-label="t('common.status')" v-model="status" :options="statusOptions" class="w-36" data-testid="ticket-status-filter" />
+          <Select :aria-label="t('supportTickets.form.category')"
             v-if="categories.length"
             v-model="category"
             :options="categoryOptions"

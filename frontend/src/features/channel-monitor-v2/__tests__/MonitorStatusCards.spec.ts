@@ -259,3 +259,16 @@ it('shows each configured model with its own history limit', async () => {
   expect(models[1].find('[data-testid="candy-history-slots"]').element.children).toHaveLength(30)
   expect(wrapper.findAll('[data-testid="candy-history-bar"]')).toHaveLength(2)
 })
+
+
+it('exposes one localized loading status for the six decorative card placeholders', async () => {
+  const wrapper = mount(MonitorStatusCards, { props: { items: [], countdown: 0, loading: true, now: Date.now() } })
+  const statuses = wrapper.findAll('[role="status"]')
+  expect(statuses).toHaveLength(1)
+  expect(statuses[0].attributes('aria-label')).toBe('common.loading')
+  expect(statuses[0].attributes('aria-busy')).toBe('true')
+  expect(wrapper.findAll('.animate-pulse')).toHaveLength(6)
+  await wrapper.setProps({ loading: false })
+  expect(wrapper.find('[role="status"]').exists()).toBe(false)
+  wrapper.unmount()
+})

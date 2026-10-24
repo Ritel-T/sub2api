@@ -23,16 +23,16 @@ export interface CaptureStats {
   active_requests: number; admission_skipped: number; storage_error: boolean
 }
 const base = '/admin/request-captures'
-export async function listTasks(page = 1) {
-  return (await apiClient.get<{ items: CaptureTask[]; stats: CaptureStats; has_more: boolean }>(base, { params: { page, page_size: 20 } })).data
+export async function listTasks(page = 1, signal?: AbortSignal) {
+  return (await apiClient.get<{ items: CaptureTask[]; stats: CaptureStats; has_more: boolean }>(base, { params: { page, page_size: 20 }, signal })).data
 }
 export async function createTask(input: { target_type: CaptureTarget; target_id: number; duration_minutes: number; save_media: boolean }) {
   return (await apiClient.post<CaptureTask>(base, input)).data
 }
 export async function stopTask(id: string) { await apiClient.post(base + '/' + id + '/stop') }
 export async function deleteTask(id: string) { await apiClient.delete(base + '/' + id) }
-export async function listRecords(task: string, page: number, requestID: string, errorsOnly: boolean) {
-  return (await apiClient.get<{ items: CaptureRecord[]; has_more: boolean }>(base + '/' + task + '/requests', { params: { page, page_size: 20, request_id: requestID, errors_only: errorsOnly } })).data
+export async function listRecords(task: string, page: number, requestID: string, errorsOnly: boolean, signal?: AbortSignal) {
+  return (await apiClient.get<{ items: CaptureRecord[]; has_more: boolean }>(base + '/' + task + '/requests', { params: { page, page_size: 20, request_id: requestID, errors_only: errorsOnly }, signal })).data
 }
 export async function getRecord(task: string, record: string) {
   return (await apiClient.get<CaptureRecord>(base + '/' + task + '/requests/' + record)).data

@@ -1,10 +1,10 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <div class="open-page redeem-workspace">
       <BillingNavigation current="redeem" :settings="appStore.cachedPublicSettings" :simple-mode="authStore.isSimpleMode" />
       <div class="redeem-entry">
         <aside class="redeem-account">
-          <h2 class="text-sm text-gray-500 dark:text-gray-400">{{ t('redeem.currentBalance') }}</h2>
+          <AppHeading variant="subtle" as="h2" class="text-gray-500 dark:text-gray-400">{{ t('redeem.currentBalance') }}</AppHeading>
           <p class="ritel-number-display mt-3 text-5xl">${{ user?.balance?.toFixed(2) || '0.00' }}</p>
           <p class="mt-5 text-sm text-gray-500 dark:text-gray-400">{{ t('redeem.concurrency') }}: {{ user?.concurrency || 0 }} {{ t('redeem.requests') }}</p>
         </aside>
@@ -83,9 +83,9 @@
                 <Icon name="checkCircle" size="md" class="text-emerald-600 dark:text-emerald-400" />
               </div>
               <div class="flex-1">
-                <h3 class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                <AppHeading variant="subsection" as="h3" class="text-emerald-800 dark:text-emerald-300">
                   {{ t('redeem.redeemSuccess') }}
-                </h3>
+                </AppHeading>
                 <div class="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
                   <p>{{ redeemResult.message }}</p>
                   <div class="mt-3 space-y-1">
@@ -141,9 +141,9 @@
                 />
               </div>
               <div class="flex-1">
-                <h3 class="text-sm font-semibold text-red-800 dark:text-red-300">
+                <AppHeading variant="subsection" as="h3" class="text-red-800 dark:text-red-300">
                   {{ t('redeem.redeemFailed') }}
-                </h3>
+                </AppHeading>
                 <p class="mt-2 text-sm text-red-700 dark:text-red-400">
                   {{ errorMessage }}
                 </p>
@@ -165,9 +165,9 @@
               <Icon name="infoCircle" size="md" class="text-primary-600 dark:text-primary-400" />
             </div>
             <div class="flex-1">
-              <h3 class="text-sm font-semibold text-primary-800 dark:text-primary-300">
+              <AppHeading variant="subsection" as="h3" class="text-primary-800 dark:text-primary-300">
                 {{ t('redeem.aboutCodes') }}
-              </h3>
+              </AppHeading>
               <ul
                 class="mt-2 list-inside list-disc space-y-1 text-sm text-primary-700 dark:text-primary-400"
               >
@@ -192,14 +192,14 @@
       <!-- Recent Activity -->
       <div class="open-section">
         <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+          <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">
             {{ t('redeem.recentActivity') }}
-          </h2>
+          </AppHeading>
         </div>
         <div class="p-6">
           <!-- Loading State -->
           <div v-if="loadingHistory" class="flex items-center justify-center py-8">
-            <svg class="h-6 w-6 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
+            <svg role="status" :aria-label="t('common.loading')" class="h-6 w-6 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
               <circle
                 class="opacity-25"
                 cx="12"
@@ -340,6 +340,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'

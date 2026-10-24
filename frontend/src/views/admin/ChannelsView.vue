@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <TablePageLayout open>
       <template #actions>
         <div class="workspace-page-header">
-          <h1 class="workspace-page-title">{{ t('admin.channels.title') }}</h1>
+          <AppHeading variant="page" as="h1" class="workspace-page-title">{{ t('admin.channels.title') }}</AppHeading>
           <div class="workspace-header-actions">
             <TableToolbarTarget kind="actions" />
             <button
@@ -41,7 +41,7 @@
               />
             </div>
 
-            <Select
+            <Select :aria-label="t('admin.channels.form.status', 'Status')"
               v-model="filters.status"
               :options="statusFilterOptions"
               :placeholder="t('admin.channels.allStatus', 'All Status')"
@@ -73,7 +73,7 @@
           </template>
 
           <template #cell-status="{ row }">
-            <Toggle
+            <Toggle :aria-label="t('common.enabled') + ': ' + row.name"
               :modelValue="row.status === 'active'"
               @update:modelValue="toggleChannelStatus(row)"
             />
@@ -207,7 +207,7 @@
             <!-- Status (edit only) -->
             <div v-if="editingChannel">
               <label class="input-label">{{ t('admin.channels.form.status', 'Status') }}</label>
-              <Select v-model="form.status" :options="statusEditOptions" />
+              <Select :aria-label="t('admin.channels.form.status', 'Status')" v-model="form.status" :options="statusEditOptions" />
             </div>
 
             <!-- Model Restriction -->
@@ -228,7 +228,7 @@
             <!-- Billing Basis -->
             <div>
               <label class="input-label">{{ t('admin.channels.form.billingModelSource', 'Billing Basis') }}</label>
-              <Select v-model="form.billing_model_source" :options="billingModelSourceOptions" />
+              <Select :aria-label="t('admin.channels.form.billingModelSource', 'Billing Basis')" v-model="form.billing_model_source" :options="billingModelSourceOptions" />
               <p class="mt-1 text-xs text-gray-400">
                 {{ t('admin.channels.form.billingModelSourceHint', 'Controls which model name is used for pricing lookup') }}
               </p>
@@ -269,7 +269,7 @@
                     {{ t('admin.channels.form.applyPricingToAccountStatsDesc') }}
                   </p>
                 </div>
-                <Toggle
+                <Toggle :aria-label="t('admin.channels.form.applyPricingToAccountStats')"
                   :modelValue="form.apply_pricing_to_account_stats"
                   @update:modelValue="form.apply_pricing_to_account_stats = $event"
                 />
@@ -341,7 +341,7 @@
                     {{ t('admin.channels.form.webSearchEmulationHint') }}
                   </p>
                 </div>
-                <Toggle v-model="section.web_search_emulation" />
+                <Toggle :aria-label="t('admin.channels.form.webSearchEmulation')" v-model="section.web_search_emulation" />
               </div>
             </div>
 
@@ -356,7 +356,7 @@
                     {{ t('admin.channels.form.codexImageGenerationBridgeHint') }}
                   </p>
                 </div>
-                <Toggle v-model="section.codex_image_generation_bridge" />
+                <Toggle :aria-label="t('admin.channels.form.codexImageGenerationBridge')" v-model="section.codex_image_generation_bridge" />
               </div>
             </div>
 
@@ -371,7 +371,7 @@
                     {{ t('admin.channels.form.bedrockCCCompatHint') }}
                   </p>
                 </div>
-                <Toggle v-model="section.bedrock_cc_compat" />
+                <Toggle :aria-label="t('admin.channels.form.bedrockCCCompat')" v-model="section.bedrock_cc_compat" />
               </div>
             </div>
 
@@ -465,9 +465,9 @@
             <!-- Account Stats Pricing Rules (per-platform, always visible) -->
             <div class="mt-4 border-t border-gray-200 pt-4 dark:border-dark-700 space-y-3">
               <div class="flex items-center justify-between">
-                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <AppHeading variant="minor" as="h4" class="text-gray-700 dark:text-gray-300">
                   {{ t('admin.channels.form.accountStatsPricingRules') }}
-                </h4>
+                </AppHeading>
                 <button
                   type="button"
                   @click="addAccountStatsRule(sIdx)"
@@ -620,7 +620,7 @@
     </BaseDialog>
 
     <!-- Delete Confirmation -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteAction.busy.value"
       :show="showDeleteDialog"
       :title="t('admin.channels.deleteChannel', 'Delete Channel')"
       :message="deleteConfirmMessage"
@@ -634,8 +634,9 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
@@ -653,6 +654,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
@@ -1655,18 +1657,25 @@ function handleDelete(channel: Channel) {
   showDeleteDialog.value = true
 }
 
-async function confirmDelete() {
-  if (!deletingChannel.value) return
+function confirmDelete() {
+  return confirmDeleteAction.run(async (isCurrent) => {
+    const targetId = deletingChannel.value?.id
+    if (targetId == null) return
 
-  try {
-    await adminAPI.channels.remove(deletingChannel.value.id)
-    appStore.showSuccess(t('admin.channels.deleteSuccess', 'Channel deleted'))
-    showDeleteDialog.value = false
-    deletingChannel.value = null
-    loadChannels()
-  } catch (error: unknown) {
-    appStore.showError(extractApiErrorMessage(error, t('admin.channels.deleteError', 'Failed to delete channel')))
-  }
+    if (!deletingChannel.value) return
+
+    try {
+      await adminAPI.channels.remove(targetId)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.channels.deleteSuccess', 'Channel deleted'))
+      showDeleteDialog.value = false
+      deletingChannel.value = null
+      loadChannels()
+    } catch (error: unknown) {
+      if (!isCurrent()) return
+      appStore.showError(extractApiErrorMessage(error, t('admin.channels.deleteError', 'Failed to delete channel')))
+    }
+  })
 }
 
 // ── Lifecycle ──
@@ -1683,6 +1692,10 @@ onUnmounted(() => {
   ruleAccountSearchRunner.clearAll()
   clearAllRuleAccountSearchState()
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const confirmDeleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: deletingChannel.value?.id }))
+watch(() => ({ active: showDeleteDialog.value, identity: JSON.stringify(deletingChannel.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeleteDialog.value = false } }, { flush: 'sync' })
 </script>
 
 <style scoped>

@@ -24,9 +24,9 @@
             <Icon name="chat" size="lg" />
           </div>
           <div>
-            <h3 class="font-semibold text-primary-800 dark:text-primary-200">
+            <AppHeading variant="subsection" as="h3" class="text-primary-800 dark:text-primary-200">
               {{ t('common.contactSupport') }}
-            </h3>
+            </AppHeading>
             <p class="text-sm font-medium">{{ contactInfo }}</p>
           </div>
         </div>
@@ -52,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@/components/icons'

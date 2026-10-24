@@ -1,7 +1,7 @@
 <template>
   <section class="open-section" data-testid="harvest-policy-panel">
     <div class="mb-4 flex items-center justify-between gap-3">
-      <h2 class="text-sm font-semibold">{{ localText('自动打票策略', 'Automatic harvest policy') }}</h2>
+      <AppHeading as="h2" variant="section" >{{ localText('自动打票策略', 'Automatic harvest policy') }}</AppHeading>
       <router-link to="/admin/proxies#harvest" class="text-sm text-primary-600">{{ localText('管理采票出口', 'Manage harvest exit') }}</router-link>
     </div>
     <p v-if="error" role="alert" class="mb-3 text-sm text-red-600">{{ error }}</p>
@@ -11,36 +11,36 @@
       <fieldset class="space-y-4" :disabled="saving">
         <div class="flex items-center justify-between gap-4">
           <div class="min-w-0">
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+            <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
               {{ t("admin.settings.gatewayForwarding.codexTicketEnabled") }}
-            </h3>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ t("admin.settings.gatewayForwarding.codexTicketEnabledDesc") }}
             </p>
           </div>
-          <Toggle
+          <Toggle :aria-label="t('admin.settings.gatewayForwarding.codexTicketEnabled')"
             id="codex-ticket-enabled"
             v-model="form.openai_codex_ticket_enabled"
           />
         </div>
         <div class="open-section flex items-center justify-between gap-4">
           <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+            <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
               {{ t("admin.settings.gatewayForwarding.codexTicketFailClosed") }}
-            </h3>
+            </AppHeading>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t("admin.settings.gatewayForwarding.codexTicketFailClosedDesc") }}
             </p>
           </div>
-          <Toggle
+          <Toggle :aria-label="t('admin.settings.gatewayForwarding.codexTicketFailClosed')"
             id="codex-ticket-fail-closed"
             v-model="form.openai_codex_ticket_fail_closed"
           />
         </div>
         <div class="open-section">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
             {{ t("admin.settings.gatewayForwarding.codexTicketModels") }}
-          </h3>
+          </AppHeading>
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {{ t("admin.settings.gatewayForwarding.codexTicketModelsDesc") }}
           </p>
@@ -103,6 +103,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { localizeInlineText } from '@/i18n/inline'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'

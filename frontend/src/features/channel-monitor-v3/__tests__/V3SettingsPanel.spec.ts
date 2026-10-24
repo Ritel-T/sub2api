@@ -140,6 +140,60 @@ describe('V3 settings panel', () => {
     expect(mocks.reorder).toHaveBeenLastCalledWith([2, 1], [])
   })
 
+  it('deletes a category once, without accidentally deleting a component with the same id', async () => {
+    let finish!: () => void
+    mocks.deleteCategory.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    const wrapper = mount(V3SettingsPanel, { global: { stubs } })
+    await flushPromises()
+    const section = wrapper.findAll('[data-testid="monitor-v3-section"]')[0]
+    // The category header delete button precedes the component rows.
+    const buttons = section.findAll('button')
+    const categoryDelete = buttons.find(button => button.attributes('title') === 'common.delete')!
+    expect(categoryDelete).toBeDefined()
+    await categoryDelete.trigger('click')
+    const confirm = wrapper.get('[data-testid="confirm-yes"]')
+    await confirm.trigger('click')
+    await confirm.trigger('click')
+    expect(mocks.deleteCategory).toHaveBeenCalledTimes(1)
+    expect(mocks.deleteCategory).toHaveBeenCalledWith(1)
+    finish()
+    await flushPromises()
+    expect(mocks.deleteComponent).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="confirm"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps a failed deletion available for retry and ignores the late result after unmount', async () => {
+    mocks.deleteComponent.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = mount(V3SettingsPanel, { global: { stubs } })
+    await flushPromises()
+    await wrapper.findAll('[data-testid="monitor-v3-admin-component"]')[2].findAll('button').at(-1)!.trigger('click')
+    await wrapper.get('[data-testid="confirm-yes"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="confirm"]').exists()).toBe(true)
+    let finish!: () => void
+    mocks.deleteComponent.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    await wrapper.get('[data-testid="confirm-yes"]').trigger('click')
+    expect(mocks.deleteComponent).toHaveBeenCalledTimes(2)
+    const reads = mocks.getSettings.mock.calls.length
+    wrapper.unmount()
+    finish()
+    await flushPromises()
+    expect(mocks.getSettings).toHaveBeenCalledTimes(reads)
+  })
+
+  it('retires the open confirmation when a different row replaces its target', async () => {
+    const wrapper = mount(V3SettingsPanel, { global: { stubs } })
+    await flushPromises()
+    const rows = wrapper.findAll('[data-testid="monitor-v3-admin-component"]')
+    await rows[0].findAll('button').at(-1)!.trigger('click')
+    expect(wrapper.get('[data-testid="confirm"]').text()).toContain('Component 1')
+    await rows[1].findAll('button').at(-1)!.trigger('click')
+    expect(wrapper.find('[data-testid="confirm"]').exists()).toBe(false)
+    expect(mocks.deleteComponent).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('asks before deleting', async () => {
     const wrapper = mount(V3SettingsPanel, { global: { stubs } })
     await flushPromises()

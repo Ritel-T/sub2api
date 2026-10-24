@@ -4,7 +4,7 @@
       <span v-if="!loading && items.length > 0" class="text-sm text-gray-500">{{ t('admin.usage.tokenRanking.userCount', { count: items.length }) }}</span>
       <div class="ml-auto flex flex-wrap items-center gap-3">
         <Select :model-value="sortBy" :options="sortableColumns.map(col => ({ value: col.key, label: t(col.label) }))" :aria-label="t('common.sort')" class="w-48" @update:model-value="setSort($event as SortKey)" />
-        <Select v-model="limit" :options="limitOptions" class="w-28" @change="load" />
+        <Select :aria-label="t('common.resultLimit')" v-model="limit" :options="limitOptions" class="w-28" @change="load" />
       </div>
     </div>
     <div class="relative overflow-x-auto">

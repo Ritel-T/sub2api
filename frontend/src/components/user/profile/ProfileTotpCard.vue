@@ -1,9 +1,9 @@
 <template>
   <div class="open-settings-section">
     <div class="min-w-0">
-      <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+      <AppHeading as="h2" variant="section" class="text-gray-900 dark:text-white">
         {{ t('profile.totp.title') }}
-      </h2>
+      </AppHeading>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
         {{ t('profile.totp.description') }}
       </p>
@@ -11,7 +11,7 @@
     <div class="min-w-0">
       <!-- Loading state -->
       <div v-if="loading" class="flex items-center justify-center py-8">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <div role="status" :aria-label="t('common.loading')" class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
       </div>
 
       <!-- Feature disabled globally -->
@@ -101,6 +101,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { totpAPI } from '@/api'

@@ -2,7 +2,7 @@
   <section class="open-section" aria-labelledby="auto-config-history-title" data-testid="auto-config-history">
     <header class="flex flex-wrap items-start justify-between gap-4 p-5">
       <div class="min-w-0">
-        <h2 id="auto-config-history-title" class="text-lg font-semibold">{{ t('autoConfig.logs.title') }}</h2>
+        <AppHeading as="h2" variant="section" id="auto-config-history-title" >{{ t('autoConfig.logs.title') }}</AppHeading>
         <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">{{ t('autoConfig.logs.description') }}</p>
       </div>
       <div class="flex w-full items-center gap-3 sm:w-auto">
@@ -10,7 +10,7 @@
           <option value="">{{ t('autoConfig.logs.all') }}</option>
           <option v-for="value in kinds" :key="value" :value="value">{{ t('autoConfig.logs.kinds.' + value) }}</option>
         </select>
-        <button type="button" class="btn btn-secondary shrink-0" :disabled="loading" data-testid="history-refresh" @click="load()">
+        <button type="button" class="btn btn-secondary shrink-0" :disabled="loading" data-testid="history-refresh" @click="historyList.refresh()">
           <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
           {{ t('autoConfig.logs.refresh') }}
         </button>
@@ -18,7 +18,7 @@
     </header>
     <div v-if="error" role="alert" class="mx-5 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
       <span>{{ error }}</span>
-      <button type="button" class="font-medium underline" :disabled="loading" data-testid="history-retry" @click="load(retryMore)">{{ t('autoConfig.retry') }}</button>
+      <button type="button" class="font-medium underline" :disabled="loading" data-testid="history-retry" @click="historyList.retry()">{{ t('autoConfig.retry') }}</button>
     </div>
     <div :aria-busy="loading">
       <p v-if="!events.length && loading" role="status" class="px-5 py-12 text-center text-sm text-gray-500">{{ t('common.loading') }}</p>
@@ -62,13 +62,16 @@
     </div>
     <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 text-xs text-gray-400 dark:border-dark-700">
       <span>{{ t('autoConfig.logs.scopeHint') }}</span>
-      <button v-if="hasMore" type="button" class="btn btn-secondary" :disabled="loading" data-testid="history-more" @click="load(true)">{{ t(loading ? 'common.loading' : 'autoConfig.logs.more') }}</button>
+      <InfiniteListSentinel :loading="loading" :error="historyList.error.value" :has-more="historyList.hasMore.value" :progress="events.length" @load-more="historyList.loadMore" @retry="historyList.retry" />
     </footer>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import { computed, ref, watch } from 'vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/icons/Icon.vue'
@@ -80,37 +83,32 @@ const { t } = useI18n()
 const auth = useAuthStore()
 const kinds: AutoConfigEventKind[] = ['config_saved', 'initial_applied', 'concurrency_upgraded', 'failure_cooldown']
 const kind = ref<AutoConfigEventKind | ''>('')
-const events = ref<AutoConfigEvent[]>([])
-const hasMore = ref(false), loading = ref(false), error = ref(''), retryMore = ref(false)
-let generation = 0, alive = true
-
-async function load(more = false) {
-  if (!alive || auth.user?.role !== 'admin') return
-  const version = ++generation
-  loading.value = true
-  error.value = ''
-  retryMore.value = more
-  try {
-    const page = await getAutoConfigEvents({ limit: 20, kind: kind.value, before: more ? events.value.at(-1)?.id : undefined })
-    if (!alive || generation !== version) return
-    events.value = more ? [...events.value, ...page.items] : page.items
-    hasMore.value = page.has_more
-  } catch {
-    if (alive && generation === version) error.value = t('autoConfig.logs.loadFailed')
-  } finally {
-    if (alive && generation === version) loading.value = false
+// Keep the API cursor behind the shared page/refresh lifecycle.
+const cursors = new Map<number, number | undefined>([[1, undefined]])
+const historyList = useInfiniteList<AutoConfigEvent>({
+  pageSize: 20,
+  keyOf: event => event.id,
+  fetchPage: async (page, signal) => {
+    if (auth.user?.role !== 'admin') return { items: [], pages: page }
+    const result = await getAutoConfigEvents({ limit: 20, kind: kind.value, before: cursors.get(page) })
+    if (!signal.aborted) cursors.set(page + 1, result.items.at(-1)?.id)
+    return { items: result.items, pages: result.has_more ? Number.MAX_SAFE_INTEGER : page }
   }
+})
+const events = historyList.items
+const loading = computed(() => historyList.loading.value || historyList.loadingMore.value || historyList.refreshing.value)
+const error = computed(() => historyList.error.value ? t('autoConfig.logs.loadFailed') : '')
+function resetHistory() {
+  cursors.clear()
+  cursors.set(1, undefined)
+  historyList.clear()
+  if (auth.user?.role === 'admin') void historyList.reset()
 }
-watch(() => auth.user ? auth.user.id + ':' + auth.user.role : '', () => {
-  generation++
-  events.value = []
-  hasMore.value = loading.value = false
-  error.value = ''
-  void load()
-}, { immediate: true, flush: 'sync' })
-watch(kind, () => { events.value = []; hasMore.value = false; void load() })
-watch(() => props.refreshKey, () => { void load() })
-onBeforeUnmount(() => { alive = false; generation++ })
+watch(() => auth.user ? auth.user.id + ':' + auth.user.role : '', resetHistory, { immediate: true, flush: 'sync' })
+watch(kind, resetHistory, { flush: 'sync' })
+watch(() => props.refreshKey, () => {
+  if (auth.user?.role === 'admin') void historyList.refresh()
+})
 
 function badgeClass(value: AutoConfigEventKind) {
   if (value === 'failure_cooldown') return 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'

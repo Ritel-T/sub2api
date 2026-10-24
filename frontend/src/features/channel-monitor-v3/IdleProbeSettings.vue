@@ -2,7 +2,7 @@
   <div class="card !rounded-2xl" data-testid="monitor-v3-idle-probe">
     <div class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
       <div class="min-w-0 max-w-3xl">
-        <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV3.admin.idleProbe.title') }}</h3>
+        <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('channelMonitorV3.admin.idleProbe.title') }}</AppHeading>
         <p class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.admin.idleProbe.hint') }}</p>
       </div>
       <label class="flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -99,6 +99,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Toggle from '@/components/common/Toggle.vue'

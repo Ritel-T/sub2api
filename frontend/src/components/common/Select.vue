@@ -1,17 +1,21 @@
 <template>
-  <div class="relative" ref="containerRef">
+  <div class="relative" ref="containerRef" v-bind="wrapperAttrs()">
     <button
+      v-bind="fieldAttrs()"
       ref="triggerRef"
       type="button"
       @click="toggle"
       :disabled="disabled"
       :aria-expanded="isOpen"
-      :aria-haspopup="true"
-      :id="id"
-      :aria-label="ariaLabel ?? 'Select option'"
-      :aria-describedby="ariaDescribedby"
+      aria-haspopup="listbox"
+      :aria-controls="isOpen ? `${fieldId}-options` : undefined"
+      :id="fieldId"
+      :aria-label="ariaLabel"
+      :aria-invalid="ariaInvalid()"
+      :aria-describedby="describedBy()"
       :class="[
         'select-trigger',
+        clearable && hasValue && !disabled && 'select-trigger-clearable',
         isOpen && 'select-trigger-open',
         error && 'select-trigger-error',
         disabled && 'select-trigger-disabled'
@@ -24,18 +28,6 @@
           {{ selectedLabel }}
         </slot>
       </span>
-      <span
-        v-if="clearable && hasValue && !disabled"
-        class="select-clear"
-        role="button"
-        tabindex="-1"
-        aria-label="Clear selection"
-        @click.stop="clearSelection"
-        @mousedown.stop
-        @keydown.enter.stop.prevent="clearSelection"
-      >
-        <Icon name="x" size="sm" />
-      </span>
       <span class="select-icon">
         <Icon
           name="chevronDown"
@@ -43,6 +35,16 @@
           :class="['transition-transform duration-200', isOpen && 'rotate-180']"
         />
       </span>
+    </button>
+    <button
+      v-if="clearable && hasValue && !disabled"
+      type="button"
+      class="select-clear"
+      :aria-label="t('common.clear')"
+      :aria-describedby="fieldId"
+      @click.stop="clearSelection"
+    >
+      <Icon name="x" size="sm" />
     </button>
 
     <!-- Teleport dropdown to body to escape stacking context -->
@@ -55,6 +57,8 @@
           :class="[instanceId]"
           :style="dropdownStyle"
           role="listbox"
+          :id="`${fieldId}-options`"
+          :aria-labelledby="fieldId"
           :aria-multiselectable="multiple || undefined"
           tabindex="-1"
           @click.stop
@@ -123,9 +127,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, useAttrs, useId, type HTMLAttributes } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import { useOwnedPopover } from '@/composables/overlayLifecycle'
+
+defineOptions({ inheritAttrs: false })
 
 const { t } = useI18n()
 
@@ -184,6 +191,15 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false
 })
 
+const attrs = useAttrs()
+const generatedId = useId()
+const fieldId = computed(() => props.id || `select-${generatedId}`)
+const layoutKeys = new Set(['class', 'style', 'data-field-role', 'data-field-density'])
+const wrapperAttrs = () => Object.fromEntries(Object.entries(attrs).filter(([key]) => layoutKeys.has(key)))
+const fieldAttrs = () => Object.fromEntries(Object.entries(attrs).filter(([key]) => !layoutKeys.has(key)))
+const ariaInvalid = () => props.error ? true : attrs['aria-invalid'] as HTMLAttributes['aria-invalid']
+const describedBy = () => [props.ariaDescribedby, attrs['aria-describedby']].filter(Boolean).join(' ') || undefined
+
 const emit = defineEmits<Emits>()
 
 const isOpen = ref(false)
@@ -198,6 +214,12 @@ const dropdownPosition = ref<'bottom' | 'top'>('bottom')
 const triggerRect = ref<DOMRect | null>(null)
 const dropdownViewportPadding = 8
 const dropdownMinimumWidth = 200
+
+const overlay = useOwnedPopover(isOpen, {
+  root: () => dropdownRef.value,
+  trigger: () => triggerRef.value,
+  close: () => { isOpen.value = false }
+})
 
 // i18n placeholders
 const placeholderText = computed(() => props.placeholder ?? t('common.selectOption'))
@@ -467,6 +489,7 @@ const clearSelection = () => {
   const value = props.multiple ? [] : null
   emit('update:modelValue', value)
   emit('change', value, null)
+  triggerRef.value?.focus()
 }
 
 // Keyboards
@@ -502,6 +525,7 @@ const onDropdownKeyDown = (e: KeyboardEvent) => {
       triggerRef.value?.focus()
       break
     case 'Tab':
+      overlay.tab(e)
       isOpen.value = false
       break
   }
@@ -550,7 +574,7 @@ onUnmounted(() => {
 
 <style scoped>
 .select-trigger {
-  @apply flex w-full cursor-pointer items-center justify-between gap-2 text-sm;
+  @apply flex w-full cursor-pointer items-center justify-between gap-2;
 }
 .select-trigger-disabled { @apply cursor-not-allowed opacity-60; }
 
@@ -562,8 +586,10 @@ onUnmounted(() => {
   @apply flex-shrink-0 text-gray-400 dark:text-dark-400;
 }
 
+.select-trigger-clearable .select-value { margin-right: 32px; }
+
 .select-clear {
-  @apply flex flex-shrink-0 cursor-pointer items-center justify-center;
+  @apply absolute right-8 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center;
   @apply rounded text-gray-400 transition-colors;
   @apply hover:text-gray-600 dark:hover:text-gray-200;
 }

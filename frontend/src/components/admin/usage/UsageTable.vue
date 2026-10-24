@@ -16,7 +16,7 @@
         {{ ipGeoBatchLoading ? t('usage.ipGeo.batchFetching') : t('usage.ipGeo.batchFetch') }}
       </button>
     </div>
-    <div class="overflow-auto">
+    <div class="overflow-x-auto overflow-y-hidden">
       <DataTable :primary-columns="['created_at', 'user', 'model', 'tokens', 'cost', 'latency', 'request_details']"
         :toolbar-target="toolbarTarget"
         :columns="columns"

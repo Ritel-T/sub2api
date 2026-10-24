@@ -3,7 +3,7 @@
     <div class="custom-page-layout">
       <div class="open-section flex-1 min-h-0 overflow-hidden">
         <div v-if="loading" class="flex h-full items-center justify-center py-12">
-          <div
+          <div role="status" :aria-label="t('common.loading')"
             class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
           ></div>
         </div>
@@ -18,9 +18,9 @@
             >
               <Icon name="link" size="lg" class="text-gray-400" />
             </div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="empty" as="h3" class="text-gray-900 dark:text-white">
               {{ t('customPage.notFoundTitle') }}
-            </h3>
+            </AppHeading>
             <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
               {{ t('customPage.notFoundDesc') }}
             </p>
@@ -84,9 +84,9 @@
             >
               <Icon name="link" size="lg" class="text-gray-400" />
             </div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="empty" as="h3" class="text-gray-900 dark:text-white">
               {{ t('customPage.notConfiguredTitle') }}
-            </h3>
+            </AppHeading>
             <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
               {{ t('customPage.notConfiguredDesc') }}
             </p>
@@ -127,6 +127,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useResizeObserver } from '@vueuse/core'

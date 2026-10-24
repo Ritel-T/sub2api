@@ -88,3 +88,56 @@ describe('continuous cleanup tasks', () => {
     expect(createCleanupTask).toHaveBeenCalledTimes(1)
   })
 })
+
+
+describe('cleanup confirmation lifecycle', () => {
+  it('invalidates the cleanup request when filters change before acceptance', async () => {
+    const wrapper = await openDialog()
+    const vm = wrapper.vm as any
+    vm.openConfirm()
+    vm.localStartDate = '2026-10-01'
+    await flushPromises()
+    await vm.submitCleanup()
+    expect(createCleanupTask).not.toHaveBeenCalled()
+  })
+  it('locks the submitted payload and ignores its late result after reopening', async () => {
+    const wrapper = await openDialog()
+    const vm = wrapper.vm as any
+    let finish!: () => void
+    createCleanupTask.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    vm.openConfirm()
+    const request = vm.submitCleanup()
+    void vm.submitCleanup()
+    expect(createCleanupTask).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ show: false })
+    listCleanupTasks.mockResolvedValueOnce(page(9))
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    const reads = listCleanupTasks.mock.calls.length
+    finish()
+    await request
+    expect(listCleanupTasks).toHaveBeenCalledTimes(reads)
+  })
+  it('snapshots cancellation target and blocks stale or duplicate acceptance', async () => {
+    const wrapper = await openDialog()
+    const vm = wrapper.vm as any
+    let finish!: () => void
+    cancelCleanupTask.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    const task = { id: 7, status: 'pending' }
+    vm.openCancelConfirm(task)
+    task.id = 8
+    const request = vm.cancelTask()
+    void vm.cancelTask()
+    expect(cancelCleanupTask.mock.calls).toEqual([[7]])
+    await wrapper.setProps({ show: false })
+    listCleanupTasks.mockResolvedValueOnce(page(9))
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    const reads = listCleanupTasks.mock.calls.length
+    finish()
+    await request
+    expect(listCleanupTasks).toHaveBeenCalledTimes(reads)
+    await vm.cancelTask()
+    expect(cancelCleanupTask).toHaveBeenCalledTimes(1)
+  })
+})

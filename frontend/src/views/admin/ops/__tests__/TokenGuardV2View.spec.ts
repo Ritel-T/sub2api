@@ -113,6 +113,30 @@ afterEach(() => {
 })
 
 describe('TokenGuardV2View', () => {
+  it('releases an invalidated action lock when its request finishes, allowing another action', async () => {
+    wrapper = mount(TokenGuardV2View, { global: { stubs: {
+      AppLayout: { template: '<main><slot /></main>' }, SmartOpsNav: true, Icon: true,
+      BaseDialog: { props: ['show'], template: '<section v-if="show"><slot /><slot name="footer" /></section>' },
+    } } })
+    await flushPromises()
+    const vm = wrapper.vm as any
+    let finish!: () => void
+    let current = true
+    const first = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    const pending = vm.act({ account_id: 42, account_name: 'Old' }, first, 'old-notice', () => current)
+    expect(vm.busyId).toBe(42)
+    current = false
+    finish()
+    await pending
+    expect(vm.busyId).toBe(0)
+    expect(vm.notice).not.toContain('old-notice')
+    const next = vi.fn().mockResolvedValue(undefined)
+    await vm.act({ account_id: 43, account_name: 'New' }, next, 'new-notice')
+    expect(next).toHaveBeenCalledOnce()
+    expect(vm.busyId).toBe(0)
+    expect(vm.notice).toContain('new-notice')
+  })
+
   it('supports both per-account login modes without echoing saved secrets', async () => {
     wrapper = mount(TokenGuardV2View, {
       global: {
@@ -454,13 +478,13 @@ it('keeps runtime switches out of account forms and preserves credentials', asyn
 
 it('updates only the selected automation flag without resubmitting credentials', async () => {
   const view = await mountControls()
-  await view.get('[data-testid="auto-inspect-42"]').setValue(false); await flushPromises()
+  await view.get('[data-testid="auto-inspect-42"]').trigger('click'); await flushPromises()
   expect(api.updateSwitches).toHaveBeenCalledWith(42, { enabled: false })
   expect(api.updateGuard).not.toHaveBeenCalled()
   expect(view.find('#token-guard-v2-editor').exists()).toBe(false)
-  expect((view.get('[data-testid="auto-inspect-42"]').element as HTMLInputElement).checked).toBe(false)
+  expect(view.get('[data-testid="auto-inspect-42"]').attributes('aria-checked')).toBe('false')
   api.updateSwitches.mockResolvedValueOnce({ enabled: false, auto_relogin_enabled: false })
-  await view.get('[data-testid="auto-relogin-42"]').setValue(false); await flushPromises()
+  await view.get('[data-testid="auto-relogin-42"]').trigger('click'); await flushPromises()
   expect(api.updateSwitches).toHaveBeenLastCalledWith(42, { auto_relogin_enabled: false })
 })
 
@@ -470,8 +494,8 @@ it('rolls controls back when saving fails', async () => {
   await view.get('#token-guard-v2-engine').setValue('session_studio'); await flushPromises()
   expect((view.get('#token-guard-v2-engine').element as HTMLSelectElement).value).toBe('local_worker')
   api.updateSwitches.mockRejectedValueOnce(new Error('save failed'))
-  await view.get('[data-testid="auto-inspect-42"]').setValue(false); await flushPromises()
-  expect((view.get('[data-testid="auto-inspect-42"]').element as HTMLInputElement).checked).toBe(true)
+  await view.get('[data-testid="auto-inspect-42"]').trigger('click'); await flushPromises()
+  expect(view.get('[data-testid="auto-inspect-42"]').attributes('aria-checked')).toBe('true')
   expect(view.text()).toContain('save failed')
 })
 

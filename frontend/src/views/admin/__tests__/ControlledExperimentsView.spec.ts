@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ControlledExperimentsView from '../ControlledExperimentsView.vue'
+import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import type { ExperimentReport, ExperimentRun } from '@/api/admin/controlledExperiments'
 
 const { api, accounts } = vi.hoisted(() => ({
@@ -37,6 +38,25 @@ beforeEach(() => {
 afterEach(() => { wrapper?.unmount(); vi.useRealTimers() })
 
 describe('ControlledExperimentsView', () => {
+  it('keeps the loaded history on append failure and refreshes every loaded cursor', async () => {
+    const first = Array.from({ length: 30 }, (_, index) => ({ ...run(), id: 100 - index, name: `Run ${100 - index}` }))
+    const last = { ...run(), id: 70, name: 'Last run' }
+    api.list.mockResolvedValueOnce(first).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([last])
+      .mockResolvedValueOnce(first).mockResolvedValueOnce([last])
+    wrapper = mountView(); await flushPromises()
+    const sentinel = wrapper.getComponent(InfiniteListSentinel)
+    sentinel.vm.$emit('load-more'); await flushPromises()
+    expect(wrapper.text()).toContain('Run 99')
+    expect(sentinel.props('error')).toBeTruthy()
+    sentinel.vm.$emit('retry'); await flushPromises()
+    expect(wrapper.text()).toContain('Last run')
+    expect(api.list.mock.calls.slice(0, 3).map(call => call[0])).toEqual([0, 71, 71])
+    await wrapper.findAll('button').find(button => button.text() === 'controlledExperiments.refresh')!.trigger('click'); await flushPromises()
+    expect(wrapper.text()).toContain('Last run')
+    expect(api.list.mock.calls.slice(3).map(call => call[0])).toEqual([0, 71])
+    expect(api.start).not.toHaveBeenCalled()
+  })
+
   it('keeps a configuration failure visible and retries it on refresh', async () => {
     api.catalog.mockRejectedValueOnce(new Error('Task catalog unavailable'))
     wrapper = mountView(); await flushPromises()

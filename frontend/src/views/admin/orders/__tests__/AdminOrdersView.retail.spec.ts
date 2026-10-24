@@ -6,10 +6,10 @@ import AdminOrdersView from '../AdminOrdersView.vue'
 const routeState = vi.hoisted(() => ({ query: {} as Record<string, string> }))
 vi.mock('vue-router', () => ({ useRoute: () => routeState }))
 vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))
-const { getOrders, getOrder, showError, showSuccess } = vi.hoisted(() => ({
-  getOrders: vi.fn(), getOrder: vi.fn(), showError: vi.fn(), showSuccess: vi.fn(),
+const { getOrders, getOrder, refundOrder, showError, showSuccess } = vi.hoisted(() => ({
+  getOrders: vi.fn(), getOrder: vi.fn(), refundOrder: vi.fn(), showError: vi.fn(), showSuccess: vi.fn(),
 }))
-vi.mock('@/api/admin/payment', () => ({ adminPaymentAPI: { getOrders, getOrder }, default: { getOrders, getOrder } }))
+vi.mock('@/api/admin/payment', () => ({ adminPaymentAPI: { getOrders, getOrder, refundOrder }, default: { getOrders, getOrder } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError, showSuccess }) }))
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...await importOriginal<typeof import('vue-i18n')>(),
@@ -48,6 +48,7 @@ describe('real admin orders route retail snapshots', () => {
     Object.keys(routeState.query).forEach(key => delete routeState.query[key])
     getOrders.mockResolvedValue({ data: { items: [order], total: 1 } })
     getOrder.mockResolvedValue({ data: { order, audit_logs: [] } })
+    refundOrder.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
   })
@@ -135,6 +136,56 @@ describe('real admin orders route retail snapshots', () => {
     expect(wrapper.find('[data-order="3"]').exists()).toBe(true)
     expect(wrapper.find('[data-order="2"]').exists()).toBe(false)
     expect(wrapper.findAll('[data-order]')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it.each([{ success: true }, { success: false, require_force: true, warning: 'force A' }])('ignores stale refund results after order replacement: %j', async result => {
+    const items = [1, 2].map(id => ({ ...order, id, payment_type: 'stripe' }))
+    getOrders.mockResolvedValueOnce({ data: { items, total: 2 } })
+    let finish!: (value: unknown) => void
+    refundOrder.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    const refundButton = (id: number) => wrapper.get('[data-order="' + id + '"]').findAll('button').find(button => button.text() === 'payment.admin.refund')!
+    await refundButton(1).trigger('click')
+    const dialog = wrapper.findComponent({ name: 'AdminRefundDialog' })
+    const payload = { amount: 5, reason: 'requested', deduct_balance: true, force: false }
+    dialog.vm.$emit('confirm', payload, 1)
+    dialog.vm.$emit('confirm', payload, 1)
+    await flushPromises()
+    expect(refundOrder).toHaveBeenCalledTimes(1)
+    expect(refundOrder).toHaveBeenCalledWith(1, payload)
+    dialog.vm.$emit('cancel')
+    await flushPromises()
+    expect(dialog.props('show')).toBe(true)
+    await refundButton(2).trigger('click')
+    expect(dialog.props('order').id).toBe(2)
+    finish({ data: result })
+    await flushPromises()
+    expect(dialog.props('show')).toBe(true)
+    expect(dialog.props('requireForce')).toBe(false)
+    expect(dialog.props('warning')).toBe('')
+    expect(showSuccess).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('requires an explicit second force submission for the same refund order', async () => {
+    getOrders.mockResolvedValueOnce({ data: { items: [{ ...order, payment_type: 'stripe' }], total: 1 } })
+    refundOrder.mockResolvedValueOnce({ data: { success: false, require_force: true, warning: 'insufficient' } })
+      .mockResolvedValueOnce({ data: { success: true } })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'payment.admin.refund')!.trigger('click')
+    const dialog = wrapper.findComponent({ name: 'AdminRefundDialog' })
+    const payload = { amount: 5, reason: 'requested', deduct_balance: true, force: false }
+    dialog.vm.$emit('confirm', payload, 1)
+    await flushPromises()
+    expect(dialog.props('requireForce')).toBe(true)
+    expect(dialog.props('show')).toBe(true)
+    dialog.vm.$emit('confirm', { ...payload, force: true }, 1)
+    await flushPromises()
+    expect(refundOrder.mock.calls).toEqual([[1, payload], [1, { ...payload, force: true }]])
+    expect(dialog.props('show')).toBe(false)
     wrapper.unmount()
   })
 

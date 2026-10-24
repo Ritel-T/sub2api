@@ -6,7 +6,7 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/api/admin/scheduledTests', () => ({ scheduledTestsAPI: { listPelicanHistory: vi.fn(), getResult: vi.fn() } }))
 const account = { id: 42, name: 'Manual account' } as any
 const manual = { createdAt: '2026-09-23T12:00:00Z', modelId: 'saved-model', reasoningEffort: 'medium', runs: [{ html: '<html><body>MANUAL-ANIMATION</body></html>', output: '', durationMs: 34000, status: 'success' }] }
-function render(extra = {}) { return mount(Dashboard, { props: { accounts: [], account, manualRecord: manual, ...extra } }) }
+function render(extra = {}) { return mount(Dashboard, { props: { accounts: [], account, manualRecord: manual, ...extra }, global: { stubs: { Teleport: true, Transition: true } } }) }
 beforeEach(() => { vi.useFakeTimers(); vi.resetAllMocks(); localStorage.clear(); vi.mocked(api.listPelicanHistory).mockResolvedValue({ items: [], next_cursor: 0 }) })
 afterEach(() => { vi.useRealTimers() })
 describe('Pelican record dashboard', () => {
@@ -52,7 +52,7 @@ describe('Pelican record dashboard', () => {
     const failed = wrapper.findAll('article').find(c => c.text().includes('stream interrupted'))!
     await failed.get('button').trigger('click'); await flushPromises()
     expect(wrapper.get('[data-testid="record-detail"] iframe').attributes('srcdoc')).toContain('RECORD-6')
-    expect(wrapper.get('[data-testid="record-detail"]').text()).toContain('sourceScheduled')
+    expect(wrapper.text()).toContain('sourceScheduled')
     wrapper.unmount()
   })
 

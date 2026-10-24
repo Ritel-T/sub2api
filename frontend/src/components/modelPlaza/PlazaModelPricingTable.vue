@@ -212,7 +212,7 @@
         </tr>
         <tr v-show="expanded.has(key)" class="pricing-details-row" :data-price-reference="key">
           <td colspan="5" class="py-5">
-            <h4 class="mb-4 text-sm font-medium">{{ t('modelPlaza.table.officialPrice') }} <span class="font-normal text-gray-500">{{ t('modelPlaza.table.unitPerMillion') }}</span></h4>
+            <AppHeading as="h4" variant="minor" class="mb-4">{{ t('modelPlaza.table.officialPrice') }} <span class="font-normal text-gray-500">{{ t('modelPlaza.table.unitPerMillion') }}</span></AppHeading>
             <dl class="pricing-reference-grid">
               <div class="min-w-0">
                 <dt class="mb-2 text-xs text-gray-500">{{ t('modelPlaza.table.input') }}</dt>
@@ -302,6 +302,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatScaled, resolveIntervalPrices } from '@/utils/pricing'

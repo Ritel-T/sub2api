@@ -10,7 +10,7 @@
         >
           <Icon name="cog" size="xl" class="text-white" />
         </div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ t('setup.title') }}</h1>
+        <AppHeading variant="page" as="h1" class="text-gray-900 dark:text-white">{{ t('setup.title') }}</AppHeading>
         <p class="mt-2 text-gray-500 dark:text-dark-400">{{ t('setup.description') }}</p>
       </div>
 
@@ -79,9 +79,9 @@
         <!-- Step 1: Database -->
         <div v-if="currentStep === 0" class="space-y-6">
           <div class="mb-6 text-center">
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">
               {{ t('setup.database.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">
               {{ t('setup.database.description') }}
             </p>
@@ -117,7 +117,7 @@
                 {{ t("setup.redis.enableTlsHint") }}
               </p>
             </div>
-            <Toggle v-model="formData.redis.enable_tls" />
+            <Toggle :aria-label="t('setup.redis.enableTls')" v-model="formData.redis.enable_tls" />
           </div>
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -153,7 +153,7 @@
             </div>
             <div>
               <label class="input-label">{{ t('setup.database.sslMode') }}</label>
-              <Select
+              <Select :aria-label="t('setup.database.sslMode')"
                 v-model="formData.database.sslmode"
                 :options="[
                   { value: 'disable', label: t('setup.database.ssl.disable') },
@@ -204,9 +204,9 @@
         <!-- Step 2: Redis -->
         <div v-if="currentStep === 1" class="space-y-6">
           <div class="mb-6 text-center">
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">
               {{ t('setup.redis.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">
               {{ t('setup.redis.description') }}
             </p>
@@ -272,7 +272,7 @@
                 {{ t("setup.redis.enableTlsHint") }}
               </p>
             </div>
-            <Toggle v-model="formData.redis.enable_tls" />
+            <Toggle :aria-label="t('setup.redis.enableTls')" v-model="formData.redis.enable_tls" />
           </div>
 
           <button
@@ -320,9 +320,9 @@
         <!-- Step 3: Admin -->
         <div v-if="currentStep === 2" class="space-y-6">
           <div class="mb-6 text-center">
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">
               {{ t('setup.admin.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">
               {{ t('setup.admin.description') }}
             </p>
@@ -368,9 +368,9 @@
         <!-- Step 4: Complete -->
         <div v-if="currentStep === 3" class="space-y-6">
           <div class="mb-6 text-center">
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">
               {{ t('setup.ready.title') }}
-            </h2>
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">
               {{ t('setup.ready.description') }}
             </p>
@@ -378,9 +378,9 @@
 
           <div class="space-y-4">
             <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
-              <h3 class="mb-2 text-sm font-medium text-gray-500 dark:text-dark-400">
+              <AppHeading variant="subsection" as="h3" class="mb-2 text-gray-500 dark:text-dark-400">
                 {{ t('setup.ready.database') }}
-              </h3>
+              </AppHeading>
               <p class="text-gray-900 dark:text-white">
                 {{ formData.database.user }}@{{ formData.database.host }}:{{
                   formData.database.port
@@ -389,18 +389,18 @@
             </div>
 
             <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
-              <h3 class="mb-2 text-sm font-medium text-gray-500 dark:text-dark-400">
+              <AppHeading variant="subsection" as="h3" class="mb-2 text-gray-500 dark:text-dark-400">
                 {{ t('setup.ready.redis') }}
-              </h3>
+              </AppHeading>
               <p class="text-gray-900 dark:text-white">
                 {{ formData.redis.host }}:{{ formData.redis.port }}
               </p>
             </div>
 
             <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
-              <h3 class="mb-2 text-sm font-medium text-gray-500 dark:text-dark-400">
+              <AppHeading variant="subsection" as="h3" class="mb-2 text-gray-500 dark:text-dark-400">
                 {{ t('setup.ready.adminEmail') }}
-              </h3>
+              </AppHeading>
               <p class="text-gray-900 dark:text-white">{{ formData.admin.email }}</p>
             </div>
           </div>
@@ -423,7 +423,7 @@
           class="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800/50 dark:bg-green-900/20"
         >
           <div class="flex items-start gap-3">
-            <svg
+            <svg role="status" :aria-label="t('common.loading')"
               v-if="!serviceReady"
               class="h-5 w-5 flex-shrink-0 animate-spin text-green-500"
               fill="none"
@@ -516,6 +516,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { testDatabase, testRedis, install, type InstallRequest } from '@/api/setup'

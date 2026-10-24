@@ -16,9 +16,9 @@
 
       <div class="open-section pt-4">
         <div class="flex items-center justify-between">
-          <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+          <AppHeading as="h4" variant="minor" class="text-gray-700 dark:text-gray-200">
             {{ t('admin.usage.cleanup.recentTasks') }}
-          </h4>
+          </AppHeading>
           <button type="button" class="btn btn-ghost btn-sm" @click="loadTasks">
             {{ t('common.refresh') }}
           </button>
@@ -85,6 +85,7 @@
 
   <ConfirmDialog
     :show="confirmVisible"
+    :busy="submitting"
     :title="t('admin.usage.cleanup.confirmTitle')"
     :message="t('admin.usage.cleanup.confirmMessage')"
     :confirm-text="t('admin.usage.cleanup.confirmSubmit')"
@@ -95,6 +96,7 @@
 
   <ConfirmDialog
     :show="cancelConfirmVisible"
+    :busy="canceling"
     :title="t('admin.usage.cleanup.cancelConfirmTitle')"
     :message="t('admin.usage.cleanup.cancelConfirmMessage')"
     :confirm-text="t('admin.usage.cleanup.cancelConfirm')"
@@ -105,11 +107,13 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
@@ -142,10 +146,13 @@ const { items: tasks, loading: tasksLoading } = taskList
 watch(taskList.error, error => {
   if (error) appStore.showError(t('admin.usage.cleanup.loadFailed'))
 })
-const submitting = ref(false)
+const submitAction = useConfirmedAction(() => ({ active: props.show, identity: [localFilters.value, localStartDate.value, localEndDate.value] }))
+const cancelAction = useConfirmedAction(() => ({ active: props.show }))
+const submitting = submitAction.busy
+let submitTarget: CreateUsageCleanupTaskRequest | null = null
 const confirmVisible = ref(false)
 const cancelConfirmVisible = ref(false)
-const canceling = ref(false)
+const canceling = cancelAction.busy
 const cancelTarget = ref<UsageCleanupTask | null>(null)
 let pollTimer: number | null = null
 
@@ -174,13 +181,13 @@ const stopPolling = () => {
 }
 
 const handleClose = () => {
+  submitAction.invalidate()
+  cancelAction.invalidate()
   taskList.cancel()
   stopPolling()
   confirmVisible.value = false
   cancelConfirmVisible.value = false
-  canceling.value = false
   cancelTarget.value = null
-  submitting.value = false
   emit('close')
 }
 
@@ -233,7 +240,9 @@ const loadTasks = async () => {
 }
 
 const openConfirm = () => {
-  confirmVisible.value = true
+  if (!props.show || submitting.value || confirmVisible.value) return
+  submitTarget = buildPayload()
+  confirmVisible.value = submitTarget !== null
 }
 
 const canCancel = (task: UsageCleanupTask) => {
@@ -241,7 +250,8 @@ const canCancel = (task: UsageCleanupTask) => {
 }
 
 const openCancelConfirm = (task: UsageCleanupTask) => {
-  cancelTarget.value = task
+  if (!props.show || canceling.value || cancelConfirmVisible.value) return
+  cancelTarget.value = { ...task }
   cancelConfirmVisible.value = true
 }
 
@@ -289,47 +299,51 @@ const buildPayload = (): CreateUsageCleanupTaskRequest | null => {
 }
 
 const submitCleanup = async () => {
-  if (!props.show || submitting.value) return
-  const payload = buildPayload()
-  if (!payload) {
-    confirmVisible.value = false
-    return
-  }
-  submitting.value = true
-  confirmVisible.value = false
-  try {
-    await adminUsageAPI.createCleanupTask(payload)
-    appStore.showSuccess(t('admin.usage.cleanup.submitSuccess'))
-    loadTasks()
-  } catch (error) {
-    console.error('Failed to create cleanup task:', error)
-    appStore.showError(t('admin.usage.cleanup.submitFailed'))
-  } finally {
-    submitting.value = false
-  }
+  const payload = submitTarget
+  if (!props.show || !confirmVisible.value || !payload) return
+  await submitAction.run(async (isCurrent) => {
+    try {
+      await adminUsageAPI.createCleanupTask(payload)
+      if (!isCurrent()) return
+      confirmVisible.value = false
+      submitTarget = null
+      appStore.showSuccess(t('admin.usage.cleanup.submitSuccess'))
+      loadTasks()
+    } catch (error) {
+      if (!isCurrent()) return
+      console.error('Failed to create cleanup task:', error)
+      appStore.showError(t('admin.usage.cleanup.submitFailed'))
+    }
+  })
 }
 
 const cancelTask = async () => {
-  if (!props.show || canceling.value) return
   const task = cancelTarget.value
-  if (!task) {
-    cancelConfirmVisible.value = false
-    return
-  }
-  canceling.value = true
-  cancelConfirmVisible.value = false
-  try {
-    await adminUsageAPI.cancelCleanupTask(task.id)
-    appStore.showSuccess(t('admin.usage.cleanup.cancelSuccess'))
-    loadTasks()
-  } catch (error) {
-    console.error('Failed to cancel cleanup task:', error)
-    appStore.showError(t('admin.usage.cleanup.cancelFailed'))
-  } finally {
-    canceling.value = false
-    cancelTarget.value = null
-  }
+  if (!props.show || !cancelConfirmVisible.value || !task) return
+  await cancelAction.run(async (isCurrent) => {
+    try {
+      await adminUsageAPI.cancelCleanupTask(task.id)
+      if (!isCurrent()) return
+      cancelConfirmVisible.value = false
+      cancelTarget.value = null
+      appStore.showSuccess(t('admin.usage.cleanup.cancelSuccess'))
+      loadTasks()
+    } catch (error) {
+      if (!isCurrent()) return
+      console.error('Failed to cancel cleanup task:', error)
+      appStore.showError(t('admin.usage.cleanup.cancelFailed'))
+    }
+  })
 }
+
+watch(() => [props.show, localFilters.value, localStartDate.value, localEndDate.value], () => {
+  confirmVisible.value = false
+  submitTarget = null
+}, { deep: true, flush: 'sync' })
+watch(() => props.show, () => {
+  cancelConfirmVisible.value = false
+  cancelTarget.value = null
+}, { flush: 'sync' })
 
 watch(
   () => props.show,

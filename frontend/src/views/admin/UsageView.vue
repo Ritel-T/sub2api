@@ -23,7 +23,7 @@
         <template #before-filters>
           <div class="usage-time-filter">
             <label class="input-label">{{ t('admin.dashboard.timeRange') }}</label>
-            <DateRangePicker enable-time :preset="selectedPreset"
+            <DateRangePicker data-field-role="filter" :aria-label="t('admin.dashboard.timeRange')" enable-time :preset="selectedPreset"
               v-model:start-date="startDate"
               v-model:end-date="endDate"
               @change="onDateRangeChange"

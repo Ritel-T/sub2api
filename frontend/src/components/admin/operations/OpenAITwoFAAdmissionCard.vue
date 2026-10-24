@@ -1,8 +1,8 @@
 <template>
   <section class="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900" data-testid="two-fa-admission">
     <header class="flex flex-wrap items-center justify-between gap-3">
-      <h2 class="text-lg font-semibold">{{ t('autoConfig.admission.title') }}</h2>
-      <label class="flex items-center gap-2 text-sm"><input v-model="model.enabled" data-testid="admission-enabled" type="checkbox" role="switch" class="h-4 w-4 rounded text-primary-600" />{{ t('autoConfig.enable') }}</label>
+      <AppHeading as="h2" variant="section" >{{ t('autoConfig.admission.title') }}</AppHeading>
+      <label class="flex items-center gap-2 text-sm"><Toggle v-model="model.enabled" data-testid="admission-enabled" :aria-label="t('autoConfig.admission.title')" />{{ t('autoConfig.enable') }}</label>
     </header>
     <p class="text-sm leading-6 text-gray-500">{{ t('autoConfig.admission.hint') }}</p>
     <div class="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -22,6 +22,8 @@
 </template>
 
 <script setup lang="ts">
+import Toggle from '@/components/common/Toggle.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Group } from '@/types'

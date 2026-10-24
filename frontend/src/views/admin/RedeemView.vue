@@ -1,9 +1,9 @@
 <template>
-  <AppLayout>
+  <AppLayout :show-page-title="false">
     <TablePageLayout open>
       <template #actions>
         <div class="workspace-page-header">
-          <h1 class="workspace-page-title">{{ t('admin.redeem.title') }}</h1>
+          <AppHeading variant="page" as="h1" class="workspace-page-title">{{ t('admin.redeem.title') }}</AppHeading>
           <div class="workspace-header-actions">
             <TableToolbarTarget kind="actions" />
             <button
@@ -45,13 +45,13 @@
               @input="handleSearch"
             />
           </div>
-          <Select
+          <Select :aria-label="t('admin.redeem.codeType')"
             v-model="filters.type"
             :options="filterTypeOptions"
             class="w-36"
             @change="loadCodes"
           />
-          <Select
+          <Select :aria-label="t('common.status')"
             v-model="filters.status"
             :options="filterStatusOptions"
             class="w-36"
@@ -255,7 +255,7 @@
     </TablePageLayout>
 
     <!-- Delete Confirmation Dialog -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteAction.busy.value"
       :show="showDeleteDialog"
       :title="t('admin.redeem.deleteCode')"
       :message="t('admin.redeem.deleteCodeConfirm')"
@@ -267,7 +267,7 @@
     />
 
     <!-- Delete Unused Codes Dialog -->
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteUnusedAction.busy.value"
       :show="showDeleteUnusedDialog"
       :title="t('admin.redeem.deleteAllUnused')"
       :message="t('admin.redeem.deleteAllUnusedConfirm')"
@@ -279,19 +279,11 @@
     />
 
     <!-- Generate Codes Dialog -->
-    <Teleport to="body">
-      <div v-if="showGenerateDialog" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="fixed inset-0 bg-black/50" @click="showGenerateDialog = false"></div>
-        <div
-          class="relative z-10 w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-dark-800"
-        >
-          <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-            {{ t('admin.redeem.generateCodesTitle') }}
-          </h2>
-          <form @submit.prevent="handleGenerateCodes" class="space-y-4">
+    <BaseDialog :show="showGenerateDialog" :title="t('admin.redeem.generateCodesTitle')" width="narrow" :close-on-escape="!generating" :close-on-click-outside="!generating" :show-close-button="!generating" @close="!generating && (showGenerateDialog = false)">
+<form id="redeem-generate-form" @submit.prevent="handleGenerateCodes" class="space-y-4">
             <div>
               <label class="input-label">{{ t('admin.redeem.codeType') }}</label>
-              <Select v-model="generateForm.type" :options="typeOptions" />
+              <Select :aria-label="t('admin.redeem.codeType')" v-model="generateForm.type" :options="typeOptions" />
             </div>
             <!-- 余额/并发类型：显示数值输入 -->
             <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
@@ -321,7 +313,7 @@
             <template v-if="generateForm.type === 'subscription'">
               <div>
                 <label class="input-label">{{ t('admin.redeem.selectGroup') }}</label>
-                <Select
+                <Select :aria-label="t('admin.redeem.selectGroup')"
                   v-model="generateForm.group_id"
                   :options="subscriptionGroupOptions"
                   :placeholder="t('admin.redeem.selectGroupPlaceholder')"
@@ -402,37 +394,25 @@
                 class="input"
               />
             </div>
-            <div class="flex justify-end gap-3 pt-2">
-              <button type="button" @click="showGenerateDialog = false" class="btn btn-secondary">
+
+          </form>
+      <template #footer>
+<button type="button" @click="showGenerateDialog = false" :disabled="generating" class="btn btn-secondary">
                 {{ t('common.cancel') }}
               </button>
-              <button type="submit" :disabled="generating" class="btn btn-primary">
+              <button type="submit" form="redeem-generate-form" :disabled="generating" class="btn btn-primary">
                 {{ generating ? t('admin.redeem.generating') : t('admin.redeem.generate') }}
               </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
+      </template>
+    </BaseDialog>
 
     <!-- Batch Update Dialog -->
-    <Teleport to="body">
-      <div
-        v-if="showBatchUpdateDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      >
-        <div class="fixed inset-0 bg-black/50" @click="closeBatchUpdateDialog"></div>
-        <div
-          class="relative z-10 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-dark-800"
-        >
-          <h2 class="mb-1 text-lg font-semibold text-gray-900 dark:text-white">
-            {{ t('admin.redeem.batchUpdateTitle') }}
-          </h2>
-          <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+    <BaseDialog :show="showBatchUpdateDialog" :title="t('admin.redeem.batchUpdateTitle')" width="normal" :close-on-escape="!batchUpdating" :close-on-click-outside="!batchUpdating" :show-close-button="!batchUpdating" @close="!batchUpdating && (closeBatchUpdateDialog())">
+<p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
             {{ t('admin.redeem.selectedCount', { count: selectedCount }) }}
           </p>
 
-          <form data-test="batch-update-form" class="space-y-4" @submit.prevent="handleBatchUpdate">
+          <form id="redeem-batch-update-form" data-test="batch-update-form" class="space-y-4" @submit.prevent="handleBatchUpdate">
             <div class="space-y-2">
               <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 <input
@@ -443,7 +423,7 @@
                 />
                 {{ t('admin.redeem.batchFields.status') }}
               </label>
-              <Select
+              <Select :aria-label="t('admin.redeem.batchFields.status')"
                 v-if="batchUpdateForm.update_status"
                 v-model="batchUpdateForm.status"
                 data-test="batch-status-select"
@@ -461,7 +441,7 @@
                 {{ t('admin.redeem.batchFields.expiresAt') }}
               </label>
               <template v-if="batchUpdateForm.update_expires_at">
-                <Select v-model="batchUpdateForm.expires_mode" :options="batchExpiryModeOptions" />
+                <Select :aria-label="t('admin.redeem.batchFields.expiresAt')" v-model="batchUpdateForm.expires_mode" :options="batchExpiryModeOptions" />
                 <input
                   v-if="batchUpdateForm.expires_mode === 'custom'"
                   v-model="batchUpdateForm.expires_at_local"
@@ -503,7 +483,7 @@
                 />
                 {{ t('admin.redeem.batchFields.group') }}
               </label>
-              <Select
+              <Select :aria-label="t('admin.redeem.batchFields.group')"
                 v-if="batchUpdateForm.update_group_id"
                 v-model="batchUpdateForm.group_id"
                 :options="batchGroupOptions"
@@ -511,69 +491,29 @@
               />
             </div>
 
-            <div class="flex justify-end gap-3 pt-2">
-              <button type="button" @click="closeBatchUpdateDialog" class="btn btn-secondary">
+
+          </form>
+      <template #footer>
+<button type="button" @click="closeBatchUpdateDialog" :disabled="batchUpdating" class="btn btn-secondary">
                 {{ t('common.cancel') }}
               </button>
               <button
                 data-test="batch-update-submit"
-                type="submit"
+                type="submit" form="redeem-batch-update-form"
                 :disabled="batchUpdating"
                 class="btn btn-primary"
               >
                 {{ batchUpdating ? t('common.submitting') : t('admin.redeem.batchUpdate') }}
               </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
+      </template>
+    </BaseDialog>
 
     <!-- Generated Codes Result Dialog -->
-    <Teleport to="body">
-      <div v-if="showResultDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="fixed inset-0 bg-black/50" @click="closeResultDialog"></div>
-        <div class="relative z-10 w-full max-w-lg rounded-xl bg-white shadow-xl dark:bg-dark-800">
-          <!-- Header -->
-          <div
-            class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-dark-600"
-          >
-            <div class="flex items-center gap-3">
-              <div
-                class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30"
-              >
-                <svg
-                  class="h-5 w-5 text-green-600 dark:text-green-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-                  {{ t('admin.redeem.generatedSuccessfully') }}
-                </h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
+    <BaseDialog :show="showResultDialog" :title="t('admin.redeem.generatedSuccessfully')" width="normal" :close-on-click-outside="true" @close="closeResultDialog">
+<p class="text-sm text-gray-500 dark:text-gray-400">
                   {{ t('admin.redeem.codesCreated', { count: generatedCodes.length }) }}
                 </p>
-              </div>
-            </div>
-            <button
-              @click="closeResultDialog"
-              class="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300"
-            >
-              <Icon name="x" size="md" :stroke-width="2" />
-            </button>
-          </div>
-          <!-- Content -->
-          <div class="p-5">
+
             <div class="relative">
               <textarea
                 readonly
@@ -582,12 +522,8 @@
                 class="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-sm text-gray-800 focus:outline-none dark:border-dark-600 dark:bg-dark-700 dark:text-gray-200"
               ></textarea>
             </div>
-          </div>
-          <!-- Footer -->
-          <div
-            class="flex justify-end gap-2 rounded-b-xl border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-dark-600 dark:bg-dark-700/50"
-          >
-            <button
+      <template #footer>
+<button
               @click="copyGeneratedCodes"
               :class="[
                 'btn flex items-center gap-2 transition-all',
@@ -609,14 +545,14 @@
               <Icon name="download" size="sm" :stroke-width="2" />
               {{ t('admin.redeem.download') }}
             </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+      </template>
+    </BaseDialog>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -643,6 +579,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -1071,41 +1008,53 @@ const handleDelete = (code: RedeemCode) => {
   showDeleteDialog.value = true
 }
 
-const confirmDelete = async () => {
-  if (!deletingCode.value) return
+function confirmDelete() {
+  return confirmDeleteAction.run(async (isCurrent) => {
+    const targetId = deletingCode.value?.id
+    if (targetId == null) return
 
-  try {
-    await adminAPI.redeem.delete(deletingCode.value.id)
-    appStore.showSuccess(t('admin.redeem.codeDeleted'))
-    showDeleteDialog.value = false
-    deletingCode.value = null
-    loadCodes()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToDelete'))
-    console.error('Error deleting code:', error)
-  }
+    if (!deletingCode.value) return
+
+    try {
+      await adminAPI.redeem.delete(targetId)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.redeem.codeDeleted'))
+      showDeleteDialog.value = false
+      deletingCode.value = null
+      loadCodes()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToDelete'))
+      console.error('Error deleting code:', error)
+    }
+  })
 }
 
-const confirmDeleteUnused = async () => {
-  try {
-    // Get all unused codes and delete them
-    const unusedCodesResponse = await adminAPI.redeem.list(1, 1000, { status: 'unused' })
-    const unusedCodeIds = unusedCodesResponse.items.map((code) => code.id)
+function confirmDeleteUnused() {
+  return confirmDeleteUnusedAction.run(async (isCurrent) => {
+    try {
+      // Get all unused codes and delete them
+      const unusedCodesResponse = await adminAPI.redeem.list(1, 1000, { status: 'unused' })
+      if (!isCurrent()) return
+      const unusedCodeIds = unusedCodesResponse.items.map((code) => code.id)
 
-    if (unusedCodeIds.length === 0) {
-      appStore.showInfo(t('admin.redeem.noUnusedCodes'))
+      if (unusedCodeIds.length === 0) {
+        appStore.showInfo(t('admin.redeem.noUnusedCodes'))
+        showDeleteUnusedDialog.value = false
+        return
+      }
+
+      const result = await adminAPI.redeem.batchDelete(unusedCodeIds)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.redeem.codesDeleted', { count: result.deleted }))
       showDeleteUnusedDialog.value = false
-      return
+      loadCodes()
+    } catch (error: any) {
+      if (!isCurrent()) return
+      appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToDeleteUnused'))
+      console.error('Error deleting unused codes:', error)
     }
-
-    const result = await adminAPI.redeem.batchDelete(unusedCodeIds)
-    appStore.showSuccess(t('admin.redeem.codesDeleted', { count: result.deleted }))
-    showDeleteUnusedDialog.value = false
-    loadCodes()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToDeleteUnused'))
-    console.error('Error deleting unused codes:', error)
-  }
+  })
 }
 
 const handleBatchUpdate = async () => {
@@ -1163,4 +1112,9 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimeout(searchTimeout)
 })
+
+// Direct confirmations share one execution and stale-context contract.
+const confirmDeleteAction = useConfirmedAction(() => ({ active: showDeleteDialog.value, identity: deletingCode.value?.id }))
+watch(() => ({ active: showDeleteDialog.value, identity: JSON.stringify(deletingCode.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeleteDialog.value = false } }, { flush: 'sync' })
+const confirmDeleteUnusedAction = useConfirmedAction(() => ({ active: showDeleteUnusedDialog.value, identity: undefined }))
 </script>

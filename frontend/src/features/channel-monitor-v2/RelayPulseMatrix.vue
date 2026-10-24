@@ -4,12 +4,12 @@
   >
     <div class="monitor-section-heading mb-4 flex shrink-0 flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
-        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+        <AppHeading as="h2" variant="section" class="flex items-center gap-2 text-gray-900 dark:text-white">
           <span class="inline-flex h-4 w-4 text-emerald-500" aria-hidden="true">
             <Icon name="grid" size="sm" />
           </span>
           {{ t('channelMonitorV2.matrix.title') }}
-        </h2>
+        </AppHeading>
         <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
           {{ t('channelMonitorV2.matrix.description') }}
         </p>
@@ -165,6 +165,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { useI18n } from 'vue-i18n'
 import { computed, reactive, ref, watch } from 'vue'
 import type {

@@ -9,13 +9,13 @@
         {{ t('supportTickets.detail.back') }}
       </router-link>
 
-      <div v-if="loading && !detail" class="open-section h-64 animate-pulse" aria-busy="true"></div>
+      <LoadingRegion v-if="loading && !detail" class="open-section h-64 animate-pulse"></LoadingRegion>
       <p v-else-if="loadError" class="open-section p-6 text-sm text-red-600 dark:text-red-400" data-testid="ticket-load-error">{{ loadError }}</p>
       <template v-else-if="detail">
         <div class="open-section p-5">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <h2 class="break-words text-3xl font-semibold text-gray-900 dark:text-white" data-testid="ticket-title">{{ detail.ticket.title }}</h2>
+              <AppHeading variant="section" as="h2" class="break-words text-gray-900 dark:text-white" data-testid="ticket-title">{{ detail.ticket.title }}</AppHeading>
               <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                 <span>{{ t('supportTickets.detail.number', { id: detail.ticket.id }) }}</span>
                 <span v-if="detail.ticket.category" class="rounded-md bg-gray-100 px-1.5 py-0.5 dark:bg-dark-700">{{ detail.ticket.category }}</span>
@@ -57,7 +57,7 @@
       </template>
     </div>
 
-    <ConfirmDialog
+    <ConfirmDialog :busy="closeAction.busy.value || busy"
       :show="confirmClose"
       :title="t('supportTickets.detail.close')"
       :message="t('supportTickets.detail.closeConfirm')"
@@ -70,10 +70,13 @@
 </template>
 
 <script setup lang="ts">
+import LoadingRegion from '@/components/common/LoadingRegion.vue'
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TicketConversation from '@/features/support-tickets/TicketConversation.vue'
@@ -145,9 +148,22 @@ async function send(body: string) {
   if (await run(() => replyMyTicket(ticketId.value, body), 'supportTickets.detail.sent')) reply.value = ''
 }
 
-async function close() {
-  confirmClose.value = false
-  await run(() => closeMyTicket(ticketId.value), 'supportTickets.detail.closed')
+function close() {
+  if (busy.value) return
+  return closeAction.run(async (isCurrent) => {
+      const id = ticketId.value
+      busy.value = true
+      try {
+        const response = await closeMyTicket(id)
+        if (!isCurrent()) return
+        detail.value = response
+        appStore.showSuccess(t('supportTickets.detail.closed'))
+        ticketStore.refresh(true)
+        confirmClose.value = false
+      } catch (err) {
+        if (isCurrent()) appStore.showError(supportTicketErrorMessage(err, t))
+      } finally { busy.value = false }
+  })
 }
 
 function reopen() {
@@ -173,6 +189,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
 })
+const closeAction = useConfirmedAction(() => ({ active: confirmClose.value, identity: ticketId.value }))
+watch(ticketId, () => { confirmClose.value = false }, { flush: 'sync' })
 </script>
 
 <style scoped>

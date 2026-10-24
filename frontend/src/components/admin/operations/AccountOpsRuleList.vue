@@ -5,7 +5,7 @@
   >
     <div class="flex flex-wrap items-center justify-between gap-3 pb-5">
       <div>
-        <h3 class="text-sm font-semibold">{{ t('accountOps.accountRules') }}</h3>
+        <AppHeading as="h3" variant="subsection" >{{ t('accountOps.accountRules') }}</AppHeading>
         <p class="mt-1 text-xs text-gray-500">{{ t('accountOps.rulesOnceSummary') }}</p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -98,6 +98,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountOpsConfig, AccountOpsGroup, AccountOpsThresholdAccount } from '@/api/admin/accountOps'

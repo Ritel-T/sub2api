@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import AppHeading from '@/components/common/AppHeading.vue'
+import { computed, onMounted, ref, watch, useId } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import { adminAPI } from '@/api'
@@ -13,6 +15,7 @@ import type { OpsSeverity } from '@/api/admin/ops'
 import { formatDateTime } from '../utils/opsFormatters'
 
 const { t } = useI18n()
+const groupHintId = `alert-rule-group-${useId()}`
 const appStore = useAppStore()
 
 // 与 DataTable 一致：< 768px 切换为卡片视图，避免宽表在移动端被截断。
@@ -370,31 +373,43 @@ function requestDelete(rule: AlertRule) {
   showDeleteConfirm.value = true
 }
 
-async function confirmDelete() {
-  if (!pendingDelete.value?.id) return
-  try {
-    await opsAPI.deleteAlertRule(pendingDelete.value.id)
-    showDeleteConfirm.value = false
-    pendingDelete.value = null
-    await load()
-    appStore.showSuccess(t('admin.ops.alertRules.deleteSuccess'))
-  } catch (err: any) {
-    console.error('[OpsAlertRulesCard] Failed to delete rule', err)
-    appStore.showError(err?.response?.data?.detail || t('admin.ops.alertRules.deleteFailed'))
-  }
+function confirmDelete() {
+  return confirmDeleteAction.run(async (isCurrent) => {
+    const targetId = pendingDelete.value?.id
+    if (targetId == null) return
+
+    if (!pendingDelete.value?.id) return
+    try {
+      await opsAPI.deleteAlertRule(targetId)
+      if (!isCurrent()) return
+      await load()
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.ops.alertRules.deleteSuccess'))
+      showDeleteConfirm.value = false
+      pendingDelete.value = null
+    } catch (err: any) {
+      if (!isCurrent()) return
+      console.error('[OpsAlertRulesCard] Failed to delete rule', err)
+      appStore.showError(err?.response?.data?.detail || t('admin.ops.alertRules.deleteFailed'))
+    }
+  })
 }
 
 function cancelDelete() {
   showDeleteConfirm.value = false
   pendingDelete.value = null
 }
+
+// Direct confirmations share one execution and stale-context contract.
+const confirmDeleteAction = useConfirmedAction(() => ({ active: showDeleteConfirm.value, identity: pendingDelete.value?.id }))
+watch(() => ({ active: showDeleteConfirm.value, identity: JSON.stringify(pendingDelete.value?.id) }), (next, previous) => { if (previous.active && next.active && next.identity !== previous.identity) { showDeleteConfirm.value = false } }, { flush: 'sync' })
 </script>
 
 <template>
   <div class="open-section">
     <div class="mb-4 flex flex-wrap items-start justify-between gap-3 sm:gap-4">
       <div>
-        <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('admin.ops.alertRules.title') }}</h3>
+        <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('admin.ops.alertRules.title') }}</AppHeading>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertRules.description') }}</p>
       </div>
 
@@ -534,7 +549,7 @@ function cancelDelete() {
 
           <div>
             <label class="input-label">{{ t('admin.ops.alertRules.form.metric') }}</label>
-            <Select v-model="draft!.metric_type" :options="metricOptions" />
+            <Select :aria-label="t('admin.ops.alertRules.form.metric')" v-model="draft!.metric_type" :options="metricOptions" />
             <div v-if="selectedMetricDefinition" class="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
               <p>{{ selectedMetricDefinition.description }}</p>
               <p>
@@ -551,7 +566,7 @@ function cancelDelete() {
 
           <div>
             <label class="input-label">{{ t('admin.ops.alertRules.form.operator') }}</label>
-            <Select v-model="draft!.operator" :options="operatorOptions" />
+            <Select :aria-label="t('admin.ops.alertRules.form.operator')" v-model="draft!.operator" :options="operatorOptions" />
           </div>
 
           <div class="md:col-span-2">
@@ -559,14 +574,15 @@ function cancelDelete() {
               {{ t('admin.ops.alertRules.form.groupId') }}
               <span v-if="isGroupMetricSelected" class="ml-1 text-red-500">*</span>
             </label>
-            <Select
+            <Select :aria-label="t('admin.ops.alertRules.form.groupId')"
               v-model="draftGroupId"
               :options="groupOptions"
               searchable
               :placeholder="t('admin.ops.alertRules.form.groupPlaceholder')"
               :error="isGroupMetricSelected && !draftGroupId"
+              :aria-describedby="groupHintId"
             />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p :id="groupHintId" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ isGroupMetricSelected ? t('admin.ops.alertRules.hints.groupRequired') : t('admin.ops.alertRules.hints.groupOptional') }}
             </p>
           </div>
@@ -578,12 +594,12 @@ function cancelDelete() {
 
           <div>
             <label class="input-label">{{ t('admin.ops.alertRules.form.severity') }}</label>
-            <Select v-model="draft!.severity" :options="severityOptions" />
+            <Select :aria-label="t('admin.ops.alertRules.form.severity')" v-model="draft!.severity" :options="severityOptions" />
           </div>
 
           <div>
             <label class="input-label">{{ t('admin.ops.alertRules.form.window') }}</label>
-            <Select v-model="draft!.window_minutes" :options="windowOptions" />
+            <Select :aria-label="t('admin.ops.alertRules.form.window')" v-model="draft!.window_minutes" :options="windowOptions" />
           </div>
 
           <div>
@@ -620,8 +636,9 @@ function cancelDelete() {
       </template>
     </BaseDialog>
 
-    <ConfirmDialog
+    <ConfirmDialog :busy="confirmDeleteAction.busy.value"
       :show="showDeleteConfirm"
+      danger
       :title="t('admin.ops.alertRules.deleteConfirmTitle')"
       :message="t('admin.ops.alertRules.deleteConfirmMessage')"
       :confirmText="t('common.delete')"

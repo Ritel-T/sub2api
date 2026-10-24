@@ -37,7 +37,7 @@
               {{ t('admin.scheduledTests.model') }}
             </label>
             <Input v-if="pelicanConfig" v-model="newPlan.model_id" />
-            <Select v-else
+            <Select :aria-label="t('admin.scheduledTests.model')" v-else
               v-model="newPlan.model_id"
               :options="modelOptions"
               :placeholder="t('admin.scheduledTests.model')"
@@ -96,14 +96,14 @@
           </div>
           <div class="flex items-end">
             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <Toggle v-model="newPlan.enabled" />
+              <Toggle :aria-label="t('admin.scheduledTests.enabled')" v-model="newPlan.enabled" />
               {{ t('admin.scheduledTests.enabled') }}
             </label>
           </div>
           <div class="flex items-end">
             <div>
               <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                <Toggle v-model="newPlan.auto_recover" />
+                <Toggle :aria-label="t('admin.scheduledTests.autoRecover')" v-model="newPlan.auto_recover" />
                 {{ t('admin.scheduledTests.autoRecover') }}
               </label>
               <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
@@ -133,7 +133,7 @@
 
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-8">
-        <Icon name="refresh" size="md" class="animate-spin text-gray-400" :stroke-width="2" />
+        <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="md" class="animate-spin text-gray-400" :stroke-width="2" />
         <span class="ml-2 text-sm text-gray-500">{{ t('common.loading') }}...</span>
       </div>
 
@@ -173,7 +173,7 @@
 
               <!-- Enabled Toggle -->
               <div class="flex items-center gap-1.5" @click.stop>
-                <Toggle
+                <Toggle :aria-label="t('admin.scheduledTests.enabled') + ': ' + plan.model_id"
                   :model-value="plan.enabled"
                   @update:model-value="(val: boolean) => handleToggleEnabled(plan, val)"
                 />
@@ -256,7 +256,7 @@
                   {{ t('admin.scheduledTests.model') }}
                 </label>
                 <Input v-if="pelicanConfig" v-model="editForm.model_id" />
-                <Select v-else
+                <Select :aria-label="t('admin.scheduledTests.model')" v-else
                   v-model="editForm.model_id"
                   :options="modelOptions"
                   :placeholder="t('admin.scheduledTests.model')"
@@ -315,14 +315,14 @@
               </div>
               <div class="flex items-end">
                 <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <Toggle v-model="editForm.enabled" />
+                  <Toggle :aria-label="t('admin.scheduledTests.enabled')" v-model="editForm.enabled" />
                   {{ t('admin.scheduledTests.enabled') }}
                 </label>
               </div>
               <div class="flex items-end">
                 <div>
                   <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <Toggle v-model="editForm.auto_recover" />
+                    <Toggle :aria-label="t('admin.scheduledTests.autoRecover')" v-model="editForm.auto_recover" />
                     {{ t('admin.scheduledTests.autoRecover') }}
                   </label>
                   <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
@@ -361,7 +361,7 @@
 
             <!-- Results Loading -->
             <div v-if="loadingResults" class="flex items-center justify-center py-4">
-              <Icon name="refresh" size="sm" class="animate-spin text-gray-400" :stroke-width="2" />
+              <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="sm" class="animate-spin text-gray-400" :stroke-width="2" />
               <span class="ml-2 text-xs text-gray-500">{{ t('common.loading') }}...</span>
             </div>
 
@@ -459,6 +459,7 @@
     <!-- Delete Confirmation -->
     <ConfirmDialog
       :show="showDeleteConfirm"
+      :busy="deleteAction.busy.value"
       :title="t('admin.scheduledTests.deletePlan')"
       :message="t('admin.scheduledTests.confirmDelete')"
       :confirm-text="t('common.delete')"
@@ -475,6 +476,7 @@ import { ref, reactive, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { useConfirmedAction } from '@/composables/useConfirmation'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import Input from '@/components/common/Input.vue'
@@ -552,6 +554,8 @@ const expandedResultIds = reactive(new Set<number>())
 const showAddForm = ref(false)
 const showDeleteConfirm = ref(false)
 const deletingPlan = ref<ScheduledTestPlan | null>(null)
+const deleteAction = useConfirmedAction(() => ({ active: props.show && !props.disabled, identity: [props.accountId, Boolean(props.pelicanConfig)] }))
+watch(() => [props.show, props.accountId, props.disabled, Boolean(props.pelicanConfig)], () => { showDeleteConfirm.value = false; deletingPlan.value = null }, { flush: 'sync' })
 const editingPlanId = ref<number | null>(null)
 const updating = ref(false)
 const editForm = reactive({
@@ -683,27 +687,31 @@ const handleEdit = async () => {
 }
 
 const confirmDeletePlan = (plan: ScheduledTestPlan) => {
-  deletingPlan.value = plan
+  if (!props.show || props.disabled || deleteAction.busy.value || showDeleteConfirm.value) return
+  deletingPlan.value = { ...plan }
   showDeleteConfirm.value = true
 }
 
 const handleDelete = async () => {
-  if (!deletingPlan.value || props.disabled) return
-  revision++
-  try {
-    await adminAPI.scheduledTests.delete(deletingPlan.value.id)
-    appStore.showSuccess(t('admin.scheduledTests.deleteSuccess'))
-    plans.value = plans.value.filter((p) => p.id !== deletingPlan.value!.id)
-    if (expandedPlanId.value === deletingPlan.value.id) {
-      expandedPlanId.value = null
-      results.value = []
+  const target = deletingPlan.value
+  if (!props.show || !showDeleteConfirm.value || !target || props.disabled) return
+  await deleteAction.run(async (isCurrent) => {
+    revision++
+    try {
+      await adminAPI.scheduledTests.delete(target.id)
+      if (!isCurrent()) return
+      appStore.showSuccess(t('admin.scheduledTests.deleteSuccess'))
+      plans.value = plans.value.filter((p) => p.id !== target.id)
+      if (expandedPlanId.value === target.id) {
+        expandedPlanId.value = null
+        results.value = []
+      }
+      showDeleteConfirm.value = false
+      deletingPlan.value = null
+    } catch (error: any) {
+      if (isCurrent()) appStore.showError(error?.message || 'Failed to delete plan')
     }
-  } catch (error: any) {
-    appStore.showError(error?.message || 'Failed to delete plan')
-  } finally {
-    showDeleteConfirm.value = false
-    deletingPlan.value = null
-  }
+  })
 }
 
 const expandPlan = async (planId: number) => {

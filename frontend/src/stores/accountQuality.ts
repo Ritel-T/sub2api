@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useAuthStore } from './auth'
 import { listQualityPlans, listQualityOperations, listQualityTemplates, type QualityOperation, type QualityRuleTemplate } from '@/api/admin/accountQuality'
 import { getAllIncludingInactive } from '@/api/admin/groups'
@@ -9,10 +10,23 @@ import type { AdminGroup, ScheduledTestPlan } from '@/types'
 export const useAccountQualityStore = defineStore('accountQuality', () => {
   const auth = useAuthStore()
   const plans = ref<ScheduledTestPlan[]>([]), groups = ref<AdminGroup[]>([]), templates = ref<QualityRuleTemplate[]>([])
-  const operations = ref<QualityOperation[]>([]), cursor = ref(0)
+  const cursor = ref(0)
+  const operationCursors = new Map<number, number>([[1, 0]])
+  const operationList = useInfiniteList<QualityOperation>({
+    keyOf: operation => operation.id,
+    fetchPage: async (page, signal) => {
+      const result = await listQualityOperations(operationCursors.get(page) ?? 0)
+      if (!signal.aborted) operationCursors.set(page + 1, result.next_cursor)
+      return { items: result.items, pages: result.next_cursor ? Number.MAX_SAFE_INTEGER : page }
+    }
+  })
+  const operations = operationList.items
   const rulesLoaded = ref(false), operationsLoaded = ref(false)
-  const rulesLoading = ref(false), operationsLoading = ref(false), moreLoading = ref(false)
-  const rulesError = ref(''), operationsError = ref(''), groupsError = ref('')
+  const rulesLoading = ref(false)
+  const operationsLoading = computed(() => operationList.loading.value || operationList.refreshing.value)
+  const moreLoading = operationList.loadingMore
+  const rulesError = ref(''), groupsError = ref('')
+  const operationsError = computed(() => operationList.error.value ? errorText(operationList.error.value) : '')
   const updatedAt = ref(0)
   const search = ref(''), selectedPlanId = ref<number | null>(null), operationFilter = ref('all')
   let ruleVersion = 0, operationVersion = 0, groupVersion = 0
@@ -21,10 +35,11 @@ export const useAccountQualityStore = defineStore('accountQuality', () => {
 
   function reset() {
     ruleVersion++; operationVersion++; groupVersion++
-    plans.value = []; groups.value = []; templates.value = []; operations.value = []; cursor.value = 0
+    plans.value = []; groups.value = []; templates.value = []; cursor.value = 0
+    operationList.clear(); operationCursors.clear(); operationCursors.set(1, 0)
     rulesLoaded.value = operationsLoaded.value = false
-    rulesLoading.value = operationsLoading.value = moreLoading.value = false
-    rulesError.value = operationsError.value = groupsError.value = ''
+    rulesLoading.value = false
+    rulesError.value = groupsError.value = ''
     search.value = ''; selectedPlanId.value = null; operationFilter.value = 'all'; updatedAt.value = 0
     rulesFlight = groupsFlight = null
   }
@@ -60,26 +75,20 @@ export const useAccountQualityStore = defineStore('accountQuality', () => {
     groupsFlight = flight
     return flight
   }
-  async function refreshOperations(append = false) {
+  async function refreshOperations(append = false, retry = false) {
     if (append && (moreLoading.value || operationsLoading.value || !cursor.value)) return
     const version = ++operationVersion
-    if (append) moreLoading.value = true
-    else { operationsLoading.value = true; moreLoading.value = false }
-    operationsError.value = ''
-    try {
-      const page = await listQualityOperations(append ? cursor.value : 0)
-      if (version !== operationVersion) return
-      const unique = new Map<number, QualityOperation>()
-      for (const item of [...(append ? operations.value : []), ...page.items]) unique.set(item.id, item)
-      operations.value = [...unique.values()]; cursor.value = page.next_cursor
-      operationsLoaded.value = true; updatedAt.value = Date.now()
-    } catch (e) { if (version === operationVersion) operationsError.value = errorText(e) }
-    finally { if (version === operationVersion) operationsLoading.value = moreLoading.value = false }
+    await (retry ? operationList.retry() : append ? operationList.loadMore() : operationList.refresh())
+    if (version !== operationVersion || operationList.error.value) return
+    cursor.value = operationCursors.get(operationList.page.value + 1) ?? 0
+    operationsLoaded.value = true; updatedAt.value = Date.now()
   }
+  function retryOperations() { return refreshOperations(false, true) }
+
   async function refresh() {
     await Promise.all([refreshRules(), refreshGroups(), refreshOperations()])
   }
   return { plans, groups, templates, operations, cursor, rulesLoaded, operationsLoaded, rulesLoading, operationsLoading, moreLoading,
     rulesError, operationsError, groupsError, updatedAt, search, selectedPlanId, operationFilter,
-    refresh, refreshRules, refreshGroups, refreshOperations, reset }
+    refresh, refreshRules, refreshGroups, refreshOperations, retryOperations, reset }
 })

@@ -1,7 +1,7 @@
 <template>
   <section class="open-section overflow-hidden" data-testid="monitor-candy-settings">
     <header class="monitor-section-heading mb-5">
-      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.candy.settingsTitle') }}</h3>
+      <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('channelMonitorV2.candy.settingsTitle') }}</AppHeading>
       <p class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.candy.settingsHint') }}</p>
     </header>
     <div class="space-y-5 pt-4">
@@ -13,7 +13,7 @@
       </label>
       <div v-for="(probe, index) in modelValue || []" :key="`${probe.group_id}-${index}`" class="border-t border-gray-200 py-5 dark:border-dark-700">
         <div class="mb-3 flex items-center gap-3">
-          <Toggle :model-value="probe.enabled" @update:model-value="patch(index, { enabled: $event })" />
+          <Toggle :aria-label="groupName(probe.group_id)" :model-value="probe.enabled" @update:model-value="patch(index, { enabled: $event })" />
           <strong class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-100">{{ groupName(probe.group_id) }}</strong>
           <button type="button" class="btn btn-ghost btn-sm text-red-600" @click="remove(index)">{{ t('common.delete') }}</button>
         </div>
@@ -34,6 +34,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Toggle from '@/components/common/Toggle.vue'

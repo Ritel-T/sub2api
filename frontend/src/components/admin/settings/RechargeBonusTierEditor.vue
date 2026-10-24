@@ -4,9 +4,9 @@
     <div class="border-b border-gray-100 px-4 py-3 dark:border-dark-700">
       <div class="flex items-center justify-between gap-3">
         <div class="min-w-0">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+          <AppHeading as="h2" variant="section" class="text-gray-900 dark:text-white">
             {{ t('admin.settings.payment.rechargeBonus.label') }}
-          </h2>
+          </AppHeading>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.settings.payment.rechargeBonus.hint') }}
           </p>
@@ -176,6 +176,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 

@@ -206,6 +206,36 @@ describe('admin AccountsView — 外审 F2:spark 影子创建接线', () => {
     wrapper.unmount()
   })
 
+  it('keeps the Spark target fixed and rejects two confirms while the request is pending', async () => {
+    let resolve!: (value: any) => void
+    createSparkShadow.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    const wrapper = mountView(); await flushPromises()
+    await wrapper.get('[data-test="expand-row"]').trigger('click')
+    wrapper.findComponent(AccountActionMenu).vm.$emit('create-spark-shadow', {id:42,name:'parent-acc'})
+    await flushPromises()
+    const dialog = wrapper.findAllComponents(ConfirmDialog).find(d => d.props('show'))!
+    dialog.vm.$emit('confirm')
+    dialog.vm.$emit('confirm'); await flushPromises()
+    expect(createSparkShadow).toHaveBeenCalledTimes(1)
+    expect(createSparkShadow).toHaveBeenCalledWith(42,{name:'parent-acc (Spark)'})
+    resolve({id:999}); await flushPromises(); wrapper.unmount()
+  })
+
+  it('discards Spark completion after the owning page unmounts', async () => {
+    let resolve!: (value: any) => void
+    createSparkShadow.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    const wrapper = mountView(); await flushPromises()
+    await wrapper.get('[data-test="expand-row"]').trigger('click')
+    wrapper.findComponent(AccountActionMenu).vm.$emit('create-spark-shadow', {id:42,name:'parent-acc'})
+    await flushPromises()
+    wrapper.findAllComponents(ConfirmDialog).find(d => d.props('show'))!.vm.$emit('confirm')
+    await flushPromises(); wrapper.unmount()
+    const calls=listAccounts.mock.calls.length
+    resolve({id:999}); await flushPromises()
+    expect(showSuccess).not.toHaveBeenCalled()
+    expect(listAccounts).toHaveBeenCalledTimes(calls)
+  })
+
   it('用户取消确认时不调用 API', async () => {
     const wrapper = mountView()
     await flushPromises()

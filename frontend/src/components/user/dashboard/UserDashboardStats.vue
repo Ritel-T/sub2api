@@ -109,7 +109,7 @@
   <!-- Row 3: Per-platform breakdown -->
   <div v-if="!isSimple && platformCards.length > 0" class="open-section ritel-metric-card">
     <div class="mb-3 flex items-center justify-between">
-      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('dashboard.platformBreakdown') }}</h3>
+      <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">{{ t('dashboard.platformBreakdown') }}</AppHeading>
       <span class="text-xs text-gray-500 dark:text-gray-400">
         {{ t('dashboard.platformCount', { count: platformCount }) }}
       </span>
@@ -199,6 +199,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PlatformDashboardStats, UserDashboardStats as UserStatsType } from '@/api/usage'

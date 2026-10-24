@@ -2,7 +2,7 @@
   <div class="open-section" data-testid="balance-retail-settings">
     <div class="flex items-start justify-between gap-4">
       <div>
-        <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('squarespaceProvider.retail.title') }}</h4>
+        <AppHeading as="h4" variant="minor" class="text-gray-900 dark:text-white">{{ t('squarespaceProvider.retail.title') }}</AppHeading>
         <p class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ t('squarespaceProvider.retail.description') }}</p>
       </div>
       <ToggleSwitch :label="t('common.enabled')" :checked="modelValue.balance_retail_pricing_enabled"
@@ -63,6 +63,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'

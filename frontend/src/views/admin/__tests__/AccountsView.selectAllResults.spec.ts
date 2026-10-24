@@ -1,3 +1,4 @@
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 
@@ -185,6 +186,7 @@ describe('admin AccountsView select all filtered results', () => {
     await flushPromises()
     await wrapper.get('[data-test="select-table-page"]').trigger('click')
     await wrapper.get('[data-test="refresh-token"]').trigger('click')
+    wrapper.findAllComponents(ConfirmDialog).find(dialog => dialog.props('show'))!.vm.$emit('confirm')
     await flushPromises()
 
     expect(batchRefresh).toHaveBeenCalledWith([1, 2, 3])
@@ -196,6 +198,7 @@ describe('admin AccountsView select all filtered results', () => {
     if (result.failed > 0) {
       expect(showError).toHaveBeenCalledWith('admin.accounts.bulkActions.partialSuccess')
       await wrapper.get('[data-test="refresh-token"]').trigger('click')
+      wrapper.findAllComponents(ConfirmDialog).find(dialog => dialog.props('show'))!.vm.$emit('confirm')
       await flushPromises()
       expect(batchRefresh).toHaveBeenLastCalledWith(expectedIds)
     }

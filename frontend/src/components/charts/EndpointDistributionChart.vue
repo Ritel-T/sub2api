@@ -1,9 +1,9 @@
 <template>
   <div class="open-section">
     <div class="mb-4 flex items-center justify-between gap-3">
-      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+      <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
         {{ title || t('usage.endpointDistribution') }}
-      </h3>
+      </AppHeading>
       <div class="flex flex-wrap items-center justify-end gap-2">
         <div
           v-if="showSourceToggle"
@@ -133,6 +133,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref } from 'vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'

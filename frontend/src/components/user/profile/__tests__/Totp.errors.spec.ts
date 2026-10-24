@@ -27,7 +27,7 @@ describe.each([
 ])('TOTP $name errors', ({ name, component, action, fallback }) => {
   it('shows the verification-method API error before closing', async () => {
     mocks.totpAPI.getVerificationMethod.mockRejectedValue({ status: 503, message: 'Verification is temporarily unavailable' })
-    const wrapper = mount(component)
+    const wrapper = mount(component, { global: { stubs: { teleport: true } } })
     await flushPromises()
     expect(mocks.showError).toHaveBeenCalledWith('Verification is temporarily unavailable')
     expect(wrapper.emitted('close')).toHaveLength(1)
@@ -36,7 +36,7 @@ describe.each([
   it('shows why the email verification code cannot be sent', async () => {
     mocks.totpAPI.getVerificationMethod.mockResolvedValue({ method: 'email' })
     mocks.totpAPI.sendVerifyCode.mockRejectedValue({ status: 429, message: 'Please wait before requesting another code' })
-    const wrapper = mount(component)
+    const wrapper = mount(component, { global: { stubs: { teleport: true } } })
     await flushPromises()
     await wrapper.findAll('button').find(button => button.text() === 'profile.totp.sendCode')!.trigger('click')
     await flushPromises()
@@ -49,7 +49,7 @@ describe.each([
     [{}, fallback]
   ])('preserves the action error or localized fallback: %j', async (error, expected) => {
     action.mockRejectedValue(error)
-    const wrapper = mount(component)
+    const wrapper = mount(component, { global: { stubs: { teleport: true } } })
     await flushPromises()
     await wrapper.get('input[type="password"]').setValue('incorrect-password')
     if (name === 'setup') await wrapper.get('.btn-primary').trigger('click')
@@ -63,7 +63,7 @@ describe.each([
 it('shows the reason a TOTP code was rejected', async () => {
   mocks.totpAPI.initiateSetup.mockResolvedValue({ secret: 'EXAMPLE', qr_code_url: '', setup_token: 'setup-token' })
   mocks.totpAPI.enable.mockRejectedValue({ status: 400, message: 'Invalid TOTP code' })
-  const wrapper = mount(TotpSetupModal)
+  const wrapper = mount(TotpSetupModal, { global: { stubs: { teleport: true } } })
   await flushPromises()
   await wrapper.get('input[type="password"]').setValue('password')
   await wrapper.get('.btn-primary').trigger('click')
@@ -75,4 +75,31 @@ it('shows the reason a TOTP code was rejected', async () => {
   expect(mocks.totpAPI.enable).toHaveBeenCalledWith({ totp_code: '111111', setup_token: 'setup-token' })
   expect(mocks.showError).toHaveBeenCalledWith('Invalid TOTP code')
   expect(wrapper.emitted('success')).toBeUndefined()
+})
+
+it.each([
+  { component: TotpSetupModal, action: mocks.totpAPI.initiateSetup },
+  { component: TotpDisableDialog, action: mocks.totpAPI.disable }
+])('prevents dismissal and repeated submission while a security change is pending', async ({ component, action }) => {
+  let finish!: (value: unknown) => void
+  action.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+  const wrapper = mount(component, { global: { stubs: { teleport: true } } })
+  await flushPromises()
+  await wrapper.get('input[type="password"]').setValue('password')
+  const submit = async () => {
+    if (component === TotpSetupModal) await wrapper.get('.btn-primary').trigger('click')
+    else await wrapper.get('form').trigger('submit')
+  }
+  await submit()
+  await submit()
+  const dialog = wrapper.getComponent({ name: 'BaseDialog' })
+  dialog.vm.$emit('close')
+  await wrapper.vm.$nextTick()
+  expect(action).toHaveBeenCalledTimes(1)
+  expect(wrapper.emitted('close')).toBeUndefined()
+  expect(dialog.props('closeOnEscape')).toBe(false)
+  expect(dialog.props('showCloseButton')).toBe(false)
+  expect(wrapper.get('.btn-secondary').attributes('disabled')).toBeDefined()
+  finish({ secret: 'EXAMPLE', qr_code_url: '', setup_token: 'setup-token' })
+  await flushPromises()
 })

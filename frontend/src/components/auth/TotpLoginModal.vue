@@ -1,82 +1,65 @@
 <template>
-  <div class="fixed inset-0 z-50 overflow-y-auto">
-    <div class="flex min-h-full items-center justify-center p-4">
-      <div class="fixed inset-0 bg-black/50 transition-opacity"></div>
-
-      <div class="relative w-full max-w-md transform rounded-xl bg-white p-6 shadow-xl transition-all dark:bg-dark-800">
-        <!-- Header -->
-        <div class="mb-6 text-center">
-          <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
-            <svg class="h-6 w-6 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-            </svg>
-          </div>
-          <h3 class="mt-4 text-xl font-semibold text-gray-900 dark:text-white">
-            {{ t('profile.totp.loginTitle') }}
-          </h3>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {{ t('profile.totp.loginHint') }}
-          </p>
-          <p v-if="userEmailMasked" class="mt-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-            {{ userEmailMasked }}
-          </p>
-        </div>
-
-        <!-- Code Input -->
-        <div class="mb-6">
-          <!-- Hidden input for password manager autofill (autocomplete="one-time-code") -->
-          <input
-            ref="hiddenOtpInputRef"
-            type="text"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            maxlength="6"
-            class="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
-            aria-hidden="true"
-            tabindex="-1"
-            @input="handleHiddenOtpInput"
-          />
-          <div class="flex justify-center gap-2">
-            <input
-              v-for="(_, index) in 6"
-              :key="index"
-              :ref="(el) => setInputRef(el, index)"
-              type="text"
-              maxlength="1"
-              inputmode="numeric"
-              pattern="[0-9]"
-              autocomplete="off"
-              class="h-12 w-10 rounded-lg border border-gray-300 text-center text-lg font-semibold focus:border-primary-500 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
-              :disabled="verifying"
-              @input="handleCodeInput($event, index)"
-              @keydown="handleKeydown($event, index)"
-              @paste="handlePaste"
-            />
-          </div>
-          <!-- Loading indicator -->
-          <div v-if="verifying" class="mt-3 flex items-center justify-center gap-2 text-sm text-gray-500">
-            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
-            {{ t('common.verifying') }}
-          </div>
-        </div>
-
-        <!-- Cancel button only -->
-        <button
-          type="button"
-          class="btn btn-secondary w-full"
+  <BaseDialog
+    :show="true"
+    :title="t('profile.totp.loginTitle')"
+    width="narrow"
+    :show-close-button="false"
+    :close-on-escape="!verifying"
+    @close="handleCancel"
+  >
+    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">{{ t('profile.totp.loginHint') }}</p>
+    <p v-if="userEmailMasked" class="mb-6 text-sm font-medium text-gray-700 dark:text-gray-300">{{ userEmailMasked }}</p>
+    <!-- Code Input -->
+    <div class="mb-6">
+      <!-- Hidden input for password manager autofill (autocomplete="one-time-code") -->
+      <input
+        ref="hiddenOtpInputRef"
+        type="text"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        class="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
+        aria-hidden="true"
+        tabindex="-1"
+        @input="handleHiddenOtpInput"
+      />
+      <div class="flex justify-center gap-2">
+        <input
+          v-for="(_, index) in 6"
+          :key="index"
+          :value="code[index]"
+          :ref="(el) => setInputRef(el, index)"
+          type="text"
+          maxlength="1"
+          inputmode="numeric"
+          pattern="[0-9]"
+          autocomplete="off"
+          class="h-12 w-10 rounded-lg border border-gray-300 text-center text-lg font-semibold focus:border-primary-500 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
           :disabled="verifying"
-          @click="$emit('cancel')"
-        >
-          {{ t('common.cancel') }}
-        </button>
+          @input="handleCodeInput($event, index)"
+          @keydown="handleKeydown($event, index)"
+          @paste="handlePaste"
+        />
+      </div>
+      <!-- Loading indicator -->
+      <div v-if="verifying" class="mt-3 flex items-center justify-center gap-2 text-sm text-gray-500">
+        <div role="status" :aria-label="t('common.loading')" class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
+        {{ t('common.verifying') }}
       </div>
     </div>
-  </div>
+
+    <template #footer>
+      <button type="button" class="btn btn-secondary" :disabled="verifying" @click="handleCancel">
+        {{ t('common.cancel') }}
+      </button>
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import { useAppStore } from '@/stores'
 
 defineProps<{
@@ -127,6 +110,10 @@ defineExpose({
     })
   }
 })
+
+const handleCancel = () => {
+  if (!verifying.value) emit('cancel')
+}
 
 const setInputRef = (el: any, index: number) => {
   inputRefs.value[index] = el as HTMLInputElement | null

@@ -15,7 +15,7 @@
       <p class="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">{{ text('同一 API Key 固定到同一 Pod（最后使用后保留 24 小时）。停用分流或 Pod 只阻止新绑定；已有绑定继续使用原 Pod。绑定实例失联或重启时返回错误，不自动迁移会话。首次启用前先结束存量 BPS/WS 会话。', 'Each API Key stays on one Pod for 24 hours after last use. Disabling routing or a Pod stops new bindings; existing bindings remain. A missing or restarted bound instance returns an error without moving the conversation. Finish existing BPS/WS conversations before first enabling routing.') }}</p>
 
       <section class="space-y-3">
-        <h3 class="font-medium">{{ text('自动注册的 Pod', 'Automatically registered Pods') }}</h3>
+        <AppHeading as="h3" variant="subsection" >{{ text('自动注册的 Pod', 'Automatically registered Pods') }}</AppHeading>
         <p class="text-xs text-gray-500">{{ text('心跳就绪不等于入口可达；先确认上报地址，再保存并检查连接。跨集群请使用可达的 HTTPS 或受信隧道地址。', 'A ready heartbeat does not prove ingress connectivity. Approve the reported endpoint, save, then check connectivity. Across clusters, use a reachable HTTPS or trusted tunnel endpoint.') }}</p>
         <p v-if="!pods.length" class="text-sm text-gray-500">{{ text('暂无 Pod；按下方接入说明配置已有 gateway。', 'No Pods yet. Configure an existing gateway using the connection instructions below.') }}</p>
         <div v-for="pod in pods" :key="pod.id" class="border-t border-gray-200 py-4 text-sm dark:border-dark-700">
@@ -38,7 +38,7 @@
       </section>
 
       <section class="space-y-3">
-        <div class="flex items-center justify-between"><h3 class="font-medium">{{ text('地区 → Pod 池', 'Region → Pod pool') }}</h3>
+        <div class="flex items-center justify-between"><AppHeading as="h3" variant="subsection" >{{ text('地区 → Pod 池', 'Region → Pod pool') }}</AppHeading>
           <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !loaded" @click="addRegion">{{ text('添加地区', 'Add region') }}</button>
         </div>
         <div v-for="(region, index) in draft.regions" :key="index" class="space-y-3 border-t border-gray-200 py-4 dark:border-dark-700">
@@ -53,7 +53,7 @@
       </section>
 
       <section>
-        <h3 class="mb-2 font-medium">{{ text('今日分流（UTC）', 'Routing today (UTC)') }}</h3>
+        <AppHeading as="h3" variant="subsection" class="mb-2">{{ text('今日分流（UTC）', 'Routing today (UTC)') }}</AppHeading>
         <div class="overflow-x-auto"><table class="w-full text-left text-sm">
           <thead><tr><th>Pod</th><th>{{ text('地区', 'Region') }}</th><th>{{ text('原因', 'Reason') }}</th><th>{{ text('请求', 'Requests') }}</th><th>{{ text('HTTP 错误', 'HTTP errors') }}</th></tr></thead>
           <tbody><tr v-for="row in statRows" :key="row.key"><td>{{ row.pod }}</td><td>{{ row.country }}</td><td>{{ reasonLabel(row.reason) }}</td><td>{{ row.requests }}</td><td>{{ row.errors }}</td></tr></tbody>
@@ -71,9 +71,15 @@ RUNTIME_SERVERLESS_ENDPOINT=https://pod.example.com</pre>
       </details>
     </div>
   </details>
+
+  <ConfirmationPrompt :confirmation="confirmation" />
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
+import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import { useConfirmation } from '@/composables/useConfirmation'
+
 import { localizeInlineText } from '@/i18n/inline'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -143,10 +149,11 @@ function approve(p: Pod) {
   else draft.value.pods.push({ id: p.id, endpoint: p.endpoint, enabled: false })
   notice.value = text('已加入草稿，需保存后才能检查连接。确认就绪后再启用新绑定。', 'Added to draft. Save before checking connectivity, then enable new bindings.')
 }
-function removePod(id: string) {
-  if (!window.confirm(text('移除会让已有绑定无法继续请求。确认该 Pod 已排空？', 'Removing the policy breaks existing bindings. Confirm that this Pod is drained?'))) return
-  draft.value.pods = draft.value.pods.filter(p => p.id !== id)
-  draft.value.regions.forEach(r => { r.pod_ids = r.pod_ids.filter(p => p !== id) })
+async function removePod(id: string) {
+  await confirmation.run({ message: text('移除会让已有绑定无法继续请求。确认该 Pod 已排空？', 'Removing the policy breaks existing bindings. Confirm that this Pod is drained?'), title: text('移除', 'Remove'), confirmText: text('移除', 'Remove'), danger: true }, async () => {
+    draft.value.pods = draft.value.pods.filter(p => p.id !== id)
+    draft.value.regions.forEach(r => { r.pod_ids = r.pod_ids.filter(p => p !== id) })
+  })
 }
 function addRegion() { draft.value.regions.push({ country: '', pod_ids: [] }) }
 async function probe(id: string) {
@@ -155,4 +162,5 @@ async function probe(id: string) {
     if (!disposed) probes.value[id] = data.ready
   })
 }
+const confirmation = useConfirmation(() => ({ active: true, identity: draft.value }))
 </script>

@@ -27,14 +27,14 @@
 
     <main class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:py-10">
       <div v-if="loading" class="flex min-h-[320px] items-center justify-center">
-        <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
+        <div role="status" :aria-label="t('common.loading')" class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
       </div>
 
       <section
         v-else-if="loadError"
         class="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
       >
-        <h1 class="text-lg font-semibold">{{ t('legal.loadFailed') }}</h1>
+        <AppHeading variant="empty" as="h1">{{ t('legal.loadFailed') }}</AppHeading>
         <p class="mt-2 text-sm">{{ t('legal.retryLater') }}</p>
       </section>
 
@@ -47,7 +47,7 @@
             <Icon name="document" size="sm" />
           </span>
           <div>
-            <h1 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('legal.notFound') }}</h1>
+            <AppHeading variant="empty" as="h1" class="text-gray-900 dark:text-white">{{ t('legal.notFound') }}</AppHeading>
             <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-dark-300">
               {{ t('legal.notFoundDescription') }}
             </p>
@@ -63,9 +63,9 @@
             </span>
             <div class="min-w-0">
               <p class="text-sm font-medium text-primary-700 dark:text-primary-300">{{ documentTypeLabel }}</p>
-              <h1 class="mt-2 break-words text-2xl font-bold tracking-normal text-gray-950 dark:text-white sm:text-3xl">
+              <AppHeading variant="page" as="h1" class="mt-2 break-words text-gray-950 dark:text-white">
                 {{ currentDocument.title }}
-              </h1>
+              </AppHeading>
               <p v-if="updatedAt" class="mt-3 text-sm text-gray-500 dark:text-dark-400">
                 {{ t('legal.updatedAt', { date: updatedAt }) }}
               </p>
@@ -90,6 +90,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
