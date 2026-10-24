@@ -339,104 +339,82 @@
           </button>
         </div>
 
-        <div v-if="items.length" class="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900">
-          <table class="w-full min-w-[860px] table-fixed divide-y divide-gray-200 text-sm dark:divide-dark-700">
-            <colgroup>
-              <col class="w-[18%]" />
-              <col class="w-[34%]" />
-              <col class="w-[12%]" />
-              <col class="w-[10%]" />
-              <col class="w-[26%]" />
-            </colgroup>
-            <thead class="bg-gray-50 dark:bg-dark-800/80">
-              <tr>
-                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">Custom ID</th>
-                <th class="px-3 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Prompt</th>
-                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">{{ t('common.status') }}</th>
-                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">{{ t('batchImage.detail.preview') }}</th>
-                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">{{ t('batchImage.detail.result') }}</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
-              <tr
-                v-for="item in items"
-                :key="itemPreviewKey(item)"
-                class="align-middle"
-                :class="detailItemRowClass(item)"
+        <div v-if="items.length" class="min-w-0" :aria-busy="loadingItems" data-testid="batch-image-items">
+          <DataTable :columns="detailColumns" :data="items" :row-key="itemPreviewKey" column-order-key="user-batch-image-items" :row-attrs="item => ({ class: detailItemRowClass(item) })">
+            <template #cell-custom_id="{ row: item }">
+              <span
+                class="block min-w-0 truncate font-mono text-sm"
+                :class="isRecoveredOriginalFailure(item) ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'"
+                :title="item.custom_id"
               >
-                <td class="px-3 py-2.5 text-center">
-                  <span
-                    class="block min-w-0 truncate font-mono text-sm"
-                    :class="isRecoveredOriginalFailure(item) ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'"
-                    :title="item.custom_id"
-                  >
-                    {{ item.custom_id }}
-                  </span>
-                </td>
-                <td class="px-3 py-2.5 text-left" :class="isRecoveredOriginalFailure(item) ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'">
-                  <div
-                    class="batch-prompt-trigger cursor-default truncate rounded px-1 text-sm leading-6 focus:outline-none"
-                    tabindex="0"
-                    @pointerenter="schedulePromptPopoverOpen($event, item.prompt_preview || '-')"
-                    @pointerleave="schedulePromptPopoverClose"
-                    @mouseenter="schedulePromptPopoverOpen($event, item.prompt_preview || '-')"
-                    @mouseleave="schedulePromptPopoverClose"
-                    @click="showPromptPopover($event, item.prompt_preview || '-')"
-                    @focus="showPromptPopover($event, item.prompt_preview || '-')"
-                    @focusin="showPromptPopover($event, item.prompt_preview || '-')"
-                    @blur="schedulePromptPopoverClose"
-                  >
-                    {{ item.prompt_preview || '-' }}
-                  </div>
-                </td>
-                <td class="px-3 py-2.5 text-center">
-                  <span :class="itemDisplayStatusBadgeClass(item)" class="badge max-w-full truncate whitespace-nowrap" :title="itemDisplayStatusLabel(item)">
-                    {{ itemDisplayStatusLabel(item) }}
-                  </span>
-                </td>
-                <td class="px-3 py-2.5 text-center">
-                  <div class="mx-auto h-12 w-12 overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-800">
-                    <button
-                      v-if="itemPreviewUrls[itemPreviewKey(item)] && !previewErrorIds.has(itemPreviewKey(item))"
-                      type="button"
-                      class="block h-full w-full overflow-hidden"
-                      :title="t('batchImage.detail.previewZoom', { id: item.custom_id })"
-                      @click="openImagePreview(item)"
-                    >
-                      <img
-                        :src="itemPreviewUrls[itemPreviewKey(item)]"
-                        class="h-full w-full object-cover"
-                        alt=""
-                        @error="handlePreviewError(itemPreviewKey(item))"
-                      />
-                    </button>
-                    <button
-                      v-else-if="canLoadItemPreview(item)"
-                      type="button"
-                      class="flex h-full w-full items-center justify-center text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 disabled:cursor-wait disabled:opacity-70 dark:text-gray-400 dark:hover:bg-dark-700"
-                      :disabled="previewLoadingIds.has(itemPreviewKey(item))"
-                      :title="previewErrorIds.has(itemPreviewKey(item)) ? t('batchImage.detail.previewReload') : t('batchImage.detail.previewLoad')"
-                      @click="loadItemPreview(item)"
-                    >
-                      <Icon :name="previewLoadingIds.has(itemPreviewKey(item)) ? 'refresh' : 'eye'" size="sm" :class="previewLoadingIds.has(itemPreviewKey(item)) ? 'animate-spin' : ''" />
-                    </button>
-                    <div v-else class="flex h-full w-full items-center justify-center text-gray-400" :title="item.image_count > 0 ? t('batchImage.detail.previewUnavailable') : t('batchImage.detail.noImage')">
-                      <Icon name="document" size="sm" />
-                    </div>
-                  </div>
-                </td>
-                <td class="px-3 py-2.5 text-center">
-                  <span
-                    class="inline-flex max-w-full items-center justify-center truncate rounded-md px-2.5 py-1 text-xs font-medium leading-5 ring-1 ring-inset"
-                    :class="itemResultClass(item)"
-                    :title="itemResultLabel(item)"
-                  >
-                    {{ itemResultLabel(item) }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                {{ item.custom_id }}
+              </span>
+            </template>
+            <template #cell-prompt="{ row: item }">
+              <div
+                class="batch-prompt-trigger cursor-default truncate rounded px-1 text-sm leading-6 focus:outline-none"
+                :class="isRecoveredOriginalFailure(item) ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'"
+                tabindex="0"
+                @pointerenter="schedulePromptPopoverOpen($event, item.prompt_preview || '-')"
+                @pointerleave="schedulePromptPopoverClose"
+                @mouseenter="schedulePromptPopoverOpen($event, item.prompt_preview || '-')"
+                @mouseleave="schedulePromptPopoverClose"
+                @click.stop="showPromptPopover($event, item.prompt_preview || '-')"
+                @focus="showPromptPopover($event, item.prompt_preview || '-')"
+                @focusin="showPromptPopover($event, item.prompt_preview || '-')"
+                @blur="schedulePromptPopoverClose"
+              >
+                {{ item.prompt_preview || '-' }}
+              </div>
+            </template>
+            <template #cell-status="{ row: item }">
+              <span :class="itemDisplayStatusBadgeClass(item)" class="badge max-w-full truncate whitespace-nowrap" :title="itemDisplayStatusLabel(item)">
+                {{ itemDisplayStatusLabel(item) }}
+              </span>
+            </template>
+            <template #cell-preview="{ row: item }">
+              <div class="mx-auto h-12 w-12 overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-800">
+                <button
+                  v-if="itemPreviewUrls[itemPreviewKey(item)] && !previewErrorIds.has(itemPreviewKey(item))"
+                  type="button"
+                  class="block h-full w-full overflow-hidden"
+                  :title="t('batchImage.detail.previewZoom', { id: item.custom_id })"
+                  :aria-label="t('batchImage.detail.previewZoom', { id: item.custom_id })"
+                  @click="openImagePreview(item)"
+                >
+                  <img
+                    :src="itemPreviewUrls[itemPreviewKey(item)]"
+                    class="h-full w-full object-cover"
+                    alt=""
+                    @error="handlePreviewError(itemPreviewKey(item))"
+                  />
+                </button>
+                <button
+                  v-else-if="canLoadItemPreview(item)"
+                  type="button"
+                  class="flex h-full w-full items-center justify-center text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 disabled:cursor-wait disabled:opacity-70 dark:text-gray-400 dark:hover:bg-dark-700"
+                  :disabled="previewLoadingIds.has(itemPreviewKey(item))"
+                  :title="previewErrorIds.has(itemPreviewKey(item)) ? t('batchImage.detail.previewReload') : t('batchImage.detail.previewLoad')"
+                  :aria-label="previewErrorIds.has(itemPreviewKey(item)) ? t('batchImage.detail.previewReload') : t('batchImage.detail.previewLoad')"
+                  @click="loadItemPreview(item)"
+                >
+                  <Icon :name="previewLoadingIds.has(itemPreviewKey(item)) ? 'refresh' : 'eye'" size="sm" :class="previewLoadingIds.has(itemPreviewKey(item)) ? 'animate-spin' : ''" />
+                </button>
+                <div v-else class="flex h-full w-full items-center justify-center text-gray-400" :title="item.image_count > 0 ? t('batchImage.detail.previewUnavailable') : t('batchImage.detail.noImage')">
+                  <Icon name="document" size="sm" />
+                </div>
+              </div>
+            </template>
+            <template #cell-result="{ row: item }">
+              <span
+                class="inline-flex max-w-full items-center justify-center truncate rounded-md px-2.5 py-1 text-xs font-medium leading-5 ring-1 ring-inset"
+                :class="itemResultClass(item)"
+                :title="itemResultLabel(item)"
+              >
+                {{ itemResultLabel(item) }}
+              </span>
+            </template>
+          </DataTable>
         </div>
         <div v-else class="rounded-lg border border-dashed border-gray-200 py-10 text-center dark:border-dark-700">
           <Icon :role="loadingItems ? 'status' : undefined" :aria-label="loadingItems ? t('common.loading') : undefined" name="refresh" size="lg" class="mx-auto mb-3 text-gray-400" :class="loadingItems ? 'animate-spin' : ''" />
@@ -816,6 +794,14 @@ const columns = computed<Column[]>(() => [
   { key: 'cost', label: t('batchImage.columns.cost'), sortable: false, class: 'w-36 text-center' },
   { key: 'downloaded', label: t('batchImage.columns.downloadStatus'), sortable: false, class: 'w-40 text-center' },
   { key: 'actions', label: t('common.actions'), sortable: false, class: 'w-40 text-center' },
+])
+
+const detailColumns = computed<Column[]>(() => [
+  { key: 'custom_id', class: 'text-center', label: 'Custom ID', primary: true, minWidth: 150, weight: 18 },
+  { key: 'prompt', label: 'Prompt', primary: true, minWidth: 280, weight: 34 },
+  { key: 'status', class: 'text-center', label: t('common.status'), primary: true, minWidth: 100, weight: 12 },
+  { key: 'preview', class: 'text-center', label: t('batchImage.detail.preview'), primary: true, minWidth: 80, weight: 10 },
+  { key: 'result', class: 'text-center', label: t('batchImage.detail.result'), primary: true, minWidth: 220, weight: 26 },
 ])
 
 const statusFilterOptions = computed<SelectOption[]>(() => [

@@ -877,34 +877,18 @@
       width="normal"
       @close="closeAccountsModal"
     >
-      <div v-if="accountsLoading" class="flex items-center justify-center py-8 text-sm text-gray-500">
+      <div v-if="accountsLoading && !proxyAccounts.length" class="flex items-center justify-center py-8 text-sm text-gray-500">
         <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="md" class="mr-2 animate-spin" />
         {{ t('common.loading') }}
       </div>
       <div v-else-if="proxyAccounts.length === 0" class="py-6 text-center text-sm text-gray-500">
         {{ t('admin.proxies.accountsEmpty') }}
       </div>
-      <div v-else class="max-h-80 overflow-auto">
-        <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
-          <thead class="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-dark-800 dark:text-dark-400">
-            <tr>
-              <th class="px-4 py-2 text-left">{{ t('admin.proxies.accountName') }}</th>
-              <th class="px-4 py-2 text-left">{{ t('admin.accounts.columns.platformType') }}</th>
-              <th class="px-4 py-2 text-left">{{ t('admin.proxies.accountNotes') }}</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
-            <tr v-for="account in proxyAccounts" :key="account.id">
-              <td class="px-4 py-2 font-medium text-gray-900 dark:text-white">{{ account.name }}</td>
-              <td class="px-4 py-2">
-                <PlatformTypeBadge :platform="account.platform" :type="account.type" />
-              </td>
-              <td class="px-4 py-2 text-gray-600 dark:text-gray-300">
-                {{ account.notes || '-' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-else class="max-h-80 overflow-y-auto" data-testid="proxy-accounts-table" :aria-busy="accountsLoading">
+        <DataTable :data="proxyAccounts" :columns="proxyAccountColumns" row-key="id" column-order-key="admin-proxy-bound-accounts" :loading="accountsLoading && !proxyAccounts.length">
+          <template #cell-platform_type="{ row }"><PlatformTypeBadge :platform="row.platform" :type="row.type" /></template>
+          <template #cell-notes="{ row }"><span class="whitespace-normal break-words">{{ row.notes || '-' }}</span></template>
+        </DataTable>
       </div>
       <template #footer>
         <div class="flex justify-end">
@@ -1086,6 +1070,11 @@ useSwipeSelect(proxyTableRef, {
 })
 const accountsProxy = ref<Proxy | null>(null)
 const proxyAccounts = ref<ProxyAccountSummary[]>([])
+const proxyAccountColumns = computed<Column[]>(() => [
+  { key: 'name', label: t('admin.proxies.accountName'), primary: true },
+  { key: 'platform_type', label: t('admin.accounts.columns.platformType'), primary: true },
+  { key: 'notes', label: t('admin.proxies.accountNotes'), primary: true }
+])
 const accountsLoading = ref(false)
 const editingProxy = ref<Proxy | null>(null)
 const deletingProxy = ref<Proxy | null>(null)

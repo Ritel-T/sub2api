@@ -321,6 +321,12 @@ function formatStatusLabel(status: string | undefined): string {
 
 const empty = computed(() => events.value.length === 0 && !loading.value)
 
+const historyColumns = computed(() => [
+  { key: 'event_time', label: t('admin.ops.alertEvents.table.time'), primary: true },
+  { key: 'status', label: t('admin.ops.alertEvents.table.status'), primary: true },
+  { key: 'metric', label: t('admin.ops.alertEvents.table.metric'), primary: true }
+])
+
 const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.alertEvents.table.time'), sortable: false },
   { key: 'status', label: t('admin.ops.alertEvents.table.severity'), sortable: false },
   { key: 'platform', label: t('admin.ops.alertEvents.table.platform'), sortable: false },
@@ -544,38 +550,18 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
             <Select :aria-label="t('admin.dashboard.timeRange')" :model-value="historyRange" :options="historyRangeOptions" class="w-[140px]" @change="historyRange = String($event || '7d')" />
           </div>
 
-          <div v-if="historyLoading" class="py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+          <div v-if="historyLoading && !history.length" class="py-6 text-center text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.ops.alertEvents.detail.historyLoading') }}
           </div>
           <div v-else-if="history.length === 0" class="py-6 text-center text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.ops.alertEvents.detail.historyEmpty') }}
           </div>
-          <div v-else class="overflow-hidden rounded-lg border border-gray-100 dark:border-dark-700">
-            <table class="min-w-full divide-y divide-gray-100 dark:divide-dark-700">
-              <thead class="bg-gray-50 dark:bg-dark-900">
-                <tr>
-                  <th class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.table.time') }}</th>
-                  <th class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.table.status') }}</th>
-                  <th class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.table.metric') }}</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
-                <tr v-for="it in history" :key="it.id" class="hover:bg-gray-50 dark:hover:bg-dark-700/50">
-                  <td class="px-3 py-2 text-xs text-gray-600 dark:text-gray-300">{{ formatDateTime(it.fired_at || it.created_at) }}</td>
-                  <td class="px-3 py-2 text-xs">
-                    <span class="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold ring-1 ring-inset" :class="statusBadgeClass(it.status)">
-                      {{ formatStatusLabel(it.status) }}
-                    </span>
-                  </td>
-                  <td class="px-3 py-2 text-xs text-gray-600 dark:text-gray-300">
-                    <span v-if="typeof it.metric_value === 'number' && typeof it.threshold_value === 'number'">
-                      {{ it.metric_value.toFixed(2) }} / {{ it.threshold_value.toFixed(2) }}
-                    </span>
-                    <span v-else>-</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-else data-testid="alert-event-history" :aria-busy="historyLoading">
+            <DataTable :data="history" :columns="historyColumns" row-key="id" column-order-key="admin-ops-alert-history" :loading="historyLoading && !history.length">
+              <template #cell-event_time="{ row }">{{ formatDateTime(row.fired_at || row.created_at) }}</template>
+              <template #cell-status="{ row }"><span class="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold ring-1 ring-inset" :class="statusBadgeClass(row.status)">{{ formatStatusLabel(row.status) }}</span></template>
+              <template #cell-metric="{ row }"><span v-if="typeof row.metric_value === 'number' && typeof row.threshold_value === 'number'">{{ row.metric_value.toFixed(2) }} / {{ row.threshold_value.toFixed(2) }}</span><span v-else>-</span></template>
+            </DataTable>
           </div>
         </div>
       </div>

@@ -18,7 +18,7 @@
       </div>
 
       <!-- Profiles Table -->
-      <div v-if="loading" class="flex items-center justify-center py-8">
+      <div v-if="loading && !profiles.length" class="flex items-center justify-center py-8">
         <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="lg" class="animate-spin text-gray-400" />
       </div>
 
@@ -34,46 +34,25 @@
         </p>
       </div>
 
-      <div v-else class="max-h-96 overflow-auto rounded-lg border border-gray-200 dark:border-dark-600">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
-          <thead class="sticky top-0 bg-gray-50 dark:bg-dark-700">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.tlsFingerprintProfiles.columns.name') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.tlsFingerprintProfiles.columns.description') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.tlsFingerprintProfiles.columns.grease') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.tlsFingerprintProfiles.columns.alpn') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.tlsFingerprintProfiles.columns.actions') }}
-              </th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-800">
-            <tr v-for="profile in profiles" :key="profile.id" class="hover:bg-gray-50 dark:hover:bg-dark-700">
-              <td class="px-3 py-2">
+      <div v-else class="max-h-96 overflow-y-auto" :aria-busy="loading" data-testid="admin-tls-fingerprint-profiles">
+        <DataTable :columns="tableColumns" :data="profiles" row-key="id" column-order-key="admin-tls-fingerprint-profiles">
+          <template #cell-name="{ row: profile }">
                 <div class="font-medium text-gray-900 dark:text-white text-sm">{{ profile.name }}</div>
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-description="{ row: profile }">
                 <div v-if="profile.description" class="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
                   {{ profile.description }}
                 </div>
                 <div v-else class="text-xs text-gray-400 dark:text-gray-600">—</div>
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-enable_grease="{ row: profile }">
                 <Icon
                   :name="profile.enable_grease ? 'check' : 'lock'"
                   size="sm"
                   :class="profile.enable_grease ? 'text-green-500' : 'text-gray-400'"
                 />
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-alpn_protocols="{ row: profile }">
                 <div v-if="profile.alpn_protocols?.length" class="flex flex-wrap gap-1">
                   <span
                     v-for="proto in profile.alpn_protocols.slice(0, 3)"
@@ -87,28 +66,26 @@
                   </span>
                 </div>
                 <div v-else class="text-xs text-gray-400 dark:text-gray-600">—</div>
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-actions="{ row: profile }">
                 <div class="flex items-center gap-1">
                   <button
                     @click="handleEdit(profile)"
                     class="p-1 text-gray-500 hover:text-primary-600 dark:hover:text-primary-400"
-                    :title="t('common.edit')"
+                    :title="t('common.edit')" :aria-label="t('common.edit')" type="button"
                   >
                     <Icon name="edit" size="sm" />
                   </button>
                   <button
                     @click="handleDelete(profile)"
                     class="p-1 text-gray-500 hover:text-red-600 dark:hover:text-red-400"
-                    :title="t('common.delete')"
+                    :title="t('common.delete')" :aria-label="t('common.delete')" type="button"
                   >
                     <Icon name="trash" size="sm" />
                   </button>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                        </template>
+        </DataTable>
       </div>
     </div>
 
@@ -316,7 +293,8 @@
 <script setup lang="ts">
 import Toggle from '@/components/common/Toggle.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
-import { ref, reactive, watch, onScopeDispose } from 'vue'
+import DataTable from '@/components/common/DataTable.vue'
+import { computed, ref, reactive, watch, onScopeDispose } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
@@ -340,6 +318,13 @@ void emit // suppress unused warning - emit is used via $emit in template
 const { t } = useI18n()
 const appStore = useAppStore()
 
+const tableColumns = computed(() => [
+  { key: 'name', label: t('admin.tlsFingerprintProfiles.columns.name'), primary: true },
+  { key: 'description', label: t('admin.tlsFingerprintProfiles.columns.description'), primary: true },
+  { key: 'enable_grease', label: t('admin.tlsFingerprintProfiles.columns.grease'), primary: true },
+  { key: 'alpn_protocols', label: t('admin.tlsFingerprintProfiles.columns.alpn'), primary: true },
+  { key: 'actions', label: t('admin.tlsFingerprintProfiles.columns.actions'), primary: true },
+])
 const profiles = ref<TLSFingerprintProfile[]>([])
 const loading = ref(false)
 let listRevision = 0

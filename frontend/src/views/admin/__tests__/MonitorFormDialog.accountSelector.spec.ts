@@ -2,6 +2,8 @@ import { defineComponent, nextTick } from 'vue'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApiKey } from '@/types'
+import MonitorKeyPickerDialog from '@/components/admin/monitor/MonitorKeyPickerDialog.vue'
 import type { ChannelMonitor } from '@/api/admin/channelMonitor'
 import MonitorFormDialog from '@/components/admin/monitor/MonitorFormDialog.vue'
 
@@ -372,5 +374,46 @@ describe('MonitorFormDialog linked account selector', () => {
       check_mode: 'probe',
       account_id: null,
     }))
+  })
+})
+
+
+describe('MonitorKeyPickerDialog selection access', () => {
+  const keys = [21, 22].map(id => ({
+    id, name: 'Shared key name', key: `sk-synthetic-${id}`, status: 'active',
+    group: { id: 3, name: 'OpenAI', platform: 'openai' },
+  } as ApiKey))
+  let picker: VueWrapper
+
+  beforeEach(() => {
+    picker = mount(MonitorKeyPickerDialog, {
+      attachTo: document.body,
+      props: { show: true, loading: false, keys, provider: 'openai' },
+      global: { stubs: { BaseDialog: BaseDialogStub, GroupBadge: true } },
+    })
+    unmountWrapper = () => picker.unmount()
+  })
+
+  it.each([{ key: 'Enter', code: 'Enter' }, { key: ' ', code: 'Space' }])('picks the exact named key once through a native $code button activation', async ({ key, code }) => {
+    const button = picker.get('button[aria-label="Shared key name (#22)"]')
+    expect(button.attributes('type')).toBe('button')
+    expect(button.element.tagName).toBe('BUTTON')
+    ;(button.element as HTMLButtonElement).focus()
+    expect(document.activeElement).toBe(button.element)
+    await button.trigger('keydown', { key, code })
+    await button.trigger('keyup', { key, code })
+    // jsdom does not synthesize the browser's native keyboard click.
+    button.element.dispatchEvent(new MouseEvent('click', { detail: 0, bubbles: true }))
+    await nextTick()
+    expect(picker.emitted('pick')).toEqual([[keys[1]]])
+    expect(picker.emitted('close')).toBeUndefined()
+  })
+
+  it('keeps pointer selection on both the original row and name button without bubbling a duplicate pick', async () => {
+    await picker.findAll('tbody tr')[0].findAll('td')[1].trigger('click')
+    expect(picker.emitted('pick')).toEqual([[keys[0]]])
+    picker.get('button[aria-label="Shared key name (#22)"]').element.dispatchEvent(new MouseEvent('click', { detail: 1, bubbles: true }))
+    await nextTick()
+    expect(picker.emitted('pick')).toEqual([[keys[0]], [keys[1]]])
   })
 })

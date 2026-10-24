@@ -135,17 +135,16 @@
             <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !events.length" @click="confirmClear = !confirmClear">{{ tr('clearEvents') }}</button>
           </div>
           <div v-if="confirmClear" class="flex items-center gap-2 text-sm"><span>{{ tr('clearConfirm') }}</span><button type="button" class="btn btn-danger btn-sm" :disabled="busy" @click="clearEvents">{{ tr('confirm') }}</button><button type="button" class="btn btn-secondary btn-sm" @click="confirmClear = false">{{ tr('cancel') }}</button></div>
-          <div class="overflow-x-auto"><table class="w-full text-left text-xs">
-            <thead><tr><th class="p-2">{{ tr('time') }}</th><th class="p-2">IP / {{ tr('source') }}</th><th class="p-2">{{ tr('request') }}</th><th class="p-2">{{ tr('result') }}</th><th class="p-2">User-Agent</th></tr></thead>
-            <tbody><tr v-for="event in events" :key="event.id" class="border-t border-gray-100 align-top dark:border-dark-700">
-              <td class="whitespace-nowrap p-2">{{ date(event.at) }}</td>
-              <td class="p-2"><code>{{ event.ip }}</code><p>{{ event.country || '—' }} · {{ label(event.ip_source) }}</p><p class="text-gray-500">{{ tr('peer') }}: {{ event.peer }}</p></td>
-              <td class="p-2">{{ event.method }} {{ event.path }}<p>{{ label(event.category) }} · {{ event.status }}</p></td>
-              <td class="p-2">{{ label(event.decision) }}<p>{{ label(event.reason) }}</p><p class="text-gray-500">{{ event.error_reason }}</p></td>
-              <td class="max-w-xs break-all p-2">{{ event.user_agent || '—' }}</td>
-            </tr></tbody>
-          </table></div>
-          <p v-if="!events.length" class="text-xs text-gray-500">{{ tr('noEvents') }}</p>
+          <div data-testid="ip-risk-recent-events">
+            <DataTable :data="events" :columns="eventColumns" row-key="id" column-order-key="admin-ip-risk-recent-events">
+              <template #cell-at="{ row }">{{ date(row.at) }}</template>
+              <template #cell-source="{ row }"><code>{{ row.ip }}</code><p>{{ row.country || '—' }} · {{ label(row.ip_source) }}</p><p class="text-gray-500">{{ tr('peer') }}: {{ row.peer }}</p></template>
+              <template #cell-request="{ row }">{{ row.method }} {{ row.path }}<p>{{ label(row.category) }} · {{ row.status }}</p></template>
+              <template #cell-result="{ row }">{{ label(row.decision) }}<p>{{ label(row.reason) }}</p><p class="text-gray-500">{{ row.error_reason }}</p></template>
+              <template #cell-user_agent="{ row }"><span class="whitespace-normal break-all">{{ row.user_agent || '—' }}</span></template>
+              <template #empty><span>{{ tr('noEvents') }}</span></template>
+            </DataTable>
+          </div>
         </section>
         <details class="text-sm"><summary class="cursor-pointer">{{ tr('recovery') }}</summary><p class="mt-2 text-xs text-gray-500">{{ tr('recoveryHint') }}</p></details>
       </template>
@@ -155,7 +154,8 @@
 
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
-import { onMounted, onBeforeUnmount, ref, toRaw } from 'vue'
+import DataTable from '@/components/common/DataTable.vue'
+import { onMounted, onBeforeUnmount, ref, toRaw, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ipRiskAPI, type IPBan, type IPBlockRule, type IPRiskConfig, type IPRiskEvent, type IPRiskSnapshot } from './api'
 
@@ -175,6 +175,13 @@ const counterKeys = ['login_attempts', 'login_failures', 'register_attempts', 'r
 const reasons = [...counterKeys, 'ip_blacklist', 'country_blocked', 'country_not_allowed', 'country_unknown', 'user_agent_blocked', 'empty_user_agent', 'invalid_client_ip', 'risk_store_unavailable']
 let disposed = false
 onBeforeUnmount(() => { disposed = true })
+const eventColumns = computed(() => [
+  { key: 'at', label: tr('time'), primary: true },
+  { key: 'source', label: `IP / ${tr('source')}`, primary: true },
+  { key: 'request', label: tr('request'), primary: true },
+  { key: 'result', label: tr('result'), primary: true },
+  { key: 'user_agent', label: 'User-Agent', primary: true }
+])
 onMounted(() => { if (initiallyOpen) void load() })
 const lines = (value: string) => [...new Set(value.split(/[\n,]+/).map(v => v.trim()).filter(Boolean))]
 const date = (seconds: number) => new Date(seconds * 1000).toLocaleString()

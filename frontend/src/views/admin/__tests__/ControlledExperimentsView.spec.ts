@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ControlledExperimentsView from '../ControlledExperimentsView.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import type { ExperimentReport, ExperimentRun } from '@/api/admin/controlledExperiments'
 
 const { api, accounts } = vi.hoisted(() => ({
@@ -22,7 +23,7 @@ function run(status = 'draft'): ExperimentRun {
 function report(status = 'draft'): ExperimentReport {
   return { run: run(status), attempts: [], preflight: [], comparisons: [], routes: [{ route_index: 0, eligibility: 'untested', calls: 0, completed_calls: 0, protocol_failures: 0, unknown_calls: 0, graded_tasks: 0, passed_tasks: 0, mean_score: null, cost_usd: 0, cost_incomplete: false }] }
 }
-const mountView = () => mount(ControlledExperimentsView, { global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, SmartOpsNav: true } } })
+const mountView = (attachTo?: HTMLElement) => mount(ControlledExperimentsView, { attachTo, global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, SmartOpsNav: true } } })
 let wrapper: ReturnType<typeof mountView>
 beforeEach(() => {
   vi.useFakeTimers()
@@ -35,7 +36,7 @@ beforeEach(() => {
   api.stop.mockResolvedValue(undefined)
   accounts.mockReset().mockResolvedValue({ items: [{ id: 2, name: 'native' }, { id: 23, name: 'Prism shadow' }], total: 2 })
 })
-afterEach(() => { wrapper?.unmount(); vi.useRealTimers() })
+afterEach(() => { wrapper?.unmount(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('ControlledExperimentsView', () => {
   it('keeps the loaded history on append failure and refreshes every loaded cursor', async () => {
@@ -145,4 +146,102 @@ describe('ControlledExperimentsView', () => {
     expect(wrapper.text()).toContain('<img src="x" onerror="alert(1)">')
     expect(api.start).not.toHaveBeenCalled()
   })
+
+  it('windows 220 attempts while retaining sequence, diagnostics, trace, prompt and focused details', async () => {
+    const data = report('completed')
+    data.run.max_calls = 220
+    data.run.reserved_calls = 220
+    data.attempts = Array.from({ length: 220 }, (_, index) => ({
+      sequence: index + 1, route_index: 0, phase: 'task', task_id: 'screen-tools-01', repetition: 1,
+      turn: index % 3 + 1, status: 'completed', started_at: '2026-10-24T00:00:00Z',
+      answer: `Answer ${index + 1} <img src="x" onerror="alert(1)">`,
+      grade: { passed: true, score: 1, reason: `Grade ${index + 1}` },
+      diagnostic: {
+        code: `diagnostic-${index + 1}`, http_status: 200, actual_channel: 'native_http',
+        upstream_endpoint: '/v1/responses', upstream_model: 'gpt-6.1-sol', response_model: 'gpt-6.1-sol',
+        effective_effort: 'high', effort_evidence: 'request_sent', terminal: 'response.completed',
+        identity_stable: true, duration_ms: 1000, submissions: 1, output_types: ['message'],
+        usage_source: 'response', usage: { input_tokens: 123, output_tokens: 456 },
+        cost_usd: 0.012345, cost_incomplete: false, request_id: `request-${index + 1}`
+      },
+      tool_trace: [{ namespace: 'fixture', name: 'read', record_id: `record-${index + 1}`, ok: true }]
+    }))
+    data.comparisons = [{ left: 0, right: 1, paired_tasks: 100, excluded_tasks: 2, left_mean: 1, right_mean: 0.9, mean_difference: 0.1 }]
+    api.list.mockResolvedValue([data.run]); api.report.mockResolvedValue(data)
+    const frames = new Map<number, FrameRequestCallback>()
+    let nextFrame = 0
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++nextFrame, callback); return nextFrame })
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id))
+    vi.stubGlobal('scrollTo', vi.fn())
+    const host = document.createElement('div')
+    host.style.overflowY = 'auto'; host.style.height = '280px'
+    Object.defineProperties(host, {
+      offsetHeight: { get: () => 280 }, clientHeight: { get: () => 280 },
+      offsetWidth: { get: () => 900 }, clientWidth: { get: () => 900 }
+    })
+    host.scrollTo = vi.fn((options?: ScrollToOptions | number) => { if (typeof options === 'object' && options.top !== undefined) host.scrollTop = options.top })
+    document.body.append(host)
+    const rectangle = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 900, width: 900, x: 0, y: top, toJSON() {} })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      if (this === host) return rectangle(0, 280)
+      const index = this.hasAttribute('data-document-row') ? Number(this.dataset.index) : 0
+      const height = this.hasAttribute('data-document-row') ? (this.querySelector('details[open]') ? 420 : 100) : 22000
+      return rectangle(index * 100 - host.scrollTop, height)
+    })
+    const settle = async () => {
+      for (let pass = 0; pass < 30; pass++) {
+        await flushPromises()
+        if (!frames.size) return
+        const queued = [...frames.values()]; frames.clear(); queued.forEach(callback => callback(0))
+      }
+      throw new Error('attempt layout did not settle')
+    }
+    try {
+      wrapper = mountView(host); await settle()
+      const attempts = wrapper.findAllComponents(DocumentRows).find(rows => rows.props('as') === 'tbody')!
+      expect(attempts.props('items')).toHaveLength(220)
+      expect(attempts.props('itemKey')).toBe('sequence')
+      expect(attempts.findAll('[data-testid="experiment-attempt"]').length).toBeGreaterThan(0)
+      expect(attempts.findAll('[data-testid="experiment-attempt"]').length).toBeLessThan(40)
+      expect(attempts.find('[data-index="147"]').exists()).toBe(false)
+      host.scrollTop = 14700; host.dispatchEvent(new Event('scroll')); await settle()
+      const later = attempts.get('[data-index="147"]')
+      expect(later.get('td').text()).toBe('148')
+      expect(later.findAll('td')).toHaveLength(6)
+      expect(later.text()).toContain('screen-tools-01')
+      expect(later.text()).toContain('gpt-6.1-sol')
+      expect(later.text()).toContain('100.0%')
+      expect(later.text()).toContain('Grade 148')
+      const details = later.get('td:last-child > details')
+      const summary = details.get('summary')
+      ;(summary.element as HTMLElement).focus()
+      await summary.trigger('click'); await settle()
+      expect(details.attributes('open')).toBeDefined()
+      expect(details.text()).toContain('request-148')
+      expect(details.text()).toContain('0.012345')
+      expect(details.text()).toContain('record-148')
+      expect(details.text()).toContain('"namespace": "fixture"')
+      expect(details.text()).toContain('Answer 148 <img src="x" onerror="alert(1)">')
+      expect(details.find('img').exists()).toBe(false)
+      const prompt = details.get('details')
+      await prompt.get('summary').trigger('click')
+      expect(prompt.attributes('open')).toBeDefined()
+      expect(prompt.text()).toContain('Read the fixture')
+      host.scrollTop = 21900; host.dispatchEvent(new Event('scroll')); await settle()
+      expect(document.activeElement).toBe(summary.element)
+      expect(attempts.get('[data-index="147"] summary').element).toBe(summary.element)
+      expect(details.attributes('open')).toBeDefined()
+      expect(attempts.findAll('[data-testid="experiment-attempt"]').length).toBeLessThan(40)
+      expect(attempts.get('tbody').findAll(':scope > div')).toHaveLength(0)
+      expect(attempts.findAll('[data-document-spacer]').every(gap => gap.get('td').attributes('colspan') === '6')).toBe(true)
+      const pairTable = wrapper.findAll('table').find(table => table.text().includes('controlledExperiments.pair'))!
+      expect(pairTable.findAll('tbody tr')).toHaveLength(1)
+      expect(pairTable.text()).toContain('100.0%')
+      expect(api.start).not.toHaveBeenCalled()
+      expect(api.create).not.toHaveBeenCalled()
+    } finally {
+      wrapper?.unmount(); host.remove()
+    }
+  })
+
 })

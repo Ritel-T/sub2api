@@ -86,55 +86,31 @@
         </section>
 
         <div class="stack">
-          <section class="events-card">
-            <header class="events-heading"><div><AppHeading variant="subsection" as="h3">{{ t('tokenGuard.accounts') }}<span>{{ accounts.length + managedAccounts.length }}</span></AppHeading><p>{{ remote?.runtime.last_message || t('tokenGuard.description') }}</p></div></header>
+          <section class="events-card" :aria-busy="loading" data-testid="token-guard-accounts">
+            <header class="events-heading"><div><AppHeading variant="subsection" as="h3">{{ t('tokenGuard.accounts') }}<span>{{ accounts.length + managedAccounts.length }}</span></AppHeading><p>{{ remote?.runtime.last_message || t('tokenGuard.description') }}</p></div><div ref="accountToolbarTarget" /></header>
             <p v-if="managedAccounts.length" class="managed-hint" data-testid="token-guard-managed-hint">{{ t('tokenGuard.managedHint') }}</p>
             <p v-if="managedLoadFailed" class="managed-hint warn" role="alert">{{ t('tokenGuard.managedLoadFailed') }}</p>
-            <div class="events-scroll">
-              <table>
-                <thead><tr><th>{{ t('tokenGuard.account') }}</th><th>{{ t('tokenGuard.dbStatus') }}</th><th>{{ t('tokenGuard.schedulable') }}</th><th>{{ t('tokenGuard.probe') }}</th><th>{{ t('tokenGuard.latency') }}</th><th>{{ t('tokenGuard.lastFix') }}</th><th>{{ t('tokenGuard.actions') }}</th></tr></thead>
-                <tbody>
-                  <tr v-for="item in accounts" :key="item.account_id">
-                    <td><strong :title="item.account_name">{{ item.account_name || '-' }}</strong><small>#{{ item.account_id }}</small></td>
-                    <td><span class="failure-badge" :class="item.account_status === 'error' ? 'danger' : ''">{{ item.account_status || '-' }}</span></td>
-                    <td>{{ t(item.schedulable ? 'tokenGuard.on' : 'tokenGuard.off') }}</td>
-                    <td><span class="failure-badge" :class="probeClass(item.probe_state)">{{ t(`tokenGuard.probeStates.${item.probe_state || 'pending'}`) }}</span><small>{{ item.probe_detail }}</small></td>
-                    <td>{{ item.latency_ms ? item.latency_ms + 'ms' : '-' }}</td>
-                    <td>{{ item.last_fix_at ? `${item.last_fix_action} · ${date(item.last_fix_at)}` : '-' }}<small>{{ item.last_fix_result }}</small></td>
-                    <td><button class="link-btn" :disabled="reloginBusy === item.account_id" @click="relogin(item)">{{ t(reloginBusy === item.account_id ? 'tokenGuard.reloginBusy' : 'tokenGuard.relogin') }}</button></td>
-                  </tr>
-                  <!-- 已加入凭证运营的账号（2FA 导入默认加入）由凭证运营巡检、重登，这里只读展示，避免两套守护同时重登。 -->
-                  <tr v-for="item in managedAccounts" :key="`managed-${item.account_id}`" class="managed-row" :data-managed-account-id="item.account_id">
-                    <td><strong :title="item.account_name">{{ item.account_name || '-' }}</strong><small>#{{ item.account_id }}<span class="managed-badge">{{ t('tokenGuard.managedBadge') }}</span></small></td>
-                    <td><span class="failure-badge" :class="item.account_status === 'error' ? 'danger' : ''">{{ item.account_status || '-' }}</span></td>
-                    <td>{{ t(item.schedulable ? 'tokenGuard.on' : 'tokenGuard.off') }}</td>
-                    <td><span class="failure-badge" :class="item.enabled ? probeClass(item.probe_state) : ''">{{ item.enabled ? probeLabel(item.probe_state) : t('tokenGuard.managedPaused') }}</span><small>{{ item.blocked_reason || item.probe_detail }}</small></td>
-                    <td>-</td>
-                    <td>{{ item.last_reauth_at ? `${t('tokenGuard.managedReauth')} · ${date(item.last_reauth_at)}` : '-' }}</td>
-                    <td><RouterLink class="link-btn" to="/admin/token-guard-v2">{{ t('tokenGuard.managedOpen') }}</RouterLink></td>
-                  </tr>
-                </tbody>
-              </table>
-              <div v-if="!accounts.length && !managedAccounts.length" class="empty-state"><Icon name="shield" size="xl" /><AppHeading variant="empty" as="h4">{{ t('tokenGuard.noAccounts') }}</AppHeading></div>
-            </div>
+            <DataTable :columns="accountColumns" :data="accountRows" row-key="key" column-order-key="admin-token-guard-accounts" :toolbar-target="accountToolbarTarget" :row-attrs="accountRowAttrs" :loading="loading && !accountRows.length">
+              <template #cell-account="{ row }"><strong class="block max-w-56 truncate font-medium" :title="row.item.account_name">{{ row.item.account_name || '-' }}</strong><small class="mt-1 block text-xs text-gray-400">#{{ row.item.account_id }}<span v-if="row.kind === 'managed'" class="managed-badge">{{ t('tokenGuard.managedBadge') }}</span></small></template>
+              <template #cell-account_status="{ row }"><span class="failure-badge" :class="row.item.account_status === 'error' ? 'danger' : ''">{{ row.item.account_status || '-' }}</span></template>
+              <template #cell-schedulable="{ row }">{{ t(row.item.schedulable ? 'tokenGuard.on' : 'tokenGuard.off') }}</template>
+              <template #cell-probe="{ row }"><span class="failure-badge" :class="row.kind === 'managed' ? row.item.enabled ? probeClass(row.item.probe_state) : '' : probeClass(row.item.probe_state)">{{ row.kind === 'managed' ? row.item.enabled ? probeLabel(row.item.probe_state) : t('tokenGuard.managedPaused') : t(`tokenGuard.probeStates.${row.item.probe_state || 'pending'}`) }}</span><small class="mt-1 block whitespace-normal break-words text-xs text-gray-400">{{ row.kind === 'managed' ? row.item.blocked_reason || row.item.probe_detail : row.item.probe_detail }}</small></template>
+              <template #cell-latency="{ row }">{{ row.kind === 'managed' ? '-' : row.item.latency_ms ? row.item.latency_ms + 'ms' : '-' }}</template>
+              <template #cell-last_fix="{ row }">{{ row.kind === 'managed' ? row.item.last_reauth_at ? `${t('tokenGuard.managedReauth')} · ${date(row.item.last_reauth_at)}` : '-' : row.item.last_fix_at ? `${row.item.last_fix_action} · ${date(row.item.last_fix_at)}` : '-' }}<small v-if="row.kind !== 'managed'" class="mt-1 block whitespace-normal break-words text-xs text-gray-400">{{ row.item.last_fix_result }}</small></template>
+              <template #cell-actions="{ row }"><RouterLink v-if="row.kind === 'managed'" class="link-btn" to="/admin/token-guard-v2">{{ t('tokenGuard.managedOpen') }}</RouterLink><button v-else class="link-btn" :disabled="reloginBusy === row.item.account_id" @click.stop="relogin(row.item)">{{ t(reloginBusy === row.item.account_id ? 'tokenGuard.reloginBusy' : 'tokenGuard.relogin') }}</button></template>
+              <template #empty><div class="empty-state"><Icon name="shield" size="xl" /><AppHeading variant="empty" as="h4">{{ t('tokenGuard.noAccounts') }}</AppHeading></div></template>
+            </DataTable>
           </section>
 
-          <section class="events-card">
-            <header class="events-heading"><div><AppHeading variant="subsection" as="h3">{{ t('tokenGuard.events') }}<span>{{ events.length }}</span></AppHeading><p>{{ remote?.runtime.last_message || '-' }}</p></div></header>
-            <div class="events-scroll short">
-              <table>
-                <thead><tr><th>时间</th><th>{{ t('tokenGuard.account') }}</th><th>类型</th><th>详情</th></tr></thead>
-                <tbody>
-                  <tr v-for="event in events" :key="event.id">
-                    <td class="whitespace-nowrap">{{ date(event.created_at) }}</td>
-                    <td>{{ event.account_name || '-' }}<small v-if="event.account_id">#{{ event.account_id }}</small></td>
-                    <td><span class="failure-badge" :class="eventClass(event.kind)">{{ t(`tokenGuard.eventKinds.${event.kind}`) }}</span></td>
-                    <td class="detail">{{ event.detail }}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <div v-if="!events.length" class="empty-state"><Icon name="infoCircle" size="xl" /><AppHeading variant="empty" as="h4">{{ t('tokenGuard.noEvents') }}</AppHeading></div>
-            </div>
+          <section class="events-card" :aria-busy="loading" data-testid="token-guard-events">
+            <header class="events-heading"><div><AppHeading variant="subsection" as="h3">{{ t('tokenGuard.events') }}<span>{{ events.length }}</span></AppHeading><p>{{ remote?.runtime.last_message || '-' }}</p></div><div ref="eventToolbarTarget" /></header>
+            <DataTable :columns="eventColumns" :data="events" row-key="id" column-order-key="admin-token-guard-events" :toolbar-target="eventToolbarTarget" :loading="loading && !events.length">
+              <template #cell-created_at="{ row }">{{ date(row.created_at) }}</template>
+              <template #cell-account="{ row }">{{ row.account_name || '-' }}<small v-if="row.account_id" class="mt-1 block text-xs text-gray-400">#{{ row.account_id }}</small></template>
+              <template #cell-kind="{ row }"><span class="failure-badge" :class="eventClass(row.kind)">{{ t(`tokenGuard.eventKinds.${row.kind}`) }}</span></template>
+              <template #cell-detail="{ row }"><span class="whitespace-normal break-words">{{ row.detail }}</span></template>
+              <template #empty><div class="empty-state"><Icon name="infoCircle" size="xl" /><AppHeading variant="empty" as="h4">{{ t('tokenGuard.noEvents') }}</AppHeading></div></template>
+            </DataTable>
           </section>
         </div>
       </div>
@@ -150,6 +126,7 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import Select from '@/components/common/Select.vue'
 import { groupsAPI } from '@/api/admin/groups'
 import type { AdminGroup, SelectOption } from '@/types'
@@ -188,6 +165,28 @@ const managedAccounts = computed(() => {
   const own = new Set(accounts.value.map(item => item.account_id))
   return managedList.value.filter(item => !own.has(item.account_id))
 })
+const accountToolbarTarget = ref<HTMLElement | null>(null), eventToolbarTarget = ref<HTMLElement | null>(null)
+const accountRows = computed(() => [
+  ...accounts.value.map(item => ({ kind: 'legacy' as const, key: `legacy-${item.account_id}`, item })),
+  ...managedAccounts.value.map(item => ({ kind: 'managed' as const, key: `managed-${item.account_id}`, item }))
+])
+const accountRowAttrs = (row: typeof accountRows.value[number]) => row.kind === 'managed'
+  ? { class: 'managed-row', 'data-managed-account-id': row.item.account_id } : {}
+const accountColumns = computed(() => [
+  { key: 'account', label: t('tokenGuard.account'), primary: true },
+  { key: 'account_status', label: t('tokenGuard.dbStatus'), primary: true },
+  { key: 'schedulable', label: t('tokenGuard.schedulable'), primary: true },
+  { key: 'probe', label: t('tokenGuard.probe'), primary: true },
+  { key: 'latency', label: t('tokenGuard.latency'), primary: true },
+  { key: 'last_fix', label: t('tokenGuard.lastFix'), primary: true },
+  { key: 'actions', label: t('tokenGuard.actions'), primary: true }
+])
+const eventColumns = computed(() => [
+  { key: 'created_at', label: t('admin.ops.errorLog.time'), primary: true },
+  { key: 'account', label: t('tokenGuard.account'), primary: true },
+  { key: 'kind', label: t('admin.ops.errorLog.type'), primary: true },
+  { key: 'detail', label: t('admin.ops.errorLog.details'), primary: true }
+])
 const managedCredentialCount = computed(() => managedAccounts.value.filter(item => item.login_config?.configured).length)
 const badCount = computed(() => [...accounts.value, ...managedAccounts.value].filter(item => item.probe_state === 'auth' || item.account_status === 'error').length)
 const selectedGroupIds = computed<number[]>({
@@ -389,10 +388,6 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 .enable-row { @apply mb-6 flex items-center justify-between gap-4; }
 .enable-row strong, .kind-option strong { @apply block text-sm font-medium; }
 .enable-row small, .kind-option small { @apply mt-1 block text-xs leading-relaxed text-gray-400; }
-.enable-row input { appearance:none; position:relative; width:40px; height:24px; border-radius:999px; cursor:pointer; flex-shrink:0; @apply bg-gray-200 transition-colors dark:bg-dark-600; }
-.enable-row input::before { content:''; position:absolute; width:18px; height:18px; border-radius:50%; top:3px; left:3px; background:white; transition:transform .15s; box-shadow:0 1px 3px #0002; }
-.enable-row input:checked { @apply bg-primary-600; }
-.enable-row input:checked::before { transform:translateX(16px); }
 .field-label { @apply mb-2 mt-5 block text-xs font-medium text-gray-600 dark:text-gray-300; }
 .field-label .input { @apply mt-2; }
 .field-hint { @apply mt-2 text-xs leading-relaxed text-gray-400; }
@@ -407,16 +402,6 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 .events-card { @apply flex flex-col; }
 .events-heading { @apply flex flex-wrap items-start justify-between gap-3 p-5; }
 .events-heading h3 span { @apply ml-2 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-normal tabular-nums text-gray-500 dark:bg-dark-800; }
-.events-scroll { @apply min-h-0 flex-1 overflow-auto overscroll-contain; scrollbar-gutter:stable; }
-.events-scroll.short {  }
-table { @apply w-full text-left text-xs; min-width: 780px; }
-thead { @apply sticky top-0 z-10 bg-white text-gray-400 dark:bg-dark-900; }
-th { @apply whitespace-nowrap px-4 py-3 font-medium; }
-td { @apply border-b border-gray-100 px-4 py-3.5 align-top dark:border-dark-800; }
-td strong { @apply block truncate text-[13px] font-medium; max-width: 220px; }
-td small { @apply mt-1.5 block text-[10px] text-gray-400; }
-tbody tr:hover { @apply bg-gray-50/70 dark:bg-dark-800/50; }
-td.detail { max-width: 24rem; @apply whitespace-normal leading-5 text-gray-500 dark:text-gray-400; }
 .failure-badge { @apply whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300; }
 .failure-badge.ok { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300; }
 .failure-badge.danger { @apply bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-300; }

@@ -1,14 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import { enableAutoUnmount, flushPromises, shallowMount } from '@vue/test-utils'
 import ChannelStatusV1View from '../ChannelStatusV1View.vue'
+import ChannelStatusV2View from '../ChannelStatusV2View.vue'
 
 const mocks = vi.hoisted(() => ({ list: vi.fn(), status: vi.fn() }))
 vi.mock('@/api/channelMonitor', () => mocks)
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ cachedPublicSettings: { channel_monitor_enabled: true }, showError: vi.fn() }) }))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
-  useI18n: () => ({ t: (key: string) => key })
+  useI18n: () => ({ t: (key: string) => key, te: () => false, locale: ref('en') })
 }))
+const v2 = vi.hoisted(() => ({ getSnapshot: vi.fn(), getMatrix: vi.fn(), getModels: vi.fn(), getDimensions: vi.fn(), replace: vi.fn() }))
+vi.mock('@/api/channelMonitorV2', () => v2)
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAdmin: false }) }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }), useRouter: () => ({ replace: v2.replace }) }))
 enableAutoUnmount(afterEach)
 afterEach(() => { vi.useRealTimers(); localStorage.clear() })
 
@@ -73,5 +79,72 @@ describe('channel monitor automatic detail refresh', () => {
     await wrapper.get('.refresh').trigger('click')
     await flushPromises()
     expect(wrapper.get('output').text()).toBe('98')
+  })
+})
+
+
+describe('V2 model drilldown selection access', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+  const modelRows = ['openai', 'anthropic'].map(platform => ({
+    get platform() { return platform }, model: 'shared-model', metrics: { has_samples: true, request_count: 3, error_rate: 0, cache_rate: 0.5, rpm: 1, tpm: 60, ttft: { p50_ms: 100, p95_ms: 150 } },
+    health: { overall: 'healthy', error_rate: 'healthy', ttft: 'healthy' },
+  }))
+  beforeEach(() => {
+    v2.getSnapshot.mockResolvedValue(null)
+    v2.getMatrix.mockResolvedValue({ items: [], coverage: {} })
+    v2.getModels.mockResolvedValue({ items: modelRows })
+    v2.getDimensions.mockResolvedValue({ platforms: [], groups: [], models: [] })
+    v2.replace.mockResolvedValue(undefined)
+  })
+  async function openAnalytics() {
+    const wrapper = shallowMount(ChannelStatusV2View, {
+      attachTo: document.body,
+      global: { stubs: { AppLayout: { template: '<main><slot /></main>' } } },
+    })
+    await flushPromises()
+    await wrapper.get('[data-testid="monitor-layout-toggle"]').trigger('click')
+    await flushPromises()
+    v2.getSnapshot.mockClear(); v2.getMatrix.mockClear(); v2.getModels.mockClear(); v2.replace.mockClear()
+    return wrapper
+  }
+
+  it.each([{ key: 'Enter', code: 'Enter' }, { key: ' ', code: 'Space' }])('uses a focusable native $code button for the exact platform/model and runs the original drilldown once', async ({ key, code }) => {
+    const wrapper = await openAnalytics()
+    const buttons = wrapper.findAll('tbody tr td:first-child button')
+    expect(buttons).toHaveLength(2)
+    expect(buttons[0].attributes('aria-label')).not.toBe(buttons[1].attributes('aria-label'))
+    const button = buttons[1]
+    expect(button.attributes('type')).toBe('button')
+    expect(button.attributes('aria-label')).toContain('anthropic / shared-model')
+    ;(button.element as HTMLButtonElement).focus()
+    expect(document.activeElement).toBe(button.element)
+    await button.trigger('keydown', { key, code }); await button.trigger('keyup', { key, code })
+    const platformRead = vi.spyOn(modelRows[1], 'platform', 'get')
+    // jsdom does not synthesize the browser's native keyboard click.
+    button.element.dispatchEvent(new MouseEvent('click', { detail: 0, bubbles: true }))
+    expect(platformRead).toHaveBeenCalledOnce()
+    await flushPromises()
+    expect(v2.replace).toHaveBeenCalledOnce()
+    expect(v2.replace).toHaveBeenCalledWith(expect.objectContaining({ query: expect.objectContaining({ platform: 'anthropic', model: 'shared-model' }) }))
+    expect(v2.getSnapshot).toHaveBeenCalledOnce()
+    expect(v2.getMatrix).toHaveBeenCalledOnce()
+    expect(v2.getModels).toHaveBeenCalledOnce()
+    expect(v2.getModels.mock.calls[0][0]).toMatchObject({ platforms: ['anthropic'], models: ['shared-model'] })
+    expect((wrapper.vm as any).modelRows).toEqual(modelRows)
+  })
+
+  it('keeps original pointer row selection and suppresses a second drilldown from the name button', async () => {
+    const wrapper = await openAnalytics()
+    await wrapper.findAll('tbody tr')[0].findAll('td')[1].trigger('click'); await flushPromises()
+    expect(v2.replace).toHaveBeenCalledOnce()
+    expect(v2.getModels.mock.calls[0][0]).toMatchObject({ platforms: ['openai'], models: ['shared-model'] })
+    v2.replace.mockClear(); v2.getSnapshot.mockClear(); v2.getMatrix.mockClear(); v2.getModels.mockClear()
+    const platformRead = vi.spyOn(modelRows[1], 'platform', 'get')
+    wrapper.findAll('tbody tr td:first-child button')[1].element.dispatchEvent(new MouseEvent('click', { detail: 1, bubbles: true }))
+    expect(platformRead).toHaveBeenCalledOnce()
+    await flushPromises()
+    expect(v2.replace).toHaveBeenCalledOnce()
+    expect(v2.getModels).toHaveBeenCalledOnce()
+    expect(v2.getModels.mock.calls[0][0]).toMatchObject({ platforms: ['anthropic'], models: ['shared-model'] })
   })
 })

@@ -2,6 +2,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AffiliateView from '../AffiliateView.vue'
+import DataTable from '@/components/common/DataTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 
 const { copyToClipboard, getAffiliateDetail } = vi.hoisted(() => ({
   copyToClipboard: vi.fn(),
@@ -47,6 +49,7 @@ describe('AffiliateView', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     copyToClipboard.mockResolvedValue(true)
     getAffiliateDetail.mockResolvedValue({
       user_id: 1,
@@ -137,5 +140,29 @@ describe('AffiliateView', () => {
       `${window.location.origin}/register?aff=${encodeURIComponent(affiliateCode)}`,
       'affiliate.linkCopied',
     )
+  })
+})
+
+describe('affiliate invitee records', () => {
+  it('persists main-row preferences without losing username, zero rebate or invitee identity', async () => {
+    localStorage.clear()
+    const data = await getAffiliateDetail()
+    getAffiliateDetail.mockResolvedValue({ ...data, invitees: [{ user_id: 17, email: 'invited@example.test', username: 'Original invited name', total_rebate: 0, created_at: '2026-10-24T00:00:00Z' }] })
+    const create = () => mount(AffiliateView, { global: { stubs: { AppLayout: { template: '<main><slot /></main>' }, Icon: true } } })
+    let view = create(); await flushPromises()
+    let table = view.findComponent(DataTable)
+    expect(table.props('rowKey')).toBe('user_id')
+    expect(table.props('data')[0].user_id).toBe(17)
+    expect(table.text()).toContain('$0.00')
+    table.findComponent(ColumnSettings).vm.$emit('toggle', 'username')
+    await flushPromises()
+    view.unmount()
+    view = create(); await flushPromises(); table = view.findComponent(DataTable)
+    expect(table.findComponent(ColumnSettings).props('hiddenColumns')).toContain('username')
+    await table.get('[data-test="toggle-details"]').trigger('click')
+    expect(table.text()).toContain('Original invited name')
+    expect(table.text()).toContain('invited@example.test')
+    expect(table.text()).toContain('$0.00')
+    view.unmount()
   })
 })

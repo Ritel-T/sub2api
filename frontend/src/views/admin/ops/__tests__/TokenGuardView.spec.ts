@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, RouterLinkStub, type VueWrapper } from '@vue/test-utils'
 
 import TokenGuardView from '../TokenGuardView.vue'
+import DataTable from '@/components/common/DataTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 
 const api = vi.hoisted(() => ({
   status: vi.fn(),
@@ -60,6 +62,8 @@ const mountView = () => mount(TokenGuardView, {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   api.status.mockResolvedValue({
     config: { enabled: true, group_ids: [], interval_seconds: 1800, probe_endpoint: '', probe_model: '', probe_headers: {}, probe_timeout_seconds: 20,
       probe_concurrency: 2, max_probe_per_cycle: 100, auto_relogin: true, relogin_endpoint: '', relogin_headers: {}, relogin_accounts: [],
@@ -84,6 +88,7 @@ beforeEach(() => {
 afterEach(() => {
   wrapper?.unmount()
   wrapper = undefined
+  vi.restoreAllMocks()
 })
 
 describe('TokenGuardView', () => {
@@ -136,5 +141,59 @@ describe('TokenGuardView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('tokenGuard.noAccounts')
     expect(wrapper.find('[data-testid="token-guard-managed-hint"]').exists()).toBe(false)
+  })
+})
+
+
+describe('TokenGuardView shared record contracts', () => {
+  it('persists secondary account fields and preserves managed read-only actions in details', async () => {
+    wrapper = mountView()
+    await flushPromises()
+    const table = wrapper.findAllComponents(DataTable)[0]
+    expect(table.props('rowKey')).toBe('key')
+    expect(table.props('data').map(row => row.key)).toEqual(['legacy-1', 'managed-42', 'managed-43'])
+    const settings = table.findComponent(ColumnSettings)
+    settings.vm.$emit('toggle', 'probe')
+    settings.vm.$emit('toggle', 'actions')
+    await flushPromises()
+    expect(table.find('th[data-column-key="probe"]').exists()).toBe(false)
+    expect(table.find('th[data-column-key="actions"]').exists()).toBe(false)
+    await table.get('tr[data-index="0"] [data-test="toggle-details"]').trigger('click')
+    const legacyDetails = table.findAll('.table-detail-row')[0]
+    await legacyDetails.findAll('button').find(button => button.text() === 'tokenGuard.relogin')!.trigger('click')
+    await flushPromises()
+    expect(api.relogin).toHaveBeenCalledWith(1)
+    wrapper.unmount()
+    wrapper = mountView()
+    await flushPromises()
+    const restored = wrapper.findAllComponents(DataTable)[0]
+    expect(restored.find('th[data-column-key="actions"]').exists()).toBe(false)
+    await restored.get('[data-managed-account-id="42"] [data-test="toggle-details"]').trigger('click')
+    const detail = restored.findAll('.table-detail-row')[0]
+    expect(detail.text()).toContain('tokenGuard.probeStates.ok')
+    expect(detail.findComponent(RouterLinkStub).props('to')).toBe('/admin/token-guard-v2')
+    expect(detail.findAll('button').some(button => button.text() === 'tokenGuard.relogin')).toBe(false)
+  })
+
+  it('bounds both mobile snapshots while retaining all account and event fields', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }))
+    const status = await api.status()
+    api.status.mockResolvedValue({ ...status,
+      accounts: Array.from({ length: 120 }, (_, index) => guardState(index + 1, `legacy-${index + 1}`)),
+      events: Array.from({ length: 130 }, (_, index) => ({ id: index + 1, account_id: 1, account_name: 'legacy-1', kind: 'probe_ok', detail: `Event detail ${index + 1}`, created_at: '2026-10-24T00:00:00Z' }))
+    })
+    api.listManaged.mockResolvedValue({ accounts: Array.from({ length: 40 }, (_, index) => managed(index + 121, `managed-${index + 121}`)) })
+    wrapper = mountView()
+    await flushPromises()
+    const tables = wrapper.findAllComponents(DataTable)
+    expect(tables.map(table => table.props('data').length)).toEqual([160, 130])
+    for (const table of tables) {
+      const rows = table.findAll('.table-record')
+      expect(rows.length).toBeGreaterThan(0)
+      expect(rows.length).toBeLessThan(40)
+    }
+    expect(tables[0].findAll('.table-record')[0].findAll('[data-field]').map(field => field.attributes('data-field'))).toEqual(['account', 'account_status', 'schedulable', 'probe', 'latency', 'last_fix', 'actions'])
+    expect(tables[1].findAll('.table-record')[0].text()).toContain('Event detail 1')
+    expect(tables[1].props('columns').every(column => column.primary && !column.sortable)).toBe(true)
   })
 })

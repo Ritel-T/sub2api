@@ -6,6 +6,9 @@
       <component :is="itemTag" v-bind="itemAttrs?.(row, index)" :ref="measure" :data-index="index" data-document-row :class="[as !== 'tbody' && 'flow-root', itemClass]">
         <slot :item="row" :index="index" />
       </component>
+      <component :is="itemTag" v-if="detailWhen?.(row, index)" :ref="measure" data-document-detail>
+        <slot name="detail" :item="row" :index="index" />
+      </component>
     </template>
     <component :is="itemTag" v-if="paddingBottom" aria-hidden="true" role="presentation" data-document-spacer :style="as === 'tbody' ? undefined : spacer(paddingBottom)"><td v-if="as === 'tbody'" :colspan="colspan" :style="spacer(paddingBottom)" /></component>
   </component>
@@ -23,10 +26,14 @@ const props = withDefaults(defineProps<{
   sourceCount?: number
   itemClass?: string
   itemAttrs?: (item: T, index: number) => Record<string, unknown>
+  detailWhen?: (item: T, index: number) => boolean
   estimateHeight?: number
   enabled?: boolean
 }>(), { as: 'div', colspan: 1, estimateHeight: 80, enabled: true, itemClass: '' })
-defineSlots<{ default: (props: { item: T; index: number }) => unknown }>()
+defineSlots<{
+  default: (props: { item: T; index: number }) => unknown
+  detail?: (props: { item: T; index: number }) => unknown
+}>()
 const body = ref<HTMLElement | null>(null)
 const itemTag = computed(() => props.as === 'ul' ? 'li' : props.as === 'tbody' ? 'tr' : 'div')
 function keyOf(item: T, index: number): string | number {

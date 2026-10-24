@@ -130,29 +130,13 @@
           <div v-if="detail.invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
             {{ t('affiliate.invitees.empty') }}
           </div>
-          <div v-else class="mt-4 overflow-x-auto">
-            <table class="w-full min-w-[560px] text-left text-sm">
-              <thead>
-                <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
-                  <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.email') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.username') }}</th>
-                  <th class="px-3 py-2 font-medium text-right">{{ t('affiliate.invitees.columns.rebate') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.joinedAt') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="item in detail.invitees"
-                  :key="item.user_id"
-                  class="border-b border-gray-100 last:border-b-0 dark:border-dark-800"
-                >
-                  <td class="px-3 py-3 text-gray-900 dark:text-white">{{ item.email || '-' }}</td>
-                  <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ item.username || '-' }}</td>
-                  <td class="px-3 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400">{{ formatCurrency(item.total_rebate) }}</td>
-                  <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ formatDateTime(item.created_at) || '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-else class="mt-4" data-testid="affiliate-invitees-table">
+            <DataTable :data="detail.invitees" :columns="inviteeColumns" row-key="user_id" column-order-key="user-affiliate-invitees">
+              <template #cell-email="{ row }">{{ row.email || '-' }}</template>
+              <template #cell-username="{ row }">{{ row.username || '-' }}</template>
+              <template #cell-total_rebate="{ row }"><span class="font-medium text-emerald-600 dark:text-emerald-400">{{ formatCurrency(row.total_rebate) }}</span></template>
+              <template #cell-created_at="{ row }">{{ formatDateTime(row.created_at) || '-' }}</template>
+            </DataTable>
           </div>
         </div>
       </template>
@@ -162,6 +146,7 @@
 
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -183,6 +168,12 @@ const { copyToClipboard } = useClipboard()
 const loading = ref(true)
 const transferring = ref(false)
 const detail = ref<UserAffiliateDetail | null>(null)
+const inviteeColumns = computed(() => [
+  { key: 'email', label: t('affiliate.invitees.columns.email'), primary: true },
+  { key: 'username', label: t('affiliate.invitees.columns.username'), primary: true },
+  { key: 'total_rebate', label: t('affiliate.invitees.columns.rebate'), primary: true, class: 'text-right' },
+  { key: 'created_at', label: t('affiliate.invitees.columns.joinedAt'), primary: true }
+])
 const firstRechargeBonus = computed(() => detail.value?.first_recharge_bonus ?? 0)
 const firstRechargeMinAmount = computed(() => detail.value?.first_recharge_min_amount ?? 0)
 

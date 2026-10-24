@@ -106,7 +106,7 @@
       <div class="h-48 w-48 shrink-0">
         <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
-      <div class="w-full min-w-0 flex-1 overflow-x-auto">
+      <div class="w-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
         <table class="w-full text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
@@ -118,23 +118,33 @@
               <th class="pb-2 text-right">{{ t('admin.dashboard.standard') }}</th>
             </tr>
           </thead>
-          <tbody>
-            <template v-for="model in displayModelStats" :key="model.model">
-              <tr
-                class="border-t border-gray-100 transition-colors dark:border-dark-700"
-                :class="enableBreakdown ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''"
-                @click="enableBreakdown && toggleBreakdown('model', model.model)"
-              >
+          <DocumentRows
+            as="tbody"
+            :items="displayModelStats"
+            item-key="model"
+            :colspan="distributionColspan"
+            :estimate-height="32"
+            item-class="border-t border-gray-100 transition-colors dark:border-dark-700"
+            :detail-when="(model) => expandedKey === `model-${model.model}`"
+          >
+            <template #default="{ item: model }">
                 <td
                   class="max-w-[100px] truncate py-1.5 font-medium"
                   :class="enableBreakdown ? 'text-primary-600 hover:text-blue-800 dark:text-primary-400 dark:hover:text-primary-300' : 'text-gray-900 dark:text-white'"
                   :title="model.model"
                 >
-                  <span class="inline-flex items-center gap-1">
+                  <button
+                    v-if="enableBreakdown"
+                    type="button"
+                    class="inline-flex max-w-full items-center gap-1 text-left"
+                    :aria-expanded="enableBreakdown ? expandedKey === `model-${model.model}` : undefined"
+                    @click="enableBreakdown && toggleBreakdown('model', model.model)"
+                  >
                     <svg v-if="enableBreakdown && expandedKey === `model-${model.model}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     <svg v-else-if="enableBreakdown" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ model.model }}
-                  </span>
+                  </button>
+                  <span v-else>{{ model.model }}</span>
                 </td>
                 <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
                   {{ formatNumber(model.requests) }}
@@ -151,8 +161,8 @@
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
                   ${{ formatCost(model.cost) }}
                 </td>
-              </tr>
-              <tr v-if="expandedKey === `model-${model.model}`">
+            </template>
+            <template #detail>
                 <td :colspan="distributionColspan" class="p-0">
                   <UserBreakdownSubTable
                     :items="breakdownItems"
@@ -160,9 +170,8 @@
                     :show-account-cost="showAccountCost"
                   />
                 </td>
-              </tr>
             </template>
-          </tbody>
+          </DocumentRows>
         </table>
       </div>
     </div>
@@ -186,7 +195,7 @@
       <div class="h-48 w-48 shrink-0">
         <Doughnut :data="rankingChartData" :options="rankingDoughnutOptions" />
       </div>
-      <div class="w-full min-w-0 flex-1 overflow-x-auto">
+      <div class="w-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
         <table class="w-full text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
@@ -196,27 +205,31 @@
               <th class="pb-2 text-right">{{ t('admin.dashboard.spendingRankingSpend') }}</th>
             </tr>
           </thead>
-          <tbody>
-            <tr
-              v-for="(item, index) in rankingDisplayItems"
-              :key="item.isOther ? 'others' : `${item.user_id}-${index}`"
-              class="border-t border-gray-100 transition-colors dark:border-dark-700"
-              :class="item.isOther
-                ? 'bg-gray-50/70 dark:bg-dark-700/20'
-                : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40'"
-              @click="item.isOther ? undefined : emit('ranking-click', item)"
-            >
+          <DocumentRows
+            as="tbody"
+            :items="rankingDisplayItems"
+            :item-key="(item) => item.isOther ? 'others' : item.user_id"
+            :colspan="4"
+            :item-attrs="(item) => ({ class: item.isOther ? 'bg-gray-50/70 dark:bg-dark-700/20' : 'hover:bg-gray-50 dark:hover:bg-dark-700/40' })"
+            :estimate-height="32"
+            item-class="border-t border-gray-100 transition-colors dark:border-dark-700"
+          >
+            <template #default="{ item, index }">
               <td class="py-1.5">
                 <div class="flex min-w-0 items-center gap-2">
                   <span class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
                     {{ item.isOther ? 'Σ' : `#${index + 1}` }}
                   </span>
-                  <span
+                  <button
+                    v-if="!item.isOther"
+                    type="button"
+                    @click="!item.isOther && emit('ranking-click', item)"
                     class="block max-w-[140px] truncate font-medium text-gray-900 dark:text-white"
                     :title="getRankingRowLabel(item)"
                   >
                     {{ getRankingRowLabel(item) }}
-                  </span>
+                  </button>
+                  <span v-else class="block max-w-[140px] truncate font-medium text-gray-900 dark:text-white" :title="getRankingRowLabel(item)">{{ getRankingRowLabel(item) }}</span>
                 </div>
               </td>
               <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
@@ -228,8 +241,8 @@
               <td class="py-1.5 text-right text-green-600 dark:text-green-400">
                 ${{ formatCost(item.actual_cost) }}
               </td>
-            </tr>
-          </tbody>
+            </template>
+          </DocumentRows>
         </table>
       </div>
     </div>
@@ -244,7 +257,8 @@
 
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
@@ -306,12 +320,29 @@ const expandedKey = ref<string | null>(null)
 const breakdownItems = ref<UserBreakdownItem[]>([])
 const breakdownLoading = ref(false)
 
+let breakdownGeneration = 0
+const breakdownContext = computed(() => JSON.stringify({
+  startDate: props.startDate, endDate: props.endDate, filters: props.filters,
+  enabled: props.enableBreakdown, source: props.source
+}))
+function resetBreakdown() {
+  breakdownGeneration++
+  expandedKey.value = null
+  breakdownItems.value = []
+  breakdownLoading.value = false
+}
+watch(breakdownContext, resetBreakdown, { flush: 'sync' })
+onUnmounted(resetBreakdown)
+
 const toggleBreakdown = async (type: string, id: string) => {
   const key = `${type}-${id}`
   if (expandedKey.value === key) {
-    expandedKey.value = null
+    resetBreakdown()
     return
   }
+  const generation = ++breakdownGeneration
+  const context = breakdownContext.value
+  const isCurrent = () => generation === breakdownGeneration && expandedKey.value === key && context === breakdownContext.value
   expandedKey.value = key
   breakdownLoading.value = true
   breakdownItems.value = []
@@ -323,11 +354,11 @@ const toggleBreakdown = async (type: string, id: string) => {
       model: id,
       model_source: props.source,
     })
-    breakdownItems.value = res.users || []
+    if (isCurrent()) breakdownItems.value = res.users || []
   } catch {
-    breakdownItems.value = []
+    if (isCurrent()) breakdownItems.value = []
   } finally {
-    breakdownLoading.value = false
+    if (isCurrent()) breakdownLoading.value = false
   }
 }
 
@@ -341,6 +372,7 @@ const enableRankingView = computed(() => props.enableRankingView)
 const showAccountCost = computed(() => props.showAccountCost)
 const distributionColspan = computed(() => showAccountCost.value ? 6 : 5)
 const activeView = ref<'model_distribution' | 'spending_ranking'>('model_distribution')
+watch(activeView, resetBreakdown, { flush: 'sync' })
 
 const chartColors = [
   '#3b82f6',

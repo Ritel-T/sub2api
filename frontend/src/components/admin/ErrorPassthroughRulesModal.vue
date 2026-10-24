@@ -18,7 +18,7 @@
       </div>
 
       <!-- Rules Table -->
-      <div v-if="loading" class="flex items-center justify-center py-8">
+      <div v-if="loading && !rules.length" class="flex items-center justify-center py-8">
         <Icon role="status" :aria-label="t('common.loading')" name="refresh" size="lg" class="animate-spin text-gray-400" />
       </div>
 
@@ -34,47 +34,20 @@
         </p>
       </div>
 
-      <div v-else class="max-h-96 overflow-auto rounded-lg border border-gray-200 dark:border-dark-600">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
-          <thead class="sticky top-0 bg-gray-50 dark:bg-dark-700">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.errorPassthrough.columns.priority') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.errorPassthrough.columns.name') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.errorPassthrough.columns.conditions') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.errorPassthrough.columns.platforms') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.errorPassthrough.columns.behavior') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.errorPassthrough.columns.status') }}
-              </th>
-              <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {{ t('admin.errorPassthrough.columns.actions') }}
-              </th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-800">
-            <tr v-for="rule in rules" :key="rule.id" class="hover:bg-gray-50 dark:hover:bg-dark-700">
-              <td class="whitespace-nowrap px-3 py-2">
+      <div v-else class="max-h-96 overflow-y-auto" :aria-busy="loading" data-testid="admin-error-passthrough-rules">
+        <DataTable :columns="tableColumns" :data="rules" row-key="id" column-order-key="admin-error-passthrough-rules">
+          <template #cell-priority="{ row: rule }">
                 <span class="inline-flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-xs font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">
                   {{ rule.priority }}
                 </span>
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-name="{ row: rule }">
                 <div class="font-medium text-gray-900 dark:text-white text-sm">{{ rule.name }}</div>
                 <div v-if="rule.description" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 max-w-xs truncate">
                   {{ rule.description }}
                 </div>
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-conditions="{ row: rule }">
                 <div class="flex flex-wrap gap-1 max-w-48">
                   <span
                     v-for="code in rule.error_codes.slice(0, 3)"
@@ -106,8 +79,8 @@
                 <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   {{ t('admin.errorPassthrough.matchMode.' + rule.match_mode) }}
                 </div>
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-platforms="{ row: rule }">
                 <div v-if="rule.platforms.length === 0" class="text-xs text-gray-500 dark:text-gray-400">
                   {{ t('admin.errorPassthrough.allPlatforms') }}
                 </div>
@@ -123,8 +96,8 @@
                     +{{ rule.platforms.length - 2 }}
                   </span>
                 </div>
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-behavior="{ row: rule }">
                 <div class="text-xs space-y-0.5">
                   <div class="flex items-center gap-1">
                     <Icon
@@ -159,31 +132,29 @@
                     </span>
                   </div>
                 </div>
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-enabled="{ row: rule }">
                 <Toggle :model-value="!!rule.enabled" :aria-label="t('common.enabled')" @click="toggleEnabled(rule)" size="small" />
-              </td>
-              <td class="px-3 py-2">
+                        </template>
+          <template #cell-actions="{ row: rule }">
                 <div class="flex items-center gap-1">
                   <button
                     @click="handleEdit(rule)"
                     class="p-1 text-gray-500 hover:text-primary-600 dark:hover:text-primary-400"
-                    :title="t('common.edit')"
+                    :title="t('common.edit')" :aria-label="t('common.edit')" type="button"
                   >
                     <Icon name="edit" size="sm" />
                   </button>
                   <button
                     @click="handleDelete(rule)"
                     class="p-1 text-gray-500 hover:text-red-600 dark:hover:text-red-400"
-                    :title="t('common.delete')"
+                    :title="t('common.delete')" :aria-label="t('common.delete')" type="button"
                   >
                     <Icon name="trash" size="sm" />
                   </button>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                        </template>
+        </DataTable>
       </div>
     </div>
 
@@ -420,6 +391,7 @@
 <script setup lang="ts">
 import Toggle from '@/components/common/Toggle.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import { ref, reactive, computed, watch, onScopeDispose } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -445,6 +417,15 @@ void emit // suppress unused warning - emit is used via $emit in template
 const { t } = useI18n()
 const appStore = useAppStore()
 
+const tableColumns = computed(() => [
+  { key: 'priority', label: t('admin.errorPassthrough.columns.priority'), primary: true },
+  { key: 'name', label: t('admin.errorPassthrough.columns.name'), primary: true },
+  { key: 'conditions', label: t('admin.errorPassthrough.columns.conditions'), primary: true },
+  { key: 'platforms', label: t('admin.errorPassthrough.columns.platforms'), primary: true },
+  { key: 'behavior', label: t('admin.errorPassthrough.columns.behavior'), primary: true },
+  { key: 'enabled', label: t('admin.errorPassthrough.columns.status'), primary: true },
+  { key: 'actions', label: t('admin.errorPassthrough.columns.actions'), primary: true },
+])
 const rules = ref<ErrorPassthroughRule[]>([])
 const loading = ref(false)
 let listRevision = 0

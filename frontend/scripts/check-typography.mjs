@@ -8,6 +8,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
+import { createHash } from 'node:crypto'
 import { parse as parseSfc } from 'vue/compiler-sfc'
 import postcss from 'postcss'
 import ts from 'typescript'
@@ -442,7 +443,16 @@ export async function auditTypography({ root = fileURLToPath(new URL('..', impor
     const brandAst = postcss.parse(brand)
     let imported = false
     const definedFamilies = new Set()
-    brandAst.walkAtRules('import', rule => { if (/^(?:["']\.\/typography\.css["']|url\(\s*(?:["']\.\/typography\.css["']|\.\/typography\.css)\s*\))$/.test(rule.params)) imported = true })
+    brandAst.walkAtRules('import', rule => {
+      const url = rule.params.match(/^url\(\s*(['"]?)(.*?)\1\s*\)$/)?.[2] ?? rule.params.replace(/^(['"])(.*)\1$/, '$2')
+      if (/^\.\/typography\.css(?:\?v=[0-9a-f]{16})?$/.test(url)) {
+        imported = true
+        const version = url.split('?v=')[1]
+        if (version && version !== createHash('sha256').update(source).digest('hex').slice(0, 16)) {
+          add('central-role-import-version', centralFamilyFile, 1, 'Typography import version must match its exact content hash')
+        }
+      }
+    })
     brandAst.walkDecls(decl => { if (canonicalFamilies.has(decl.prop)) definedFamilies.add(decl.prop) })
     if (!imported) add('central-role-import', centralFamilyFile, 1, 'Brand stylesheet must import ./typography.css')
     for (const family of canonicalFamilies) if (!definedFamilies.has(family)) add('central-family-contract', centralFamilyFile, 1, `Missing central family token ${family}`)

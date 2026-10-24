@@ -199,3 +199,26 @@ describe('ModelDistributionChart', () => {
     expect(rows[3].text()).toContain('$10.00')
   })
 })
+
+
+it('selects a ranked user through its native name button and leaves Others unselectable', async () => {
+  const user = { user_id: 1, email: 'alpha@example.com', username: 'alpha', actual_cost: 12, requests: 10, tokens: 1000 }
+  const wrapper = mount(ModelDistributionChart, { attachTo: document.body, props: {
+    modelStats: [], enableRankingView: true, rankingItems: [user], rankingTotalActualCost: 20,
+  } })
+  try {
+    await wrapper.findAll('button').find(button => button.text() === 'User Spending Ranking')!.trigger('click')
+    expect(wrapper.get('.overflow-x-auto').classes()).toContain('overflow-y-hidden')
+    const button = wrapper.get('tbody button')
+    expect(button.element.tagName).toBe('BUTTON')
+    expect(button.attributes('type')).toBe('button')
+    ;(button.element as HTMLButtonElement).focus()
+    expect(document.activeElement).toBe(button.element)
+    ;(button.element as HTMLButtonElement).click()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('ranking-click')).toEqual([[user]])
+    const rows = wrapper.findAll('[data-document-row]')
+    expect(rows[1]!.text()).toContain('Others')
+    expect(rows[1]!.find('button').exists()).toBe(false)
+  } finally { wrapper.unmount() }
+})

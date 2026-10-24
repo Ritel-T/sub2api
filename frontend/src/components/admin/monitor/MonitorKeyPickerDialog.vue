@@ -44,7 +44,16 @@
               class="cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700"
               @click="$emit('pick', k)"
             >
-              <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{{ k.name }}</td>
+              <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
+                <button
+                  type="button"
+                  class="text-left hover:underline"
+                  :aria-label="`${k.name} (#${k.id})`"
+                  @click.stop="$emit('pick', k)"
+                >
+                  {{ k.name }}
+                </button>
+              </td>
               <td class="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{{ maskApiKey(k.key) }}</td>
               <td class="px-3 py-2">
                 <GroupBadge

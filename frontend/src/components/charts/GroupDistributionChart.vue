@@ -37,7 +37,7 @@
       <div class="h-48 w-48 shrink-0">
         <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
-      <div class="w-full min-w-0 flex-1 overflow-x-auto">
+      <div class="w-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
         <table class="w-full text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
@@ -49,23 +49,33 @@
               <th class="pb-2 text-right">{{ t('admin.dashboard.standard') }}</th>
             </tr>
           </thead>
-          <tbody>
-            <template v-for="group in displayGroupStats" :key="group.group_id">
-              <tr
-                class="border-t border-gray-100 transition-colors dark:border-dark-700"
-                :class="enableBreakdown && group.group_id > 0 ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''"
-                @click="enableBreakdown && group.group_id > 0 && toggleBreakdown('group', group.group_id)"
-              >
+          <DocumentRows
+            as="tbody"
+            :items="displayGroupStats"
+            item-key="group_id"
+            :colspan="distributionColspan"
+            :estimate-height="32"
+            item-class="border-t border-gray-100 transition-colors dark:border-dark-700"
+            :detail-when="(group) => expandedKey === `group-${group.group_id}`"
+          >
+            <template #default="{ item: group }">
                 <td
                   class="max-w-[100px] truncate py-1.5 font-medium"
                   :class="enableBreakdown && group.group_id > 0 ? 'text-primary-600 hover:text-blue-800 dark:text-primary-400 dark:hover:text-primary-300' : 'text-gray-900 dark:text-white'"
                   :title="group.group_name || String(group.group_id)"
                 >
-                  <span class="inline-flex items-center gap-1">
+                  <button
+                    v-if="enableBreakdown && group.group_id > 0"
+                    type="button"
+                    class="inline-flex max-w-full items-center gap-1 text-left"
+                    :aria-expanded="enableBreakdown && group.group_id > 0 ? expandedKey === `group-${group.group_id}` : undefined"
+                    @click="enableBreakdown && group.group_id > 0 && toggleBreakdown('group', group.group_id)"
+                  >
                     <svg v-if="enableBreakdown && group.group_id > 0 && expandedKey === `group-${group.group_id}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     <svg v-else-if="enableBreakdown && group.group_id > 0" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ group.group_name || t('admin.dashboard.noGroup') }}
-                  </span>
+                  </button>
+                  <span v-else>{{ group.group_name || t('admin.dashboard.noGroup') }}</span>
                 </td>
                 <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
                   {{ formatNumber(group.requests) }}
@@ -82,9 +92,8 @@
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
                   ${{ formatCost(group.cost) }}
                 </td>
-              </tr>
-              <!-- User breakdown sub-rows -->
-              <tr v-if="expandedKey === `group-${group.group_id}`">
+            </template>
+            <template #detail>
                 <td :colspan="distributionColspan" class="p-0">
                   <UserBreakdownSubTable
                     :items="breakdownItems"
@@ -92,9 +101,8 @@
                     :show-account-cost="showAccountCost"
                   />
                 </td>
-              </tr>
             </template>
-          </tbody>
+          </DocumentRows>
         </table>
       </div>
     </div>
@@ -109,7 +117,8 @@
 
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
@@ -154,12 +163,29 @@ const breakdownLoading = ref(false)
 const showAccountCost = computed(() => props.showAccountCost)
 const distributionColspan = computed(() => showAccountCost.value ? 6 : 5)
 
+let breakdownGeneration = 0
+const breakdownContext = computed(() => JSON.stringify({
+  startDate: props.startDate, endDate: props.endDate, filters: props.filters,
+  enabled: props.enableBreakdown
+}))
+function resetBreakdown() {
+  breakdownGeneration++
+  expandedKey.value = null
+  breakdownItems.value = []
+  breakdownLoading.value = false
+}
+watch(breakdownContext, resetBreakdown, { flush: 'sync' })
+onUnmounted(resetBreakdown)
+
 const toggleBreakdown = async (type: string, id: number | string) => {
   const key = `${type}-${id}`
   if (expandedKey.value === key) {
-    expandedKey.value = null
+    resetBreakdown()
     return
   }
+  const generation = ++breakdownGeneration
+  const context = breakdownContext.value
+  const isCurrent = () => generation === breakdownGeneration && expandedKey.value === key && context === breakdownContext.value
   expandedKey.value = key
   breakdownLoading.value = true
   breakdownItems.value = []
@@ -170,11 +196,11 @@ const toggleBreakdown = async (type: string, id: number | string) => {
       end_date: props.endDate,
       group_id: Number(id),
     })
-    breakdownItems.value = res.users || []
+    if (isCurrent()) breakdownItems.value = res.users || []
   } catch {
-    breakdownItems.value = []
+    if (isCurrent()) breakdownItems.value = []
   } finally {
-    breakdownLoading.value = false
+    if (isCurrent()) breakdownLoading.value = false
   }
 }
 

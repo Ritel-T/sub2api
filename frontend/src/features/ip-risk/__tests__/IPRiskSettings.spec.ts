@@ -1,10 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import IPRiskSettings from '../IPRiskSettings.vue'
+import DataTable from '@/components/common/DataTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import { ipRiskAPI, type IPRiskSnapshot } from '../api'
 import zh from '@/i18n/locales/zh/admin/ipRisk'
 import en from '@/i18n/locales/en/admin/ipRisk'
+import commonZh from '@/i18n/locales/zh/common'
+import commonEn from '@/i18n/locales/en/common'
 
 vi.mock('../api', () => ({ ipRiskAPI: { get: vi.fn(), anonymousBans: vi.fn(), unbanAnonymous: vi.fn(), save: vi.fn(), events: vi.fn(), bans: vi.fn(), unban: vi.fn(), clearEvents: vi.fn(), check: vi.fn() } }))
 
@@ -24,7 +28,7 @@ function snapshot(): IPRiskSnapshot {
   }
 }
 function create() {
-  return mount(IPRiskSettings, { global: { plugins: [createI18n({ legacy: false, locale: 'zh', messageCompiler: message => () => String(message), messages: { zh: { admin: { settings: { ipRisk: zh } } }, en: { admin: { settings: { ipRisk: en } } } } })] } })
+  return mount(IPRiskSettings, { global: { plugins: [createI18n({ legacy: false, locale: 'zh', messageCompiler: message => () => String(message), messages: { zh: { ...commonZh, admin: { settings: { ipRisk: zh } } }, en: { ...commonEn, admin: { settings: { ipRisk: en } } } } })] } })
 }
 async function opened() {
   const wrapper = create()
@@ -37,8 +41,10 @@ function button(wrapper: ReturnType<typeof create>, text: string) {
   if (!result) throw new Error('Missing button: ' + text)
   return result
 }
+afterEach(() => vi.restoreAllMocks())
 beforeEach(() => {
   vi.resetAllMocks()
+  localStorage.clear()
   vi.mocked(ipRiskAPI.get).mockResolvedValue(snapshot())
   vi.mocked(ipRiskAPI.save).mockImplementation(async config => structuredClone(config))
   vi.mocked(ipRiskAPI.events).mockResolvedValue([])
@@ -183,5 +189,27 @@ describe('IP risk settings', () => {
     await wrapper.get('form').trigger('submit'); await flushPromises()
     expect(ipRiskAPI.save).toHaveBeenCalledOnce()
     wrapper.unmount()
+  })
+})
+
+describe('recent risk event records', () => {
+  it('keeps all fetched events, details and unsaved settings while windowing their DOM', async () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
+    const events = Array.from({ length: 140 }, (_, i) => ({ id: `event-${i}`, at: 1700000000 + i, ip: '198.51.100.1', network: '198.51.100.1/32', peer: '127.0.0.1', ip_source: 'trusted_proxy_chain', country: '', method: 'POST', category: 'login', path: '/api/v1/auth/login', user_agent: `Original Agent ${i}`, status: 401, reason: 'login_failures', error_reason: 'INVALID_CREDENTIALS', decision: 'auto_banned' }))
+    vi.mocked(ipRiskAPI.events).mockResolvedValue(events)
+    const view = await opened()
+    await view.get('[data-testid="risk-whitelist"]').setValue('198.51.100.77')
+    const table = view.findComponent(DataTable)
+    expect(table.props('data')).toHaveLength(140)
+    expect(table.props('rowKey')).toBe('id')
+    expect(table.findAll('[data-index]').length).toBeGreaterThan(0)
+    expect(table.findAll('[data-index]').length).toBeLessThan(40)
+    table.findComponent(ColumnSettings).vm.$emit('toggle', 'user_agent'); await flushPromises()
+    await table.get('[data-test="toggle-details"]').trigger('click')
+    expect(table.text()).toContain('Original Agent 0')
+    expect(table.text()).toContain('INVALID_CREDENTIALS')
+    expect((view.get('[data-testid="risk-whitelist"]').element as HTMLTextAreaElement).value).toBe('198.51.100.77')
+    expect(ipRiskAPI.save).not.toHaveBeenCalled()
+    view.unmount()
   })
 })

@@ -102,3 +102,110 @@
   --type-leading: var(--ritel-type-subtle-leading);
   --type-tracking: var(--ritel-type-subtle-tracking);
 }
+
+/* Marketing and reading are distinct presentation roles shared by static products. */
+:root {
+  --ritel-type-marketing-hero-family: var(--ritel-heading);
+  --ritel-type-marketing-hero-size: clamp(44px,5.4vw,86px);
+  --ritel-type-marketing-hero-weight: 400;
+  --ritel-type-marketing-hero-leading: 1.15;
+  --ritel-type-marketing-hero-tracking: -.025em;
+  --ritel-type-marketing-section-family: var(--ritel-display);
+  --ritel-type-marketing-section-size: clamp(40px,4.1vw,64px);
+  --ritel-type-marketing-section-weight: 500;
+  --ritel-type-marketing-section-leading: 1.08;
+  --ritel-type-marketing-section-tracking: -.025em;
+  --ritel-type-service-family: var(--ritel-display);
+  --ritel-type-service-size: 32px;
+  --ritel-type-service-weight: 500;
+  --ritel-type-service-leading: 1.2;
+  --ritel-type-service-tracking: 0;
+  --ritel-type-featured-service-family: var(--ritel-display);
+  --ritel-type-featured-service-size: clamp(48px,4.7vw,72px);
+  --ritel-type-featured-service-weight: 500;
+  --ritel-type-featured-service-leading: 1.2;
+  --ritel-type-featured-service-tracking: 0;
+  --ritel-type-reading-title-family: var(--ritel-display);
+  --ritel-type-reading-title-size: clamp(44px,5.8vw,80px);
+  --ritel-type-reading-title-weight: 500;
+  --ritel-type-reading-title-leading: 1.12;
+  --ritel-type-reading-title-tracking: -.025em;
+  --ritel-type-reading-section-family: var(--ritel-display);
+  --ritel-type-reading-section-size: clamp(34px,3.1vw,46px);
+  --ritel-type-reading-section-weight: 500;
+  --ritel-type-reading-section-leading: 1.2;
+  --ritel-type-reading-section-tracking: -.02em;
+  --ritel-type-reading-subsection-family: var(--ritel-ui);
+  --ritel-type-reading-subsection-size: 22px;
+  --ritel-type-reading-subsection-weight: 500;
+  --ritel-type-reading-subsection-leading: 1.4;
+  --ritel-type-reading-subsection-tracking: 0;
+}
+.ritel-type[data-type-role="marketing-hero"] {
+  --type-family: var(--ritel-type-marketing-hero-family);
+  --type-size: var(--ritel-type-marketing-hero-size);
+  --type-weight: var(--ritel-type-marketing-hero-weight);
+  --type-leading: var(--ritel-type-marketing-hero-leading);
+  --type-tracking: var(--ritel-type-marketing-hero-tracking);
+}
+.ritel-type[data-type-role="marketing-section"] {
+  --type-family: var(--ritel-type-marketing-section-family);
+  --type-size: var(--ritel-type-marketing-section-size);
+  --type-weight: var(--ritel-type-marketing-section-weight);
+  --type-leading: var(--ritel-type-marketing-section-leading);
+  --type-tracking: var(--ritel-type-marketing-section-tracking);
+}
+.ritel-type[data-type-role="service"] {
+  --type-family: var(--ritel-type-service-family);
+  --type-size: var(--ritel-type-service-size);
+  --type-weight: var(--ritel-type-service-weight);
+  --type-leading: var(--ritel-type-service-leading);
+  --type-tracking: var(--ritel-type-service-tracking);
+}
+.ritel-type[data-type-role="featured-service"] {
+  --type-family: var(--ritel-type-featured-service-family);
+  --type-size: var(--ritel-type-featured-service-size);
+  --type-weight: var(--ritel-type-featured-service-weight);
+  --type-leading: var(--ritel-type-featured-service-leading);
+  --type-tracking: var(--ritel-type-featured-service-tracking);
+}
+.ritel-type[data-type-role="reading-title"] {
+  --type-family: var(--ritel-type-reading-title-family);
+  --type-size: var(--ritel-type-reading-title-size);
+  --type-weight: var(--ritel-type-reading-title-weight);
+  --type-leading: var(--ritel-type-reading-title-leading);
+  --type-tracking: var(--ritel-type-reading-title-tracking);
+}
+.ritel-type[data-type-role="reading-section"] {
+  --type-family: var(--ritel-type-reading-section-family);
+  --type-size: var(--ritel-type-reading-section-size);
+  --type-weight: var(--ritel-type-reading-section-weight);
+  --type-leading: var(--ritel-type-reading-section-leading);
+  --type-tracking: var(--ritel-type-reading-section-tracking);
+}
+.ritel-type[data-type-role="reading-subsection"] {
+  --type-family: var(--ritel-type-reading-subsection-family);
+  --type-size: var(--ritel-type-reading-subsection-size);
+  --type-weight: var(--ritel-type-reading-subsection-weight);
+  --type-leading: var(--ritel-type-reading-subsection-leading);
+  --type-tracking: var(--ritel-type-reading-subsection-tracking);
+}
+:root:lang(zh-Hant-HK) {
+  --ritel-type-marketing-hero-size: clamp(42px,5.8vw,82px);
+  --ritel-type-marketing-hero-leading: 1.3;
+  --ritel-type-marketing-hero-tracking: .01em;
+  --ritel-type-marketing-section-leading: 1.3;
+  --ritel-type-marketing-section-tracking: 0;
+}
+@media (max-width: 767px) {
+  :root {
+    --ritel-type-marketing-hero-size: clamp(32px,9.8vw,56px);
+    --ritel-type-marketing-section-size: 42px;
+    --ritel-type-featured-service-size: 48px;
+    --ritel-type-reading-title-size: clamp(40px,10vw,58px);
+    --ritel-type-reading-section-size: 36px;
+  }
+  :root:lang(zh-Hant-HK) {
+    --ritel-type-marketing-hero-size: clamp(40px,11vw,58px);
+  }
+}

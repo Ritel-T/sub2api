@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { readFileSync } from 'node:fs'
 import IPRiskSettings from '@/features/ip-risk/IPRiskSettings.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import type { IPRiskSnapshot } from '@/features/ip-risk/api'
 import { flushPromises, mount } from '@vue/test-utils'
 import { RouterView } from 'vue-router'
@@ -180,10 +181,41 @@ describe('IP settings migration through real routes', () => {
   })
   it.each(['en', 'zh'] as const)('loads existing values on the %s mobile configuration deep link and preserves the draft across tabs', async locale => {
     vi.stubGlobal('innerWidth', 375)
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })))
+    const event = {
+      id: 'mobile-configuration-event', at: 1700000000, ip: '198.51.100.42', network: '198.51.100.42/32',
+      peer: '192.0.2.44', ip_source: 'trusted_proxy_chain', country: 'CN', method: 'POST',
+      category: 'login', path: '/api/v1/auth/login', user_agent: 'Long mobile user agent '.repeat(8),
+      status: 401, reason: 'login_failures', error_reason: 'INVALID_CREDENTIALS', decision: 'auto_banned'
+    }
+    state.risk.events.mockResolvedValueOnce([event])
     const page = await open('/admin/ip-audit?tab=config', locale)
     const settings = page.getComponent(IPRiskSettings)
     expect(page.get('[role="tablist"]').classes()).toContain('flex-wrap')
-    expect(settings.find('.overflow-x-auto').exists()).toBe(true)
+    const recentEvents = settings.get('[data-testid="ip-risk-recent-events"]')
+    const records = recentEvents.getComponent(DataTable)
+    expect(records.props('rowKey')).toBe('id')
+    expect(records.props('data')).toEqual([event])
+    const mobileRecord = recentEvents.get('.table-record[data-index="0"]')
+    expect(recentEvents.find('table').exists()).toBe(false)
+    expect(mobileRecord.findAll('[data-field]')).toHaveLength(5)
+    expect(mobileRecord.text()).toContain(event.ip)
+    expect(mobileRecord.text()).toContain(event.peer)
+    expect(mobileRecord.text()).toContain(event.path)
+    expect(mobileRecord.text()).toContain(event.error_reason)
+    const agentField = mobileRecord.get('[data-field="user_agent"]')
+    expect(agentField.classes()).toContain('min-w-0')
+    expect(agentField.get('.max-w-full').classes()).toContain('min-w-0')
+    expect(agentField.get('.break-all').text()).toBe(event.user_agent.trim())
     expect(page.get('[data-test="ip-tab-config"]').text()).toBe(locale === 'zh' ? '风控配置与访问记录' : 'Risk settings and access records')
     expect((settings.get('[data-testid="anonymous-threshold"]').element as HTMLInputElement).value).toBe('43')
     expect((settings.get('[data-testid="risk-enabled"]').element as HTMLInputElement).checked).toBe(true)

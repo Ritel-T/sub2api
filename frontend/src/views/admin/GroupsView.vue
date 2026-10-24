@@ -4014,6 +4014,7 @@
             <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
               {{ t("admin.groups.compositeRoutes.routes") }}
             </AppHeading>
+            <div ref="compositeRoutesToolbarTarget" class="flex items-center gap-2">
             <button
               type="button"
               class="btn btn-secondary btn-sm"
@@ -4026,48 +4027,20 @@
                 :class="compositeRoutesLoading ? 'animate-spin' : ''"
               />
             </button>
+            </div>
           </div>
 
-          <div
-            class="overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600"
+          <DataTable
+            :columns="compositeRoutesColumns"
+            :data="compositeRoutes"
+            :loading="compositeRoutesLoading"
+            row-key="id"
+            column-order-key="admin-group-composite-routes"
+            :toolbar-target="compositeRoutesToolbarTarget"
+            :actions-count="2"
+            :row-attrs="route => ({ class: !route.enabled ? 'opacity-60' : undefined })"
           >
-            <div
-              v-if="compositeRoutesLoading"
-              class="flex h-36 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
-            >
-              {{ t("common.loading") }}
-            </div>
-            <div
-              v-else-if="compositeRoutes.length === 0"
-              class="flex h-36 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
-            >
-              {{ t("admin.groups.compositeRoutes.empty") }}
-            </div>
-            <div v-else class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-600">
-                <thead class="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:bg-dark-800 dark:text-gray-400">
-                  <tr>
-                    <th class="px-3 py-2">
-                      {{ t("admin.groups.compositeRoutes.publicModel") }}
-                    </th>
-                    <th class="px-3 py-2">
-                      {{ t("admin.groups.compositeRoutes.target") }}
-                    </th>
-                    <th class="px-3 py-2">
-                      {{ t("admin.groups.compositeRoutes.scope") }}
-                    </th>
-                    <th class="px-3 py-2 text-right">
-                      {{ t("admin.groups.columns.actions") }}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 bg-white dark:divide-dark-700 dark:bg-dark-900">
-                  <tr
-                    v-for="route in compositeRoutes"
-                    :key="route.id"
-                    :class="!route.enabled && 'opacity-60'"
-                  >
-                    <td class="max-w-[15rem] px-3 py-2">
+            <template #cell-public_model="{ row: route }">
                       <div class="break-all font-medium text-gray-900 dark:text-white">
                         {{ route.public_model }}
                       </div>
@@ -4082,8 +4055,9 @@
                           {{ t("admin.accounts.status.inactive") }}
                         </span>
                       </div>
-                    </td>
-                    <td class="px-3 py-2">
+
+            </template>
+            <template #cell-target="{ row: route }">
                       <div class="flex items-center gap-1.5 text-gray-900 dark:text-white">
                         <PlatformIcon :platform="route.target_platform" size="xs" />
                         <span>{{ formatCompositePlatform(route.target_platform) }}</span>
@@ -4091,8 +4065,9 @@
                       <div class="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
                         {{ route.upstream_model || route.public_model }}
                       </div>
-                    </td>
-                    <td class="px-3 py-2">
+
+            </template>
+            <template #cell-scope="{ row: route }">
                       <div class="text-gray-700 dark:text-gray-300">
                         {{ formatCompositeEndpoint(route.endpoint) }}
                       </div>
@@ -4100,14 +4075,15 @@
                         {{ t("admin.groups.compositeRoutes.priority") }}:
                         {{ route.priority }}
                       </div>
-                    </td>
-                    <td class="px-3 py-2">
+
+            </template>
+            <template #cell-actions="{ row: route }">
                       <div class="flex justify-end gap-1">
                         <button
                           type="button"
                           class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
                           :title="t('common.edit')"
-                          @click="editCompositeRoute(route)"
+                          @click.stop="editCompositeRoute(route)"
                         >
                           <Icon name="edit" size="sm" />
                         </button>
@@ -4115,17 +4091,15 @@
                           type="button"
                           class="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                           :title="t('common.delete')"
-                          @click="deleteCompositeRoute(route)"
+                          @click.stop="deleteCompositeRoute(route)"
                         >
                           <Icon name="trash" size="sm" />
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+
+            </template>
+            <template #empty><p class="text-sm text-gray-500 dark:text-gray-400">{{ t("admin.groups.compositeRoutes.empty") }}</p></template>
+          </DataTable>
         </section>
 
         <section class="space-y-5">
@@ -4911,6 +4885,13 @@ type CompositeRouteFormState = {
 const showCompositeRoutesModal = ref(false);
 const compositeRoutesGroup = ref<AdminGroup | null>(null);
 const compositeRoutes = ref<CompositeModelRoute[]>([]);
+const compositeRoutesToolbarTarget = ref<HTMLElement | null>(null);
+const compositeRoutesColumns = computed<Column[]>(() => [
+  { key: "public_model", label: t("admin.groups.compositeRoutes.publicModel"), primary: true },
+  { key: "target", label: t("admin.groups.compositeRoutes.target"), primary: true },
+  { key: "scope", label: t("admin.groups.compositeRoutes.scope"), primary: true },
+  { key: "actions", label: t("admin.groups.columns.actions"), primary: true },
+]);
 const compositeRoutesLoading = ref(false);
 const compositeRouteSaving = ref(false);
 const compositeRouteEditingId = ref<number | null>(null);

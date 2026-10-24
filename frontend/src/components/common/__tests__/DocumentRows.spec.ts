@@ -203,3 +203,59 @@ describe('DocumentRows initially empty viewport bootstrap', () => {
     expect(wrapper.findAll('[data-document-row]').length).toBeLessThan(60)
   })
 })
+
+
+describe('DocumentRows adjacent detail slot', () => {
+  it.each(['div', 'ul', 'tbody'] as const)('measures and retains the keyed main and detail together in %s', async as => {
+    let detailHeight = 80
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function () {
+      const host = this.closest<HTMLElement>('[data-viewport]')
+      if (this === host) return rectangle(0, 200)
+      const detail = this.hasAttribute('data-document-detail')
+      const index = detail ? Number((this.previousElementSibling as HTMLElement)?.dataset.index) : Number(this.dataset.index ?? 0)
+      return rectangle(index * 20 + (detail ? 20 : 0) - (host?.scrollTop ?? 0), detail ? detailHeight : this.hasAttribute('data-document-row') ? 20 : 4080)
+    })
+    const items = ref(Array.from({ length: 200 }, (_, id) => ({ id, metric: id + 10, name: `Record ${id}` })))
+    const component = defineComponent({
+      components: { DocumentRows },
+      setup: () => ({ items, detailWhen: (item: { id: number }) => item.id === 0 }),
+      template: as === 'tbody'
+        ? '<table><DocumentRows as="tbody" :items="items" item-key="id" :detail-when="detailWhen" :estimate-height="20" :colspan="2"><template #default="{item,index}"><td :data-main="item.id">{{index}} {{item.name}}</td><td :data-metric="item.id">{{item.metric}}</td></template><template #detail="{item,index}"><td colspan="2"><button :data-detail="item.id">{{index}} {{item.name}}</button></td></template></DocumentRows></table>'
+        : `<DocumentRows as="${as}" :items="items" item-key="id" :detail-when="detailWhen" :estimate-height="20"><template #default="{item,index}"><span :data-main="item.id">{{index}} {{item.name}}</span><span :data-metric="item.id">{{item.metric}}</span></template><template #detail="{item,index}"><button :data-detail="item.id">{{index}} {{item.name}}</button></template></DocumentRows>`
+    })
+    const host = createHost()
+    const wrapper = mount(component, { attachTo: host }); disposals.push(() => wrapper.unmount())
+    await settle()
+    const fullHeight = () => wrapper.findAll('[data-document-row], [data-document-detail], [data-document-spacer]').reduce((sum, row) => {
+      if (row.attributes('data-document-spacer') === undefined) return sum + row.element.getBoundingClientRect().height
+      const element = (as === 'tbody' ? row.get('td').element : row.element) as HTMLElement
+      return sum + parseFloat(element.style.height)
+    }, 0)
+    expect(fullHeight()).toBe(4080)
+    expect(wrapper.findAll('[data-document-detail]')).toHaveLength(1)
+    expect(wrapper.get('[data-document-detail]').element.tagName).toBe(as === 'tbody' ? 'TR' : as === 'ul' ? 'LI' : 'DIV')
+    expect(wrapper.get('[data-document-detail]').attributes('data-index')).toBeUndefined()
+    expect(wrapper.findAll('[data-metric="0"]')).toHaveLength(1)
+    const focus = wrapper.get('[data-detail="0"]').element as HTMLButtonElement
+    focus.focus()
+    host.scrollTop = 2800; host.dispatchEvent(new Event('scroll')); await settle()
+    expect(document.activeElement).toBe(focus)
+    const detail = wrapper.get('[data-document-detail]').element
+    expect(detail.previousElementSibling?.querySelector('[data-main="0"]')).not.toBeNull()
+    expect(wrapper.findAll('[data-document-row]').length).toBeLessThan(40)
+    items.value = [...items.value].reverse().map(item => item.id === 0 ? { ...item, name: 'Updated record', metric: 500 } : item)
+    await settle()
+    expect(document.activeElement).toBe(focus)
+    expect(wrapper.get('[data-detail="0"]').element).toBe(focus)
+    expect(wrapper.get('[data-detail="0"]').text()).toBe('199 Updated record')
+    expect(wrapper.get('[data-document-detail]').element.previousElementSibling?.getAttribute('data-index')).toBe('199')
+    expect(wrapper.findAll('[data-metric="0"]')).toHaveLength(1)
+    expect(wrapper.get('[data-metric="0"]').text()).toBe('500')
+    expect(wrapper.getComponent(DocumentRows).props('items')).toHaveLength(200)
+    expect(wrapper.findAll('[data-document-row]').length).toBeLessThan(40)
+    detailHeight = 160; window.dispatchEvent(new Event('resize')); await settle()
+    expect(fullHeight()).toBe(4160)
+    expect(wrapper.findAll('[data-document-detail]')).toHaveLength(1)
+    if (as === 'tbody') expect(wrapper.get('[data-document-detail] td').attributes('colspan')).toBe('2')
+  })
+})

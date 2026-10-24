@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { auditTypography, headingRoles, textScales, isTypographyUtility } from './check-typography.mjs'
@@ -227,4 +228,19 @@ test('scoped non-heading styles in another SFC stay an informational review entr
   })
   assert.deepEqual(result.errors, [])
   assert(result.review.some(item => item.file === 'src/Other.vue' && item.selector === '.foreign-title'))
+})
+
+const fixtureBrand = '@import "./typography.css"; :root { --ritel-ui: "UI", sans-serif; --ritel-display: "Display", serif; --ritel-heading: "Heading", serif; --ritel-mono: "Mono", monospace; }'
+test('accepts a content-versioned shared typography dependency', async t => {
+  const hash = createHash('sha256').update(typography).digest('hex').slice(0, 16)
+  const result = await fixture(t, { 'public/brand/brand.css': fixtureBrand.replace('./typography.css', `./typography.css?v=${hash}`) })
+  assert.deepEqual(result.errors, [])
+})
+test('rejects stale typography dependency versions', async t => {
+  const result = await fixture(t, { 'public/brand/brand.css': fixtureBrand.replace('./typography.css', './typography.css?v=0000000000000000') })
+  assert(result.errors.some(error => error.code === 'central-role-import-version'))
+})
+test('rejects unsupported typography dependency query parameters', async t => {
+  const result = await fixture(t, { 'public/brand/brand.css': fixtureBrand.replace('./typography.css', './typography.css?other=value') })
+  assert(result.errors.some(error => error.code === 'central-role-import'))
 })

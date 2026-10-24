@@ -1,4 +1,4 @@
-@import url('./typography.css');
+@import url('./typography.css?v=16ea91a6a4af6adf');
 @import url('./fonts/chiron/css/vf.css');
 @import url('./fonts/notosanscjkhk/fonts.css');
 @font-face{font-family:'Cinzel';src:url('./fonts/cinzel/Cinzel-variable.ttf') format('truetype');font-style:normal;font-weight:400 900;font-display:swap}
@@ -58,3 +58,14 @@
 .ritel-theme :is([role="menu"],.dropdown){border-radius:var(--ritel-radius-menu)}
 .ritel-theme :is(pre,.code-block){border-radius:var(--ritel-radius-code)}
 .ritel-theme .badge{border-radius:var(--ritel-radius-pill)}
+
+/* One role for the language and theme controls in every static-site header. */
+.ritel-theme .ritel-header-control {
+  font-family: var(--ritel-body);
+  font-size: var(--ritel-text-sm);
+  font-weight: 400;
+  line-height: var(--ritel-leading-body);
+}
+@media (max-width: 767px) {
+  .ritel-theme select.ritel-header-control { font-size: 16px; }
+}

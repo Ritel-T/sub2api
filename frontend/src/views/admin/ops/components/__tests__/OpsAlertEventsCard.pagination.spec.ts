@@ -15,10 +15,12 @@ function deferred<T>() {
 }
 
 import OpsAlertEventsCard from '../OpsAlertEventsCard.vue'
+import DataTable from '@/components/common/DataTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import { ref } from 'vue'
-const { listAlertEvents, showError } = vi.hoisted(() => ({ listAlertEvents: vi.fn(), showError: vi.fn() }))
+const { listAlertEvents, getAlertEvent, showError } = vi.hoisted(() => ({ listAlertEvents: vi.fn(), getAlertEvent: vi.fn(), showError: vi.fn() }))
 vi.mock('@vueuse/core', () => ({ useMediaQuery: () => ref(true) }))
-vi.mock('@/api/admin/ops', () => ({ opsAPI: { listAlertEvents } }))
+vi.mock('@/api/admin/ops', () => ({ opsAPI: { listAlertEvents, getAlertEvent } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError }) }))
 const rows = (first: number, count = 10) => Array.from({ length: count }, (_, i) => ({
   id: first + i, severity: 'P1', status: 'firing', created_at: '2026-10-03T00:00:00Z',
@@ -30,7 +32,7 @@ function mountCard() {
 }
 
 describe('alert events filtered pagination', () => {
-  beforeEach(() => { vi.resetAllMocks() })
+  beforeEach(() => { vi.resetAllMocks(); localStorage.clear() })
 
   it.each(['resolve', 'reject'] as const)('ignores a superseded first page that %ss', async outcome => {
     const old = deferred<ReturnType<typeof rows>>()
@@ -89,5 +91,26 @@ describe('alert events filtered pagination', () => {
     await (vm as unknown as { loadFirstPage: () => Promise<void> }).loadFirstPage()
     expect(vm.events).toHaveLength(11)
     expect(listAlertEvents.mock.calls.slice(3).map(call => call[0].before_id)).toEqual([undefined, 10])
+  })
+})
+
+describe('one alert history records', () => {
+  it('keeps zero-valued metrics in expandable details and the original detail/history query targets', async () => {
+    localStorage.clear()
+    const record = { ...rows(44, 1)[0], rule_id: 7, dimensions: { platform: 'openai' }, metric_value: 0, threshold_value: 2 }
+    getAlertEvent.mockResolvedValue(record)
+    listAlertEvents.mockResolvedValueOnce(rows(1, 1)).mockResolvedValueOnce([record])
+    const view = shallowMount(OpsAlertEventsCard, { global: { stubs: { DataTable: false, BaseDialog: false, Teleport: true } } })
+    await flushPromises()
+    await (view.vm as unknown as { openDetail: (row: typeof record) => Promise<void> }).openDetail(record)
+    await flushPromises()
+    const table = view.findAllComponents(DataTable).find(item => item.props('columnOrderKey') === 'admin-ops-alert-history')!
+    expect(table.props('data')).toHaveLength(1)
+    expect(table.props('rowKey')).toBe('id')
+    table.findComponent(ColumnSettings).vm.$emit('toggle', 'metric'); await flushPromises()
+    await table.get('[data-test="toggle-details"]').trigger('click')
+    expect(table.text()).toContain('0.00 / 2.00')
+    expect(getAlertEvent).toHaveBeenCalledWith(44)
+    expect(listAlertEvents).toHaveBeenLastCalledWith({ limit: 20, time_range: '7d', platform: 'openai', group_id: undefined, status: '' })
   })
 })

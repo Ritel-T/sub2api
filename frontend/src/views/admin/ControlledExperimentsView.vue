@@ -99,15 +99,15 @@
           </article>
           <article class="open-section p-5">
             <AppHeading variant="subsection" as="h3" class="mb-4">{{ t('controlledExperiments.submissions') }}</AppHeading>
-            <div class="overflow-x-auto"><table class="experiment-table"><thead><tr><th>{{ t('controlledExperiments.sequence') }}</th><th>{{ t('controlledExperiments.task') }}</th><th>{{ t('controlledExperiments.actual') }}</th><th>{{ t('controlledExperiments.result') }}</th><th>{{ t('controlledExperiments.score') }}</th><th>{{ t('controlledExperiments.evidence') }}</th></tr></thead><tbody>
-              <tr v-for="attempt in report.attempts" :key="attempt.sequence" data-testid="experiment-attempt">
+            <div class="overflow-x-auto overflow-y-hidden"><table class="experiment-table"><thead><tr><th>{{ t('controlledExperiments.sequence') }}</th><th>{{ t('controlledExperiments.task') }}</th><th>{{ t('controlledExperiments.actual') }}</th><th>{{ t('controlledExperiments.result') }}</th><th>{{ t('controlledExperiments.score') }}</th><th>{{ t('controlledExperiments.evidence') }}</th></tr></thead><DocumentRows as="tbody" :items="report.attempts" item-key="sequence" :colspan="6" :estimate-height="100" :item-attrs="() => ({ 'data-testid': 'experiment-attempt' })">
+              <template #default="{ item: attempt }">
                 <td>{{ attempt.sequence }}</td><td><div>{{ attempt.phase === 'eligibility' ? t('controlledExperiments.eligibilityProbe') : attempt.task_id }}</div><div class="text-xs text-gray-400">{{ attempt.repetition }} / {{ attempt.turn }}</div></td>
                 <td><div>{{ attempt.route_index + 1 }} · {{ attempt.diagnostic.actual_channel ? channelLabel(attempt.diagnostic.actual_channel) : '—' }}</div><code class="text-xs">{{ attempt.diagnostic.response_model || '—' }}</code></td>
                 <td><span :class="attempt.status === 'completed' ? 'text-emerald-600' : 'text-amber-600'">{{ stateLabel(attempt.status) }}</span><div class="mt-1 text-xs text-gray-400">{{ t('controlledExperiments.duration', { seconds: (attempt.diagnostic.duration_ms / 1000).toFixed(1) }) }}</div></td>
                 <td>{{ attempt.phase === 'task' && attempt.grade ? percentage(attempt.grade.score) : t('controlledExperiments.noScore') }}<div v-if="attempt.grade" class="mt-1 max-w-44 break-words text-xs text-gray-500">{{ attempt.grade.reason }}</div></td>
                 <td><details><summary class="cursor-pointer text-xs">{{ attempt.diagnostic.code || attempt.status }}</summary><div class="min-w-60 space-y-3 py-3"><pre class="experiment-content max-h-80">{{ JSON.stringify(attempt.diagnostic, null, 2) }}</pre><details v-if="promptFor(attempt.task_id)"><summary>{{ t('controlledExperiments.prompt') }}</summary><pre class="experiment-content mt-2 max-h-60">{{ promptFor(attempt.task_id) }}</pre></details><strong class="block text-xs">{{ t('controlledExperiments.answer') }}</strong><pre class="experiment-content max-h-60">{{ attempt.answer || '—' }}</pre><template v-if="attempt.tool_trace?.length"><strong class="block text-xs">{{ t('controlledExperiments.localTools') }}</strong><pre class="experiment-content max-h-60">{{ JSON.stringify(attempt.tool_trace, null, 2) }}</pre></template></div></details></td>
-              </tr>
-            </tbody></table></div>
+              </template>
+            </DocumentRows></table></div>
           </article>
         </section>
         <div v-else class="open-section text-sm text-gray-500">{{ t('controlledExperiments.selectRun') }}</div>

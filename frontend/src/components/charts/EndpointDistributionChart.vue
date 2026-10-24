@@ -75,7 +75,7 @@
       <div class="h-48 w-48 shrink-0">
         <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
-      <div class="w-full min-w-0 flex-1 overflow-x-auto">
+      <div class="w-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
         <table class="w-full text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
@@ -86,19 +86,29 @@
               <th class="pb-2 text-right">{{ t('admin.dashboard.standard') }}</th>
             </tr>
           </thead>
-          <tbody>
-            <template v-for="item in displayEndpointStats" :key="item.endpoint">
-              <tr
-                class="border-t border-gray-100 transition-colors dark:border-dark-700"
-                :class="enableBreakdown ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''"
-                @click="enableBreakdown && toggleBreakdown(item.endpoint)"
-              >
+          <DocumentRows
+            as="tbody"
+            :items="displayEndpointStats"
+            item-key="endpoint"
+            :colspan="5"
+            :estimate-height="32"
+            item-class="border-t border-gray-100 transition-colors dark:border-dark-700"
+            :detail-when="(item) => expandedKey === item.endpoint"
+          >
+            <template #default="{ item: item }">
                 <td class="max-w-[180px] truncate py-1.5 font-medium" :class="enableBreakdown ? 'text-primary-600 hover:text-blue-800 dark:text-primary-400 dark:hover:text-primary-300' : 'text-gray-900 dark:text-white'" :title="item.endpoint">
-                  <span class="inline-flex items-center gap-1">
+                  <button
+                    v-if="enableBreakdown"
+                    type="button"
+                    class="inline-flex max-w-full items-center gap-1 text-left"
+                    :aria-expanded="enableBreakdown ? expandedKey === item.endpoint : undefined"
+                    @click="enableBreakdown && toggleBreakdown(item.endpoint)"
+                  >
                     <svg v-if="enableBreakdown && expandedKey === item.endpoint" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     <svg v-else-if="enableBreakdown" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ item.endpoint }}
-                  </span>
+                  </button>
+                  <span v-else>{{ item.endpoint }}</span>
                 </td>
                 <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
                   {{ formatNumber(item.requests) }}
@@ -112,17 +122,16 @@
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
                   ${{ formatCost(item.cost) }}
                 </td>
-              </tr>
-              <tr v-if="expandedKey === item.endpoint">
+            </template>
+            <template #detail>
                 <td colspan="5" class="p-0">
                   <UserBreakdownSubTable
                     :items="breakdownItems"
                     :loading="breakdownLoading"
                   />
                 </td>
-              </tr>
             </template>
-          </tbody>
+          </DocumentRows>
         </table>
       </div>
     </div>
@@ -134,7 +143,8 @@
 
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
@@ -190,12 +200,30 @@ const expandedKey = ref<string | null>(null)
 const breakdownItems = ref<UserBreakdownItem[]>([])
 const breakdownLoading = ref(false)
 
+let breakdownGeneration = 0
+const breakdownContext = computed(() => JSON.stringify({
+  startDate: props.startDate, endDate: props.endDate, filters: props.filters,
+  enabled: props.enableBreakdown, source: props.source
+}))
+function resetBreakdown() {
+  breakdownGeneration++
+  expandedKey.value = null
+  breakdownItems.value = []
+  breakdownLoading.value = false
+}
+watch(breakdownContext, resetBreakdown, { flush: 'sync' })
+onUnmounted(resetBreakdown)
+
 const toggleBreakdown = async (endpoint: string) => {
-  if (expandedKey.value === endpoint) {
-    expandedKey.value = null
+  const key = endpoint
+  if (expandedKey.value === key) {
+    resetBreakdown()
     return
   }
-  expandedKey.value = endpoint
+  const generation = ++breakdownGeneration
+  const context = breakdownContext.value
+  const isCurrent = () => generation === breakdownGeneration && expandedKey.value === key && context === breakdownContext.value
+  expandedKey.value = key
   breakdownLoading.value = true
   breakdownItems.value = []
   try {
@@ -206,11 +234,11 @@ const toggleBreakdown = async (endpoint: string) => {
       endpoint,
       endpoint_type: props.source,
     })
-    breakdownItems.value = res.users || []
+    if (isCurrent()) breakdownItems.value = res.users || []
   } catch {
-    breakdownItems.value = []
+    if (isCurrent()) breakdownItems.value = []
   } finally {
-    breakdownLoading.value = false
+    if (isCurrent()) breakdownLoading.value = false
   }
 }
 

@@ -328,9 +328,14 @@
                       <span :class="statusDot(row.health)" aria-hidden="true"></span>
                       <div>
                         <span class="block text-xs text-gray-500 dark:text-dark-400">{{ providerLabel(row.platform) }}</span>
-                        <strong class="font-semibold text-gray-900 dark:text-white">
+                        <button
+                          type="button"
+                          class="text-left font-semibold text-gray-900 hover:underline dark:text-white"
+                          :aria-label="`${providerLabel(row.platform)} / ${row.platform} / ${row.model}`"
+                          @click.stop="drillModel(row)"
+                        >
                           {{ row.model === '__other__' ? t('channelMonitorV2.otherModels') : row.model }}
-                        </strong>
+                        </button>
                       </div>
                     </div>
                   </td>

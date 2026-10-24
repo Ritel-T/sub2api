@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdminGroup } from '@/types'
 import GroupsView from '@/views/admin/GroupsView.vue'
 import { adminAPI } from '@/api/admin'
+import DataTable from '@/components/common/DataTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 
 const {
   listCompositeRoutes,
@@ -37,6 +40,8 @@ vi.mock('@/api/admin', () => ({
     groups: {
       list: listGroups,
       listCompositeRoutes,
+      updateCompositeRoute: vi.fn(),
+      deleteCompositeRoute: vi.fn(),
       duplicate: duplicateGroup,
       getModelAllowlistCandidates,
       getUsageSummary,
@@ -155,13 +160,13 @@ const BaseDialogStub = defineComponent({
   template: '<div v-if="show"><slot /><slot name="footer" /></div>'
 })
 
-function mountView() {
+function mountView(realTables = false) {
   return mount(GroupsView, {
     global: {
       stubs: {
         AppLayout: AppLayoutStub,
         TablePageLayout: TablePageLayoutStub,
-        DataTable: DataTableStub,
+        DataTable: realTables ? false : DataTableStub,
         Pagination: true,
         BaseDialog: BaseDialogStub,
         ConfirmDialog: true,
@@ -218,6 +223,7 @@ describe('GroupsView duplicate action', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it.each(['success', 'error'])('ignores an old composite route load after switching groups: %s', async (outcome) => {
@@ -259,6 +265,82 @@ describe('GroupsView duplicate action', () => {
     await oldLoad
     expect(vm.compositeRoutes).toEqual([{ id: 3, priority: 1 }])
     wrapper.unmount()
+  })
+
+  it('restores composite column preferences and retains exact update/delete targets from details', async () => {
+    const route = { id: 77, public_model: 'model-77', match_type: 'exact', target_platform: 'openai', upstream_model: 'upstream-77', endpoint: 'any', priority: 7, enabled: false, notes: 'notes-77' }
+    listCompositeRoutes.mockResolvedValue([route])
+    vi.mocked(adminAPI.groups.updateCompositeRoute).mockResolvedValue(route as any)
+    vi.mocked(adminAPI.groups.deleteCompositeRoute).mockResolvedValue(undefined)
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    const wrapper = mountView(true)
+    await flushPromises()
+    await (wrapper.vm as any).handleCompositeRoutes({ ...sourceGroup, platform: 'composite' })
+    await flushPromises()
+    const table = wrapper.findAllComponents(DataTable).find(table => table.props('columnOrderKey') === 'admin-group-composite-routes')!
+    expect(table.props('columns').every(column => column.primary === true)).toBe(true)
+    table.getComponent(ColumnSettings).vm.$emit('toggle', 'target')
+    table.getComponent(ColumnSettings).vm.$emit('toggle', 'scope')
+    table.getComponent(ColumnSettings).vm.$emit('toggle', 'actions')
+    await flushPromises()
+    wrapper.unmount()
+    const restored = mountView(true)
+    try {
+      await flushPromises()
+      await (restored.vm as any).handleCompositeRoutes({ ...sourceGroup, platform: 'composite' })
+      await flushPromises()
+      const records = restored.findAllComponents(DataTable).find(table => table.props('columnOrderKey') === 'admin-group-composite-routes')!
+      expect(records.find('th[data-column-key="target"]').exists()).toBe(false)
+      expect(records.find('th[data-column-key="actions"]').exists()).toBe(false)
+      await records.get('[data-test="toggle-details"]').trigger('click')
+      let detail = records.get('.table-detail-row')
+      expect(detail.text()).toContain('upstream-77')
+      expect(detail.text()).toContain('admin.groups.compositeRoutes.priority')
+      expect(detail.text()).toContain('7')
+      await detail.get('button[title="common.edit"]').trigger('click')
+      expect((restored.vm as any).compositeRouteForm.public_model).toBe('model-77')
+      expect((restored.vm as any).compositeRouteEditingId).toBe(77)
+      await restored.findAll('form').find(form => form.text().includes('admin.groups.compositeRoutes.editRoute'))!.trigger('submit')
+      await flushPromises()
+      expect(adminAPI.groups.updateCompositeRoute).toHaveBeenCalledWith(42, 77, expect.objectContaining({ public_model: 'model-77', upstream_model: 'upstream-77', priority: 7, enabled: false, notes: 'notes-77' }))
+      if (!records.find('.table-detail-row').exists()) await records.get('[data-test="toggle-details"]').trigger('click')
+      detail = records.get('.table-detail-row')
+      await detail.get('button[title="common.delete"]').trigger('click')
+      const confirmation = restored.findAllComponents(ConfirmDialog).find(dialog => dialog.props('show'))!
+      expect(confirmation.props('message')).toBe('admin.groups.compositeRoutes.deleteConfirm')
+      expect(adminAPI.groups.deleteCompositeRoute).not.toHaveBeenCalled()
+      confirmation.vm.$emit('confirm'); await flushPromises()
+      expect(adminAPI.groups.deleteCompositeRoute).toHaveBeenCalledWith(42, 77)
+      expect(localStorage.getItem('admin-group-composite-routes')).toBeTruthy()
+      expect(localStorage.getItem('table-columns:groups:v1')).toBeNull()
+    } finally { restored.unmount() }
+  })
+
+  it('windows 140 mobile composite routes in the original priority and ID order with every field', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }))
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    vi.stubGlobal('innerHeight', 240)
+    const routes = Array.from({ length: 140 }, (_, index) => ({ id: 140 - index, public_model: `model-${140 - index}`, match_type: 'exact', target_platform: 'openai', upstream_model: `upstream-${140 - index}`, endpoint: 'responses', priority: (140 - index) % 3, enabled: false, notes: '' }))
+    listCompositeRoutes.mockResolvedValue(routes)
+    const wrapper = mountView(true)
+    try {
+      await flushPromises()
+      await (wrapper.vm as any).handleCompositeRoutes({ ...sourceGroup, platform: 'composite' })
+      await flushPromises()
+      const table = wrapper.findAllComponents(DataTable).find(table => table.props('columnOrderKey') === 'admin-group-composite-routes')!
+      expect(table.props('data')).toHaveLength(140)
+      expect(table.props('data').map(route => route.id)).toEqual([...routes].sort((a, b) => a.priority - b.priority || a.id - b.id).map(route => route.id))
+      expect(table.props('rowKey')).toBe('id')
+      expect(table.findAll('.table-record').length).toBeGreaterThan(0)
+      expect(table.findAll('.table-record').length).toBeLessThan(40)
+      const first = table.findAll('.table-record')[0]
+      expect(first.findAll('[data-field]').map(field => field.attributes('data-field'))).toEqual(['public_model', 'target', 'scope', 'actions'])
+      expect(first.text()).toContain('model-3')
+      expect(first.text()).toContain('upstream-3')
+      expect(first.text()).toContain('admin.accounts.status.inactive')
+      expect(first.get('button[title="common.edit"]').exists()).toBe(true)
+      expect(first.get('button[title="common.delete"]').exists()).toBe(true)
+    } finally { wrapper.unmount() }
   })
 
   it('duplicates the selected group, reports success, and refreshes the list', async () => {
