@@ -396,6 +396,31 @@ describe('user KeysView column settings', () => {
     expect(wrapper.find('[data-testid="connect-manual"]').exists()).toBe(true)
   })
 
+  it('windows a growing connection chooser without losing list semantics or its chosen key', async () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    routeState.query = { connect: '1' }
+    const keys = Array.from({ length: 120 }, (_, index) => ({ ...createApiKey(), id: index + 1, name: `Connection ${index + 1}` }))
+    listKeys.mockImplementation(async (page: number, size: number) => size === 10
+      ? { items: keys.slice((page - 1) * 10, page * 10), total: 120, page, pages: 12 }
+      : { items: [createApiKey()], total: 1, page: 1, pages: 1 })
+    const wrapper = await mountView()
+    const vm = wrapper.vm as any
+    for (let page = 2; page <= 12; page++) {
+      await vm.connectionList.loadMore()
+      await flushPromises()
+    }
+    expect(vm.connectionKeys).toHaveLength(120)
+    const records = wrapper.findAll('[role="dialog"] [data-document-row]')
+    expect(records.length).toBeGreaterThan(0)
+    expect(records.length).toBeLessThan(100)
+    const choice = wrapper.get('[data-testid="choose-connection-key-1"]')
+    expect(choice.element.parentElement?.tagName).toBe('LI')
+    await choice.trigger('click')
+    expect(wrapper.find('[data-testid="connect-manual"]').exists()).toBe(true)
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Connection 1')
+    expect(createKey).not.toHaveBeenCalled()
+  })
+
   it('resolves a requested key through getById even when absent from the current list', async () => {
     routeState.query = { connect: '1', key: '73' }
     getKeyById.mockResolvedValue({ ...createApiKey(), id: 73, name: 'Other page key' })

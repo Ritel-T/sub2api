@@ -57,9 +57,9 @@
         <aside class="open-section">
           <AppHeading variant="section" as="h2" class="mb-4">{{ t('controlledExperiments.history') }}</AppHeading>
           <p v-if="!runs.length" class="py-6 text-sm text-gray-500">{{ loading ? t('controlledExperiments.loading') : t('controlledExperiments.empty') }}</p>
-          <button v-for="run in runs" :key="run.id" class="mb-2 w-full rounded-lg border p-3 text-left text-sm" :class="selectedId === run.id ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-700'" @click="selectRun(run.id)">
+          <DocumentRows :items="runs" item-key="id" :estimate-height="112" item-class="pb-2"><template #default="{ item: run }"><button class=" w-full rounded-lg border p-3 text-left text-sm" :class="selectedId === run.id ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-700'" @click="selectRun(run.id)">
             <strong class="block truncate">#{{ run.id }} · {{ run.name }}</strong><span class="mt-1 block text-xs text-gray-500">{{ stateLabel(run.status) }} · {{ run.reserved_calls }}/{{ run.max_calls }}</span><time class="mt-1 block text-xs text-gray-400">{{ date(run.created_at) }}</time>
-          </button>
+          </button></template></DocumentRows>
           <InfiniteListSentinel :loading="loading || runList.loading.value || runList.loadingMore.value || runList.refreshing.value" :error="runList.error.value" :has-more="runList.hasMore.value" @load-more="runList.loadMore" @retry="runList.retry" />
         </aside>
         <section v-if="report" class="min-w-0 space-y-5" aria-live="polite">
@@ -117,6 +117,7 @@
 </template>
 
 <script setup lang="ts">
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

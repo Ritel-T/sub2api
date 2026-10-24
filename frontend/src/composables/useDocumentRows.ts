@@ -1,5 +1,5 @@
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, triggerRef, watch, type Ref } from 'vue'
-import { defaultRangeExtractor, observeElementOffset, observeWindowOffset, useVirtualizer, useWindowVirtualizer } from '@tanstack/vue-virtual'
+import { computed, nextTick, onMounted, onUnmounted, onBeforeUpdate, onUpdated, ref, shallowRef, triggerRef, watch, type Ref } from 'vue'
+import { defaultRangeExtractor, observeElementOffset, observeElementRect, observeWindowOffset, useVirtualizer, useWindowVirtualizer } from '@tanstack/vue-virtual'
 
 // TanStack retains its last offset across a host replacement. Seed it from the
 // new viewport before its attachment scroll, so reparenting cannot move that host.
@@ -12,19 +12,48 @@ const observeCurrentWindowOffset: typeof observeWindowOffset = (instance, callba
   return observeWindowOffset(instance, callback)
 }
 
+// A max-height viewport can start at zero until its first virtual rows exist.
+// Seed a usable rect, then keep the last valid size across hidden/reparented frames.
+const observeSizedElementRect: typeof observeElementRect = (instance, callback) => {
+  const element = instance.scrollElement
+  if (element) {
+    const box = element.getBoundingClientRect()
+    const limit = getComputedStyle(element).maxHeight
+    const maxHeight = limit.endsWith('px') ? Number.parseFloat(limit) : 0
+    callback({
+      width: Math.max(1, box.width || element.clientWidth || window.innerWidth),
+      height: Math.max(1, box.height || element.clientHeight || (Number.isFinite(maxHeight) && maxHeight > 0 ? maxHeight : window.innerHeight))
+    })
+  }
+  return observeElementRect(instance, rect => { if (rect.height > 0) callback(rect) })
+}
+
 /** Records in the page or a containing scroll viewport, including an adjacent detail row. */
 export function useDocumentRows<T>(
   rows: Ref<T[]>,
   body: Ref<HTMLElement | null>,
   keyOf: (row: T, index: number) => string | number,
   enabled: Ref<boolean>,
-  estimateSize: () => number = () => 80
+  estimateSize: () => number = () => 80,
+  // Grouped presentation rows still activate at the number of source records.
+  sourceCount: Ref<number> = computed(() => rows.value.length)
 ) {
   const margin = ref(0)
-  const focusedIndex = ref<number | null>(null)
+  const focusedKey = ref<string | number | null>(null)
+  const focusedIndex = computed(() => {
+    if (focusedKey.value === null) return null
+    const index = rows.value.findIndex((row, position) => keyOf(row, position) === focusedKey.value)
+    return index >= 0 ? index : null
+  })
+  watch(focusedIndex, index => {
+    if (index === null) focusedKey.value = null
+  }, { flush: 'sync' })
   const scrollHost = shallowRef<HTMLElement | null>(null)
-  const active = computed(() => enabled.value && rows.value.length > 100)
-  const options = computed(() => ({
+  const active = computed(() => enabled.value && sourceCount.value > 100)
+  const options = computed(() => {
+    // Pin identity across refreshed or reordered rows, including unchanged counts.
+    const focused = focusedIndex.value
+    return ({
     count: active.value ? rows.value.length : 0,
     enabled: active.value,
     getItemKey: (index: number) => keyOf(rows.value[index], index),
@@ -33,14 +62,14 @@ export function useDocumentRows<T>(
     scrollMargin: margin.value,
     rangeExtractor: (range: Parameters<typeof defaultRangeExtractor>[0]) => {
       const indices = defaultRangeExtractor(range)
-      const focused = focusedIndex.value
       if (focused !== null && focused < rows.value.length && !indices.includes(focused)) {
         indices.push(focused)
         indices.sort((a, b) => a - b)
       }
       return indices
     }
-  }))
+  })
+  })
   const windowVirtualizer = useWindowVirtualizer<HTMLElement>(computed(() => ({
     ...options.value,
     observeElementOffset: observeCurrentWindowOffset,
@@ -50,6 +79,7 @@ export function useDocumentRows<T>(
     ...options.value,
     getScrollElement: () => scrollHost.value,
     observeElementOffset: observeCurrentElementOffset,
+    observeElementRect: observeSizedElementRect,
     initialOffset: () => scrollHost.value?.scrollTop ?? 0,
     enabled: active.value && !!scrollHost.value
   })))
@@ -74,6 +104,22 @@ export function useDocumentRows<T>(
   const paddingBottom = computed(() => active.value && virtualItems.value.length
     ? Math.max(0, virtualizer.value.getTotalSize() -
       (virtualItems.value[virtualItems.value.length - 1].end - margin.value)) : 0)
+  let movingFocus: HTMLElement | null = null
+  onBeforeUpdate(() => {
+    const element = document.activeElement
+    movingFocus = element instanceof HTMLElement && body.value?.contains(element) && focusedIndex.value !== null
+      ? element : null
+  })
+  onUpdated(() => {
+    const element = movingFocus
+    movingFocus = null
+    // Moving a keyed DOM row can drop focus even when the node survives.
+    // Restore that exact node, without scrolling or overriding another control's focus.
+    if (element?.isConnected && body.value?.contains(element) && focusedIndex.value !== null &&
+      (document.activeElement === document.body || document.activeElement === document.documentElement)) {
+      element.focus({ preventScroll: true })
+    }
+  })
   const observed = new Set<HTMLElement>()
   let observer: ResizeObserver | undefined
   let mutations: MutationObserver | undefined
@@ -144,8 +190,24 @@ export function useDocumentRows<T>(
     nextTick(() => { if (!disposed) updateSize(element) })
   }
   function focused() {
-    const element = document.activeElement?.closest<HTMLElement>('[data-index]')
-    focusedIndex.value = element && body.value?.contains(element) ? Number(element.dataset.index) : null
+    // A nested list can have its own data-index; only this body's direct row owns focus.
+    let element = document.activeElement as HTMLElement | null
+    while (element && element !== body.value) {
+      if (element.parentElement === body.value) {
+        const row = element.hasAttribute('data-document-detail') ? element.previousElementSibling as HTMLElement | null : element
+        const index = row?.hasAttribute('data-index') ? Number(row.dataset.index) : -1
+        focusedKey.value = Number.isInteger(index) && index >= 0 && index < rows.value.length
+          ? keyOf(rows.value[index], index) : null
+        return
+      }
+      element = element.parentElement
+    }
+    focusedKey.value = null
+  }
+  function focusLeft() {
+    // Chrome fires focusout during a keyed DOM move. Let the same update restore
+    // its surviving node before deciding focus has actually left the records.
+    void nextTick(() => { if (!disposed) focused() })
   }
   function scheduleMeasure() {
     if (disposed) return
@@ -173,7 +235,7 @@ export function useDocumentRows<T>(
     for (const element of observed) observer?.observe(element)
     window.addEventListener('resize', scheduleMeasure)
     document.addEventListener('focusin', focused)
-    document.addEventListener('focusout', focused)
+    document.addEventListener('focusout', focusLeft)
     refreshScrollHost()
     scheduleMeasure()
   })
@@ -190,7 +252,7 @@ export function useDocumentRows<T>(
     cancelAnimationFrame(frame)
     window.removeEventListener('resize', scheduleMeasure)
     document.removeEventListener('focusin', focused)
-    document.removeEventListener('focusout', focused)
+    document.removeEventListener('focusout', focusLeft)
   })
   return { active, rendered, paddingTop, paddingBottom, measure, virtualizer, scrollElement }
 }

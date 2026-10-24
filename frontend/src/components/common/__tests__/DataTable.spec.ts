@@ -703,3 +703,32 @@ it.each(['desktop', 'mobile'])('exposes one loading status and keeps the %s tabl
   expect(body.attributes('aria-busy')).toBe('false')
   wrapper.unmount()
 })
+
+describe('disabled controlled selection', () => {
+  it.each([true, false])('blocks native selection and keeps column tools usable (desktop %s)', async desktop => {
+    if (desktop) stubDesktopMatchMedia()
+    else stubMobileMatchMedia()
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ key: 'id', label: 'ID', primary: true }, { key: 'name', label: 'Name', primary: true }],
+      data: [{ id: 1, name: 'One' }, { id: 2, name: 'Two' }], selectable: true,
+      selectionDisabled: true, selectedKeys: [99], columnOrderKey: `selection-disabled-${desktop}`
+    } })
+    const controls = wrapper.findAll('[data-test="select-row"], [data-test="select-all"], [data-test="select-all-mobile"]')
+    expect(controls.length).toBeGreaterThan(0)
+    expect(controls.every(control => control.attributes('disabled') !== undefined)).toBe(true)
+    for (const control of controls) {
+      control.element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      control.element.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+    await nextTick()
+    expect(wrapper.emitted('update:selectedKeys')).toBeUndefined()
+    expect(wrapper.emitted('selectionChange')).toBeUndefined()
+    expect(wrapper.findComponent(ColumnSettings).exists()).toBe(true)
+    await wrapper.setProps({ selectionDisabled: false })
+    const selectAll = wrapper.get(desktop ? '[data-test="select-all"]' : '[data-test="select-all-mobile"]')
+    expect(selectAll.attributes('disabled')).toBeUndefined()
+    await selectAll.trigger('click')
+    expect(wrapper.emitted('update:selectedKeys')?.at(-1)).toEqual([[99, 1, 2]])
+    wrapper.unmount()
+  })
+})

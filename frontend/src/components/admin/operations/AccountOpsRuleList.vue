@@ -36,69 +36,38 @@
         <button type="button" class="btn btn-secondary text-sm" data-testid="batch-edit-rules" :disabled="selectionUnavailable || !selectedGroups.length || !selectedAccounts.length" @click="editBatch">{{ t('accountOps.batchEditRules') }}</button>
       </div>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full min-w-[820px] text-left text-sm">
-        <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-800">
-          <tr>
-            <th class="w-12 py-3 pl-5 pr-2">
-              <input type="checkbox" data-testid="select-visible-groups" :aria-label="t('accountOps.selectVisibleGroups')" :checked="allVisibleSelected" :indeterminate="selectedGroups.length > 0 && !allVisibleSelected" :disabled="selectionUnavailable || !filtered.length" @change="selectVisible(($event.target as HTMLInputElement).checked)" />
-            </th>
-            <th class="px-3 py-3">{{ t('accountOps.accountGroup') }}</th>
-            <th class="px-4 py-3">{{ t('accountOps.metric') }}</th>
-            <th class="px-4 py-3">{{ t('accountOps.currentValue') }}</th>
-            <th class="px-4 py-3">{{ t('accountOps.ruleSummary') }}</th>
-            <th class="px-5 py-3 text-right">{{ t('common.actions') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in filtered" :key="row.group.id" class="border-t border-gray-100 dark:border-dark-700" :data-testid="`rule-row-${row.group.id}`">
-            <td class="py-4 pl-5 pr-2">
-              <input type="checkbox" :data-testid="`select-group-${row.group.id}`" :aria-label="t('accountOps.selectGroup', { name: row.group.name })" :checked="selectedIds.has(row.group.id)" :disabled="selectionUnavailable" @change="selectGroup(row.group.id, ($event.target as HTMLInputElement).checked)" />
-            </td>
-            <td class="px-3 py-4">
-              <p class="font-medium text-gray-900 dark:text-gray-100">{{ row.group.name }}</p>
+    <DataTable :selection-disabled="selectionUnavailable" :loading="loading" :columns="columns" :data="filtered" :row-key="groupKey" :row-attrs="groupRowAttrs" column-order-key="admin-account-notification-rules" selectable :selected-keys="[...selectedIds]" :selection-label="selectionLabel" @update:selected-keys="updateSelection">
+        <template #cell-group="{ row }"><p class="font-medium text-gray-900 dark:text-gray-100">{{ row.group.name }}</p>
               <p class="mt-1 text-xs text-gray-500">{{ row.group.site || row.group.provider || '—' }} · {{ t('accountOps.groupMemberCount', { count: row.accounts.length }) }}</p>
-              <p class="mt-1 max-w-72 truncate text-xs text-gray-500" :title="row.memberNames">{{ row.memberNames || t('accountOps.noAccountGroups') }}</p>
-            </td>
-            <td class="px-4 py-4 text-xs text-gray-500">
-              <span v-if="row.balanceAccounts.length" class="block">{{ t('accountOps.balanceMetric') }}</span>
+              <p class="mt-1 max-w-72 truncate text-xs text-gray-500" :title="row.memberNames">{{ row.memberNames || t('accountOps.noAccountGroups') }}</p></template>
+        <template #cell-metric="{ row }"><span v-if="row.balanceAccounts.length" class="block">{{ t('accountOps.balanceMetric') }}</span>
               <span v-if="row.quotaAccounts.length" class="mt-1 block">{{ t('accountOps.quotaMetric') }}</span>
               <span v-if="!row.balanceAccounts.length && !row.quotaAccounts.length">—</span>
-              <span v-if="row.quotaWindow" class="mt-1 block">{{ row.quotaWindow }}</span>
-            </td>
-            <td class="px-4 py-4">
-              <p v-if="row.balanceValue" class="font-mono text-xs">{{ row.balanceValue }}</p>
+              <span v-if="row.quotaWindow" class="mt-1 block">{{ row.quotaWindow }}</span></template>
+        <template #cell-value="{ row }"><p v-if="row.balanceValue" class="font-mono text-xs">{{ row.balanceValue }}</p>
               <p v-if="row.quotaValue" class="mt-1 font-mono text-xs">{{ row.quotaValue }}</p>
-              <span class="mt-1 inline-block text-xs" :class="row.state === 'warning' ? 'text-amber-700 dark:text-amber-400' : row.state === 'normal' ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500'">{{ t(`accountOps.ruleStates.${row.state}`) }}</span>
-            </td>
-            <td class="px-4 py-4">
-              <template v-if="row.balanceRule || row.quotaRule">
+              <span class="mt-1 inline-block text-xs" :class="row.state === 'warning' ? 'text-amber-700 dark:text-amber-400' : row.state === 'normal' ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500'">{{ t(`accountOps.ruleStates.${row.state}`) }}</span></template>
+        <template #cell-rule="{ row }"><template v-if="row.balanceRule || row.quotaRule">
                 <p v-if="row.balanceRule" class="text-xs">≤ {{ row.balanceRule.threshold.toFixed(2) }} {{ row.balanceRule.unit }}</p>
                 <p v-if="row.quotaRule" class="mt-1 text-xs">≥ {{ row.quotaRule.threshold_percent }}%</p>
                 <p class="mt-1 text-xs text-gray-500">{{ policy(row) }}</p>
               </template>
-              <span v-else class="text-xs text-gray-400">{{ t('accountOps.ruleStates.unconfigured') }}</span>
-            </td>
-            <td class="px-5 py-4">
-              <div class="flex items-center justify-end gap-4">
+              <span v-else class="text-xs text-gray-400">{{ t('accountOps.ruleStates.unconfigured') }}</span></template>
+        <template #cell-actions="{ row }"><div class="flex items-center justify-end gap-4">
                 <label v-if="row.balanceRule || row.quotaRule" class="flex items-center gap-1.5 text-xs text-gray-500">
                   <input type="checkbox" :checked="row.balanceRule?.enabled ?? row.quotaRule?.enabled" :disabled="busy" :aria-label="`${row.group.name} ${t('accountOps.ruleEnabled')}`" @change="emit('toggle', row.group, row.accounts, ($event.target as HTMLInputElement).checked)" />
                   {{ t('accountOps.channelEnabled') }}
                 </label>
                 <button type="button" class="text-sm text-primary-600 hover:underline" :data-testid="`edit-rule-${row.group.id}`" @click="editRow(row)">{{ t('common.edit') }}</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <p v-if="loading" role="status" class="p-8 text-center text-sm text-gray-500">{{ t('common.loading') }}</p>
-    <p v-else-if="!filtered.length && !error" class="p-8 text-center text-sm text-gray-500">{{ t('accountOps.noThresholdAccounts') }}</p>
+              </div></template>
+      <template #empty><p v-if="!error" class="p-8 text-center text-sm text-gray-500">{{ t('accountOps.noThresholdAccounts') }}</p></template>
+    </DataTable>
   </section>
 </template>
 
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountOpsConfig, AccountOpsGroup, AccountOpsThresholdAccount } from '@/api/admin/accountOps'
@@ -121,6 +90,19 @@ const props = withDefaults(defineProps<{ accounts: AccountOpsThresholdAccount[];
 const emit = defineEmits<{ (event: 'batch-edit', accounts: AccountOpsThresholdAccount[]): void; (event: 'edit-group', group: AccountOpsGroup): void; (event: 'toggle', group: AccountOpsGroup, accounts: AccountOpsThresholdAccount[], enabled: boolean): void }>()
 const { t } = useI18n()
 const search = ref(''), type = ref('all'), state = ref('all'), selectedIds = ref(new Set<string>())
+const columns = computed(() => [
+  { key: 'group', label: t('accountOps.accountGroup'), primary: true },
+  { key: 'metric', label: t('accountOps.metric'), primary: true },
+  { key: 'value', label: t('accountOps.currentValue'), primary: true },
+  { key: 'rule', label: t('accountOps.ruleSummary'), primary: true },
+  { key: 'actions', label: t('common.actions'), primary: true }
+])
+const groupKey = (row: GroupRow) => row.group.id
+const groupRowAttrs = (row: GroupRow) => ({ 'data-testid': `rule-row-${row.group.id}` })
+const selectionLabel = (row: GroupRow) => t('accountOps.selectGroup', { name: row.group.name })
+function updateSelection(keys: Array<string | number>) {
+  if (!selectionUnavailable.value) selectedIds.value = new Set(keys.map(String))
+}
 const states = ['warning', 'normal', 'unknown', 'unconfigured', 'disabled']
 const accountByID = computed(() => new Map(props.accounts.map(account => [account.account_id, account])))
 const groups = computed(() => {
@@ -179,7 +161,6 @@ const selectedAccounts = computed(() => {
   return [...unique.values()]
 })
 const selectedTypes = computed(() => [...(selectedAccounts.value.some(account => account.type === 'apikey') ? ['API Key'] : []), ...(selectedAccounts.value.some(account => account.type === 'oauth') ? ['OAuth'] : [])])
-const allVisibleSelected = computed(() => filtered.value.length > 0 && filtered.value.every(row => selectedIds.value.has(row.group.id)))
 const policy = (row: GroupRow) => {
   const rules = [row.balanceRule, row.quotaRule].filter(Boolean)
   const alert = rules.some(rule => rule?.notify_alert ?? true), recovery = rules.some(rule => rule?.notify_recovery ?? true)
@@ -188,8 +169,6 @@ const policy = (row: GroupRow) => {
 function clearSelection() { selectedIds.value = new Set() }
 watch([type, state], clearSelection, { flush: 'sync' })
 watch(filtered, visible => { const visibleIDs = new Set(visible.map(row => row.group.id)); selectedIds.value = new Set([...selectedIds.value].filter(id => visibleIDs.has(id))) }, { flush: 'sync' })
-function selectGroup(id: string, checked: boolean) { if (selectionUnavailable.value) return; const next = new Set(selectedIds.value); if (checked) next.add(id); else next.delete(id); selectedIds.value = next }
-function selectVisible(checked: boolean) { if (selectionUnavailable.value) return; selectedIds.value = new Set(checked ? filtered.value.map(row => row.group.id) : []) }
 function editRow(row: GroupRow) {
   if (selectionUnavailable.value) return
   if (row.accounts.length) emit('batch-edit', row.accounts)

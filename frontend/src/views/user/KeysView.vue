@@ -1004,9 +1004,9 @@
         </form>
         <p v-if="connectionError" role="alert">{{ connectionError }}</p>
         <p v-if="connectionLoading" role="status">{{ t('common.loading') }}</p>
-        <ul v-else class="divide-y divide-gray-200 dark:divide-dark-700">
-          <li v-for="key in connectionKeys" :key="key.id"><button class="flex w-full items-center justify-between gap-3 py-3 text-left" :data-testid="`choose-connection-key-${key.id}`" @click="openConnection(key)"><span>{{ key.name }}</span><code>{{ maskApiKey(key.key) }}</code></button></li>
-        </ul>
+        <DocumentRows v-else as="ul" :items="connectionKeys" item-key="id" :estimate-height="48" class="divide-y divide-gray-200 dark:divide-dark-700">
+          <template #default="{ item: key }"><button class="flex w-full items-center justify-between gap-3 py-3 text-left" :data-testid="`choose-connection-key-${key.id}`" @click="openConnection(key)"><span>{{ key.name }}</span><code>{{ maskApiKey(key.key) }}</code></button></template>
+        </DocumentRows>
         <p v-if="!connectionLoading && !connectionError && !connectionKeys.length">{{ t('keys.noKeysYet') }}</p>
         <div class="flex flex-wrap justify-between gap-3">
           <InfiniteListSentinel :loading="connectionLoading" :error="connectionError" :has-more="connectionPickerActive && connectionHasMore" :progress="connectionKeys.length" @load-more="connectionList.loadMore" @retry="retryConnectionKeys" />
@@ -1166,6 +1166,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
 	import KeyWorkspaceTable from '@/components/keys/KeyWorkspaceTable.vue'
 	import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
 	import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'

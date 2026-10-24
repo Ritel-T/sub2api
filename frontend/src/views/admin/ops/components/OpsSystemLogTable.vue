@@ -4,10 +4,10 @@ import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'
 
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import LogRetentionSelect from './LogRetentionSelect.vue'
 import { opsAPI, type OpsRuntimeLogConfig, type OpsSystemLog, type OpsSystemLogSinkHealth } from '@/api/admin/ops'
+import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import Select from '@/components/common/Select.vue'
@@ -17,8 +17,13 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 const appStore = useAppStore()
 const { t } = useI18n()
 
-// 与 DataTable 一致：< 768px 切换为卡片视图，避免宽表在移动端被截断。
-const isDesktopViewport = useMediaQuery('(min-width: 768px)')
+const tableToolbarTarget = ref<HTMLElement | null>(null)
+const logColumns = computed(() => [
+  { key: 'created_at', label: t('admin.ops.systemLogs.time'), primary: true },
+  { key: 'host', label: t('admin.ops.systemLogs.host'), primary: true },
+  { key: 'level', label: t('admin.ops.systemLogs.level'), primary: true },
+  { key: 'details', label: t('admin.ops.systemLogs.logDetails'), primary: true, weight: 3 }
+])
 
 const props = withDefaults(defineProps<{
   platformFilter?: string
@@ -391,7 +396,6 @@ const applyFilters = () => {
   fetchLogs()
 }
 
-const hasData = computed(() => logs.value.length > 0)
 
 onMounted(async () => {
     if (props.platformFilter) {
@@ -546,55 +550,18 @@ const confirmation = useConfirmation(() => ({ active: true, identity: filters })
       <button type="button" class="btn btn-secondary btn-sm" @click="resetFilters">{{ t('common.reset') }}</button>
       <button type="button" class="btn btn-danger btn-sm" @click="cleanupCurrentFilter">{{ t('admin.ops.systemLogs.cleanCurrentFilters') }}</button>
       <button type="button" class="btn btn-secondary btn-sm" @click="fetchHealth">{{ t('admin.ops.systemLogs.refreshHealth') }}</button>
+      <div ref="tableToolbarTarget" />
     </div>
 
-    <div class="open-section overflow-hidden">
-      <div v-if="loading" class="px-4 py-8 text-center text-sm text-gray-500">{{ t('common.loading') }}</div>
-      <div v-else-if="!hasData" class="px-4 py-8 text-center text-sm text-gray-500">{{ t('admin.ops.systemLogs.empty') }}</div>
-      <div v-else-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
-        <div v-for="row in logs" :key="row.id" class="space-y-1.5 p-3">
-          <div class="flex items-center justify-between gap-2">
-            <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="levelBadgeClass(row.level)">
-              {{ row.level }}
-            </span>
-            <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatTime(row.created_at) }}</span>
-          </div>
-          <div v-if="row.host" class="truncate text-xs text-gray-500 dark:text-gray-400" :title="row.host">
-            {{ row.host }}
-          </div>
-          <div class="whitespace-normal break-all text-xs text-gray-700 dark:text-gray-300">
-            {{ formatSystemLogDetail(row) }}
-          </div>
-        </div>
-      </div>
-      <div v-else class="overflow-auto">
-        <table class="min-w-full table-fixed divide-y divide-gray-200 dark:divide-dark-700">
-          <thead class="bg-gray-50 dark:bg-dark-900">
-            <tr>
-              <th class="w-[170px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500">{{ t('admin.ops.systemLogs.time') }}</th>
-              <th class="w-[160px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500">{{ t('admin.ops.systemLogs.host') }}</th>
-              <th class="w-[80px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500">{{ t('admin.ops.systemLogs.level') }}</th>
-              <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500">{{ t('admin.ops.systemLogs.logDetails') }}</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-dark-800">
-            <tr v-for="row in logs" :key="row.id" class="align-top">
-              <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-300">{{ formatTime(row.created_at) }}</td>
-              <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-300">
-                <span class="block truncate" :title="row.host || '-'">{{ row.host || '-' }}</span>
-              </td>
-              <td class="px-3 py-2 text-xs">
-                <span class="inline-flex rounded-full px-2 py-0.5 font-semibold" :class="levelBadgeClass(row.level)">
-                  {{ row.level }}
-                </span>
-              </td>
-              <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-300 whitespace-normal break-all">
-                {{ formatSystemLogDetail(row) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="open-section" data-testid="system-logs-table">
+      <DataTable column-order-key="admin-ops-system-logs" :columns="logColumns" :data="logs" :loading="loading"
+        row-key="id" :toolbar-target="tableToolbarTarget" :estimate-row-height="100">
+        <template #cell-created_at="{ row }">{{ formatTime(row.created_at) }}</template>
+        <template #cell-host="{ row }"><span class="block break-all" :title="row.host || '-'">{{ row.host || '-' }}</span></template>
+        <template #cell-level="{ row }"><span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="levelBadgeClass(row.level)">{{ row.level }}</span></template>
+        <template #cell-details="{ row }"><div class="whitespace-normal break-all text-xs">{{ formatSystemLogDetail(row) }}</div></template>
+        <template #empty>{{ t('admin.ops.systemLogs.empty') }}</template>
+      </DataTable>
       <InfiniteListSentinel
         :loading="loading || loadingMore || refreshing"
         :error="error"

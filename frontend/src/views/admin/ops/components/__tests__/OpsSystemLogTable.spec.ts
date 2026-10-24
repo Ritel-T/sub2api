@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
+import DataTable from '@/components/common/DataTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 
 enableAutoUnmount(afterEach)
 
@@ -164,6 +166,32 @@ describe('OpsSystemLogTable host support', () => {
     expect(wrapper.text()).toContain('filtered record')
     expect(wrapper.text()).not.toContain('second record')
     wrapper.unmount()
+  })
+
+
+  it.each([true, false])('windows logs in the desktop=%s viewport and persists demoted fields without losing details', async desktop => {
+    localStorage.removeItem('admin-ops-system-logs')
+    const media = vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({ matches: desktop, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }))
+    const rows = Array.from({ length: 140 }, (_, index) => ({ id: index + 1, created_at: '2026-07-14T00:10:01Z', host: `log-host-${index}`, level: 'warn', message: `log-message-${index}`, request_id: `req-${index}`, extra: { status_code: 429, errors: 'fixture detail' } }))
+    mockListSystemLogs.mockResolvedValue({ items: rows, total: 140, pages: 1 })
+    let wrapper: ReturnType<typeof mount> | undefined
+    try {
+      wrapper = mount(OpsSystemLogTable, { attachTo: document.body, global: { stubs: { teleport: true, Select: SelectStub } } }); await flushPromises()
+      const table = wrapper.getComponent(DataTable)
+      expect(table.props('data')).toHaveLength(140)
+      expect(table.props('columns').every(column => !column.sortable)).toBe(true)
+      const rendered = wrapper.get('[data-testid="system-logs-table"]').findAll('[data-index]')
+      expect(rendered.length).toBeGreaterThan(0); expect(rendered.length).toBeLessThan(40)
+      expect(wrapper.text()).toContain('status=429'); expect(wrapper.text()).toContain('req=req-0')
+      table.getComponent(ColumnSettings).vm.$emit('toggle', 'host'); await flushPromises()
+      expect(JSON.parse(localStorage.getItem('admin-ops-system-logs')!).primary.host).toBe(false)
+      wrapper.unmount()
+      wrapper = mount(OpsSystemLogTable, { attachTo: document.body, global: { stubs: { teleport: true, Select: SelectStub } } }); await flushPromises()
+      expect(wrapper.getComponent(DataTable).getComponent(ColumnSettings).props('hiddenColumns').has('host')).toBe(true)
+      await wrapper.get('[data-test="toggle-details"]').trigger('click')
+      expect(wrapper.text()).toContain('log-host-0')
+      expect(wrapper.text()).toContain('fixture detail')
+    } finally { wrapper?.unmount(); media.mockRestore(); localStorage.removeItem('admin-ops-system-logs') }
   })
 
   it('keeps database access-log persistence opt-in', async () => {

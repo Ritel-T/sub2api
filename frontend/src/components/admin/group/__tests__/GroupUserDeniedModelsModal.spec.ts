@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import type { AdminGroup } from '@/types'
 import GroupUserDeniedModelsModal from '../GroupUserDeniedModelsModal.vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@/api/admin', () => ({
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showSuccess: mocks.showSuccess, showError: mocks.showError }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 enableAutoUnmount(afterEach)
+afterEach(() => vi.restoreAllMocks())
 afterEach(() => vi.useRealTimers())
 
 const savedEntry = {
@@ -129,4 +131,27 @@ describe('GroupUserDeniedModelsModal', () => {
     expect(mocks.clearGroupUserDeniedModels).toHaveBeenCalledWith(1)
     expect(wrapper.find('[data-testid="denied-models-row-3"]').exists()).toBe(false)
   })
+})
+
+it('windows loaded denied-model rows without dropping offscreen saved policies', async () => {
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  mocks.getGroupUserDeniedModels.mockResolvedValue(Array.from({ length: 150 }, (_, index) => ({
+    ...savedEntry, user_id: index + 1, user_email: `user-${index + 1}@example.invalid`, denied_models: ['gpt-6-luna']
+  })))
+  const wrapper = await openModal()
+  const row = wrapper.get('[data-testid="denied-models-row-1"]')
+  const input = row.get('[data-testid="model-tag-draft"]')
+  await input.setValue('gpt-6-sol')
+  await input.trigger('keydown', { key: 'Enter' })
+  for (let page = 0; page < 2; page++) { await wrapper.get('.infinite-list-action').trigger('click'); await flushPromises() }
+  expect(wrapper.findComponent(DocumentRows).props('items')).toHaveLength(150)
+  expect(wrapper.findAll('tbody [data-document-row]').length).toBeGreaterThan(0)
+  expect(wrapper.findAll('tbody [data-document-row]').length).toBeLessThan(100)
+  expect(wrapper.get('[data-testid="denied-models-row-1"]').text()).toContain('gpt-6-sol')
+  await wrapper.get('[data-testid="denied-models-save"]').trigger('click')
+  await flushPromises()
+  const saved = mocks.batchSetGroupUserDeniedModels.mock.calls[0][1]
+  expect(saved).toHaveLength(150)
+  expect(saved[0]).toEqual({ user_id: 1, denied_models: ['gpt-6-luna', 'gpt-6-sol'] })
+  expect(saved[149]).toEqual({ user_id: 150, denied_models: ['gpt-6-luna'] })
 })

@@ -40,8 +40,8 @@
       <div v-else-if="!tickets.length" class="open-section" data-testid="ticket-empty">
         <EmptyState :title="t('supportTickets.empty')" :description="t('supportTickets.emptyHint')" />
       </div>
-      <ul v-else class="open-record-list">
-        <li v-for="ticket in tickets" :key="ticket.id">
+      <DocumentRows v-else as="ul" :items="tickets" item-key="id" :estimate-height="110" class="open-record-list">
+        <template #default="{ item: ticket }">
           <router-link
             :to="`/support-tickets/${ticket.id}`"
             class="open-section block py-6 transition hover:bg-gray-500/5"
@@ -69,8 +69,8 @@
               <TicketStatusBadge :status="ticket.status" />
             </div>
           </router-link>
-        </li>
-      </ul>
+        </template>
+      </DocumentRows>
 
       <InfiniteListSentinel
         :loading="loading || loadingMore || refreshing"
@@ -86,6 +86,7 @@
 </template>
 
 <script setup lang="ts">
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'

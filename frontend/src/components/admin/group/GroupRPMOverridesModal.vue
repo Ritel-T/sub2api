@@ -115,12 +115,8 @@
                     <th class="w-10 px-2 py-2"></th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 dark:divide-dark-600">
-                  <tr
-                    v-for="entry in visibleEntries"
-                    :key="entry.user_id"
-                    class="hover:bg-gray-50 dark:hover:bg-dark-700/50"
-                  >
+                <DocumentRows as="tbody" :items="visibleEntries" item-key="user_id" :colspan="7" :estimate-height="56" item-class="hover:bg-gray-50 dark:hover:bg-dark-700/50" class="divide-y divide-gray-100 dark:divide-dark-600">
+                  <template #default="{ item: entry }">
                     <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ entry.user_email }}</td>
                     <td class="whitespace-nowrap px-3 py-2 text-gray-400 dark:text-gray-500">{{ entry.user_id }}</td>
                     <td class="whitespace-nowrap px-3 py-2 text-gray-900 dark:text-white">{{ entry.user_name || '-' }}</td>
@@ -157,18 +153,17 @@
                         <Icon name="trash" size="sm" />
                       </button>
                     </td>
-                  </tr>
-                </tbody>
+                  </template>
+                </DocumentRows>
               </table>
-            </div>
-          </div>
-
-          <InfiniteListSentinel
+              <InfiniteListSentinel
             :has-more="visibleEntries.length < localEntries.length"
             :loading="loading"
             :progress="currentPage"
             @load-more="currentPage++"
           />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -214,6 +209,7 @@ import type { GroupRPMOverrideEntry } from '@/api/admin/groups'
 import type { AdminGroup, AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { platformLabel } from '@/utils/platformColors'

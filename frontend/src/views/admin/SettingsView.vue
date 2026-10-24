@@ -8253,76 +8253,30 @@
                   >
                     {{ t('admin.settings.features.affiliate.customUsers.batchButton', { count: affiliateState.selected.length }) }}
                   </button>
+                  <div ref="affiliateToolbarTarget" />
                 </div>
 
-                <div class="open-section overflow-x-auto">
-                  <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
-                    <thead class="bg-gray-50 dark:bg-dark-800">
-                      <tr>
-                        <th class="px-3 py-2 text-left">
-                          <input
-                            type="checkbox"
-                            :checked="affiliateList.items.value.length > 0 && affiliateState.selected.length === affiliateList.items.value.length"
-                            @change="toggleAffiliateSelectAll"
-                          />
-                        </th>
-                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.email') }}</th>
-                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.username') }}</th>
-                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.code') }}</th>
-                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.rate') }}</th>
-                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.actions') }}</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
-                      <tr v-if="affiliateList.loading.value">
-                        <td colspan="6" class="px-3 py-6 text-center text-sm text-gray-500">
-                          {{ t('common.loading') }}
-                        </td>
-                      </tr>
-                      <tr v-else-if="affiliateList.items.value.length === 0">
-                        <td colspan="6" class="px-3 py-6 text-center text-sm text-gray-500">
-                          {{ t('admin.settings.features.affiliate.customUsers.empty') }}
-                        </td>
-                      </tr>
-                      <tr v-for="entry in affiliateList.items.value" :key="entry.user_id">
-                        <td class="px-3 py-2">
-                          <input
-                            type="checkbox"
-                            :checked="affiliateState.selected.includes(entry.user_id)"
-                            @change="toggleAffiliateSelect(entry.user_id)"
-                          />
-                        </td>
-                        <td class="px-3 py-2 text-sm text-gray-900 dark:text-white">{{ entry.email }}</td>
-                        <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">{{ entry.username }}</td>
-                        <td class="px-3 py-2 text-sm font-mono">
-                          {{ entry.aff_code }}
-                          <span
-                            v-if="entry.aff_code_custom"
-                            class="ml-1 inline-block rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
-                          >{{ t('admin.settings.features.affiliate.customUsers.customBadge') }}</span>
-                        </td>
-                        <td class="px-3 py-2 text-sm">
-                          <span v-if="entry.aff_rebate_rate_percent != null">{{ entry.aff_rebate_rate_percent }}%</span>
-                          <span v-else class="text-gray-400">{{ t('admin.settings.features.affiliate.customUsers.useGlobal') }}</span>
-                        </td>
-                        <td class="px-3 py-2 text-sm">
-                          <div class="flex items-center gap-2">
-                            <button type="button" class="text-primary-600 hover:underline" @click="openAffiliateModal(entry)">
-                              {{ t('common.edit') }}
-                            </button>
-                            <button
-                              type="button"
-                              class="text-red-600 hover:underline"
-                              @click="askResetAffiliateUser(entry)"
-                            >
-                              {{ t('common.delete') }}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable :columns="affiliateColumns" :data="affiliateList.items.value" :loading="affiliateList.loading.value"
+                  column-order-key="admin-settings-affiliate-users" row-key="user_id" selectable
+                  :selected-keys="affiliateState.selected" :selection-label="affiliateSelectionLabel"
+                  :toolbar-target="affiliateToolbarTarget"
+                  @update:selected-keys="affiliateState.selected = $event.map(Number)">
+                  <template #cell-aff_code="{ row: entry }">
+                    <span class="font-mono">{{ entry.aff_code }}</span>
+                    <span v-if="entry.aff_code_custom" class="ml-1 inline-block rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ t('admin.settings.features.affiliate.customUsers.customBadge') }}</span>
+                  </template>
+                  <template #cell-aff_rebate_rate_percent="{ row: entry }">
+                    <span v-if="entry.aff_rebate_rate_percent != null">{{ entry.aff_rebate_rate_percent }}%</span>
+                    <span v-else class="text-gray-400">{{ t('admin.settings.features.affiliate.customUsers.useGlobal') }}</span>
+                  </template>
+                  <template #cell-actions="{ row: entry }">
+                    <div class="flex items-center gap-2">
+                      <button type="button" class="text-primary-600 hover:underline" @click="openAffiliateModal(entry)">{{ t('common.edit') }}</button>
+                      <button type="button" class="text-red-600 hover:underline" @click="askResetAffiliateUser(entry)">{{ t('common.delete') }}</button>
+                    </div>
+                  </template>
+                  <template #empty>{{ t('admin.settings.features.affiliate.customUsers.empty') }}</template>
+                </DataTable>
 
                 <InfiniteListSentinel
                   :loading="affiliateList.loading.value || affiliateList.loadingMore.value"
@@ -9523,6 +9477,7 @@
 
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'
 
@@ -13854,6 +13809,16 @@ const affiliateList = useInfiniteList<AffiliateAdminEntry>({
   },
 });
 
+const affiliateToolbarTarget = ref<HTMLElement | null>(null);
+const affiliateColumns = computed(() => [
+  { key: 'email', label: t('admin.settings.features.affiliate.customUsers.col.email'), primary: true },
+  { key: 'username', label: t('admin.settings.features.affiliate.customUsers.col.username'), primary: true },
+  { key: 'aff_code', label: t('admin.settings.features.affiliate.customUsers.col.code'), primary: true },
+  { key: 'aff_rebate_rate_percent', label: t('admin.settings.features.affiliate.customUsers.col.rate'), primary: true },
+  { key: 'actions', label: t('admin.settings.features.affiliate.customUsers.col.actions'), primary: true },
+]);
+const affiliateSelectionLabel = (entry: AffiliateAdminEntry) => entry.email || entry.username || `#${entry.user_id}`;
+
 async function loadAffiliateUsers() {
   affiliateQuery = affiliateState.search;
   affiliateState.selected = [];
@@ -13862,17 +13827,6 @@ async function loadAffiliateUsers() {
 
 function onAffiliateSearchInput() {
   debounceTimer(affiliateState, 300, () => { void loadAffiliateUsers(); });
-}
-
-function toggleAffiliateSelectAll(e: Event) {
-  const checked = (e.target as HTMLInputElement).checked;
-  affiliateState.selected = checked ? affiliateList.items.value.map((entry) => entry.user_id) : [];
-}
-
-function toggleAffiliateSelect(userId: number) {
-  const idx = affiliateState.selected.indexOf(userId);
-  if (idx >= 0) affiliateState.selected.splice(idx, 1);
-  else affiliateState.selected.push(userId);
 }
 
 // openAffiliateModal opens the add/edit modal, prefilling fields from the

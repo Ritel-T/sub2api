@@ -4,6 +4,9 @@ import { createI18n } from 'vue-i18n'
 import { readFileSync } from 'node:fs'
 import { auditTab, listIPAudit, releaseIPAudit, type AuditEntry, type AuditPage } from '../api'
 import IPAuditPanel from '../IPAuditPanel.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
+import enCommon from '@/i18n/locales/en/common'
+import zhCommon from '@/i18n/locales/zh/common'
 import en from '@/i18n/locales/en/ipAudit'
 import zh from '@/i18n/locales/zh/ipAudit'
 vi.mock('../api', async () => ({ ...(await vi.importActual('../api')), listIPAudit: vi.fn(), releaseIPAudit: vi.fn() }))
@@ -15,10 +18,10 @@ const page = (): AuditPage => ({ items: [entry], sources: [
   { id: 'host_firewall', scope: 'external_host', storage: 'not_connected', enumeration: 'not_connected', can_release: false }
 ], has_more: true, next_cursor: 20, unrestricted: false })
 function render(locale: 'en' | 'zh' = 'en') {
- return mount(IPAuditPanel, { global: { plugins: [createI18n({ legacy: false, locale, messages: { en: { ipAudit: en, common: { search: 'Search', refresh: 'Refresh', cancel: 'Cancel', actions: 'Actions', loading: 'Loading' } }, zh: { ipAudit: zh, common: { search: '搜索', refresh: '刷新', cancel: '取消', actions: '操作', loading: '加载中' } } } })] } })
+ return mount(IPAuditPanel, { global: { plugins: [createI18n({ legacy: false, locale, messages: { en: { ipAudit: en, common: enCommon.common }, zh: { ipAudit: zh, common: zhCommon.common } } })] } })
 }
 beforeEach(() => {
- vi.resetAllMocks();vi.mocked(listIPAudit).mockResolvedValue(page())
+ localStorage.clear(); vi.resetAllMocks();vi.mocked(listIPAudit).mockResolvedValue(page())
  vi.mocked(releaseIPAudit).mockResolvedValue({ released: true, readback: 'released', remaining: [{ ...entry, source: 'manual_deny', manual: true, can_release: false }], unknown_sources: ['host_firewall'], unrestricted: false })
 })
 describe('IP audit', () => {
@@ -173,4 +176,23 @@ describe('IP audit', () => {
   expect(router).toContain("path: '/admin/settings'")
   expect(auditTab('ip')).toBe('ip');expect(auditTab('config')).toBe('config');expect(auditTab('unknown')).toBe('events')
  })
+})
+
+it('keeps a demoted release action reachable in persisted row details without releasing on expand', async () => {
+  let wrapper = render(); await flushPromises()
+  wrapper.getComponent(ColumnSettings).vm.$emit('toggle', 'actions'); await flushPromises()
+  expect(wrapper.find('th[data-column-key="actions"]').exists()).toBe(false)
+  expect(wrapper.find('[data-testid="release-source"]').exists()).toBe(false)
+  expect(JSON.parse(localStorage.getItem('admin-ip-audit-records')!).primary.actions).toBe(false)
+  await wrapper.get('[data-test="toggle-details"]').trigger('click')
+  expect(releaseIPAudit).not.toHaveBeenCalled()
+  await wrapper.get('[data-testid="release-source"]').trigger('click')
+  expect(wrapper.get('[data-testid="release-dialog"]').text()).toContain(entry.network)
+  expect(releaseIPAudit).not.toHaveBeenCalled()
+  wrapper.unmount()
+  wrapper = render(); await flushPromises()
+  expect(wrapper.find('th[data-column-key="actions"]').exists()).toBe(false)
+  await wrapper.get('[data-test="toggle-details"]').trigger('click')
+  expect(wrapper.find('[data-testid="release-source"]').exists()).toBe(true)
+  wrapper.unmount()
 })

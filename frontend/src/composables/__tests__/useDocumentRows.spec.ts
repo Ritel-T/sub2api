@@ -1,5 +1,5 @@
 import { mount, flushPromises } from '@vue/test-utils'
-import { defineComponent, h, ref } from 'vue'
+import { defineComponent, h, onBeforeUpdate, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDocumentRows } from '../useDocumentRows'
 
@@ -123,15 +123,19 @@ describe('useDocumentRows scroll host', () => {
     parent.append(host)
     return { host, state }
   }
-  const mountRows = (parent: HTMLElement, count = 400) => {
+  const mountRows = (parent: HTMLElement, count = 400, focusable = false, details = false, beforeUpdate?: () => void) => {
     const rows = ref(Array.from({ length: count }, (_, id) => ({ id })))
     let documentRows!: ReturnType<typeof useDocumentRows<{ id: number }>>
     const component = defineComponent({
       setup() {
         const body = ref<HTMLElement | null>(null)
         documentRows = useDocumentRows(rows, body, row => row.id, ref(true), () => 20)
-        return () => h('div', { ref: body }, documentRows.rendered.value.map(item =>
-          h('div', { 'data-row-index': item.index }, String(item.row.id))))
+        // Registered after the hook captures focus, matching Chrome blur during a keyed move.
+        if (beforeUpdate) onBeforeUpdate(beforeUpdate)
+        return () => h('div', { ref: body }, documentRows.rendered.value.flatMap(item => {
+          const main = h('div', { key: item.row.id, 'data-index': item.index, 'data-row-index': item.index }, focusable ? h('button', { 'data-row-key': item.row.id }, String(item.row.id)) : String(item.row.id))
+          return details ? [main, h('div', { key: `detail-${item.row.id}`, 'data-document-detail': '' }, h('button', { 'data-detail-key': item.row.id }, String(item.row.id)))] : [main]
+        }))
       }
     })
     const wrapper = mount(component, { attachTo: parent })
@@ -258,6 +262,146 @@ describe('useDocumentRows scroll host', () => {
       resize(host)
       await settle()
       expect(measure).toHaveBeenCalledOnce()
+    } finally { wrapper.unmount(); host.remove() }
+  })
+
+  it('preserves the focused stable record when refresh prepends a newer row', async () => {
+    const { host } = createHost()
+    const { wrapper, rows, documentRows } = mountRows(host, 200, true)
+    try {
+      await settle()
+      const button = wrapper.get('[data-row-key="0"]').element as HTMLButtonElement
+      button.focus()
+      host.scrollTop = 3070
+      host.dispatchEvent(new Event('scroll'))
+      await settle()
+      rows.value = [{ id: 999 }, ...rows.value]
+      await settle()
+      expect(button.isConnected).toBe(true)
+      expect(document.activeElement).toBe(button)
+      expect(documentRows.rendered.value.some(item => item.row.id === 0 && item.index === 1)).toBe(true)
+      expect(documentRows.rendered.value.length).toBeLessThan(40)
+    } finally { wrapper.unmount(); host.remove() }
+  })
+
+  it('tracks the focused record through an equal-length reorder', async () => {
+    const { host } = createHost()
+    const { wrapper, rows, documentRows } = mountRows(host, 200, true)
+    try {
+      await settle()
+      const button = wrapper.get('[data-row-key="0"]').element as HTMLButtonElement
+      button.focus()
+      host.scrollTop = 3070
+      host.dispatchEvent(new Event('scroll'))
+      await settle()
+      rows.value = [...rows.value.slice(1), rows.value[0]]
+      await settle()
+      expect(document.activeElement).toBe(button)
+      expect(documentRows.rendered.value.some(item => item.row.id === 0 && item.index === 199)).toBe(true)
+    } finally { wrapper.unmount(); host.remove() }
+  })
+
+  it('retains the focused node when Chrome emits focusout during its keyed reorder', async () => {
+    const { host } = createHost()
+    let simulateMove = false
+    let button: HTMLButtonElement | undefined
+    let focusouts = 0
+    const { wrapper, rows, documentRows } = mountRows(host, 200, true, false, () => {
+      if (simulateMove) {
+        simulateMove = false
+        button?.blur()
+      }
+    })
+    try {
+      await settle()
+      button = wrapper.get('[data-row-key="0"]').element as HTMLButtonElement
+      button.addEventListener('focusout', () => { focusouts++ })
+      button.focus()
+      host.scrollTop = 3070
+      host.dispatchEvent(new Event('scroll'))
+      await settle()
+      expect(document.activeElement).toBe(button)
+      simulateMove = true
+      rows.value = [...rows.value.slice(1), rows.value[0]]
+      await settle()
+      expect(focusouts).toBeGreaterThan(0)
+      expect(button.isConnected).toBe(true)
+      expect(wrapper.get('[data-row-key="0"]').element).toBe(button)
+      expect(document.activeElement).toBe(button)
+      expect(documentRows.rendered.value.some(item => item.row.id === 0 && item.index === 199)).toBe(true)
+    } finally { wrapper.unmount(); host.remove() }
+  })
+
+  it('does not pin the replacement index after the focused record is deleted', async () => {
+    const { host } = createHost()
+    const { wrapper, rows, documentRows } = mountRows(host, 200, true)
+    try {
+      await settle()
+      const button = wrapper.get('[data-row-key="0"]').element as HTMLButtonElement
+      button.focus()
+      host.scrollTop = 3070
+      host.dispatchEvent(new Event('scroll'))
+      await settle()
+      rows.value = rows.value.filter(row => row.id !== 0)
+      await settle()
+      expect(button.isConnected).toBe(false)
+      expect(documentRows.rendered.value.every(item => item.index > 100)).toBe(true)
+    } finally { wrapper.unmount(); host.remove() }
+  })
+
+  it('releases its retained row when focus moves outside the list, even to another indexed row', async () => {
+    const { host } = createHost()
+    const { wrapper, documentRows } = mountRows(host, 200, true)
+    const outside = document.createElement('button')
+    outside.dataset.index = '0'
+    document.body.append(outside)
+    try {
+      await settle()
+      ;(wrapper.get('[data-row-key="0"]').element as HTMLButtonElement).focus()
+      host.scrollTop = 3070
+      host.dispatchEvent(new Event('scroll'))
+      await settle()
+      expect(documentRows.rendered.value.some(item => item.row.id === 0)).toBe(true)
+      outside.focus()
+      await settle()
+      expect(document.activeElement).toBe(outside)
+      expect(documentRows.rendered.value.every(item => item.index > 100)).toBe(true)
+    } finally { wrapper.unmount(); host.remove(); outside.remove() }
+  })
+
+  it('uses the owning record index instead of a nested child list index', async () => {
+    const { host } = createHost()
+    const { wrapper, documentRows } = mountRows(host, 200, true)
+    try {
+      await settle()
+      const button = wrapper.get('[data-row-key="0"]').element as HTMLButtonElement
+      button.dataset.index = '150'
+      button.focus()
+      host.scrollTop = 3070
+      host.dispatchEvent(new Event('scroll'))
+      await settle()
+      expect(document.activeElement).toBe(button)
+      expect(documentRows.rendered.value.some(item => item.row.id === 0)).toBe(true)
+    } finally { wrapper.unmount(); host.remove() }
+  })
+
+  it('pins the owning main row when focus is inside its adjacent detail row', async () => {
+    const { host } = createHost()
+    const { wrapper, rows, documentRows } = mountRows(host, 200, false, true)
+    try {
+      await settle()
+      const button = wrapper.get('[data-detail-key="0"]').element as HTMLButtonElement
+      button.focus()
+      host.scrollTop = 3070
+      host.dispatchEvent(new Event('scroll'))
+      await settle()
+      expect(document.activeElement).toBe(button)
+      expect(documentRows.rendered.value.some(item => item.row.id === 0)).toBe(true)
+      rows.value = [{ id: 999 }, ...rows.value]
+      await settle()
+      expect(document.activeElement).toBe(button)
+      expect(documentRows.rendered.value.some(item => item.row.id === 0 && item.index === 1)).toBe(true)
+      expect(documentRows.rendered.value.length).toBeLessThan(40)
     } finally { wrapper.unmount(); host.remove() }
   })
 

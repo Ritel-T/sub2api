@@ -67,7 +67,7 @@
             role="checkbox"
             :aria-checked="allVisibleSelected ? true : someVisibleSelected ? 'mixed' : false"
             :aria-label="t('common.selectAll')"
-            data-test="select-all-mobile"
+            data-test="select-all-mobile" :disabled="selectionDisabled"
             @click.stop="toggleAllVisible(!allVisibleSelected)"
           >
             ID
@@ -78,7 +78,7 @@
             class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
             :checked="allVisibleSelected"
             :indeterminate="someVisibleSelected"
-            data-test="select-all-mobile"
+            data-test="select-all-mobile" :disabled="selectionDisabled"
             @change="toggleAllVisible(($event.target as HTMLInputElement).checked)"
           />
           <span>
@@ -107,7 +107,7 @@
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
               :checked="isRowSelected(row, index)"
               :aria-label="getRowSelectionLabel(row, index)"
-              data-test="select-row"
+              data-test="select-row" :disabled="selectionDisabled"
               @click.stop
               @change="toggleRowSelection(row, index, ($event.target as HTMLInputElement).checked)"
             />
@@ -129,7 +129,7 @@
                 role="checkbox"
                 :aria-checked="isRowSelected(row, index)"
                 :aria-label="getRowSelectionLabel(row, index)"
-                data-test="select-row"
+                data-test="select-row" :disabled="selectionDisabled"
                 @click.stop="toggleRowSelection(row, index, !isRowSelected(row, index))"
               >
                 {{ row.id }}
@@ -236,7 +236,7 @@
               :checked="allVisibleSelected"
               :indeterminate="someVisibleSelected"
               :aria-label="t('common.selectAll')"
-              data-test="select-all"
+              data-test="select-all" :disabled="selectionDisabled"
               @change="toggleAllVisible(($event.target as HTMLInputElement).checked)"
             />
           </th>
@@ -303,7 +303,7 @@
               </span>
               <button v-if="identitySelection && column.key === 'id'" type="button" class="table-select-all" role="checkbox"
                 :aria-checked="allVisibleSelected ? true : someVisibleSelected ? 'mixed' : false"
-                :aria-label="t('common.selectAll')" :title="t('common.selectAll')" data-test="select-all"
+                :aria-label="t('common.selectAll')" :title="t('common.selectAll')" data-test="select-all" :disabled="selectionDisabled"
                 @click.stop="toggleAllVisible(!allVisibleSelected)">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path v-if="allVisibleSelected" d="m4 8 3 3 5-6"/><path v-else-if="someVisibleSelected" d="M4 8h8"/></svg>
               </button>
@@ -382,7 +382,7 @@
                   class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
                   :checked="isRowSelected(item.row, item.index)"
                   :aria-label="getRowSelectionLabel(item.row, item.index)"
-                  data-test="select-row"
+                  data-test="select-row" :disabled="selectionDisabled"
                   @click.stop
                   @change="toggleRowSelection(item.row, item.index, ($event.target as HTMLInputElement).checked)"
                 />
@@ -405,7 +405,7 @@
                   role="checkbox"
                   :aria-checked="isRowSelected(item.row, item.index)"
                   :aria-label="getRowSelectionLabel(item.row, item.index)"
-                  data-test="select-row"
+                  data-test="select-row" :disabled="selectionDisabled"
                   @click.stop="toggleRowSelection(item.row,item.index,!isRowSelected(item.row,item.index))"
                 >
                   <slot name="cell-id" :row="item.row" :value="item.row.id">
@@ -716,6 +716,8 @@ interface Props {
   virtualizeThreshold?: number
   /** Enable controlled row selection. Stable row keys are strongly recommended. */
   selectable?: boolean
+  /** Disable selection while leaving column preferences and record details usable. */
+  selectionDisabled?: boolean
   /** Selected row keys. Keys outside the current data page are preserved. */
   selectedKeys?: Array<string | number>
   /** Accessible label for a row selection checkbox. */
@@ -731,6 +733,7 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortOrder: 'asc',
   serverSideSort: false,
   selectable: false,
+  selectionDisabled: false,
   selectedKeys: () => []
 })
 
@@ -1082,6 +1085,7 @@ const someVisibleSelected = computed(() => {
 })
 
 const emitSelection = (next: Set<string | number>) => {
+  if (props.selectionDisabled) return
   const keys = Array.from(next)
   emit('update:selectedKeys', keys)
   emit('selectionChange', keys)

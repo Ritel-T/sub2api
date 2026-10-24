@@ -233,7 +233,7 @@ describe('account operations tabs and independent saves', () => {
     vi.mocked(getAccountOpsThresholdAccounts).mockResolvedValue([account])
     vi.mocked(getAccountOpsThresholdGroups).mockResolvedValue([{ id: 'manual-currency', name: 'Currency', default_name: 'Currency', provider: 'sub2api', site: 'https://example.com', mode: 'manual', account_ids: [1] }])
     const wrapper = create(); await flushPromises()
-    await wrapper.get('[data-testid="select-group-manual-currency"]').setValue(true)
+    await wrapper.get('[data-testid="rule-row-manual-currency"] [data-test="select-row"]').setValue(true)
     await wrapper.get('[data-testid="batch-edit-rules"]').trigger('click'); await flushPromises()
     await wrapper.get('[data-testid="batch-rule-threshold"]').setValue('5')
     vi.mocked(getAccountOpsThresholdAccounts).mockResolvedValue([{ ...account, unit: 'CNY' }])

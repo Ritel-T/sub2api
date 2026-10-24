@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import type { AdminGroup } from '@/types'
 import GroupRateMultipliersModal from '../GroupRateMultipliersModal.vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 
 const mocks = vi.hoisted(() => ({ getGroupRateMultipliers: vi.fn(), batchSetGroupRateMultipliers: vi.fn() }))
 vi.mock('@/api/admin', () => ({ adminAPI: { groups: mocks } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showSuccess: vi.fn(), showError: vi.fn() }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 enableAutoUnmount(afterEach)
+afterEach(() => vi.restoreAllMocks())
 beforeEach(() => {
   vi.resetAllMocks()
   mocks.getGroupRateMultipliers.mockResolvedValue([
@@ -64,4 +66,24 @@ describe('group rate multiplier edits', () => {
     await wrapper.findAll('button').find(button => button.text() === 'common.save')!.trigger('click')
     expect(mocks.batchSetGroupRateMultipliers).toHaveBeenCalledWith(1, [])
   })
+})
+
+it('windows loaded override rows while preserving the entire staged save payload', async () => {
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  mocks.getGroupRateMultipliers.mockResolvedValue(Array.from({ length: 150 }, (_, index) => ({
+    user_id: index + 1, user_email: `user-${index + 1}@example.invalid`, user_name: '', user_status: 'active', rate_multiplier: 2, rpm_override: null
+  })))
+  const wrapper = await openEditor()
+  await wrapper.get('tbody input[type="number"]').setValue('3')
+  for (let page = 0; page < 2; page++) { await wrapper.get('.infinite-list-action').trigger('click'); await flushPromises() }
+  expect(wrapper.findComponent(DocumentRows).props('items')).toHaveLength(150)
+  expect(wrapper.findAll('tbody [data-document-row]').length).toBeGreaterThan(0)
+  expect(wrapper.findAll('tbody [data-document-row]').length).toBeLessThan(100)
+  expect(wrapper.get('tbody input[type="number"]').element).toHaveProperty('value', '3')
+  await wrapper.findAll('button').find(button => button.text() === 'common.save')!.trigger('click')
+  await flushPromises()
+  const saved = mocks.batchSetGroupRateMultipliers.mock.calls[0][1]
+  expect(saved).toHaveLength(150)
+  expect(saved[0]).toEqual({ user_id: 1, rate_multiplier: 3 })
+  expect(saved[149]).toEqual({ user_id: 150, rate_multiplier: 2 })
 })

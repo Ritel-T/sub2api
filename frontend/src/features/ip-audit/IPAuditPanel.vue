@@ -1,5 +1,5 @@
 <template>
-  <section class="space-y-4 py-5" data-testid="ip-audit-panel">
+  <section class="space-y-4 py-5" data-testid="ip-audit-panel" :aria-busy="loading || releasing">
     <p class="text-sm text-gray-500">{{ t('ipAudit.scopeHint') }}</p>
     <p class="rounded bg-amber-50 p-3 text-sm text-amber-900" data-testid="host-disconnected">{{ t('ipAudit.externalHint') }}</p>
     <button type="button" class="inline-block text-sm text-primary-600 underline" data-testid="ip-open-settings" @click="$emit('configure')">{{ t('ipAudit.settings') }}</button>
@@ -20,6 +20,7 @@
       <label class="text-sm">{{ t('ipAudit.start') }}<input v-model="start" class="input mt-1 w-full" type="datetime-local" /></label>
       <label class="text-sm">{{ t('ipAudit.end') }}<input v-model="end" class="input mt-1 w-full" type="datetime-local" /></label>
       <div class="flex gap-2"><button type="submit" class="btn btn-secondary" :disabled="loading || releasing" data-testid="audit-filter">{{ t('common.search') }}</button><button type="button" class="btn btn-secondary" :disabled="loading || releasing" @click="refresh">{{ t('common.refresh') }}</button></div>
+      <div ref="tableToolbarTarget" class="flex items-center gap-2 sm:col-span-2 lg:col-span-4" />
       </fieldset>
     </form>
     <p v-if="exactSource && !applied.ip" class="text-sm text-amber-700">{{ t('ipAudit.exactHint') }}</p>
@@ -28,17 +29,16 @@
     <p v-if="selectedSource && !selectedSource.can_release" class="text-sm text-gray-500">{{ t('ipAudit.readOnlyHint') }} <a v-if="selectedSource.manage_url" :href="selectedSource.manage_url" class="underline">{{ t('ipAudit.sourceManagement') }}</a></p>
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
     <p v-if="partial" class="text-sm text-amber-700">{{ t('ipAudit.partial') }}</p>
-    <div class="overflow-x-auto overflow-y-hidden"><table class="w-full text-left text-sm">
-      <thead><tr><th class="p-2">IP / {{ t('ipAudit.subject') }}</th><th class="p-2">{{ t('ipAudit.source') }}</th><th class="p-2">{{ t('ipAudit.reason') }}</th><th class="p-2">{{ t('ipAudit.state') }}</th><th class="p-2">{{ t('ipAudit.count') }}</th><th class="p-2">{{ t('ipAudit.start') }} / {{ t('ipAudit.expiry') }}</th><th class="p-2">{{ t('common.actions') }}</th></tr></thead>
-      <tbody><tr v-for="row in rows" :key="row.id" class="border-t align-top">
-        <td class="p-2"><code>{{ row.network || (row.user_id ? `UID ${row.user_id}` : t('ipAudit.unavailable')) }}</code><p v-if="row.actor_id">{{ t('ipAudit.operator') }} #{{ row.actor_id }}</p></td>
-        <td class="p-2">{{ sourceName(row.origin_source || row.source) }}<p>{{ label(row.scope) }}</p><p v-if="row.manual">{{ t('ipAudit.manual') }}</p><p>{{ label(row.duration || 'unknown') }}</p></td>
-        <td class="p-2">{{ label(row.reason) }}</td><td class="p-2">{{ label(row.state) }}<p>{{ label(row.effective) }}</p><p v-if="row.result">{{ label(row.result) }}</p></td>
-        <td class="p-2">{{ row.count ?? t('ipAudit.unavailable') }} / {{ row.threshold ?? t('ipAudit.unavailable') }}</td>
-        <td class="whitespace-nowrap p-2">{{ date(row.started_at) }}<p>{{ date(row.expires_at) }}</p></td>
-        <td class="p-2"><button v-if="row.can_release" type="button" class="btn btn-secondary btn-sm" :disabled="releasing || loading || listError" data-testid="release-source" @click="confirmEntry = row">{{ t('ipAudit.release') }}</button><span v-else>{{ t('ipAudit.readOnly') }}</span></td>
-      </tr></tbody>
-    </table><p v-if="!rows.length" class="p-4 text-sm text-gray-500">{{ t('ipAudit.empty') }}</p></div>
+    <DataTable :columns="columns" :data="rows" :loading="loading && !rows.length" row-key="id" column-order-key="admin-ip-audit-records" :toolbar-target="tableToolbarTarget" :row-attrs="() => ({ 'data-testid': 'ip-audit-row' })">
+      <template #cell-subject="{ row }"><code class="break-all">{{ row.network || (row.user_id ? `UID ${row.user_id}` : t('ipAudit.unavailable')) }}</code><p v-if="row.actor_id">{{ t('ipAudit.operator') }} #{{ row.actor_id }}</p></template>
+      <template #cell-source="{ row }">{{ sourceName(row.origin_source || row.source) }}<p>{{ label(row.scope) }}</p><p v-if="row.manual">{{ t('ipAudit.manual') }}</p><p>{{ label(row.duration || 'unknown') }}</p></template>
+      <template #cell-reason="{ row }">{{ label(row.reason) }}</template>
+      <template #cell-state="{ row }">{{ label(row.state) }}<p>{{ label(row.effective) }}</p><p v-if="row.result">{{ label(row.result) }}</p></template>
+      <template #cell-count="{ row }">{{ row.count ?? t('ipAudit.unavailable') }} / {{ row.threshold ?? t('ipAudit.unavailable') }}</template>
+      <template #cell-time="{ row }">{{ date(row.started_at) }}<p>{{ date(row.expires_at) }}</p></template>
+      <template #cell-actions="{ row }"><button v-if="row.can_release" type="button" class="btn btn-secondary btn-sm" :disabled="releasing || loading || listError" data-testid="release-source" @click.stop="confirmEntry = row">{{ t('ipAudit.release') }}</button><span v-else>{{ t('ipAudit.readOnly') }}</span></template>
+      <template #empty><p class="p-4 text-sm text-gray-500">{{ t('ipAudit.empty') }}</p></template>
+    </DataTable>
     <InfiniteListSentinel data-testid="audit-more" :loading="loading || releasing" :error="listError" :has-more="hasMore" :progress="nextCursor" @load-more="loadMore" @retry="retry" />
     <div v-if="confirmEntry" role="region" :aria-label="t('ipAudit.confirmTitle')" class="space-y-3 rounded border border-amber-300 p-4" data-testid="release-dialog">
       <p>{{ t('ipAudit.confirmTitle') }} · {{ sourceName(confirmEntry.source) }} · <code>{{ confirmEntry.network || `UID ${confirmEntry.user_id}` }}</code></p>
@@ -59,9 +59,20 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import { listIPAudit, releaseIPAudit, type AuditEntry, type AuditQuery, type AuditSource, type ReleaseResult } from './api'
 defineEmits<{ configure: [] }>()
 const { t, te } = useI18n()
+const tableToolbarTarget = ref<HTMLElement | null>(null)
+const columns = computed(() => [
+  { key: 'subject', label: `IP / ${t('ipAudit.subject')}` },
+  { key: 'source', label: t('ipAudit.source') },
+  { key: 'reason', label: t('ipAudit.reason') },
+  { key: 'state', label: t('ipAudit.state') },
+  { key: 'count', label: t('ipAudit.count') },
+  { key: 'time', label: `${t('ipAudit.start')} / ${t('ipAudit.expiry')}` },
+  { key: 'actions', label: t('common.actions') }
+].map(column => ({ ...column, primary: true })))
 const sourceName = (id: string) => t(`ipAudit.sources.${id}`)
 const label = (value: string) => te(`ipAudit.labels.${value}`) ? t(`ipAudit.labels.${value}`) : value || t('ipAudit.unavailable')
 const source = ref('anonymous_api'), ip = ref(''), state = ref(''), sort = ref('expires_desc'), start = ref(''), end = ref(''), userId = ref('')

@@ -217,10 +217,8 @@
           </div>
 
           <!-- History List -->
-          <div v-else-if="history.length > 0" class="space-y-3">
-            <div
-              v-for="item in history"
-              :key="item.id"
+          <DocumentRows v-else-if="history.length > 0" :items="history" item-key="id" :estimate-height="116" item-class="pb-3">
+            <template #default="{ item }"><div
               class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 py-4 dark:border-dark-700"
             >
               <div class="flex items-center gap-4">
@@ -312,8 +310,8 @@
                   {{ item.notes }}
                 </p>
               </div>
-            </div>
-          </div>
+            </div></template>
+          </DocumentRows>
 
           <!-- Empty State -->
           <div v-else class="empty-state py-8">
@@ -340,6 +338,7 @@
 </template>
 
 <script setup lang="ts">
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

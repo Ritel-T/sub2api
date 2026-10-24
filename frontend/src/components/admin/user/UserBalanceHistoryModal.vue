@@ -91,10 +91,8 @@
       </div>
 
       <!-- History list -->
-      <div v-else class="divide-y divide-gray-200 dark:divide-dark-600">
-        <div
-          v-for="item in history"
-          :key="item.id"
+      <DocumentRows v-else :items="history" item-key="id" :estimate-height="104" class="divide-y divide-gray-200 dark:divide-dark-600">
+        <template #default="{ item }"><div
           class="py-4"
         >
           <div class="flex items-start justify-between">
@@ -144,8 +142,8 @@
               </p>
             </div>
           </div>
-        </div>
-      </div>
+        </div></template>
+      </DocumentRows>
 
       <InfiniteListSentinel
         :loading="loading || historyList.loadingMore.value"
@@ -159,6 +157,7 @@
 </template>
 
 <script setup lang="ts">
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type BalanceHistoryItem } from '@/api/admin'

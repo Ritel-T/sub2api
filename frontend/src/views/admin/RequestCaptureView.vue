@@ -47,10 +47,22 @@
         <InfiniteListSentinel data-testid="capture-tasks-more" :loading="taskList.loading.value || taskList.loadingMore.value || taskList.refreshing.value" :error="taskList.error.value" :has-more="taskList.hasMore.value" :progress="tasks.length" @load-more="taskList.loadMore" @retry="taskList.retry" />
       </div>
       <p v-if="!streamExport" class="text-sm text-gray-500">{{ t('admin.requestCapture.exportBrowser') }}</p>
-      <section v-if="selectedTask" class="open-section space-y-4 py-5">
+      <section v-if="selectedTask" class="open-section space-y-4 py-5" data-testid="capture-records-section">
         <AppHeading variant="section" as="h2">{{ t('admin.requestCapture.records') }} - {{ selectedTask.target_name }}</AppHeading>
-        <form class="workspace-filter-controls flex flex-wrap items-center gap-3" @submit.prevent="filterRecords"><input v-model.trim="requestID" class="input max-w-md" placeholder="Request ID" /><span class="text-sm text-gray-500">{{ t('admin.requestCapture.errorsOnly') }}</span><button class="btn btn-secondary">{{ t('admin.requestCapture.filter') }}</button></form>
-        <div class="overflow-x-auto overflow-y-hidden"><table class="w-full text-left text-sm"><thead><tr><th class="p-2">Request ID</th><th class="p-2">{{ t('admin.requestCapture.model') }}</th><th class="p-2">{{ t('admin.requestCapture.status') }}</th><th class="p-2">{{ t('admin.requestCapture.size') }}</th></tr></thead><tbody><tr v-for="record in records" :key="record.id" class="border-t border-gray-100 dark:border-dark-700"><td class="p-2"><button class="break-all text-primary-600 underline" @click="viewRecord(record)">{{ record.request_id || record.id }}</button><div class="text-xs text-gray-500">{{ record.created_at }} / {{ record.protocol }}<span v-if="record.turn"> / {{ t('admin.requestCapture.turn') }} {{ record.turn }}</span></div></td><td class="p-2">{{ record.model }}</td><td class="p-2"><span>HTTP {{ record.status }}</span><span v-if="record.is_error" class="ml-2 text-red-600" data-testid="capture-outcome">{{ captureOutcome(record) }}</span><div v-if="record.error_code" class="break-all text-xs text-red-600">{{ record.error_code }}</div><span v-if="record.partial" class="ml-2 text-amber-700">{{ record.reason || t('admin.requestCapture.partial') }}</span></td><td class="p-2">{{ bytes(record.bytes) }}</td></tr></tbody></table></div>
+        <form class="workspace-filter-controls flex flex-wrap items-center gap-3" @submit.prevent="filterRecords"><input v-model.trim="requestID" class="input max-w-md" placeholder="Request ID" /><span class="text-sm text-gray-500">{{ t('admin.requestCapture.errorsOnly') }}</span><button class="btn btn-secondary">{{ t('admin.requestCapture.filter') }}</button><div ref="recordsToolbarTarget" /></form>
+        <DataTable column-order-key="admin-request-capture-records" :columns="recordColumns" :data="records"
+          :loading="recordList.loading.value" row-key="id" :toolbar-target="recordsToolbarTarget">
+          <template #cell-request_id="{ row: record }">
+            <button type="button" class="break-all text-primary-600 underline" @click="viewRecord(record)">{{ record.request_id || record.id }}</button>
+            <div class="text-xs text-gray-500">{{ record.created_at }} / {{ record.protocol }}<span v-if="record.turn"> / {{ t('admin.requestCapture.turn') }} {{ record.turn }}</span></div>
+          </template>
+          <template #cell-status="{ row: record }">
+            <span>HTTP {{ record.status }}</span><span v-if="record.is_error" class="ml-2 text-red-600" data-testid="capture-outcome">{{ captureOutcome(record) }}</span>
+            <div v-if="record.error_code" class="break-all text-xs text-red-600">{{ record.error_code }}</div>
+            <span v-if="record.partial" class="ml-2 text-amber-700">{{ record.reason || t('admin.requestCapture.partial') }}</span>
+          </template>
+          <template #cell-bytes="{ row: record }">{{ bytes(record.bytes) }}</template>
+        </DataTable>
         <InfiniteListSentinel data-testid="capture-records-more" :loading="recordList.loading.value || recordList.loadingMore.value || recordList.refreshing.value" :error="recordList.error.value" :has-more="recordList.hasMore.value" :progress="records.length" @load-more="recordList.loadMore" @retry="recordList.retry" />
       </section>
       <section v-if="detail" class="open-section space-y-4 py-5">
@@ -130,6 +142,13 @@ const recordList = useInfiniteList<CaptureRecord>({
     return { items: result.items, pages: result.has_more ? page + 1 : page }
   }
 })
+const recordsToolbarTarget = ref<HTMLElement | null>(null)
+const recordColumns = computed(() => [
+  { key: 'request_id', label: 'Request ID', primary: true },
+  { key: 'model', label: t('admin.requestCapture.model'), primary: true },
+  { key: 'status', label: t('admin.requestCapture.status'), primary: true },
+  { key: 'bytes', label: t('admin.requestCapture.size'), primary: true }
+])
 const targets = targetList.items, tasks = taskList.items, records = recordList.items
 const searching = computed(() => targetDebouncing.value || targetList.loading.value || targetList.loadingMore.value || targetList.refreshing.value)
 const loading = computed(() => taskList.loading.value || taskList.loadingMore.value || taskList.refreshing.value || recordList.loading.value || recordList.loadingMore.value || recordList.refreshing.value)

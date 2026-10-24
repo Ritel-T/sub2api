@@ -3,6 +3,7 @@ import { reactive } from 'vue'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import AutoConfigHistory from '../AutoConfigHistory.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import { getAutoConfigEvents, type AutoConfigEvent, type AutoConfigEventsPage } from '@/api/admin/autoConfig'
 
 vi.mock('vue-i18n', async () => {
@@ -21,11 +22,12 @@ const event = (id: number, kind: AutoConfigEvent['kind'] = 'concurrency_upgraded
   details: { priority: 1, load_factor: 10000, concurrency: 6, previous_concurrency: 5, cooldown_seconds: 60, group_ids: [3] }
 })
 let wrapper: VueWrapper | undefined
-function render() {
-  wrapper = mount(AutoConfigHistory, { props: { refreshKey: 0 } })
+function render(attach = false) {
+  wrapper = mount(AutoConfigHistory, { props: { refreshKey: 0 }, attachTo: attach ? document.body : undefined })
   return wrapper
 }
 beforeEach(() => {
+  localStorage.clear()
   vi.resetAllMocks()
   state.auth = reactive({ user: { id: 1, role: 'admin' } })
   vi.mocked(getAutoConfigEvents).mockResolvedValue({ items: [], has_more: false })
@@ -137,4 +139,36 @@ describe('AutoConfigHistory', () => {
     state.auth.user.role = 'user'; render(); await flushPromises()
     expect(getAutoConfigEvents).not.toHaveBeenCalled()
   })
+})
+
+it('retains saved configuration details after the detail field is demoted and restored from preferences', async () => {
+  const saved = event(10, 'config_saved')
+  saved.details.config = { enabled: false, platform: 'openai', priority: 0, load_factor: 1, concurrency: 3, group_ids: [3], upgrade_enabled: false, upgrade_group_ids: [5], successes_per_step: 20, upgrade_step: 1, max_concurrency: 100, cooldown_seconds: 60, revision: 'saved', model_mappings: [{ from: 'gpt-5.4', to: 'gpt-6-luna' }] }
+  vi.mocked(getAutoConfigEvents).mockResolvedValue({ items: [saved], has_more: false })
+  let w = render(); await flushPromises()
+  w.getComponent(ColumnSettings).vm.$emit('toggle', 'detail'); await flushPromises()
+  expect(w.find('th[data-column-key="detail"]').exists()).toBe(false)
+  expect(w.find('details').exists()).toBe(false)
+  await w.get('[data-test="toggle-details"]').trigger('click')
+  expect(w.get('details').text()).toContain('gpt-5.4 → gpt-6-luna')
+  expect(w.get('details').text()).toContain('允许升级的账号分组：#5')
+  w.unmount(); wrapper = undefined
+  w = render(true); await flushPromises()
+  expect(w.find('th[data-column-key="detail"]').exists()).toBe(false)
+  await w.get('[data-test="toggle-details"]').trigger('click')
+  await w.get('details').trigger('click')
+  expect(w.get('[data-test="toggle-details"]').attributes('aria-expanded')).toBe('true')
+  expect(w.get('details').text()).toContain('gpt-5.4 → gpt-6-luna')
+  const snapshot = w.get('details summary').element as HTMLElement
+  snapshot.focus()
+  expect(document.activeElement).toBe(snapshot)
+  let resolveRefresh!: (page: AutoConfigEventsPage) => void
+  vi.mocked(getAutoConfigEvents).mockReturnValueOnce(new Promise(resolve => { resolveRefresh = resolve }))
+  await w.setProps({ refreshKey: 1 })
+  expect(w.get('[data-testid="auto-config-history"]').attributes('aria-busy')).toBe('true')
+  expect(w.get('details summary').element).toBe(snapshot)
+  expect(document.activeElement).toBe(snapshot)
+  resolveRefresh({ items: [saved], has_more: false }); await flushPromises()
+  expect(w.get('details summary').element).toBe(snapshot)
+  expect(document.activeElement).toBe(snapshot)
 })

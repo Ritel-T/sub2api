@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import View from '../RequestCaptureView.vue'
+import DataTable from '@/components/common/DataTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 const mocks = vi.hoisted(() => ({ listTasks: vi.fn(), createTask: vi.fn(), listRecords: vi.fn(), getRecord: vi.fn(), getContent: vi.fn(), list: vi.fn(), replace: vi.fn() }))
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<div><slot /></div>' } }))
 vi.mock('@/components/admin/operations/SmartOpsNav.vue', () => ({ default: { template: '<nav />' } }))
@@ -12,7 +14,7 @@ vi.mock('@/api/admin/requestCaptures', () => ({ ...mocks, canStreamExport: () =>
 const task = { id: 'task', target_type: 'user', target_id: 7, target_name: 'fixture', status: 'running', requests: 1, partial: 0, skipped: 0, bytes: 100, expires_at: '2099-01-01' }
 const record = { id: 'record', task_id: 'task', request_id: 'request-id', parts: [{ name: '1-client_request.txt', stage: 'client_request', bytes: 10, attempt: 0, turn: 0 }] }
 const options = { global: { stubs: { AppLayout: { template: '<div><slot /></div>' } } } }
-beforeEach(() => { vi.clearAllMocks(); mocks.listTasks.mockResolvedValue({ items: [task], stats: {}, has_more: false }); mocks.list.mockResolvedValue({ items: [{ id: 7, email: 'user@test' }], total: 1 }); mocks.createTask.mockResolvedValue(task); mocks.listRecords.mockResolvedValue({ items: [record], has_more: false }); mocks.getRecord.mockResolvedValue(record); mocks.getContent.mockResolvedValue({ text: '<img src=x onerror=alert(1)>', next_offset: 10, has_more: true }) })
+beforeEach(() => { localStorage.removeItem('admin-request-capture-records'); vi.clearAllMocks(); mocks.listTasks.mockResolvedValue({ items: [task], stats: {}, has_more: false }); mocks.list.mockResolvedValue({ items: [{ id: 7, email: 'user@test' }], total: 1 }); mocks.createTask.mockResolvedValue(task); mocks.listRecords.mockResolvedValue({ items: [record], has_more: false }); mocks.getRecord.mockResolvedValue(record); mocks.getContent.mockResolvedValue({ text: '<img src=x onerror=alert(1)>', next_offset: 10, has_more: true }) })
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
 describe('request capture page', () => {
   it('appends targets and tasks with deduplication and preserves the loaded task window on refresh', async () => {
@@ -46,7 +48,9 @@ describe('request capture page', () => {
     mocks.listRecords.mockResolvedValueOnce({ items: [], has_more: false })
     await wrapper.findAll('form')[1]!.trigger('submit'); await flushPromises()
     expect(mocks.listRecords).toHaveBeenLastCalledWith('task', 1, 'exact', true, expect.any(AbortSignal))
-    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="capture-records-section"]').findAll('[data-index]')).toHaveLength(0)
+    expect(wrapper.text()).not.toContain('next-request')
+    expect(wrapper.text()).toContain('#7')
     wrapper.unmount()
   })
   it('cancels target searches immediately during debounce and ignores stale results', async () => {
@@ -107,6 +111,26 @@ describe('request capture page', () => {
     expect(wrapper.text()).toContain('HTTP 200')
     expect(wrapper.get('[data-testid="capture-outcome"]').text()).toBe('admin.requestCapture.' + label)
     expect(wrapper.text()).toContain(code)
+    wrapper.unmount()
+  })
+
+  it('windows large record histories and preserves detail access through persisted column preferences', async () => {
+    const rows = Array.from({ length: 140 }, (_, index) => ({ ...record, id: `record-${index}`, request_id: `request-${index}`, model: 'fixture-model', status: 200, protocol: 'responses', turn: 2 }))
+    mocks.listRecords.mockResolvedValue({ items: rows, has_more: false })
+    const wrapper = mount(View, { ...options, attachTo: document.body }); await flushPromises()
+    await wrapper.findAll('button').find(button => button.text().includes('#7'))!.trigger('click'); await flushPromises()
+    const table = wrapper.findAllComponents(DataTable).find(item => item.props('columnOrderKey') === 'admin-request-capture-records')!
+    expect(table.props('data')).toHaveLength(140)
+    expect(table.props('columns').every(column => !column.sortable)).toBe(true)
+    const rendered = wrapper.get('[data-testid="capture-records-section"]').findAll('[data-index]')
+    expect(rendered.length).toBeGreaterThan(0); expect(rendered.length).toBeLessThan(40)
+    table.getComponent(ColumnSettings).vm.$emit('toggle', 'model'); await flushPromises()
+    expect(JSON.parse(localStorage.getItem('admin-request-capture-records')!).primary.model).toBe(false)
+    await wrapper.get('[data-testid="capture-records-section"] [data-test="toggle-details"]').trigger('click')
+    expect(wrapper.text()).toContain('fixture-model')
+    await wrapper.findAll('button').find(button => button.text() === 'request-0')!.trigger('click'); await flushPromises()
+    expect(mocks.getRecord).toHaveBeenCalledWith('task', 'record-0')
+    expect(wrapper.text()).toContain('responses')
     wrapper.unmount()
   })
 

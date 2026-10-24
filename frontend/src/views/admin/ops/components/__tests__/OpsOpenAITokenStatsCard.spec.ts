@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import DataTable from '@/components/common/DataTable.vue'
+import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import OpsOpenAITokenStatsCard from '../OpsOpenAITokenStatsCard.vue'
 
 const mockGetOpenAITokenStats = vi.fn()
@@ -73,6 +75,7 @@ const sampleResponse = {
 
 describe('OpsOpenAITokenStatsCard', () => {
   beforeEach(() => {
+    localStorage.removeItem('admin-ops-openai-token-stats')
     vi.clearAllMocks()
     mockGetOpenAITokenStats.mockReset()
   })
@@ -308,7 +311,7 @@ describe('OpsOpenAITokenStatsCard', () => {
     expect(wrapper.find('.empty-state').exists()).toBe(true)
   })
 
-  it('数据表随页面延伸，额外统计在展开记录中保留', async () => {
+  it('数据表默认保全字段，用户移入展开明细的额外统计保持可达', async () => {
     mockGetOpenAITokenStats.mockResolvedValue(sampleResponse)
 
     const wrapper = mount(OpsOpenAITokenStatsCard, {
@@ -323,6 +326,12 @@ describe('OpsOpenAITokenStatsCard', () => {
     await flushPromises()
 
     expect(wrapper.find('.max-h-\\[420px\\]').exists()).toBe(false)
+    const table = wrapper.getComponent(DataTable)
+    expect(table.props('columns')).toHaveLength(7)
+    expect(table.props('columns').every(column => column.primary)).toBe(true)
+    table.getComponent(ColumnSettings).vm.$emit('toggle', 'avg_duration_ms')
+    table.getComponent(ColumnSettings).vm.$emit('toggle', 'requests_with_first_token')
+    await flushPromises()
     await wrapper.get('[data-test="toggle-details"]').trigger('click')
     expect(wrapper.get('[data-field="avg_duration_ms"] dd').text()).not.toBe('')
     expect(wrapper.get('[data-field="requests_with_first_token"] dd').text()).not.toBe('')
@@ -344,4 +353,40 @@ describe('OpsOpenAITokenStatsCard', () => {
 
     expect(wrapper.text()).toContain('加载失败')
   })
+  it('windows all-model mobile history after six batches while keeping all seven fields reachable', async () => {
+    const media = vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({ matches: false, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }))
+    const rows = Array.from({ length: 120 }, (_, index) => ({ ...sampleResponse.items[0], model: `model-${index}` }))
+    mockGetOpenAITokenStats.mockImplementation(async (query: Record<string, number>) => ({ ...sampleResponse, items: query.top_n ? rows.slice(0, query.top_n) : rows.slice(((query.page ?? 1) - 1) * 20, (query.page ?? 1) * 20), total: 120 }))
+    const wrapper = mount(OpsOpenAITokenStatsCard, { attachTo: document.body, props: { refreshToken: 0 }, global: { stubs: { Select: SelectStub, EmptyState: EmptyStateStub } } })
+    try {
+      await flushPromises()
+      wrapper.findAllComponents(SelectStub)[1].vm.$emit('update:modelValue', 'pagination'); await flushPromises()
+      for (let page = 2; page <= 6; page++) { wrapper.getComponent(InfiniteListSentinel).vm.$emit('load-more'); await flushPromises() }
+      const table = wrapper.getComponent(DataTable)
+      expect(table.props('data')).toHaveLength(120)
+      expect(table.props('columnOrderKey')).toBe('admin-ops-openai-token-stats')
+      const rendered = wrapper.findAll('.table-mobile-records [data-index]')
+      expect(rendered.length).toBeGreaterThan(0); expect(rendered.length).toBeLessThan(40)
+      const first = wrapper.get('.table-mobile-records [data-index="0"]')
+      for (const column of table.props('columns')) expect(first.get(`[data-field="${column.key}"]`).text()).toContain(column.label)
+      expect(first.get('[data-field="avg_duration_ms"]').text()).toContain('321')
+      expect(first.get('[data-field="requests_with_first_token"]').text()).toContain('10')
+      expect(table.props('columns').every(column => !column.sortable)).toBe(true)
+    } finally { wrapper.unmount(); media.mockRestore() }
+  })
+
+  it('keeps initial loading separate from the empty result and shared table', async () => {
+    let complete!: (value: unknown) => void
+    mockGetOpenAITokenStats.mockReturnValueOnce(new Promise(resolve => { complete = resolve }))
+    const wrapper = mount(OpsOpenAITokenStatsCard, { props: { refreshToken: 0 }, global: { stubs: { Select: SelectStub, EmptyState: EmptyStateStub } } })
+    await flushPromises()
+    expect(wrapper.get('[role="status"]').text()).toBe('admin.ops.loadingText')
+    expect(wrapper.findComponent(DataTable).exists()).toBe(false)
+    expect(wrapper.find('.empty-state').exists()).toBe(false)
+    complete({ ...sampleResponse, items: [], total: 0 }); await flushPromises()
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    expect(wrapper.find('.empty-state').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
 })

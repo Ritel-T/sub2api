@@ -55,17 +55,14 @@
           <div class="operations-toolbar workspace-filter-controls"><div class="scope-label"><span class="scope-dot" />{{ selectedPlan ? name(selectedPlan) : t('qualityOps.allAccounts') }}<button v-if="selectedPlan" :aria-label="t('qualityOps.clearScope')" @click="store.selectedPlanId = null"><Icon name="x" size="xs" /></button></div><select class="input w-auto" v-model="store.operationFilter" :aria-label="t('qualityOps.filterRecords')"><option value="all">{{ t('qualityOps.allOutcomes') }}</option><option value="attention">{{ t('qualityOps.needsAttention') }}</option><option value="passed">{{ t('qualityOps.passedRounds') }}</option><option value="failed">{{ t('qualityOps.otherRounds') }}</option></select></div>
           <div v-if="store.operationsError" role="alert" class="panel-error">{{ store.operationsError }}<button @click="store.retryOperations()">{{ t('qualityOps.retry') }}</button></div>
           <div class="operations-scroll" data-testid="operations-scroll" :aria-busy="store.operationsLoading">
-            <table class="operations-table"><thead><tr><th>{{ t('qualityOps.time') }}</th><th>{{ t('qualityOps.accounts') }}</th><th>{{ t('qualityOps.testResult') }}</th><th>{{ t('qualityOps.accountAction') }}</th><th><span class="sr-only">{{ t('qualityOps.details') }}</span></th></tr></thead><tbody>
-              <template v-if="!store.operationsLoaded && store.operationsLoading"><tr v-for="n in 6" :key="`loading-${n}`" class="loading-row"><td v-for="c in 5" :key="c"><span class="cell-skeleton" /></td></tr></template>
-              <tr v-for="operation in filteredOperations" :key="operation.id" :class="{ 'selected-row': detailOperation?.id === operation.id && !!historyPlan }" :data-operation-id="operation.id">
-                <td class="time-cell" :data-label="t('qualityOps.time')"><strong>{{ clock(operation.started_at) }}</strong><span>{{ day(operation.started_at) }}</span></td>
-                <td class="account-cell"><button :title="operation.account_name" @click="store.selectedPlanId = operation.plan_id"><strong>{{ operation.account_name || `#${operation.account_id}` }}</strong></button><span>{{ t('qualityOps.rule') }} {{ operation.plan_id }}<span class="mx-1">·</span>#{{ operation.account_id }}</span></td>
-                <td :data-label="t('qualityOps.testResult')"><span class="test-count" :class="allPassed(operation) ? 'test-passed' : 'test-other'"><Icon :name="allPassed(operation) ? 'checkCircle' : 'exclamationCircle'" size="xs" />{{ operation.passed_count }} / {{ operation.total_count }}</span><span class="cell-secondary">{{ t(operation.status === 'skipped' ? 'qualityOps.skipped' : allPassed(operation) ? 'qualityOps.roundPassed' : 'qualityOps.roundNotPassed') }}<template v-if="operation.skipped_count"> · {{ t('qualityOps.skippedCount', { n: operation.skipped_count }) }}</template></span></td>
-                <td class="action-cell" :data-label="t('qualityOps.accountAction')"><button class="outcome-badge" :class="tone(operation.quality_action)" @click="operationDetails(operation)"><span />{{ operationLabel(operation) }}</button><span class="cell-secondary" :title="operationGroups(operation)">{{ operationGroups(operation) }}</span></td>
-                <td class="detail-cell"><button class="detail-button" :aria-label="t('qualityOps.openRound', { account: operation.account_name, time: date(operation.started_at) })" @click="operationDetails(operation)"><span>{{ t('qualityOps.details') }}</span><Icon name="arrowRight" size="sm" /></button></td>
-              </tr>
-            </tbody></table>
-            <div v-if="store.operationsLoaded && !filteredOperations.length" class="panel-empty"><Icon name="document" size="lg" /><AppHeading variant="empty" as="h4">{{ t('qualityOps.noResults') }}</AppHeading><p>{{ t('qualityOps.filteredEmptyHint') }}</p></div>
+            <DataTable :columns="operationColumns" :data="filteredOperations" row-key="id" :row-attrs="operationRowAttrs" column-order-key="admin-account-quality-operations" :loading="!store.operationsLoaded && store.operationsLoading">
+              <template #cell-time="{ row: operation }"><div class="time-cell"><strong>{{ clock(operation.started_at) }}</strong><span>{{ day(operation.started_at) }}</span></div></template>
+              <template #cell-account="{ row: operation }"><div class="account-cell"><button :title="operation.account_name" @click="store.selectedPlanId = operation.plan_id"><strong>{{ operation.account_name || `#${operation.account_id}` }}</strong></button><span>{{ t('qualityOps.rule') }} {{ operation.plan_id }}<span class="mx-1">·</span>#{{ operation.account_id }}</span></div></template>
+              <template #cell-result="{ row: operation }"><span class="test-count" :class="allPassed(operation) ? 'test-passed' : 'test-other'"><Icon :name="allPassed(operation) ? 'checkCircle' : 'exclamationCircle'" size="xs" />{{ operation.passed_count }} / {{ operation.total_count }}</span><span class="cell-secondary">{{ t(operation.status === 'skipped' ? 'qualityOps.skipped' : allPassed(operation) ? 'qualityOps.roundPassed' : 'qualityOps.roundNotPassed') }}<template v-if="operation.skipped_count"> · {{ t('qualityOps.skippedCount', { n: operation.skipped_count }) }}</template></span></template>
+              <template #cell-outcome="{ row: operation }"><div class="action-cell"><button class="outcome-badge" :class="tone(operation.quality_action)" @click="operationDetails(operation)"><span />{{ operationLabel(operation) }}</button><span class="cell-secondary" :title="operationGroups(operation)">{{ operationGroups(operation) }}</span></div></template>
+              <template #cell-actions="{ row: operation }"><div class="detail-cell"><button class="detail-button" :aria-label="t('qualityOps.openRound', { account: operation.account_name, time: date(operation.started_at) })" @click="operationDetails(operation)"><span>{{ t('qualityOps.details') }}</span><Icon name="arrowRight" size="sm" /></button></div></template>
+              <template #empty><div v-if="store.operationsLoaded && !filteredOperations.length" class="panel-empty"><Icon name="document" size="lg" /><AppHeading variant="empty" as="h4">{{ t('qualityOps.noResults') }}</AppHeading><p>{{ t('qualityOps.filteredEmptyHint') }}</p></div></template>
+            </DataTable>
             <InfiniteListSentinel :loading="store.moreLoading || store.operationsLoading" :error="store.operationsError" :has-more="!!store.cursor" :progress="store.operations.length" @load-more="moreOperations" @retry="store.retryOperations()" />
           </div>
           <footer class="operations-footer"><span>{{ t('qualityOps.showingLoaded', { shown: filteredOperations.length, loaded: contextOperations.length }) }}</span><span v-if="!store.cursor && !store.operationsLoading">{{ t('qualityOps.loadedEnd') }}</span></footer>
@@ -226,6 +223,7 @@
 <script setup lang="ts">
 import { useConfirmedAction, useConfirmationContext } from '@/composables/useConfirmation'
 import AppHeading from '@/components/common/AppHeading.vue'
+import DataTable from '@/components/common/DataTable.vue'
 const contextRoute = useRoute()
 const contextAccountId = computed(() => objectQueryId(contextRoute?.query?.account_id))
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
@@ -257,6 +255,17 @@ import { qualityAccountStatusOptions, qualityAccountTypeOptions } from '@/utils/
 import type { AccountListItem, QualityBPSPolicy, QualityPolicy, ScheduledTestPlan, ScheduledTestResult } from '@/types'
 
 const { t, te } = useI18n()
+const operationColumns = computed(() => [
+  { key: 'time', label: t('qualityOps.time'), primary: true },
+  { key: 'account', label: t('qualityOps.accounts'), primary: true },
+  { key: 'result', label: t('qualityOps.testResult'), primary: true },
+  { key: 'outcome', label: t('qualityOps.accountAction'), primary: true },
+  { key: 'actions', label: t('qualityOps.details'), primary: true }
+])
+const operationRowAttrs = (operation: QualityOperation) => ({
+  'data-operation-id': operation.id,
+  class: { 'selected-row': detailOperation.value?.id === operation.id && !!historyPlan.value }
+})
 const store = useAccountQualityStore(), auth = useAuthStore()
 const { plans, groups, operations, templates } = storeToRefs(store)
 const groupNames = computed(() => Object.fromEntries(groups.value.map(g => [g.id, g.name])))
@@ -1046,11 +1055,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .scope-dot { @apply h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500; }
 .operations-toolbar select { max-width: 100%; }
 .operations-scroll { @apply min-h-0 flex-1 overflow-auto overscroll-contain; scrollbar-gutter: stable; }
-.operations-table { @apply w-full text-left text-xs; min-width: 620px; }
-.operations-table thead { @apply sticky top-0 z-10 bg-white text-gray-400 dark:bg-dark-900; box-shadow: 0 1px 0 rgb(148 163 184 / .15); }
-.operations-table th { @apply whitespace-nowrap px-4 py-3 font-medium; }
-.operations-table td { @apply border-b border-gray-100 px-4 py-4 align-middle dark:border-dark-800; }
-.operations-table tbody tr:hover, .selected-row { @apply bg-slate-50/80 dark:bg-dark-800/70; }
+.operations-scroll :deep(.selected-row) { @apply bg-slate-50/80 dark:bg-dark-800/70; }
 .time-cell { @apply whitespace-nowrap tabular-nums; }
 .time-cell strong { @apply block text-xs font-medium; }
 .time-cell > span, .account-cell > span { @apply mt-1 block text-[10px] text-gray-400; }
@@ -1151,18 +1156,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   .operations-panel { height: auto; }
 }
 @media (max-width: 640px) {
-  .operations-table { display: block; min-width: 0; }
-  .operations-table thead { @apply sr-only; }
-  .operations-table tbody { display: block; }
-  .operations-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 16px; @apply border-b border-gray-100 dark:border-dark-800; }
-  .operations-table td { min-width: 0; max-width: none; padding: 0; border: 0; }
-  .operations-table td::before { content: attr(data-label); @apply mb-1.5 block text-[10px] text-gray-400; }
-  .operations-table .account-cell { grid-column: 1 / -1; grid-row: 1; }
-  .operations-table .account-cell strong { max-width: none; white-space: normal; overflow-wrap: anywhere; }
-  .operations-table .action-cell { grid-column: 1 / -1; }
-  .operations-table .detail-cell { grid-column: 1 / -1; text-align: right; }
-  .operations-table .outcome-badge { white-space: normal; text-align: left; }
-  .operations-table .cell-secondary { max-width: 100%; }
   .operations-footer { @apply flex-wrap gap-1 px-4 py-3; }
   .scope-label { max-width: 100%; }
   .editor-footer { flex-wrap: wrap; }

@@ -1,3 +1,5 @@
+import DataTable from '@/components/common/DataTable.vue';
+import ColumnSettings from '@/components/common/ColumnSettings.vue';
 import { excelBPSImageLimits } from "@/utils/excelBPSImageLimits";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h, reactive } from "vue";
@@ -1859,6 +1861,31 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
     expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
+  });
+
+
+  it("retains affiliate selections and original edit targets through shared column preferences", async () => {
+    localStorage.removeItem('admin-settings-affiliate-users');
+    getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, affiliate_enabled: true });
+    const rows = [1, 2].map(id => ({ user_id: id, email: `affiliate-${id}@example.com`, username: `user-${id}`, aff_code: `code-${id}`, aff_code_custom: true, aff_rebate_rate_percent: id === 1 ? 0 : null }));
+    affiliateListMock.mockResolvedValueOnce({ items: rows, total: 2, pages: 1 });
+    const wrapper = mountView(); await flushPromises();
+    const vm = wrapper.vm as any;
+    const table = wrapper.findAllComponents(DataTable).find(item => item.props('columnOrderKey') === 'admin-settings-affiliate-users')!;
+    expect(table.props('rowKey')).toBe('user_id'); expect(table.props('selectable')).toBe(true);
+    vm.affiliateState.selected = [99]; await flushPromises();
+    await table.get('[data-test="select-all"]').setValue(true); await flushPromises();
+    expect(vm.affiliateState.selected).toEqual([99, 1, 2]);
+    table.getComponent(ColumnSettings).vm.$emit('toggle', 'aff_code'); await flushPromises();
+    expect(JSON.parse(localStorage.getItem('admin-settings-affiliate-users')!).primary.aff_code).toBe(false);
+    await table.get('[data-test="toggle-details"]').trigger('click');
+    expect(wrapper.text()).toContain('code-1'); expect(wrapper.text()).toContain('0%');
+    const edit = table.findAll('button').find(button => button.text() === 'common.edit')!;
+    await edit.trigger('click'); await flushPromises();
+    expect(vm.affiliateModal.editingEntry.user_id).toBe(1);
+    expect(vm.affiliateState.selected).toEqual([99, 1, 2]);
+    expect(updateSettings).not.toHaveBeenCalled();
+    localStorage.removeItem('admin-settings-affiliate-users');
   });
 
   it("appends affiliate custom users and resets the query without changing settings", async () => {

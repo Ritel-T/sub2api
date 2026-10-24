@@ -112,13 +112,8 @@
                     <th class="w-10 px-2 py-2"></th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 dark:divide-dark-600">
-                  <tr
-                    v-for="entry in visibleEntries"
-                    :key="entry.user_id"
-                    class="align-top hover:bg-gray-50 dark:hover:bg-dark-700/50"
-                    :data-testid="`denied-models-row-${entry.user_id}`"
-                  >
+                <DocumentRows as="tbody" :items="visibleEntries" item-key="user_id" :colspan="5" :estimate-height="56" item-class="align-top hover:bg-gray-50 dark:hover:bg-dark-700/50" :item-attrs="deniedRowAttrs" class="divide-y divide-gray-100 dark:divide-dark-600">
+                  <template #default="{ item: entry }">
                     <td class="px-3 py-2 text-gray-600 dark:text-gray-400">
                       <div>{{ entry.user_email }}</div>
                       <div v-if="entry.user_name" class="text-xs text-gray-400">{{ entry.user_name }}</div>
@@ -153,18 +148,17 @@
                         <Icon name="trash" size="sm" />
                       </button>
                     </td>
-                  </tr>
-                </tbody>
+                  </template>
+                </DocumentRows>
               </table>
-            </div>
-          </div>
-
-          <InfiniteListSentinel
+              <InfiniteListSentinel
             :has-more="visibleEntries.length < localEntries.length"
             :loading="loading"
             :progress="currentPage"
             @load-more="currentPage++"
           />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -212,6 +206,7 @@ import type { AdminGroup, AdminUser } from '@/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import ModelTagInput from '@/components/admin/group/ModelTagInput.vue'
@@ -225,6 +220,8 @@ const emit = defineEmits<{
   close: []
   success: []
 }>()
+
+const deniedRowAttrs = (entry: GroupUserDeniedModelsEntry) => ({ 'data-testid': `denied-models-row-${entry.user_id}` })
 
 const { t } = useI18n()
 const appStore = useAppStore()

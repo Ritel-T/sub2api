@@ -39,16 +39,17 @@
     <p class="text-xs text-gray-500">{{ t(scopeLocked ? 'qualityOps.templateFilterHint' : allScope ? 'qualityOps.accountScopeAllHint' : bulk ? 'qualityOps.bulkAccountSelectionHint' : 'qualityOps.accountSelectionHint') }}</p>
     <p v-if="accountsError" role="alert" class="text-sm text-red-600">{{ accountsError }}</p>
     <p v-if="accountsLoading" role="status" class="text-sm text-gray-500">{{ t('qualityOps.loading') }}</p>
-    <div class="grid max-h-52 gap-2 overflow-auto rounded border p-3 sm:grid-cols-2 dark:border-dark-600" :aria-busy="accountsLoading || selectingAccounts">
-      <label v-for="account in accounts" :key="account.id" class="flex items-center gap-2 text-sm"><input v-model="selectedAccounts" type="checkbox" :value="account.id" :disabled="allScope || selectingAccounts || !!disabledReason(account)" /><span class="min-w-0 break-all">{{ account.name }} <span class="text-gray-500">#{{ account.id }}</span><span v-if="disabledReason(account)" class="ml-1 text-xs text-gray-500">{{ disabledReason(account) }}</span></span></label>
-      <p v-if="!accountsLoading && !accountsError && !accounts.length" class="text-sm text-gray-500 sm:col-span-2">{{ t('qualityOps.noMatchingAccounts') }}</p>
-      <InfiniteListSentinel class="sm:col-span-2" :loading="accountsLoading || selectingAccounts" :error="listError" :has-more="hasMore" :progress="accounts.length" @load-more="emit('loadMore')" @retry="emit('retry')" />
+    <div class="max-h-52 overflow-auto rounded border p-3 dark:border-dark-600" :aria-busy="accountsLoading || selectingAccounts">
+      <DocumentRows :items="accountRows" :item-key="row => row[0].id" :source-count="accounts.length" :estimate-height="36" item-class="pb-2"><template #default="{ item: row }"><div class="grid gap-2 sm:grid-cols-2"><label v-for="account in row" :key="account.id" class="flex items-center gap-2 text-sm"><input v-model="selectedAccounts" type="checkbox" :value="account.id" :disabled="allScope || selectingAccounts || !!disabledReason(account)" /><span class="min-w-0 break-all">{{ account.name }} <span class="text-gray-500">#{{ account.id }}</span><span v-if="disabledReason(account)" class="ml-1 text-xs text-gray-500">{{ disabledReason(account) }}</span></span></label></div></template></DocumentRows>
+      <p v-if="!accountsLoading && !accountsError && !accounts.length" class="text-sm text-gray-500">{{ t('qualityOps.noMatchingAccounts') }}</p>
+      <InfiniteListSentinel :loading="accountsLoading || selectingAccounts" :error="listError" :has-more="hasMore" :progress="accounts.length" @load-more="emit('loadMore')" @retry="emit('retry')" />
     </div>
     <span aria-live="polite" class="text-sm" data-testid="quality-account-count">{{ allScope ? t('qualityOps.accountsMatched', { count: accountsTotal }) : t('qualityOps.selected', { count: selectedAccounts.length }) }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
@@ -77,6 +78,8 @@ const props = defineProps<{
   scopeLocked?: boolean
   disabledReason: (account: AccountListItem) => string
 }>()
+// Two accounts share a measured grid row; activation still counts source accounts.
+const accountRows = computed(() => Array.from({ length: Math.ceil(props.accounts.length / 2) }, (_, index) => props.accounts.slice(index * 2, index * 2 + 2)))
 // 批量修改改的是已有规则，范围选择只在新建时出现。
 const allScope = computed(() => scope.value === 'all' && !props.bulk)
 const emit = defineEmits<{

@@ -31,10 +31,8 @@
           <div v-else-if="tasks.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
             {{ t('admin.usage.cleanup.noTasks') }}
           </div>
-          <div v-else class="space-y-2">
-            <div
-              v-for="task in tasks"
-              :key="task.id"
+          <DocumentRows v-else :items="tasks" item-key="id" :estimate-height="100" item-class="pb-2">
+            <template #default="{ item: task }"><div
               class="flex flex-col gap-2 border-b border-gray-100 py-3 text-sm text-gray-600 dark:border-dark-700 dark:text-gray-300"
             >
               <div class="flex flex-wrap items-center justify-between gap-2">
@@ -63,8 +61,8 @@
               <div v-if="task.error_message" class="text-xs text-rose-500">
                 {{ task.error_message }}
               </div>
-            </div>
-          </div>
+            </div></template>
+          </DocumentRows>
         </div>
 
         <InfiniteListSentinel :loading="tasksLoading || taskList.loadingMore.value || taskList.refreshing.value" :error="taskList.error.value" :has-more="taskList.hasMore.value" @load-more="taskList.loadMore" @retry="taskList.retry" />
@@ -107,6 +105,7 @@
 </template>
 
 <script setup lang="ts">
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'

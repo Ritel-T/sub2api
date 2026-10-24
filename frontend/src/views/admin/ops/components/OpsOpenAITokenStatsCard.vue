@@ -4,7 +4,6 @@ import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { computed, ref, watch } from 'vue'
-import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -26,9 +25,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { t } = useI18n()
 const tableTools0 = ref<HTMLElement | null>(null)
-
-// 与 DataTable 一致：< 768px 切换为卡片视图，避免宽表在移动端被截断。
-const isDesktopViewport = useMediaQuery('(min-width: 768px)')
 
 const timeRange = ref<OpsOpenAITokenStatsTimeRange>('30d')
 const viewMode = ref<ViewMode>('topn')
@@ -98,7 +94,7 @@ watch(
 )
 watch(() => props.refreshToken, () => { void list.refresh() })
 
-const openRecordColumns = computed(() => [{ key: 'model', label: t('admin.ops.openaiTokenStats.table.model'), sortable: false }, { key: 'request_count', label: t('admin.ops.openaiTokenStats.table.requestCount'), sortable: false }, { key: 'avg_tokens_per_sec', label: t('admin.ops.openaiTokenStats.table.avgTokensPerSec'), sortable: false }, { key: 'avg_first_token_ms', label: t('admin.ops.openaiTokenStats.table.avgFirstTokenMs'), sortable: false }, { key: 'total_output_tokens', label: t('admin.ops.openaiTokenStats.table.totalOutputTokens'), sortable: false }, { key: 'avg_duration_ms', label: t('admin.ops.openaiTokenStats.table.avgDurationMs'), sortable: false }, { key: 'requests_with_first_token', label: t('admin.ops.openaiTokenStats.table.requestsWithFirstToken'), sortable: false }])
+const openRecordColumns = computed(() => [{ key: 'model', label: t('admin.ops.openaiTokenStats.table.model'), sortable: false, primary: true }, { key: 'request_count', label: t('admin.ops.openaiTokenStats.table.requestCount'), sortable: false, primary: true }, { key: 'avg_tokens_per_sec', label: t('admin.ops.openaiTokenStats.table.avgTokensPerSec'), sortable: false, primary: true }, { key: 'avg_first_token_ms', label: t('admin.ops.openaiTokenStats.table.avgFirstTokenMs'), sortable: false, primary: true }, { key: 'total_output_tokens', label: t('admin.ops.openaiTokenStats.table.totalOutputTokens'), sortable: false, primary: true }, { key: 'avg_duration_ms', label: t('admin.ops.openaiTokenStats.table.avgDurationMs'), sortable: false, primary: true }, { key: 'requests_with_first_token', label: t('admin.ops.openaiTokenStats.table.requestsWithFirstToken'), sortable: false, primary: true }])
 </script>
 
 <template>
@@ -125,7 +121,7 @@ const openRecordColumns = computed(() => [{ key: 'model', label: t('admin.ops.op
       {{ errorMessage }}
     </div>
 
-    <div v-if="loading" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+    <div v-if="loading" role="status" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
       {{ t('admin.ops.loadingText') }}
     </div>
 
@@ -136,44 +132,10 @@ const openRecordColumns = computed(() => [{ key: 'model', label: t('admin.ops.op
     />
 
     <div v-else class="space-y-3">
-      <div class="open-section overflow-hidden">
-        <div class="min-w-0 overflow-x-auto overflow-y-hidden">
-          <div v-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
-            <div v-for="row in items" :key="row.model" class="space-y-2 p-3">
-              <div class="break-all text-xs font-medium text-gray-900 dark:text-gray-100">{{ row.model }}</div>
-              <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                <div class="flex items-baseline justify-between gap-2">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('admin.ops.openaiTokenStats.table.requestCount') }}</span>
-                  <span class="text-gray-700 dark:text-gray-200">{{ formatInt(row.request_count) }}</span>
-                </div>
-                <div class="flex items-baseline justify-between gap-2">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('admin.ops.openaiTokenStats.table.avgTokensPerSec') }}</span>
-                  <span class="text-gray-700 dark:text-gray-200">{{ formatRate(row.avg_tokens_per_sec) }}</span>
-                </div>
-                <div class="flex items-baseline justify-between gap-2">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('admin.ops.openaiTokenStats.table.avgFirstTokenMs') }}</span>
-                  <span class="text-gray-700 dark:text-gray-200">{{ formatRate(row.avg_first_token_ms) }}</span>
-                </div>
-                <div class="flex items-baseline justify-between gap-2">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('admin.ops.openaiTokenStats.table.totalOutputTokens') }}</span>
-                  <span class="text-gray-700 dark:text-gray-200">{{ formatInt(row.total_output_tokens) }}</span>
-                </div>
-                <div class="flex items-baseline justify-between gap-2">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('admin.ops.openaiTokenStats.table.avgDurationMs') }}</span>
-                  <span class="text-gray-700 dark:text-gray-200">{{ formatInt(row.avg_duration_ms) }}</span>
-                </div>
-                <div class="flex items-baseline justify-between gap-2">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('admin.ops.openaiTokenStats.table.requestsWithFirstToken') }}</span>
-                  <span class="text-gray-700 dark:text-gray-200">{{ formatInt(row.requests_with_first_token) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <DataTable column-order-key="admin-ops-openai-token-stats" v-else :toolbar-target="tableTools0"
+          <DataTable column-order-key="admin-ops-openai-token-stats" :toolbar-target="tableTools0"
  :columns="openRecordColumns"
- :primary-columns="['model','request_count','avg_tokens_per_sec','avg_first_token_ms','total_output_tokens']"
  :data="items" row-key="model" >
-<template #cell-model="{ row: row }"><div class="font-medium">{{ row.model }}</div></template>
+<template #cell-model="{ row: row }"><div class="break-all whitespace-normal font-medium">{{ row.model }}</div></template>
 <template #cell-request_count="{ row: row }"><div class="">{{ formatInt(row.request_count) }}</div></template>
 <template #cell-avg_tokens_per_sec="{ row: row }"><div class="">{{ formatRate(row.avg_tokens_per_sec) }}</div></template>
 <template #cell-avg_first_token_ms="{ row: row }"><div class="">{{ formatRate(row.avg_first_token_ms) }}</div></template>
@@ -181,8 +143,6 @@ const openRecordColumns = computed(() => [{ key: 'model', label: t('admin.ops.op
 <template #cell-avg_duration_ms="{ row: row }"><div class="">{{ formatInt(row.avg_duration_ms) }}</div></template>
 <template #cell-requests_with_first_token="{ row: row }"><div class="">{{ formatInt(row.requests_with_first_token) }}</div></template>
 </DataTable>
-        </div>
-      </div>
       <div v-if="viewMode === 'topn'" class="mt-3 text-xs text-gray-500 dark:text-gray-400">
         {{ t('admin.ops.openaiTokenStats.totalModels', { total }) }}
       </div>

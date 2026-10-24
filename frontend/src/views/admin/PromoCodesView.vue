@@ -333,30 +333,33 @@
         {{ t('admin.promo.noUsages') }}
       </div>
       <div v-else class="space-y-3">
-        <div
-          v-for="usage in usages"
-          :key="usage.id"
-          class="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-dark-600"
-        >
-          <div class="flex items-center gap-3">
-            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-              <Icon name="user" size="sm" class="text-green-600 dark:text-green-400" />
+        <DocumentRows :items="usages" item-key="id" :estimate-height="80" item-class="pb-3">
+          <template #default="{ item: usage }">
+            <div
+              data-testid="promo-usage-record"
+              class="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-dark-600"
+            >
+              <div class="flex items-center gap-3">
+                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                  <Icon name="user" size="sm" class="text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-900 dark:text-white">
+                    {{ usage.user?.email || t('admin.promo.userPrefix', { id: usage.user_id }) }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ formatDateTime(usage.used_at) }}
+                  </p>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-sm font-medium text-green-600 dark:text-green-400">
+                  +${{ usage.bonus_amount.toFixed(2) }}
+                </span>
+              </div>
             </div>
-            <div>
-              <p class="text-sm font-medium text-gray-900 dark:text-white">
-                {{ usage.user?.email || t('admin.promo.userPrefix', { id: usage.user_id }) }}
-              </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ formatDateTime(usage.used_at) }}
-              </p>
-            </div>
-          </div>
-          <div class="text-right">
-            <span class="text-sm font-medium text-green-600 dark:text-green-400">
-              +${{ usage.bonus_amount.toFixed(2) }}
-            </span>
-          </div>
-        </div>
+          </template>
+        </DocumentRows>
         <InfiniteListSentinel
           :loading="usagesLoading || usageList.loadingMore.value"
           :error="usageList.error.value"
@@ -403,6 +406,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
+import DocumentRows from '@/components/common/DocumentRows.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useConfirmedAction } from '@/composables/useConfirmation'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'

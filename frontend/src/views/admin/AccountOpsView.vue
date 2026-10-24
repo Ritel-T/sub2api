@@ -40,47 +40,27 @@
         </div>
         <p v-if="remote?.dropped_signals || remote?.storage_failures" role="alert" class="p-4 text-sm text-amber-700">
           {{ t('accountOps.captureIssue') }}</p>
-        <div class="overflow-x-auto" data-testid="account-events-scroll" :aria-busy="loading">
-          <table v-if="filteredEvents.length" class="w-full min-w-[760px] text-left text-sm">
-            <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-800">
-              <tr>
-                <th class="px-5 py-3">{{ t('qualityOps.accounts') }}</th>
-                <th class="px-4 py-3">{{ t('accountOps.eventPhase') }}</th>
-                <th class="px-4 py-3">{{ t('accountOps.eventValue') }}</th>
-                <th class="px-4 py-3">{{ t('accountOps.occurredAt') }}</th>
-                <th class="px-5 py-3">{{ t('accountOps.mailStatus') }}</th>
-                <th class="px-5 py-3">{{ t('accountOps.deliveryDetails') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="event in filteredEvents" :key="eventKey(event)" class="border-t border-gray-100 align-top dark:border-dark-700"
-                data-testid="notification-record">
-                <td class="px-5 py-4">
-                  <p class="font-medium">{{ event.group_name || event.account_name }}</p>
-                  <p class="mt-1 text-xs text-gray-500">#{{ event.account_id }} · {{ t(`accountOps.${event.kind}`) }}</p>
-                </td>
-                <td class="px-4 py-4"><span class="rounded px-2 py-1 text-xs"
-                    :class="event.phase === 'recovery' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'">{{ t(event.phase ? `accountOps.phases.${event.phase}` : 'accountOps.failureSignal') }}</span>
-                </td>
-                <td class="px-4 py-4 text-xs"><template v-if="event.kind === 'balance_threshold'">{{ event.details?.balance }}
+        <div data-testid="account-events-scroll" :aria-busy="loading">
+          <DataTable v-if="filteredEvents.length" :columns="eventColumns" :data="filteredEvents" :row-key="eventKey" :row-attrs="eventRowAttrs" column-order-key="admin-account-notification-records" :loading="loading && !events.length">
+            <template #cell-account="{ row: event }"><p class="font-medium">{{ event.group_name || event.account_name }}</p>
+                  <p class="mt-1 text-xs text-gray-500">#{{ event.account_id }} · {{ t(`accountOps.${event.kind}`) }}</p></template>
+            <template #cell-phase="{ row: event }"><span class="rounded px-2 py-1 text-xs"
+                    :class="event.phase === 'recovery' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'">{{ t(event.phase ? `accountOps.phases.${event.phase}` : 'accountOps.failureSignal') }}</span></template>
+            <template #cell-value="{ row: event }"><template v-if="event.kind === 'balance_threshold'">{{ event.details?.balance }}
                     {{ event.details?.unit }}<span class="mt-1 block text-gray-500">{{ t('accountOps.thresholdValue') }}
                       {{ event.details?.threshold }} {{ event.details?.unit }}</span></template><template
                     v-else-if="event.kind === 'quota_threshold'">{{ event.details?.used_percent }}% · {{ event.details?.window }}<span
                       class="mt-1 block text-gray-500">{{ t('accountOps.thresholdValue') }}
                       {{ event.details?.threshold_percent }}%</span></template><template v-else>HTTP {{ event.http_status }}<span
-                      class="mt-1 block text-gray-500">{{ t(`accountOps.signals.${event.signal}`) }}</span></template></td>
-                <td class="whitespace-nowrap px-4 py-4 text-xs text-gray-600 dark:text-gray-400">{{ date(event.first_seen) }}</td>
-                <td class="px-5 py-4">
-                  <p class="whitespace-nowrap text-xs"
+                      class="mt-1 block text-gray-500">{{ t(`accountOps.signals.${event.signal}`) }}</span></template></template>
+            <template #cell-time="{ row: event }">{{ date(event.first_seen) }}</template>
+            <template #cell-status="{ row: event }"><p class="whitespace-nowrap text-xs"
                     :class="event.state === 'failed' ? 'text-red-600' : event.state === 'sent' ? 'text-emerald-600' : 'text-gray-500'">
                     {{ t(event.notification_enabled === false ? 'accountOps.policyRecord' : `accountOps.states.${event.state}`) }}</p>
                   <p v-if="event.state === 'failed'" class="mt-2 text-[11px] text-gray-500">
-                    {{ t(event.attempts < 3 ? 'accountOps.retryAt' : 'accountOps.retryStopped', { time: date(event.next_send_at) }) }}</p>
-                </td>
-                <td class="px-5 py-4"><AccountOpsDeliveryDetails :deliveries="event.deliveries" /></td>
-              </tr>
-            </tbody>
-          </table>
+                    {{ t(event.attempts < 3 ? 'accountOps.retryAt' : 'accountOps.retryStopped', { time: date(event.next_send_at) }) }}</p></template>
+            <template #cell-delivery="{ row: event }"><AccountOpsDeliveryDetails :deliveries="event.deliveries" /></template>
+          </DataTable>
         </div>
         <div v-if="!filteredEvents.length" class="flex min-h-72 flex-col items-center justify-center gap-3 p-8 text-center text-gray-500">
           <Icon name="bell" size="xl" />
@@ -172,6 +152,7 @@
 </template>
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
+import DataTable from '@/components/common/DataTable.vue'
 const contextRoute = useRoute()
 const contextAccountId = computed(() => objectQueryId(contextRoute?.query?.account_id))
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
@@ -220,6 +201,15 @@ const query = ref(''), kind = ref('all'), phase = ref('all'), alertKinds = ['bal
 const editingHook = ref<AccountOpsWebhook|null>(null), showWebhook = ref(false), showEmail = ref(false), testingId = ref<string|null>(null)
 let version = 0, accountsVersion = 0, testSequence = 0, mutationSequence = 0, paginationSequence = 0, alive = true, timer: ReturnType<typeof setInterval>|null = null
 const normalize = (c: AccountOpsConfig): AccountOpsConfig => ({ enabled:c.enabled, recipient:c.recipient,email_name:c.email_name ?? '', balance_low:c.balance_low, weekly_quota:c.weekly_quota, cooldown_minutes:c.cooldown_minutes, webhooks:(c.webhooks??[]).map(h=>({id:h.id,name:h.name,provider:h.provider,enabled:h.enabled,url_configured:h.url_configured===true,secret_configured:h.secret_configured===true,message_template:h.message_template})), groups:(c.groups??[]).map(g=>({id:g.id,name:g.name,provider:g.provider,site:g.site,account_ids:g.account_ids ? [...g.account_ids] : []})), balance_thresholds:(c.balance_thresholds??[]).map(r=>({...r,notify_alert:r.notify_alert??true,notify_recovery:r.notify_recovery??true})), quota_thresholds:(c.quota_thresholds??[]).map(r=>({...r,notify_alert:r.notify_alert??true,notify_recovery:r.notify_recovery??true})) })
+const eventColumns = computed(() => [
+  { key: 'account', label: t('qualityOps.accounts'), primary: true },
+  { key: 'phase', label: t('accountOps.eventPhase'), primary: true },
+  { key: 'value', label: t('accountOps.eventValue'), primary: true },
+  { key: 'time', label: t('accountOps.occurredAt'), primary: true },
+  { key: 'status', label: t('accountOps.mailStatus'), primary: true },
+  { key: 'delivery', label: t('accountOps.deliveryDetails'), primary: true }
+])
+const eventRowAttrs = () => ({ 'data-testid': 'notification-record' })
 const eventKey = (e: AccountOpsEvent) => e.id ?? `${e.account_id}:${e.kind}:${e.phase??'legacy'}:${e.first_seen}`
 const scopedThresholdAccounts = computed(() => thresholdAccounts.value.filter(account => !contextAccountId.value || account.account_id === contextAccountId.value))
 const scopedAccountGroups = computed(() => accountGroups.value.filter(group => !contextAccountId.value || group.account_ids.includes(contextAccountId.value)))
