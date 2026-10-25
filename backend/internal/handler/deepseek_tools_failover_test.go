@@ -24,6 +24,9 @@ func TestDeepSeekToolsFetchExcludesPATBeforeForward(t *testing.T) {
 	require.False(t, deepSeekToolsAccountAllowed(fetch, nil))
 	require.True(t, deepSeekToolsAccountAllowed(fetch, native))
 	require.True(t, deepSeekToolsAccountAllowed(search, pat), "search may still use PAT citation results")
+	search.request.NeedContent = true
+	require.False(t, deepSeekToolsAccountAllowed(search, pat), "requested page content requires a native-capable backend")
+	require.True(t, deepSeekToolsAccountAllowed(search, native))
 	require.True(t, deepSeekToolsAccountAllowed(nil, pat), "ordinary alpha retains PAT fallback")
 }
 

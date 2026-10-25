@@ -73,7 +73,7 @@ func alphaSearchGroupAllowed(key *service.APIKey, bridge *deepSeekToolsBridge) b
 }
 
 func deepSeekToolsAccountAllowed(bridge *deepSeekToolsBridge, account *service.Account) bool {
-	if bridge == nil || bridge.request.Operation != "fetch" {
+	if bridge == nil || (bridge.request.Operation != "fetch" && !bridge.request.NeedContent) {
 		return true
 	}
 	return account != nil && !account.IsOpenAIPersonalAccessToken()
