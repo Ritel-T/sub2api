@@ -32,7 +32,8 @@ import (
 )
 
 // Synthetic-only server around real PostgreSQL repositories, Redis and original
-// auth handlers. Never included in a release binary; no email/model/payment worker.
+// auth handlers. Never included in a release binary; optional loopback-only mail,
+// no model/payment worker.
 func TestAccountCenterNativeServe(t *testing.T) {
 	root := os.Getenv("RITEL_NATIVE_ACCOUNT_ROOT")
 	if root == "" {
@@ -78,12 +79,29 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	cfg.Totp.EncryptionKey = random()
 	cfg.Totp.EncryptionKeyConfigured = true
 	settingsRepo := repository.NewSettingRepository(ent)
-	require.NoError(t, settingsRepo.SetMultiple(ctx, map[string]string{service.SettingKeyRegistrationEnabled: "true", service.SettingKeyEmailVerifyEnabled: "false", service.SettingKeyTotpEnabled: "true", service.SettingKeyInvitationCodeEnabled: "true", service.SettingKeyDefaultBalance: "2", service.SettingKeyDefaultConcurrency: "5"}))
+	emailVerificationEnabled := os.Getenv("RITEL_NATIVE_EMAIL_VERIFY") == "1"
+	settingValues := map[string]string{service.SettingKeyRegistrationEnabled: "true", service.SettingKeyEmailVerifyEnabled: strconv.FormatBool(emailVerificationEnabled), service.SettingKeyTotpEnabled: "true", service.SettingKeyInvitationCodeEnabled: "true", service.SettingKeyDefaultBalance: "2", service.SettingKeyDefaultConcurrency: "5"}
+	var mailbox *accountCenterNativeMailbox
+	if emailVerificationEnabled {
+		require.NotEmpty(t, input.BridgeSecret)
+		mailbox = startAccountCenterNativeSMTP(t)
+		for key, value := range mailbox.smtpSettings() {
+			settingValues[key] = value
+		}
+	}
+	require.NoError(t, settingsRepo.SetMultiple(ctx, settingValues))
 	settings := service.NewSettingService(settingsRepo, cfg)
 	users := repository.NewUserRepository(ent, db)
 	userSvc := service.NewUserService(users, settingsRepo, nil, nil)
 	redeem := repository.NewRedeemCodeRepository(ent)
-	auth := service.NewAuthService(ent, users, redeem, repository.NewRefreshTokenCache(rdb), cfg, settings, nil, nil, nil, nil, nil, nil, nil)
+	var emailSvc *service.EmailService
+	var emailQueue *service.EmailQueueService
+	if emailVerificationEnabled {
+		emailSvc = service.NewEmailService(settingsRepo, repository.NewEmailCache(rdb))
+		emailQueue = service.NewEmailQueueService(emailSvc, 1)
+		defer emailQueue.Stop()
+	}
+	auth := service.NewAuthService(ent, users, redeem, repository.NewRefreshTokenCache(rdb), cfg, settings, emailSvc, nil, emailQueue, nil, nil, nil, nil)
 	encryptor, err := repository.NewAESEncryptor(cfg)
 	require.NoError(t, err)
 	totpSvc := service.NewTotpService(users, encryptor, repository.NewTotpCache(rdb), settings, nil, nil)
@@ -115,8 +133,20 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	r.POST("/api/v1/auth/login", h.Login)
 	r.POST("/api/v1/auth/login/2fa", h.Login2FA)
 	r.POST("/api/v1/auth/register", h.Register)
+	r.POST("/api/v1/auth/send-verify-code", h.SendVerifyCode)
+	if emailVerificationEnabled {
+		r.GET("/_fixture/mailbox", mailbox.handler(input.BridgeSecret))
+	}
 	r.GET("/api/v1/auth/me", gin.HandlerFunc(middleware2.NewJWTAuthMiddleware(auth, userSvc, settings, nil)), h.GetCurrentUser)
 	r.GET("/api/v1/internal/account-center/identities/:subject", h.AccountCenterIdentity)
+	management := NewUserHandler(userSvc, auth, emailSvc, repository.NewEmailCache(rdb), nil, nil)
+	authenticated := r.Group("/api/v1/user", gin.HandlerFunc(middleware2.NewJWTAuthMiddleware(auth, userSvc, settings, nil)))
+	authenticated.GET("/profile", management.GetProfile)
+	authenticated.PUT("", management.UpdateProfile)
+	authenticated.PUT("/password", management.ChangePassword)
+	authenticated.POST("/account-bindings/email/send-code", management.SendEmailBindingCode)
+	authenticated.POST("/account-bindings/email", management.BindEmailIdentity)
+
 	r.POST("/_fixture/change-password", func(c *gin.Context) {
 		if c.GetHeader("Authorization") != "Bearer "+input.BridgeSecret {
 			c.AbortWithStatus(401)
@@ -139,7 +169,7 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	})
 	srv := httptest.NewServer(r)
 	defer srv.Close()
-	ready := map[string]any{"syntheticOnly": true, "baseUrl": srv.URL, "bridgeSecret": input.BridgeSecret, "existing": map[string]any{"userId": user.ID, "subject": "sub2api:" + strconv.FormatInt(user.ID, 10), "email": user.Email, "password": password, "totpSecret": secret, "name": user.Username}, "invitationCode": invitation}
+	ready := map[string]any{"syntheticOnly": true, "emailVerificationEnabled": emailVerificationEnabled, "baseUrl": srv.URL, "bridgeSecret": input.BridgeSecret, "existing": map[string]any{"userId": user.ID, "subject": "sub2api:" + strconv.FormatInt(user.ID, 10), "email": user.Email, "password": password, "totpSecret": secret, "name": user.Username}, "invitationCode": invitation}
 	raw, err = json.Marshal(ready)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(root, "ready.private.json"), raw, 0600))
@@ -170,13 +200,18 @@ func TestAccountCenterNativeServe(t *testing.T) {
 				require.NoError(t, err)
 				var newID int64
 				for _, u := range all {
-					if u.Email == "new@example.test" {
+					if u.Email == "new@example.test" || (os.Getenv("RITEL_NATIVE_EMAIL_CHANGE") == "1" && u.Email == "changed-new@example.test") {
 						newID = u.ID
 						require.Equal(t, 2.0, u.Balance)
 						require.Equal(t, 5, u.Concurrency)
 					}
 				}
 				require.NotZero(t, newID)
+				if os.Getenv("RITEL_NATIVE_EMAIL_CHANGE") == "1" {
+					updated, err := users.GetByID(ctx, newID)
+					require.NoError(t, err)
+					require.Equal(t, "changed-new@example.test", updated.Email)
+				}
 				usedInvite, err := redeem.GetByCode(ctx, invitation)
 				require.NoError(t, err)
 				require.Equal(t, service.StatusUsed, usedInvite.Status)
