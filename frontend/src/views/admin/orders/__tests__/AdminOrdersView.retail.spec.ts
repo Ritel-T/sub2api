@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { PaymentOrder, RetailQuote } from '@/types/payment'
 import AdminOrdersView from '../AdminOrdersView.vue'
+import { gelvOrder, order21Logs } from '@/components/admin/payment/__tests__/orderDetailFixtures'
 
 const routeState = vi.hoisted(() => ({ query: {} as Record<string, string> }))
 vi.mock('vue-router', () => ({ useRoute: () => routeState }))
@@ -13,7 +14,7 @@ vi.mock('@/api/admin/payment', () => ({ adminPaymentAPI: { getOrders, getOrder, 
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError, showSuccess }) }))
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...await importOriginal<typeof import('vue-i18n')>(),
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => key + (params ? ' ' + Object.values(params).join(' ') : '') }),
 }))
 
 const quote: RetailQuote = {
@@ -186,6 +187,107 @@ describe('real admin orders route retail snapshots', () => {
     await flushPromises()
     expect(refundOrder.mock.calls).toEqual([[1, payload], [1, { ...payload, force: true }]])
     expect(dialog.props('show')).toBe(false)
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['wechat_virtual', 100, 9.9, 'android'],
+    ['apple_iap', 1200, 8.8, 'ios'],
+  ] as const)('renders the actual inline paid %s dialog and folds raw logs', async (channel, rate, credit, label) => {
+    const settled = gelvOrder({ amount: credit, settlement: { channel, fee_rate_bps: rate, verified: true } })
+    const logs = order21Logs.map(log => log.action === 'RECHARGE_SUCCESS' ? { ...log, detail: JSON.stringify({ creditedAmount: credit, rechargeCode: 'preview-redacted' }) } : log)
+    getOrders.mockResolvedValueOnce({ data: { items: [settled], total: 1 } })
+    getOrder.mockResolvedValueOnce({ data: { order: settled, audit_logs: logs } })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'common.view')!.trigger('click')
+    await flushPromises()
+    const detail = wrapper.get('[data-testid="order-detail"]')
+    const amounts = detail.get('[data-testid="admin-retail-order-amounts"]').text()
+    expect(amounts).toContain('payment.admin.detail.actualPaid')
+    expect(amounts).toContain('¥10.00 CNY')
+    expect(amounts).toContain('$' + credit.toFixed(2))
+    expect(amounts).not.toContain('principalCNY')
+    expect(amounts).not.toContain('gelv.android')
+    expect(amounts).not.toContain('gelv.ios')
+    expect(amounts).toContain('payment.admin.detail.' + label)
+    expect(detail.text()).toContain('gelv.name')
+    expect(detail.text()).not.toContain('payment.admin.expiresAt')
+    expect(detail.text()).toContain('payment.admin.completedAt')
+    const technical = detail.findAll('[data-testid="audit-technical-detail"]')
+    expect(technical).toHaveLength(4)
+    expect(technical.every(item => item.attributes('open') === undefined)).toBe(true)
+    expect(technical[0].get('pre').text()).toContain('8.8')
+    const readable = detail.findAll('p').filter(item => !item.element.closest('details')).map(item => item.text()).join(' ')
+    expect(readable).not.toContain('rechargeCode')
+    expect(readable).toContain('payment.admin.detail.creditSummary $' + credit.toFixed(2))
+    expect(readable).not.toContain('createdEstimate')
+    if (credit === 9.9) expect(readable).not.toContain('8.80')
+    expect(detail.findAll('p').find(item => item.text() === settled.out_trade_no)!.classes()).toContain('break-all')
+    await technical[0].get('summary').trigger('click')
+    // jsdom has no native layout; opening remains the native details/summary control's responsibility.
+    expect(technical[0].get('summary').text()).toBe('payment.admin.detail.technicalDetails')
+    wrapper.unmount()
+  })
+
+  it('retains pending platform estimates, creation estimate and expiry in the inline dialog', async () => {
+    const pending = gelvOrder({ amount: 8.8, status: 'PENDING', paid_at: undefined, completed_at: undefined })
+    getOrders.mockResolvedValueOnce({ data: { items: [pending], total: 1 } })
+    getOrder.mockResolvedValueOnce({ data: { order: pending, auditLogs: [order21Logs[0]] } })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'common.view')!.trigger('click')
+    await flushPromises()
+    const detail = wrapper.get('[data-testid="order-detail"]')
+    expect(detail.text()).toContain('gelv.android')
+    expect(detail.text()).toContain('gelv.ios')
+    expect(detail.text()).toContain('payment.admin.expiresAt')
+    expect(detail.text()).toContain('payment.admin.detail.createdEstimate ¥10.00 CNY $8.80')
+    expect(detail.find('[data-testid="verified-payment-platform"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('ignores a late detail response after another order is opened', async () => {
+    const first = gelvOrder()
+    const second = gelvOrder({ id: 22, amount: 8.8 })
+    getOrders.mockResolvedValueOnce({ data: { items: [first, second], total: 2 } })
+    let finish!: (value: unknown) => void
+    getOrder.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+      .mockResolvedValueOnce({ data: { order: second, audit_logs: [] } })
+    const wrapper = mountView()
+    await flushPromises()
+    const view = (id: number) => wrapper.get('[data-order="' + id + '"]').findAll('button').find(button => button.text() === 'common.view')!
+    await view(21).trigger('click')
+    await view(22).trigger('click')
+    await flushPromises()
+    finish({ data: { order: first, audit_logs: order21Logs } })
+    await flushPromises()
+    const detail = wrapper.get('[data-testid="order-detail"]')
+    expect(detail.text()).toContain('#22')
+    expect(detail.text()).not.toContain('#21')
+    expect(detail.findAll('details')).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['PAID', undefined, 'awaitingCredit'],
+    ['RECHARGING', undefined, 'awaitingCredit'],
+    ['FAILED', undefined, 'awaitingCredit'],
+    ['FAILED', '2026-10-25T12:02:01Z', 'actualCredited'],
+  ] as const)('separates paid cash from balance fulfillment in inline %s with completion %s', async (status, completed_at, label) => {
+    const paid = gelvOrder({ status, completed_at })
+    getOrders.mockResolvedValueOnce({ data: { items: [paid], total: 1 } })
+    getOrder.mockResolvedValueOnce({ data: { order: paid, audit_logs: [] } })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'common.view')!.trigger('click')
+    await flushPromises()
+    const text = wrapper.get('[data-testid="admin-retail-order-amounts"]').text()
+    expect(text).toContain('payment.admin.detail.actualPaid')
+    expect(text).toContain('payment.admin.detail.' + label)
+    expect(text).toContain('¥10.00 CNY')
+    expect(text).toContain('$9.90')
+    if (label === 'awaitingCredit') expect(text).not.toContain('payment.admin.detail.actualCredited')
     wrapper.unmount()
   })
 

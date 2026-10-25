@@ -66,16 +66,17 @@
       <div v-if="selectedOrder" class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</p><p class="font-mono text-sm font-medium text-gray-900 dark:text-white">#{{ selectedOrder.id }}</p></div>
-          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ selectedOrder.out_trade_no }}</p></div>
+          <div class="min-w-0"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</p><p class="break-all text-sm font-medium text-gray-900 dark:text-white">{{ selectedOrder.out_trade_no }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.status') }}</p><OrderStatusBadge :status="selectedOrder.status" /></div>
-          <AdminRetailOrderAmounts v-if="selectedOrder.retail_quote" :quote="selectedOrder.retail_quote" class="col-span-2" />
+          <AdminRetailOrderAmounts v-if="selectedOrder.retail_quote" :quote="selectedOrder.retail_quote" :order="selectedOrder" class="col-span-2" />
           <div v-else><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ selectedOrder.amount.toFixed(2) }}</p></div>
           <div v-if="!selectedOrder.retail_quote"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(selectedOrder) }}{{ selectedOrder.pay_amount.toFixed(2) }}</p></div>
-          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.payment_type === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + selectedOrder.payment_type, selectedOrder.payment_type) }}</p></div>
+          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.payment_type === 'gelv' ? t('gelv.name') : selectedOrder.payment_type === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + selectedOrder.payment_type, selectedOrder.payment_type) }}</p></div>
           <div v-if="!selectedOrder.retail_quote"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.feeRate') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.fee_rate }}%</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.createdAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.created_at) }}</p></div>
-          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.expiresAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.expires_at) }}</p></div>
+          <div v-if="!hasOrderPayment(selectedOrder)"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.expiresAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.expires_at) }}</p></div>
           <div v-if="selectedOrder.paid_at"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.paidAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.paid_at) }}</p></div>
+          <div v-if="selectedOrder.completed_at"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.completedAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.completed_at) }}</p></div>
           <div v-if="selectedOrder.refund_amount"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.refundAmount') }}</p><p class="text-sm font-medium text-red-600 dark:text-red-400">{{ creditedAmountSymbol }}{{ selectedOrder.refund_amount.toFixed(2) }}</p></div>
           <div v-if="selectedOrder.refund_reason" class="col-span-2"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.refundReason') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.refund_reason }}</p></div>
           <!-- Refund request info -->
@@ -101,13 +102,18 @@
         <div v-if="orderAuditLogs.length > 0" class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <p class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('payment.admin.auditLogs') }}</p>
           <div class="max-h-48 space-y-2 overflow-y-auto">
-            <div v-for="log in orderAuditLogs" :key="log.id" class="rounded-lg border border-gray-100 bg-gray-50 p-2.5 dark:border-dark-600 dark:bg-dark-800">
+            <div v-for="log in displayAuditLogs" :key="log.id" class="rounded-lg border border-gray-100 bg-gray-50 p-2.5 dark:border-dark-600 dark:bg-dark-800">
               <div class="flex items-center justify-between">
-                <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ log.action }}</span>
+                <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ t(log.titleKey) }}</span>
                 <span class="text-xs text-gray-400">{{ formatDateTime(log.created_at) }}</span>
               </div>
-              <div v-if="log.detail" class="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">{{ log.detail }}</div>
-              <div v-if="log.operator" class="mt-1 text-xs text-gray-400">{{ t('payment.admin.operator') }}: {{ log.operator }}</div>
+              <p v-if="log.summaryKey" class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t(log.summaryKey, log.params) }}</p>
+              <details class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-testid="audit-technical-detail">
+                <summary class="cursor-pointer">{{ t('payment.admin.detail.technicalDetails') }}</summary>
+                <p class="mt-1 break-all">{{ log.action }}</p>
+                <pre v-if="log.detail" class="mt-1 whitespace-pre-wrap break-all font-mono">{{ formatAuditDetail(log.detail) }}</pre>
+                <p v-if="log.operator" class="mt-1">{{ t('payment.admin.operator') }}: {{ log.operator }}</p>
+              </details>
             </div>
           </div>
         </div>
@@ -142,13 +148,7 @@ import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import OrderTable from '@/components/payment/OrderTable.vue'
 import { currencySymbol } from '@/components/payment/currency'
 
-interface AuditLog {
-  id: number
-  action: string
-  detail: string | null
-  operator: string | null
-  created_at: string
-}
+import { hasOrderPayment, summarizeOrderAuditLog, formatAuditDetail, type OrderAuditLog } from '@/components/admin/payment/adminOrderDetail'
 
 const { t } = useI18n()
 const tableToolbarTarget = ref<HTMLElement | null>(null)
@@ -167,7 +167,10 @@ const refundOrder = ref<PaymentOrder | null>(null)
 const refundRequireForce = ref(false)
 const refundWarning = ref('')
 const refundQueryingIds = ref(new Set<number>())
-const orderAuditLogs = ref<AuditLog[]>([])
+const orderAuditLogs = ref<OrderAuditLog[]>([])
+const displayAuditLogs = computed(() => orderAuditLogs.value.map(log => ({
+  ...log, ...summarizeOrderAuditLog(log, selectedOrder.value),
+})))
 const creditedAmountSymbol = currencySymbol('USD')
 
 function paymentAmountSymbol(order: PaymentOrder | null | undefined): string {
@@ -238,9 +241,10 @@ async function showOrderDetail(order: PaymentOrder) {
   showDetailDialog.value = true
   try {
     const res = await adminPaymentAPI.getOrder(order.id)
+    if (selectedOrder.value?.id !== order.id || !showDetailDialog.value) return
     const data = res.data as unknown as Record<string, unknown>
     if (data.order) selectedOrder.value = data.order as PaymentOrder
-    orderAuditLogs.value = ((data.auditLogs || data.audit_logs || []) as unknown) as AuditLog[]
+    orderAuditLogs.value = ((data.auditLogs || data.audit_logs || []) as unknown) as OrderAuditLog[]
   } catch (_err: unknown) { /* keep cached order data */ }
 }
 

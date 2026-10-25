@@ -17,7 +17,7 @@
             {{ t('payment.status.' + order.status.toLowerCase(), order.status) }}
           </span>
         </div>
-        <AdminRetailOrderAmounts v-if="order.retail_quote" :quote="order.retail_quote" class="col-span-2" />
+        <AdminRetailOrderAmounts v-if="order.retail_quote" :quote="order.retail_quote" :order="order" class="col-span-2" />
         <template v-else>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</p>
@@ -43,7 +43,7 @@
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p>
           <p class="text-sm text-gray-700 dark:text-gray-300">
-            {{ order.payment_type === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + order.payment_type, order.payment_type) }}
+            {{ order.payment_type === 'gelv' ? t('gelv.name') : order.payment_type === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + order.payment_type, order.payment_type) }}
           </p>
         </div>
         <div>
@@ -60,7 +60,7 @@
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.createdAt') }}</p>
           <p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(order.created_at) }}</p>
         </div>
-        <div>
+        <div v-if="!hasOrderPayment(order)">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.expiresAt') }}</p>
           <p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(order.expires_at) }}</p>
         </div>
@@ -126,6 +126,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import AdminRetailOrderAmounts from './AdminRetailOrderAmounts.vue'
+import { hasOrderPayment } from './adminOrderDetail'
 import type { PaymentOrder } from '@/types/payment'
 import { statusBadgeClass, canRefund as canRefundStatus, formatOrderDateTime } from '@/components/payment/orderUtils'
 import { currencySymbol } from '@/components/payment/currency'

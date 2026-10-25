@@ -5,6 +5,7 @@ import AdminOrderDetail from '../AdminOrderDetail.vue'
 import AdminOrderTable from '../AdminOrderTable.vue'
 import AdminRefundDialog from '../AdminRefundDialog.vue'
 import OrderTable from '@/components/payment/OrderTable.vue'
+import { gelvOrder } from './orderDetailFixtures'
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -196,7 +197,7 @@ describe('admin immutable retail order amounts', () => {
 
   it('labels new CNY-based site credit separately from cash principal and gateway currency', () => {
     const wrapper = mount(AdminOrderDetail, {
-      props: { show: true, order: { ...order, retail_quote: { ...retailQuote, pricing_basis_currency: 'CNY', base_amount_cny: 10, base_amount_gbp: 1.05, total_amount_gbp: 1.36, included_cost_gbp: 0.31, pay_amount: 13.06 } } },
+      props: { show: true, order: { ...order, pay_amount: 13.06, retail_quote: { ...retailQuote, pricing_basis_currency: 'CNY', base_amount_cny: 10, base_amount_gbp: 1.05, total_amount_gbp: 1.36, included_cost_gbp: 0.31, pay_amount: 13.06 } } },
       global: { stubs: { BaseDialog: BaseDialogStub } },
     })
     const text = wrapper.get('[data-testid="admin-retail-order-amounts"]').text()
@@ -238,4 +239,20 @@ describe('admin immutable retail order amounts', () => {
     expect(wrapper.text()).not.toContain('88%')
     wrapper.unmount()
   })
+  it.each([9.9, 8.8])('uses actual paid Gelv $%s credit in the compact admin table', credit => {
+    const wrapper = mount(AdminOrderTable, {
+      props: { orders: [gelvOrder({ amount: credit })], loading: false, page: 1, pageSize: 20, total: 1 },
+      global: { stubs: { DataTable: DataTableStub, Icon: true, Pagination: true, Select: true } },
+    })
+    const text = wrapper.get('[data-testid="admin-retail-order-amounts"]').text()
+    expect(text).toContain('payment.admin.detail.actualPaid')
+    expect(text).toContain('¥10.00 CNY')
+    expect(text).toContain('$' + credit.toFixed(2))
+    expect(text).not.toContain('principalCNY')
+    expect(text).not.toContain('gelv.android')
+    expect(text).not.toContain('gelv.ios')
+    if (credit === 9.9) expect(text).not.toContain('8.80')
+    wrapper.unmount()
+  })
+
 })

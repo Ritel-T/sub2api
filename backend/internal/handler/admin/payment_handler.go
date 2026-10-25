@@ -116,50 +116,83 @@ func (h *PaymentHandler) RetryFulfillment(c *gin.Context) {
 	response.Success(c, gin.H{"message": "fulfillment retried"})
 }
 
+// AdminPaymentSettlement exposes only verified display evidence, never provider credentials.
+type AdminPaymentSettlement struct {
+	Channel    string `json:"channel"`
+	FeeRateBps int    `json:"fee_rate_bps"`
+	Verified   bool   `json:"verified"`
+}
+
+func adminPaymentSettlement(order *dbent.PaymentOrder) *AdminPaymentSettlement {
+	if order == nil || order.PaymentType != "gelv" || order.PaidAt == nil {
+		return nil
+	}
+	snapshot := order.ProviderSnapshot
+	if snapshot["gelv_channel_verification_status"] != "verified" {
+		return nil
+	}
+	channel, _ := snapshot["gelv_payment_channel"].(string)
+	rate, _ := snapshot["gelv_fee_rate_bps"].(string)
+	expected := 0
+	switch channel {
+	case "wechat_virtual":
+		expected = 100
+	case "apple_iap":
+		expected = 1200
+	default:
+		return nil
+	}
+	if rate != strconv.Itoa(expected) {
+		return nil
+	}
+	return &AdminPaymentSettlement{Channel: channel, FeeRateBps: expected, Verified: true}
+}
+
 type AdminPaymentOrderResult struct {
-	ID                  int64                `json:"id"`
-	UserID              int64                `json:"user_id"`
-	UserEmail           string               `json:"user_email,omitempty"`
-	UserName            string               `json:"user_name,omitempty"`
-	UserNotes           *string              `json:"user_notes,omitempty"`
-	Amount              float64              `json:"amount"`
-	PayAmount           float64              `json:"pay_amount"`
-	RetailQuote         *service.RetailQuote `json:"retail_quote,omitempty"`
-	FeeRate             float64              `json:"fee_rate"`
-	BonusAmount         float64              `json:"bonus_amount"`
-	Currency            string               `json:"currency"`
-	RechargeCode        string               `json:"recharge_code,omitempty"`
-	OutTradeNo          string               `json:"out_trade_no"`
-	PaymentType         string               `json:"payment_type"`
-	PaymentTradeNo      string               `json:"payment_trade_no,omitempty"`
-	PayURL              *string              `json:"pay_url,omitempty"`
-	QRCode              *string              `json:"qr_code,omitempty"`
-	QRCodeImg           *string              `json:"qr_code_img,omitempty"`
-	OrderType           string               `json:"order_type"`
-	PlanID              *int64               `json:"plan_id,omitempty"`
-	SubscriptionGroupID *int64               `json:"subscription_group_id,omitempty"`
-	SubscriptionDays    *int                 `json:"subscription_days,omitempty"`
-	ProviderInstanceID  *string              `json:"provider_instance_id,omitempty"`
-	ProviderKey         *string              `json:"provider_key,omitempty"`
-	Status              string               `json:"status"`
-	RefundAmount        float64              `json:"refund_amount"`
-	RefundReason        *string              `json:"refund_reason,omitempty"`
-	RefundAt            *time.Time           `json:"refund_at,omitempty"`
-	ForceRefund         bool                 `json:"force_refund,omitempty"`
-	RefundRequestedAt   *time.Time           `json:"refund_requested_at,omitempty"`
-	RefundRequestReason *string              `json:"refund_request_reason,omitempty"`
-	RefundRequestedBy   *string              `json:"refund_requested_by,omitempty"`
-	ExpiresAt           time.Time            `json:"expires_at"`
-	PaidAt              *time.Time           `json:"paid_at,omitempty"`
-	CompletedAt         *time.Time           `json:"completed_at,omitempty"`
-	FailedAt            *time.Time           `json:"failed_at,omitempty"`
-	FailedReason        *string              `json:"failed_reason,omitempty"`
-	ClientIP            string               `json:"client_ip,omitempty"`
-	SrcHost             string               `json:"src_host,omitempty"`
-	SrcURL              *string              `json:"src_url,omitempty"`
-	CreatedAt           time.Time            `json:"created_at"`
-	UpdatedAt           time.Time            `json:"updated_at"`
-	RenewalMode         string               `json:"renewal_mode,omitempty"`
+	ID                  int64                   `json:"id"`
+	UserID              int64                   `json:"user_id"`
+	UserEmail           string                  `json:"user_email,omitempty"`
+	UserName            string                  `json:"user_name,omitempty"`
+	UserNotes           *string                 `json:"user_notes,omitempty"`
+	Amount              float64                 `json:"amount"`
+	PayAmount           float64                 `json:"pay_amount"`
+	RetailQuote         *service.RetailQuote    `json:"retail_quote,omitempty"`
+	Settlement          *AdminPaymentSettlement `json:"settlement,omitempty"`
+	FeeRate             float64                 `json:"fee_rate"`
+	BonusAmount         float64                 `json:"bonus_amount"`
+	Currency            string                  `json:"currency"`
+	RechargeCode        string                  `json:"recharge_code,omitempty"`
+	OutTradeNo          string                  `json:"out_trade_no"`
+	PaymentType         string                  `json:"payment_type"`
+	PaymentTradeNo      string                  `json:"payment_trade_no,omitempty"`
+	PayURL              *string                 `json:"pay_url,omitempty"`
+	QRCode              *string                 `json:"qr_code,omitempty"`
+	QRCodeImg           *string                 `json:"qr_code_img,omitempty"`
+	OrderType           string                  `json:"order_type"`
+	PlanID              *int64                  `json:"plan_id,omitempty"`
+	SubscriptionGroupID *int64                  `json:"subscription_group_id,omitempty"`
+	SubscriptionDays    *int                    `json:"subscription_days,omitempty"`
+	ProviderInstanceID  *string                 `json:"provider_instance_id,omitempty"`
+	ProviderKey         *string                 `json:"provider_key,omitempty"`
+	Status              string                  `json:"status"`
+	RefundAmount        float64                 `json:"refund_amount"`
+	RefundReason        *string                 `json:"refund_reason,omitempty"`
+	RefundAt            *time.Time              `json:"refund_at,omitempty"`
+	ForceRefund         bool                    `json:"force_refund,omitempty"`
+	RefundRequestedAt   *time.Time              `json:"refund_requested_at,omitempty"`
+	RefundRequestReason *string                 `json:"refund_request_reason,omitempty"`
+	RefundRequestedBy   *string                 `json:"refund_requested_by,omitempty"`
+	ExpiresAt           time.Time               `json:"expires_at"`
+	PaidAt              *time.Time              `json:"paid_at,omitempty"`
+	CompletedAt         *time.Time              `json:"completed_at,omitempty"`
+	FailedAt            *time.Time              `json:"failed_at,omitempty"`
+	FailedReason        *string                 `json:"failed_reason,omitempty"`
+	ClientIP            string                  `json:"client_ip,omitempty"`
+	SrcHost             string                  `json:"src_host,omitempty"`
+	SrcURL              *string                 `json:"src_url,omitempty"`
+	CreatedAt           time.Time               `json:"created_at"`
+	UpdatedAt           time.Time               `json:"updated_at"`
+	RenewalMode         string                  `json:"renewal_mode,omitempty"`
 }
 
 func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*AdminPaymentOrderResult {
@@ -185,6 +218,7 @@ func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *AdminPayme
 		Amount:              order.Amount,
 		PayAmount:           order.PayAmount,
 		RetailQuote:         service.PaymentOrderRetailQuote(order),
+		Settlement:          adminPaymentSettlement(order),
 		FeeRate:             order.FeeRate,
 		BonusAmount:         order.BonusAmount,
 		Currency:            service.PaymentOrderCurrency(order),

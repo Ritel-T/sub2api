@@ -195,6 +195,8 @@ export interface PaymentOrder {
   renewal_mode?: SubscriptionRenewalMode
   provider_instance_id?: string
   retail_quote?: RetailQuote
+  /** Verified server-side payment channel; omitted when evidence is unavailable. */
+  settlement?: { channel: 'wechat_virtual' | 'apple_iap'; fee_rate_bps: number; verified: true }
   payment_claim_mode?: PaymentClaimMode
   pay_url?: string
 }
