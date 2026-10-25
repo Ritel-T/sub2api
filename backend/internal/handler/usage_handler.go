@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -50,6 +51,7 @@ type UsageHandler struct {
 	apiKeyService  *service.APIKeyService
 	opsService     *service.OpsService
 	settingService *service.SettingService
+	statsCache     *admin.UsageStatsReadCache
 }
 
 // NewUsageHandler creates a new UsageHandler
@@ -64,6 +66,7 @@ func NewUsageHandler(
 		apiKeyService:  apiKeyService,
 		opsService:     opsService,
 		settingService: settingService,
+		statsCache:     admin.NewUsageStatsReadCache(),
 	}
 }
 
@@ -481,7 +484,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.usageService.GetStatsWithFilters(c.Request.Context(), parsed.Filters)
+	stats, err := h.historicalStats(c, parsed)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

@@ -51,8 +51,7 @@ func (r *usageLogRepository) runConnectionWriter() {
 			}
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_, err := r.db.ExecContext(ctx, `DELETE FROM request_connection_traces WHERE trace_id IN
-    (SELECT trace_id FROM request_connection_traces WHERE started_at < NOW()-INTERVAL '30 days' LIMIT 10000)`)
+			err := r.cleanupConnectionTraces(ctx)
 			cancel()
 			if err != nil {
 				logger.LegacyPrintf("connection_diagnostics", "retention failed")
@@ -171,7 +170,11 @@ func (r *usageLogRepository) ListConnectionTraces(ctx context.Context, f service
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	out := &service.ConnectionTraceList{Items: []service.ConnectionTrace{}, Page: f.Page, PageSize: f.PageSize, RetentionDays: 30}
+	out := &service.ConnectionTraceList{Items: []service.ConnectionTrace{}, Page: f.Page, PageSize: f.PageSize, RetentionDays: diagnosticRetentionDays()}
+	if diagnosticArchiveManaged() {
+		out.ArchiveManaged = true
+		out.HotRetentionTargetDays = 3
+	}
 	for rows.Next() {
 		var v service.ConnectionTrace
 		var raw []byte
@@ -253,4 +256,15 @@ func (r *usageLogRepository) ImportEdgeConnections(ctx context.Context, records 
 		}
 	}
 	return nil
+}
+
+// cleanupConnectionTraces leaves deletion exclusively to the external archiver
+// when enabled; lack of archive progress must never reactivate a time-only TTL.
+func (r *usageLogRepository) cleanupConnectionTraces(ctx context.Context) error {
+	if diagnosticArchiveManaged() {
+		return nil
+	}
+	_, err := r.db.ExecContext(ctx, `DELETE FROM request_connection_traces WHERE trace_id IN
+    (SELECT trace_id FROM request_connection_traces WHERE started_at < NOW()-INTERVAL '30 days' LIMIT 10000)`)
+	return err
 }

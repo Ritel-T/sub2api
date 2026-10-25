@@ -2,6 +2,7 @@ package admin
 
 import (
 	"container/list"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -69,6 +70,10 @@ func (c *snapshotCache) Get(key string) (snapshotCacheEntry, bool) {
 }
 
 func (c *snapshotCache) Set(key string, payload any) snapshotCacheEntry {
+	return c.setContext(context.Background(), key, payload)
+}
+
+func (c *snapshotCache) setContext(ctx context.Context, key string, payload any) snapshotCacheEntry {
 	if c == nil {
 		return snapshotCacheEntry{}
 	}
@@ -85,6 +90,10 @@ func (c *snapshotCache) Set(key string, payload any) snapshotCacheEntry {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// Serialization may outlive a canceled request; do not publish its result.
+	if ctx.Err() != nil {
+		return entry
+	}
 	entry.ExpiresAt = time.Now().Add(c.ttl)
 	c.remove(key)
 	cost := len(raw) + len(key)
@@ -156,6 +165,63 @@ func (c *snapshotCache) GetOrLoad(key string, load func() (any, error)) (snapsho
 		return snapshotCacheEntry{}, false, nil
 	}
 	return result.Entry, result.Hit, nil
+}
+
+// GetOrLoadContext lets each waiter leave independently. The shared loader
+// retains its initiating request's context: cancellation/errors are not cached,
+// and surviving waiters may receive that error (there is no automatic retry).
+func (c *snapshotCache) GetOrLoadContext(ctx context.Context, key string, load func() (any, error)) (snapshotCacheEntry, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return snapshotCacheEntry{}, false, err
+	}
+	if load == nil {
+		return snapshotCacheEntry{}, false, nil
+	}
+	if entry, ok := c.Get(key); ok {
+		return entry, true, ctx.Err()
+	}
+	loadEntry := func() (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if entry, ok := c.Get(key); ok {
+			return snapshotCacheLoadResult{Entry: entry, Hit: true}, nil
+		}
+		payload, err := load()
+		if err != nil {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		entry := c.setContext(ctx, key, payload)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return snapshotCacheLoadResult{Entry: entry}, nil
+	}
+	if c == nil || key == "" {
+		value, err := loadEntry()
+		if err != nil {
+			return snapshotCacheEntry{}, false, err
+		}
+		result := value.(snapshotCacheLoadResult)
+		return result.Entry, result.Hit, nil
+	}
+	resultCh := c.sf.DoChan(key, loadEntry)
+	select {
+	case <-ctx.Done():
+		return snapshotCacheEntry{}, false, ctx.Err()
+	case result := <-resultCh:
+		if err := ctx.Err(); err != nil {
+			return snapshotCacheEntry{}, false, err
+		}
+		if result.Err != nil {
+			return snapshotCacheEntry{}, false, result.Err
+		}
+		loaded := result.Val.(snapshotCacheLoadResult)
+		return loaded.Entry, loaded.Hit, nil
+	}
 }
 
 func parseBoolQueryWithDefault(raw string, def bool) bool {

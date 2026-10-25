@@ -109,5 +109,6 @@ func (h *UsageHandler) ObserverTiming(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, gin.H{"traces": traces, "retention_days": 30})
+	days, managed := service.DiagnosticRetentionMetadata()
+	response.Success(c, gin.H{"traces": traces, "retention_days": days, "archive_managed": managed})
 }

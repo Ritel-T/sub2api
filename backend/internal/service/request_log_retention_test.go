@@ -23,7 +23,7 @@ func TestRequestLogRetention_RuntimePolicy(t *testing.T) {
 		{"legacy uses deployment", `{"retention_days":30}`, true, 90, true},
 		{"short window", `{"request_retention_days":7}`, true, 7, true},
 		{"long window extends dedup", `{"request_retention_days":730}`, true, 730, true},
-		{"forever skips request and dedup deletion", `{"request_retention_days":0}`, true, 0, false},
+		{"forever keeps usage and archives dedup", `{"request_retention_days":0}`, true, 0, false},
 		{"works without aggregation", `{"request_retention_days":14}`, false, 14, true},
 		{"legacy disabled stays disabled", `{"retention_days":30}`, false, 0, false},
 	} {
@@ -44,9 +44,10 @@ func TestRequestLogRetention_RuntimePolicy(t *testing.T) {
 				require.Equal(t, now.AddDate(0, 0, -max(365, tt.wantDays)), repo.cleanupDedupCutoff)
 			} else {
 				require.Zero(t, repo.cleanupUsageCalls)
-				require.Zero(t, repo.cleanupDedupCalls)
 			}
-			if !tt.enabled {
+			require.Equal(t, 1, repo.cleanupDedupCalls)
+			require.Equal(t, now.AddDate(0, 0, -max(365, tt.wantDays)), repo.cleanupDedupCutoff)
+			if !tt.enabled || tt.wantDays == 0 {
 				require.Zero(t, repo.cleanupAggregateCalls)
 			}
 			// Read the updated policy at the next rolling cleanup.
@@ -106,4 +107,59 @@ func TestRuntimeLogConfig_RequestRetentionCompatibility(t *testing.T) {
 	reset, err := svc.ResetRuntimeLogConfig(context.Background(), 1)
 	require.NoError(t, err)
 	require.Equal(t, 90, *reset.RequestRetentionDays)
+}
+
+func TestRequestLogRetention_ForeverPreservesAggregatesAndRetriesDedup(t *testing.T) {
+	settings := newRuntimeSettingRepoStub()
+	settings.values[SettingKeyOpsRuntimeLogConfig] = `{"request_retention_days":0}`
+	repo := &dashboardAggregationRepoTestStub{cleanupDedupErr: errors.New("archive unavailable")}
+	svc := NewDashboardAggregationService(repo, nil, &config.Config{DashboardAgg: config.DashboardAggregationConfig{
+		Enabled: true, Retention: config.DashboardAggregationRetentionConfig{UsageLogsDays: 90, UsageBillingDedupDays: 365, HourlyDays: 180, DailyDays: 730},
+	}})
+	svc.settingRepo = settings
+	now := time.Date(2026, 10, 25, 1, 0, 0, 0, time.UTC)
+	svc.maybeCleanupRetention(context.Background(), now)
+	require.Zero(t, repo.cleanupUsageCalls)
+	require.Zero(t, repo.cleanupAggregateCalls)
+	require.Equal(t, 1, repo.cleanupDedupCalls)
+	require.Nil(t, svc.lastRetentionCleanup.Load())
+	repo.cleanupDedupErr = nil
+	svc.maybeCleanupRetention(context.Background(), now.Add(time.Minute))
+	require.Equal(t, 2, repo.cleanupDedupCalls)
+	require.Equal(t, now.Add(time.Minute).AddDate(0, 0, -365), repo.cleanupDedupCutoff)
+	require.Equal(t, now.Add(time.Minute), svc.lastRetentionCleanup.Load())
+	require.Zero(t, repo.cleanupUsageCalls)
+	require.Zero(t, repo.cleanupAggregateCalls)
+	// Successful cycles remain throttled; no hourly repeated archive scans.
+	svc.maybeCleanupRetention(context.Background(), now.Add(2*time.Minute))
+	require.Equal(t, 2, repo.cleanupDedupCalls)
+}
+
+func TestRequestLogRetention_InvalidDeploymentSkipsCleanup(t *testing.T) {
+	for _, retention := range []config.DashboardAggregationRetentionConfig{
+		{UsageLogsDays: -1, UsageBillingDedupDays: 365},
+		{UsageLogsDays: 0, UsageBillingDedupDays: -1},
+	} {
+		repo := &dashboardAggregationRepoTestStub{}
+		svc := NewDashboardAggregationService(repo, nil, &config.Config{DashboardAgg: config.DashboardAggregationConfig{Enabled: true, Retention: retention}})
+		if retention.UsageLogsDays != 0 {
+			_, err := svc.requestRetentionDays(context.Background())
+			require.ErrorContains(t, err, "usage_logs_days")
+		}
+		svc.maybeCleanupRetention(context.Background(), time.Now())
+		require.Zero(t, repo.cleanupUsageCalls)
+		require.Zero(t, repo.cleanupDedupCalls)
+		require.Zero(t, repo.cleanupAggregateCalls)
+		require.Nil(t, svc.lastRetentionCleanup.Load())
+	}
+}
+
+func TestRequestLogRetention_ForeverDedupZeroKeepsExistingDefault(t *testing.T) {
+	repo := &dashboardAggregationRepoTestStub{}
+	svc := NewDashboardAggregationService(repo, nil, &config.Config{DashboardAgg: config.DashboardAggregationConfig{Enabled: true}})
+	now := time.Date(2026, 10, 25, 1, 0, 0, 0, time.UTC)
+	svc.maybeCleanupRetention(context.Background(), now)
+	require.Zero(t, repo.cleanupUsageCalls)
+	require.Zero(t, repo.cleanupAggregateCalls)
+	require.Equal(t, now.AddDate(0, 0, -365), repo.cleanupDedupCutoff)
 }

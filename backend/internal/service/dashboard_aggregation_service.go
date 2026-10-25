@@ -375,14 +375,20 @@ func (s *DashboardAggregationService) maybeCleanupRetention(ctx context.Context,
 	dailyCutoff := now.AddDate(0, 0, -s.cfg.Retention.DailyDays)
 	usageCutoff := now.AddDate(0, 0, -usageDays)
 	dedupDays := s.cfg.Retention.UsageBillingDedupDays
-	if dedupDays <= 0 {
+	if dedupDays < 0 {
+		logger.LegacyPrintf("service.dashboard_aggregation", "[DashboardAggregation] invalid usage_billing_dedup_days: %d; skipping cleanup", dedupDays)
+		return
+	}
+	if dedupDays == 0 {
 		dedupDays = 365
 	}
 	dedupDays = max(dedupDays, usageDays)
 	dedupCutoff := now.AddDate(0, 0, -dedupDays)
 
 	var aggErr, usageErr, dedupErr error
-	if s.cfg.Enabled {
+	// Full business history also keeps existing derived historical buckets.
+	// Do not interpret unrelated retention zero values as a universal policy.
+	if s.cfg.Enabled && usageDays > 0 {
 		aggErr = s.repo.CleanupAggregates(ctx, hourlyCutoff, dailyCutoff)
 	}
 	if aggErr != nil {
@@ -394,9 +400,9 @@ func (s *DashboardAggregationService) maybeCleanupRetention(ctx context.Context,
 	if usageErr != nil {
 		logger.LegacyPrintf("service.dashboard_aggregation", "[DashboardAggregation] usage_logs 保留清理失败: %v", usageErr)
 	}
-	if usageDays > 0 {
-		dedupErr = s.repo.CleanupUsageBillingDedup(ctx, dedupCutoff)
-	}
+	// This moves exact keys into the archive; it does not expire idempotency.
+	// Keeping usage forever must not prevent this independent bounded move.
+	dedupErr = s.repo.CleanupUsageBillingDedup(ctx, dedupCutoff)
 	if dedupErr != nil {
 		logger.LegacyPrintf("service.dashboard_aggregation", "[DashboardAggregation] usage_billing_dedup 保留清理失败: %v", dedupErr)
 	}
@@ -407,6 +413,9 @@ func (s *DashboardAggregationService) maybeCleanupRetention(ctx context.Context,
 
 func (s *DashboardAggregationService) requestRetentionDays(ctx context.Context) (int, error) {
 	days := s.cfg.Retention.UsageLogsDays
+	if days < 0 {
+		return 0, fmt.Errorf("invalid usage_logs_days: %d", days)
+	}
 	if !s.cfg.Enabled {
 		days = 0
 	}

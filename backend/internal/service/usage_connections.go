@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -60,6 +61,11 @@ type ConnectionTraceList struct {
 	Page          int               `json:"page"`
 	PageSize      int               `json:"page_size"`
 	RetentionDays int               `json:"retention_days"`
+	// RetentionDays is the legacy TTL, or the hot target when ArchiveManaged.
+	// The target is advisory, not an independent application TTL: failed archive
+	// verification keeps older rows.
+	ArchiveManaged         bool `json:"archive_managed,omitempty"`
+	HotRetentionTargetDays int  `json:"hot_retention_target_days,omitempty"`
 }
 
 func (s *UsageService) RecordConnectionTrace(record ConnectionTrace) {
@@ -106,4 +112,12 @@ func (s *UsageService) ImportEdgeConnections(ctx context.Context, records []Conn
 		return repo.ImportEdgeConnections(ctx, records)
 	}
 	return fmt.Errorf("edge diagnostic storage unavailable")
+}
+
+// DiagnosticRetentionMetadata describes the hot target; archive failures may retain older rows.
+func DiagnosticRetentionMetadata() (int, bool) {
+	if os.Getenv("SUB2API_DIAGNOSTIC_ARCHIVE_MANAGED") == "true" {
+		return 3, true
+	}
+	return 30, false
 }

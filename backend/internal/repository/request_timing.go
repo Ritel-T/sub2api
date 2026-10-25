@@ -54,10 +54,7 @@ func (r *usageLogRepository) runTimingWriter() {
 			}
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_, err := r.db.ExecContext(ctx, `DELETE FROM request_timing_details WHERE (usage_log_id,trace_id) IN (
-   SELECT d.usage_log_id,d.trace_id FROM request_timing_details d
-   WHERE d.created_at < NOW() - INTERVAL '30 days' OR NOT EXISTS (SELECT 1 FROM usage_logs u WHERE u.id=d.usage_log_id)
-   LIMIT 10000)`)
+			err := r.cleanupRequestTimings(ctx)
 			cancel()
 			if err != nil {
 				logger.LegacyPrintf("request_timing", "detail retention failed: %v", err)
@@ -100,4 +97,17 @@ func (r *usageLogRepository) RequestTimings(ctx context.Context, id int64) ([]js
 		out = append(out, json.RawMessage(raw))
 	}
 	return out, rows.Err()
+}
+
+// cleanupRequestTimings is the only automatic timing deletion path. Archive
+// management owns both TTL and orphan cleanup, including during archive outages.
+func (r *usageLogRepository) cleanupRequestTimings(ctx context.Context) error {
+	if diagnosticArchiveManaged() {
+		return nil
+	}
+	_, err := r.db.ExecContext(ctx, `DELETE FROM request_timing_details WHERE (usage_log_id,trace_id) IN (
+   SELECT d.usage_log_id,d.trace_id FROM request_timing_details d
+   WHERE d.created_at < NOW() - INTERVAL '30 days' OR NOT EXISTS (SELECT 1 FROM usage_logs u WHERE u.id=d.usage_log_id)
+   LIMIT 10000)`)
+	return err
 }

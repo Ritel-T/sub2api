@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
@@ -18,6 +19,9 @@ type usageStatsCacheKeyData struct {
 	AccountID             int64  `json:"account_id"`
 	GroupID               int64  `json:"group_id"`
 	Model                 string `json:"model"`
+	ModelFilterSource     string `json:"model_filter_source"`
+	RequestID             string `json:"request_id"`
+	ExactTotal            bool   `json:"exact_total"`
 	BillingMode           string `json:"billing_mode"`
 	RequestType           *int16 `json:"request_type"`
 	Stream                *bool  `json:"stream"`
@@ -43,6 +47,9 @@ func usageStatsCacheKey(filters usagestats.UsageLogFilters) string {
 		AccountID:             filters.AccountID,
 		GroupID:               filters.GroupID,
 		Model:                 filters.Model,
+		ModelFilterSource:     filters.ModelFilterSource,
+		RequestID:             filters.RequestID,
+		ExactTotal:            filters.ExactTotal,
 		BillingMode:           filters.BillingMode,
 		RequestType:           filters.RequestType,
 		Stream:                filters.Stream,
@@ -55,12 +62,39 @@ func usageStatsCacheKey(filters usagestats.UsageLogFilters) string {
 // getStatsCached 命中则返回缓存,未命中则回源 usageService 并写缓存。
 func (h *UsageHandler) getStatsCached(ctx context.Context, filters usagestats.UsageLogFilters) (*usagestats.UsageStats, bool, error) {
 	key := usageStatsCacheKey(filters)
-	entry, hit, err := usageStatsCache.GetOrLoad(key, func() (any, error) {
+	return loadUsageStatsCached(usageStatsCache, ctx, key, func() (*usagestats.UsageStats, error) {
 		return h.usageService.GetStatsWithFilters(ctx, filters)
+	})
+}
+
+func loadUsageStatsCached(cache *snapshotCache, ctx context.Context, key string, load func() (*usagestats.UsageStats, error)) (*usagestats.UsageStats, bool, error) {
+	entry, hit, err := cache.GetOrLoadContext(ctx, key, func() (any, error) {
+		stats, err := load()
+		if err != nil {
+			return nil, err
+		}
+		return cloneUsageStats(stats), nil
 	})
 	if err != nil {
 		return nil, hit, err
 	}
 	stats, err := snapshotPayloadAs[*usagestats.UsageStats](entry.Payload)
-	return stats, hit, err
+	return cloneUsageStats(stats), hit, err
+}
+
+// Preserve the existing numeric types and nil/empty distinction, while owning
+// every mutable field both on publication and on each caller's return path.
+func cloneUsageStats(stats *usagestats.UsageStats) *usagestats.UsageStats {
+	if stats == nil {
+		return nil
+	}
+	copy := *stats
+	if stats.TotalAccountCost != nil {
+		cost := *stats.TotalAccountCost
+		copy.TotalAccountCost = &cost
+	}
+	copy.Endpoints = slices.Clone(stats.Endpoints)
+	copy.UpstreamEndpoints = slices.Clone(stats.UpstreamEndpoints)
+	copy.EndpointPaths = slices.Clone(stats.EndpointPaths)
+	return &copy
 }
