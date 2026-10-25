@@ -1,5 +1,29 @@
 export default {
     accounts: {
+    weeklyQuota: {
+      "title": "OpenAI weekly remaining",
+      "loading": "Loading weekly allowance…",
+      "error": "Could not load weekly allowance.",
+      "retry": "Retry",
+      "refresh": "Refresh weekly estimate",
+      "accounts": "{count} accounts included",
+      "empty": "No eligible weekly snapshots",
+      "global": "All OpenAI OAuth accounts · independent of table filters",
+      "tier": "Plan",
+      "count": "Accounts",
+      "limit": "Weekly limit per account",
+      "remaining": "Estimated remaining",
+      "formula": "Sum of remaining weekly percentage × plan limit. Plus 140 · Pro100 700 · Pro200 1,400 · Pro500 3,500.",
+      "snapshots": "Stored quota snapshots · oldest {time}",
+      "generated": "Calculated {time}",
+      "excluded": "Excluded: {reasons}",
+      "inactive": "{count} error or disabled",
+      "unsupported_plan": "{count} other plans",
+      "missing_quota": "{count} missing snapshots",
+      "non_weekly_window": "{count} non-weekly windows",
+      "invalid_quota": "{count} invalid snapshots",
+      "expired_snapshot": "{count} expired snapshots"
+},
     details: {
       statistics: 'Usage statistics',
       configuration: 'Account details',

@@ -80,6 +80,7 @@ function mountView() {
   return mount(AccountsView, {
     global: {
       stubs: {
+        OpenAIWeeklyQuotaSummary: true,
         AppLayout: { template: '<div><slot /></div>' },
         TablePageLayout: {
           template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'

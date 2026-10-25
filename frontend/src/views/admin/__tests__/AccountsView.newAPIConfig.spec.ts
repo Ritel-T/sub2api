@@ -20,6 +20,7 @@ const row = { id: 7, name: 'current', platform: 'openai', type: 'apikey', status
 let wrapper: VueWrapper | undefined
 const open = async () => {
   wrapper = mount(AccountsView, { global: { stubs: {
+        OpenAIWeeklyQuotaSummary: true,
     AppLayout: { template: '<div><slot /></div>' },
     TablePageLayout: { template: '<div><slot name="table" /></div>' },
     DataTable: { props: ['data'], template: '<div><div v-for="row in data" :key="row.id"><slot name="cell-upstream_billing_rate" :row="row" /></div></div>' },

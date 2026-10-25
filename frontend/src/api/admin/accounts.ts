@@ -77,6 +77,33 @@ export async function list(
   return data
 }
 
+export interface OpenAIWeeklyQuotaTier {
+  plan: string
+  label: string
+  weekly_limit: number
+  account_count: number
+  remaining: number
+}
+
+export interface OpenAIWeeklyQuotaSummary {
+  generated_at: string
+  total_remaining: number
+  total_weekly_limit: number
+  included_accounts: number
+  tiers: OpenAIWeeklyQuotaTier[]
+  excluded: Record<string, number>
+  oldest_snapshot_at?: string | null
+  latest_snapshot_at?: string | null
+}
+
+/** Global estimate from stored weekly quota snapshots; independent of account list filters. */
+export async function getOpenAIWeeklyQuota(options?: { signal?: AbortSignal }): Promise<OpenAIWeeklyQuotaSummary> {
+  const { data } = await apiClient.get<OpenAIWeeklyQuotaSummary>('/admin/accounts/openai-weekly-quota', {
+    signal: options?.signal
+  })
+  return data
+}
+
 export interface AccountListWithEtagResult {
   notModified: boolean
   etag: string | null

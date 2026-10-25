@@ -159,6 +159,10 @@
           />
 
         </div>
+        <OpenAIWeeklyQuotaSummary
+          :refresh-token="usageManualRefreshToken"
+          :account-state-key="accounts.map(a => [a.id, a.status, a.schedulable, a.credentials?.plan_type, a.extra?.codex_usage_updated_at].join(':')).join('|')"
+        />
         <div
           v-if="hasPendingListSync"
           class="mt-2 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-200"
@@ -524,6 +528,7 @@ import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
 import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
+import OpenAIWeeklyQuotaSummary from '@/components/admin/account/OpenAIWeeklyQuotaSummary.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
 import BulkExport2FADialog from '@/components/admin/account/BulkExport2FADialog.vue'

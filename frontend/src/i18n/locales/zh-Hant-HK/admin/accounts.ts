@@ -1,5 +1,29 @@
 export default {
     accounts: {
+    weeklyQuota: {
+      "title": "OpenAI 每週剩餘額度",
+      "loading": "正在讀取每週額度…",
+      "error": "每週額度讀取失敗。",
+      "retry": "重試",
+      "refresh": "重新整理每週額度估算",
+      "accounts": "已計入 {count} 個帳戶",
+      "empty": "沒有可計入的每週額度快照",
+      "global": "全部 OpenAI OAuth 帳戶 · 不隨表格篩選變更",
+      "tier": "方案",
+      "count": "帳戶數",
+      "limit": "單帳戶每週上限",
+      "remaining": "估計剩餘",
+      "formula": "剩餘每週額度百分比 × 方案每週上限後加總。Plus 140 · Pro100 700 · Pro200 1,400 · Pro500 3,500。",
+      "snapshots": "使用已記錄的額度快照 · 最早 {time}",
+      "generated": "計算於 {time}",
+      "excluded": "未計入：{reasons}",
+      "inactive": "錯誤或停用 {count} 個",
+      "unsupported_plan": "其他方案 {count} 個",
+      "missing_quota": "缺少快照 {count} 個",
+      "non_weekly_window": "非每週時段 {count} 個",
+      "invalid_quota": "無效快照 {count} 個",
+      "expired_snapshot": "過期快照 {count} 個"
+},
     details: {
       statistics: '用量統計',
       configuration: '帳戶資料',
