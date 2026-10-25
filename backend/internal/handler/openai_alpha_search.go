@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/deepseektools"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -21,6 +22,10 @@ import (
 
 // AlphaSearch proxies the standalone search endpoint used by Codex Responses Lite.
 func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
+	h.alphaSearch(c, nil)
+}
+
+func (h *OpenAIGatewayHandler) alphaSearch(c *gin.Context, bridge *deepSeekToolsBridge) {
 	streamStarted := false
 	defer h.recoverResponsesPanic(c, &streamStarted)
 	setOpenAIClientTransportHTTP(c)
@@ -31,7 +36,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
 		return
 	}
-	if apiKey.Group.Platform != service.PlatformOpenAI && apiKey.Group.Platform != service.PlatformComposite {
+	if !alphaSearchGroupAllowed(apiKey, bridge) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Codex alpha search is only available for OpenAI and Composite groups")
 		return
 	}
@@ -116,7 +121,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		h.errorResponse(c, status, code, message)
 		return
 	}
-	if apiKey.Group.Platform != service.PlatformOpenAI && apiKey.Group.Platform != service.PlatformComposite {
+	if !alphaSearchGroupAllowed(apiKey, bridge) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Codex alpha search is only available for OpenAI and Composite groups")
 		return
 	}
@@ -125,7 +130,11 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Codex alpha search only supports OpenAI models for Composite groups")
 		return
 	}
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, requestedModel)
+	schedulingGroupID := apiKey.GroupID
+	if bridge != nil {
+		schedulingGroupID = &bridge.groupID
+	}
+	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), schedulingGroupID, requestedModel)
 	forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
 	c.Request = c.Request.WithContext(service.WithOpenAIAlphaSearchForwardModel(c.Request.Context(), openAIChannelForwardModel(channelMapping, requestedModel)))
 
@@ -152,13 +161,28 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 	var oauth429FailoverState service.OpenAIOAuth429FailoverState
 	// 分组利润控制：alpha search 文本入口请求级装门并固定 pricingAt
 	//（记录路径经 service.OpenAIPricingAtFromContext 从请求 ctx 回读）。
-	asPricingCtx, _ := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
+	schedulingCtx := c.Request.Context()
+	if bridge != nil {
+		schedulingCtx, err = h.gatewayService.DeepSeekToolsSchedulingContext(schedulingCtx, bridge.groupID)
+		if err != nil {
+			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Search backend is unavailable")
+			return
+		}
+	}
+	asPricingCtx, _ := h.gatewayService.WithOpenAIRequestPricingContext(schedulingCtx, schedulingGroupID)
+	// Group identity remains the caller's; the pool ID is separate. Freeze the
+	// same pricing instant for selection, reservation and persisted billing.
 	c.Request = c.Request.WithContext(asPricingCtx)
+	if bridge != nil {
+		asPricingCtx = service.WithAlphaSearchResponseTransform(asPricingCtx, func(raw []byte) ([]byte, bool, error) {
+			return deepseektools.AdaptResponse(raw, bridge.request)
+		})
+	}
 
 	for {
 		selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
-			c.Request.Context(),
-			apiKey.GroupID,
+			asPricingCtx,
+			schedulingGroupID,
 			"",
 			sessionHash,
 			requestedModel,
@@ -182,6 +206,14 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 				reqLog.Info("openai_alpha_search.account_select_aborted_client_disconnected", zap.Error(err))
 				return
 			}
+			if bridge != nil {
+				if lastFailoverErr != nil {
+					h.handleAlphaSearchFailoverExhausted(c, lastFailoverErr, false, bridge)
+				} else {
+					h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Search backend is unavailable")
+				}
+				return
+			}
 			if len(failedAccountIDs) == 0 {
 				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, requestedModel, requestedModel, service.PlatformOpenAI)
 				if !cls.ModelNotFound {
@@ -191,7 +223,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 				return
 			}
 			if lastFailoverErr != nil {
-				h.handleFailoverExhausted(c, lastFailoverErr, false)
+				h.handleAlphaSearchFailoverExhausted(c, lastFailoverErr, false, bridge)
 			} else {
 				h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 			}
@@ -199,8 +231,15 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		}
 
 		account := selection.Account
+		if !deepSeekToolsAccountAllowed(bridge, account) {
+			if selection.ReleaseFunc != nil {
+				selection.ReleaseFunc()
+			}
+			failedAccountIDs[account.ID] = struct{}{}
+			continue
+		}
 		setOpsSelectedAccount(c, account.ID, account.Platform)
-		accountRelease, slotResult := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, false, &streamStarted, reqLog)
+		accountRelease, slotResult := h.acquireResponsesAccountSlot(c, schedulingGroupID, sessionHash, selection, false, &streamStarted, reqLog)
 		if slotResult == openAISlotAcquireProfitVetoed {
 			// 利润终检否决：排除该账号重新选号；否决次数达上限则按无可用账号终止。
 			if !recordOpenAIProfitVeto(failedAccountIDs, account.ID, &profitVetoCount) {
@@ -229,7 +268,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 			if accountRelease != nil {
 				defer accountRelease()
 			}
-			return h.gatewayService.ForwardAlphaSearch(rpmAdmission.forwardContext(c.Request.Context(), account), c, account, forwardBody)
+			return h.gatewayService.ForwardAlphaSearch(rpmAdmission.forwardContext(asPricingCtx, account), c, account, forwardBody)
 		}()
 		if h.handleOpenAIRPMForwardError(c, err, streamStarted, false) {
 			return
@@ -238,8 +277,17 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 
 		if err == nil {
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestedModel, false, result), true, nil)
-			if result != nil {
-				h.recordAlphaSearchUsage(c, apiKey, account, subscription, channelMapping, requestedModel, body, result, subject.UserID)
+			if result != nil && (bridge == nil || result.WebSearchCalls > 0) {
+				if bridge != nil {
+					result.Model = "deepseek-" + bridge.request.Operation
+					requestedModel = result.Model
+					body = bridge.originalBody
+					channelMapping = service.ChannelMappingResult{}
+					if result.UpstreamEndpoint == "" {
+						result.UpstreamEndpoint = "/v1/alpha/search"
+					}
+				}
+				h.recordAlphaSearchUsage(c, apiKey, account, subscription, channelMapping, requestedModel, body, result, subject.UserID, bridge != nil)
 			}
 			return
 		}
@@ -260,7 +308,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 
 		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestedModel, false, result), false, nil, err)
 		if c.Writer.Size() != writerSizeBeforeForward {
-			h.handleFailoverExhausted(c, failoverErr, true)
+			h.handleAlphaSearchFailoverExhausted(c, failoverErr, true, bridge)
 			return
 		}
 		if failoverClientGone(c) {
@@ -294,12 +342,12 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		failedAccountIDs[account.ID] = struct{}{}
 		lastFailoverErr = failoverErr
 		if switchCount >= h.maxAccountSwitches {
-			h.handleFailoverExhausted(c, failoverErr, false)
+			h.handleAlphaSearchFailoverExhausted(c, failoverErr, false, bridge)
 			return
 		}
 		switchCount++
 		if h.gatewayService.ShouldStopOpenAIOAuth429Failover(account, failoverErr.StatusCode, switchCount, &oauth429FailoverState) {
-			h.handleFailoverExhausted(c, failoverErr, false)
+			h.handleAlphaSearchFailoverExhausted(c, failoverErr, false, bridge)
 			return
 		}
 		reqLog.Warn("openai_alpha_search.upstream_failover_switching",
@@ -323,6 +371,7 @@ func (h *OpenAIGatewayHandler) recordAlphaSearchUsage(
 	body []byte,
 	result *service.OpenAIForwardResult,
 	userID int64,
+	preserveCallerMultiplier bool,
 ) {
 	userAgent := c.GetHeader("User-Agent")
 	clientIP := ip.GetClientIP(c)
@@ -334,21 +383,22 @@ func (h *OpenAIGatewayHandler) recordAlphaSearchUsage(
 
 	h.submitMandatoryUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 		if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
-			Result:             result,
-			APIKey:             apiKey,
-			User:               apiKey.User,
-			Account:            account,
-			Subscription:       subscription,
-			InboundEndpoint:    inboundEndpoint,
-			UpstreamEndpoint:   upstreamEndpoint,
-			UserAgent:          userAgent,
-			IPAddress:          clientIP,
-			RequestPayloadHash: requestPayloadHash,
-			APIKeyService:      h.apiKeyService,
-			QuotaPlatform:      quotaPlatform,
-			SessionID:          sessionID,
-			ChannelUsageFields: channelMapping.ToUsageFields(requestedModel, result.UpstreamModel),
-			PricingAt:          service.OpenAIPricingAtFromContext(c.Request.Context()),
+			Result:                        result,
+			PreserveCallerGroupMultiplier: preserveCallerMultiplier,
+			APIKey:                        apiKey,
+			User:                          apiKey.User,
+			Account:                       account,
+			Subscription:                  subscription,
+			InboundEndpoint:               inboundEndpoint,
+			UpstreamEndpoint:              upstreamEndpoint,
+			UserAgent:                     userAgent,
+			IPAddress:                     clientIP,
+			RequestPayloadHash:            requestPayloadHash,
+			APIKeyService:                 h.apiKeyService,
+			QuotaPlatform:                 quotaPlatform,
+			SessionID:                     sessionID,
+			ChannelUsageFields:            channelMapping.ToUsageFields(requestedModel, result.UpstreamModel),
+			PricingAt:                     service.OpenAIPricingAtFromContext(c.Request.Context()),
 		}); err != nil {
 			logger.L().With(
 				zap.String("component", "handler.openai_gateway.alpha_search"),

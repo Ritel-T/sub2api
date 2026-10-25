@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useAuthStore } from './auth'
-import { listQualityPlans, listQualityOperations, listQualityTemplates, type QualityOperation, type QualityRuleTemplate } from '@/api/admin/accountQuality'
+import { listQualityPlans, listQualityOperations, listQualityTemplates, listQualityPresets, type QualityOperation, type QualityRuleTemplate, type QualityRulePreset } from '@/api/admin/accountQuality'
 import { getAllIncludingInactive } from '@/api/admin/groups'
 import type { AdminGroup, ScheduledTestPlan } from '@/types'
 
@@ -10,6 +10,7 @@ import type { AdminGroup, ScheduledTestPlan } from '@/types'
 export const useAccountQualityStore = defineStore('accountQuality', () => {
   const auth = useAuthStore()
   const plans = ref<ScheduledTestPlan[]>([]), groups = ref<AdminGroup[]>([]), templates = ref<QualityRuleTemplate[]>([])
+  const presets = ref<QualityRulePreset[]>([]), presetsLoading = ref(false), presetsError = ref('')
   const cursor = ref(0)
   const operationCursors = new Map<number, number>([[1, 0]])
   const operationList = useInfiniteList<QualityOperation>({
@@ -29,19 +30,29 @@ export const useAccountQualityStore = defineStore('accountQuality', () => {
   const operationsError = computed(() => operationList.error.value ? errorText(operationList.error.value) : '')
   const updatedAt = ref(0)
   const search = ref(''), selectedPlanId = ref<number | null>(null), operationFilter = ref('all')
-  let ruleVersion = 0, operationVersion = 0, groupVersion = 0
+  let ruleVersion = 0, operationVersion = 0, groupVersion = 0, presetVersion = 0
   let rulesFlight: Promise<void> | null = null, groupsFlight: Promise<void> | null = null
   const errorText = (e: unknown) => e instanceof Error ? e.message : 'qualityOps.error'
 
   function reset() {
-    ruleVersion++; operationVersion++; groupVersion++
+    ruleVersion++; operationVersion++; groupVersion++; presetVersion++
     plans.value = []; groups.value = []; templates.value = []; cursor.value = 0
     operationList.clear(); operationCursors.clear(); operationCursors.set(1, 0)
+    presets.value = []; presetsLoading.value = false; presetsError.value = ''
     rulesLoaded.value = operationsLoaded.value = false
     rulesLoading.value = false
     rulesError.value = groupsError.value = ''
     search.value = ''; selectedPlanId.value = null; operationFilter.value = 'all'; updatedAt.value = 0
     rulesFlight = groupsFlight = null
+  }
+  async function refreshPresets() {
+    const version = ++presetVersion
+    presetsLoading.value = true; presetsError.value = ''
+    try {
+      const data = await listQualityPresets()
+      if (version === presetVersion) presets.value = data
+    } catch (e) { if (version === presetVersion) presetsError.value = errorText(e) }
+    finally { if (version === presetVersion) presetsLoading.value = false }
   }
   watch(() => auth.user ? `${auth.user.id}:${auth.user.role}` : '', reset, { flush: 'sync' })
 
@@ -86,9 +97,10 @@ export const useAccountQualityStore = defineStore('accountQuality', () => {
   function retryOperations() { return refreshOperations(false, true) }
 
   async function refresh() {
-    await Promise.all([refreshRules(), refreshGroups(), refreshOperations()])
+    await Promise.all([refreshRules(), refreshGroups(), refreshOperations(), refreshPresets()])
   }
   return { plans, groups, templates, operations, cursor, rulesLoaded, operationsLoaded, rulesLoading, operationsLoading, moreLoading,
     rulesError, operationsError, groupsError, updatedAt, search, selectedPlanId, operationFilter,
+    presets, presetsLoading, presetsError, refreshPresets,
     refresh, refreshRules, refreshGroups, refreshOperations, retryOperations, reset }
 })

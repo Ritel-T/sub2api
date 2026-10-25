@@ -1,6 +1,7 @@
 <template>
   <AppLayout :show-page-title="false">
     <div class="w-full min-w-0 pb-8">
+      <SecurityAuditNav active="/admin/ip-audit" />
       <AppHeading as="h1" variant="page" class="mb-4">{{ t('ipAudit.title') }}</AppHeading>
       <div class="mb-4 flex flex-wrap gap-1" role="tablist" :aria-label="t('ipAudit.title')">
         <button
@@ -28,6 +29,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import SecurityAuditNav from '@/components/admin/security/SecurityAuditNav.vue'
 import IPRiskSettings from '@/features/ip-risk/IPRiskSettings.vue'
 import IPAuditPanel from './IPAuditPanel.vue'
 

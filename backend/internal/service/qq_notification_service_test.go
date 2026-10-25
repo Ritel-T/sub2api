@@ -23,7 +23,7 @@ func qqTestService(t *testing.T) (*QQNotificationService, sqlmock.Sqlmock) {
 		t.Fatal(e)
 	}
 	t.Cleanup(func() {
-		db.Close()
+		_ = db.Close()
 		if e := m.ExpectationsWereMet(); e != nil {
 			t.Error(e)
 		}
@@ -34,7 +34,7 @@ func TestQQAuthenticationAndTextBoundary(t *testing.T) {
 	s, _ := qqTestService(t)
 	body := []byte("{}")
 	h := hmac.New(sha256.New, []byte(s.secret))
-	h.Write(body)
+	_, _ = h.Write(body)
 	sig := "sha256=" + hex.EncodeToString(h.Sum(nil))
 	if !s.Authenticate(body, sig) || s.Authenticate([]byte("{ }"), sig) || s.Authenticate(body, "sha256=00") {
 		t.Fatal("HMAC boundary")

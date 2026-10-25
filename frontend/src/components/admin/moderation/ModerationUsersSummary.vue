@@ -3,7 +3,7 @@
     <AppHeading as="h2" variant="section" >{{ t('admin.moderationUsers.listTitle') }}</AppHeading>
     <p v-if="total !== undefined" class="text-sm text-gray-500">{{ t('common.total') }}: {{ total }}</p>
     <div class="flex flex-wrap gap-2" role="tablist" :aria-label="t('admin.moderationUsers.listTitle')">
-      <button v-for="tab in tabs" :key="tab" type="button" role="tab" class="btn btn-secondary" :aria-selected="filter === tab" @click="filter = tab; search()">{{ t(`admin.moderationUsers.${tab}`) }}</button>
+      <button v-for="tab in tabs" :key="tab" :data-test="`filter-${tab}`" type="button" role="tab" class="btn btn-secondary" :aria-selected="filter === tab" @click="filter = tab; search()">{{ t(`admin.moderationUsers.${tab}`) }}</button>
     </div>
     <form class="workspace-filter-controls flex flex-wrap items-end gap-2" @submit.prevent="search">
       <label class="text-sm">UID<input v-model="uid" type="number" min="1" step="1" class="input" /></label>
@@ -12,7 +12,7 @@
     </form>
     <p v-if="error" role="alert" class="text-red-600">{{ errorMessage }}</p>
     <DataTable column-order-key="admin-moderation-users" :columns="columns" :data="items" :loading="loading" row-key="user_id">
-      <template #cell-auto_ban_exempt="{ row }">{{ t(row.auto_ban_exempt ? 'common.yes' : 'common.no') }}</template>
+      <template #cell-auto_ban_exempt="{ row }">{{ exemptionLabels(row).join(' · ') || t('common.no') }}</template>
       <template #cell-status="{ row }">{{ row.status }} · {{ row.current_count }}</template>
       <template #cell-reason="{ row }"><span class="break-words">{{ row.reason || '—' }}</span></template>
       <template #cell-actor_id="{ row }">{{ row.actor_id ?? '—' }}</template>
@@ -38,8 +38,16 @@ import { useInfiniteList } from '@/composables/useInfiniteList'
 import ModerationUserPanel from './ModerationUserPanel.vue'
 import { listModerationUsers, type ModerationUserState } from '@/api/admin/riskControl'
 const { t } = useI18n()
-const tabs = ['exempt', 'all', 'enforced'] as const
+const tabs = ['exempt', 'all', 'enforced', 'auto_ban_exempt', 'keyword_exempt', 'api_audit_exempt', 'email_exempt'] as const
 const filter = ref<typeof tabs[number]>('exempt')
+function exemptionLabels(item: ModerationUserState) {
+  return [
+    item.auto_ban_exempt && t('admin.moderationUsers.exemption'),
+    item.keyword_exempt && t('admin.moderationUsers.keywordExemption'),
+    item.api_audit_exempt && t('admin.moderationUsers.apiAuditExemption'),
+    item.email_exempt && t('admin.moderationUsers.emailExemption'),
+  ].filter(Boolean)
+}
 const uid = ref('')
 const selected = ref<number | null>(null)
 let query: { state: typeof tabs[number]; user_id?: number } = { state: 'exempt' }
@@ -51,7 +59,7 @@ const { items, total, loading, loadingMore, refreshing, error, hasMore, reset, l
 })
 const columns = computed(() => [
   { key: 'user_id', label: 'UID' },
-  { key: 'auto_ban_exempt', label: t('admin.moderationUsers.exemption') },
+  { key: 'auto_ban_exempt', label: t('admin.moderationUsers.exemptionTypes') },
   { key: 'status', label: t('admin.moderationUsers.state') },
   { key: 'reason', label: t('admin.moderationUsers.reason') },
   { key: 'actor_id', label: t('admin.moderationUsers.actor') },

@@ -122,7 +122,7 @@ func (s *QQNotificationService) Confirm(ctx context.Context, uid int64, masked, 
 	if e != nil {
 		return e
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var q string
 	e = tx.QueryRowContext(ctx, "SELECT pending_qq FROM qq_user_notifications WHERE user_id=$1 AND expires_at>NOW() AND pending_qq IS NOT NULL AND code_hash=$2 FOR UPDATE", uid, bindingID).Scan(&q)
 	if e != nil || qqMask(q) != masked {
@@ -195,7 +195,7 @@ func (s *QQNotificationService) Authenticate(body []byte, signature string) bool
 		return false
 	}
 	expected := hmac.New(sha256.New, []byte(s.secret))
-	expected.Write(body)
+	_, _ = expected.Write(body)
 	got, e := hex.DecodeString(strings.TrimPrefix(signature, "sha256="))
 	return e == nil && strings.HasPrefix(signature, "sha256=") && hmac.Equal(got, expected.Sum(nil))
 }
@@ -222,7 +222,7 @@ func (s *QQNotificationService) Webhook(ctx context.Context, body []byte) error 
 	if e != nil {
 		return e
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, e = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", "qq:"+ev.UserID.String()); e != nil {
 		return e
 	}
@@ -300,7 +300,7 @@ func (s *QQNotificationService) query(ctx context.Context, uid int64, command st
 		if e != nil {
 			return "", e
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		lines := []string{}
 		for rows.Next() {
 			var name string
@@ -361,7 +361,7 @@ func (s *QQNotificationService) deliver(ctx context.Context, uid int64, q, key, 
 	if e != nil {
 		return e
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if checkBinding {
 		var actual string
 		e = tx.QueryRowContext(ctx, "SELECT qq FROM qq_user_notifications WHERE user_id=$1 FOR UPDATE", uid).Scan(&actual)
@@ -393,7 +393,7 @@ func (s *QQNotificationService) deliver(ctx context.Context, uid int64, q, key, 
 		if e != nil {
 			return e
 		}
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }()
 		var actual string
 		e = tx.QueryRowContext(ctx, "SELECT qq FROM qq_user_notifications WHERE user_id=$1 FOR UPDATE", uid).Scan(&actual)
 		if e != nil || actual != q {
@@ -433,7 +433,7 @@ func (s *QQNotificationService) deliver(ctx context.Context, uid int64, q, key, 
 	state := "unknown"
 	messageID := ""
 	if e == nil {
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		var result struct {
 			Status  string `json:"status"`
 			RetCode int    `json:"retcode"`

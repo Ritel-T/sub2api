@@ -9,28 +9,34 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
-// The exemption applies only to legacy content-moderation account disabling.
-// It never bypasses review, per-request blocking, authentication or other penalties.
+// Independent exemptions apply only to their content-moderation layer.
+// They never bypass upstream safety stops, authentication or other hard gates.
 type ModerationUserState struct {
-	UserID        int64      `json:"user_id"`
-	Version       int64      `json:"version"`
-	Generation    int64      `json:"generation"`
-	AutoBanExempt bool       `json:"auto_ban_exempt"`
-	OwnedDisable  bool       `json:"owned_disable"`
-	Status        string     `json:"status"`
-	CurrentCount  int        `json:"current_count"`
-	Reason        string     `json:"reason"`
-	ActorID       *int64     `json:"actor_id"`
-	UpdatedAt     *time.Time `json:"updated_at"`
+	UserID         int64      `json:"user_id"`
+	Version        int64      `json:"version"`
+	Generation     int64      `json:"generation"`
+	AutoBanExempt  bool       `json:"auto_ban_exempt"`
+	KeywordExempt  bool       `json:"keyword_exempt"`
+	APIAuditExempt bool       `json:"api_audit_exempt"`
+	EmailExempt    bool       `json:"email_exempt"`
+	OwnedDisable   bool       `json:"owned_disable"`
+	Status         string     `json:"status"`
+	CurrentCount   int        `json:"current_count"`
+	Reason         string     `json:"reason"`
+	ActorID        *int64     `json:"actor_id"`
+	UpdatedAt      *time.Time `json:"updated_at"`
 }
 
 type ModerationUserAction struct {
-	Action  string `json:"action"`
-	Version int64  `json:"version"`
-	Exempt  *bool  `json:"auto_ban_exempt"`
-	Reason  string `json:"reason"`
-	Confirm bool   `json:"confirm"`
-	ActorID int64  `json:"-"`
+	Action         string `json:"action"`
+	Version        int64  `json:"version"`
+	Exempt         *bool  `json:"auto_ban_exempt"`
+	KeywordExempt  *bool  `json:"keyword_exempt"`
+	APIAuditExempt *bool  `json:"api_audit_exempt"`
+	EmailExempt    *bool  `json:"email_exempt"`
+	Reason         string `json:"reason"`
+	Confirm        bool   `json:"confirm"`
+	ActorID        int64  `json:"-"`
 }
 
 type ModerationHit struct {
@@ -82,8 +88,17 @@ func (s *ContentModerationService) GetModerationUser(ctx context.Context, userID
 	return repo.GetModerationUser(ctx, userID, time.Now().Add(-time.Duration(cfg.ViolationWindowHours)*time.Hour), cfg.CyberPolicyExcludeFromBanCount)
 }
 
+func validModerationUserFilter(state string) bool {
+	switch state {
+	case "all", "exempt", "enforced", "auto_ban_exempt", "keyword_exempt", "api_audit_exempt", "email_exempt":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *ContentModerationService) ListModerationUsers(ctx context.Context, page, size int, state string, userID int64) ([]ModerationUserState, int64, error) {
-	if page < 1 || page > 1000000 || size < 1 || size > 100 || (state != "all" && state != "exempt" && state != "enforced") || userID < 0 {
+	if page < 1 || page > 1000000 || size < 1 || size > 100 || !validModerationUserFilter(state) || userID < 0 {
 		return nil, 0, infraerrors.BadRequest("INVALID_MODERATION_FILTER", "Invalid page, size or state")
 	}
 	repo, err := s.moderationUserRepository()
@@ -105,8 +120,8 @@ func (s *ContentModerationService) ManageModerationUser(ctx context.Context, use
 	if in.Action != "unban" && in.Action != "reset" && in.Action != "exemption" {
 		return nil, infraerrors.BadRequest("INVALID_MODERATION_ACTION", "Invalid action")
 	}
-	if (in.Action == "exemption") != (in.Exempt != nil) {
-		return nil, infraerrors.BadRequest("INVALID_MODERATION_ACTION", "Exemption requires an explicit boolean")
+	if (in.Action == "exemption") != (in.Exempt != nil || in.KeywordExempt != nil || in.APIAuditExempt != nil || in.EmailExempt != nil) {
+		return nil, infraerrors.BadRequest("INVALID_MODERATION_ACTION", "Exemption requires at least one explicit boolean; other actions cannot change exemptions")
 	}
 	repo, err := s.moderationUserRepository()
 	if err != nil {
@@ -131,6 +146,16 @@ func (s *ContentModerationService) ManageModerationUser(ctx context.Context, use
 // Capture before any external or asynchronous work. A missing version fails closed
 // for account mutations while the original content review continues normally.
 func (s *ContentModerationService) CaptureModerationUserVersion(ctx context.Context, id int64) *int64 {
+	state := s.captureModerationUserState(ctx, id)
+	if state == nil {
+		return nil
+	}
+	return &state.Version
+}
+
+// Read directly rather than from the auth/runtime cache: revocation must affect
+// the next request. Failure grants no exemption, matching legacy enforcement.
+func (s *ContentModerationService) captureModerationUserState(ctx context.Context, id int64) *ModerationUserState {
 	repo, err := s.moderationUserRepository()
 	if err != nil || id <= 0 {
 		return nil
@@ -139,5 +164,5 @@ func (s *ContentModerationService) CaptureModerationUserVersion(ctx context.Cont
 	if err != nil {
 		return nil
 	}
-	return &state.Version
+	return state
 }

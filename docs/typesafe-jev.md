@@ -2,6 +2,8 @@
 
 > 整理自上游 [Wei-Shaw/sub2api v0.2.13](https://github.com/Wei-Shaw/sub2api/tree/v0.2.13) README 中的 TypeSafe / Jev 小节（上游 PR [#7425](https://github.com/Wei-Shaw/sub2api/pull/7425)）。本 fork 的 README 结构不同，因此单独成文。
 
+内容审计的新增分类、默认关闭策略和验证边界见 [TypeSafe 内容审计分类](typesafe-content-audit.md)。
+
 ## 使用说明
 
 Sub2API 支持使用 TypeSafe API Key 账户，通过 Jev 原生、非流式的 System One 协议调用模型。
@@ -14,7 +16,7 @@ Sub2API 支持使用 TypeSafe API Key 账户，通过 Jev 原生、非流式的 
 
 ### 编辑上游 URL
 
-- **风控内容审计**：管理后台 → 风控 → 设置 → 基础，选择 **TypeSafe AI** 后编辑 **Base URL**；Key 可用状态旁的“编辑 Base URL”也会定位到该输入框。保存后重新打开会保留地址，各引擎的 URL 独立保存。留空恢复默认 `https://api.typesafe.ai`。
+- **风控内容审计**：管理后台 → 风控 → 设置 → 基础，选择 **TypeSafe AI**，在“Key 可用状态”的对应 Key 行查看 URL，点击“编辑此 Key URL”后保存或取消。行内保存独立生效并读回持久化值，只影响该 Key；不会回填真实 Key。顶部“公共默认 URL”仅供未设置逐 Key 覆盖的旧配置回退使用，留空恢复 `https://api.typesafe.ai`。逐 Key URL 不接受空值，空值不表示删除或恢复默认；并发修改冲突时需刷新后重试。
 - **模型渠道账号**：在账号管理中新建或编辑 TypeSafe / Jev API Key 账号，使用已有的 **Base URL** 字段；该配置与风控审计引擎的 URL 相互独立。
 - 支持服务根地址、以 `/v1` 结尾的 API 地址或完整 `/v1/systemone` 端点；尾斜杠会被规范化，代理路径前缀会被保留。例如 `https://relay.example/typesafe/v1/` 和 `https://relay.example/typesafe/v1/systemone` 都会请求 `https://relay.example/typesafe/v1/systemone`，不会重复追加 `/v1`。
 - URL 不接受内嵌用户名/密码、查询参数或片段；API Key 仍通过 Authorization 请求头发送。该编辑能力不改变既有出站 URL 白名单、私网访问或 TLS 校验策略，也不会因输入地址而自动开启 HTTP 或私网访问。
@@ -46,7 +48,7 @@ Sub2API supports TypeSafe API-key accounts through Jev's native, non-streaming S
 
 ### Editing the upstream URL
 
-- **Content auditing**: In the admin Risk Control page, open Settings → Basic, select **TypeSafe AI**, and edit **Base URL**. The **Edit Base URL** link beside Key Availability focuses this field. Each engine's URL is saved independently and remains after reopening. Leaving it blank restores `https://api.typesafe.ai`.
+- **Content auditing**: In Risk Control → Settings → Basic, select **TypeSafe AI**. Each stored key in Key Availability shows its URL and an **Edit this key URL** action with Save and Cancel. Saving reads back the persisted URL and affects only that key, without returning its secret. The **Shared default URL** applies to legacy keys without overrides; leaving that default blank restores `https://api.typesafe.ai`. Per-key URLs cannot be empty; an empty value never deletes an override or resets it to the default. Refresh and retry after a concurrent-edit conflict.
 - **Model channel accounts**: Create or edit a TypeSafe / Jev API-key account in account management using its existing **Base URL** field. Account URLs and content-audit engine URLs are separate settings.
 - A server root, API base ending in `/v1`, or complete `/v1/systemone` endpoint is accepted. Trailing slashes are normalized and proxy prefixes are preserved. Both `https://relay.example/typesafe/v1/` and `https://relay.example/typesafe/v1/systemone` target `https://relay.example/typesafe/v1/systemone`, with no duplicated API path.
 - Embedded credentials, query parameters and fragments are rejected; API keys still use the Authorization header. Editing does not change existing outbound URL allowlists, private-network access or TLS verification policies, or automatically enable HTTP or private-network access.

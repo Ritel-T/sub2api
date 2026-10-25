@@ -24,18 +24,18 @@ func TestQQPostgresBindingAndDelivery(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	// This DSN must point at an isolated test database; unique schema avoids touching existing tables.
 	schema := fmt.Sprintf("qq_test_%d", time.Now().UnixNano())
 	if _, e = db.Exec("CREATE SCHEMA " + schema); e != nil {
 		t.Fatal(e)
 	}
-	defer db.Exec("DROP SCHEMA " + schema + " CASCADE")
+	defer func() { _, _ = db.Exec("DROP SCHEMA " + schema + " CASCADE") }()
 	testDB, e := sql.Open("postgres", dsn+" search_path="+schema)
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer testDB.Close()
+	defer func() { _ = testDB.Close() }()
 	_, e = testDB.Exec(`CREATE TABLE users(id BIGINT PRIMARY KEY,balance NUMERIC, status TEXT,deleted_at TIMESTAMPTZ);INSERT INTO users VALUES(1,12.5,'active',NULL),(2,1,'active',NULL);
  CREATE TABLE groups(id BIGINT PRIMARY KEY,name TEXT);
  CREATE TABLE user_subscriptions(user_id BIGINT,group_id BIGINT,expires_at TIMESTAMPTZ,status TEXT,deleted_at TIMESTAMPTZ);

@@ -69,9 +69,17 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		setOpsRequestContext(c, "", false)
 	}
 
+	if !service.GroupAllowsImageGeneration(apiKey.Group) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
+		return
+	}
 	parsed, err := h.gatewayService.ParseOpenAIImagesRequest(c, body)
 	if err != nil {
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+		if errors.Is(err, service.ErrImageModelAuthorizationUnavailable) {
+			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", err.Error())
+		} else {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+		}
 		return
 	}
 	requestModel := parsed.Model
@@ -143,6 +151,11 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
 		return
 	}
+	requireAPIKeyQueueCapability(c, service.APIKeyQueueCapabilityImageGeneration)
+	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, parsed.ModerationBody()); decision != nil && !decision.AllowNextStage {
+		h.openAISecurityAuditError(c, decision)
+		return
+	}
 	imageReleaseFunc, acquired := h.acquireImageGenerationSlot(c, streamStarted)
 	if !acquired {
 		return
@@ -155,6 +168,14 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(parsed.Stream, false)))
 
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, routingModel)
+	if err := h.gatewayService.ValidateImagesRouting(c, parsed, channelMapping.MappedModel); err != nil {
+		if errors.Is(err, service.ErrImageModelAuthorizationUnavailable) {
+			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", err.Error())
+		} else {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+		}
+		return
+	}
 
 	if h.errorPassthroughService != nil {
 		service.BindErrorPassthroughService(c, h.errorPassthroughService)
@@ -174,6 +195,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 	sessionHash := h.gatewayService.GenerateExplicitSessionHash(c, body)
 	requestCtx := service.WithOpenAIImagesEndpoint(service.WithOpenAIImageGenerationIntent(c.Request.Context()))
+	requestCtx = parsed.WithModelAuthorization(requestCtx, channelMapping.MappedModel)
 
 	maxAccountSwitches := h.maxAccountSwitches
 	switchCount := 0
@@ -242,6 +264,14 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				message = "No available compatible accounts"
 			}
 			h.handleStreamingAwareError(c, cls.Status, cls.ErrType, message, streamStarted)
+			return
+		}
+
+		if err := parsed.ValidateAccountModels(selection.Account, channelMapping.MappedModel); err != nil {
+			if selection.ReleaseFunc != nil {
+				selection.ReleaseFunc()
+			}
+			h.handleStreamingAwareError(c, http.StatusBadRequest, "invalid_request_error", err.Error(), streamStarted)
 			return
 		}
 
@@ -316,6 +346,12 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			service.SetOpsLatencyMs(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
 		}
 		if err != nil {
+			var modelErr *service.OpenAIImagesModelError
+			if errors.As(err, &modelErr) {
+				stopJSONKeepalive()
+				h.handleStreamingAwareError(c, http.StatusBadRequest, "invalid_request_error", modelErr.Error(), streamStarted)
+				return
+			}
 			if result != nil && result.ImageCount > 0 {
 				reqLog.Warn("openai.images.forward_partial_error_with_image_result",
 					zap.Int64("account_id", account.ID),

@@ -139,9 +139,8 @@ func deleteOpenAIResponsesNoneReasoningEffortFromObject(account *Account, body m
 // 强制 store=false 并清除 previous_response_id（DeepSeek / Kimi 官方
 // Responses 均不支持服务端状态存储，携带这些字段会被拒绝）。
 //
-// DeepSeek 另需把 Codex/OpenAI 的 input_image.image_url 写成线上 serde
-// 要求的 url 字段；openai 平台但 base_url 指向 api.deepseek.com 的映射
-// 账号同样走这条出站改写（Codex 贴图会 422 missing field url）。
+// DeepSeek 另需把兼容格式的图片输入归一化为官方 image_url 字段；openai
+// 平台但 base_url 指向 api.deepseek.com 的映射账号同样走这条出站改写。
 // 非 CN / 非 DeepSeek 上游原样返回。
 func normalizeDeepSeekResponsesRequestBody(account *Account, body []byte) []byte {
 	if account == nil {
@@ -181,7 +180,7 @@ func normalizeDeepSeekResponsesRequestBody(account *Account, body []byte) []byte
 		changed = true
 	}
 	if applyImages {
-		if aliased, aliasedChanged := aliasDeepSeekResponsesInputImages(input); aliasedChanged {
+		if aliased, aliasedChanged := aliasDeepSeekResponsesInputImages(input, deepSeekResponsesImageField(account)); aliasedChanged {
 			requestBody["input"] = aliased
 			changed = true
 		}
@@ -196,15 +195,26 @@ func normalizeDeepSeekResponsesRequestBody(account *Account, body []byte) []byte
 	return rebuilt
 }
 
+// DeepSeekResponsesImageFieldCredential selects a wire schema, not a retry.
+// The default uses the current image_url schema. Legacy url-required providers
+// can opt in to url; the adapter never sends both or probes with a paid replay.
+const DeepSeekResponsesImageFieldCredential = "deepseek_responses_image_field"
+
+func deepSeekResponsesImageField(account *Account) string {
+	if account != nil && strings.EqualFold(strings.TrimSpace(account.GetCredential(DeepSeekResponsesImageFieldCredential)), "url") {
+		return "url"
+	}
+	return "image_url"
+}
+
 func shouldAliasDeepSeekResponsesInputImages(account *Account) bool {
 	return account != nil && (account.Platform == PlatformDeepseek || isDeepSeekAPIHost(account.GetOpenAIBaseURL()))
 }
 
-// aliasDeepSeekResponsesInputImages 把图片 part 改写成 DeepSeek 能反序列化
-// 的形状：type=input_image，同时带字符串字段 image_url 与 url。
-// 文档与部分 400 提 image_url；线上 serde 要求 url。只发其中一个都会踩坑。
-// 仅有 file_id、没有可用 URL 的 part 原样保留。
-func aliasDeepSeekResponsesInputImages(input any) (any, bool) {
+// aliasDeepSeekResponsesInputImages 把图片 part 改写成 DeepSeek 官方形状：
+// type=input_image，只保留明确协议分支选择的 URL 字段。仅有 file_id、没有可用
+// URL 的 part 原样保留。
+func aliasDeepSeekResponsesInputImages(input any, imageField string) (any, bool) {
 	items, ok := asDeepSeekResponsesSlice(input)
 	if !ok {
 		return input, false
@@ -215,7 +225,7 @@ func aliasDeepSeekResponsesInputImages(input any) (any, bool) {
 		if !ok {
 			continue
 		}
-		if aliasDeepSeekResponsesInputItem(item) {
+		if aliasDeepSeekResponsesInputItem(item, imageField) {
 			items[i] = item
 			changed = true
 		}
@@ -226,16 +236,16 @@ func aliasDeepSeekResponsesInputImages(input any) (any, bool) {
 	return items, true
 }
 
-func aliasDeepSeekResponsesInputItem(item map[string]any) bool {
-	changed := aliasDeepSeekResponsesImagePart(item)
+func aliasDeepSeekResponsesInputItem(item map[string]any, imageField string) bool {
+	changed := aliasDeepSeekResponsesImagePart(item, imageField)
 	if content, exists := item["content"]; exists {
-		if rewritten, did := aliasDeepSeekResponsesContent(content); did {
+		if rewritten, did := aliasDeepSeekResponsesContent(content, imageField); did {
 			item["content"] = rewritten
 			changed = true
 		}
 	}
 	if output, exists := item["output"]; exists {
-		if rewritten, did := aliasDeepSeekResponsesContent(output); did {
+		if rewritten, did := aliasDeepSeekResponsesContent(output, imageField); did {
 			item["output"] = rewritten
 			changed = true
 		}
@@ -243,7 +253,7 @@ func aliasDeepSeekResponsesInputItem(item map[string]any) bool {
 	return changed
 }
 
-func aliasDeepSeekResponsesContent(content any) (any, bool) {
+func aliasDeepSeekResponsesContent(content any, imageField string) (any, bool) {
 	parts, ok := asDeepSeekResponsesSlice(content)
 	if !ok {
 		return content, false
@@ -254,7 +264,7 @@ func aliasDeepSeekResponsesContent(content any) (any, bool) {
 		if !ok {
 			continue
 		}
-		if aliasDeepSeekResponsesImagePart(part) {
+		if aliasDeepSeekResponsesImagePart(part, imageField) {
 			parts[i] = part
 			changed = true
 		}
@@ -265,7 +275,7 @@ func aliasDeepSeekResponsesContent(content any) (any, bool) {
 	return parts, true
 }
 
-func aliasDeepSeekResponsesImagePart(part map[string]any) bool {
+func aliasDeepSeekResponsesImagePart(part map[string]any, imageField string) bool {
 	partType := strings.TrimSpace(stringValue(part["type"]))
 	switch partType {
 	case "input_image", "image_url", "image":
@@ -281,22 +291,28 @@ func aliasDeepSeekResponsesImagePart(part map[string]any) bool {
 		part["type"] = "input_image"
 		changed = true
 	}
-	if current, ok := part["image_url"].(string); !ok || strings.TrimSpace(current) != imageURL {
-		part["image_url"] = imageURL
+	if current, ok := part[imageField].(string); !ok || strings.TrimSpace(current) != imageURL {
+		part[imageField] = imageURL
 		changed = true
 	}
-	if current, ok := part["url"].(string); !ok || strings.TrimSpace(current) != imageURL {
-		part["url"] = imageURL
-		changed = true
+	// Exactly one URL field crosses the adapter boundary. Converted source/image
+	// aliases also contain the bitmap and must not duplicate the selected payload.
+	for _, key := range []string{"url", "image_url", "image", "source"} {
+		if key != imageField {
+			if _, exists := part[key]; exists {
+				delete(part, key)
+				changed = true
+			}
+		}
 	}
 	return changed
 }
 
 func extractDeepSeekResponsesImageURL(part map[string]any) string {
-	if imageURL := deepSeekResponsesURLValue(part["url"]); imageURL != "" {
+	if imageURL := deepSeekResponsesURLValue(part["image_url"]); imageURL != "" {
 		return imageURL
 	}
-	if imageURL := deepSeekResponsesURLValue(part["image_url"]); imageURL != "" {
+	if imageURL := deepSeekResponsesURLValue(part["url"]); imageURL != "" {
 		return imageURL
 	}
 	if imageURL := deepSeekResponsesURLValue(part["image"]); imageURL != "" {

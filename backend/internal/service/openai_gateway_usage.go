@@ -22,19 +22,21 @@ import (
 
 // OpenAIRecordUsageInput input for recording usage
 type OpenAIRecordUsageInput struct {
-	Result             *OpenAIForwardResult
-	APIKey             *APIKey
-	User               *User
-	Account            *Account
-	Subscription       *UserSubscription
-	InboundEndpoint    string
-	UpstreamEndpoint   string
-	UserAgent          string // 请求的 User-Agent
-	IPAddress          string // 请求的客户端 IP 地址
-	SessionID          string // 客户端显式会话标识（session_id / X-Session-Id 等请求头），仅用于用量行会话关联
-	RequestPayloadHash string
-	APIKeyService      APIKeyQuotaUpdater
-	QuotaPlatform      string // user×platform quota platform resolved by the handler before async billing.
+	// Tool bridges use a separate backend pool while retaining caller tariff.
+	PreserveCallerGroupMultiplier bool
+	Result                        *OpenAIForwardResult
+	APIKey                        *APIKey
+	User                          *User
+	Account                       *Account
+	Subscription                  *UserSubscription
+	InboundEndpoint               string
+	UpstreamEndpoint              string
+	UserAgent                     string // 请求的 User-Agent
+	IPAddress                     string // 请求的客户端 IP 地址
+	SessionID                     string // 客户端显式会话标识（session_id / X-Session-Id 等请求头），仅用于用量行会话关联
+	RequestPayloadHash            string
+	APIKeyService                 APIKeyQuotaUpdater
+	QuotaPlatform                 string // user×platform quota platform resolved by the handler before async billing.
 	// PricingAt 是请求级定价时刻（请求开始捕获，与利润门的 D 同源）：高峰因子
 	// 按该时刻计算，保证同一请求从准入到扣费不中途变价。零值回退记录时刻
 	//（既有行为），供未装配的路径（图片/异步/cyber 等）沿用。
@@ -229,7 +231,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	// Account-side group multiplier is independent from RateMultiplier (which
 	// only changes account cost statistics). A value of 5 offsets a 0.2x group
 	// for this account and restores a 1.0x user charge.
-	multiplier *= account.UserGroupRateMultiplier()
+	multiplier = callerRateMultiplierForUsage(multiplier, account, input.PreserveCallerGroupMultiplier)
 	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。
 	// 高峰因子按请求级 PricingAt 现算（与利润门 D 同源同刻，跨峰谷请求不中途
 	// 变价）；未装配 PricingAt 的路径回退记录时刻，保持既有行为。不并入上面的
@@ -556,11 +558,13 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}, s.billingDeps(), s.usageBillingRepo)
 
 	if billingErr != nil {
-		usageLog.ActualCost = 0
-		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 		return billingErr
 	}
-	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+	if !s.DurableUsageBillingEnabled() {
+		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+	} else {
+		recordDurableUsageTiming(ctx, s.usageLogRepo, usageLog)
+	}
 
 	return nil
 }
@@ -1250,4 +1254,11 @@ func cloneImageSizeBreakdown(input map[string]int) map[string]int {
 		output[key] = value
 	}
 	return output
+}
+
+func callerRateMultiplierForUsage(multiplier float64, account *Account, preserve bool) float64 {
+	if preserve {
+		return multiplier
+	}
+	return multiplier * account.UserGroupRateMultiplier()
 }

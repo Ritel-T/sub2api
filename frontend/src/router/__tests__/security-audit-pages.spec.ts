@@ -3,6 +3,7 @@ import { defineComponent } from 'vue'
 import { readFileSync } from 'node:fs'
 import IPRiskSettings from '@/features/ip-risk/IPRiskSettings.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import Pagination from '@/components/common/Pagination.vue'
 import type { IPRiskSnapshot } from '@/features/ip-risk/api'
 import { flushPromises, mount } from '@vue/test-utils'
 import { RouterView } from 'vue-router'
@@ -72,7 +73,7 @@ beforeEach(() => {
   state.prompt.listEvents.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
   state.risk.get.mockResolvedValue(riskSnapshot())
   state.risk.save.mockImplementation(async config => structuredClone(config))
-  state.risk.events.mockResolvedValue([])
+  state.risk.events.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
   state.risk.bans.mockResolvedValue([])
   state.risk.anonymousBans.mockResolvedValue([])
   state.listIPAudit.mockResolvedValue({ items: [], sources: [], has_more: false, next_cursor: 0, unrestricted: false })
@@ -98,7 +99,8 @@ describe('security audit real routes', () => {
     expect(page.get('h1').text()).toBe(messages.ipAudit.title)
     expect(document.title).toBe(`${messages.ipAudit.title} - Test`)
     expect(activeSharedPath()).toBe('/admin/ip-audit')
-    expect(page.find('a[href="/admin/ip-audit"]').exists()).toBe(false)
+    expect(page.get('a[href="/admin/ip-audit"]').attributes('aria-current')).toBe('page')
+    expect(page.findAll('[aria-current="page"]')).toHaveLength(1)
     expect(page.html()).not.toContain('max-w-[1600px]')
     await router.push('/admin/prompt-audit')
     await flushPromises()
@@ -162,6 +164,19 @@ describe('security audit real routes', () => {
 
 
 describe('IP settings migration through real routes', () => {
+  it('closes the blacklist dialog and releases scroll lock when leaving the cached configuration tab', async () => {
+    const page = await open('/admin/ip-audit?tab=config')
+    await page.get('[data-testid="risk-manage-blacklist"]').trigger('click'); await flushPromises()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(document.body.classList.contains('modal-open')).toBe(true)
+    await router.push('/admin/ip-audit?tab=sources'); await flushPromises()
+    await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull())
+    expect(document.body.classList.contains('modal-open')).toBe(false)
+    await router.push('/admin/ip-audit?tab=config'); await flushPromises()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(state.risk.save).not.toHaveBeenCalled()
+  })
+
   it.each([
     '/admin/settings?tab=security#ip-risk-settings',
     '/admin/settings#ip-risk-settings',
@@ -197,7 +212,7 @@ describe('IP settings migration through real routes', () => {
       category: 'login', path: '/api/v1/auth/login', user_agent: 'Long mobile user agent '.repeat(8),
       status: 401, reason: 'login_failures', error_reason: 'INVALID_CREDENTIALS', decision: 'auto_banned'
     }
-    state.risk.events.mockResolvedValueOnce([event])
+    state.risk.events.mockResolvedValueOnce({ items: [event], total: 1, page: 1, page_size: 20, pages: 1 })
     const page = await open('/admin/ip-audit?tab=config', locale)
     const settings = page.getComponent(IPRiskSettings)
     expect(page.get('[role="tablist"]').classes()).toContain('flex-wrap')
@@ -235,6 +250,42 @@ describe('IP settings migration through real routes', () => {
     expect(page.find('[data-test="tab-panel-config"]').exists()).toBe(false)
     expect(state.prompt.getConfig).not.toHaveBeenCalled()
   })
+  it('keeps the event page and unsaved configuration when returning through tab history', async () => {
+    const event = {
+      id: 'page-one', at: 1700000000, ip: '198.51.100.42', network: '198.51.100.42/32',
+      peer: '192.0.2.44', ip_source: 'trusted_proxy_chain', country: 'CN', method: 'POST',
+      category: 'login', path: '/api/v1/auth/login', user_agent: 'Pagination fixture',
+      status: 401, reason: 'login_failures', error_reason: 'INVALID_CREDENTIALS', decision: 'auto_banned'
+    }
+    const secondPageEvent = { ...event, id: 'page-two', ip: '198.51.100.43' }
+    state.risk.events
+      .mockResolvedValueOnce({ items: [event], total: 41, page: 1, page_size: 20, pages: 3 })
+      .mockResolvedValueOnce({ items: [secondPageEvent], total: 41, page: 2, page_size: 20, pages: 3 })
+    const page = await open('/admin/ip-audit?tab=config&keep=1#ip-risk-settings')
+    const settings = page.getComponent(IPRiskSettings)
+    await settings.get('[data-testid="risk-whitelist"]').setValue('192.0.2.10\n192.0.2.11')
+    await settings.get(`button[aria-label="${en.pagination.next}"]`).trigger('click')
+    await flushPromises()
+    expect(state.risk.events).toHaveBeenLastCalledWith('', '', '', 2, 20)
+    expect(settings.getComponent(Pagination).props('page')).toBe(2)
+    expect(settings.getComponent(DataTable).props('data')).toEqual([secondPageEvent])
+
+    await page.get('[data-test="ip-tab-sources"]').trigger('click'); await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ tab: 'sources', keep: '1' })
+    expect(page.find('[data-testid="ip-risk-settings"]').exists()).toBe(false)
+    router.back()
+    await vi.waitFor(() => expect(router.currentRoute.value.query.tab).toBe('config'))
+    await flushPromises()
+    const restored = page.getComponent(IPRiskSettings)
+    expect(restored.vm.$).toBe(settings.vm.$)
+    expect(restored.getComponent(Pagination).props('page')).toBe(2)
+    expect(restored.getComponent(DataTable).props('data')).toEqual([secondPageEvent])
+    expect((restored.get('[data-testid="risk-whitelist"]').element as HTMLTextAreaElement).value).toBe('192.0.2.10\n192.0.2.11')
+    expect(state.risk.get).toHaveBeenCalledOnce()
+    expect(state.risk.events).toHaveBeenCalledTimes(2)
+    expect(state.risk.save).not.toHaveBeenCalled()
+  })
+
   it('opens settings from source management and restores both tabs through history', async () => {
     const page = await open('/admin/ip-audit?tab=sources')
     expect(state.risk.get).not.toHaveBeenCalled()

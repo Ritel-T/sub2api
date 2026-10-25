@@ -13,11 +13,20 @@ import (
 )
 
 type ContentModerationHandler struct {
-	service *service.ContentModerationService
+	service            *service.ContentModerationService
+	safetyPromptStore  *service.SafetyPromptStore
+	safetyPromptConfig *service.SettingService
 }
 
 func NewContentModerationHandler(svc *service.ContentModerationService) *ContentModerationHandler {
 	return &ContentModerationHandler{service: svc}
+}
+
+// NewContentModerationHandlerWithSafetyPrompt wires the native safety injection
+// module into the admin handler. The store is shared with the gateway through
+// Wire so events written on the request path are visible in the audit API.
+func NewContentModerationHandlerWithSafetyPrompt(svc *service.ContentModerationService, store *service.SafetyPromptStore, settings *service.SettingService) *ContentModerationHandler {
+	return &ContentModerationHandler{service: svc, safetyPromptStore: store, safetyPromptConfig: settings}
 }
 
 type contentModerationConfigRequest struct {
@@ -226,17 +235,20 @@ func (h *ContentModerationHandler) manageUser(c *gin.Context, action string) {
 		return
 	}
 	var req struct {
-		Action  string `json:"action"`
-		Version *int64 `json:"version" binding:"required"`
-		Exempt  *bool  `json:"auto_ban_exempt"`
-		Reason  string `json:"reason"`
-		Confirm bool   `json:"confirm"`
+		Action         string `json:"action"`
+		Version        *int64 `json:"version" binding:"required"`
+		Exempt         *bool  `json:"auto_ban_exempt"`
+		KeywordExempt  *bool  `json:"keyword_exempt"`
+		APIAuditExempt *bool  `json:"api_audit_exempt"`
+		EmailExempt    *bool  `json:"email_exempt"`
+		Reason         string `json:"reason"`
+		Confirm        bool   `json:"confirm"`
 	}
 	if err = c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid action")
 		return
 	}
-	in := service.ModerationUserAction{Action: req.Action, Version: *req.Version, Exempt: req.Exempt, Reason: req.Reason, Confirm: req.Confirm}
+	in := service.ModerationUserAction{Action: req.Action, Version: *req.Version, Exempt: req.Exempt, KeywordExempt: req.KeywordExempt, APIAuditExempt: req.APIAuditExempt, EmailExempt: req.EmailExempt, Reason: req.Reason, Confirm: req.Confirm}
 	if action != "" {
 		in.Action = action
 	}

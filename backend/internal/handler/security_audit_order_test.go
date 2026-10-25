@@ -31,7 +31,7 @@ func TestPromptAuditGatePrecedesAccountBillingAndUpstreamSideEffects(t *testing.
 		{file: "openai_images.go", function: "Images", auditToken: "checkSecurityAudit"},
 		{file: "grok_media.go", function: "handleGrokMedia", auditToken: "checkSecurityAudit"},
 		{file: "openai_embeddings.go", function: "Embeddings", auditToken: "checkSecurityAudit"},
-		{file: "openai_alpha_search.go", function: "AlphaSearch", auditToken: "checkSecurityAudit"},
+		{file: "openai_alpha_search.go", function: "alphaSearch", auditToken: "checkSecurityAudit"},
 		{file: "image_task_handler.go", function: "Submit", auditToken: "checkSecurityAuditBeforeSubmit"},
 		{file: "batch_image_handler.go", function: "Submit", auditToken: "checkSecurityAuditBeforeSubmit"},
 	}
@@ -83,4 +83,13 @@ func goFunctionSource(t *testing.T, filename, functionName string) string {
 	}
 	t.Fatalf("function %s not found in %s", functionName, filename)
 	return ""
+}
+
+func TestSearchEntryPointsShareAuditedPipeline(t *testing.T) {
+	alpha := stripGoComments(goFunctionSource(t, "openai_alpha_search.go", "AlphaSearch"))
+	tools := stripGoComments(goFunctionSource(t, "deepseek_tools.go", "deepSeekTools"))
+	require.Contains(t, alpha, "h.alphaSearch(c, nil)")
+	require.Contains(t, tools, "h.alphaSearch(c,")
+	require.NotContains(t, alpha, ".Forward")
+	require.NotContains(t, tools, ".Forward")
 }

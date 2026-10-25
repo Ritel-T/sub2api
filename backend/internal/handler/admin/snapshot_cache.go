@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -205,7 +206,10 @@ func (c *snapshotCache) GetOrLoadContext(ctx context.Context, key string, load f
 		if err != nil {
 			return snapshotCacheEntry{}, false, err
 		}
-		result := value.(snapshotCacheLoadResult)
+		result, ok := value.(snapshotCacheLoadResult)
+		if !ok {
+			return snapshotCacheEntry{}, false, errors.New("unexpected snapshot load result")
+		}
 		return result.Entry, result.Hit, nil
 	}
 	resultCh := c.sf.DoChan(key, loadEntry)

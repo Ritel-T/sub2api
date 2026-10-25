@@ -1,7 +1,7 @@
 export default {
   moderationUsers: {
     "title": "內容審查用戶管理",
-    "scope": "此白名單僅免除內容審查自動帳號封禁。仍執行審核、當次風險攔截、計數和通知；認證、余額配額、權限、IP安全及獨立請求處罰不受影響。",
+    "scope": "四類白名單獨立組合：自動封號豁免仍審仍攔；關鍵詞豁免僅跳過前置關鍵詞層；API 豁免不發送外部審核請求（TypeSafe AI 僅審文字）。策略仍生效：關鍵詞+API 命中即攔，否則呼叫 API；僅關鍵詞不呼叫 API；僅 API 不檢查關鍵詞。均不豁免上游明確 cyber_policy 終止/停止發送、認證、餘額配額、權限、IP 安全或其他獨立處罰。",
     "current": "當前計數 {count} · 用戶狀態 {status} · 計數代次 {generation}",
     "lastAction": "最近管理操作",
     "exemption": "自動封號白名單",
@@ -21,6 +21,15 @@ export default {
     "empty": "暫無匹配用戶",
     "state": "狀態 / 當前計數",
     "actor": "最近操作者 UID",
-    "time": "最近操作時間"
+    "time": "最近操作時間",
+  "keywordExemption": "關鍵詞攔截白名單",
+  "apiAuditExemption": "外部審核 API 白名單",
+  "emailExemption": "電郵通知白名單",
+  "emailScope": "僅停止該用戶的內容審查違規、審查封號及 cyber_policy 通知電郵，仍審查、攔截、計數並按規則處罰；驗證碼、登入安全、餘額等其他電郵照常。撤銷後恢復日後發送，不補發已跳過的電郵。",
+  "email_exempt": "審查電郵豁免",
+  "exemptionTypes": "白名單類型",
+  "auto_ban_exempt": "自動封號豁免",
+  "keyword_exempt": "關鍵詞豁免",
+  "api_audit_exempt": "外部審核 API 豁免",
 }
 }

@@ -1059,6 +1059,10 @@ export default {
         testModeCompact: 'Compact 探測',
         testModeBPSTools: 'BPS 工具往返（最多 3 次上游請求）',
         modelRestrictionDisabledByPassthrough: '已開啟自動透傳：模型白名單/映射不會生效。',
+        extraImageModelsTitle: '額外生圖模型（API Key）',
+        extraImageModelsExact: '精確模型 ID',
+        extraImageModelsPrefixes: '模型前綴',
+        extraImageModelsHint: '每行一個，也可用逗號分隔；直接填寫前綴，無需星號，區分大小寫。預設留空。僅放行此帳戶的圖片生成及非同步生成，不包含圖片編輯。對外別名、渠道映射名稱和上游模型名稱都須命中內置生圖系列或此名單；分組仍需允許生圖。請另行配置生圖價格。',
       },
       grok: {
         baseUrlHint: 'Grok OAuth 帳戶會轉發到官方 xAI API Base URL。',
@@ -1987,7 +1991,8 @@ export default {
             no_ticket: '未拿到門票',
             cancelled: '已取消'
           }
-        }
+        },
+        allAccountsHistory: '查看全部帳戶記錄',
       },
       imagePromptLabel: '生圖提示詞',
       imagePromptPlaceholder: '例如：生成一隻戴宇航員頭盔的橘貓，像素插畫風格，純色背景。',

@@ -197,6 +197,7 @@ export function provideConsoleNav() {
         children: [
           { path: '/admin/risk-control', label: t('nav.contentModeration'), icon: ShieldIcon, featureFlag: flagRiskControl },
           { path: '/admin/prompt-audit', label: t('nav.promptAudit'), icon: ShieldIcon, featureFlag: flagRiskControl },
+          { path: '/admin/safety-prompt-audit', label: t('admin.safetyPromptAudit.nav'), icon: ShieldIcon, featureFlag: flagRiskControl },
           { path: '/admin/ip-audit', label: t('ipAudit.title'), icon: ShieldIcon },
         ],
       },

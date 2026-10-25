@@ -11,6 +11,18 @@
         <input v-model="exempt" type="checkbox" data-test="exempt" class="mt-1" />
         <span>{{ t('admin.moderationUsers.exemption') }}</span>
       </label>
+      <label class="flex items-start gap-2 text-sm">
+        <input v-model="keywordExempt" type="checkbox" data-test="keyword-exempt" class="mt-1" />
+        <span>{{ t('admin.moderationUsers.keywordExemption') }}</span>
+      </label>
+      <label class="flex items-start gap-2 text-sm">
+        <input v-model="apiAuditExempt" type="checkbox" data-test="api-audit-exempt" class="mt-1" />
+        <span>{{ t('admin.moderationUsers.apiAuditExemption') }}</span>
+      </label>
+      <label class="flex items-start gap-2 text-sm">
+        <input v-model="emailExempt" type="checkbox" data-test="email-exempt" class="mt-1" />
+        <span>{{ t('admin.moderationUsers.emailExemption') }}<small class="mt-1 block text-gray-500">{{ t('admin.moderationUsers.emailScope') }}</small></span>
+      </label>
       <label class="block text-sm">{{ t('admin.moderationUsers.reason') }}
         <input v-model.trim="reason" class="input mt-1" maxlength="500" data-test="reason" />
       </label>
@@ -19,7 +31,7 @@
         <span>{{ t('admin.moderationUsers.confirm') }}</span>
       </label>
       <div class="flex flex-wrap gap-2">
-        <button type="button" class="btn btn-secondary" data-test="save-exemption" :disabled="!ready || exempt === state.auto_ban_exempt" @click="apply('exemption')">{{ t('admin.moderationUsers.saveExemption') }}</button>
+        <button type="button" class="btn btn-secondary" data-test="save-exemption" :disabled="!ready || !exemptionsChanged" @click="apply('exemption')">{{ t('admin.moderationUsers.saveExemption') }}</button>
         <button type="button" class="btn btn-secondary" data-test="reset" :disabled="!ready" @click="apply('reset')">{{ t('admin.moderationUsers.reset') }}</button>
         <button type="button" class="btn btn-secondary" data-test="unban" :disabled="!ready || !state.owned_disable" @click="apply('unban')">{{ t('admin.moderationUsers.unban') }}</button>
       </div>
@@ -38,6 +50,17 @@ const emit = defineEmits<{ changed: [state: ModerationUserState] }>()
 const { t } = useI18n()
 const state = ref<ModerationUserState | null>(null)
 const exempt = ref(false)
+const keywordExempt = ref(false)
+const apiAuditExempt = ref(false)
+const emailExempt = ref(false)
+const exemptionsChanged = computed(() => state.value && (exempt.value !== state.value.auto_ban_exempt || keywordExempt.value !== (state.value.keyword_exempt ?? false) || apiAuditExempt.value !== (state.value.api_audit_exempt ?? false) || emailExempt.value !== (state.value.email_exempt ?? false)))
+function readState(data: ModerationUserState) {
+  state.value = data
+  exempt.value = data.auto_ban_exempt
+  keywordExempt.value = data.keyword_exempt ?? false
+  apiAuditExempt.value = data.api_audit_exempt ?? false
+  emailExempt.value = data.email_exempt ?? false
+}
 const reason = ref('')
 const confirmed = ref(false)
 const busy = ref(false)
@@ -55,7 +78,7 @@ async function load() {
   confirmed.value = false; reason.value = ''
   try {
     const data = await getModerationUser(props.userId)
-    if (version === loadVersion) { state.value = data; exempt.value = data.auto_ban_exempt }
+    if (version === loadVersion) { readState(data) }
   } catch (err) { if (version === loadVersion) error.value = message(err) }
   finally { if (version === loadVersion) busy.value = false }
 }
@@ -64,9 +87,9 @@ async function apply(action: ModerationUserAction['action']) {
   const version = loadVersion
   busy.value = true; error.value = ''; success.value = false
   try {
-    const data = await manageModerationUser(props.userId, { action, version: state.value.version, reason: reason.value, confirm: confirmed.value, ...(action === 'exemption' ? { auto_ban_exempt: exempt.value } : {}) })
+    const data = await manageModerationUser(props.userId, { action, version: state.value.version, reason: reason.value, confirm: confirmed.value, ...(action === 'exemption' ? { auto_ban_exempt: exempt.value, keyword_exempt: keywordExempt.value, api_audit_exempt: apiAuditExempt.value, email_exempt: emailExempt.value } : {}) })
     if (version !== loadVersion) return
-    state.value = data; exempt.value = data.auto_ban_exempt; confirmed.value = false; reason.value = ''; success.value = true
+    readState(data); confirmed.value = false; reason.value = ''; success.value = true
     emit('changed', data)
   } catch (err) { if (version === loadVersion) { error.value = message(err); confirmed.value = false } }
   finally { if (version === loadVersion) busy.value = false }

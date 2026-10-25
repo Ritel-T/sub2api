@@ -242,5 +242,14 @@ sessionExport: {
     ok: '正常',
     auth: '鑑權失敗',
     transient: '臨時異常'
-  }
+  },
+  reloginBudgetCount: '重新登入失敗預算：{count}/{limit}',
+  reloginBudgetExhausted: '自動重新登入預算已耗盡，巡檢繼續',
+  reloginBackoffUntil: '重新登入冷卻至',
+  resumeReloginBudget: '恢復預算（不立即重新登入）',
+  resumeReloginBudgetConfirm: '確認恢復自動重新登入預算？不會建立任務、啟用開關或更改帳戶狀態；保留現有冷卻，且至少等待一次基礎冷卻。存在進行中的任務或巡檢時會拒絕。',
+  reloginBudgetResumed: '已恢復重新登入預算，等待冷卻和下一次巡檢',
+  ruleReloginBackoffMax: '重新登入遞增冷卻上限',
+  ruleReloginMaxFailures: '連續重新登入失敗上限',
+  reloginBudgetHint: '達到上限只暫停自動重新登入；儲存成功後還須巡檢通過身分驗證才會歸零。',
 }

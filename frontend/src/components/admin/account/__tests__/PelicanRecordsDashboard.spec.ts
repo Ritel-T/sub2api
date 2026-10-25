@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import Dashboard from '../PelicanRecordsDashboard.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import { scheduledTestsAPI as api } from '@/api/admin/scheduledTests'
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/api/admin/scheduledTests', () => ({ scheduledTestsAPI: { listPelicanHistory: vi.fn(), getResult: vi.fn() } }))
@@ -79,5 +80,89 @@ describe('Pelican record dashboard', () => {
     const calls = vi.mocked(api.listPelicanHistory).mock.calls.length
     await vi.advanceTimersByTimeAsync(30000)
     expect(api.listPelicanHistory).toHaveBeenCalledTimes(calls)
+  })
+})
+
+describe('Pelican records window for one account', () => {
+  const scheduled = { id: 8, plan_id: 3, account_id: 42, account_name: 'Manual account', status: 'success', error_message: '', response_text: '', started_at: '2026-09-23T14:00:00Z', latency_ms: 2000, pelican_config: { model_id: 'scheduled-model', reasoning_effort: 'high' } }
+
+  it('lists only the tested account from the server and this browser', async () => {
+    localStorage.setItem('sub2api-pelican-test:42', JSON.stringify([{ ...manual, id: 'saved', runs: [{ ...manual.runs[0], html: '<svg>SAVED-42</svg>' }] }]))
+    localStorage.setItem('sub2api-pelican-test:99', JSON.stringify([{ ...manual, id: 'other' }]))
+    vi.mocked(api.listPelicanHistory).mockResolvedValue({ items: [scheduled] as any, next_cursor: 0 })
+    vi.mocked(api.getResult).mockResolvedValue({ ...scheduled, response_text: '<svg>SCHEDULED-42</svg>' } as any)
+    const wrapper = render({ accounts: [{ id: 99, name: 'Other account' }], accountOnly: true }); await flushPromises()
+    expect(api.listPelicanHistory).toHaveBeenCalledWith(0, 42)
+    // The current run, the saved run and the scheduled output; account 99's saved run stays out.
+    expect(wrapper.findAll('article')).toHaveLength(3)
+    expect(wrapper.text()).not.toContain('Other account')
+    expect(wrapper.get('[data-testid="records-account"]').text()).toBe('Manual account')
+    expect(wrapper.findAll('article h3')).toHaveLength(0)
+    expect(wrapper.text()).toContain('scheduled-model / high')
+    await wrapper.get('[data-testid="show-all-records"]').trigger('click')
+    expect(wrapper.emitted('showAll')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('closes the preview, then the window on Escape without reaching the dialog below', async () => {
+    const dialogBelow = vi.fn()
+    const lowerHost = document.createElement('div')
+    const recordsHost = document.createElement('div')
+    document.body.append(lowerHost, recordsHost)
+    const lower = mount(BaseDialog, {
+      props: { show: true, title: 'Dialog below', onClose: dialogBelow },
+      slots: { default: '<button data-testid="records-opener">Open records</button>' },
+      attachTo: lowerHost,
+      global: { stubs: { Transition: true } }
+    })
+    await flushPromises()
+    const opener = document.body.querySelector<HTMLButtonElement>('[data-testid="records-opener"]')!
+    opener.focus()
+    const wrapper = mount(Dashboard, {
+      props: { accounts: [], account, manualRecord: manual, accountOnly: true },
+      attachTo: recordsHost,
+      global: { stubs: { Transition: true } }
+    })
+    let unmounted = false
+    try {
+      await flushPromises()
+      // BaseDialog teleports to body and owns focus; wrapper.element is a comment.
+      const panel = document.body.querySelector<HTMLElement>('[data-testid="records-panel"]')!
+      const dialog = panel.closest('[role="dialog"]')!
+      expect(dialog.contains(document.activeElement)).toBe(true)
+      panel.querySelector<HTMLButtonElement>('article button')!.click()
+      await flushPromises()
+      expect(document.body.querySelector('[data-testid="record-detail"]')).not.toBeNull()
+
+      const escape = async () => {
+        document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+        await flushPromises()
+      }
+      await escape()
+      expect(document.body.querySelector('[data-testid="record-detail"]')).toBeNull()
+      expect(wrapper.emitted('close')).toBeUndefined()
+      await escape()
+      expect(wrapper.emitted('close')).toHaveLength(1)
+      expect(dialogBelow).not.toHaveBeenCalled()
+      wrapper.unmount()
+      unmounted = true
+      expect(document.activeElement).toBe(opener)
+    } finally {
+      if (!unmounted) wrapper.unmount()
+      lower.unmount()
+      recordsHost.remove()
+      lowerHost.remove()
+    }
+  })
+
+  it('leaves the all-accounts page unfiltered and open on Escape', async () => {
+    const wrapper = render(); await flushPromises()
+    expect(api.listPelicanHistory).toHaveBeenCalledWith(0)
+    expect(wrapper.find('[data-testid="show-all-records"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="records-account"]').exists()).toBe(false)
+    expect(wrapper.findAll('article h3')).toHaveLength(1)
+    await wrapper.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toBeUndefined()
+    wrapper.unmount()
   })
 })

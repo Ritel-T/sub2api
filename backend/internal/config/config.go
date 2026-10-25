@@ -1235,7 +1235,8 @@ func (c CodexWSAnchorConfig) Validate() error {
 }
 
 type GatewayConfig struct {
-	UpstreamRouting upstreamroute.Config `mapstructure:"upstream_routing"`
+	DeepSeekTools   GatewayDeepSeekToolsConfig `mapstructure:"deepseek_tools"`
+	UpstreamRouting upstreamroute.Config       `mapstructure:"upstream_routing"`
 	// PrismBrowser is the server-managed browser-session adapter for prism.openai.com.
 	// Account settings only select this route; cookies, sandbox state and the adapter
 	// API key remain outside account credentials.
@@ -1451,6 +1452,15 @@ type GatewayGrokConfig struct {
 	// FreeQuotaStatsCacheSeconds is the soft-gate stats cache TTL. Hot path never
 	// waits on usage_logs; misses fail open and refresh asynchronously.
 	FreeQuotaStatsCacheSeconds int `mapstructure:"free_quota_stats_cache_seconds"`
+}
+
+// GatewayDeepSeekToolsConfig explicitly authorizes an OpenAI search backend for
+// DeepSeek standalone tools. Caller authentication, billing and quotas stay on
+// the DeepSeek key. Disabled unless configured by the operator.
+type GatewayDeepSeekToolsConfig struct {
+	Enabled       bool   `mapstructure:"enabled"`
+	SearchGroupID int64  `mapstructure:"search_group_id"`
+	SearchModel   string `mapstructure:"search_model"`
 }
 
 // GatewayCNProvidersConfig 国产 OpenAI 兼容供应商（kimi/zhipu/deepseek）的余额检测配置。
@@ -2362,6 +2372,14 @@ func setDefaults() {
 	viper.SetDefault("email_delivery.recipient_domain_aliases", []string{})
 	viper.SetDefault("gateway.upstream_routing.enabled", false)
 	viper.SetDefault("runtime.role", RuntimeRoleFull)
+	viper.SetDefault("runtime.node_id", "")
+	viper.SetDefault("runtime.image_relay_owner_origin", "")
+	viper.SetDefault("runtime.ws_node_owner.enabled", false)
+	viper.SetDefault("runtime.ws_node_owner.node_id", "")
+	viper.SetDefault("runtime.scheduler_snapshot_mode", SchedulerSnapshotModeAuto)
+	viper.SetDefault("runtime.scheduler_readiness.enabled", false)
+	viper.SetDefault("runtime.scheduler_readiness.buckets", []string{})
+	viper.SetDefault("runtime.scheduler_readiness.max_age_seconds", 900)
 	viper.SetDefault("runtime.regional_scheduler_file", "")
 	viper.SetDefault("runtime.regional_auth_file", "")
 	viper.SetDefault("runtime.regional_concurrency_file", "")
@@ -2889,6 +2907,9 @@ func setDefaults() {
 	viper.SetDefault("gateway.grok.free_quota_window_hours", 24)
 	viper.SetDefault("gateway.grok.free_quota_stats_cache_seconds", 60)
 	// 国产供应商余额检测（kimi/deepseek payg；zhipu 无余额端点，仅靠响应式 429/402）。
+	viper.SetDefault("gateway.deepseek_tools.enabled", false)
+	viper.SetDefault("gateway.deepseek_tools.search_group_id", 0)
+	viper.SetDefault("gateway.deepseek_tools.search_model", "")
 	viper.SetDefault("gateway.cn_providers.balance_check_enabled", true)
 	viper.SetDefault("gateway.cn_providers.balance_threshold", 0.5)
 	viper.SetDefault("gateway.cn_providers.balance_check_interval_minutes", 10)

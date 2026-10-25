@@ -139,8 +139,11 @@ docs/*
 !docs/backup-integrity.md
 !docs/security-scan-remediation.md
 !docs/balance-notification-delivery.md
+!docs/typesafe-content-audit.md
+!docs/multi-host-session-owner.md
 !docs/security-penalties.md
 !docs/ip-risk-control.md
+!docs/docker-trusted-proxies.md
 !docs/anonymous-api-guard.md
 !docs/registration-email-alias-block.md
 !docs/openai-ws-sse-acceleration.md

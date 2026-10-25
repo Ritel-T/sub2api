@@ -80,6 +80,11 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(ctx context.Context, c *gin.Co
 	resp, err := s.doOpenAIUpstream(req, proxyURL, account)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
+		if hasAlphaSearchResponseTransform(ctx) {
+			// The POST may have executed upstream. Do not convert an unknown
+			// outcome into a retry/failover, which could execute it twice.
+			return nil, fmt.Errorf("search backend transport outcome is unknown")
+		}
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -117,9 +122,24 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(ctx context.Context, c *gin.Co
 	if !account.IsShadow() {
 		s.UpdateCodexUsageSnapshotFromHeaders(ctx, account.ID, resp.Header)
 	}
+	if resp.StatusCode >= http.StatusMultipleChoices && writeAdaptedAlphaSearchError(ctx, c, resp.StatusCode) {
+		return nil, nil
+	}
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {
+		contentType = "application/json"
+	}
+	searchCalls := 1
+	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+		respBody, searchCalls, err = transformAlphaSearchResponse(ctx, respBody)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if hasAlphaSearchResponseTransform(ctx) && resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+		c.Writer.Header().Del("Content-Length")
+		c.Writer.Header().Del("Content-Encoding")
 		contentType = "application/json"
 	}
 	c.Data(resp.StatusCode, contentType, respBody)
@@ -133,7 +153,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(ctx context.Context, c *gin.Co
 		Model:           requestedModel,
 		UpstreamModel:   upstreamModel,
 		Duration:        time.Since(upstreamStart),
-		WebSearchCalls:  1,
+		WebSearchCalls:  searchCalls,
 	}, nil
 }
 
@@ -164,6 +184,11 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 	resp, err := s.doOpenAIUpstream(req, proxyURL, account)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
+		if hasAlphaSearchResponseTransform(ctx) {
+			// The POST may have executed upstream. Do not convert an unknown
+			// outcome into a retry/failover, which could execute it twice.
+			return nil, fmt.Errorf("search backend transport outcome is unknown")
+		}
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -194,6 +219,9 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		if writeAdaptedAlphaSearchError(ctx, c, resp.StatusCode) {
+			return nil, nil
+		}
 		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		contentType := resp.Header.Get("Content-Type")
 		if contentType == "" {
@@ -210,6 +238,10 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 	if err != nil {
 		return nil, err
 	}
+	alphaRespBody, searchCalls, err := transformAlphaSearchResponse(ctx, alphaRespBody)
+	if err != nil {
+		return nil, err
+	}
 	c.Data(http.StatusOK, "application/json", alphaRespBody)
 	return &OpenAIForwardResult{
 		RequestID:        strings.TrimSpace(resp.Header.Get("x-request-id")),
@@ -219,7 +251,7 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 		UpstreamEndpoint: "/v1/responses",
 		ResponseHeaders:  resp.Header.Clone(),
 		Duration:         time.Since(upstreamStart),
-		WebSearchCalls:   1,
+		WebSearchCalls:   searchCalls,
 	}, nil
 }
 

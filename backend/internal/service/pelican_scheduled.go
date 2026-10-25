@@ -118,6 +118,8 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	}
 	// Result-only metadata must not mutate the stored rule or shared plan config.
 	snapshot := *plan.PelicanConfig
+	snapshot.QualityRestoreDiagnostic = nil
+	plan.QualityRestoreDiagnostic = nil
 	snapshot.TriggerSource = plan.TriggerSource
 	if snapshot.TriggerSource == "" {
 		snapshot.TriggerSource = "scheduled"
@@ -258,6 +260,10 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 		if plan.PelicanConfig.Quality != nil {
 			result.QualityRoundID = until.Format(time.RFC3339Nano)
 			result.PelicanConfig.QualityModelOutcomes = plan.QualityModelOutcomes
+			result.PelicanConfig.QualityRestoreDiagnostic = nil
+			if qualityAction == "restore_conflict" {
+				result.PelicanConfig.QualityRestoreDiagnostic = plan.QualityRestoreDiagnostic
+			}
 			// A rejected transaction must never advertise uncommitted changes.
 			if qualityAction != "action_error" && qualityAction != "action_conflict" && qualityAction != "restore_conflict" && qualityAction != "stale_run" {
 				result.PelicanConfig.QualityModelActions = plan.QualityModelActions

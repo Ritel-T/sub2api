@@ -239,7 +239,7 @@ export default {
       activeEngine: '當前生效引擎：{engine}',
       engineUnavailable: '當前引擎沒有可用 Key，API 審計不可用；失敗請求按現有策略放行。',
       typeSafeNotice: 'TypeSafe AI 僅審文字，圖片不外發也不審核。閾值為待校準初值；公共攔截、通知、封禁策略不會隨引擎切換而關閉。',
-      typeSafeThresholds: '預設閾值與 OpenAI 一致，但兩者分數含義不同。請結合實際審核結果調整各類別閾值。',
+      typeSafeThresholds: '原 13 類預設閾值保持不變；新增兩類預設關閉，95% 僅為未校準起始值。請結合業務樣本評估誤攔後明確啟用；分數含義與 OpenAI 不同。',
       auditSource: '審計來源',
       skippedImages: '未審圖片：{count}',
       legacyAuditSource: 'OpenAI（歷史記錄未儲存審核模型版本）',
@@ -568,9 +568,26 @@ export default {
           "unavailable": "正文不可用"
         }
       },
-  editBaseUrl: '編輯 Base URL',
-  typeSafeBaseUrlHint: '可編輯 TypeSafe 服務地址，留空使用 https://api.typesafe.ai。支持根地址、/v1 或 /v1/systemone，網關會保留代理路徑前綴且不重復拼接。保存 URL 不會解除 Key 凍結；401 表示鑒權被拒絕，需核對憑據與上游配置。',
+  editBaseUrl: '編輯公用預設 URL',
+  typeSafeBaseUrlHint: '未單獨設定 URL 的 Key 使用此公用預設地址；留空恢復 https://api.typesafe.ai。各 Key 的地址請在下方對應列編輯並儲存。支援根地址、/v1 或 /v1/systemone，保留路徑前綴。',
   errorDetail: '錯誤詳情（不是用戶輸入）',
+  keyUrl: '此 Key 的 URL',
+  editKeyUrl: '編輯此 Key URL',
+  keyUrlHint: '僅儲存此 Key 的 URL；不會測試上游或解除凍結。空值不能儲存。',
+  keyUrlInvalid: '請輸入有效的 HTTP(S) URL，不含用戶資訊、查詢參數或片段。',
+  keyUrlSaved: '此 Key URL 已儲存並讀回確認。',
+  keyUrlSaveFailed: '此 Key URL 儲存失敗。',
+  keyUrlReadbackFailed: '儲存後的 URL 無法讀回，請重新整理確認。',
+  defaultKeyUrl: '公用預設 URL',
+  categoryEnabled: '啟用此類別',
+  categoryDisabled: '已關閉',
+  categoryHit: '命中',
+  categoryNoHit: '未命中',
+  categorySnapshot: '實際分數 / 閾值快照與啟用狀態',
+  categoryDescriptions: {
+    jailbreak: 'AI 指令覆蓋、安全規則規避及隱藏提示詞洩漏；一般開發、授權逆向、CTF、引用及防禦討論不會自動視為惡意。預設關閉，啟用前需評估誤攔。',
+    control_bypass: '軟件授權、權限、完整性等保護檢查的繞過行為。行為分數不代表未經授權或違法；獲授權移除保護也可能取得高分。正常開發、合法軟件授權修復、授權分析和引用防禦不會自動視為惡意。是否阻擋獲授權的保護移除行為，由管理員業務策略決定。',
+  },
 },
 
     // Channel Monitor
