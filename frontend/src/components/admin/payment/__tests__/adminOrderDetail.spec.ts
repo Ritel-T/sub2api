@@ -60,7 +60,7 @@ describe('settled admin retail detail', () => {
     wrapper.unmount()
   })
 
-  it.each([['zh', '实际支付', '实际到账'], ['zh-Hant-HK', '實際支付', '實際到賬']])('provides clear settled labels in %s', (locale, paid, credit) => {
+  it.each([['zh', '实际支付', '实际到账'], ['zh-Hant-HK', '實際支付', '實際到帳']])('provides clear settled labels in %s', (locale, paid, credit) => {
     const wrapper = render(gelvOrder(), locale)
     expect(wrapper.text()).toContain(paid)
     expect(wrapper.text()).toContain(credit)
