@@ -295,6 +295,8 @@ export default {
     turnstileExpired: '驗證已過期，請重試',
     turnstileFailed: '驗證失敗，請重試',
     captchaVerified: '驗證已完成',
+    captchaBrowserNoticeTitle: '請使用 Chrome / Edge / Firefox / Safari 瀏覽器',
+    captchaBrowserNoticeDescription: '目前的瀏覽器可能無法完成人機驗證。請在以上瀏覽器中開啟此頁面，避免使用 QQ、微信等內置瀏覽器。',
     captchaLoading: '正在載入驗證碼…',
     captchaClickToVerify: '點擊完成人機驗證',
     captchaVerifying: '驗證中…',

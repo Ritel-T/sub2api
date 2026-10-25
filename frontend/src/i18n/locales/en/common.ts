@@ -297,6 +297,8 @@ export default {
     turnstileExpired: 'Verification expired, please try again',
     turnstileFailed: 'Verification failed, please try again',
     captchaVerified: 'Verification completed',
+    captchaBrowserNoticeTitle: 'Please use Chrome / Edge / Firefox / Safari',
+    captchaBrowserNoticeDescription: 'Your current browser may not support human verification. Open this page in one of these browsers; avoid in-app browsers such as QQ or WeChat.',
     captchaLoading: 'Loading verification…',
     captchaClickToVerify: 'Click to complete verification',
     captchaVerifying: 'Verifying…',
