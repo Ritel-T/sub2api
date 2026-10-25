@@ -21,6 +21,7 @@ import {
   type TencentCaptchaResult
 } from '@/utils/tencentCaptcha'
 
+const emit = defineEmits<{ error: []; verified: [] }>()
 const { locale } = useI18n()
 const props = withDefaults(defineProps<{ appId: string; region?: string }>(), { region: 'cn' })
 const isInternational = computed(
@@ -164,9 +165,10 @@ function preload(): void {
       if (proof) {
         cachedProof = proof
         cachedProofCreatedAt = Date.now()
+        emit('verified')
       }
     })
-    .catch(() => undefined)
+    .catch(() => { emit('error') })
     .finally(() => {
       if (pending === verification) pending = null
     })

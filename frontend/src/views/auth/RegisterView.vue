@@ -901,6 +901,7 @@ async function handleOAuthStart(request: OAuthLoginStart): Promise<void> {
     )
     window.location.href = result.authorize_url
   } catch (error: unknown) {
+    turnstileRef.value?.reportFailure(error)
     errorMessage.value = extractI18nErrorMessage(
       error,
       t,
@@ -1110,6 +1111,7 @@ async function handleRegister(): Promise<void> {
     // Redirect to dashboard
     await router.push('/dashboard')
   } catch (error: unknown) {
+    turnstileRef.value?.reportFailure(error)
     // Handle registration error
     errorMessage.value = buildRegistrationErrorMessage(error, t('auth.registrationFailed'))
 

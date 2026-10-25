@@ -22,6 +22,8 @@ interface TurnstileRenderOptions {
   callback: (token: string) => void
   'expired-callback'?: () => void
   'error-callback'?: () => void
+  'timeout-callback'?: () => void
+  'unsupported-callback'?: () => void
   theme?: 'light' | 'dark' | 'auto'
   size?: 'normal' | 'compact' | 'flexible'
 }
@@ -149,6 +151,12 @@ const renderWidget = () => {
       emit('expire')
     },
     'error-callback': () => {
+      emit('error')
+    },
+    'timeout-callback': () => {
+      emit('error')
+    },
+    'unsupported-callback': () => {
       emit('error')
     },
     theme: props.theme,

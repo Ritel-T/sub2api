@@ -609,6 +609,7 @@ async function handleLogin(): Promise<void> {
     const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
     await router.push(redirectTo)
   } catch (error: unknown) {
+    turnstileRef.value?.reportFailure(error)
     errorMessage.value = extractI18nErrorMessage(error, t, 'auth.errors', t('auth.loginFailed'))
 
     // Also show error toast
@@ -650,6 +651,7 @@ async function handlePasskeyLogin(): Promise<void> {
     const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
     await router.push(redirectTo)
   } catch (error: unknown) {
+    turnstileRef.value?.reportFailure(error)
     const fallback = error instanceof DOMException && error.name === 'NotAllowedError'
       ? t('auth.passkeyCancelled')
       : t('auth.passkeyFailed')
@@ -687,6 +689,7 @@ async function handleOAuthStart(request: OAuthLoginStart): Promise<void> {
     )
     window.location.href = result.authorize_url
   } catch (error: unknown) {
+    turnstileRef.value?.reportFailure(error)
     errorMessage.value = extractI18nErrorMessage(
       error,
       t,
@@ -719,6 +722,7 @@ async function handle2FAVerify(code: string): Promise<void> {
     const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
     await router.push(redirectTo)
   } catch (error: unknown) {
+    turnstileRef.value?.reportFailure(error)
     const err = error as { message?: string; response?: { data?: { message?: string } } }
     const message = err.response?.data?.message || err.message || t('profile.totp.loginFailed')
 
