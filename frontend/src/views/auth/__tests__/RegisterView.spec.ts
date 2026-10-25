@@ -8,6 +8,7 @@ const {
   showErrorMock,
   pushMock,
   verifyActionMock,
+  reportFailureMock,
   appStoreMock
 } = vi.hoisted(() => ({
   getPublicSettingsMock: vi.fn(),
@@ -15,6 +16,7 @@ const {
   showErrorMock: vi.fn(),
   pushMock: vi.fn(),
   verifyActionMock: vi.fn(),
+  reportFailureMock: vi.fn(),
   appStoreMock: {
     cachedPublicSettings: null as { promo_code_enabled?: boolean } | null,
     showError: (...args: unknown[]) => showErrorMock(...args),
@@ -82,7 +84,7 @@ function mountRegister() {
         Icon: true,
         TurnstileWidget: {
           template: '<div data-testid="turnstile-widget" />',
-          methods: { verifyAction: verifyActionMock, reset: vi.fn() }
+          methods: { verifyAction: verifyActionMock, reset: vi.fn(), reportFailure: reportFailureMock }
         },
         LoginAgreementPrompt: true,
         EmailOAuthButtons: true,
@@ -103,6 +105,7 @@ describe('RegisterView', () => {
     showErrorMock.mockReset()
     pushMock.mockReset()
     verifyActionMock.mockReset()
+    reportFailureMock.mockReset()
     appStoreMock.cachedPublicSettings = null
     sessionStorage.removeItem('register_data')
     verifyActionMock.mockResolvedValue({ token: 'ticket', randstr: 'randstr' })
@@ -124,6 +127,29 @@ describe('RegisterView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="affiliate-signup-bonus"]').exists()).toBe(visible)
+  })
+
+  it('reports direct registration API failures using the original error', async () => {
+    getPublicSettingsMock.mockResolvedValueOnce({
+      ...publicSettings,
+      turnstile_enabled: false,
+      tencent_captcha_enabled: true,
+      tencent_captcha_app_id: 'app-id'
+    })
+    const error = { response: { data: { reason: 'TENCENT_CAPTCHA_VERIFY_FAILED' } } }
+    registerMock.mockRejectedValueOnce(error)
+    const wrapper = mountRegister()
+    await flushPromises()
+    await wrapper.get('#email').setValue('user@example.com')
+    await wrapper.get('#password').setValue('secret-123')
+    await wrapper.get('#confirmPassword').setValue('secret-123')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(reportFailureMock).toHaveBeenCalledOnce()
+
+    expect(reportFailureMock).toHaveBeenCalledWith(error)
+    wrapper.unmount()
   })
 
   it('does not flash the promo-code field before disabled settings finish loading', async () => {

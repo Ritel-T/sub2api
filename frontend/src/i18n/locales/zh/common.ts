@@ -298,6 +298,8 @@ export default {
     captchaVerified: '验证已完成',
     captchaBrowserNoticeTitle: '请使用 Chrome / Edge / Firefox / Safari 浏览器',
     captchaBrowserNoticeDescription: '当前浏览器可能无法完成人机验证。请在以上浏览器中打开此页面，避免使用 QQ、微信等内置浏览器。',
+    captchaBrowserNoticeFailure: '人机验证失败，请使用以上浏览器重新打开此页面。',
+    captchaBrowserNoticeNetworkHint: '请切换网络后重试。',
     captchaLoading: '正在加载验证码…',
     captchaClickToVerify: '点击完成人机验证',
     captchaVerifying: '验证中…',

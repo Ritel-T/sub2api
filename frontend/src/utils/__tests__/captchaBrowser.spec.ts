@@ -22,6 +22,8 @@ describe('CAPTCHA browser recommendation', () => {
     ['QQ Android with Chrome tokens', android + ' QQ/9.1.65.1 V1_AND_SQ_9.1.65'],
     ['QQ iOS with Safari tokens', ios + ' Version/18.3 Mobile/15E148 Safari/604.1 QQ/9.1.65'],
     ['QQ Browser', android + ' MQQBrowser/15.0'],
+    ['reported Windows QQ EX', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) QQEX/9.9.35-52892 Chrome/144.0.7559.60 Safari/537.36 OS/win32,x64 QQAppId/537382819 QQEXBrowser/1.0.0.0 QQWebContentView/1.0.0.0'],
+    ...['QQEX/9.9.35', 'QQEXBrowser/1.0.0.0', 'QQWebContentView/1.0.0.0', 'QQAppId/537382819'].map(marker => [marker, desktop + ' ' + marker]),
     ['WeChat', android + ' MicroMessenger/8.0.60'],
     ['Android WebView', android.replace('Android 15;', 'Android 15; wv;')],
     ['iOS WebView', ios + ' Mobile/15E148'],

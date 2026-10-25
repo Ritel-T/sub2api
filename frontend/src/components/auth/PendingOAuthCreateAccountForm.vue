@@ -196,6 +196,14 @@ watch(
   }
 )
 
+watch(
+  () => [props.errorMessage, turnstileRef.value] as const,
+  ([value, challenge]) => {
+    if (value) challenge?.reportFailure(value)
+  },
+  { immediate: true, flush: 'post' }
+)
+
 function clearCountdown() {
   if (countdownTimer) {
     clearInterval(countdownTimer)
@@ -293,6 +301,7 @@ async function handleSendCode() {
     sendCodeSuccess.value = true
     startCountdown(response.countdown)
   } catch (error: unknown) {
+    turnstileRef.value?.reportFailure(error)
     sendCodeError.value = getRequestErrorMessage(error, t('auth.sendCodeFailed'))
   } finally {
     if (captchaEnabled.value) {

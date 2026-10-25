@@ -297,6 +297,8 @@ export default {
     captchaVerified: '驗證已完成',
     captchaBrowserNoticeTitle: '請使用 Chrome / Edge / Firefox / Safari 瀏覽器',
     captchaBrowserNoticeDescription: '目前的瀏覽器可能無法完成人機驗證。請在以上瀏覽器中開啟此頁面，避免使用 QQ、微信等內置瀏覽器。',
+    captchaBrowserNoticeFailure: '人機驗證失敗，請使用以上瀏覽器重新開啟此頁面。',
+    captchaBrowserNoticeNetworkHint: '請切換網絡後重試。',
     captchaLoading: '正在載入驗證碼…',
     captchaClickToVerify: '點擊完成人機驗證',
     captchaVerifying: '驗證中…',

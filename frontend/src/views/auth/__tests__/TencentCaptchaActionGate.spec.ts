@@ -2,13 +2,16 @@ import { defineComponent, h } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import LoginView from '@/views/auth/LoginView.vue'
+import PendingOAuthCreateAccountForm from '@/components/auth/PendingOAuthCreateAccountForm.vue'
 
+const sendPendingOAuthVerifyCodeMock = vi.fn()
 const loginMock = vi.fn()
 const loginWithPasskeyMock = vi.fn()
 const getPublicSettingsMock = vi.fn()
 const startOAuthLoginMock = vi.fn()
 const verifyActionMock = vi.fn()
 const captchaResetMock = vi.fn()
+const reportFailureMock = vi.fn()
 const locationState = { href: 'http://localhost/login' }
 
 vi.mock('vue-router', () => ({
@@ -46,6 +49,7 @@ vi.mock('@/api/auth', async () => {
     ...actual,
     getPublicSettings: (...args: unknown[]) => getPublicSettingsMock(...args),
     startOAuthLogin: (...args: unknown[]) => startOAuthLoginMock(...args),
+    sendPendingOAuthVerifyCode: (...args: unknown[]) => sendPendingOAuthVerifyCodeMock(...args),
     isTotp2FARequired: () => false,
     isWeChatWebOAuthEnabled: () => false
   }
@@ -55,7 +59,8 @@ const CaptchaChallengeStub = defineComponent({
   setup(_, { expose }) {
     expose({
       verifyAction: verifyActionMock,
-      reset: captchaResetMock
+      reset: captchaResetMock,
+      reportFailure: reportFailureMock
     })
     return () => h('div')
   }
@@ -98,11 +103,13 @@ function mountLogin() {
 describe('Tencent captcha action gate', () => {
   beforeEach(() => {
     loginMock.mockReset()
+    sendPendingOAuthVerifyCodeMock.mockReset()
     loginWithPasskeyMock.mockReset()
     getPublicSettingsMock.mockReset()
     startOAuthLoginMock.mockReset()
     verifyActionMock.mockReset()
     captchaResetMock.mockReset()
+    reportFailureMock.mockReset()
     getPublicSettingsMock.mockResolvedValue({
       turnstile_enabled: false,
       turnstile_site_key: '',
@@ -129,6 +136,39 @@ describe('Tencent captcha action gate', () => {
     })
   })
 
+  it('reports pending OAuth send-code API failures with their original details', async () => {
+    const error = { response: { data: { reason: 'TENCENT_CAPTCHA_VERIFY_FAILED' } } }
+    sendPendingOAuthVerifyCodeMock.mockRejectedValueOnce(error)
+    const wrapper = mount(PendingOAuthCreateAccountForm, {
+      props: { initialEmail: 'user@example.com', testIdPrefix: 'pending', isSubmitting: false },
+      global: { stubs: { TurnstileWidget: CaptchaChallengeStub } }
+    })
+    await flushPromises()
+    await wrapper.get('[data-testid="pending-create-account-send-code"]').trigger('click')
+    await flushPromises()
+
+    expect(reportFailureMock).toHaveBeenCalledOnce()
+
+    expect(reportFailureMock).toHaveBeenCalledWith(error)
+    expect(captchaResetMock).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+
+  it.each(['TURNSTILE_VERIFY_FAILED', 'invalid email verification code'])('forwards parent OAuth error as a string for shared classification: %s', async (errorMessage) => {
+    const wrapper = mount(PendingOAuthCreateAccountForm, {
+      props: { initialEmail: 'user@example.com', testIdPrefix: 'pending', isSubmitting: false, errorMessage },
+      global: { stubs: { TurnstileWidget: CaptchaChallengeStub } }
+    })
+    await flushPromises()
+
+    expect(reportFailureMock).toHaveBeenCalledOnce()
+
+    expect(reportFailureMock).toHaveBeenCalledWith(errorMessage)
+    await wrapper.setProps({ errorMessage: 'TENCENT_CAPTCHA_VERIFY_FAILED' })
+    expect(reportFailureMock).toHaveBeenLastCalledWith('TENCENT_CAPTCHA_VERIFY_FAILED')
+    wrapper.unmount()
+  })
+
   it('clicking login opens Tencent captcha before calling login', async () => {
     const wrapper = mountLogin()
     await flushPromises()
@@ -143,6 +183,42 @@ describe('Tencent captcha action gate', () => {
       tencent_captcha_ticket: 'ticket-1',
       tencent_captcha_randstr: '@rand-1'
     }))
+  })
+
+  it.each([
+    { reason: 'TENCENT_CAPTCHA_VERIFY_FAILED' },
+    { reason: 'INVALID_CREDENTIALS' }
+  ])('forwards the original login error for shared classification ($reason)', async (data) => {
+    const error = { response: { data } }
+    loginMock.mockRejectedValueOnce(error)
+    const wrapper = mountLogin()
+    await flushPromises()
+    await wrapper.get('#email').setValue('user@example.com')
+    await wrapper.get('#password').setValue('secret-123')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(reportFailureMock).toHaveBeenCalledOnce()
+
+    expect(reportFailureMock).toHaveBeenCalledWith(error)
+    expect(captchaResetMock).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+
+  it.each(['passkey', 'oauth'])('forwards %s API failures to the challenge', async (action) => {
+    const error = { response: { data: { reason: 'TENCENT_CAPTCHA_VERIFY_FAILED' } } }
+    loginWithPasskeyMock.mockRejectedValueOnce(error)
+    startOAuthLoginMock.mockRejectedValueOnce(error)
+    const wrapper = mountLogin()
+    await flushPromises()
+    await wrapper.get(action === 'passkey' ? 'button.btn-secondary.w-full' : '[data-testid="oauth-start"]').trigger('click')
+    await flushPromises()
+
+    expect(reportFailureMock).toHaveBeenCalledOnce()
+
+    expect(reportFailureMock).toHaveBeenCalledWith(error)
+    expect(captchaResetMock).toHaveBeenCalledOnce()
+    wrapper.unmount()
   })
 
   it('does not call login when Tencent captcha is closed', async () => {

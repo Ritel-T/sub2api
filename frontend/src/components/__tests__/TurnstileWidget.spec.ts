@@ -122,3 +122,12 @@ describe('TurnstileWidget', () => {
     expect(document.querySelector(scriptSelector)).toBeNull()
   })
 })
+
+
+it.each(['timeout-callback', 'unsupported-callback'] as const)('forwards %s as a verification error', async name => {
+  const render = installSDK()
+  wrapper = mount(TurnstileWidget, { props: { siteKey: 'site-key' } })
+  await flushPromises()
+  render.mock.calls[0]![1][name]?.()
+  expect(wrapper.emitted('error')).toHaveLength(1)
+})

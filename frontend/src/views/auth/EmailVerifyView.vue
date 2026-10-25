@@ -180,7 +180,7 @@
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
 import { BRAND_NAME } from '@/utils/branding'
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
@@ -198,6 +198,7 @@ import {
 import { apiClient } from '@/api/client'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import { extractApiErrorCode } from '@/utils/apiError'
+import { isCaptchaVerificationError } from '@/utils/captchaFailure'
 import {
   formatRegistrationEmailSuffixWhitelistForMessage,
   isRegistrationEmailSuffixAllowed,
@@ -581,6 +582,14 @@ async function sendCode(): Promise<void> {
 
     showResendTurnstile.value = false
   } catch (error: unknown) {
+    if (isCaptchaVerificationError(error)) {
+      // The first request can fail before the resend challenge has mounted.
+      if (turnstileEnabled.value) {
+        showResendTurnstile.value = true
+      }
+      await nextTick()
+      turnstileRef.value?.reportFailure(error)
+    }
     errorMessage.value = buildRegistrationErrorMessage(error, t('auth.sendCodeFailed'))
 
     appStore.showError(errorMessage.value)
@@ -749,6 +758,7 @@ async function handleVerify(): Promise<void> {
     // Redirect to dashboard
     await router.push(pendingRedirect.value || '/dashboard')
   } catch (error: unknown) {
+    createAccountTurnstileRef.value?.reportFailure(error)
     errorMessage.value = buildRegistrationErrorMessage(error, t('auth.verifyFailed'))
 
     appStore.showError(errorMessage.value)

@@ -19,6 +19,7 @@ const {
   authStoreState,
   createTurnstileResetMock,
   verifyActionMock,
+  reportFailureMock,
 } = vi.hoisted(() => ({
   pushMock: vi.fn(),
   showSuccessMock: vi.fn(),
@@ -34,6 +35,7 @@ const {
   apiClientPostMock: vi.fn(),
   createTurnstileResetMock: vi.fn(),
   verifyActionMock: vi.fn(),
+  reportFailureMock: vi.fn(),
   authStoreState: {
     pendingAuthSession: null as null | {
       token: string
@@ -123,6 +125,7 @@ describe('EmailVerifyView', () => {
     apiClientPostMock.mockReset()
     createTurnstileResetMock.mockReset()
     verifyActionMock.mockReset()
+    reportFailureMock.mockReset()
     authStoreState.pendingAuthSession = null
     sessionStorage.clear()
     localStorage.clear()
@@ -232,6 +235,76 @@ describe('EmailVerifyView', () => {
       pending_auth_token: 'pending-token-1',
     })
     expect(sendVerifyCodeMock).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('reports first-send captcha failure only to the mounted resend challenge (pending=%s)', async (pending) => {
+    getPublicSettingsMock.mockResolvedValue({ turnstile_enabled: true, turnstile_site_key: 'site-key' })
+    if (pending) {
+      authStoreState.pendingAuthSession = { token: 'pending', token_field: 'pending_auth_token', provider: 'oidc' }
+    }
+    sessionStorage.setItem('register_data', JSON.stringify({ email: 'user@example.com', password: 'secret-123', turnstile_token: 'initial' }))
+    const error = { response: { data: { reason: 'TURNSTILE_VERIFY_FAILED' } } }
+    sendVerifyCodeMock.mockRejectedValueOnce(error)
+    sendPendingOAuthVerifyCodeMock.mockRejectedValueOnce(error)
+    const reports: ReturnType<typeof vi.fn>[] = []
+    const CaptchaStub = defineComponent({
+      setup(_, { expose }) {
+        const reportFailure = vi.fn()
+        reports.push(reportFailure)
+        expose({ reportFailure, reset: vi.fn() })
+        return () => h('div')
+      }
+    })
+    const wrapper = mount(EmailVerifyView, { global: { stubs: {
+      AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+      Icon: true, TurnstileWidget: CaptchaStub
+    } } })
+    await flushPromises()
+
+    expect(reports).toHaveLength(2)
+    expect(reports[0]).not.toHaveBeenCalled()
+    expect(reports[1]).toHaveBeenCalledOnce()
+    expect(reports[1]).toHaveBeenCalledWith(error)
+    wrapper.unmount()
+  })
+
+  it.each([false, true])('reports final registration failures only to the create-account challenge (pending=%s)', async (pending) => {
+    getPublicSettingsMock.mockResolvedValue({ turnstile_enabled: true, turnstile_site_key: 'site-key' })
+    if (pending) {
+      authStoreState.pendingAuthSession = { token: 'pending', token_field: 'pending_auth_token', provider: 'oidc' }
+    }
+    sessionStorage.setItem('register_data', JSON.stringify({ email: 'user@example.com', password: 'secret-123', turnstile_token: 'initial' }))
+    const error = { response: { data: { reason: 'TURNSTILE_VERIFY_FAILED' } } }
+    sendVerifyCodeMock.mockRejectedValueOnce(error)
+    sendPendingOAuthVerifyCodeMock.mockRejectedValueOnce(error)
+    registerMock.mockRejectedValueOnce(error)
+    apiClientPostMock.mockRejectedValueOnce(error)
+    const reports: ReturnType<typeof vi.fn>[] = []
+    const CaptchaStub = defineComponent({
+      emits: ['verify'],
+      setup(_, { expose }) {
+        const reportFailure = vi.fn()
+        reports.push(reportFailure)
+        expose({ reportFailure, reset: vi.fn() })
+        return () => h('div')
+      }
+    })
+    const wrapper = mount(EmailVerifyView, { global: { stubs: {
+      AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+      Icon: true, TurnstileWidget: CaptchaStub
+    } } })
+    await flushPromises()
+    reports.forEach(report => report.mockClear())
+    wrapper.findAllComponents(CaptchaStub)[1].vm.$emit('verify', 'fresh-create-proof')
+    await wrapper.get('#code').setValue('123456')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(reports[0]).toHaveBeenCalledOnce()
+
+    expect(reports[0]).toHaveBeenCalledWith(error)
+    expect(reports[1]).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 
   it('requires a fresh captcha proof after the initial send-code request fails', async () => {
@@ -715,7 +788,7 @@ describe('EmailVerifyView', () => {
     const CaptchaStub = defineComponent({
       emits: ['verify', 'expire'],
       setup(_, { expose }) {
-        expose({ reset: createTurnstileResetMock })
+        expose({ reset: createTurnstileResetMock, reportFailure: reportFailureMock })
         return () => h('div', { 'data-testid': 'create-turnstile' })
       },
     })
@@ -796,6 +869,7 @@ describe('EmailVerifyView', () => {
             template: '<button data-testid="create-turnstile" @click="$emit(\'verify\', \'create-token\')">verify</button>',
             methods: {
               reset: createTurnstileResetMock,
+              reportFailure: reportFailureMock,
             },
           },
           transition: false,
@@ -861,6 +935,7 @@ describe('EmailVerifyView', () => {
             template: '<button data-testid="create-turnstile" @click="$emit(\'verify\', \'create-token\')">verify</button>',
             methods: {
               reset: createTurnstileResetMock,
+              reportFailure: reportFailureMock,
             },
           },
           transition: false,
@@ -1021,6 +1096,7 @@ describe('EmailVerifyView', () => {
             template: '<span />',
             methods: {
               reset: createTurnstileResetMock,
+              reportFailure: reportFailureMock,
             },
           },
           transition: false,

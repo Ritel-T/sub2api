@@ -7,6 +7,7 @@ const getPublicSettingsMock = vi.fn()
 const forgotPasswordMock = vi.fn()
 const verifyActionMock = vi.fn()
 const captchaResetMock = vi.fn()
+const reportFailureMock = vi.fn()
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -37,7 +38,8 @@ const CaptchaChallengeStub = defineComponent({
   setup(_, { expose }) {
     expose({
       verifyAction: verifyActionMock,
-      reset: captchaResetMock
+      reset: captchaResetMock,
+      reportFailure: reportFailureMock
     })
     return () => h('div', { 'data-testid': 'captcha-challenge' })
   }
@@ -62,6 +64,7 @@ describe('忘记密码腾讯验证码门禁', () => {
     forgotPasswordMock.mockReset()
     verifyActionMock.mockReset()
     captchaResetMock.mockReset()
+    reportFailureMock.mockReset()
     getPublicSettingsMock.mockResolvedValue({
       turnstile_enabled: false,
       turnstile_site_key: '',
@@ -72,6 +75,22 @@ describe('忘记密码腾讯验证码门禁', () => {
     })
     verifyActionMock.mockResolvedValue({ token: 'ticket-value', randstr: '@rand-value' })
     forgotPasswordMock.mockResolvedValue({ message: 'ok' })
+  })
+
+  it('forwards captcha API failures without losing the reset', async () => {
+    const error = { response: { data: { reason: 'TENCENT_CAPTCHA_VERIFY_FAILED' } } }
+    forgotPasswordMock.mockRejectedValueOnce(error)
+    const wrapper = mountForgotPassword()
+    await flushPromises()
+    await wrapper.get('#email').setValue('user@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(reportFailureMock).toHaveBeenCalledOnce()
+
+    expect(reportFailureMock).toHaveBeenCalledWith(error)
+    expect(captchaResetMock).toHaveBeenCalledOnce()
+    wrapper.unmount()
   })
 
   it('把公开设置中的站点传给验证码组件', async () => {

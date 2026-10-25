@@ -1,18 +1,20 @@
 <template>
-  <CaptchaBrowserNotice v-if="captchaEnabled" />
+  <CaptchaBrowserNotice v-if="captchaEnabled" :verification-failed="verificationFailed" />
   <TurnstileWidget
     v-if="turnstileEnabled && turnstileSiteKey"
     ref="turnstileRef"
     :site-key="turnstileSiteKey"
-    @verify="(token) => emit('verify', token, '')"
-    @expire="emit('expire')"
-    @error="emit('error')"
+    @verify="onVerify"
+    @expire="onExpire"
+    @error="onError"
   />
   <TencentCaptchaGate
     v-else-if="tencentEnabled && tencentAppId"
     ref="tencentRef"
     :app-id="tencentAppId"
     :region="tencentRegion"
+    @error="onError"
+    @verified="verificationFailed = false"
   />
   <AliyunCaptchaWidget
     v-else-if="aliyunEnabled && aliyunSceneId && aliyunPrefix"
@@ -20,14 +22,15 @@
     :scene-id="aliyunSceneId"
     :prefix="aliyunPrefix"
     :region="aliyunRegion === 'sgp' ? 'sgp' : 'cn'"
-    @verify="(param: string) => emit('verify', param, '')"
-    @expire="emit('expire')"
-    @error="emit('error')"
+    @verify="onVerify"
+    @expire="onExpire"
+    @error="onError"
   />
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { isCaptchaVerificationError } from '@/utils/captchaFailure'
 import CaptchaBrowserNotice from '@/components/CaptchaBrowserNotice.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import TencentCaptchaGate from '@/components/TencentCaptchaGate.vue'
@@ -65,6 +68,27 @@ const emit = defineEmits<{
   error: []
 }>()
 
+const verificationFailed = ref(false)
+
+function reportFailure(error?: unknown): void {
+  if (error === undefined || isCaptchaVerificationError(error)) verificationFailed.value = true
+}
+
+function onError(): void {
+  reportFailure()
+  emit('error')
+}
+
+function onExpire(): void {
+  reportFailure()
+  emit('expire')
+}
+
+function onVerify(token: string): void {
+  verificationFailed.value = false
+  emit('verify', token, '')
+}
+
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
 const tencentRef = ref<InstanceType<typeof TencentCaptchaGate> | null>(null)
 const aliyunRef = ref<InstanceType<typeof AliyunCaptchaWidget> | null>(null)
@@ -82,9 +106,10 @@ async function verifyAction(): Promise<ActionCaptchaResult | null> {
     try {
       const proof = (await tencentRef.value?.verify()) ?? null
       if (!proof) return null
+      verificationFailed.value = false
       return { token: proof.ticket, randstr: proof.randstr }
     } catch {
-      emit('error')
+      onError()
       return null
     }
   }
@@ -92,14 +117,15 @@ async function verifyAction(): Promise<ActionCaptchaResult | null> {
     try {
       const param = (await aliyunRef.value?.verify()) ?? null
       if (!param) return null
+      verificationFailed.value = false
       return { token: param, randstr: '' }
     } catch {
-      emit('error')
+      onError()
       return null
     }
   }
   return null
 }
 
-defineExpose({ reset, verifyAction })
+defineExpose({ reset, verifyAction, reportFailure })
 </script>

@@ -299,6 +299,8 @@ export default {
     captchaVerified: 'Verification completed',
     captchaBrowserNoticeTitle: 'Please use Chrome / Edge / Firefox / Safari',
     captchaBrowserNoticeDescription: 'Your current browser may not support human verification. Open this page in one of these browsers; avoid in-app browsers such as QQ or WeChat.',
+    captchaBrowserNoticeFailure: 'Human verification failed. Please reopen this page in one of the browsers above.',
+    captchaBrowserNoticeNetworkHint: 'Switch to a different network and try again.',
     captchaLoading: 'Loading verification…',
     captchaClickToVerify: 'Click to complete verification',
     captchaVerifying: 'Verifying…',
