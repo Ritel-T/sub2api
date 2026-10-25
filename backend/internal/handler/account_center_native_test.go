@@ -75,7 +75,7 @@ func TestAccountCenterNativeServe(t *testing.T) {
 		require.NoError(t, err)
 		return hex.EncodeToString(b)
 	}
-	cfg := &config.Config{JWT: config.JWTConfig{Secret: random(), ExpireHour: 1, RefreshTokenExpireDays: 30}, AccountCenter: config.AccountCenterConfig{Enabled: true, BridgeSecret: input.BridgeSecret}}
+	cfg := &config.Config{JWT: config.JWTConfig{Secret: random(), ExpireHour: 1, RefreshTokenExpireDays: 31}, AccountCenter: config.AccountCenterConfig{Enabled: true, BridgeSecret: input.BridgeSecret}}
 	cfg.Totp.EncryptionKey = random()
 	cfg.Totp.EncryptionKeyConfigured = true
 	settingsRepo := repository.NewSettingRepository(ent)
@@ -130,9 +130,10 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/api/v1/settings/public", NewSettingHandler(settings, "synthetic-only").GetPublicSettings)
-	r.POST("/api/v1/auth/login", h.Login)
-	r.POST("/api/v1/auth/login/2fa", h.Login2FA)
-	r.POST("/api/v1/auth/register", h.Register)
+	r.POST("/api/v1/auth/refresh", accountCenterNativeShortAccess(h.RefreshToken, cfg))
+	r.POST("/api/v1/auth/login", accountCenterNativeShortAccess(h.Login, cfg))
+	r.POST("/api/v1/auth/login/2fa", accountCenterNativeShortAccess(h.Login2FA, cfg))
+	r.POST("/api/v1/auth/register", accountCenterNativeShortAccess(h.Register, cfg))
 	r.POST("/api/v1/auth/send-verify-code", h.SendVerifyCode)
 	if emailVerificationEnabled {
 		r.GET("/_fixture/mailbox", mailbox.handler(input.BridgeSecret))

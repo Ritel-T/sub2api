@@ -1515,6 +1515,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldTokenString string) (
 		}
 	}
 
+	if claims.AccountGeneration != "" && claims.AccountGeneration != accountCenterGeneration(user, claims.SessionEpoch) {
+		return "", ErrTokenRevoked
+	}
+
 	// 生成新token
 	return s.generateTokenForEpoch(ctx, user, claims.SessionEpoch)
 }
@@ -1677,9 +1681,10 @@ func (s *AuthService) ResetPassword(ctx context.Context, email, token, newPasswo
 
 // TokenPair 包含Access Token和Refresh Token
 type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"` // Access Token有效期（秒）
+	AccessToken      string `json:"access_token"`
+	RefreshToken     string `json:"refresh_token"`
+	ExpiresIn        int    `json:"expires_in"`                   // Access Token有效期（秒）
+	RefreshExpiresAt int64  `json:"refresh_expires_at,omitempty"` // Cached Refresh Token deadline, Unix seconds.
 }
 
 // TokenPairWithUser extends TokenPair with user role for backend mode checks
@@ -1723,24 +1728,37 @@ func (s *AuthService) generateTokenPairForEpoch(ctx context.Context, user *User,
 	}
 
 	// 生成Refresh Token
-	refreshToken, err := s.generateRefreshToken(ctx, user, familyID, epoch)
+	refreshToken, refreshExpiresAt, err := s.generateRefreshTokenWithExpiry(ctx, user, familyID, epoch)
 	if err != nil {
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
 
+	// Keep the existing response contract when AccountCenter is disabled.
+	if !s.cfg.AccountCenter.Enabled {
+		refreshExpiresAt = 0
+	}
+
 	return &TokenPair{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    s.GetAccessTokenExpiresIn(),
+		RefreshExpiresAt: refreshExpiresAt,
+		AccessToken:      accessToken,
+		RefreshToken:     refreshToken,
+		ExpiresIn:        s.GetAccessTokenExpiresIn(),
 	}, nil
 }
 
 // generateRefreshToken 生成并存储Refresh Token
 func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, familyID, epoch string) (string, error) {
+	token, _, err := s.generateRefreshTokenWithExpiry(ctx, user, familyID, epoch)
+	return token, err
+}
+
+// generateRefreshTokenWithExpiry returns the deadline from the record actually
+// stored in the cache. Never derive this deadline from a separate clock read.
+func (s *AuthService) generateRefreshTokenWithExpiry(ctx context.Context, user *User, familyID, epoch string) (string, int64, error) {
 	// 生成随机Token
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
-		return "", fmt.Errorf("generate random bytes: %w", err)
+		return "", 0, fmt.Errorf("generate random bytes: %w", err)
 	}
 	rawToken := refreshTokenPrefix + hex.EncodeToString(tokenBytes)
 
@@ -1751,7 +1769,7 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 	if familyID == "" {
 		familyBytes := make([]byte, 16)
 		if _, err := rand.Read(familyBytes); err != nil {
-			return "", fmt.Errorf("generate family id: %w", err)
+			return "", 0, fmt.Errorf("generate family id: %w", err)
 		}
 		familyID = hex.EncodeToString(familyBytes)
 	}
@@ -1769,9 +1787,13 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 		ExpiresAt:    now.Add(ttl),
 	}
 
+	if s.cfg.AccountCenter.Enabled {
+		data.AccountGeneration = accountCenterGeneration(user, epoch)
+	}
+
 	// 存储Token数据
 	if err := s.refreshTokenCache.StoreRefreshToken(ctx, tokenHash, data, ttl); err != nil {
-		return "", fmt.Errorf("store refresh token: %w", err)
+		return "", 0, fmt.Errorf("store refresh token: %w", err)
 	}
 
 	// 添加到用户Token集合
@@ -1786,7 +1808,7 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 		// 不影响主流程
 	}
 
-	return rawToken, nil
+	return rawToken, data.ExpiresAt.Unix(), nil
 }
 
 // RefreshTokenPair 使用Refresh Token刷新Token对
@@ -1861,6 +1883,12 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 
 	if err := s.validateSessionEpoch(ctx, data.UserID, data.SessionEpoch); err != nil {
 		return nil, err
+	}
+
+	// A refresh proves the authentication snapshot that issued it. Do not
+	// silently upgrade an old proof after a password, email or factor change.
+	if data.AccountGeneration != "" && data.AccountGeneration != accountCenterGeneration(user, data.SessionEpoch) {
+		return nil, ErrTokenRevoked
 	}
 
 	// Only one caller can consume a refresh token. A missing/failed consume must
