@@ -1,4 +1,5 @@
 <template>
+  <CaptchaBrowserNotice v-if="captchaEnabled" />
   <TurnstileWidget
     v-if="turnstileEnabled && turnstileSiteKey"
     ref="turnstileRef"
@@ -26,7 +27,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import CaptchaBrowserNotice from '@/components/CaptchaBrowserNotice.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import TencentCaptchaGate from '@/components/TencentCaptchaGate.vue'
 import AliyunCaptchaWidget from '@/components/AliyunCaptchaWidget.vue'
@@ -50,6 +52,12 @@ const props = defineProps<{
   aliyunPrefix?: string
   aliyunRegion?: string
 }>()
+
+const captchaEnabled = computed(() =>
+  Boolean((props.turnstileEnabled && props.turnstileSiteKey) ||
+    (props.tencentEnabled && props.tencentAppId) ||
+    (props.aliyunEnabled && props.aliyunSceneId && props.aliyunPrefix))
+)
 
 const emit = defineEmits<{
   verify: [tokenOrTicket: string, randstr: string]
