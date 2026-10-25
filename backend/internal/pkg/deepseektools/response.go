@@ -28,6 +28,9 @@ type searchResult struct {
 	Snippet     string   `json:"snippet"`
 	Summary     string   `json:"summary"`
 	Content     string   `json:"content"`
+	Date        *string  `json:"date"`
+	SiteName    string   `json:"site_name"`
+	SiteIcon    string   `json:"site_icon"`
 	PublishTime *string  `json:"publish_time"`
 	Authority   int      `json:"authority"`
 	Partial     bool     `json:"partial"`
@@ -56,7 +59,28 @@ type fetchResponse struct {
 // Errors return nil, false, error. All page text is marked partial: alpha excerpts
 // and PAT citations cannot establish that a whole page was fetched. Truncated
 // reports actual upstream/local clipping or count-limited omitted results.
+type ResponseBackend uint8
+
+const (
+	BackendAuto ResponseBackend = iota
+	BackendNativeAlpha
+	BackendResponsesWebSearch
+)
+
 func AdaptResponse(raw []byte, r *Request) ([]byte, bool, error) {
+	return adaptResponse(raw, r, BackendAuto)
+}
+
+// AdaptResponseFrom uses the actual request transport. A text_result row is a
+// citation in both native alpha and Responses; its type is not provenance.
+func AdaptResponseFrom(raw []byte, r *Request, backend ResponseBackend) ([]byte, bool, error) {
+	if backend != BackendNativeAlpha && backend != BackendResponsesWebSearch {
+		return nil, false, errors.New("unknown search backend")
+	}
+	return adaptResponse(raw, r, backend)
+}
+
+func adaptResponse(raw []byte, r *Request, backend ResponseBackend) ([]byte, bool, error) {
 	if err := r.validate(); err != nil {
 		return nil, false, err
 	}
@@ -145,6 +169,12 @@ func AdaptResponse(raw []byte, r *Request) ([]byte, bool, error) {
 		} else {
 			clipped = true
 		}
+	}
+	if backend == BackendNativeAlpha {
+		pat = false
+	}
+	if backend == BackendResponsesWebSearch {
+		pat = true
 	}
 	if looksError(output) {
 		return nil, false, errors.New("alpha returned an error instead of readable results")

@@ -173,9 +173,14 @@ func (h *OpenAIGatewayHandler) alphaSearch(c *gin.Context, bridge *deepSeekTools
 	// Group identity remains the caller's; the pool ID is separate. Freeze the
 	// same pricing instant for selection, reservation and persisted billing.
 	c.Request = c.Request.WithContext(asPricingCtx)
+	var transformAccount *service.Account
 	if bridge != nil {
 		asPricingCtx = service.WithAlphaSearchResponseTransform(asPricingCtx, func(raw []byte) ([]byte, bool, error) {
-			return deepseektools.AdaptResponse(raw, bridge.request)
+			backend := deepseektools.BackendResponsesWebSearch
+			if transformAccount != nil && !transformAccount.IsOpenAIPersonalAccessToken() {
+				backend = deepseektools.BackendNativeAlpha
+			}
+			return deepseektools.AdaptResponseFrom(raw, bridge.request, backend)
 		})
 	}
 
@@ -268,6 +273,7 @@ func (h *OpenAIGatewayHandler) alphaSearch(c *gin.Context, bridge *deepSeekTools
 			if accountRelease != nil {
 				defer accountRelease()
 			}
+			transformAccount = account
 			return h.gatewayService.ForwardAlphaSearch(rpmAdmission.forwardContext(asPricingCtx, account), c, account, forwardBody)
 		}()
 		if h.handleOpenAIRPMForwardError(c, err, streamStarted, false) {
