@@ -69,7 +69,8 @@ const DefaultUpstreamResponseReadMaxBytes int64 = 128 * 1024 * 1024
 const DefaultModelsListReadMaxBytes int64 = 8 * 1024 * 1024
 
 type Config struct {
-	Runtime                 RuntimeConfig `mapstructure:"runtime"`
+	AccountCenter           AccountCenterConfig `mapstructure:"account_center"`
+	Runtime                 RuntimeConfig       `mapstructure:"runtime"`
 	astraRoutingLoader      atomic.Pointer[astraRoutingLoader]
 	Server                  ServerConfig                  `mapstructure:"server"`
 	Log                     LogConfig                     `mapstructure:"log"`
@@ -2678,6 +2679,8 @@ func setDefaults() {
 	viper.SetDefault("ops.metrics_collector_cache.ttl", 65*time.Second)
 
 	// JWT
+	viper.SetDefault("account_center.enabled", false)
+	viper.SetDefault("account_center.bridge_secret", "")
 	viper.SetDefault("jwt.secret", "")
 	viper.SetDefault("jwt.expire_hour", 24)
 	viper.SetDefault("jwt.access_token_expire_minutes", 0) // 0 表示回退到 expire_hour
@@ -3106,6 +3109,9 @@ func setEnvReachableDefaults() {
 }
 
 func (c *Config) Validate() error {
+	if err := c.AccountCenter.Validate(); err != nil {
+		return err
+	}
 	if _, err := c.EmailDelivery.RecipientAliases(); err != nil {
 		return fmt.Errorf("email_delivery.recipient_domain_aliases: %w", err)
 	}

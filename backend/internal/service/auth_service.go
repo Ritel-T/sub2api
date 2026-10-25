@@ -60,11 +60,12 @@ const refreshTokenPrefix = "rt_"
 
 // JWTClaims JWT载荷数据
 type JWTClaims struct {
-	UserID       int64  `json:"user_id"`
-	Email        string `json:"email"`
-	Role         string `json:"role"`
-	TokenVersion int64  `json:"token_version"` // Used to invalidate tokens on password change
-	SessionEpoch string `json:"sep,omitempty"` // Persisted per-user revocation generation.
+	AccountGeneration string `json:"ag,omitempty"`
+	UserID            int64  `json:"user_id"`
+	Email             string `json:"email"`
+	Role              string `json:"role"`
+	TokenVersion      int64  `json:"token_version"` // Used to invalidate tokens on password change
+	SessionEpoch      string `json:"sep,omitempty"` // Persisted per-user revocation generation.
 	// SessionID 会话 ID（与 refresh token family 对应），用于单会话撤销与 step-up 授权绑定。
 	SessionID string `json:"sid,omitempty"`
 	// BindingHash 会话指纹哈希（IP+UA），会话绑定开启时校验；空值表示旧 token（平滑升级）。
@@ -1438,6 +1439,12 @@ func (s *AuthService) generateAccessToken(user *User, sessionID, bindingHash, ep
 		},
 	}
 
+	if s.cfg.AccountCenter.Enabled {
+		if s.settingService == nil || s.settingService.settingRepo == nil {
+			return "", ErrServiceUnavailable
+		}
+		claims.AccountGeneration = accountCenterGeneration(user, epoch)
+	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(s.cfg.JWT.Secret))
 	if err != nil {

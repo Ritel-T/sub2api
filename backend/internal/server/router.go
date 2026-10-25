@@ -150,6 +150,12 @@ func registerRoutes(
 	// 防止高频刷管理面接口打爆数据库（阈值可在系统设置中调整）。
 	panelRateLimiter := middleware2.NewPanelRateLimiter(redisClient, settingService)
 
+	// This endpoint is absent by default; its handler independently verifies the
+	// dedicated service credential. Never accepts a browser JWT or email lookup.
+	if cfg.AccountCenter.Enabled {
+		v1.GET("/internal/account-center/identities/:subject", h.Auth.AccountCenterIdentity)
+	}
+
 	// 注册各模块路由
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, redisClient, settingService, panelRateLimiter)
 	routes.RegisterUserRoutes(v1, h, jwtAuth, auditLog, settingService, panelRateLimiter)
