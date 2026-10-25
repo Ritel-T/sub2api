@@ -41,7 +41,9 @@ func TestUsageStatsCacheKeyEveryResultFilter(t *testing.T) {
 			case reflect.Pointer:
 				p := reflect.New(v.Type().Elem())
 				if v.Type().Elem() == reflect.TypeOf(time.Time{}) {
-					p.Elem().Set(reflect.ValueOf(v.Elem().Interface().(time.Time).Add(time.Nanosecond)))
+					stamp, ok := v.Elem().Interface().(time.Time)
+					require.True(t, ok, "time filter fixture must retain its type")
+					p.Elem().Set(reflect.ValueOf(stamp.Add(time.Nanosecond)))
 				}
 				v.Set(p) // nil versus explicit false/0 is distinct
 			default:

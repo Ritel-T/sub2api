@@ -223,7 +223,10 @@ func (c *snapshotCache) GetOrLoadContext(ctx context.Context, key string, load f
 		if result.Err != nil {
 			return snapshotCacheEntry{}, false, result.Err
 		}
-		loaded := result.Val.(snapshotCacheLoadResult)
+		loaded, ok := result.Val.(snapshotCacheLoadResult)
+		if !ok {
+			return snapshotCacheEntry{}, false, errors.New("unexpected snapshot load result")
+		}
 		return loaded.Entry, loaded.Hit, nil
 	}
 }

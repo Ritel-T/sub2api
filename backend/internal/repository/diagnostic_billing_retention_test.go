@@ -14,7 +14,7 @@ import (
 func TestDiagnosticBillingRetentionArchiveIsBoundedAndPreservesExactKeys(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := newDashboardAggregationRepositoryWithSQL(db)
 	cutoff := time.Date(2025, 10, 25, 0, 0, 0, 0, time.UTC)
 	// Verify both batches copy request identity/fingerprint before deleting only
@@ -29,7 +29,7 @@ func TestDiagnosticBillingRetentionArchiveIsBoundedAndPreservesExactKeys(t *test
 func TestDiagnosticBillingRetentionArchiveFailureStopsFurtherBatches(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	failure := errors.New("archive write unavailable")
 	mock.ExpectExec("WITH victims AS").WillReturnError(failure)
 	require.ErrorIs(t, newDashboardAggregationRepositoryWithSQL(db).CleanupUsageBillingDedup(context.Background(), time.Now()), failure)
@@ -41,7 +41,7 @@ func TestDiagnosticBillingRetentionArchivedRetryNeverChargesAgain(t *testing.T) 
 		t.Run(map[bool]string{false: "same-request", true: "conflicting-fingerprint"}[conflict], func(t *testing.T) {
 			db, mock, err := sqlmock.New()
 			require.NoError(t, err)
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			cmd := &service.UsageBillingCommand{RequestID: "archived-request", APIKeyID: 7, UserID: 42, BalanceCost: 1.25}
 			cmd.Normalize()
 			archived := cmd.RequestFingerprint
