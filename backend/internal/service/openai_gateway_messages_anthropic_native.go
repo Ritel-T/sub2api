@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -313,22 +314,38 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 		s.rateLimitService.UpdateSessionWindow(ctx, account, resp.Header)
 	}
 
-	writeAnthropicPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
-
+	// Reject explicit non-SSE responses before copying any upstream headers or
+	// committing client output. Missing Content-Type remains supported, but the
+	// body must still identify itself as native Anthropic SSE below.
 	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
-	if contentType == "" {
-		contentType = "text/event-stream"
+	if contentType != "" {
+		mediaType, _, err := mime.ParseMediaType(contentType)
+		if err != nil || !strings.EqualFold(mediaType, "text/event-stream") {
+			return nil, s.nativeAnthropicStreamFailure(ctx, c, account, resp, upstreamModel,
+				"invalid_stream_response", "native Anthropic upstream returned a non-SSE content type", true)
+		}
 	}
-	c.Header("Content-Type", contentType)
-	if c.Writer.Header().Get("Cache-Control") == "" {
-		c.Header("Cache-Control", "no-cache")
-	}
-	if c.Writer.Header().Get("Connection") == "" {
-		c.Header("Connection", "keep-alive")
-	}
-	c.Header("X-Accel-Buffering", "no")
-	if v := resp.Header.Get("x-request-id"); v != "" {
-		c.Header("x-request-id", v)
+	headersWritten := false
+	writeHeaders := func() {
+		if headersWritten {
+			return
+		}
+		headersWritten = true
+		writeAnthropicPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		if contentType == "" {
+			contentType = "text/event-stream"
+		}
+		c.Header("Content-Type", contentType)
+		if c.Writer.Header().Get("Cache-Control") == "" {
+			c.Header("Cache-Control", "no-cache")
+		}
+		if c.Writer.Header().Get("Connection") == "" {
+			c.Header("Connection", "keep-alive")
+		}
+		c.Header("X-Accel-Buffering", "no")
+		if v := resp.Header.Get("x-request-id"); v != "" {
+			c.Header("x-request-id", v)
+		}
 	}
 
 	w := c.Writer
@@ -341,6 +358,10 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 	var firstTokenMs *int
 	clientDisconnected := false
 	sawTerminalEvent := false
+	protocolReady := false
+	var pendingLines []string
+	pendingBytes := 0
+	pendingEventName := ""
 
 	scanner := bufio.NewScanner(resp.Body)
 	maxLineSize := defaultMaxLineSize
@@ -422,17 +443,46 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 		keepaliveTimer.Reset(keepaliveInterval)
 	}
 	inPartialEvent := false
+	writeLine := func(line string) {
+		if !clientDisconnected {
+			restored := string(reverseToolNamesIfPresent(c, []byte(line)))
+			if _, err := io.WriteString(w, restored); err != nil {
+				clientDisconnected = true
+				logger.LegacyPrintf("service.gateway", "[CN Anthropic 直通] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
+			} else if _, err := io.WriteString(w, "\n"); err != nil {
+				clientDisconnected = true
+				logger.LegacyPrintf("service.gateway", "[CN Anthropic 直通] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
+			} else if line == "" {
+				// 按 SSE 事件边界刷出，减少每行 flush 带来的 syscall 开销。
+				flusher.Flush()
+				lastDataAt = time.Now()
+				resetKeepaliveTimer()
+				inPartialEvent = false
+			} else {
+				inPartialEvent = true
+			}
+		}
+	}
+	fail := func(code, message string, allowFailover bool) (*OpenAIForwardResult, error) {
+		result := s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected,
+			originalModel, billingModel, upstreamModel, reasoningEffort, startTime)
+		// Once the client has left, truncation cannot establish a provider
+		// failure. Preserve partial billing without changing its attribution.
+		if clientDisconnected {
+			return result, errors.New(message)
+		}
+		return result, s.nativeAnthropicStreamFailure(ctx, c, account, resp, upstreamModel, code, message, allowFailover)
+	}
 
 	for {
 		select {
 		case ev, ok := <-events:
 			if !ok {
-				if !clientDisconnected {
+				if protocolReady && !clientDisconnected {
 					flusher.Flush()
 				}
 				if !sawTerminalEvent {
-					return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected, originalModel, billingModel, upstreamModel, reasoningEffort, startTime),
-						fmt.Errorf("stream usage incomplete: missing terminal event")
+					return fail("stream_incomplete", "stream usage incomplete: missing terminal event", !protocolReady)
 				}
 				return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected, originalModel, billingModel, upstreamModel, reasoningEffort, startTime), nil
 			}
@@ -440,27 +490,46 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 				if sawTerminalEvent {
 					return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected, originalModel, billingModel, upstreamModel, reasoningEffort, startTime), nil
 				}
-				if clientDisconnected {
-					return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected, originalModel, billingModel, upstreamModel, reasoningEffort, startTime),
-						fmt.Errorf("stream usage incomplete after disconnect: %w", ev.err)
+				// Preserve the existing cancellation/deadline semantics, including
+				// errors.Is, without reflecting arbitrary reader error text.
+				var cancellation error
+				if errors.Is(ev.err, context.Canceled) {
+					cancellation = context.Canceled
+				} else if errors.Is(ev.err, context.DeadlineExceeded) {
+					cancellation = context.DeadlineExceeded
 				}
-				if errors.Is(ev.err, context.Canceled) || errors.Is(ev.err, context.DeadlineExceeded) {
-					return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected, originalModel, billingModel, upstreamModel, reasoningEffort, startTime),
-						fmt.Errorf("stream usage incomplete: %w", ev.err)
+				if cancellation != nil {
+					return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected,
+							originalModel, billingModel, upstreamModel, reasoningEffort, startTime),
+						fmt.Errorf("stream usage incomplete: %w", cancellation)
 				}
-				if errors.Is(ev.err, bufio.ErrTooLong) {
-					logger.LegacyPrintf("service.gateway", "[CN Anthropic 直通] SSE line too long: account=%d max_size=%d error=%v", account.ID, maxLineSize, ev.err)
-					return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected, originalModel, billingModel, upstreamModel, reasoningEffort, startTime), ev.err
-				}
-				return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected, originalModel, billingModel, upstreamModel, reasoningEffort, startTime),
-					fmt.Errorf("stream read error: %w", ev.err)
+				return fail("stream_read_error", "native Anthropic upstream stream read error", !protocolReady)
 			}
 
 			line := ev.line
+			if !protocolReady {
+				pendingBytes += len(line) + 1
+				if pendingBytes > 64*1024 {
+					return fail("invalid_stream_response", "native Anthropic upstream SSE prelude exceeded limit", true)
+				}
+				ready, valid := nativeAnthropicStreamPreludeLine(line, &pendingEventName)
+				if !valid {
+					return fail("invalid_stream_response", "native Anthropic upstream returned an invalid SSE protocol", true)
+				}
+				if !ready {
+					pendingLines = append(pendingLines, line)
+					continue
+				}
+				protocolReady = true
+			}
 			if data, ok := extractAnthropicSSEDataLine(line); ok {
 				trimmed := strings.TrimSpace(data)
 				observer.ObserveAnthropic([]byte(trimmed))
-				if anthropicStreamEventIsTerminal("", trimmed) {
+				eventType := gjson.Get(trimmed, "type").String()
+				if eventType == "error" {
+					return fail("stream_failed", "native Anthropic upstream returned a stream error", false)
+				}
+				if eventType == "message_stop" {
 					sawTerminalEvent = true
 				}
 				if firstTokenMs == nil && trimmed != "" && trimmed != "[DONE]" {
@@ -468,31 +537,14 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 					firstTokenMs = &ms
 				}
 				parseSSEUsagePassthrough(data, usage)
-			} else {
-				trimmed := strings.TrimSpace(line)
-				if strings.HasPrefix(trimmed, "event:") && anthropicStreamEventIsTerminal(strings.TrimSpace(strings.TrimPrefix(trimmed, "event:")), "") {
-					sawTerminalEvent = true
-				}
 			}
 
-			if !clientDisconnected {
-				restored := string(reverseToolNamesIfPresent(c, []byte(line)))
-				if _, err := io.WriteString(w, restored); err != nil {
-					clientDisconnected = true
-					logger.LegacyPrintf("service.gateway", "[CN Anthropic 直通] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
-				} else if _, err := io.WriteString(w, "\n"); err != nil {
-					clientDisconnected = true
-					logger.LegacyPrintf("service.gateway", "[CN Anthropic 直通] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
-				} else if line == "" {
-					// 按 SSE 事件边界刷出，减少每行 flush 带来的 syscall 开销。
-					flusher.Flush()
-					lastDataAt = time.Now()
-					resetKeepaliveTimer()
-					inPartialEvent = false
-				} else {
-					inPartialEvent = true
-				}
+			writeHeaders()
+			for _, pending := range pendingLines {
+				writeLine(pending)
 			}
+			pendingLines = nil
+			writeLine(line)
 
 		case <-intervalCh:
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
@@ -500,18 +552,17 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 				continue
 			}
 			if clientDisconnected {
-				return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected, originalModel, billingModel, upstreamModel, reasoningEffort, startTime),
-					fmt.Errorf("stream usage incomplete after timeout")
+				return fail("stream_incomplete", "stream usage incomplete after timeout", false)
 			}
 			logger.LegacyPrintf("service.gateway", "[CN Anthropic 直通] Stream data interval timeout: account=%d model=%s interval=%s", account.ID, upstreamModel, streamInterval)
 			if s.rateLimitService != nil {
 				s.rateLimitService.HandleStreamTimeout(ctx, account, upstreamModel)
 			}
-			return s.nativeAnthropicStreamResult(c, resp, usage, firstTokenMs, clientDisconnected, originalModel, billingModel, upstreamModel, reasoningEffort, startTime),
-				fmt.Errorf("stream data interval timeout")
+			return fail("stream_timeout", "stream data interval timeout", !protocolReady)
 
 		case <-keepaliveCh:
-			if clientDisconnected {
+			if !protocolReady || clientDisconnected {
+				resetKeepaliveTimer()
 				continue
 			}
 			if inPartialEvent {
@@ -532,6 +583,83 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 			resetKeepaliveTimer()
 		}
 	}
+}
+
+// nativeAnthropicStreamPreludeLine recognizes the native protocol without
+// reflecting any upstream payload into diagnostics. Comments, ping and standard
+// SSE metadata may precede the first message, but cannot commit client output.
+func nativeAnthropicStreamPreludeLine(line string, eventName *string) (ready, valid bool) {
+	trimmed := strings.TrimSpace(line)
+	switch {
+	case trimmed == "":
+		*eventName = ""
+		return false, true
+	case strings.HasPrefix(trimmed, ":"), strings.HasPrefix(trimmed, "id:"), strings.HasPrefix(trimmed, "retry:"):
+		return false, true
+	case strings.HasPrefix(trimmed, "event:"):
+		*eventName = strings.TrimSpace(strings.TrimPrefix(trimmed, "event:"))
+		return false, true
+	}
+	data, ok := extractAnthropicSSEDataLine(line)
+	if !ok || !gjson.Valid(data) {
+		return false, false
+	}
+	eventType := gjson.Get(data, "type").String()
+	if *eventName != "" && *eventName != eventType {
+		return false, false
+	}
+	switch eventType {
+	case "message_start", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop":
+		return true, true
+	case "ping":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+// Record the actual upstream HTTP boundary separately from the logical 502.
+// Never capture raw body/header values here, even with upstream body logging on.
+// Only a response that has not reached the client may enter account failover.
+func (s *OpenAIGatewayService) nativeAnthropicStreamFailure(
+	ctx context.Context, c *gin.Context, account *Account, resp *http.Response,
+	upstreamModel, code, message string, allowFailover bool,
+) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("stream usage incomplete: %w", err)
+	}
+	if c.Request != nil {
+		if err := c.Request.Context().Err(); err != nil {
+			return fmt.Errorf("stream usage incomplete: %w", err)
+		}
+	}
+	canFailover := allowFailover && !c.Writer.Written()
+	kind := "stream_failed"
+	if canFailover {
+		kind = "failover"
+	}
+	setOpsUpstreamError(c, resp.StatusCode, message, "")
+	// setOpsUpstreamError does not clear empty details from a previous attempt.
+	c.Set(OpsUpstreamErrorDetailKey, "")
+	SetOpsUpstreamModel(c, upstreamModel)
+	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		ProxyID:            opsUpstreamProxyID(account),
+		ProxyName:          opsUpstreamProxyName(account),
+		UpstreamStatusCode: resp.StatusCode,
+		Kind:               kind,
+		Reason:             code,
+		Message:            message,
+	})
+	s.rateLimitService.observeQualityStatus(ctx, account, http.StatusBadGateway)
+	if canFailover {
+		return s.newOpenAIAccountFailoverError(account, http.StatusBadGateway, resp.Header,
+			nil, message, false, false)
+	}
+	MarkOpsStreamFailure(c, "upstream_error", code, message, http.StatusBadGateway)
+	return errors.New(message)
 }
 
 // nativeAnthropicStreamResult 组装流式直通结果；流中断时同样返回已观测到的
