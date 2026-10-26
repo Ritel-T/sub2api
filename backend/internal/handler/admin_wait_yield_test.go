@@ -632,3 +632,41 @@ func TestAdminWaitYieldLegacyCancellation(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminWaitYieldWebSearchAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		name, role   string
+		counterError bool
+		status       int
+	}{
+		{"admin_full", service.RoleAdmin, false, http.StatusTooManyRequests},
+		{"admin_counter_error", service.RoleAdmin, true, http.StatusServiceUnavailable},
+		{"customer_keeps_capacity", service.RoleUser, false, 0},
+		{"customer_keeps_best_effort", service.RoleUser, true, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := newAdminWaitYieldCache(1)
+			cache.accountSeq = []bool{true}
+			if tc.counterError {
+				cache.incrementErr = errors.New("counter unavailable")
+			}
+			c, _ := newAdminWaitYieldContext(context.Background(), tc.role, 1)
+			h := &GatewayHandler{concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, 0)}
+			release, ok, err := h.acquireWebSearchAccountSlot(c, newAdminWaitYieldSelection(3))
+			if tc.status != 0 {
+				require.False(t, ok)
+				require.Nil(t, release)
+				require.Error(t, err)
+				status, _, _, _ := concurrencyErrorResponse(err, "account")
+				require.Equal(t, tc.status, status)
+				require.Zero(t, cache.snapshot().decrements)
+			} else {
+				require.True(t, ok)
+				require.NoError(t, err)
+				require.NotNil(t, release)
+				release()
+				require.Equal(t, 1, cache.snapshot().waiting)
+			}
+		})
+	}
+}

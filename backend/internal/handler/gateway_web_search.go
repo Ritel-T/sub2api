@@ -208,8 +208,9 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 
 		release, acquireOK, acquireErr := h.acquireWebSearchAccountSlot(c, selected)
 		if !acquireOK {
-			// First hop: surface concurrency errors; later hops try another account.
-			if attempt == 0 && acquireErr != nil {
+			// Administrators yield on admission failure even after an upstream
+			// failover; do not turn a local queue refusal into a later 502.
+			if acquireErr != nil && (attempt == 0 || isAdminAccountWaitCaller(c)) {
 				h.handleConcurrencyError(c, acquireErr, "account", false)
 				return
 			}
@@ -339,6 +340,9 @@ func (h *GatewayHandler) acquireWebSearchAccountSlot(
 		}
 		// Best-effort wait without counter (same as first-hop legacy path).
 	} else if !canWait {
+		if isAdminAccountWaitCaller(c) {
+			return nil, false, &WaitQueueFullError{}
+		}
 		return nil, false, nil
 	} else {
 		accountWaitCounted = true
