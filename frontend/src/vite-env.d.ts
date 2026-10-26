@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_RITEL_ACCOUNT_ORIGIN?: string
+  readonly VITE_RITEL_CONSOLE_ORIGIN?: string
   readonly VITE_API_BASE_URL: string
   readonly BASE_URL: string
 }

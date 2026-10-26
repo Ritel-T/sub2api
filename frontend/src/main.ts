@@ -1,3 +1,4 @@
+import {redirectConsoleAlias} from '@/utils/accountConfig'
 import { centralAccountEnabled } from '@/utils/accountConfig'
 import { useAuthStore } from '@/stores/auth'
 import { createApp, watch } from 'vue'
@@ -33,6 +34,7 @@ function initIOSViewportZoomFix() {
 }
 
 async function bootstrap() {
+  if (redirectConsoleAlias()) return
   // Apply theme class globally before app mount to keep all routes consistent.
   initializeTheme()
   const { resolvedTheme } = useTheme()
