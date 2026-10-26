@@ -674,13 +674,19 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				return
 			}
 			accountWaitCounted := false
-			canWait, err := geminiConcurrency.IncrementAccountWaitCount(c.Request.Context(), account.ID, selection.WaitPlan.MaxWaiting)
+			maxWaiting := accountWaitLimitForCaller(c, selection.WaitPlan.MaxWaiting)
+			canWait, err := geminiConcurrency.IncrementAccountWaitCount(c.Request.Context(), account.ID, maxWaiting)
 			if err != nil {
 				reqLog.Warn("gemini.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+				if isAdminAccountWaitCaller(c) {
+					googleConcurrencyError(c, err, "account")
+					return
+				}
 			} else if !canWait {
 				reqLog.Info("gemini.account_wait_queue_full",
 					zap.Int64("account_id", account.ID),
-					zap.Int("max_waiting", selection.WaitPlan.MaxWaiting),
+					zap.Int("max_waiting", maxWaiting),
+					zap.Int("configured_max_waiting", selection.WaitPlan.MaxWaiting),
 				)
 				googleError(c, http.StatusTooManyRequests, "Too many pending requests, please retry later")
 				return

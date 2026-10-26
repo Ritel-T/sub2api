@@ -327,12 +327,16 @@ func (h *GatewayHandler) acquireWebSearchAccountSlot(
 	}
 	account := selected.Account
 	accountWaitCounted := false
-	canWait, waitErr := h.concurrencyHelper.IncrementAccountWaitCount(c.Request.Context(), account.ID, selected.WaitPlan.MaxWaiting)
+	maxWaiting := accountWaitLimitForCaller(c, selected.WaitPlan.MaxWaiting)
+	canWait, waitErr := h.concurrencyHelper.IncrementAccountWaitCount(c.Request.Context(), account.ID, maxWaiting)
 	if waitErr != nil {
 		logger.L().Warn("gateway.web_search.account_wait_counter_increment_failed",
 			zap.Int64("account_id", account.ID),
 			zap.Error(waitErr),
 		)
+		if isAdminAccountWaitCaller(c) {
+			return nil, false, waitErr
+		}
 		// Best-effort wait without counter (same as first-hop legacy path).
 	} else if !canWait {
 		return nil, false, nil

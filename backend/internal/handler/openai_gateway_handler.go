@@ -2799,13 +2799,20 @@ func (h *OpenAIGatewayHandler) acquireOpenAIAccountSlot(
 		return wrapReleaseOnDone(ctx, fastReleaseFunc), openAISlotAcquireOK
 	}
 
-	canWait, waitErr := h.concurrencyHelper.IncrementAccountWaitCount(ctx, account.ID, selection.WaitPlan.MaxWaiting)
+	maxWaiting := accountWaitLimitForCaller(c, selection.WaitPlan.MaxWaiting)
+	canWait, waitErr := h.concurrencyHelper.IncrementAccountWaitCount(ctx, account.ID, maxWaiting)
 	if waitErr != nil {
 		reqLog.Warn("openai.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(waitErr))
+		if isAdminAccountWaitCaller(c) {
+			status, errType, code, message := concurrencyErrorResponse(waitErr, "account")
+			writeError(status, errType, code, message)
+			return nil, openAISlotAcquireFailed
+		}
 	} else if !canWait {
 		reqLog.Info("openai.account_wait_queue_full",
 			zap.Int64("account_id", account.ID),
-			zap.Int("max_waiting", selection.WaitPlan.MaxWaiting),
+			zap.Int("max_waiting", maxWaiting),
+			zap.Int("configured_max_waiting", selection.WaitPlan.MaxWaiting),
 		)
 		writeError(http.StatusTooManyRequests, "rate_limit_error", gatewayQueueFullCode, "Too many pending requests, please retry later")
 		return nil, openAISlotAcquireFailed

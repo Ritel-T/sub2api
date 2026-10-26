@@ -446,13 +446,19 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					return
 				}
 				accountWaitCounted := false
-				canWait, err := h.concurrencyHelper.IncrementAccountWaitCount(c.Request.Context(), account.ID, selection.WaitPlan.MaxWaiting)
+				maxWaiting := accountWaitLimitForCaller(c, selection.WaitPlan.MaxWaiting)
+				canWait, err := h.concurrencyHelper.IncrementAccountWaitCount(c.Request.Context(), account.ID, maxWaiting)
 				if err != nil {
 					reqLog.Warn("gateway.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+					if isAdminAccountWaitCaller(c) {
+						h.handleConcurrencyError(c, err, "account", streamStarted)
+						return
+					}
 				} else if !canWait {
 					reqLog.Info("gateway.account_wait_queue_full",
 						zap.Int64("account_id", account.ID),
-						zap.Int("max_waiting", selection.WaitPlan.MaxWaiting),
+						zap.Int("max_waiting", maxWaiting),
+						zap.Int("configured_max_waiting", selection.WaitPlan.MaxWaiting),
 					)
 					h.handleStreamingAwareErrorWithCode(c, http.StatusTooManyRequests, "rate_limit_error", gatewayQueueFullCode, "Too many pending requests, please retry later", streamStarted)
 					return
@@ -788,13 +794,19 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					return
 				}
 				accountWaitCounted := false
-				canWait, err := h.concurrencyHelper.IncrementAccountWaitCount(c.Request.Context(), account.ID, selection.WaitPlan.MaxWaiting)
+				maxWaiting := accountWaitLimitForCaller(c, selection.WaitPlan.MaxWaiting)
+				canWait, err := h.concurrencyHelper.IncrementAccountWaitCount(c.Request.Context(), account.ID, maxWaiting)
 				if err != nil {
 					reqLog.Warn("gateway.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+					if isAdminAccountWaitCaller(c) {
+						h.handleConcurrencyError(c, err, "account", streamStarted)
+						return
+					}
 				} else if !canWait {
 					reqLog.Info("gateway.account_wait_queue_full",
 						zap.Int64("account_id", account.ID),
-						zap.Int("max_waiting", selection.WaitPlan.MaxWaiting),
+						zap.Int("max_waiting", maxWaiting),
+						zap.Int("configured_max_waiting", selection.WaitPlan.MaxWaiting),
 					)
 					h.handleStreamingAwareErrorWithCode(c, http.StatusTooManyRequests, "rate_limit_error", gatewayQueueFullCode, "Too many pending requests, please retry later", streamStarted)
 					return

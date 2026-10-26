@@ -648,9 +648,14 @@ func (h *GatewayHandler) acquireGeminiCachedContentAccountSlot(c *gin.Context, r
 		googleError(c, http.StatusServiceUnavailable, "No available Gemini accounts")
 		return nil, false
 	}
-	canWait, err := helper.IncrementAccountWaitCount(c.Request.Context(), account.ID, selection.WaitPlan.MaxWaiting)
+	maxWaiting := accountWaitLimitForCaller(c, selection.WaitPlan.MaxWaiting)
+	canWait, err := helper.IncrementAccountWaitCount(c.Request.Context(), account.ID, maxWaiting)
 	if err != nil {
 		reqLog.Warn("gemini.cached_content.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+		if isAdminAccountWaitCaller(c) {
+			googleConcurrencyError(c, err, "account")
+			return nil, false
+		}
 	} else if !canWait {
 		googleError(c, http.StatusTooManyRequests, "Too many pending requests, please retry later")
 		return nil, false
