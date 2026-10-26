@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import type { ApiKey, PublicSettings } from '@/types'
 
 const { copyToClipboardMock, saveAsMock } = vi.hoisted(() => ({
   copyToClipboardMock: vi.fn().mockResolvedValue(true),
@@ -1135,4 +1136,89 @@ describe('UseKeyModal', () => {
       }
     }
   )
+})
+
+
+describe('UseKeyModal overview connection summary', () => {
+  const record = { id: 8, name: 'OpenAI', user_id: 42, key: 'sk-overview-test', group: { platform: 'openai' } } as ApiKey
+  const renderConnection = (settings?: Partial<PublicSettings>, platform = 'openai') => mount(UseKeyModal, {
+    props: {
+      show: true, apiKey: record.key, baseUrl: 'https://api.example.com/v1/',
+      platform, keyRecord: record, publicSettings: settings as PublicSettings
+    },
+    global: { stubs: { BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' }, Icon: true } }
+  })
+
+  afterEach(() => { vi.restoreAllMocks(); copyToClipboardMock.mockClear() })
+
+  it('shows copyable configuration URL and key and imports the selected key with site settings', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = renderConnection({ site_name: 'Ritel.SI' })
+    expect(wrapper.get('[data-testid="connection-url"]').text()).toBe('https://api.example.com/v1')
+    expect(wrapper.get('[data-testid="connection-key"]').text()).toBe(record.key)
+    await wrapper.get('[data-testid="copy-connection-url"]').trigger('click')
+    expect(copyToClipboardMock).toHaveBeenLastCalledWith('https://api.example.com/v1')
+    await wrapper.get('[data-testid="copy-connection-key"]').trigger('click')
+    expect(copyToClipboardMock).toHaveBeenLastCalledWith(record.key)
+    await wrapper.get('[data-testid="connection-ccs-openai-codex"]').trigger('click')
+    expect(open).toHaveBeenCalledTimes(1)
+    const url = new URL(String(open.mock.calls[0][0]))
+    expect(url.protocol).toBe('ccswitch:')
+    expect(url.searchParams.get('apiKey')).toBe(record.key)
+    expect(url.searchParams.get('endpoint')).toBe('https://api.example.com/v1')
+    expect(url.searchParams.get('name')).toBe('Ritel.SI')
+    expect(url.searchParams.get('app')).toBe('codex')
+    expect(open.mock.calls[0][1]).toBe('_self')
+    expect(wrapper.find('a[href*="sk-overview"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps the copyable URL aligned with the selected client protocol', async () => {
+    const wrapper = renderConnection(undefined, 'gemini')
+    expect(wrapper.get('[data-testid="connection-url"]').text()).toBe('https://api.example.com')
+    const codex = wrapper.findAll('button').find(button => button.text() === 'keys.useKeyModal.cliTabs.codexCli')!
+    await codex.trigger('click')
+    expect(wrapper.get('[data-testid="connection-url"]').text()).toBe('https://api.example.com/v1')
+    const opencode = wrapper.findAll('button').find(button => button.text() === 'keys.useKeyModal.cliTabs.opencode')!
+    await opencode.trigger('click')
+    expect(wrapper.get('[data-testid="connection-url"]').text()).toBe('https://api.example.com/v1beta')
+    wrapper.unmount()
+  })
+
+  it('uses explicit client selection and public profile overrides without silently picking one', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = renderConnection({ ccs_import_config: { profiles: [
+      { id: 'custom-codex', platform: 'openai', app: 'codex', label: 'Codex custom', parameters: { model: 'custom-model', endpoint: 'https://edge.example.com/v1' } },
+      { id: 'custom-openclaw', platform: 'openai', app: 'openclaw', label: 'OpenClaw', parameters: {} }
+    ] } })
+    expect(open).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="connection-ccs-custom-codex"]').text()).toContain('Codex custom')
+    expect(wrapper.get('[data-testid="connection-ccs-custom-openclaw"]').text()).toContain('OpenClaw')
+    await wrapper.get('[data-testid="connection-ccs-custom-codex"]').trigger('click')
+    const url = new URL(String(open.mock.calls[0][0]))
+    expect(url.searchParams.get('endpoint')).toBe('https://edge.example.com/v1')
+    expect(url.searchParams.get('model')).toBe('custom-model')
+    wrapper.unmount()
+  })
+
+  it('respects hidden and empty profile settings while retaining manual configuration', async () => {
+    const wrapper = renderConnection({ hide_ccs_import_button: true })
+    expect(wrapper.find('[data-testid^="connection-ccs-"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="connection-key"]').exists()).toBe(true)
+    await wrapper.setProps({ publicSettings: { ccs_import_config: { profiles: [] } } as unknown as PublicSettings })
+    expect(wrapper.find('[data-testid^="connection-ccs-"]').exists()).toBe(false)
+    await wrapper.setProps({ keyRecord: null })
+    expect(wrapper.find('[data-testid="key-connection-summary"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows a recoverable import error and clears it when the key changes', async () => {
+    vi.spyOn(window, 'open').mockImplementation(() => { throw new Error('No handler') })
+    const wrapper = renderConnection()
+    await wrapper.get('[data-testid="connection-ccs-openai-codex"]').trigger('click')
+    expect(wrapper.get('[role="alert"]').text()).toBe('keys.ccSwitchNotInstalled')
+    await wrapper.setProps({ keyRecord: { ...record, id: 9 } })
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
 })

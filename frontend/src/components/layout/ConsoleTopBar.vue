@@ -2,6 +2,18 @@
   <header class="console-top-bar" :class="{ 'console-top-bar-compact': compactNav }" :inert="mobileOpen ? true : undefined" role="banner">
     <div ref="barRef" class="console-top-bar-inner">
       <div ref="leftRef" class="console-top-bar-left">
+        <button
+          type="button"
+          v-show="compactNav"
+          ref="menuRef"
+          class="console-icon-btn"
+          :aria-label="t('common.toggleMenu')"
+          :aria-expanded="mobileOpen"
+          aria-controls="console-sidebar"
+          @click="appStore.toggleMobileSidebar()"
+        >
+          <Icon name="menu" size="md" aria-hidden="true" />
+        </button>
         <router-link :to="homePath" class="console-wordmark" :aria-label="siteName" @click="handleNavigate(homePath)">
           <img :src="siteLogo" alt="" class="ritel-logo console-wordmark-logo" />
           <span class="console-wordmark-name">{{ siteName }}</span>
@@ -55,18 +67,6 @@
           :collapsed="true"
           @navigate="handleNavigate"
         />
-        <button
-          type="button"
-          v-show="compactNav"
-          ref="menuRef"
-          class="console-icon-btn"
-          :aria-label="t('common.toggleMenu')"
-          :aria-expanded="mobileOpen"
-          aria-controls="console-sidebar"
-          @click="appStore.toggleMobileSidebar()"
-        >
-          <Icon name="menu" size="md" aria-hidden="true" />
-        </button>
         <span v-if="compactNav" ref="captionRef" class="console-mobile-section">{{ activeLocation?.section?.label }}</span>
         <AnnouncementBell v-if="user" />
         <a
@@ -257,11 +257,15 @@ function measureNavigation() {
   const style = getComputedStyle(bar)
   const gap = parseFloat(style.columnGap) || 0
   const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
-  // The compact-only trigger and caption must not change the fit decision.
+  // Exclude compact-only controls from both groups so showing the menu cannot
+  // change the fit decision and cause a collapse/expand loop.
+  const leftGap = parseFloat(getComputedStyle(left).columnGap) || 0
   const utilityGap = parseFloat(getComputedStyle(right).columnGap) || 0
-  const compactWidth = [menuRef.value, captionRef.value].reduce((sum, el) =>
-    sum + (el && el.offsetWidth ? el.offsetWidth + utilityGap : 0), 0)
-  const available = bar.clientWidth - padding - left.offsetWidth - (right.offsetWidth - compactWidth) - gap * 2
+  const menuWidth = menuRef.value?.offsetWidth || 0
+  const captionWidth = captionRef.value?.offsetWidth || 0
+  const leftWidth = left.offsetWidth - (menuWidth ? menuWidth + leftGap : 0)
+  const rightWidth = right.offsetWidth - (captionWidth ? captionWidth + utilityGap : 0)
+  const available = bar.clientWidth - padding - leftWidth - rightWidth - gap * 2
   const links = [...nav.querySelectorAll<HTMLElement>('.console-section-link')]
   const linkGap = parseFloat(getComputedStyle(nav).columnGap) || 0
   const required = links.reduce((sum, link) => sum + link.getBoundingClientRect().width, 0) + Math.max(0, links.length - 1) * linkGap

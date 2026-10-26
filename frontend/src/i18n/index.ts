@@ -18,12 +18,30 @@ function isLocaleCode(value: string): value is LocaleCode {
   return value === 'en' || value === 'zh' || value === 'zh-Hant-HK'
 }
 
+function matchLocale(value: string): LocaleCode | null {
+  const parts = value.trim().replace(/_/g, '-').toLowerCase().split('-')
+  if (parts[0] === 'en') return 'en'
+  if (parts[0] !== 'zh') return null
+  // An explicit script wins over region (for example zh-Hans-HK).
+  if (parts.includes('hans')) return 'zh'
+  if (parts.includes('hant')) return 'zh-Hant-HK'
+  return parts.some(part => ['hk', 'tw', 'mo'].includes(part)) ? 'zh-Hant-HK' : 'zh'
+}
+
 function getDefaultLocale(): LocaleCode {
-  const saved = localStorage.getItem(LOCALE_KEY)
-  if (saved && isLocaleCode(saved)) {
-    return saved
+  try {
+    const saved = localStorage.getItem(LOCALE_KEY)
+    const matched = saved ? matchLocale(saved) : null
+    if (matched) return matched
+  } catch {
+    // Storage may be unavailable; browser preferences still work for this visit.
   }
 
+  const languages = navigator.languages?.length ? navigator.languages : [navigator.language]
+  for (const language of languages) {
+    const matched = matchLocale(language)
+    if (matched) return matched
+  }
   return DEFAULT_LOCALE
 }
 
@@ -63,7 +81,7 @@ export async function setLocale(locale: string): Promise<void> {
 
   await loadLocaleMessages(locale)
   i18n.global.locale.value = locale
-  localStorage.setItem(LOCALE_KEY, locale)
+  try { localStorage.setItem(LOCALE_KEY, locale) } catch { /* Keep the choice for this visit. */ }
   document.documentElement.setAttribute('lang', locale)
 
   // 同步更新浏览器页签标题，使其跟随语言切换

@@ -13,6 +13,7 @@ const en = {
   fullStats: 'All statistics & quotas', analysis: 'Usage analysis', refresh: 'Refresh',
   availableKey: 'API key', noActiveKey: 'No usable API key', subscriptionEnds: 'Ends',
   quotaFailed: 'Could not load platform quotas.',
+  domestic: 'Chinese models', topUp: 'Top up', quickStart: 'Create a key by platform', quickHint: 'Choose a platform to create a key and get connection instructions.', recentKeys: 'Recent API keys', useKey: 'Use', noKeys: 'No API keys yet', noGroups: 'No available platform groups.', creating: 'Creating…', createFailed: 'Could not create the key. Please try again.', createUnknown: 'Creation could not be confirmed. Check your API keys before trying again.',
 }
 const hk: Record<keyof typeof en, string> = {
   overview: '總覽', create: '建立 API Key', connect: '連接應用程式', continue: '繼續使用',
@@ -26,6 +27,7 @@ const hk: Record<keyof typeof en, string> = {
   fullStats: '完整統計與配額', analysis: '用量分析', refresh: '重新整理',
   availableKey: 'API Key', noActiveKey: '沒有可用的 API Key', subscriptionEnds: '到期',
   quotaFailed: '未能載入平台配額。',
+  domestic: '國模', topUp: '充值', quickStart: '按平台建立 Key', quickHint: '選擇平台，即可建立 Key 並查看接入方法。', recentKeys: '最近建立的 Key', useKey: '使用', noKeys: '暫無 API Key', noGroups: '暫無可用的平台分組。', creating: '建立中…', createFailed: '未能建立 Key，請重試。', createUnknown: '尚未確認建立結果，請先查看 API Key 列表。',
 }
 const zh: Record<keyof typeof en, string> = {
   overview: '总览', create: '创建 API Key', connect: '连接应用', continue: '继续使用',
@@ -39,6 +41,7 @@ const zh: Record<keyof typeof en, string> = {
   fullStats: '完整统计与配额', analysis: '用量分析', refresh: '刷新',
   availableKey: 'API Key', noActiveKey: '没有可用的 API Key', subscriptionEnds: '到期',
   quotaFailed: '未能加载平台配额。',
+  domestic: '国模', topUp: '充值', quickStart: '按平台创建 Key', quickHint: '选择平台，即可创建 Key 并查看接入方法。', recentKeys: '最近创建的 Key', useKey: '使用', noKeys: '暂无 API Key', noGroups: '暂无可用的平台分组。', creating: '创建中…', createFailed: '未能创建 Key，请重试。', createUnknown: '尚未确认创建结果，请先查看 API Key 列表。',
 }
 export function useOverviewCopy() {
   const { locale } = useI18n()

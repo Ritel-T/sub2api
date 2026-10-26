@@ -9,6 +9,7 @@ const sendPendingOAuthVerifyCode = vi.fn()
 const getPublicSettings = vi.fn()
 const showError = vi.fn()
 const turnstileReset = vi.fn()
+const reportFailure = vi.fn()
 const verifyAction = vi.fn()
 
 vi.mock('vue-i18n', async () => {
@@ -44,6 +45,7 @@ describe('PendingOAuthCreateAccountForm', () => {
     getPublicSettings.mockReset()
     showError.mockReset()
     turnstileReset.mockReset()
+    reportFailure.mockReset()
     verifyAction.mockReset()
     getPublicSettings.mockResolvedValue({
       turnstile_enabled: false,
@@ -89,7 +91,7 @@ describe('PendingOAuthCreateAccountForm', () => {
       .mockResolvedValueOnce({ token: 'ticket-2', randstr: '@rand-2' })
     const CaptchaChallengeStub = defineComponent({
       setup(_, { expose }) {
-        expose({ verifyAction, reset: turnstileReset })
+        expose({ verifyAction, reset: turnstileReset, reportFailure })
         return () => h('div')
       }
     })
@@ -296,7 +298,7 @@ describe('PendingOAuthCreateAccountForm', () => {
         stubs: {
           TurnstileWidget: {
             template: '<button data-testid="turnstile-verify" @click="$emit(\'verify\', \'proof-token\')">verify</button>',
-            methods: { reset: turnstileReset }
+            methods: { reset: turnstileReset, reportFailure }
           }
         }
       }
@@ -308,6 +310,7 @@ describe('PendingOAuthCreateAccountForm', () => {
     await flushPromises()
 
     expect(turnstileReset).toHaveBeenCalledOnce()
+    expect(reportFailure).toHaveBeenCalledWith(expect.objectContaining({ message: 'send failed' }))
     expect(wrapper.get('[data-testid="oidc-create-account-send-code"]').attributes('disabled')).toBeDefined()
   })
 
@@ -369,7 +372,7 @@ describe('PendingOAuthCreateAccountForm', () => {
         stubs: {
           TurnstileWidget: {
             template: '<button data-testid="turnstile-verify" @click="$emit(\'verify\', \'turnstile-token\')">verify</button>',
-            methods: { reset: turnstileReset }
+            methods: { reset: turnstileReset, reportFailure }
           }
         }
       }
@@ -420,7 +423,7 @@ describe('PendingOAuthCreateAccountForm', () => {
         stubs: {
           TurnstileWidget: {
             template: '<button data-testid="turnstile-verify" @click="$emit(\'verify\', \'turnstile-token\')">verify</button>',
-            methods: { reset: turnstileReset }
+            methods: { reset: turnstileReset, reportFailure }
           }
         }
       }
