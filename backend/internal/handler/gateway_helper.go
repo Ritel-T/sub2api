@@ -626,3 +626,26 @@ func nextBackoff(current time.Duration) time.Duration {
 	}
 	return jittered
 }
+
+// AcquireAccountSlotWithAdminWaitTimeout adds only administrator wait admission
+// to legacy routes that never counted customer waiters. Do not apply this to
+// routes which have already registered an account wait counter.
+func (h *ConcurrencyHelper) AcquireAccountSlotWithAdminWaitTimeout(c *gin.Context, accountID int64, maxConcurrency int, timeout time.Duration, isStream bool, streamStarted *bool) (func(), error) {
+	if !isAdminAccountWaitCaller(c) {
+		return h.AcquireAccountSlotWithWaitTimeout(c, accountID, maxConcurrency, timeout, isStream, streamStarted)
+	}
+	ctx := c.Request.Context()
+	release, acquired, err := h.TryAcquireAccountSlot(ctx, accountID, maxConcurrency)
+	if err != nil || acquired {
+		return release, err
+	}
+	allowed, err := h.IncrementAccountWaitCount(ctx, accountID, 1)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, &WaitQueueFullError{}
+	}
+	defer h.DecrementAccountWaitCount(ctx, accountID)
+	return h.AcquireAccountSlotWithWaitTimeout(c, accountID, maxConcurrency, timeout, isStream, streamStarted)
+}

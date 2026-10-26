@@ -581,13 +581,15 @@ func (s *ConcurrencyService) DecrementWaitCount(ctx context.Context, userID int6
 // IncrementAccountWaitCount increments the wait queue counter for an account.
 func (s *ConcurrencyService) IncrementAccountWaitCount(ctx context.Context, accountID int64, maxWait int) (bool, error) {
 	if s.cache == nil {
-		return true, nil
+		return true, errors.New("account wait counter unavailable")
 	}
 
 	result, err := s.cache.IncrementAccountWaitCount(ctx, accountID, maxWait)
 	if err != nil {
 		logger.LegacyPrintf("service.concurrency", "Warning: increment wait count failed for account %d: %v", accountID, err)
-		return true, nil
+		// Handlers may still wait best-effort, but must not decrement another
+		// request's counter when this increment was not confirmed.
+		return true, err
 	}
 	return result, nil
 }
