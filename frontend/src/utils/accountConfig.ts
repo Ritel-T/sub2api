@@ -6,7 +6,12 @@ export const consoleOrigin = validateAccountOrigin(import.meta.env.VITE_RITEL_CO
 
 export function accountPageURL(section: 'profile' | 'security' | 'sessions' = 'profile'): string {
   if (!accountOrigin) return '/profile'
-  return `${accountOrigin}/account/#${section}`
+  const target = new URL('/account/', accountOrigin)
+  const source = new URL(location.href)
+  for (const key of ['access_token', 'refresh_token', 'id_token']) source.searchParams.delete(key)
+  target.searchParams.set('returnTo', source.href)
+  target.hash = section
+  return target.href
 }
 
 /** Legacy consoles also expose the explicit central reset recovery link. */
