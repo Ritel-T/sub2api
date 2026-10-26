@@ -17,8 +17,8 @@ func TestAccountWaitDifferentCallerLimitsShareAtomicCount(t *testing.T) {
 	server := miniredis.RunT(t)
 	first := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	second := redis.NewClient(&redis.Options{Addr: server.Addr()})
-	defer first.Close()
-	defer second.Close()
+	t.Cleanup(func() { require.NoError(t, first.Close()) })
+	t.Cleanup(func() { require.NoError(t, second.Close()) })
 	a, b := NewConcurrencyCache(first, 15, 120), NewConcurrencyCache(second, 15, 120)
 	ctx := context.Background()
 	var accepted atomic.Int64
@@ -67,7 +67,7 @@ func TestAccountWaitDifferentCallerLimitsShareAtomicCount(t *testing.T) {
 func TestAccountWaitFallbackCustomerThresholdRemains100(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
-	defer client.Close()
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	cache := NewConcurrencyCache(client, 15, 120)
 	ctx := context.Background()
 	for n := 0; n < 100; n++ {
