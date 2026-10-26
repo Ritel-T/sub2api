@@ -232,6 +232,9 @@ func ProvideHandlers(
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
 ) *Handlers {
+	if totpHandler != nil && authHandler != nil {
+		totpHandler.SetAccountAuth(authHandler.authService)
+	}
 	return &Handlers{
 		Auth:             authHandler,
 		User:             userHandler,

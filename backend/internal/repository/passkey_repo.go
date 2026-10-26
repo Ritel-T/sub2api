@@ -129,7 +129,20 @@ func (r *passkeyRepository) Create(
 		Name:       name,
 		Credential: record.Credential,
 	}
-	err = r.db.QueryRowContext(ctx, `
+	queryRow := r.db.QueryRowContext
+	var tx *sql.Tx
+	if proof := service.AccountFactorProof(ctx); proof.Generation != "" {
+		tx, err = r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+		if err != nil {
+			return nil, fmt.Errorf("begin passkey credential: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		if err := lockAccountFactorGeneration(ctx, tx, record.UserID, proof); err != nil {
+			return nil, err
+		}
+		queryRow = tx.QueryRowContext
+	}
+	err = queryRow(ctx, `
 		INSERT INTO passkey_credentials
 		    (user_id, credential_id, name, credential_data)
 		VALUES ($1, $2, $3, $4::jsonb)
@@ -142,6 +155,11 @@ func (r *passkeyRepository) Create(
 			return nil, service.ErrPasskeyExists
 		}
 		return nil, fmt.Errorf("create passkey credential: %w", err)
+	}
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit passkey credential: %w", err)
+		}
 	}
 	return created, nil
 }

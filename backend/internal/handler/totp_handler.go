@@ -11,6 +11,7 @@ import (
 // TotpHandler handles TOTP-related requests
 type TotpHandler struct {
 	totpService *service.TotpService
+	accountAuth *service.AuthService
 }
 
 // NewTotpHandler creates a new TotpHandler
@@ -84,7 +85,13 @@ func (h *TotpHandler) InitiateSetup(c *gin.Context) {
 		req = TotpSetupRequest{}
 	}
 
-	result, err := h.totpService.InitiateSetup(c.Request.Context(), subject.UserID, req.EmailCode, req.Password)
+	var result *service.TotpSetupResponse
+	var err error
+	if h.accountAuth != nil && h.accountAuth.AccountCenterEnabled() {
+		result, err = h.totpService.BeginAccountSetup(c.Request.Context(), h.accountAuth, subject.UserID, nativeAccountBearer(c))
+	} else {
+		result, err = h.totpService.InitiateSetup(c.Request.Context(), subject.UserID, req.EmailCode, req.Password)
+	}
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -119,11 +126,32 @@ func (h *TotpHandler) Enable(c *gin.Context) {
 		return
 	}
 
+	if h.accountAuth != nil && h.accountAuth.AccountCenterEnabled() {
+		claims, err := h.accountAuth.RequireRecentAccountAuthentication(c.Request.Context(), nativeAccountBearer(c), subject.UserID, false)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		c.Request = c.Request.WithContext(service.WithNativeAuthenticationProof(c.Request.Context(), service.NativeAuthenticationFromClaims(claims)))
+	}
 	if err := h.totpService.CompleteSetup(c.Request.Context(), subject.UserID, req.TotpCode, req.SetupToken); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
+	if h.accountAuth != nil && h.accountAuth.AccountCenterEnabled() {
+		if err := h.accountAuth.RevokeAllUserTokens(c.Request.Context(), subject.UserID); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		codes, err := h.accountAuth.ReplaceAccountRecoveryCodes(c.Request.Context(), subject.UserID)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		response.Success(c, gin.H{"success": true, "recovery_codes": codes, "logout_required": true})
+		return
+	}
 	response.Success(c, gin.H{"success": true})
 }
 
@@ -148,11 +176,33 @@ func (h *TotpHandler) Disable(c *gin.Context) {
 		return
 	}
 
-	if err := h.totpService.Disable(c.Request.Context(), subject.UserID, req.EmailCode, req.Password); err != nil {
-		response.ErrorFrom(c, err)
+	if h.accountAuth != nil && h.accountAuth.AccountCenterEnabled() {
+		if _, err := h.accountAuth.RequireRecentAccountAuthentication(c.Request.Context(), nativeAccountBearer(c), subject.UserID, true); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+	var disableErr error
+	if h.accountAuth != nil && h.accountAuth.AccountCenterEnabled() {
+		disableErr = h.totpService.DisableAccountTotp(c.Request.Context(), h.accountAuth, subject.UserID, nativeAccountBearer(c))
+	} else {
+		disableErr = h.totpService.Disable(c.Request.Context(), subject.UserID, req.EmailCode, req.Password)
+	}
+	if disableErr != nil {
+		response.ErrorFrom(c, disableErr)
 		return
 	}
 
+	if h.accountAuth != nil && h.accountAuth.AccountCenterEnabled() {
+		if err := h.accountAuth.RevokeAllUserTokens(c.Request.Context(), subject.UserID); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		if err := h.accountAuth.InvalidateAccountRecoveryCodes(c.Request.Context(), subject.UserID); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
 	response.Success(c, gin.H{"success": true})
 }
 
@@ -228,3 +278,5 @@ func (h *TotpHandler) StepUp(c *gin.Context) {
 		ExpiresIn: int64(ttl.Seconds()),
 	})
 }
+
+func (h *TotpHandler) SetAccountAuth(auth *service.AuthService) { h.accountAuth = auth }

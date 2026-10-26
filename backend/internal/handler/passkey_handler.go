@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
@@ -120,6 +121,7 @@ func (h *PasskeyHandler) FinishLogin(c *gin.Context) {
 	}
 	middleware2.SetAuditActor(c, user.ID, user.Email)
 	c.Set("auth_method", service.AuditAuthMethodPasskey)
+	c.Request = c.Request.WithContext(service.WithNativeAuthenticationProof(c.Request.Context(), service.NativeAuthenticationProof{Methods: []string{"passkey"}, AuthTime: time.Now().Unix()}))
 	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
 	respondWithTokenPair(c, h.authService, user)
 }
@@ -131,6 +133,9 @@ func (h *PasskeyHandler) BeginRegistration(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	if !h.requireAccountSecurityProof(c, subject.UserID) {
 		return
 	}
 	creation, token, err := h.passkeys.BeginRegistration(c.Request.Context(), subject.UserID, bindPasskeyPassword(c))
@@ -148,6 +153,9 @@ func (h *PasskeyHandler) FinishRegistration(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	if !h.requireAccountSecurityProof(c, subject.UserID) {
 		return
 	}
 	req, valid := bindPasskeyFinishRequest(c)
@@ -203,6 +211,9 @@ func (h *PasskeyHandler) Rename(c *gin.Context) {
 func (h *PasskeyHandler) Delete(c *gin.Context) {
 	subject, credentialID, ok := passkeyMutationTarget(c)
 	if !ok {
+		return
+	}
+	if !h.requireAccountSecurityProof(c, subject.UserID) {
 		return
 	}
 	if err := h.passkeys.Delete(c.Request.Context(), subject.UserID, credentialID, bindPasskeyPassword(c)); err != nil {

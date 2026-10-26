@@ -60,12 +60,14 @@ const refreshTokenPrefix = "rt_"
 
 // JWTClaims JWT载荷数据
 type JWTClaims struct {
-	AccountGeneration string `json:"ag,omitempty"`
-	UserID            int64  `json:"user_id"`
-	Email             string `json:"email"`
-	Role              string `json:"role"`
-	TokenVersion      int64  `json:"token_version"` // Used to invalidate tokens on password change
-	SessionEpoch      string `json:"sep,omitempty"` // Persisted per-user revocation generation.
+	AuthenticationMethods []string `json:"amr,omitempty"`
+	AuthenticationTime    int64    `json:"auth_time,omitempty"`
+	AccountGeneration     string   `json:"ag,omitempty"`
+	UserID                int64    `json:"user_id"`
+	Email                 string   `json:"email"`
+	Role                  string   `json:"role"`
+	TokenVersion          int64    `json:"token_version"` // Used to invalidate tokens on password change
+	SessionEpoch          string   `json:"sep,omitempty"` // Persisted per-user revocation generation.
 	// SessionID 会话 ID（与 refresh token family 对应），用于单会话撤销与 step-up 授权绑定。
 	SessionID string `json:"sid,omitempty"`
 	// BindingHash 会话指纹哈希（IP+UA），会话绑定开启时校验；空值表示旧 token（平滑升级）。
@@ -75,6 +77,7 @@ type JWTClaims struct {
 
 // AuthService 认证服务
 type AuthService struct {
+ recoveryCodes AccountRecoveryCodeRepository
 	entClient             *dbent.Client
 	userRepo              UserRepository
 	redeemRepo            RedeemCodeRepository
@@ -1410,11 +1413,11 @@ func (s *AuthService) generateTokenForEpoch(ctx context.Context, user *User, epo
 	if err != nil {
 		return "", fmt.Errorf("generate session id: %w", err)
 	}
-	return s.generateAccessToken(user, sessionID, sessionBindingHashFromContext(ctx), epoch)
+	return s.generateAccessToken(user, sessionID, sessionBindingHashFromContext(ctx), epoch, nativeAuthenticationFromContext(ctx))
 }
 
 // generateAccessToken 生成带会话 ID 与绑定指纹的 access token。
-func (s *AuthService) generateAccessToken(user *User, sessionID, bindingHash, epoch string) (string, error) {
+func (s *AuthService) generateAccessToken(user *User, sessionID, bindingHash, epoch string, authentication ...NativeAuthenticationProof) (string, error) {
 	now := time.Now()
 	var expiresAt time.Time
 	if s.cfg.JWT.AccessTokenExpireMinutes > 0 {
@@ -1444,6 +1447,17 @@ func (s *AuthService) generateAccessToken(user *User, sessionID, bindingHash, ep
 			return "", ErrServiceUnavailable
 		}
 		claims.AccountGeneration = accountCenterGeneration(user, epoch)
+		if len(authentication) > 0 {
+			proof := authentication[0]
+			if proof.Generation != "" && (proof.Generation != claims.AccountGeneration || proof.Epoch != epoch) {
+				return "", ErrTokenRevoked
+			}
+			if len(proof.Methods) > 0 && proof.AuthTime > 0 {
+				claims.AuthenticationMethods = append([]string(nil), proof.Methods...)
+				claims.AuthenticationTime = proof.AuthTime
+			}
+		}
+
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(s.cfg.JWT.Secret))
@@ -1520,7 +1534,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldTokenString string) (
 	}
 
 	// 生成新token
-	return s.generateTokenForEpoch(ctx, user, claims.SessionEpoch)
+	return s.generateTokenForEpoch(WithNativeAuthenticationProof(ctx, NativeAuthenticationFromClaims(claims)), user, claims.SessionEpoch)
 }
 
 // IsPasswordResetEnabled 检查是否启用密码重置功能
@@ -1722,7 +1736,7 @@ func (s *AuthService) generateTokenPairForEpoch(ctx context.Context, user *User,
 	}
 
 	// 生成Access Token（携带会话ID与绑定指纹）
-	accessToken, err := s.generateAccessToken(user, familyID, sessionBindingHashFromContext(ctx), epoch)
+	accessToken, err := s.generateAccessToken(user, familyID, sessionBindingHashFromContext(ctx), epoch, nativeAuthenticationFromContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
@@ -1789,6 +1803,9 @@ func (s *AuthService) generateRefreshTokenWithExpiry(ctx context.Context, user *
 
 	if s.cfg.AccountCenter.Enabled {
 		data.AccountGeneration = accountCenterGeneration(user, epoch)
+		proof := nativeAuthenticationFromContext(ctx)
+		data.AuthenticationMethods = append([]string(nil), proof.Methods...)
+		data.AuthenticationTime = proof.AuthTime
 	}
 
 	// 存储Token数据
@@ -1902,7 +1919,8 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 	}
 
 	// 生成新的Token对，保持同一个家族ID
-	pair, err := s.generateTokenPairForEpoch(ctx, user, data.FamilyID, data.SessionEpoch)
+	proof := NativeAuthenticationProof{Methods: data.AuthenticationMethods, AuthTime: data.AuthenticationTime, Generation: data.AccountGeneration, Epoch: data.SessionEpoch}
+	pair, err := s.generateTokenPairForEpoch(WithNativeAuthenticationProof(ctx, proof), user, data.FamilyID, data.SessionEpoch)
 	if err != nil {
 		return nil, err
 	}

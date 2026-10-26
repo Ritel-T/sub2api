@@ -29,6 +29,8 @@ func RegisterUserRoutes(
 		// 用户接口
 		user := authenticated.Group("/user")
 		{
+			user.GET("/account-security/recovery-codes", h.Auth.AccountRecoveryRemaining)
+			user.POST("/account-security/recovery-codes", h.Auth.AccountRecoveryReplace)
 			user.GET("/profile", h.User.GetProfile)
 			user.GET("/qq", h.User.QQStatus)
 			user.POST("/qq/binding", h.User.QQIssue)
@@ -76,6 +78,8 @@ func RegisterUserRoutes(
 			passkeys := user.Group("/passkeys")
 			{
 				passkeys.GET("", h.Passkey.List)
+				passkeys.POST("/reauth/begin", h.Passkey.BeginAccountReauthentication)
+				passkeys.POST("/reauth/finish", h.Passkey.FinishAccountReauthentication)
 				passkeys.POST("/register/begin", h.Passkey.BeginRegistration)
 				passkeys.POST("/register/finish", h.Passkey.FinishRegistration)
 				passkeys.PATCH("/:id", h.Passkey.Rename)

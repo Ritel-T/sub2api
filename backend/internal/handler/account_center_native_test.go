@@ -51,6 +51,8 @@ func TestAccountCenterNativeServe(t *testing.T) {
 		Redis         string `json:"redis"`
 		RedisPassword string `json:"redisPassword"`
 		BridgeSecret  string `json:"bridgeSecret"`
+		AccountOrigin string `json:"accountOrigin"`
+		FrontendPort  int    `json:"frontendPort"`
 	}
 	raw, err := os.ReadFile(filepath.Join(root, "input.private.json"))
 	require.NoError(t, err)
@@ -76,11 +78,22 @@ func TestAccountCenterNativeServe(t *testing.T) {
 		return hex.EncodeToString(b)
 	}
 	cfg := &config.Config{JWT: config.JWTConfig{Secret: random(), ExpireHour: 1, RefreshTokenExpireDays: 31}, AccountCenter: config.AccountCenterConfig{Enabled: true, BridgeSecret: input.BridgeSecret}}
+	if input.AccountOrigin != "" {
+		require.Greater(t, input.FrontendPort, 0)
+		require.LessOrEqual(t, input.FrontendPort, 65535)
+		require.Equal(t, "https://account.ritel.example.com:"+strconv.Itoa(input.FrontendPort), input.AccountOrigin)
+		cfg.WebAuthn = config.WebAuthnConfig{
+			Enabled:       true,
+			RPDisplayName: "Synthetic account center",
+			RPID:          "ritel.example.com",
+			RPOrigins:     []string{input.AccountOrigin},
+		}
+	}
 	cfg.Totp.EncryptionKey = random()
 	cfg.Totp.EncryptionKeyConfigured = true
 	settingsRepo := repository.NewSettingRepository(ent)
 	emailVerificationEnabled := os.Getenv("RITEL_NATIVE_EMAIL_VERIFY") == "1"
-	settingValues := map[string]string{service.SettingKeyRegistrationEnabled: "true", service.SettingKeyEmailVerifyEnabled: strconv.FormatBool(emailVerificationEnabled), service.SettingKeyTotpEnabled: "true", service.SettingKeyInvitationCodeEnabled: "true", service.SettingKeyDefaultBalance: "2", service.SettingKeyDefaultConcurrency: "5"}
+	settingValues := map[string]string{service.SettingKeyRegistrationEnabled: "true", service.SettingKeyEmailVerifyEnabled: strconv.FormatBool(emailVerificationEnabled), service.SettingKeyTotpEnabled: "true", service.SettingKeyPasskeyEnabled: "true", service.SettingKeyInvitationCodeEnabled: "true", service.SettingKeyDefaultBalance: "2", service.SettingKeyDefaultConcurrency: "5"}
 	var mailbox *accountCenterNativeMailbox
 	if emailVerificationEnabled {
 		require.NotEmpty(t, input.BridgeSecret)
@@ -102,9 +115,15 @@ func TestAccountCenterNativeServe(t *testing.T) {
 		defer emailQueue.Stop()
 	}
 	auth := service.NewAuthService(ent, users, redeem, repository.NewRefreshTokenCache(rdb), cfg, settings, emailSvc, nil, emailQueue, nil, nil, nil, nil)
+	auth.SetAccountRecoveryCodeRepository(repository.NewAccountRecoveryCodeRepository(db))
+	passkeySvc, err := service.NewPasskeyService(cfg, repository.NewPasskeyRepository(db), repository.NewPasskeySessionStore(rdb), users)
+	require.NoError(t, err)
+	passkeyHandler := NewPasskeyHandler(passkeySvc, auth, settings)
 	encryptor, err := repository.NewAESEncryptor(cfg)
 	require.NoError(t, err)
 	totpSvc := service.NewTotpService(users, encryptor, repository.NewTotpCache(rdb), settings, nil, nil)
+	totpHandler := NewTotpHandler(totpSvc)
+	totpHandler.SetAccountAuth(auth)
 	password := random()
 	secretBytes := make([]byte, 20)
 	_, err = rand.Read(secretBytes)
@@ -119,12 +138,28 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	require.NoError(t, users.Create(ctx, user))
 	require.NoError(t, users.UpdateTotpSecret(ctx, user.ID, &encrypted))
 	require.NoError(t, users.EnableTotp(ctx, user.ID))
+	recoveryCodes, err := auth.ReplaceAccountRecoveryCodes(ctx, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, service.AccountRecoveryCodeCount, len(recoveryCodes))
+	// Compare persisted hashes in memory; a failure never prints display codes or hashes.
+	hashesMatch, err := accountCenterNativeRecoveryHashesMatch(ctx, db, user.ID, recoveryCodes)
+	require.NoError(t, err)
+	require.True(t, hashesMatch, "seed recovery codes must persist only as matching hashes")
 	keys := repository.NewAPIKeyRepository(ent, db)
 	existingKey := &service.APIKey{UserID: user.ID, Key: "sk-" + random(), Name: "existing synthetic API key", Status: service.StatusActive}
 	require.NoError(t, keys.Create(ctx, existingKey))
 	invitation, err := service.GenerateRedeemCode()
 	require.NoError(t, err)
 	require.NoError(t, redeem.Create(ctx, &service.RedeemCode{Code: invitation, Type: service.RedeemTypeInvitation, Status: service.StatusUnused}))
+	var adminPrivate map[string]any
+	if os.Getenv("RITEL_NATIVE_ADMIN_RESET") == "1" {
+		adminPassword := random()
+		adminHash, err := auth.HashPassword(adminPassword)
+		require.NoError(t, err)
+		administrator := &service.User{Email: "admin@example.test", Username: "Synthetic administrator", PasswordHash: adminHash, Role: service.RoleAdmin, Status: service.StatusActive, Concurrency: 5}
+		require.NoError(t, users.Create(ctx, administrator))
+		adminPrivate = map[string]any{"userId": administrator.ID, "email": administrator.Email, "password": adminPassword}
+	}
 	h := NewAuthHandler(cfg, auth, userSvc, settings, nil, nil, totpSvc, nil)
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -133,6 +168,9 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	r.POST("/api/v1/auth/refresh", accountCenterNativeShortAccess(h.RefreshToken, cfg))
 	r.POST("/api/v1/auth/login", accountCenterNativeShortAccess(h.Login, cfg))
 	r.POST("/api/v1/auth/login/2fa", accountCenterNativeShortAccess(h.Login2FA, cfg))
+	r.POST("/api/v1/auth/login/recovery", accountCenterNativeShortAccess(h.AccountRecoveryLogin, cfg))
+	r.POST("/api/v1/auth/passkey/login/begin", passkeyHandler.BeginLogin)
+	r.POST("/api/v1/auth/passkey/login/finish", accountCenterNativeShortAccess(passkeyHandler.FinishLogin, cfg))
 	r.POST("/api/v1/auth/register", accountCenterNativeShortAccess(h.Register, cfg))
 	r.POST("/api/v1/auth/send-verify-code", h.SendVerifyCode)
 	if emailVerificationEnabled {
@@ -140,6 +178,7 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	}
 	r.GET("/api/v1/auth/me", gin.HandlerFunc(middleware2.NewJWTAuthMiddleware(auth, userSvc, settings, nil)), h.GetCurrentUser)
 	r.GET("/api/v1/internal/account-center/identities/:subject", h.AccountCenterIdentity)
+	r.POST("/api/v1/admin/users/:id/account-security/reset", gin.HandlerFunc(middleware2.NewJWTAuthMiddleware(auth, userSvc, settings, nil)), h.AccountSecurityAdminReset)
 	management := NewUserHandler(userSvc, auth, emailSvc, repository.NewEmailCache(rdb), nil, nil)
 	authenticated := r.Group("/api/v1/user", gin.HandlerFunc(middleware2.NewJWTAuthMiddleware(auth, userSvc, settings, nil)))
 	authenticated.GET("/profile", management.GetProfile)
@@ -147,6 +186,25 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	authenticated.PUT("/password", management.ChangePassword)
 	authenticated.POST("/account-bindings/email/send-code", management.SendEmailBindingCode)
 	authenticated.POST("/account-bindings/email", management.BindEmailIdentity)
+	authenticated.GET("/account-security/recovery-codes", h.AccountRecoveryRemaining)
+	authenticated.POST("/account-security/recovery-codes", h.AccountRecoveryReplace)
+	totp := authenticated.Group("/totp")
+	totp.GET("/status", totpHandler.GetStatus)
+	totp.GET("/verification-method", totpHandler.GetVerificationMethod)
+	totp.POST("/send-code", totpHandler.SendVerifyCode)
+	totp.POST("/setup", totpHandler.InitiateSetup)
+	totp.POST("/enable", totpHandler.Enable)
+	totp.POST("/disable", totpHandler.Disable)
+	totp.POST("/step-up", totpHandler.StepUp)
+	passkeys := authenticated.Group("/passkeys")
+	passkeys.GET("", passkeyHandler.List)
+	passkeys.POST("/reauth/begin", passkeyHandler.BeginAccountReauthentication)
+	passkeys.POST("/reauth/finish", passkeyHandler.FinishAccountReauthentication)
+	passkeys.POST("/register/begin", passkeyHandler.BeginRegistration)
+	passkeys.POST("/register/finish", passkeyHandler.FinishRegistration)
+	passkeys.PATCH("/:id", passkeyHandler.Rename)
+	passkeys.DELETE("/:id", passkeyHandler.Delete)
+	r.GET("/_fixture/mfa-summary", accountCenterNativeMFASummaryHandler(db, input.BridgeSecret))
 
 	r.POST("/_fixture/change-password", func(c *gin.Context) {
 		if c.GetHeader("Authorization") != "Bearer "+input.BridgeSecret {
@@ -170,7 +228,10 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	})
 	srv := httptest.NewServer(r)
 	defer srv.Close()
-	ready := map[string]any{"syntheticOnly": true, "emailVerificationEnabled": emailVerificationEnabled, "baseUrl": srv.URL, "bridgeSecret": input.BridgeSecret, "existing": map[string]any{"userId": user.ID, "subject": "sub2api:" + strconv.FormatInt(user.ID, 10), "email": user.Email, "password": password, "totpSecret": secret, "name": user.Username}, "invitationCode": invitation}
+	ready := map[string]any{"syntheticOnly": true, "emailVerificationEnabled": emailVerificationEnabled, "accountOrigin": input.AccountOrigin, "frontendPort": input.FrontendPort, "passkeyEnabled": passkeySvc.Enabled(), "baseUrl": srv.URL, "bridgeSecret": input.BridgeSecret, "existing": map[string]any{"userId": user.ID, "subject": "sub2api:" + strconv.FormatInt(user.ID, 10), "email": user.Email, "password": password, "totpSecret": secret, "recoveryCode": recoveryCodes[0], "name": user.Username}, "invitationCode": invitation}
+	if adminPrivate != nil {
+		ready["administrator"] = adminPrivate
+	}
 	raw, err = json.Marshal(ready)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(root, "ready.private.json"), raw, 0600))
@@ -192,11 +253,15 @@ func TestAccountCenterNativeServe(t *testing.T) {
 				require.True(t, saved.TotpEnabled)
 				key, err := keys.GetByID(ctx, existingKey.ID)
 				require.NoError(t, err)
-				require.Equal(t, existingKey.Key, key.Key)
+				require.True(t, existingKey.Key == key.Key, "original API key must be preserved")
 				require.Equal(t, user.ID, key.UserID)
 				count, err := ent.User.Query().Count(ctx)
 				require.NoError(t, err)
-				require.Equal(t, 2, count)
+				expectedUsers := 2
+				if adminPrivate != nil {
+					expectedUsers = 3
+				}
+				require.Equal(t, expectedUsers, count)
 				all, err := ent.User.Query().All(ctx)
 				require.NoError(t, err)
 				var newID int64
@@ -219,9 +284,21 @@ func TestAccountCenterNativeServe(t *testing.T) {
 				require.NotNil(t, usedInvite.UsedBy)
 				require.Equal(t, newID, *usedInvite.UsedBy)
 
+				mfa, err := accountCenterNativeReadMFASummary(ctx, db)
+				require.NoError(t, err)
+				require.True(t, mfa.OnlyHashed)
+				require.True(t, mfa.RecoveryCodeOwnershipValid)
+				require.True(t, mfa.PasskeyOwnershipValid)
+				require.Equal(t, count, mfa.UserCount)
+				for _, owner := range mfa.Users {
+					// Consumption, invalidation and regeneration are parent-owned scenarios.
+					// A persisted replacement is a whole batch, with a variable unused count.
+					require.Contains(t, []int{0, service.AccountRecoveryCodeCount}, owner.RecoveryCodeCount)
+					require.Equal(t, owner.RecoveryCodeCount, owner.RecoveryCodeRemaining+owner.RecoveryCodeUsed)
+				}
 				var migrations int
 				require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM schema_migrations").Scan(&migrations))
-				verification, _ := json.Marshal(map[string]any{"syntheticOnly": true, "productionChanged": false, "userCount": count, "migrations": migrations, "originalUIDPreserved": true, "originalEmailPreserved": true, "balancePreserved": true, "apiKeyPreserved": true, "totpPreserved": true, "signupDefaultsGrantedOnce": true, "invitationClaimedByNewUID": true})
+				verification, _ := json.Marshal(map[string]any{"syntheticOnly": true, "productionChanged": false, "userCount": count, "migrations": migrations, "originalUIDPreserved": true, "originalEmailPreserved": true, "balancePreserved": true, "apiKeyPreserved": true, "totpPreserved": true, "signupDefaultsGrantedOnce": true, "invitationClaimedByNewUID": true, "mfa": mfa})
 				require.NoError(t, os.WriteFile(filepath.Join(root, "verified.json"), verification, 0600))
 				return
 			}

@@ -52,7 +52,8 @@ func SkipAudit(c *gin.Context) {
 // scalar, non-secret operation summaries. Request bodies and arbitrary maps
 // are never accepted through this channel.
 var auditExtraAllowedKeys = map[string]struct{}{
-	"source": {}, "reason_code": {}, "readback": {}, "remaining_count": {}, "target_user_id": {},
+	"verification_note": {},
+	"source":            {}, "reason_code": {}, "readback": {}, "remaining_count": {}, "target_user_id": {},
 	"anonymous_api_enabled": {},
 	"result":                {}, "error_code": {}, "enabled": {}, "blocking_enabled": {},
 	"config_version": {}, "endpoint_count": {}, "scanner_count": {},
@@ -137,6 +138,7 @@ var auditSensitiveReads = map[string]string{
 
 // auditActionOverrides 变更类请求的动作名精确映射（未命中时自动推导）。
 var auditActionOverrides = map[string]string{
+	"POST /api/v1/auth/login/recovery":                        service.AuditActionLogin2FA,
 	"PUT /api/v1/admin/risk-control/evidence/config":          "admin.cyber_evidence.config.update",
 	"DELETE /api/v1/admin/risk-control/logs/:id/evidence":     "admin.cyber_evidence.delete",
 	"POST /api/v1/auth/login":                                 service.AuditActionLogin,
@@ -164,6 +166,9 @@ var auditActionOverrides = map[string]string{
 // auditBodyOmittedRoutes 请求体几乎整体由凭证构成的路由（如整块粘贴 auth JSON 的导入接口）。
 // 这类 body 的凭证内嵌在普通字符串值里，键级脱敏无法覆盖，整体不入库。
 var auditBodyOmittedRoutes = map[string]struct{}{
+	"POST /api/v1/admin/users/:id/account-security/reset":       {},
+	"POST /api/v1/auth/login/recovery":                          {},
+	"POST /api/v1/user/passkeys/reauth/finish":                  {},
 	"POST /api/v1/admin/payment/squarespace/oauth/import":       {},
 	"POST /api/v1/admin/settings/ip-audit/release":              {},
 	"PUT /api/v1/admin/settings/ip-risk":                        {},

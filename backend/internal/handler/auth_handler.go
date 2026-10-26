@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -206,6 +207,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	if h.cfg != nil && h.cfg.AccountCenter.Enabled {
+		c.Request = c.Request.WithContext(service.WithNativeAuthenticationProof(c.Request.Context(), service.NativeAuthenticationProof{Methods: []string{"pwd"}, AuthTime: time.Now().Unix()}))
+	}
 	h.respondWithTokenPair(c, user)
 }
 
@@ -251,12 +255,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	if h.cfg != nil && h.cfg.AccountCenter.Enabled {
+		c.Request = c.Request.WithContext(service.WithNativeAuthenticationProof(c.Request.Context(), service.NativeAuthenticationProof{Methods: []string{"pwd"}, AuthTime: time.Now().Unix()}))
+	}
 	token, user, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	_ = token // token 由 authService.Login 返回但此处由 respondWithTokenPair 重新生成
+	if h.cfg != nil && h.cfg.AccountCenter.Enabled {
+		claims, verifyErr := h.authService.ValidateTokenContext(c.Request.Context(), token)
+		if verifyErr != nil {
+			response.ErrorFrom(c, verifyErr)
+			return
+		}
+		c.Request = c.Request.WithContext(service.WithNativeAuthenticationProof(c.Request.Context(), service.NativeAuthenticationFromClaims(claims)))
+	}
 
 	if err := h.ensureBackendModeAllowsUser(c.Request.Context(), user); err != nil {
 		response.ErrorFrom(c, err)
@@ -264,7 +278,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Check if TOTP 2FA is enabled for this user
-	if h.totpService != nil && h.settingSvc.IsTotpEnabled(c.Request.Context()) && user.TotpEnabled {
+	if h.cfg != nil && h.cfg.AccountCenter.Enabled && user.TotpEnabled && h.totpService == nil {
+		response.ErrorFrom(c, service.ErrServiceUnavailable)
+		return
+	}
+	if h.totpService != nil && user.TotpEnabled && ((h.cfg != nil && h.cfg.AccountCenter.Enabled) || h.settingSvc.IsTotpEnabled(c.Request.Context())) {
 		// Create a temporary login session for 2FA
 		tempToken, err := h.totpService.CreateLoginSession(c.Request.Context(), user.ID, user.Email)
 		if err != nil {
@@ -411,8 +429,33 @@ func (h *AuthHandler) Login2FA(c *gin.Context) {
 		}
 	}
 
-	// Delete the login session (only after all checks pass)
-	_ = h.totpService.DeleteLoginSession(c.Request.Context(), req.TempToken)
+	if h.cfg != nil && h.cfg.AccountCenter.Enabled && session.Authentication.Generation != "" {
+		identity, err := h.authService.AccountCenterIdentity(c.Request.Context(), user.ID)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		if identity.SecurityGeneration != session.Authentication.Generation {
+			response.ErrorFrom(c, service.ErrTokenRevoked)
+			return
+		}
+		proof := session.Authentication
+		proof.Methods = []string{"pwd", "otp"}
+		proof.AuthTime = time.Now().Unix()
+		c.Request = c.Request.WithContext(service.WithNativeAuthenticationProof(c.Request.Context(), proof))
+	}
+
+	// New account flows consume the password challenge atomically. Legacy
+	// integrations keep their previous path while account-center is disabled.
+	if session.Authentication.Generation != "" {
+		consumed, err := h.totpService.ConsumeLoginSession(c.Request.Context(), req.TempToken)
+		if err != nil || consumed == nil || consumed.UserID != session.UserID || consumed.Authentication.Generation != session.Authentication.Generation {
+			response.ErrorFrom(c, service.ErrTokenRevoked)
+			return
+		}
+	} else {
+		_ = h.totpService.DeleteLoginSession(c.Request.Context(), req.TempToken)
+	}
 
 	if session.PendingOAuthBind == nil {
 		h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)

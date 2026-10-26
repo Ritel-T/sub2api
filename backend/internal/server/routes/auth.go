@@ -58,6 +58,7 @@ func RegisterAuthRoutes(
 			FailureMode: middleware.RateLimitFailClose,
 			Enabled:     loginRateLimitEnabled,
 		}), h.Auth.Login)
+		auth.POST("/login/recovery", rateLimiter.LimitWithOptions("auth-recovery-login", 10, time.Minute, middleware.RateLimitOptions{FailureMode: middleware.RateLimitFailClose}), h.Auth.AccountRecoveryLogin)
 		auth.POST("/login/2fa", rateLimiter.LimitWithOptions("auth-login-2fa", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 			Enabled:     loginRateLimitEnabled,

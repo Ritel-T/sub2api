@@ -62,6 +62,7 @@ type TotpSetupSession struct {
 
 // TotpLoginSession represents a pending 2FA login session
 type TotpLoginSession struct {
+	Authentication   NativeAuthenticationProof `json:"authentication,omitempty"`
 	UserID           int64
 	Email            string
 	TokenExpiry      time.Time
@@ -249,15 +250,6 @@ func (s *TotpService) CompleteSetup(ctx context.Context, userID int64, totpCode,
 		return ErrTotpInvalidCode
 	}
 
-	setupSecretPrefix := "N/A"
-	if len(session.Secret) >= 4 {
-		setupSecretPrefix = session.Secret[:4]
-	}
-	slog.Debug("totp_complete_setup_before_encrypt",
-		"user_id", userID,
-		"secret_len", len(session.Secret),
-		"secret_prefix", setupSecretPrefix)
-
 	// Encrypt the secret
 	encryptedSecret, err := s.encryptor.Encrypt(session.Secret)
 	if err != nil {
@@ -269,32 +261,31 @@ func (s *TotpService) CompleteSetup(ctx context.Context, userID int64, totpCode,
 		"encrypted_len", len(encryptedSecret))
 
 	// Verify encryption by decrypting
-	decrypted, decErr := s.encryptor.Decrypt(encryptedSecret)
+	_, decErr := s.encryptor.Decrypt(encryptedSecret)
 	if decErr != nil {
 		slog.Debug("totp_complete_setup_verify_failed",
 			"user_id", userID,
 			"error", decErr)
-	} else {
-		decryptedPrefix := "N/A"
-		if len(decrypted) >= 4 {
-			decryptedPrefix = decrypted[:4]
+	}
+
+	if proof := AccountFactorProof(ctx); proof.Generation != "" {
+		enabler, ok := s.userRepo.(AccountTotpAtomicEnabler)
+		if !ok {
+			return ErrServiceUnavailable
 		}
-		slog.Debug("totp_complete_setup_verified",
-			"user_id", userID,
-			"original_len", len(session.Secret),
-			"decrypted_len", len(decrypted),
-			"match", session.Secret == decrypted,
-			"decrypted_prefix", decryptedPrefix)
-	}
+		if err := enabler.EnableTotpWithSecret(ctx, userID, encryptedSecret, proof); err != nil {
+			return fmt.Errorf("enable totp: %w", err)
+		}
+	} else {
+		// Update user with encrypted TOTP secret
+		if err := s.userRepo.UpdateTotpSecret(ctx, userID, &encryptedSecret); err != nil {
+			return fmt.Errorf("update totp secret: %w", err)
+		}
 
-	// Update user with encrypted TOTP secret
-	if err := s.userRepo.UpdateTotpSecret(ctx, userID, &encryptedSecret); err != nil {
-		return fmt.Errorf("update totp secret: %w", err)
-	}
-
-	// Enable TOTP for the user
-	if err := s.userRepo.EnableTotp(ctx, userID); err != nil {
-		return fmt.Errorf("enable totp: %w", err)
+		// Enable TOTP for the user
+		if err := s.userRepo.EnableTotp(ctx, userID); err != nil {
+			return fmt.Errorf("enable totp: %w", err)
+		}
 	}
 
 	// Clean up the setup session
@@ -370,23 +361,8 @@ func (s *TotpService) VerifyCode(ctx context.Context, userID int64, code string)
 		return infraerrors.InternalServer("TOTP_VERIFY_ERROR", "failed to verify totp code")
 	}
 
-	secretPrefix := "N/A"
-	if len(secret) >= 4 {
-		secretPrefix = secret[:4]
-	}
-	slog.Debug("totp_verify_decrypted",
-		"user_id", userID,
-		"secret_len", len(secret),
-		"secret_prefix", secretPrefix)
-
 	// Verify the code
 	valid := totp.Validate(code, secret)
-	slog.Debug("totp_verify_result",
-		"user_id", userID,
-		"valid", valid,
-		"secret_len", len(secret),
-		"secret_prefix", secretPrefix,
-		"server_time", time.Now().UTC().Format(time.RFC3339))
 
 	if !valid {
 		// Increment failed attempts
@@ -453,6 +429,7 @@ func (s *TotpService) createLoginSession(
 	}
 
 	session := &TotpLoginSession{
+		Authentication:   nativeAuthenticationFromContext(ctx),
 		UserID:           userID,
 		Email:            email,
 		TokenExpiry:      time.Now().Add(totpLoginTTL),

@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from '../client'
+import type { AxiosRequestConfig } from 'axios'
 import { listPlatformIds } from '@/constants/platformCatalog'
 import type { AccountPlatform, AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey } from '@/types'
 
@@ -152,6 +153,31 @@ export async function create(userData: {
  */
 export async function update(id: number, updates: UpdateUserRequest): Promise<AdminUser> {
   const { data } = await apiClient.put<AdminUser>(`/admin/users/${id}`, updates)
+  return data
+}
+
+export interface ResetAccountSecurityRequest {
+  confirmed: true
+  verification_note: string
+}
+
+export interface ResetAccountSecurityResponse {
+  applied: boolean
+}
+
+/** Manual recovery after identity verification; never replay this destructive POST. */
+export async function resetAccountSecurity(
+  id: number,
+  request: ResetAccountSecurityRequest
+): Promise<ResetAccountSecurityResponse> {
+  // The shared client's 401 interceptor checks _retry before refreshing/replaying.
+  // Keep its normal native bearer injection and error handling; no auth conversion.
+  const config: AxiosRequestConfig & { _retry: boolean } = { _retry: true }
+  const { data } = await apiClient.post<ResetAccountSecurityResponse>(
+    `/admin/users/${id}/account-security/reset`,
+    { confirmed: request.confirmed, verification_note: request.verification_note },
+    config
+  )
   return data
 }
 
@@ -412,6 +438,7 @@ export const usersAPI = {
   create,
   update,
   delete: deleteUser,
+  resetAccountSecurity,
   updateBalance,
   updateConcurrency,
   batchUpdateLimits,
