@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strconv"
 )
@@ -18,12 +19,13 @@ type AccountCenterIdentity struct {
 	Enabled            bool   `json:"enabled"`
 	SecurityGeneration string `json:"securityGeneration"`
 	Name               string `json:"name"`
-	Picture            string `json:"picture,omitempty"`
+	HasAvatar          bool   `json:"hasAvatar"`
 	Email              string `json:"email"`
 	// The existing user row does not prove verified-email status. Never infer it
 	// from the address, successful password login, or a current global setting.
-	EmailVerified bool `json:"emailVerified"`
-	TotpEnabled   bool `json:"totpEnabled"`
+	EmailVerified         bool `json:"emailVerified"`
+	TotpEnabled           bool `json:"totpEnabled"`
+	SessionBindingEnabled bool `json:"sessionBindingEnabled"`
 }
 
 func (s *AuthService) AccountCenterIdentity(ctx context.Context, userID int64) (*AccountCenterIdentity, error) {
@@ -45,12 +47,17 @@ func (s *AuthService) AccountCenterIdentity(ctx context.Context, userID int64) (
 	if err != nil {
 		return nil, ErrServiceUnavailable
 	}
-	applyUserAvatar(user, avatar)
+	// Missing retains the native default; other read failures must not disable policy.
+	binding, err := s.settingService.settingRepo.GetValue(ctx, SettingKeySessionBindingEnabled)
+	if err != nil && !errors.Is(err, ErrSettingNotFound) {
+		return nil, ErrServiceUnavailable
+	}
 	generation := accountCenterGeneration(user, epoch)
 	return &AccountCenterIdentity{
 		Subject: AccountCenterSubjectPrefix + strconv.FormatInt(user.ID, 10), UserID: user.ID,
 		Enabled: user.IsActive() && user.DeletedAt == nil, SecurityGeneration: generation,
-		Name: user.Username, Picture: user.AvatarURL, Email: user.Email, TotpEnabled: user.TotpEnabled,
+		Name: user.Username, HasAvatar: avatar != nil && avatar.URL != "", Email: user.Email, TotpEnabled: user.TotpEnabled,
+		SessionBindingEnabled: err == nil && binding == "true",
 	}, nil
 }
 

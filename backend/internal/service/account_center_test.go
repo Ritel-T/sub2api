@@ -34,7 +34,7 @@ func TestAccountCenterIdentityGenerationAndProjection(t *testing.T) {
 	require.True(t, first.Enabled)
 	require.Len(t, first.SecurityGeneration, 64)
 	require.False(t, first.EmailVerified)
-	require.Equal(t, "/api/v1/avatar/synthetic", first.Picture)
+	require.True(t, first.HasAvatar)
 	same, err := auth.AccountCenterIdentity(context.Background(), 42)
 	require.NoError(t, err)
 	require.Equal(t, first.SecurityGeneration, same.SecurityGeneration)

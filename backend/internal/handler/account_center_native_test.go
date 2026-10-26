@@ -77,8 +77,9 @@ func TestAccountCenterNativeServe(t *testing.T) {
 		require.NoError(t, err)
 		return hex.EncodeToString(b)
 	}
-	cfg := &config.Config{JWT: config.JWTConfig{Secret: random(), ExpireHour: 1, RefreshTokenExpireDays: 31}, AccountCenter: config.AccountCenterConfig{Enabled: true, BridgeSecret: input.BridgeSecret}}
+	cfg := &config.Config{JWT: config.JWTConfig{Secret: random(), ExpireHour: 1, RefreshTokenExpireDays: 31}, AccountCenter: config.AccountCenterConfig{Enabled: true, BridgeSecret: input.BridgeSecret, PublicOrigin: "https://account.ritel.example.com"}}
 	if input.AccountOrigin != "" {
+		cfg.AccountCenter.PublicOrigin = input.AccountOrigin
 		require.Greater(t, input.FrontendPort, 0)
 		require.LessOrEqual(t, input.FrontendPort, 65535)
 		require.Equal(t, "https://account.ritel.example.com:"+strconv.Itoa(input.FrontendPort), input.AccountOrigin)

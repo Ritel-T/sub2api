@@ -659,9 +659,16 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	frontendBaseURL := strings.TrimSpace(h.settingSvc.GetFrontendURL(c.Request.Context()))
+	var frontendBaseURL string
+	if h.cfg != nil && h.cfg.AccountCenter.Enabled {
+		// Use only validated process configuration, never request origins or headers.
+		// Keep the shared frontend setting unchanged for payments and other emails.
+		frontendBaseURL = h.cfg.AccountCenter.PublicOrigin
+	} else {
+		frontendBaseURL = strings.TrimSpace(h.settingSvc.GetFrontendURL(c.Request.Context()))
+	}
 	if frontendBaseURL == "" {
-		slog.Error("frontend_url not configured in settings or config; cannot build password reset link")
+		slog.Error("password reset frontend origin not configured; check account_center.public_origin when enabled or the legacy frontend_url")
 		response.InternalError(c, "Password reset is not configured")
 		return
 	}

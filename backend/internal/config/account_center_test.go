@@ -9,7 +9,8 @@ import (
 func TestAccountCenterConfig(t *testing.T) {
 	require.NoError(t, (AccountCenterConfig{}).Validate())
 	for _, secret := range []string{"", strings.Repeat("a", 42), strings.Repeat("a", 43) + "\n", strings.Repeat("a", 257), strings.Repeat("密", 43)} {
-		require.Error(t, (AccountCenterConfig{Enabled: true, BridgeSecret: secret}).Validate())
+		require.Error(t, (AccountCenterConfig{Enabled: true, BridgeSecret: secret, PublicOrigin: "https://account.ritel.si"}).Validate())
 	}
-	require.NoError(t, (AccountCenterConfig{Enabled: true, BridgeSecret: strings.Repeat("a", 43)}).Validate())
+	require.Error(t, (AccountCenterConfig{Enabled: true, BridgeSecret: strings.Repeat("a", 43)}).Validate())
+	require.NoError(t, (AccountCenterConfig{Enabled: true, BridgeSecret: strings.Repeat("a", 43), PublicOrigin: "https://account.ritel.si"}).Validate())
 }

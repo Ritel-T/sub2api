@@ -2681,6 +2681,7 @@ func setDefaults() {
 	// JWT
 	viper.SetDefault("account_center.enabled", false)
 	viper.SetDefault("account_center.bridge_secret", "")
+	viper.SetDefault("account_center.public_origin", "")
 	viper.SetDefault("jwt.secret", "")
 	viper.SetDefault("jwt.expire_hour", 24)
 	viper.SetDefault("jwt.access_token_expire_minutes", 0) // 0 表示回退到 expire_hour
