@@ -3,27 +3,26 @@ import { flushPromises, mount, enableAutoUnmount } from '@vue/test-utils'
 import { reactive, ref } from 'vue'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import DashboardView from '../DashboardView.vue'
-import { selectOverviewKey } from '@/components/user/dashboard/overviewState'
-import type { ApiKey } from '@/types'
+import type { ApiKey, Group, PublicSettings } from '@/types'
 
-const api = vi.hoisted(() => ({ stats: vi.fn(), listKeys: vi.fn(), recent: vi.fn(), errors: vi.fn(), subscriptions: vi.fn(), user: vi.fn(), quotas: vi.fn(), trend: vi.fn(), models: vi.fn() }))
+const api = vi.hoisted(() => ({ stats: vi.fn(), listKeys: vi.fn(), createKey: vi.fn(), groups: vi.fn(), recent: vi.fn(), errors: vi.fn(), subscriptions: vi.fn(), user: vi.fn() }))
 const auth = reactive({ user: { id: 1 }, token: 'first', isSimpleMode: false, refreshUserIfCurrent: api.user })
-const app = reactive({ cachedPublicSettings: { subscription_enabled: true, payment_enabled: true } })
+const app = reactive({ cachedPublicSettings: { subscription_enabled: true, payment_enabled: true, allow_user_view_error_requests: true } as Partial<PublicSettings> })
 const locale = ref('en')
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => auth }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => app }))
 vi.mock('vue-i18n', async () => ({ ...(await vi.importActual<typeof import('vue-i18n')>('vue-i18n')), useI18n: () => ({ locale, t: (key: string) => key }) }))
-vi.mock('@/api/usage', () => ({ usageAPI: { getDashboardStats: api.stats, query: api.recent, listMyErrorRequests: api.errors, getDashboardTrend: api.trend, getDashboardModels: api.models } }))
-vi.mock('@/api/keys', () => ({ keysAPI: { list: api.listKeys } }))
+vi.mock('@/api/usage', () => ({ usageAPI: { getDashboardStats: api.stats, query: api.recent, listMyErrorRequests: api.errors } }))
+vi.mock('@/api/keys', () => ({ keysAPI: { list: api.listKeys, create: api.createKey } }))
+vi.mock('@/api/groups', () => ({ userGroupsAPI: { getAvailable: api.groups } }))
 vi.mock('@/api/subscriptions', () => ({ getSubscriptionSummary: api.subscriptions }))
-vi.mock('@/api/user', () => ({ getMyPlatformQuotas: api.quotas }))
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<main><slot /></main>' } }))
-vi.mock('@/components/user/dashboard/UserDashboardStats.vue', () => ({ default: { props: ['balance'], template: '<div data-test="full-stats">{{ balance }}</div>' } }))
-vi.mock('@/components/user/dashboard/UserDashboardCharts.vue', () => ({ default: { template: '<div data-test="charts" />' } }))
+vi.mock('@/components/keys/UseKeyModal.vue', () => ({ default: { props: ['apiKey', 'keyRecord', 'platform', 'show'], template: '<div data-test="use-dialog">{{ keyRecord.name }} {{ platform }}</div>' } }))
+vi.mock('@/components/user/UserErrorDetailModal.vue', () => ({ default: { template: '<div />' } }))
 enableAutoUnmount(afterEach)
-
+const group = { id: 12, name: 'OpenAI default', platform: 'openai', status: 'active' } as Group
 function key(overrides: Partial<ApiKey> = {}): ApiKey {
-  return { id: 4, name: 'Production', status: 'active', expires_at: null, quota: 0, quota_used: 0, last_used_at: '2026-10-17T12:00:00Z', ...overrides } as ApiKey
+  return { id: 4, key: 'test-key', name: 'Production', status: 'active', expires_at: null, quota: 0, quota_used: 0, group_id: 12, group, created_at: '2026-10-25T12:00:00Z', ...overrides } as ApiKey
 }
 const statistics = { total_api_keys: 1, active_api_keys: 1, today_requests: 4, today_tokens: 1800, today_actual_cost: 0.25 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r }); return { promise, resolve } }
@@ -35,176 +34,168 @@ async function render() {
   return wrapper
 }
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   auth.user = { id: 1 }; auth.token = 'first'; auth.isSimpleMode = false
-  app.cachedPublicSettings = { subscription_enabled: true, payment_enabled: true }; locale.value = 'en'
+  app.cachedPublicSettings = { subscription_enabled: true, payment_enabled: true, allow_user_view_error_requests: true }; locale.value = 'en'
   api.stats.mockResolvedValue(statistics)
   api.user.mockResolvedValue({ id: 1, balance: 25 })
-  api.listKeys.mockImplementation((_page: number, _size: number, filters?: unknown) => Promise.resolve({ total: 1, items: filters ? [key()] : [key()] }))
-  api.recent.mockResolvedValue({ total: 1, items: [{ id: 9, request_id: 'r9', model: 'gpt-test', created_at: '2026-10-17T10:00:00Z', input_tokens: 10, output_tokens: 2, total_cost: 0.5, actual_cost: 0.25 }] })
+  api.listKeys.mockResolvedValue({ total: 1, items: [key()] })
+  api.createKey.mockResolvedValue(key({ id: 8, name: 'OpenAI Key' }))
+  api.groups.mockResolvedValue([group])
+  api.recent.mockResolvedValue({ total: 1, items: [{ id: 9, request_id: 'r9', model: 'gpt-test', created_at: '2026-10-25T10:00:00Z', input_tokens: 10, output_tokens: 2, cache_creation_tokens: 3, cache_read_tokens: 5, duration_ms: 1400, total_cost: 0.5, actual_cost: 0.25 }] })
   api.errors.mockResolvedValue({ total: 0, items: [] })
   api.subscriptions.mockResolvedValue({ active_count: 0, subscriptions: [] })
-  api.quotas.mockResolvedValue({ platform_quotas: [] })
-  api.trend.mockResolvedValue({ trend: [] }); api.models.mockResolvedValue({ models: [] })
 })
 
-describe('real overview workflow', () => {
-  it('prioritizes balance and actual daily spending, with requests secondary and details on their own pages', async () => {
+describe('overview quick workflow', () => {
+  it('shows balance with top-up, three newest keys and five latest requests without charts', async () => {
     const wrapper = await render()
-    expect(wrapper.find('a[href="/keys?connect=1&key_id=4"]').text()).toBe('Connect an app')
-    expect(wrapper.find('a[href="/keys?create=1"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('Needs attention')
     expect(wrapper.find('[data-test="balance"]').text()).toContain('$25.00')
     expect(wrapper.find('[data-test="spending"]').text()).toContain('$0.2500')
     expect(wrapper.find('[data-test="requests"]').text()).toContain('4')
     expect(wrapper.find('[data-test="tokens"]').text()).toContain('1,800')
-    expect(wrapper.findAll('.dashboard-summary [data-test]').map(item => item.attributes('data-test'))).toEqual(['balance', 'spending', 'requests', 'tokens'])
-    expect(wrapper.findAll('[data-test="balance"]')).toHaveLength(1)
-    expect(wrapper.find('.dashboard-summary a').exists()).toBe(false)
-    expect(wrapper.find('details').exists()).toBe(false)
-    expect(api.recent).not.toHaveBeenCalled()
-    expect(api.trend).not.toHaveBeenCalled()
-    expect(api.models).not.toHaveBeenCalled()
-    expect(api.quotas).not.toHaveBeenCalled()
-  })
-  it('finds a previously used key beyond a page of unused keys', async () => {
-    api.listKeys.mockImplementation((page: number, _size: number, filters?: unknown) => Promise.resolve(!filters ? { total: 51, items: [] }
-      : page === 1 ? { total: 51, items: Array.from({ length: 50 }, (_, index) => key({ id: index + 10, last_used_at: null })) }
-        : { total: 51, items: [key()] }))
-    const wrapper = await render()
-    expect(wrapper.find('a[href="/keys?connect=1&key_id=4"]').exists()).toBe(true)
-    expect(api.listKeys).toHaveBeenCalledTimes(3)
-  })
-  it('offers management instead of creation when existing keys are unusable', async () => {
-    api.listKeys.mockImplementation((_page: number, _size: number, filters?: unknown) => Promise.resolve({ total: filters ? 0 : 1, items: [] }))
-    const wrapper = await render()
-    expect(wrapper.find('a[href="/keys"]').text()).toBe('Manage API keys')
-    expect(wrapper.find('a[href="/keys?create=1"]').exists()).toBe(false)
-  })
-  it('offers creation only after the server confirms no keys exist', async () => {
-    api.listKeys.mockResolvedValue({ total: 0, items: [] })
-    const wrapper = await render()
-    expect(wrapper.find('a[href="/keys?create=1"]').text()).toBe('Create API key')
+    expect(wrapper.find('.dashboard-page-actions a').attributes('href')).toBe('/purchase')
+    expect(wrapper.find('a[href="/usage?view=records"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('gpt-test')
     expect(api.listKeys).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).not.toContain('No balance or active subscription')
+    expect(api.listKeys).toHaveBeenCalledWith(1, 3, { sort_by: 'created_at', sort_order: 'desc' })
+    expect(api.recent).toHaveBeenCalledWith({ page: 1, page_size: 5, sort_by: 'created_at', sort_order: 'desc' })
   })
-  it('keeps unresolved data distinct from zero and does not show onboarding while keys load', async () => {
-    const pending = deferred<{ total: number; items: ApiKey[] }>()
-    api.listKeys.mockReturnValue(pending.promise); api.user.mockReturnValue(new Promise(() => {})); api.stats.mockReturnValue(new Promise(() => {}))
+  it('creates using first eligible ordered group per platform with no optional limits, then opens use dialog', async () => {
+    api.groups.mockResolvedValue([group, { ...group, id: 16 }, { ...group, id: 3, platform: 'anthropic', status: 'inactive' }])
     const wrapper = await render()
-    expect(wrapper.find('a[href="/keys?create=1"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-platform]')).toHaveLength(1)
+    await wrapper.find('[data-platform="openai"]').trigger('click'); await flushPromises()
+    expect(api.createKey).toHaveBeenCalledTimes(1)
+    expect(api.createKey).toHaveBeenCalledWith('OpenAI Key', 12)
+    expect(wrapper.find('[data-test="use-dialog"]').text()).toContain('OpenAI Key openai')
+  })
+  it('offers Grok and one domestic entry using the first eligible domestic group with real platform preserved', async () => {
+    api.groups.mockResolvedValue([group, { ...group, id: 21, platform: 'grok' }, { ...group, id: 17, platform: 'deepseek' }, { ...group, id: 18, platform: 'kimi' }])
+    api.createKey.mockResolvedValue(key({ id: 90, name: 'Chinese models Key', group_id: 17, group: undefined }))
+    const wrapper = await render()
+    expect(wrapper.find('[data-platform="grok"] svg').exists()).toBe(true)
+    expect(wrapper.findAll('[data-platform="domestic"]')).toHaveLength(1)
+    expect(wrapper.find('[data-platform="domestic"]').findAll('svg')).toHaveLength(1)
+    expect(wrapper.find('[data-platform="domestic"]').text()).toContain('Chinese models')
+    await wrapper.find('[data-platform="domestic"]').trigger('click'); await flushPromises()
+    expect(api.createKey).toHaveBeenCalledWith('Chinese models Key', 17)
+    expect(wrapper.find('[data-test="use-dialog"]').text()).toContain('deepseek')
+  })
+  it('prevents duplicate creation while pending and ignores a late result after owner changes', async () => {
+    const pending = deferred<ApiKey>(); api.createKey.mockReturnValue(pending.promise)
+    const wrapper = await render()
+    await wrapper.find('[data-platform="openai"]').trigger('click')
+    await wrapper.find('[data-platform="openai"]').trigger('click')
+    expect(api.createKey).toHaveBeenCalledTimes(1)
+    auth.user = { id: 2 }; auth.token = 'second'; await flushPromises()
+    pending.resolve(key({ name: 'Old account secret' })); await flushPromises()
+    expect(wrapper.find('[data-test="use-dialog"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Old account secret')
+  })
+  it('keeps creation pending across normal same-user token rotation', async () => {
+    const pending = deferred<ApiKey>(); api.createKey.mockReturnValue(pending.promise)
+    const wrapper = await render()
+    await wrapper.find('[data-platform="openai"]').trigger('click')
+    auth.token = 'refreshed-same-user'; await flushPromises()
+    expect(wrapper.find('[data-platform="openai"]').attributes('disabled')).toBeDefined()
+    expect(api.listKeys).toHaveBeenCalledTimes(1)
+    pending.resolve(key({ name: 'Created after refresh' })); await flushPromises()
+    expect(wrapper.find('[data-test="use-dialog"]').text()).toContain('Created after refresh')
+    expect(api.createKey).toHaveBeenCalledTimes(1)
+  })
+  it('does not blindly retry an uncertain creation and links to key management', async () => {
+    api.createKey.mockRejectedValue(new Error('timeout'))
+    const wrapper = await render()
+    await wrapper.find('[data-platform="openai"]').trigger('click'); await flushPromises()
+    expect(wrapper.find('[data-platform="openai"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[role="alert"]').text()).toContain('Check your API keys')
+    expect(api.createKey).toHaveBeenCalledTimes(1)
+  })
+  it('allows retry after a definite rejected creation', async () => {
+    api.createKey.mockRejectedValue({ status: 403, message: 'Forbidden' })
+    const wrapper = await render()
+    await wrapper.find('[data-platform="openai"]').trigger('click'); await flushPromises()
+    expect(wrapper.find('[data-platform="openai"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[role="alert"]').text()).toContain('Could not create')
+  })
+  it('opens the same use dialog for each recent key, without rendering raw keys in the list', async () => {
+    api.listKeys.mockResolvedValue({ total: 4, items: [key({ id: 8, name: 'Newest' }), key({ id: 6, name: 'Second' }), key()] })
+    const wrapper = await render()
+    expect(wrapper.findAll('[data-key-id]')).toHaveLength(3)
+    expect(wrapper.text()).not.toContain('test-key')
+    await wrapper.find('[data-key-id="6"] button').trigger('click')
+    expect(wrapper.find('[data-test="use-dialog"]').text()).toContain('Second')
+  })
+  it('keeps loading distinct from empty data and leaves platform creation independent of key list', async () => {
+    api.listKeys.mockReturnValue(new Promise(() => {})); api.user.mockReturnValue(new Promise(() => {})); api.stats.mockReturnValue(new Promise(() => {}))
+    const wrapper = await render()
+    expect(wrapper.text()).not.toContain('No API keys yet')
     expect(wrapper.text()).not.toContain('$0.00')
-    expect(wrapper.text()).not.toContain('No balance or active subscription')
-    pending.resolve({ total: 0, items: [] }); await flushPromises()
-    expect(wrapper.find('a[href="/keys?create=1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-platform="openai"]').attributes('disabled')).toBeUndefined()
   })
-  it('offers recoverable errors per section instead of replacing failures with empty or zero data', async () => {
-    api.stats.mockRejectedValue(new Error('offline')); api.recent.mockRejectedValue(new Error('offline')); api.listKeys.mockRejectedValue(new Error('offline')); api.user.mockRejectedValue(new Error('offline')); api.errors.mockRejectedValue(new Error('offline'))
+  it('shows recoverable section errors without treating failures as zero or empty', async () => {
+    api.stats.mockRejectedValue(new Error('offline')); api.recent.mockRejectedValue(new Error('offline')); api.listKeys.mockRejectedValue(new Error('offline')); api.user.mockRejectedValue(new Error('offline')); api.groups.mockRejectedValue(new Error('offline'))
     const wrapper = await render()
-    expect(wrapper.findAll('[role="alert"]').length).toBe(4)
+    expect(wrapper.findAll('[role="alert"]').length).toBeGreaterThanOrEqual(5)
     expect(wrapper.text()).not.toContain('No requests yet')
     expect(wrapper.text()).not.toContain('No balance or active subscription')
-    expect(wrapper.find('a[href="/keys?create=1"]').exists()).toBe(false)
+    expect(wrapper.find('[data-platform]').exists()).toBe(false)
     api.listKeys.mockResolvedValue({ total: 0, items: [] })
-    await wrapper.find('section[aria-labelledby="continue-title"] button').trigger('click'); await flushPromises()
-    expect(wrapper.find('a[href="/keys?create=1"]').exists()).toBe(true)
+    await wrapper.find('section[aria-labelledby="recent-keys-title"] button').trigger('click'); await flushPromises()
+    expect(wrapper.text()).toContain('No API keys yet')
   })
-  it('shows actual failed count and subscription expiry only when returned by the API', async () => {
+  it('keeps recent failures without requesting the removed attention summary', async () => {
     api.errors.mockResolvedValue({ total: 7, items: [] })
-    api.subscriptions.mockResolvedValue({ active_count: 1, subscriptions: [{ id: 1, group_name: 'Plan A', status: 'active', days_remaining: 2, expires_at: '2026-10-20T00:00:00Z' }] })
-    api.user.mockResolvedValue({ id: 1, balance: 0 })
     const wrapper = await render()
-    const attention = wrapper.find('section[aria-labelledby="attention-title"]')
-    expect(attention.text()).toContain('Failed requests today 7')
-    expect(attention.text()).toContain('Plan A')
-    expect(attention.text()).not.toContain('No balance or active subscription')
-    expect(attention.find('a').attributes('href')).toMatch(/^\/usage\?view=errors&start_date=/)
+    expect(wrapper.find('[aria-labelledby="attention-title"]').exists()).toBe(false)
+    expect(api.subscriptions).not.toHaveBeenCalled()
+    expect(api.errors).toHaveBeenCalledTimes(1)
+    expect(api.errors).toHaveBeenCalledWith({ page: 1, page_size: 5, sort_by: 'created_at', sort_order: 'desc' })
   })
-  it('preserves simple mode and disabled subscription/payment contracts', async () => {
+  it('honors simple mode, disabled subscriptions/payments and error visibility', async () => {
     auth.isSimpleMode = true
+    app.cachedPublicSettings.allow_user_view_error_requests = false
     const wrapper = await render()
-    expect(api.subscriptions).not.toHaveBeenCalled(); expect(api.user).not.toHaveBeenCalled()
-    expect(wrapper.find('a[href="/subscriptions"]').exists()).toBe(false)
+    expect(api.subscriptions).not.toHaveBeenCalled(); expect(api.user).not.toHaveBeenCalled(); expect(api.errors).not.toHaveBeenCalled()
     expect(wrapper.find('a[href="/purchase"]').exists()).toBe(false)
     wrapper.unmount()
     auth.isSimpleMode = false; app.cachedPublicSettings = { subscription_enabled: false, payment_enabled: false }
     const disabled = await render()
     expect(api.subscriptions).not.toHaveBeenCalled()
     expect(disabled.find('a[href="/purchase"]').exists()).toBe(false)
-    expect(disabled.find('a[href="/subscriptions"]').exists()).toBe(false)
   })
-  it('ignores requests resolving after account changes', async () => {
-    const old = deferred<{ total: number; items: ApiKey[] }>()
-    api.listKeys.mockReturnValueOnce(old.promise)
+  it('ignores list and balance responses from a previous owner', async () => {
+    const old = deferred<{ total: number; items: ApiKey[] }>(); const oldBalance = deferred<{ id: number; balance: number }>()
+    api.listKeys.mockReturnValueOnce(old.promise); api.user.mockReturnValueOnce(oldBalance.promise)
     const wrapper = await render()
-    api.listKeys.mockResolvedValue({ total: 0, items: [] })
-    auth.user = { id: 2 }; auth.token = 'second'
-    await flushPromises()
-    old.resolve({ total: 1, items: [key({ name: 'Other account secret' })] }); await flushPromises()
+    api.listKeys.mockResolvedValue({ total: 0, items: [] }); api.user.mockResolvedValue({ id: 2, balance: 19 })
+    auth.user = { id: 2 }; auth.token = 'second'; await flushPromises()
+    old.resolve({ total: 1, items: [key({ name: 'Other account secret' })] }); oldBalance.resolve({ id: 1, balance: 987654 }); await flushPromises()
     expect(wrapper.text()).not.toContain('Other account secret')
-    expect(wrapper.find('a[href="/keys?create=1"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('987,654')
+    expect(wrapper.find('[data-test="balance"]').text()).toContain('$19.00')
   })
-  it('uses Hong Kong traditional and simplified Chinese without changing data or destinations', async () => {
-    locale.value = 'zh-HK'
+  it('refreshes on explicit request with no timer polling', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = await render()
+      await vi.advanceTimersByTimeAsync(120000)
+      expect(api.recent).toHaveBeenCalledTimes(1)
+      await wrapper.find('header button').trigger('click'); await flushPromises()
+      expect(api.recent).toHaveBeenCalledTimes(2)
+      expect(api.listKeys).toHaveBeenCalledTimes(2)
+    } finally { vi.useRealTimers() }
+  })
+  it('uses both Chinese variants without changing destinations', async () => {
+    locale.value = 'zh-Hant-HK'
     const wrapper = await render()
     expect(wrapper.find('h1').text()).toBe('總覽')
-    expect(wrapper.find('a[href="/keys?connect=1&key_id=4"]').text()).toBe('連接應用程式')
+    expect(wrapper.text()).toContain('按平台建立 Key')
     locale.value = 'zh'; await flushPromises()
     expect(wrapper.find('h1').text()).toBe('总览')
-    expect(wrapper.find('a[href="/keys?connect=1&key_id=4"]').text()).toBe('连接应用')
+    expect(wrapper.text()).toContain('按平台创建 Key')
+    expect(wrapper.find('.dashboard-page-actions a').attributes('href')).toBe('/purchase')
   })
-  it('does not fetch secondary analysis or duplicate request details on refresh', async () => {
-    const wrapper = await render()
-    await wrapper.find('header button').trigger('click'); await flushPromises()
-    expect(api.stats).toHaveBeenCalledTimes(2)
-    expect(api.recent).not.toHaveBeenCalled()
-    expect(api.trend).not.toHaveBeenCalled()
-    expect(api.models).not.toHaveBeenCalled()
-    expect(api.quotas).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-test="full-stats"]').exists()).toBe(false)
-  })
-  it('provides a retry for an unavailable subscription check without implying there is no credit', async () => {
-    api.subscriptions.mockRejectedValue(new Error('offline'))
-    api.user.mockResolvedValue({ id: 1, balance: 0 })
-    const wrapper = await render()
-    const alert = wrapper.find('[role="alert"]')
-    expect(alert.text()).toContain('Active subscriptions')
-    expect(wrapper.text()).not.toContain('No balance or active subscription')
-    api.subscriptions.mockResolvedValue({ active_count: 1, subscriptions: [] })
-    await alert.find('button').trigger('click'); await flushPromises()
-    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-  })
-  it('clears money and ignores a pending owner balance after the account changes', async () => {
-    const oldBalance = deferred<{ id: number; balance: number }>()
-    api.user.mockReturnValueOnce(oldBalance.promise)
-    const wrapper = await render()
-    api.user.mockResolvedValue({ id: 2, balance: 19 })
-    auth.user = { id: 2 }; auth.token = 'second'
-    await flushPromises()
-    oldBalance.resolve({ id: 1, balance: 987654 }); await flushPromises()
-    expect(wrapper.find('[data-test="balance"]').text()).toContain('$19.00')
-    expect(wrapper.text()).not.toContain('987,654')
-  })
-  it('removes balance when simple mode activates and ignores the pending balance request', async () => {
-    const pending = deferred<{ id: number; balance: number }>()
-    api.user.mockReturnValueOnce(pending.promise)
-    const wrapper = await render()
-    auth.isSimpleMode = true; await flushPromises()
-    pending.resolve({ id: 1, balance: 999 }); await flushPromises()
-    expect(wrapper.find('[data-test="balance"]').exists()).toBe(false)
-    expect(wrapper.find('a[href="/purchase"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('$999')
-    expect(wrapper.find('[data-test="spending"]').text()).toContain('$0.2500')
-  })
-})
 
-describe('overview key selection', () => {
-  it('rejects disabled, expired and exhausted keys and prefers last use over new unused keys', () => {
-    expect(selectOverviewKey([
-      key({ id: 1, status: 'inactive' }), key({ id: 2, expires_at: '2020-01-01' }),
-      key({ id: 3, quota: 10, quota_used: 10 }), key({ id: 5, last_used_at: null }),
-      key({ id: 6, last_used_at: '2026-10-18T00:00:00Z' }),
-    ])?.id).toBe(6)
-    expect(selectOverviewKey([key({ status: 'expired' })])).toBeNull()
-  })
 })

@@ -5,7 +5,7 @@ import ConsoleTopBar from '../ConsoleTopBar.vue'
 import { consoleNavigationText } from '@/navigation/consoleNavigation'
 
 const locale = ref('en')
-const app = reactive({ mobileOpen: false, backendModeEnabled: false, docUrl: '', siteVersion: 'test', publicSettingsLoaded: true, contactInfo: '' })
+const app = reactive({ mobileOpen: false, backendModeEnabled: false, docUrl: '', siteVersion: 'test', publicSettingsLoaded: true, contactInfo: '', toggleMobileSidebar: vi.fn() })
 const auth = reactive({ isAdmin: false, isObserver: false, user: { username: 'Preview', email: 'preview@example.invalid', balance: 20, frozen_balance: 5, avatar_url: '' } })
 const section = { key: 'support', label: 'Support', path: '/support-tickets', tabs: [], badge: () => 3 }
 const nav = {
@@ -25,7 +25,7 @@ vi.mock('@/components/common/AnnouncementBell.vue', () => ({ default: { template
 vi.mock('../FeatureSearch.vue', () => ({ default: { name: 'FeatureSearch', template: '<span />' } }))
 
 let wrapper: VueWrapper
-beforeEach(() => { locale.value = 'en'; auth.isObserver = false; app.backendModeEnabled = false; auth.user.frozen_balance = 5; section.badge = () => 3 })
+beforeEach(() => { app.mobileOpen = false; app.toggleMobileSidebar.mockClear(); locale.value = 'en'; auth.isObserver = false; app.backendModeEnabled = false; auth.user.frozen_balance = 5; section.badge = () => 3 })
 afterEach(() => { wrapper?.unmount() })
 function mountBar() {
   wrapper = shallowMount(ConsoleTopBar, { attachTo: document.body, global: { stubs: { transition: false, RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
@@ -42,6 +42,15 @@ describe('console utility access and balance semantics', () => {
     const view = mountBar()
     expect(view.find('feature-search-stub').exists()).toBe(true)
     expect(view.find('feature-search-stub').classes()).not.toContain('hidden')
+  })
+  it('opens navigation from the leftmost control before the brand', async () => {
+    const view = mountBar()
+    const left = view.get('.console-top-bar-left')
+    const toggle = left.get('button[aria-controls="console-sidebar"]')
+    expect(left.element.firstElementChild).toBe(toggle.element)
+    expect(view.find('.console-top-bar-right button[aria-controls="console-sidebar"]').exists()).toBe(false)
+    await toggle.trigger('click')
+    expect(app.toggleMobileSidebar).toHaveBeenCalledTimes(1)
   })
   it('shows available, frozen and total funds in the avatar menu', async () => {
     const view = mountBar()

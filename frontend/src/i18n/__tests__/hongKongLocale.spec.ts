@@ -1,19 +1,72 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import zhHK from '../locales/zh-Hant-HK'
 import { localizeInlineText } from '../inline'
 import inlineSource from '../inline?raw'
 
+vi.mock('@/router/title', () => ({ resolveRouteDocumentTitle: () => 'Localized page' }))
+vi.mock('@/router', () => ({ default: { currentRoute: { value: {} } } }))
+vi.mock('@/stores/app', () => ({ useAppStore: () => ({ cachedPublicSettings: {} }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAdmin: false }) }))
+vi.mock('@/stores/adminSettings', () => ({ useAdminSettingsStore: () => ({ customMenuItems: [] }) }))
+
 beforeEach(() => {
+  vi.restoreAllMocks()
   vi.resetModules()
+  vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en-US'])
+  vi.spyOn(navigator, 'language', 'get').mockReturnValue('en-US')
   localStorage.clear()
   document.documentElement.removeAttribute('lang')
 })
 
+afterEach(() => vi.restoreAllMocks())
+
 describe('Hong Kong locale selection', () => {
-  it('starts in English even when browser language is Chinese', async () => {
-    vi.spyOn(navigator, 'language', 'get').mockReturnValueOnce('zh-HK')
+  it.each([
+    ['zh-CN', 'zh'], ['zh-SG', 'zh'], ['zh-Hans', 'zh'], ['zh', 'zh'],
+    ['zh-HK', 'zh-Hant-HK'], ['zh-TW', 'zh-Hant-HK'], ['zh-MO', 'zh-Hant-HK'],
+    ['zh-Hant', 'zh-Hant-HK'], ['zh-Hans-HK', 'zh'], ['zh-Hant-CN', 'zh-Hant-HK'],
+    ['ZH_tw', 'zh-Hant-HK'], ['en-GB', 'en'], ['ja-JP', 'en'],
+  ])('matches browser %s to %s without saving an automatic choice', async (browser, expected) => {
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue([browser])
+    const { getLocale, initI18n } = await import('../index')
+    await initI18n()
+    expect(getLocale()).toBe(expected)
+    expect(document.documentElement.lang).toBe(expected)
+    expect(localStorage.getItem('sub2api_locale')).toBeNull()
+  })
+
+  it.each([
+    [['fr-FR', 'zh-TW', 'en-US'], 'zh-Hant-HK'],
+    [['en-US', 'zh-CN'], 'en'],
+    [['zh-CN', 'zh-TW'], 'zh'],
+    [['ja-JP', 'de-DE'], 'en'],
+  ])('uses the first supported browser preference from %j', async (languages, expected) => {
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue(languages)
     const { getLocale } = await import('../index')
-    expect(getLocale()).toBe('en')
+    expect(getLocale()).toBe(expected)
+  })
+
+  it('falls back to navigator.language when the preference list is empty', async () => {
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue([])
+    vi.spyOn(navigator, 'language', 'get').mockReturnValue('zh-HK')
+    const { getLocale } = await import('../index')
+    expect(getLocale()).toBe('zh-Hant-HK')
+  })
+
+  it('uses browser preferences when reading storage throws', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['zh-CN'])
+    const { getLocale, initI18n } = await import('../index')
+    await initI18n()
+    expect(getLocale()).toBe('zh')
+    expect(document.documentElement.lang).toBe('zh')
+  })
+
+  it.each([['en', 'en'], ['zh-CN', 'zh'], ['zh-HK', 'zh-Hant-HK']])('keeps saved %s ahead of browser preferences', async (saved, expected) => {
+    localStorage.setItem('sub2api_locale', saved)
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['zh-TW'])
+    const { getLocale } = await import('../index')
+    expect(getLocale()).toBe(expected)
   })
 
   it.each(['zh', 'zh-Hant-HK'] as const)('preserves the saved %s choice', async (locale) => {
@@ -26,10 +79,30 @@ describe('Hong Kong locale selection', () => {
     expect(messages.common.loading).toBe(locale === 'zh' ? '加载中...' : '載入中...')
   })
 
-  it('rejects unknown persisted locale values', async () => {
+  it('ignores unknown saved values and follows the browser', async () => {
     localStorage.setItem('sub2api_locale', 'unexpected')
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['zh-CN'])
     const { getLocale } = await import('../index')
-    expect(getLocale()).toBe('en')
+    expect(getLocale()).toBe('zh')
+  })
+
+  it('stores an explicit choice and restores it on the next load', async () => {
+    const { setLocale, getLocale } = await import('../index')
+    await setLocale('zh-Hant-HK')
+    expect(getLocale()).toBe('zh-Hant-HK')
+    expect(localStorage.getItem('sub2api_locale')).toBe('zh-Hant-HK')
+    vi.resetModules()
+    const restored = await import('../index')
+    expect(restored.getLocale()).toBe('zh-Hant-HK')
+  })
+
+  it('applies an explicit choice and updates the page when saving is blocked', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked') })
+    const { setLocale, getLocale } = await import('../index')
+    await setLocale('zh')
+    expect(getLocale()).toBe('zh')
+    expect(document.documentElement.lang).toBe('zh')
+    expect(document.title).toBe('Localized page')
   })
 
   it('keeps the selected Traditional glyphs across all Hong Kong messages', () => {

@@ -6,6 +6,31 @@
     @close="emit('close')"
   >
     <div class="space-y-4">
+      <section v-if="keyRecord" class="space-y-4 border-b border-gray-200 pb-5 dark:border-dark-700" data-testid="key-connection-summary">
+        <AppHeading as="h2" variant="section">{{ keyRecord.name }}</AppHeading>
+        <dl class="space-y-3">
+          <div v-for="endpoint in connectionUrls" :key="endpoint.url" class="space-y-1">
+            <dt class="text-sm text-gray-500 dark:text-gray-400">{{ kc.configUrl }}<span v-if="endpoint.label"> · {{ endpoint.label }}</span></dt>
+            <dd class="flex min-w-0 flex-wrap items-center gap-3">
+              <code class="min-w-0 flex-1 break-all" data-testid="connection-url">{{ endpoint.url }}</code>
+              <button type="button" class="btn btn-secondary" data-testid="copy-connection-url" @click="clipboardCopy(endpoint.url)">{{ kc.copyUrl }}</button>
+            </dd>
+          </div>
+          <div class="space-y-1">
+            <dt class="text-sm text-gray-500 dark:text-gray-400">API Key</dt>
+            <dd class="flex min-w-0 flex-wrap items-center gap-3">
+              <code class="min-w-0 flex-1 break-all" data-testid="connection-key">{{ apiKey }}</code>
+              <button type="button" class="btn btn-secondary" data-testid="copy-connection-key" @click="clipboardCopy(apiKey)">{{ kc.copyKey }}</button>
+            </dd>
+          </div>
+        </dl>
+        <div v-if="ccsProfiles.length" class="flex flex-wrap gap-3">
+          <button v-for="profile in ccsProfiles" :key="profile.id" type="button" class="btn btn-primary" :data-testid="`connection-ccs-${profile.id}`" @click="importConnection(profile)">
+            {{ t('keys.importToCcSwitch') }}<span v-if="ccsProfiles.length > 1"> · {{ profile.label }}</span>
+          </button>
+        </div>
+        <p v-if="ccsImportFailed" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ t('keys.ccSwitchNotInstalled') }}</p>
+      </section>
       <!-- No Group Assigned Warning -->
       <div v-if="!platform" class="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
         <svg class="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -278,7 +303,9 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { buildCodexModelCatalogUrl, fetchCodexModelsManifest } from '@/api/codex'
-import type { GroupPlatform } from '@/types'
+import type { ApiKey, GroupPlatform, PublicSettings } from '@/types'
+import type { CcsImportProfile } from '@/types/ccswitch'
+import { buildCcSwitchImportDeeplink, getCcSwitchImportProfiles } from '@/utils/ccswitchImport'
 import {
   findCodexCatalogModel,
   formatCodexReasoningEffortTomlLine,
@@ -292,6 +319,8 @@ interface Props {
   baseUrl: string
   platform: GroupPlatform | null
   allowMessagesDispatch?: boolean
+  keyRecord?: ApiKey | null
+  publicSettings?: PublicSettings | null
 }
 
 interface Emits {
@@ -317,6 +346,47 @@ const emit = defineEmits<Emits>()
 const { t } = useI18n()
 const kc = useKeyConnectionCopy()
 const { copyToClipboard: clipboardCopy } = useClipboard()
+
+const ccsImportFailed = ref(false)
+const ccsProfiles = computed(() => !props.keyRecord || !props.platform || props.publicSettings?.hide_ccs_import_button
+  ? [] : getCcSwitchImportProfiles(props.platform, props.publicSettings?.ccs_import_config))
+const connectionUrls = computed(() => {
+  const root = (props.baseUrl || window.location.origin).replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
+  const antigravityRoot = root.endsWith('/antigravity') ? root : `${root}/antigravity`
+  const client = activeClientTab.value
+  if (client === 'opencode') {
+    if (props.platform === 'antigravity') return [
+      { url: `${antigravityRoot}/v1`, label: 'Claude' },
+      { url: `${antigravityRoot}/v1beta`, label: 'Gemini' }
+    ]
+    return [{ url: `${root}/${props.platform === 'gemini' ? 'v1beta' : 'v1'}`, label: '' }]
+  }
+  if (client === 'codex' || client === 'codex-ws' || client === 'grok') return [{ url: `${root}/v1`, label: '' }]
+  if (props.platform === 'antigravity') return [{ url: antigravityRoot, label: '' }]
+  if (props.platform === 'typesafe') return [{ url: `${root}/v1/systemone`, label: '' }]
+  return [{ url: root, label: '' }]
+})
+function importConnection(profile: CcsImportProfile) {
+  const record = props.keyRecord
+  if (!props.show || !record || !ccsProfiles.value.some(item => item.id === profile.id)) return
+  ccsImportFailed.value = false
+  try {
+    const deeplink = buildCcSwitchImportDeeplink({
+      baseUrl: props.baseUrl || window.location.origin,
+      platform: props.platform,
+      profile,
+      settings: props.publicSettings?.ccs_import_config,
+      providerName: props.publicSettings?.site_name?.trim() || 'Ritel.SI',
+      apiKey: props.apiKey,
+      keyName: record.name,
+      userId: record.user_id
+    })
+    window.open(deeplink, '_self')
+  } catch {
+    ccsImportFailed.value = true
+  }
+}
+watch(() => [props.show, props.keyRecord?.id], () => { ccsImportFailed.value = false })
 
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
