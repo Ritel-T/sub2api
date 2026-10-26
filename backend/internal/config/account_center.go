@@ -40,6 +40,9 @@ func (c *Config) ValidateAccountCenterRuntime() error {
 	if !c.AccountCenter.Enabled {
 		return nil
 	}
+	if secret := strings.TrimSpace(c.AccountCenter.BridgeSecret); secret != "" && (secret == strings.TrimSpace(c.JWT.Secret) || secret == strings.TrimSpace(c.Totp.EncryptionKey)) {
+		return fmt.Errorf("account_center.bridge_secret must not reuse JWT or TOTP encryption secrets")
+	}
 	if c.JWT.RefreshTokenExpireDays < 31 {
 		return fmt.Errorf("jwt.refresh_token_expire_days must be at least 31 when account center is enabled")
 	}
