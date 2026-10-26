@@ -144,7 +144,7 @@ watch(subscriptionsEnabled, enabled => {
   if (enabled && authStore.user) void loadSubscriptions()
   else { states.subscriptions.generation++; states.subscriptions.loading = false; states.subscriptions.error = false; subscriptionSummary.value = null }
 })
-watch([() => authStore.user?.id, () => authStore.token, () => authStore.isSimpleMode], () => {
+watch([() => authStore.user?.id, () => authStore.sessionIdentity, () => authStore.isSimpleMode], () => {
   ownerGeneration++
   stats.value = null; balance.value = null; activeKey.value = null; totalKeys.value = null
   subscriptionSummary.value = null; errorCount.value = null

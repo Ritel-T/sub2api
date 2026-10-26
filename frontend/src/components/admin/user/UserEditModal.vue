@@ -105,9 +105,8 @@
           </button>
           <p v-if="securityResetState === 'applied'" role="status" class="text-green-600 dark:text-green-400" data-test="security-reset-applied">{{ securityText('服务端已确认重置完成，已清除 TOTP、Passkey 和恢复码并撤销该用户所有设备会话。用户需重新登录并设置安全因素。', 'The server confirmed the reset: TOTP, passkeys and recovery codes were cleared and all user device sessions revoked. The user must sign in again and set up security factors.') }}</p>
           <div v-if="securityResetState === 'reauth'" role="alert" class="space-y-2" data-test="security-reset-reauth">
-            <p>{{ securityText('需要管理员重新验证（REAUTH_REQUIRED）。请前往账号中心安全页，使用当前管理员账号完成最近 5 分钟内的原生验证；已启用 MFA 时还需完成 MFA。随后返回此处重新勾选确认并手动重试。', 'Administrator verification is required (REAUTH_REQUIRED). Open account security and complete native authentication as the current administrator within the last 5 minutes, including MFA if enabled. Then return, confirm again and retry manually.') }}</p>
-            <p class="input-hint">{{ securityText('若返回后仍要求重新验证，当前控制台的原生登录凭据可能尚未更新；请重新登录控制台，再手动重试。', 'If verification is still required after returning, this console’s native authentication proof may not have been updated. Sign in to the console again, then retry manually.') }}</p>
-            <a href="https://account.ritel.si/security" target="_blank" rel="noopener noreferrer" class="text-primary-600 underline dark:text-primary-400">{{ securityText('打开账号中心安全页', 'Open account security') }}</a>
+            <p>{{ securityText('需要管理员重新验证（REAUTH_REQUIRED）。请在新标签页中使用当前管理员账号完成密码与 MFA 或 Passkey 再次验证，然后返回此对话框，重新勾选确认并手动重试。此处不会自动重放重置请求。', 'Administrator verification is required (REAUTH_REQUIRED). In a new tab, reauthenticate as the current administrator with password and MFA or a passkey. Return to this dialog, confirm again and retry manually. The reset request will not be replayed automatically.') }}</p>
+            <a :href="accountReauthenticationURL()" target="_blank" rel="noopener noreferrer" class="text-primary-600 underline dark:text-primary-400">{{ securityText('在新标签页再次验证', 'Reauthenticate in a new tab') }}</a>
           </div>
           <p v-if="securityResetState === 'rejected'" role="alert" class="text-red-600 dark:text-red-400" data-test="security-reset-rejected">{{ securityText('重置请求被拒绝。请检查当前管理员权限和核验说明，再重新确认并手动重试。', 'The reset request was rejected. Check your current administrator permissions and verification note, then confirm again and retry manually.') }}</p>
           <div v-if="securityResetState === 'unknown'" role="alert" class="space-y-2" data-test="security-reset-unknown">
@@ -137,6 +136,7 @@
 </template>
 
 <script setup lang="ts">
+import { accountReauthenticationURL } from '@/utils/accountConfig'
 import { computed, ref, reactive, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { localizeInlineText } from '@/i18n/inline'

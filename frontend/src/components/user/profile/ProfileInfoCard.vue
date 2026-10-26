@@ -98,7 +98,7 @@
       </div>
     </section>
 
-    <div class="space-y-6">
+    <div v-if="!centralAccountEnabled" class="space-y-6">
       <div data-testid="profile-main-column" class="space-y-6">
         <section
           data-testid="profile-basics-panel"
@@ -176,10 +176,16 @@
         </section>
       </div>
     </div>
+    <section v-else class="open-section flex flex-wrap gap-4 py-5">
+      <a :href="accountPageURL('profile')" class="btn btn-secondary">{{ t('profile.basicsTitle') }}</a>
+      <a :href="accountPageURL('security')" class="btn btn-secondary">{{ locale.startsWith('zh') ? '账号安全' : 'Account security' }}</a>
+      <a :href="accountPageURL('sessions')" class="btn btn-secondary">{{ locale.startsWith('zh') ? '登录会话' : 'Sessions' }}</a>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
+import { accountPageURL, centralAccountEnabled } from '@/utils/accountConfig'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -208,7 +214,7 @@ const props = withDefaults(defineProps<{
   wechatMpEnabled: undefined,
 })
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 function normalizeBindingStatus(binding: boolean | UserAuthBindingStatus | undefined): boolean | null {
   if (typeof binding === 'boolean') {

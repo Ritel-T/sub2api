@@ -1,3 +1,4 @@
+import { centralAccountEnabled } from '@/utils/accountConfig'
 import { computed, inject, nextTick, onMounted, onUnmounted, provide, ref, watch, type ComputedRef, type InjectionKey } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -123,7 +124,7 @@ export function provideConsoleNav() {
       { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
       { path: '/support-tickets', label: t('nav.supportTickets'), icon: SupportTicketIcon, featureFlag: flagUserSupportTickets, badge: () => supportTicketStore.userUnread },
       { path: '/security-records', label: t('securityRecords.title'), icon: ShieldIcon },
-      { path: '/profile', label: t('nav.profile'), icon: UserIcon },
+      { path: '/profile', label: centralAccountEnabled ? (locale.value.startsWith('zh') ? '业务通知设置' : 'Business notifications') : t('nav.profile'), icon: UserIcon },
       ...customMenuItemsForUser.value.map((item): NavItem => ({
         path: `/custom/${item.id}`,
         label: item.label,

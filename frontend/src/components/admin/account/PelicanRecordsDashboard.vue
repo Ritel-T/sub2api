@@ -63,6 +63,8 @@
   </BaseDialog>
 </template>
 <script setup lang="ts">
+import { centralAccountEnabled } from '@/utils/accountConfig'
+import { centralSessionUID } from '@/utils/centralAccount'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -163,7 +165,10 @@ function manualCards(server: PelicanHistoryResult[]): Card[] {
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
-      const match = key?.match(/^sub2api-pelican-test:(\d+)$/)
+      const match = centralAccountEnabled
+        ? key?.match(/^sub2api-pelican-test:(\d+):owner:(sub2api:[1-9]\d*)$/)
+        : key?.match(/^sub2api-pelican-test:(\d+)$/)
+      if (centralAccountEnabled && match?.[2] !== centralSessionUID()) continue
       if (!match || !key || (scopeId !== undefined && Number(match[1]) !== scopeId)) continue
       try {
         const records = JSON.parse(localStorage.getItem(key) || '[]')

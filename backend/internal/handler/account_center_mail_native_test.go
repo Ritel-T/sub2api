@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"mime/quotedprintable"
 	"net"
@@ -19,6 +20,7 @@ import (
 	"net/http/httptest"
 	"net/mail"
 	"net/textproto"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -39,16 +41,18 @@ import (
 // reads codes from Redis, persists messages, logs credentials, or relays mail.
 type accountCenterNativeDelivery struct {
 	Code          string `json:"code"`
+	ResetLink     string `json:"resetLink,omitempty"`
 	DeliveryCount int    `json:"deliveryCount"`
 }
 
 type accountCenterNativeMailbox struct {
-	listener net.Listener
-	password string
-	mu       sync.Mutex
-	conn     net.Conn
-	closed   bool
-	messages map[string]accountCenterNativeDelivery
+	resetOrigin string // Only the owned native feature fixture enables reset capture.
+	listener    net.Listener
+	password    string
+	mu          sync.Mutex
+	conn        net.Conn
+	closed      bool
+	messages    map[string]accountCenterNativeDelivery
 }
 
 func startAccountCenterNativeSMTP(t *testing.T) *accountCenterNativeMailbox {
@@ -112,10 +116,13 @@ func accountCenterNativeSyntheticEmail(email string) bool {
 	return err == nil && address.Address == email && strings.HasSuffix(email, "@example.test") && !strings.ContainsAny(email, "\r\n")
 }
 
+var accountCenterNativeMailResetLink = regexp.MustCompile(`<a href="([^"]+)" class="button">`)
+var accountCenterNativeMailResetToken = regexp.MustCompile(`^[a-f0-9]{64}$`)
+
 var accountCenterNativeMailCode = regexp.MustCompile(`<div class="code">\s*([0-9]{6})\s*</div>`)
 
-// This deliberately accepts only the original EmailService's verification
-// template and synthetic recipient envelope, with no fallback code source.
+// Accept only original EmailService templates and synthetic recipients. Reset
+// links are decoded from SMTP DATA only, and never read from Redis or logged.
 func (m *accountCenterNativeMailbox) capture(recipient string, data []byte) bool {
 	message, err := mail.ReadMessage(bytes.NewReader(data))
 	if err != nil || !accountCenterNativeSyntheticEmail(recipient) {
@@ -138,13 +145,31 @@ func (m *accountCenterNativeMailbox) capture(recipient string, data []byte) bool
 		return false
 	}
 	matches := accountCenterNativeMailCode.FindAllSubmatch(decoded, -1)
-	if len(matches) != 1 {
+	code, resetLink := "", ""
+	if len(matches) == 1 {
+		code = string(matches[0][1])
+	} else if m.resetOrigin != "" {
+		links := accountCenterNativeMailResetLink.FindAllSubmatch(decoded, -1)
+		if len(links) != 1 {
+			return false
+		}
+		resetLink = html.UnescapeString(string(links[0][1]))
+		u, err := url.Parse(resetLink)
+		if err != nil || u.Scheme+"://"+u.Host != m.resetOrigin || u.User != nil || u.Fragment != "" || u.Path != "/reset-password" {
+			return false
+		}
+		query := u.Query()
+		if len(query) != 2 || len(query["email"]) != 1 || query.Get("email") != recipient || len(query["token"]) != 1 || !accountCenterNativeMailResetToken.MatchString(query.Get("token")) {
+			return false
+		}
+	} else {
 		return false
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delivery := m.messages[recipient]
-	delivery.Code = string(matches[0][1])
+	delivery.Code = code
+	delivery.ResetLink = resetLink
 	delivery.DeliveryCount++
 	m.messages[recipient] = delivery
 	return true

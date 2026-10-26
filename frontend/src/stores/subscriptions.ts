@@ -88,14 +88,14 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
   // cache. Existing callers retain their original caching behavior.
   async function fetchActiveSubscriptionsIfCurrent(expectedUserId: number): Promise<UserSubscription[]> {
     const auth = useAuthStore()
-    const expectedToken = auth.token
+    const expectedToken = auth.sessionIdentity
     if (!expectedToken || auth.user?.id !== expectedUserId) return []
     if (ownerUserId.value !== expectedUserId) clear()
     const generation = ++requestGeneration
     let stale = false
     const isCurrent = () => !stale && generation === requestGeneration
-      && auth.token === expectedToken && auth.user?.id === expectedUserId
-    const stop = watch([() => auth.token, () => auth.user?.id], () => {
+      && auth.sessionIdentity === expectedToken && auth.user?.id === expectedUserId
+    const stop = watch([() => auth.sessionIdentity, () => auth.user?.id], () => {
       stale = true
       if (generation === requestGeneration) clear()
     }, { flush: 'sync' })

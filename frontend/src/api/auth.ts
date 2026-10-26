@@ -1,3 +1,4 @@
+import { centralAccountEnabled } from '@/utils/accountConfig'
 /**
  * Authentication API endpoints
  * Handles user login, registration, and logout operations
@@ -72,6 +73,7 @@ export function isTotp2FARequired(response: LoginResponse): response is TotpLogi
  * Store authentication token in localStorage
  */
 export function setAuthToken(token: string): void {
+  if (centralAccountEnabled) throw new Error('Browser tokens are disabled in central account mode')
   localStorage.setItem('auth_token', token)
 }
 
@@ -79,6 +81,7 @@ export function setAuthToken(token: string): void {
  * Store refresh token in localStorage
  */
 export function setRefreshToken(token: string): void {
+  if (centralAccountEnabled) throw new Error('Browser tokens are disabled in central account mode')
   localStorage.setItem('refresh_token', token)
 }
 
@@ -87,6 +90,7 @@ export function setRefreshToken(token: string): void {
  * Converts expires_in (seconds) to absolute timestamp (milliseconds)
  */
 export function setTokenExpiresAt(expiresIn: number): void {
+  if (centralAccountEnabled) throw new Error('Browser tokens are disabled in central account mode')
   const expiresAt = Date.now() + expiresIn * 1000
   localStorage.setItem('token_expires_at', String(expiresAt))
 }
@@ -95,6 +99,7 @@ export function setTokenExpiresAt(expiresIn: number): void {
  * Get authentication token from localStorage
  */
 export function getAuthToken(): string | null {
+  if (centralAccountEnabled) return null
   return localStorage.getItem('auth_token')
 }
 
@@ -102,6 +107,7 @@ export function getAuthToken(): string | null {
  * Get refresh token from localStorage
  */
 export function getRefreshToken(): string | null {
+  if (centralAccountEnabled) return null
   return localStorage.getItem('refresh_token')
 }
 
@@ -109,6 +115,7 @@ export function getRefreshToken(): string | null {
  * Get token expiration timestamp from localStorage
  */
 export function getTokenExpiresAt(): number | null {
+  if (centralAccountEnabled) return null
   const value = localStorage.getItem('token_expires_at')
   return value ? parseInt(value, 10) : null
 }

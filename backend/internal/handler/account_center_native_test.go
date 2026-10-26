@@ -93,12 +93,19 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	cfg.Totp.EncryptionKey = random()
 	cfg.Totp.EncryptionKeyConfigured = true
 	settingsRepo := repository.NewSettingRepository(ent)
-	emailVerificationEnabled := os.Getenv("RITEL_NATIVE_EMAIL_VERIFY") == "1"
+	featureSmoke := os.Getenv("RITEL_NATIVE_FEATURE_SMOKE") == "1"
+	emailVerificationEnabled := featureSmoke || os.Getenv("RITEL_NATIVE_EMAIL_VERIFY") == "1"
 	settingValues := map[string]string{service.SettingKeyRegistrationEnabled: "true", service.SettingKeyEmailVerifyEnabled: strconv.FormatBool(emailVerificationEnabled), service.SettingKeyTotpEnabled: "true", service.SettingKeyPasskeyEnabled: "true", service.SettingKeyInvitationCodeEnabled: "true", service.SettingKeyDefaultBalance: "2", service.SettingKeyDefaultConcurrency: "5"}
+	if featureSmoke {
+		settingValues[service.SettingKeyPasswordResetEnabled] = "true"
+	}
 	var mailbox *accountCenterNativeMailbox
-	if emailVerificationEnabled {
+	if emailVerificationEnabled || featureSmoke {
 		require.NotEmpty(t, input.BridgeSecret)
 		mailbox = startAccountCenterNativeSMTP(t)
+		if featureSmoke {
+			mailbox.resetOrigin = input.AccountOrigin
+		}
 		for key, value := range mailbox.smtpSettings() {
 			settingValues[key] = value
 		}
@@ -110,7 +117,7 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	redeem := repository.NewRedeemCodeRepository(ent)
 	var emailSvc *service.EmailService
 	var emailQueue *service.EmailQueueService
-	if emailVerificationEnabled {
+	if emailVerificationEnabled || featureSmoke {
 		emailSvc = service.NewEmailService(settingsRepo, repository.NewEmailCache(rdb))
 		emailQueue = service.NewEmailQueueService(emailSvc, 1)
 		defer emailQueue.Stop()
@@ -153,7 +160,7 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, redeem.Create(ctx, &service.RedeemCode{Code: invitation, Type: service.RedeemTypeInvitation, Status: service.StatusUnused}))
 	var adminPrivate map[string]any
-	if os.Getenv("RITEL_NATIVE_ADMIN_RESET") == "1" {
+	if !featureSmoke && os.Getenv("RITEL_NATIVE_ADMIN_RESET") == "1" {
 		adminPassword := random()
 		adminHash, err := auth.HashPassword(adminPassword)
 		require.NoError(t, err)
@@ -174,7 +181,11 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	r.POST("/api/v1/auth/passkey/login/finish", accountCenterNativeShortAccess(passkeyHandler.FinishLogin, cfg))
 	r.POST("/api/v1/auth/register", accountCenterNativeShortAccess(h.Register, cfg))
 	r.POST("/api/v1/auth/send-verify-code", h.SendVerifyCode)
-	if emailVerificationEnabled {
+	if featureSmoke {
+		r.POST("/api/v1/auth/forgot-password", h.ForgotPassword)
+		r.POST("/api/v1/auth/reset-password", h.ResetPassword)
+	}
+	if emailVerificationEnabled || featureSmoke {
 		r.GET("/_fixture/mailbox", mailbox.handler(input.BridgeSecret))
 	}
 	r.GET("/api/v1/auth/me", gin.HandlerFunc(middleware2.NewJWTAuthMiddleware(auth, userSvc, settings, nil)), h.GetCurrentUser)
@@ -189,6 +200,7 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	authenticated.POST("/account-bindings/email", management.BindEmailIdentity)
 	authenticated.GET("/account-security/recovery-codes", h.AccountRecoveryRemaining)
 	authenticated.POST("/account-security/recovery-codes", h.AccountRecoveryReplace)
+	authenticated.POST("/account-security/step-up", h.AccountStepUp)
 	totp := authenticated.Group("/totp")
 	totp.GET("/status", totpHandler.GetStatus)
 	totp.GET("/verification-method", totpHandler.GetVerificationMethod)
@@ -206,6 +218,64 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	passkeys.PATCH("/:id", passkeyHandler.Rename)
 	passkeys.DELETE("/:id", passkeyHandler.Delete)
 	r.GET("/_fixture/mfa-summary", accountCenterNativeMFASummaryHandler(db, input.BridgeSecret))
+
+	// Read original PG repositories independently of the account UI/native client.
+	// Compare factor material only in memory; expose booleans and avatar metadata.
+	readFeatureState := func(ctx context.Context) (gin.H, error) {
+		saved, err := users.GetByID(ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
+		avatar, err := users.GetUserAvatar(ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
+		want := make(map[string]bool, len(recoveryCodes))
+		for _, code := range recoveryCodes {
+			hash, err := service.HashAccountRecoveryCode(code)
+			if err != nil {
+				return nil, err
+			}
+			want[hash] = true
+		}
+		rows, err := db.QueryContext(ctx, "SELECT code_hash FROM account_recovery_codes WHERE user_id = $1", user.ID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		count, matching := 0, true
+		for rows.Next() {
+			var hash string
+			if err := rows.Scan(&hash); err != nil {
+				return nil, err
+			}
+			count++
+			matching = matching && want[hash]
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		result := gin.H{"syntheticOnly": true, "totpSecretPreserved": saved.TotpEnabled && saved.TotpSecretEncrypted != nil && *saved.TotpSecretEncrypted == encrypted, "recoveryHashesPreserved": matching && count == len(want), "avatar": nil}
+		if avatar != nil {
+			result["avatar"] = gin.H{"sha256": avatar.SHA256, "byteSize": avatar.ByteSize, "contentType": avatar.ContentType}
+		}
+		return result, nil
+	}
+	if featureSmoke {
+		r.GET("/_fixture/feature-state", func(c *gin.Context) {
+			c.Header("Cache-Control", "no-store")
+			if input.BridgeSecret == "" || c.GetHeader("Authorization") != "Bearer "+input.BridgeSecret {
+				c.AbortWithStatus(401)
+				return
+			}
+			state, err := readFeatureState(c.Request.Context())
+			if err != nil {
+				c.JSON(500, gin.H{"ok": false})
+				return
+			}
+			c.JSON(200, state)
+		})
+	}
 
 	r.POST("/_fixture/change-password", func(c *gin.Context) {
 		if c.GetHeader("Authorization") != "Bearer "+input.BridgeSecret {
@@ -258,32 +328,44 @@ func TestAccountCenterNativeServe(t *testing.T) {
 				require.Equal(t, user.ID, key.UserID)
 				count, err := ent.User.Query().Count(ctx)
 				require.NoError(t, err)
-				expectedUsers := 2
-				if adminPrivate != nil {
-					expectedUsers = 3
-				}
-				require.Equal(t, expectedUsers, count)
-				all, err := ent.User.Query().All(ctx)
-				require.NoError(t, err)
-				var newID int64
-				for _, u := range all {
-					if u.Email == "new@example.test" || (os.Getenv("RITEL_NATIVE_EMAIL_CHANGE") == "1" && u.Email == "changed-new@example.test") {
-						newID = u.ID
-						require.Equal(t, 2.0, u.Balance)
-						require.Equal(t, 5, u.Concurrency)
-					}
-				}
-				require.NotZero(t, newID)
-				if os.Getenv("RITEL_NATIVE_EMAIL_CHANGE") == "1" {
-					updated, err := users.GetByID(ctx, newID)
+				if featureSmoke {
+					require.Equal(t, 1, count)
+					state, err := readFeatureState(ctx)
 					require.NoError(t, err)
-					require.Equal(t, "changed-new@example.test", updated.Email)
+					require.Equal(t, true, state["totpSecretPreserved"])
+					require.Equal(t, true, state["recoveryHashesPreserved"])
+					require.NotNil(t, state["avatar"])
+					unused, err := redeem.GetByCode(ctx, invitation)
+					require.NoError(t, err)
+					require.Equal(t, service.StatusUnused, unused.Status)
+				} else {
+					expectedUsers := 2
+					if adminPrivate != nil {
+						expectedUsers = 3
+					}
+					require.Equal(t, expectedUsers, count)
+					all, err := ent.User.Query().All(ctx)
+					require.NoError(t, err)
+					var newID int64
+					for _, u := range all {
+						if u.Email == "new@example.test" || (os.Getenv("RITEL_NATIVE_EMAIL_CHANGE") == "1" && u.Email == "changed-new@example.test") {
+							newID = u.ID
+							require.Equal(t, 2.0, u.Balance)
+							require.Equal(t, 5, u.Concurrency)
+						}
+					}
+					require.NotZero(t, newID)
+					if os.Getenv("RITEL_NATIVE_EMAIL_CHANGE") == "1" {
+						updated, err := users.GetByID(ctx, newID)
+						require.NoError(t, err)
+						require.Equal(t, "changed-new@example.test", updated.Email)
+					}
+					usedInvite, err := redeem.GetByCode(ctx, invitation)
+					require.NoError(t, err)
+					require.Equal(t, service.StatusUsed, usedInvite.Status)
+					require.NotNil(t, usedInvite.UsedBy)
+					require.Equal(t, newID, *usedInvite.UsedBy)
 				}
-				usedInvite, err := redeem.GetByCode(ctx, invitation)
-				require.NoError(t, err)
-				require.Equal(t, service.StatusUsed, usedInvite.Status)
-				require.NotNil(t, usedInvite.UsedBy)
-				require.Equal(t, newID, *usedInvite.UsedBy)
 
 				mfa, err := accountCenterNativeReadMFASummary(ctx, db)
 				require.NoError(t, err)
@@ -299,7 +381,7 @@ func TestAccountCenterNativeServe(t *testing.T) {
 				}
 				var migrations int
 				require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM schema_migrations").Scan(&migrations))
-				verification, _ := json.Marshal(map[string]any{"syntheticOnly": true, "productionChanged": false, "userCount": count, "migrations": migrations, "originalUIDPreserved": true, "originalEmailPreserved": true, "balancePreserved": true, "apiKeyPreserved": true, "totpPreserved": true, "signupDefaultsGrantedOnce": true, "invitationClaimedByNewUID": true, "mfa": mfa})
+				verification, _ := json.Marshal(map[string]any{"syntheticOnly": true, "productionChanged": false, "userCount": count, "migrations": migrations, "originalUIDPreserved": true, "originalEmailPreserved": true, "balancePreserved": true, "apiKeyPreserved": true, "totpPreserved": true, "featureSmoke": featureSmoke, "signupDefaultsGrantedOnce": !featureSmoke, "invitationClaimedByNewUID": !featureSmoke, "mfa": mfa})
 				require.NoError(t, os.WriteFile(filepath.Join(root, "verified.json"), verification, 0600))
 				return
 			}

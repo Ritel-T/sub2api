@@ -14,15 +14,15 @@ export function useMerchantTestPaymentAccess() {
     [
       () => authStore.isAuthenticated,
       () => authStore.user?.id,
-      () => authStore.token,
+      () => authStore.sessionIdentity,
       () => appStore.cachedPublicSettings?.payment_enabled,
     ] as const,
-    async ([authenticated, userId, token, publicPaymentEnabled]) => {
+    async ([authenticated, userId, identity, publicPaymentEnabled]) => {
       const requestGeneration = ++generation
       // Clear synchronously, including when logout and a new login happen in
       // the same tick. A prior account's request may never authorize this one.
       authorized.value = false
-      if (!authenticated || userId == null || !token || publicPaymentEnabled !== false) return
+      if (!authenticated || userId == null || !identity || publicPaymentEnabled !== false) return
 
       try {
         const response = await paymentAPI.getConfig()

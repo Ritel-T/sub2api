@@ -1,3 +1,4 @@
+import { consoleFetch, consoleAuthHeaders } from '@/utils/centralAccount'
 import { buildApiUrl } from '@/api/client'
 import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
 
@@ -68,10 +69,10 @@ export async function runModelTrace(
   signal: AbortSignal,
   onEvent: (event: ModelTraceEvent) => void
 ): Promise<ModelTraceResult> {
-  const response = await fetch(buildApiUrl(`/admin/accounts/${accountId}/modeltrace-test`), {
+  const response = await consoleFetch(buildApiUrl(`/admin/accounts/${accountId}/modeltrace-test`), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
+      ...consoleAuthHeaders('POST'),
       'Content-Type': 'application/json',
       [ADMIN_UI_REQUEST_HEADER]: '1'
     },

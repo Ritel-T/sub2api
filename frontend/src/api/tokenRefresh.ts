@@ -1,3 +1,4 @@
+import { centralAccountEnabled } from '@/utils/accountConfig'
 import axios from 'axios'
 import type { ApiResponse } from '@/types'
 import { getAPIBaseURL } from './url'
@@ -213,6 +214,7 @@ async function runRefresh(options: RefreshAuthTokensOptions): Promise<RefreshTok
 export function refreshAuthTokens(
   options: RefreshAuthTokensOptions = {}
 ): Promise<RefreshTokenResponse> {
+  if (centralAccountEnabled) return Promise.reject(new Error('Native token refresh is owned by the console BFF'))
   if (inFlightRefresh) {
     return inFlightRefresh
   }

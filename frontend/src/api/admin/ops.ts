@@ -1,3 +1,4 @@
+import { centralAccountEnabled } from '@/utils/accountConfig'
 /**
  * Admin Ops API endpoints (vNext)
  * - Error logs list/detail
@@ -602,15 +603,16 @@ export function subscribeQPS(onMessage: (data: any) => void, options: SubscribeQ
 
     isConnecting = true
     setStatus(hasConnectedOnce ? 'reconnecting' : 'connecting')
-    const wsBaseUrl = options.wsBaseUrl || import.meta.env.VITE_WS_BASE_URL
+    const wsBaseUrl = centralAccountEnabled ? undefined : options.wsBaseUrl || import.meta.env.VITE_WS_BASE_URL
     const wsURL = wsBaseUrl
       ? new URL(`${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${wsBaseUrl}/api/v1/admin/ops/ws/qps`)
       : new URL(buildGatewayUrl('/api/v1/admin/ops/ws/qps').replace(/^http/, 'ws'))
 
+    // Central mode uses only the base protocol: BFF verifies cookies and injects JWT.
     // Do NOT put admin JWT in the URL query string (it can leak via access logs, proxies, etc).
     // Browsers cannot set Authorization headers for WebSockets, so we pass the token via
     // Sec-WebSocket-Protocol (subprotocol list): ["sub2api-admin", "jwt.<token>"].
-    const rawToken = String(options.token ?? localStorage.getItem('auth_token') ?? '').trim()
+    const rawToken = centralAccountEnabled ? '' : String(options.token ?? localStorage.getItem('auth_token') ?? '').trim()
     const protocols: string[] = [OPS_WS_BASE_PROTOCOL]
     if (rawToken) protocols.push(`jwt.${rawToken}`)
 

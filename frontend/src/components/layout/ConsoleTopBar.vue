@@ -119,8 +119,14 @@
               </dl>
 
               <div class="py-1">
+                <template v-if="centralAccountEnabled">
+                  <a :href="accountPageURL('profile')" class="dropdown-item" @click="closeDropdown">{{ t('nav.profile') }}</a>
+                  <a :href="accountPageURL('security')" class="dropdown-item" @click="closeDropdown">{{ locale.startsWith('zh') ? '账号安全' : 'Account security' }}</a>
+                  <a :href="accountPageURL('sessions')" class="dropdown-item" @click="closeDropdown">{{ locale.startsWith('zh') ? '登录会话' : 'Sessions' }}</a>
+                  <router-link to="/profile" class="dropdown-item" @click="closeDropdown">{{ locale.startsWith('zh') ? '业务通知设置' : 'Business notifications' }}</router-link>
+                </template>
                 <router-link
-                  v-if="!appStore.backendModeEnabled || authStore.isAdmin"
+                  v-if="!centralAccountEnabled && (!appStore.backendModeEnabled || authStore.isAdmin)"
                   to="/profile"
                   class="dropdown-item"
                   @click="closeDropdown"
@@ -170,6 +176,7 @@
                 <button
                   type="button"
                   class="dropdown-item w-full text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  :disabled="logoutPending"
                   @click="handleLogout"
                 >
                   <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
@@ -185,6 +192,7 @@
 </template>
 
 <script setup lang="ts">
+import { accountPageURL, centralAccountEnabled } from '@/utils/accountConfig'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -284,10 +292,17 @@ function toggleDropdown() { dropdownOpen.value = !dropdownOpen.value }
 function closeDropdown() { dropdownOpen.value = false }
 function closeDropdownAndFocus() { closeDropdown(); dropdownRef.value?.querySelector<HTMLButtonElement>('button')?.focus() }
 
+const logoutPending = ref(false)
 async function handleLogout() {
+  if (logoutPending.value) return
   closeDropdown()
-  try { await authStore.logout() } catch { /* ignore */ }
-  await router.push('/login')
+  logoutPending.value = true
+  try {
+    await authStore.logout()
+    if (!centralAccountEnabled) await router.push('/login')
+  } catch (error) {
+    appStore.showError(error instanceof Error ? error.message : '退出结果未确认，请重新检查会话。')
+  } finally { logoutPending.value = false }
 }
 
 function handleReplayGuide() {

@@ -445,10 +445,10 @@ const pendingBalancePurchase = ref<PendingBalancePurchase | null>(null)
 const balancePurchaseSuccess = ref('')
 let sessionGeneration = 0
 let disposed = false
-const captureSession = () => ({ userId: user.value?.id ?? 0, token: authStore.token, generation: sessionGeneration })
+const captureSession = () => ({ userId: user.value?.id ?? 0, identity: authStore.sessionIdentity, generation: sessionGeneration })
 const isCurrentSession = (session: ReturnType<typeof captureSession>) => !disposed
-  && session.generation === sessionGeneration && user.value?.id === session.userId && authStore.token === session.token
-watch([() => user.value?.id, () => authStore.token], () => {
+  && session.generation === sessionGeneration && user.value?.id === session.userId && authStore.sessionIdentity === session.identity
+watch([() => user.value?.id, () => authStore.sessionIdentity], () => {
   sessionGeneration++
   pendingBalancePurchase.value = null
   returnPlan.value = null
@@ -459,7 +459,7 @@ watch([() => user.value?.id, () => authStore.token], () => {
   subscriptionStore.clear()
   const session = captureSession()
   queueMicrotask(() => {
-    if (isCurrentSession(session) && session.userId > 0 && session.token && !loading.value && subscriptionEnabled.value) {
+    if (isCurrentSession(session) && session.userId > 0 && session.identity && !loading.value && subscriptionEnabled.value) {
       subscriptionStore.fetchActiveSubscriptionsIfCurrent(session.userId).catch(() => {})
     }
   })

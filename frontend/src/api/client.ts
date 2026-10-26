@@ -1,3 +1,5 @@
+import { centralAccountEnabled } from '@/utils/accountConfig'
+import { assertCentralRequest, consoleAuthHeaders, centralSessionVersion, centralIdentityChanged, markCentralUnavailable } from '@/utils/centralAccount'
 /**
  * Axios HTTP Client Configuration
  * Base client with interceptors for authentication, token refresh, and error handling
@@ -40,10 +42,17 @@ const getUserTimezone = (): string => {
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Attach token from localStorage
-    const token = localStorage.getItem('auth_token')
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`
+    // Central builds use BFF cookies; legacy builds retain browser bearer auth.
+    if (centralAccountEnabled) {
+      assertCentralRequest(apiClient.getUri(config), config.method)
+      config.withCredentials = true
+      config.headers.delete('Authorization')
+      Object.assign(config.headers, consoleAuthHeaders(config.method))
+      const request = config as InternalAxiosRequestConfig & { _centralVersion?: number }
+      request._centralVersion = centralSessionVersion()
+    } else {
+      const token = localStorage.getItem('auth_token')
+      if (token && config.headers) config.headers.Authorization = `Bearer ${token}`
     }
 
     // Attach locale for backend translations
@@ -80,6 +89,10 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    if (centralAccountEnabled && (centralIdentityChanged.value ||
+      (response.config as InternalAxiosRequestConfig & { _centralVersion?: number })._centralVersion !== centralSessionVersion())) {
+      return Promise.reject(new Error('Account changed during request'))
+    }
     // Unwrap standard API response format { code, message, data }
     const apiResponse = response.data as ApiResponse<unknown>
     if (apiResponse && typeof apiResponse === 'object' && 'code' in apiResponse) {
@@ -158,6 +171,12 @@ apiClient.interceptors.response.use(
           message: apiData.message || error.message,
           metadata: apiData.metadata,
         })
+      }
+
+      // The BFF owns native credentials. Never refresh or replay browser mutations.
+      if (centralAccountEnabled && status === 401) {
+        markCentralUnavailable()
+        return Promise.reject({ status, code: apiData.code, message: apiData.message || 'Account session check required', metadata: apiData.metadata })
       }
 
       // 401: Try to refresh the token if we have a refresh token

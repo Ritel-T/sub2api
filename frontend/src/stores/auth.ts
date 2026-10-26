@@ -3,6 +3,8 @@
  * Manages user authentication state, login/logout, token refresh, and token persistence
  */
 
+import { centralAccountEnabled } from '@/utils/accountConfig'
+import { initializeCentralAccount, centralSessionUID, logoutCentralAccount, markCentralUnavailable, type CentralSession } from '@/utils/centralAccount'
 import { defineStore } from 'pinia'
 import { ref, computed, readonly, watch } from 'vue'
 import { authAPI, isTotp2FARequired, passkeyAPI, type LoginResponse } from '@/api'
@@ -79,6 +81,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   const user = ref<User | null>(null)
   const token = ref<string | null>(null)
+  const centralSessionAuthenticated = ref(false)
+  const sessionRevision = ref(0)
+  let centralAuthInitialized = false
+  let centralIdentity: string | null = null
+  const sessionIdentity = computed(() => centralAccountEnabled
+    ? centralSessionAuthenticated.value && user.value ? `central:${user.value.id}:${sessionRevision.value}` : null
+    : token.value)
   const refreshTokenValue = ref<string | null>(null)
   const tokenExpiresAt = ref<number | null>(null) // 过期时间戳（毫秒）
   const runMode = ref<'standard' | 'simple'>('standard')
@@ -89,7 +98,9 @@ export const useAuthStore = defineStore('auth', () => {
   // ==================== Computed ====================
 
   const isAuthenticated = computed(() => {
-    return !!token.value && !!user.value
+    return centralAccountEnabled
+      ? centralSessionAuthenticated.value && !!user.value
+      : !!token.value && !!user.value
   })
 
   const isAdmin = computed(() => {
@@ -109,7 +120,29 @@ export const useAuthStore = defineStore('auth', () => {
    * Call this on app startup to restore session
    * Also starts auto-refresh and immediately fetches latest user data
    */
+  async function initializeCentralAuth(): Promise<void> {
+    if (!centralAccountEnabled || centralAuthInitialized) return
+    // A new central build must never inherit a legacy bearer or pending OAuth token.
+    clearAuth()
+    await initializeCentralAccount(async (session: CentralSession) => {
+      const identity = session.user?.uid ?? null
+      if (centralAuthInitialized && identity !== centralIdentity) {
+        clearAuth()
+        return // The coordinator reloads to discard every identity-owned page/store.
+      }
+      centralIdentity = identity
+      if (!session.user) {
+        clearAuth()
+        return
+      }
+      centralSessionAuthenticated.value = true
+      await refreshUser()
+    })
+    centralAuthInitialized = true
+  }
+
   function checkAuth(): void {
+    if (centralAccountEnabled) return
     const savedToken = localStorage.getItem(AUTH_TOKEN_KEY)
     const savedUser = localStorage.getItem(AUTH_USER_KEY)
     const savedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY)
@@ -247,6 +280,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @throws Error if login fails
    */
   async function login(credentials: LoginRequest): Promise<LoginResponse> {
+    if (centralAccountEnabled) throw new Error('Sign in and manage credentials at the account center')
     try {
       const response = await authAPI.login(credentials)
 
@@ -274,6 +308,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @throws Error if 2FA verification fails
    */
   async function login2FA(tempToken: string, totpCode: string): Promise<User> {
+    if (centralAccountEnabled) throw new Error('Sign in and manage credentials at the account center')
     try {
       const response = await authAPI.login2FA({ temp_token: tempToken, totp_code: totpCode })
       setAuthFromResponse(response)
@@ -285,6 +320,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function loginWithPasskey(proof?: ActionCaptchaRequestProof): Promise<User> {
+    if (centralAccountEnabled) throw new Error('Sign in and manage credentials at the account center')
     try {
       const response = await passkeyAPI.login(proof)
       setAuthFromResponse(response)
@@ -300,6 +336,7 @@ export const useAuthStore = defineStore('auth', () => {
    * Internal helper function
    */
   function setAuthFromResponse(response: AuthResponse): void {
+    if (centralAccountEnabled) throw new Error('Sign in and manage credentials at the account center')
     // Store token and user
     token.value = response.access_token
 
@@ -318,7 +355,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Persist to localStorage
     localStorage.setItem(AUTH_TOKEN_KEY, response.access_token)
-    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
+    if (!centralAccountEnabled) localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
     clearPendingAuthSession()
 
     // Start auto-refresh interval for user data
@@ -338,6 +375,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @throws Error if registration fails
    */
   async function register(userData: RegisterRequest): Promise<User> {
+    if (centralAccountEnabled) throw new Error('Sign in and manage credentials at the account center')
     try {
       const response = await authAPI.register(userData)
 
@@ -358,6 +396,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @param newToken - 后端签发的 JWT access token
    */
   async function setToken(newToken: string): Promise<User> {
+    if (centralAccountEnabled) throw new Error('Sign in and manage credentials at the account center')
     // Clear any previous state first (avoid mixing sessions)
     // Note: Don't clear localStorage here as OAuth callback may have set refresh_token
     stopAutoRefresh()
@@ -398,6 +437,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function setPendingAuthSession(session: PendingAuthSessionSummary | null): void {
+    if (centralAccountEnabled && session) throw new Error('Sign in and manage credentials at the account center')
     pendingAuthSession.value = session
 
     if (session) {
@@ -417,6 +457,11 @@ export const useAuthStore = defineStore('auth', () => {
    * Clears all authentication state and persisted data
    */
   async function logout(): Promise<void> {
+    if (centralAccountEnabled) {
+      await logoutCentralAccount()
+      clearAuth()
+      return
+    }
     try {
       // Call API logout (revokes refresh token on server)
       await authAPI.logout()
@@ -436,12 +481,17 @@ export const useAuthStore = defineStore('auth', () => {
    * @throws Error if not authenticated or request fails
    */
   async function refreshUser(): Promise<User> {
-    if (!token.value) {
+    if (centralAccountEnabled ? !centralSessionAuthenticated.value : !token.value) {
       throw new Error('Not authenticated')
     }
 
     try {
+      const expectedIdentity = sessionIdentity.value
       const response = await authAPI.getCurrentUser()
+      if (centralAccountEnabled && (expectedIdentity !== sessionIdentity.value || centralSessionUID() !== `sub2api:${response.data.id}`)) {
+        markCentralUnavailable('业务用户与中央会话不一致，请重新检查。')
+        throw new Error('Business user does not match the central session')
+      }
       if (response.data.run_mode) {
         runMode.value = response.data.run_mode
       }
@@ -449,7 +499,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = userData
 
       // Update localStorage
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
+      if (!centralAccountEnabled) localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
 
       return userData
     } catch (error) {
@@ -464,18 +514,18 @@ export const useAuthStore = defineStore('auth', () => {
   // Used by balance purchases: a late response must never replace another
   // account's state, even when identity changes away and back during the request.
   async function refreshUserIfCurrent(expectedUserId: number): Promise<User | null> {
-    const expectedToken = token.value
+    const expectedToken = sessionIdentity.value
     if (!expectedToken || user.value?.id !== expectedUserId) return null
     let stale = false
-    const stop = watch([() => token.value, () => user.value?.id], () => { stale = true }, { flush: 'sync' })
-    const isCurrent = () => !stale && token.value === expectedToken && user.value?.id === expectedUserId
+    const stop = watch([() => sessionIdentity.value, () => user.value?.id], () => { stale = true }, { flush: 'sync' })
+    const isCurrent = () => !stale && sessionIdentity.value === expectedToken && user.value?.id === expectedUserId
     try {
       const response = await authAPI.getCurrentUser()
       if (!isCurrent() || response.data.id !== expectedUserId) return null
       if (response.data.run_mode) runMode.value = response.data.run_mode
       const { run_mode: _run_mode, ...userData } = response.data
       user.value = userData
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
+      if (!centralAccountEnabled) localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
       return userData
     } catch (error) {
       if (isCurrent() && (error as { status?: number }).status === 401) {
@@ -495,6 +545,9 @@ export const useAuthStore = defineStore('auth', () => {
     // Stop token refresh
     stopTokenRefresh()
 
+    centralSessionAuthenticated.value = false
+    sessionRevision.value++
+    if (centralAccountEnabled) runMode.value = 'standard'
     token.value = null
     refreshTokenValue.value = null
     tokenExpiresAt.value = null
@@ -519,6 +572,7 @@ export const useAuthStore = defineStore('auth', () => {
     // State
     user,
     token,
+    sessionIdentity,
     runMode: readonly(runMode),
     pendingAuthSession: readonly(pendingAuthSession),
 
@@ -538,6 +592,7 @@ export const useAuthStore = defineStore('auth', () => {
     setToken,
     logout,
     checkAuth,
+    initializeCentralAuth,
     refreshUser,
     refreshUserIfCurrent,
     setPendingAuthSession,

@@ -1,3 +1,4 @@
+import { centralAccountEnabled } from '@/utils/accountConfig'
 /**
  * Step-up (sudo) 2FA composable.
  *
@@ -81,6 +82,8 @@ export function useStepUp() {
   }
 
   function onVerified() {
+    // Central verification updates the BFF proof; it never authorizes auto replay.
+    if (centralAccountEnabled) { onCancel(); return }
     visible.value = false
     resolver?.(true)
     resolver = null

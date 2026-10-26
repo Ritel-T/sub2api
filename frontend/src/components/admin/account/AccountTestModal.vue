@@ -358,6 +358,7 @@
 </template>
 
 <script setup lang="ts">
+import { consoleFetch, consoleAuthHeaders } from '@/utils/centralAccount'
 import { computed, ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -891,10 +892,10 @@ const startTest = async () => {
     const url = buildApiUrl(`/admin/accounts/${props.account.id}/test`)
 
     // Use fetch with streaming for SSE since EventSource doesn't support POST
-    const response = await fetch(url, {
+    const response = await consoleFetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        ...consoleAuthHeaders('POST'),
         'Content-Type': 'application/json',
         [ADMIN_UI_REQUEST_HEADER]: '1'
       },

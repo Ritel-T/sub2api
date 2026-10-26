@@ -127,6 +127,7 @@
 </template>
 
 <script setup lang="ts">
+import { consoleFetch, consoleAuthHeaders } from '@/utils/centralAccount'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -297,8 +298,8 @@ async function fetchAndRenderMarkdown(slug: string) {
   tocItems.value = []
   activeHeadingId.value = ''
   try {
-    const resp = await fetch(buildApiUrl(`/pages/${encodeURIComponent(slug)}`), {
-      headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+    const resp = await consoleFetch(buildApiUrl(`/pages/${encodeURIComponent(slug)}`), {
+      headers: consoleAuthHeaders(),
     })
     if (version !== markdownRequestVersion) return
     if (!resp.ok) {

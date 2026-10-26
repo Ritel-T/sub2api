@@ -82,6 +82,7 @@
 </template>
 
 <script setup lang="ts">
+import { consoleOwnedStorageKey } from '@/utils/centralAccount'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -107,7 +108,7 @@ const error = ref('')
 const saveFailed = ref(false)
 const history = ref<ModelTraceResult[]>([])
 let controller: AbortController | undefined
-const storageKey = computed(() => `sub2api-modeltrace-test:${props.account.id}`)
+const storageKey = computed(() => consoleOwnedStorageKey(`sub2api-modeltrace-test:${props.account.id}`))
 const supported = computed(() => ['openai', 'anthropic'].includes(props.account.platform) && ['apikey', 'oauth', 'setup-token'].includes(props.account.type))
 const effortOptions = computed(() => [{ value: '', label: t('modelTrace.providerDefault') }, ...props.reasoningLevels.map(value => ({ value, label: value }))])
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`

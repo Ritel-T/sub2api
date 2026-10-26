@@ -1,3 +1,6 @@
+import { accountPageURL, centralAccountEnabled } from '@/utils/accountConfig'
+import { resolveAffiliateReferralCode } from '@/utils/oauthAffiliate'
+import { centralLogin, consoleReturnPath, type RegistrationEntryField } from '@/utils/centralAccount'
 import { settingsLocation } from '@/utils/settingsSearch'
 /**
  * Vue Router configuration for Sub2API frontend
@@ -911,8 +914,52 @@ router.beforeEach(async (to, _from, next) => {
 
   // Restore auth state from localStorage on first navigation (page refresh)
   if (!authInitialized) {
-    authStore.checkAuth()
+    if (centralAccountEnabled) await authStore.initializeCentralAuth()
+    else authStore.checkAuth()
     authInitialized = true
+  }
+
+  if (centralAccountEnabled) {
+    const isAuthRoute = to.path.startsWith('/auth/') || ['/login', '/register', '/forgot-password', '/reset-password', '/email-verify'].includes(to.path)
+    if (isAuthRoute) {
+      const defaultPath = authStore.isAdmin ? '/admin/dashboard' : authStore.isObserver ? '/admin/accounts' : '/dashboard'
+      // A register continuation returns here after central auth. Never redirect
+      // an authenticated visitor back through login and lose their referral link.
+      if (authStore.isAuthenticated) {
+        next(defaultPath)
+        return
+      }
+      const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : undefined
+      if (to.path === '/register') {
+        const firstString = (value: unknown): string => {
+          const first = Array.isArray(value) ? value[0] : value
+          return typeof first === 'string' ? first : ''
+        }
+        const fields: Partial<Record<RegistrationEntryField, string>> = {
+          promo: firstString(to.query.promo),
+          aff: resolveAffiliateReferralCode(to.query.aff, to.query.aff_code),
+          invite: firstString(to.query.invite) || firstString(to.query.invitation_code),
+        }
+        centralLogin(consoleReturnPath(redirect ?? '/dashboard'), { mode: 'register', fields })
+      } else if (to.path === '/forgot-password' || to.path === '/reset-password') {
+        centralLogin(redirect ?? '/', { mode: 'forgot' })
+      } else {
+        centralLogin(redirect ?? (to.path.startsWith('/auth/') ? '/' : _from.fullPath))
+      }
+      next(false)
+      return
+    }
+    if (to.path === '/profile' && /^#(?:profile|security|sessions|password|totp|passkey)$/.test(to.hash)) {
+      const section = to.hash === '#sessions' ? 'sessions' : /security|password|totp|passkey/.test(to.hash) ? 'security' : 'profile'
+      location.assign(accountPageURL(section))
+      next(false)
+      return
+    }
+    if (to.meta.requiresAuth !== false && !authStore.isAuthenticated) {
+      centralLogin(to.fullPath)
+      next(false)
+      return
+    }
   }
 
   // Old IP tabs are now a separate page. Normalize before auth/feature checks

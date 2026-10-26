@@ -1,3 +1,5 @@
+import { centralAccountEnabled } from '@/utils/accountConfig'
+import { useAuthStore } from '@/stores/auth'
 import { createApp, watch } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
@@ -56,6 +58,9 @@ async function bootstrap() {
 
   await initI18n()
 
+  // Complete hidden iframe check AND the original full /auth/me before any route or view.
+  if (centralAccountEnabled) await useAuthStore().initializeCentralAuth()
+
   app.use(router)
   app.use(i18n)
 
@@ -64,4 +69,17 @@ async function bootstrap() {
   app.mount('#app')
 }
 
-bootstrap()
+bootstrap().catch(() => {
+  const root = document.getElementById('app')
+  if (!root) return
+  root.replaceChildren()
+  const message = document.createElement('p')
+  message.setAttribute('role', 'alert')
+  message.textContent = '账号会话暂时无法确认，请重新加载后重试。'
+  const retry = document.createElement('button')
+  retry.type = 'button'
+  retry.className = 'btn btn-primary'
+  retry.textContent = '重新加载'
+  retry.onclick = () => location.reload()
+  root.append(message, retry)
+})

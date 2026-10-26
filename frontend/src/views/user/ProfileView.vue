@@ -33,7 +33,7 @@
       </div>
 
       <SecurityRecords />
-      <ProfilePasswordForm />
+      <ProfilePasswordForm v-if="!centralAccountEnabled" />
 
       <ProfileBalanceNotifyCard
         v-if="user && balanceLowNotifyEnabled"
@@ -45,13 +45,14 @@
       />
 
       <ProfileQQNotifyCard v-if="user" />
-      <ProfileTotpCard />
-      <ProfilePasskeyCard :enabled="passkeyEnabled" />
+      <ProfileTotpCard v-if="!centralAccountEnabled" />
+      <ProfilePasskeyCard v-if="!centralAccountEnabled" :enabled="passkeyEnabled" />
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
+import { centralAccountEnabled } from '@/utils/accountConfig'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'

@@ -1,5 +1,7 @@
+import { centralAccountEnabled } from '@/utils/accountConfig'
+
 const DEFAULT_API_BASE_URL = '/api/v1'
-const API_BASE_URL = normalizeAPIBaseURL(import.meta.env.VITE_API_BASE_URL)
+const API_BASE_URL = centralAccountEnabled ? DEFAULT_API_BASE_URL : normalizeAPIBaseURL(import.meta.env.VITE_API_BASE_URL)
 
 function normalizePath(path: string): string {
   return path.startsWith('/') ? path : `/${path}`

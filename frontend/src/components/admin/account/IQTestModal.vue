@@ -286,6 +286,7 @@
 </template>
 
 <script setup lang="ts">
+import { consoleFetch, consoleAuthHeaders, consoleOwnedStorageKey } from '@/utils/centralAccount'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { questionPrompt, questionContract, isTextAnswerKind, stateProbeVerdict, STATE_PROBE_QUESTION, type IntelligenceQuestion, type StateProbeVerdict } from '@/utils/intelligenceTest'
 import { useI18n } from 'vue-i18n'
@@ -479,7 +480,7 @@ function newTicketLabel(result: OpenAICodexStateProbeResult) {
   return t(result.new_ticket ? 'admin.accounts.pelicanTest.probe.yes' : 'admin.accounts.pelicanTest.probe.no')
 }
 
-const storageKey = computed(() => `${STORAGE_PREFIX}${props.account?.id ?? 'unknown'}`)
+const storageKey = computed(() => consoleOwnedStorageKey(`${STORAGE_PREFIX}${props.account?.id ?? 'unknown'}`))
 
 function normalizeCount(): number {
   const value = Number(parallelCount.value)
@@ -562,10 +563,10 @@ function handleClose() {
 }
 
 async function consumeRun(run: TestRun, signal: AbortSignal) {
-  const response = await fetch(buildApiUrl(`/admin/accounts/${props.account!.id}/pelican-test`), {
+  const response = await consoleFetch(buildApiUrl(`/admin/accounts/${props.account!.id}/pelican-test`), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+      ...consoleAuthHeaders('POST'),
       'Content-Type': 'application/json',
       [ADMIN_UI_REQUEST_HEADER]: '1'
     },

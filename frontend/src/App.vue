@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { centralAccountEnabled } from '@/utils/accountConfig'
+import { centralChecking, centralSessionError, centralIdentityChanged, refreshCentralAccount } from '@/utils/centralAccount'
+function retryAccountCheck() { void refreshCentralAccount().catch(() => { /* Keep the error and drafts visible. */ }) }
+
 import { RouterView, useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { computed, onMounted, onBeforeUnmount, watch, provide } from 'vue'
@@ -188,9 +192,15 @@ onMounted(async () => {
 </script>
 
 <template>
-  <NavigationProgress />
-  <RouterView />
-  <Toast />
-  <AnnouncementPopup />
-  <AdminComplianceDialog />
+  <div v-if="!centralIdentityChanged" v-show="!centralChecking && !centralSessionError">
+    <NavigationProgress />
+    <RouterView />
+    <Toast />
+    <AnnouncementPopup />
+    <AdminComplianceDialog />
+  </div>
+  <section v-if="centralAccountEnabled && (centralChecking || centralSessionError || centralIdentityChanged)" class="fixed inset-0 z-[100] grid place-content-center gap-4 bg-white p-6 text-gray-900 dark:bg-dark-900 dark:text-white" role="status" aria-live="polite" :aria-busy="centralChecking">
+    <p>{{ centralSessionError || (centralIdentityChanged ? '账号身份已变化，正在重新加载…' : '正在检查账号会话…') }}</p>
+    <button v-if="centralSessionError && !centralChecking && !centralIdentityChanged" type="button" class="btn btn-primary" @click="retryAccountCheck">重新检查</button>
+  </section>
 </template>

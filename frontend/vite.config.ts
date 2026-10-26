@@ -3,6 +3,8 @@ import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
 
+import { validateAccountOrigin } from './src/utils/accountOrigin'
+
 import { injectBranding } from './build/firstPaintBranding'
 
 /**
@@ -39,6 +41,7 @@ function injectPublicSettings(backendUrl: string): Plugin {
 export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), '')
+  const accountOrigin = validateAccountOrigin(env.VITE_RITEL_ACCOUNT_ORIGIN)
   const backendUrl = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
   const devPort = Number(env.VITE_DEV_PORT || 3000)
 
@@ -65,7 +68,7 @@ export default defineConfig(({ mode }) => {
     __INTLIFY_JIT_COMPILATION__: true
   },
   build: {
-    outDir: '../backend/internal/web/dist',
+    outDir: accountOrigin ? 'dist' : '../backend/internal/web/dist',
     emptyOutDir: true,
     rollupOptions: {
       output: {
@@ -119,6 +122,7 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: devPort,
       proxy: {
+        ...(accountOrigin ? { '/auth': { target: backendUrl, changeOrigin: true } } : {}),
         '/api': {
           target: backendUrl,
           changeOrigin: true

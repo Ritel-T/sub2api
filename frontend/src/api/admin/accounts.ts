@@ -1,3 +1,4 @@
+import { consoleFetch, consoleAuthHeaders } from '@/utils/centralAccount'
 /**
  * Admin Accounts API endpoints
  * Handles AI platform account management for administrators
@@ -1421,9 +1422,8 @@ export async function streamManualCodexHarvest(
     Accept: 'text/event-stream',
     [ADMIN_UI_REQUEST_HEADER]: '1'
   }
-  const token = localStorage.getItem('auth_token')
-  if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(buildApiUrl(`/admin/accounts/${accountId}/manual-harvest`), {
+  Object.assign(headers, consoleAuthHeaders('POST'))
+  const res = await consoleFetch(buildApiUrl(`/admin/accounts/${accountId}/manual-harvest`), {
     method: 'POST',
     credentials: 'include',
     headers,
