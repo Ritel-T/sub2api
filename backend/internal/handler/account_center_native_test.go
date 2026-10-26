@@ -94,10 +94,19 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	cfg.Totp.EncryptionKeyConfigured = true
 	settingsRepo := repository.NewSettingRepository(ent)
 	featureSmoke := os.Getenv("RITEL_NATIVE_FEATURE_SMOKE") == "1"
+	releaseContracts := os.Getenv("RITEL_NATIVE_RELEASE_CONTRACTS") == "1"
+	require.True(t, !releaseContracts || featureSmoke)
 	emailVerificationEnabled := featureSmoke || os.Getenv("RITEL_NATIVE_EMAIL_VERIFY") == "1"
 	settingValues := map[string]string{service.SettingKeyRegistrationEnabled: "true", service.SettingKeyEmailVerifyEnabled: strconv.FormatBool(emailVerificationEnabled), service.SettingKeyTotpEnabled: "true", service.SettingKeyPasskeyEnabled: "true", service.SettingKeyInvitationCodeEnabled: "true", service.SettingKeyDefaultBalance: "2", service.SettingKeyDefaultConcurrency: "5"}
 	if featureSmoke {
 		settingValues[service.SettingKeyPasswordResetEnabled] = "true"
+	}
+	if releaseContracts {
+		settingValues[service.SettingKeyInvitationCodeEnabled] = "false"
+		settingValues[service.SettingKeyPromoCodeEnabled] = "true"
+		settingValues[service.SettingKeyAffiliateEnabled] = "true"
+		settingValues[service.SettingKeyAffiliateSignupBonus] = "4"
+		settingValues[service.SettingKeyStepUpEnabled] = "true"
 	}
 	var mailbox *accountCenterNativeMailbox
 	if emailVerificationEnabled || featureSmoke {
@@ -122,7 +131,14 @@ func TestAccountCenterNativeServe(t *testing.T) {
 		emailQueue = service.NewEmailQueueService(emailSvc, 1)
 		defer emailQueue.Stop()
 	}
-	auth := service.NewAuthService(ent, users, redeem, repository.NewRefreshTokenCache(rdb), cfg, settings, emailSvc, nil, emailQueue, nil, nil, nil, nil)
+	var promoSvc *service.PromoService
+	var affiliateSvc *service.AffiliateService
+	var releaseInputs map[string]any
+	if releaseContracts {
+		promoSvc = service.NewPromoService(repository.NewPromoCodeRepository(ent), users, nil, ent, nil)
+		affiliateSvc = service.NewAffiliateService(repository.NewAffiliateRepository(ent, db), settings, nil, nil)
+	}
+	auth := service.NewAuthService(ent, users, redeem, repository.NewRefreshTokenCache(rdb), cfg, settings, emailSvc, nil, emailQueue, promoSvc, nil, affiliateSvc, nil)
 	auth.SetAccountRecoveryCodeRepository(repository.NewAccountRecoveryCodeRepository(db))
 	passkeySvc, err := service.NewPasskeyService(cfg, repository.NewPasskeyRepository(db), repository.NewPasskeySessionStore(rdb), users)
 	require.NoError(t, err)
@@ -159,6 +175,13 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	invitation, err := service.GenerateRedeemCode()
 	require.NoError(t, err)
 	require.NoError(t, redeem.Create(ctx, &service.RedeemCode{Code: invitation, Type: service.RedeemTypeInvitation, Status: service.StatusUnused}))
+	if releaseContracts {
+		promo, err := promoSvc.Create(ctx, &service.CreatePromoCodeInput{BonusAmount: 3, MaxUses: 10, Notes: "Owned release contract fixture"})
+		require.NoError(t, err)
+		affiliate, err := affiliateSvc.EnsureUserAffiliate(ctx, user.ID)
+		require.NoError(t, err)
+		releaseInputs = map[string]any{"promoCode": promo.Code, "affiliateCode": affiliate.AffCode}
+	}
 	var adminPrivate map[string]any
 	if !featureSmoke && os.Getenv("RITEL_NATIVE_ADMIN_RESET") == "1" {
 		adminPassword := random()
@@ -201,6 +224,7 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	authenticated.GET("/account-security/recovery-codes", h.AccountRecoveryRemaining)
 	authenticated.POST("/account-security/recovery-codes", h.AccountRecoveryReplace)
 	authenticated.POST("/account-security/step-up", h.AccountStepUp)
+	authenticated.POST("/account-security/session/logout", h.AccountSessionLogout)
 	totp := authenticated.Group("/totp")
 	totp.GET("/status", totpHandler.GetStatus)
 	totp.GET("/verification-method", totpHandler.GetVerificationMethod)
@@ -217,6 +241,117 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	passkeys.POST("/register/finish", passkeyHandler.FinishRegistration)
 	passkeys.PATCH("/:id", passkeyHandler.Rename)
 	passkeys.DELETE("/:id", passkeyHandler.Delete)
+
+	// Optional release contracts: original middleware, read-only PG/Redis evidence,
+	// and an explicitly aged synthetic proof to avoid a five-minute test sleep.
+	readReleaseState := func(ctx context.Context) (map[string]any, error) {
+		var raw []byte
+		err := db.QueryRowContext(ctx, `
+SELECT json_build_object(
+ 'promoEnabled', (SELECT value = 'true' FROM settings WHERE key = 'promo_code_enabled'),
+ 'invitationEnabled', (SELECT value = 'true' FROM settings WHERE key = 'invitation_code_enabled'),
+ 'invitationClaimed', (SELECT status = 'used' AND used_by = (SELECT id FROM users WHERE email = 'required@example.test') FROM redeem_codes WHERE code = $2),
+ 'inviterCount', (SELECT aff_count FROM user_affiliates WHERE user_id = $1),
+ 'inviterBalance', (SELECT balance FROM users WHERE id = $1),
+ 'inviterRebate', (SELECT aff_quota + aff_frozen_quota + aff_history_quota FROM user_affiliates WHERE user_id = $1),
+ 'promoUsedCount', (SELECT used_count FROM promo_codes WHERE code = $3),
+ 'firstRechargeRows', (SELECT count(*) FROM user_affiliate_first_recharges),
+ 'users', COALESCE((SELECT json_agg(json_build_object(
+    'uid', u.id, 'email', u.email, 'balance', u.balance, 'concurrency', u.concurrency,
+    'totalRecharged', u.total_recharged, 'totpEnabled', u.totp_enabled,
+    'passkeyCount', (SELECT count(*) FROM passkey_credentials WHERE user_id = u.id),
+    'boundToInviter', a.inviter_id = $1,
+    'promoClaims', (SELECT count(*) FROM promo_code_usages pc JOIN promo_codes p ON p.id = pc.promo_code_id WHERE pc.user_id = u.id AND p.code = $3),
+    'promoAmount', (SELECT COALESCE(sum(bonus_amount),0) FROM promo_code_usages WHERE user_id = u.id),
+    'signupEntries', (SELECT count(*) FROM user_affiliate_ledger WHERE user_id = u.id AND action = 'signup_bonus' AND source_user_id = $1),
+    'signupAmount', (SELECT COALESCE(sum(amount),0) FROM user_affiliate_ledger WHERE user_id = u.id AND action = 'signup_bonus')
+ ) ORDER BY u.email) FROM users u LEFT JOIN user_affiliates a ON a.user_id = u.id
+ WHERE u.email IN ('optional@example.test', 'required@example.test')), '[]'::json)
+)`, user.ID, invitation, releaseInputs["promoCode"]).Scan(&raw)
+		if err != nil {
+			return nil, err
+		}
+		var value map[string]any
+		err = json.Unmarshal(raw, &value)
+		return value, err
+	}
+	if releaseContracts {
+		authenticated.GET("/release-contract-probe", gin.HandlerFunc(middleware2.NewStepUpAuthMiddleware(totpSvc, userSvc, settings)), func(c *gin.Context) { c.JSON(200, gin.H{"granted": true}) })
+		release := r.Group("/_fixture/release", func(c *gin.Context) {
+			c.Header("Cache-Control", "no-store")
+			if len(c.Request.Header.Values("Authorization")) != 1 || c.GetHeader("Authorization") != "Bearer "+input.BridgeSecret {
+				c.AbortWithStatus(401)
+				return
+			}
+			c.Next()
+		})
+		release.POST("/invitation", func(c *gin.Context) {
+			var body struct {
+				Enabled bool `json:"enabled"`
+			}
+			if c.ShouldBindJSON(&body) != nil {
+				c.AbortWithStatus(400)
+				return
+			}
+			if err := settingsRepo.Set(ctx, service.SettingKeyInvitationCodeEnabled, strconv.FormatBool(body.Enabled)); err != nil {
+				c.AbortWithStatus(500)
+				return
+			}
+			c.JSON(200, gin.H{"enabled": settings.IsInvitationCodeEnabled(ctx)})
+		})
+		release.GET("/state", func(c *gin.Context) {
+			state, err := readReleaseState(c.Request.Context())
+			if err != nil {
+				t.Logf("release PG readback: %v", err)
+				c.AbortWithStatus(500)
+				return
+			}
+			c.JSON(200, state)
+		})
+		release.POST("/proof", func(c *gin.Context) {
+			var body struct {
+				Token          string `json:"token"`
+				Age            bool   `json:"age"`
+				ExpectedUserID int64  `json:"expectedUserId"`
+			}
+			if c.ShouldBindJSON(&body) != nil {
+				c.AbortWithStatus(400)
+				return
+			}
+			claims, err := auth.ValidateTokenContext(c.Request.Context(), body.Token)
+			if err != nil {
+				c.AbortWithStatus(401)
+				return
+			}
+			ttl, err := rdb.PTTL(ctx, "totp:stepup:"+strconv.FormatInt(claims.UserID, 10)+":"+claims.SessionID).Result()
+			if err != nil {
+				c.AbortWithStatus(500)
+				return
+			}
+			value := gin.H{"uid": claims.UserID, "authTime": claims.AuthenticationTime, "methods": claims.AuthenticationMethods, "grantTtlMs": ttl.Milliseconds()}
+			if body.ExpectedUserID > 0 {
+				_, err := auth.RequireRecentAccountAuthentication(ctx, body.Token, body.ExpectedUserID, true)
+				value["expectedUserAccepted"] = err == nil
+			}
+			if body.Age {
+				saved, err := users.GetByID(ctx, claims.UserID)
+				if err != nil {
+					c.AbortWithStatus(500)
+					return
+				}
+				proof := service.NativeAuthenticationFromClaims(claims)
+				proof.AuthTime = time.Now().Add(-301 * time.Second).Unix()
+				pair, err := auth.GenerateTokenPair(service.WithNativeAuthenticationProof(ctx, proof), saved, "")
+				if err != nil {
+					c.AbortWithStatus(500)
+					return
+				}
+				value["agedSyntheticPair"] = pair
+			}
+			c.JSON(200, value)
+		})
+	}
+
 	r.GET("/_fixture/mfa-summary", accountCenterNativeMFASummaryHandler(db, input.BridgeSecret))
 
 	// Read original PG repositories independently of the account UI/native client.
@@ -300,6 +435,9 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 	ready := map[string]any{"syntheticOnly": true, "emailVerificationEnabled": emailVerificationEnabled, "accountOrigin": input.AccountOrigin, "frontendPort": input.FrontendPort, "passkeyEnabled": passkeySvc.Enabled(), "baseUrl": srv.URL, "bridgeSecret": input.BridgeSecret, "existing": map[string]any{"userId": user.ID, "subject": "sub2api:" + strconv.FormatInt(user.ID, 10), "email": user.Email, "password": password, "totpSecret": secret, "recoveryCode": recoveryCodes[0], "name": user.Username}, "invitationCode": invitation}
+	if releaseContracts {
+		ready["releaseInputs"] = releaseInputs
+	}
 	if adminPrivate != nil {
 		ready["administrator"] = adminPrivate
 	}
@@ -329,15 +467,39 @@ func TestAccountCenterNativeServe(t *testing.T) {
 				count, err := ent.User.Query().Count(ctx)
 				require.NoError(t, err)
 				if featureSmoke {
-					require.Equal(t, 1, count)
+					if releaseContracts {
+						require.Equal(t, 3, count)
+					} else {
+						require.Equal(t, 1, count)
+					}
 					state, err := readFeatureState(ctx)
 					require.NoError(t, err)
 					require.Equal(t, true, state["totpSecretPreserved"])
 					require.Equal(t, true, state["recoveryHashesPreserved"])
-					require.NotNil(t, state["avatar"])
+					if !releaseContracts {
+						require.NotNil(t, state["avatar"])
+					}
 					unused, err := redeem.GetByCode(ctx, invitation)
 					require.NoError(t, err)
-					require.Equal(t, service.StatusUnused, unused.Status)
+					if releaseContracts {
+						require.Equal(t, service.StatusUsed, unused.Status)
+						state, err := readReleaseState(ctx)
+						require.NoError(t, err)
+						require.Equal(t, float64(2), state["promoUsedCount"])
+						require.Equal(t, float64(2), state["inviterCount"])
+						require.Equal(t, float64(0), state["inviterRebate"])
+						require.Equal(t, true, state["invitationClaimed"])
+						for _, entry := range state["users"].([]any) {
+							u := entry.(map[string]any)
+							require.Equal(t, float64(9), u["balance"])
+							require.Equal(t, float64(5), u["concurrency"])
+							require.Equal(t, true, u["boundToInviter"])
+							require.Equal(t, float64(1), u["promoClaims"])
+							require.Equal(t, float64(1), u["signupEntries"])
+						}
+					} else {
+						require.Equal(t, service.StatusUnused, unused.Status)
+					}
 				} else {
 					expectedUsers := 2
 					if adminPrivate != nil {
@@ -381,7 +543,7 @@ func TestAccountCenterNativeServe(t *testing.T) {
 				}
 				var migrations int
 				require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM schema_migrations").Scan(&migrations))
-				verification, _ := json.Marshal(map[string]any{"syntheticOnly": true, "productionChanged": false, "userCount": count, "migrations": migrations, "originalUIDPreserved": true, "originalEmailPreserved": true, "balancePreserved": true, "apiKeyPreserved": true, "totpPreserved": true, "featureSmoke": featureSmoke, "signupDefaultsGrantedOnce": !featureSmoke, "invitationClaimedByNewUID": !featureSmoke, "mfa": mfa})
+				verification, _ := json.Marshal(map[string]any{"syntheticOnly": true, "productionChanged": false, "userCount": count, "migrations": migrations, "originalUIDPreserved": true, "originalEmailPreserved": true, "balancePreserved": true, "apiKeyPreserved": true, "totpPreserved": true, "featureSmoke": featureSmoke, "releaseContracts": releaseContracts, "signupDefaultsGrantedOnce": !featureSmoke || releaseContracts, "invitationClaimedByNewUID": !featureSmoke || releaseContracts, "mfa": mfa})
 				require.NoError(t, os.WriteFile(filepath.Join(root, "verified.json"), verification, 0600))
 				return
 			}

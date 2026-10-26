@@ -73,14 +73,22 @@ export function centralLogin(returnPath?: string, entry?: {
 
 
 function publish(next: CentralSession): void {
-  const changed = initialized && next.user?.uid !== session.user?.uid
+  // Once an identity is revoked, only the fresh document may accept another one.
+  if (identityChanged.value) return
+  const previous = session
+  const changed = initialized && next.user?.uid !== previous.user?.uid
   session = next
   if (changed) {
     identityVersion++
     identityChanged.value = true
   }
-  sessionWork = Promise.resolve(sessionHandler?.(next))
-  // Activity expiration can publish outside refresh(); handle its promise too.
+  const version = identityVersion
+  // Refresh same-user profile too: an avatar may change behind the same URL.
+  // Serialize hydration and invalidate queued work after identity revocation.
+  sessionWork = sessionWork.catch(() => {}).then(async () => {
+    if (version !== identityVersion) return
+    await sessionHandler?.(next)
+  })
   void sessionWork.catch(() => markCentralUnavailable())
   if (changed && !logoutPending) location.reload()
 }
@@ -97,10 +105,14 @@ export async function initializeCentralAccount(onSession: (session: CentralSessi
     await sessionWork
     initialized = true
     unavailable.value = ''
-    window.addEventListener('focus', recheckVisible)
-    window.addEventListener('pageshow', recheckVisible)
+    window.addEventListener('focus', () => recheckVisible())
+    window.addEventListener('pageshow', event => {
+      // Persisted restoration must check even before visibilitychange arrives.
+      if (event.persisted) recheckVisible(true)
+      else recheckVisible()
+    })
     window.addEventListener('pagehide', event => { if (event.persisted) checking.value = true })
-    document.addEventListener('visibilitychange', recheckVisible)
+    document.addEventListener('visibilitychange', () => recheckVisible())
   } catch (error) {
     markCentralUnavailable()
     throw error
@@ -122,8 +134,8 @@ export function refreshCentralAccount(): Promise<void> {
   })
   return refreshWork
 }
-function recheckVisible(): void {
-  if (document.visibilityState !== 'visible' || logoutPending || logoutUncertain || identityChanged.value) return
+function recheckVisible(restored = false): void {
+  if ((!restored && document.visibilityState !== 'visible') || logoutPending || logoutUncertain || identityChanged.value) return
   void refreshCentralAccount().catch(() => { /* UI retains drafts and shows the failed check. */ })
 }
 

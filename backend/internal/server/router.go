@@ -41,6 +41,9 @@ func SetupRouter(
 	// 缓存 iframe 页面的 origin 列表，用于动态注入 CSP frame-src
 	var cachedFrameOrigins atomic.Pointer[[]string]
 	emptyOrigins := []string{}
+	if cfg.AccountCenter.Enabled {
+		emptyOrigins = append(emptyOrigins, cfg.AccountCenter.PublicOrigin)
+	}
 	cachedFrameOrigins.Store(&emptyOrigins)
 
 	refreshFrameOrigins := func() {
@@ -50,6 +53,9 @@ func SetupRouter(
 		if err != nil {
 			// 获取失败时保留已有缓存，避免 frame-src 被意外清空
 			return
+		}
+		if cfg.AccountCenter.Enabled {
+			origins = append(origins, cfg.AccountCenter.PublicOrigin)
 		}
 		cachedFrameOrigins.Store(&origins)
 	}

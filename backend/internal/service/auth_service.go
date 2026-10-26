@@ -1360,6 +1360,9 @@ func (s *AuthService) ValidateTokenContext(ctx context.Context, tokenString stri
 					if epochErr := s.validateSessionEpoch(ctx, claims.UserID, claims.SessionEpoch); epochErr != nil {
 						return nil, epochErr
 					}
+					if familyErr := s.validateAccountSessionFamily(ctx, claims.UserID, claims.SessionID, claims.AccountGeneration); familyErr != nil {
+						return nil, familyErr
+					}
 					return claims, ErrTokenExpired
 				}
 			}
@@ -1370,6 +1373,9 @@ func (s *AuthService) ValidateTokenContext(ctx context.Context, tokenString stri
 
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
 		if err := s.validateSessionEpoch(ctx, claims.UserID, claims.SessionEpoch); err != nil {
+			return nil, err
+		}
+		if err := s.validateAccountSessionFamily(ctx, claims.UserID, claims.SessionID, claims.AccountGeneration); err != nil {
 			return nil, err
 		}
 		return claims, nil
@@ -1908,6 +1914,10 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		return nil, ErrTokenRevoked
 	}
 
+	if err := s.validateAccountSessionFamily(ctx, data.UserID, data.FamilyID, data.AccountGeneration); err != nil {
+		return nil, err
+	}
+
 	// Only one caller can consume a refresh token. A missing/failed consume must
 	// never issue a successor, including when the Redis result is unknown.
 	consumed, err := s.refreshTokenCache.ConsumeRefreshToken(ctx, tokenHash)
@@ -1922,6 +1932,11 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 	proof := NativeAuthenticationProof{Methods: data.AuthenticationMethods, AuthTime: data.AuthenticationTime, Generation: data.AccountGeneration, Epoch: data.SessionEpoch}
 	pair, err := s.generateTokenPairForEpoch(WithNativeAuthenticationProof(ctx, proof), user, data.FamilyID, data.SessionEpoch)
 	if err != nil {
+		return nil, err
+	}
+	// A logout may have committed while Redis stored the successor. Recheck
+	// before returning; the unchanged family also fences any later response.
+	if err := s.validateAccountSessionFamily(ctx, data.UserID, data.FamilyID, data.AccountGeneration); err != nil {
 		return nil, err
 	}
 	return &TokenPairWithUser{

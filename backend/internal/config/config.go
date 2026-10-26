@@ -3113,6 +3113,9 @@ func (c *Config) Validate() error {
 	if err := c.AccountCenter.Validate(); err != nil {
 		return err
 	}
+	if err := c.ValidateAccountCenterRuntime(); err != nil {
+		return err
+	}
 	if _, err := c.EmailDelivery.RecipientAliases(); err != nil {
 		return fmt.Errorf("email_delivery.recipient_domain_aliases: %w", err)
 	}
