@@ -1,5 +1,5 @@
 import { centralAccountEnabled } from '@/utils/accountConfig'
-import { assertCentralRequest, consoleAuthHeaders, centralSessionVersion, centralIdentityChanged, markCentralUnavailable } from '@/utils/centralAccount'
+import { waitForCentralRequest, consoleAuthHeaders, centralSessionVersion, centralIdentityChanged, markCentralUnavailable } from '@/utils/centralAccount'
 /**
  * Axios HTTP Client Configuration
  * Base client with interceptors for authentication, token refresh, and error handling
@@ -41,10 +41,10 @@ const getUserTimezone = (): string => {
 }
 
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  async (config: InternalAxiosRequestConfig) => {
     // Central builds use BFF cookies; legacy builds retain browser bearer auth.
     if (centralAccountEnabled) {
-      assertCentralRequest(apiClient.getUri(config), config.method)
+      await waitForCentralRequest(apiClient.getUri(config), config.method)
       config.withCredentials = true
       config.headers.delete('Authorization')
       Object.assign(config.headers, consoleAuthHeaders(config.method))

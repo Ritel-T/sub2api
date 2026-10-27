@@ -34,6 +34,8 @@ let refreshWork: Promise<void> | undefined
 let logoutPending = false
 let logoutUncertain = false
 let identityVersion = 0
+const visibleRecheckIntervalMs = 30_000
+let lastSuccessfulCheck: number | undefined
 
 /** Keep locally saved admin test outputs separate when this browser changes account. */
 export function consoleOwnedStorageKey(key: string): string {
@@ -105,11 +107,11 @@ export async function initializeCentralAccount(onSession: (session: CentralSessi
     await sessionWork
     initialized = true
     unavailable.value = ''
+    lastSuccessfulCheck = performance.now()
     window.addEventListener('focus', () => recheckVisible())
     window.addEventListener('pageshow', event => {
       // Persisted restoration must check even before visibilitychange arrives.
       if (event.persisted) recheckVisible(true)
-      else recheckVisible()
     })
     window.addEventListener('pagehide', event => { if (event.persisted) checking.value = true })
     document.addEventListener('visibilitychange', () => recheckVisible())
@@ -126,7 +128,10 @@ export function refreshCentralAccount(): Promise<void> {
   refreshWork = (async () => {
     await consumer!.refresh()
     await sessionWork
-    if (!identityChanged.value) unavailable.value = ''
+    if (!identityChanged.value) {
+      unavailable.value = ''
+      lastSuccessfulCheck = performance.now()
+    }
     logoutUncertain = false
   })().catch(error => { markCentralUnavailable(); throw error }).finally(() => {
     checking.value = false
@@ -136,6 +141,10 @@ export function refreshCentralAccount(): Promise<void> {
 }
 function recheckVisible(restored = false): void {
   if ((!restored && document.visibilityState !== 'visible') || logoutPending || logoutUncertain || identityChanged.value) return
+  // Only successful authority checks suppress routine foreground events. Manual
+  // refresh and persisted restores bypass this interval; in-flight work is reused.
+  if (!restored && !refreshWork && lastSuccessfulCheck !== undefined &&
+    performance.now() - lastSuccessfulCheck < visibleRecheckIntervalMs) return
   void refreshCentralAccount().catch(() => { /* UI retains drafts and shows the failed check. */ })
 }
 
@@ -162,6 +171,21 @@ export function assertCentralRequest(url: string, method = 'GET'): void {
   const isMe = target.pathname === '/api/v1/auth/me' && method.toUpperCase() === 'GET'
   if (identityChanged.value || (!isMe && (checking.value || unavailable.value))) throw new Error('Account session check required')
 }
+/** Keep the current page stable while its session is rechecked. Requests wait
+ * for the same check instead of failing just because the window gained focus. */
+export async function waitForCentralRequest(url: string, method = 'GET'): Promise<void> {
+  if (!centralAccountEnabled) return
+  const target = new URL(url, location.origin)
+  const isHydration = target.origin === location.origin && target.pathname === '/api/v1/auth/me' && method.toUpperCase() === 'GET'
+  // Profile hydration belongs to refreshWork itself; waiting here would deadlock it.
+  if (!isHydration) {
+    const version = identityVersion
+    while (refreshWork) await refreshWork
+    if (version !== identityVersion) throw new Error('Account changed before request')
+  }
+  assertCentralRequest(url, method)
+}
+
 export function consoleAuthHeaders(method = 'GET'): Record<string, string> {
   if (!centralAccountEnabled) {
     const token = localStorage.getItem('auth_token')
@@ -175,7 +199,7 @@ export function consoleAuthHeaders(method = 'GET'): Record<string, string> {
 /** SSE and raw console fetches share cookie/CSRF rules; model/Key fetches stay separate. */
 export async function consoleFetch(input: string, init: RequestInit = {}): Promise<Response> {
   if (!centralAccountEnabled) return fetch(input, init)
-  assertCentralRequest(input, init.method)
+  await waitForCentralRequest(input, init.method)
   const headers = new Headers(init.headers)
   headers.delete('Authorization')
   for (const [name, value] of Object.entries(consoleAuthHeaders(init.method))) headers.set(name, value)

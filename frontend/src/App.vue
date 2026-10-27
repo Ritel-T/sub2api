@@ -192,15 +192,15 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="!centralIdentityChanged" v-show="!centralChecking && !centralSessionError">
+  <div v-if="!centralIdentityChanged" :inert="!!centralSessionError">
     <NavigationProgress />
     <RouterView />
     <Toast />
     <AnnouncementPopup />
     <AdminComplianceDialog />
   </div>
-  <section v-if="centralAccountEnabled && (centralChecking || centralSessionError || centralIdentityChanged)" class="fixed inset-0 z-[100] grid place-content-center gap-4 bg-white p-6 text-gray-900 dark:bg-dark-900 dark:text-white" role="status" aria-live="polite" :aria-busy="centralChecking">
-    <p>{{ centralSessionError || (centralIdentityChanged ? '账号身份已变化，正在重新加载…' : '正在检查账号会话…') }}</p>
+  <section v-if="centralAccountEnabled && (centralSessionError || centralIdentityChanged)" class="fixed bottom-4 right-4 z-[100] flex max-w-[calc(100%-2rem)] items-center gap-4 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-900 shadow-sm dark:border-dark-700 dark:bg-dark-900 dark:text-white" role="status" aria-live="polite" :aria-busy="centralChecking">
+    <p>{{ centralSessionError || '账号身份已变化，正在重新加载…' }}</p>
     <button v-if="centralSessionError && !centralChecking && !centralIdentityChanged" type="button" class="btn btn-primary" @click="retryAccountCheck">重新检查</button>
   </section>
 </template>
