@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -109,4 +111,61 @@ func TestPasskeyEnrollmentAndRevocationRequireAccountPassword(t *testing.T) {
 
 	require.NoError(t, svc.Delete(context.Background(), user.ID, 1, "correct-password"))
 	require.True(t, repo.deleteCalled)
+}
+
+// Capture the actual session and TTL sent to the persistence boundary.
+type passkeyWindowStore struct {
+	PasskeySessionStore
+	sessions map[string]*PasskeySession
+	ttls     map[string]time.Duration
+}
+
+func (s *passkeyWindowStore) Store(_ context.Context, session *PasskeySession, ttl time.Duration) (string, error) {
+	token := fmt.Sprintf("challenge-%d", len(s.sessions))
+	s.sessions[token], s.ttls[token] = session, ttl
+	return token, nil
+}
+func (s *passkeyWindowStore) Consume(_ context.Context, token string) (*PasskeySession, error) {
+	session := s.sessions[token]
+	delete(s.sessions, token)
+	return session, nil
+}
+func TestPasskeyManagementWindowKeepsOrdinaryLoginSeparate(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		user := &User{ID: 7, Email: "user@example.test", Status: StatusActive}
+		require.NoError(t, user.SetPassword("synthetic-password"))
+		svc, _ := newPasskeyPwService(t, user)
+		store := &passkeyWindowStore{sessions: map[string]*PasskeySession{}, ttls: map[string]time.Duration{}}
+		svc.sessions = store
+		started := time.Now()
+		creation, registration, err := svc.BeginRegistration(ctx, user.ID, "synthetic-password")
+		require.NoError(t, err)
+		reauthOptions, reauth, err := svc.BeginAccountReauthentication(ctx, user.ID)
+		require.NoError(t, err)
+		loginOptions, login, err := svc.BeginLogin(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 1800000, creation.Response.Timeout)
+		require.Equal(t, 1800000, reauthOptions.Response.Timeout)
+		require.Equal(t, int(svc.webAuthn.Config.Timeouts.Login.Timeout.Milliseconds()), loginOptions.Response.Timeout)
+		for _, token := range []string{registration, reauth} {
+			require.Equal(t, 30*time.Minute, store.ttls[token])
+			require.Equal(t, started.Add(30*time.Minute), store.sessions[token].WebAuthn.Expires)
+			require.Equal(t, user.ID, store.sessions[token].UserID)
+		}
+		require.Equal(t, 5*time.Minute, store.ttls[login])
+		require.True(t, store.sessions[login].WebAuthn.Expires.IsZero())
+		require.Equal(t, passkeySessionReauthentication, store.sessions[reauth].Kind)
+		// Wrong purpose/account must fail before reading any WebAuthn response.
+		_, err = svc.FinishLogin(ctx, reauth, nil)
+		require.ErrorIs(t, err, ErrPasskeySession)
+		_, err = svc.FinishAccountReauthentication(ctx, user.ID, login, nil)
+		require.ErrorIs(t, err, ErrPasskeySession)
+		_, reauth, err = svc.BeginAccountReauthentication(ctx, user.ID)
+		require.NoError(t, err)
+		_, err = svc.FinishAccountReauthentication(ctx, user.ID+1, reauth, nil)
+		require.ErrorIs(t, err, ErrPasskeySession)
+		_, _, err = svc.BeginAccountReauthentication(ctx, 0)
+		require.ErrorIs(t, err, ErrPasskeySession)
+	})
 }

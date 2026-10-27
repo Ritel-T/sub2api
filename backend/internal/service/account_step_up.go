@@ -41,9 +41,9 @@ func (s *TotpService) GrantAccountStepUp(ctx context.Context, auth *AuthService,
 	}
 	// Refresh preserves auth_time. Repeating this exchange cannot move the
 	// original authentication deadline, and never grants a full new window.
-	ttl := time.Until(time.Unix(claims.AuthenticationTime, 0).Add(5 * time.Minute)).Truncate(time.Second)
-	if ttl > 5*time.Minute {
-		ttl = 5 * time.Minute
+	ttl := time.Until(time.Unix(claims.AuthenticationTime, 0).Add(RecentAccountAuthenticationTTL)).Truncate(time.Second)
+	if ttl > RecentAccountAuthenticationTTL {
+		ttl = RecentAccountAuthenticationTTL
 	}
 	if ttl > StepUpGrantTTL {
 		ttl = StepUpGrantTTL

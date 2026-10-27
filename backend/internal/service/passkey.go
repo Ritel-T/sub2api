@@ -16,11 +16,13 @@ import (
 )
 
 const (
-	passkeySessionRegistration = "registration"
-	passkeySessionLogin        = "login"
-	passkeySessionTTL          = 5 * time.Minute
-	defaultPasskeyName         = "Passkey"
-	maxPasskeyNameLength       = 100
+	passkeySessionRegistration     = "registration"
+	passkeySessionLogin            = "login"
+	passkeySessionReauthentication = "account_reauthentication"
+	passkeyManagementTTL           = RecentAccountAuthenticationTTL
+	passkeySessionTTL              = 5 * time.Minute
+	defaultPasskeyName             = "Passkey"
+	maxPasskeyNameLength           = 100
 )
 
 var (
@@ -202,15 +204,19 @@ func (s *PasskeyService) BeginRegistration(
 		webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementRequired),
 		webauthn.WithExclusions(webauthn.Credentials(waUser.credentials).CredentialDescriptors()),
 		webauthn.WithExtensions(protocol.AuthenticationExtensions{"credProps": true}),
+		func(options *protocol.PublicKeyCredentialCreationOptions) {
+			options.Timeout = int(passkeyManagementTTL.Milliseconds())
+		},
 	)
 	if err != nil {
 		return nil, "", fmt.Errorf("begin passkey registration: %w", err)
 	}
+	session.Expires = time.Now().Add(passkeyManagementTTL)
 	sessionToken, err = s.sessions.Store(ctx, &PasskeySession{
 		Kind:     passkeySessionRegistration,
 		UserID:   userID,
 		WebAuthn: *session,
-	}, passkeySessionTTL)
+	}, passkeyManagementTTL)
 	if err != nil {
 		return nil, "", err
 	}
@@ -262,33 +268,58 @@ func (s *PasskeyService) FinishRegistration(
 	return passkeySummary(record), nil
 }
 
-func (s *PasskeyService) BeginLogin(
-	ctx context.Context,
-) (assertion *protocol.CredentialAssertion, sessionToken string, err error) {
+func (s *PasskeyService) BeginLogin(ctx context.Context) (*protocol.CredentialAssertion, string, error) {
+	return s.beginAssertion(ctx, passkeySessionLogin, 0, passkeySessionTTL)
+}
+
+// Account management uses a distinct, user-bound challenge; ordinary login stays short.
+func (s *PasskeyService) BeginAccountReauthentication(ctx context.Context, userID int64) (*protocol.CredentialAssertion, string, error) {
+	if userID <= 0 {
+		return nil, "", ErrPasskeySession
+	}
+	return s.beginAssertion(ctx, passkeySessionReauthentication, userID, passkeyManagementTTL)
+}
+
+func (s *PasskeyService) beginAssertion(ctx context.Context, kind string, userID int64, ttl time.Duration) (assertion *protocol.CredentialAssertion, sessionToken string, err error) {
 	if err = s.requireEnabled(); err != nil {
 		return nil, "", err
 	}
-	assertion, session, err := s.webAuthn.BeginDiscoverableLogin(
-		webauthn.WithUserVerification(protocol.VerificationRequired),
-	)
+	options := []webauthn.LoginOption{webauthn.WithUserVerification(protocol.VerificationRequired)}
+	if kind == passkeySessionReauthentication {
+		options = append(options, func(options *protocol.PublicKeyCredentialRequestOptions) {
+			options.Timeout = int(ttl.Milliseconds())
+		})
+	}
+	assertion, session, err := s.webAuthn.BeginDiscoverableLogin(options...)
 	if err != nil {
 		return nil, "", fmt.Errorf("begin passkey login: %w", err)
 	}
+	if kind == passkeySessionReauthentication {
+		session.Expires = time.Now().Add(ttl)
+	}
 	sessionToken, err = s.sessions.Store(ctx, &PasskeySession{
-		Kind:     passkeySessionLogin,
+		Kind:     kind,
+		UserID:   userID,
 		WebAuthn: *session,
-	}, passkeySessionTTL)
+	}, ttl)
 	if err != nil {
 		return nil, "", err
 	}
 	return assertion, sessionToken, nil
 }
 
-func (s *PasskeyService) FinishLogin(
-	ctx context.Context,
-	sessionToken string,
-	request *http.Request,
-) (*User, error) {
+func (s *PasskeyService) FinishLogin(ctx context.Context, sessionToken string, request *http.Request) (*User, error) {
+	return s.finishAssertion(ctx, passkeySessionLogin, 0, sessionToken, request)
+}
+
+func (s *PasskeyService) FinishAccountReauthentication(ctx context.Context, userID int64, sessionToken string, request *http.Request) (*User, error) {
+	if userID <= 0 {
+		return nil, ErrPasskeySession
+	}
+	return s.finishAssertion(ctx, passkeySessionReauthentication, userID, sessionToken, request)
+}
+
+func (s *PasskeyService) finishAssertion(ctx context.Context, kind string, userID int64, sessionToken string, request *http.Request) (*User, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, err
 	}
@@ -296,13 +327,13 @@ func (s *PasskeyService) FinishLogin(
 	if err != nil {
 		return nil, err
 	}
-	if session == nil || session.Kind != passkeySessionLogin {
+	if session == nil || session.Kind != kind || session.UserID != userID {
 		return nil, ErrPasskeySession
 	}
 
 	handler := func(rawID, userHandle []byte) (webauthn.User, error) {
 		record, lookupErr := s.repo.GetByCredentialID(ctx, rawID)
-		if lookupErr != nil || record == nil || !bytes.Equal(record.UserHandle, userHandle) {
+		if lookupErr != nil || record == nil || !bytes.Equal(record.UserHandle, userHandle) || (kind == passkeySessionReauthentication && record.UserID != userID) {
 			return nil, ErrPasskeyVerify
 		}
 		account, lookupErr := s.userRepo.GetByID(ctx, record.UserID)

@@ -17,7 +17,7 @@ func TestNativeAuthenticationProofPreservedAcrossRefresh(t *testing.T) {
 	cache := &epochRefreshCache{tokens: map[string]*RefreshTokenData{}}
 	cfg := &config.Config{JWT: config.JWTConfig{Secret: "synthetic-test-key", ExpireHour: 1, RefreshTokenExpireDays: 31}, AccountCenter: config.AccountCenterConfig{Enabled: true}}
 	auth := &AuthService{cfg: cfg, userRepo: repo, refreshTokenCache: cache, settingService: &SettingService{settingRepo: settings}}
-	when := time.Now().Add(-6 * time.Minute).Unix()
+	when := time.Now().Add(-31 * time.Minute).Unix()
 	ctx := WithNativeAuthenticationProof(context.Background(), NativeAuthenticationProof{Methods: []string{"pwd", "otp"}, AuthTime: when})
 	pair, err := auth.GenerateTokenPair(ctx, user, "")
 	require.NoError(t, err)

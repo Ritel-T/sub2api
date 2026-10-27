@@ -342,7 +342,7 @@ SELECT json_build_object(
 					return
 				}
 				proof := service.NativeAuthenticationFromClaims(claims)
-				proof.AuthTime = time.Now().Add(-301 * time.Second).Unix()
+				proof.AuthTime = time.Now().Add(-1801 * time.Second).Unix()
 				pair, err := auth.GenerateTokenPair(service.WithNativeAuthenticationProof(ctx, proof), saved, "")
 				if err != nil {
 					c.AbortWithStatus(500)

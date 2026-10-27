@@ -105,7 +105,7 @@ func TestAccountSecurityResetServiceSignedFactors(t *testing.T) {
 		{"email_code", true, []string{"pwd", "email"}, 0, false},
 		{"otp_without_password", true, []string{"otp"}, 0, false},
 		{"no_factors", false, nil, 0, false},
-		{"stale", true, []string{"pwd", "otp"}, 6 * time.Minute, false},
+		{"stale", true, []string{"pwd", "otp"}, 31 * time.Minute, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			auth, repo, cache, _, operator, target := resetServiceFixture(t)

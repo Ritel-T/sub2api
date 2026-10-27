@@ -14,7 +14,6 @@ func (h *PasskeyHandler) BeginAccountReauthentication(c *gin.Context) {
 		response.Unauthorized(c, "User not authenticated")
 		return
 	}
-	_ = subject
 	if !h.authService.AccountCenterEnabled() {
 		response.NotFound(c, "Account center disabled")
 		return
@@ -22,7 +21,7 @@ func (h *PasskeyHandler) BeginAccountReauthentication(c *gin.Context) {
 	if !h.requirePasskeysEnabled(c) {
 		return
 	}
-	assertion, token, err := h.passkeys.BeginLogin(c.Request.Context())
+	assertion, token, err := h.passkeys.BeginAccountReauthentication(c.Request.Context(), subject.UserID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -46,7 +45,7 @@ func (h *PasskeyHandler) FinishAccountReauthentication(c *gin.Context) {
 	if !ok {
 		return
 	}
-	user, err := h.passkeys.FinishLogin(c.Request.Context(), req.SessionToken, cloneRequestWithJSON(c.Request, req.Credential))
+	user, err := h.passkeys.FinishAccountReauthentication(c.Request.Context(), subject.UserID, req.SessionToken, cloneRequestWithJSON(c.Request, req.Credential))
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

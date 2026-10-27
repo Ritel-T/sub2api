@@ -7,6 +7,9 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
+// RecentAccountAuthenticationTTL is the account-management proof window.
+const RecentAccountAuthenticationTTL = 30 * time.Minute
+
 type nativeAuthenticationKey struct{}
 
 // NativeAuthenticationProof is set only by server-side completed authentication.
@@ -55,7 +58,7 @@ func (s *AuthService) RequireRecentAccountAuthentication(ctx context.Context, to
 		return nil, ErrTokenRevoked
 	}
 	now := time.Now().Unix()
-	if claims.AuthenticationTime <= 0 || claims.AuthenticationTime > now+5 || now-claims.AuthenticationTime > 300 {
+	if claims.AuthenticationTime <= 0 || claims.AuthenticationTime > now+5 || now-claims.AuthenticationTime > int64(RecentAccountAuthenticationTTL/time.Second) {
 		return nil, infraerrors.Forbidden("REAUTH_REQUIRED", "recent authentication is required")
 	}
 	pwd, otp, passkey := false, false, false

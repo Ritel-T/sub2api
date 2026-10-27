@@ -90,11 +90,11 @@ type TotpSetupResponse struct {
 }
 
 const (
-	totpSetupTTL    = 5 * time.Minute
+	totpSetupTTL    = RecentAccountAuthenticationTTL
 	totpLoginTTL    = 5 * time.Minute
 	totpAttemptsTTL = 15 * time.Minute
 	maxTotpAttempts = 5
-	totpIssuer      = "Sub2API"
+	totpIssuer      = "Ritel.SI"
 )
 
 // TotpService handles TOTP operations
@@ -377,7 +377,7 @@ func (s *TotpService) VerifyCode(ctx context.Context, userID int64, code string)
 }
 
 // StepUpGrantTTL 敏感操作 step-up 验证的有效窗口（sudo 模式）。
-const StepUpGrantTTL = 15 * time.Minute
+const StepUpGrantTTL = RecentAccountAuthenticationTTL
 
 // VerifyStepUp 校验 TOTP 码并授予当前会话一段时间的 step-up 权限。
 // 返回授权有效期，供前端展示/设置提醒。

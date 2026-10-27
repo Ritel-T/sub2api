@@ -240,7 +240,7 @@ func TestAccountSecurityCredentialRejectsUntrustedOrInsufficientProof(t *testing
 	}{
 		{"password_without_mfa", []string{"pwd"}, 0},
 		{"email_is_not_mfa", []string{"pwd", "email"}, 0},
-		{"stale", []string{"pwd", "otp"}, 6 * time.Minute},
+		{"stale", []string{"pwd", "otp"}, 31 * time.Minute},
 		{"no_native_factors", nil, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
