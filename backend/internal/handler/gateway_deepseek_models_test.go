@@ -61,11 +61,13 @@ func TestGatewayDeepSeekModelsCapabilities(t *testing.T) {
 		targets    []string
 		modalities map[string][]string
 		vision     bool
+		unknown    bool
 	}{
 		{name: "1017 without metadata", public: flash, targets: []string{flash}, vision: true},
 		{name: "base without metadata", public: "deepseek-v4.1-flash", targets: []string{"deepseek-v4.1-flash"}, vision: true},
 		{name: "ID-only snapshot", public: flash, targets: []string{flash}, modalities: map[string][]string{flash: nil}, vision: true},
 		{name: "mapped alias", public: "flash-alias", targets: []string{flash}, vision: true},
+		{name: "case-insensitive DeepSeek ID", public: "DeepSeek-pro", targets: []string{"deepseek-v4-pro"}},
 		{name: "Pro", public: "deepseek-v4-pro", targets: []string{"deepseek-v4-pro"}},
 		{name: "V4.1 Pro", public: "deepseek-v4.1-pro", targets: []string{"deepseek-v4.1-pro"}},
 		{name: "old V4", public: "deepseek-v4-flash", targets: []string{"deepseek-v4-flash"}},
@@ -75,7 +77,8 @@ func TestGatewayDeepSeekModelsCapabilities(t *testing.T) {
 		{name: "Flash label maps to Pro", public: flash, targets: []string{"deepseek-v4-pro"}},
 		{name: "explicit text only", public: flash, targets: []string{flash}, modalities: map[string][]string{flash: {"text"}}},
 		{name: "explicit vision", public: "provider-alias", targets: []string{"provider-private"}, modalities: map[string][]string{"provider-private": {"text", "image"}}, vision: true},
-		{name: "mixed mapped targets", public: "flash-alias", targets: []string{flash, "deepseek-v4-pro"}},
+		{name: "mixed mapped targets", public: "flash-alias", targets: []string{flash, "deepseek-v4-pro"}, unknown: true},
+		{name: "unknown generic alias", public: "ordinary-model", targets: []string{"provider-private"}, unknown: true},
 		{name: "multiple vision accounts", public: "flash-alias", targets: []string{flash, "deepseek-v4.1-flash"}, vision: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -89,11 +92,15 @@ func TestGatewayDeepSeekModelsCapabilities(t *testing.T) {
 				entries := deepSeekDiscoveryEntries(t, requestDeepSeekDiscovery(h, group, path, "", nil))
 				require.Len(t, entries, 1)
 				entry := entries[0]
-				require.Len(t, entry, 7, "only add the three discovery fields; do not invent capacities or pricing")
 				require.Equal(t, tt.public, entry["id"])
 				require.Equal(t, "model", entry["type"])
 				require.Equal(t, tt.public, entry["display_name"])
 				require.Equal(t, "2024-01-01T00:00:00Z", entry["created_at"])
+				if tt.unknown {
+					require.Equal(t, map[string]any{"id": tt.public, "type": "model", "display_name": tt.public, "created_at": "2024-01-01T00:00:00Z"}, entry)
+					continue
+				}
+				require.Len(t, entry, 7, "only add the three discovery fields; do not invent capacities or pricing")
 				want := []any{"text"}
 				if tt.vision {
 					want = append(want, "image")
@@ -105,6 +112,39 @@ func TestGatewayDeepSeekModelsCapabilities(t *testing.T) {
 				}}, entry["api_capabilities"])
 			}
 		})
+	}
+}
+
+func TestGatewayDeepSeekModelsPreservesUnknownProviderEntries(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const flash = "deepseek-v4.1-flash-1017"
+	group := &service.Group{ID: 2721, Platform: service.PlatformDeepseek}
+	a := deepSeekDiscoveryAccount(1, map[string]any{
+		flash: flash, "deepseek-v4-pro": "deepseek-v4-pro", "positive-alias": flash,
+		"kimi-k3": "kimi-k3", "glm-5.3": "glm-5.3", "ordinary-model": "ordinary-model",
+	}, nil)
+	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{byGroup: map[int64][]service.Account{group.ID: {a}}})
+	for _, path := range []string{"/models", "/v1/models"} {
+		listed := requestDeepSeekDiscovery(h, group, path, "", nil)
+		require.Equal(t, []string{"deepseek-v4-pro", flash, "glm-5.3", "kimi-k3", "ordinary-model", "positive-alias"}, listedModelIDs(t, listed.Body.Bytes()))
+		entries := deepSeekDiscoveryEntries(t, listed)
+		for i, id := range []string{"glm-5.3", "kimi-k3", "ordinary-model"} {
+			require.Equal(t, map[string]any{"id": id, "type": "model", "display_name": id, "created_at": "2024-01-01T00:00:00Z"}, entries[i+2])
+			retrieved := requestDeepSeekDiscovery(h, group, path+"/"+id, id, nil)
+			require.Equal(t, http.StatusOK, retrieved.Code)
+			var entry map[string]any
+			require.NoError(t, json.Unmarshal(retrieved.Body.Bytes(), &entry))
+			require.Equal(t, entries[i+2], entry)
+		}
+		require.Equal(t, []any{"text"}, entries[0]["input_modalities"])
+		for _, entry := range []map[string]any{entries[1], entries[5]} {
+			require.Len(t, entry, 7)
+			require.Equal(t, []any{"text", "image"}, entry["input_modalities"])
+			require.Equal(t, []any{"text"}, entry["output_modalities"])
+			require.Equal(t, map[string]any{"anthropic_messages": map[string]any{
+				"system_prompt_update": "leading-only", "tool_update": "leading-only",
+			}}, entry["api_capabilities"])
+		}
 	}
 }
 

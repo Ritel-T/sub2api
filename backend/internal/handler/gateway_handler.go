@@ -1416,8 +1416,14 @@ func (h *GatewayHandler) deepSeekModels(c *gin.Context, group *service.Group, av
 		OutputModalities []string        `json:"output_modalities"`
 		APICapabilities  apiCapabilities `json:"api_capabilities"`
 	}
-	entries := make([]modelCapabilities, 0, len(models))
+	entries := make([]any, 0, len(models))
 	for _, model := range models {
+		// Other providers and unverified aliases may inherit client-local
+		// capabilities. Preserve unknown rather than assert text-only for them.
+		if !strings.HasPrefix(strings.ToLower(model.ID), "deepseek-") && !images[model.ID] {
+			entries = append(entries, model)
+			continue
+		}
 		inputs := []string{"text"}
 		if images[model.ID] {
 			inputs = append(inputs, "image")
