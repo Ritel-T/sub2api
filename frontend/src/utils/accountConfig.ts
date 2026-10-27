@@ -2,7 +2,7 @@ import { validateAccountOrigin } from './accountOrigin'
 
 export const accountOrigin = validateAccountOrigin(import.meta.env.VITE_RITEL_ACCOUNT_ORIGIN)
 export const centralAccountEnabled = accountOrigin !== null
-export const consoleOrigin = validateAccountOrigin(import.meta.env.VITE_RITEL_CONSOLE_ORIGIN || 'https://console.ritel.si')!
+export const consoleOrigin = validateAccountOrigin(import.meta.env.VITE_RITEL_CONSOLE_ORIGIN || 'https://dash.ritel.si')!
 
 export function accountPageURL(section: 'profile' | 'security' | 'sessions' = 'profile'): string {
   if (!accountOrigin) return '/profile'
