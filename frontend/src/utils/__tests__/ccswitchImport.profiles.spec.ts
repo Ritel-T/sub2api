@@ -5,7 +5,8 @@ import {
   CC_SWITCH_USAGE_SCRIPT,
   buildCcSwitchImportDeeplink,
   createDefaultCcSwitchImportConfig,
-  getCcSwitchImportProfiles
+  getCcSwitchImportProfiles,
+  getCcSwitchApplicationProfiles
 } from '../ccswitchImport'
 
 const base = {
@@ -14,6 +15,63 @@ const base = {
 }
 const profile = (parameters: CcsImportProfile['parameters'] = {}, app: CcsImportApp = 'codex'): CcsImportProfile => ({
   id: 'openai-custom', label: '自定义客户端', platform: 'openai', app, parameters
+})
+
+describe('user CC Switch application choices', () => {
+  it('does not offer agent imports for the dedicated SystemOne non-LLM API', () => {
+    expect(getCcSwitchApplicationProfiles('typesafe')).toEqual([])
+  })
+  it.each(['openai', 'anthropic', 'gemini', 'antigravity', 'grok', 'deepseek', 'minimax', 'composite'] as const)(
+    'offers the same ordered applications for a %s key and preserves its key in each link', platform => {
+      const profiles = getCcSwitchApplicationProfiles(platform)
+      expect(profiles.map(item => item.app)).toEqual(['codex', 'claude', 'opencode', 'openclaw', 'gemini', 'grokbuild', 'hermes', 'pi'])
+      for (const item of profiles) {
+        const params = new URL(buildCcSwitchImportDeeplink({ ...base, platform, profile: item })).searchParams
+        expect(params.get('apiKey')).toBe(base.apiKey)
+        expect(params.get('app')).toBe(item.app)
+        expect(params.get('endpoint')).not.toContain('/v1/v1')
+        expect(params.get('model')).toBeTruthy()
+      }
+    }
+  )
+
+  it('routes OpenAI into Claude Code using Responses instead of assuming Anthropic support', () => {
+    const profile = getCcSwitchApplicationProfiles('openai').find(item => item.app === 'claude')!
+    const params = new URL(buildCcSwitchImportDeeplink({ ...base, profile })).searchParams
+    expect(params.get('apiFormat')).toBe('openai_responses')
+    expect(params.get('endpoint')).toBe('https://api.example.com/v1')
+    expect(params.get('model')).toBe('gpt-6-astra')
+    expect(params.get('haikuModel')).toBe('gpt-6-astra')
+    expect(params.get('sonnetModel')).toBe('gpt-6-astra')
+    expect(params.get('opusModel')).toBe('gpt-6-astra')
+  })
+
+  it('uses compatible formats for Gemini keys in clients without native Gemini support', () => {
+    for (const profile of getCcSwitchApplicationProfiles('gemini')) {
+      const params = new URL(buildCcSwitchImportDeeplink({ ...base, platform: 'gemini', profile })).searchParams
+      expect(params.get('apiFormat')).toBe(['codex', 'grokbuild', 'hermes'].includes(profile.app) ? 'openai_responses' : 'gemini_native')
+    }
+  })
+
+  it.each(['antigravity', 'composite'] as const)('uses a Gemini model for Gemini CLI in %s groups', platform => {
+    const profile = getCcSwitchApplicationProfiles(platform).find(item => item.app === 'gemini')!
+    const params = new URL(buildCcSwitchImportDeeplink({ ...base, platform, profile })).searchParams
+    expect(params.get('apiFormat')).toBe('gemini_native')
+    expect(params.get('model')).toBe('gemini-2.5-pro')
+  })
+
+  it('retains explicit overrides, app variants, and the global empty setting', () => {
+    const config: CcsImportConfig = { profiles: [
+      { ...profile({ endpoint: 'https://custom.example.com/v1', model: 'chosen' }), id: 'first' },
+      { ...profile({ endpoint: 'https://second.example.com/v1' }), id: 'second' }
+    ] }
+    const choices = getCcSwitchApplicationProfiles('openai', config)
+    expect(choices.slice(0, 2).map(item => item.id)).toEqual(['first', 'second'])
+    expect(choices[0]?.parameters.endpoint).toBe('https://custom.example.com/v1')
+    expect(choices[0]?.parameters.model).toBe('chosen')
+    expect(choices.some(item => item.app === 'claude')).toBe(true)
+    expect(getCcSwitchApplicationProfiles('deepseek', { profiles: [] })).toEqual([])
+  })
 })
 const decode = (encoded: string) => new TextDecoder().decode(Uint8Array.from(atob(encoded), byte => byte.charCodeAt(0)))
 

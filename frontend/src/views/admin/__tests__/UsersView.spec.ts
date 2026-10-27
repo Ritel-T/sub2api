@@ -231,7 +231,7 @@ describe('admin UsersView', () => {
     const reordered = ['actions', 'balance', ...original.filter(key => key !== 'actions' && key !== 'balance')]
     wrapper.findComponent(DataTableStub).vm.$emit('column-reorder', reordered)
     await flushPromises()
-    expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual(reordered)
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual([...reordered.filter(key => key !== 'actions'), 'actions'])
 
     wrapper.getComponent(ColumnSettings).vm.$emit('toggle', 'notes')
     await flushPromises()
@@ -240,7 +240,7 @@ describe('admin UsersView', () => {
     wrapper.unmount()
     wrapper = mountBulkDeleteView()
     await flushPromises()
-    expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual(reordered)
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toEqual([...reordered.filter(key => key !== 'actions'), 'actions'])
     expect(wrapper.findComponent(DataTableStub).props('columns').find((column: { key: string }) => column.key === 'notes').primary).toBe(true)
     wrapper.getComponent(ColumnSettings).vm.$emit('reset')
     await flushPromises()

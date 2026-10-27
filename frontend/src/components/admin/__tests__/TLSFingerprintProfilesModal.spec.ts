@@ -23,7 +23,7 @@ async function openProfiles(rows = [profile()], host: HTMLElement = document.bod
 }
 
 describe('TLS profile shared records', () => {
-  it('restores column preferences and retains the actual edit and delete targets in expanded fields', async () => {
+  it('restores detail preferences and retains edit and delete targets in the final main column', async () => {
     const wrapper = await openProfiles()
     expect(wrapper.getComponent(DataTable).props('columns')).toHaveLength(5)
     wrapper.getComponent(ColumnSettings).vm.$emit('toggle', 'description')
@@ -34,16 +34,20 @@ describe('TLS profile shared records', () => {
     const reopened = await openProfiles()
     expect(reopened.find('th[data-column-key="description"]').exists()).toBe(false)
     expect(reopened.findAll('th[data-column-key]')[0].attributes('data-column-key')).toBe('enable_grease')
+    expect(reopened.findAll('th[data-column-key]').at(-1)?.attributes('data-column-key')).toBe('actions')
     await reopened.get('[data-test="toggle-details"]').trigger('click')
     expect(reopened.get('.table-detail-row [data-field="description"]').text()).toContain('Description 7')
-    await reopened.get('.table-detail-row button[aria-label="common.edit"]').trigger('click')
+    expect(reopened.find('.table-detail-row button[aria-label="common.edit"]').exists()).toBe(false)
+    expect(mocks.update).not.toHaveBeenCalled()
+    await reopened.get('tr[data-row-id="7"] td[data-column-key="actions"] button[aria-label="common.edit"]').trigger('click')
     await reopened.get('form input[required]').setValue('Updated profile')
     mocks.update.mockResolvedValue(profile())
     await reopened.get('form').trigger('submit'); await flushPromises()
     expect(mocks.update.mock.calls[0][0]).toBe(7)
     expect(mocks.update.mock.calls[0][1]).toMatchObject({ name: 'Updated profile', cipher_suites: [4865], enable_grease: true })
-    await reopened.get('.table-detail-row button[aria-label="common.delete"]').trigger('click')
+    await reopened.get('tr[data-row-id="7"] td[data-column-key="actions"] button[aria-label="common.delete"]').trigger('click')
     expect(reopened.getComponent(ConfirmDialog).props('show')).toBe(true)
+    expect(mocks.delete).not.toHaveBeenCalled()
     mocks.delete.mockResolvedValue(undefined)
     reopened.getComponent(ConfirmDialog).vm.$emit('confirm'); await flushPromises()
     expect(mocks.delete).toHaveBeenCalledWith(7)

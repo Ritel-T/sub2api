@@ -48,14 +48,15 @@ const { rendered: renderRows, paddingTop, paddingBottom, measure: measureRow } =
 const mainKeys = new Set(['id', 'name', 'key', 'group', 'usage', 'current_concurrency', 'status', 'actions'])
 const mainColumns = computed(() => {
   const columns = props.columns.filter(column => column.key === 'id' || (column.primary ?? mainKeys.has(column.key)))
-  return columns.some(column => column.key === 'id') ? columns : [{ key: 'id', label: 'ID', sortable: true }, ...columns]
+  const fixed = columns.some(column => column.key === 'id') ? columns : [{ key: 'id', label: 'ID', sortable: true }, ...columns]
+  return [...fixed.filter(column => column.key !== 'actions'), ...fixed.filter(column => column.key === 'actions')]
 })
 const detailColumns = computed(() => props.columns.filter(column => column.key !== 'id' && !(column.primary ?? mainKeys.has(column.key))))
 const sortableColumns = computed(() => props.columns.filter(column => column.sortable))
 const allSelected = computed(() => props.data.length > 0 && props.data.every(row => props.selectedKeys.includes(row.id)))
 const someSelected = computed(() => props.data.some(row => props.selectedKeys.includes(row.id)))
 const selectionState = computed(() => allSelected.value ? true : someSelected.value ? 'mixed' : false)
-const fixedWidths: Record<string, number> = { id: 104, status: 112, actions: 124 }
+const fixedWidths: Record<string, number> = { id: 104, status: 112, actions: 188 }
 const columnWeights: Record<string, number> = { name: 1.7, key: 1.3, group: 1.5, usage: 1.4, current_concurrency: 1 }
 const fixedWidth = computed(() => mainColumns.value.reduce((sum, column) => sum + (fixedWidths[column.key] || 0), 40))
 const totalWeight = computed(() => mainColumns.value.reduce((sum, column) => sum + (fixedWidths[column.key] ? 0 : columnWeights[column.key] || 1), 0))

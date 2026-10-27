@@ -49,7 +49,7 @@ describe('EndpointPopover', () => {
     const backup = wrapper.findAll('.endpoint-copy')[1]
     expect(backup.attributes('title')).toContain('自定义说明')
     expect(backup.attributes('aria-label')).toContain('https://backup.example.com/v1')
-    expect(wrapper.findAll('a')[1].attributes('href')).toContain(encodeURIComponent('https://backup.example.com/v1'))
+    expect(wrapper.findAll('a')).toHaveLength(0)
   })
 
   it('点击 URL 后会复制并切换为已复制提示', async () => {

@@ -17,8 +17,9 @@
       </button>
     </div>
     <div class="overflow-x-auto overflow-y-hidden">
-      <DataTable :primary-columns="['created_at', 'user', 'model', 'tokens', 'cost', 'latency', 'request_details']"
+      <DataTable :primary-columns="['created_at', 'user', 'model', 'tokens', 'cost', 'latency']"
         :toolbar-target="toolbarTarget"
+        :expand-row-key="expandRowKey"
         :columns="columns"
         @column-reorder="emit('column-reorder', $event)"
         :data="data"
@@ -28,9 +29,6 @@
         :default-sort-order="defaultSortOrder"
         @sort="(key, order) => $emit('sort', key, order)"
       >
-        <template #cell-request_details="{ row }">
-          <button type="button" class="btn btn-secondary" @click="emit('rowDetails', row)">{{ t('common.view') }}</button>
-        </template>
         <template #cell-user="{ row }">
           <div class="text-sm">
             <span v-if="observerMode" class="font-medium text-gray-900 dark:text-white">{{ row.user?.email || "-" }}</span>
@@ -131,7 +129,8 @@
         </template>
 
         <template #cell-group="{ row }">
-          <span v-if="row.group" class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+          <span v-if="row.group" class="inline-flex items-center gap-1.5 text-sm font-medium" :class="platformTextClass(row.group.platform)">
+            <PlatformIcon :platform="row.group.platform" size="sm" aria-hidden="true" />
             {{ row.group.name }}
           </span>
           <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
@@ -139,13 +138,13 @@
 
         <template #cell-stream="{ row }">
           <div class="flex flex-wrap items-center gap-1">
-            <span data-testid="request-type-badge" class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium" :class="getRequestTypeBadgeClass(row)">
+            <span data-testid="request-type-badge" class="text-sm text-gray-700 dark:text-gray-300">
               {{ getRequestTypeLabel(row) }}
             </span>
             <span
               v-if="row.native_compaction_v2"
               data-testid="native-compaction-badge"
-              class="inline-flex items-center rounded bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-800 dark:bg-teal-900 dark:text-teal-200"
+              class="text-xs text-teal-700 dark:text-teal-300"
             >
               {{ t('usage.nativeCompactionV2') }}
             </span>
@@ -153,7 +152,7 @@
         </template>
 
         <template #cell-billing_mode="{ row }">
-          <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium" :class="getBillingModeBadgeClass(getDisplayBillingMode(row))">
+          <span class="text-sm text-gray-600 dark:text-gray-400">
             {{ getBillingModeLabel(getDisplayBillingMode(row), t) }}
           </span>
         </template>
@@ -222,19 +221,18 @@
             @mouseenter="!isMobile && showTooltip($event, row)"
             @mouseleave="!isMobile && scheduleHide(hideTooltip)"
             @click="showTooltip($event, row)">
-            <span class="flex items-center gap-1.5">
+            <span class="flex items-center gap-1.5 whitespace-nowrap">
               <span class="font-medium text-green-600 dark:text-green-400">${{ row.actual_cost?.toFixed(6) || '0.000000' }}</span>
-              <span
-                v-if="showLongContextBadge && row.long_context_billing_applied"
-                data-testid="long-context-billing-marker"
-                :title="t('admin.usage.longContextPricingTooltip')"
-                class="inline-flex items-center rounded px-1 py-px text-[10px] font-semibold leading-tight bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30"
-              >{{ t('admin.usage.longContext') }}</span>
-              <!-- Cost Detail Tooltip -->
-              <span class="flex h-4 w-4 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700" aria-hidden="true">
-                <Icon name="infoCircle" size="xs" class="text-gray-400" />
-              </span>
+              <Icon name="infoCircle" size="xs" class="text-gray-400" aria-hidden="true" />
             </span>
+            <span v-if="showLongContextBadge && row.long_context_billing_applied"
+              data-testid="long-context-billing-marker"
+              :title="t('admin.usage.longContextPricingTooltip')"
+              class="mt-1 block whitespace-nowrap text-xs text-amber-700 dark:text-amber-300"
+            >{{ t('admin.usage.longContext') }}</span>
+            <span v-if="row.free_fast_applied === true || (normalizeUsageServiceTier(row.service_tier) && normalizeUsageServiceTier(row.service_tier) !== 'standard')"
+              data-testid="service-tier-marker" class="mt-1 block whitespace-nowrap text-xs text-cyan-700 dark:text-cyan-300"
+            >{{ row.free_fast_applied === true ? t('usage.serviceTierFreeFast') : getUsageServiceTierLabel(row.service_tier, t) }}</span>
             <span v-if="showAccountBilling && row.account_rate_multiplier != null" class="mt-0.5 block text-[11px] text-orange-500 dark:text-orange-400">
               A ${{ accountBilled(row).toFixed(6) }}
             </span>
@@ -331,6 +329,9 @@
           <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
         </template>
 
+        <template #row-details="{ row, columns: detailColumns, renderCell }">
+          <UsageRowDetails :row="row" :columns="detailColumns" :render-cell="renderCell" :support-enabled="supportEnabled" />
+        </template>
         <template #empty><EmptyState :message="t('usage.noRecords')" /></template>
       </DataTable>
     </div>
@@ -508,7 +509,7 @@
           <!-- Rate and Summary -->
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('usage.serviceTier') }}</span>
-            <span class="font-semibold text-cyan-300">{{ getUsageServiceTierLabel(tooltipData?.service_tier, t) }}</span>
+            <span class="font-semibold text-cyan-300">{{ tooltipData?.free_fast_applied === true ? t('usage.serviceTierFreeFast') : getUsageServiceTierLabel(tooltipData?.service_tier, t) }}</span>
           </div>
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('usage.rate') }}</span>
@@ -556,7 +557,7 @@ import { useAppStore } from '@/stores/app'
 import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
-import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
+import { getUsageServiceTierLabel, normalizeUsageServiceTier } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import {
   LATENCY_BAR_FROM_CLASSES,
@@ -573,7 +574,6 @@ import { formatUsageCacheRate, showUsageCacheRate, usageCacheRateParts } from '@
 import {
   BILLING_MODE_TOKEN,
   getBillingModeLabel,
-  getBillingModeBadgeClass,
   isImageUsage,
   getDisplayBillingMode,
   imageUnitPrice,
@@ -601,6 +601,9 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
 
 
 import DataTable from '@/components/common/DataTable.vue'
+import UsageRowDetails from './UsageRowDetails.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import { platformTextClass } from '@/utils/platformColors'
 import EmptyState from '@/components/common/EmptyState.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -611,6 +614,8 @@ import type { Column } from '@/components/common/types'
 
 interface Props {
   toolbarTarget?: string | HTMLElement | null
+  expandRowKey?: string | number | null
+  supportEnabled?: boolean
   data: AdminUsageLog[]
   loading?: boolean
   columns: Column[]
@@ -639,6 +644,7 @@ const props = withDefaults(defineProps<Props>(), {
   enableTimingDetails: false,
   showUpstreamEndpoint: true,
   flat: false,
+  supportEnabled: false,
   cacheRateAudience: 'admin'
 })
 const emit = defineEmits<{
@@ -753,18 +759,6 @@ const getRequestTypeLabel = (row: AdminUsageLog): string => {
   if (requestType === 'sync') return t('usage.sync')
   return t('usage.unknown')
 }
-
-const getRequestTypeBadgeClass = (row: AdminUsageLog): string => {
-  const requestType = resolveUsageRequestType(row)
-  if (requestType === 'cyber') return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-  if (requestType === 'live') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
-  if (requestType === 'ws_v2') return 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200'
-  if (requestType === 'stream') return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-  if (requestType === 'sync') return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-  return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
-}
-
-
 
 const formatUserAgent = (ua: string): string => {
   return ua

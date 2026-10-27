@@ -52,10 +52,6 @@ function tooltipHint(endpoint: string): string {
     : t('keys.endpoints.clickToCopy')
 }
 
-function speedTestUrl(endpoint: string): string {
-  return `https://www.tcptest.cn/http/${encodeURIComponent(endpoint)}`
-}
-
 onBeforeUnmount(() => {
   if (copiedResetTimer !== undefined) {
     window.clearTimeout(copiedResetTimer)
@@ -78,9 +74,7 @@ onBeforeUnmount(() => {
         <svg v-if="copiedEndpoint === item.endpoint" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
         <svg v-else width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
       </button>
-      <a :href="speedTestUrl(item.endpoint)" target="_blank" rel="noopener noreferrer" class="endpoint-test" :title="t('keys.endpoints.speedTest')" :aria-label="t('keys.endpoints.speedTest')">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-      </a>
+
     </div>
   </div>
 </template>
@@ -93,7 +87,5 @@ onBeforeUnmount(() => {
 .endpoint-copy code { font-size: 13px; overflow-wrap: anywhere; }
 .endpoint-copy svg { flex: none; color: var(--ritel-muted); }
 .endpoint-copy:hover code { text-decoration: underline; text-underline-offset: 4px; }
-.endpoint-test { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; color: var(--ritel-muted); }
-.endpoint-test:hover { color: var(--ritel-fg); }
-.endpoint-copy:focus-visible, .endpoint-test:focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 3px; }
+.endpoint-copy:focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 3px; }
 </style>

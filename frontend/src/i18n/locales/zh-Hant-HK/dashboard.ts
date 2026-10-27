@@ -498,6 +498,7 @@ export default {
     cacheWrite: '寫入',
     serviceTier: '服務檔位',
     serviceTierPriority: 'Fast',
+    serviceTierFreeFast: 'Free Fast',
     serviceTierUltrafast: 'Ultrafast',
     serviceTierFlex: 'Flex',
     serviceTierStandard: 'Standard',

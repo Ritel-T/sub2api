@@ -19,6 +19,9 @@ vi.mock('@/stores/auth', async () => {
   const { reactive } = await import('vue')
   state.auth = reactive({ user: { id: 7, username: 'fixture', balance: 500 }, token: 'token-7' })
   return { useAuthStore: () => ({ get user() { return state.auth.user }, get token() { return state.auth.token },
+    // Product session guards observe this public auth-store contract, whose
+    // legacy fixture value rotates with the token used by these scenarios.
+    get sessionIdentity() { return state.auth.token },
     refreshUser: api.refresh, refreshUserIfCurrent: api.refreshCurrent }) }
 })
 vi.mock('@/stores/subscriptions', () => ({ useSubscriptionStore: () => ({ get activeSubscriptions() { return state.subscriptions }, ownerUserId: 7, clear: vi.fn(), fetchActiveSubscriptionsIfCurrent: api.subscriptions, fetchActiveSubscriptions: api.subscriptions }) }))

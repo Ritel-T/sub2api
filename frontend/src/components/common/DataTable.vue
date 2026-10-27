@@ -718,6 +718,8 @@ interface Props {
   selectable?: boolean
   /** Disable selection while leaving column preferences and record details usable. */
   selectionDisabled?: boolean
+  /** Open a linked record in the existing inline details. */
+  expandRowKey?: string | number | null
   /** Selected row keys. Keys outside the current data page are preserved. */
   selectedKeys?: Array<string | number>
   /** Accessible label for a row selection checkbox. */
@@ -737,15 +739,21 @@ const props = withDefaults(defineProps<Props>(), {
   selectedKeys: () => []
 })
 
-const requiredColumnKeys = computed(() => props.columns.some(column => typeof column.primary === 'boolean')
-  ? props.selectable ? ['id'] : []
-  : [props.columns.find(column => column.key !== 'select')?.key, 'id', 'actions'].filter((key): key is string => !!key))
+const requiredColumnKeys = computed(() => {
+  const required = props.columns.some(column => typeof column.primary === 'boolean')
+    ? props.selectable ? ['id'] : []
+    : [props.columns.find(column => column.key !== 'select')?.key, 'id'].filter((key): key is string => !!key)
+  return props.columns.some(column => column.key === 'actions') ? [...required, 'actions'] : required
+})
 const {
   columns: localColumns, orderedColumns: localOrderedColumns, hiddenColumns: localHiddenColumns,
   toggleColumn: toggleLocalColumn, setColumnOrder: setLocalColumnOrder, resetColumns: resetLocalColumns
 } = useTableColumns(props.columnOrderKey ?? '', () => props.columns, { fixed: ['select'], required: requiredColumnKeys, primary: () => props.primaryColumns })
 const controlledColumnOrder = !!getCurrentInstance()?.vnode.props?.onColumnReorder
-const columns = computed(() => controlledColumnOrder && !props.columnOrderKey ? props.columns : localColumns.value)
+const columns = computed(() => {
+  const source = controlledColumnOrder && !props.columnOrderKey ? props.columns : localColumns.value
+  return [...source.filter(column => column.key !== 'actions'), ...source.filter(column => column.key === 'actions')]
+})
 const columnReordering = computed(() => true)
 function applyColumnOrder(keys: string[]) {
   if (!controlledColumnOrder || props.columnOrderKey) setLocalColumnOrder(keys)
@@ -758,10 +766,10 @@ function applyMainColumnOrder(moved: Column[]) {
 }
 const draggableHeaderColumns = computed({ get: () => mainColumns.value, set: applyMainColumnOrder })
 function canMoveHeaderColumn(event: { related: HTMLElement; dragged: HTMLElement }) {
-  return event.related.dataset.columnKey !== 'select' && event.dragged.dataset.columnKey !== 'select'
+  return !['select', 'actions'].includes(event.related.dataset.columnKey ?? '') && !['select', 'actions'].includes(event.dragged.dataset.columnKey ?? '')
 }
 async function moveHeaderColumn(key: string, delta: number) {
-  if (key === 'select') return
+  if (key === 'select' || key === 'actions') return
   const movable = mainColumns.value.filter(column => column.key !== 'select')
   const from = movable.findIndex(column => column.key === key)
   const to = Math.max(0, Math.min(movable.length - 1, from + delta))
@@ -926,7 +934,7 @@ const resolveRowKey = (row: any, index: number) => resolveStableRowKey(row) ?? i
 const identitySelection = computed(() => props.selectable && props.data.length > 0 && props.data.every(row => ['string', 'number'].includes(typeof row?.id) && resolveStableRowKey(row) !== undefined))
 const mainColumns = computed(() => {
   const available = columns.value
-  let primary = available.filter(column => column.primary !== false)
+  let primary = available.filter(column => column.primary !== false || column.key === 'actions')
   if (!available.some(column => typeof column.primary === 'boolean')) {
     const defaults = props.primaryColumns ? new Set(props.primaryColumns) : defaultPrimaryColumnKeys(available)
     primary = available.filter(column => defaults.has(column.key) || requiredColumnKeys.value.includes(column.key))
@@ -968,6 +976,10 @@ watch(() => props.data, data => {
   const visible = new Set(data.map((row, index) => resolveRowKey(row, index)))
   expandedRows.value = new Set([...expandedRows.value].filter(key => visible.has(key)))
 })
+watch([() => props.expandRowKey, () => props.data], ([key]) => {
+  if (key == null || !props.data.some((row, index) => resolveRowKey(row, index) === key)) return
+  expandedRows.value = new Set([...expandedRows.value, key])
+}, { immediate: true })
 const wrapperWidth = ref(1080)
 const fixedColumnWidth = (key: string) => columns.value.find(column => column.key === key)?.width ?? (key === 'select' ? 48 : key === 'id' ? 112 : ['status', 'enabled'].includes(key) ? 120 : key === 'actions' ? Math.max(168, (props.actionsCount || 0) * 36 + 24) : 0)
 const columnWeight = (key: string) => columns.value.find(column => column.key === key)?.weight ?? (['name', 'email', 'model'].includes(key) ? 1.8 : ['group', 'groups', 'usage', 'key'].includes(key) ? 1.4 : 1)

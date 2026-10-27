@@ -146,7 +146,7 @@ describe('TokenGuardView', () => {
 
 
 describe('TokenGuardView shared record contracts', () => {
-  it('persists secondary account fields and preserves managed read-only actions in details', async () => {
+  it('persists secondary account fields and preserves managed read-only actions in the final main column', async () => {
     wrapper = mountView()
     await flushPromises()
     const table = wrapper.findAllComponents(DataTable)[0]
@@ -157,21 +157,24 @@ describe('TokenGuardView shared record contracts', () => {
     settings.vm.$emit('toggle', 'actions')
     await flushPromises()
     expect(table.find('th[data-column-key="probe"]').exists()).toBe(false)
-    expect(table.find('th[data-column-key="actions"]').exists()).toBe(false)
+    expect(table.findAll('th[data-column-key]').at(-1)?.attributes('data-column-key')).toBe('actions')
     await table.get('tr[data-index="0"] [data-test="toggle-details"]').trigger('click')
     const legacyDetails = table.findAll('.table-detail-row')[0]
-    await legacyDetails.findAll('button').find(button => button.text() === 'tokenGuard.relogin')!.trigger('click')
+    expect(legacyDetails.findAll('button').some(button => button.text() === 'tokenGuard.relogin')).toBe(false)
+    await table.get('tr[data-index="0"] td[data-column-key="actions"]').findAll('button').find(button => button.text() === 'tokenGuard.relogin')!.trigger('click')
     await flushPromises()
     expect(api.relogin).toHaveBeenCalledWith(1)
     wrapper.unmount()
     wrapper = mountView()
     await flushPromises()
     const restored = wrapper.findAllComponents(DataTable)[0]
-    expect(restored.find('th[data-column-key="actions"]').exists()).toBe(false)
+    expect(restored.findAll('th[data-column-key]').at(-1)?.attributes('data-column-key')).toBe('actions')
     await restored.get('[data-managed-account-id="42"] [data-test="toggle-details"]').trigger('click')
     const detail = restored.findAll('.table-detail-row')[0]
     expect(detail.text()).toContain('tokenGuard.probeStates.ok')
-    expect(detail.findComponent(RouterLinkStub).props('to')).toBe('/admin/token-guard-v2')
+    const managedActions = restored.get('[data-managed-account-id="42"] td[data-column-key="actions"]')
+    expect(managedActions.findComponent(RouterLinkStub).props('to')).toBe('/admin/token-guard-v2')
+    expect(managedActions.findAll('button').some(button => button.text() === 'tokenGuard.relogin')).toBe(false)
     expect(detail.findAll('button').some(button => button.text() === 'tokenGuard.relogin')).toBe(false)
   })
 

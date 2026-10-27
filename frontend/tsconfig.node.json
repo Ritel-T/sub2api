@@ -4,10 +4,13 @@
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "outDir": "./node_modules/.cache/ritel-vite-config",
+    "tsBuildInfoFile": "./node_modules/.cache/ritel-vite-config/tsconfig.node.tsbuildinfo"
   },
   "include": [
     "vite.config.ts",
-    "build/firstPaintBranding.ts"
+    "build/firstPaintBranding.ts",
+    "src/utils/accountOrigin.ts"
   ]
 }

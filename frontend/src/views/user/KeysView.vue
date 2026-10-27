@@ -74,7 +74,6 @@
         <div class="keys-page-heading">
           <AppHeading variant="page" as="h1">{{ t('keys.title') }}</AppHeading>
           <div class="keys-primary-actions">
-            <button @click="openConnectionPicker" class="btn btn-secondary" data-testid="connect-key-entry">{{ kc.connect }}</button>
             <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('keys.createKey') }}
@@ -128,15 +127,21 @@
           </template>
 
           <template #cell-current_concurrency="{ row }">
-            <div class="keys-concurrency-main" :title="concurrencyRows[row.id]?.notice || t('keys.concurrencyAndWaiting')">
-              <span :class="{ 'text-amber-600 dark:text-amber-400': concurrencyRows[row.id]?.concurrencyFull }" :aria-label="t('keys.concurrencyCount')">{{ concurrencyRows[row.id]?.current ?? '—' }}<template v-if="concurrencyRows[row.id]?.limit > 0"> / {{ concurrencyRows[row.id].limit }}</template></span>
+            <div class="keys-concurrency-main" data-testid="key-concurrency">
+              <span :class="concurrencyRows[row.id]?.concurrencyFull ? 'text-red-600 dark:text-red-400' : (concurrencyRows[row.id]?.current ?? 0) > 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-400 dark:text-dark-500'" :title="t('keys.concurrencyCount')">
+                <span class="sr-only">{{ t('keys.concurrencyCount') }}{{ ' ' }}</span>{{ concurrencyRows[row.id]?.current ?? '—' }}<template v-if="concurrencyRows[row.id]?.limit > 0"> / {{ concurrencyRows[row.id].limit }}</template>
+              </span>
+              <span v-if="(concurrencyRows[row.id]?.limit > 0 && (queuePolicy?.max_waiting ?? 0) > 0) || (concurrencyRows[row.id]?.waiting ?? 0) > 0" class="keys-waiting" :title="t('keys.waitingCount')" :class="concurrencyRows[row.id]?.full ? 'text-red-600 dark:text-red-400' : (concurrencyRows[row.id]?.waiting ?? 0) > 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-400 dark:text-dark-500'">
+                <Icon name="clock" size="xs" /><span class="sr-only">{{ t('keys.waitingCount') }}{{ ' ' }}</span>{{ concurrencyRows[row.id]?.waiting ?? '—' }}<template v-if="concurrencyRows[row.id]?.limit > 0 && (queuePolicy?.max_waiting ?? 0) > 0"> / {{ queuePolicy!.max_waiting }}</template><span v-if="concurrencyRows[row.id]?.full"> · {{ t('keys.queueFull') }}</span>
+              </span>
+              <span v-if="concurrencyRows[row.id]?.limit > 0 && queuePolicy?.max_waiting === 0" class="sr-only">{{ t('keys.queueOff') }}</span>
               <span v-if="concurrencyRows[row.id]?.notice" class="keys-concurrency-notice">{{ concurrencyRows[row.id].notice }}</span>
-              <span v-else-if="(queuePolicy?.max_waiting ?? 0) > 0 || (concurrencyRows[row.id]?.waiting ?? 0) > 0" class="keys-waiting" :title="t('keys.waitingCount')" :class="{ 'text-amber-600 dark:text-amber-400': concurrencyRows[row.id]?.full }"><Icon name="clock" size="xs" />{{ concurrencyRows[row.id]?.waiting ?? '—' }}</span>
+              <span v-if="concurrencyRows[row.id]?.limit > 0 && !queuePolicy" class="keys-concurrency-notice">{{ t(concurrencyState.status === 'loading' ? 'keys.queuePolicyLoading' : 'keys.queuePolicyUnavailable') }}</span>
             </div>
           </template>
 
           <template #cell-usage="{ row }">
-            <span class="keys-quota-used" :title="t('keys.quota')">${{ (row.quota_used ?? 0).toFixed(2) }}</span><span class="keys-quota-total"> / {{ row.quota > 0 ? '$' + row.quota.toFixed(2) : kw.unlimited }}</span>
+            <span class="keys-quota-used" :title="t('keys.today')" data-testid="key-today-usage">{{ usageStats[row.id] ? '$' + usageStats[row.id].today_actual_cost.toFixed(4) : '—' }}</span>
           </template>
 
           <template #cell-rate_limit="{ row }">
@@ -225,16 +230,7 @@
                   ⟳ {{ formatResetTime(row.reset_7d_at) }}
                 </div>
               </div>
-              <!-- Reset button -->
-              <button
-                v-if="row.usage_5h > 0 || row.usage_1d > 0 || row.usage_7d > 0"
-                @click.stop="confirmResetRateLimitFromTable(row)"
-                class="mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
-                :title="t('keys.resetRateLimitUsage')"
-              >
-                <Icon name="refresh" size="xs" />
-                {{ t('keys.resetUsage') }}
-              </button>
+
             </div>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
@@ -273,7 +269,13 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="keys-row-actions"><button data-testid="connect-key-row" :disabled="row.status !== 'active' || busyKeyIds.has(row.id)" @click.stop="openConnection(row)">{{ kw.use }}</button><button :disabled="busyKeyIds.has(row.id)" @click.stop="editKey(row)">{{ t('common.edit') }}</button></div>
+            <div class="keys-row-actions">
+              <button data-testid="connect-key-row" :disabled="row.status !== 'active' || busyKeyIds.has(row.id)" :title="kw.use" :aria-label="kw.use" @click.stop="openConnection(row)"><Icon name="link" size="sm" /><span class="sr-only">{{ kw.use }}</span></button>
+              <button :disabled="busyKeyIds.has(row.id)" :title="t('common.edit')" :aria-label="t('common.edit')" @click.stop="editKey(row)"><Icon name="edit" size="sm" /><span class="sr-only">{{ t('common.edit') }}</span></button>
+              <button :title="kc.requests" :aria-label="kc.requests" @click.stop="viewKeyRequests(row)"><Icon name="document" size="sm" /><span class="sr-only">{{ kc.requests }}</span></button>
+              <button v-if="(row.rate_limit_5h > 0 || row.rate_limit_1d > 0 || row.rate_limit_7d > 0) && (row.usage_5h > 0 || row.usage_1d > 0 || row.usage_7d > 0)" data-testid="reset-key-rate-limit" :data-key-id="row.id" :disabled="busyKeyIds.has(row.id) || resetRateLimitUsageAction.busy.value || loading" :title="t('keys.resetRateLimitUsage')" :aria-label="t('keys.resetRateLimitUsage')" @click.stop="confirmResetRateLimitFromTable(row)"><Icon name="refresh" size="sm" /><span class="sr-only">{{ t('keys.resetRateLimitUsage') }}</span></button>
+              <button :disabled="busyKeyIds.has(row.id)" :title="t('common.delete')" :aria-label="t('common.delete')" @click.stop="confirmDelete(row)"><Icon name="trash" size="sm" /><span class="sr-only">{{ t('common.delete') }}</span></button>
+            </div>
           </template>
 
           <template #details-extra="{ row }">
@@ -291,79 +293,13 @@
                   :peak-rate-multiplier="row.group.peak_rate_multiplier"
                 /><div v-if="(row.group_ids?.length ?? 0) > 1" class="keys-extra-groups">{{ (row.group_ids ?? []).map((id: number) => groups.find(group => group.id === id)?.name || '#' + id).join(' · ') }}</div></section>
               <section><AppHeading variant="subsection" as="h3">{{ t('keys.usage') }}</AppHeading>
-            <div class="text-sm">
-              <div class="flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
-                </span>
-              </div>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
-                </span>
-              </div>
-              </div></section>
-              <section><AppHeading variant="subsection" as="h3">{{ t('keys.concurrencyAndWaiting') }}</AppHeading><div data-testid="detail-concurrency">
-            <span
-              :title="t('keys.concurrencyCount')"
-              :class="[
-                'inline-flex items-center gap-1 rounded-md px-1.5 py-px text-xs font-normal leading-tight tabular-nums',
-                concurrencyRows[row.id]?.concurrencyFull
-                  ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/25 dark:text-amber-300 dark:ring-amber-800'
-                  : (concurrencyRows[row.id]?.current ?? 0) > 0
-                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
-                  : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
-              ]"
-            >
-              <svg
-                class="h-2.5 w-2.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m8-8a4 4 0 100-8 4 4 0 000 8" />
-              </svg>
-              <span class="sr-only">{{ t('keys.concurrencyCount') }}{{ ' ' }}</span>
-              <span class="whitespace-nowrap font-mono">
-                {{ concurrencyRows[row.id]?.current ?? '—' }}
-                <span v-if="concurrencyRows[row.id]?.limit > 0" class="ml-1">/ {{ concurrencyRows[row.id]?.limit }}</span>
-              </span>
-            </span>
-            <div v-if="concurrencyRows[row.id]?.limit > 0" class="mt-1 text-xs tabular-nums text-gray-500 dark:text-dark-400">
-              <template v-if="queuePolicy && concurrencyRows[row.id]?.limit > 0">
-                <span v-if="queuePolicy.max_waiting === 0" class="block">{{ t('keys.queueOff') }}</span>
-                <span v-if="queuePolicy.max_waiting > 0 || (concurrencyRows[row.id]?.waiting ?? 0) > 0"
-                  :class="{ 'text-amber-600 dark:text-amber-400': concurrencyRows[row.id]?.full }">
-                  <span :class="[
-                    'inline-flex items-center gap-1 rounded-md px-1.5 py-px font-normal leading-tight tabular-nums',
-                    concurrencyRows[row.id]?.full
-                      ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/25 dark:text-amber-300 dark:ring-amber-800'
-                      : concurrencyRows[row.id]?.waiting === 0
-                        ? 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
-                        : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
-                  ]" :title="t('keys.waitingCount')">
-                    <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                      <circle cx="12" cy="12" r="9" />
-                      <path stroke-linecap="round" d="M12 7v5l3 2" />
-                    </svg>
-                    <span class="sr-only">{{ t('keys.waitingCount') }}{{ ' ' }}</span>
-                    <span class="whitespace-nowrap font-mono">{{ concurrencyRows[row.id]?.waiting ?? '—' }}<template v-if="queuePolicy.max_waiting > 0"> / {{ queuePolicy.max_waiting }}</template></span>
-                  </span>
-                  <span v-if="concurrencyRows[row.id]?.full"> · {{ t('keys.queueFull') }}</span>
-                </span>
-              </template>
-              <span v-else>{{ t(concurrencyState.status === 'loading' ? 'keys.queuePolicyLoading' : 'keys.queuePolicyUnavailable') }}</span>
+                <dl class="keys-usage-details">
+                  <div><dt>{{ kw.recordedTotal }}</dt><dd data-testid="key-total-usage">{{ usageStats[row.id] ? '$' + usageStats[row.id].total_actual_cost.toFixed(4) : '—' }}</dd></div>
+                  <div><dt>{{ t('keys.quota') }}</dt><dd>${{ (row.quota_used ?? 0).toFixed(4) }} / {{ row.quota > 0 ? '$' + row.quota.toFixed(2) : kw.unlimited }}</dd></div>
+                </dl>
+              </section>
             </div>
-            <span v-if="concurrencyRows[row.id]?.notice" class="mt-1 block text-xs text-gray-500 dark:text-dark-400">
-              {{ concurrencyRows[row.id].notice }}
-            </span>
-          </div></section>
-            </div>
-            <div class="keys-detail-actions"><button class="btn btn-secondary btn-sm" @click="viewKeyRequests(row)">{{ kc.requests }}</button><button class="btn btn-secondary btn-sm" :disabled="busyKeyIds.has(row.id)" @click="confirmDelete(row)">{{ t('common.delete') }}</button></div>
+
           </template>
 
           <template #empty>
@@ -984,19 +920,7 @@
 
 
     <BaseDialog :show="showConnectionDialog" :title="kc.connect" width="normal" @close="closeConnection">
-      <div v-if="connectionKey" class="space-y-5">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 dark:border-dark-700">
-          <div><AppHeading variant="subsection" as="h3">{{ connectionKey.name }}</AppHeading><code>{{ maskApiKey(connectionKey.key) }}</code></div>
-          <button class="btn btn-secondary" @click="copyToClipboard(connectionKey.key, connectionKey.id)">{{ copiedKeyId === connectionKey.id ? t('keys.copied') : kc.copyKey }}</button>
-        </div>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <button class="btn btn-primary" data-testid="connect-manual" @click="openConnectionMethod('manual')">{{ kc.appConfiguration }}</button>
-          <button v-if="isCodexQuickConfigPlatform(connectionKey.group?.platform)" class="btn btn-secondary" data-testid="quick-config-button" @click="openConnectionMethod('quick')">{{ t('keys.quickConfigure') }}</button>
-          <button v-if="!publicSettings?.hide_ccs_import_button && getCcSwitchImportProfiles(connectionKey.group?.platform, publicSettings?.ccs_import_config).length" class="btn btn-secondary" :data-testid="`ccs-import-${connectionKey.id}`" @click="openConnectionMethod('import')">{{ t('keys.importToCcSwitch') }}</button>
-        </div>
-        <button class="btn btn-secondary" @click="openConnectionPicker">{{ kc.changeKey }}</button>
-      </div>
-      <div v-else class="space-y-4">
+      <div class="space-y-4">
         <label class="input-label" for="connection-key-search">{{ kc.chooseKey }}</label>
         <form class="workspace-filter-controls flex gap-2" @submit.prevent="loadConnectionKeys()">
           <input id="connection-key-search" v-model="connectionSearch" class="input" :placeholder="t('keys.searchPlaceholder')" />
@@ -1019,11 +943,18 @@
     <UseKeyModal
       :show="showUseKeyModal"
       :api-key="selectedKey?.key || ''"
+      :key-record="selectedKey"
+      :public-settings="publicSettings"
       :base-url="publicSettings?.api_base_url || ''"
       :platform="selectedKey?.group?.platform || null"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
       @close="closeUseKeyModal"
-    />
+    >
+      <template #footer-actions>
+        <button v-if="selectedKey && isCodexQuickConfigPlatform(selectedKey.group?.platform)" class="btn btn-secondary" data-testid="quick-config-button" @click="openCodexQuickConfigModal(selectedKey)">{{ t('keys.quickConfigure') }}</button>
+        <button type="button" class="btn btn-secondary" data-testid="change-connection-key" @click="openConnectionPicker">{{ kc.changeKey }}</button>
+      </template>
+    </UseKeyModal>
 
     <CodexQuickConfigModal
       :show="showCodexQuickConfigModal"
@@ -1032,40 +963,6 @@
       :platform="selectedCodexQuickConfigPlatform"
       @close="closeCodexQuickConfigModal"
     />
-
-    <!-- One profile launches directly; multiple profiles let the user choose. -->
-    <BaseDialog
-      :show="showCcsClientSelect"
-      :title="t('keys.ccsClientSelect.title')"
-      width="narrow"
-      @close="closeCcsClientSelect"
-    >
-      <div class="space-y-4">
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-          {{ t('keys.ccsClientSelect.description') }}
-        </p>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button
-            v-for="profile in ccsProfileOptions"
-            :key="profile.id"
-            :data-testid="`ccs-profile-${profile.id}`"
-            @click="handleCcsClientSelect(profile)"
-            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
-          >
-            <Icon :name="profile.app === 'gemini' ? 'sparkles' : 'terminal'" size="xl" class="text-gray-600 dark:text-gray-400" />
-            <span class="font-medium text-gray-900 dark:text-white">{{ profile.label }}</span>
-            <span v-if="profile.parameters.model" class="text-xs text-gray-500 dark:text-gray-400">{{ profile.parameters.model }}</span>
-          </button>
-        </div>
-	      </div>
-      <template #footer>
-        <div class="flex justify-end">
-          <button @click="closeCcsClientSelect" class="btn btn-secondary">
-            {{ t('common.cancel') }}
-          </button>
-        </div>
-      </template>
-    </BaseDialog>
 
     <!-- Group Selector Dropdown (Teleported to body to avoid overflow clipping) -->
     <Teleport to="body">
@@ -1187,11 +1084,6 @@ import { maskApiKey } from '@/utils/maskApiKey'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { platformBadgeLightClass } from '@/utils/platformColors'
 import { KEY_GROUP_PROVIDERS, KEY_GROUP_PROVIDER_ICONS, getKeyGroupProvider, type KeyGroupProvider } from '@/utils/keyGroupProviders'
-import {
-  buildCcSwitchImportDeeplink,
-  getCcSwitchImportProfiles
-} from '@/utils/ccswitchImport'
-import type { CcsImportProfile } from '@/types/ccswitch'
 import { isCodexQuickConfigPlatform } from '@/utils/codexQuickConfig'
 
 // Helper to format date for datetime-local input
@@ -1224,7 +1116,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true },
   { key: 'key', label: t('keys.apiKey'), sortable: false },
   { key: 'group', label: t('keys.group'), sortable: true },
-  { key: 'usage', label: t('keys.usage'), sortable: false },
+  { key: 'usage', label: t('keys.today'), sortable: false },
   { key: 'current_concurrency', label: kw.value.concurrent, sortable: true },
   { key: 'status', label: t('common.status'), sortable: true },
   { key: 'actions', label: t('common.actions'), sortable: false },
@@ -1410,8 +1302,6 @@ const connectionLoading = computed(() => connectionRouteLoading.value || connect
 const connectionError = computed(() => connectionRouteError.value || (connectionList.error.value ? (connectionList.error.value as Error)?.message || t('keys.failedToLoad') : ''))
 const showUseKeyModal = ref(false)
 const showCodexQuickConfigModal = ref(false)
-const showCcsClientSelect = ref(false)
-const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const selectedCodexQuickConfigPlatform = computed(() => {
   const platform = selectedKey.value?.group?.platform
@@ -1420,10 +1310,6 @@ const selectedCodexQuickConfigPlatform = computed(() => {
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
-const ccsProfileOptions = computed(() => getCcSwitchImportProfiles(
-  pendingCcsRow.value?.group?.platform,
-  publicSettings.value?.ccs_import_config
-))
 const dropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
@@ -1713,14 +1599,19 @@ const openConnectionPicker = () => {
   ++connectionRouteRequest
   connectionRouteLoading.value = false
   connectionKey.value = null
+  showUseKeyModal.value = false
+  selectedKey.value = null
   showConnectionDialog.value = true
   void loadConnectionKeys()
 }
 const openConnection = (key: ApiKey) => {
+  ++connectionRouteRequest
+  connectionRouteLoading.value = false
   connectionPickerActive.value = false
   connectionList.cancel()
   connectionKey.value = key
-  showConnectionDialog.value = true
+  showConnectionDialog.value = false
+  openUseKeyModal(key)
 }
 const closeConnection = () => {
   showConnectionDialog.value = false
@@ -1733,17 +1624,6 @@ const closeConnection = () => {
 const createFromConnection = () => {
   closeConnection()
   showCreateModal.value = true
-}
-const openConnectionMethod = (method: 'manual' | 'quick' | 'import') => {
-  const key = connectionKey.value
-  if (!key) return
-  showConnectionDialog.value = false
-  if (method === 'manual') openUseKeyModal(key)
-  else if (method === 'quick') openCodexQuickConfigModal(key)
-  else {
-    importToCcswitch(key)
-    if (!showCcsClientSelect.value) showConnectionDialog.value = true
-  }
 }
 const viewKeyRequests = (key: ApiKey) => router.push({ path: '/usage', query: { view: 'records', api_key_id: String(key.id) } })
 let connectionRouteRequest = 0
@@ -1761,6 +1641,8 @@ const applyConnectionRoute = async () => {
     return
   }
   // Resolve the requested object through the authenticated API, regardless of list filters/page.
+  showUseKeyModal.value = false
+  selectedKey.value = null
   connectionKey.value = null
   connectionPickerActive.value = false
   connectionList.clear()
@@ -1785,19 +1667,20 @@ const openUseKeyModal = (key: ApiKey) => {
 
 const openCodexQuickConfigModal = (key: ApiKey) => {
   selectedKey.value = key
+  showUseKeyModal.value = false
   showCodexQuickConfigModal.value = true
 }
 
 const closeUseKeyModal = () => {
   showUseKeyModal.value = false
   selectedKey.value = null
-  if (connectionKey.value) showConnectionDialog.value = true
+  closeConnection()
 }
 
 const closeCodexQuickConfigModal = () => {
   showCodexQuickConfigModal.value = false
-  selectedKey.value = null
-  if (connectionKey.value) showConnectionDialog.value = true
+  selectedKey.value = connectionKey.value
+  showUseKeyModal.value = !!connectionKey.value
 }
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
@@ -2169,61 +2052,6 @@ function resetRateLimitUsage() {
   })
 }
 
-const importToCcswitch = (row: ApiKey) => {
-  const profiles = getCcSwitchImportProfiles(row.group?.platform, publicSettings.value?.ccs_import_config)
-  if (profiles.length > 1) {
-    pendingCcsRow.value = row
-    showCcsClientSelect.value = true
-    return
-  }
-  if (profiles[0]) executeCcsImport(row, profiles[0])
-}
-
-const executeCcsImport = (row: ApiKey, profile: CcsImportProfile) => {
-  const baseUrl = publicSettings.value?.api_base_url || window.location.origin
-  const platform = row.group?.platform || 'anthropic'
-  const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
-  const deeplink = buildCcSwitchImportDeeplink({
-    baseUrl,
-    platform,
-    profile,
-    settings: publicSettings.value?.ccs_import_config,
-    providerName,
-    apiKey: row.key,
-    keyName: row.name,
-    userId: row.user_id
-  })
-
-  try {
-    window.open(deeplink, '_self')
-
-    // Check if the protocol handler worked by detecting if we're still focused
-    setTimeout(() => {
-      if (document.hasFocus()) {
-        // Still focused means the protocol handler likely failed
-        appStore.showError(t('keys.ccSwitchNotInstalled'))
-      }
-    }, 100)
-  } catch (error) {
-    appStore.showError(t('keys.ccSwitchNotInstalled'))
-  }
-}
-
-const handleCcsClientSelect = (profile: CcsImportProfile) => {
-  if (pendingCcsRow.value) {
-    executeCcsImport(pendingCcsRow.value, profile)
-  }
-  showCcsClientSelect.value = false
-  pendingCcsRow.value = null
-  if (connectionKey.value) showConnectionDialog.value = true
-}
-
-const closeCcsClientSelect = () => {
-  showCcsClientSelect.value = false
-  pendingCcsRow.value = null
-  if (connectionKey.value) showConnectionDialog.value = true
-}
-
 function formatResetTime(resetAt: string | null): string {
   if (!resetAt) return ''
   const diff = new Date(resetAt).getTime() - now.value.getTime()
@@ -2270,7 +2098,6 @@ watch(() => ({ active: showResetRateLimitDialog.value, identity: JSON.stringify(
 .keys-page-heading h1 { margin: 0; }
 .keys-primary-actions { display: flex; align-items: center; gap: 12px; }
 .keys-table-tools { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-.keys-table-tools :deep(.btn){border-color:transparent;background:transparent;box-shadow:none}
 @media (max-width: 767px) {
   .keys-page-heading { flex-direction: column; align-items: stretch; gap: 20px; }
   .keys-primary-actions { flex-wrap: wrap; }
@@ -2294,12 +2121,12 @@ watch(() => ({ active: showResetRateLimitDialog.value, identity: JSON.stringify(
 .keys-group-button{display:flex;align-items:center;gap:6px;min-height:44px;max-width:100%;border:0;background:none;padding:0;font:inherit;text-align:left;cursor:pointer}
 .keys-group-button>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.keys-group-button>span:not(:first-child){flex:none;white-space:nowrap}.keys-group-button>svg{flex:none}
 .keys-quota-used{font-weight:500}.keys-quota-total{color:var(--ritel-muted)}
-.keys-concurrency-main{display:flex;align-items:center;gap:10px;max-width:100%;white-space:nowrap}.keys-waiting{display:inline-flex;align-items:center;gap:4px;color:var(--ritel-muted)}.keys-concurrency-notice{font-size:12px;overflow:hidden;text-overflow:ellipsis;color:var(--ritel-muted)}
-.keys-row-actions{display:flex;align-items:center;gap:16px}.keys-row-actions>button{min-height:44px;border:0;background:none;padding:0;font:inherit;cursor:pointer}.keys-row-actions>button:last-child{color:var(--ritel-muted)}
+.keys-concurrency-main{display:flex;align-items:center;gap:10px;max-width:100%;white-space:nowrap}.keys-waiting{display:inline-flex;align-items:center;gap:4px}.keys-concurrency-notice{font-size:12px;overflow:hidden;text-overflow:ellipsis;color:var(--ritel-muted)}
+.keys-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:0}.keys-row-actions>button{display:inline-flex;align-items:center;justify-content:center;width:36px;min-height:44px;border:0;background:none;padding:0;color:var(--ritel-muted);font:inherit;cursor:pointer}.keys-row-actions>button:hover{color:var(--ritel-fg)}.keys-row-actions>button:last-child:hover{color:var(--ritel-field-danger)}
 .keys-status-switch{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer}.keys-switch-track{display:flex;align-items:center;width:32px;height:18px;border:1px solid var(--ritel-control-border);border-radius:999px;background:var(--ritel-surface-raised);padding:2px;box-sizing:border-box}.keys-switch-track>span{width:12px;height:12px;border-radius:50%;background:var(--ritel-muted);transition:transform .15s ease-out}.keys-status-switch[aria-checked=true] .keys-switch-track{background:#047857;border-color:#047857}.keys-status-switch[aria-checked=true] .keys-switch-track>span{transform:translateX(12px);background:#fffefa}.keys-blocked-status{min-height:44px;border:0;background:none;padding:0;font:inherit;font-size:12px;text-align:left;cursor:pointer}
-.keys-extra-details{display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;padding-top:24px}.keys-extra-details h3{color:var(--ritel-muted);margin-bottom:10px}.keys-extra-groups{font-size:12px;color:var(--ritel-muted);margin-top:8px}.keys-detail-actions{display:flex;gap:12px;margin-top:24px}
+.keys-extra-details{display:grid;grid-template-columns:1fr 1fr;gap:32px;padding-top:24px}.keys-extra-details h3{color:var(--ritel-muted);margin-bottom:10px}.keys-extra-groups{font-size:12px;color:var(--ritel-muted);margin-top:8px}.keys-usage-details{display:grid;gap:6px}.keys-usage-details>div{display:flex;align-items:baseline;gap:12px}.keys-usage-details dt{color:var(--ritel-muted)}.keys-usage-details dd{font-variant-numeric:tabular-nums}
 .keys-key-copy:disabled,.keys-group-button:disabled,.keys-row-actions>button:disabled,.keys-status-switch:disabled{opacity:.5;cursor:wait}
-@media(max-width:767px){.keys-extra-details{grid-template-columns:1fr;gap:24px}.keys-group-button{white-space:normal}.keys-row-actions{gap:24px}}
+@media(max-width:767px){.keys-extra-details{grid-template-columns:1fr;gap:24px}.keys-group-button{white-space:normal}.keys-row-actions{gap:0}}
 @media(prefers-reduced-motion:reduce){.keys-switch-track>span{transition:none}}
 </style>
 

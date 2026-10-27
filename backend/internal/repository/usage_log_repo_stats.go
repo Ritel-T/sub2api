@@ -555,19 +555,20 @@ func (r *usageLogRepository) GetBatchUserUsageStats(ctx context.Context, userIDs
 // BatchAPIKeyUsageStats represents usage stats for a single API key
 type BatchAPIKeyUsageStats = usagestats.BatchAPIKeyUsageStats
 
-// GetBatchAPIKeyUsageStats gets today and total actual_cost for multiple API keys within a time range.
-// If startTime is zero, defaults to 30 days ago.
+// GetBatchAPIKeyUsageStats gets today's actual cost and the recorded total for selected keys.
+// A zero start includes all retained records; explicit ranges remain half-open.
+// This is not a lifetime ledger: usage records removed by retention cannot be reconstructed here.
 func (r *usageLogRepository) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*BatchAPIKeyUsageStats, error) {
 	result := make(map[int64]*BatchAPIKeyUsageStats)
+
 	normalizedAPIKeyIDs := normalizePositiveInt64IDs(apiKeyIDs)
 	if len(normalizedAPIKeyIDs) == 0 {
 		return result, nil
 	}
-
-	// 默认最近 30 天
-	if startTime.IsZero() {
-		startTime = time.Now().AddDate(0, 0, -30)
-	}
+	// The caller caps selected IDs; the key/time index scopes the scan. Bound
+	// execution as well, since an old key may own a large retained history.
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	if endTime.IsZero() {
 		endTime = time.Now()
 	}

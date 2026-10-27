@@ -36,6 +36,10 @@
       </section>
 
       <UserDashboardQuickActions v-if="authStore.user" :recent-keys="recentKeys" :groups="groups" :loading="states.keys.loading" :error="states.keys.error" :groups-loading="states.groups.loading" :groups-error="states.groups.error" @retry="loadKeys" @retry-groups="loadGroups" @created="onKeyCreated" />
+      <router-link v-if="!authStore.isSimpleMode && appStore.cachedPublicSettings?.affiliate_enabled" to="/affiliate" class="dashboard-referral" data-test="referral-entry">
+        <div><AppHeading variant="section" as="h2">{{ copy.invite }}</AppHeading><p>{{ copy.inviteHint }}</p></div>
+        <span class="dashboard-referral-action">{{ copy.inviteAction }} <Icon name="arrowRight" size="sm" /></span>
+      </router-link>
       <UserDashboardRecentUsage :data="recentUsage" :errors="recentErrors" :loading="states.recent.loading" :error="states.recent.error" @retry="loadRecent" />
 
     </div>
@@ -43,6 +47,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
@@ -139,10 +144,14 @@ onBeforeUnmount(() => { alive = false; ownerGeneration++ })
 .dashboard-summary>div{min-width:0}
 .dashboard-metric-label{color:var(--ritel-muted)}
 .dashboard-balance,.dashboard-spending{display:flex;flex-direction:column;justify-content:space-between}
-.dashboard-balance-value,.dashboard-spending-value{margin-block:1rem 0;line-height:1.1;overflow-wrap:anywhere;font-size:clamp(2.75rem,4.5vw,4.5rem)}
+.dashboard-balance-value,.dashboard-spending-value{margin-block:.5rem 0;line-height:.95;overflow-wrap:anywhere;font-size:clamp(3rem,5.4vw,5.5rem)}
 .dashboard-activity{display:grid;grid-template-rows:1fr 1fr;gap:1rem}
 .dashboard-activity-value{margin-block:.375rem 0;font-size:1.75rem;line-height:1.1;overflow-wrap:anywhere}
 .dashboard-metric-state{margin-block:1.5rem}
 .dashboard-summary-simple{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
-@media(max-width:767px){.dashboard-summary{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2rem 1.5rem;padding-block:1rem 2rem}.dashboard-balance-value,.dashboard-spending-value{font-size:clamp(1.75rem,8vw,2.5rem)}.dashboard-activity{grid-column:1/-1;grid-template-columns:1fr 1fr;grid-template-rows:auto;gap:1.5rem}}
+.dashboard-referral{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;border-block:1px solid var(--ritel-border);padding-block:1.75rem;color:var(--ritel-fg)}
+.dashboard-referral p{margin-top:.5rem;color:var(--ritel-muted)}
+.dashboard-referral-action{display:inline-flex;align-items:center;gap:.75rem;white-space:nowrap}
+.dashboard-referral:hover .dashboard-referral-action{text-decoration:underline;text-underline-offset:.3em}
+@media(max-width:767px){.dashboard-referral{align-items:flex-start;flex-direction:column}.dashboard-summary{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2rem 1.5rem;padding-block:1rem 2rem}.dashboard-balance-value,.dashboard-spending-value{font-size:clamp(1.75rem,8vw,2.5rem)}.dashboard-activity{grid-column:1/-1;grid-template-columns:1fr 1fr;grid-template-rows:auto;gap:1.5rem}}
 </style>

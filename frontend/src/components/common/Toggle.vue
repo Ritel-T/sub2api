@@ -3,7 +3,7 @@
     type="button"
     @click="toggle"
     class="relative inline-flex flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800"
-    :class="[size === 'small' ? 'h-5 w-9' : 'h-6 w-11', modelValue ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600']"
+    :class="[size === 'small' ? 'h-5 w-9' : 'h-6 w-11', modelValue ? 'ritel-toggle-on' : 'ritel-toggle-off']"
     :disabled="disabled"
     role="switch"
     :aria-checked="modelValue"
@@ -31,3 +31,10 @@ function toggle() {
   emit('update:modelValue', !props.modelValue)
 }
 </script>
+
+<style scoped>
+.ritel-toggle-on{background:var(--ritel-fg)}
+.ritel-toggle-off{background:var(--ritel-surface-inset);border-color:var(--ritel-border)}
+.ritel-toggle-on>span{background:var(--ritel-bg)}
+.ritel-toggle-off>span{background:var(--ritel-muted)}
+</style>

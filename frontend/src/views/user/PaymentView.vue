@@ -8,7 +8,7 @@
       <template v-else>
         <p v-if="checkout.merchant_test_access" data-test="merchant-test-access" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{{ t('paymentRetail.merchantTest') }}</p>
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
-        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="purchase-tabs flex flex-wrap gap-6 border-b border-gray-200 dark:border-dark-700">
+        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="purchase-tabs flex flex-wrap gap-6">
           <button v-for="tab in tabs" :key="tab.key"
             class="border-b-2 px-1 py-3 text-sm font-medium transition-colors"
             :class="activeTab === tab.key ? 'border-current text-gray-900 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
@@ -1537,6 +1537,8 @@ onMounted(async () => {
 .purchase-topup{display:grid;gap:2rem;align-items:start}.purchase-topup>.open-section{padding:1.5rem 0}.purchase-account p:last-child{margin-top:1rem}
 @media(min-width:1000px){.purchase-topup{grid-template-columns:minmax(0,1.8fr) minmax(16rem,1fr);column-gap:clamp(3rem,7vw,7rem)}.purchase-account{grid-column:2;grid-row:1}.purchase-amount{grid-column:1;grid-row:1}.purchase-methods{grid-column:1;grid-row:2}.purchase-summary{grid-column:2;grid-row:2 / span 2}.purchase-topup>[data-test="create-recharge-order"]{grid-column:1}.purchase-return{grid-column:1 / -1}.purchase-topup:has(.purchase-return) .purchase-account,.purchase-topup:has(.purchase-return) .purchase-amount{grid-row:2}.purchase-topup:has(.purchase-return) .purchase-methods{grid-row:3}.purchase-topup:has(.purchase-return) .purchase-summary{grid-row:3 / span 2}}
 
+.purchase-workspace>:deep(header){border-bottom:0;padding-bottom:0}
+.purchase-topup>.purchase-account,.purchase-topup>.purchase-amount{border-top:0}
 .purchase-workspace{max-width:88rem;margin-inline:auto}.purchase-workspace>.open-section{padding:1.75rem 0}
 .purchase-plans{display:flex;flex-direction:column;gap:0}.purchase-plans>:deep(*){min-width:0}
 .purchase-workspace :deep(.input),.purchase-workspace :deep(.select){max-width:100%}

@@ -3219,6 +3219,8 @@ func TestOpenAIGatewayServiceRecordUsage_FreeOpenAIFastChargesStandard(t *testin
 	require.NotNil(t, usageRepo.lastLog)
 	require.NotNil(t, usageRepo.lastLog.ServiceTier)
 	require.Equal(t, "priority", *usageRepo.lastLog.ServiceTier)
+	require.NotNil(t, usageRepo.lastLog.FreeFastApplied)
+	require.True(t, *usageRepo.lastLog.FreeFastApplied)
 	require.InDelta(t, 0.5, usageRepo.lastLog.RateMultiplier, 1e-12)
 
 	standardTotal := float64(tokens.InputTokens)*inputPrice + float64(tokens.OutputTokens)*outputPrice
@@ -3263,6 +3265,8 @@ func TestOpenAIGatewayServiceRecordUsage_FreeOpenAIFastMissingPricingRecordsZero
 	require.Equal(t, 1, usageRepo.calls)
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, "resp_free_fast_missing_pricing", usageRepo.lastLog.RequestID)
+	require.NotNil(t, usageRepo.lastLog.FreeFastApplied)
+	require.False(t, *usageRepo.lastLog.FreeFastApplied)
 	require.Equal(t, 1200, usageRepo.lastLog.InputTokens)
 	require.Equal(t, 300, usageRepo.lastLog.OutputTokens)
 	require.NotNil(t, usageRepo.lastLog.ServiceTier)

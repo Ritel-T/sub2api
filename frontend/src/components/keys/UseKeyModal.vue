@@ -24,10 +24,15 @@
             </dd>
           </div>
         </dl>
-        <div v-if="ccsProfiles.length" class="flex flex-wrap gap-3">
-          <button v-for="profile in ccsProfiles" :key="profile.id" type="button" class="btn btn-primary" :data-testid="`connection-ccs-${profile.id}`" @click="importConnection(profile)">
-            {{ t('keys.importToCcSwitch') }}<span v-if="ccsProfiles.length > 1"> · {{ profile.label }}</span>
-          </button>
+        <div v-if="ccsProfiles.length" class="space-y-3">
+          <AppHeading as="h3" variant="subsection">{{ kc.oneClickImport }}</AppHeading>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="profile in ccsProfiles" :key="profile.id" type="button" class="btn btn-secondary" :disabled="!canImportApplication(profile)" :title="canImportApplication(profile) ? undefined : kc.geminiNativeOnly" :data-testid="`connection-ccs-${profile.id}`" @click="importConnection(profile)">
+              <Icon name="download" size="sm" class="mr-2" />{{ profile.label }}
+            </button>
+          </div>
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ kc.ccsRouting }} <a href="https://ccswitch.io" target="_blank" rel="noopener noreferrer" class="link">{{ kc.downloadCcs }}</a></p>
+          <p v-if="!supportsGeminiNative" class="text-sm text-gray-500 dark:text-gray-400">{{ kc.geminiNativeOnly }}</p>
         </div>
         <p v-if="ccsImportFailed" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ t('keys.ccSwitchNotInstalled') }}</p>
       </section>
@@ -49,7 +54,7 @@
       <!-- Platform-specific content -->
       <template v-else>
         <!-- Client Tabs -->
-        <div v-if="clientTabs.length" class="overflow-x-auto border-b border-gray-200 dark:border-dark-700">
+        <div v-if="clientTabs.length" class="connection-tabs overflow-x-auto border-b border-gray-200 dark:border-dark-700">
           <nav class="-mb-px flex min-w-max gap-4 sm:gap-6" :aria-label="kc.application">
             <button
               v-for="tab in applicationTabs"
@@ -71,6 +76,20 @@
           </nav>
         </div>
 
+        <section v-if="activeClientTab === 'dsh'" class="space-y-3" data-testid="dsh-guide">
+          <AppHeading as="h3" variant="subsection">DeepSeek Harness · dsh</AppHeading>
+          <ol class="list-decimal space-y-2 pl-5 text-sm leading-6">
+            <li>{{ kc.dshStart }} <code>npx @deepseek-ai/dsh web</code></li>
+            <li>{{ kc.dshProvider }}</li>
+            <li>{{ kc.dshConnection }} <code>{{ dshConnectionUrl }}</code> · {{ dshProtocol }}</li>
+            <li>{{ kc.dshModels }}</li>
+          </ol>
+          <a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/providers.md" target="_blank" rel="noopener noreferrer" class="link text-sm">{{ kc.officialGuide }} ↗</a>
+        </section>
+
+        <details v-else class="connection-advanced" data-testid="advanced-configuration" :open="advancedOpen" @toggle="advancedOpen = ($event.target as HTMLDetailsElement).open">
+          <summary class="cursor-pointer py-3 text-sm font-medium">{{ kc.advancedConfiguration }}</summary>
+          <div class="space-y-4 pt-2">
         <fieldset v-if="platform === 'openai' && (activeClientTab === 'codex' || activeClientTab === 'codex-ws')" class="space-y-2" data-testid="codex-transport">
           <legend class="input-label">{{ kc.connectionMethod }}</legend>
           <div class="flex flex-wrap gap-2">
@@ -138,8 +157,8 @@
         </div>
 
         <!-- OS/Shell Tabs -->
-        <div v-if="showShellTabs" class="overflow-x-auto border-b border-gray-200 dark:border-dark-700">
-          <nav class="-mb-px flex min-w-max gap-4" aria-label="Tabs">
+        <div v-if="showShellTabs" class="connection-tabs overflow-x-auto border-b border-gray-200 dark:border-dark-700">
+          <nav class="-mb-px flex min-w-max gap-4" :aria-label="kc.operatingSystem">
             <button
               v-for="tab in currentTabs"
               :key="tab.id"
@@ -277,11 +296,14 @@
             {{ platformNote }}
           </p>
         </div>
+          </div>
+        </details>
       </template>
     </div>
 
     <template #footer>
-      <div class="flex justify-end">
+      <div class="flex flex-wrap justify-end gap-3">
+        <slot name="footer-actions" />
         <button
           @click="emit('close')"
           class="btn btn-secondary"
@@ -304,8 +326,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { buildCodexModelCatalogUrl, fetchCodexModelsManifest } from '@/api/codex'
 import type { ApiKey, GroupPlatform, PublicSettings } from '@/types'
-import type { CcsImportProfile } from '@/types/ccswitch'
-import { buildCcSwitchImportDeeplink, getCcSwitchImportProfiles } from '@/utils/ccswitchImport'
+import { buildCcSwitchImportDeeplink, getCcSwitchApplicationProfiles, type CcSwitchApplicationProfile } from '@/utils/ccswitchImport'
 import {
   findCodexCatalogModel,
   formatCodexReasoningEffortTomlLine,
@@ -349,7 +370,17 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const ccsImportFailed = ref(false)
 const ccsProfiles = computed(() => !props.keyRecord || !props.platform || props.publicSettings?.hide_ccs_import_button
-  ? [] : getCcSwitchImportProfiles(props.platform, props.publicSettings?.ccs_import_config))
+  ? [] : getCcSwitchApplicationProfiles(props.platform, props.publicSettings?.ccs_import_config))
+const supportsGeminiNative = computed(() => ['gemini', 'antigravity', 'composite'].includes(props.platform || ''))
+const canImportApplication = (profile: CcSwitchApplicationProfile) => profile.app !== 'gemini' || supportsGeminiNative.value
+const advancedOpen = ref(false)
+const dshConnectionUrl = computed(() => {
+  const root = (props.baseUrl || window.location.origin).replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
+  if (props.platform === 'antigravity') return root.endsWith('/antigravity') ? root : `${root}/antigravity`
+  return props.platform === 'anthropic' ? root : `${root}/v1`
+})
+const dshProtocol = computed(() => props.platform === 'anthropic' || props.platform === 'antigravity' ? 'Anthropic Messages'
+  : props.platform === 'openai' || props.platform === 'composite' ? 'OpenAI Responses' : 'OpenAI Chat Completions')
 const connectionUrls = computed(() => {
   const root = (props.baseUrl || window.location.origin).replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
   const antigravityRoot = root.endsWith('/antigravity') ? root : `${root}/antigravity`
@@ -366,9 +397,9 @@ const connectionUrls = computed(() => {
   if (props.platform === 'typesafe') return [{ url: `${root}/v1/systemone`, label: '' }]
   return [{ url: root, label: '' }]
 })
-function importConnection(profile: CcsImportProfile) {
+function importConnection(profile: CcSwitchApplicationProfile) {
   const record = props.keyRecord
-  if (!props.show || !record || !ccsProfiles.value.some(item => item.id === profile.id)) return
+  if (!props.show || !record || !canImportApplication(profile) || !ccsProfiles.value.some(item => item.id === profile.id)) return
   ccsImportFailed.value = false
   try {
     const deeplink = buildCcSwitchImportDeeplink({
@@ -386,7 +417,7 @@ function importConnection(profile: CcsImportProfile) {
     ccsImportFailed.value = true
   }
 }
-watch(() => [props.show, props.keyRecord?.id], () => { ccsImportFailed.value = false })
+watch(() => [props.show, props.keyRecord?.id], () => { ccsImportFailed.value = false; advancedOpen.value = false })
 
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
@@ -602,7 +633,10 @@ const openaiTabs: TabConfig[] = [
   { id: 'windows', label: 'Windows', icon: WindowsIcon }
 ]
 
-const applicationTabs = computed(() => clientTabs.value.filter(tab => tab.id !== 'codex-ws'))
+const applicationTabs = computed(() => [
+  ...clientTabs.value.filter(tab => tab.id !== 'codex-ws'),
+  ...(props.platform === 'typesafe' ? [] : [{ id: 'dsh', label: 'dsh', icon: TerminalIcon }])
+])
 
 const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
 

@@ -1,5 +1,7 @@
 import type { GroupPlatform } from '@/types'
-import type { CcsImportConfig, CcsImportProfile } from '@/types/ccswitch'
+import type { CcsImportApp, CcsImportConfig, CcsImportProfile } from '@/types/ccswitch'
+
+export type CcSwitchApplicationProfile = Omit<CcsImportProfile, 'platform'> & { platform: GroupPlatform }
 
 export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-6-astra'
 export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
@@ -22,7 +24,7 @@ export interface CcSwitchImportDeeplinkInput {
   keyName?: string
   userId?: string | number
   settings?: CcsImportConfig | null
-  profile?: CcsImportProfile
+  profile?: CcSwitchApplicationProfile
 }
 
 /** The provider import contract was checked against CC Switch v4.0.14. */
@@ -53,6 +55,60 @@ export function getCcSwitchImportProfiles(
   return profiles.filter(profile =>
     profile?.platform === (platform || 'anthropic') && CC_SWITCH_SUPPORTED_APPS.includes(profile.app)
   )
+}
+
+/** User-facing app selection is independent of the key's platform templates. */
+export function getCcSwitchApplicationProfiles(
+  platform: GroupPlatform,
+  settings?: CcsImportConfig | null
+): CcSwitchApplicationProfile[] {
+  // SystemOne/TypeSafe is a dedicated non-LLM API, not an agent provider.
+  if (platform === 'typesafe') return []
+  if (Array.isArray(settings?.profiles) && settings.profiles.length === 0) return []
+  const templates = getCcSwitchImportProfiles(platform, settings)
+  const preferredModels: Partial<Record<GroupPlatform, string>> = {
+    openai: OPENAI_CC_SWITCH_CODEX_MODEL, anthropic: 'claude-sonnet-4-6',
+    antigravity: 'claude-sonnet-4-6', gemini: 'gemini-2.5-pro', grok: GROK_CC_SWITCH_MODEL,
+    deepseek: 'deepseek-v4-pro', minimax: 'MiniMax-M3', kimi: 'kimi-k2.5',
+    zhipu: 'glm-4.7', opencode_go: 'glm-5.3', composite: OPENAI_CC_SWITCH_CODEX_MODEL
+  }
+  const platformModel = templates.find(item => item.parameters.model)?.parameters.model || preferredModels[platform]
+  const apps: { app: CcsImportApp; label: string }[] = [
+    { app: 'codex', label: 'Codex' }, { app: 'claude', label: 'Claude Code' },
+    { app: 'opencode', label: 'OpenCode' }, { app: 'openclaw', label: 'OpenClaw' },
+    { app: 'gemini', label: 'Gemini CLI' }, { app: 'grokbuild', label: 'Grok Build' },
+    { app: 'hermes', label: 'Hermes' }, { app: 'pi', label: 'Pi' }
+  ]
+  return apps.flatMap(({ app, label }) => {
+    const model = app === 'gemini' && (platform === 'antigravity' || platform === 'composite')
+      ? 'gemini-2.5-pro' : platformModel
+    const profile: CcSwitchApplicationProfile = {
+      id: `${platform}-${app}`, label, platform, app, parameters: model ? { model } : {}
+    }
+    // Gemini CLI cannot consume a converted protocol. Its availability is shown
+    // explicitly in the UI. Other clients use CCS routing or a native SDK.
+    let apiFormat = platform === 'gemini' ? 'gemini_native'
+      : platform === 'anthropic' || platform === 'antigravity' ? 'anthropic'
+        : platform === 'openai' || platform === 'composite' ? 'openai_responses' : 'openai_chat'
+    if (app === 'gemini') apiFormat = 'gemini_native'
+    if (apiFormat === 'gemini_native' && ['codex', 'grokbuild', 'hermes'].includes(app)) apiFormat = 'openai_responses'
+    profile.parameters.apiFormat = apiFormat
+    if (app === 'claude' && model && platform !== 'anthropic' && platform !== 'antigravity') {
+      profile.parameters.haikuModel = model
+      profile.parameters.sonnetModel = model
+      profile.parameters.opusModel = model
+    }
+    const configured = templates.filter(item => item.app === app)
+    if (configured.length) return configured.map(item => ({
+      ...item, parameters: {
+        ...profile.parameters,
+        ...(app === 'claude' && item.parameters.model && platform !== 'anthropic' && platform !== 'antigravity'
+          ? { haikuModel: item.parameters.model, sonnetModel: item.parameters.model, opusModel: item.parameters.model } : {}),
+        ...item.parameters
+      }
+    }))
+    return [profile]
+  })
 }
 
 /**
@@ -141,7 +197,7 @@ function encodeUtf8Base64(value: string): string {
   return btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join(''))
 }
 
-function defaultProfileEndpoint(input: Pick<CcSwitchImportDeeplinkInput, 'baseUrl' | 'platform'>, profile: CcsImportProfile, apiFormat: string): string {
+function defaultProfileEndpoint(input: Pick<CcSwitchImportDeeplinkInput, 'baseUrl' | 'platform'>, profile: CcSwitchApplicationProfile, apiFormat: string): string {
   let root = input.baseUrl.replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
   if (input.platform === 'antigravity' && !root.endsWith('/antigravity')) root += '/antigravity'
   if (apiFormat === 'openai_chat' || apiFormat === 'openai_responses') return `${root}/v1`
@@ -159,7 +215,7 @@ const DEFAULT_IMPORT_PARAMETERS = {
   usageAutoInterval: 30,
 }
 
-function defaultProfileApiFormat(profile: CcsImportProfile): string {
+function defaultProfileApiFormat(profile: CcSwitchApplicationProfile): string {
   if (['opencode', 'openclaw', 'hermes', 'pi'].includes(profile.app)) {
     return profile.platform === 'gemini' ? 'gemini_native'
       : profile.platform === 'anthropic' || profile.platform === 'antigravity' ? 'anthropic'

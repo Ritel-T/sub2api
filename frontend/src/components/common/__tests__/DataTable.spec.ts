@@ -63,7 +63,7 @@ describe('DataTable', () => {
     expect((wrapper.vm as any).virtualizer.options.getScrollElement()).toBe(wrapper.get('.table-wrapper').element)
     wrapper.unmount()
   })
-  it('reorders header and cells, persists order, and keeps row sorting separate', async () => {
+  it('anchors actions after data columns and keeps row sorting separate', async () => {
     const props = {
       columnOrderKey: 'test-order',
       columns: [{ key: 'name', label: 'Name', sortable: true }, { key: 'status', label: 'Status' }, { key: 'actions', label: 'Actions' }],
@@ -71,11 +71,11 @@ describe('DataTable', () => {
     }
     const wrapper = mount(DataTable, { props })
     await wrapper.find('th[data-column-key="actions"] button').trigger('keydown', { key: 'Home' })
-    expect(wrapper.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['actions', 'name', 'status'])
+    expect(wrapper.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['name', 'status', 'actions'])
     expect(wrapper.find('td[data-column-key="actions"]').classes()).not.toContain('sticky-col-right')
     expect(wrapper.emitted('sort')).toBeUndefined()
     const reopened = mount(DataTable, { props })
-    expect(reopened.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['actions', 'name', 'status'])
+    expect(reopened.findAll('th[data-column-key]').map(cell => cell.attributes('data-column-key'))).toEqual(['name', 'status', 'actions'])
     reopened.unmount(); wrapper.unmount()
   })
 
@@ -99,12 +99,12 @@ describe('DataTable', () => {
 
   it('uses the saved order for mobile card fields including the actions column', async () => {
     stubMobileMatchMedia()
-    localStorage.setItem('mobile-order', JSON.stringify({ order: ['actions', 'status', 'name'], hidden: [] }))
+    localStorage.setItem('mobile-order', JSON.stringify({ order: ['status', 'name', 'actions'], hidden: [] }))
     const wrapper = mount(DataTable, { props: {
       columnOrderKey: 'mobile-order', columns: [{ key: 'name', label: 'Name' }, { key: 'status', label: 'Status' }, { key: 'actions', label: 'Actions' }],
       data: [{ id: 1, name: 'A', status: 'active' }]
     }, slots: { 'cell-actions': '<button>Edit</button>' } })
-    expect(wrapper.findAll('.table-card [data-field]').map(field => field.attributes('data-field'))).toEqual(['actions', 'status', 'name'])
+    expect(wrapper.findAll('.table-card [data-field]').map(field => field.attributes('data-field'))).toEqual(['status', 'name', 'actions'])
     expect(wrapper.findAll('.table-card button')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -464,6 +464,21 @@ describe('DataTable', () => {
     expect(wrapper.findAll('.table-detail-row')).toHaveLength(1)
     expect(wrapper.find('.table-detail-row [data-test="note"]').text()).toBe('Custom detail')
     expect(wrapper.find('[data-test="toggle-details"]').attributes('aria-expanded')).toBe('true')
+    wrapper.unmount()
+  })
+
+  it.each(['desktop', 'mobile'])('opens a linked row inline after async data arrives on %s', async viewport => {
+    if (viewport === 'mobile') stubMobileMatchMedia()
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ key: 'id', label: 'ID', primary: true }, { key: 'notes', label: 'Notes', primary: false }],
+      data: [], expandRowKey: 42,
+    } })
+    await wrapper.setProps({ data: [{ id: 42, notes: 'Linked request' }, { id: 43, notes: 'Another request' }] })
+    expect(wrapper.get('[data-test="toggle-details"]').attributes('aria-expanded')).toBe('true')
+    expect(wrapper.text()).toContain('Linked request')
+    expect(wrapper.findAll('[data-test="toggle-details"]').map(node => node.attributes('aria-expanded'))).toEqual(['true', 'false'])
+    await wrapper.get('[data-test="toggle-details"]').trigger('click')
+    expect(wrapper.get('[data-test="toggle-details"]').attributes('aria-expanded')).toBe('false')
     wrapper.unmount()
   })
 

@@ -15,8 +15,8 @@ export function useTableColumns(
 ) {
   const order = ref<string[]>([])
   const primaryOverrides = reactive(new Map<string, boolean>())
-  const required = computed(() => new Set([...(options.required ? toValue(options.required) : []), ...(options.fixed ?? [])]))
-  const fixed = new Set(options.fixed ?? [])
+  const required = computed(() => new Set([...(options.required ? toValue(options.required) : []), ...(options.fixed ?? []), 'actions']))
+  const fixed = new Set([...(options.fixed ?? []), 'actions'])
   try {
     const saved = storageKey ? localStorage.getItem(storageKey) : null
     if (saved) {
@@ -39,12 +39,14 @@ export function useTableColumns(
   }
 
   const orderedColumns = computed(() => {
-    const defaults = toValue(source)
+    const sourceColumns = toValue(source)
+    const defaults = [...sourceColumns.filter(column => column.key !== 'actions'), ...sourceColumns.filter(column => column.key === 'actions')]
     const byKey = new Map(defaults.map(column => [column.key, column]))
     const keys = [...new Set([...order.value, ...defaults.map(column => column.key)])]
     const movable = keys.filter(key => byKey.has(key) && !fixed.has(key))
     let index = 0
-    return defaults.map(column => fixed.has(column.key) ? column : byKey.get(movable[index++])!)
+    const result = defaults.map(column => fixed.has(column.key) ? column : byKey.get(movable[index++])!)
+    return [...result.filter(column => column.key !== 'actions'), ...result.filter(column => column.key === 'actions')]
   })
   const defaultPrimary = computed(() => {
     if (toValue(source).some(column => typeof column.primary === 'boolean')) return defaultPrimaryColumnKeys(toValue(source))

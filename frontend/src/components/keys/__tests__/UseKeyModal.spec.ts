@@ -1173,6 +1173,56 @@ describe('UseKeyModal overview connection summary', () => {
     wrapper.unmount()
   })
 
+  it('offers independent app imports and uses CCS Responses conversion for OpenAI in Claude Code', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = renderConnection()
+    expect(wrapper.findAll('[data-testid^="connection-ccs-"]').map(button => button.text())).toEqual([
+      'Codex', 'Claude Code', 'OpenCode', 'OpenClaw', 'Gemini CLI', 'Grok Build', 'Hermes', 'Pi'
+    ])
+    expect(wrapper.get('[data-testid="connection-ccs-openai-gemini"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="connection-ccs-openai-claude"]').trigger('click')
+    const params = new URL(String(open.mock.calls[0][0])).searchParams
+    expect(params.get('app')).toBe('claude')
+    expect(params.get('apiFormat')).toBe('openai_responses')
+    expect(params.get('apiKey')).toBe(record.key)
+    wrapper.unmount()
+  })
+
+  it('retains the SystemOne curl guide without offering unsupported agent imports or dsh', () => {
+    const wrapper = renderConnection(undefined, 'typesafe')
+    expect(wrapper.findAll('[data-testid^="connection-ccs-"]')).toHaveLength(0)
+    expect(wrapper.findAll('button').some(button => button.text() === 'dsh')).toBe(false)
+    expect(wrapper.find('pre code').text()).toContain('/v1/systemone')
+    wrapper.unmount()
+  })
+
+  it('collapses advanced configuration by default and exposes a short dsh guide separately', async () => {
+    const wrapper = renderConnection()
+    expect(wrapper.get('[data-testid="advanced-configuration"]').attributes('open')).toBeUndefined()
+    const dshTab = wrapper.findAll('button').find(button => button.text() === 'dsh')!
+    await dshTab.trigger('click')
+    const guide = wrapper.get('[data-testid="dsh-guide"]')
+    expect(guide.text()).toContain('npx @deepseek-ai/dsh web')
+    expect(guide.text()).toContain('https://api.example.com/v1')
+    expect(guide.text()).toContain('OpenAI Responses')
+    expect(guide.text()).toContain('Custom model API')
+    expect(wrapper.find('[data-testid="advanced-configuration"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('uses the dedicated Anthropic endpoint for the Antigravity dsh guide without repeating its suffix', async () => {
+    const wrapper = renderConnection(undefined, 'antigravity')
+    await wrapper.findAll('button').find(button => button.text() === 'dsh')!.trigger('click')
+    for (const baseUrl of ['https://api.example.com/v1/', 'https://api.example.com/antigravity/v1']) {
+      await wrapper.setProps({ baseUrl })
+      const guide = wrapper.get('[data-testid="dsh-guide"]')
+      expect(guide.get('li:nth-child(3) code').text()).toBe('https://api.example.com/antigravity')
+      expect(guide.text()).toContain('Anthropic Messages')
+      expect(guide.text()).not.toContain('OpenAI Chat Completions')
+    }
+    wrapper.unmount()
+  })
+
   it('keeps the copyable URL aligned with the selected client protocol', async () => {
     const wrapper = renderConnection(undefined, 'gemini')
     expect(wrapper.get('[data-testid="connection-url"]').text()).toBe('https://api.example.com')

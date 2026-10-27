@@ -131,6 +131,8 @@ type UsageLog struct {
 	// ServiceTier records the billable request tier, e.g. OpenAI "priority" / "flex"
 	// or Anthropic "fast".
 	ServiceTier *string
+	// FreeFastApplied is the request-time customer pricing result; nil means historical/unknown.
+	FreeFastApplied *bool
 	// ReasoningEffort is the effective effort recorded for this request after
 	// group policy rewriting and model-family remapping (e.g. max -> xhigh).
 	// OpenAI: "low" / "medium" / "high" / "xhigh"; Claude: "low" / "medium" / "high" / "max".

@@ -49,6 +49,7 @@ const messages: Record<string, string> = {
   'usage.perMillionTokens': '/ 1M tokens',
   'usage.serviceTier': 'Service tier',
   'usage.serviceTierPriority': 'Fast',
+  'usage.serviceTierFreeFast': 'Free Fast',
   'usage.serviceTierUltrafast': 'Ultrafast',
   'usage.serviceTierFlex': 'Flex',
   'usage.serviceTierStandard': 'Standard',
@@ -224,6 +225,32 @@ describe('admin UsageTable tooltip', () => {
     expect(wrapper.text()).not.toContain('x2')
   })
 
+  it('stacks the applied context and service tier underneath cost, without pills', () => {
+    const wrapper = mount(UsageTable, {
+      props: { data: [{ ...baseImageRow, image_count: 0, service_tier: 'priority', long_context_billing_applied: true }], columns: [] },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    const tier = wrapper.get('[data-testid="service-tier-marker"]')
+    expect(tier.text()).toBe('Fast')
+    expect(tier.classes()).toContain('block')
+    expect(tier.classes()).toContain('whitespace-nowrap')
+    const context = wrapper.get('[data-testid="long-context-billing-marker"]')
+    expect(context.classes()).toContain('block')
+    expect(context.classes().some(name => name.includes('rounded'))).toBe(false)
+  })
+
+  it('shows Free Fast only with the recorded billing flag, retaining Fast for older records', () => {
+    const wrapper = mount(UsageTable, {
+      props: { data: [
+        { ...baseImageRow, request_id: 'paid', service_tier: 'priority', free_fast_applied: false },
+        { ...baseImageRow, request_id: 'free', service_tier: 'priority', free_fast_applied: true },
+        { ...baseImageRow, request_id: 'historical', service_tier: 'priority' },
+      ], columns: [] },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    expect(wrapper.findAll('[data-testid="service-tier-marker"]').map(node => node.text())).toEqual(['Fast', 'Free Fast', 'Fast'])
+  })
+
   it('hides the long-context billing marker when the public setting is disabled', () => {
     appStoreMocks.cachedPublicSettings = { usage_show_long_context_badge: false }
     const wrapper = mount(UsageTable, {
@@ -296,6 +323,7 @@ describe('admin UsageTable tooltip', () => {
     const requestBadges = wrapper.findAll('[data-testid="request-type-badge"]')
     expect(requestBadges).toHaveLength(2)
     expect(requestBadges[0].text()).toBe('Stream')
+    expect(requestBadges[0].classes().some(name => name.includes('rounded') || name.startsWith('bg-'))).toBe(false)
     expect(requestBadges[1].text()).toBe('Sync')
     expect(wrapper.findAll('[data-testid="native-compaction-badge"]')).toHaveLength(1)
     expect(wrapper.get('[data-testid="native-compaction-badge"]').text()).toBe('Compaction')
@@ -1154,6 +1182,29 @@ describe('admin UsageTable latency TPS', () => {
 
 
 describe('UsageTable column preferences', () => {
+  it('expands request identifiers and branded group details inline', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{ ...baseImageRow, id: 42, group: { name: 'ChatGPT 060', platform: 'openai' } } as any],
+        columns: [
+          { key: 'model', label: 'Model', primary: true },
+          { key: 'request_id', label: 'Request ID', primary: false },
+          { key: 'group', label: 'Group', primary: false },
+        ],
+        expandRowKey: 42,
+      },
+      global: { stubs: { Icon: true, Teleport: true } },
+    })
+    const details = wrapper.get('.usage-row-details')
+    expect(details.get('[data-field="request_id"]').text()).toContain('req-admin-image')
+    const group = details.get('[data-field="group"]')
+    expect(group.text()).toContain('ChatGPT 060')
+    expect(group.find('svg').exists()).toBe(true)
+    expect(group.get('dd > span').classes()).toContain('text-emerald-600')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('forwards column reordering independently of server-side sorting', () => {
     const wrapper = mount(UsageTable, {
       props: { data: [], columns: [{ key: 'model', label: 'Model' }, { key: 'created_at', label: 'Time' }] },

@@ -102,6 +102,18 @@ describe('ModelDistributionChart', () => {
     expect(label).toBe('model-a: 1.00K (66.7%)')
   })
 
+  it('collapses long model lists without changing chart totals, and expands on demand', async () => {
+    const wrapper = mount(ModelDistributionChart, { props: { modelStats, collapsedRows: 1 } })
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+    expect(JSON.parse(wrapper.get('.chart-data').text()).datasets[0].data).toEqual([1000, 500])
+    const toggle = wrapper.get('[data-testid="model-list-toggle"]')
+    expect(toggle.text()).toContain('+1')
+    await toggle.trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+    await toggle.trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+  })
+
   it('uses actual_cost and reorders rows in actual cost mode', () => {
     const wrapper = mount(ModelDistributionChart, {
       props: {

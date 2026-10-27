@@ -324,8 +324,8 @@ describe('admin GroupsView column settings', () => {
     saveColumns(['usage', 'capacity', 'removed_column', 'name', 'actions'], ['id', 'actions', 'removed_column'])
     const wrapper = await mountView()
 
-    expect(columnKeys(wrapper)).toEqual(['id', 'actions', ...defaultColumns.filter(key => !['id', 'actions'].includes(key))])
-    expect(primaryKeys(wrapper)).toEqual(['actions', 'name', 'status', 'platform', 'account_count', 'rate_multiplier'])
+    expect(columnKeys(wrapper)).toEqual(['id', ...defaultColumns.filter(key => !['id', 'actions'].includes(key)), 'actions'])
+    expect(primaryKeys(wrapper)).toEqual(['name', 'status', 'platform', 'account_count', 'rate_multiplier', 'actions'])
   })
 
   it('promotes a default detail field through settings and persists main-row placement', async () => {
@@ -392,8 +392,9 @@ describe('admin GroupsView column settings', () => {
 
   it('persists both header and keyboard settings reordering across remounts', async () => {
     const wrapper = await mountView()
-    const headerOrder = ['actions', ...defaultColumns.filter(key => key !== 'actions')]
-    wrapper.findComponent(DataTable).vm.$emit('column-reorder', headerOrder)
+    const headerOrder = ['platform', ...defaultColumns.filter(key => !['platform', 'actions'].includes(key)), 'actions']
+    const attemptedOrder = ['actions', ...headerOrder.filter(key => key !== 'actions')]
+    wrapper.findComponent(DataTable).vm.$emit('column-reorder', attemptedOrder)
     await flushPromises()
     expect(columnKeys(wrapper)).toEqual(headerOrder)
 

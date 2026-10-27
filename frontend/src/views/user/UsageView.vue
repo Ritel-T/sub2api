@@ -111,6 +111,7 @@
           <ModelDistributionChart
             v-model:metric="modelDistributionMetric"
             :model-stats="requestedModelStats"
+            :collapsed-rows="6"
             :loading="modelStatsLoading"
             :show-source-toggle="false"
             :show-metric-toggle="true"
@@ -131,22 +132,7 @@
           />
         </div>
 
-        <div v-if="usageView === 'analysis'" class="usage-endpoints">
-          <EndpointDistributionChart
-            v-model:source="endpointDistributionSource"
-            v-model:metric="endpointDistributionMetric"
-            :endpoint-stats="inboundEndpointStats"
-            :upstream-endpoint-stats="upstreamEndpointStats"
-            :endpoint-path-stats="endpointPathStats"
-            :loading="endpointStatsLoading"
-            :show-source-toggle="false"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :title="t('usage.endpointDistribution')"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-        </div>
+
       </div>
 
       <div v-if="usageView === 'records' && errorViewEnabled" class="flex gap-2 border-b border-gray-200 dark:border-dark-700">
@@ -162,7 +148,9 @@
         <UsageTable
           :toolbar-target="sortToolbarTarget"
           flat
-          :data="usageLogs"
+          :data="displayUsageLogs"
+          :expand-row-key="selectedRequest?.id"
+          :support-enabled="supportEnabled"
           :loading="loading"
           :columns="visibleColumns"
           @column-reorder="setColumnOrder"
@@ -172,7 +160,6 @@
           cache-rate-audience="user"
           :default-sort-key="sortState.sort_by"
           :default-sort-order="sortState.sort_order"
-          @row-details="openRequestDetail"
           @sort="handleSort"
           @ipGeoBatchFailed="handleIpGeoBatchFailed"
         />
@@ -205,7 +192,6 @@
         @retry="retryErrors"
         @ipGeoBatchFailed="handleIpGeoBatchFailed"
       />
-      <UserUsageRequestDetail :record="selectedRequest" :support-enabled="supportEnabled" @close="closeRequestDetail" />
     </div>
   </AppLayout>
 
@@ -219,7 +205,6 @@ import { useI18n } from 'vue-i18n'
 import { routeLocationKey, routerKey } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { parseUsageLocation, usageLocationQuery } from './usageLocation'
-import UserUsageRequestDetail from '@/components/user/UserUsageRequestDetail.vue'
 import { useAppStore } from '@/stores/app'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
@@ -232,7 +217,6 @@ import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'
-import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 import { useTableColumns } from '@/composables/useTableColumns'
@@ -244,7 +228,6 @@ import { getBillingModeLabel, getDisplayBillingMode as resolveDisplayBillingMode
 import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
 import type {
   ApiKey,
-  EndpointStat,
   Group,
   GroupStat,
   ModelStat,
@@ -268,20 +251,15 @@ const appStore = useAppStore()
 const supportEnabled = computed(() => !authStore.isAdmin && !authStore.isObserver && resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.supportTickets))
 
 type DistributionMetric = 'tokens' | 'actual_cost'
-type EndpointSource = 'inbound' | 'upstream' | 'path'
 
 const usageStats = ref<UsageStatsResponse | null>(null)
 const trendData = ref<TrendDataPoint[]>([])
 const requestedModelStats = ref<ModelStat[]>([])
 const groupStats = ref<GroupStat[]>([])
-const inboundEndpointStats = ref<EndpointStat[]>([])
-const upstreamEndpointStats = ref<EndpointStat[]>([])
-const endpointPathStats = ref<EndpointStat[]>([])
 
 const analyticsErrors = reactive(new Set<string>())
 const chartsLoading = ref(false)
 const modelStatsLoading = ref(false)
-const endpointStatsLoading = ref(false)
 const exporting = ref(false)
 const errorSortBy = ref('created_at')
 const errorSortOrder = ref<'asc' | 'desc'>('desc')
@@ -343,8 +321,6 @@ const granularity = ref<'day' | 'hour'>(getGranularityForRange(startDate.value, 
 
 const modelDistributionMetric = ref<DistributionMetric>('tokens')
 const groupDistributionMetric = ref<DistributionMetric>('tokens')
-const endpointDistributionMetric = ref<DistributionMetric>('tokens')
-const endpointDistributionSource = ref<EndpointSource>('inbound')
 const activeTab = ref<'usage' | 'errors'>('usage')
 const errorViewEnabled = computed(() => appStore.cachedPublicSettings?.allow_user_view_error_requests ?? false)
 const includeCacheRate = computed(() => showUsageCacheRate(appStore.cachedPublicSettings, 'user'))
@@ -439,29 +415,23 @@ const {
   keyOf: log => log.id,
   fetchPage: (page, signal) => usageAPI.query(buildUsageListParams(page, 50), { signal }),
 })
+const displayUsageLogs = computed(() => selectedRequest.value && !usageLogs.value.some(row => row.id === selectedRequest.value?.id)
+  ? [selectedRequest.value, ...usageLogs.value]
+  : usageLogs.value)
 watch(logsError, error => { if (error) appStore.showError(t('usage.failedToLoad')) })
 
 const loadStats = async () => {
   const seq = ++statsReqSeq
   analyticsErrors.delete('stats')
-  endpointStatsLoading.value = true
   try {
     const stats = await usageAPI.getStats(normalizedFilters.value)
     if (seq !== statsReqSeq) return
     usageStats.value = stats
-    inboundEndpointStats.value = stats.endpoints || []
-    upstreamEndpointStats.value = []
-    endpointPathStats.value = []
   } catch (error) {
     if (seq !== statsReqSeq) return
     usageStats.value = null
     analyticsErrors.add('stats')
     console.error('Failed to load usage stats:', error)
-    inboundEndpointStats.value = []
-    upstreamEndpointStats.value = []
-    endpointPathStats.value = []
-  } finally {
-    if (seq === statsReqSeq) endpointStatsLoading.value = false
   }
 }
 
@@ -524,6 +494,8 @@ const refreshModelOptions = (models: ModelStat[]) => {
 }
 
 const applyFilters = () => {
+  ++detailReqSeq
+  selectedRequest.value = null
   syncLocation()
   void loadLogs()
   void loadStats()
@@ -713,7 +685,7 @@ const allColumns = computed(() => [
   { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
   { key: 'stream', label: t('usage.type'), sortable: false },
   { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
-  { key: 'request_details', label: t('common.view'), sortable: false },
+  { key: 'request_id', label: t('admin.usage.requestId'), sortable: false },
   { key: 'ip_address', label: 'IP', sortable: false },
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
 ])
@@ -727,7 +699,7 @@ const {
   resetColumns,
 } = useTableColumns('table-columns:user-usage:v1', allColumns, {
   required: ALWAYS_VISIBLE,
-  primary: ['created_at', 'model', 'tokens', 'cost', 'latency', 'request_details']
+  primary: ['created_at', 'model', 'tokens', 'cost', 'latency']
 })
 
 const errAllColumns = computed(() => [
@@ -846,16 +818,6 @@ const syncLocation = () => {
   void router.push({ path: '/usage', query })
 }
 let detailReqSeq = 0
-const openRequestDetail = (record: UsageLog) => {
-  ++detailReqSeq
-  selectedRequest.value = record
-  syncLocation()
-}
-const closeRequestDetail = () => {
-  ++detailReqSeq
-  selectedRequest.value = null
-  syncLocation()
-}
 const restoreRequestDetail = async (id?: number) => {
   const seq = ++detailReqSeq
   selectedRequest.value = null
@@ -928,9 +890,6 @@ onUnmounted(() => {
   ++modelStatsReqSeq
 })
 
-watch(endpointDistributionSource, () => {
-  // Endpoint source switching is handled by the chart component using already loaded stats.
-})
 </script>
 
 <style scoped>
@@ -938,13 +897,14 @@ watch(endpointDistributionSource, () => {
 .usage-filters { padding: 8px 0; }
 .usage-filter-controls { align-items: end; }
 .usage-filter-field { flex: 1 1 10rem; min-width: 9rem; max-width: 16rem; }
-.usage-date-filter { flex: 1 1 11rem; min-width: 11rem; max-width: 17rem; }
+.usage-date-filter { flex: 0 0 auto; width: max-content; max-width: 100%; }
+.usage-date-filter :deep(.relative) { width: auto; }
 .usage-filter-actions { margin-left: auto; padding-bottom: 1px; }
 .usage-granularity-filter { flex: 0 1 8rem; min-width: 8rem; }
 .usage-granularity-filter .input-label { display: block; }
 .usage-date-filter .input-label { display: block; }
 .usage-records :deep(.tab) { padding-top: 8px; padding-bottom: 8px; }
 .usage-breakdowns{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:clamp(2rem,5vw,5rem);margin-block:2.5rem}
-.usage-trend{padding-block:1.5rem}.usage-endpoints{max-width:64rem}
+.usage-trend{padding-block:1.5rem}
 @media(max-width:800px){.usage-breakdowns{grid-template-columns:1fr}}
 </style>

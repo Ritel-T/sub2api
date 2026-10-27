@@ -27,7 +27,7 @@ function key(overrides: Partial<ApiKey> = {}): ApiKey {
 const statistics = { total_api_keys: 1, active_api_keys: 1, today_requests: 4, today_tokens: 1800, today_actual_cost: 0.25 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r }); return { promise, resolve } }
 async function render() {
-  const router = createRouter({ history: createMemoryHistory(), routes: ['/dashboard', '/usage', '/keys', '/purchase', '/subscriptions'].map(path => ({ path, component: { template: '<div />' } })) })
+  const router = createRouter({ history: createMemoryHistory(), routes: ['/dashboard', '/usage', '/keys', '/purchase', '/subscriptions', '/affiliate'].map(path => ({ path, component: { template: '<div />' } })) })
   await router.push('/dashboard'); await router.isReady()
   const wrapper = mount(DashboardView, { global: { plugins: [router] } })
   await flushPromises()
@@ -48,6 +48,14 @@ beforeEach(() => {
 })
 
 describe('overview quick workflow', () => {
+  it('shows the referral invitation only while referrals are enabled', async () => {
+    const wrapper = await render()
+    expect(wrapper.find('[data-test="referral-entry"]').exists()).toBe(false)
+    app.cachedPublicSettings.affiliate_enabled = true
+    await flushPromises()
+    expect(wrapper.find('[data-test="referral-entry"]').attributes('href')).toBe('/affiliate')
+    expect(wrapper.find('[data-test="referral-entry"]').text()).toContain('Invite friends')
+  })
   it('shows balance with top-up, three newest keys and five latest requests without charts', async () => {
     const wrapper = await render()
     expect(wrapper.find('[data-test="balance"]').text()).toContain('$25.00')

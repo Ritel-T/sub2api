@@ -164,9 +164,10 @@ describe('admin AccountsView priority column preferences', () => {
     const table = wrapper.findComponent({ name: 'DataTable' })
     const columns = table.props('columns').map((column: { key: string }) => column.key)
     const calls = listAccounts.mock.calls.length
-    table.vm.$emit('column-reorder', ['actions', ...columns.filter((key: string) => key !== 'actions')])
+    table.vm.$emit('column-reorder', ['actions', 'name', 'id', ...columns.filter((key: string) => !['actions', 'name', 'id'].includes(key))])
     await flushPromises()
-    expect(table.props('columns').slice(0, 3).map((column: { key: string }) => column.key)).toEqual(['actions', 'id', 'platform_type'])
+    expect(table.props('columns').slice(0, 3).map((column: { key: string }) => column.key)).toEqual(['name', 'id', 'platform_type'])
+    expect(table.props('columns').at(-1).key).toBe('actions')
     expect(listAccounts).toHaveBeenCalledTimes(calls)
   })
 

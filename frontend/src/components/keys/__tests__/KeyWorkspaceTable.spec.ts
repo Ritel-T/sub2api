@@ -156,7 +156,8 @@ describe('KeyWorkspaceTable task interactions', () => {
     expect(wrapper.findAll('tr.key-main-row').map(row => row.attributes('data-key-id'))).toEqual(['11', '29'])
     const moved = [...columns.filter(column => column.key !== 'id'), columns[0]]
     await wrapper.setProps({ columns: moved })
-    expect(wrapper.findAll('th[data-column-key]').at(-1)?.attributes('data-column-key')).toBe('id')
+    expect(wrapper.findAll('th[data-column-key]').at(-2)?.attributes('data-column-key')).toBe('id')
+    expect(wrapper.findAll('th[data-column-key]').at(-1)?.attributes('data-column-key')).toBe('actions')
   })
 
   it('keeps selection, sorting, and record actions reachable in the mobile layout', async () => {

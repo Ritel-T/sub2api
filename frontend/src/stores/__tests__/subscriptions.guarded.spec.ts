@@ -5,11 +5,15 @@ import { useSubscriptionStore } from '../subscriptions'
 import type { UserSubscription } from '@/types'
 
 const getActive = vi.hoisted(() => vi.fn())
-const state = vi.hoisted(() => ({ auth: null as unknown as { user: { id: number }, token: string } }))
+const state = vi.hoisted(() => ({ auth: null as unknown as { user: { id: number }, token: string, readonly sessionIdentity: string } }))
 vi.mock('@/api/subscriptions', () => ({ default: { getActiveSubscriptions: getActive } }))
 vi.mock('@/stores/auth', async () => {
   const { reactive } = await import('vue')
-  state.auth = reactive({ user: { id: 7 }, token: 'token-7' })
+  state.auth = reactive({ user: { id: 7 }, token: 'token-7',
+    // Match the auth-store identity contract while retaining the original
+    // token fixture's account switches and pending-response transitions.
+    get sessionIdentity() { return this.token }
+  })
   return { useAuthStore: () => state.auth }
 })
 function deferred() {

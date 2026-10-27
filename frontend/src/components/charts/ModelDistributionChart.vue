@@ -120,7 +120,7 @@
           </thead>
           <DocumentRows
             as="tbody"
-            :items="displayModelStats"
+            :items="visibleModelStats"
             item-key="model"
             :colspan="distributionColspan"
             :estimate-height="32"
@@ -173,6 +173,12 @@
             </template>
           </DocumentRows>
         </table>
+        <button v-if="collapsedRows && displayModelStats.length > collapsedRows" type="button"
+          data-testid="model-list-toggle" class="mt-3 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white"
+          :aria-expanded="allModelsVisible" @click="allModelsVisible = !allModelsVisible">
+          {{ t(allModelsVisible ? 'common.collapse' : 'common.expand') }}
+          <span v-if="!allModelsVisible">(+{{ displayModelStats.length - collapsedRows }})</span>
+        </button>
       </div>
     </div>
     <div
@@ -292,6 +298,7 @@ const props = withDefaults(defineProps<{
   showMetricToggle?: boolean
   enableBreakdown?: boolean
   showAccountCost?: boolean
+  collapsedRows?: number
   rankingLoading?: boolean
   rankingError?: boolean
   startDate?: string
@@ -400,6 +407,11 @@ const displayModelStats = computed(() => {
   const metricKey = props.metric === 'actual_cost' ? 'actual_cost' : 'total_tokens'
   return [...sourceStats].sort((a, b) => toFiniteNumber(b[metricKey]) - toFiniteNumber(a[metricKey]))
 })
+
+const allModelsVisible = ref(false)
+const visibleModelStats = computed(() => !props.collapsedRows || allModelsVisible.value
+  ? displayModelStats.value
+  : displayModelStats.value.slice(0, props.collapsedRows))
 
 const chartData = computed(() => {
   if (!displayModelStats.value.length) return null

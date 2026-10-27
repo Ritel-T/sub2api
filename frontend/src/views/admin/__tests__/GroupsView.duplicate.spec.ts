@@ -267,7 +267,7 @@ describe('GroupsView duplicate action', () => {
     wrapper.unmount()
   })
 
-  it('restores composite column preferences and retains exact update/delete targets from details', async () => {
+  it('restores composite detail fields and retains exact update/delete targets in the final main column', async () => {
     const route = { id: 77, public_model: 'model-77', match_type: 'exact', target_platform: 'openai', upstream_model: 'upstream-77', endpoint: 'any', priority: 7, enabled: false, notes: 'notes-77' }
     listCompositeRoutes.mockResolvedValue([route])
     vi.mocked(adminAPI.groups.updateCompositeRoute).mockResolvedValue(route as any)
@@ -291,13 +291,14 @@ describe('GroupsView duplicate action', () => {
       await flushPromises()
       const records = restored.findAllComponents(DataTable).find(table => table.props('columnOrderKey') === 'admin-group-composite-routes')!
       expect(records.find('th[data-column-key="target"]').exists()).toBe(false)
-      expect(records.find('th[data-column-key="actions"]').exists()).toBe(false)
+      expect(records.findAll('tr[data-index="0"] td[data-column-key]').at(-1)?.attributes('data-column-key')).toBe('actions')
       await records.get('[data-test="toggle-details"]').trigger('click')
       let detail = records.get('.table-detail-row')
       expect(detail.text()).toContain('upstream-77')
       expect(detail.text()).toContain('admin.groups.compositeRoutes.priority')
       expect(detail.text()).toContain('7')
-      await detail.get('button[title="common.edit"]').trigger('click')
+      expect(detail.find('button[title="common.edit"]').exists()).toBe(false)
+      await records.get('tr[data-index="0"] td[data-column-key="actions"] button[title="common.edit"]').trigger('click')
       expect((restored.vm as any).compositeRouteForm.public_model).toBe('model-77')
       expect((restored.vm as any).compositeRouteEditingId).toBe(77)
       await restored.findAll('form').find(form => form.text().includes('admin.groups.compositeRoutes.editRoute'))!.trigger('submit')
@@ -305,7 +306,7 @@ describe('GroupsView duplicate action', () => {
       expect(adminAPI.groups.updateCompositeRoute).toHaveBeenCalledWith(42, 77, expect.objectContaining({ public_model: 'model-77', upstream_model: 'upstream-77', priority: 7, enabled: false, notes: 'notes-77' }))
       if (!records.find('.table-detail-row').exists()) await records.get('[data-test="toggle-details"]').trigger('click')
       detail = records.get('.table-detail-row')
-      await detail.get('button[title="common.delete"]').trigger('click')
+      await records.get('tr[data-index="0"] td[data-column-key="actions"] button[title="common.delete"]').trigger('click')
       const confirmation = restored.findAllComponents(ConfirmDialog).find(dialog => dialog.props('show'))!
       expect(confirmation.props('message')).toBe('admin.groups.compositeRoutes.deleteConfirm')
       expect(adminAPI.groups.deleteCompositeRoute).not.toHaveBeenCalled()

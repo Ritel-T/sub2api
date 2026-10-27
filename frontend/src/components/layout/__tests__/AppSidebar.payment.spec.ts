@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({ getConfig: vi.fn(), fetchAdminSettings: vi.fn(
 interface AuthState {
   user: { id: number; role: string } | null
   token: string | null
+  readonly sessionIdentity: string | null
   readonly isAuthenticated: boolean
   readonly isAdmin: boolean
   readonly isObserver: boolean
@@ -90,6 +91,11 @@ beforeEach(() => {
   mocks.getConfig.mockReset().mockResolvedValue({ data: { enabled: false, merchant_test_access: false } })
   authState = reactive({
     user: { id: 41, role: 'admin' }, token: 'session-41',
+    // The auth store exposes its session identity independently of whether
+    // the backing session is a central cookie or a legacy token. Keep this
+    // fixture's token as the identity source so its synchronous logout/login
+    // and old-session response scenarios retain their original transitions.
+    get sessionIdentity() { return this.token },
     get isAuthenticated() { return !!this.token && !!this.user },
     get isAdmin() { return this.user?.role === 'admin' },
     get isObserver() { return this.user?.role === 'observer' },

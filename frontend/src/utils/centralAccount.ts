@@ -52,7 +52,7 @@ export function markCentralUnavailable(message = '账号会话暂时无法确认
 export function consoleReturnPath(value = location.pathname + location.search + location.hash): string {
   try {
     const url = new URL(value, location.origin)
-    if (!value.startsWith('/') || value.startsWith('//') || /[\\\x00- ]/.test(value) || url.origin !== location.origin) return '/'
+    if (!value.startsWith('/') || value.startsWith('//') || Array.from(value).some(character => character.charCodeAt(0) <= 32 || character === '\\') || url.origin !== location.origin) return '/'
     if (/^\/(?:auth(?:\/|$)|login$|register$|forgot-password$|reset-password$|email-verify$)/.test(url.pathname)) return '/'
     return url.pathname + url.search + url.hash
   } catch { return '/' }

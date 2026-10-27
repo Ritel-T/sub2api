@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import {createRouter, createMemoryHistory, type Router} from 'vue-router'
 import UsageView from '../UsageView.vue'
+import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
@@ -168,7 +169,7 @@ function mountUsageView(router?: Router) {
         DateRangePicker: true,
         Icon: true,
         UsageStatsCards: chartStub,
-        UsageTable: { ...chartStub, props: ['columns'] },
+        UsageTable: { ...chartStub, props: ['columns', 'data', 'expandRowKey'] },
         UserErrorRequestsTable: { ...chartStub, props: ['visibleColumnKeys'] },
         ModelDistributionChart: chartStub,
         GroupDistributionChart: chartStub,
@@ -237,7 +238,7 @@ describe('user UsageView', () => {
     const originalKeys = table.props('columns').map((column: { key: string }) => column.key)
     expect(originalKeys).toEqual([
       'created_at', 'api_key', 'model', 'tokens', 'cost', 'latency', 'group',
-      'reasoning_effort', 'endpoint', 'stream', 'billing_mode', 'request_details',
+      'reasoning_effort', 'endpoint', 'stream', 'billing_mode', 'request_id',
       'ip_address', 'user_agent',
     ])
     const reordered = [...originalKeys].reverse()
@@ -294,10 +295,44 @@ describe('user UsageView', () => {
     await router.isReady()
     const wrapper=mountUsageView(router); await flushPromises()
     expect(wrapper.findComponent(UsageTable).exists()).toBe(false)
+    expect(wrapper.findComponent({name: 'EndpointDistributionChart'}).exists()).toBe(false)
+    expect(wrapper.findComponent(ModelDistributionChart).attributes('collapsed-rows')).toBe('6')
     expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining({api_key_id:1}))
     await router.push('/usage?view=records&usage_id=42'); await flushPromises()
     expect(getById).toHaveBeenCalledWith(42)
-    expect(wrapper.findComponent({name:'UserUsageRequestDetail'}).props('record')).toMatchObject({id:42})
+    expect(wrapper.findComponent(UsageTable).props('data')).toEqual(expect.arrayContaining([expect.objectContaining({id:42})]))
+    expect(wrapper.findComponent(UsageTable).props('expandRowKey')).toBe(42)
+    expect(wrapper.findComponent({name:'UserUsageRequestDetail'}).exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it.each(['loaded', 'pending'])('clears a %s deep-linked request when filters change', async state => {
+    let resolveDetail: ((record: unknown) => void) | undefined
+    if (state === 'pending') getById.mockReturnValueOnce(new Promise(resolve => { resolveDetail = resolve }))
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/usage', component: { template: '<div />' } }] })
+    await router.push('/usage?view=records&usage_id=42')
+    await router.isReady()
+    const wrapper = mountUsageView(router)
+    await flushPromises()
+    const table = wrapper.findComponent(UsageTable)
+    if (state === 'loaded') {
+      expect(table.props('expandRowKey')).toBe(42)
+      expect(table.props('data').map((row: { id: number }) => row.id)).toContain(42)
+    }
+    const keySelect = wrapper.findAllComponents(Select).find(select =>
+      select.props('options').some((option: SelectOption) => option.label === 'All API Keys')
+    )!
+    keySelect.vm.$emit('update:modelValue', 1)
+    keySelect.vm.$emit('change', 1)
+    await flushPromises()
+    resolveDetail?.({ ...usageLog, id: 42 })
+    await flushPromises()
+    expect(router.currentRoute.value.query.usage_id).toBeUndefined()
+    expect(router.currentRoute.value.query.api_key_id).toBe('1')
+    expect(table.props('expandRowKey')).toBeUndefined()
+    expect(table.props('data').map((row: { id: number }) => row.id)).toEqual([usageLog.id])
+    expect(query).toHaveBeenLastCalledWith(expect.objectContaining({ api_key_id: 1 }), expect.anything())
+    expect(getById).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 

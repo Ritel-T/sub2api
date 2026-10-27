@@ -60,7 +60,7 @@ const mountRecords = () => mount(OpsAlertRulesCard, { global: { stubs: { BaseDia
 describe('alert rule shared record contracts', () => {
   beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); vi.spyOn(window, 'scrollTo').mockImplementation(() => {}); vi.mocked(adminAPI.groups.getAll).mockResolvedValue([]); listAlertRules.mockResolvedValue([]); deleteAlertRule.mockResolvedValue(undefined) })
   afterEach(() => { vi.restoreAllMocks() })
-  it('restores demoted fields and dispatches original edit/delete identities from details', async () => {
+  it('restores demoted fields and dispatches original edit/delete identities from the final main column', async () => {
     listAlertRules.mockResolvedValue([rule(77)])
     const wrapper = mountRecords()
     await flushPromises()
@@ -73,14 +73,15 @@ describe('alert rule shared record contracts', () => {
     const restored = mountRecords()
     await flushPromises()
     const records = restored.findComponent(DataTable)
-    expect(records.find('th[data-column-key="actions"]').exists()).toBe(false)
+    expect(records.findAll('th[data-column-key]').at(-1)?.attributes('data-column-key')).toBe('actions')
     await records.get('[data-test="toggle-details"]').trigger('click')
     const detail = records.get('.table-detail-row')
     expect(detail.text()).toContain('error_rate')
     expect(detail.text()).toContain('1.25')
-    await detail.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
+    expect(detail.findAll('button').some(button => button.text() === 'common.edit')).toBe(false)
+    await records.get('tr[data-index="0"] td[data-column-key="actions"]').findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
     expect((restored.find('input[type="text"]').element as HTMLInputElement).value).toBe('Rule 77')
-    await detail.findAll('button').find(button => button.text() === 'common.delete')!.trigger('click')
+    await records.get('tr[data-index="0"] td[data-column-key="actions"]').findAll('button').find(button => button.text() === 'common.delete')!.trigger('click')
     restored.findComponent(ConfirmDialog).vm.$emit('confirm')
     await flushPromises()
     expect(deleteAlertRule).toHaveBeenCalledWith(77)

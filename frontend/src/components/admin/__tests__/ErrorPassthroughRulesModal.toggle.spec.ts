@@ -44,7 +44,7 @@ describe('error passthrough enabled state', () => {
     for (const finish of finishes) {
       finish(rule(!enabled))
       await flushPromises()
-      expect(toggle.classes().includes('bg-primary-600')).toBe(!enabled)
+      expect(toggle.classes().includes('ritel-toggle-on')).toBe(!enabled)
     }
   })
 
@@ -54,10 +54,10 @@ describe('error passthrough enabled state', () => {
     const toggle = wrapper.get('button[role="switch"]')
     await toggle.trigger('click')
     await flushPromises()
-    expect(toggle.classes()).not.toContain('bg-primary-600')
+    expect(toggle.classes()).not.toContain('ritel-toggle-on')
     await toggle.trigger('click')
     await flushPromises()
-    expect(toggle.classes()).toContain('bg-primary-600')
+    expect(toggle.classes()).toContain('ritel-toggle-on')
     expect(mocks.toggleEnabled.mock.calls).toEqual([[7, false], [7, true]])
   })
 
@@ -68,14 +68,14 @@ describe('error passthrough enabled state', () => {
     const toggle = wrapper.get('button[role="switch"]')
     await toggle.trigger('click')
     await flushPromises()
-    expect(toggle.classes()).toContain('bg-primary-600')
+    expect(toggle.classes()).toContain('ritel-toggle-on')
     expect(mocks.showError).toHaveBeenCalledWith('admin.errorPassthrough.failedToToggle')
   })
 })
 
 
 describe('error rule shared records', () => {
-  it('persists column preferences and keeps hidden conditions and deletion target available in details', async () => {
+  it('persists hidden conditions and keeps deletion in the final main column', async () => {
     const wrapper = await openRules()
     expect(wrapper.getComponent(DataTable).props('data')).toHaveLength(1)
     expect(wrapper.getComponent(DataTable).props('columns')).toHaveLength(7)
@@ -87,10 +87,14 @@ describe('error rule shared records', () => {
     const reopened = await openRules()
     expect(reopened.find('th[data-column-key="conditions"]').exists()).toBe(false)
     expect(reopened.findAll('th[data-column-key]')[0].attributes('data-column-key')).toBe('enabled')
+    expect(reopened.findAll('th[data-column-key]').at(-1)?.attributes('data-column-key')).toBe('actions')
     await reopened.get('[data-test="toggle-details"]').trigger('click')
     expect(reopened.get('.table-detail-row [data-field="conditions"]').text()).toContain('429')
-    await reopened.get('.table-detail-row button[aria-label="common.delete"]').trigger('click')
+    expect(reopened.find('.table-detail-row button[aria-label="common.delete"]').exists()).toBe(false)
+    expect(mocks.delete).not.toHaveBeenCalled()
+    await reopened.get('tr[data-row-id="7"] td[data-column-key="actions"] button[aria-label="common.delete"]').trigger('click')
     expect(reopened.getComponent(ConfirmDialog).props('show')).toBe(true)
+    expect(mocks.delete).not.toHaveBeenCalled()
     mocks.delete.mockResolvedValue(undefined)
     reopened.getComponent(ConfirmDialog).vm.$emit('confirm')
     await flushPromises()

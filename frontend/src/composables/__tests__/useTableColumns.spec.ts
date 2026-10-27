@@ -14,28 +14,29 @@ describe('useTableColumns', () => {
     const table = useTableColumns('table', defaults, options)
     expect(keys(table.columns.value)).toEqual(keys(defaults))
   })
-  it('moves required columns freely while anchoring the selection column', () => {
+  it('anchors selection and action columns while allowing data columns to move', () => {
     const table = useTableColumns('table', defaults, options)
-    table.moveColumn('actions', 'name')
+    table.moveColumn('status', 'name')
+    table.moveColumn('actions', 'id')
     table.moveColumn('select', 'id')
     table.toggleColumn('name')
-    expect(keys(table.columns.value)).toEqual(['select', 'actions', 'name', 'status', 'id'])
+    expect(keys(table.columns.value)).toEqual(['select', 'status', 'name', 'id', 'actions'])
     expect(useTableColumns('table', defaults, options).columns.value).toEqual(table.columns.value)
   })
   it('reorders visible columns without losing hidden column positions', () => {
     const table = useTableColumns('table', defaults, options)
     table.toggleColumn('status')
     table.setColumnOrder(['actions', 'name', 'id'])
-    expect(keys(table.columns.value)).toEqual(['select', 'actions', 'status', 'name', 'id'])
+    expect(keys(table.columns.value)).toEqual(['select', 'name', 'status', 'id', 'actions'])
     expect(table.columns.value.find(column => column.key === 'status')?.primary).toBe(false)
     table.toggleColumn('status')
-    expect(keys(table.columns.value)).toEqual(['select', 'actions', 'status', 'name', 'id'])
+    expect(keys(table.columns.value)).toEqual(['select', 'name', 'status', 'id', 'actions'])
   })
   it('sanitizes duplicates and stale keys and appends new columns visibly', () => {
     localStorage.setItem('table', JSON.stringify({ order: ['actions', 'gone', 'actions', 'name'], hidden: ['name', 'gone', 12] }))
     const source = ref(defaults.slice())
     const table = useTableColumns('table', source, options)
-    expect(keys(table.columns.value)).toEqual(['select', 'actions', 'name', 'status', 'id'])
+    expect(keys(table.columns.value)).toEqual(['select', 'name', 'status', 'id', 'actions'])
     source.value.push({ key: 'new', label: 'New' })
     expect(keys(table.columns.value)).toContain('new')
     source.value = source.value.filter(column => column.key !== 'status')
@@ -48,7 +49,7 @@ describe('useTableColumns', () => {
     source.value = [...defaults]
     table.moveColumn('actions', 'status')
     source.value = [...defaults, { key: 'attr_7', label: 'Attribute' }]
-    expect(keys(table.columns.value)).toEqual(['select', 'attr_7', 'name', 'actions', 'status', 'id'])
+    expect(keys(table.columns.value)).toEqual(['select', 'attr_7', 'name', 'status', 'id', 'actions'])
   })
 
   it('restores default main columns and order and persists the reset', () => {
@@ -80,7 +81,7 @@ describe('useTableColumns', () => {
     const reopened = useTableColumns('details', source, config)
     expect(reopened.isColumnPrimary('notes')).toBe(true)
     expect(reopened.isColumnPrimary('status')).toBe(false)
-    expect(keys(reopened.columns.value)).toEqual(keys(source))
+    expect(keys(reopened.columns.value)).toEqual(['select', 'name', 'status', 'id', 'notes', 'actions'])
     reopened.resetColumns()
     expect(reopened.isColumnPrimary('notes')).toBe(false)
     expect(reopened.isColumnPrimary('status')).toBe(true)
@@ -91,7 +92,7 @@ describe('useTableColumns', () => {
     const table = useTableColumns('legacy', [...defaults, { key: 'notes', label: 'Notes' }], { ...options, primary: ['name', 'status', 'actions'] })
     expect(table.isColumnPrimary('status')).toBe(true)
     expect(table.isColumnPrimary('notes')).toBe(false)
-    expect(keys(table.columns.value)).toEqual(['select', 'actions', 'name', 'status', 'id', 'notes'])
+    expect(keys(table.columns.value)).toEqual(['select', 'name', 'status', 'id', 'notes', 'actions'])
     table.toggleColumn('notes')
     expect(JSON.parse(localStorage.getItem('legacy')!).version).toBe(2)
   })

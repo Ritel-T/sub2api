@@ -340,3 +340,12 @@ func TestUsageLogFromService_PreservesHistoricalMissingImageSize(t *testing.T) {
 func f64Ptr(value float64) *float64 {
 	return &value
 }
+
+func TestUsageLogFromService_FreeFastSnapshot(t *testing.T) {
+	for _, value := range []*bool{nil, boolForFreeFastDTOTest(false), boolForFreeFastDTOTest(true)} {
+		log := &service.UsageLog{FreeFastApplied: value}
+		require.Equal(t, value, UsageLogFromService(log).FreeFastApplied)
+		require.Equal(t, value, UsageLogFromServiceAdmin(log).FreeFastApplied)
+	}
+}
+func boolForFreeFastDTOTest(value bool) *bool { return &value }
