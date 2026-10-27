@@ -94,7 +94,7 @@ const (
 	totpLoginTTL    = 5 * time.Minute
 	totpAttemptsTTL = 15 * time.Minute
 	maxTotpAttempts = 5
-	totpIssuer      = "Ritel.SI"
+	totpIssuer      = "RitelSI"
 )
 
 // TotpService handles TOTP operations
