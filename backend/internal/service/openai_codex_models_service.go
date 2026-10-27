@@ -1316,7 +1316,10 @@ func accountCodexModelSupportsImageInput(account *Account, upstreamModel string)
 				return stringSliceContains(modalities, "image")
 			}
 		}
-		if strings.EqualFold(strings.TrimSpace(upstreamModel), "deepseek-v4-flash-vision-exp") {
+		// Only known image-capable Flash IDs get a fallback when the provider
+		// omits modalities. Explicit provider metadata above remains authoritative.
+		switch strings.ToLower(strings.TrimSpace(upstreamModel)) {
+		case "deepseek-v4-flash-vision-exp", "deepseek-v4.1-flash", "deepseek-v4.1-flash-1017":
 			return account.Type == AccountTypeAPIKey
 		}
 		if account.Platform != PlatformOpenAI || !isOpenAICodexImageInputModel(upstreamModel) {

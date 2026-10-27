@@ -1227,6 +1227,10 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 	// Get available models from account configurations for the selected group platform.
 	availableModels := h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, platform)
+	if platform == service.PlatformDeepseek && apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformDeepseek {
+		h.deepSeekModels(c, apiKey.Group, availableModels)
+		return
+	}
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
 		source := service.ModelListingSource(platform, availableModels, service.DefaultModelIDsForPlatform(platform))
 		writeAllowlistedModelsList(c, platform, apiKey.Group.ModelAllowlist.FilterForListing(source))
@@ -1376,6 +1380,54 @@ func (h *GatewayHandler) compositeAvailableModels(ctx context.Context, groupID *
 		}
 	}
 	return models
+}
+
+// deepSeekModels adds the Messages discovery contract used by DeepSeek Harness.
+// Keep the existing list source, order, base fields and final deny/retrieve path.
+func (h *GatewayHandler) deepSeekModels(c *gin.Context, group *service.Group, availableModels []string) {
+	models := claude.DefaultModels
+	modelIDs := availableModels
+	if group.ModelAllowlistEnabled() {
+		source := service.ModelListingSource(service.PlatformDeepseek, availableModels, service.DefaultModelIDsForPlatform(service.PlatformDeepseek))
+		modelIDs = group.ModelAllowlist.FilterForListing(source)
+	}
+	if len(availableModels) > 0 || group.ModelAllowlistEnabled() {
+		models = make([]claude.Model, 0, len(modelIDs))
+		for _, modelID := range modelIDs {
+			models = append(models, claude.Model{ID: modelID, Type: "model", DisplayName: modelID, CreatedAt: "2024-01-01T00:00:00Z"})
+		}
+	} else {
+		modelIDs = make([]string, 0, len(models))
+		for _, model := range models {
+			modelIDs = append(modelIDs, model.ID)
+		}
+	}
+	images := h.gatewayService.DeepSeekModelImageInputsForGroup(c.Request.Context(), group, modelIDs)
+	type messagesCapabilities struct {
+		SystemPromptUpdate string `json:"system_prompt_update"`
+		ToolUpdate         string `json:"tool_update"`
+	}
+	type apiCapabilities struct {
+		AnthropicMessages messagesCapabilities `json:"anthropic_messages"`
+	}
+	type modelCapabilities struct {
+		claude.Model
+		InputModalities  []string        `json:"input_modalities"`
+		OutputModalities []string        `json:"output_modalities"`
+		APICapabilities  apiCapabilities `json:"api_capabilities"`
+	}
+	entries := make([]modelCapabilities, 0, len(models))
+	for _, model := range models {
+		inputs := []string{"text"}
+		if images[model.ID] {
+			inputs = append(inputs, "image")
+		}
+		entries = append(entries, modelCapabilities{
+			Model: model, InputModalities: inputs, OutputModalities: []string{"text"},
+			APICapabilities: apiCapabilities{AnthropicMessages: messagesCapabilities{SystemPromptUpdate: "leading-only", ToolUpdate: "leading-only"}},
+		})
+	}
+	writeModelsListResponse(c, entries)
 }
 
 func writeModelsList(c *gin.Context, platform string, modelIDs []string) {

@@ -799,6 +799,74 @@ func TestBuildCodexModelsManifestForGroupUsesProviderImageCapabilities(t *testin
 	}
 }
 
+func TestBuildCodexModelsManifestForGroupCurrentDeepSeekFlash(t *testing.T) {
+	t.Parallel()
+	const groupID int64 = 1736
+	const alias = "flash-alias"
+	newAccount := func(id int64, platform, target string, modalities []string) Account {
+		a := Account{ID: id, Platform: platform, Type: AccountTypeAPIKey, Status: StatusActive,
+			Credentials: map[string]any{"model_mapping": map[string]any{alias: target}}}
+		// An ID-only /models response may leave an ID-only persisted snapshot.
+		a.SetUpstreamModelMetadataSnapshot(UpstreamModelMetadataSnapshot{Models: map[string]UpstreamModelMetadata{
+			target: {ID: target, InputModalities: modalities},
+		}})
+		return a
+	}
+	for _, tt := range []struct {
+		name     string
+		platform string
+		accounts []Account
+		want     bool
+	}{
+		{"current base", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-v4.1-flash", nil)}, true},
+		{"current 1017", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-v4.1-flash-1017", nil)}, true},
+		{"compatible alias", PlatformOpenAI, []Account{newAccount(1, PlatformOpenAI, "deepseek-v4.1-flash", nil)}, true},
+		{"explicit text", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-v4.1-flash-1017", []string{"text"})}, false},
+		{"pro", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-v4-pro", nil)}, false},
+		{"old v4", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-v4-flash", nil)}, false},
+		{"unknown", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-unknown", nil)}, false},
+		{"unverified suffix", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-v4.1-flash-future", nil)}, false},
+		{"mixed targets", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-v4.1-flash", nil), newAccount(2, PlatformDeepseek, "deepseek-v4-pro", nil)}, false},
+		{"mixed explicit text", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-v4.1-flash", nil), newAccount(2, PlatformDeepseek, "deepseek-v4.1-flash", []string{"text"})}, false},
+		{"all vision", PlatformDeepseek, []Account{newAccount(1, PlatformDeepseek, "deepseek-v4.1-flash", nil), newAccount(2, PlatformDeepseek, "deepseek-v4.1-flash-1017", nil)}, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &GatewayService{accountRepo: codexModelsVisibilityAccountRepo{byGroup: map[int64][]Account{groupID: tt.accounts}}}
+			group := &Group{ID: groupID, Platform: tt.platform}
+			body, err := svc.BuildCodexModelsManifestForGroup(context.Background(), group, "", []string{alias})
+			require.NoError(t, err)
+			models := decodeCodexManifestModels(t, body)
+			require.Len(t, models, 1)
+			want := []any{"text"}
+			if tt.want {
+				want = append(want, "image")
+			}
+			require.Equal(t, want, models[0]["input_modalities"])
+			if tt.platform == PlatformDeepseek {
+				require.Equal(t, tt.want, svc.DeepSeekModelImageInputsForGroup(context.Background(), group, []string{alias})[alias])
+			}
+		})
+	}
+	// A candidate excluded by its group restriction must not narrow the alias.
+	vision := newAccount(1, PlatformDeepseek, "deepseek-v4.1-flash", nil)
+	text := newAccount(2, PlatformDeepseek, "deepseek-v4-pro", nil)
+	text.AccountGroups = []AccountGroup{{GroupID: groupID, AllowedModels: []string{"other-model"}}}
+	svc := &GatewayService{accountRepo: codexModelsVisibilityAccountRepo{byGroup: map[int64][]Account{groupID: {vision, text}}}}
+	require.True(t, svc.DeepSeekModelImageInputsForGroup(context.Background(), &Group{ID: groupID, Platform: PlatformDeepseek}, []string{alias})[alias])
+}
+
+func TestDeepSeekModelImageInputsForGroupFailsClosed(t *testing.T) {
+	t.Parallel()
+	group := &Group{ID: 1737, Platform: PlatformDeepseek}
+	models := []string{"deepseek-v4.1-flash-1017"}
+	var missing *GatewayService
+	require.Empty(t, missing.DeepSeekModelImageInputsForGroup(context.Background(), group, models))
+	svc := &GatewayService{accountRepo: &countingCodexModelsAccountRepo{err: errors.New("unavailable")}}
+	require.Empty(t, svc.DeepSeekModelImageInputsForGroup(context.Background(), group, models))
+	require.Empty(t, svc.DeepSeekModelImageInputsForGroup(context.Background(), nil, models))
+	require.Empty(t, svc.DeepSeekModelImageInputsForGroup(context.Background(), &Group{Platform: PlatformOpenAI}, models))
+}
+
 func TestBuildCodexModelsManifestForGroupUsesDeepSeekVisionCapabilities(t *testing.T) {
 	t.Parallel()
 
