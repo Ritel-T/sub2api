@@ -30,6 +30,8 @@ func RegisterUserRoutes(
 		user := authenticated.Group("/user")
 		{
 			user.POST("/account-security/step-up", h.Auth.AccountStepUp)
+			user.PUT("/account-security/password", h.Auth.AccountSecurityPassword)
+			user.POST("/account-security/email", h.Auth.AccountSecurityEmail)
 			user.POST("/account-security/session/logout", h.Auth.AccountSessionLogout)
 			user.GET("/account-security/recovery-codes", h.Auth.AccountRecoveryRemaining)
 			user.POST("/account-security/recovery-codes", h.Auth.AccountRecoveryReplace)

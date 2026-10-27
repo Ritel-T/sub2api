@@ -224,6 +224,8 @@ func TestAccountCenterNativeServe(t *testing.T) {
 	authenticated.GET("/account-security/recovery-codes", h.AccountRecoveryRemaining)
 	authenticated.POST("/account-security/recovery-codes", h.AccountRecoveryReplace)
 	authenticated.POST("/account-security/step-up", h.AccountStepUp)
+	authenticated.PUT("/account-security/password", h.AccountSecurityPassword)
+	authenticated.POST("/account-security/email", h.AccountSecurityEmail)
 	authenticated.POST("/account-security/session/logout", h.AccountSessionLogout)
 	totp := authenticated.Group("/totp")
 	totp.GET("/status", totpHandler.GetStatus)
