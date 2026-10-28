@@ -52,6 +52,15 @@ describe('useModelWhitelist', () => {
     expect(models).toContain('gpt-6-luna')
   })
 
+  it('exposes GPT-6.1 Terra without changing existing model mappings', () => {
+    expect(getModelsByPlatform('openai')).toContain('gpt-6.1-terra')
+    expect(getPresetMappingsByPlatform('openai')).toContainEqual(expect.objectContaining({
+      label: 'GPT-6.1 Terra', from: 'gpt-6.1-terra', to: 'gpt-6.1-terra'
+    }))
+    expect(getModelsByPlatform('openai')).toContain('gpt-5.6-terra')
+    expect(getModelsByPlatform('openai')).toContain('gpt-6.1-sol')
+  })
+
   it('exposes GPT-6.1 Sol as an exact model and identity preset', () => {
     expect(getModelsByPlatform('openai')).toContain('gpt-6.1-sol')
     const presets = getPresetMappingsByPlatform('openai')

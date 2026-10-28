@@ -75,7 +75,7 @@ func accountCodexToolCapabilities(account *Account, modelID string) map[string]j
 	parsed, err := url.Parse(baseURL)
 	official := err == nil && (strings.EqualFold(parsed.Hostname(), "api.openai.com") ||
 		(account.IsOpenAIOAuth() && strings.EqualFold(parsed.Hostname(), "chatgpt.com")))
-	if account.IsOpenAI() && (isOpenAIGPT6AstraModel(modelID) || openai.IsGPT61SolModelSpelling(modelID)) && official {
+	if account.IsOpenAI() && (isOpenAIGPT6AstraModel(modelID) || openai.IsGPT61SolModelSpelling(modelID) || openai.IsGPT61TerraModelSpelling(modelID)) && official {
 		defaults := map[string]json.RawMessage{
 			"supports_search_tool":  json.RawMessage("true"),
 			"apply_patch_tool_type": json.RawMessage(`"freeform"`),
@@ -83,7 +83,7 @@ func accountCodexToolCapabilities(account *Account, modelID string) map[string]j
 			"tool_mode":             json.RawMessage("null"),
 			"use_responses_lite":    json.RawMessage("false"),
 		}
-		if account.IsOpenAIOAuth() {
+		if account.IsOpenAIOAuth() && !openai.IsGPT61TerraModelSpelling(modelID) {
 			defaults["tool_mode"] = json.RawMessage(`"code_mode_only"`)
 			defaults["use_responses_lite"] = json.RawMessage("true")
 		}
@@ -95,6 +95,8 @@ func accountCodexToolCapabilities(account *Account, modelID string) map[string]j
 			target = "gpt-6-astra"
 		} else if openai.IsGPT61SolModelSpelling(target) {
 			target = "gpt-6.1-sol"
+		} else if openai.IsGPT61TerraModelSpelling(target) {
+			target = "gpt-6.1-terra"
 		}
 		_, disabled := apiKeyCodexModelsWithoutResponsesLite[target]
 		if disabled {
@@ -462,6 +464,9 @@ func applyUpstreamModelMetadataToCodexDescriptor(
 	if metadata.ContextWindow > 0 {
 		descriptor.ContextWindow = metadata.ContextWindow
 		descriptor.MaxContextWindow = metadata.ContextWindow
+	}
+	if descriptor.MaxOutputTokens > 0 && metadata.MaxOutputTokens > 0 {
+		descriptor.MaxOutputTokens = metadata.MaxOutputTokens
 	}
 	if metadata.MaxContextWindow > 0 {
 		descriptor.MaxContextWindow = metadata.MaxContextWindow

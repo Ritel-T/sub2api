@@ -395,6 +395,7 @@ type configuredCodexModelMessages struct {
 // requires them to be present.
 type configuredCodexModelDescriptor struct {
 	officialMetadata                  json.RawMessage
+	MaxOutputTokens                   int64                           `json:"max_output_tokens,omitempty"`
 	Slug                              string                          `json:"slug"`
 	DisplayName                       string                          `json:"display_name"`
 	Description                       string                          `json:"description"`
@@ -540,7 +541,7 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 			if isOpenAIGPT56Model(modelID) || openai.IsGPT6SolOrLunaModelSpelling(modelID) || openai.IsGPT61SolModelSpelling(modelID) {
 				descriptor.MaxContextWindow = configuredCodexGPT56MaxContext
 			}
-			if openai.IsGPT61SolModelSpelling(modelID) {
+			if openai.IsGPT61SolModelSpelling(modelID) || openai.IsGPT61TerraModelSpelling(modelID) {
 				descriptor.ContextWindow = configuredCodexGPT6AstraContext
 				descriptor.MaxContextWindow = configuredCodexGPT6AstraContext
 			}
@@ -559,6 +560,11 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 			descriptor.SupportVerbosity = true
 			descriptor.DefaultVerbosity = &defaultVerbosity
 		}
+	}
+
+	if openai.IsGPT61TerraModelSpelling(modelID) {
+		descriptor.InputModalities = []string{"text", "image"}
+		descriptor.MaxOutputTokens = 128_000
 	}
 
 	if openai.IsGPT61SolModelSpelling(modelID) {
@@ -663,6 +669,9 @@ func configuredCodexGPTReasoningLevels(modelID string) []configuredCodexReasonin
 		{Effort: "medium", Description: "Balanced reasoning for most coding tasks"},
 		{Effort: "high", Description: "Greater reasoning depth for coding and agent tasks"},
 		{Effort: "xhigh", Description: "Extra-high reasoning depth for difficult tasks"},
+	}
+	if openai.IsGPT61TerraModelSpelling(modelID) {
+		levels = append([]configuredCodexReasoningLevel{{Effort: "none", Description: "Disable reasoning for faster responses"}}, levels...)
 	}
 	normalized := getNormalizedCodexModel(modelID)
 	if isOpenAIGPT56Model(modelID) || isOpenAIGPT6Model(modelID) {
@@ -2138,6 +2147,7 @@ func CodexModelsManifestETag(body []byte) string {
 }
 
 var apiKeyCodexModelsWithoutResponsesLite = map[string]struct{}{
+	"gpt-6.1-terra": {},
 	"gpt-6.1-sol":   {},
 	"gpt-6-astra":   {},
 	"gpt-5.6-sol":   {},
@@ -2177,6 +2187,8 @@ func adjustAPIKeyCodexModelsManifest(body []byte, account *Account) ([]byte, err
 			target = "gpt-6-astra"
 		} else if openai.IsGPT61SolModelSpelling(target) {
 			target = "gpt-6.1-sol"
+		} else if openai.IsGPT61TerraModelSpelling(target) {
+			target = "gpt-6.1-terra"
 		}
 		if _, targeted := apiKeyCodexModelsWithoutResponsesLite[target]; !targeted {
 			continue

@@ -1370,12 +1370,20 @@ func normalizeOpenAIOAuthResponsesCompatibilityBody(body []byte) ([]byte, bool, 
 
 func normalizeGPT6ResponsesSampling(body []byte, model string) ([]byte, bool, error) {
 	isGPT61 := openai.IsGPT61SolModelSpelling(model)
-	if !isGPT61 && (!openai.IsGPT6SolOrLunaModelSpelling(model) || gjson.GetBytes(body, "reasoning.effort").String() == "none") {
+	isTerra := openai.IsGPT61TerraModelSpelling(model)
+	if isTerra {
+		for _, path := range []string{"reasoning.effort", "reasoning_effort"} {
+			if err := openai.ValidateGPT61TerraReasoningEffort(model, gjson.GetBytes(body, path).String()); err != nil {
+				return body, false, err
+			}
+		}
+	}
+	if !isGPT61 && !isTerra && (!openai.IsGPT6SolOrLunaModelSpelling(model) || gjson.GetBytes(body, "reasoning.effort").String() == "none") {
 		return body, false, nil
 	}
 	out := body
 	changed := false
-	if isGPT61 {
+	if isGPT61 || isTerra {
 		if gjson.GetBytes(out, "prompt_cache_retention").Exists() {
 			var err error
 			if !gjson.GetBytes(out, "prompt_cache_options.ttl").Exists() {
@@ -1390,6 +1398,8 @@ func normalizeGPT6ResponsesSampling(body []byte, model string) ([]byte, bool, er
 			}
 			changed = true
 		}
+	}
+	if isGPT61 {
 		for _, path := range []string{"reasoning.effort", "reasoning_effort"} {
 			effort := strings.ToLower(strings.TrimSpace(gjson.GetBytes(out, path).String()))
 			if effort != "none" && effort != "minimal" {
@@ -1402,6 +1412,9 @@ func normalizeGPT6ResponsesSampling(body []byte, model string) ([]byte, bool, er
 			}
 			changed = true
 		}
+	}
+	if isTerra && firstNonEmpty(gjson.GetBytes(out, "reasoning.effort").String(), gjson.GetBytes(out, "reasoning_effort").String()) == "none" {
+		return out, changed, nil
 	}
 	for _, key := range []string{"temperature", "top_p", "top_logprobs", "logprobs"} {
 		if !gjson.GetBytes(out, key).Exists() {
@@ -1550,7 +1563,7 @@ func normalizeOpenAIResponsesCompatibilityBodyWithOptions(body []byte, account *
 		normalized = sanitized
 		changed = true
 	}
-	if account != nil && account.IsOpenAI() && (account.IsOAuth() || openai.IsGPT61SolModelSpelling(account.GetMappedModel(gjson.GetBytes(normalized, "model").String()))) {
+	if account != nil && account.IsOpenAI() && (account.IsOAuth() || (openai.IsGPT61SolModelSpelling(account.GetMappedModel(gjson.GetBytes(normalized, "model").String())) || openai.IsGPT61TerraModelSpelling(account.GetMappedModel(gjson.GetBytes(normalized, "model").String())))) {
 		if reasoningBody, reasoningChanged, err := normalizeOpenAIResponsesReasoningMode(normalized, account.GetMappedModel(gjson.GetBytes(normalized, "model").String())); err != nil {
 			return body, false, err
 		} else if reasoningChanged {
@@ -2642,7 +2655,7 @@ func normalizeOpenAIReasoningEffortForModel(raw, model string) string {
 			return "ultra"
 		}
 	}
-	if strings.EqualFold(strings.TrimSpace(raw), "none") && openai.IsGPT6SolOrLunaModelSpelling(model) {
+	if strings.EqualFold(strings.TrimSpace(raw), "none") && (openai.IsGPT6SolOrLunaModelSpelling(model) || openai.IsGPT61TerraModelSpelling(model)) {
 		return "none"
 	}
 	if strings.EqualFold(strings.TrimSpace(raw), "max") && supportsOpenAIReasoningEffortMax(model) {
@@ -2679,6 +2692,14 @@ func supportsOpenAIReasoningEffortMax(model string) bool {
 // reasoning spellings are accepted here because the downstream compatibility
 // converters normalize them to low for GPT-6.1 Sol.
 func validateGPT61SolCompatRequest(body []byte, model string) error {
+	if openai.IsGPT61TerraModelSpelling(model) {
+		for _, path := range []string{"reasoning.effort", "reasoning_effort", "output_config.effort"} {
+			if err := openai.ValidateGPT61TerraReasoningEffort(model, gjson.GetBytes(body, path).String()); err != nil {
+				return err
+			}
+		}
+	}
+
 	if !openai.IsGPT61SolModelSpelling(model) {
 		return nil
 	}

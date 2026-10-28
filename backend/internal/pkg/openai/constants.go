@@ -17,6 +17,10 @@ type Model struct {
 	Type             string   `json:"type"`
 	DisplayName      string   `json:"display_name"`
 	ReasoningEfforts []string `json:"reasoning_efforts,omitempty"`
+	InputModalities  []string `json:"input_modalities,omitempty"`
+	OutputModalities []string `json:"output_modalities,omitempty"`
+	ContextWindow    int64    `json:"context_window,omitempty"`
+	MaxOutputTokens  int64    `json:"max_output_tokens,omitempty"`
 }
 
 // DefaultModels OpenAI models list
@@ -27,6 +31,7 @@ var DefaultModels = []Model{
 	{ID: "gpt-5.6-terra", Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 Terra"},
 	{ID: "gpt-5.6-luna", Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 Luna"},
 	{ID: "gpt-6.1-sol", Object: "model", Created: 1790640000, OwnedBy: "openai", Type: "model", DisplayName: "GPT-6.1 Sol"},
+	{ID: "gpt-6.1-terra", Object: "model", Created: 1793145600, OwnedBy: "openai", Type: "model", DisplayName: "GPT-6.1 Terra", InputModalities: []string{"text", "image"}, OutputModalities: []string{"text"}, ContextWindow: 1_050_000, MaxOutputTokens: 128_000, ReasoningEfforts: []string{"none", "low", "medium", "high", "xhigh", "max"}},
 	{ID: "gpt-6-sol", Object: "model", Created: 1790035200, OwnedBy: "openai", Type: "model", DisplayName: "GPT-6 Sol"},
 	{ID: "gpt-6-luna", Object: "model", Created: 1790035200, OwnedBy: "openai", Type: "model", DisplayName: "GPT-6 Luna"},
 	{ID: "gpt-6-astra", Object: "model", Created: 1788480000, OwnedBy: "openai", Type: "model", DisplayName: "GPT-6 Astra"},
@@ -224,6 +229,47 @@ func IsGPT61SolModelSpelling(model string) bool {
 		}
 	}
 	return true
+}
+
+// IsGPT61TerraModelSpelling recognizes the official Terra ID and supported
+// local effort/compact or dated spellings without matching unrelated names.
+func IsGPT61TerraModelSpelling(model string) bool {
+	canonical := CanonicalizeOpenAIModelAliasSpelling(model)
+	const base = "gpt-6.1-terra"
+	if canonical == base {
+		return true
+	}
+	suffix, ok := strings.CutPrefix(canonical, base+"-")
+	if !ok {
+		return false
+	}
+	switch suffix {
+	case "none", "low", "medium", "high", "xhigh", "max", "openai-compact":
+		return true
+	}
+	if len(suffix) != 10 || suffix[4] != '-' || suffix[7] != '-' {
+		return false
+	}
+	for i, r := range suffix {
+		if i != 4 && i != 7 && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidateGPT61TerraReasoningEffort accepts exactly Terra's public inference
+// scale. Ultra is a separate workflow and is not a Terra effort.
+func ValidateGPT61TerraReasoningEffort(model, effort string) error {
+	if !IsGPT61TerraModelSpelling(model) {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "", "none", "low", "medium", "high", "xhigh", "max":
+		return nil
+	default:
+		return fmt.Errorf("gpt-6.1-terra does not support reasoning effort %q; use none, low, medium, high, xhigh or max", effort)
+	}
 }
 
 // NormalizeGPT61SolReasoningEffort keeps older client settings usable without

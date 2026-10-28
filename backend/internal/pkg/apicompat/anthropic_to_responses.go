@@ -24,6 +24,9 @@ func AnthropicToResponsesWithMinOutputTokens(req *AnthropicRequest, minOutputTok
 	if err := openai.ValidateGPT61SolReasoningEffort(req.Model, effort); err != nil {
 		return nil, err
 	}
+	if err := openai.ValidateGPT61TerraReasoningEffort(req.Model, effort); err != nil {
+		return nil, err
+	}
 	input, err := convertAnthropicToResponsesInput(req.System, req.Messages)
 	if err != nil {
 		return nil, err
@@ -45,7 +48,7 @@ func AnthropicToResponsesWithMinOutputTokens(req *AnthropicRequest, minOutputTok
 	// sampling parameters. Sending temperature or top_p causes a 400
 	// "Unsupported parameter" error, so we only forward them for non-reasoning
 	// models.
-	if !isReasoningModel(req.Model) {
+	if !isReasoningModel(req.Model) || (openai.IsGPT61TerraModelSpelling(req.Model) && effort == "none") {
 		out.Temperature = req.Temperature
 		out.TopP = req.TopP
 	}
@@ -70,7 +73,7 @@ func AnthropicToResponsesWithMinOutputTokens(req *AnthropicRequest, minOutputTok
 
 	// An explicit thinking disable takes precedence over output_config.effort,
 	// even though GPT-6.1 Sol upgrades that legacy value to low.
-	if openai.IsGPT61SolModelSpelling(req.Model) && req.OutputConfig != nil && req.OutputConfig.Effort == "max" && requestedEffort != "none" {
+	if (openai.IsGPT61SolModelSpelling(req.Model) || openai.IsGPT61TerraModelSpelling(req.Model)) && req.OutputConfig != nil && req.OutputConfig.Effort == "max" && requestedEffort != "none" {
 		effort = "max"
 	}
 	out.Reasoning = &ResponsesReasoning{
