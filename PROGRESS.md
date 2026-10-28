@@ -1,0 +1,21 @@
+# Issue #582 — Redis 6.0 compatibility
+
+- Scope: isolated fix/issue-582-redis-compatibility branch, baseline production `08d69a522`; sole writer. Do not touch #578 service usage snapshot chain/workflow.
+- Read DEV_GUIDE.md and the complete `gh issue view 582 --json body,comments` (no comments). No applicable AGENTS.md found in worktree/ancestor directories.
+- Confirmed scheduler metadata uses SET GET (Redis >=6.2), freezing publication/outbox on 6.0. Official Redis command histories also confirm GETDEL/ZRANGE options >=6.2 and EXPIRE NX >=7.0.
+- Chosen approach: preserve Redis 6.0 support with atomic GETSET, Lua session take/fixed-window count, and legacy sorted-set commands. Keep scheduler fencing, revision invalidation, last-used side keys, grace TTLs, and error handling.
+- Additional audit hits: user message/concurrency cleanup, shared OAuth/SIWC and passkey take, IP risk/serverless sorted-set reads, API key fixed-window EXPIRE NX.
+- Regression-first: add actual Redis integration behavior tests before implementation; CI-only baseline RED and exact-head GREEN on Redis 6.0/7.x. Existing tests/skips must not be weakened.
+- Local policy: no Go compilation/tests, Docker, frontend suite, production SSH/DB/Redis or service changes. Only static checks/gofmt/offline scripts locally. Dynamic validation pending remote CI.
+- Delivery pending: commit/push, Draft PR to production (Fixes #582), inspect all push/PR raw failures, freeze source for parent review. No merge/release/deploy.
+- Regression test commit: `124864327` (tests written before implementation; no local dynamic execution).
+- Initial implementation and dedicated workflow ready for review. Baseline RED restores only baseline production implementations while retaining new tests and actual Redis 6.0 container selection; GREEN restores/verifies the exact PR head.
+- Static validation: gofmt, git diff --check, bash -n pass. PyYAML not installed locally; workflow YAML parsing/dynamic checks pending CI.
+- Draft PR created: https://github.com/ranxi2001/sub2api/pull/592 targeting production, Fixes #582; validation explicitly pending. Initial reviewable head `4ae2584f8`.
+- Static dependency review found go-redis v9.22 marks the Redis 6.0 commands deprecated in favor of 6.2-only alternatives. Added narrowly scoped staticcheck annotations explaining the compatibility requirement; no broad lint exclusions.
+- The first implementation push omitted newly ignored documentation/RED script; immediately included both with force-add in `4ae2584f8`. Earlier CI runs will be triaged as superseded, not counted as acceptance.
+- Remote evidence on implementation head `81b858461`: dedicated Redis 7.4.12 job passed; actual Redis 6.0 baseline RED and exact-head snapshot/outbox/session/queue race tests passed, remaining matrix unit stage pending when recorded. Current-head push golangci-lint/security/Caddy/frontend/helper checks passed; full backend/PR checks still running.
+- Read and archived every failed job's raw log: old `4d3abe2c6` RED runner missing (fixed in `4ae2584f8`); old `4d3abe2c6`/`4ae2584f8` push/PR staticcheck SA1019 findings (fixed in `81b858461`, whose lint is green). No runtime failure found at this point.
+- Final test hardening: capture the initial outbox ID before starting workers; read the isolated sequence after membership enqueue so immediate successful consumption/deletion cannot race the assertion. Install a CI Redis binary for the existing readiness adapter test instead of allowing its optional missing-binary skip. The pre-existing concurrency suite TODO skip is unchanged; all Issue582 cases must run.
+- Final acceptance remains pending the next exact-head matrix and all push/PR checks. Live status snapshots, raw failure logs and final evidence are kept under `/data/development/artifacts/sub2api-issue-582` (`ci-runs.json`, `run-*-jobs.json`, `job-*.log`, final handoff). No local compilation/dynamic tests or production access used.
+- Source will be frozen at the last green exact head for parent review. Draft PR remains unmerged; no release/deploy or service upgrade authorized/performed.
