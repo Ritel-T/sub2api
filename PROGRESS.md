@@ -8,3 +8,6 @@
 - Regression-first: add actual Redis integration behavior tests before implementation; CI-only baseline RED and exact-head GREEN on Redis 6.0/7.x. Existing tests/skips must not be weakened.
 - Local policy: no Go compilation/tests, Docker, frontend suite, production SSH/DB/Redis or service changes. Only static checks/gofmt/offline scripts locally. Dynamic validation pending remote CI.
 - Delivery pending: commit/push, Draft PR to production (Fixes #582), inspect all push/PR raw failures, freeze source for parent review. No merge/release/deploy.
+- Regression test commit: `124864327` (tests written before implementation; no local dynamic execution).
+- Initial implementation and dedicated workflow ready for review. Baseline RED restores only baseline production implementations while retaining new tests and actual Redis 6.0 container selection; GREEN restores/verifies the exact PR head.
+- Static validation: gofmt, git diff --check, bash -n pass. PyYAML not installed locally; workflow YAML parsing/dynamic checks pending CI.

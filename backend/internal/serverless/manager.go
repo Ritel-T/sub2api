@@ -174,7 +174,7 @@ func (m *Manager) Pods(ctx context.Context) ([]Pod, error) {
 	if m.redis == nil {
 		return []Pod{}, nil
 	}
-	ids, err := m.redis.ZRangeArgs(ctx, redis.ZRangeArgs{Key: prefix + "pods", Start: 0, Stop: 127, Rev: true}).Result()
+	ids, err := m.redis.ZRevRange(ctx, prefix+"pods", 0, 127).Result()
 	if err != nil {
 		return nil, err
 	}

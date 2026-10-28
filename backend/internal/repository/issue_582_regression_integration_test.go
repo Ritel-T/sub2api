@@ -191,7 +191,7 @@ func TestIssue582OutboxMakesNewMemberSchedulable(t *testing.T) {
 	require.Contains(t, full.GroupIDs, group.ID)
 }
 
-func TestIssue582SingleUseSessionsAndFixedWindow(t *testing.T) {
+func TestIssue582SingleUseSessions(t *testing.T) {
 	ctx := context.Background()
 	rdb := issue582Redis(t)
 	store := redissession.New(rdb, "issue582:siwc", time.Minute)
@@ -237,6 +237,11 @@ func TestIssue582SingleUseSessionsAndFixedWindow(t *testing.T) {
 	require.Error(t, err)
 	require.Zero(t, rdb.Exists(ctx, "issue582:siwc:invalid").Val())
 
+}
+
+func TestIssue582FixedWindow(t *testing.T) {
+	ctx := context.Background()
+	rdb := issue582Redis(t)
 	key := apiKeyCreateCountKey(582)
 	counter := NewAPIKeyCache(rdb)
 	count, err := counter.IncrementCreateCount(ctx, 582, time.Minute)
@@ -252,6 +257,11 @@ func TestIssue582SingleUseSessionsAndFixedWindow(t *testing.T) {
 	require.NoError(t, err)
 	require.Positive(t, rdb.PTTL(ctx, key).Val(), "repair a legacy counter with no TTL")
 
+}
+
+func TestIssue582PasskeyTake(t *testing.T) {
+	ctx := context.Background()
+	rdb := issue582Redis(t)
 	// Passkey sessions share the same atomic take guarantee as SIWC.
 	passkeys := NewPasskeySessionStore(rdb)
 	raw, err := json.Marshal(service.PasskeySession{})
@@ -261,4 +271,37 @@ func TestIssue582SingleUseSessionsAndFixedWindow(t *testing.T) {
 	require.NoError(t, err)
 	_, err = passkeys.Consume(ctx, "test")
 	require.ErrorIs(t, err, service.ErrPasskeySession)
+}
+
+func TestIssue582ConcurrentSnapshotPublication(t *testing.T) {
+	ctx := context.Background()
+	rdb := issue582Redis(t)
+	cache := NewSchedulerCache(rdb)
+	bucket := service.SchedulerBucket{GroupID: 584, Platform: service.PlatformOpenAI, Mode: service.SchedulerModeSingle}
+	token, err := cache.CaptureBucketWriteToken(ctx, bucket)
+	require.NoError(t, err)
+	var wg sync.WaitGroup
+	failures := make(chan error, 16)
+	for i := range 16 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			failures <- cache.SetSnapshot(ctx, bucket, token, []service.Account{issue582Account(int64(58400+i), service.PlatformOpenAI)})
+		}()
+	}
+	wg.Wait()
+	close(failures)
+	for err := range failures {
+		require.NoError(t, err)
+	}
+	active, err := rdb.Get(ctx, schedulerBucketKey(schedulerActivePrefix, bucket)).Result()
+	require.NoError(t, err)
+	require.Equal(t, "16", active, "a slower older publisher must not replace the newest version")
+	candidates, hit, err := cache.GetSnapshot(ctx, bucket)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Len(t, candidates, 1)
+	members, err := rdb.ZRange(ctx, schedulerSnapshotKey(bucket, active), 0, -1).Result()
+	require.NoError(t, err)
+	require.Equal(t, []string{strconv.FormatInt(candidates[0].ID, 10)}, members)
 }
