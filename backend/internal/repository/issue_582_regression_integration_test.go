@@ -153,10 +153,10 @@ func TestIssue582OutboxMakesNewMemberSchedulable(t *testing.T) {
 	issue582SeedSnapshot(t, rdb, bucket, old)
 	cfg := &config.Config{RunMode: config.RunModeStandard, Gateway: config.GatewayConfig{Scheduling: config.GatewaySchedulingConfig{OutboxPollIntervalSeconds: 1, DbFallbackEnabled: false}}}
 	svc := service.NewSchedulerSnapshotService(cache, NewSchedulerOutboxRepository(integrationDB), accounts, groups, cfg)
-	svc.Start()
-	t.Cleanup(svc.Stop)
 	var initialID int64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COALESCE(MAX(id),0) FROM scheduler_outbox").Scan(&initialID))
+	svc.Start()
+	t.Cleanup(svc.Stop)
 	require.Eventually(t, func() bool {
 		wm, err := cache.GetOutboxWatermark(ctx)
 		return err == nil && wm >= initialID && rdb.Get(ctx, schedulerBucketKey(schedulerActivePrefix, bucket)).Val() != "1"
@@ -168,7 +168,9 @@ func TestIssue582OutboxMakesNewMemberSchedulable(t *testing.T) {
 
 	require.NoError(t, accounts.AddToGroup(ctx, added.ID, group.ID, 1))
 	var eventID int64
-	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT MAX(id) FROM scheduler_outbox WHERE account_id=$1 AND event_type=$2", added.ID, service.SchedulerOutboxEventAccountGroupsChanged).Scan(&eventID))
+	// The worker may already have consumed and deleted this event. The isolated
+	// database sequence still proves the membership write enqueued a newer ID.
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT last_value FROM scheduler_outbox_id_seq").Scan(&eventID))
 	require.Greater(t, eventID, initialID)
 	require.Eventually(t, func() bool {
 		wm, err := cache.GetOutboxWatermark(ctx)
