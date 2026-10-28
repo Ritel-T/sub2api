@@ -189,12 +189,13 @@ func TestAccountFactorStorageFailuresRollback(t *testing.T) {
 					default:
 						q.WillReturnRows(factorTestUserRows(user))
 						q = mock.ExpectQuery(factorTestEpochSQL).WithArgs(fmt.Sprintf("auth_session_epoch:%d", user.ID))
-						if stage == "epoch" {
+						switch stage {
+						case "epoch":
 							q.WillReturnError(failure)
-						} else if stage == "bad-epoch" {
+						case "bad-epoch":
 							q.WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("invalid"))
 							want = service.ErrServiceUnavailable
-						} else {
+						default:
 							q.WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow(epoch))
 							if kind == "totp" {
 								e := mock.ExpectExec(factorTestTotpSQL).WithArgs(user.ID, "new-encrypted-secret")
@@ -235,9 +236,10 @@ func TestAccountFactorTotpRowsAffectedRollback(t *testing.T) {
 			expectFactorSnapshot(mock, user, "")
 			result := sqlmock.NewResult(0, rows)
 			var want error = service.ErrServiceUnavailable
-			if rows == 0 {
+			switch rows {
+			case 0:
 				want = service.ErrUserNotFound
-			} else if rows == -1 {
+			case -1:
 				want = errors.New("rows affected failed")
 				result = sqlmock.NewErrorResult(want)
 			}
@@ -399,9 +401,10 @@ func TestAccountFactorCompleteSetupDispatch(t *testing.T) {
 			legacy := &factorSetupLegacyRepo{}
 			var repo service.UserRepository = legacy
 			var want error
-			if mode == "legacy-secret-error" {
+			switch mode {
+			case "legacy-secret-error":
 				legacy.failAt, want = "secret", service.ErrUserNotFound
-			} else if mode == "legacy-enable-error" {
+			case "legacy-enable-error":
 				legacy.failAt, want = "enable", service.ErrUserNotFound
 			}
 			if mode == "fenced" || mode == "stale" || mode == "unsupported" {

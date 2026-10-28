@@ -125,11 +125,11 @@ func AccountSecurityResetAuditNote(note string) string {
 		for i := range len(run) {
 			if masked[i] {
 				if !hidden {
-					out.WriteString("[recovery code redacted]")
+					_, _ = out.WriteString("[recovery code redacted]")
 				}
 				hidden = true
 			} else {
-				out.WriteByte(run[i])
+				_ = out.WriteByte(run[i])
 				hidden = false
 			}
 		}

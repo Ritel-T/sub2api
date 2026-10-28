@@ -77,7 +77,7 @@ type JWTClaims struct {
 
 // AuthService 认证服务
 type AuthService struct {
- recoveryCodes AccountRecoveryCodeRepository
+	recoveryCodes         AccountRecoveryCodeRepository
 	entClient             *dbent.Client
 	userRepo              UserRepository
 	redeemRepo            RedeemCodeRepository
@@ -1764,12 +1764,6 @@ func (s *AuthService) generateTokenPairForEpoch(ctx context.Context, user *User,
 		RefreshToken:     refreshToken,
 		ExpiresIn:        s.GetAccessTokenExpiresIn(),
 	}, nil
-}
-
-// generateRefreshToken 生成并存储Refresh Token
-func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, familyID, epoch string) (string, error) {
-	token, _, err := s.generateRefreshTokenWithExpiry(ctx, user, familyID, epoch)
-	return token, err
 }
 
 // generateRefreshTokenWithExpiry returns the deadline from the record actually

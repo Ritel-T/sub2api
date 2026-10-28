@@ -138,13 +138,14 @@ func TestAccountRecoveryCodeTransactionFailuresSanitized(t *testing.T) {
 		for _, phase := range []string{"begin", "lock", "statement", "commit"} {
 			t.Run(operation+"/"+phase, func(t *testing.T) {
 				repo, mock := newRecoveryCodeSQLMock(t)
-				if phase == "begin" {
+				switch phase {
+				case "begin":
 					mock.ExpectBegin().WillReturnError(secretErr)
-				} else if phase == "lock" {
+				case "lock":
 					mock.ExpectBegin()
 					mock.ExpectExec(recoveryTestLockSQL).WithArgs(int64(42)).WillReturnError(secretErr)
 					mock.ExpectRollback()
-				} else {
+				default:
 					expectRecoveryCodeLock(mock, 42)
 					switch operation {
 					case "replace":
@@ -221,7 +222,7 @@ func TestAccountRecoveryCodeAffectedRowsFailuresRollBack(t *testing.T) {
 			t.Run(operation+"/"+resultName, func(t *testing.T) {
 				repo, mock := newRecoveryCodeSQLMock(t)
 				expectRecoveryCodeLock(mock, 42)
-				var result driver.Result = sqlmock.NewErrorResult(errors.New("sensitive result error"))
+				result := sqlmock.NewErrorResult(errors.New("sensitive result error"))
 				if resultName == "invalid count" {
 					affected := int64(-1)
 					if operation == "replace insert" {
@@ -310,12 +311,16 @@ func TestAccountRecoveryCodeInvalidInputsDoNotOpenTransaction(t *testing.T) {
 	for _, invalid := range [][]string{nil, {}, hashes[:7], append(append([]string(nil), hashes...), strings.Repeat("f", 64)), duplicate} {
 		require.ErrorIs(t, repo.Replace(ctx, 42, "g1", invalid), service.ErrInvalidAccountRecoveryCodeInput)
 	}
-	require.ErrorIs(t, repo.Replace(nil, 42, "g1", hashes), service.ErrInvalidAccountRecoveryCodeInput)
-	_, err := repo.Consume(nil, 42, "g1", hashes[0])
+	//lint:ignore SA1012 Verify nil context is rejected before database access.
+	require.ErrorIs(t, repo.Replace(nil, 42, "g1", hashes), service.ErrInvalidAccountRecoveryCodeInput) //nolint:staticcheck // SA1012: intentionally test nil-context rejection before database access.
+	//lint:ignore SA1012 Verify nil context is rejected before database access.
+	_, err := repo.Consume(nil, 42, "g1", hashes[0]) //nolint:staticcheck // SA1012: intentionally test nil-context rejection before database access.
 	require.ErrorIs(t, err, service.ErrInvalidAccountRecoveryCodeInput)
-	_, err = repo.Remaining(nil, 42, "g1")
+	//lint:ignore SA1012 Verify nil context is rejected before database access.
+	_, err = repo.Remaining(nil, 42, "g1") //nolint:staticcheck // SA1012: intentionally test nil-context rejection before database access.
 	require.ErrorIs(t, err, service.ErrInvalidAccountRecoveryCodeInput)
-	require.ErrorIs(t, repo.Invalidate(nil, 42), service.ErrInvalidAccountRecoveryCodeInput)
+	//lint:ignore SA1012 Verify nil context is rejected before database access.
+	require.ErrorIs(t, repo.Invalidate(nil, 42), service.ErrInvalidAccountRecoveryCodeInput) //nolint:staticcheck // SA1012: intentionally test nil-context rejection before database access.
 }
 
 func TestAccountRecoveryCodeNilDatabaseFailsClosed(t *testing.T) {

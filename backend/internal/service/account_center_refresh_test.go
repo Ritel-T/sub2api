@@ -14,6 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// generateRefreshToken keeps the legacy single-return helper in the unit fixture.
+// Production token pairs use generateRefreshTokenWithExpiry's stored deadline.
+func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, familyID, epoch string) (string, error) {
+	token, _, err := s.generateRefreshTokenWithExpiry(ctx, user, familyID, epoch)
+	return token, err
+}
+
 func accountCenterRefreshClaims(t *testing.T, s *AuthService, token string) *JWTClaims {
 	t.Helper()
 	claims := &JWTClaims{}

@@ -92,7 +92,7 @@ func HashAccountRecoveryCode(code string) (string, error) {
 		if c >= 'a' && c <= 'z' {
 			c -= 'a' - 'A'
 		}
-		if !((c >= 'A' && c <= 'Z') || (c >= '2' && c <= '7')) || count == len(normalized) {
+		if (c < 'A' || c > 'Z') && (c < '2' || c > '7') || count == len(normalized) {
 			return "", ErrInvalidAccountRecoveryCode
 		}
 		normalized[count] = c

@@ -45,11 +45,11 @@ func (r *accountRecoveryCodeRepository) Replace(ctx context.Context, userID int6
 		}
 		// One parameterized batch insert; any failure rolls back the old-set delete.
 		var query strings.Builder
-		query.WriteString("INSERT INTO account_recovery_codes (user_id, generation, code_hash) VALUES ")
+		_, _ = query.WriteString("INSERT INTO account_recovery_codes (user_id, generation, code_hash) VALUES ")
 		args := make([]any, 0, len(hashes)*3)
 		for i, hash := range hashes {
 			if i > 0 {
-				query.WriteString(", ")
+				_, _ = query.WriteString(", ")
 			}
 			start := i*3 + 1
 			fmt.Fprintf(&query, "($%d, $%d, $%d)", start, start+1, start+2)
@@ -193,7 +193,7 @@ func validAccountRecoveryCodeHash(hash string) bool {
 	}
 	for i := 0; i < len(hash); i++ {
 		c := hash[i]
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}

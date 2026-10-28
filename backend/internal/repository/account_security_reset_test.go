@@ -155,7 +155,8 @@ func TestAccountSecurityResetBeginCommitAndInvalidInputs(t *testing.T) {
 			require.ErrorIs(t, repo.ResetAccountSecurity(context.Background(), 42, epoch), service.ErrAccountSecurityResetInput)
 		}
 		require.ErrorIs(t, repo.ResetAccountSecurity(context.Background(), 0, strings.Repeat("ab", 16)), service.ErrAccountSecurityResetInput)
-		require.ErrorIs(t, repo.ResetAccountSecurity(nil, 42, strings.Repeat("ab", 16)), service.ErrAccountSecurityResetInput)
+		//lint:ignore SA1012 Verify nil context is rejected before database access.
+		require.ErrorIs(t, repo.ResetAccountSecurity(nil, 42, strings.Repeat("ab", 16)), service.ErrAccountSecurityResetInput) //nolint:staticcheck // SA1012: intentionally test nil-context rejection before database access.
 		var nilRepo *accountRecoveryCodeRepository
 		require.ErrorIs(t, nilRepo.ResetAccountSecurity(context.Background(), 42, strings.Repeat("ab", 16)), service.ErrAccountSecurityResetStorage)
 	})

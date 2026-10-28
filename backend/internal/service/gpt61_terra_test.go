@@ -69,7 +69,7 @@ func TestGPT61TerraCodexCatalog(t *testing.T) {
 	require.EqualValues(t, 1050000, m["context_window"])
 	require.EqualValues(t, 1050000, m["max_context_window"])
 	require.EqualValues(t, 128000, m["max_output_tokens"])
-	require.True(t, m["supports_parallel_tool_calls"].(bool))
+	require.Equal(t, true, m["supports_parallel_tool_calls"])
 	require.Nil(t, m["multi_agent_version"])
 	require.Contains(t, m["service_tiers"], map[string]any{"id": "priority", "name": "Fast", "description": "Priority processing for lower latency."})
 	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"base_url": "https://api.openai.com"}}
