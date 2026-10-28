@@ -445,7 +445,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	subscriptionOverflowNotificationRepository := repository.NewSubscriptionOverflowNotificationRepository(db)
 	subscriptionOverflowNotificationService := service.ProvideSubscriptionOverflowNotificationService(subscriptionOverflowNotificationRepository, notificationEmailService, configConfig)
 	batchImageWorkerRuntime := service.ProvideBatchImageWorkerRuntime(batchImageRepository, accountRepository, batchImageQueue, usageBillingRepository, usageLogRepository, batchImageModelPricingResolver, apiKeyAuthCacheInvalidator, configConfig)
-	qualityJudgeService := service.NewQualityJudgeService(accountRepository, groupRepository, concurrencyService, accountTestService)
+	qualityJudgeService := service.NewQualityJudgeService(accountRepository, groupRepository, concurrencyService, accountTestService, contentModerationService)
 	scheduledTestRunnerService := service.ProvideScheduledTestRunnerService(scheduledTestPlanRepository, scheduledTestService, accountTestService, rateLimitService, configConfig, qualityJudgeService, redisClient, pelicanGroupTestService, channelMonitorV2Service)
 	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db, configConfig)
 	squarespacePaymentBridge := service.ProvideSquarespacePaymentBridge(paymentService, leaderLockCache, db, billingCacheService, apiKeyAuthCacheInvalidator, configConfig)

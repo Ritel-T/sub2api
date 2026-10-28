@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -21,10 +22,12 @@ import (
 
 // UsageHandler handles admin usage-related requests
 type UsageHandler struct {
-	usageService   *service.UsageService
-	apiKeyService  *service.APIKeyService
-	adminService   service.AdminService
-	cleanupService *service.UsageCleanupService
+	trafficUninitializedDrops atomic.Int64
+	trafficDelivery           *service.TrafficDelivery
+	usageService              *service.UsageService
+	apiKeyService             *service.APIKeyService
+	adminService              service.AdminService
+	cleanupService            *service.UsageCleanupService
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -163,21 +166,20 @@ func (h *UsageHandler) List(c *gin.Context) {
 	var startTime, endTime *time.Time
 	userTZ := c.Query("timezone") // Get user's timezone from request
 	if startDateStr := c.Query("start_date"); startDateStr != "" {
-		t, err := timezone.ParseRangeBoundary(startDateStr, userTZ, false)
+		t, err := parseUsageDateBoundary(startDateStr, userTZ, false)
 		if err != nil {
-			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or RFC3339")
+			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or RFC3339 with timezone")
 			return
 		}
 		startTime = &t
 	}
 
 	if endDateStr := c.Query("end_date"); endDateStr != "" {
-		t, err := timezone.ParseRangeBoundary(endDateStr, userTZ, true)
+		t, err := parseUsageDateBoundary(endDateStr, userTZ, true)
 		if err != nil {
-			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or RFC3339")
+			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or RFC3339 with timezone")
 			return
 		}
-		// The parser advances only date-only ends to the next local midnight.
 		endTime = &t
 	}
 
@@ -328,14 +330,14 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 			return
 		}
 		var err error
-		startTime, err = timezone.ParseRangeBoundary(startDateStr, userTZ, false)
+		startTime, err = parseUsageDateBoundary(startDateStr, userTZ, false)
 		if err != nil {
-			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or RFC3339")
+			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or RFC3339 with timezone")
 			return
 		}
-		endTime, err = timezone.ParseRangeBoundary(endDateStr, userTZ, true)
+		endTime, err = parseUsageDateBoundary(endDateStr, userTZ, true)
 		if err != nil {
-			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or RFC3339")
+			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or RFC3339 with timezone")
 			return
 		}
 	} else {

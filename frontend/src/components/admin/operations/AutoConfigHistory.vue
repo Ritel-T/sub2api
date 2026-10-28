@@ -33,7 +33,7 @@
                   <div class="mt-2 space-y-1 rounded-lg bg-gray-50 p-3 dark:bg-dark-800">
                     <template v-if="row.details.config.model_billing">
                       <p>{{ t('autoConfig.modelBilling.title') }}：{{ t(row.details.config.model_billing.enabled ? 'autoConfig.logs.on' : 'autoConfig.logs.off') }}</p>
-                      <p v-for="rule in row.details.config.model_billing.rules" :key="rule.model" class="break-all">{{ rule.model }} · {{ rule.multiplier }}×</p>
+                      <p v-for="rule in row.details.config.model_billing.rules" :key="rule.model" class="break-all">{{ rule.model }} · {{ rule.multiplier }}× · {{ rule.group_ids?.length ? t('autoConfig.modelBilling.groups') + '：' + groupIDs(rule.group_ids) : t('autoConfig.modelBilling.allGroups') }}</p>
                     </template>
                     <p v-if="row.details.config.model_mappings?.length">{{ t('autoConfig.mapping.title') }}：</p>
                     <p v-for="rule in row.details.config.model_mappings ?? []" :key="rule.from" class="break-words">{{ rule.from }} → {{ rule.to }}</p>

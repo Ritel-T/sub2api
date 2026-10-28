@@ -1048,6 +1048,10 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 		}
 	}
 	updates = stripGatewayBorrowAccountQualityManagedExtraUpdates(updates, protectClassification)
+	// Ordinary partial saves cannot write server-owned quality isolation.
+	// Dedicated quality restore/runtime paths use their own transaction/UpdateExtra.
+	updates = maps.Clone(updates)
+	delete(updates, QualityModelIsolationKey)
 	if err := ValidateAccountCostMultiplierExtra(updates); err != nil {
 		return err
 	}

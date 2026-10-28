@@ -75,8 +75,9 @@ type dashboardSnapshotV2CacheKey struct {
 }
 
 func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
-	if c.IsAborted() {
+	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 	granularity := strings.TrimSpace(c.DefaultQuery("granularity", "day"))
@@ -103,6 +104,8 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 	}
 
 	keyRaw, _ := json.Marshal(dashboardSnapshotV2CacheKey{
+		// This outer cache stores display metadata as well as data. Keep the
+		// caller offsets distinct; inner data-only caches normalize instants to UTC.
 		StartTime:             startTime.Format(time.RFC3339Nano),
 		EndTime:               endTime.Format(time.RFC3339Nano),
 		Granularity:           granularity,

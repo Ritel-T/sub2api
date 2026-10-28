@@ -19,11 +19,11 @@
           {{ tab.label }}
         </button>
       </div>
-      <UsageFilters v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="admin-usage-filters" data-testid="admin-usage-filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
+      <UsageFilters v-if="activeTab !== 'traffic'" v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="admin-usage-filters" data-testid="admin-usage-filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
         <template #before-filters>
           <div class="usage-time-filter">
             <label class="input-label">{{ t('admin.dashboard.timeRange') }}</label>
-            <DateRangePicker data-field-role="filter" :aria-label="t('admin.dashboard.timeRange')" enable-time :preset="selectedPreset"
+            <DateRangePicker data-field-role="filter" :aria-label="t('admin.dashboard.timeRange')" enable-time :rolling24-hours="!props.observerMode" :preset="selectedPreset"
               v-model:start-date="startDate"
               v-model:end-date="endDate"
               @change="onDateRangeChange"
@@ -47,8 +47,8 @@
           />
         </template>
       </UsageFilters>
-      <UsageStatsCards :stats="usageStats" />
-      <div class="space-y-4">
+      <UsageStatsCards v-if="activeTab !== 'traffic'" :stats="usageStats" />
+      <div v-if="activeTab !== 'traffic'" class="space-y-4">
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ModelDistributionChart
             v-model:source="modelDistributionSource"
@@ -136,6 +136,7 @@
           :filters="connectionFilters"
           :refresh-key="connectionRefreshKey"
         />
+        <TrafficPanel v-if="!props.observerMode && activeTab === 'traffic'" admin />
         <!-- 懒挂载：首次切到该 tab 才请求排行数据，之后随筛选自动刷新 -->
         <div v-if="!props.observerMode && rankingMounted" v-show="activeTab === 'ranking'" class="min-w-0">
           <UserTokenRanking
@@ -153,7 +154,7 @@
   </AppLayout>
   <UsageExportProgress :show="exportProgress.show" :progress="exportProgress.progress" :current="exportProgress.current" :total="exportProgress.total" :estimated-time="exportProgress.estimatedTime" @cancel="cancelExport" />
   <UsageCleanupDialog
-    v-if="!props.observerMode"
+    v-if="!props.observerMode && cleanupUsesCalendarDates"
     :show="cleanupDialogVisible"
     :filters="filters"
     :start-date="startDate"
@@ -171,7 +172,7 @@
 </template>
 
 <script setup lang="ts">
-import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange, parseDateBoundary } from '@/utils/dateRange'
+import { getLast24HourRange, getDatePresetRange, getGranularityForRange, parseDateBoundary } from '@/utils/dateRange'
 import { ref, reactive, computed, onMounted, onUnmounted, watch, provide } from 'vue'
 import { observerUsageAPI } from '@/api/observerUsage'
 import { observerUsageContext } from '@/components/admin/usage/observerUsageContext'
@@ -190,6 +191,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'; import InfiniteListSe
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import UsageConnections from '@/components/admin/usage/UsageConnections.vue'
+import TrafficPanel from '@/components/usage/TrafficPanel.vue'
 import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
@@ -276,9 +278,17 @@ const handleRankingSelectUser = (userId: number, email: string) => {
 
 const granularityOptions = computed(() => [{ value: 'day', label: t('admin.dashboard.day') }, { value: 'hour', label: t('admin.dashboard.hour') }])
 // Use local timezone to avoid UTC timezone issues
+const getLast24HoursRangeDates = () => {
+  if (props.observerMode) return getLast24HourRange()
+  const end = new Date()
+  return { start: new Date(end.getTime() - 86_400_000).toISOString(), end: end.toISOString() }
+}
 const selectedPreset = ref<string | null>('last24Hours')
 const defaultRange = getLast24HoursRangeDates()
 const startDate = ref(defaultRange.start); const endDate = ref(defaultRange.end)
+const cleanupUsesCalendarDates = computed(() =>
+  /^\d{4}-\d{2}-\d{2}$/.test(startDate.value) && /^\d{4}-\d{2}-\d{2}$/.test(endDate.value)
+)
 const filters = ref<AdminUsageQueryParams>({ user_id: undefined, model: undefined, group_id: undefined, request_type: undefined, native_compaction_v2: null, billing_type: null, start_date: startDate.value, end_date: endDate.value })
 const logList = useInfiniteList<AdminUsageLog>({
   keyOf: row => row.id, pageSize: 50,
@@ -302,6 +312,15 @@ const applyRouteQueryFilters = () => {
   const queryUserId = props.observerMode ? undefined : objectQueryId(route.query.user_id)
   const queryAccountId = props.observerMode ? undefined : objectQueryId(route.query.account_id)
   if (queryStartDate || queryEndDate) selectedPreset.value = null
+
+  if (queryStartDate || queryEndDate) {
+    // A partial calendar-date link keeps the old default for its missing day.
+    // Preserve exact Ritel time selection; only fill a missing natural-date boundary.
+    if ((queryStartDate && !queryStartDate.includes('T')) || (queryEndDate && !queryEndDate.includes('T'))) {
+      startDate.value = startDate.value.slice(0, 10)
+      endDate.value = endDate.value.slice(0, 10)
+    }
+  }
 
   if (queryStartDate) {
     startDate.value = queryStartDate
@@ -352,6 +371,16 @@ const onDateRangeChange = (range: { startDate: string; endDate: string; preset: 
   }
   granularity.value = getGranularityForRange(range.startDate, range.endDate)
   applyFilters()
+}
+
+// Refresh a rolling range once per action so every read shares exactly [now-24h, now).
+// Pagination, sorting and export keep the applied snapshot stable.
+const refreshRollingRange = () => {
+  if (props.observerMode || selectedPreset.value !== 'last24Hours') return
+  const range = getLast24HoursRangeDates()
+  startDate.value = range.start
+  endDate.value = range.end
+  filters.value = { ...filters.value, start_date: range.start, end_date: range.end }
 }
 
 const buildUsageListParams = (
@@ -493,6 +522,7 @@ const loadChartData = async () => {
   } catch (error) { console.error('Failed to load chart data:', error) } finally { if (seq === chartReqSeq) chartsLoading.value = false }
 }
 const applyFilters = () => {
+  refreshRollingRange()
   invalidateModelStatsCache()
   loadLogs()
   loadStats()
@@ -505,7 +535,7 @@ const applyFilters = () => {
   }
 }
 const refreshData = () => {
-  const range = selectedPreset.value ? getDatePresetRange(selectedPreset.value) : null
+  const range = selectedPreset.value === 'last24Hours' ? getLast24HoursRangeDates() : selectedPreset.value ? getDatePresetRange(selectedPreset.value) : null
   if (range) {
     startDate.value = range.start
     endDate.value = range.end
@@ -540,7 +570,14 @@ const handleIpGeoBatchFailed = () => {
   appStore.showError(t('usage.ipGeo.batchFailed'))
 }
 const cancelExport = () => exportAbortController?.abort()
-const openCleanupDialog = () => { if (!props.observerMode) cleanupDialogVisible.value = true }
+const openCleanupDialog = () => {
+  if (props.observerMode) return
+  if (!cleanupUsesCalendarDates.value) {
+    appStore.showWarning(t('admin.usage.cleanup.calendarRangeRequired'))
+    return
+  }
+  cleanupDialogVisible.value = true
+}
 const getRequestTypeLabel = (log: AdminUsageLog): string => {
   const requestType = resolveUsageRequestType(log)
   if (requestType === 'cyber') return t('usage.cyber')
@@ -678,7 +715,7 @@ const resetCurrentColumns = () =>
   activeTab.value === 'errors' ? resetErrColumns() : resetColumns()
 
 // Detail tabs
-type DetailTab = 'usage' | 'errors' | 'connections' | 'ranking'
+type DetailTab = 'usage' | 'errors' | 'connections' | 'ranking' | 'traffic'
 const activeTab = ref<DetailTab>('usage')
 const canViewErrors = computed(() => !props.observerMode || !!appStore.cachedPublicSettings?.allow_user_view_error_requests)
 const detailTabs = computed(() => [
@@ -686,6 +723,7 @@ const detailTabs = computed(() => [
   ...(canViewErrors.value ? [{ key: 'errors' as const, label: t('usage.tabs.errors'), icon: 'exclamationTriangle' as const }] : []),
   ...(!props.observerMode ? [{ key: 'connections' as const, label: t('connections.title'), icon: 'clock' as const }] : []),
   ...(!props.observerMode ? [{ key: 'ranking' as const, label: t('usage.tabs.ranking'), icon: 'chart' as const }] : []),
+  ...(!props.observerMode ? [{ key: 'traffic' as const, label: t('traffic.title'), icon: 'chart' as const }] : []),
 ])
 const usageFiltersRef = ref<InstanceType<typeof UsageFilters> | null>(null)
 const connectionRefreshKey = ref(0)

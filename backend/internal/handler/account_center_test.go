@@ -24,7 +24,8 @@ func (r *accountCenterHandlerUserRepo) GetUserAvatar(context.Context, int64) (*s
 
 func TestAccountCenterAuthorityEndpoint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	cfg := &config.Config{AccountCenter: config.AccountCenterConfig{Enabled: true, BridgeSecret: strings.Repeat("s", 43)}}
+	cfg := &config.Config{AccountCenter: config.AccountCenterConfig{Enabled: true, BridgeSecret: strings.Repeat("s", 43), PublicOrigin: "https://account.example.test"}}
+	require.NoError(t, cfg.AccountCenter.Validate())
 	repo := &accountCenterHandlerUserRepo{userHandlerRepoStub: &userHandlerRepoStub{user: &service.User{ID: 42, Email: "old@example.test", PasswordHash: "private-hash", Username: "Name", Status: service.StatusActive}}}
 	settings := &userHandlerEpochRepo{values: map[string]string{}}
 	auth := service.NewAuthService(nil, repo, nil, nil, cfg, service.NewSettingService(settings, cfg), nil, nil, nil, nil, nil, nil, nil)
@@ -62,9 +63,27 @@ func TestAccountCenterAuthorityEndpoint(t *testing.T) {
 	require.True(t, body.Data.Enabled)
 	require.Len(t, body.Data.SecurityGeneration, 64)
 	require.NotContains(t, w.Body.String(), "private-hash")
-	cfg.AccountCenter.Enabled = false
-	require.Equal(t, http.StatusNotFound, request("sub2api:42", valid).Code)
-	cfg.AccountCenter.Enabled = true
-	cfg.AccountCenter.BridgeSecret = "short"
-	require.Equal(t, http.StatusNotFound, request("sub2api:42", valid).Code)
+	for _, mode := range []string{"disabled", "short_secret", "missing_public_origin", "invalid_public_origin"} {
+		t.Run(mode, func(t *testing.T) {
+			cfg.AccountCenter.Enabled = true
+			cfg.AccountCenter.BridgeSecret = strings.Repeat("s", 43)
+			cfg.AccountCenter.PublicOrigin = "https://account.example.test"
+			switch mode {
+			case "disabled":
+				cfg.AccountCenter.Enabled = false
+			case "short_secret":
+				cfg.AccountCenter.BridgeSecret = "short"
+			case "missing_public_origin":
+				cfg.AccountCenter.PublicOrigin = ""
+			case "invalid_public_origin":
+				cfg.AccountCenter.PublicOrigin = "http://account.example.test/path"
+			}
+			for _, headers := range [][]string{nil, valid} {
+				w := request("sub2api:42", headers)
+				require.Equal(t, http.StatusNotFound, w.Code)
+				require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+				require.NotContains(t, w.Body.String(), "old@example.test")
+			}
+		})
+	}
 }

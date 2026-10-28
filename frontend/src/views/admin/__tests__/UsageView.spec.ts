@@ -3,11 +3,14 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 
 import UsageView from '../UsageView.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'
+import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import ColumnSettings from '@/components/common/ColumnSettings.vue'
 
 vi.mock('@/components/admin/ConsoleObjectLinks.vue', () => ({ default: { template: '<nav />' } }))
 
-const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, routeQuery, aoaToSheet, sheetAddAoa, saveAs, xlsxWrite } = vi.hoisted(() => {
+const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, routeQuery, aoaToSheet, sheetAddAoa, saveAs, xlsxWrite, listCleanupTasks, createCleanupTask, showWarning } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -15,6 +18,9 @@ const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listE
   })
 
   return {
+    listCleanupTasks: vi.fn(),
+    createCleanupTask: vi.fn(),
+    showWarning: vi.fn(),
     list: vi.fn(),
 		exportList: vi.fn(),
     getStats: vi.fn(),
@@ -70,6 +76,7 @@ vi.mock('@/api/admin', () => ({
 
 vi.mock('@/api/admin/usage', () => ({
   adminUsageAPI: {
+    listCleanupTasks, createCleanupTask,
 		list: exportList,
   },
 }))
@@ -94,7 +101,7 @@ vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     cachedPublicSettings: own.settings,
     showError: vi.fn(),
-    showWarning: vi.fn(),
+    showWarning,
     showSuccess: vi.fn(),
     showInfo: vi.fn(),
   }),
@@ -110,6 +117,7 @@ vi.mock('vue-i18n', async () => {
     ...actual,
     useI18n: () => ({
       t: (key: string) => messages[key] ?? key,
+      locale: ref('en'),
     }),
   }
 })
@@ -122,6 +130,7 @@ vi.mock('vue-router', () => ({
 
 const AppLayoutStub = { template: '<div><slot /></div>' }
 const UsageFiltersStub = defineComponent({
+  emits: ['cleanup', 'update:modelValue', 'change', 'export'],
   setup(_, { expose }) {
     const userKeyword = ref('')
     let userSearchRevision = 0
@@ -136,7 +145,7 @@ const UsageFiltersStub = defineComponent({
     })
     return { userKeyword }
   },
-  template: '<div><slot name="before-filters" /><span data-test="user-filter-label">{{ userKeyword }}</span><slot name="after-reset" /></div>',
+  template: '<div><slot name="before-filters" /><button data-test="cleanup-open" @click="$emit(\'cleanup\')">cleanup</button><span data-test="user-filter-label">{{ userKeyword }}</span><slot name="after-reset" /></div>',
 })
 const UsageTableStub = {
   props: ['columns'],
@@ -169,12 +178,14 @@ const GroupDistributionChartStub = {
   `,
 }
 
-const mountRouteFilteredUsageView = () => mount(UsageView, {
+const mountRouteFilteredUsageView = (realDatePicker = false, realCleanupDialog = false) => mount(UsageView, {
   global: { stubs: {
     AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
-    UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
+    UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: !realCleanupDialog,
+    BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' },
+    ConfirmDialog: { props: ['show'], emits: ['confirm'], template: '<button v-if="show" data-test="cleanup-confirm" @click="$emit(\'confirm\')">confirm</button>' },
     UserBalanceHistoryModal: true, Pagination: true, Select: true,
-    DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+    DateRangePicker: !realDatePicker, Icon: true, TokenUsageTrend: true,
     ModelDistributionChart: true, GroupDistributionChart: true,
     EndpointDistributionChart: true, UserTokenRanking: true,
   } },
@@ -227,7 +238,7 @@ describe('admin UsageView route filters', () => {
     ;(wrapper.vm as any).refreshData()
     await flushPromises()
     expect(list).toHaveBeenLastCalledWith(expect.objectContaining({
-      start_date: '2026-09-09T05:16:00.000Z', end_date: '2026-09-10T05:16:00.000Z'
+      start_date: '2026-09-09T05:15:10.000Z', end_date: '2026-09-10T05:15:10.000Z'
     }), expect.anything())
     wrapper.findComponent({ name: 'DateRangePicker' }).vm.$emit('change', {
       startDate: '2026-09-08T04:37:00.000Z', endDate: '2026-09-09T04:37:00.000Z', preset: null
@@ -799,7 +810,7 @@ describe('admin UsageView ranking tab', () => {
     expect(wrapper.find('[data-test="ranking"]').exists()).toBe(false)
 
     const tabs = wrapper.findAll('[data-testid="usage-detail-tab"]')
-    expect(tabs).toHaveLength(4)
+    expect(tabs).toHaveLength(5)
     expect(wrapper.find('[data-test="connection-tab"]').exists()).toBe(false)
     await tabs[2].trigger('click')
     await flushPromises()
@@ -954,5 +965,143 @@ describe('observer own usage view', () => {
     expect(wrapper.findAll('[data-testid="usage-detail-tab"]')).toHaveLength(1)
     expect(own.listErrors).not.toHaveBeenCalled()
     wrapper.unmount()
+  })
+})
+
+describe('admin UsageView rolling 24 hour requests', () => {
+  let wrapper: ReturnType<typeof mountRouteFilteredUsageView> | undefined
+  const now = new Date('2026-10-01T00:01:02.123+09:00')
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    Object.keys(routeQuery).forEach(key => delete routeQuery[key])
+    list.mockReset().mockResolvedValue({ items: [], total: 0, pages: 0 })
+    exportList.mockReset().mockResolvedValue({ items: [], total: 0, pages: 0 })
+    getStats.mockReset().mockResolvedValue({ total_requests: 2, total_cost: 12, total_actual_cost: 3, total_account_cost: 5 })
+    getModelStats.mockReset().mockResolvedValue({ models: [] })
+    getSnapshotV2.mockReset().mockResolvedValue({ trend: [], groups: [] })
+    listErrorLogs.mockReset().mockResolvedValue({ items: [], total: 0 })
+  })
+  afterEach(() => {
+    wrapper?.unmount()
+    wrapper = undefined
+    Object.keys(routeQuery).forEach(key => delete routeQuery[key])
+    vi.useRealTimers()
+  })
+
+  const expectRequests = (end: Date) => {
+    const range = { start_date: new Date(end.getTime() - 86_400_000).toISOString(), end_date: end.toISOString() }
+    for (const request of [list, getStats, getModelStats, getSnapshotV2]) {
+      expect(request.mock.lastCall?.[0]).toMatchObject(range)
+      const params = request.mock.lastCall![0]
+      expect(Date.parse(params.end_date) - Date.parse(params.start_date)).toBe(86_400_000)
+    }
+    expect(getSnapshotV2.mock.lastCall?.[0].granularity).toBe('hour')
+    return range
+  }
+
+  it.each([
+    ['rolling', undefined, undefined],
+    ['routed exact', '2026-09-30T00:00:00Z', '2026-10-01T00:00:00Z'],
+    ['mixed', '2026-09-30', '2026-10-01T00:00:00Z'],
+  ])('blocks %s cleanup until calendar dates are explicitly selected', async (_, start, end) => {
+    if (start) routeQuery.start_date = start
+    if (end) routeQuery.end_date = end
+    listCleanupTasks.mockReset().mockResolvedValue({ items: [], total: 0 })
+    createCleanupTask.mockReset()
+    showWarning.mockClear()
+    wrapper = mountRouteFilteredUsageView(true, true)
+    await flushPromises()
+    await wrapper.get('[data-test="cleanup-open"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('button').some(b => b.text() === 'admin.usage.cleanup.submit')).toBe(false)
+    expect(wrapper.find('[data-test="cleanup-confirm"]').exists()).toBe(false)
+    expect(listCleanupTasks).not.toHaveBeenCalled()
+    expect(createCleanupTask).not.toHaveBeenCalled()
+    expect(showWarning).toHaveBeenCalledWith('admin.usage.cleanup.calendarRangeRequired')
+  })
+
+  it('submits unchanged natural dates after an explicit picker selection', async () => {
+    listCleanupTasks.mockReset().mockResolvedValue({ items: [], total: 0 })
+    createCleanupTask.mockReset().mockResolvedValue({ id: 1 })
+    wrapper = mountRouteFilteredUsageView(true, true)
+    await flushPromises()
+    await wrapper.get('[data-test="cleanup-open"]').trigger('click')
+    const picker = wrapper.findComponent(DateRangePicker)
+    await picker.get('.date-picker-trigger').trigger('click')
+    await picker.findAll('.date-picker-preset').find(b => b.text() === 'dates.today')!.trigger('click')
+    await picker.get('.date-picker-apply').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test="cleanup-open"]').trigger('click')
+    await flushPromises()
+    const dialog = wrapper.findComponent(UsageCleanupDialog)
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    expect(dialog.props()).toMatchObject({ show: true, startDate: today, endDate: today })
+    await dialog.findAll('button').find(b => b.text() === 'admin.usage.cleanup.submit')!.trigger('click')
+    await wrapper.get('[data-test="cleanup-confirm"]').trigger('click')
+    await flushPromises()
+    expect(createCleanupTask).toHaveBeenCalledOnce()
+    expect(createCleanupTask).toHaveBeenCalledWith({ start_date: today, end_date: today, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+  })
+
+  it('uses the same precise cross-midnight window for list, cards and charts on initial load', async () => {
+    wrapper = mountRouteFilteredUsageView(true)
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    expectRequests(now)
+    expect(wrapper.findComponent(DateRangePicker).get('.date-picker-trigger').text()).toContain('dates.last24Hours')
+    expect(wrapper.findComponent(UsageStatsCards).props('stats')).toMatchObject({
+      total_actual_cost: 3, total_cost: 12, total_account_cost: 5
+    })
+  })
+
+  it('refreshes the rolling window once and keeps pagination/export on that applied snapshot', async () => {
+    wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    const refreshedAt = new Date('2026-10-02T00:00:00.456+09:00')
+    vi.setSystemTime(refreshedAt)
+    ;(wrapper.vm as any).refreshData()
+    await flushPromises()
+    const range = expectRequests(refreshedAt)
+    vi.setSystemTime(new Date('2026-10-02T00:05:00.789+09:00'))
+    expect((wrapper.vm as any).buildUsageListParams(2, 50, false)).toMatchObject({ ...range, page: 2 })
+    await (wrapper.vm as any).exportToExcel()
+    expect(exportList.mock.lastCall?.[0]).toMatchObject(range)
+    expect((wrapper.vm as any).connectionFilters).toMatchObject({ start_time: range.start_date, end_time: range.end_date })
+    ;(wrapper.vm as any).switchTab('errors')
+    await flushPromises()
+    expect(listErrorLogs.mock.lastCall?.[0]).toMatchObject({ start_time: range.start_date, end_time: range.end_date })
+  })
+
+  it('applies the actual picker selection after midnight and resets back to rolling time', async () => {
+    routeQuery.start_date = '2026-09-20'
+    routeQuery.end_date = '2026-09-25'
+    wrapper = mountRouteFilteredUsageView(true)
+    await flushPromises()
+    const picker = wrapper.findComponent(DateRangePicker)
+    await picker.get('.date-picker-trigger').trigger('click')
+    await picker.findAll('.date-picker-preset').find(b => b.text() === 'dates.last24Hours')!.trigger('click')
+    await picker.get('.date-picker-apply').trigger('click')
+    await flushPromises()
+    expectRequests(now)
+    const resetAt = new Date('2026-10-02T00:00:00.789+09:00')
+    vi.setSystemTime(resetAt)
+    ;(wrapper.vm as any).resetFilters()
+    await flushPromises()
+    expectRequests(resetAt)
+  })
+
+  it('preserves manual/routed calendar dates on refresh', async () => {
+    routeQuery.start_date = '2026-09-30'
+    routeQuery.end_date = '2026-10-01'
+    wrapper = mountRouteFilteredUsageView(true)
+    await flushPromises()
+    ;(wrapper.vm as any).refreshData()
+    await flushPromises()
+    for (const request of [list, getStats, getModelStats, getSnapshotV2]) {
+      expect(request.mock.lastCall?.[0]).toMatchObject({ start_date: '2026-09-30', end_date: '2026-10-01' })
+    }
+    expect(wrapper.findComponent(DateRangePicker).get('.date-picker-trigger').text()).not.toContain('dates.last24Hours')
   })
 })

@@ -28,10 +28,14 @@ func TestAccountCenterRefresh_AuthoritativeExpiryAndGenerationSurviveRotation(t 
 	s.cfg.AccountCenter.Enabled = true
 	s.cfg.JWT.RefreshTokenExpireDays = 9 // Deliberately differs from a client-assumed 30 days.
 	settings.values[sessionEpochSettingKey(user.ID)] = strings.Repeat("ab", 16)
-	pair, err := s.GenerateTokenPair(ctx, user, "original-family")
+	// Production family IDs are 32 hex characters and are validated by the
+	// durable family fence on refresh. Keep the rotation fixture within that contract.
+	originalFamilyID := strings.Repeat("cd", 16)
+	pair, err := s.GenerateTokenPair(ctx, user, originalFamilyID)
 	require.NoError(t, err)
 	original, err := cache.GetRefreshToken(ctx, hashToken(pair.RefreshToken))
 	require.NoError(t, err)
+	require.Equal(t, originalFamilyID, original.FamilyID)
 	require.Equal(t, original.ExpiresAt.Unix(), pair.RefreshExpiresAt)
 	require.Equal(t, 9*24*time.Hour, original.ExpiresAt.Sub(original.CreatedAt))
 	claims := accountCenterRefreshClaims(t, s, pair.AccessToken)

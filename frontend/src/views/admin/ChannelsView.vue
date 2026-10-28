@@ -637,6 +637,7 @@
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
@@ -664,6 +665,7 @@ import Toggle from '@/components/common/Toggle.vue'
 import PricingEntryCard from '@/components/admin/channel/PricingEntryCard.vue'
 import { useKeyedDebouncedSearch } from '@/composables/useKeyedDebouncedSearch'
 
+const operationsRoute = useRoute()
 const { t } = useI18n()
 const appStore = useAppStore()
 
@@ -1680,6 +1682,10 @@ function confirmDelete() {
 
 // ── Lifecycle ──
 onMounted(() => {
+  const editId = Number(operationsRoute?.query.edit_channel)
+  if (Number.isSafeInteger(editId) && editId > 0) {
+    void adminAPI.channels.getById(editId).then(openEditDialog).catch(() => appStore.showError(t('channelOps.failed')))
+  }
   loadChannels()
   loadGroups()
   loadWebSearchGlobalState()

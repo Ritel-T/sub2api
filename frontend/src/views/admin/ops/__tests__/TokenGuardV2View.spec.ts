@@ -578,7 +578,8 @@ it('rolls controls back when saving fails', async () => {
   api.updateSwitches.mockRejectedValueOnce(new Error('save failed'))
   await view.get('[data-testid="auto-inspect-42"]').trigger('click'); await flushPromises()
   expect(view.get('[data-testid="auto-inspect-42"]').attributes('aria-checked')).toBe('true')
-  expect(view.text()).toContain('save failed')
+  expect(view.text()).toContain('tokenGuardV2.error')
+  expect(view.text()).not.toContain('save failed')
 })
 
 it('preserves legacy engine choices when only concurrency changes', async () => {

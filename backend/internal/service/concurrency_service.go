@@ -579,6 +579,8 @@ func (s *ConcurrencyService) DecrementWaitCount(ctx context.Context, userID int6
 }
 
 // IncrementAccountWaitCount increments the wait queue counter for an account.
+// On unavailable accounting, true permits best-effort customer admission while
+// the error signals that no increment was confirmed; callers must not decrement.
 func (s *ConcurrencyService) IncrementAccountWaitCount(ctx context.Context, accountID int64, maxWait int) (bool, error) {
 	if s.cache == nil {
 		return true, errors.New("account wait counter unavailable")

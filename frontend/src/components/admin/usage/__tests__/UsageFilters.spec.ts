@@ -336,3 +336,87 @@ describe('observer usage filters', () => {
     vi.useRealTimers()
   })
 })
+
+describe('UsageFilters — identity-only traffic filters', () => {
+  let wrapper: ReturnType<typeof mount>
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.clearAllMocks()
+    mockSearchUsers.mockResolvedValue([
+      { id: 1, email: 'first@example.test', deleted: false },
+      { id: 2, email: 'second@example.test', deleted: false },
+    ])
+    mockSearchApiKeys.mockReset().mockResolvedValue([{ id: 10, name: 'First key' }])
+    wrapper = mount(UsageFilters, {
+      props: { modelValue: defaultFilters(), identityOnly: true, showActions: false, exporting: false, startDate: '', endDate: '' },
+    })
+  })
+  afterEach(() => { wrapper.unmount(); vi.useRealTimers() })
+
+  async function chooseUser(email: string) {
+    const input = wrapper.get('input[placeholder="Search user..."]')
+    await input.trigger('focus'); await input.setValue('example')
+    await vi.advanceTimersByTimeAsync(300); await flushPromises()
+    await wrapper.findAll('button').find(button => button.text().includes(email))!.trigger('click')
+    await flushPromises()
+  }
+
+  it('renders only shared user/key searches without loading unrelated filter data', async () => {
+    await flushPromises()
+    expect(wrapper.findAll('input')).toHaveLength(2)
+    expect(wrapper.findAllComponents({ name: 'Select' })).toHaveLength(0)
+    expect(mockGroupsList).not.toHaveBeenCalled()
+    expect(wrapper.props('modelValue').start_date).toBe('')
+  })
+
+  it('clears the selected key when changing users and loads the new user’s keys', async () => {
+    await chooseUser('first@example.test')
+    await wrapper.get('input[placeholder="Search API key..."]').trigger('focus')
+    await wrapper.findAll('button').find(button => button.text().includes('First key'))!.trigger('click')
+    expect(wrapper.props('modelValue').api_key_id).toBe(10)
+    mockSearchApiKeys.mockResolvedValue([{ id: 20, name: 'Second key' }])
+    await chooseUser('second@example.test')
+    expect(wrapper.props('modelValue').api_key_id).toBeUndefined()
+    expect(mockSearchApiKeys).toHaveBeenLastCalledWith(2, '')
+    await wrapper.get('input[placeholder="Search API key..."]').trigger('focus')
+    expect(wrapper.text()).toContain('Second key')
+    expect(wrapper.text()).not.toContain('First key')
+    await wrapper.get('[aria-label="Clear user filter"]').trigger('click')
+    expect(wrapper.props('modelValue').user_id).toBeUndefined()
+    expect(wrapper.get('input[placeholder="Search API key..."]').element).toHaveProperty('value', '')
+  })
+
+  it('ignores key search responses from a previous user scope', async () => {
+    const pending = deferred<Array<{ id: number; name: string }>>()
+    mockSearchApiKeys.mockImplementationOnce(() => pending.promise)
+    await chooseUser('first@example.test')
+    mockSearchApiKeys.mockResolvedValue([{ id: 20, name: 'Second key' }])
+    await chooseUser('second@example.test')
+    pending.resolve([{ id: 10, name: 'Stale key' }]); await flushPromises()
+    await wrapper.get('input[placeholder="Search API key..."]').trigger('focus')
+    expect(wrapper.text()).toContain('Second key')
+    expect(wrapper.text()).not.toContain('Stale key')
+  })
+
+  it('ignores outdated keyword results and does not restore keys after clearing', async () => {
+    const pending = deferred<Array<{ id: number; name: string }>>()
+    mockSearchApiKeys.mockImplementationOnce(() => pending.promise)
+    const input = wrapper.get('input[placeholder="Search API key..."]')
+    await input.trigger('focus'); await input.setValue('old')
+    await vi.advanceTimersByTimeAsync(300)
+    mockSearchApiKeys.mockResolvedValue([{ id: 20, name: 'Current key' }])
+    await input.setValue('current'); await vi.advanceTimersByTimeAsync(300); await flushPromises()
+    pending.resolve([{ id: 10, name: 'Old key' }]); await flushPromises()
+    expect(wrapper.text()).toContain('Current key')
+    expect(wrapper.text()).not.toContain('Old key')
+    await wrapper.findAll('button').find(button => button.text().includes('Current key'))!.trigger('click')
+    const clearing = deferred<Array<{ id: number; name: string }>>()
+    mockSearchApiKeys.mockImplementationOnce(() => clearing.promise)
+    await input.setValue('pending'); await vi.advanceTimersByTimeAsync(300)
+    await wrapper.get('[aria-label="Clear API key filter"]').trigger('click')
+    clearing.resolve([{ id: 30, name: 'Cleared key' }]); await flushPromises()
+    await input.trigger('focus')
+    expect(wrapper.text()).not.toContain('Cleared key')
+    expect(wrapper.props('modelValue').api_key_id).toBeUndefined()
+  })
+})

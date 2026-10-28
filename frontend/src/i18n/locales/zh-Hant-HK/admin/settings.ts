@@ -812,8 +812,6 @@ export default {
         title: '自定義菜單頁面',
         description: '添加自定義 iframe 頁面到側邊欄導航。每個頁面可以設定為普通用戶或管理員可見。',
         itemLabel: '菜單項 #{n}',
-        name: '菜單名稱',
-        namePlaceholder: '如：幫助中心',
         url: '頁面 URL',
         urlPlaceholder: 'https://example.com/page',
         hideOpenButton: '隱藏“新窗口打開”按鈕',
@@ -829,6 +827,13 @@ export default {
         remove: '刪除',
         moveUp: '上移',
         moveDown: '下移',
+
+        "nameZh": "中文名稱",
+        "nameZhPlaceholder": "如：幫助中心",
+        "nameEn": "英文名稱",
+        "nameEnPlaceholder": "e.g. Help Center",
+        "fallbackName": "舊版本名稱回退",
+        "fallbackNamePlaceholder": "留空時自動使用中文名稱，其次使用英文名稱",
       },
       payment: {
         title: '支付設定',

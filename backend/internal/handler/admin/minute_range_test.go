@@ -16,6 +16,7 @@ func TestMinuteRangeSnapshotLocalMetadataCache(t *testing.T) {
 	resetDashboardReadCachesForTest()
 	t.Cleanup(resetDashboardReadCachesForTest)
 	h := &DashboardHandler{}
+	previousETag := ""
 	for _, tc := range []struct{ start, end, date string }{
 		{"2026-09-09T23:30:00Z", "2026-09-10T00:30:00Z", "2026-09-10"},
 		{"2026-09-09T19:30:00-04:00", "2026-09-09T20:30:00-04:00", "2026-09-09"},
@@ -31,6 +32,45 @@ func TestMinuteRangeSnapshotLocalMetadataCache(t *testing.T) {
 			require.Equal(t, tc.start, body.Data["start_time"])
 			require.Equal(t, tc.end, body.Data["end_time"])
 			require.Equal(t, tc.date, body.Data["end_date"])
+			etag := rec.Header().Get("ETag")
+			require.NotEmpty(t, etag)
+			if i == 0 {
+				require.Equal(t, "miss", rec.Header().Get("X-Snapshot-Cache"))
+				require.NotEqual(t, previousETag, etag, "different local metadata must not reuse an ETag")
+			} else {
+				require.Equal(t, "hit", rec.Header().Get("X-Snapshot-Cache"))
+				require.Equal(t, previousETag, etag)
+			}
+			previousETag = etag
+		}
+	}
+}
+
+func TestMinuteRangeRankingLocalMetadataCache(t *testing.T) {
+	dashboardUsersRankingCache = newSnapshotCache(30 * time.Second)
+	t.Cleanup(func() { dashboardUsersRankingCache = newSnapshotCache(30 * time.Second) })
+	repo := &dashboardUsageRepoCapture{}
+	h := NewDashboardHandler(service.NewDashboardService(repo, nil, nil, nil), nil)
+	for _, tc := range []struct{ start, end, date string }{
+		{"2026-09-09T23:30:00Z", "2026-09-10T00:30:00Z", "2026-09-10"},
+		{"2026-09-09T19:30:00-04:00", "2026-09-09T20:30:00-04:00", "2026-09-09"},
+	} {
+		for i := 0; i < 2; i++ {
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest("GET", "/?start_date="+url.QueryEscape(tc.start)+"&end_date="+url.QueryEscape(tc.end), nil)
+			h.GetUserSpendingRanking(c)
+			require.Equal(t, 200, rec.Code)
+			var body struct{ Data map[string]any }
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			require.Equal(t, tc.start, body.Data["start_time"])
+			require.Equal(t, tc.end, body.Data["end_time"])
+			require.Equal(t, tc.date, body.Data["end_date"])
+			if i == 0 {
+				require.Equal(t, "miss", rec.Header().Get("X-Snapshot-Cache"))
+			} else {
+				require.Equal(t, "hit", rec.Header().Get("X-Snapshot-Cache"))
+			}
 		}
 	}
 }

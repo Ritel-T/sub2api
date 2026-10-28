@@ -934,7 +934,6 @@ button.rounded, a.rounded[href] { border-radius: var(--ritel-radius-control); }
 .ritel-metric-card > .flex { align-items: flex-start; gap: 12px; }
 .ritel-metric-card > .flex > .rounded-lg { display: none; }
 .ritel-metric-card .ritel-number-display { font-size: 30px; line-height: 1.2; padding: 12px 0; overflow-wrap: anywhere; }
-.ritel-number-display .text-sm { font-family: var(--ritel-ui); font-variant-numeric: lining-nums tabular-nums; font-size: 13px; letter-spacing: 0; }
 .ritel-number-compact, [data-number=compact] { font-family: var(--ritel-ui); font-variant-numeric: lining-nums tabular-nums; }
 .ritel-brand { display: inline-flex; align-items: center; gap: 16px; color: var(--ritel-fg); font-family: var(--ritel-heading); font-size: 24px; white-space: nowrap; }
 .ritel-brand img { object-fit: contain; }

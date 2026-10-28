@@ -1,5 +1,5 @@
 <template>
-  <div class="open-filter-toolbar usage-filters" :class="flat ? 'py-4' : 'open-section'">
+  <div class="open-filter-toolbar usage-filters" :class="[flat ? 'py-4' : 'open-section', { 'usage-filters-identity-only': identityOnly }]">
     <div class="usage-filter-layout">
       <div class="usage-filter-controls">
         <slot name="before-filters" />
@@ -72,11 +72,14 @@
               class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-dark-700"
             >
               <span class="truncate">{{ k.name || `#${k.id}` }}</span>
+              <span v-if="k.deleted" class="ml-1 text-xs text-gray-400">({{ t('traffic.deletedKey') }})</span>
               <span class="ml-2 text-xs text-gray-400">#{{ k.id }}</span>
             </button>
           </div>
+          <p v-if="apiKeySearchError" role="alert" class="mt-1 text-xs text-red-600 dark:text-red-400">{{ t('traffic.keysFailed') }}</p>
         </div>
 
+        <template v-if="!identityOnly">
         <!-- Model Filter -->
         <div class="usage-filter-field">
           <label class="input-label">{{ t('usage.model') }}</label>
@@ -172,6 +175,7 @@
           <label class="input-label">{{ t('admin.usage.group') }}</label>
           <Select :aria-label="t('admin.usage.group')" v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
         </div>
+        </template>
 
       </div>
 
@@ -223,12 +227,16 @@ interface Props {
   mode?: 'usage' | 'errors' | 'ranking' | 'connections'
   /** Match the parent page spacing when embedded. */
   flat?: boolean
+  /** Reuse user/key search without token, account, model or group filters. */
+  identityOnly?: boolean
+  apiKeySearch?: (userId: number | undefined, query: string) => Promise<UsageFilterOption[]>
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showActions: true,
   mode: 'usage',
-  flat: false
+  flat: false,
+  identityOnly: false
 })
 const emit = defineEmits([
   'update:modelValue',
@@ -256,7 +264,9 @@ let userSearchSequence = 0
 const apiKeyKeyword = ref('')
 const apiKeyResults = ref<UsageFilterOption[]>([])
 const showApiKeyDropdown = ref(false)
+const apiKeySearchError = ref(false)
 let apiKeySearchTimeout: ReturnType<typeof setTimeout> | null = null
+let apiKeySearchSequence = 0
 
 interface SimpleAccount {
   id: number
@@ -366,16 +376,36 @@ const debounceUserSearch = () => {
   }, 300)
 }
 
+const clearPendingApiKeySearch = () => {
+  if (apiKeySearchTimeout) {
+    clearTimeout(apiKeySearchTimeout)
+    apiKeySearchTimeout = null
+  }
+  apiKeySearchSequence += 1
+}
+
+const searchApiKeys = async (userId: number | undefined, query: string, sequence: number) => {
+  try {
+    const results = props.apiKeySearch && !observerMode
+      ? await props.apiKeySearch(userId, query)
+      : observerMode
+      ? await observerUsageAPI.filterOptions('api_key', query)
+      : await adminAPI.usage.searchApiKeys(userId, query)
+    if (sequence === apiKeySearchSequence && userId === filters.value.user_id) { apiKeyResults.value = results; apiKeySearchError.value = false }
+  } catch {
+    if (sequence === apiKeySearchSequence && userId === filters.value.user_id) { apiKeyResults.value = []; apiKeySearchError.value = Boolean(props.apiKeySearch) }
+  }
+}
+
 const debounceApiKeySearch = () => {
-  if (apiKeySearchTimeout) clearTimeout(apiKeySearchTimeout)
-  apiKeySearchTimeout = setTimeout(async () => {
-    try {
-      apiKeyResults.value = observerMode
-        ? await observerUsageAPI.filterOptions('api_key', apiKeyKeyword.value || '')
-        : await adminAPI.usage.searchApiKeys(filters.value.user_id, apiKeyKeyword.value || '')
-    } catch {
-      apiKeyResults.value = []
-    }
+  clearPendingApiKeySearch()
+  apiKeyResults.value = []
+  const sequence = apiKeySearchSequence
+  const userId = filters.value.user_id
+  const query = apiKeyKeyword.value || ''
+  apiKeySearchTimeout = setTimeout(() => {
+    apiKeySearchTimeout = null
+    void searchApiKeys(userId, query, sequence)
   }, 300)
 }
 
@@ -387,14 +417,9 @@ const selectUser = async (u: SimpleUser) => {
   filters.value.user_id = u.id
   clearApiKey()
 
-  // Auto-load API keys for this user
-  try {
-    apiKeyResults.value = await adminAPI.usage.searchApiKeys(u.id, '')
-  } catch {
-    apiKeyResults.value = []
-  }
-
   emitChange()
+  // Auto-load keys in the selected user's scope without delaying filtering.
+  await searchApiKeys(u.id, '', apiKeySearchSequence)
 }
 
 const clearUser = () => {
@@ -408,14 +433,17 @@ const clearUser = () => {
 }
 
 const selectApiKey = (k: UsageFilterOption) => {
-  apiKeyKeyword.value = k.name || String(k.id)
+  clearPendingApiKeySearch()
+  apiKeyKeyword.value = `${k.name || String(k.id)}${k.deleted ? ` (${t('traffic.deletedKey')})` : ''}`
   showApiKeyDropdown.value = false
   filters.value.api_key_id = k.id
   emitChange()
 }
 
 const clearApiKey = () => {
+  clearPendingApiKeySearch()
   apiKeyKeyword.value = ''
+  apiKeySearchError.value = false
   apiKeyResults.value = []
   showApiKeyDropdown.value = false
   filters.value.api_key_id = undefined
@@ -483,7 +511,7 @@ const onDocumentClick = (e: MouseEvent) => {
 watch(
   () => props.startDate,
   (value) => {
-    filters.value.start_date = value
+    if (!props.identityOnly) filters.value.start_date = value
   },
   { immediate: true }
 )
@@ -491,7 +519,7 @@ watch(
 watch(
   () => props.endDate,
   (value) => {
-    filters.value.end_date = value
+    if (!props.identityOnly) filters.value.end_date = value
   },
   { immediate: true }
 )
@@ -511,10 +539,12 @@ watch(
   () => filters.value.api_key_id,
   (apiKeyId) => {
     if (!apiKeyId) {
+      clearPendingApiKeySearch()
       apiKeyKeyword.value = ''
       apiKeyResults.value = []
     }
-  }
+  },
+  { flush: 'sync' }
 )
 
 watch(
@@ -529,6 +559,7 @@ watch(
 
 onMounted(async () => {
   document.addEventListener('click', onDocumentClick)
+  if (props.identityOnly) return
   try {
     const gs = observerMode
       ? { items: await observerUsageAPI.filterOptions('group') }
@@ -541,6 +572,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearPendingUserSearch()
+  clearPendingApiKeySearch()
+  if (accountSearchTimeout) clearTimeout(accountSearchTimeout)
   document.removeEventListener('click', onDocumentClick)
 })
 

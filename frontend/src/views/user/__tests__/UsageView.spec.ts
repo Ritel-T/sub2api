@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import {createRouter, createMemoryHistory, type Router} from 'vue-router'
 import UsageView from '../UsageView.vue'
+import TrafficPanel from '@/components/usage/TrafficPanel.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
@@ -168,6 +169,7 @@ function mountUsageView(router?: Router) {
         Select: true,
         DateRangePicker: true,
         Icon: true,
+        TrafficPanel: true,
         UsageStatsCards: chartStub,
         UsageTable: { ...chartStub, props: ['columns', 'data', 'expandRowKey'] },
         UserErrorRequestsTable: { ...chartStub, props: ['visibleColumnKeys'] },
@@ -230,6 +232,36 @@ describe('user UsageView', () => {
     getAvailable.mockResolvedValue([{ id: 1, name: 'default' }])
   })
 
+
+  it('shares own key choices with traffic and retains the selected key when returning to usage', async () => {
+    const wrapper = mountUsageView()
+    await flushPromises()
+    const keySelect = wrapper.findAllComponents(Select).find(select =>
+      (select.props('options') as SelectOption[]).some(option => option.label === 'demo-key')
+    )!
+    const usageOptions = keySelect.props('options')
+    keySelect.vm.$emit('update:modelValue', 1)
+    keySelect.vm.$emit('change', 1)
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'traffic.title')!.trigger('click')
+    expect(wrapper.getComponent(TrafficPanel).props('apiKeyOptions')).toEqual(usageOptions)
+    expect(wrapper.find('.usage-filters').exists()).toBe(false)
+    expect(wrapper.findComponent(UserErrorRequestsTable).exists()).toBe(false)
+    await wrapper.findAll('button.tab')[0].trigger('click')
+    await flushPromises()
+    expect(query.mock.lastCall?.[0]).toMatchObject({ api_key_id: 1 })
+    wrapper.unmount()
+  })
+
+  it('keeps traffic available when request-error visibility is disabled', async () => {
+    appStoreState.cachedPublicSettings.allow_user_view_error_requests = false
+    const wrapper = mountUsageView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'traffic.title')!.trigger('click')
+    expect(wrapper.findComponent(TrafficPanel).exists()).toBe(true)
+    expect(wrapper.findAll('button').some(button => button.text() === 'usage.tabs.errors')).toBe(false)
+    wrapper.unmount()
+  })
 
   it('shows all usage columns, persists reordering, and resets to the useful default order', async () => {
     const wrapper = mountUsageView()

@@ -3003,6 +3003,9 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			if models, fetchErr := h.accountTestService.FetchOpenAIAccountModels(c.Request.Context(), account); fetchErr == nil {
 				response.Success(c, models)
 				return
+			} else if infraerrors.Reason(fetchErr) == "OPENAI_CODEX_MODELS_CREDENTIALS_INVALID" {
+				response.ErrorFrom(c, fetchErr)
+				return
 			} else if account.IsExcelBPSEnabled() {
 				if service.IsExcelAuthorizationError(fetchErr) {
 					response.ErrorFrom(c, fetchErr)

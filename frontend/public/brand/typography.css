@@ -209,3 +209,6 @@
     --ritel-type-marketing-hero-size: clamp(40px,11vw,58px);
   }
 }
+
+/* Compact units within console display metrics retain the shared UI typography. */
+.ritel-number-display .text-sm { font-family: var(--ritel-ui); font-variant-numeric: lining-nums tabular-nums; font-size: 13px; letter-spacing: 0; }

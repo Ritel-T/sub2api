@@ -601,18 +601,19 @@ func TestGetAccountConcurrencyBatch(t *testing.T) {
 }
 
 func TestIncrementAccountWaitCount_FailOpen(t *testing.T) {
-	cache := &stubConcurrencyCacheForTest{waitErr: errors.New("redis error")}
+	cacheErr := errors.New("redis error")
+	cache := &stubConcurrencyCacheForTest{waitErr: cacheErr}
 	svc := NewConcurrencyService(cache)
 
 	allowed, err := svc.IncrementAccountWaitCount(context.Background(), 1, 10)
-	require.NoError(t, err, "Redis 错误不应传播")
-	require.True(t, allowed, "Redis 错误时应 fail-open")
+	require.ErrorIs(t, err, cacheErr, "preserve failed accounting so callers never decrement an unconfirmed increment")
+	require.True(t, allowed, "customer callers retain best-effort admission on Redis errors")
 }
 
 func TestIncrementAccountWaitCount_NilCache(t *testing.T) {
 	svc := &ConcurrencyService{cache: nil}
 
 	allowed, err := svc.IncrementAccountWaitCount(context.Background(), 1, 10)
-	require.NoError(t, err)
-	require.True(t, allowed)
+	require.EqualError(t, err, "account wait counter unavailable", "admin callers must be able to stop when no counter exists")
+	require.True(t, allowed, "customer callers retain best-effort admission without a cache")
 }

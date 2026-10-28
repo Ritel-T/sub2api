@@ -29,6 +29,8 @@ describe('channel-monitor-v2 design system structure', () => {
     expect(src).toContain('clearFilters')
     expect(src).toContain('healthModeOptions')
     expect(src).toContain("'cache'")
+    // Ritel's open header scrolls with the page and cannot cover the app header.
+    expect(src).not.toContain('sticky top-0')
     expect(src).toContain('open-metric-strip')
     expect(src).not.toContain('class="card ')
     // Overview-first KPI strip before primary viz

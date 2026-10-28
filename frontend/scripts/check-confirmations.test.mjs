@@ -183,6 +183,16 @@ test('inline mutation cannot lose its reviewed busy lock', async t => {
   const result = await fixture(t, files, { requireCustom: true })
   assert(errorCodes(result).includes('custom-lock'))
 })
+test('quality deletion contract retains both in-flight and ownership readiness gates', async t => {
+  const contract = customContracts.find(item => item.file === 'src/views/admin/AccountQualityView.vue' && item.handler === 'confirmDelete')
+  assert.equal(contract.disabled, 'deleting || deleteReviewTargets.some(plan => !deleteReady[plan.id])')
+  for (const weakened of ['deleting', 'deleteReviewTargets.some(plan => !deleteReady[plan.id])']) {
+    const files = customFiles()
+    files[contract.file] = files[contract.file].replace(contract.disabled, weakened)
+    const result = await fixture(t, files, { requireCustom: true })
+    assert(result.errors.some(item => item.code === 'custom-lock' && item.file === contract.file), JSON.stringify(result.errors))
+  }
+})
 test('inline mutation cannot abandon lifecycle action', async t => {
   const files = customFiles()
   const contract = customContracts[0]

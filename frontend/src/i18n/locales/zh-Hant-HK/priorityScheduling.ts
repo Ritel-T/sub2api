@@ -1,6 +1,6 @@
 export default {
   latency_penalty_minutes: '延遲懲罰時長（分鐘）',
-  latencyPenaltyHint: "默認懲罰 10 分鐘；0 分鐘表示持續降檔。只有新近超目標樣本才續罰，快速流量和刷新不延長懲罰。恢復探索默認 0%，顯式啟用后（最多 10%）仍要求質量達標、最新檢測通過且無錯誤、虧損和擁堵風險。未知質量探索和新增高風險策略留待后續實現。",
+  latencyPenaltyHint: "默認懲罰 10 分鐘；0 分鐘表示持續懲罰（軟模式持續降檔，停止模式持續阻止新准入）。只有新近超目標樣本才續罰，快速流量和刷新不延長懲罰。恢復探索默認 0%，顯式啟用後（最多 10%）仍要求質量達標、最新檢測通過且無錯誤、虧損和擁堵風險。未知質量探索和新增高風險策略留待後續實現。",
   latencyPenaltyUntil: '延遲懲罰截止',
 
   oauthQuotaPriority: '優先消耗 OAuth 額度，末位 API Key 自動後備',
@@ -71,4 +71,11 @@ export default {
   legacyForward: "舊版 Forward 首 token",
   latencyMeasurement: "測量口徑",
   latencyPercentile: "延遲分位數",
+
+  "latencyPenaltyMode": "延遲懲罰方式",
+  "latencyPenaltyModes": {
+    "deprioritize": "降低調度優先級",
+    "stop": "停止調度"
+  },
+  "latencyPenaltyModeHint": "降低調度優先級：保留慢帳戶作為後備。停止調度：有效懲罰期間，不向該帳戶、模型和分組發送新請求；綁定的續接暫不可用，已有輸出繼續完成。沿用下方懲罰分鐘數和原測量門檻。",
 }

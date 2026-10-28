@@ -115,6 +115,26 @@ func TestUsageLogStaticInsertShape_PlaceholdersMatchArgTypes(t *testing.T) {
 	})
 }
 
+// usageLogInsertColumnIndexForTest derives positions from an actual INSERT input
+// column list, so additive columns cannot silently shift unrelated assertions.
+func usageLogInsertColumnIndexForTest(t *testing.T, column string) int {
+	t.Helper()
+	query, _ := buildUsageLogBestEffortInsertQuery([]usageLogInsertPrepared{prepareUsageLogInsert(&service.UsageLog{})})
+	match := regexp.MustCompile(`(?s)WITH input \((.*?)\) AS \(VALUES`).FindStringSubmatch(query)
+	require.Len(t, match, 2, "unrecognised best-effort INSERT input columns")
+	columns := strings.Split(match[1], ",")
+	require.Len(t, columns, len(usageLogInsertArgTypes))
+	found := -1
+	for i, name := range columns {
+		if strings.TrimSpace(name) == column {
+			require.Equal(t, -1, found, "duplicate INSERT column %s", column)
+			found = i
+		}
+	}
+	require.NotEqual(t, -1, found, "INSERT column %s is absent", column)
+	return found
+}
+
 // TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring 把 upstream_request_id 钉在
 // session_id 之前，与参数类型表保持同位；缺失时落 NULL 而不是空串。
 func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
@@ -129,7 +149,8 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	})
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 
-	idx := len(prepared.args) - 4
+	idx := usageLogInsertColumnIndexForTest(t, "upstream_request_id")
+	require.Equal(t, idx+1, usageLogInsertColumnIndexForTest(t, "session_id"))
 	arg, ok := prepared.args[idx].(sql.NullString)
 	require.True(t, ok, "upstream_request_id arg should be sql.NullString, got %T", prepared.args[idx])
 	require.True(t, arg.Valid)

@@ -861,6 +861,17 @@ func lockAndMergeAccountProbeExtra(
 			extra[key] = value
 		}
 	}
+	// Isolation is server-owned. A normal save must use the latest value read
+	// under this row lock, including absence after a legitimate restoration.
+	// Never revive, erase or replace it from a client/service snapshot.
+	delete(extra, service.QualityModelIsolationKey)
+	if isolation, exists := currentExtra[service.QualityModelIsolationKey]; exists {
+		if extra == nil {
+			extra = make(map[string]any)
+		}
+		extra[service.QualityModelIsolationKey] = isolation
+	}
+
 	// Omitted cost means an unrelated edit. Keep the value under the row lock,
 	// including a probe update committed after the edit form was loaded.
 	for _, key := range []string{service.AccountCostMultiplierExtraKey, service.AccountCostAutoSyncExtraKey} {
@@ -3422,8 +3433,10 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	updates.Extra = stripCodexFingerprintSeedFromExtraUpdate(updates.Extra)
-	updates.Extra = stripExcelBPSCooldownExtra(updates.Extra)
+	updates.Extra = copyJSONMap(stripExcelBPSCooldownExtra(stripCodexFingerprintSeedFromExtraUpdate(updates.Extra)))
+	// Only ordinary bulk saves reject this input; runtime UpdateExtra remains
+	// available to the dedicated isolation owner.
+	delete(updates.Extra, service.QualityModelIsolationKey)
 
 	setClauses := make([]string, 0, 8)
 	args := make([]any, 0, 8)

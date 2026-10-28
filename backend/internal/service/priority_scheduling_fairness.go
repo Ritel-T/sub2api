@@ -34,7 +34,7 @@ func (s *OpenAIGatewayService) balancesPriorityProtocols(req OpenAIAccountSchedu
 		return false
 	}
 	cfg := s.prioritySchedulingRuntimeConfig()
-	return cfg.BalanceProtocols && cfg.applies(req.GroupID, req.RequestedModel)
+	return cfg.BalanceProtocols && priorityApplies(cfg, req)
 }
 
 // Count distinct bindings, not group price/name or an inferred account class.

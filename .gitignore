@@ -133,12 +133,14 @@ backend/cmd/server/server
 deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
+user-traffic-pending/
 docs/*
 !docs/ccs-import-settings.md
 !docs/gelv-miniapp-payments.md
 !docs/backup-integrity.md
 !docs/security-scan-remediation.md
 !docs/balance-notification-delivery.md
+!docs/user-traffic.md
 !docs/typesafe-content-audit.md
 !docs/multi-host-session-owner.md
 !docs/security-penalties.md

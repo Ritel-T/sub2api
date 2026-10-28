@@ -44,6 +44,22 @@ const stats = {
 }
 
 describe('UsageStatsCards', () => {
+  it('keeps total consumption, standard cost and account cost distinct', () => {
+    const wrapper = mount(UsageStatsCards, {
+      props: { stats: { ...stats, total_actual_cost: 3, total_cost: 12, total_account_cost: 5 } },
+      global: { stubs: { Icon: true } },
+    })
+    // Identify the cost metric by its visible label, independently of shell or font classes.
+    const costLabel = wrapper.findAll('p').find(paragraph => paragraph.text() === 'Total Cost')
+    expect(costLabel).toBeDefined()
+    const consumption = costLabel!.element.nextElementSibling
+    expect(consumption?.textContent?.trim()).toBe('$3.0000')
+    const detail = consumption?.nextElementSibling?.textContent?.replace(/\s+/g, ' ').trim()
+    expect(detail).toContain('Standard $12.0000')
+    expect(detail).toContain('Cost $5.0000')
+    wrapper.unmount()
+  })
+
   it('shows cache token breakdown values', () => {
     const wrapper = mount(UsageStatsCards, {
       props: {

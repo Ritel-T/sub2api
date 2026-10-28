@@ -3,6 +3,7 @@ package admin
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -31,42 +32,29 @@ func NewDashboardHandler(dashboardService *service.DashboardService, aggregation
 	}
 }
 
-// parseTimeRange parses start_date, end_date query parameters
-// Uses user's timezone if provided, otherwise falls back to server timezone
-func parseTimeRange(c *gin.Context) (time.Time, time.Time) {
-	userTZ := c.Query("timezone") // Get user's timezone from request
+// parseTimeRange keeps calendar-day defaults while preserving explicit timestamp bounds.
+func parseTimeRange(c *gin.Context) (time.Time, time.Time, error) {
+	userTZ := c.Query("timezone")
 	now := timezone.NowInUserLocation(userTZ)
-	startDate := c.Query("start_date")
-	endDate := c.Query("end_date")
-
-	var startTime, endTime time.Time
-
-	startTime = timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -7), userTZ)
-	endTime = timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
-	for _, boundary := range []struct {
-		raw    string
-		end    bool
-		target *time.Time
-	}{
-		{startDate, false, &startTime}, {endDate, true, &endTime},
-	} {
-		if boundary.raw == "" {
-			continue
-		}
-		t, err := timezone.ParseRangeBoundary(boundary.raw, userTZ, boundary.end)
+	startTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -7), userTZ)
+	endTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
+	var err error
+	if value := c.Query("start_date"); value != "" {
+		startTime, err = parseUsageDateBoundary(value, userTZ, false)
 		if err != nil {
-			response.BadRequest(c, "Invalid date format, use YYYY-MM-DD or RFC3339")
-			c.Abort()
-			return time.Time{}, time.Time{}
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid start_date: %w", err)
 		}
-		*boundary.target = t
+	}
+	if value := c.Query("end_date"); value != "" {
+		endTime, err = parseUsageDateBoundary(value, userTZ, true)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid end_date: %w", err)
+		}
 	}
 	if !startTime.Before(endTime) {
-		response.BadRequest(c, "start_date must be before end_date")
-		c.Abort()
+		return time.Time{}, time.Time{}, errors.New("start_date must be before end_date")
 	}
-
-	return startTime, endTime
+	return startTime, endTime, nil
 }
 
 func parseOptionalBoolDashboardFilter(c *gin.Context, name string) (*bool, error) {
@@ -208,8 +196,9 @@ func (h *DashboardHandler) GetRealtimeMetrics(c *gin.Context) {
 // GET /api/v1/admin/dashboard/trend
 // Query params: start_date, end_date (YYYY-MM-DD), granularity (day/hour), user_id, api_key_id, model, account_id, group_id, request_type, stream, billing_type
 func (h *DashboardHandler) GetUsageTrend(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
-	if c.IsAborted() {
+	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 	granularity := c.DefaultQuery("granularity", "day")
@@ -302,8 +291,9 @@ func (h *DashboardHandler) GetUsageTrend(c *gin.Context) {
 // GET /api/v1/admin/dashboard/models
 // Query params: start_date, end_date (YYYY-MM-DD), user_id, api_key_id, account_id, group_id, request_type, stream, billing_type
 func (h *DashboardHandler) GetModelStats(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
-	if c.IsAborted() {
+	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 
@@ -398,8 +388,9 @@ func (h *DashboardHandler) GetModelStats(c *gin.Context) {
 // GET /api/v1/admin/dashboard/groups
 // Query params: start_date, end_date (YYYY-MM-DD), user_id, api_key_id, account_id, group_id, request_type, stream, billing_type
 func (h *DashboardHandler) GetGroupStats(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
-	if c.IsAborted() {
+	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 
@@ -485,8 +476,9 @@ func (h *DashboardHandler) GetGroupStats(c *gin.Context) {
 // GET /api/v1/admin/dashboard/api-keys-trend
 // Query params: start_date, end_date (YYYY-MM-DD), granularity (day/hour), limit (default 5)
 func (h *DashboardHandler) GetAPIKeyUsageTrend(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
-	if c.IsAborted() {
+	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 	granularity := c.DefaultQuery("granularity", "day")
@@ -517,8 +509,9 @@ func (h *DashboardHandler) GetAPIKeyUsageTrend(c *gin.Context) {
 // GET /api/v1/admin/dashboard/users-trend
 // Query params: start_date, end_date (YYYY-MM-DD), granularity (day/hour), limit (default 12)
 func (h *DashboardHandler) GetUserUsageTrend(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
-	if c.IsAborted() {
+	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 	granularity := c.DefaultQuery("granularity", "day")
@@ -572,8 +565,9 @@ func parseRankingLimit(raw string) int {
 // GetUserSpendingRanking handles getting user spending ranking data.
 // GET /api/v1/admin/dashboard/users-ranking
 func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
-	if c.IsAborted() {
+	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 	limit := parseRankingLimit(c.DefaultQuery("limit", "12"))
@@ -583,6 +577,7 @@ func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 		End   string `json:"end"`
 		Limit int    `json:"limit"`
 	}{
+		// Ranking payloads include caller-local dates and time offsets.
 		Start: startTime.Format(time.RFC3339Nano),
 		End:   endTime.Format(time.RFC3339Nano),
 		Limit: limit,
@@ -707,8 +702,9 @@ func (h *DashboardHandler) GetBatchAPIKeysUsage(c *gin.Context) {
 // GET /api/v1/admin/dashboard/user-breakdown
 // Query params: start_date, end_date, group_id, model, endpoint, endpoint_type, limit
 func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
-	if c.IsAborted() {
+	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 

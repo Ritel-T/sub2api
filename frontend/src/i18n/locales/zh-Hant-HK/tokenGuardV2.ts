@@ -192,7 +192,7 @@ sessionExport: {
   ruleHealthyTitle: '正常判定',
   ruleHealthyHint: '使用帳戶現有代理請求 OpenAI 模型列表，憑證被接受即清零連續失敗次數。',
   ruleAuthTitle: '鑑權失敗判定',
-  ruleAuthHint: '缺少訪問權杖、上游返回 401/403，或出現 invalid token、token expired、invalid_grant、requires re-login 時記為鑑權失敗。',
+  ruleAuthHint: "缺少訪問權杖、上游返回 401 或明確憑據失效碼時記為鑑權失敗；單個 403 不觸發自動重登，手機號、安全驗證和帳戶退役需人工處理。",
   ruleTransientTitle: '臨時異常判定',
   ruleTransientHint: '超時、代理故障、429 和其他上游異常記為臨時異常，不累計鑑權失敗，也不會觸發自動重登。',
   ruleReloginTitle: '自動重登',
@@ -252,4 +252,47 @@ sessionExport: {
   ruleReloginBackoffMax: '重新登入遞增冷卻上限',
   ruleReloginMaxFailures: '連續重新登入失敗上限',
   reloginBudgetHint: '達到上限只暫停自動重新登入；儲存成功後還須巡檢通過身分驗證才會歸零。',
+
+  "operationFailure": {
+    "manual": {
+      "busy": "已有操作正在進行，請等待完成後查看原任務。",
+      "worker": "重登服務不可用，請檢查 Worker 狀態。",
+      "configuration": "請先儲存完整登入配置。",
+      "encryption": "請先啟用憑據加密。",
+      "changed": "帳戶憑據或任務已變化，請刷新列表並人工核對。"
+    },
+    "refreshAttempt": "最近刷新失敗嘗試（可能已被後續重試恢復）",
+    "details": "查看本次異常詳情",
+    "code": "安全短碼",
+    "stage": "失敗階段",
+    "time": "發生時間",
+    "unknownTime": "時間未記錄",
+    "automationBlocked": "自動操作受限，請查看本次異常與重登預算",
+    "reasons": {
+      "phone_verification_required": "需要手機號驗證",
+      "account_deactivated": "帳戶已被停用",
+      "account_deleted": "帳戶已刪除",
+      "account_retired": "帳戶已刪除或停用",
+      "requires_relogin": "憑據失效，需重新登入",
+      "password_rejected": "密碼錯誤或被拒絕",
+      "mfa_required": "需要 MFA / 驗證碼",
+      "security_check": "需要安全驗證",
+      "authorization_denied": "授權被拒絕",
+      "rate_limited": "上游限流",
+      "timeout": "請求超時",
+      "transport_error": "網絡連接異常",
+      "service_error": "上游服務異常",
+      "unknown": "未知異常，原因未確認"
+    },
+    "actions": {
+      "complete_phone_verification": "請在官方頁面人工完成手機號驗證，再檢查憑證。",
+      "contact_provider": "請通過官方渠道確認帳戶狀態或聯繫支援。",
+      "reauthorize": "請檢查登入配置並重新授權。",
+      "update_password": "請確認並更新已儲存的登入密碼。",
+      "complete_verification": "請人工完成官方驗證，並檢查 MFA / 驗證碼配置。",
+      "review_authorization": "請人工檢查官方授權或安全驗證要求。",
+      "check_service_later": "請檢查網絡或服務可用性，稍後按既有策略重試。",
+      "review_diagnostics": "請查看本次安全階段和短碼，人工確認原因。"
+    }
+  },
 }

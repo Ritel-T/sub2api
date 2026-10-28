@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -188,7 +189,7 @@ func TestAccountSecurityResetHandlerRequiresNativeMiddlewareIdentity(t *testing.
 			case "forged":
 				headers = []string{"Bearer " + token + "x"}
 			case "stale":
-				headers = []string{"Bearer " + f.token(t, f.operator, []string{"pwd", "otp"}, 6*time.Minute)}
+				headers = []string{"Bearer " + f.token(t, f.operator, []string{"pwd", "otp"}, 30*time.Minute+time.Second)}
 			case "recovery_without_password":
 				headers = []string{"Bearer " + f.token(t, f.operator, []string{"recovery"}, 0)}
 			case "non_admin":
@@ -203,6 +204,39 @@ func TestAccountSecurityResetHandlerRequiresNativeMiddlewareIdentity(t *testing.
 		})
 	}
 }
+func TestAccountSecurityResetHandlerThirtyMinuteProofBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		age     time.Duration
+		allowed bool
+	}{
+		{"past_legacy_five_minute_window", 6 * time.Minute, true},
+		{"one_second_before_deadline", 30*time.Minute - time.Second, true},
+		{"inclusive_deadline", 30 * time.Minute, true},
+		{"one_second_after_deadline", 30*time.Minute + time.Second, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f := newResetHandlerFixture(t)
+				f.operator.TotpEnabled = true
+				token := f.token(t, f.operator, []string{"pwd", "otp"}, tc.age)
+				w := f.request("77", `{"confirmed":true,"verification_note":"Verified"}`, 42, "Bearer "+token)
+				if tc.allowed {
+					require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+					require.Equal(t, 1, f.repo.called)
+					require.Equal(t, int64(77), f.cache.cleaned)
+				} else {
+					require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+					require.Contains(t, w.Body.String(), "REAUTH_REQUIRED")
+					require.Zero(t, f.repo.called)
+					require.Zero(t, f.cache.cleaned)
+					require.NotContains(t, w.Body.String(), `"applied":true`)
+				}
+			})
+		})
+	}
+}
+
 func TestAccountSecurityResetHandlerUnknownNeverReportsApplied(t *testing.T) {
 	for _, mode := range []string{"redis", "commit", "storage", "missing_user"} {
 		t.Run(mode, func(t *testing.T) {

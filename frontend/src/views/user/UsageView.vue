@@ -3,7 +3,7 @@
     <div class="open-page" :class="{ 'usage-records': usageView === 'records' }">
       <AppHeading variant="page" as="h1">{{ consoleCopy[usageView] }}</AppHeading>
       <div v-if="usageView === 'analysis' && analyticsErrors.size" role="alert" class="flex items-center justify-between gap-4 border border-red-500 p-4"><span>{{ t('usage.failedToLoad') }}</span><button type="button" class="btn btn-secondary" @click="refreshData">{{ t('common.refresh') }}</button></div>
-      <div class="usage-filters">
+      <div v-if="activeTab !== 'traffic'" class="usage-filters">
         <div class="filter-controls usage-filter-controls">
           <div class="usage-date-filter">
             <span class="input-label">{{ t('admin.dashboard.timeRange') }}</span>
@@ -101,9 +101,9 @@
         </div>
       </div>
 
-      <UsageStatsCards v-if="usageView === 'analysis'" :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
+      <UsageStatsCards v-if="usageView === 'analysis' && activeTab !== 'traffic'" :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
 
-      <div v-if="usageView === 'analysis'" class="space-y-4">
+      <div v-if="usageView === 'analysis' && activeTab !== 'traffic'" class="space-y-4">
         <section v-if="usageView === 'analysis'" class="usage-trend">
           <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
         </section>
@@ -135,13 +135,14 @@
 
       </div>
 
-      <div v-if="usageView === 'records' && errorViewEnabled" class="flex gap-2 border-b border-gray-200 dark:border-dark-700">
+      <div v-if="usageView === 'records'" class="flex gap-2 border-b border-gray-200 dark:border-dark-700">
         <button class="tab" :class="{ 'tab-active': activeTab === 'usage' }" @click="switchToUsage">
           {{ t('usage.tabs.usage') }}
         </button>
-        <button class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
+        <button v-if="errorViewEnabled" class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
           {{ t('usage.tabs.errors') }}
         </button>
+        <button class="tab" :class="{ 'tab-active': activeTab === 'traffic' }" @click="switchToTraffic">{{ t('traffic.title') }}</button>
       </div>
 
       <template v-if="usageView === 'records' && activeTab === 'usage'">
@@ -175,7 +176,7 @@
 
       <UserErrorRequestsTable
         :toolbar-target="sortToolbarTarget"
-        v-else-if="usageView === 'records' && errorViewEnabled"
+        v-else-if="usageView === 'records' && activeTab === 'errors' && errorViewEnabled"
         :rows="errorRows"
         :loading="errorLoading"
         :loading-more="errorsLoadingMore || errorsRefreshing"
@@ -192,6 +193,7 @@
         @retry="retryErrors"
         @ipGeoBatchFailed="handleIpGeoBatchFailed"
       />
+      <TrafficPanel v-if="activeTab === 'traffic'" :api-key-options="apiKeyOptions" class="card" />
     </div>
   </AppLayout>
 
@@ -215,6 +217,7 @@ import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
+import TrafficPanel from '@/components/usage/TrafficPanel.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
@@ -321,7 +324,7 @@ const granularity = ref<'day' | 'hour'>(getGranularityForRange(startDate.value, 
 
 const modelDistributionMetric = ref<DistributionMetric>('tokens')
 const groupDistributionMetric = ref<DistributionMetric>('tokens')
-const activeTab = ref<'usage' | 'errors'>('usage')
+const activeTab = ref<'usage' | 'errors' | 'traffic'>('usage')
 const errorViewEnabled = computed(() => appStore.cachedPublicSettings?.allow_user_view_error_requests ?? false)
 const includeCacheRate = computed(() => showUsageCacheRate(appStore.cachedPublicSettings, 'user'))
 const includeUpstreamResponseModel = computed(() => showUpstreamResponseModelToUsers(appStore.cachedPublicSettings))
@@ -794,6 +797,12 @@ const onErrorSort = (sortBy: string, sortOrder: 'asc' | 'desc') => {
   void loadErrors()
 }
 
+const switchToTraffic = () => {
+  activeTab.value = 'traffic'
+  selectedRequest.value = null
+  syncLocation()
+}
+
 const switchToErrors = () => {
   errorFilter.value.api_key_id = filters.value.api_key_id ?? null
   errorFilter.value.model = filters.value.model ?? ''
@@ -833,7 +842,7 @@ const restoreLocation = () => {
   const state = parseUsageLocation(route?.query ?? {}, {start: defaultRange.start, end: defaultRange.end, pageSize: 50})
   void restoreRequestDetail(state.usageId)
   usageView.value = state.view as 'analysis' | 'records'
-  activeTab.value = state.view !== 'analysis' && state.tab === 'errors' && errorViewEnabled.value ? 'errors' : 'usage'
+  activeTab.value = state.view === 'analysis' ? 'usage' : state.tab === 'traffic' ? 'traffic' : state.tab === 'errors' && errorViewEnabled.value ? 'errors' : 'usage'
   startDate.value = state.start
   endDate.value = state.end
   selectedPreset.value = state.customRange ? null : 'last24Hours'
@@ -854,8 +863,10 @@ const reloadCurrentData = () => {
   if (activeTab.value === 'errors') void loadErrors()
 }
 const switchToUsage = () => {
-  filters.value.api_key_id = errorFilter.value.api_key_id ?? undefined
-  filters.value.model = errorFilter.value.model || undefined
+  if (activeTab.value === 'errors') {
+    filters.value.api_key_id = errorFilter.value.api_key_id ?? undefined
+    filters.value.model = errorFilter.value.model || undefined
+  }
   activeTab.value = 'usage'
   syncLocation()
   void loadLogs()

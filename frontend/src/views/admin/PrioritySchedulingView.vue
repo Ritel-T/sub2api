@@ -30,6 +30,7 @@
                 <label><span class="field-title">{{ t('priorityScheduling.latencyPercentile') }}</span><select v-model.number="draft.latency_percentile" data-testid="latency-percentile" class="input w-full"><option v-for="q in [50,70,90,95]" :key="q" :value="q">P{{ q }}</option></select></label>
                 <label><span class="field-title">{{ t('priorityScheduling.latencyMeasurement') }}</span><select v-model="draft.latency_measurement" data-testid="latency-measurement" class="input w-full"><option value="legacy_forward">{{ t('priorityScheduling.legacyForward') }}</option><option value="attributed_v1">{{ t('priorityScheduling.attributedV1') }}</option></select></label>
               </div>
+              <label class="mb-3 block"><span class="field-title">{{ t('priorityScheduling.latencyPenaltyMode') }}</span><select v-model="draft.latency_penalty_mode" data-testid="latency-penalty-mode" class="input w-full"><option value="deprioritize">{{ t('priorityScheduling.latencyPenaltyModes.deprioritize') }}</option><option value="stop">{{ t('priorityScheduling.latencyPenaltyModes.stop') }}</option></select><small class="mt-2 block text-gray-500">{{ t('priorityScheduling.latencyPenaltyModeHint') }}</small></label>
               <p class="mb-3 text-xs leading-5 text-gray-500">{{ t('priorityScheduling.measurementHint') }}</p>
               <AppHeading variant="section" as="h2" class="mb-3">{{ t('priorityScheduling.thresholds') }}</AppHeading><div class="grid gap-3 sm:grid-cols-2"><label v-for="field in fields" :key="field.key"><span class="field-title">{{ t(`priorityScheduling.${field.key}`) }}</span><input v-model.number="draft[field.key]" type="number" :data-testid="field.key" :min="field.min" :max="field.max" step="1" required class="input w-full" /></label></div><p class="mt-3 text-xs leading-5 text-gray-500">{{ t('priorityScheduling.latencyPenaltyHint') }}</p></section>
           </div>
@@ -55,7 +56,7 @@
  :primary-columns="openRecordColumns.map(column => column.key)"
  :data="visibleCandidates" row-key="account_id" >
 <template #cell-account="{ row: row }"><div class=""><strong class="font-medium">{{ row.account_name }}</strong><small class="block text-gray-400">#{{ row.account_id }}</small><small v-if="row.bound_groups != null" class="block text-gray-400">{{ t('priorityScheduling.boundGroups') }}: {{ row.bound_groups }}</small></div></template>
-<template #cell-tier="{ row: row }"><div class=""><span :class="row.tier === 'eligible' ? 'text-emerald-600' : row.tier === 'degraded' ? 'text-amber-600' : 'text-gray-500'">{{ t(`priorityScheduling.tiers.${row.tier}`) }}</span><small v-if="row.oauth_quota_role" class="block font-medium text-primary-600">{{ t(`priorityScheduling.oauthQuotaRoles.${row.oauth_quota_role}`) }}</small><small v-if="row.history_status && row.history_status !== 'ready'" class="block text-amber-600">{{ t(`priorityScheduling.historyStates.${row.history_status}`) }}</small><small v-if="row.latency_penalty_until && !row.latency_recovery" class="block text-gray-400">{{ t('priorityScheduling.latencyPenaltyUntil') }}: {{ new Date(row.latency_penalty_until).toLocaleString() }}</small><small v-for="reason in row.reasons" :key="reason" class="block text-gray-400">{{ t(`priorityScheduling.reasons.${reason}`) }}</small></div></template>
+<template #cell-tier="{ row: row }"><div class=""><span :class="row.tier === 'eligible' ? 'text-emerald-600' : row.tier === 'degraded' ? 'text-amber-600' : 'text-gray-500'">{{ t(`priorityScheduling.tiers.${row.tier}`) }}</span><small v-if="row.oauth_quota_role" class="block font-medium text-primary-600">{{ t(`priorityScheduling.oauthQuotaRoles.${row.oauth_quota_role}`) }}</small><small v-if="row.history_status && row.history_status !== 'ready'" class="block text-amber-600">{{ t(`priorityScheduling.historyStates.${row.history_status}`) }}</small><small v-if="row.latency_stopped" class="block font-medium text-red-600">{{ t('priorityScheduling.latencyPenaltyModes.stop') }}</small><small v-if="row.latency_penalty_until && !row.latency_recovery" class="block text-gray-400">{{ t('priorityScheduling.latencyPenaltyUntil') }}: {{ new Date(row.latency_penalty_until).toLocaleString() }}</small><small v-for="reason in row.reasons" :key="reason" class="block text-gray-400">{{ t(`priorityScheduling.reasons.${reason}`) }}</small></div></template>
 <template #cell-priority="{ row: row }"><div class="tabular-nums">{{ row.priority }}</div></template>
 <template #cell-score="{ row: row }"><div class="tabular-nums">{{ row.score.toFixed(1) }}<small v-if="row.selection_weight != null" class="block text-gray-400">{{ t('priorityScheduling.selectionWeight') }}: {{ row.selection_weight.toFixed(2) }}</small><small v-if="row.exploration_eligible" class="block text-gray-400">{{ t('priorityScheduling.explorationEligible') }}</small></div></template>
 <template #cell-errorRate="{ row }"><div :data-testid="`error-rate-${row.account_id}`" :title="t('priorityScheduling.errorRateHint')"><span v-if="row.error_rate == null">{{ t('priorityScheduling.errorNoSamples') }}</span><span v-else>{{ (row.error_rate * 100).toFixed(1) }}%</span><small v-if="(row.error_successes ?? 0) + (row.error_failures ?? 0) > 0" class="block text-gray-400">{{ t('priorityScheduling.errorAttempts') }}: {{ row.error_failures ?? 0 }} / {{ (row.error_successes ?? 0) + (row.error_failures ?? 0) }}</small><small v-if="errorSamplesLow(row)" class="block text-amber-600">{{ t('priorityScheduling.errorInsufficientSamples') }}</small><small v-if="row.error_observed_at" class="block text-gray-400">{{ t('priorityScheduling.errorObservedAt') }}: {{ new Date(row.error_observed_at).toLocaleString() }}</small><small class="block text-gray-400">{{ t('priorityScheduling.errorWindow') }}: {{ row.error_window_minutes ?? '—' }} min · {{ row.error_endpoint ?? '—' }}</small><small v-if="row.error_penalty != null" class="block text-gray-400">{{ t('priorityScheduling.errorPenalty') }}: {{ row.error_penalty.toFixed(3) }} · {{ t('priorityScheduling.baseScore') }}: {{ row.base_score?.toFixed(1) ?? '—' }}</small><small class="block text-gray-400">{{ t('priorityScheduling.errorLocalScope') }}</small></div></template>
@@ -120,7 +121,7 @@ async function load() {
     const config = await getPriorityConfig()
     if (!active(version)) return
     const { teams: _legacyTeams, ...currentConfig } = config as PrioritySchedulingConfig & { teams?: unknown }
-    draft.value = { ...currentConfig, error_rate_weight: currentConfig.error_rate_weight ?? 0, error_rate_window_minutes: currentConfig.error_rate_window_minutes ?? 10, error_rate_prior_samples: currentConfig.error_rate_prior_samples ?? 5, latency_percentile: currentConfig.latency_percentile ?? 90, latency_measurement: currentConfig.latency_measurement ?? 'legacy_forward', recovery_exploration_percent: currentConfig.recovery_exploration_percent ?? 0, latency_penalty_minutes: currentConfig.latency_penalty_minutes ?? 10, balance_protocols: currentConfig.balance_protocols ?? true, oauth_quota_priority: currentConfig.oauth_quota_priority ?? false, oauth_quota_threshold: currentConfig.oauth_quota_threshold ?? 90 }; groups.value = (config.group_ids ?? []).join(', '); modelsText.value = (config.models ?? []).join('\n')
+    draft.value = { ...currentConfig, error_rate_weight: currentConfig.error_rate_weight ?? 0, error_rate_window_minutes: currentConfig.error_rate_window_minutes ?? 10, error_rate_prior_samples: currentConfig.error_rate_prior_samples ?? 5, latency_percentile: currentConfig.latency_percentile ?? 90, latency_measurement: currentConfig.latency_measurement ?? 'legacy_forward', recovery_exploration_percent: currentConfig.recovery_exploration_percent ?? 0, latency_penalty_mode: currentConfig.latency_penalty_mode ?? 'deprioritize', latency_penalty_minutes: currentConfig.latency_penalty_minutes ?? 10, balance_protocols: currentConfig.balance_protocols ?? true, oauth_quota_priority: currentConfig.oauth_quota_priority ?? false, oauth_quota_threshold: currentConfig.oauth_quota_threshold ?? 90 }; groups.value = (config.group_ids ?? []).join(', '); modelsText.value = (config.models ?? []).join('\n')
   } catch { if (active(version)) error.value = t('priorityScheduling.error') }
   finally { if (active(version)) loading.value = false }
 }
@@ -146,15 +147,25 @@ async function loadSnapshot(attempt: number) {
     const value = await getPrioritySnapshot()
     if (active(version)) {
       snapshot.value = value
-      // A bounded follow-up picks up the asynchronous result without requiring
-      // another billable request. Unmount/logout cancels further reads.
-      if ((value?.history_refreshing || value?.history_status === 'loading' || value?.history_status === 'partial') && attempt < 3) {
-        historyTimer = setTimeout(() => { if (active(version)) void loadSnapshot(attempt + 1) }, 1000)
-      }
+      // Short follow-ups collect an in-flight query; subsequent polling sees
+      // usage committed after a successful empty read. Only one timer/request
+      // exists, and hidden tabs pause reads. Backend cache bounds SQL work.
+      const pending = value?.history_refreshing || value?.history_status === 'loading' || value?.history_status === 'partial'
+      // Also discover the first selection when this page opened before any pool
+      // existed. A null snapshot schedules no history SQL on the server.
+      scheduleHistoryRefresh(version, pending && attempt < 3 ? 1000 : 5000, pending ? attempt + 1 : 0)
     }
   }
-  catch { if (active(version)) snapshotError.value = t('priorityScheduling.error') }
+  catch { if (active(version)) { snapshotError.value = t('priorityScheduling.error'); scheduleHistoryRefresh(version, 15000, 0) } }
   finally { if (active(version)) refreshing.value = false }
+}
+function scheduleHistoryRefresh(version: number, delay: number, attempt: number) {
+  stopHistoryRefresh()
+  historyTimer = setTimeout(() => {
+    if (!active(version)) return
+    if (document.visibilityState === 'hidden') { scheduleHistoryRefresh(version, 5000, attempt); return }
+    void loadSnapshot(attempt)
+  }, delay)
 }
 watch(() => auth.user ? `${auth.user.id}:${auth.user.role}` : '', () => { stopHistoryRefresh(); generation++; draft.value = null; snapshot.value = null; groups.value = modelsText.value = error.value = notice.value = snapshotError.value = ''; loading.value = saving.value = refreshing.value = false }, { flush: 'sync' })
 onMounted(() => { void load(); void refresh() })

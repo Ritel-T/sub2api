@@ -1,8 +1,10 @@
+import channelOps from './channelOps'
 import qq from './qq'
 import gelv from './gelv'
 import paymentRetail from './paymentRetail'
 import squarespaceProvider from './squarespaceProvider'
 import ipAudit from './ipAudit'
+import traffic from './traffic'
 import connections from './connections'
 import securityRecords from './securityRecords'
 import siwc from './siwc'
@@ -29,6 +31,7 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  traffic,
   qq,
   gelv,
   paymentRetail,
@@ -40,6 +43,7 @@ export default {
   autoConfig,
   priorityScheduling,
   qualityOps,
+  channelOps,
   controlledExperiments,
   accountOps,
   tokenGuard,

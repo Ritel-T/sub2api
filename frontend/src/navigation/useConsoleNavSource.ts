@@ -1,3 +1,4 @@
+import { getCustomMenuLabel } from '@/utils/customMenu'
 import { centralAccountEnabled } from '@/utils/accountConfig'
 import { computed, inject, nextTick, onMounted, onUnmounted, provide, ref, watch, type ComputedRef, type InjectionKey } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -127,7 +128,7 @@ export function provideConsoleNav() {
       { path: '/profile', label: centralAccountEnabled ? (locale.value.startsWith('zh') ? '业务通知设置' : 'Business notifications') : t('nav.profile'), icon: UserIcon },
       ...customMenuItemsForUser.value.map((item): NavItem => ({
         path: `/custom/${item.id}`,
-        label: item.label,
+        label: getCustomMenuLabel(item, locale.value),
         icon: null,
         iconSvg: item.icon_svg,
       })),
@@ -176,6 +177,7 @@ export function provideConsoleNav() {
       { path: '/admin/smart-ops', label: t('accountOps.smartTitle'), icon: SmartOpsIcon, expandOnly: true, mergeTabs: true, children: [
         { path: '/admin/auto-config', label: t('autoConfig.title'), icon: AccountOpsIcon },
         { path: '/admin/priority-scheduling', label: t('priorityScheduling.title'), icon: AccountOpsIcon },
+        { path: '/admin/channel-operations', label: t('channelOps.title'), icon: ChannelIcon },
         { path: '/admin/account-quality', label: t('qualityOps.title'), icon: QualityOpsIcon },
         { path: '/admin/controlled-experiments', label: t('controlledExperiments.title'), icon: QualityOpsIcon },
         { path: '/admin/account-ops', label: t('accountOps.title'), icon: AccountOpsIcon },
@@ -239,7 +241,7 @@ export function provideConsoleNav() {
       { path: '/admin/settings', label: t('nav.settings'), icon: CogIcon },
       ...customMenuItemsForAdmin.value.map((item): NavItem => ({
         path: `/custom/${item.id}`,
-        label: item.label,
+        label: getCustomMenuLabel(item, locale.value),
         icon: null,
         iconSvg: item.icon_svg,
       })),
@@ -381,7 +383,7 @@ export function provideConsoleNav() {
       const publicItems = appStore.cachedPublicSettings?.custom_menu_items ?? []
       const menuItem = publicItems.find((item) => item.id === id)
         ?? (authStore.isAdmin ? adminSettingsStore.customMenuItems.find((item) => item.id === id) : undefined)
-      if (menuItem?.label) return menuItem.label
+      if (menuItem) return getCustomMenuLabel(menuItem, locale.value)
     }
     const titleKey = routeMetaKeys.value.titleKey
     if (titleKey) {

@@ -1,3 +1,5 @@
+import traffic from './traffic'
+import channelOps from './channelOps'
 import qq from './qq'
 import ipAudit from './ipAudit'
 import connections from './connections'
@@ -29,6 +31,8 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  traffic,
+  channelOps,
   qq,
   gelv,
   paymentRetail,

@@ -111,6 +111,8 @@ interface Props {
   endDate: string
   enableTime?: boolean
   preset?: string | null
+  /** Opt in to exact 24-hour windows for date-only consumers. */
+  rolling24Hours?: boolean
 }
 
 interface Emits {
@@ -155,9 +157,13 @@ const tomorrow = () => {
 }
 
 const presetRange = (preset: string) => {
+  if (props.rolling24Hours && preset === 'last24Hours') {
+    const end = new Date()
+    return { start: new Date(end.getTime() - 86_400_000).toISOString(), end: end.toISOString() }
+  }
   const range = getDatePresetRange(preset)!
   // Date-only consumers retain their original API contract.
-  if (!props.enableTime && preset === 'last24Hours') {
+  if (!props.enableTime && !props.rolling24Hours && preset === 'last24Hours') {
     const now = new Date()
     return { start: formatLocalDate(new Date(now.getTime() - 86400000)), end: formatLocalDate(now) }
   }
@@ -166,9 +172,11 @@ const presetRange = (preset: string) => {
 
 const detectPreset = () => {
   if (props.preset !== undefined) return props.preset
+  if (props.rolling24Hours && props.startDate.includes('T') && props.endDate.includes('T') && Date.parse(props.endDate) - Date.parse(props.startDate) === 86_400_000) return 'last24Hours'
   // Explicit timestamps are fixed ranges unless the parent identifies a preset.
   if (props.startDate.includes('T') || props.endDate.includes('T')) return null
   return presets.find((p) => {
+    if (props.rolling24Hours && p.value === 'last24Hours') return false
     const range = presetRange(p.value)
     return range.start === props.startDate && range.end === props.endDate
   })?.value ?? null
@@ -191,6 +199,7 @@ const inputValue = (value: string, end: boolean): string => {
 
 const editBoundary = (value: string, end: boolean) => {
   const other = end ? localStartDate : localEndDate
+  if (!props.enableTime && other.value.includes('T')) other.value = formatLocalDate(new Date(other.value))
   if (props.enableTime && other.value && !other.value.includes('T')) {
     other.value = parseDateBoundary(other.value, !end).toISOString()
   }

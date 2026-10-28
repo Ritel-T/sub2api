@@ -3,7 +3,7 @@ export default {
     "title": "內容審查用戶管理",
     "scope": "四類白名單獨立組合：自動封號豁免仍審仍攔；關鍵詞豁免僅跳過前置關鍵詞層；API 豁免不發送外部審核請求（TypeSafe AI 僅審文字）。策略仍生效：關鍵詞+API 命中即攔，否則呼叫 API；僅關鍵詞不呼叫 API；僅 API 不檢查關鍵詞。均不豁免上游明確 cyber_policy 終止/停止發送、認證、餘額配額、權限、IP 安全或其他獨立處罰。",
     "current": "當前計數 {count} · 用戶狀態 {status} · 計數代次 {generation}",
-    "lastAction": "最近管理操作",
+    "lastAction": "最近內容審查管理操作",
     "exemption": "自動封號白名單",
     "reason": "操作原因（1–500字，請勿填寫敏感正文）",
     "confirm": "確認僅執行所選動作。保存白名單不清零/解封；清零不解封；解除不清零。",
@@ -31,5 +31,12 @@ export default {
   "auto_ban_exempt": "自動封號豁免",
   "keyword_exempt": "關鍵詞豁免",
   "api_audit_exempt": "外部審核 API 豁免",
-}
+
+    "enableUser": "解除用戶禁用（用戶管理）",
+    "enableScope": "與【用戶管理】的啟用用戶操作相同：由管理員將用戶狀態改為 active，可解除其他來源的用戶禁用。請先核對禁用原因。本動作不清零計數、不改白名單；密碼、2FA及其他獨立安全限制保留，後續違規仍可能再次禁用。原因記錄在管理審計日誌中。",
+    "enableConfirm": "已核對 UID {userId} 的禁用原因，確認按【用戶管理】語義解除該用戶禁用。",
+    "alreadyActive": "當前用戶為 active，無需解除禁用。其他獨立限制請到對應入口核對。",
+    "enableSuccess": "用戶狀態已讀回為 active，未清零計數或修改白名單。",
+    "enableStillDisabled": "當前狀態仍為禁用或未恢復為 active，請核對最新狀態及禁用原因。",
+  }
 }

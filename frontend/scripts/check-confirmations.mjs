@@ -10,7 +10,7 @@ const adapterFile = 'src/components/common/ConfirmationPrompt.vue'
 export const customContracts = [
   { file: 'src/views/user/UserOrdersView.vue', tag: 'button', event: 'click', handler: 'confirmRefund', owner: 'refundAction', disabled: 'actionLoading || !refundReason.trim()' },
   { file: 'src/components/user/profile/ProfilePasskeyCard.vue', tag: 'form', event: 'submit', handler: 'confirmDelete', owner: 'deleteAction' },
-  { file: 'src/views/admin/AccountQualityView.vue', tag: 'button', event: 'click', handler: 'confirmDelete', owner: 'deleteAction', disabled: 'deleting' },
+  { file: 'src/views/admin/AccountQualityView.vue', tag: 'button', event: 'click', handler: 'confirmDelete', owner: 'deleteAction', disabled: 'deleting || deleteReviewTargets.some(plan => !deleteReady[plan.id])' },
   { file: 'src/views/admin/AccountQualityView.vue', tag: 'button', event: 'click', handler: 'confirmTemplateDelete', owner: 'templateDeleteAction', disabled: 'templateDeleting' },
 ]
 export const customAdapterContracts = [

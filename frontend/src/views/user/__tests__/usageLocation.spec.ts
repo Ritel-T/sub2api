@@ -2,6 +2,11 @@ import {describe,expect,it} from 'vitest'
 import {parseUsageLocation,usageLocationQuery} from '../usageLocation'
 const defaults = {start:'2026-10-17T00:00:00.000Z',end:'2026-10-18T00:00:00.000Z',pageSize:20}
 describe('usage route schema',()=>{
+  it('round-trips traffic links while retaining own key context',()=>{
+    const state=parseUsageLocation({view:'records',tab:'traffic',api_key_id:'9'},defaults)
+    expect(state.tab).toBe('traffic')
+    expect(parseUsageLocation(Object.fromEntries(Object.entries(usageLocationQuery(state)).filter(([,value])=>value!=null).map(([key,value])=>[key,String(value)])),defaults)).toMatchObject({tab:'traffic',filters:{api_key_id:9}})
+  })
   it('preserves key/model/date/pagination and uses canonical key instead of its legacy alias',()=>{
     const state = parseUsageLocation({view:'records',api_key_id:'9',key:'2',model:'gpt-6',start_date:'2026-10-10',end_date:'2026-10-12',page:'3',page_size:'50',sort_by:'model',sort_order:'asc'},defaults)
     expect(state.filters).toMatchObject({api_key_id:9,model:'gpt-6'})

@@ -13,7 +13,7 @@ const date = (v: unknown): string => {
 export function parseUsageLocation(q: LocationQuery, defaults: {start: string; end: string; pageSize: number}) {
   const start = date(q.start_date), end = date(q.end_date)
   const validRange = !!start && !!end && new Date(start).getTime() <= new Date(end).getTime()
-  const tab = q.view === 'errors' || q.tab === 'errors' || q.status === 'failed' || q.status === 'errors' ? 'errors' : 'usage'
+  const tab = q.view === 'errors' || q.tab === 'errors' || q.status === 'failed' || q.status === 'errors' ? 'errors' : q.view === 'traffic' || q.tab === 'traffic' ? 'traffic' : 'usage'
   const key = positive(q.api_key_id) ?? positive(q.key)
   const model = first(q.model).trim().slice(0, 256)
   const params: UsageQueryParams = {

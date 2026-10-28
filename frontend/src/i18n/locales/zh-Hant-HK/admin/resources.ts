@@ -618,6 +618,8 @@ export default {
           failed: '失敗',
           canceled: '已取消'
         }
+      ,
+        "calendarRangeRequired": "滾動或精確時間範圍不可直接清理。請先選擇自然日；清理將刪除所選日期的整日記錄。",
       }
     },
 
