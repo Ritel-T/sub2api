@@ -35,6 +35,13 @@ describe('resolveDocumentTitle', () => {
 })
 
 describe('resolveRouteDocumentTitle', () => {
+  it('follows the admin usage page selection rather than the legacy records metadata', () => {
+    const route = { name: 'AdminUsage', path: '/admin/usage', params: {}, meta: { title: 'Usage Records' }, query: { view: 'analysis' } }
+    expect(resolveRouteDocumentTitle(route, 'Ritel.SI')).toBe('Usage analytics - Ritel.SI')
+    expect(resolveRouteDocumentTitle({ ...route, query: { view: 'records' } }, 'Ritel.SI')).toBe('Request records - Ritel.SI')
+    expect(resolveRouteDocumentTitle({ ...route, path: '/usage' }, 'Ritel.SI', [], { observer: true })).toBe('Usage analytics - Ritel.SI')
+  })
+
   it('自定义页面菜单加载后，使用菜单名称作为标题', () => {
     const route = {
       name: 'CustomPage',

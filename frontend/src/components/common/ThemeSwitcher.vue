@@ -1,56 +1,101 @@
 <template>
-  <label class="theme-switcher" :title="`${t('common.theme.label')}: ${t(`common.theme.${preference}`)}`">
-    <svg class="theme-switcher-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-      <template v-if="preference === 'system'">
-        <rect x="3" y="4" width="18" height="13" rx="2" />
-        <path d="M8 21h8m-4-4v4" />
-      </template>
-      <template v-else-if="preference === 'light'">
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" />
-      </template>
-      <path v-else d="M20.8 13.5A9 9 0 0 1 10.5 3.2 9 9 0 1 0 20.8 13.5Z" />
-    </svg>
-    <select :value="preference" :aria-label="t('common.theme.label')" @change="changeTheme">
-      <option value="system">{{ t('common.theme.system') }}</option>
-      <option value="light">{{ t('common.theme.light') }}</option>
-      <option value="dark">{{ t('common.theme.dark') }}</option>
-    </select>
-  </label>
+  <div ref="root" class="theme-switcher">
+    <button ref="trigger" type="button" class="theme-switcher-trigger"
+      :title="`${t('common.theme.label')}: ${t(`common.theme.${preference}`)}`"
+      :aria-label="t('common.theme.label')" aria-haspopup="menu" :aria-expanded="open" :aria-controls="menuId"
+      @click="toggleMenu" @keydown="triggerKeydown">
+      <Icon :name="currentIcon" size="md" aria-hidden="true" />
+    </button>
+    <Teleport to="body">
+      <div v-if="open" :id="menuId" ref="panel" role="menu" :aria-label="t('common.theme.label')"
+        class="theme-switcher-menu" :style="position" @keydown="menuKeydown">
+        <button v-for="(choice, index) in choices" :key="choice.value" type="button" role="menuitemradio"
+          :aria-checked="preference === choice.value" :tabindex="index === activeIndex ? 0 : -1"
+          class="theme-switcher-choice" :class="{ 'is-selected': preference === choice.value }"
+          @focus="activeIndex = index" @click="selectTheme(choice.value)">
+          <Icon :name="choice.icon" size="md" aria-hidden="true" />
+          <span>{{ t(`common.theme.${choice.value}`) }}</span>
+          <Icon v-if="preference === choice.value" name="check" size="sm" class="theme-switcher-check" aria-hidden="true" />
+        </button>
+      </div>
+    </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
+import { computed, nextTick, ref, useId } from 'vue'
+import { onClickOutside, useEventListener } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
+import Icon from '@/components/icons/Icon.vue'
+import { useOwnedPopover } from '@/composables/overlayLifecycle'
 import { useTheme, type ThemePreference } from '@/composables/useTheme'
 
 const { t } = useI18n()
 const { preference, setTheme } = useTheme()
-function changeTheme(event: Event) {
-  setTheme((event.target as HTMLSelectElement).value as ThemePreference)
+const choices = [
+  { value: 'system', icon: 'monitor' },
+  { value: 'light', icon: 'sun' },
+  { value: 'dark', icon: 'moon' }
+] as const
+const currentIcon = computed(() => choices.find(choice => choice.value === preference.value)?.icon ?? 'monitor')
+const root = ref<HTMLElement | null>(null)
+const trigger = ref<HTMLButtonElement | null>(null)
+const panel = ref<HTMLElement | null>(null)
+const open = ref(false)
+const activeIndex = ref(0)
+const menuId = `theme-menu-${useId()}`
+const position = ref<Record<string, string>>({})
+const close = () => { open.value = false }
+const ownedPopover = useOwnedPopover(open, { root: () => panel.value, trigger: () => trigger.value, close })
+onClickOutside(root, event => { if (!panel.value?.contains(event.target as Node)) close() })
+
+function positionMenu() {
+  const rect = trigger.value?.getBoundingClientRect()
+  if (!rect) return
+  const width = Math.min(176, window.innerWidth - 16)
+  position.value = { top: `${rect.bottom + 8}px`, left: `${Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))}px`, width: `${width}px` }
+}
+useEventListener(window, 'resize', () => { if (open.value) positionMenu() })
+function focusChoice(index: number) {
+  activeIndex.value = (index + choices.length) % choices.length
+  void nextTick(() => { panel.value?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')[activeIndex.value]?.focus() })
+}
+async function openMenu(index = choices.findIndex(choice => choice.value === preference.value)) {
+  activeIndex.value = Math.max(0, index)
+  positionMenu()
+  open.value = true
+  await nextTick()
+  focusChoice(activeIndex.value)
+}
+function toggleMenu() { if (open.value) close(); else void openMenu() }
+function triggerKeydown(event: KeyboardEvent) {
+  if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    event.preventDefault()
+    void openMenu(event.key === 'Home' ? 0 : event.key === 'End' || event.key === 'ArrowUp' ? choices.length - 1 : undefined)
+  }
+}
+function menuKeydown(event: KeyboardEvent) {
+  if (event.key === 'Tab') { ownedPopover.tab(event); close(); return }
+  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); trigger.value?.focus(); return }
+  const movement = event.key === 'ArrowDown' ? activeIndex.value + 1 : event.key === 'ArrowUp' ? activeIndex.value - 1
+    : event.key === 'Home' ? 0 : event.key === 'End' ? choices.length - 1 : null
+  if (movement !== null) { event.preventDefault(); focusChoice(movement) }
+}
+function selectTheme(value: ThemePreference) {
+  if (preference.value !== value) setTheme(value)
+  close()
+  trigger.value?.focus()
 }
 </script>
 
 <style scoped>
-.theme-switcher {
-  position: relative;
-  display: inline-flex;
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  color: var(--ritel-muted);
-  border-radius: var(--ritel-radius-control);
-}
-.theme-switcher:hover { color: var(--ritel-fg); background: var(--theme-hover); }
-.theme-switcher:focus-within { outline: 2px solid var(--ritel-focus); outline-offset: 2px; }
-.theme-switcher-icon { width: 18px; height: 18px; pointer-events: none; }
-.theme-switcher select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
+.theme-switcher{display:inline-flex;flex:0 0 36px;width:36px;height:36px}
+.theme-switcher-trigger{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:var(--ritel-radius-control);background:transparent;color:var(--ritel-muted);cursor:pointer}
+.theme-switcher-trigger:hover{color:var(--ritel-fg);background:var(--theme-hover)}
+.theme-switcher-trigger:focus-visible{outline:2px solid var(--ritel-focus);outline-offset:2px}
+.theme-switcher-menu{position:fixed;z-index:100000100;padding:4px;border:1px solid var(--ritel-border);border-radius:var(--ritel-radius-menu);background:var(--ritel-surface-raised);color:var(--ritel-fg);box-shadow:0 10px 30px rgba(var(--theme-shadow-rgb),.18)}
+.theme-switcher-choice{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:8px 10px;border:0;border-radius:var(--ritel-radius-control);background:transparent;font:inherit;font-size:14px;text-align:left;color:var(--ritel-muted);cursor:pointer}
+.theme-switcher-choice:hover,.theme-switcher-choice:focus-visible{background:var(--theme-hover);color:var(--ritel-fg)}
+.theme-switcher-choice.is-selected{color:var(--ritel-fg);background:var(--theme-selected)}
+.theme-switcher-check{margin-left:auto}
 </style>

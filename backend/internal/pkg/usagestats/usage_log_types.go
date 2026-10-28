@@ -186,13 +186,16 @@ type UserBreakdownDimension struct {
 	Endpoint     string // filter by endpoint value (non-empty to enable)
 	EndpointType string // "inbound", "upstream", or "path"
 	// Additional filter conditions
-	UserID             int64  // filter by user_id (>0 to enable)
-	APIKeyID           int64  // filter by api_key_id (>0 to enable)
-	AccountID          int64  // filter by account_id (>0 to enable)
-	RequestType        *int16 // filter by request_type (non-nil to enable)
-	Stream             *bool  // filter by stream flag (non-nil to enable)
-	NativeCompactionV2 *bool  // filter by native compaction v2 flag (non-nil to enable)
-	BillingType        *int8  // filter by billing_type (non-nil to enable)
+	UserID                int64  // filter by user_id (>0 to enable)
+	APIKeyID              int64  // filter by api_key_id (>0 to enable)
+	AccountID             int64  // filter by account_id (>0 to enable)
+	RequestType           *int16 // filter by request_type (non-nil to enable)
+	Stream                *bool  // filter by stream flag (non-nil to enable)
+	NativeCompactionV2    *bool  // filter by native compaction v2 flag (non-nil to enable)
+	BillingType           *int8  // filter by billing_type (non-nil to enable)
+	RequestID             string
+	BillingMode           string
+	UpstreamModelMismatch *bool
 	// SortBy 指定排序列(空 = 默认按 actual_cost)。合法值由 repo 层 allowlist 校验。
 	SortBy string
 }
@@ -385,4 +388,12 @@ type AccountUsageStatsResponse struct {
 	Models            []ModelStat           `json:"models"`
 	Endpoints         []EndpointStat        `json:"endpoints"`
 	UpstreamEndpoints []EndpointStat        `json:"upstream_endpoints"`
+}
+
+// HasRowFilters distinguishes a filtered usage scope from global time-range data.
+// ModelFilterSource alone only chooses a model expression and does not limit rows.
+func (f UsageLogFilters) HasRowFilters() bool {
+	return f.UserID > 0 || f.APIKeyID > 0 || f.AccountID > 0 || f.GroupID > 0 ||
+		f.RequestID != "" || f.Model != "" || f.RequestType != nil || f.Stream != nil ||
+		f.NativeCompactionV2 != nil || f.BillingType != nil || f.BillingMode != "" || f.UpstreamModelMismatch != nil
 }

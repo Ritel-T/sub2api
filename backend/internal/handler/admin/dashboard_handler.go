@@ -203,74 +203,12 @@ func (h *DashboardHandler) GetUsageTrend(c *gin.Context) {
 	}
 	granularity := c.DefaultQuery("granularity", "day")
 
-	// Parse optional filter params
-	var userID, apiKeyID, accountID, groupID int64
-	var model string
-	var requestType *int16
-	var stream *bool
-	var billingType *int8
-	var upstreamModelMismatch *bool
-
-	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
-			userID = id
-		}
-	}
-	if apiKeyIDStr := c.Query("api_key_id"); apiKeyIDStr != "" {
-		if id, err := strconv.ParseInt(apiKeyIDStr, 10, 64); err == nil {
-			apiKeyID = id
-		}
-	}
-	if accountIDStr := c.Query("account_id"); accountIDStr != "" {
-		if id, err := strconv.ParseInt(accountIDStr, 10, 64); err == nil {
-			accountID = id
-		}
-	}
-	if groupIDStr := c.Query("group_id"); groupIDStr != "" {
-		if id, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			groupID = id
-		}
-	}
-	if modelStr := c.Query("model"); modelStr != "" {
-		model = modelStr
-	}
-	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
-		parsed, err := service.ParseUsageRequestType(requestTypeStr)
-		if err != nil {
-			response.BadRequest(c, err.Error())
-			return
-		}
-		value := int16(parsed)
-		requestType = &value
-	} else if streamStr := c.Query("stream"); streamStr != "" {
-		if streamVal, err := strconv.ParseBool(streamStr); err == nil {
-			stream = &streamVal
-		} else {
-			response.BadRequest(c, "Invalid stream value, use true or false")
-			return
-		}
-	}
-	if billingTypeStr := c.Query("billing_type"); billingTypeStr != "" {
-		if v, err := strconv.ParseInt(billingTypeStr, 10, 8); err == nil {
-			bt := int8(v)
-			billingType = &bt
-		} else {
-			response.BadRequest(c, "Invalid billing_type")
-			return
-		}
-	}
-	nativeCompactionV2, err := parseOptionalBoolDashboardFilter(c, "native_compaction_v2")
+	filters, err := parseDashboardSnapshotV2Filters(c)
 	if err != nil {
-		response.BadRequest(c, "Invalid native_compaction_v2 value, use true or false")
+		response.BadRequest(c, err.Error())
 		return
 	}
-	upstreamModelMismatch, err = parseOptionalBoolDashboardFilter(c, "upstream_model_mismatch")
-	if err != nil {
-		response.BadRequest(c, "Invalid upstream_model_mismatch value, use true or false")
-		return
-	}
-
-	trend, hit, err := h.getUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch)
+	trend, hit, err := h.getUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.Model, filters.RequestType, filters.Stream, filters.NativeCompactionV2, filters.BillingType, filters.UpstreamModelMismatch, filters.usageFilters())
 	if err != nil {
 		response.Error(c, 500, "Failed to get usage trend")
 		return
@@ -297,78 +235,20 @@ func (h *DashboardHandler) GetModelStats(c *gin.Context) {
 		return
 	}
 
-	// Parse optional filter params
-	var userID, apiKeyID, accountID, groupID int64
+	filters, err := parseDashboardSnapshotV2Filters(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 	modelSource := usagestats.ModelSourceRequested
-	var requestType *int16
-	var stream *bool
-	var billingType *int8
-	var upstreamModelMismatch *bool
-
-	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
-			userID = id
-		}
-	}
-	if apiKeyIDStr := c.Query("api_key_id"); apiKeyIDStr != "" {
-		if id, err := strconv.ParseInt(apiKeyIDStr, 10, 64); err == nil {
-			apiKeyID = id
-		}
-	}
-	if accountIDStr := c.Query("account_id"); accountIDStr != "" {
-		if id, err := strconv.ParseInt(accountIDStr, 10, 64); err == nil {
-			accountID = id
-		}
-	}
-	if groupIDStr := c.Query("group_id"); groupIDStr != "" {
-		if id, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			groupID = id
-		}
-	}
-	if rawModelSource := strings.TrimSpace(c.Query("model_source")); rawModelSource != "" {
-		if !usagestats.IsValidModelSource(rawModelSource) {
+	if raw := strings.TrimSpace(c.Query("model_source")); raw != "" {
+		if !usagestats.IsValidModelSource(raw) {
 			response.BadRequest(c, "Invalid model_source, use requested/upstream/mapping")
 			return
 		}
-		modelSource = rawModelSource
+		modelSource = raw
 	}
-	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
-		parsed, err := service.ParseUsageRequestType(requestTypeStr)
-		if err != nil {
-			response.BadRequest(c, err.Error())
-			return
-		}
-		value := int16(parsed)
-		requestType = &value
-	} else if streamStr := c.Query("stream"); streamStr != "" {
-		if streamVal, err := strconv.ParseBool(streamStr); err == nil {
-			stream = &streamVal
-		} else {
-			response.BadRequest(c, "Invalid stream value, use true or false")
-			return
-		}
-	}
-	if billingTypeStr := c.Query("billing_type"); billingTypeStr != "" {
-		if v, err := strconv.ParseInt(billingTypeStr, 10, 8); err == nil {
-			bt := int8(v)
-			billingType = &bt
-		} else {
-			response.BadRequest(c, "Invalid billing_type")
-			return
-		}
-	}
-	nativeCompactionV2, err := parseOptionalBoolDashboardFilter(c, "native_compaction_v2")
-	if err != nil {
-		response.BadRequest(c, "Invalid native_compaction_v2 value, use true or false")
-		return
-	}
-	upstreamModelMismatch, err = parseOptionalBoolDashboardFilter(c, "upstream_model_mismatch")
-	if err != nil {
-		response.BadRequest(c, "Invalid upstream_model_mismatch value, use true or false")
-		return
-	}
-
-	stats, hit, err := h.getModelStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, modelSource, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch)
+	stats, hit, err := h.getModelStatsCached(c.Request.Context(), startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, modelSource, filters.RequestType, filters.Stream, filters.NativeCompactionV2, filters.BillingType, filters.UpstreamModelMismatch, filters.usageFilters())
 	if err != nil {
 		response.Error(c, 500, "Failed to get model statistics")
 		return
@@ -394,69 +274,12 @@ func (h *DashboardHandler) GetGroupStats(c *gin.Context) {
 		return
 	}
 
-	var userID, apiKeyID, accountID, groupID int64
-	var requestType *int16
-	var stream *bool
-	var billingType *int8
-	var upstreamModelMismatch *bool
-
-	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
-			userID = id
-		}
-	}
-	if apiKeyIDStr := c.Query("api_key_id"); apiKeyIDStr != "" {
-		if id, err := strconv.ParseInt(apiKeyIDStr, 10, 64); err == nil {
-			apiKeyID = id
-		}
-	}
-	if accountIDStr := c.Query("account_id"); accountIDStr != "" {
-		if id, err := strconv.ParseInt(accountIDStr, 10, 64); err == nil {
-			accountID = id
-		}
-	}
-	if groupIDStr := c.Query("group_id"); groupIDStr != "" {
-		if id, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			groupID = id
-		}
-	}
-	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
-		parsed, err := service.ParseUsageRequestType(requestTypeStr)
-		if err != nil {
-			response.BadRequest(c, err.Error())
-			return
-		}
-		value := int16(parsed)
-		requestType = &value
-	} else if streamStr := c.Query("stream"); streamStr != "" {
-		if streamVal, err := strconv.ParseBool(streamStr); err == nil {
-			stream = &streamVal
-		} else {
-			response.BadRequest(c, "Invalid stream value, use true or false")
-			return
-		}
-	}
-	if billingTypeStr := c.Query("billing_type"); billingTypeStr != "" {
-		if v, err := strconv.ParseInt(billingTypeStr, 10, 8); err == nil {
-			bt := int8(v)
-			billingType = &bt
-		} else {
-			response.BadRequest(c, "Invalid billing_type")
-			return
-		}
-	}
-	nativeCompactionV2, err := parseOptionalBoolDashboardFilter(c, "native_compaction_v2")
+	filters, err := parseDashboardSnapshotV2Filters(c)
 	if err != nil {
-		response.BadRequest(c, "Invalid native_compaction_v2 value, use true or false")
+		response.BadRequest(c, err.Error())
 		return
 	}
-	upstreamModelMismatch, err = parseOptionalBoolDashboardFilter(c, "upstream_model_mismatch")
-	if err != nil {
-		response.BadRequest(c, "Invalid upstream_model_mismatch value, use true or false")
-		return
-	}
-
-	stats, hit, err := h.getGroupStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch)
+	stats, hit, err := h.getGroupStatsCached(c.Request.Context(), startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.NativeCompactionV2, filters.BillingType, filters.UpstreamModelMismatch, filters.usageFilters())
 	if err != nil {
 		response.Error(c, 500, "Failed to get group statistics")
 		return
@@ -481,6 +304,12 @@ func (h *DashboardHandler) GetAPIKeyUsageTrend(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	filters, err := parseDashboardSnapshotV2Filters(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	granularity := c.DefaultQuery("granularity", "day")
 	limitStr := c.DefaultQuery("limit", "5")
 	limit, err := strconv.Atoi(limitStr)
@@ -488,7 +317,7 @@ func (h *DashboardHandler) GetAPIKeyUsageTrend(c *gin.Context) {
 		limit = 5
 	}
 
-	trend, hit, err := h.getAPIKeyUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, limit)
+	trend, hit, err := h.getAPIKeyUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, limit, filters.usageFilters())
 	if err != nil {
 		response.Error(c, 500, "Failed to get API key usage trend")
 		return
@@ -514,6 +343,12 @@ func (h *DashboardHandler) GetUserUsageTrend(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	filters, err := parseDashboardSnapshotV2Filters(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	granularity := c.DefaultQuery("granularity", "day")
 	limitStr := c.DefaultQuery("limit", "12")
 	limit, err := strconv.Atoi(limitStr)
@@ -525,7 +360,7 @@ func (h *DashboardHandler) GetUserUsageTrend(c *gin.Context) {
 	if metric != "tokens" && metric != "actual_cost" {
 		metric = "tokens"
 	}
-	trend, hit, err := h.getUserUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, limit, metric)
+	trend, hit, err := h.getUserUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, limit, metric, filters.usageFilters())
 	if err != nil {
 		response.Error(c, 500, "Failed to get user usage trend")
 		return
@@ -570,17 +405,25 @@ func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	filters, err := parseDashboardSnapshotV2Filters(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	limit := parseRankingLimit(c.DefaultQuery("limit", "12"))
 
 	keyRaw, _ := json.Marshal(struct {
-		Start string `json:"start"`
-		End   string `json:"end"`
-		Limit int    `json:"limit"`
+		Start   string                     `json:"start"`
+		End     string                     `json:"end"`
+		Limit   int                        `json:"limit"`
+		Filters usagestats.UsageLogFilters `json:"filters"`
 	}{
 		// Ranking payloads include caller-local dates and time offsets.
-		Start: startTime.Format(time.RFC3339Nano),
-		End:   endTime.Format(time.RFC3339Nano),
-		Limit: limit,
+		Start:   startTime.Format(time.RFC3339Nano),
+		End:     endTime.Format(time.RFC3339Nano),
+		Limit:   limit,
+		Filters: filters.usageFilters(),
 	})
 	cacheKey := string(keyRaw)
 	if cached, ok := dashboardUsersRankingCache.Get(cacheKey); ok {
@@ -589,7 +432,7 @@ func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 		return
 	}
 
-	ranking, err := h.dashboardService.GetUserSpendingRanking(c.Request.Context(), startTime, endTime, limit)
+	ranking, err := h.dashboardService.GetUserSpendingRankingWithUsageFilters(c.Request.Context(), startTime, endTime, limit, filters.usageFilters())
 	if err != nil {
 		response.Error(c, 500, "Failed to get user spending ranking")
 		return
@@ -708,13 +551,13 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 		return
 	}
 
-	dim := usagestats.UserBreakdownDimension{}
-	if v := c.Query("group_id"); v != "" {
-		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
-			dim.GroupID = id
-		}
+	filters, err := parseDashboardSnapshotV2Filters(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
 	}
-	dim.Model = c.Query("model")
+	dim := usagestats.UserBreakdownDimension{UserID: filters.UserID, APIKeyID: filters.APIKeyID, AccountID: filters.AccountID, GroupID: filters.GroupID,
+		Model: filters.Model, RequestID: filters.RequestID, BillingMode: filters.BillingMode, RequestType: filters.RequestType, Stream: filters.Stream, NativeCompactionV2: filters.NativeCompactionV2, BillingType: filters.BillingType, UpstreamModelMismatch: filters.UpstreamModelMismatch}
 	rawModelSource := strings.TrimSpace(c.DefaultQuery("model_source", usagestats.ModelSourceRequested))
 	if !usagestats.IsValidModelSource(rawModelSource) {
 		response.BadRequest(c, "Invalid model_source, use requested/upstream/mapping")
@@ -723,51 +566,6 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 	dim.ModelType = rawModelSource
 	dim.Endpoint = c.Query("endpoint")
 	dim.EndpointType = c.DefaultQuery("endpoint_type", "inbound")
-
-	// Additional filter conditions
-	if v := c.Query("user_id"); v != "" {
-		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
-			dim.UserID = id
-		}
-	}
-	if v := c.Query("api_key_id"); v != "" {
-		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
-			dim.APIKeyID = id
-		}
-	}
-	if v := c.Query("account_id"); v != "" {
-		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
-			dim.AccountID = id
-		}
-	}
-	if v := strings.TrimSpace(c.Query("request_type")); v != "" {
-		parsed, err := service.ParseUsageRequestType(v)
-		if err != nil {
-			response.BadRequest(c, err.Error())
-			return
-		}
-		rtVal := int16(parsed)
-		dim.RequestType = &rtVal
-	}
-	if v := c.Query("stream"); v != "" {
-		if s, err := strconv.ParseBool(v); err == nil {
-			dim.Stream = &s
-		}
-	}
-	if v := strings.TrimSpace(c.Query("native_compaction_v2")); v != "" {
-		value, err := strconv.ParseBool(v)
-		if err != nil {
-			response.BadRequest(c, "Invalid native_compaction_v2 value, use true or false")
-			return
-		}
-		dim.NativeCompactionV2 = &value
-	}
-	if v := c.Query("billing_type"); v != "" {
-		if bt, err := strconv.ParseInt(v, 10, 8); err == nil {
-			btVal := int8(bt)
-			dim.BillingType = &btVal
-		}
-	}
 
 	// sort_by 由 repo 层 allowlist 校验;非法值静默回退默认排序(actual_cost)。
 	dim.SortBy = strings.TrimSpace(c.Query("sort_by"))

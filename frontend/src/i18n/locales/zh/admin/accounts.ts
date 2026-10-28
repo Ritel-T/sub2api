@@ -701,6 +701,8 @@ export default {
         }
       },
       usageWindow: {
+        standardWindowCostTooltip: '当前额度周期内已记录请求的标准计费，按请求保存的价格计算，不含分组或账号倍率，不由额度百分比估算。{start} – {until}。',
+        standardWindowUnavailable: '当前额度周期或本地用量尚未确认，标准计费暂不可用。',
         statsTitle: '5小时窗口用量统计',
         statsTitleDaily: '每日用量统计',
         geminiProDaily: 'Pro',

@@ -213,7 +213,7 @@
           </thead>
           <DocumentRows
             as="tbody"
-            :items="rankingDisplayItems"
+            :items="visibleRankingItems"
             :item-key="(item) => item.isOther ? 'others' : item.user_id"
             :colspan="4"
             :item-attrs="(item) => ({ class: item.isOther ? 'bg-gray-50/70 dark:bg-dark-700/20' : 'hover:bg-gray-50 dark:hover:bg-dark-700/40' })"
@@ -250,6 +250,12 @@
             </template>
           </DocumentRows>
         </table>
+        <button v-if="collapsedRows && rankingDisplayItems.length > collapsedRows" type="button"
+          data-testid="ranking-list-toggle" class="mt-3 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white"
+          :aria-expanded="allRankingsVisible" @click="allRankingsVisible = !allRankingsVisible">
+          {{ t(allRankingsVisible ? 'common.collapse' : 'common.expand') }}
+          <span v-if="!allRankingsVisible">(+{{ rankingDisplayItems.length - collapsedRows }})</span>
+        </button>
       </div>
     </div>
     <div
@@ -483,6 +489,10 @@ const rankingDisplayItems = computed<RankingDisplayItem[]>(() => {
     ? [...props.rankingItems, otherRankingItem.value]
     : [...props.rankingItems]
 })
+
+const allRankingsVisible = ref(false)
+const visibleRankingItems = computed(() => !props.collapsedRows || allRankingsVisible.value
+  ? rankingDisplayItems.value : rankingDisplayItems.value.slice(0, props.collapsedRows))
 
 const doughnutOptions = computed(() => ({
   responsive: true,

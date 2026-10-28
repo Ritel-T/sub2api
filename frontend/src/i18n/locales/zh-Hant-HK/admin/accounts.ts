@@ -641,6 +641,8 @@ export default {
         }
       },
       usageWindow: {
+        standardWindowCostTooltip: '目前額度週期內已記錄請求的標準計費，按請求保存的價格計算，不含分組或帳號倍率，不由額度百分比估算。{start} – {until}。',
+        standardWindowUnavailable: '目前額度週期或本地用量尚未確認，標準計費暫不可用。',
         statsTitle: '5小時窗口用量統計',
         statsTitleDaily: '每日用量統計',
         geminiProDaily: 'Pro',

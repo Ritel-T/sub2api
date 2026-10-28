@@ -56,6 +56,31 @@ describe('overview quick workflow', () => {
     expect(wrapper.find('[data-test="referral-entry"]').attributes('href')).toBe('/affiliate')
     expect(wrapper.find('[data-test="referral-entry"]').text()).toContain('Invite friends')
   })
+  it('states both $5 rewards with their actual signup and first-recharge triggers', async () => {
+    app.cachedPublicSettings = { affiliate_enabled: true, affiliate_signup_bonus: 5, affiliate_first_recharge_bonus: 5, affiliate_first_recharge_min_amount: 8 }
+    const wrapper = await render()
+    const entry = wrapper.get('[data-test="referral-entry"]')
+    expect(entry.get('h2').text()).toBe('You and your friend each get $5')
+    expect(entry.text()).toContain('when they sign up through your link')
+    expect(entry.text()).toContain('first top-up of $8 or more')
+    expect(api.createKey).not.toHaveBeenCalled()
+    locale.value = 'zh'
+    await flushPromises()
+    expect(entry.get('h2').text()).toBe('邀请好友，双方各得 $5')
+    expect(entry.text()).toContain('首次充值满 $8')
+  })
+  it('uses live reward amounts and does not promise a reward when its configuration is absent or disabled', async () => {
+    app.cachedPublicSettings = { affiliate_enabled: true, affiliate_signup_bonus: 2, affiliate_first_recharge_bonus: 7, affiliate_first_recharge_min_amount: 10 }
+    const wrapper = await render()
+    expect(wrapper.get('[data-test="referral-entry"]').text()).toContain('friend gets $2')
+    expect(wrapper.get('[data-test="referral-entry"]').text()).toContain('You get $7')
+    app.cachedPublicSettings = { affiliate_enabled: true }
+    await flushPromises()
+    expect(wrapper.get('[data-test="referral-entry"]').text()).not.toContain('$5')
+    app.cachedPublicSettings.affiliate_enabled = false
+    await flushPromises()
+    expect(wrapper.find('[data-test="referral-entry"]').exists()).toBe(false)
+  })
   it('shows balance with top-up, three newest keys and five latest requests without charts', async () => {
     const wrapper = await render()
     expect(wrapper.find('[data-test="balance"]').text()).toContain('$25.00')
@@ -89,6 +114,29 @@ describe('overview quick workflow', () => {
     await wrapper.find('[data-platform="domestic"]').trigger('click'); await flushPromises()
     expect(api.createKey).toHaveBeenCalledWith('Chinese models Key', 17)
     expect(wrapper.find('[data-test="use-dialog"]').text()).toContain('deepseek')
+  })
+  it('prefers the available active Grok 060 group by its current name without a fixed ID', async () => {
+    api.groups.mockResolvedValue([
+      { ...group, id: 61, name: 'Grok Premium', platform: 'grok' },
+      { ...group, id: 806, name: 'Grok 060', platform: 'grok' },
+      { ...group, id: 32, name: 'Grok 060', platform: 'grok', status: 'inactive' }
+    ])
+    const wrapper = await render()
+    expect(wrapper.findAll('[data-platform="grok"]')).toHaveLength(1)
+    await wrapper.get('[data-platform="grok"]').trigger('click'); await flushPromises()
+    expect(api.createKey).toHaveBeenCalledTimes(1)
+    expect(api.createKey).toHaveBeenCalledWith('Grok Key', 806)
+  })
+  it('falls back to the first eligible Grok group if Grok 060 is unavailable', async () => {
+    api.groups.mockResolvedValue([
+      { ...group, id: 32, name: 'Grok 060', platform: 'grok', status: 'inactive' },
+      { ...group, id: 75, name: 'Grok Available', platform: 'grok' },
+      { ...group, id: 81, name: 'Grok Other', platform: 'grok' }
+    ])
+    const wrapper = await render()
+    await wrapper.get('[data-platform="grok"]').trigger('click'); await flushPromises()
+    expect(api.createKey).toHaveBeenCalledTimes(1)
+    expect(api.createKey).toHaveBeenCalledWith('Grok Key', 75)
   })
   it('prevents duplicate creation while pending and ignores a late result after owner changes', async () => {
     const pending = deferred<ApiKey>(); api.createKey.mockReturnValue(pending.promise)

@@ -94,8 +94,19 @@ type apiUsageCache struct {
 
 // windowStatsCache 缓存从本地数据库查询的窗口统计（requests, tokens, cost）
 type windowStatsCache struct {
-	stats     *WindowStats
-	timestamp time.Time
+	stats       *WindowStats
+	timestamp   time.Time
+	windowStart time.Time
+	windowReset time.Time
+}
+
+type accountWindowStatsCacheKey struct {
+	accountID int64
+	window    string
+}
+
+type accountWindowStatsRangeReader interface {
+	GetAccountWindowStatsRange(context.Context, int64, time.Time, time.Time) (*usagestats.AccountStats, error)
 }
 
 // antigravityUsageCache 缓存 Antigravity 额度数据
@@ -118,7 +129,7 @@ const (
 // UsageCache 封装账户使用量相关的缓存
 type UsageCache struct {
 	apiCache          sync.Map           // accountID -> *apiUsageCache
-	windowStatsCache  sync.Map           // accountID -> *windowStatsCache
+	windowStatsCache  sync.Map           // accountWindowStatsCacheKey -> *windowStatsCache
 	antigravityCache  sync.Map           // accountID -> *antigravityUsageCache
 	apiFlight         singleflight.Group // 防止同一账号的并发请求击穿缓存（Anthropic）
 	antigravityFlight singleflight.Group // 防止同一 Antigravity 账号的并发请求击穿缓存
@@ -160,6 +171,8 @@ type UsageProgress struct {
 	ResetsAt         *time.Time   `json:"resets_at"`              // 重置时间
 	RemainingSeconds int          `json:"remaining_seconds"`      // 距重置剩余秒数
 	WindowStats      *WindowStats `json:"window_stats,omitempty"` // 窗口期统计（从窗口开始到当前的使用量）
+	WindowStartsAt   *time.Time   `json:"window_starts_at,omitempty"`
+	WindowStatsUntil *time.Time   `json:"window_stats_until,omitempty"`
 	UsedRequests     int64        `json:"used_requests,omitempty"`
 	LimitRequests    int64        `json:"limit_requests,omitempty"`
 }
@@ -762,19 +775,8 @@ func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Accou
 		return usage, nil
 	}
 
-	if stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, codexWindowStatsStart(usage.FiveHour, 5*time.Hour, now)); err == nil {
-		if usage.FiveHour == nil {
-			usage.FiveHour = &UsageProgress{Utilization: 0}
-		}
-		usage.FiveHour.WindowStats = windowStatsFromAccountStats(stats)
-	}
-
-	if stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, codexWindowStatsStart(usage.SevenDay, 7*24*time.Hour, now)); err == nil {
-		if usage.SevenDay == nil {
-			usage.SevenDay = &UsageProgress{Utilization: 0}
-		}
-		usage.SevenDay.WindowStats = windowStatsFromAccountStats(stats)
-	}
+	s.attachCurrentWindowStats(ctx, account, usage.FiveHour, "5h", codexWindowDuration(account.Extra, "5h", 5*time.Hour), now)
+	s.attachCurrentWindowStats(ctx, account, usage.SevenDay, "7d", codexWindowDuration(account.Extra, "7d", 7*24*time.Hour), now)
 
 	return usage, nil
 }
@@ -1362,46 +1364,82 @@ func enrichUsageWithAccountError(info *UsageInfo, account *Account) {
 	info.NeedsReauth = false
 }
 
-// addWindowStats 为 usage 数据添加窗口期统计
-// 使用独立缓存（1 分钟），与 API 缓存分离
+// addWindowStats attaches separate upstream 5h and 7d cycle totals. An unknown
+// or expired reset never becomes an apparently authoritative rolling window.
 func (s *AccountUsageService) addWindowStats(ctx context.Context, account *Account, usage *UsageInfo) {
-	// 修复：即使 FiveHour 为 nil，也要尝试获取统计数据
-	// 因为 SevenDay/SevenDaySonnet/SevenDayFable 可能需要
-	if usage.FiveHour == nil && usage.SevenDay == nil && usage.SevenDaySonnet == nil && usage.SevenDayFable == nil {
+	if account == nil || usage == nil || s.usageLogRepo == nil {
 		return
 	}
+	now := time.Now()
+	s.attachCurrentWindowStats(ctx, account, usage.FiveHour, "5h", 5*time.Hour, now)
+	s.attachCurrentWindowStats(ctx, account, usage.SevenDay, "7d", 7*24*time.Hour, now)
+}
 
-	// 检查窗口统计缓存（1 分钟）
-	var windowStats *WindowStats
-	if cached, ok := s.cache.windowStatsCache.Load(account.ID); ok {
-		if cache, ok := cached.(*windowStatsCache); ok && time.Since(cache.timestamp) < windowStatsCacheTTL {
-			windowStats = cache.stats
+func codexWindowDuration(extra map[string]any, name string, fallback time.Duration) time.Duration {
+	if raw, present := extra["codex_"+name+"_window_minutes"]; present {
+		minutes := parseExtraInt(raw)
+		// A malformed observed duration is unknown, not permission to substitute 5h/7d.
+		if minutes <= 0 || minutes > 31*24*60 || parseExtraFloat64(raw) != float64(minutes) {
+			return 0
+		}
+		return time.Duration(minutes) * time.Minute
+	}
+	return fallback
+}
+
+func currentUsageWindowStart(progress *UsageProgress, duration time.Duration, now time.Time) (time.Time, bool) {
+	if progress == nil || progress.ResetsAt == nil || duration <= 0 || !progress.ResetsAt.After(now) {
+		return time.Time{}, false
+	}
+	start := progress.ResetsAt.Add(-duration)
+	if start.After(now) {
+		return time.Time{}, false
+	}
+	return start, true
+}
+
+func (s *AccountUsageService) attachCurrentWindowStats(ctx context.Context, account *Account, progress *UsageProgress, name string, duration time.Duration, now time.Time) {
+	if progress == nil {
+		return
+	}
+	progress.WindowStats = nil
+	progress.WindowStartsAt = nil
+	progress.WindowStatsUntil = nil
+	start, known := currentUsageWindowStart(progress, duration, now)
+	if !known || s.usageLogRepo == nil {
+		return
+	}
+	reset := *progress.ResetsAt
+	progress.WindowStartsAt = &start
+	key := accountWindowStatsCacheKey{accountID: account.ID, window: name}
+	if s.cache != nil {
+		if raw, ok := s.cache.windowStatsCache.Load(key); ok {
+			if cached, ok := raw.(*windowStatsCache); ok && cached.windowStart.Equal(start) && cached.windowReset.Equal(reset) && !now.Before(cached.timestamp) && now.Sub(cached.timestamp) < windowStatsCacheTTL {
+				progress.WindowStats = cached.stats
+				until := cached.timestamp
+				progress.WindowStatsUntil = &until
+				return
+			}
 		}
 	}
-
-	// 如果没有缓存，从数据库查询
-	if windowStats == nil {
-		// 使用统一的窗口开始时间计算逻辑（考虑窗口过期情况）
-		startTime := account.GetCurrentWindowStartTime()
-
-		stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, startTime)
-		if err != nil {
-			log.Printf("Failed to get window stats for account %d: %v", account.ID, err)
-			return
-		}
-
-		windowStats = windowStatsFromAccountStats(stats)
-
-		// 缓存窗口统计（1 分钟）
-		s.cache.windowStatsCache.Store(account.ID, &windowStatsCache{
-			stats:     windowStats,
-			timestamp: time.Now(),
-		})
+	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	var stats *usagestats.AccountStats
+	var err error
+	if reader, ok := s.usageLogRepo.(accountWindowStatsRangeReader); ok {
+		stats, err = reader.GetAccountWindowStatsRange(queryCtx, account.ID, start, now)
+	} else {
+		// Compatibility for repository adapters predating range queries. Production
+		// implements the strict range reader above; no percentage-to-cost conversion.
+		stats, err = s.usageLogRepo.GetAccountWindowStats(queryCtx, account.ID, start)
 	}
-
-	// 为 FiveHour 添加 WindowStats（5h 窗口统计）
-	if usage.FiveHour != nil {
-		usage.FiveHour.WindowStats = windowStats
+	if err != nil || stats == nil {
+		return
+	}
+	progress.WindowStats = windowStatsFromAccountStats(stats)
+	progress.WindowStatsUntil = &now
+	if s.cache != nil {
+		s.cache.windowStatsCache.Store(key, &windowStatsCache{stats: progress.WindowStats, timestamp: now, windowStart: start, windowReset: reset})
 	}
 }
 
@@ -1577,13 +1615,6 @@ func buildCodexUsageProgressFromExtra(extra map[string]any, window string, now t
 	}
 
 	return progress
-}
-
-func codexWindowStatsStart(progress *UsageProgress, fallbackWindow time.Duration, now time.Time) time.Time {
-	if progress != nil && progress.ResetsAt != nil && now.Before(*progress.ResetsAt) {
-		return progress.ResetsAt.Add(-fallbackWindow)
-	}
-	return now.Add(-fallbackWindow)
 }
 
 func (s *AccountUsageService) GetAccountUsageStats(ctx context.Context, accountID int64, startTime, endTime time.Time) (*usagestats.AccountUsageStatsResponse, error) {

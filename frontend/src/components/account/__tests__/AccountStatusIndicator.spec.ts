@@ -3,12 +3,15 @@ import { mount } from '@vue/test-utils'
 import AccountStatusIndicator from '../AccountStatusIndicator.vue'
 import type { Account } from '@/types'
 
+const i18nLocale = vi.hoisted(() => ({ value: 'en' }))
+
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string) => key,
+      locale: i18nLocale
     })
   }
 })
@@ -360,5 +363,95 @@ describe('Independent borrowing policy and route readiness', () => {
     const w = mount(AccountStatusIndicator, { props: { account: makeAccount({ platform: 'openai', extra: { openai_gateway_borrow_models: ['gpt-6.1-sol'] } }), borrowRoutes: [routes[0], { ...routes[0], account_id: 2, model: 'gpt-6.1-sol' }], borrowRuntimeLoaded: true, borrowNow: Date.parse('2098-12-31T23:59:59Z') }, global: { stubs: { Icon: true } } })
     expect(w.get('[data-testid="borrow-route-badge"]').text()).toContain('routeStates.waiting')
     w.unmount()
+  })
+})
+
+
+describe('Compact account status summary', () => {
+  const now = Date.parse('2026-10-28T12:00:00Z')
+  const account = makeAccount({ platform: 'openai', extra: { openai_gateway_borrow_models: ['gpt-6-astra', 'gpt-6.1-sol'] } })
+  const routes = [
+    { account_id: 1, model: 'gpt-6-astra', state: 'ready', reason: 'target_probe_passed', expires_at: '2026-10-28T12:00:01Z', remaining_seconds: 1, active: true },
+    { account_id: 1, model: 'gpt-6.1-sol', state: 'failed', reason: 'target_quality_failed', retry_at: '2026-10-28T12:05:00Z', remaining_seconds: 0, active: false },
+  ]
+  it.each(['zh', 'zh-CN'])('uses Simplified Chinese compact labels for actual locale %s', currentLocale => {
+    i18nLocale.value = currentLocale
+    const wrapper = mount(AccountStatusIndicator, { props: { compact: true, account, borrowNow: now }, global: { stubs: { Icon: true } } })
+    try {
+      const summary = wrapper.get('[data-testid="compact-account-status"]')
+      expect(summary.find('.account-status-primary').exists()).toBe(false)
+      expect(summary.findAll('[data-testid="compact-borrow-route"]').map(item => item.text())).toEqual(['Astra · 未核验', 'Sol · 未核验'])
+      expect(summary.text()).not.toContain('未核驗')
+    } finally {
+      wrapper.unmount()
+      i18nLocale.value = 'en'
+    }
+  })
+
+  it('keeps borrowing and per-model readiness concise without showing an unverified account as active', async () => {
+    const wrapper = mount(AccountStatusIndicator, { props: { compact: true, account, borrowNow: now }, global: { stubs: { Icon: true } } })
+    const summary = wrapper.get('[data-testid="compact-account-status"]')
+    expect(summary.text()).not.toContain('Borrowing required')
+    expect(summary.find('.account-status-primary').exists()).toBe(false)
+    expect(summary.findAll('[data-testid="compact-borrow-route"]').map(item => item.text())).toEqual(['Astra · Unverified', 'Sol · Unverified'])
+    expect(summary.text()).not.toContain('admin.accounts.status.active')
+    expect(summary.text()).not.toContain('retryAt')
+    expect(summary.find('.badge').exists()).toBe(false)
+    wrapper.unmount()
+  })
+  it('keeps per-model lines separate from BPS and the details control without a repeated borrowing heading', () => {
+    const wrapper = mount(AccountStatusIndicator, { props: {
+      compact: true, borrowNow: now, account: { ...account, extra: { ...account.extra, openai_excel_bps: true } }
+    }, global: { stubs: { Icon: true } } })
+    const summary = wrapper.get('[data-testid="compact-account-status"]')
+    expect(summary.get('.account-status-lines').findAll('[data-testid="compact-borrow-route"]').map(item => item.text())).toEqual(['Astra · Unverified', 'Sol · Unverified'])
+    expect(summary.get('.account-status-controls').text()).toBe('bps')
+    expect(summary.get('.account-status-lines').text()).not.toContain('bps')
+    expect(summary.find('.account-status-primary').exists()).toBe(false)
+    expect(summary.text()).not.toContain('admin.accounts.status.active')
+    wrapper.unmount()
+  })
+
+  it('keeps failed Sol separate from ready Astra, then expires route readiness and retains details in the popover', async () => {
+    const wrapper = mount(AccountStatusIndicator, { attachTo: document.body, props: { compact: true, account, borrowNow: now, borrowRuntimeLoaded: true, borrowRoutes: routes }, global: { stubs: { Icon: true } } })
+    const summary = wrapper.get('[data-testid="compact-account-status"]')
+    expect(summary.findAll('[data-testid="compact-borrow-route"]').map(item => item.text())).toEqual(['Astra · Ready', 'Sol · Unavailable'])
+    await summary.trigger('click')
+    const detail = document.body.querySelector<HTMLElement>('[data-testid="account-status-details"]')!
+    expect(detail.closest<HTMLElement>('[role="tooltip"]')!.style.display).not.toBe('none')
+    expect(detail.textContent).toContain('admin.astraGateway.retryAt')
+    expect(detail.querySelectorAll('[data-testid="borrow-required-badge"]')).toHaveLength(2)
+    expect(detail.querySelectorAll('[data-testid="borrow-route-badge"]')[1].getAttribute('title')).toContain('testReasons.answerFailed')
+    await wrapper.setProps({ borrowNow: now + 1000 })
+    expect(summary.findAll('[data-testid="compact-borrow-route"]')[0].text()).toContain('Expired')
+    await wrapper.setProps({ borrowRuntimeError: true })
+    expect(summary.findAll('[data-testid="compact-borrow-route"]')[0].text()).toContain('Unverified')
+    wrapper.unmount()
+  })
+  it('does not repeat rate-limit prose in the main summary and recovers at the exact reset boundary', async () => {
+    const wrapper = mount(AccountStatusIndicator, { props: { compact: true, account: makeAccount({ rate_limit_reset_at: '2026-10-28T12:00:01Z' }), borrowNow: now }, global: { stubs: { Icon: true } } })
+    const summary = wrapper.get('[data-testid="compact-account-status"]')
+    expect(summary.text()).toBe('429 · admin.accounts.status.rateLimited')
+    expect(summary.text()).not.toContain('rateLimitedAutoResume')
+    await wrapper.setProps({ borrowNow: now + 1000 })
+    expect(summary.text()).toBe('admin.accounts.status.active')
+    wrapper.unmount()
+  })
+  it('keeps errors and inactive states ahead of borrowed readiness', () => {
+    for (const state of ['error', 'inactive'] as const) {
+      const wrapper = mount(AccountStatusIndicator, { props: { compact: true, account: { ...account, status: state }, borrowRuntimeLoaded: true, borrowRoutes: routes, borrowNow: now }, global: { stubs: { Icon: true } } })
+      expect(wrapper.get('.account-status-primary').text()).toBe(`admin.accounts.status.${state}`)
+      expect(wrapper.get('.account-status-primary').classes().join(' ')).not.toContain('text-emerald')
+      wrapper.unmount()
+    }
+  })
+  it('counts model limits once in the main row while retaining exact models in details', () => {
+    const wrapper = mount(AccountStatusIndicator, { props: { compact: true, account: makeAccount({ extra: { model_rate_limits: {
+      'claude-opus-5': { rate_limited_at: '2026-10-28T11:00:00Z', rate_limit_reset_at: '2026-10-28T13:00:00Z' },
+      'claude-sonnet-5': { rate_limited_at: '2026-10-28T11:00:00Z', rate_limit_reset_at: '2026-10-28T13:00:00Z' },
+    } } }), borrowNow: now }, global: { stubs: { Icon: true } } })
+    expect(wrapper.get('[data-testid="compact-model-limits"]').text()).toBe('2 model limits')
+    expect(wrapper.get('[data-testid="compact-account-status"]').text()).not.toContain('COpus5')
+    wrapper.unmount()
   })
 })

@@ -1044,4 +1044,4 @@ span.inline-flex.rounded, span.inline-block.rounded { border-radius: var(--ritel
 /* Mouse interactions stay quiet; keyboard navigation retains :focus-visible. */
 :focus:not(:focus-visible) { outline: none !important; box-shadow: none !important; }
 /* Underline navigation has square ends throughout the console. */
-:where([role="tab"], nav.-mb-px > button, .purchase-tabs > button) { border-radius: 0 !important; }
+:where([role="tab"], nav.-mb-px > button, .purchase-tabs > button, button.border-b-2, a.border-b-2) { border-radius: 0 !important; }

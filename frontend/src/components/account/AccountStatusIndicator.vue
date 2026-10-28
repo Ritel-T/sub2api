@@ -1,5 +1,30 @@
 <template>
-  <div class="flex flex-col items-start gap-1">
+  <div v-if="compact" class="account-status-compact" @click.stop>
+    <ExcelBPSCredentialStatus :state="account.excel_bps_credential_state" />
+    <HelpTooltip trigger="click" class="!ml-0 w-full" width-class="w-80">
+      <template #trigger>
+        <button type="button" data-testid="compact-account-status" class="account-status-summary" :aria-label="`${account.name}: ${t('common.status')}`">
+          <span class="account-status-lines">
+            <span v-if="compactStatusText" class="account-status-primary" :class="compactStatusClass" :title="compactStatusText">{{ compactStatusText }}</span>
+            <span v-if="borrowRequiredModels.length" class="account-status-borrowing">
+              <span v-for="model in borrowRequiredModels" :key="model" data-testid="compact-borrow-route" :title="`${model} · ${routeHint(model)}`" :class="routeState(model) === 'ready' ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'">
+                {{ model === 'gpt-6-astra' ? 'Astra' : 'Sol' }} · {{ statusCopy.routes[routeState(model)] }}
+              </span>
+            </span>
+            <span v-else-if="activeModelStatuses.length" class="account-status-model-limits text-amber-700 dark:text-amber-300" data-testid="compact-model-limits">{{ statusCopy.modelLimits(activeModelStatuses.length) }}</span>
+          </span>
+          <span class="account-status-controls" aria-hidden="true">
+            <span v-if="protocolEnabled && isExcelBPSEnabled" class="account-status-protocol">bps</span>
+            <Icon name="chevronDown" size="xs" />
+          </span>
+        </button>
+      </template>
+      <div data-testid="account-status-details" class="account-status-details" @click.stop>
+        <AccountStatusIndicator :account="account" :borrow-routes="borrowRoutes" :borrow-now="borrowNow" :borrow-runtime-loaded="borrowRuntimeLoaded" :borrow-runtime-error="borrowRuntimeError" :global-bps-enabled="globalBpsEnabled" @show-temp-unsched="emit('show-temp-unsched', $event)" />
+      </div>
+    </HelpTooltip>
+  </div>
+  <div v-else class="flex flex-col items-start gap-1">
     <ExcelBPSCredentialStatus :state="account.excel_bps_credential_state" />
     <span
       v-if="protocolEnabled && isExcelBPSEnabled"
@@ -165,22 +190,30 @@ import type { AstraRouteStatus } from '@/api/admin/astraGateway'
 import { borrowingRouteState, canonicalBorrowModel, gatewayBorrowReasonKey, nativeBorrowQuality, requiredBorrowModels } from '@/utils/gatewayBorrowStatus'
 import { formatCountdown, formatDateTime, formatDateTimeToMinute, formatCountdownWithSuffix, formatTime } from '@/utils/format'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const compactCopy = {
+  en: { borrowing: 'Borrowing required', modelLimits: (count: number) => `${count} model limits`, routes: { ready: 'Ready', expired: 'Expired', waiting: 'Waiting', unavailable: 'Unavailable', unknown: 'Unverified' } },
+  cn: { borrowing: '需要借票', modelLimits: (count: number) => `${count} 项模型限流`, routes: { ready: '就绪', expired: '已过期', waiting: '待验证', unavailable: '不可用', unknown: '未核验' } },
+  hk: { borrowing: '需要借票', modelLimits: (count: number) => `${count} 項模型限流`, routes: { ready: '就緒', expired: '已過期', waiting: '待驗證', unavailable: '不可用', unknown: '未核驗' } },
+}
+const statusCopy = computed(() => /^zh/i.test(locale?.value || '') ? (/^zh(?:[-_]CN)?$/i.test(locale?.value || '') ? compactCopy.cn : compactCopy.hk) : compactCopy.en)
 
 const props = withDefaults(defineProps<{
   account: Account
+  compact?: boolean
   borrowRoutes?: AstraRouteStatus[]
   borrowNow?: number
   borrowRuntimeLoaded?: boolean
   borrowRuntimeError?: boolean
   globalBpsEnabled?: boolean
-}>(), { globalBpsEnabled: true })
+}>(), { globalBpsEnabled: true, compact: false })
 
 const emit = defineEmits<{
   (e: 'show-temp-unsched', account: Account): void
 }>()
 
 const protocolEnabled = computed(() => props.globalBpsEnabled)
+const statusNow = computed(() => props.borrowNow ?? Date.now())
 
 // Keep eligibility aligned with Account.IsExcelBPSEnabled on the backend.
 const isExcelBPSEnabled = computed(() => {
@@ -215,7 +248,7 @@ function routeHint(model: string) {
 // Computed: is rate limited (429)
 const isRateLimited = computed(() => {
   if (!props.account.rate_limit_reset_at) return false
-  return new Date(props.account.rate_limit_reset_at) > new Date()
+  return Date.parse(props.account.rate_limit_reset_at) > statusNow.value
 })
 
 type AccountModelStatusItem = {
@@ -230,7 +263,7 @@ const activeModelStatuses = computed<AccountModelStatusItem[]>(() => {
   const modelLimits = extra?.model_rate_limits as
     | Record<string, { rate_limited_at: string; rate_limit_reset_at: string }>
     | undefined
-  const now = new Date()
+  const now = new Date(statusNow.value)
   const items: AccountModelStatusItem[] = []
 
   if (!modelLimits) return items
@@ -307,7 +340,7 @@ const formatScopeName = (scope: string): string => {
 // Computed: is overloaded (529)
 const isOverloaded = computed(() => {
   if (!props.account.overload_until) return false
-  return new Date(props.account.overload_until) > new Date()
+  return Date.parse(props.account.overload_until) > statusNow.value
 })
 
 const isRPMPaused = computed(() =>
@@ -330,7 +363,7 @@ const rpmResumeText = computed(() => {
 // Computed: is temp unschedulable
 const isTempUnschedulable = computed(() => {
   if (!props.account.temp_unschedulable_until) return false
-  return new Date(props.account.temp_unschedulable_until) > new Date()
+  return Date.parse(props.account.temp_unschedulable_until) > statusNow.value
 })
 
 // Computed: has error status
@@ -410,8 +443,41 @@ const statusText = computed(() => {
   return t(`admin.accounts.status.${props.account.status}`)
 })
 
+const hasBpsCooldown = computed(() => props.account.platform === 'openai' && props.account.type === 'oauth' &&
+  props.account.extra?.openai_excel_bps === true && typeof props.account.extra.openai_excel_bps_rate_limit_reset_at === 'string' &&
+  Date.parse(props.account.extra.openai_excel_bps_rate_limit_reset_at) > statusNow.value)
+const compactStatusText = computed(() => {
+  if (hasError.value || props.account.status !== 'active') return statusText.value
+  if (isRPMPaused.value) return t('admin.accounts.status.rpmPaused')
+  if (isRateLimited.value) return `429 · ${t('admin.accounts.status.rateLimited')}`
+  if (isOverloaded.value) return `529 · ${t('admin.accounts.status.overloaded')}`
+  if (isTempUnschedulable.value || isQuotaExceeded.value || !props.account.schedulable) return statusText.value
+  if (hasBpsCooldown.value) return t('admin.accounts.status.bpsCooldown')
+  if (borrowRequiredModels.value.length) return ''
+  return statusText.value
+})
+const compactStatusClass = computed(() => {
+  if (hasError.value || isOverloaded.value) return 'text-red-700 dark:text-red-300'
+  if (props.account.status !== 'active' || !props.account.schedulable) return 'text-gray-500 dark:text-gray-400'
+  if (isRPMPaused.value || isRateLimited.value || isTempUnschedulable.value || isQuotaExceeded.value || hasBpsCooldown.value || activeModelStatuses.value.length ||
+    borrowRequiredModels.value.some(model => routeState(model) !== 'ready')) return 'text-amber-700 dark:text-amber-300'
+  return 'text-emerald-700 dark:text-emerald-300'
+})
+
 const handleTempUnschedClick = () => {
   if (!isTempUnschedulable.value) return
   emit('show-temp-unsched', props.account)
 }
 </script>
+
+<style scoped>
+.account-status-compact { min-width: 0; max-width: 15rem; }
+.account-status-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: .35rem; width: 100%; min-height: 32px; border: 0; padding: 0; background: transparent; font: inherit; font-size: 12px; line-height: 1.4; text-align: left; cursor: pointer; }
+.account-status-lines { display: grid; gap: .15rem; min-width: 0; }
+.account-status-primary, .account-status-borrowing > span, .account-status-model-limits { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: normal; overflow-wrap: normal; }
+.account-status-borrowing { display: grid; gap: .15rem; min-width: 0; font-size: 11px; }
+.account-status-controls { display: inline-flex; flex: none; align-items: center; gap: .25rem; white-space: nowrap; }
+.account-status-controls > svg { flex: none; color: var(--ritel-muted); }
+.account-status-protocol { color: var(--ritel-muted); font-size: 10px; font-weight: 500; }
+.account-status-details { padding: .25rem .5rem .25rem 0; }
+</style>

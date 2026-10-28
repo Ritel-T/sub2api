@@ -37,7 +37,7 @@
 
       <UserDashboardQuickActions v-if="authStore.user" :recent-keys="recentKeys" :groups="groups" :loading="states.keys.loading" :error="states.keys.error" :groups-loading="states.groups.loading" :groups-error="states.groups.error" @retry="loadKeys" @retry-groups="loadGroups" @created="onKeyCreated" />
       <router-link v-if="!authStore.isSimpleMode && appStore.cachedPublicSettings?.affiliate_enabled" to="/affiliate" class="dashboard-referral" data-test="referral-entry">
-        <div><AppHeading variant="section" as="h2">{{ copy.invite }}</AppHeading><p>{{ copy.inviteHint }}</p></div>
+        <div><AppHeading variant="section" as="h2">{{ referralTitle }}</AppHeading><p>{{ referralHint }}</p></div>
         <span class="dashboard-referral-action">{{ copy.inviteAction }} <Icon name="arrowRight" size="sm" /></span>
       </router-link>
       <UserDashboardRecentUsage :data="recentUsage" :errors="recentErrors" :loading="states.recent.loading" :error="states.recent.error" @retry="loadRecent" />
@@ -65,6 +65,23 @@ const authStore = useAuthStore()
 const appStore = useAppStore()
 const paymentEnabled = computed(() => appStore.cachedPublicSettings?.payment_enabled !== false)
 const copy = useOverviewCopy()
+const referralPolicy = computed(() => {
+  const settings = appStore.cachedPublicSettings
+  const amount = (value?: number) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+  return { signup: amount(settings?.affiliate_signup_bonus), recharge: amount(settings?.affiliate_first_recharge_bonus), minimum: amount(settings?.affiliate_first_recharge_min_amount) }
+})
+const referralMoney = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2, minimumFractionDigits: 0 }).format(value)
+const referralTitle = computed(() => referralPolicy.value.signup > 0 && referralPolicy.value.signup === referralPolicy.value.recharge
+  ? copy.value.inviteBoth.replace('{bonus}', referralMoney(referralPolicy.value.signup)) : copy.value.invite)
+const referralHint = computed(() => {
+  const { signup, recharge, minimum } = referralPolicy.value
+  const details = [
+    signup ? copy.value.inviteSignup.replace('{bonus}', referralMoney(signup)) : '',
+    recharge ? (minimum ? copy.value.inviteRechargeMinimum : copy.value.inviteRecharge)
+      .replace('{bonus}', referralMoney(recharge)).replace('{minimum}', referralMoney(minimum)) : ''
+  ].filter(Boolean)
+  return details.join(' ') || copy.value.inviteHint
+})
 const stats = ref<UserStatsType | null>(null)
 const balance = ref<number | null>(null)
 const recentKeys = ref<ApiKey[]>([])
@@ -149,7 +166,7 @@ onBeforeUnmount(() => { alive = false; ownerGeneration++ })
 .dashboard-activity-value{margin-block:.375rem 0;font-size:1.75rem;line-height:1.1;overflow-wrap:anywhere}
 .dashboard-metric-state{margin-block:1.5rem}
 .dashboard-summary-simple{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
-.dashboard-referral{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;border-block:1px solid var(--ritel-border);padding-block:1.75rem;color:var(--ritel-fg)}
+.dashboard-referral{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;border-top:1px solid var(--ritel-border);padding-block:1.75rem;color:var(--ritel-fg)}
 .dashboard-referral p{margin-top:.5rem;color:var(--ritel-muted)}
 .dashboard-referral-action{display:inline-flex;align-items:center;gap:.75rem;white-space:nowrap}
 .dashboard-referral:hover .dashboard-referral-action{text-decoration:underline;text-underline-offset:.3em}

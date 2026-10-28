@@ -120,6 +120,9 @@ export async function list(
  */
 export async function getStats(params: {
   user_id?: number
+  billing_mode?: string
+  request_id?: string
+  billing_type?: number | null
   api_key_id?: number
   account_id?: number
   group_id?: number

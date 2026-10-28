@@ -74,92 +74,10 @@ func (h *UsageHandler) List(c *gin.Context) {
 		exactTotal = parsed
 	}
 
-	// Parse filters
-	var userID, apiKeyID, accountID, groupID int64
-	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		id, err := strconv.ParseInt(userIDStr, 10, 64)
-		if err != nil {
-			response.BadRequest(c, "Invalid user_id")
-			return
-		}
-		userID = id
-	}
-
-	if apiKeyIDStr := c.Query("api_key_id"); apiKeyIDStr != "" {
-		id, err := strconv.ParseInt(apiKeyIDStr, 10, 64)
-		if err != nil {
-			response.BadRequest(c, "Invalid api_key_id")
-			return
-		}
-		apiKeyID = id
-	}
-
-	if accountIDStr := c.Query("account_id"); accountIDStr != "" {
-		id, err := strconv.ParseInt(accountIDStr, 10, 64)
-		if err != nil {
-			response.BadRequest(c, "Invalid account_id")
-			return
-		}
-		accountID = id
-	}
-
-	if groupIDStr := c.Query("group_id"); groupIDStr != "" {
-		id, err := strconv.ParseInt(groupIDStr, 10, 64)
-		if err != nil {
-			response.BadRequest(c, "Invalid group_id")
-			return
-		}
-		groupID = id
-	}
-
-	model := c.Query("model")
-	requestID := strings.TrimSpace(c.Query("request_id"))
-	billingMode := strings.TrimSpace(c.Query("billing_mode"))
-
-	var requestType *int16
-	var stream *bool
-	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
-		parsed, err := service.ParseUsageRequestType(requestTypeStr)
-		if err != nil {
-			response.BadRequest(c, err.Error())
-			return
-		}
-		value := int16(parsed)
-		requestType = &value
-	} else if streamStr := c.Query("stream"); streamStr != "" {
-		val, err := strconv.ParseBool(streamStr)
-		if err != nil {
-			response.BadRequest(c, "Invalid stream value, use true or false")
-			return
-		}
-		stream = &val
-	}
-
-	nativeCompactionV2, err := parseOptionalBoolDashboardFilter(c, "native_compaction_v2")
+	shared, err := parseDashboardSnapshotV2Filters(c)
 	if err != nil {
-		response.BadRequest(c, "Invalid native_compaction_v2 value, use true or false")
+		response.BadRequest(c, err.Error())
 		return
-	}
-
-	var billingType *int8
-	if billingTypeStr := c.Query("billing_type"); billingTypeStr != "" {
-		val, err := strconv.ParseInt(billingTypeStr, 10, 8)
-		if err != nil {
-			response.BadRequest(c, "Invalid billing_type")
-			return
-		}
-		bt := int8(val)
-		billingType = &bt
-	}
-
-	var upstreamModelMismatch *bool
-	if raw := strings.TrimSpace(c.Query("upstream_model_mismatch")); raw != "" {
-		value, err := strconv.ParseBool(raw)
-		if err != nil {
-			response.BadRequest(c, "Invalid upstream_model_mismatch value, use true or false")
-			return
-		}
-		upstreamModelMismatch = &value
 	}
 
 	// Parse date range
@@ -194,24 +112,10 @@ func (h *UsageHandler) List(c *gin.Context) {
 		SortBy:    c.DefaultQuery("sort_by", "created_at"),
 		SortOrder: c.DefaultQuery("sort_order", "desc"),
 	}
-	filters := usagestats.UsageLogFilters{
-		UserID:                userID,
-		APIKeyID:              apiKeyID,
-		AccountID:             accountID,
-		GroupID:               groupID,
-		RequestID:             requestID,
-		Model:                 model,
-		ModelFilterSource:     usagestats.ModelSourceRequested,
-		RequestType:           requestType,
-		Stream:                stream,
-		NativeCompactionV2:    nativeCompactionV2,
-		BillingType:           billingType,
-		BillingMode:           billingMode,
-		UpstreamModelMismatch: upstreamModelMismatch,
-		StartTime:             startTime,
-		EndTime:               endTime,
-		ExactTotal:            exactTotal,
-	}
+	filters := shared.usageFilters()
+	filters.StartTime = startTime
+	filters.EndTime = endTime
+	filters.ExactTotal = exactTotal
 
 	records, result, err := h.usageService.ListWithFilters(c.Request.Context(), params, filters)
 	if err != nil {
@@ -229,91 +133,10 @@ func (h *UsageHandler) List(c *gin.Context) {
 // Stats handles getting usage statistics with filters
 // GET /api/v1/admin/usage/stats
 func (h *UsageHandler) Stats(c *gin.Context) {
-	// Parse filters - same as List endpoint
-	var userID, apiKeyID, accountID, groupID int64
-	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		id, err := strconv.ParseInt(userIDStr, 10, 64)
-		if err != nil {
-			response.BadRequest(c, "Invalid user_id")
-			return
-		}
-		userID = id
-	}
-
-	if apiKeyIDStr := c.Query("api_key_id"); apiKeyIDStr != "" {
-		id, err := strconv.ParseInt(apiKeyIDStr, 10, 64)
-		if err != nil {
-			response.BadRequest(c, "Invalid api_key_id")
-			return
-		}
-		apiKeyID = id
-	}
-
-	if accountIDStr := c.Query("account_id"); accountIDStr != "" {
-		id, err := strconv.ParseInt(accountIDStr, 10, 64)
-		if err != nil {
-			response.BadRequest(c, "Invalid account_id")
-			return
-		}
-		accountID = id
-	}
-
-	if groupIDStr := c.Query("group_id"); groupIDStr != "" {
-		id, err := strconv.ParseInt(groupIDStr, 10, 64)
-		if err != nil {
-			response.BadRequest(c, "Invalid group_id")
-			return
-		}
-		groupID = id
-	}
-
-	model := c.Query("model")
-	billingMode := strings.TrimSpace(c.Query("billing_mode"))
-
-	var requestType *int16
-	var stream *bool
-	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
-		parsed, err := service.ParseUsageRequestType(requestTypeStr)
-		if err != nil {
-			response.BadRequest(c, err.Error())
-			return
-		}
-		value := int16(parsed)
-		requestType = &value
-	} else if streamStr := c.Query("stream"); streamStr != "" {
-		val, err := strconv.ParseBool(streamStr)
-		if err != nil {
-			response.BadRequest(c, "Invalid stream value, use true or false")
-			return
-		}
-		stream = &val
-	}
-
-	nativeCompactionV2, err := parseOptionalBoolDashboardFilter(c, "native_compaction_v2")
+	shared, err := parseDashboardSnapshotV2Filters(c)
 	if err != nil {
-		response.BadRequest(c, "Invalid native_compaction_v2 value, use true or false")
+		response.BadRequest(c, err.Error())
 		return
-	}
-
-	var billingType *int8
-	if billingTypeStr := c.Query("billing_type"); billingTypeStr != "" {
-		val, err := strconv.ParseInt(billingTypeStr, 10, 8)
-		if err != nil {
-			response.BadRequest(c, "Invalid billing_type")
-			return
-		}
-		bt := int8(val)
-		billingType = &bt
-	}
-
-	var upstreamModelMismatch *bool
-	if raw := strings.TrimSpace(c.Query("upstream_model_mismatch")); raw != "" {
-		value, err := strconv.ParseBool(raw)
-		if err != nil {
-			response.BadRequest(c, "Invalid upstream_model_mismatch value, use true or false")
-			return
-		}
-		upstreamModelMismatch = &value
 	}
 
 	// Parse date range
@@ -361,22 +184,9 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 	}
 
 	// Build filters and call GetStatsWithFilters
-	filters := usagestats.UsageLogFilters{
-		UserID:                userID,
-		APIKeyID:              apiKeyID,
-		AccountID:             accountID,
-		GroupID:               groupID,
-		Model:                 model,
-		ModelFilterSource:     usagestats.ModelSourceRequested,
-		RequestType:           requestType,
-		Stream:                stream,
-		NativeCompactionV2:    nativeCompactionV2,
-		BillingType:           billingType,
-		BillingMode:           billingMode,
-		UpstreamModelMismatch: upstreamModelMismatch,
-		StartTime:             &startTime,
-		EndTime:               &endTime,
-	}
+	filters := shared.usageFilters()
+	filters.StartTime = &startTime
+	filters.EndTime = &endTime
 
 	var stats *usagestats.UsageStats
 	// nocache: 绕过缓存直接回源,刷新者本人拿最新;不回写缓存(管理台"我刷新我自己拿最新"语义,非全局失效)。

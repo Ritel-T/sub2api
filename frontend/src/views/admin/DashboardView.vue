@@ -127,6 +127,7 @@
             <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
             <ModelDistributionChart
               :model-stats="modelStats"
+              :collapsed-rows="6"
               :enable-ranking-view="true"
               :ranking-items="rankingItems"
               :ranking-total-actual-cost="rankingTotalActualCost"

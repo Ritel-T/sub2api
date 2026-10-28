@@ -420,3 +420,39 @@ describe('UsageFilters — identity-only traffic filters', () => {
     expect(wrapper.props('modelValue').api_key_id).toBeUndefined()
   })
 })
+
+
+describe('UsageFilters shared ranking dimensions', () => {
+  it('keeps billing mode and model audit selectors available for filtered ranking', async () => {
+    const wrapper = mountFilters()
+    await wrapper.setProps({ mode: 'ranking' })
+    await flushPromises()
+    const labels = wrapper.findAll('label').map(label => label.text())
+    expect(labels).toContain('Billing Mode')
+    expect(labels).toContain('Upstream model audit')
+    expect(labels).toContain('Billing Type')
+    expect(labels).toContain('Request Kind')
+    wrapper.unmount()
+  })
+})
+
+
+describe('UsageFilters record-only actions', () => {
+  it('hides cleanup and export for analytics while retaining shared refresh and reset', async () => {
+    const wrapper = mountFilters()
+    await wrapper.setProps({ showActions: true })
+    await flushPromises()
+    const buttonLabels = () => wrapper.findAll('button').map(button => button.text())
+    expect(buttonLabels()).toContain('Cleanup')
+    expect(buttonLabels()).toContain('Export')
+    await wrapper.setProps({ showRecordActions: false })
+    expect(buttonLabels()).not.toContain('Cleanup')
+    expect(buttonLabels()).not.toContain('Export')
+    expect(buttonLabels()).toContain('Refresh')
+    expect(buttonLabels()).toContain('Reset')
+    await wrapper.setProps({ showRecordActions: true })
+    expect(buttonLabels()).toContain('Cleanup')
+    expect(buttonLabels()).toContain('Export')
+    wrapper.unmount()
+  })
+})

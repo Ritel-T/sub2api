@@ -308,30 +308,38 @@ func (r *usageLogRepository) GetAccountTodayStats(ctx context.Context, accountID
 
 // GetAccountWindowStats 获取账号时间窗口内的统计
 func (r *usageLogRepository) GetAccountWindowStats(ctx context.Context, accountID int64, startTime time.Time) (*usagestats.AccountStats, error) {
-	query := accountAPIEquivalentRowsCTE("account_id = $1 AND created_at >= $2") + `
-		SELECT
-			COUNT(*) as requests,
-			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
-			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as cost,
-			COALESCE(SUM(total_cost), 0) as standard_cost,
-			COALESCE(SUM(actual_cost), 0) as user_cost` + accountAPIEquivalentAggregate + `
-		FROM api_equivalent_rows
-	`
+	return r.getAccountWindowStatsRange(ctx, accountID, startTime, nil)
+}
 
+// GetAccountWindowStatsRange uses the observed upstream cycle, not a rolling lookback.
+// The exclusive upper bound also excludes records newer than this statistics snapshot.
+func (r *usageLogRepository) GetAccountWindowStatsRange(ctx context.Context, accountID int64, startTime, endTime time.Time) (*usagestats.AccountStats, error) {
+	if !endTime.After(startTime) {
+		return nil, fmt.Errorf("invalid account statistics window")
+	}
+	return r.getAccountWindowStatsRange(ctx, accountID, startTime, &endTime)
+}
+
+func (r *usageLogRepository) getAccountWindowStatsRange(ctx context.Context, accountID int64, startTime time.Time, endTime *time.Time) (*usagestats.AccountStats, error) {
+	where := "account_id = $1 AND created_at >= $2"
+	args := []any{accountID, startTime}
+	if endTime != nil {
+		where += " AND created_at < $3"
+		args = append(args, *endTime)
+	}
+	query := accountAPIEquivalentRowsCTE(where) + `
+  SELECT
+   COUNT(*) as requests,
+   COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
+   COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as cost,
+   COALESCE(SUM(total_cost), 0) as standard_cost,
+   COALESCE(SUM(actual_cost), 0) as user_cost` + accountAPIEquivalentAggregate + `
+  FROM api_equivalent_rows
+ `
 	stats := &usagestats.AccountStats{}
-	if err := scanSingleRow(
-		ctx,
-		r.sql,
-		query,
-		[]any{accountID, startTime},
-		&stats.Requests,
-		&stats.Tokens,
-		&stats.Cost,
-		&stats.StandardCost,
-		&stats.UserCost,
-		&stats.APIEquivalentCost,
-		&stats.APIEquivalentUnpricedRequests,
-		&stats.APIEquivalentInternalPricedRequests,
+	if err := scanSingleRow(ctx, r.sql, query, args,
+		&stats.Requests, &stats.Tokens, &stats.Cost, &stats.StandardCost, &stats.UserCost,
+		&stats.APIEquivalentCost, &stats.APIEquivalentUnpricedRequests, &stats.APIEquivalentInternalPricedRequests,
 	); err != nil {
 		return nil, err
 	}
@@ -664,44 +672,7 @@ func (r *usageLogRepository) GetGlobalStats(ctx context.Context, startTime, endT
 
 // GetStatsWithFilters gets usage statistics with optional filters
 func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters UsageLogFilters) (*UsageStats, error) {
-	conditions := make([]string, 0, 9)
-	args := make([]any, 0, 9)
-
-	if filters.UserID > 0 {
-		conditions = append(conditions, fmt.Sprintf("user_id = $%d", len(args)+1))
-		args = append(args, filters.UserID)
-	}
-	if filters.APIKeyID > 0 {
-		conditions = append(conditions, fmt.Sprintf("api_key_id = $%d", len(args)+1))
-		args = append(args, filters.APIKeyID)
-	}
-	if filters.AccountID > 0 {
-		conditions = append(conditions, fmt.Sprintf("account_id = $%d", len(args)+1))
-		args = append(args, filters.AccountID)
-	}
-	if filters.GroupID > 0 {
-		conditions = append(conditions, fmt.Sprintf("group_id = $%d", len(args)+1))
-		args = append(args, filters.GroupID)
-	}
-	conditions, args = appendUsageLogModelWhereCondition(conditions, args, filters.Model, filters.ModelFilterSource)
-	conditions, args = appendRequestTypeOrStreamWhereCondition(conditions, args, filters.RequestType, filters.Stream)
-	conditions, args = appendNativeCompactionV2WhereCondition(conditions, args, filters.NativeCompactionV2, "")
-	if filters.BillingType != nil {
-		conditions = append(conditions, fmt.Sprintf("billing_type = $%d", len(args)+1))
-		args = append(args, int16(*filters.BillingType))
-	}
-	conditions, args = appendUsageLogBillingModeWhereCondition(conditions, args, filters.BillingMode)
-	if filters.UpstreamModelMismatch != nil {
-		conditions = append(conditions, upstreamModelMismatchCondition("upstream_model_mismatch", *filters.UpstreamModelMismatch))
-	}
-	if filters.StartTime != nil {
-		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", len(args)+1))
-		args = append(args, *filters.StartTime)
-	}
-	if filters.EndTime != nil {
-		conditions = append(conditions, fmt.Sprintf("created_at < $%d", len(args)+1))
-		args = append(args, *filters.EndTime)
-	}
+	conditions, args := usageLogReadConditions(filters)
 
 	query := fmt.Sprintf(`
 		WITH scoped AS (

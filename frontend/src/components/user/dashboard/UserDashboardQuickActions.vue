@@ -66,12 +66,13 @@ const creationLabel = (platform: GroupPlatform) => platformBucket(platform) === 
 // Available groups are already permission-filtered and ordered by the server.
 const platformGroups = computed(() => {
   const seen = new Set<string>()
+  const preferredGrok = props.groups.find(group => group.status === 'active' && group.platform === 'grok' && group.name.trim().toLowerCase() === 'grok 060')
   return props.groups.filter(group => {
     const bucket = platformBucket(group.platform)
     if (group.status !== 'active' || seen.has(bucket)) return false
     seen.add(bucket)
     return true
-  })
+  }).map(group => group.platform === 'grok' ? preferredGrok ?? group : group)
 })
 const platformLabel = (platform?: string) => GROUP_PLATFORM_OPTIONS.find(option => option.value === platform)?.label ?? platform ?? '—'
 let generation = 0
@@ -86,6 +87,7 @@ watch([() => authStore.user?.id, () => Boolean(authStore.token)], () => {
 onBeforeUnmount(() => { alive = false; generation++ })
 async function createKey(group: Group) {
   if (creating.value || creationUnknown.value || !authStore.user || props.groupsLoading || props.groupsError) return
+  if (!props.groups.some(current => current.id === group.id && current.status === 'active')) return
   const owner = generation
   creating.value = group.platform
   createError.value = false

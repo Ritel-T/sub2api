@@ -83,7 +83,7 @@
         <!-- Model Filter -->
         <div class="usage-filter-field">
           <label class="input-label">{{ t('usage.model') }}</label>
-          <Select :aria-label="t('usage.model')" v-model="filters.model" :options="modelOptions" searchable @change="emitChange" />
+          <Select :aria-label="t('usage.model')" v-model="filters.model" :options="modelOptions" searchable creatable @change="emitChange" />
         </div>
 
         <!-- Account Filter -->
@@ -141,13 +141,13 @@
           <Select :aria-label="t('admin.usage.billingType')" v-model="filters.billing_type" :options="billingTypeOptions" @change="emitChange" />
         </div>
 
-        <!-- Billing Mode Filter (usage only；用户排行的 user-breakdown 接口不支持该维度) -->
-        <div v-if="mode === 'usage'" class="usage-filter-field">
+        <!-- Billing dimensions are shared by records and analytics/ranking. -->
+        <div v-if="mode === 'usage' || mode === 'ranking'" class="usage-filter-field">
           <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
           <Select :aria-label="t('admin.usage.billingMode')" v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
         </div>
 
-        <div v-if="mode === 'usage'" class="usage-filter-field">
+        <div v-if="mode === 'usage' || mode === 'ranking'" class="usage-filter-field">
           <label class="input-label">{{ t('admin.usage.upstreamModelAudit') }}</label>
           <Select :aria-label="t('admin.usage.upstreamModelAudit')" v-model="filters.upstream_model_mismatch" :options="upstreamModelMismatchOptions" @change="emitChange" />
         </div>
@@ -188,7 +188,7 @@
           {{ t('common.reset') }}
         </button>
         <slot name="after-reset" />
-        <template v-if="mode === 'usage'">
+        <template v-if="showRecordActions && mode === 'usage'">
           <button v-if="!observerMode" type="button" @click="$emit('cleanup')" class="btn btn-danger">
             {{ t('admin.usage.cleanup.button') }}
           </button>
@@ -219,10 +219,12 @@ interface Props {
   startDate: string
   endDate: string
   showActions?: boolean
+  /** Cleanup and spreadsheet export belong to the record list. */
+  showRecordActions?: boolean
   modelOptions?: string[]
   /**
    * errors 模式:隐藏用量专属字段/按钮,显示错误类型+状态码(错误请求 tab 用)
-   * ranking 模式:同 usage 但隐藏计费模式筛选与清理/导出按钮(用户排行 tab 用)
+   * ranking 模式:保留共享筛选，隐藏清理/导出按钮(用户排行 tab 用)
    */
   mode?: 'usage' | 'errors' | 'ranking' | 'connections'
   /** Match the parent page spacing when embedded. */
@@ -234,6 +236,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   showActions: true,
+  showRecordActions: true,
   mode: 'usage',
   flat: false,
   identityOnly: false

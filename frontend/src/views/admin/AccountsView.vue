@@ -287,7 +287,7 @@
           </template>
           <template #cell-status="{ row }">
             <div class="flex items-center gap-1.5">
-              <AccountStatusIndicator :account="row" :global-bps-enabled="appStore.cachedPublicSettings?.excel_bps_enabled !== false" :borrow-routes="borrowRuntimeByAccount[String(row.id)] || []" :borrow-now="borrowRuntimeNow" :borrow-runtime-loaded="borrowRuntimeLoaded" :borrow-runtime-error="borrowRuntimeFailed" @show-temp-unsched="handleShowTempUnsched" />
+              <AccountStatusIndicator compact :account="row" :global-bps-enabled="appStore.cachedPublicSettings?.excel_bps_enabled !== false" :borrow-routes="borrowRuntimeByAccount[String(row.id)] || []" :borrow-now="borrowRuntimeNow" :borrow-runtime-loaded="borrowRuntimeLoaded" :borrow-runtime-error="borrowRuntimeFailed" @show-temp-unsched="handleShowTempUnsched" />
             </div>
           </template>
           <template #cell-schedulable="{ row }">
@@ -435,10 +435,11 @@
           </template>
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
-              <button @click="handleEdit(row)" :aria-label="t('common.edit')" :title="t('common.edit')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
+              <button @click.stop="handleEdit(row)" :aria-label="t('common.edit')" :title="t('common.edit')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
 
               </button>
+              <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400" data-testid="account-row-more" :data-account-id="row.id" :title="t('admin.accounts.moreActions')" :aria-label="t('admin.accounts.moreActions')" :aria-expanded="rowActionAccount?.id === row.id" @click.stop="openRowActions(row, $event)"><Icon name="more" size="sm" /></button>
             </div>
           </template>
           <template #row-details="{ row, columns, renderCell }">
@@ -458,6 +459,7 @@
         <InfiniteListSentinel :loading="loading" :error="listError" :has-more="hasMore" @load-more="loadMoreAccounts" @retry="retryAccounts" />
       </template>
     </TablePageLayout>
+    <AccountActionMenu v-if="rowActionAccount" :show="true" :account="rowActionAccount" :anchor-rect="rowActionAnchor" @close="closeRowActions" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @iq-test="handleIQTest" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" @delete="handleDelete" />
     <NewAPIUpstreamConfigDialog v-if="authStore.isAdmin" :show="newAPIConfigAccount !== null" :account="newAPIConfigAccount" @close="newAPIConfigAccount = null" @saved="reload" />
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
@@ -699,7 +701,7 @@ const allColumns = computed(() => [
   { key: 'id', label: 'ID', sortable: true, width: 112 },
   { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false, width: 104 },
   { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, weight: 1.8, minWidth: 160 },
-  { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, width: 96 },
+  { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, width: 160, minWidth: 160 },
   { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true, width: 96 },
   { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false, weight: 2.6, minWidth: 260 },
   { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false, width: 88 },
@@ -2632,6 +2634,15 @@ const handleToggleSchedulable = async (a: Account) => {
     togglingSchedulable.value = null
   }
 }
+const rowActionAccount = ref<Account | null>(null)
+const rowActionAnchor = ref<DOMRect | null>(null)
+const openRowActions = (account: Account, event: MouseEvent) => {
+  if (!(event.currentTarget instanceof HTMLElement)) return
+  rowActionAccount.value = account
+  rowActionAnchor.value = event.currentTarget.getBoundingClientRect()
+}
+const closeRowActions = () => { rowActionAccount.value = null; rowActionAnchor.value = null }
+
 const handleShowTempUnsched = (a: Account) => { tempUnschedAcc.value = a; showTempUnsched.value = true }
 const handleTempUnschedReset = async (updated: Account) => {
   showTempUnsched.value = false

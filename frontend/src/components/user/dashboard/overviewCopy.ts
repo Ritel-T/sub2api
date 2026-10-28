@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 
 const en = {
   invite: 'Invite friends. Share the rewards.', inviteHint: 'Recommend Ritel.SI and earn rewards from qualifying referrals.', inviteAction: 'Invite friends',
+  inviteBoth: 'You and your friend each get {bonus}', inviteSignup: 'Your friend gets {bonus} when they sign up through your link.', inviteRecharge: 'You get {bonus} after their first top-up.', inviteRechargeMinimum: 'You get {bonus} after their first top-up of {minimum} or more.',
   overview: 'Overview', create: 'Create API key', connect: 'Connect an app', continue: 'Continue using',
   manageKeys: 'Manage API keys', loading: 'Loading…', retry: 'Retry', loadFailed: 'Could not load this section.',
   balance: 'Available balance', subscriptions: 'Active subscriptions', billing: 'Balance & billing',
@@ -18,6 +19,7 @@ const en = {
 }
 const hk: Record<keyof typeof en, string> = {
   invite: '推薦好友，共享獎勵', inviteHint: '分享 Ritel.SI，透過符合條件的推薦獲得獎勵。', inviteAction: '邀請好友',
+  inviteBoth: '邀請好友，雙方各得 {bonus}', inviteSignup: '好友透過你的連結註冊，即得 {bonus}。', inviteRecharge: '好友首次充值後，你再得 {bonus}。', inviteRechargeMinimum: '好友首次充值滿 {minimum}，你再得 {bonus}。',
   overview: '總覽', create: '建立 API Key', connect: '連接應用程式', continue: '繼續使用',
   manageKeys: '管理 API Key', loading: '載入中…', retry: '重試', loadFailed: '未能載入此部分。',
   balance: '可用餘額', subscriptions: '有效訂閱', billing: '餘額與帳務',
@@ -33,6 +35,7 @@ const hk: Record<keyof typeof en, string> = {
 }
 const zh: Record<keyof typeof en, string> = {
   invite: '推荐好友，共享奖励', inviteHint: '分享 Ritel.SI，通过符合条件的推荐获得奖励。', inviteAction: '邀请好友',
+  inviteBoth: '邀请好友，双方各得 {bonus}', inviteSignup: '好友通过你的链接注册，即得 {bonus}。', inviteRecharge: '好友首次充值后，你再得 {bonus}。', inviteRechargeMinimum: '好友首次充值满 {minimum}，你再得 {bonus}。',
   overview: '总览', create: '创建 API Key', connect: '连接应用', continue: '继续使用',
   manageKeys: '管理 API Key', loading: '加载中…', retry: '重试', loadFailed: '未能加载此部分。',
   balance: '可用余额', subscriptions: '有效订阅', billing: '余额与账务',

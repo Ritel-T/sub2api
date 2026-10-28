@@ -143,6 +143,10 @@ func (s *DashboardService) GetUsageTrendWithUsageFilters(ctx context.Context, st
 		}
 		return trend, nil
 	}
+	if filters.RequestID != "" || filters.BillingMode != "" || filters.NativeCompactionV2 != nil || filters.UpstreamModelMismatch != nil || (filters.Model != "" && filters.ModelFilterSource != "") {
+		return nil, errors.New("requested usage filters are unavailable")
+	}
+
 	return s.GetUsageTrendWithFilters(ctx, startTime, endTime, granularity, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.Model, filters.RequestType, filters.Stream, filters.BillingType)
 }
 
@@ -187,6 +191,10 @@ func (s *DashboardService) GetModelStatsWithUsageFiltersBySource(ctx context.Con
 		}
 		return stats, nil
 	}
+	if filters.RequestID != "" || filters.BillingMode != "" || filters.NativeCompactionV2 != nil || filters.UpstreamModelMismatch != nil || filters.Model != "" {
+		return nil, errors.New("requested usage filters are unavailable")
+	}
+
 	return s.GetModelStatsWithFiltersBySource(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType, normalizedSource)
 }
 
@@ -209,6 +217,10 @@ func (s *DashboardService) GetGroupStatsWithUsageFilters(ctx context.Context, st
 		}
 		return stats, nil
 	}
+	if filters.RequestID != "" || filters.BillingMode != "" || filters.NativeCompactionV2 != nil || filters.UpstreamModelMismatch != nil || filters.Model != "" {
+		return nil, errors.New("requested usage filters are unavailable")
+	}
+
 	return s.GetGroupStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType)
 }
 
@@ -430,4 +442,41 @@ func (s *DashboardService) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyI
 		return nil, fmt.Errorf("get batch api key usage stats: %w", err)
 	}
 	return stats, nil
+}
+
+func (s *DashboardService) GetAPIKeyUsageTrendWithUsageFilters(ctx context.Context, start, end time.Time, granularity string, limit int, filters usagestats.UsageLogFilters) ([]usagestats.APIKeyUsageTrendPoint, error) {
+	type filteredRepo interface {
+		GetAPIKeyUsageTrendWithUsageFilters(context.Context, time.Time, time.Time, string, int, usagestats.UsageLogFilters) ([]usagestats.APIKeyUsageTrendPoint, error)
+	}
+	if repo, ok := s.usageRepo.(filteredRepo); ok {
+		return repo.GetAPIKeyUsageTrendWithUsageFilters(ctx, start, end, granularity, limit, filters)
+	}
+	if filters.HasRowFilters() {
+		return nil, errors.New("filtered API key trend is unavailable")
+	}
+	return s.GetAPIKeyUsageTrend(ctx, start, end, granularity, limit)
+}
+func (s *DashboardService) GetUserUsageTrendWithUsageFilters(ctx context.Context, start, end time.Time, granularity string, limit int, metric string, filters usagestats.UsageLogFilters) ([]usagestats.UserUsageTrendPoint, error) {
+	type filteredRepo interface {
+		GetUserUsageTrendWithUsageFilters(context.Context, time.Time, time.Time, string, int, string, usagestats.UsageLogFilters) ([]usagestats.UserUsageTrendPoint, error)
+	}
+	if repo, ok := s.usageRepo.(filteredRepo); ok {
+		return repo.GetUserUsageTrendWithUsageFilters(ctx, start, end, granularity, limit, metric, filters)
+	}
+	if filters.HasRowFilters() {
+		return nil, errors.New("filtered user trend is unavailable")
+	}
+	return s.GetUserUsageTrend(ctx, start, end, granularity, limit, metric)
+}
+func (s *DashboardService) GetUserSpendingRankingWithUsageFilters(ctx context.Context, start, end time.Time, limit int, filters usagestats.UsageLogFilters) (*usagestats.UserSpendingRankingResponse, error) {
+	type filteredRepo interface {
+		GetUserSpendingRankingWithUsageFilters(context.Context, time.Time, time.Time, int, usagestats.UsageLogFilters) (*usagestats.UserSpendingRankingResponse, error)
+	}
+	if repo, ok := s.usageRepo.(filteredRepo); ok {
+		return repo.GetUserSpendingRankingWithUsageFilters(ctx, start, end, limit, filters)
+	}
+	if filters.HasRowFilters() {
+		return nil, errors.New("filtered user ranking is unavailable")
+	}
+	return s.GetUserSpendingRanking(ctx, start, end, limit)
 }

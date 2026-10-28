@@ -131,10 +131,12 @@ describe('AccountUsageCell', () => {
   })
 
   it('keeps compact OpenAI rows to standard windows and the first three actions', async () => {
-    const windowStats = { requests: 204, tokens: 518000, cost: 4.98, user_cost: 4.98, api_equivalent_cost: 8.3 }
+    const windowStats = { requests: 204, tokens: 518000, standard_cost: 3.21, cost: 4.98, user_cost: 4.98, api_equivalent_cost: 8.3 }
+    const until = new Date(Date.now() - 5000).toISOString()
+    const start = new Date(Date.now() - 3600000).toISOString()
     getUsage.mockResolvedValue({
-      five_hour: { utilization: 70, resets_at: '2099-10-20T12:00:00Z', window_stats: windowStats },
-      seven_day: { utilization: 41, resets_at: '2099-10-25T12:00:00Z', window_stats: windowStats }
+      five_hour: { utilization: 70, resets_at: '2099-10-20T12:00:00Z', window_starts_at: start, window_stats_until: until, window_stats: windowStats },
+      seven_day: { utilization: 41, resets_at: '2099-10-25T12:00:00Z', window_starts_at: start, window_stats_until: until, window_stats: { ...windowStats, standard_cost: 45.67 } }
     })
     const wrapper = mount(AccountUsageCell, {
       props: { account: makeAccount({ id: 9801, platform: 'openai', type: 'oauth' }), compact: true },
@@ -145,6 +147,7 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).toContain('70%')
     expect(wrapper.text()).toContain('7d')
     expect(wrapper.text()).toContain('41%')
+    expect(wrapper.findAll('[data-test="standard-window-cost"]').map(node => node.text())).toEqual(['Std $3.21', 'Std $45.67'])
     expect(wrapper.text()).not.toContain('204 req')
     expect(wrapper.text()).not.toContain('518.0K')
     expect(wrapper.find('[data-test="api-equivalent-cost"]').exists()).toBe(false)
@@ -696,7 +699,7 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).toContain('7d|36|900')
   })
 
-  it('仅为 OpenAI OAuth 7d 窗口计算预计总费用', async () => {
+  it('does not estimate a dollar quota from OpenAI utilization', async () => {
     getUsage.mockResolvedValue({
       five_hour: {
         utilization: 25,
@@ -730,7 +733,7 @@ describe('AccountUsageCell', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('5h|none')
-    expect(wrapper.text()).toContain('7d|30')
+    expect(wrapper.text()).toContain('7d|none')
   })
 
   it.each([

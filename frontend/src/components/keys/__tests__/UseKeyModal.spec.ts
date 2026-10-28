@@ -1176,15 +1176,76 @@ describe('UseKeyModal overview connection summary', () => {
   it('offers independent app imports and uses CCS Responses conversion for OpenAI in Claude Code', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     const wrapper = renderConnection()
-    expect(wrapper.findAll('[data-testid^="connection-ccs-"]').map(button => button.text())).toEqual([
-      'Codex', 'Claude Code', 'OpenCode', 'OpenClaw', 'Gemini CLI', 'Grok Build', 'Hermes', 'Pi'
+    expect(wrapper.findAll('[data-app-tab]').map(button => button.attributes('data-app-tab'))).toEqual([
+      'codex', 'claude', 'opencode', 'openclaw', 'gemini', 'grok', 'hermes', 'pi', 'dsh'
     ])
+    expect(wrapper.findAll('[data-testid^="connection-ccs-"]')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="key-connection-summary"] [data-testid^="connection-ccs-"]').exists()).toBe(false)
+    await wrapper.get('[data-app-tab="gemini"]').trigger('click')
     expect(wrapper.get('[data-testid="connection-ccs-openai-gemini"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-app-tab="claude"]').trigger('click')
+    expect(open).not.toHaveBeenCalled()
     await wrapper.get('[data-testid="connection-ccs-openai-claude"]').trigger('click')
     const params = new URL(String(open.mock.calls[0][0])).searchParams
     expect(params.get('app')).toBe('claude')
     expect(params.get('apiFormat')).toBe('openai_responses')
     expect(params.get('apiKey')).toBe(record.key)
+    wrapper.unmount()
+  })
+
+  it.each(['openai', 'anthropic', 'gemini', 'grok', 'deepseek'])(
+    'keeps every CCS app selectable for %s keys and imports only the active app on an explicit click', async platform => {
+      const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+      const wrapper = renderConnection(undefined, platform)
+      for (const tab of ['codex', 'claude', 'opencode', 'openclaw', 'gemini', 'grok', 'hermes', 'pi']) {
+        const before = open.mock.calls.length
+        await wrapper.get(`[data-app-tab="${tab}"]`).trigger('click')
+        expect(wrapper.get(`[data-app-tab="${tab}"]`).attributes('aria-selected')).toBe('true')
+        expect(wrapper.get('[role="tabpanel"]').attributes('data-application')).toBe(tab)
+        const imports = wrapper.findAll('[data-testid^="connection-ccs-"]')
+        expect(imports).toHaveLength(1)
+        expect(open).toHaveBeenCalledTimes(before)
+        if (tab === 'gemini' && platform !== 'gemini') {
+          expect(imports[0].attributes('disabled')).toBeDefined()
+          continue
+        }
+        await imports[0].trigger('click')
+        const params = new URL(String(open.mock.calls[before][0])).searchParams
+        expect(params.get('app')).toBe(tab === 'grok' ? 'grokbuild' : tab)
+        expect(params.get('apiKey')).toBe(record.key)
+        if (platform === 'openai') expect(params.get('apiFormat')).toBe('openai_responses')
+        expect(wrapper.get('[data-testid="connection-url"]').text()).toBe(params.get('endpoint'))
+      }
+      wrapper.unmount()
+    }
+  )
+
+  it('closes advanced configuration and clears the previous import error when switching apps', async () => {
+    vi.spyOn(window, 'open').mockImplementation(() => { throw new Error('No handler') })
+    const wrapper = renderConnection()
+    const advanced = wrapper.get('[data-testid="advanced-configuration"]')
+    ;(advanced.element as HTMLDetailsElement).open = true
+    await advanced.trigger('toggle')
+    expect(advanced.attributes('open')).toBeDefined()
+    await wrapper.get('[data-testid="connection-ccs-openai-codex"]').trigger('click')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+    await wrapper.get('[data-app-tab="opencode"]').trigger('click')
+    expect(wrapper.get('[data-testid="advanced-configuration"]').attributes('open')).toBeUndefined()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+  it('supports keyboard tab selection without importing or fetching a model catalog', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    const wrapper = renderConnection()
+    await wrapper.get('[data-app-tab="codex"]').trigger('keydown', { key: 'ArrowRight' })
+    expect(wrapper.get('[data-app-tab="claude"]').attributes('aria-selected')).toBe('true')
+    expect(wrapper.get('[data-app-tab="claude"]').attributes('tabindex')).toBe('0')
+    await wrapper.get('[data-app-tab="claude"]').trigger('keydown', { key: 'End' })
+    expect(wrapper.get('[data-app-tab="dsh"]').attributes('aria-selected')).toBe('true')
+    expect(open).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -1243,7 +1304,12 @@ describe('UseKeyModal overview connection summary', () => {
     ] } })
     expect(open).not.toHaveBeenCalled()
     expect(wrapper.get('[data-testid="connection-ccs-custom-codex"]').text()).toContain('Codex custom')
+    expect(wrapper.get('[data-testid="connection-url"]').text()).toBe('https://edge.example.com/v1')
+    expect(wrapper.find('[data-testid="connection-ccs-custom-openclaw"]').exists()).toBe(false)
+    await wrapper.get('[data-app-tab="openclaw"]').trigger('click')
     expect(wrapper.get('[data-testid="connection-ccs-custom-openclaw"]').text()).toContain('OpenClaw')
+    expect(wrapper.find('[data-testid="connection-ccs-custom-codex"]').exists()).toBe(false)
+    await wrapper.get('[data-app-tab="codex"]').trigger('click')
     await wrapper.get('[data-testid="connection-ccs-custom-codex"]').trigger('click')
     const url = new URL(String(open.mock.calls[0][0]))
     expect(url.searchParams.get('endpoint')).toBe('https://edge.example.com/v1')

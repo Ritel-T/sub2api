@@ -67,7 +67,7 @@
               <Icon name="refresh" size="sm" />
               {{ t('admin.accounts.resetQuota') }}
             </button>
-            <button v-if="inline" @click="$emit('delete', account)" :class="[itemClass, 'account-delete-action']">
+            <button @click="$emit('delete', account); $emit('close')" :class="[itemClass, 'account-delete-action']">
               <Icon name="trash" size="sm" />{{ t('common.delete') }}
             </button>
             </div>

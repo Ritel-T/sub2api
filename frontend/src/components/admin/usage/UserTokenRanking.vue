@@ -43,6 +43,10 @@
         </DocumentRows>
       </table>
     </div>
+    <button v-if="items.length > 10" type="button" class="mt-4 inline-flex items-center gap-2 text-sm text-gray-500"
+      data-testid="user-ranking-toggle" :aria-expanded="showAll" @click="showAll = !showAll">
+      {{ t(showAll ? 'common.collapse' : 'common.expand') }} <span v-if="!showAll">(+{{ items.length - 10 }})</span>
+    </button>
   </div>
 </template>
 
@@ -95,7 +99,9 @@ function toggleDetails(id: number) {
 
 const items = ref<UserBreakdownItem[]>([])
 // Expanded details are distinct presentation rows; ranks always follow the server's record order.
-const rankingRows = computed(() => items.value.flatMap((item, index) => {
+const showAll = ref(false)
+const visibleItems = computed(() => showAll.value ? items.value : items.value.slice(0, 10))
+const rankingRows = computed(() => visibleItems.value.flatMap((item, index) => {
   const main = { key: `user-${item.user_id}`, kind: 'main' as 'main' | 'detail', item, rank: index + 1 }
   return expanded.value.has(item.user_id) ? [main, { ...main, key: `detail-${item.user_id}`, kind: 'detail' as const }] : [main]
 }))

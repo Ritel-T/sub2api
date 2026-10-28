@@ -24,17 +24,6 @@
             </dd>
           </div>
         </dl>
-        <div v-if="ccsProfiles.length" class="space-y-3">
-          <AppHeading as="h3" variant="subsection">{{ kc.oneClickImport }}</AppHeading>
-          <div class="flex flex-wrap gap-2">
-            <button v-for="profile in ccsProfiles" :key="profile.id" type="button" class="btn btn-secondary" :disabled="!canImportApplication(profile)" :title="canImportApplication(profile) ? undefined : kc.geminiNativeOnly" :data-testid="`connection-ccs-${profile.id}`" @click="importConnection(profile)">
-              <Icon name="download" size="sm" class="mr-2" />{{ profile.label }}
-            </button>
-          </div>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ kc.ccsRouting }} <a href="https://ccswitch.io" target="_blank" rel="noopener noreferrer" class="link">{{ kc.downloadCcs }}</a></p>
-          <p v-if="!supportsGeminiNative" class="text-sm text-gray-500 dark:text-gray-400">{{ kc.geminiNativeOnly }}</p>
-        </div>
-        <p v-if="ccsImportFailed" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ t('keys.ccSwitchNotInstalled') }}</p>
       </section>
       <!-- No Group Assigned Warning -->
       <div v-if="!platform" class="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
@@ -55,11 +44,18 @@
       <template v-else>
         <!-- Client Tabs -->
         <div v-if="clientTabs.length" class="connection-tabs overflow-x-auto border-b border-gray-200 dark:border-dark-700">
-          <nav class="-mb-px flex min-w-max gap-4 sm:gap-6" :aria-label="kc.application">
+          <nav class="-mb-px flex min-w-max gap-4 sm:gap-6" role="tablist" :aria-label="kc.application">
             <button
               v-for="tab in applicationTabs"
               :key="tab.id"
               type="button"
+              role="tab"
+              :id="`connection-tab-${tab.id}`"
+              :data-app-tab="tab.id"
+              :aria-selected="activeApplication === tab.id"
+              :tabindex="activeApplication === tab.id ? 0 : -1"
+              aria-controls="connection-application-panel"
+              @keydown="onApplicationTabKeydown($event, tab.id)"
               @click="activeClientTab = tab.id"
               :class="[
                 'whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm transition-colors',
@@ -76,6 +72,16 @@
           </nav>
         </div>
 
+        <section id="connection-application-panel" role="tabpanel" :aria-labelledby="`connection-tab-${activeApplication}`" :data-application="activeApplication" class="space-y-4">
+        <div v-if="selectedCcsProfiles.length" class="space-y-3" data-testid="selected-application-import">
+          <div class="flex flex-wrap gap-2">
+            <button v-for="profile in selectedCcsProfiles" :key="profile.id" type="button" class="btn btn-primary" :disabled="!canImportApplication(profile)" :title="canImportApplication(profile) ? undefined : kc.geminiNativeOnly" :data-testid="`connection-ccs-${profile.id}`" @click="importConnection(profile)">
+              <Icon name="download" size="sm" class="mr-2" />{{ kc.oneClickImport }} · {{ profile.label }}
+            </button>
+          </div>
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ activeApplication === 'gemini' && !supportsGeminiNative ? kc.geminiNativeOnly : kc.ccsRouting }} <a href="https://ccswitch.io" target="_blank" rel="noopener noreferrer" class="link">{{ kc.downloadCcs }}</a></p>
+          <p v-if="ccsImportFailed" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ t('keys.ccSwitchNotInstalled') }}</p>
+        </div>
         <section v-if="activeClientTab === 'dsh'" class="space-y-3" data-testid="dsh-guide">
           <AppHeading as="h3" variant="subsection">DeepSeek Harness · dsh</AppHeading>
           <ol class="list-decimal space-y-2 pl-5 text-sm leading-6">
@@ -87,7 +93,7 @@
           <a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/providers.md" target="_blank" rel="noopener noreferrer" class="link text-sm">{{ kc.officialGuide }} ↗</a>
         </section>
 
-        <details v-else class="connection-advanced" data-testid="advanced-configuration" :open="advancedOpen" @toggle="advancedOpen = ($event.target as HTMLDetailsElement).open">
+        <details v-else-if="hasManualConfiguration" class="connection-advanced" data-testid="advanced-configuration" :open="advancedOpen" @toggle="advancedOpen = ($event.target as HTMLDetailsElement).open">
           <summary class="cursor-pointer py-3 text-sm font-medium">{{ kc.advancedConfiguration }}</summary>
           <div class="space-y-4 pt-2">
         <fieldset v-if="platform === 'openai' && (activeClientTab === 'codex' || activeClientTab === 'codex-ws')" class="space-y-2" data-testid="codex-transport">
@@ -298,6 +304,7 @@
         </div>
           </div>
         </details>
+        </section>
       </template>
     </div>
 
@@ -371,8 +378,18 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 const ccsImportFailed = ref(false)
 const ccsProfiles = computed(() => !props.keyRecord || !props.platform || props.publicSettings?.hide_ccs_import_button
   ? [] : getCcSwitchApplicationProfiles(props.platform, props.publicSettings?.ccs_import_config))
+const activeApplication = computed(() => activeClientTab.value === 'codex-ws' ? 'codex' : activeClientTab.value)
+const selectedCcsProfiles = computed(() => ccsProfiles.value.filter(profile => profile.app === (activeApplication.value === 'grok' ? 'grokbuild' : activeApplication.value)))
 const supportsGeminiNative = computed(() => ['gemini', 'antigravity', 'composite'].includes(props.platform || ''))
 const canImportApplication = (profile: CcSwitchApplicationProfile) => profile.app !== 'gemini' || supportsGeminiNative.value
+function connectionDeeplink(profile: CcSwitchApplicationProfile) {
+  return buildCcSwitchImportDeeplink({
+    baseUrl: props.baseUrl || window.location.origin,
+    platform: props.platform, profile, settings: props.publicSettings?.ccs_import_config,
+    providerName: props.publicSettings?.site_name?.trim() || 'Ritel.SI',
+    apiKey: props.apiKey, keyName: props.keyRecord?.name, userId: props.keyRecord?.user_id
+  })
+}
 const advancedOpen = ref(false)
 const dshConnectionUrl = computed(() => {
   const root = (props.baseUrl || window.location.origin).replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
@@ -385,6 +402,13 @@ const connectionUrls = computed(() => {
   const root = (props.baseUrl || window.location.origin).replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
   const antigravityRoot = root.endsWith('/antigravity') ? root : `${root}/antigravity`
   const client = activeClientTab.value
+  const profile = selectedCcsProfiles.value[0]
+  if (profile && canImportApplication(profile)) {
+    try {
+      return [{ url: new URL(connectionDeeplink(profile)).searchParams.get('endpoint') || root, label: '' }]
+    } catch { /* Preserve manual setup when an import profile cannot be built. */ }
+  }
+  if (client === 'dsh') return [{ url: dshConnectionUrl.value, label: '' }]
   if (client === 'opencode') {
     if (props.platform === 'antigravity') return [
       { url: `${antigravityRoot}/v1`, label: 'Claude' },
@@ -399,19 +423,10 @@ const connectionUrls = computed(() => {
 })
 function importConnection(profile: CcSwitchApplicationProfile) {
   const record = props.keyRecord
-  if (!props.show || !record || !canImportApplication(profile) || !ccsProfiles.value.some(item => item.id === profile.id)) return
+  if (!props.show || !record || !canImportApplication(profile) || !selectedCcsProfiles.value.some(item => item.id === profile.id)) return
   ccsImportFailed.value = false
   try {
-    const deeplink = buildCcSwitchImportDeeplink({
-      baseUrl: props.baseUrl || window.location.origin,
-      platform: props.platform,
-      profile,
-      settings: props.publicSettings?.ccs_import_config,
-      providerName: props.publicSettings?.site_name?.trim() || 'Ritel.SI',
-      apiKey: props.apiKey,
-      keyName: record.name,
-      userId: record.user_id
-    })
+    const deeplink = connectionDeeplink(profile)
     window.open(deeplink, '_self')
   } catch {
     ccsImportFailed.value = true
@@ -500,6 +515,8 @@ watch(codexManifestContext, (context, previousContext) => {
 // Reset shell tab when client changes
 watch(activeClientTab, () => {
   activeTab.value = 'unix'
+  advancedOpen.value = false
+  ccsImportFailed.value = false
 })
 
 // Icon components
@@ -633,10 +650,29 @@ const openaiTabs: TabConfig[] = [
   { id: 'windows', label: 'Windows', icon: WindowsIcon }
 ]
 
-const applicationTabs = computed(() => [
-  ...clientTabs.value.filter(tab => tab.id !== 'codex-ws'),
-  ...(props.platform === 'typesafe' ? [] : [{ id: 'dsh', label: 'dsh', icon: TerminalIcon }])
+const applicationTabs = computed(() => props.platform === 'typesafe' ? clientTabs.value : [
+  { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
+  { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
+  { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
+  { id: 'openclaw', label: 'OpenClaw', icon: TerminalIcon },
+  { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
+  { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: TerminalIcon },
+  { id: 'hermes', label: 'Hermes', icon: TerminalIcon },
+  { id: 'pi', label: 'Pi', icon: TerminalIcon },
+  { id: 'dsh', label: 'dsh', icon: TerminalIcon }
 ])
+const hasManualConfiguration = computed(() => clientTabs.value.some(tab => tab.id === activeClientTab.value))
+function onApplicationTabKeydown(event: KeyboardEvent, current: string) {
+  const tabs = applicationTabs.value
+  const index = tabs.findIndex(tab => tab.id === current)
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+    : event.key === 'ArrowRight' ? (index + 1) % tabs.length
+      : event.key === 'ArrowLeft' ? (index - 1 + tabs.length) % tabs.length : -1
+  if (next < 0) return
+  event.preventDefault()
+  activeClientTab.value = tabs[next].id
+  document.getElementById(`connection-tab-${tabs[next].id}`)?.focus()
+}
 
 const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
 

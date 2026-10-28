@@ -47,7 +47,12 @@
           label="5h"
           :utilization="usageInfo.five_hour.utilization"
           :resets-at="usageInfo.five_hour.resets_at"
-          :window-stats="compact ? null : usageInfo.five_hour.window_stats"
+          :window-stats="usageInfo.five_hour.window_stats"
+          :show-window-details="!compact"
+          :show-standard-cost="true"
+          :compact-standard-cost="compact"
+          :window-starts-at="usageInfo.five_hour.window_starts_at"
+          :window-stats-until="usageInfo.five_hour.window_stats_until"
           color="indigo"
         />
 
@@ -57,6 +62,12 @@
           label="7d"
           :utilization="usageInfo.seven_day.utilization"
           :resets-at="usageInfo.seven_day.resets_at"
+          :window-stats="usageInfo.seven_day.window_stats"
+          :show-window-details="!compact"
+          :show-standard-cost="true"
+          :compact-standard-cost="compact"
+          :window-starts-at="usageInfo.seven_day.window_starts_at"
+          :window-stats-until="usageInfo.seven_day.window_stats_until"
           color="emerald"
         />
 
@@ -138,7 +149,12 @@
           label="5h"
           :utilization="usageInfo.five_hour.utilization"
           :resets-at="usageInfo.five_hour.resets_at"
-          :window-stats="compact ? null : usageInfo.five_hour.window_stats"
+          :window-stats="usageInfo.five_hour.window_stats"
+          :show-window-details="!compact"
+          :show-standard-cost="true"
+          :compact-standard-cost="compact"
+          :window-starts-at="usageInfo.five_hour.window_starts_at"
+          :window-stats-until="usageInfo.five_hour.window_stats_until"
           :show-now-when-idle="true"
           color="indigo"
         />
@@ -147,8 +163,12 @@
           label="7d"
           :utilization="usageInfo.seven_day.utilization"
           :resets-at="usageInfo.seven_day.resets_at"
-          :window-stats="compact ? null : usageInfo.seven_day.window_stats"
-          :estimated-total-cost="compact ? null : openAISevenDayEstimatedTotalCost"
+          :window-stats="usageInfo.seven_day.window_stats"
+          :show-window-details="!compact"
+          :show-standard-cost="true"
+          :compact-standard-cost="compact"
+          :window-starts-at="usageInfo.seven_day.window_starts_at"
+          :window-stats-until="usageInfo.seven_day.window_stats_until"
           :show-now-when-idle="true"
           color="emerald"
         />
@@ -889,26 +909,7 @@ function formatCodexTicketRemaining(seconds: number) {
   return `${m}m${String(s).padStart(2, '0')}s`
 }
 
-const openAISevenDayEstimatedTotalCost = computed(() => {
-  const sevenDay = usageInfo.value?.seven_day
-  const utilization = sevenDay?.utilization
-  const currentCost = sevenDay?.window_stats?.api_equivalent_cost
-  const unpricedRequests = sevenDay?.window_stats?.api_equivalent_unpriced_requests ?? 0
-  if (
-    unpricedRequests > 0 ||
-    typeof utilization !== 'number' ||
-    typeof currentCost !== 'number' ||
-    !Number.isFinite(utilization) ||
-    !Number.isFinite(currentCost) ||
-    utilization <= 0 ||
-    currentCost <= 0
-  ) {
-    return null
-  }
 
-  const estimate = (currentCost * 100) / utilization
-  return Number.isFinite(estimate) && estimate > 0 ? estimate : null
-})
 
 const openAIUsageRefreshKey = computed(() => buildOpenAIUsageRefreshKey(props.account))
 

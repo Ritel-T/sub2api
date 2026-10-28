@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, ref } from 'vue'
+const actualLocale = ref('en')
 
 import UserUsageView from '@/views/user/UsageView.vue'
 import AdminUsageView from '@/views/admin/UsageView.vue'
@@ -136,13 +137,18 @@ vi.mock('vue-i18n', async () => {
     ...actual,
     useI18n: () => ({
       t: (key: string) => messages[key] ?? key,
+      locale: actualLocale,
     }),
   }
 })
 
 vi.mock('vue-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('vue-router')>()
-  return { ...actual, useRoute: () => ({ query: {} }) }
+  const router = actual.createRouter({ history: actual.createMemoryHistory(), routes: [
+    { path: '/admin/usage', component: { template: '<div />' } },
+    { path: '/usage', component: { template: '<div />' } },
+  ] })
+  return { ...actual, useRoute: () => ({ path: '/admin/usage', query: {} }), useRouter: () => router }
 })
 
 vi.mock('@/stores/auth', () => ({

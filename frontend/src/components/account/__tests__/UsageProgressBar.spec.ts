@@ -22,6 +22,50 @@ describe('UsageProgressBar', () => {
     vi.useRealTimers()
   })
 
+  it('shows stored standard cost independently of account, actual, API-equivalent cost and quota percent', async () => {
+    const wrapper = mount(UsageProgressBar, { props: {
+      label: '5h', utilization: 95, color: 'indigo', showStandardCost: true, showWindowDetails: false,
+      resetsAt: '2026-03-17T01:00:00Z', windowStartsAt: '2026-03-16T20:00:00Z', windowStatsUntil: '2026-03-16T23:59:00Z',
+      windowStats: { requests: 2, tokens: 300, standard_cost: 12.34, cost: 98.72, user_cost: 1.23, api_equivalent_cost: 999, api_equivalent_unpriced_requests: 1 }
+    } })
+    expect(wrapper.get('[data-test="standard-window-cost"]').text()).toBe('usage.standardCost $12.34')
+    expect(wrapper.find('[data-test="api-equivalent-cost"]').exists()).toBe(false)
+    await wrapper.setProps({ utilization: 20 })
+    expect(wrapper.get('[data-test="standard-window-cost"]').text()).toContain('$12.34')
+    vi.setSystemTime(new Date('2026-03-17T01:01:00Z'))
+    document.dispatchEvent(new Event('visibilitychange'))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('[data-test="standard-window-cost"]').text()).toBe('usage.standardCost —')
+    wrapper.unmount()
+  })
+
+  it('keeps compact standard billing short while retaining the full accessible meaning', () => {
+    const wrapper = mount(UsageProgressBar, { props: {
+      label: '5h', utilization: 12, color: 'indigo', showStandardCost: true, compactStandardCost: true,
+      resetsAt: '2026-03-17T01:00:00Z', windowStartsAt: '2026-03-16T20:00:00Z', windowStatsUntil: '2026-03-16T23:59:00Z',
+      windowStats: { requests: 1, tokens: 10, standard_cost: 3.21, cost: 0.5 }
+    } })
+    const amount = wrapper.get('[data-test="standard-window-cost"]')
+    expect(amount.text()).toBe('Std $3.21')
+    expect(amount.attributes('aria-label')).toBe('Standard billing $3.21')
+    expect(amount.attributes('title')).toBe('admin.accounts.usageWindow.standardWindowCostTooltip')
+    expect(amount.classes()).toContain('is-compact')
+    wrapper.unmount()
+  })
+
+  it('shows an honest zero for an observed empty cycle, and unknown without its cycle metadata', async () => {
+    const wrapper = mount(UsageProgressBar, { props: {
+      label: '7d', utilization: 80, color: 'emerald', showStandardCost: true,
+      resetsAt: '2026-03-18T00:00:00Z', windowStartsAt: '2026-03-11T00:00:00Z', windowStatsUntil: '2026-03-16T23:59:00Z',
+      windowStats: { requests: 0, tokens: 0, standard_cost: 0, cost: 200, user_cost: 0, api_equivalent_cost: null }
+    } })
+    expect(wrapper.get('[data-test="standard-window-cost"]').text()).toContain('$0.00')
+    await wrapper.setProps({ windowStartsAt: null })
+    expect(wrapper.get('[data-test="standard-window-cost"]').text()).toBe('usage.standardCost —')
+    expect(wrapper.get('[data-test="standard-window-cost"]').attributes('title')).toBe('admin.accounts.usageWindow.standardWindowUnavailable')
+    wrapper.unmount()
+  })
+
   it('showNowWhenIdle=true 且利用率为 0 但有未来 resetsAt 时显示倒计时', () => {
     const wrapper = mount(UsageProgressBar, {
       props: {

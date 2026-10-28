@@ -45,6 +45,8 @@ type dashboardSnapshotV2Filters struct {
 	AccountID             int64
 	GroupID               int64
 	Model                 string
+	RequestID             string
+	BillingMode           string
 	RequestType           *int16
 	Stream                *bool
 	NativeCompactionV2    *bool
@@ -61,6 +63,8 @@ type dashboardSnapshotV2CacheKey struct {
 	AccountID             int64  `json:"account_id"`
 	GroupID               int64  `json:"group_id"`
 	Model                 string `json:"model"`
+	RequestID             string `json:"request_id"`
+	BillingMode           string `json:"billing_mode"`
 	RequestType           *int16 `json:"request_type"`
 	Stream                *bool  `json:"stream"`
 	NativeCompactionV2    *bool  `json:"native_compaction_v2"`
@@ -114,6 +118,8 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 		AccountID:             filters.AccountID,
 		GroupID:               filters.GroupID,
 		Model:                 filters.Model,
+		RequestID:             filters.RequestID,
+		BillingMode:           filters.BillingMode,
 		RequestType:           filters.RequestType,
 		Stream:                filters.Stream,
 		NativeCompactionV2:    filters.NativeCompactionV2,
@@ -203,6 +209,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 			filters.NativeCompactionV2,
 			filters.BillingType,
 			filters.UpstreamModelMismatch,
+			filters.usageFilters(),
 		)
 		if err != nil {
 			return nil, errors.New("failed to get usage trend")
@@ -225,6 +232,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 			filters.NativeCompactionV2,
 			filters.BillingType,
 			filters.UpstreamModelMismatch,
+			filters.usageFilters(),
 		)
 		if err != nil {
 			return nil, errors.New("failed to get model statistics")
@@ -246,6 +254,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 			filters.NativeCompactionV2,
 			filters.BillingType,
 			filters.UpstreamModelMismatch,
+			filters.usageFilters(),
 		)
 		if err != nil {
 			return nil, errors.New("failed to get group statistics")
@@ -254,7 +263,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 	}
 
 	if includeUsersTrend {
-		usersTrend, _, err := h.getUserUsageTrendCached(ctx, startTime, endTime, granularity, usersTrendLimit, "tokens")
+		usersTrend, _, err := h.getUserUsageTrendCached(ctx, startTime, endTime, granularity, usersTrendLimit, "tokens", filters.usageFilters())
 		if err != nil {
 			return nil, errors.New("failed to get user usage trend")
 		}
@@ -266,34 +275,40 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 
 func parseDashboardSnapshotV2Filters(c *gin.Context) (*dashboardSnapshotV2Filters, error) {
 	filters := &dashboardSnapshotV2Filters{
-		Model: strings.TrimSpace(c.Query("model")),
+		Model:       c.Query("model"),
+		RequestID:   strings.TrimSpace(c.Query("request_id")),
+		BillingMode: strings.TrimSpace(c.Query("billing_mode")),
+	}
+
+	if !service.BillingMode(filters.BillingMode).IsValidUsageFilter() {
+		return nil, errors.New("Invalid billing_mode, use token/per_request/image/video")
 	}
 
 	if userIDStr := strings.TrimSpace(c.Query("user_id")); userIDStr != "" {
 		id, err := strconv.ParseInt(userIDStr, 10, 64)
-		if err != nil {
-			return nil, err
+		if err != nil || id <= 0 {
+			return nil, errors.New("Invalid user_id: must be a positive integer")
 		}
 		filters.UserID = id
 	}
 	if apiKeyIDStr := strings.TrimSpace(c.Query("api_key_id")); apiKeyIDStr != "" {
 		id, err := strconv.ParseInt(apiKeyIDStr, 10, 64)
-		if err != nil {
-			return nil, err
+		if err != nil || id <= 0 {
+			return nil, errors.New("Invalid api_key_id: must be a positive integer")
 		}
 		filters.APIKeyID = id
 	}
 	if accountIDStr := strings.TrimSpace(c.Query("account_id")); accountIDStr != "" {
 		id, err := strconv.ParseInt(accountIDStr, 10, 64)
-		if err != nil {
-			return nil, err
+		if err != nil || id <= 0 {
+			return nil, errors.New("Invalid account_id: must be a positive integer")
 		}
 		filters.AccountID = id
 	}
 	if groupIDStr := strings.TrimSpace(c.Query("group_id")); groupIDStr != "" {
 		id, err := strconv.ParseInt(groupIDStr, 10, 64)
-		if err != nil {
-			return nil, err
+		if err != nil || id <= 0 {
+			return nil, errors.New("Invalid group_id: must be a positive integer")
 		}
 		filters.GroupID = id
 	}
@@ -326,6 +341,9 @@ func parseDashboardSnapshotV2Filters(c *gin.Context) (*dashboardSnapshotV2Filter
 		if err != nil {
 			return nil, err
 		}
+		if v != int64(service.BillingTypeBalance) && v != int64(service.BillingTypeSubscription) {
+			return nil, errors.New("Invalid billing_type, use 0 or 1")
+		}
 		bt := int8(v)
 		filters.BillingType = &bt
 	}
@@ -339,4 +357,10 @@ func parseDashboardSnapshotV2Filters(c *gin.Context) (*dashboardSnapshotV2Filter
 	}
 
 	return filters, nil
+}
+
+func (f *dashboardSnapshotV2Filters) usageFilters() usagestats.UsageLogFilters {
+	return usagestats.UsageLogFilters{UserID: f.UserID, APIKeyID: f.APIKeyID, AccountID: f.AccountID, GroupID: f.GroupID,
+		Model: f.Model, ModelFilterSource: usagestats.ModelSourceRequested, RequestID: f.RequestID, BillingMode: f.BillingMode,
+		RequestType: f.RequestType, Stream: f.Stream, NativeCompactionV2: f.NativeCompactionV2, BillingType: f.BillingType, UpstreamModelMismatch: f.UpstreamModelMismatch}
 }

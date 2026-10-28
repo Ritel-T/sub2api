@@ -2,7 +2,7 @@
   <div>
     <!-- Window stats row (above progress bar) -->
     <div
-      v-if="windowStats && (windowStats.requests > 0 || windowStats.tokens > 0)"
+      v-if="showWindowDetails && windowStats && (windowStats.requests > 0 || windowStats.tokens > 0)"
       class="mb-0.5 flex items-center"
     >
       <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
@@ -56,6 +56,10 @@
         {{ displayPercent }}
       </span>
 
+      <span v-if="showStandardCost" class="usage-window-standard text-[11px] tabular-nums" :class="{ 'is-compact': compactStandardCost }" data-test="standard-window-cost" :title="standardCostTooltip" :aria-label="`${standardCostCopy.full} ${formattedStandardCost}`">
+        {{ compactStandardCost ? standardCostCopy.short : t('usage.standardCost') }} {{ formattedStandardCost }}
+      </span>
+
       <!-- Reset time -->
       <span v-if="shouldShowResetTime" class="shrink-0 text-[10px] text-gray-400">
         {{ formatResetTime }}
@@ -79,16 +83,24 @@ const props = withDefaults(
     resetsAt?: string | null
     color: 'indigo' | 'emerald' | 'purple' | 'amber'
     windowStats?: WindowStats | null
+    showWindowDetails?: boolean
+    showStandardCost?: boolean
+    compactStandardCost?: boolean
+    windowStartsAt?: string | null
+    windowStatsUntil?: string | null
     estimatedTotalCost?: number | null
     showNowWhenIdle?: boolean
     remainingCapacity?: boolean
     /** fixed: 定宽居中徽章（账号页纵向对齐）；auto: 限宽截断左对齐（监控页组合标签） */
     labelWidth?: 'fixed' | 'auto'
   }>(),
-  { labelWidth: 'fixed' }
+  { labelWidth: 'fixed', showWindowDetails: true, showStandardCost: false, compactStandardCost: false }
 )
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const standardCostCopy = computed(() => /^zh/i.test(locale?.value || '')
+  ? /^zh(?:[-_]CN)?$/i.test(locale?.value || '') ? { short: '标准', full: '标准计费' } : { short: '標準', full: '標準計費' }
+  : { short: 'Std', full: 'Standard billing' })
 
 // Reactive clock for countdown — only runs when a reset time is shown,
 // to avoid creating many idle timers across large account lists.
@@ -224,6 +236,26 @@ const formatResetTime = computed(() => {
   }
 })
 
+// Dollar consumption is the persisted pre-multiplier total for this observed
+// cycle. Utilization percentages and current API catalogue prices never enter it.
+const hasStandardCost = computed(() => {
+  const start = props.windowStartsAt ? Date.parse(props.windowStartsAt) : NaN
+  const until = props.windowStatsUntil ? Date.parse(props.windowStatsUntil) : NaN
+  const reset = props.resetsAt ? Date.parse(props.resetsAt) : NaN
+  return Number.isFinite(start) && Number.isFinite(until) && Number.isFinite(reset)
+    && start <= until && until < reset && start <= now.value.getTime() && now.value.getTime() < reset
+    && typeof props.windowStats?.standard_cost === 'number'
+    && Number.isFinite(props.windowStats.standard_cost) && props.windowStats.standard_cost >= 0
+})
+const formattedStandardCost = computed(() => hasStandardCost.value ? `$${props.windowStats!.standard_cost!.toFixed(2)}` : '—')
+const standardCostTooltip = computed(() => {
+  if (!hasStandardCost.value) return t('admin.accounts.usageWindow.standardWindowUnavailable')
+  return t('admin.accounts.usageWindow.standardWindowCostTooltip', {
+    start: new Date(props.windowStartsAt!).toLocaleString(),
+    until: new Date(props.windowStatsUntil!).toLocaleString()
+  })
+})
+
 // Window stats formatters
 const formatRequests = computed(() => {
   if (!props.windowStats) return ''
@@ -241,3 +273,8 @@ const formatUserCost = computed(() => {
 })
 
 </script>
+
+<style scoped>
+.usage-window-standard { display: inline-block; flex-shrink: 0; white-space: nowrap; word-break: normal; overflow-wrap: normal; }
+.usage-window-standard.is-compact { min-width: 76px; }
+</style>

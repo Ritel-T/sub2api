@@ -377,11 +377,35 @@ describe('admin AccountsView lite account list', () => {
     wrapper.unmount()
   })
 
-  it('keeps only edit in the main row and routes expanded delete through confirmation', async () => {
+  it('opens row operations without expanding details or bubbling into row disclosure', async () => {
     const wrapper = mountView(false)
     await flushPromises()
     const row = wrapper.get('[data-account-name="compact row"]')
-    expect(row.findAll('[data-test="main-actions"] button').map(button => button.attributes('aria-label'))).toEqual(['common.edit'])
+    const bubbled = vi.fn()
+    row.element.addEventListener('click', bubbled)
+    await row.get('[data-testid="account-row-more"]').trigger('click')
+    await flushPromises()
+    expect(bubbled).not.toHaveBeenCalled()
+    expect(wrapper.findComponent({ name: 'AccountRowDetails' }).exists()).toBe(false)
+    const menu = wrapper.getComponent(AccountActionMenu)
+    expect(menu.props('inline')).toBe(false)
+    expect(menu.props('account').id).toBe(42)
+    expect(row.get('[data-testid="account-row-more"]').attributes('aria-expanded')).toBe('true')
+    const stats = Array.from(document.body.querySelectorAll<HTMLButtonElement>('.action-menu-content button')).find(button => button.textContent?.includes('admin.accounts.viewStats'))!
+    stats.click()
+    await flushPromises()
+    expect(getById).toHaveBeenCalledWith(42)
+    expect(wrapper.get('[data-test="stats-account"]').text()).toBe('compact row')
+    expect(wrapper.findComponent({ name: 'AccountRowDetails' }).exists()).toBe(false)
+    expect(document.body.querySelector('.action-menu-content')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('keeps icon operations in the main row and routes expanded delete through confirmation', async () => {
+    const wrapper = mountView(false)
+    await flushPromises()
+    const row = wrapper.get('[data-account-name="compact row"]')
+    expect(row.findAll('[data-test="main-actions"] button').map(button => button.attributes('aria-label'))).toEqual(['common.edit', 'admin.accounts.moreActions'])
     expect(wrapper.findComponent(AccountActionMenu).exists()).toBe(false)
     expect(wrapper.find('button[aria-label="common.more"]').exists()).toBe(false)
     await row.get('[data-test="expand-row"]').trigger('click')

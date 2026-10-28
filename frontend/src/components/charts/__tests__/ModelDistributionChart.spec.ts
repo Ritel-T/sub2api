@@ -114,6 +114,20 @@ describe('ModelDistributionChart', () => {
     expect(wrapper.findAll('tbody tr')).toHaveLength(1)
   })
 
+  it('bounds dashboard spending ranking rows without changing chart totals', async () => {
+    const rankingItems = Array.from({ length: 8 }, (_, index) => ({ user_id: index + 1, email: `user${index}@example.com`, username: `user${index}`, actual_cost: 10, requests: 2, tokens: 100 }))
+    const wrapper = mount(ModelDistributionChart, { props: { modelStats: [], enableRankingView: true,
+      rankingItems, rankingTotalActualCost: 80, rankingTotalRequests: 16, rankingTotalTokens: 800, collapsedRows: 3 } })
+    await wrapper.findAll('button').find(button => button.text() === 'User Spending Ranking')!.trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(3)
+    expect(JSON.parse(wrapper.get('.chart-data').text()).labels).toHaveLength(8)
+    const toggle = wrapper.get('[data-testid="ranking-list-toggle"]')
+    await toggle.trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(8)
+    await toggle.trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(3)
+  })
+
   it('uses actual_cost and reorders rows in actual cost mode', () => {
     const wrapper = mount(ModelDistributionChart, {
       props: {

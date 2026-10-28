@@ -97,48 +97,7 @@ type UsageLogFilters = usagestats.UsageLogFilters
 
 // ListWithFilters lists usage logs with optional filters (for admin)
 func (r *usageLogRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
-	conditions := make([]string, 0, 9)
-	args := make([]any, 0, 9)
-
-	if filters.UserID > 0 {
-		conditions = append(conditions, fmt.Sprintf("user_id = $%d", len(args)+1))
-		args = append(args, filters.UserID)
-	}
-	if filters.APIKeyID > 0 {
-		conditions = append(conditions, fmt.Sprintf("api_key_id = $%d", len(args)+1))
-		args = append(args, filters.APIKeyID)
-	}
-	if filters.AccountID > 0 {
-		conditions = append(conditions, fmt.Sprintf("account_id = $%d", len(args)+1))
-		args = append(args, filters.AccountID)
-	}
-	if filters.GroupID > 0 {
-		conditions = append(conditions, fmt.Sprintf("group_id = $%d", len(args)+1))
-		args = append(args, filters.GroupID)
-	}
-	if requestID := strings.TrimSpace(filters.RequestID); requestID != "" {
-		conditions = append(conditions, fmt.Sprintf("request_id = $%d", len(args)+1))
-		args = append(args, requestID)
-	}
-	conditions, args = appendUsageLogModelWhereCondition(conditions, args, filters.Model, filters.ModelFilterSource)
-	conditions, args = appendRequestTypeOrStreamWhereCondition(conditions, args, filters.RequestType, filters.Stream)
-	conditions, args = appendNativeCompactionV2WhereCondition(conditions, args, filters.NativeCompactionV2, "")
-	if filters.BillingType != nil {
-		conditions = append(conditions, fmt.Sprintf("billing_type = $%d", len(args)+1))
-		args = append(args, int16(*filters.BillingType))
-	}
-	conditions, args = appendUsageLogBillingModeWhereCondition(conditions, args, filters.BillingMode)
-	if filters.UpstreamModelMismatch != nil {
-		conditions = append(conditions, upstreamModelMismatchCondition("upstream_model_mismatch", *filters.UpstreamModelMismatch))
-	}
-	if filters.StartTime != nil {
-		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", len(args)+1))
-		args = append(args, *filters.StartTime)
-	}
-	if filters.EndTime != nil {
-		conditions = append(conditions, fmt.Sprintf("created_at < $%d", len(args)+1))
-		args = append(args, *filters.EndTime)
-	}
+	conditions, args := usageLogReadConditions(filters)
 
 	whereClause := buildWhere(conditions)
 	var (

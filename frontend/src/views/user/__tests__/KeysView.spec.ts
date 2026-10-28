@@ -609,25 +609,37 @@ describe('user KeysView column settings', () => {
     expect(wrapper.findAll('[role="dialog"]')).toHaveLength(1)
   })
 
-  it('offers applications together and imports the chosen app with the exact selected key', async () => {
+  it('offers every application tab and imports only the chosen app with the exact selected key', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
-    setKeys({ ...createApiKey(), group: { id: 42, name: 'Claude', platform: 'anthropic' } as Group })
+    setKeys({ ...createApiKey(), group: { id: 42, name: 'OpenAI', platform: 'openai' } as Group })
     getPublicSettings.mockResolvedValue({
       ccs_import_config: { profiles: [
-        { id: 'claude', label: 'Claude Code', platform: 'anthropic', app: 'claude', parameters: {} },
-        { id: 'opencode', label: 'OpenCode', platform: 'anthropic', app: 'opencode', parameters: { model: 'model-b' } },
+        { id: 'claude', label: 'Claude Code', platform: 'openai', app: 'claude', parameters: { model: 'model-b' } },
+        { id: 'opencode', label: 'OpenCode', platform: 'openai', app: 'opencode', parameters: { model: 'model-b' } },
       ] }
     })
     const wrapper = await mountView(true)
     await wrapper.get('[data-testid="connect-key-row"]').trigger('click')
     expect(open).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-testid="connection-ccs-anthropic-codex"]').exists()).toBe(true)
-    await wrapper.get('[data-testid="connection-ccs-opencode"]').trigger('click')
+    expect(wrapper.findAll('[data-app-tab]').map(tab => tab.attributes('data-app-tab'))).toEqual([
+      'codex', 'claude', 'opencode', 'openclaw', 'gemini', 'grok', 'hermes', 'pi', 'dsh'
+    ])
+    expect(wrapper.get('[data-app-tab="codex"]').attributes('aria-selected')).toBe('true')
+    expect(wrapper.findAll('[data-testid^="connection-ccs-"]')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="connection-ccs-openai-codex"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="connection-ccs-claude"]').exists()).toBe(false)
+    await wrapper.get('[data-app-tab="claude"]').trigger('click')
+    expect(open).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-app-tab="claude"]').attributes('aria-selected')).toBe('true')
+    expect(wrapper.findAll('[data-testid^="connection-ccs-"]')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="connection-ccs-openai-codex"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="connection-ccs-claude"]').trigger('click')
+    expect(open).toHaveBeenCalledOnce()
     const params = new URL(String(open.mock.calls[0]?.[0])).searchParams
-    expect(params.get('app')).toBe('opencode')
+    expect(params.get('app')).toBe('claude')
     expect(params.get('model')).toBe('model-b')
     expect(params.get('apiKey')).toBe('sk-test-key')
-    expect(params.get('apiFormat')).toBe('anthropic')
+    expect(params.get('apiFormat')).toBe('openai_responses')
     expect(wrapper.findAll('[role="dialog"]')).toHaveLength(1)
   })
 

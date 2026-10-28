@@ -2042,6 +2042,8 @@ export default {
         noData: 'No usage data available for this account'
       },
       usageWindow: {
+        standardWindowCostTooltip: 'Recorded standard billing in this quota cycle, using each request’s stored price before group/account multipliers; not a quota-percentage estimate. {start} – {until}.',
+        standardWindowUnavailable: 'Standard billing unavailable until the current quota cycle and its local usage records are known.',
         statsTitle: '5-Hour Window Usage Statistics',
         statsTitleDaily: 'Daily Usage Statistics',
         geminiProDaily: 'Pro',
