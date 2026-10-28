@@ -1759,7 +1759,7 @@ func (c *concurrencyCache) reconcileExpiredIndexCandidates(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	members, err := c.rdb.ZRangeByScore(ctx, spec.indexKey, &redis.ZRangeBy{
+	members, err := c.rdb.ZRangeByScore(ctx, spec.indexKey, &redis.ZRangeBy{ //nolint:staticcheck // Redis 6.0 compatibility; replacement options require Redis 6.2.
 		Min: "-inf", Max: strconv.FormatInt(now, 10), Count: activeIndexCleanupBatchSize,
 	}).Result()
 	if err != nil {

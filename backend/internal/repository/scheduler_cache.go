@@ -1142,7 +1142,7 @@ func (c *schedulerCache) writeAccountIDs(ctx context.Context, accounts []service
 		pipe.Set(ctx, schedulerAccountKey(id), fullPayload, 0)
 		writes = append(writes, metaWrite{
 			platform: account.Platform,
-			previous: pipe.GetSet(ctx, schedulerAccountMetaKey(id), metaPayload),
+			previous: pipe.GetSet(ctx, schedulerAccountMetaKey(id), metaPayload), //nolint:staticcheck // Redis 6.0 compatibility; replacement options require Redis 6.2.
 		})
 		// Keep the hot LastUsedAt side key untouched: a lagging snapshot rebuild
 		// must not overwrite a newer scheduler update.

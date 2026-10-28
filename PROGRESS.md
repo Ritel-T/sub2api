@@ -11,3 +11,6 @@
 - Regression test commit: `124864327` (tests written before implementation; no local dynamic execution).
 - Initial implementation and dedicated workflow ready for review. Baseline RED restores only baseline production implementations while retaining new tests and actual Redis 6.0 container selection; GREEN restores/verifies the exact PR head.
 - Static validation: gofmt, git diff --check, bash -n pass. PyYAML not installed locally; workflow YAML parsing/dynamic checks pending CI.
+- Draft PR created: https://github.com/ranxi2001/sub2api/pull/592 targeting production, Fixes #582; validation explicitly pending. Initial reviewable head `4ae2584f8`.
+- Static dependency review found go-redis v9.22 marks the Redis 6.0 commands deprecated in favor of 6.2-only alternatives. Added narrowly scoped staticcheck annotations explaining the compatibility requirement; no broad lint exclusions.
+- The first implementation push omitted newly ignored documentation/RED script; immediately included both with force-add in `4ae2584f8`. Earlier CI runs will be triaged as superseded, not counted as acceptance.

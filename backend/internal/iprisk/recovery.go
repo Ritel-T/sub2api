@@ -230,7 +230,7 @@ func (m *Manager) AuditPage(ctx context.Context, q AuditQuery) (AuditPage, error
 	case "ip_history":
 		rows := []AuditEntry{}
 		err := m.riskRedis(ctx, func(budget context.Context) error {
-			values, e := m.redis.ZRevRange(budget, redisPrefix+"events", 0, maxEvents-1).Result()
+			values, e := m.redis.ZRevRange(budget, redisPrefix+"events", 0, maxEvents-1).Result() //nolint:staticcheck // Redis 6.0 compatibility; replacement options require Redis 6.2.
 			if e != nil {
 				return e
 			}
@@ -308,9 +308,9 @@ func (m *Manager) auditIndexed(ctx context.Context, p *policy, q AuditQuery) (Au
 			var networks []string
 			var e error
 			if q.Sort == "expires_asc" {
-				networks, e = m.redis.ZRangeByScore(budget, index, args).Result()
+				networks, e = m.redis.ZRangeByScore(budget, index, args).Result() //nolint:staticcheck // Redis 6.0 compatibility; replacement options require Redis 6.2.
 			} else {
-				networks, e = m.redis.ZRevRangeByScore(budget, index, args).Result()
+				networks, e = m.redis.ZRevRangeByScore(budget, index, args).Result() //nolint:staticcheck // Redis 6.0 compatibility; replacement options require Redis 6.2.
 			}
 			if e != nil {
 				return e
