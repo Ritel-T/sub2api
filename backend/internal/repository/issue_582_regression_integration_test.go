@@ -141,7 +141,7 @@ func TestIssue582OutboxMakesNewMemberSchedulable(t *testing.T) {
 	require.NoError(t, func() error { _, err := integrationDB.ExecContext(ctx, "TRUNCATE scheduler_outbox"); return err }())
 	accounts := newAccountRepositoryWithSQL(client, integrationDB, nil)
 	groups := newGroupRepositoryWithSQL(client, integrationDB)
-	group := &service.Group{Name: "issue-582", Platform: service.PlatformOpenAI, Status: service.StatusActive, RateMultiplier: 1}
+	group := &service.Group{Name: "issue-582", Platform: service.PlatformOpenAI, Status: service.StatusActive, RateMultiplier: 1, SubscriptionType: service.SubscriptionTypeStandard}
 	require.NoError(t, groups.Create(ctx, group))
 	old := issue582Account(0, service.PlatformOpenAI)
 	added := issue582Account(0, service.PlatformOpenAI)
