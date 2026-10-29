@@ -301,14 +301,14 @@ func parseDashboardSnapshotV2Filters(c *gin.Context) (*dashboardSnapshotV2Filter
 	if accountIDStr := strings.TrimSpace(c.Query("account_id")); accountIDStr != "" {
 		id, err := strconv.ParseInt(accountIDStr, 10, 64)
 		if err != nil || id <= 0 {
-			return nil, errors.New("Invalid account_id: must be a positive integer")
+			return nil, errors.New("invalid account_id: must be a positive integer")
 		}
 		filters.AccountID = id
 	}
 	if groupIDStr := strings.TrimSpace(c.Query("group_id")); groupIDStr != "" {
 		id, err := strconv.ParseInt(groupIDStr, 10, 64)
 		if err != nil || id <= 0 {
-			return nil, errors.New("Invalid group_id: must be a positive integer")
+			return nil, errors.New("invalid group_id: must be a positive integer")
 		}
 		filters.GroupID = id
 	}
@@ -342,7 +342,7 @@ func parseDashboardSnapshotV2Filters(c *gin.Context) (*dashboardSnapshotV2Filter
 			return nil, err
 		}
 		if v != int64(service.BillingTypeBalance) && v != int64(service.BillingTypeSubscription) {
-			return nil, errors.New("Invalid billing_type, use 0 or 1")
+			return nil, errors.New("invalid billing_type, use 0 or 1")
 		}
 		bt := int8(v)
 		filters.BillingType = &bt
