@@ -1,3 +1,6 @@
+import adminAccessKeys from './adminAccessKeys'
+import upstreamOps from './upstreamOps'
+import profitOps from './profitOps'
 import traffic from './traffic'
 import channelOps from './channelOps'
 import qq from './qq'
@@ -31,6 +34,9 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  adminAccessKeys,
+  upstreamOps,
+  profitOps,
   traffic,
   channelOps,
   qq,

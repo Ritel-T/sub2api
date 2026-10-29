@@ -284,6 +284,10 @@ func NormalizeGPT61SolReasoningEffort(model, effort string) string {
 	return effort
 }
 
+func RequiresResponsesForToolCalls(model string) bool {
+	return IsGPT61SolModelSpelling(model) || IsGPT61TerraModelSpelling(model)
+}
+
 // ValidateGPT61SolReasoningEffort guards the final upstream effort. Callers
 // accepting legacy none/minimal must normalize them before this check.
 func ValidateGPT61SolReasoningEffort(model, effort string) error {

@@ -46,8 +46,10 @@
 
         <!-- Tab: Security — Admin API Key -->
         <div v-show="activeTab === 'security'" class="space-y-6">
-          <!-- Admin API Key Settings -->
-          <div class="open-settings-section">
+          <AdminAccessKeysSettings />
+          <!-- 已有全权密钥只提供轮换和删除入口。 -->
+          <details v-if="adminApiKeyExists" class="open-settings-section">
+            <summary class="cursor-pointer px-6 py-4 font-medium">{{ t("adminAccessKeys.legacy") }}</summary>
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -85,48 +87,6 @@
                   class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
                 ></div>
                 {{ t("common.loading") }}
-              </div>
-
-              <!-- No Key Configured -->
-              <div
-                v-else-if="!adminApiKeyExists"
-                class="flex items-center justify-between"
-              >
-                <span class="text-gray-500 dark:text-gray-400">
-                  {{ t("admin.settings.adminApiKey.notConfigured") }}
-                </span>
-                <button
-                  type="button"
-                  @click="createAdminApiKey"
-                  :disabled="adminApiKeyOperating"
-                  class="btn btn-primary btn-sm"
-                >
-                  <svg
-                    v-if="adminApiKeyOperating"
-                    class="mr-1 h-4 w-4 animate-spin"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="4"
-                    ></circle>
-                    <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  {{
-                    adminApiKeyOperating
-                      ? t("admin.settings.adminApiKey.creating")
-                      : t("admin.settings.adminApiKey.create")
-                  }}
-                </button>
               </div>
 
               <!-- Key Exists -->
@@ -200,7 +160,7 @@
             </div>
 
             </div>
-          </div>
+          </details>
         </div>
         <!-- /Tab: Security — Admin API Key -->
 
@@ -9611,6 +9571,7 @@ import {
 } from "@/composables/useStepUp";
 import InfiniteListSentinel from "@/components/common/InfiniteListSentinel.vue";
 import { useInfiniteList } from "@/composables/useInfiniteList";
+import AdminAccessKeysSettings from "@/components/admin/settings/AdminAccessKeysSettings.vue";
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
@@ -12756,10 +12717,10 @@ async function loadAdminApiKey() {
 
 async function createAdminApiKey(guard?: (() => boolean) | Event) {
   const isCurrent = typeof guard === 'function' ? guard : () => true;
-  if (adminApiKeyOperating.value) return;
+  if (adminApiKeyOperating.value || !adminApiKeyExists.value) return;
   adminApiKeyOperating.value = true;
   try {
-    const result = await adminAPI.settings.regenerateAdminApiKey();
+    const result = await settingsStepUp.run(() => adminAPI.settings.regenerateAdminApiKey());
     if (!isCurrent()) return;
     newAdminApiKey.value = result.key;
     adminApiKeyExists.value = true;
@@ -12768,6 +12729,7 @@ async function createAdminApiKey(guard?: (() => boolean) | Event) {
     appStore.showSuccess(t("admin.settings.adminApiKey.keyGenerated"));
   } catch (error: unknown) {
     if (!isCurrent()) return;
+    if (isStepUpCancelled(error)) return;
     appStore.showError(extractApiErrorMessage(error, t("common.error")));
   } finally {
     adminApiKeyOperating.value = false;
@@ -12785,14 +12747,14 @@ async function deleteAdminApiKey() {
   await confirmation.run({ message: t("admin.settings.adminApiKey.deleteConfirm"), title: t('common.delete'), confirmText: t('common.delete'), danger: true }, async (isCurrent) => {
     adminApiKeyOperating.value = true;
     try {
-      await adminAPI.settings.deleteAdminApiKey();
+      await settingsStepUp.run(() => adminAPI.settings.deleteAdminApiKey());
       if (!isCurrent()) return
       adminApiKeyExists.value = false;
       adminApiKeyMasked.value = "";
       newAdminApiKey.value = "";
       appStore.showSuccess(t("admin.settings.adminApiKey.keyDeleted"));
     } catch (error: unknown) {
-      if (!isCurrent()) return
+      if (!isCurrent() || isStepUpCancelled(error)) return
       appStore.showError(extractApiErrorMessage(error, t("common.error")));
     } finally {
       adminApiKeyOperating.value = false;

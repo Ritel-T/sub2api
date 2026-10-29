@@ -1,10 +1,15 @@
-.PHONY: build build-linux build-windows build-darwin generate test test-unit test-integration test-e2e
+.PHONY: build build-embedded build-linux build-windows build-darwin generate test test-unit test-integration test-e2e
 
 VERSION ?= $(shell ./scripts/resolve-version.sh)
 LDFLAGS ?= -s -w -X main.Version=$(VERSION)
 
 build:
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -trimpath -o bin/server ./cmd/server
+
+# The root Makefile builds frontend assets before entering this target.
+build-embedded:
+	test -s internal/web/dist/index.html
+	CGO_ENABLED=0 go build -tags embed -ldflags="$(LDFLAGS)" -trimpath -o bin/server ./cmd/server
 
 build-linux:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags embed -ldflags="$(LDFLAGS)" -trimpath -o sub2api ./cmd/server

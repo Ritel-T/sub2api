@@ -64,6 +64,14 @@ func TestGPT61TerraCodexCatalog(t *testing.T) {
 	m := decodeCodexManifestModels(t, body)[0]
 	require.Equal(t, "gpt-6.1-terra", m["slug"])
 	require.Equal(t, "medium", m["default_reasoning_level"])
+	for _, modelID := range []string{"gpt-6.1-terra", "openai/gpt-6.1-terra", "gpt-6.1-terra-2026-10-28"} {
+		levels := configuredCodexGPTReasoningLevels(modelID)
+		efforts := make([]string, 0, len(levels))
+		for _, level := range levels {
+			efforts = append(efforts, level.Effort)
+		}
+		require.Equal(t, []string{"none", "low", "medium", "high", "xhigh", "max"}, efforts, modelID)
+	}
 	require.Equal(t, []string{"none", "low", "medium", "high", "xhigh", "max"}, effortsFromManifestModel(t, m))
 	require.Equal(t, []any{"text", "image"}, m["input_modalities"])
 	require.EqualValues(t, 1050000, m["context_window"])

@@ -84,7 +84,7 @@ SIWC access token for refresh; it does not revoke the primary Codex grant.
 SIWC authorization sessions use the configured Redis connection, in a separate
 namespace with a 30-minute TTL. The complete account snapshot, previous grant,
 PKCE verifier, nonce and proxy are encrypted with the durable credential key. All
-API replicas must share Redis (6.2 or later for `GETDEL`) and that key. An atomic take consumes the session
+API replicas must share Redis (6.0 or later; session take uses atomic Lua `GET`/`DEL`) and that key. An atomic take consumes the session
 before token exchange, including failed exchanges; no local copy can replay it.
 Redis read/write/consume failures reject the flow instead of falling back to an
 independent memory copy. Without a Redis client (for example isolated tests),

@@ -58,6 +58,8 @@ describe('AppSidebar smart operations group', () => {
 
   it('nests request capture and the ticket harvest flow under 智能运维', () => {
     expect(smartOpsBlock).not.toBe('')
+    expect(smartOpsBlock).toContain("path: '/admin/profit-operations'")
+    expect(navSource.match(/path: '\/admin\/profit-operations'/g)).toHaveLength(1)
     expect(smartOpsBlock).toMatch(/path: '\/admin\/request-captures'[^\n]*featureFlag: \(\) => adminSettingsStore\.requestCaptureEnabled/)
     expect(smartOpsBlock).toContain("path: '/admin/harvest-flow'")
     expect(navSource.match(/path: '\/admin\/request-captures'/g)).toHaveLength(1)

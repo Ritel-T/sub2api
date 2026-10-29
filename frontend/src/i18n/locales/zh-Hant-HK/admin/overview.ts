@@ -1122,7 +1122,8 @@ export default {
         batchGeminiOnlyHint: '批量生圖當前僅支持 Gemini 分組。',
         modeHint: '預設關閉獨立倍率時，圖片費用 = 圖片價格 × 當前分組有效倍率；開啟獨立倍率後，圖片費用 = 圖片價格 × 生圖獨立倍率。',
         finalPricePreview: '最終單張價格預覽',
-        notConfigured: '未配置'
+        notConfigured: '未配置',
+        "perImageBilling": "圖片端點按張計費（顯式 Token 定價優先）",
       },
       videoPricing: {
         h3Enable: '開啟 MiniMax-H3 視頻模型',

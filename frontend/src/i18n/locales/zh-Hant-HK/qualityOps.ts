@@ -329,7 +329,9 @@ export default {
     "test": "檢測配置",
     "action": "失敗處理（目標分組 / BPS 設定）",
     "restore": "自動恢復 / 滿血後關閉 BPS",
-    "enabled": "定時檢測開關"
+    "enabled": "定時檢測開關",
+    "retention": "結果保留次數",
+    "trigger": "上游 5xx 觸發",
   },
   "applyToRules": "應用到 {count} 條規則",
   "selectBulkFields": "請至少勾選一個要修改的字段",
@@ -474,7 +476,7 @@ export default {
   "ownershipConfirm": "我已核對完整差異，確認僅放棄不存在或已屬其他主體的舊歸屬；實際限制保持不變。",
   "relinquishOldOwnership": "確認放棄所列舊歸屬",
   "ownershipReconciled": "舊歸屬已對帳，實際限制未改動。已重新預覽，草稿尚未儲存。",
-  "keepDraftHelp": "部分對帳不代表部分範圍遷移；仍有受管項目就保留原範圍。無需捨棄草稿或重新觸發檢測。",
+  "keepDraftHelp": "普通對賬不會縮減規則範圍。若只移除一個模型，請使用上方定向解除並確認；提交後，其餘草稿修改仍需保存。",
   "ownershipPreviewChanged": "歸屬或版本已改變，請重新預覽確認；沒有自動重試。",
   "ownershipLoadFailed": "無法讀取或確認歸屬，請重新預覽；未改動限制。",
   "draftSource": "本次草稿來源",
@@ -482,7 +484,9 @@ export default {
   "savedModels": "目前已儲存模型",
   "nameIsLabel": "規則名稱是顯示標籤，不代表綁定的檢測範本",
   "ownershipOwners": {"this_rule": "本規則", "other_rule": "其他規則", "external": "外部/管理員", "absent": "無現存項目", "unrecognized": "無法確定"},
-  "ownershipStates": {"managed": "匹配原記錄", "missing": "限制項目已缺失", "external_owner": "現存項目已屬其他主體", "changed_same_owner": "仍標記本規則但內容已變，需人工核對", "unrecognized": "未知記錄，保留", "group_missing": "目標組已不存在", "external_membership_present": "組成員已由外部重建"},
+  "ownershipStates": {"managed": "匹配原記錄", "missing": "限制項目已缺失", "external_owner": "現存項目已屬其他主體", "changed_same_owner": "仍標記本規則但內容已變，需人工核對", "unrecognized": "未知記錄，保留", "group_missing": "目標組已不存在", "external_membership_present": "組成員已由外部重建",
+    "orphan_same_owner": "當前仍歸本規則但原快照缺失，僅可單獨預覽定向處理",
+  },
 
   "judgeKind": "判題方式",
   "judgeLLM": "普通分組模型（默認）",
@@ -523,4 +527,37 @@ export default {
     "account_unavailable": "帳戶當前不可恢復（狀態異常或過期）。請先核對帳戶；此處不會將帳戶改為在線。",
     "rule_running": "規則仍在執行，請等待任務結束，再重新預覽確認。"
   },
+  "modelRemovalTitle": "定向解除隔離並移除一個模型",
+  "modelRemovalHelp": "僅修改所選模型並同步縮減規則範圍，其他模型和分組保留。缺少原快照時不會恢復或猜測舊值；僅能移除格式完整、獨佔且仍屬本規則的隔離標記。",
+  "modelRemovalReason": "操作原因",
+  "modelRemovalReasons": {
+    "orphan_marker_recovery": "處理原快照缺失的孤立標記",
+    "retire_model": "停止管理該模型"
+  },
+  "modelRemovalConfirm": "我確認解除 {model} 的所示標記並立即從本規則移除該模型。其他草稿修改仍需另行保存。",
+  "modelRemovalSubmit": "確認解除並移除模型",
+  "modelRemovalReadback": "已重新讀取並確認移除 {model}；其他草稿修改仍需保存。",
+  "modelRemovalEffects": {
+    "remove_target_only": "僅移除規則目標，不改限制",
+    "remove_missing_target": "當前標記缺失：僅移除目標及其舊歸屬",
+    "remove_orphan_marker_only": "原快照缺失：僅移除本規則獨佔隔離標記，不恢復任何舊值",
+    "remove_matching_marker": "移除與原快照匹配的本規則隔離標記"
+  },
+  "modelRemovalBlocked": {
+    "not_owned": "當前項不歸本規則所有，不能解除。",
+    "additional_or_unrecognized_restriction": "包含額外限制或格式未知，保留並人工核對。",
+    "unrecognized_snapshot": "原快照不可識別，保留並人工核對。",
+    "changed_same_owner": "仍屬本規則但內容已變化，保留並人工核對。",
+    "previous_restriction": "原記錄包含其他限制，本操作不覆蓋舊值。",
+    "ambiguous_mapping": "模型映射存在歧義，保留並人工核對。",
+    "shared_mapping": "其他受測模型共用該隔離項，不能單獨解除。",
+    "last_model": "必須保留至少一個模型；移除整條規則請走獨立恢復流程。",
+    "scope_conflict": "當前配置與保存的隔離範圍不一致，請先核對。",
+    "account_unavailable": "賬號當前不可用，不能解除。",
+    "rule_running": "規則正在運行，請等待本輪完成後重新預覽。"
+  },
+  "modelRemovalReadbackFailed": "確認可能已經提交，請重新預覽並核對規則模型範圍，再繼續編輯；不要重複解除。",
+  "editPreset": "編輯檢測模板",
+  "invalidMaxResults": "保留結果數必須為 1–200。",
+  "retentionTooSmall": "保留結果數必須容納本輪全部模型與樣本。",
 }

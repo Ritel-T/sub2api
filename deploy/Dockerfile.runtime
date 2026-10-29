@@ -1,0 +1,12 @@
+# A fixed, separately verified runtime image contains OS/tools/entrypoint only.
+# It must not contain an earlier /app/sub2api. Never pass an application image.
+ARG RUNTIME_IMAGE
+FROM ${RUNTIME_IMAGE}
+ARG VERSION
+ARG COMMIT
+ARG BINARY_SHA256
+COPY --chown=1000:1000 sub2api /app/sub2api
+COPY --chown=1000:1000 resources/ /app/resources/
+LABEL org.opencontainers.image.version=${VERSION} \
+      org.opencontainers.image.revision=${COMMIT} \
+      io.ritel.binary.sha256=${BINARY_SHA256}

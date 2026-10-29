@@ -9,6 +9,7 @@
 ARG NODE_IMAGE=node:24-alpine
 ARG GOLANG_IMAGE=golang:1.27.3-alpine
 ARG ALPINE_IMAGE=alpine:3.24
+ARG POSTGRES_IMAGE=postgres:18-alpine
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
 
@@ -16,6 +17,10 @@ ARG GOSUMDB=sum.golang.google.cn
 # Stage 1: Frontend Builder
 # -----------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS frontend-builder
+ARG VITE_RITEL_ACCOUNT_ORIGIN=
+ARG VITE_RITEL_CONSOLE_ORIGIN=
+ENV VITE_RITEL_ACCOUNT_ORIGIN=${VITE_RITEL_ACCOUNT_ORIGIN}
+ENV VITE_RITEL_CONSOLE_ORIGIN=${VITE_RITEL_CONSOLE_ORIGIN}
 
 WORKDIR /app/frontend
 ENV NODE_OPTIONS=--max-old-space-size=1536
@@ -35,7 +40,7 @@ RUN pnpm install --frozen-lockfile
 # Copy only that subtree to keep the build dependency minimal.
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
-RUN pnpm run build
+RUN pnpm run build --outDir dist
 
 # -----------------------------------------------------------------------------
 # Stage 2: Backend Builder
@@ -65,7 +70,7 @@ RUN go mod download
 COPY backend/ ./
 
 # Copy frontend dist from previous stage (must be after backend copy to avoid being overwritten)
-COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
+COPY --from=frontend-builder /app/frontend/dist ./internal/web/dist
 
 # Build the binary (BuildType=release for CI builds, embed frontend)
 # Version precedence: build arg VERSION > exact git tag > cmd/server/VERSION
@@ -75,11 +80,17 @@ RUN VERSION_VALUE="${VERSION}" && \
     CGO_ENABLED=0 GOOS=linux go build \
     -tags embed \
     -ldflags="-s -w -X main.Version=${VERSION_VALUE} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=release" \
+    -trimpath \
     -o /app/sub2api \
     ./cmd/server
 
 # -----------------------------------------------------------------------------
-# Stage 3: Final Runtime Image
+# Stage 3: version-matched PostgreSQL backup clients
+# -----------------------------------------------------------------------------
+FROM ${POSTGRES_IMAGE} AS pg-client
+
+# -----------------------------------------------------------------------------
+# Stage 4: Final Runtime Image
 # -----------------------------------------------------------------------------
 FROM ${ALPINE_IMAGE}
 
@@ -94,7 +105,17 @@ RUN apk upgrade --no-cache && apk add --no-cache \
     tzdata \
     curl \
     su-exec \
+    libpq \
+    zstd-libs \
+    lz4-libs \
+    krb5-libs \
+    libldap \
+    libedit \
     && rm -rf /var/cache/apk/*
+
+COPY --from=pg-client /usr/local/bin/pg_dump /usr/local/bin/pg_dump
+COPY --from=pg-client /usr/local/bin/psql /usr/local/bin/psql
+COPY --from=pg-client /usr/local/lib/libpq.so.5* /usr/local/lib/
 
 # Create non-root user
 RUN addgroup -g 1000 sub2api && \
@@ -104,11 +125,11 @@ RUN addgroup -g 1000 sub2api && \
 WORKDIR /app
 
 # Copy binary and runtime fallback resources from builder
-COPY --from=backend-builder /app/sub2api /app/sub2api
+COPY --from=backend-builder --chown=sub2api:sub2api /app/sub2api /app/sub2api
 COPY --from=backend-builder --chown=sub2api:sub2api /app/backend/resources /app/resources
 
 # Create data directory
-RUN mkdir -p /app/data && chown -R sub2api:sub2api /app
+RUN mkdir -p /app/data && chown sub2api:sub2api /app /app/data
 
 # Copy entrypoint script (fixes volume permissions then drops to sub2api)
 COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh

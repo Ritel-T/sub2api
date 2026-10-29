@@ -98,7 +98,7 @@
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
                   >{{ t('admin.dashboard.timeRange') }}:</span
                 >
-                <DateRangePicker data-field-role="filter" :aria-label="t('admin.dashboard.timeRange')" enable-time :preset="selectedPreset"
+                <DateRangePicker data-field-role="filter" :aria-label="t('admin.dashboard.timeRange')" enable-time :rolling24-hours="true" :preset="selectedPreset"
                   v-model:start-date="startDate"
                   v-model:end-date="endDate"
                   @change="onDateRangeChange"
@@ -336,7 +336,7 @@
 
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
-import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
+import { getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
 import { useChartTheme } from '@/utils/chartTheme'
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -414,6 +414,10 @@ const rankingLimit = 12
 // Date range
 const granularity = ref<'day' | 'hour'>('hour')
 const selectedPreset = ref<string | null>('last24Hours')
+const getLast24HoursRangeDates = () => {
+  const end = new Date()
+  return { start: new Date(end.getTime() - 86_400_000).toISOString(), end: end.toISOString() }
+}
 const defaultRange = getLast24HoursRangeDates()
 const startDate = ref(defaultRange.start)
 const endDate = ref(defaultRange.end)
@@ -723,7 +727,7 @@ const loadUserSpendingRanking = async () => {
 
 const loadDashboardStats = async () => {
   if (chartsLoading.value) return
-  const range = selectedPreset.value ? getDatePresetRange(selectedPreset.value) : null
+  const range = selectedPreset.value === 'last24Hours' ? getLast24HoursRangeDates() : selectedPreset.value ? getDatePresetRange(selectedPreset.value) : null
   if (range) { startDate.value = range.start; endDate.value = range.end }
   await Promise.all([
     loadDashboardSnapshot(true),

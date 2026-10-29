@@ -72,6 +72,9 @@ func (s *defaultOpenAIAccountScheduler) shouldYieldPriorityLatencySticky(req Ope
 	if !known {
 		return false
 	}
+	if req.priorityLatencyPool != nil && req.priorityLatencyPool.fallbackActive() && s.service.priorityLatencyAdmission(req, account) == nil {
+		return false
+	}
 	score := scorePriorityCandidate(cfg, pool[0], signal, time.Now())
 	return slices.Contains(score.Reasons, "latency_above_target")
 }

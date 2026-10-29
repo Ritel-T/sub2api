@@ -22,11 +22,15 @@ ARG NPM_CONFIG_REGISTRY=
 # it on the native host arch instead of under QEMU emulation for the target.
 FROM --platform=${BUILDPLATFORM} ${NODE_IMAGE} AS frontend-builder
 ARG NPM_CONFIG_REGISTRY
+ARG VITE_RITEL_ACCOUNT_ORIGIN=
+ARG VITE_RITEL_CONSOLE_ORIGIN=
+ENV VITE_RITEL_ACCOUNT_ORIGIN=${VITE_RITEL_ACCOUNT_ORIGIN}
+ENV VITE_RITEL_CONSOLE_ORIGIN=${VITE_RITEL_CONSOLE_ORIGIN}
 
 WORKDIR /app/frontend
 
 # Install pnpm (pinned to v9 to match CI and keep builds reproducible)
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 # Install dependencies first (better caching)
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
@@ -41,7 +45,7 @@ RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/stor
 # Copy only that subtree to keep the build dependency minimal.
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
-RUN pnpm run build
+RUN pnpm run build --outDir dist
 
 # -----------------------------------------------------------------------------
 # Stage 2: Backend Builder
@@ -81,7 +85,7 @@ RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
 COPY backend/ ./
 
 # Copy frontend dist from previous stage (must be after backend copy to avoid being overwritten)
-COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
+COPY --from=frontend-builder /app/frontend/dist ./internal/web/dist
 
 # Build the binary (BuildType=release for CI builds, embed frontend)
 # Version precedence: build arg VERSION > exact git tag > cmd/server/VERSION

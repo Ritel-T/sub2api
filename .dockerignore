@@ -30,6 +30,16 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+frontend/dist/
+backend/internal/web/dist/
+backend/bin/
+backend/sub2api
+backend/server
+backend/main
+frontend/*.tsbuildinfo
+backend/.gocache/
+**/__pycache__/
+**/*.pyc
 
 # Node modules (will be installed in container)
 frontend/node_modules/
@@ -91,3 +101,11 @@ backend/internal/service/data/bps-images/
 **/totp-recovery/
 **/*.sealed
 **/credential-operations.key
+
+# Operational material and old binaries are never source-build inputs.
+/private/
+/exports/
+/outputs/
+/reports/
+/output/
+**/*.xdelta

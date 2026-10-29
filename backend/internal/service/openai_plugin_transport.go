@@ -40,6 +40,9 @@ func (s *OpenAIGatewayService) doOpenAIUpstream(request *http.Request, proxyURL 
 		authorization := request.Header.Get("Authorization")
 		applySIWCRequestHeaders(request)
 		request.Host = ""
+		if err := s.priorityLatencyBeforeSend(request.Context(), account); err != nil {
+			return nil, err
+		}
 		observeAttempt := s.observePriorityAttempt(request, account)
 		resp, err := s.httpUpstream.Do(request, proxyURL, account.ID, account.Concurrency)
 		observeAttempt(resp, err)
