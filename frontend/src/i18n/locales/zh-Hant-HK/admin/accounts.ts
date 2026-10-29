@@ -2142,7 +2142,7 @@ export default {
     "stale": "歷史目錄",
     "unknown": "未知",
     "sourceChanged": "來源已變更",
-    "notListed": "未在該賬號此端點的當前目錄中發現",
+    "notListed": "未在該帳號此端點的當前目錄中發現",
     "unverifiable": "無法逐項核驗",
     "outOfScope": "不在此文本目錄範圍內",
     "compatibilityNotice": "請求不會被阻斷",

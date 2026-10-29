@@ -34,7 +34,7 @@ func TestUsageSharedFiltersPostgresParity(t *testing.T) {
 	}
 	db, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	db.SetMaxOpenConns(1)
 	ctx := context.Background()
 	_, err = db.ExecContext(ctx, `CREATE TEMP TABLE usage_logs (

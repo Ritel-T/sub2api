@@ -281,20 +281,20 @@ func parseDashboardSnapshotV2Filters(c *gin.Context) (*dashboardSnapshotV2Filter
 	}
 
 	if !service.BillingMode(filters.BillingMode).IsValidUsageFilter() {
-		return nil, errors.New("Invalid billing_mode, use token/per_request/image/video")
+		return nil, errors.New("invalid billing_mode, use token/per_request/image/video")
 	}
 
 	if userIDStr := strings.TrimSpace(c.Query("user_id")); userIDStr != "" {
 		id, err := strconv.ParseInt(userIDStr, 10, 64)
 		if err != nil || id <= 0 {
-			return nil, errors.New("Invalid user_id: must be a positive integer")
+			return nil, errors.New("invalid user_id: must be a positive integer")
 		}
 		filters.UserID = id
 	}
 	if apiKeyIDStr := strings.TrimSpace(c.Query("api_key_id")); apiKeyIDStr != "" {
 		id, err := strconv.ParseInt(apiKeyIDStr, 10, 64)
 		if err != nil || id <= 0 {
-			return nil, errors.New("Invalid api_key_id: must be a positive integer")
+			return nil, errors.New("invalid api_key_id: must be a positive integer")
 		}
 		filters.APIKeyID = id
 	}

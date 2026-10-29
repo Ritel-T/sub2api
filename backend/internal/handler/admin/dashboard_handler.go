@@ -57,18 +57,6 @@ func parseTimeRange(c *gin.Context) (time.Time, time.Time, error) {
 	return startTime, endTime, nil
 }
 
-func parseOptionalBoolDashboardFilter(c *gin.Context, name string) (*bool, error) {
-	raw := strings.TrimSpace(c.Query(name))
-	if raw == "" {
-		return nil, nil
-	}
-	value, err := strconv.ParseBool(raw)
-	if err != nil {
-		return nil, err
-	}
-	return &value, nil
-}
-
 // GetStats handles getting dashboard statistics
 // GET /api/v1/admin/dashboard/stats
 func (h *DashboardHandler) GetStats(c *gin.Context) {

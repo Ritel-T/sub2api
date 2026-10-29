@@ -476,7 +476,7 @@ export default {
   "ownershipConfirm": "我已核對完整差異，確認僅放棄不存在或已屬其他主體的舊歸屬；實際限制保持不變。",
   "relinquishOldOwnership": "確認放棄所列舊歸屬",
   "ownershipReconciled": "舊歸屬已對帳，實際限制未改動。已重新預覽，草稿尚未儲存。",
-  "keepDraftHelp": "普通對賬不會縮減規則範圍。若只移除一個模型，請使用上方定向解除並確認；提交後，其餘草稿修改仍需保存。",
+  "keepDraftHelp": "普通對帳不會縮減規則範圍。若只移除一個模型，請使用上方定向解除並確認；提交後，其餘草稿修改仍需保存。",
   "ownershipPreviewChanged": "歸屬或版本已改變，請重新預覽確認；沒有自動重試。",
   "ownershipLoadFailed": "無法讀取或確認歸屬，請重新預覽；未改動限制。",
   "draftSource": "本次草稿來源",
@@ -553,7 +553,7 @@ export default {
     "shared_mapping": "其他受測模型共用該隔離項，不能單獨解除。",
     "last_model": "必須保留至少一個模型；移除整條規則請走獨立恢復流程。",
     "scope_conflict": "當前配置與保存的隔離範圍不一致，請先核對。",
-    "account_unavailable": "賬號當前不可用，不能解除。",
+    "account_unavailable": "帳號當前不可用，不能解除。",
     "rule_running": "規則正在運行，請等待本輪完成後重新預覽。"
   },
   "modelRemovalReadbackFailed": "確認可能已經提交，請重新預覽並核對規則模型範圍，再繼續編輯；不要重複解除。",
