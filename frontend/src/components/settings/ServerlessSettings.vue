@@ -10,7 +10,7 @@
       <div class="flex flex-wrap items-center gap-4">
         <label class="flex items-center gap-2"><input v-model="draft.enabled" type="checkbox" :disabled="busy || !loaded" data-testid="serverless-enabled" />{{ text('开启地区分流', 'Enable region routing') }}</label>
         <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refresh(false)">{{ text('刷新状态', 'Refresh status') }}</button>
-        <button type="button" class="btn btn-primary btn-sm" :disabled="busy || !loaded" @click="save">{{ text('保存 Serverless 配置', 'Save Serverless configuration') }}</button>
+        <button v-if="!managed && dirty" type="button" class="btn btn-primary btn-sm" :disabled="busy || !loaded" @click="save">{{ text('保存 Serverless 配置', 'Save Serverless configuration') }}</button>
       </div>
       <p class="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">{{ text('同一 API Key 固定到同一 Pod（最后使用后保留 24 小时）。停用分流或 Pod 只阻止新绑定；已有绑定继续使用原 Pod。绑定实例失联或重启时返回错误，不自动迁移会话。首次启用前先结束存量 BPS/WS 会话。', 'Each API Key stays on one Pod for 24 hours after last use. Disabling routing or a Pod stops new bindings; existing bindings remain. A missing or restarted bound instance returns an error without moving the conversation. Finish existing BPS/WS conversations before first enabling routing.') }}</p>
 
@@ -92,6 +92,11 @@ interface Region { country: string; pod_ids: string[] }
 interface Config { enabled: boolean; pods: Policy[]; regions: Region[] }
 interface Pod { id: string; boot: string; endpoint: string; region: string; version: string; ready: boolean; at: number }
 interface Snapshot { config: Config; pods: Pod[]; stats: Record<string, string> }
+withDefaults(defineProps<{ managed?: boolean }>(), { managed: false })
+const saved = ref<Config | null>(null)
+const dirty = computed(() => saved.value !== null && JSON.stringify(draft.value) !== JSON.stringify(saved.value))
+function discard() { if (saved.value) draft.value = JSON.parse(JSON.stringify(saved.value)) }
+defineExpose({ dirty, save, discard })
 const { locale } = useI18n()
 const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 const loaded = ref(false), busy = ref(false), error = ref(''), notice = ref('')
@@ -131,7 +136,7 @@ async function refresh(replace: boolean) {
     const data = (await apiClient.get<Snapshot>('/admin/serverless')).data
     if (disposed) return
     pods.value = data.pods; stats.value = data.stats
-    if (replace || !loaded.value) draft.value = data.config
+    if ((!dirty.value && replace) || !loaded.value) { draft.value = data.config; saved.value = JSON.parse(JSON.stringify(data.config)) }
     loaded.value = true
   })
 }
@@ -141,7 +146,7 @@ async function save() {
     const config: Config = JSON.parse(JSON.stringify(draft.value))
     config.regions.forEach(r => { r.country = r.country.trim().toUpperCase() })
     const { data } = await apiClient.put<Config>('/admin/serverless', config)
-    if (!disposed) { draft.value = data; notice.value = text('已保存。新规则在数秒内生效，已有绑定保持不变。', 'Saved. New rules take effect within seconds; existing bindings remain.') }
+    if (!disposed) { draft.value = data; saved.value = JSON.parse(JSON.stringify(data)); notice.value = text('已保存。新规则在数秒内生效，已有绑定保持不变。', 'Saved. New rules take effect within seconds; existing bindings remain.') }
   })
 }
 function approved(p: Pod) { return draft.value.pods.some(v => v.id === p.id && v.endpoint.replace(/\/$/, '') === p.endpoint) }

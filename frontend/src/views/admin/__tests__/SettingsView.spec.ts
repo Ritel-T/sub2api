@@ -14,10 +14,12 @@ import { apiClient } from "@/api/client";
 
 enableAutoUnmount(afterEach);
 
+const routeGuard = vi.hoisted(() => ({ leave: null as null | (() => Promise<boolean>) }));
 const settingsRoute = reactive({ query: {} as Record<string, unknown>, hash: '' });
 vi.mock('vue-router', async (importOriginal) => ({
   ...await importOriginal<typeof import('vue-router')>(),
   useRoute: () => settingsRoute,
+  onBeforeRouteLeave: (guard: () => Promise<boolean>) => { routeGuard.leave = guard; },
   useRouter: () => ({ replace: vi.fn(async (location) => Object.assign(settingsRoute, location)) }),
 }));
 beforeEach(() => {
@@ -603,9 +605,29 @@ function mountView(realToggle = false) {
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
         EmailTemplateEditor: true,
+        ServerlessSettings: defineComponent({ setup(_props, { expose }) { expose({ dirty: false, save: vi.fn(), discard: vi.fn() }); return () => h('div'); } }),
+        AdminAccessKeysSettings: true,
       },
     },
   });
+}
+
+async function submitTab(wrapper: ReturnType<typeof mountView>, tab: string) {
+  await wrapper.get('#settings-tab-' + tab).trigger('click');
+  await flushPromises();
+  // Serialization cases still need an intentional edit under the dirty-only contract.
+  const vm = wrapper.vm as any;
+  if (!vm.sectionDirty(tab)) {
+    const marker: Record<string, string> = { general: 'site_subtitle', features: 'model_plaza_description', security: 'contact_info', users: 'default_concurrency', gateway: 'enable_metadata_passthrough', payment: 'payment_help_text', email: 'smtp_from_name' };
+    const key = marker[tab];
+    if (tab === 'users') vm.form[key] = Number(vm.form[key]) + 1;
+    else if (tab === 'gateway') vm.form[key] = !vm.form[key];
+    else if (tab === 'security') vm.form.audit_log_retention_days = Number(vm.form.audit_log_retention_days) + 1;
+    else vm.form[key] = String(vm.form[key] || '') + ' (edited)';
+    await flushPromises();
+  }
+  await wrapper.find('form').trigger('submit.prevent');
+  await flushPromises();
 }
 
 async function openPaymentTab(wrapper: ReturnType<typeof mountView>) {
@@ -694,6 +716,96 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
+
+  it('keeps unverified dedicated defaults read-only while allowing a missing web-search config', async () => {
+    getRateLimit429CooldownSettings.mockRejectedValueOnce(new Error('load failed'));
+    getWebSearchEmulationConfig.mockRejectedValueOnce({ status: 404 });
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    expect(wrapper.get('#settings-section-rate-limit429cooldown').element.closest('fieldset')?.disabled).toBe(true);
+    expect(wrapper.get('#settings-section-web-search-emulation').element.closest('fieldset')?.disabled).toBe(false);
+    vm.webSearchConfig.enabled = true; await vm.saveSection('gateway');
+    expect(updateWebSearchEmulationConfig).toHaveBeenCalledTimes(1);
+    expect(updateRateLimit429CooldownSettings).not.toHaveBeenCalled();
+  });
+  it('clears only the saved partition secrets when readback omits secret values', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    const response: Record<string, unknown> = { ...baseSettingsResponse, google_oauth_client_secret_configured: true };
+    delete response.google_oauth_client_secret;
+    updateSettings.mockResolvedValueOnce(response);
+    vm.form.google_oauth_client_secret = 'new-private-value';
+    vm.form.smtp_password = 'other-partition-draft';
+    await vm.saveSection('security');
+    expect(vm.form.google_oauth_client_secret).toBe('');
+    expect(vm.form.google_oauth_client_secret_configured).toBe(true);
+    expect(vm.form.smtp_password).toBe('other-partition-draft');
+    expect(vm.sectionDirty('security')).toBe(false);
+    expect(vm.sectionDirty('email')).toBe(true);
+  });
+  it('shows no save bar for a clean page and performs no no-op save', async () => {
+    const wrapper = mountView(); await flushPromises();
+    expect(wrapper.findAll('[data-testid="settings-save-bar"]')).toHaveLength(0);
+    await wrapper.find('form').trigger('submit.prevent'); await flushPromises();
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(updateWebSearchEmulationConfig).not.toHaveBeenCalled();
+    const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+  });
+  it('saves only the visible partition and preserves other drafts and secret inputs', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    vm.form.site_name = 'General draft';
+    vm.form.grok_default_text_model = 'grok-next';
+    vm.form.google_oauth_client_secret = 'pending-secret';
+    await flushPromises();
+    expect(wrapper.findAll('[data-testid="settings-save-bar"]')).toHaveLength(1);
+    await wrapper.get('[data-testid="settings-save-bar"] .btn-primary').trigger('click'); await flushPromises();
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    const payload = updateSettings.mock.calls[0][0];
+    expect(payload.site_name).toBe('General draft');
+    expect(payload).not.toHaveProperty('grok_default_text_model');
+    expect(payload).not.toHaveProperty('google_oauth_client_secret');
+    expect(vm.form.grok_default_text_model).toBe('grok-next');
+    expect(vm.form.google_oauth_client_secret).toBe('pending-secret');
+    expect(vm.sectionDirty('general')).toBe(false);
+    expect(vm.sectionDirty('gateway')).toBe(true);
+    expect(vm.sectionDirty('security')).toBe(true);
+    expect(updateWebSearchEmulationConfig).not.toHaveBeenCalled();
+    vm.discardSection('gateway'); vm.discardSection('security'); await flushPromises();
+    expect(vm.hasUnsavedSettings).toBe(false);
+  });
+  it('retains dirty state after failure and cancels navigation without discarding input', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    vm.form.site_name = 'Retry me'; await flushPromises();
+    updateSettings.mockRejectedValueOnce(new Error('save failed'));
+    await vm.saveSection('general');
+    expect(vm.sectionDirty('general')).toBe(true);
+    expect(vm.form.site_name).toBe('Retry me');
+    const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    const leaving = routeGuard.leave!(); await flushPromises();
+    const prompt = wrapper.findAllComponents({ name: 'ConfirmationPrompt' }).find(prompt => prompt.props('confirmation').show.value)!;
+    const dialog = prompt.findComponent({ name: 'ConfirmDialog' });
+    expect(dialog.props('show')).toBe(true);
+    dialog.vm.$emit('cancel');
+    expect(await leaving).toBe(false);
+    expect(vm.form.site_name).toBe('Retry me');
+    vm.discardSection('general'); await flushPromises();
+    expect(await routeGuard.leave!()).toBe(true);
+  });
+  it('keeps successful dedicated saves acknowledged when a later API fails', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    vm.rateLimit429CooldownForm.cooldown_seconds = 17;
+    vm.ollamaCloudUsageForm.enabled = true;
+    updateOllamaCloudUsageSettings.mockRejectedValueOnce(new Error('temporary failure'));
+    await vm.saveSection('gateway');
+    expect(updateRateLimit429CooldownSettings).toHaveBeenCalledTimes(1);
+    expect(updateOllamaCloudUsageSettings).toHaveBeenCalledTimes(1);
+    expect(vm.sectionDirty('gateway')).toBe(true);
+    updateOllamaCloudUsageSettings.mockImplementation(async payload => payload);
+    await vm.saveSection('gateway');
+    expect(updateRateLimit429CooldownSettings).toHaveBeenCalledTimes(1);
+    expect(updateOllamaCloudUsageSettings).toHaveBeenCalledTimes(2);
+    expect(vm.sectionDirty('gateway')).toBe(false);
+  });
   it('exposes the same switch state for all three payment toggles', async () => {
     const wrapper = mountView(true);
     await flushPromises();
@@ -863,10 +975,9 @@ describe("admin SettingsView payment visible method controls", () => {
     const card = wrapper.get('[data-testid="pelican-showcase-moved"]');
     expect(card.get("router-link").attributes("to")).toBe("/admin/pelican-tests");
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "features");
     await flushPromises();
-    const payload = updateSettings.mock.calls[0]?.[0];
-    expect(payload).toBeDefined();
+    const payload = updateSettings.mock.calls[0]?.[0] ?? {};
     // Saving system settings must not overwrite what the Smart Ops page saved.
     expect(payload).not.toHaveProperty("pelican_showcase_enabled");
     expect(payload).not.toHaveProperty("pelican_showcase_config");
@@ -877,7 +988,7 @@ describe("admin SettingsView payment visible method controls", () => {
     getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, channel_monitor_enabled: true, channel_monitor_mode: "v3" });
     const wrapper = mountView();
     await flushPromises();
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "features");
     await flushPromises();
     // The monitor page may have switched the mode since this page loaded.
     expect(updateSettings.mock.calls[0]?.[0]?.channel_monitor_mode).toBeUndefined();
@@ -886,7 +997,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await featuresTab?.trigger("click");
     await flushPromises();
     await wrapper.get('[data-testid="settings-monitor-mode-v1"]').trigger("click");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[1]?.[0]).toMatchObject({ channel_monitor_mode: "v1" });
     wrapper.unmount();
@@ -910,7 +1021,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.get('[data-testid="support-ticket-add-category"]').trigger("click");
     await wrapper.get("#support-ticket-max-open").setValue("8");
     await wrapper.get("#support-ticket-notice").setValue("工作时间 9–21 点");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({
       support_ticket_enabled: true,
@@ -945,13 +1056,13 @@ describe("admin SettingsView payment visible method controls", () => {
     for (const [id, , maximum] of fields) {
       const input = wrapper.get('#excel-bps-image-' + id);
       await input.setValue(String(maximum + 1));
-      await wrapper.find('form').trigger('submit.prevent');
+      await submitTab(wrapper, "features");
       await flushPromises();
       expect(updateSettings).not.toHaveBeenCalled();
       await input.setValue(String(maximum));
     }
     showError.mockClear();
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings).toHaveBeenCalledTimes(1);
     for (const [, key, maximum] of fields) {
@@ -983,7 +1094,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await card.get('#excel-bps-image-storage-entries').setValue('2048');
     await card.get('#excel-bps-image-ttl-minutes').setValue('60');
 
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({
       excel_bps_image_relay_enabled: true,
@@ -1012,7 +1123,7 @@ describe("admin SettingsView payment visible method controls", () => {
     const protocolSwitches = wrapper.get('[data-testid="protocol-feature-switches"]');
     await protocolSwitches.get('input').setValue(false);
     await protocolSwitches.findAll('input')[1].setValue(true);
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_enabled: false, prism_browser_enabled: true });
     wrapper.unmount();
@@ -1030,7 +1141,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(wrapper.find('#excel-bps-image-base-url').exists()).toBe(false);
     expect(wrapper.find('#excel-bps-image-max-images').exists()).toBe(true);
     expect(wrapper.find('#excel-bps-image-storage-mib').exists()).toBe(false);
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_image_mode: 'native', excel_bps_image_relay_enabled: true, excel_bps_image_base_url: '' });
     expect(showError).not.toHaveBeenCalled();
@@ -1052,7 +1163,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
     expect((wrapper.get('#excel-bps-image-enabled').element as HTMLInputElement).checked).toBe(false);
     expect(wrapper.find('#excel-bps-image-mode').exists()).toBe(false);
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_image_relay_enabled: false });
     wrapper.unmount();
@@ -1066,7 +1177,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect((wrapper.get('#bps-image-limit-policy').element as HTMLSelectElement).value).toBe('off');
     await wrapper.get('#bps-image-limit-policy').setValue('auto_compact');
     expect(wrapper.find('#bps-image-compact-reserve').exists()).toBe(false);
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_image_limit_policy: 'auto_compact', excel_bps_image_warning_remaining: 8, excel_bps_image_compact_reserve: 3 });
     expect(showError).not.toHaveBeenCalled();
@@ -1085,7 +1196,7 @@ describe("admin SettingsView payment visible method controls", () => {
       ['#bps-image-warning-remaining', '8.5', '8'],
     ]) {
       await wrapper.get(selector).setValue(value);
-      await wrapper.find('form').trigger('submit.prevent');
+      await submitTab(wrapper, "features");
       await flushPromises();
       expect(updateSettings).not.toHaveBeenCalled();
       expect(showError).toHaveBeenLastCalledWith('admin.settings.features.excelBpsImages.invalidLimits');
@@ -1093,7 +1204,7 @@ describe("admin SettingsView payment visible method controls", () => {
     }
     await wrapper.get('#bps-image-warning-remaining').setValue('9');
     await wrapper.get('#bps-image-compact-reserve').setValue('4');
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_image_limit_policy: 'warn', excel_bps_image_warning_remaining: 9, excel_bps_image_compact_reserve: 4 });
     wrapper.unmount();
@@ -1108,7 +1219,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect((wrapper.get('#excel-bps-image-budget').element as HTMLInputElement).value).toBe('896');
     expect((wrapper.get('#excel-bps-image-max-requests').element as HTMLInputElement).value).toBe('40');
     await wrapper.get('#excel-bps-image-enabled').setValue(false);
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_image_relay_enabled: false, excel_bps_image_base_url: 'https://saved.example', excel_bps_image_body_limit_mib: 24, excel_bps_image_budget_mib: 896, excel_bps_image_max_requests: 40 });
     wrapper.unmount();
@@ -1124,14 +1235,14 @@ describe("admin SettingsView payment visible method controls", () => {
       ['max-total-mib', '1', '32'], ['storage-entries', '99', '512'], ['storage-mib', '1', '1024'],
     ]) {
       await wrapper.get(`#excel-bps-image-${id}`).setValue(value);
-      await wrapper.find('form').trigger('submit.prevent');
+      await submitTab(wrapper, "features");
       await flushPromises();
       expect(updateSettings).not.toHaveBeenCalled();
       expect(showError).toHaveBeenLastCalledWith('admin.settings.features.excelBpsImages.invalidLimits');
       await wrapper.get(`#excel-bps-image-${id}`).setValue(original);
     }
     await wrapper.get('#excel-bps-image-enabled').setValue(false);
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({ excel_bps_image_relay_enabled: false, excel_bps_image_max_images: 100, excel_bps_image_ttl_minutes: 60 });
     wrapper.unmount();
@@ -1144,7 +1255,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.get('#excel-bps-image-enabled').setValue(true);
     for (const value of ['', 'http://images.example', 'https://images.example/v1', 'https://user:secret@images.example', 'https://images.example?token=secret', 'https://images.example#']) {
       await wrapper.get('#excel-bps-image-base-url').setValue(value);
-      await wrapper.find('form').trigger('submit.prevent');
+      await submitTab(wrapper, "features");
       await flushPromises();
       expect(updateSettings).not.toHaveBeenCalled();
       expect(showError).toHaveBeenLastCalledWith('admin.settings.features.excelBpsImages.invalidBaseUrl');
@@ -1168,7 +1279,7 @@ describe("admin SettingsView payment visible method controls", () => {
       const input = wrapper.get(selector);
       const original = (input.element as HTMLInputElement).value;
       await input.setValue(value);
-      await wrapper.find('form').trigger('submit.prevent');
+      await submitTab(wrapper, "features");
       await flushPromises();
       expect(updateSettings).not.toHaveBeenCalled();
       expect(showError).toHaveBeenLastCalledWith('admin.settings.features.excelBpsImages.invalidCapacity');
@@ -1176,7 +1287,7 @@ describe("admin SettingsView payment visible method controls", () => {
     }
     await wrapper.get('#excel-bps-image-body-limit').setValue('128');
     await wrapper.get('#excel-bps-image-budget').setValue('512');
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings).not.toHaveBeenCalled();
     expect(showError).toHaveBeenLastCalledWith('admin.settings.features.excelBpsImages.invalidCapacity');
@@ -1209,7 +1320,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(wrapper.text()).not.toContain('admin.settings.payment.rechargeFeeRateHint');
     await wrapper.get('#retail-fixed-cost').setValue('0');
     await wrapper.get('#retail-quote-ttl').setValue('600');
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "payment");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0]).toMatchObject({
       balance_retail_pricing_enabled: true,
@@ -1239,7 +1350,7 @@ describe("admin SettingsView payment visible method controls", () => {
     });
     const wrapper = mountView();
     await flushPromises();
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "payment");
     await flushPromises();
     expect(updateSettings).not.toHaveBeenCalled();
     expect(showError).toHaveBeenLastCalledWith('squarespaceProvider.retail.validationFXRates');
@@ -1257,7 +1368,7 @@ describe("admin SettingsView payment visible method controls", () => {
     const toggle = wrapper.get<HTMLInputElement>('#request-timezone-enabled');
     expect(toggle.element.checked).toBe(false);
     expect(wrapper.find('#request-timezone-mode').exists()).toBe(false);
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "gateway");
     await flushPromises();
     expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
       openai_request_timezone_enabled: false,
@@ -1265,7 +1376,7 @@ describe("admin SettingsView payment visible method controls", () => {
     }));
     await toggle.setValue(true);
     expect(wrapper.get<HTMLSelectElement>('#request-timezone-mode').element.value).toBe('manual');
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "gateway");
     await flushPromises();
     expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
       openai_request_timezone_enabled: true,
@@ -1280,7 +1391,7 @@ describe("admin SettingsView payment visible method controls", () => {
     const toggle = wrapper.get<HTMLInputElement>("#request-timezone-enabled");
     expect(toggle.element.checked).toBe(enabled);
     await toggle.setValue(!enabled);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0].openai_request_timezone_enabled).toBe(!enabled);
   });
@@ -1291,7 +1402,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
     expect(wrapper.get<HTMLSelectElement>('#request-timezone-mode').element.value).toBe(auto ? 'auto' : 'manual');
     await wrapper.get('#request-timezone-mode').setValue(auto ? 'manual' : 'auto');
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "gateway");
     await flushPromises();
     expect(updateSettings.mock.calls[0]?.[0].openai_request_timezone_auto).toBe(!auto);
     wrapper.unmount();
@@ -1307,7 +1418,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(wrapper.find("#codex-ticket-enabled").exists()).toBe(false);
     expect(wrapper.find("#codex-ticket-harvest-proxy").exists()).toBe(false);
     expect(wrapper.find('[data-testid="codex-management-links"]').exists()).toBe(true);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "general");
     await flushPromises();
     expect(Object.keys(updateSettings.mock.calls[0]?.[0] ?? {}).filter(key => key.startsWith('openai_codex_ticket_'))).toEqual([]);
     wrapper.unmount();
@@ -1326,7 +1437,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(toggles.map(toggle => toggle.element.checked)).toEqual([false, true]);
     await toggles[0].setValue(true);
     await toggles[1].setValue(false);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "general");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({
@@ -1346,7 +1457,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.get('[data-testid="custom-menu-add"]').trigger("click");
     await wrapper.get('[data-testid="custom-menu-label-zh"]').setValue("充值中心");
     await wrapper.get('[data-testid="custom-menu-label-en"]').setValue("Recharge Center");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "general");
     await flushPromises();
 
     expect(updateSettings.mock.calls[0]?.[0].custom_menu_items).toEqual([
@@ -1367,7 +1478,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect((toggle.element as HTMLInputElement).checked).toBe(false);
 
     await toggle.setValue(true);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "general");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -1398,9 +1509,9 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(userRpmInput.exists()).toBe(true);
     await userRpmInput.setValue("120");
 
-    const saveButton = wrapper.find('[data-testid="panel-rate-limit-save"]');
-    expect(saveButton.exists()).toBe(true);
-    await saveButton.trigger("click");
+    await openSecurityTab(wrapper);
+    expect(wrapper.find('[data-testid="panel-rate-limit-save"]').exists()).toBe(false);
+    await submitTab(wrapper, 'security');
     await flushPromises();
 
     expect(updatePanelRateLimitSettings).toHaveBeenCalledWith({
@@ -1435,13 +1546,13 @@ describe("admin SettingsView payment visible method controls", () => {
     const toggle = wrapper.get('[data-testid="registration-ip-limit-toggle"]');
     expect((toggle.element as HTMLInputElement).checked).toBe(false);
     await toggle.setValue(true);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
     expect(updateSettings).toHaveBeenLastCalledWith(
       expect.objectContaining({ registration_ip_limit_enabled: true, login_rate_limit_enabled: true }),
     );
     await toggle.setValue(false);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
     expect(updateSettings).toHaveBeenLastCalledWith(
       expect.objectContaining({ registration_ip_limit_enabled: false, login_rate_limit_enabled: true }),
@@ -1460,13 +1571,13 @@ describe("admin SettingsView payment visible method controls", () => {
     const initial = enabled ?? true;
     expect(toggle.element.checked).toBe(initial);
     await toggle.setValue(!initial);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
     expect(updateSettings).toHaveBeenLastCalledWith(
       expect.objectContaining({ registration_email_alias_block_enabled: !initial }),
     );
     await toggle.setValue(initial);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
     expect(updateSettings).toHaveBeenLastCalledWith(
       expect.objectContaining({ registration_email_alias_block_enabled: initial }),
@@ -1485,14 +1596,14 @@ describe("admin SettingsView payment visible method controls", () => {
     const toggle = wrapper.get('[data-testid="login-rate-limit-toggle"]');
     expect((toggle.element as HTMLInputElement).checked).toBe(false);
     await toggle.setValue(true);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({ login_rate_limit_enabled: true }),
     );
 
     await toggle.setValue(false);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
     expect(updateSettings).toHaveBeenLastCalledWith(
       expect.objectContaining({ login_rate_limit_enabled: false }),
@@ -1513,7 +1624,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(settings.text()).not.toContain("webauthn.enabled");
 
     await toggle.setValue(false);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -1550,7 +1661,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await inputs[2]!.setValue("cloud-secret-id-value");
     await inputs[3]!.setValue("cloud-secret-key-value");
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -1585,7 +1696,7 @@ describe("admin SettingsView payment visible method controls", () => {
     );
     expect(card!.get('a[href="https://console.tencentcloud.com/cam/capi"]').exists()).toBe(true);
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -1619,7 +1730,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await inputs[2]!.setValue("ak-id");
     await inputs[3]!.setValue("ak-secret-value");
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -1655,7 +1766,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(wrapper.text()).toContain("admin.settings.tencentCaptcha.appId");
 
     await masterToggle.setValue(false);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -1739,7 +1850,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await toggle.setValue(true);
     expect(card!.text()).toContain("X-Client-Ip");
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -1806,7 +1917,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect((notice.element as HTMLTextAreaElement).value).toBe("满 100 送 20%");
     await notice.setValue("**新活动**");
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "payment");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -1836,7 +1947,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.get('[data-testid="recharge-bonus-tier-add"]').trigger("click");
     expect(wrapper.findAll('[data-testid="recharge-bonus-tier-row"]')).toHaveLength(1);
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "payment");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -1873,7 +1984,7 @@ describe("admin SettingsView payment visible method controls", () => {
 
     await flushPromises();
     await openPaymentTab(wrapper);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "payment");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
@@ -1939,7 +2050,7 @@ describe("admin SettingsView payment visible method controls", () => {
     const wrapper = mountView();
 
     await flushPromises();
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "features");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
@@ -1960,12 +2071,13 @@ describe("admin SettingsView payment visible method controls", () => {
 
     const wrapper = mountView();
     await flushPromises();
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "features");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ affiliate_signup_bonus: 5, default_balance: 2 }),
+      expect.objectContaining({ affiliate_signup_bonus: 5 }),
     );
+    expect(updateSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty("default_balance");
   });
 
   it("round-trips first-recharge gift settings independently of signup gifts and regular rebates", async () => {
@@ -1985,7 +2097,7 @@ describe("admin SettingsView payment visible method controls", () => {
       affiliate_signup_bonus: 5, affiliate_rebate_rate: 10,
       affiliate_first_recharge_bonus: 7.25, affiliate_first_recharge_min_amount: 12.5,
     });
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({
       affiliate_first_recharge_bonus: 7.25, affiliate_first_recharge_min_amount: 12.5,
@@ -2003,7 +2115,7 @@ describe("admin SettingsView payment visible method controls", () => {
     const wrapper = mountView();
     await flushPromises();
     await wrapper.find(`#${id}`).setValue('-1');
-    await wrapper.find('form').trigger('submit.prevent');
+    await submitTab(wrapper, "features");
     await flushPromises();
     expect(updateSettings).not.toHaveBeenCalled();
     expect(showError).toHaveBeenCalledWith('admin.settings.features.affiliate.firstRechargeAmountInvalid');
@@ -2018,7 +2130,7 @@ describe("admin SettingsView payment visible method controls", () => {
     const wrapper = mountView();
 
     await flushPromises();
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
@@ -2038,7 +2150,7 @@ describe("admin SettingsView payment visible method controls", () => {
     const wrapper = mountView();
 
     await flushPromises();
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
@@ -2060,7 +2172,7 @@ describe("admin SettingsView payment visible method controls", () => {
     const wrapper = mountView();
 
     await flushPromises();
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
@@ -2094,7 +2206,7 @@ describe("admin SettingsView payment visible method controls", () => {
     const wrapper = mountView();
 
     await flushPromises();
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
@@ -2239,7 +2351,7 @@ describe("admin SettingsView payment visible method controls", () => {
 
     await card.get('[data-testid="upstream-billing-probe-enabled"]').setValue(true);
     await card.get('[data-testid="upstream-billing-probe-interval"]').setValue(60);
-    await card.get('[data-testid="upstream-billing-probe-save"]').trigger("click");
+    await submitTab(wrapper, 'gateway');
     await flushPromises();
 
     expect(updateUpstreamBillingProbeSettings).toHaveBeenCalledWith({
@@ -2269,7 +2381,7 @@ describe("admin SettingsView payment visible method controls", () => {
 
     await modelInput.setValue("grok-custom-text");
     await mappingToggle.setValue(false);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
 
     const payload = updateSettings.mock.calls.at(-1)?.[0] as Record<string, unknown>;
@@ -2293,7 +2405,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect((sourceURLToggle.element as HTMLInputElement).checked).toBe(true);
 
     await sourceURLToggle.setValue(false);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
 
     const payload = updateSettings.mock.calls.at(-1)?.[0] as Record<string, unknown>;
@@ -2314,7 +2426,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect((modeSelect.element as HTMLSelectElement).value).toBe("visible");
 
     await modeSelect.setValue("semantic");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
 
     const payload = updateSettings.mock.calls.at(-1)?.[0] as Record<string, unknown>;
@@ -2338,7 +2450,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await card.get('[data-testid="ollama-cloud-usage-global-enabled"]').setValue(true);
     await card.get('[data-testid="ollama-cloud-usage-global-debounce"]').setValue(3);
     await card.get('[data-testid="ollama-cloud-usage-global-interval"]').setValue(90);
-    await card.get('[data-testid="ollama-cloud-usage-global-save"]').trigger("click");
+    await submitTab(wrapper, 'gateway');
     await flushPromises();
 
     expect(updateOllamaCloudUsageSettings).toHaveBeenCalledWith({
@@ -2360,20 +2472,20 @@ describe("admin SettingsView payment visible method controls", () => {
     const input = wrapper.get('[data-testid="openai-oauth-scheduling-rate-multiplier"]');
     expect(input.attributes("required")).toBeUndefined();
     await input.setValue("");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
     expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
       openai_oauth_scheduling_rate_multiplier: null,
     }));
     await input.setValue("0");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
     expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
       openai_oauth_scheduling_rate_multiplier: 0,
     }));
     updateSettings.mockClear();
     await input.setValue("-1");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
     expect(updateSettings).not.toHaveBeenCalled();
     expect(showError).toHaveBeenCalledWith("OAuth 调度参考倍率必须是非负数字，或留空以使用账号倍率。");
@@ -2389,7 +2501,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
     const input = wrapper.get<HTMLInputElement>('[data-testid="openai-oauth-scheduling-rate-multiplier"]');
     expect(input.element.value).toBe("");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
     expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({
       openai_oauth_scheduling_rate_multiplier: null,
@@ -2421,7 +2533,7 @@ describe("admin SettingsView payment visible method controls", () => {
       '[data-testid="openai-oauth-scheduling-rate-multiplier"]',
     );
     await oauthRateInput.setValue("0.05");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "gateway");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledWith(
@@ -2722,7 +2834,7 @@ describe("admin SettingsView wechat connect controls", () => {
     await wrapper
       .get('[data-testid="wechat-connect-frontend-redirect-url"]')
       .setValue("/auth/wechat/callback");
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
@@ -2791,7 +2903,7 @@ describe("admin SettingsView wechat connect controls", () => {
 
     await flushPromises();
     await openSecurityTab(wrapper);
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "security");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
@@ -2869,7 +2981,7 @@ describe("admin SettingsView platform quota matrix", () => {
     await flushPromises();
     await openUsersTab(wrapper);
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "users");
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalled();
@@ -2908,7 +3020,7 @@ describe("admin SettingsView platform quota matrix", () => {
     await flushPromises();
     await openUsersTab(wrapper);
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "users");
     await flushPromises();
 
     const payload = updateSettings.mock.calls.at(-1)![0] as Record<string, unknown>;
@@ -2950,7 +3062,7 @@ describe("admin SettingsView platform quota matrix", () => {
       await anthropicDailyInput.setValue("");
     }
 
-    await wrapper.find("form").trigger("submit.prevent");
+    await submitTab(wrapper, "users");
     await flushPromises();
 
     const payload = updateSettings.mock.calls.at(-1)![0] as Record<string, unknown>;

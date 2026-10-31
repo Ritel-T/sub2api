@@ -9,7 +9,8 @@
       </div>
 
       <!-- Settings Form -->
-      <form v-else @submit.prevent="saveSettings" class="space-y-6" novalidate>
+      <form v-else @submit.prevent="saveSection(activeTab)" class="space-y-6" novalidate>
+        <fieldset :disabled="sectionSaving !== null" class="min-w-0 space-y-6">
         <!-- Tab Navigation -->
         <div class="settings-tabs-shell">
           <nav
@@ -38,7 +39,7 @@
                 </span>
                 <span class="settings-tab-label">{{
                   t(`admin.settings.tabs.${tab.key}`)
-                }}</span>
+                }}</span><span v-if="sectionDirty(tab.key)" aria-hidden="true">•</span>
               </button>
             </div>
           </nav>
@@ -166,7 +167,7 @@
 
         <!-- Tab: Gateway -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
-          <ServerlessSettings v-if="activeTab === 'gateway'" />
+          <ServerlessSettings ref="serverlessSettings" managed />
           <div class="open-settings-section" data-testid="prism-browser-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ localText("Prism 浏览器桥", "Prism browser bridge") }}</AppHeading>
@@ -188,7 +189,7 @@
             </div>
           </div>
           <!-- Overload Cooldown (529) Settings -->
-          <div class="open-settings-section">
+          <fieldset class="min-w-0" :disabled="!drafts.has('overload')"><div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -248,51 +249,14 @@
                     </p>
                   </div>
                 </div>
-
-                <div
-                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <button
-                    type="button"
-                    @click="saveOverloadCooldownSettings"
-                    :disabled="overloadCooldownSaving"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <svg
-                      v-if="overloadCooldownSaving"
-                      class="mr-1 h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    {{
-                      overloadCooldownSaving
-                        ? t("common.saving")
-                        : t("common.save")
-                    }}
-                  </button>
-                </div>
               </template>
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
 
           <!-- Rate Limit Cooldown (429) Settings -->
-          <div class="open-settings-section">
+          <fieldset class="min-w-0" :disabled="!drafts.has('rateLimit429')"><div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -358,51 +322,14 @@
                     </p>
                   </div>
                 </div>
-
-                <div
-                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <button
-                    type="button"
-                    @click="saveRateLimit429CooldownSettings"
-                    :disabled="rateLimit429CooldownSaving"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <svg
-                      v-if="rateLimit429CooldownSaving"
-                      class="mr-1 h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    {{
-                      rateLimit429CooldownSaving
-                        ? t("common.saving")
-                        : t("common.save")
-                    }}
-                  </button>
-                </div>
               </template>
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
 
           <!-- Stream Timeout Settings -->
-          <div class="open-settings-section">
+          <fieldset class="min-w-0" :disabled="!drafts.has('streamTimeout')"><div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -542,50 +469,14 @@
                 </div>
 
                 <!-- Save Button -->
-                <div
-                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <button
-                    type="button"
-                    @click="saveStreamTimeoutSettings"
-                    :disabled="streamTimeoutSaving"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <svg
-                      v-if="streamTimeoutSaving"
-                      class="mr-1 h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    {{
-                      streamTimeoutSaving
-                        ? t("common.saving")
-                        : t("common.save")
-                    }}
-                  </button>
-                </div>
               </template>
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
 
           <!-- Request Rectifier Settings -->
-          <div class="open-settings-section">
+          <fieldset class="min-w-0" :disabled="!drafts.has('rectifier')"><div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -747,47 +638,13 @@
                 </div>
 
                 <!-- Save Button -->
-                <div
-                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <button
-                    type="button"
-                    @click="saveRectifierSettings"
-                    :disabled="rectifierSaving"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <svg
-                      v-if="rectifierSaving"
-                      class="mr-1 h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    {{
-                      rectifierSaving ? t("common.saving") : t("common.save")
-                    }}
-                  </button>
-                </div>
               </template>
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
           <!-- Beta Policy Settings -->
-          <div class="open-settings-section">
+          <fieldset class="min-w-0" :disabled="!drafts.has('betaPolicy')"><div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1029,45 +886,11 @@
                 </div>
 
                 <!-- Save Button -->
-                <div
-                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <button
-                    type="button"
-                    @click="saveBetaPolicySettings"
-                    :disabled="betaPolicySaving"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <svg
-                      v-if="betaPolicySaving"
-                      class="mr-1 h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    {{
-                      betaPolicySaving ? t("common.saving") : t("common.save")
-                    }}
-                  </button>
-                </div>
               </template>
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
           <!-- OpenAI Fast/Flex Policy Settings -->
           <div class="open-settings-section">
             <div
@@ -1908,7 +1731,7 @@
           </div>
 
           <!-- Panel API Rate Limit Settings -->
-          <div class="open-settings-section">
+          <fieldset class="min-w-0" :disabled="!drafts.has('panelRateLimit')"><div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -2057,49 +1880,11 @@
                     <Toggle :aria-label="t('admin.settings.panelRateLimit.exemptAdmin')" v-model="panelRateLimitForm.exempt_admin" />
                   </div>
                 </div>
-
-                <div
-                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <button
-                    type="button"
-                    data-testid="panel-rate-limit-save"
-                    @click="savePanelRateLimitSettings"
-                    :disabled="panelRateLimitSaving"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <svg
-                      v-if="panelRateLimitSaving"
-                      class="mr-1 h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    {{
-                      panelRateLimitSaving
-                        ? t("common.saving")
-                        : t("common.save")
-                    }}
-                  </button>
-                </div>
               </template>
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
 
           <!-- 人机验证 Settings -->
           <div class="open-settings-section">
@@ -4834,7 +4619,7 @@
           </div>
 
           <!-- Upstream Billing Probe Settings -->
-          <div class="open-settings-section" data-testid="upstream-billing-probe-settings">
+          <fieldset class="min-w-0" :disabled="!drafts.has('upstreamBillingProbe')"><div class="open-settings-section" data-testid="upstream-billing-probe-settings">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -4898,32 +4683,14 @@
                     {{ t("admin.settings.upstreamBillingProbe.intervalHint") }}
                   </p>
                 </div>
-
-                <div
-                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <button
-                    type="button"
-                    class="btn btn-primary btn-sm"
-                    :disabled="upstreamBillingProbeSaving"
-                    data-testid="upstream-billing-probe-save"
-                    @click="saveUpstreamBillingProbeSettings"
-                  >
-                    {{
-                      upstreamBillingProbeSaving
-                        ? t("common.saving")
-                        : t("common.save")
-                    }}
-                  </button>
-                </div>
               </template>
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
 
           <!-- Ollama Cloud Usage Settings -->
-          <div class="open-settings-section" data-testid="ollama-cloud-usage-global-settings">
+          <fieldset class="min-w-0" :disabled="!drafts.has('ollamaCloudUsage')"><div class="open-settings-section" data-testid="ollama-cloud-usage-global-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <AppHeading variant="section" as="h2" id="settings-section-ollama-cloud-usage" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.ollamaCloudUsage.title") }}
@@ -4992,25 +4759,14 @@
                     </p>
                   </div>
                 </div>
-                <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
-                  <button
-                    type="button"
-                    class="btn btn-primary btn-sm"
-                    :disabled="ollamaCloudUsageSaving"
-                    data-testid="ollama-cloud-usage-global-save"
-                    @click="saveOllamaCloudUsageSettings"
-                  >
-                    {{ ollamaCloudUsageSaving ? t("common.saving") : t("common.save") }}
-                  </button>
-                </div>
               </template>
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
 
           <!-- OpenCode Go Usage Settings -->
-          <div class="open-settings-section" data-testid="opencode-go-usage-global-settings">
+          <fieldset class="min-w-0" :disabled="!drafts.has('opencodeGoUsage')"><div class="open-settings-section" data-testid="opencode-go-usage-global-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <AppHeading variant="section" as="h2" id="settings-section-opencode-go-usage" tabindex="-1" class="text-gray-900 dark:text-white">
                 {{ t("admin.settings.opencodeGoUsage.title") }}
@@ -5079,22 +4835,11 @@
                     </p>
                   </div>
                 </div>
-                <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
-                  <button
-                    type="button"
-                    class="btn btn-primary btn-sm"
-                    :disabled="opencodeGoUsageSaving"
-                    data-testid="opencode-go-usage-global-save"
-                    @click="saveOpenCodeGoUsageSettings"
-                  >
-                    {{ opencodeGoUsageSaving ? t("common.saving") : t("common.save") }}
-                  </button>
-                </div>
               </template>
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
 
           <!-- Gateway Scheduling Settings -->
           <div class="open-settings-section">
@@ -6040,7 +5785,7 @@
           </div>
 
           <!-- Web Search Emulation -->
-          <div class="open-settings-section">
+          <fieldset class="min-w-0" :disabled="!drafts.has('webSearch')"><div class="open-settings-section">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -6393,7 +6138,7 @@
             </div>
 
             </div>
-          </div>
+          </div></fieldset>
 
           <!-- Web Search Test Dialog -->
           <BaseDialog :show="wsTestDialogOpen" :title="t('admin.settings.webSearchEmulation.testResultTitle')" width="normal" :close-on-escape="!wsTestLoading" :close-on-click-outside="!wsTestLoading" :show-close-button="!wsTestLoading" @close="!wsTestLoading && (wsTestDialogOpen = false)">
@@ -9389,43 +9134,11 @@
 
         <!-- Tab: Backup -->
         <div v-show="activeTab === 'backup'">
-          <BackupSettings />
+          <BackupSettings ref="backupSettings" managed />
         </div>
 
-        <!-- Save Button -->
-        <div v-show="activeTab !== 'backup'" class="flex justify-end">
-          <button
-            type="submit"
-            :disabled="saving || loadFailed"
-            class="btn btn-primary"
-          >
-            <svg
-              v-if="saving"
-              class="h-4 w-4 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              ></circle>
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-            {{
-              saving
-                ? t("admin.settings.saving")
-                : t("admin.settings.saveSettings")
-            }}
-          </button>
-        </div>
+        <SettingsSaveBar :dirty="sectionDirty(activeTab)" :busy="sectionSaving !== null" :disabled="loadFailed || (activeTab === 'backup' && backupSettings?.valid === false)" :label="t(`admin.settings.tabs.${activeTab}`)" @save="saveSection(activeTab)" @discard="discardSection(activeTab)" />
+        </fieldset>
       </form>
 
       <!-- Provider dialogs placed outside the settings form to prevent form submission bubbling -->
@@ -9467,9 +9180,14 @@
   </AppLayout>
 
   <ConfirmationPrompt :confirmation="confirmation" />
+  <ConfirmationPrompt :confirmation="leaveConfirmation" />
 </template>
 
 <script setup lang="ts">
+import SettingsSaveBar from '@/components/settings/SettingsSaveBar.vue'
+import { useSettingsDrafts, cloneDraft, SETTINGS_LEAVE_GUARD } from '@/composables/useSettingsDrafts'
+import { SETTINGS_SECTION_FIELDS } from '@/utils/settingsSections'
+import { onBeforeRouteLeave } from 'vue-router'
 import MoreActions from '@/components/common/MoreActions.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -9479,7 +9197,7 @@ import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmati
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { localizeInlineText } from "@/i18n/inline";
 import { excelBPSImageLimits } from "@/utils/excelBPSImageLimits";
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, watch, provide } from "vue";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import { useI18n } from "vue-i18n";
 import { useSettingsNavigation } from "@/composables/useSettingsNavigation";
@@ -10998,9 +10716,11 @@ async function loadWebSearchConfig() {
       webSearchConfig.providers = resp.providers || [];
     }
     webSearchProxies.value = proxiesResp.items || [];
+    drafts.mark('webSearch');
   } catch (err: unknown) {
     // 404 is expected when config hasn't been created yet; show error for other failures
     const status = (err as { status?: number })?.status;
+    if (status === 404) drafts.mark('webSearch');
     if (status !== 404 && status !== undefined) {
       appStore.showError(extractApiErrorMessage(err, t("common.error")));
     }
@@ -11028,6 +10748,7 @@ async function saveWebSearchConfig(): Promise<boolean> {
       enabled: webSearchConfig.enabled,
       providers,
     });
+    drafts.mark('webSearch');
     return true;
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t("common.error")));
@@ -11797,6 +11518,7 @@ async function loadSettings() {
 
     // Load web search emulation config separately
     await loadWebSearchConfig();
+    primeMainDrafts();
   } catch (error: unknown) {
     loadFailed.value = true;
     appStore.showError(
@@ -11893,18 +11615,19 @@ const siteBillingModeHint = computed(() =>
   t(`admin.settings.features.siteBillingMode.hints.${SITE_BILLING_MODE_I18N_KEYS[siteBillingMode.value]}`),
 );
 
-async function saveSettings() {
+async function saveSettings(section: SettingsTab = activeTab.value): Promise<boolean> {
+  const form = scopedSettingsForm(section);
   saving.value = true;
   try {
-    const ccsImportError = ccsImportSettings.value?.validate();
+    const ccsImportError = section === 'general' ? ccsImportSettings.value?.validate() : undefined;
     if (ccsImportError) {
       appStore.showError(ccsImportError);
-      return;
+      return false;
     }
-    const retailError = validateBalanceRetailSettings(retailPricingSettings.value);
+    const retailError = section === 'payment' ? validateBalanceRetailSettings(retailPricingSettings.value) : undefined;
     if (retailError) {
       appStore.showError(t(retailError));
-      return;
+      return false;
     }
     const imageBaseUrl = form.excel_bps_image_base_url.trim();
     if ((form.excel_bps_image_relay_enabled && form.excel_bps_image_mode === 'relay') || imageBaseUrl) {
@@ -11917,7 +11640,7 @@ async function saveSettings() {
         form.excel_bps_image_base_url = parsed.origin;
       } catch {
         appStore.showError(t('admin.settings.features.excelBpsImages.invalidBaseUrl'));
-        return;
+        return false;
       }
     }
     if (
@@ -11926,7 +11649,7 @@ async function saveSettings() {
       !Number.isInteger(form.excel_bps_image_max_requests) || form.excel_bps_image_max_requests < 1 || form.excel_bps_image_max_requests > excelBPSImageLimits.requests
     ) {
       appStore.showError(t('admin.settings.features.excelBpsImages.invalidCapacity', excelBPSImageLimits));
-      return;
+      return false;
     }
     if (
       !Number.isInteger(form.excel_bps_image_max_image_mib) || form.excel_bps_image_max_image_mib < 1 || form.excel_bps_image_max_image_mib > excelBPSImageLimits.imageMiB ||
@@ -11943,7 +11666,7 @@ async function saveSettings() {
       form.excel_bps_image_storage_entries < form.excel_bps_image_max_images
     ) {
       appStore.showError(t('admin.settings.features.excelBpsImages.invalidLimits'));
-      return;
+      return false;
     }
     const normalizedTableDefaultPageSize = Math.floor(
       Number(form.table_default_page_size),
@@ -11959,11 +11682,11 @@ async function saveSettings() {
           max: tablePageSizeMax,
         }),
       );
-      return;
+      return false;
     }
 
     const normalizedTablePageSizeOptions = parseTablePageSizeOptionsInput(
-      tablePageSizeOptionsInput.value,
+      section === 'general' ? tablePageSizeOptionsInput.value : formatTablePageSizeOptions(form.table_page_size_options),
     );
     if (!normalizedTablePageSizeOptions) {
       appStore.showError(
@@ -11972,14 +11695,14 @@ async function saveSettings() {
           max: tablePageSizeMax,
         }),
       );
-      return;
+      return false;
     }
 
     form.table_default_page_size = normalizedTableDefaultPageSize;
     form.table_page_size_options = normalizedTablePageSizeOptions;
 
     const normalizedLoginAgreementDocuments =
-      normalizeLoginAgreementDocumentsForSave();
+      section === 'agreement' ? normalizeLoginAgreementDocumentsForSave() : form.login_agreement_documents;
     if (form.login_agreement_enabled && normalizedLoginAgreementDocuments.length === 0) {
       appStore.showError(
         localText(
@@ -11987,7 +11710,7 @@ async function saveSettings() {
           "At least one document is required when login agreement is enabled.",
         ),
       );
-      return;
+      return false;
     }
     const emptyTitleDocument = normalizedLoginAgreementDocuments.find(
       (doc) => !doc.title,
@@ -11999,7 +11722,7 @@ async function saveSettings() {
           "Login agreement document title cannot be empty.",
         ),
       );
-      return;
+      return false;
     }
     const duplicateLoginAgreementDocumentId =
       findDuplicateLoginAgreementDocumentId(normalizedLoginAgreementDocuments);
@@ -12010,7 +11733,7 @@ async function saveSettings() {
           `Login agreement document routes cannot be duplicated: /legal/${duplicateLoginAgreementDocumentId}`,
         ),
       );
-      return;
+      return false;
     }
     form.login_agreement_mode =
       form.login_agreement_mode === "checkbox" ? "checkbox" : "modal";
@@ -12031,10 +11754,10 @@ async function saveSettings() {
           groupId: duplicateDefaultSubscription.group_id,
         }),
       );
-      return;
+      return false;
     }
 
-    for (const authSource of authSourceDefaultsMeta.value) {
+    for (const authSource of (section === 'users' ? authSourceDefaultsMeta.value : [])) {
       authSourceDefaults[authSource.source].subscriptions =
         normalizeDefaultSubscriptionSettings(
           authSourceDefaults[authSource.source].subscriptions,
@@ -12051,7 +11774,7 @@ async function saveSettings() {
             },
           )}`,
         );
-        return;
+        return false;
       }
     }
 
@@ -12062,7 +11785,7 @@ async function saveSettings() {
           "Official Account and Mobile App cannot be enabled at the same time.",
         ),
       );
-      return;
+      return false;
     }
     // Validate URL fields — novalidate disables browser-native checks, so we validate here
     const isValidHttpUrl = (url: string): boolean => {
@@ -12077,17 +11800,16 @@ async function saveSettings() {
     // Optional URL fields: auto-clear invalid values so they don't cause backend 400 errors
     if (!isValidHttpUrl(form.frontend_url)) form.frontend_url = "";
     if (!isValidHttpUrl(form.doc_url)) form.doc_url = "";
-    syncWeChatConnectMode();
+    if (section === 'security') syncWeChatConnectMode();
     const wechatStoredMode = deriveWeChatConnectStoredMode(
       form.wechat_connect_open_enabled,
       form.wechat_connect_mp_enabled,
       form.wechat_connect_mobile_enabled,
       form.wechat_connect_mode,
     );
-    const claudeOAuthSystemPromptBlocksJSON =
-      serializeClaudeOAuthSystemPromptBlocksToJSON(
-        claudeOAuthSystemPromptBlocks.value,
-      );
+    const claudeOAuthSystemPromptBlocksJSON = section === 'gateway'
+      ? serializeClaudeOAuthSystemPromptBlocksToJSON(claudeOAuthSystemPromptBlocks.value)
+      : form.claude_oauth_system_prompt_blocks;
     form.claude_oauth_system_prompt_blocks =
       claudeOAuthSystemPromptBlocksJSON;
 
@@ -12098,7 +11820,7 @@ async function saveSettings() {
       (!Number.isFinite(oauthSchedulingRate) || oauthSchedulingRate < 0)
     ) {
       appStore.showError(t("admin.settings.openaiExperimentalScheduler.oauthRateInvalid"));
-      return;
+      return false;
     }
 
     const firstRechargeBonus = Number(form.affiliate_first_recharge_bonus);
@@ -12108,7 +11830,7 @@ async function saveSettings() {
       !Number.isFinite(firstRechargeMinAmount) || firstRechargeMinAmount < 0
     ) {
       appStore.showError(t("admin.settings.features.affiliate.firstRechargeAmountInvalid"));
-      return;
+      return false;
     }
 
     const payload: UpdateSettingsRequest = {
@@ -12528,99 +12250,21 @@ async function saveSettings() {
     payload.account_scheduling_thresholds = sanitizeAccountSchedulingThresholdsMap(
       form.account_scheduling_thresholds,
     );
-    appendAuthSourceDefaultsToUpdateRequest(payload, authSourceDefaults);
+    if (section === 'users') appendAuthSourceDefaultsToUpdateRequest(payload, authSourceDefaults);
 
-    const updated = await settingsStepUp.run(() =>
-      adminAPI.settings.updateSettings(payload),
-    );
-    for (const [key, value] of Object.entries(updated)) {
-      if (key === "openai_fast_policy_settings") continue;
-      if (value !== null && value !== undefined) {
-        (form as Record<string, unknown>)[key] = value;
-      }
-    }
-    if (updated.openai_oauth_scheduling_rate_multiplier === null) {
-      form.openai_oauth_scheduling_rate_multiplier = null;
-    }
-    Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(updated));
-    loadedChannelMonitorMode = form.channel_monitor_mode || 'v1';
-    form.default_platform_quotas = normalizePlatformQuotasMap(updated.default_platform_quotas);
-    form.account_scheduling_thresholds = normalizeAccountSchedulingThresholdsMap(
-      updated.account_scheduling_thresholds,
-    );
-    registrationEmailSuffixWhitelistTags.value =
-      normalizeRegistrationEmailSuffixDomains(
-        updated.registration_email_suffix_whitelist,
-      );
-    form.forwarded_client_ip_headers = normalizeForwardedClientIpHeaders(
-      updated.forwarded_client_ip_headers,
-    );
-    forwardedClientIpHeaderDraft.value = "";
-    tablePageSizeOptionsInput.value = formatTablePageSizeOptions(
-      Array.isArray(updated.table_page_size_options)
-        ? updated.table_page_size_options
-        : [10, 20, 50, 100],
-    );
-    registrationEmailSuffixWhitelistDraft.value = "";
-    form.smtp_password = "";
-    smtpPasswordManuallyEdited.value = false;
-    form.turnstile_secret_key = "";
-    form.aliyun_captcha_access_key_secret = "";
-    form.linuxdo_connect_client_secret = "";
-    form.dingtalk_connect_client_secret = "";
-    form.github_oauth_client_secret = "";
-    form.google_oauth_client_secret = "";
-    form.wechat_connect_app_secret = "";
-    form.wechat_connect_open_app_secret = "";
-    form.wechat_connect_mp_app_secret = "";
-    form.wechat_connect_mobile_app_secret = "";
-    const updatedWechatCapabilities = resolveWeChatConnectModeCapabilities(
-      updated.wechat_connect_open_enabled,
-      updated.wechat_connect_mp_enabled,
-      updated.wechat_connect_mobile_enabled,
-      updated.wechat_connect_mode,
-    );
-    form.wechat_connect_open_enabled = updatedWechatCapabilities.openEnabled;
-    form.wechat_connect_mp_enabled = updatedWechatCapabilities.mpEnabled;
-    form.wechat_connect_mobile_enabled =
-      updatedWechatCapabilities.mobileEnabled;
-    form.wechat_connect_mode = deriveWeChatConnectStoredMode(
-      updatedWechatCapabilities.openEnabled,
-      updatedWechatCapabilities.mpEnabled,
-      updatedWechatCapabilities.mobileEnabled,
-      updated.wechat_connect_mode,
-    );
-    form.wechat_connect_scopes = defaultWeChatConnectScopesForMode(
-      form.wechat_connect_mode,
-    );
-    form.oidc_connect_client_secret = "";
-    // Refresh OpenAI fast/flex policy from server response
-    if (
-      updated.openai_fast_policy_settings &&
-      Array.isArray(updated.openai_fast_policy_settings.rules)
-    ) {
-      openaiFastPolicyForm.rules =
-        updated.openai_fast_policy_settings.rules.map((rule) => ({
-          ...rule,
-          user_ids: rule.user_ids ? [...rule.user_ids] : [],
-          model_whitelist: rule.model_whitelist
-            ? [...rule.model_whitelist]
-            : [],
-        }));
-      openaiFastPolicyLoaded.value = true;
-    }
-    // Save web search emulation config separately (errors handled internally)
-    const wsOk = await saveWebSearchConfig();
-    // Refresh cached settings so sidebar/header update immediately
+    const scopedPayload = sectionPayload(section, payload);
+    if (Object.keys(scopedPayload).length === 0) { drafts.mark('form:' + section); return true; }
+    const submitted = mainSnapshot(section);
+    const updated = await settingsStepUp.run(() => adminAPI.settings.updateSettings(scopedPayload));
+    acceptMainResult(section, submitted, updated, scopedPayload);
     await appStore.fetchPublicSettings(true);
     await adminSettingsStore.fetch(true);
-    if (wsOk) {
-      appStore.showSuccess(t("admin.settings.settingsSaved"));
-    }
+    appStore.showSuccess(t("admin.settings.settingsSaved"));
+    return true;
   } catch (error: unknown) {
     // 用户取消 step-up 验证：静默返回，不弹错误
     if (isStepUpCancelled(error)) {
-      return;
+      return false;
     }
     if (isStepUpBlocked(error)) {
       appStore.showError(
@@ -12628,18 +12272,19 @@ async function saveSettings() {
           ? t("stepUp.adminApiKeyForbidden")
           : t("stepUp.notEnabled"),
       );
-      return;
+      return false;
     }
     // 开启 step-up 开关但本人未启用 2FA：给出可操作的专用提示
     if (
       (error as { reason?: string })?.reason === "STEP_UP_ENABLE_REQUIRES_TOTP"
     ) {
       appStore.showError(t("admin.settings.security.stepUpEnableRequiresTotp"));
-      return;
+      return false;
     }
     appStore.showError(
       extractApiErrorMessage(error, t("admin.settings.failedToSave")),
     );
+    return false;
   } finally {
     saving.value = false;
   }
@@ -12782,6 +12427,7 @@ async function loadUpstreamBillingProbeSettings() {
       upstreamBillingProbeForm,
       await adminAPI.accounts.getUpstreamBillingProbeSettings(),
     );
+      drafts.mark('upstreamBillingProbe');
   } catch (_error: unknown) {
     // Keep defaults when this optional setting cannot be loaded.
   } finally {
@@ -12797,6 +12443,7 @@ async function saveUpstreamBillingProbeSettings() {
     });
     Object.assign(upstreamBillingProbeForm, updated);
     appStore.showSuccess(t("admin.settings.upstreamBillingProbe.saved"));
+      drafts.mark('upstreamBillingProbe');
   } catch (error: unknown) {
     appStore.showError(
       extractApiErrorMessage(
@@ -12816,6 +12463,7 @@ async function loadOllamaCloudUsageSettings() {
       ollamaCloudUsageForm,
       await adminAPI.accounts.getOllamaCloudUsageSettings(),
     );
+      drafts.mark('ollamaCloudUsage');
   } catch (_error: unknown) {
     // Keep the fail-safe disabled defaults when this optional setting cannot be loaded.
   } finally {
@@ -12831,6 +12479,7 @@ async function saveOllamaCloudUsageSettings() {
     });
     Object.assign(ollamaCloudUsageForm, updated);
     appStore.showSuccess(t("admin.settings.ollamaCloudUsage.saved"));
+      drafts.mark('ollamaCloudUsage');
   } catch (error: unknown) {
     appStore.showError(
       extractApiErrorMessage(error, t("admin.settings.ollamaCloudUsage.saveFailed")),
@@ -12847,6 +12496,7 @@ async function loadOpenCodeGoUsageSettings() {
       opencodeGoUsageForm,
       await adminAPI.accounts.getOpenCodeGoUsageSettings(),
     );
+      drafts.mark('opencodeGoUsage');
   } catch (_error: unknown) {
     // Keep the fail-safe disabled defaults when this optional setting cannot be loaded.
   } finally {
@@ -12862,6 +12512,7 @@ async function saveOpenCodeGoUsageSettings() {
     });
     Object.assign(opencodeGoUsageForm, updated);
     appStore.showSuccess(t("admin.settings.opencodeGoUsage.saved"));
+      drafts.mark('opencodeGoUsage');
   } catch (error: unknown) {
     appStore.showError(
       extractApiErrorMessage(error, t("admin.settings.opencodeGoUsage.saveFailed")),
@@ -12877,6 +12528,7 @@ async function loadOverloadCooldownSettings() {
   try {
     const settings = await adminAPI.settings.getOverloadCooldownSettings();
     Object.assign(overloadCooldownForm, settings);
+      drafts.mark('overload');
   } catch (_error: unknown) {
     // Silent fail - settings will use defaults
   } finally {
@@ -12893,6 +12545,7 @@ async function saveOverloadCooldownSettings() {
     });
     Object.assign(overloadCooldownForm, updated);
     appStore.showSuccess(t("admin.settings.overloadCooldown.saved"));
+      drafts.mark('overload');
   } catch (error: unknown) {
     appStore.showError(
       extractApiErrorMessage(
@@ -12911,6 +12564,7 @@ async function loadPanelRateLimitSettings() {
   try {
     const settings = await adminAPI.settings.getPanelRateLimitSettings();
     Object.assign(panelRateLimitForm, settings);
+      drafts.mark('panelRateLimit');
   } catch (_error: unknown) {
     // Silent fail - settings will use defaults
   } finally {
@@ -12930,6 +12584,7 @@ async function savePanelRateLimitSettings() {
     });
     Object.assign(panelRateLimitForm, updated);
     appStore.showSuccess(t("admin.settings.panelRateLimit.saved"));
+      drafts.mark('panelRateLimit');
   } catch (error: unknown) {
     appStore.showError(
       extractApiErrorMessage(
@@ -12948,6 +12603,7 @@ async function loadRateLimit429CooldownSettings() {
   try {
     const settings = await adminAPI.settings.getRateLimit429CooldownSettings();
     Object.assign(rateLimit429CooldownForm, settings);
+      drafts.mark('rateLimit429');
   } catch (_error: unknown) {
     // Silent fail - settings will use defaults
   } finally {
@@ -12964,6 +12620,7 @@ async function saveRateLimit429CooldownSettings() {
     });
     Object.assign(rateLimit429CooldownForm, updated);
     appStore.showSuccess(t("admin.settings.rateLimit429Cooldown.saved"));
+      drafts.mark('rateLimit429');
   } catch (error: unknown) {
     appStore.showError(
       extractApiErrorMessage(
@@ -12982,6 +12639,7 @@ async function loadStreamTimeoutSettings() {
   try {
     const settings = await adminAPI.settings.getStreamTimeoutSettings();
     Object.assign(streamTimeoutForm, settings);
+      drafts.mark('streamTimeout');
   } catch (_error: unknown) {
     // Silent fail - settings will use defaults
   } finally {
@@ -13001,6 +12659,7 @@ async function saveStreamTimeoutSettings() {
     });
     Object.assign(streamTimeoutForm, updated);
     appStore.showSuccess(t("admin.settings.streamTimeout.saved"));
+      drafts.mark('streamTimeout');
   } catch (error: unknown) {
     appStore.showError(
       extractApiErrorMessage(
@@ -13023,6 +12682,7 @@ async function loadRectifierSettings() {
     if (!Array.isArray(rectifierForm.apikey_signature_patterns)) {
       rectifierForm.apikey_signature_patterns = [];
     }
+      drafts.mark('rectifier');
   } catch (_error: unknown) {
     // Silent fail - settings will use defaults
   } finally {
@@ -13047,6 +12707,7 @@ async function saveRectifierSettings() {
       rectifierForm.apikey_signature_patterns = [];
     }
     appStore.showSuccess(t("admin.settings.rectifier.saved"));
+      drafts.mark('rectifier');
   } catch (error: unknown) {
     appStore.showError(
       extractApiErrorMessage(error, t("admin.settings.rectifier.saveFailed")),
@@ -13137,6 +12798,7 @@ async function loadBetaPolicySettings() {
   try {
     const settings = await adminAPI.settings.getBetaPolicySettings();
     betaPolicyForm.rules = settings.rules;
+      drafts.mark('betaPolicy');
   } catch (_error: unknown) {
     // Silent fail - settings will use defaults
   } finally {
@@ -13246,6 +12908,7 @@ async function saveBetaPolicySettings() {
     });
     betaPolicyForm.rules = updated.rules;
     appStore.showSuccess(t("admin.settings.betaPolicy.saved"));
+      drafts.mark('betaPolicy');
   } catch (error: unknown) {
     appStore.showError(
       extractApiErrorMessage(error, t("admin.settings.betaPolicy.saveFailed")),
@@ -13527,8 +13190,7 @@ async function handleSaveProvider(payload: Partial<ProviderInstance>) {
     showProviderDialog.value = false;
     // Reload full list (API returns decrypted/formatted data with correct sort order)
     await loadProviders();
-    // Auto-save settings so provider changes take effect immediately
-    await saveSettings();
+    // Provider CRUD is immediate; general payment settings remain in their draft.
   } catch (err: unknown) {
     appStore.showError(extractI18nErrorMessage(err, t, "payment.errors", t("common.error")));
   } finally {
@@ -14018,6 +13680,160 @@ watch(
 );
 
 // Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+
+// One draft/save boundary per visible settings tab, including split template blocks.
+const drafts = useSettingsDrafts();
+const savedForm = ref<typeof form | null>(null);
+const sectionSaving = ref<SettingsTab | null>(null);
+const serverlessSettings = ref<InstanceType<typeof ServerlessSettings> | null>(null);
+const backupSettings = ref<InstanceType<typeof BackupSettings> | null>(null);
+const secretFields = new Set([
+  'smtp_password', 'turnstile_secret_key', 'tencent_captcha_app_secret_key',
+  'tencent_captcha_cloud_secret_id', 'tencent_captcha_cloud_secret_key',
+  'aliyun_captcha_access_key_secret', 'linuxdo_connect_client_secret',
+  'dingtalk_connect_client_secret', 'github_oauth_client_secret', 'google_oauth_client_secret',
+  'wechat_connect_app_secret', 'wechat_connect_open_app_secret', 'wechat_connect_mp_app_secret',
+  'wechat_connect_mobile_app_secret', 'oidc_connect_client_secret', 'prism_browser_api_key',
+]);
+function mainSnapshot(tab: SettingsTab): Record<string, unknown> {
+  const value: Record<string, unknown> = {};
+  for (const key of SETTINGS_SECTION_FIELDS[tab]) value[key] = (form as Record<string, unknown>)[key];
+  if (tab === 'general') value.__tableOptions = tablePageSizeOptionsInput.value;
+  if (tab === 'security') {
+    value.registration_email_suffix_whitelist = registrationEmailSuffixWhitelistTags.value;
+    value.__registrationDraft = registrationEmailSuffixWhitelistDraft.value;
+    value.__forwardedDraft = forwardedClientIpHeaderDraft.value;
+  }
+  if (tab === 'users') appendAuthSourceDefaultsToUpdateRequest(value as UpdateSettingsRequest, authSourceDefaults);
+  if (tab === 'gateway') {
+    value.codex_cli_only_blacklist = serializeCodexRowsToJSON(codexBlacklistRows.value);
+    value.codex_cli_only_whitelist = serializeCodexRowsToJSON(codexWhitelistRows.value);
+    value.codex_cli_only_engine_fingerprint_signals = serializeFingerprintRowsToJSON(codexFingerprintRows.value);
+    value.claude_oauth_system_prompt_blocks = serializeClaudeOAuthSystemPromptBlocksToJSON(claudeOAuthSystemPromptBlocks.value);
+    if (openaiFastPolicyLoaded.value) value.openai_fast_policy_settings = openaiFastPolicyForm;
+  }
+  return cloneDraft(value);
+}
+function applyMainSnapshot(tab: SettingsTab, value: Record<string, unknown>) {
+  for (const key of SETTINGS_SECTION_FIELDS[tab]) {
+    if (key in value && key !== 'openai_fast_policy_settings' && key !== 'auth_source_defaults') (form as Record<string, unknown>)[key] = cloneDraft(value[key]);
+  }
+  if (tab === 'general') tablePageSizeOptionsInput.value = String(value.__tableOptions ?? '');
+  if (tab === 'security') {
+    registrationEmailSuffixWhitelistTags.value = cloneDraft(value.registration_email_suffix_whitelist as string[]);
+    registrationEmailSuffixWhitelistDraft.value = String(value.__registrationDraft ?? '');
+    forwardedClientIpHeaderDraft.value = String(value.__forwardedDraft ?? '');
+    syncCaptchaProviderSelection();
+  }
+  if (tab === 'users') Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(value as Partial<SystemSettings>));
+  if (tab === 'gateway') {
+    codexBlacklistRows.value = parseCodexEntriesToRows(form.codex_cli_only_blacklist);
+    codexWhitelistRows.value = parseCodexEntriesToRows(form.codex_cli_only_whitelist);
+    codexFingerprintRows.value = parseFingerprintSignalsToRows(form.codex_cli_only_engine_fingerprint_signals);
+    claudeOAuthSystemPromptBlocks.value = parseClaudeOAuthSystemPromptBlocks(form.claude_oauth_system_prompt_blocks, form.claude_oauth_system_prompt);
+    if (value.openai_fast_policy_settings) Object.assign(openaiFastPolicyForm, cloneDraft(value.openai_fast_policy_settings));
+  }
+}
+for (const tab of settingsTabs) {
+  if (tab.key !== 'backup') drafts.register('form:' + tab.key, { read: () => mainSnapshot(tab.key), write: value => applyMainSnapshot(tab.key, value) });
+}
+function primeMainDrafts() {
+  savedForm.value = cloneDraft(form);
+  for (const tab of settingsTabs) if (tab.key !== 'backup') drafts.mark('form:' + tab.key);
+}
+function scopedSettingsForm(tab: SettingsTab): typeof form {
+  const base = cloneDraft(savedForm.value ?? form);
+  const current = mainSnapshot(tab);
+  for (const key of SETTINGS_SECTION_FIELDS[tab]) if (key in base) (base as Record<string, unknown>)[key] = cloneDraft(current[key]);
+  return base;
+}
+function sectionPayload(tab: SettingsTab, payload: UpdateSettingsRequest): UpdateSettingsRequest {
+  const allowed = new Set(SETTINGS_SECTION_FIELDS[tab]);
+  if (tab === 'users') Object.keys(payload).filter(key => key.startsWith('auth_source_default_')).forEach(key => allowed.add(key));
+  return Object.fromEntries(Object.entries(payload).filter(([key, value]) => value !== undefined && allowed.has(key))) as UpdateSettingsRequest;
+}
+
+function acceptMainResult(tab: SettingsTab, submitted: Record<string, unknown>, updated: SystemSettings, payload: UpdateSettingsRequest) {
+  const result = cloneDraft(submitted);
+  for (const key of Object.keys(payload)) {
+    const raw = (updated as unknown as Record<string, unknown>)[key];
+    if (secretFields.has(key)) {
+      result[key] = '';
+      if (savedForm.value) (savedForm.value as Record<string, unknown>)[key] = '';
+    } else if (raw !== undefined) {
+      result[key] = raw;
+      if (savedForm.value) (savedForm.value as Record<string, unknown>)[key] = cloneDraft(raw);
+    }
+  }
+  // Secret configured flags are readback metadata, never sent in the update.
+  for (const key of SETTINGS_SECTION_FIELDS[tab]) if (key.endsWith('_configured') && key in updated) result[key] = (updated as unknown as Record<string, unknown>)[key];
+  if (tab === 'general') result.__tableOptions = formatTablePageSizeOptions((result.table_page_size_options as number[]) ?? form.table_page_size_options);
+  if (tab === 'security') result.registration_email_suffix_whitelist = normalizeRegistrationEmailSuffixDomains((updated.registration_email_suffix_whitelist ?? submitted.registration_email_suffix_whitelist) as string[]);
+  drafts.accept('form:' + tab, submitted, result);
+  for (const other of settingsTabs) {
+    if (other.key === tab || other.key === 'backup') continue;
+    const patch = Object.fromEntries(Object.keys(payload).filter(key => SETTINGS_SECTION_FIELDS[other.key].includes(key)).map(key => [key, result[key]]));
+    drafts.rebase('form:' + other.key, patch);
+  }
+}
+const dedicatedSources = [
+  { id: 'overload', tab: 'gateway', form: overloadCooldownForm, save: saveOverloadCooldownSettings },
+  { id: 'rateLimit429', tab: 'gateway', form: rateLimit429CooldownForm, save: saveRateLimit429CooldownSettings },
+  { id: 'panelRateLimit', tab: 'security', form: panelRateLimitForm, save: savePanelRateLimitSettings },
+  { id: 'streamTimeout', tab: 'gateway', form: streamTimeoutForm, save: saveStreamTimeoutSettings },
+  { id: 'rectifier', tab: 'gateway', form: rectifierForm, save: saveRectifierSettings },
+  { id: 'betaPolicy', tab: 'gateway', form: betaPolicyForm, save: saveBetaPolicySettings },
+  { id: 'upstreamBillingProbe', tab: 'gateway', form: upstreamBillingProbeForm, save: saveUpstreamBillingProbeSettings },
+  { id: 'ollamaCloudUsage', tab: 'gateway', form: ollamaCloudUsageForm, save: saveOllamaCloudUsageSettings },
+  { id: 'opencodeGoUsage', tab: 'gateway', form: opencodeGoUsageForm, save: saveOpenCodeGoUsageSettings },
+  { id: 'webSearch', tab: 'gateway', form: webSearchConfig, save: saveWebSearchConfig },
+];
+for (const source of dedicatedSources) drafts.register(source.id, { read: () => source.form, write: value => Object.assign(source.form, value) });
+function sectionDirty(tab: SettingsTab): boolean {
+  if (tab === 'backup') return !!backupSettings.value?.dirty;
+  return drafts.dirty('form:' + tab) || dedicatedSources.some(source => source.tab === tab && drafts.dirty(source.id)) || (tab === 'gateway' && !!serverlessSettings.value?.dirty);
+}
+function discardSection(tab: SettingsTab) {
+  if (tab === 'backup') { backupSettings.value?.discard(); return; }
+  drafts.discard('form:' + tab);
+  dedicatedSources.filter(source => source.tab === tab).forEach(source => drafts.discard(source.id));
+  if (tab === 'gateway') serverlessSettings.value?.discard();
+}
+async function saveSection(tab: SettingsTab) {
+  if (sectionSaving.value || loadFailed.value || loading.value) return;
+  sectionSaving.value = tab;
+  try {
+    if (tab === 'backup') { await backupSettings.value?.save(); return; }
+    if (tab === 'security') {
+      commitRegistrationEmailSuffixWhitelistDraft();
+      commitForwardedClientIpHeaderDraft();
+      if (registrationEmailSuffixWhitelistDraft.value.trim() || forwardedClientIpHeaderDraft.value.trim()) return;
+    }
+    if (drafts.dirty('form:' + tab) && !(await saveSettings(tab))) return;
+    for (const source of dedicatedSources.filter(source => source.tab === tab && drafts.dirty(source.id))) {
+      await source.save();
+      if (drafts.dirty(source.id)) return;
+    }
+    if (tab === 'gateway' && serverlessSettings.value?.dirty) await serverlessSettings.value.save();
+  } finally { sectionSaving.value = null; }
+}
+const hasUnsavedSettings = computed(() => settingsTabs.some(tab => sectionDirty(tab.key)));
+const leaveConfirmation = useConfirmation();
+async function confirmLeaveSettings() {
+  if (sectionSaving.value) return false;
+  return !hasUnsavedSettings.value || await leaveConfirmation.run({ title: t('consoleExperience.leave'), message: t('consoleExperience.leaveMessage'), confirmText: t('consoleExperience.discard'), danger: true }, () => {
+    settingsTabs.forEach(tab => discardSection(tab.key));
+  });
+}
+onBeforeRouteLeave(confirmLeaveSettings);
+provide(SETTINGS_LEAVE_GUARD, confirmLeaveSettings);
+function warnBeforeUnload(event: BeforeUnloadEvent) {
+  if (!hasUnsavedSettings.value) return;
+  event.preventDefault(); event.returnValue = '';
+}
+onMounted(() => window.addEventListener('beforeunload', warnBeforeUnload));
+onUnmounted(() => window.removeEventListener('beforeunload', warnBeforeUnload));
+
 async function confirmBackendMode() {
   await confirmation.run({ title: t('admin.settings.site.backendMode'), confirmText: t('common.confirm'), message: t('admin.settings.site.backendModeDescription'), danger: true }, () => { form.backend_mode_enabled = !form.backend_mode_enabled })
 }

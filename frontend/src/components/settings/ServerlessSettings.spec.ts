@@ -78,3 +78,16 @@ describe('Gateway Serverless settings', () => {
     wrapper.unmount()
   })
 })
+
+it('exposes managed drafts without a second save button', async () => {
+  const wrapper = await opened(); await wrapper.setProps({ managed: true });
+  const vm = wrapper.vm as any;
+  expect(vm.dirty).toBe(false);
+  vm.approve(pod); await flushPromises();
+  expect(vm.dirty).toBe(true);
+  expect(wrapper.findAll('button').some(button => button.text() === '保存 Serverless 配置')).toBe(false);
+  vm.discard(); expect(vm.dirty).toBe(false);
+  vm.approve(pod); await vm.save();
+  expect(apiClient.put).toHaveBeenCalledTimes(1); expect(vm.dirty).toBe(false);
+  wrapper.unmount();
+})

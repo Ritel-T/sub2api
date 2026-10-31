@@ -1,7 +1,7 @@
 <template>
     <div class="space-y-6">
       <!-- S3 Storage Config -->
-      <div class="open-section">
+      <fieldset class="min-w-0" :disabled="!backupDrafts.has('s3')"><div class="open-section">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
@@ -48,14 +48,12 @@
           <button type="button" class="btn btn-secondary btn-sm" :disabled="testingS3" @click="testS3">
             {{ testingS3 ? t('common.loading') : t('admin.backup.s3.testConnection') }}
           </button>
-          <button type="button" class="btn btn-primary btn-sm" :disabled="savingS3" @click="saveS3Config">
-            {{ savingS3 ? t('common.loading') : t('common.save') }}
-          </button>
+
         </div>
-      </div>
+      </div></fieldset>
 
       <!-- Async image object storage -->
-      <div class="open-section">
+      <fieldset class="min-w-0" :disabled="!backupDrafts.has('imageStorage')"><div class="open-section">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
@@ -123,14 +121,12 @@
           <button type="button" class="btn btn-secondary btn-sm" :disabled="testingImageStorage" @click="testImageStorage">
             {{ testingImageStorage ? t('common.loading') : t('admin.backup.s3.testConnection') }}
           </button>
-          <button type="button" class="btn btn-primary btn-sm" :disabled="savingImageStorage" @click="saveImageStorageConfig">
-            {{ savingImageStorage ? t('common.loading') : t('common.save') }}
-          </button>
+
         </div>
-      </div>
+      </div></fieldset>
 
       <!-- Schedule Config -->
-      <div class="open-section" data-testid="backup-schedule">
+      <fieldset class="min-w-0" :disabled="!backupDrafts.has('schedule')"><div class="open-section" data-testid="backup-schedule">
         <div class="mb-4">
           <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
             {{ t('admin.backup.schedule.title') }}
@@ -169,11 +165,9 @@
           <p>{{ retentionPreview }}</p>
         </div>
         <div class="mt-4">
-          <button type="button" class="btn btn-primary btn-sm" :disabled="savingSchedule || !!scheduleValidationError" @click="saveSchedule">
-            {{ savingSchedule ? t('common.loading') : t('common.save') }}
-          </button>
+
         </div>
-      </div>
+      </div></fieldset>
 
       <!-- Backup Operations -->
       <div class="open-section">
@@ -359,6 +353,7 @@
 <button type="button" class="btn btn-primary btn-sm" @click="closeDownloadParts">{{ t('common.close') }}</button>
       </template>
     </BaseDialog>
+    <SettingsSaveBar v-if="!managed" :dirty="dirty" :busy="savingS3 || savingImageStorage || savingSchedule" :disabled="!valid" :label="t('admin.settings.tabs.backup')" @save="save" @discard="discard" />
     <TotpStepUpDialog :controller="backupStepUp" />
 
   <ConfirmationPrompt :confirmation="confirmation"><label v-if="restoreTarget" class="block text-sm">{{ t('admin.backup.actions.restorePasswordPrompt') }}<input v-model="restorePassword" type="password" autocomplete="off" class="input mt-2" /></label></ConfirmationPrompt>
@@ -367,6 +362,8 @@
 <script setup lang="ts">
 import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
 
+import SettingsSaveBar from '@/components/settings/SettingsSaveBar.vue'
+import { useSettingsDrafts } from '@/composables/useSettingsDrafts'
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'
@@ -394,6 +391,8 @@ import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import BackupArchiveSettings from '@/components/admin/BackupArchiveSettings.vue'
 
+withDefaults(defineProps<{ managed?: boolean }>(), { managed: false })
+const backupDrafts = useSettingsDrafts()
 const { t } = useI18n()
 const appStore = useAppStore()
 const backupStepUp = useStepUp()
@@ -630,6 +629,7 @@ async function loadS3Config() {
       force_path_style: cfg.force_path_style,
     }
     s3SecretConfigured.value = Boolean(cfg.access_key_id)
+    backupDrafts.mark('s3')
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   }
@@ -662,6 +662,7 @@ async function loadImageStorageConfig() {
       secret_access_key: '',
     }
     imageStorageSecretConfigured.value = secret_configured
+    backupDrafts.mark('imageStorage')
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   }
@@ -732,6 +733,7 @@ async function loadSchedule() {
       retain_count: cfg.monthly_archive?.retain_count ?? 0,
     }
     savedArchive.value = cloneArchive(archiveForm.value)
+    backupDrafts.mark('schedule')
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   }
@@ -744,6 +746,7 @@ async function saveSchedule() {
     const archive = archivePayload.value
     await adminAPI.backup.updateSchedule({ ...scheduleForm.value, monthly_archive: archive })
     savedArchive.value = cloneArchive(archive)
+    backupDrafts.mark('schedule')
     appStore.showSuccess(t('admin.backup.schedule.saved'))
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
@@ -891,6 +894,20 @@ function formatSize(bytes: number): string {
 
 function formatDate(value?: string): string { return displayTimestamp(value) }
 
+backupDrafts.register('s3', { read: () => s3Form.value, write: value => { s3Form.value = value } })
+backupDrafts.register('imageStorage', { read: () => imageStorageForm.value, write: value => { imageStorageForm.value = value } })
+backupDrafts.register('schedule', { read: () => ({ schedule: scheduleForm.value, archive: archiveForm.value }), write: value => { scheduleForm.value = value.schedule; archiveForm.value = value.archive } })
+const dirty = backupDrafts.anyDirty
+function discard() { ['s3', 'imageStorage', 'schedule'].forEach(id => backupDrafts.discard(id)) }
+async function save() {
+  for (const [id, action] of [['s3', saveS3Config], ['imageStorage', saveImageStorageConfig], ['schedule', saveSchedule]] as const) {
+    if (!backupDrafts.dirty(id)) continue
+    await action()
+    if (backupDrafts.dirty(id)) return
+  }
+}
+const valid = computed(() => !scheduleValidationError.value)
+defineExpose({ dirty, save, discard, valid })
 onMounted(async () => {
     document.addEventListener('visibilitychange', handleVisibilityChange)
   await Promise.all([loadS3Config(), loadImageStorageConfig(), loadSchedule(), loadBackups()])

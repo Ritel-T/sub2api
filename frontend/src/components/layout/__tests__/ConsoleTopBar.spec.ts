@@ -2,11 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { shallowMount, type VueWrapper } from '@vue/test-utils'
 import { computed, reactive, ref } from 'vue'
 import ConsoleTopBar from '../ConsoleTopBar.vue'
+import { SETTINGS_LEAVE_GUARD } from '@/composables/useSettingsDrafts'
 import { consoleNavigationText } from '@/navigation/consoleNavigation'
 
 const locale = ref('en')
 const app = reactive({ mobileOpen: false, backendModeEnabled: false, docUrl: '', siteVersion: 'test', publicSettingsLoaded: true, contactInfo: '', toggleMobileSidebar: vi.fn() })
-const auth = reactive({ isAdmin: false, isObserver: false, user: { username: 'Preview', email: 'preview@example.invalid', balance: 20, frozen_balance: 5, avatar_url: '' } })
+const auth = reactive({ logout: vi.fn().mockResolvedValue(undefined), isAdmin: false, isObserver: false, user: { username: 'Preview', email: 'preview@example.invalid', balance: 20, frozen_balance: 5, avatar_url: '' } })
 const section = { key: 'support', label: 'Support', path: '/support-tickets', tabs: [], badge: () => 3 }
 const nav = {
   navText: computed(() => consoleNavigationText(locale.value)), sections: ref([section]), activeLocation: ref(undefined),
@@ -25,13 +26,19 @@ vi.mock('@/components/common/AnnouncementBell.vue', () => ({ default: { template
 vi.mock('../FeatureSearch.vue', () => ({ default: { name: 'FeatureSearch', template: '<span />' } }))
 
 let wrapper: VueWrapper
-beforeEach(() => { app.mobileOpen = false; app.toggleMobileSidebar.mockClear(); locale.value = 'en'; auth.isObserver = false; app.backendModeEnabled = false; auth.user.frozen_balance = 5; section.badge = () => 3 })
+beforeEach(() => { app.mobileOpen = false; app.toggleMobileSidebar.mockClear(); auth.logout.mockClear(); locale.value = 'en'; auth.isObserver = false; app.backendModeEnabled = false; auth.user.frozen_balance = 5; section.badge = () => 3 })
 afterEach(() => { wrapper?.unmount() })
-function mountBar() {
-  wrapper = shallowMount(ConsoleTopBar, { attachTo: document.body, global: { stubs: { transition: false, RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
+function mountBar(guard?: () => Promise<boolean>) {
+  wrapper = shallowMount(ConsoleTopBar, { attachTo: document.body, global: { provide: guard ? { [SETTINGS_LEAVE_GUARD as symbol]: guard } : {}, stubs: { transition: false, RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
   return wrapper
 }
 describe('console utility access and balance semantics', () => {
+  it.each([false, true])('asks the settings guard before ending the session (approved=%s)', async approved => {
+    const guard = vi.fn().mockResolvedValue(approved); const view = mountBar(guard);
+    await (view.vm as any).handleLogout();
+    expect(guard).toHaveBeenCalledTimes(1);
+    expect(auth.logout).toHaveBeenCalledTimes(approved ? 1 : 0);
+  });
   it('caps the visible badge while retaining the full accessible count', () => {
     section.badge = () => 103
     const view = mountBar()

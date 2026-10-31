@@ -192,9 +192,10 @@
 </template>
 
 <script setup lang="ts">
+import { SETTINGS_LEAVE_GUARD } from '@/composables/useSettingsDrafts'
 import { formatMoney } from '@/utils/consoleDisplay'
 import { accountPageURL, centralAccountEnabled } from '@/utils/accountConfig'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
@@ -293,9 +294,11 @@ function toggleDropdown() { dropdownOpen.value = !dropdownOpen.value }
 function closeDropdown() { dropdownOpen.value = false }
 function closeDropdownAndFocus() { closeDropdown(); dropdownRef.value?.querySelector<HTMLButtonElement>('button')?.focus() }
 
+const settingsLeaveGuard = inject(SETTINGS_LEAVE_GUARD, null)
 const logoutPending = ref(false)
 async function handleLogout() {
   if (logoutPending.value) return
+  if (settingsLeaveGuard && !(await settingsLeaveGuard())) return
   closeDropdown()
   logoutPending.value = true
   try {
