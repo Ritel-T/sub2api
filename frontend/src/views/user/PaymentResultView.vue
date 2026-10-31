@@ -105,6 +105,7 @@
 
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
+import { isGelvPaymentType, onPaymentPageReturn, paymentPollInterval } from '@/components/payment/paymentPolling'
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -164,6 +165,11 @@ const STATUS_REFRESH_MAX_ATTEMPTS = 15
 
 let statusRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let userBalanceRefreshStarted = false
+let unmounted = false
+let statusRefreshInFlight = false
+let pendingStatusRefresh: (() => Promise<ResolvedOrder | null>) | null = null
+let removePageReturnListener = () => {}
+const waitsForCompletion = computed(() => isRetailOrder.value || isGelvPaymentType(order.value?.payment_type))
 const refreshAttempts = ref(0)
 
 /** 充值金额 = pay_amount / (1 + fee_rate/100)，fee_rate=0 时等于 pay_amount */
@@ -218,6 +224,7 @@ function formatGatewayAmount(value: number): string {
 }
 
 function setResolvedOrder(nextOrder: ResolvedOrder | null): void {
+  if (unmounted) return
   order.value = nextOrder
   if (nextOrder && 'currency' in nextOrder && nextOrder.currency) {
     currency.value = normalizePaymentCurrency(nextOrder.currency)
@@ -233,11 +240,17 @@ function onClaimUpdated(nextOrder: PaymentOrder) {
 }
 
 async function refreshOwnedOrder() {
-  if (!hasOrderId(order.value)) return
+  if (unmounted || statusRefreshInFlight || !hasOrderId(order.value)) return
+  clearStatusRefreshTimer()
+  statusRefreshInFlight = true
   try {
     const nextOrder = await paymentStore.pollOrderStatus(order.value.id)
-    if (nextOrder) onClaimUpdated(nextOrder)
+    if (!unmounted && nextOrder) onClaimUpdated(nextOrder)
   } catch { /* Keep the current authoritative result and allow another read. */ }
+  finally {
+    statusRefreshInFlight = false
+    scheduleStatusRefresh(pendingStatusRefresh)
+  }
 }
 
 function refreshUserBalanceForSuccessfulOrder(nextOrder: ResolvedOrder | null): void {
@@ -281,12 +294,12 @@ function displayOrderStatus(status: string): OrderStatus {
 }
 
 function isSuccessStatus(status: string | null | undefined): boolean {
-  return isRetailOrder.value ? normalizeOrderStatus(status) === 'COMPLETED' : SUCCESS_STATUSES.has(normalizeOrderStatus(status))
+  return waitsForCompletion.value ? normalizeOrderStatus(status) === 'COMPLETED' : SUCCESS_STATUSES.has(normalizeOrderStatus(status))
 }
 
 function isPendingStatus(status: string | null | undefined): boolean {
   const normalized = normalizeOrderStatus(status)
-  return PENDING_STATUSES.has(normalized) || (isRetailOrder.value && ['PAID', 'RECHARGING'].includes(normalized))
+  return PENDING_STATUSES.has(normalized) || (waitsForCompletion.value && ['PAID', 'RECHARGING'].includes(normalized))
 }
 
 function readRouteQueryString(key: string): string {
@@ -380,26 +393,47 @@ function clearRecoverySnapshotForTerminalStatus(status: string | null | undefine
 }
 
 function scheduleStatusRefresh(refreshOrder: (() => Promise<ResolvedOrder | null>) | null): void {
+  pendingStatusRefresh = refreshOrder
   clearStatusRefreshTimer()
-  if (!refreshOrder || !isPending.value || (!isRetailOrder.value && refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS)) {
+  if (unmounted || statusRefreshInFlight || !refreshOrder || !isPending.value
+    || (!waitsForCompletion.value && refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS)) {
     return
   }
+  statusRefreshTimer = setTimeout(() => {
+    statusRefreshTimer = null
+    void refreshStatus()
+  }, paymentPollInterval(order.value?.payment_type, STATUS_REFRESH_INTERVAL_MS))
+}
 
-  statusRefreshTimer = setTimeout(async () => {
-    refreshAttempts.value += 1
-    const refreshedOrder = await refreshOrder()
+async function refreshStatus(ownedOnly = false): Promise<void> {
+  if (unmounted || loading.value || statusRefreshInFlight || !isPending.value || !pendingStatusRefresh) return
+  if (ownedOnly && !hasOrderId(order.value)) return
+  clearStatusRefreshTimer()
+  statusRefreshInFlight = true
+  refreshAttempts.value += 1
+  try {
+    const refreshedOrder = ownedOnly && hasOrderId(order.value)
+      ? await paymentStore.pollOrderStatus(order.value.id)
+      : await pendingStatusRefresh()
+    // A late read must neither revive an unmounted view nor replace a terminal result.
+    if (unmounted || !isPending.value) return
     if (refreshedOrder) {
+      if (ownedOnly) authenticatedOrderLoaded.value = true
       setResolvedOrder(refreshedOrder)
       clearRecoverySnapshotForTerminalStatus(refreshedOrder.status)
     }
-
-    if (isPendingStatus(order.value?.status)) {
-      scheduleStatusRefresh(refreshOrder)
-    }
-  }, STATUS_REFRESH_INTERVAL_MS)
+  } catch {
+    // Keep the last persisted state and retry on the next tick.
+  } finally {
+    statusRefreshInFlight = false
+    scheduleStatusRefresh(pendingStatusRefresh)
+  }
 }
 
 onMounted(async () => {
+  removePageReturnListener = onPaymentPageReturn(() => {
+    if (isGelvPaymentType(order.value?.payment_type)) void refreshStatus(true)
+  })
   const resumeToken = readRouteQueryString('resume_token')
   const routeOrderId = Number(readRouteQueryString('order_id')) || 0
   let outTradeNo = readRouteQueryString('out_trade_no')
@@ -424,6 +458,7 @@ onMounted(async () => {
 
   if (resumeToken) {
     const resolvedOrder = await resolveOrderFromResumeToken(resumeToken)
+    if (unmounted) return
     if (resolvedOrder) {
       setResolvedOrder(resolvedOrder)
       if (!orderId) {
@@ -445,6 +480,7 @@ onMounted(async () => {
   if (!order.value && orderId && (!resumeToken || routeOrderId > 0)) {
     try {
       const ownedOrder = await paymentStore.pollOrderStatus(orderId)
+      if (unmounted) return
       authenticatedOrderLoaded.value = !!ownedOrder
       setResolvedOrder(ownedOrder)
     } catch (_err: unknown) {
@@ -454,6 +490,7 @@ onMounted(async () => {
 
   if (!order.value && shouldUsePublicOutTradeNo && (!resumeToken || resumeTokenLookupFailed)) {
     const legacyOrder = await resolveOrderFromOutTradeNo(outTradeNo)
+    if (unmounted) return
     if (legacyOrder) {
       setResolvedOrder(legacyOrder)
       if (!orderId) {
@@ -478,7 +515,15 @@ onMounted(async () => {
     } catch { /* Public status remains visible when an authenticated read is unavailable. */ }
   }
 
+  if (unmounted) return
+
   const refreshOrder = async (): Promise<ResolvedOrder | null> => {
+    // Gelv freshness is supplied by the worker; never verify upstream on these ticks.
+    if (isGelvPaymentType(order.value?.payment_type) && orderId > 0) {
+      const ownedOrder = await paymentStore.pollOrderStatus(orderId)
+      if (ownedOrder && !unmounted) authenticatedOrderLoaded.value = true
+      return ownedOrder
+    }
     if (authenticatedOrderLoaded.value && orderId > 0) {
       const ownedOrder = await paymentStore.pollOrderStatus(orderId)
       if (ownedOrder) return ownedOrder
@@ -518,6 +563,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  unmounted = true
+  removePageReturnListener()
   clearStatusRefreshTimer()
 })
 </script>

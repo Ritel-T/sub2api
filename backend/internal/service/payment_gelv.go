@@ -2,21 +2,26 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/google/uuid"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
+	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -322,32 +327,152 @@ func (s *PaymentService) syncGelvEvidence(ctx context.Context, o *dbent.PaymentO
 	return err
 }
 
-// ReconcileGelvOrders polls durable local orders, independently of the browser.
-// A cancelled/expired local intent can still have an externally paid order.
-// Active and historical lanes have separate budgets so refund scans cannot
-// starve pending payments. All historical bound orders remain auditable.
+const (
+	// Six calls per 5s (72/min steady state) leaves headroom under Gelv's
+	// shared 120/min peer quota for history, checkout and user-driven recovery.
+	// Larger backlogs rotate fairly but cannot promise ~10s settlement.
+	gelvActiveScanLimit   = 6
+	gelvActiveConcurrency = 3
+	gelvOrderPollLockTTL  = time.Minute
+)
+
+type gelvReconcileLocksKey struct{}
+type gelvReconcileLocks struct {
+	cache LeaderLockCache
+	db    *sql.DB
+}
+type gelvActiveReconcileKey struct{}
+
+// This also guards callers without a coordination backend (unit/single-instance
+// mode). Entries exist only while a poll is in flight, never for order history.
+var gelvOrderPolls sync.Map
+
+type gelvOrderPollKey struct {
+	client *dbent.Client
+	id     int64
+}
+
+func gelvActiveStatuses() []string {
+	return []string{OrderStatusPending, OrderStatusPaid, OrderStatusRecharging, OrderStatusFailed}
+}
+
+// Match the durable hold representation in gelvRefundHeld, with explicit
+// COALESCE so NOT(eligible) also partitions snapshots with missing JSON keys.
+func gelvFastNotHeld(sel *entsql.Selector) {
+	sel.Where(entsql.P(func(b *entsql.Builder) {
+		col := sel.C(paymentorder.FieldProviderSnapshot)
+		if sel.Dialect() == dialect.SQLite {
+			b.WriteString("COALESCE(json_extract(").Ident(col).WriteString(", '$.gelv_reconciliation_blocked'), '') = '' AND COALESCE(CAST(json_extract(").Ident(col).WriteString(", '$.gelv_refund_pending') AS TEXT), '') NOT IN ('true', '1')")
+		} else {
+			b.WriteString("COALESCE(").Ident(col).WriteString("->>'gelv_reconciliation_blocked', '') = '' AND COALESCE(").Ident(col).WriteString("->>'gelv_refund_pending', '') NOT IN ('true', '1')")
+		}
+	}))
+}
+
+func gelvLanePredicate(active bool) predicate.PaymentOrder {
+	eligible := paymentorder.And(paymentorder.StatusIn(gelvActiveStatuses()...), gelvFastNotHeld)
+	lease := paymentorder.Or(paymentorder.StatusNEQ(OrderStatusRecharging), paymentorder.UpdatedAtLTE(time.Now().Add(-paymentFulfillmentLeaseDuration)))
+	if !active {
+		// This is the fast eligibility complement, not merely non-active statuses:
+		// held PAID/FAILED records must still query signed authority at 60s so refund
+		// holds can clear. Bound cancelled/expired intents retain late recovery.
+		// Neither lane ever polls a live fulfillment lease.
+		return paymentorder.And(paymentorder.Not(eligible), paymentorder.PaymentTradeNoNEQ(""), lease)
+	}
+	return paymentorder.And(eligible, lease)
+}
+
+func (s *PaymentService) gelvOrdersForLane(ctx context.Context, active bool, limit int) ([]*dbent.PaymentOrder, error) {
+	return s.entClient.PaymentOrder.Query().Where(paymentorder.ProviderKeyEQ(payment.TypeGelv), gelvLanePredicate(active)).
+		Order(dbent.Asc(paymentorder.FieldUpdatedAt), dbent.Asc(paymentorder.FieldID)).Limit(limit).All(ctx)
+}
+
+// ReconcileGelvOrders is the historical lane only. The general 60s expiry job
+// must never launch a second ACTIVE sweep alongside the independent fast lane.
 func (s *PaymentService) ReconcileGelvOrders(ctx context.Context) (int, error) {
-	now := time.Now()
-	active := []string{OrderStatusPending, OrderStatusPaid, OrderStatusRecharging, OrderStatusFailed}
-	orders, err := s.entClient.PaymentOrder.Query().Where(paymentorder.ProviderKeyEQ(payment.TypeGelv), paymentorder.StatusIn(active...), paymentorder.Or(paymentorder.StatusNEQ(OrderStatusRecharging), paymentorder.UpdatedAtLTE(now.Add(-paymentFulfillmentLeaseDuration)))).Order(dbent.Asc(paymentorder.FieldUpdatedAt)).Limit(15).All(ctx)
+	orders, err := s.gelvOrdersForLane(ctx, false, 5)
 	if err != nil {
 		return 0, err
 	}
-	history, err := s.entClient.PaymentOrder.Query().Where(paymentorder.ProviderKeyEQ(payment.TypeGelv), paymentorder.StatusNotIn(active...), paymentorder.PaymentTradeNoNEQ("")).Order(dbent.Asc(paymentorder.FieldUpdatedAt)).Limit(5).All(ctx)
-	if err != nil {
-		return 0, err
-	}
-	orders = append(orders, history...)
 	recovered := 0
 	for _, o := range orders {
 		if ctx.Err() != nil {
 			return recovered, ctx.Err()
 		}
-		if s.reconcileGelvOrder(ctx, o) {
+		if s.reconcileGelvLaneOrder(ctx, o.ID, false) {
 			recovered++
 		}
 	}
-	return recovered, nil
+	return recovered, ctx.Err()
+}
+
+// ReconcileGelvActiveOrders takes a fresh durable selection each cycle. Oldest
+// attempts rotate via updated_at, including errors, so an unavailable first
+// order cannot monopolize the scan. Workers share a bounded query deadline.
+func (s *PaymentService) ReconcileGelvActiveOrders(ctx context.Context) (int, error) {
+	started := time.Now()
+	ctx, cancel := context.WithTimeout(ctx, gelvActiveCheckTimeout)
+	defer cancel()
+	ctx = context.WithValue(ctx, gelvActiveReconcileKey{}, true)
+	orders, err := s.gelvOrdersForLane(ctx, true, gelvActiveScanLimit)
+	if err != nil {
+		return 0, err
+	}
+	var recovered atomic.Int64
+	jobs := make(chan int64)
+	var wg sync.WaitGroup
+	for range gelvActiveConcurrency {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for id := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				if s.reconcileGelvLaneOrder(ctx, id, true) {
+					recovered.Add(1)
+				}
+			}
+		}()
+	}
+dispatch:
+	for _, o := range orders {
+		select {
+		case <-ctx.Done():
+			break dispatch
+		case jobs <- o.ID:
+		}
+	}
+	close(jobs)
+	// Drain before releasing the cycle leader or returning from Stop. In
+	// particular, fulfillment must not outlive the leader's safe TTL window.
+	wg.Wait()
+	if len(orders) > 0 {
+		slog.Info("[PaymentOrderExpiry] active mini-program reconciliation", "selected", len(orders), "recovered", recovered.Load(), "duration_ms", time.Since(started).Milliseconds())
+	}
+	return int(recovered.Load()), ctx.Err()
+}
+
+func (s *PaymentService) reconcileGelvLaneOrder(ctx context.Context, id int64, active bool) bool {
+	key := gelvOrderPollKey{s.entClient, id}
+	if _, busy := gelvOrderPolls.LoadOrStore(key, struct{}{}); busy {
+		return false
+	}
+	defer gelvOrderPolls.Delete(key)
+	if locks, ok := ctx.Value(gelvReconcileLocksKey{}).(gelvReconcileLocks); ok {
+		release, acquired := tryAcquireSingletonLeaderLock(ctx, locks.cache, locks.db, fmt.Sprintf("payment:gelv:order:%d:poll", id), uuid.NewString(), gelvOrderPollLockTTL)
+		if !acquired {
+			return false
+		}
+		defer release()
+	}
+	// Re-read after acquiring the order guard: a queued candidate may have been
+	// fulfilled, cancelled, held, or acquired a live fulfillment lease meanwhile.
+	o, err := s.entClient.PaymentOrder.Query().Where(paymentorder.IDEQ(id), paymentorder.ProviderKeyEQ(payment.TypeGelv), gelvLanePredicate(active)).Only(ctx)
+	if err != nil {
+		return false
+	}
+	return s.reconcileGelvOrder(ctx, o)
 }
 
 func (s *PaymentService) reconcileGelvOrder(ctx context.Context, o *dbent.PaymentOrder) bool {
@@ -427,6 +552,11 @@ func (s *PaymentService) reconcileGelvOrderWithProvider(ctx context.Context, o *
 		} else {
 			o.PaymentTradeNo = pr.TradeNo
 		}
+		if fast, _ := ctx.Value(gelvActiveReconcileKey{}).(bool); fast {
+			// Creation recovery replays this same source identity only. Spend at most
+			// one upstream call per fast slot; query the restored binding next cycle.
+			return false, nil
+		}
 	}
 	observation := gelvQueryObservation(o)
 	resp, err := prov.QueryOrder(ctx, o.PaymentTradeNo)
@@ -486,7 +616,16 @@ func (s *PaymentService) reconcileGelvOrderWithProvider(ctx context.Context, o *
 		if o.Status == OrderStatusCompleted {
 			return false, s.syncGelvEvidence(ctx, o, resp.Metadata)
 		}
-		if err = s.confirmPayment(ctx, o.ID, o.PaymentTradeNo, resp.Amount, payment.TypeGelv, resp.Metadata); err != nil {
+		fulfillCtx := ctx
+		if fast, _ := ctx.Value(gelvActiveReconcileKey{}).(bool); fast {
+			// The short poll budget bounds upstream I/O, not committed redemption.
+			// Preserve values and every original validation/lease/CAS guard, while
+			// allowing the original fulfillment path to drain after the query deadline.
+			var cancel context.CancelFunc
+			fulfillCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), gelvActiveFulfillmentTimeout)
+			defer cancel()
+		}
+		if err = s.confirmPayment(fulfillCtx, o.ID, o.PaymentTradeNo, resp.Amount, payment.TypeGelv, resp.Metadata); err != nil {
 			return false, err
 		}
 		return true, nil

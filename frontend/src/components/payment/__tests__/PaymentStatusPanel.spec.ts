@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+
+enableAutoUnmount(afterEach)
 
 const pollOrderStatus = vi.hoisted(() => vi.fn())
 const cancelOrder = vi.hoisted(() => vi.fn())
@@ -405,7 +407,7 @@ describe('Alipay hosted waiting and refund reconciliation', () => {
     await launch.trigger('click')
     expect(click).toHaveBeenCalledTimes(1)
     expect(open).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(3000)
+    await vi.advanceTimersByTimeAsync(2000)
     expect(pollOrderStatus).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
@@ -420,8 +422,13 @@ describe('Alipay hosted waiting and refund reconciliation', () => {
     expect(wrapper.html()).not.toContain(payUrl)
     expect(click).not.toHaveBeenCalled()
     expect(wrapper.emitted('success')).toBeUndefined()
-    await vi.advanceTimersByTimeAsync(3000)
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
     expect(pollOrderStatus).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('gelv.alipayHoldHint')
+    expect(click).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(pollOrderStatus).toHaveBeenCalledTimes(3)
     wrapper.unmount()
   })
   it('clears locally stored links when the fresh order omits its checkout URL', async () => {
@@ -443,9 +450,9 @@ describe('Alipay hosted waiting and refund reconciliation', () => {
     expect(wrapper.text()).toContain('gelv.alipayHoldWaiting')
     expect(wrapper.text()).not.toContain('payment.qr.cancelOrder')
     expect(wrapper.text()).not.toContain('payment.qr.waitingPayment')
-    await vi.advanceTimersByTimeAsync(3000)
+    await vi.advanceTimersByTimeAsync(2000)
     expect(wrapper.findAll('button').some(button => button.text() === 'gelv.openAlipay')).toBe(false)
-    await vi.advanceTimersByTimeAsync(3000)
+    await vi.advanceTimersByTimeAsync(2000)
     expect(wrapper.emitted('checkoutAvailable')).toEqual([[freshUrl]])
     const button = wrapper.findAll('button').find(button => button.text() === 'gelv.openAlipay')!
     expect(button).toBeDefined()
@@ -456,4 +463,87 @@ describe('Alipay hosted waiting and refund reconciliation', () => {
     wrapper.unmount()
   })
 
+})
+
+
+describe.each(['gelv', 'gelv_alipay'])('%s persisted-order polling', (paymentType) => {
+  const props = { orderId: 42, qrCode: '', expiresAt: '2099-01-01T12:30:00Z', paymentType, orderType: 'balance' }
+  const owned = (status: string) => ({ ...orderFactory(status), payment_type: paymentType })
+  beforeEach(() => {
+    vi.useFakeTimers()
+    pollOrderStatus.mockReset().mockResolvedValue(owned('PENDING'))
+    verifyOrder.mockReset()
+  })
+  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
+
+  it('reads every two seconds, and waits through PAID and RECHARGING for COMPLETED', async () => {
+    const wrapper = mount(PaymentStatusPanel, { props, global: { stubs: { Icon: true } } })
+    await flushPromises()
+    const initialReads = pollOrderStatus.mock.calls.length
+    pollOrderStatus.mockResolvedValueOnce(owned('PAID')).mockResolvedValueOnce(owned('RECHARGING')).mockResolvedValueOnce(owned('COMPLETED'))
+    await vi.advanceTimersByTimeAsync(1999)
+    expect(pollOrderStatus).toHaveBeenCalledTimes(initialReads)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(pollOrderStatus).toHaveBeenCalledTimes(initialReads + 1)
+    expect(wrapper.emitted('success')).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(wrapper.emitted('success')).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(wrapper.emitted('success')).toHaveLength(1)
+    expect(verifyOrder).not.toHaveBeenCalled()
+    const terminalReads = pollOrderStatus.mock.calls.length
+    window.dispatchEvent(new Event('focus'))
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(pollOrderStatus).toHaveBeenCalledTimes(terminalReads)
+    wrapper.unmount()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('coalesces focus, visibility and timer reads without relaunching payment, and ignores late unmounted responses', async () => {
+    const wrapper = mount(PaymentStatusPanel, { props, global: { stubs: { Icon: true } } })
+    await flushPromises()
+    const initialReads = pollOrderStatus.mock.calls.length
+    let resolveRead!: (value: ReturnType<typeof owned>) => void
+    pollOrderStatus.mockReturnValue(new Promise(resolve => { resolveRead = resolve }))
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    window.dispatchEvent(new Event('focus'))
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(pollOrderStatus).toHaveBeenCalledTimes(initialReads)
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    document.dispatchEvent(new Event('visibilitychange'))
+    window.dispatchEvent(new Event('focus'))
+    expect(pollOrderStatus).toHaveBeenCalledTimes(initialReads + 1)
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(pollOrderStatus).toHaveBeenCalledTimes(initialReads + 1)
+    expect(open).not.toHaveBeenCalled()
+    expect(click).not.toHaveBeenCalled()
+    wrapper.unmount()
+    expect(vi.getTimerCount()).toBe(0)
+    resolveRead(owned('COMPLETED'))
+    await flushPromises()
+    window.dispatchEvent(new Event('focus'))
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(pollOrderStatus).toHaveBeenCalledTimes(initialReads + 1)
+    expect(wrapper.emitted('success')).toBeUndefined()
+    expect(wrapper.emitted('checkoutAvailable')).toBeUndefined()
+    expect(verifyOrder).not.toHaveBeenCalled()
+  })
+})
+
+describe('non-Gelv polling compatibility', () => {
+  it('keeps the three-second timer and does not add focus reads', async () => {
+    vi.useFakeTimers()
+    pollOrderStatus.mockReset().mockResolvedValue({ ...orderFactory('PENDING'), payment_type: 'custom' })
+    const wrapper = mount(PaymentStatusPanel, { props: { orderId: 42, qrCode: '', expiresAt: '2099-01-01T12:30:00Z', paymentType: 'custom' } })
+    window.dispatchEvent(new Event('focus'))
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(pollOrderStatus).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(pollOrderStatus).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
 })

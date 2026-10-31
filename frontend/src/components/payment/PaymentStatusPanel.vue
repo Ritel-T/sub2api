@@ -243,6 +243,7 @@
 
 <script setup lang="ts">
 import RetailQuoteSummary from './RetailQuoteSummary.vue'
+import { isGelvPaymentType, onPaymentPageReturn, paymentPollInterval } from './paymentPolling'
 import { isValidGelvAlipayPayURL, openGelvAlipayCheckout } from './gelvAlipay'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -324,6 +325,8 @@ const outcome = ref<PaymentOutcome | null>(null)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
+let unmounted = false
+let removePageReturnListener = () => {}
 let verifyAttempts = 0
 let lastVerifyAt = 0
 let alipayLauncher: AlipayDeepLinkLauncher | null = null
@@ -383,7 +386,7 @@ function formatGatewayAmount(value: number, currency?: string | null): string {
 }
 
 function isSuccessStatus(status: string | null | undefined): boolean {
-  if (props.retailQuote || props.paymentType === 'squarespace') return status === 'COMPLETED'
+  if (isGelvPaymentType(props.paymentType) || props.retailQuote || props.paymentType === 'squarespace') return status === 'COMPLETED'
   return status === 'COMPLETED' || status === 'PAID' || status === 'RECHARGING'
 }
 
@@ -476,19 +479,19 @@ function onClaimUpdated(order: PaymentOrder) {
     outcome.value = null
     retailSettlementPending.value = ['PAID', 'RECHARGING', 'PENDING'].includes(order.status)
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
-    if (!pollTimer) pollTimer = setInterval(pollStatus, 3000)
+    if (!pollTimer) pollTimer = setInterval(pollStatus, paymentPollInterval(props.paymentType, 3000))
   }
 }
 
 let pollInFlight = false
 async function pollStatus() {
-  if (!props.orderId || (outcome.value && !canClaimReceipt.value)) return
-  // 防重入：接口（含 verifyOrder 二次确认）响应慢于 3 秒轮询间隔时避免并发重叠请求。
+  if (unmounted || !props.orderId || (outcome.value && !canClaimReceipt.value)) return
+  // Timer and page-return reads share one in-flight guard, including legacy verification.
   if (pollInFlight) return
   pollInFlight = true
   try {
     let order = await paymentStore.pollOrderStatus(props.orderId)
-    if (!order) return
+    if (unmounted || !order) return
     // 已进入终态则不再处理迟到的响应。
     if (outcome.value && !canClaimReceipt.value) return
     if (props.paymentType === 'gelv_alipay') {
@@ -513,9 +516,10 @@ async function pollStatus() {
       } else if (!checkoutHeld.value) emit('checkoutUnavailable')
     }
     order = await tryRecoverPendingOrder(order)
+    if (unmounted) return
     receiptOrderStatus.value = order.status
     if (outcome.value && !canClaimReceipt.value) return
-    if ((props.retailQuote || props.paymentType === 'squarespace') && ['PAID', 'RECHARGING'].includes(order.status)) {
+    if ((isGelvPaymentType(props.paymentType) || props.retailQuote || props.paymentType === 'squarespace') && ['PAID', 'RECHARGING'].includes(order.status)) {
       outcome.value = null
       retailSettlementPending.value = true
       if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
@@ -565,6 +569,7 @@ async function handleCancel() {
 function handleDone() { cleanup(); emit('done') }
 
 function cleanup() {
+  removePageReturnListener()
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
   alipayLauncher?.dispose()
@@ -580,11 +585,16 @@ if (props.expiresAt) {
   seconds = Math.floor((new Date(props.expiresAt).getTime() - Date.now()) / 1000)
 }
 if (!checkoutHeld.value) startCountdown(seconds)
-pollTimer = setInterval(pollStatus, 3000)
+pollTimer = setInterval(pollStatus, paymentPollInterval(props.paymentType, 3000))
 renderQR()
 
 watch([() => qrUrl.value, showQRCode], () => renderQR())
 onMounted(() => {
+  if (isGelvPaymentType(props.paymentType)) {
+    removePageReturnListener = onPaymentPageReturn(() => {
+      if (!outcome.value) void pollStatus()
+    })
+  }
   if (props.paymentType === 'gelv_alipay') void pollStatus()
   if (!isMobileAlipayDeepLink.value) return
   alipayLauncher = createAlipayDeepLinkLauncher({
@@ -597,5 +607,5 @@ onMounted(() => {
   })
   alipayLauncher.launch()
 })
-onUnmounted(() => cleanup())
+onUnmounted(() => { unmounted = true; cleanup() })
 </script>

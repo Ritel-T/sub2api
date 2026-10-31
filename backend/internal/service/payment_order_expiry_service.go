@@ -13,6 +13,16 @@ import (
 const expiryCheckTimeout = 30 * time.Second
 
 const (
+	gelvActiveInterval           = 5 * time.Second
+	gelvActiveCheckTimeout       = 4 * time.Second
+	gelvActiveFulfillmentTimeout = 18 * time.Second
+	gelvActiveLeaderLockKey      = "payment:gelv:active:leader"
+	// A cycle drains queries (4s), committed fulfillment (18s) and touches (2s)
+	// before releasing leadership. The provider's own HTTP timeout is 18s.
+	gelvActiveLeaderLockTTL = 30 * time.Second
+)
+
+const (
 	// paymentOrderExpiryLeaderLockKey gates the periodic reconcile + expiry sweep so
 	// that only one instance issues the upstream payment-provider calls per cycle.
 	paymentOrderExpiryLeaderLockKey = "payment:order:expiry:leader"
@@ -23,11 +33,13 @@ const (
 
 // PaymentOrderExpiryService periodically expires timed-out payment orders.
 type PaymentOrderExpiryService struct {
-	paymentSvc *PaymentService
-	interval   time.Duration
-	stopCh     chan struct{}
-	stopOnce   sync.Once
-	wg         sync.WaitGroup
+	paymentSvc  *PaymentService
+	interval    time.Duration
+	stopCh      chan struct{}
+	lifecycleMu sync.Mutex
+	startOnce   sync.Once
+	stopOnce    sync.Once
+	wg          sync.WaitGroup
 
 	lockCache  LeaderLockCache
 	db         *sql.DB
@@ -58,31 +70,72 @@ func (s *PaymentOrderExpiryService) Start() {
 	if s == nil || s.paymentSvc == nil || s.interval <= 0 {
 		return
 	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	s.startOnce.Do(func() {
+		select {
+		case <-s.stopCh:
+			return
+		default:
+		}
+		s.startLoop(s.interval, s.runOnce)
+		s.startLoop(gelvActiveInterval, s.runGelvActiveOnce)
+	})
+}
+
+// Each lane runs immediately and owns its timer and synchronous drain. A slow
+// general reconcile cannot postpone the Gelv lane, and cycles never overlap.
+func (s *PaymentOrderExpiryService) startLoop(interval time.Duration, run func()) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		ticker := time.NewTicker(s.interval)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-
-		s.runOnce()
 		for {
 			select {
-			case <-ticker.C:
-				s.runOnce()
 			case <-s.stopCh:
 				return
+			default:
+			}
+			run()
+			select {
+			case <-s.stopCh:
+				return
+			case <-ticker.C:
 			}
 		}
 	}()
+}
+
+func (s *PaymentOrderExpiryService) gelvContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, gelvReconcileLocksKey{}, gelvReconcileLocks{cache: s.lockCache, db: s.db})
+}
+
+func (s *PaymentOrderExpiryService) runGelvActiveOnce() {
+	lockCtx, lockCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	release, ok := tryAcquireSingletonLeaderLock(lockCtx, s.lockCache, s.db, gelvActiveLeaderLockKey, uuid.NewString(), gelvActiveLeaderLockTTL)
+	lockCancel()
+	if !ok {
+		return
+	}
+	defer release()
+	ctx, cancel := context.WithTimeout(s.gelvContext(context.Background()), gelvActiveCheckTimeout)
+	defer cancel()
+	_, err := s.paymentSvc.ReconcileGelvActiveOrders(ctx)
+	if err != nil && err != context.DeadlineExceeded {
+		slog.Warn("[PaymentOrderExpiry] active mini-program reconciliation incomplete", "error", err)
+	}
 }
 
 func (s *PaymentOrderExpiryService) Stop() {
 	if s == nil {
 		return
 	}
+	s.lifecycleMu.Lock()
 	s.stopOnce.Do(func() {
 		close(s.stopCh)
 	})
+	s.lifecycleMu.Unlock()
 	s.wg.Wait()
 }
 
@@ -118,7 +171,7 @@ func (s *PaymentOrderExpiryService) runOnce() {
 	}
 	// A slow partner must not delay the existing channels' reconcile/expiry work.
 	gelvCtx, gelvCancel := context.WithTimeout(context.Background(), expiryCheckTimeout)
-	_, gelvErr := s.paymentSvc.ReconcileGelvOrders(gelvCtx)
+	_, gelvErr := s.paymentSvc.ReconcileGelvOrders(s.gelvContext(gelvCtx))
 	gelvCancel()
 	if gelvErr != nil {
 		slog.Warn("[PaymentOrderExpiry] mini-program reconciliation incomplete", "error", gelvErr)
