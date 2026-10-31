@@ -576,25 +576,6 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		response.BadRequest(c, "harvest scope mode is required")
 		return
 	}
-	if req.PrismBrowserEnabled {
-		if strings.TrimSpace(req.PrismBrowserBaseURL) == "" {
-			response.BadRequest(c, "prism browser base URL is required when enabled")
-			return
-		}
-		if strings.TrimSpace(req.PrismBrowserAPIKey) != "" && len(strings.TrimSpace(req.PrismBrowserAPIKey)) < 32 {
-			response.BadRequest(c, "prism browser API key must contain at least 32 characters")
-			return
-		}
-		current, err := h.settingService.GetAllSettings(c.Request.Context())
-		if err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
-		if len(strings.TrimSpace(req.PrismBrowserAPIKey)) < 32 && len(strings.TrimSpace(current.PrismBrowserAPIKey)) < 32 {
-			response.BadRequest(c, "configure a Prism browser API key with at least 32 characters before enabling")
-			return
-		}
-	}
 	if req.RequestCaptureQuotaMiB != nil && (*req.RequestCaptureQuotaMiB < 1 || *req.RequestCaptureQuotaMiB > (1<<63-1)/(1<<20)) {
 		response.BadRequest(c, "Capture quota must be positive MiB within int64 range")
 		return
@@ -653,6 +634,26 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	if req.PrismBrowserEnabled {
+		// Partial feature saves omit gateway-owned fields; validate against the
+		// stored URL only when it was omitted. An explicit empty URL still fails.
+		baseURL := req.PrismBrowserBaseURL
+		if _, sent := sentFields[service.SettingKeyPrismBrowserBaseURL]; !sent {
+			baseURL = previousSettings.PrismBrowserBaseURL
+		}
+		if strings.TrimSpace(baseURL) == "" {
+			response.BadRequest(c, "prism browser base URL is required when enabled")
+			return
+		}
+		if strings.TrimSpace(req.PrismBrowserAPIKey) != "" && len(strings.TrimSpace(req.PrismBrowserAPIKey)) < 32 {
+			response.BadRequest(c, "prism browser API key must contain at least 32 characters")
+			return
+		}
+		if len(strings.TrimSpace(req.PrismBrowserAPIKey)) < 32 && len(strings.TrimSpace(previousSettings.PrismBrowserAPIKey)) < 32 {
+			response.BadRequest(c, "configure a Prism browser API key with at least 32 characters before enabling")
+			return
+		}
 	}
 	previousAuthSourceDefaults, err := h.settingService.GetAuthSourceDefaultSettings(c.Request.Context())
 	if err != nil {

@@ -603,7 +603,7 @@ function mountView(realToggle = false) {
         GroupOptionItem: true,
         ProxySelector: true,
         ImageUpload: ImageUploadStub,
-        BackupSettings: true,
+        BackupSettings: defineComponent({ setup(_props, { expose }) { expose({ dirty: false, valid: true, save: vi.fn(), discard: vi.fn() }); return () => h('div'); } }),
         EmailTemplateEditor: true,
         ServerlessSettings: defineComponent({ setup(_props, { expose }) { expose({ dirty: false, save: vi.fn(), discard: vi.fn() }); return () => h('div'); } }),
         AdminAccessKeysSettings: true,
@@ -726,6 +726,91 @@ describe("admin SettingsView payment visible method controls", () => {
     vm.webSearchConfig.enabled = true; await vm.saveSection('gateway');
     expect(updateWebSearchEmulationConfig).toHaveBeenCalledTimes(1);
     expect(updateRateLimit429CooldownSettings).not.toHaveBeenCalled();
+  });
+  it('9b contract: feature save isolates the Prism switch from gateway URL and secret drafts', async () => {
+    getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, prism_browser_base_url: 'http://saved-adapter:8319/v1', prism_browser_api_key_configured: true });
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    vm.form.prism_browser_base_url = 'http://unsaved-adapter:8319/v1';
+    vm.form.prism_browser_api_key = 'unsaved-gateway-secret';
+    vm.form.prism_browser_enabled = true;
+    await vm.saveSection('features');
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings.mock.calls[0][0]).toMatchObject({ prism_browser_enabled: true });
+    expect(updateSettings.mock.calls[0][0]).not.toHaveProperty('prism_browser_base_url');
+    expect(updateSettings.mock.calls[0][0]).not.toHaveProperty('prism_browser_api_key');
+    expect(vm.form.prism_browser_base_url).toBe('http://unsaved-adapter:8319/v1');
+    expect(vm.form.prism_browser_api_key).toBe('unsaved-gateway-secret');
+    expect(vm.sectionDirty('gateway')).toBe(true);
+    expect(vm.sectionDirty('features')).toBe(false);
+  });
+
+  it('9b contract: leave decision expires when the settings tab context changes', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    vm.form.site_name = 'Keep this draft';
+    const leaving = routeGuard.leave!(); await flushPromises();
+    const prompt = wrapper.findAllComponents({ name: 'ConfirmationPrompt' }).find(prompt => prompt.props('confirmation').show.value)!;
+    expect(prompt).toBeDefined();
+    settingsRoute.query = { tab: 'gateway' }; await flushPromises();
+    expect(prompt.props('confirmation').show.value).toBe(false);
+    expect(await leaving).toBe(false);
+    expect(vm.form.site_name).toBe('Keep this draft');
+    expect(vm.sectionDirty('general')).toBe(true);
+  });
+
+  it('9b contract: delayed full readback preserves another partition edited during the request', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    let resolveUpdate!: (value: unknown) => void;
+    updateSettings.mockImplementationOnce(() => new Promise(resolve => { resolveUpdate = resolve; }));
+    vm.form.site_name = '  Normalized name  ';
+    const saving = vm.saveSection('general'); await flushPromises();
+    expect(await routeGuard.leave!()).toBe(false);
+    vm.form.google_oauth_client_secret = 'newer-security-draft';
+    settingsRoute.query = { tab: 'security' }; await flushPromises();
+    resolveUpdate({ ...baseSettingsResponse, site_name: 'Normalized name', google_oauth_client_secret_configured: true });
+    await saving;
+    expect(vm.form.site_name).toBe('Normalized name');
+    expect(vm.form.google_oauth_client_secret).toBe('newer-security-draft');
+    expect(vm.sectionDirty('general')).toBe(false);
+    expect(vm.sectionDirty('security')).toBe(true);
+  });
+
+  it('9b contract: accepting leave discards drafts only after an explicit decision', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    vm.form.site_name = 'General draft'; vm.form.smtp_password = 'Email draft';
+    const leaving = routeGuard.leave!(); await flushPromises();
+    const prompt = wrapper.findAllComponents({ name: 'ConfirmationPrompt' }).find(prompt => prompt.props('confirmation').show.value)!;
+    expect(vm.hasUnsavedSettings).toBe(true);
+    prompt.findComponent({ name: 'ConfirmDialog' }).vm.$emit('confirm');
+    expect(await leaving).toBe(true);
+    expect(vm.hasUnsavedSettings).toBe(false);
+    expect(vm.form.smtp_password).toBe('');
+    expect(updateSettings).not.toHaveBeenCalled();
+  });
+  it('9b contract: shared email verification rebases security while keeping its secret draft', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    vm.form.email_verify_enabled = !vm.form.email_verify_enabled;
+    vm.form.google_oauth_client_secret = 'unsaved-security-secret';
+    const emailVerify = vm.form.email_verify_enabled;
+    updateSettings.mockResolvedValueOnce({ ...baseSettingsResponse, email_verify_enabled: emailVerify });
+    await vm.saveSection('email');
+    expect(updateSettings.mock.calls[0][0].email_verify_enabled).toBe(emailVerify);
+    expect(updateSettings.mock.calls[0][0]).not.toHaveProperty('google_oauth_client_secret');
+    expect(vm.sectionDirty('email')).toBe(false);
+    expect(vm.sectionDirty('security')).toBe(true);
+    vm.discardSection('security');
+    expect(vm.form.email_verify_enabled).toBe(emailVerify);
+    expect(vm.form.google_oauth_client_secret).toBe('');
+    expect(vm.hasUnsavedSettings).toBe(false);
+  });
+
+  it('9b contract: unmount cancels a pending leave without executing discard', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;
+    vm.form.site_name = 'Pending draft';
+    const leaving = routeGuard.leave!(); await flushPromises();
+    wrapper.unmount();
+    expect(await leaving).toBe(false);
+    expect(vm.form.site_name).toBe('Pending draft');
+    expect(updateSettings).not.toHaveBeenCalled();
   });
   it('clears only the saved partition secrets when readback omits secret values', async () => {
     const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any;

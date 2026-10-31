@@ -13818,7 +13818,7 @@ async function saveSection(tab: SettingsTab) {
   } finally { sectionSaving.value = null; }
 }
 const hasUnsavedSettings = computed(() => settingsTabs.some(tab => sectionDirty(tab.key)));
-const leaveConfirmation = useConfirmation();
+const leaveConfirmation = useConfirmation(() => ({ active: true, identity: activeTab.value }));
 async function confirmLeaveSettings() {
   if (sectionSaving.value) return false;
   return !hasUnsavedSettings.value || await leaveConfirmation.run({ title: t('consoleExperience.leave'), message: t('consoleExperience.leaveMessage'), confirmText: t('consoleExperience.discard'), danger: true }, () => {
