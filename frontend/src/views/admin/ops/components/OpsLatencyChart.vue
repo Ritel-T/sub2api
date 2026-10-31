@@ -64,13 +64,13 @@ const options = computed(() => {
       x: {
         border: { color: chartTheme.value.grid },
         grid: { display: false },
-        ticks: { color: c.text, font: { size: 10 } }
+        ticks: { color: c.text, font: { size: 12 } }
       },
       y: {
         border: { color: chartTheme.value.grid },
         beginAtZero: true,
         grid: { color: c.grid, borderDash: [4, 4] },
-        ticks: { color: c.text, font: { size: 10 } }
+        ticks: { color: c.text, font: { size: 12 } }
       }
     }
   }

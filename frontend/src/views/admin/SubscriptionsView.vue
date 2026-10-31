@@ -1561,6 +1561,6 @@ watch(() => ({ active: showResetQuotaConfirm.value, identity: JSON.stringify(res
 }
 
 .reset-info {
-  @apply flex items-center gap-1 pl-12 text-[10px] text-primary-600 dark:text-primary-400;
+  @apply flex items-center gap-1 pl-12 text-2xs text-primary-600 dark:text-primary-400;
 }
 </style>

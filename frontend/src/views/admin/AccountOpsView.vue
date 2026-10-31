@@ -57,7 +57,7 @@
             <template #cell-status="{ row: event }"><p class="whitespace-nowrap text-xs"
                     :class="event.state === 'failed' ? 'text-red-600' : event.state === 'sent' ? 'text-emerald-600' : 'text-gray-500'">
                     {{ t(event.notification_enabled === false ? 'accountOps.policyRecord' : `accountOps.states.${event.state}`) }}</p>
-                  <p v-if="event.state === 'failed'" class="mt-2 text-[11px] text-gray-500">
+                  <p v-if="event.state === 'failed'" class="mt-2 text-2xs text-gray-500">
                     {{ t(event.attempts < 3 ? 'accountOps.retryAt' : 'accountOps.retryStopped', { time: date(event.next_send_at) }) }}</p></template>
             <template #cell-delivery="{ row: event }"><AccountOpsDeliveryDetails :deliveries="event.deliveries" /></template>
           </DataTable>

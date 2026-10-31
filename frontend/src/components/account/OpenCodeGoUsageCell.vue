@@ -30,7 +30,7 @@
     />
     <span
       v-if="snapshot && snapshot.status !== 'ok'"
-      class="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium"
+      class="inline-block rounded px-1.5 py-0.5 text-2xs font-medium"
       :class="snapshot.status === 'unauthorized'
         ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
         : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'"
@@ -41,7 +41,7 @@
     <div class="flex items-center pt-0.5">
       <button
         type="button"
-        class="theme-action-button inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        class="theme-action-button inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="refreshing"
         data-testid="opencode-go-usage-query"
         @click="refreshUsage"

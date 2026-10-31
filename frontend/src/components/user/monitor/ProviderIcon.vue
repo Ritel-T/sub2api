@@ -18,7 +18,7 @@
   <span
     v-else
     class="inline-flex items-center justify-center font-bold text-gray-500"
-    :style="{ width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.5)}px` }"
+    :style="{ width: `${size}px`, height: `${size}px`, fontSize: `${Math.max(12, Math.round(size * 0.5))}px` }"
   >
     {{ fallbackText }}
   </span>

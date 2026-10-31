@@ -29,31 +29,31 @@
     <span
       v-if="protocolEnabled && isExcelBPSEnabled"
       data-testid="bps-status-badge"
-      class="inline-flex items-center rounded bg-[#217346] px-1.5 py-0.5 text-[10px] font-semibold leading-3 text-white"
+      class="inline-flex items-center rounded bg-[#217346] px-1.5 py-0.5 text-2xs font-semibold leading-3 text-white"
       :title="t('admin.accounts.openai.excelBPS')"
     >bps</span>
     <div v-for="model in borrowRequiredModels" :key="model" class="flex flex-col items-start gap-1">
-      <span data-testid="borrow-required-badge" class="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" :title="t(nativeBorrowQuality(account, model) === 'degraded' ? 'admin.astraGateway.borrowRequiredDegradedHint' : 'admin.astraGateway.borrowRequiredHint')">{{ model === 'gpt-6-astra' ? 'Astra' : '6.1 Sol' }} · {{ t('admin.astraGateway.borrowRequired') }}</span>
-      <span data-testid="borrow-route-badge" class="text-[10px]" :class="routeState(model) === 'ready' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'" :title="routeHint(model)">{{ t(`admin.astraGateway.routeStates.${routeState(model)}`) }}</span>
-      <span v-if="retryAt(model)" data-testid="borrow-retry-at" class="text-[10px] text-gray-500 dark:text-gray-400">{{ t('admin.astraGateway.retryAt', { time: formatDateTime(retryAt(model)) }) }}</span>
+      <span data-testid="borrow-required-badge" class="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" :title="t(nativeBorrowQuality(account, model) === 'degraded' ? 'admin.astraGateway.borrowRequiredDegradedHint' : 'admin.astraGateway.borrowRequiredHint')">{{ model === 'gpt-6-astra' ? 'Astra' : '6.1 Sol' }} · {{ t('admin.astraGateway.borrowRequired') }}</span>
+      <span data-testid="borrow-route-badge" class="text-2xs" :class="routeState(model) === 'ready' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'" :title="routeHint(model)">{{ t(`admin.astraGateway.routeStates.${routeState(model)}`) }}</span>
+      <span v-if="retryAt(model)" data-testid="borrow-retry-at" class="text-2xs text-gray-500 dark:text-gray-400">{{ t('admin.astraGateway.retryAt', { time: formatDateTime(retryAt(model)) }) }}</span>
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <!-- OpenAI OAuth RPM Display - keep the pause reason explicit -->
       <div v-if="isRPMPaused" class="flex flex-col items-center gap-1">
         <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rpmPaused') }}</span>
-        <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ rpmResumeText }}</span>
+        <span class="text-2xs text-gray-400 dark:text-gray-500">{{ rpmResumeText }}</span>
       </div>
 
       <!-- Rate Limit Display (429) - Two-line layout -->
       <div v-else-if="isRateLimited" class="flex flex-col items-center gap-1">
         <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rateLimited') }}</span>
-        <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
+        <span class="text-2xs text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
       </div>
 
       <!-- Overload Display (529) - Two-line layout -->
       <div v-else-if="isOverloaded" class="flex flex-col items-center gap-1">
         <span class="badge text-xs badge-danger">{{ t('admin.accounts.status.overloaded') }}</span>
-        <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ overloadCountdown }}</span>
+        <span class="text-2xs text-gray-400 dark:text-gray-500">{{ overloadCountdown }}</span>
       </div>
 
       <!-- Main Status Badge (shown when not rate limited/overloaded) -->
@@ -67,7 +67,7 @@
           >
             {{ statusText }}
           </button>
-          <span class="max-w-[180px] text-center text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+          <span class="max-w-[180px] text-center text-2xs leading-4 text-gray-500 dark:text-gray-400">
             {{ tempUnschedRecoveryText }}
           </span>
         </div>
@@ -131,7 +131,7 @@
             >
               <Icon name="exclamationTriangle" size="xs" :stroke-width="2" />
               {{ t('admin.accounts.status.creditsExhausted') }}
-              <span class="text-[10px] opacity-70">{{ formatCountdown(item.reset_at) }}</span>
+              <span class="text-2xs opacity-70">{{ formatCountdown(item.reset_at) }}</span>
             </span>
             <!-- 正在走积分（模型限流但积分可用）-->
             <span
@@ -140,7 +140,7 @@
             >
               <span>⚡</span>
               {{ formatScopeName(item.model) }}
-              <span class="text-[10px] opacity-70">{{ formatCountdown(item.reset_at) }}</span>
+              <span class="text-2xs opacity-70">{{ formatCountdown(item.reset_at) }}</span>
             </span>
             <!-- 普通模型限流 -->
             <span
@@ -149,7 +149,7 @@
             >
               <Icon name="exclamationTriangle" size="xs" :stroke-width="2" />
               {{ formatScopeName(item.model) }}
-              <span class="text-[10px] opacity-70">{{ formatCountdown(item.reset_at) }}</span>
+              <span class="text-2xs opacity-70">{{ formatCountdown(item.reset_at) }}</span>
             </span>
           </template>
           {{
@@ -475,9 +475,9 @@ const handleTempUnschedClick = () => {
 .account-status-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: .35rem; width: 100%; min-height: 32px; border: 0; padding: 0; background: transparent; font: inherit; font-size: 12px; line-height: 1.4; text-align: left; cursor: pointer; }
 .account-status-lines { display: grid; gap: .15rem; min-width: 0; }
 .account-status-primary, .account-status-borrowing > span, .account-status-model-limits { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: normal; overflow-wrap: normal; }
-.account-status-borrowing { display: grid; gap: .15rem; min-width: 0; font-size: 11px; }
+.account-status-borrowing { display: grid; gap: .15rem; min-width: 0; font-size: 12px; }
 .account-status-controls { display: inline-flex; flex: none; align-items: center; gap: .25rem; white-space: nowrap; }
 .account-status-controls > svg { flex: none; color: var(--ritel-muted); }
-.account-status-protocol { color: var(--ritel-muted); font-size: 10px; font-weight: 500; }
+.account-status-protocol { color: var(--ritel-muted); font-size: 12px; font-weight: 500; }
 .account-status-details { padding: .25rem .5rem .25rem 0; }
 </style>

@@ -142,7 +142,7 @@ const lineOptions = computed(() => ({
         pointStyle: 'circle',
         padding: 15,
         font: {
-          size: 11
+          size: 12
         }
       }
     },
@@ -177,7 +177,7 @@ const lineOptions = computed(() => ({
         maxRotation: 0,
         color: chartColors.value.text,
         font: {
-          size: 10
+          size: 12
         }
       }
     },
@@ -189,7 +189,7 @@ const lineOptions = computed(() => ({
       ticks: {
         color: chartColors.value.text,
         font: {
-          size: 10
+          size: 12
         },
         callback: (value: string | number) => formatTokens(Number(value))
       }
@@ -205,7 +205,7 @@ const lineOptions = computed(() => ({
       ticks: {
         color: chartColors.value.cacheHitRate,
         font: {
-          size: 10
+          size: 12
         },
         callback: (value: string | number) => `${value}%`
       }

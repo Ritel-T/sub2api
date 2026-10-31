@@ -239,7 +239,7 @@
                 <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step3') }}</li>
                 <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step4') }}</li>
               </ol>
-              <p class="mt-2 break-all rounded bg-black/20 p-1.5 font-mono text-[11px] leading-relaxed">
+              <p class="mt-2 break-all rounded bg-black/20 p-1.5 font-mono text-2xs leading-relaxed">
                 {{ t('admin.accounts.cnProviders.zhipuTeam.help.example') }}
               </p>
             </HelpTooltip>
@@ -2202,7 +2202,7 @@
               <div class="flex flex-wrap items-center gap-2">
                 <label class="input-label mb-0">{{ t('admin.accounts.openai.codexImageTool') }}</label>
                 <span
-                  class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                  class="rounded-full px-2 py-0.5 text-2xs font-medium"
                   :class="codexImageToolBadgeClass"
                 >
                   {{ codexImageToolBadgeLabel }}

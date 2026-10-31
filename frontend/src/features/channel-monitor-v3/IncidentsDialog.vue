@@ -19,7 +19,7 @@
               <StatusDot :status="item.ended_at ? 'operational' : 'down'" />
               <span class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ item.component_name }}</span>
               <span
-                class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                class="rounded-full px-2 py-0.5 text-2xs font-semibold"
                 :class="item.ended_at ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300'"
               >
                 {{ t(item.ended_at ? 'channelMonitorV3.incidents.resolved' : 'channelMonitorV3.incidents.ongoing') }}
@@ -32,7 +32,7 @@
             <template v-if="item.requests"> · {{ t('channelMonitorV3.incidents.volume', { requests: item.requests, errors: item.errors || 0 }) }}</template>
             <template v-if="item.probes"> · {{ t('channelMonitorV3.incidents.probes', { count: item.probes }) }}</template>
           </p>
-          <p class="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
+          <p class="mt-0.5 text-2xs text-gray-400 dark:text-gray-500">
             {{ formatMonitorV3Full(item.started_at) }} → {{ item.ended_at ? formatMonitorV3Full(item.ended_at) : t('channelMonitorV3.incidents.now') }}
           </p>
         </li>

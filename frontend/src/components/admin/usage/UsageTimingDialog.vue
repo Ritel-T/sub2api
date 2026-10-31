@@ -37,7 +37,7 @@
         <div class="grid gap-4 lg:grid-cols-3">
           <section v-for="group in groups" :key="group.title" class="rounded-xl border border-gray-200 p-4 dark:border-dark-600">
             <AppHeading as="h4" variant="minor" class="mb-4">{{ group.title }}</AppHeading>
-            <dl class="space-y-3"><div v-for="row in group.rows" :key="row.name" class="flex justify-between gap-4 text-sm"><dt class="text-gray-500">{{ row.name }}</dt><dd class="shrink-0 text-right font-medium tabular-nums" :class="TIMING_TEXT[row.health]">{{ row.value }}<span v-if="row.health !== 'neutral'" class="mt-0.5 block text-[10px] font-normal">{{ healthLabel(row.health) }}</span></dd></div></dl>
+            <dl class="space-y-3"><div v-for="row in group.rows" :key="row.name" class="flex justify-between gap-4 text-sm"><dt class="text-gray-500">{{ row.name }}</dt><dd class="shrink-0 text-right font-medium tabular-nums" :class="TIMING_TEXT[row.health]">{{ row.value }}<span v-if="row.health !== 'neutral'" class="mt-0.5 block text-2xs font-normal">{{ healthLabel(row.health) }}</span></dd></div></dl>
           </section>
         </div>
         <section class="rounded-xl border border-gray-200 p-4 dark:border-dark-600">
@@ -51,7 +51,7 @@
         <section v-for="attempt in trace.attempts" :key="attempt.number" class="rounded-xl border border-gray-200 p-4 dark:border-dark-600">
           <AppHeading as="h4" variant="minor" >{{ attemptTitle(attempt) }} · {{ t('requestTiming.account') }} #{{ attempt.account_id }} · {{ attempt.proxy_id > 0 ? `${t('requestTiming.proxy')} #${attempt.proxy_id}` : t('requestTiming.direct') }}</AppHeading>
           <div class="mt-3 grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
-            <div v-for="row in attemptRows(attempt)" :key="row.name" class="flex justify-between gap-4"><span class="text-gray-500">{{ row.name }}</span><span class="text-right font-medium tabular-nums" :class="TIMING_TEXT[row.health]">{{ row.value }}<span v-if="row.health !== 'neutral'" class="mt-0.5 block text-[10px] font-normal">{{ healthLabel(row.health) }}</span></span></div>
+            <div v-for="row in attemptRows(attempt)" :key="row.name" class="flex justify-between gap-4"><span class="text-gray-500">{{ row.name }}</span><span class="text-right font-medium tabular-nums" :class="TIMING_TEXT[row.health]">{{ row.value }}<span v-if="row.health !== 'neutral'" class="mt-0.5 block text-2xs font-normal">{{ healthLabel(row.health) }}</span></span></div>
           </div>
         </section>
         <div class="break-all text-xs text-gray-500">Trace: {{ trace.trace_id }} · {{ t('requestTiming.retention', { days: retention }) }}</div>

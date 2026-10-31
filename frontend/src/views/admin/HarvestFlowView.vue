@@ -63,13 +63,13 @@
                   <div class="flex h-9 w-9 items-center justify-center rounded-xl" :class="stageIconClass(stage.status)">
                     <Icon :name="stageIcon(stage.id)" size="sm" />
                   </div>
-                  <span class="text-[11px] font-medium uppercase tracking-wide" :class="stageTextClass(stage.status)">
+                  <span class="text-2xs font-medium uppercase tracking-wide" :class="stageTextClass(stage.status)">
                     {{ statusLabel(stage.status) }}
                   </span>
                 </div>
                 <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t(`admin.harvestFlow.stages.${stage.id}`) }}</p>
                 <p class="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">{{ stageDetail(stage) }}</p>
-                <p v-if="stage.model || stage.at || stage.http_status" class="mt-2 text-[11px] text-gray-400">
+                <p v-if="stage.model || stage.at || stage.http_status" class="mt-2 text-2xs text-gray-400">
                   <span v-if="stage.model">{{ stage.model }}</span>
                   <span v-if="stage.http_status"> · HTTP {{ stage.http_status }}</span>
                   <span v-if="(stage.model || stage.http_status) && stage.at"> · </span>
@@ -114,7 +114,7 @@
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.harvestFlow.stages.select') }}</p>
             <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ snapshot.counts.select_ok }} / {{ snapshot.counts.select_skip }}</p>
             <p class="text-xs text-gray-400">{{ t('admin.harvestFlow.selectOk') }} / {{ t('admin.harvestFlow.selectSkip') }}</p>
-            <p v-if="snapshot.harvest.harvest_proxy" class="mt-2 truncate font-mono text-[11px] text-gray-400">{{ snapshot.harvest.harvest_proxy }}</p>
+            <p v-if="snapshot.harvest.harvest_proxy" class="mt-2 truncate font-mono text-2xs text-gray-400">{{ snapshot.harvest.harvest_proxy }}</p>
           </div>
           <HarvestCoverageCard :coverage="snapshot.coverage" :generated-at="snapshot.generated_at" />
         </div>
@@ -138,7 +138,7 @@
                       <span v-if="account.skip_harvest"> · {{ t('admin.harvestFlow.skipHarvestBadge') }}</span>
                       <span v-else-if="account.in_scope"> · {{ t('admin.harvestFlow.harvestAccountBadge') }}</span>
                       <span
-                        class="ml-1 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] font-semibold"
+                        class="ml-1 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-2xs font-semibold"
                         :class="harvestAvailabilityClass(resolveHarvestAvailability(account))"
                       >{{ t(`admin.harvestFlow.availability.${resolveHarvestAvailability(account)}`) }}</span>
                     </p>
@@ -155,7 +155,7 @@
                     <span class="w-8 text-right text-xs text-gray-400">{{ account.ready_count }}/{{ account.tickets?.length ?? 0 }}</span>
                   </div>
                 </div>
-                <p data-test="harvest-account-hint" class="mt-1 min-h-[2.5rem] text-[11px] leading-5 text-gray-500 dark:text-gray-400">
+                <p data-test="harvest-account-hint" class="mt-1 min-h-[2.5rem] text-2xs leading-5 text-gray-500 dark:text-gray-400">
                   <span v-if="account.skip_harvest">{{ t('admin.harvestFlow.skipHarvestHint') }}</span>
                   <span v-else-if="recoverText(account)">{{ recoverText(account) }}</span>
                 </p>
@@ -169,8 +169,8 @@
                     :class="ticket.blocked ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' : ticket.ready ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'"
                   >
                     <span class="font-medium">{{ ticket.model }} · {{ ticketStatusLine(account, ticket) }}</span>
-                    <span class="block min-h-[1rem] text-[11px] opacity-80">{{ ticketCookieLine(ticket) }}</span>
-                    <span class="block min-h-[1rem] text-[11px] opacity-80">{{ ticketProbeLine(ticket) }}</span>
+                    <span class="block min-h-[1rem] text-2xs opacity-80">{{ ticketCookieLine(ticket) }}</span>
+                    <span class="block min-h-[1rem] text-2xs opacity-80">{{ ticketProbeLine(ticket) }}</span>
                   </span>
                 </div>
               </div>
@@ -185,7 +185,7 @@
                   v-for="filter in eventFilters"
                   :key="filter"
                   type="button"
-                  class="rounded-full px-2.5 py-1 text-[11px]"
+                  class="rounded-full px-2.5 py-1 text-2xs"
                   :class="eventFilter === filter ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'"
                   @click="eventFilter = filter"
                 >
@@ -212,7 +212,7 @@
                       {{ kindLabel(event.kind, event.result) }}
                       <span v-if="event.model" class="ml-1 font-mono text-xs text-gray-500">{{ event.model }}</span>
                     </p>
-                    <span class="text-[11px] text-gray-400">{{ formatClock(event.at) }}</span>
+                    <span class="text-2xs text-gray-400">{{ formatClock(event.at) }}</span>
                   </div>
                   <p class="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">
                     <span v-if="event.account_name">{{ event.account_name }}</span>

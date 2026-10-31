@@ -82,7 +82,7 @@ const options = computed(() => {
       legend: {
         position: 'top' as const,
         align: 'end' as const,
-        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 10 } }
+        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 12 } }
       },
       tooltip: {
         ...chartTheme.value.tooltip,
@@ -103,7 +103,7 @@ const options = computed(() => {
         grid: { display: false },
         ticks: {
           color: c.text,
-          font: { size: 10 },
+          font: { size: 12 },
           maxTicksLimit: 8,
           autoSkip: true,
           autoSkipPadding: 10
@@ -117,7 +117,7 @@ const options = computed(() => {
         grid: { color: c.grid, borderDash: [4, 4] },
         ticks: {
           color: c.text,
-          font: { size: 10 },
+          font: { size: 12 },
           callback: (value: any) => Number(value).toFixed(3)
         }
       }

@@ -6,7 +6,7 @@
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t(`${prefix}.description`) }}</p>
       </div>
       <div v-if="draft" class="flex flex-wrap items-center gap-2">
-        <span v-if="dirty" class="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">{{ t(`${prefix}.unsaved`) }}</span>
+        <span v-if="dirty" class="rounded-full bg-amber-50 px-2.5 py-1 text-2xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">{{ t(`${prefix}.unsaved`) }}</span>
         <button data-testid="save-controls" type="submit" form="harvest-controls-form" class="btn btn-primary btn-sm" :disabled="saving || !dirty">{{ t(`${prefix}.save`) }}</button>
         <button data-testid="restore-defaults" type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="restoreDefaults">{{ t(`${prefix}.defaults`) }}</button>
         <button v-if="dirty" type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="discard">{{ t(`${prefix}.discard`) }}</button>
@@ -48,7 +48,7 @@
               <button
                 type="button"
                 data-testid="advanced-toggle"
-                class="rounded-full px-2.5 py-1 text-[11px]"
+                class="rounded-full px-2.5 py-1 text-2xs"
                 :class="advanced ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'"
                 :aria-expanded="advanced"
                 @click="advanced = !advanced"

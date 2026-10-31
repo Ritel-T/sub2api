@@ -369,7 +369,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 <style scoped>
 .token-guard { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .ops-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
-.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
+.eyebrow { @apply mb-1 text-2xs font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 
 .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 20px; @apply mb-5; }
@@ -402,19 +402,19 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 .events-card { @apply flex flex-col; }
 .events-heading { @apply flex flex-wrap items-start justify-between gap-3 p-5; }
 .events-heading h3 span { @apply ml-2 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-normal tabular-nums text-gray-500 dark:bg-dark-800; }
-.failure-badge { @apply whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300; }
+.failure-badge { @apply whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-2xs font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300; }
 .failure-badge.ok { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300; }
 .failure-badge.danger { @apply bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-300; }
 .managed-hint { @apply mx-5 mb-3 rounded-lg bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-800 dark:bg-sky-950/30 dark:text-sky-200; }
 .managed-hint.warn { @apply bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300; }
 .managed-badge { @apply ml-2 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300; }
-.link-btn { @apply inline-block rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:hover:bg-dark-800 dark:text-primary-400; }
+.link-btn { @apply inline-block rounded-lg border border-gray-200 px-2.5 py-1 text-2xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:hover:bg-dark-800 dark:text-primary-400; }
 .empty-state { @apply flex min-h-56 flex-col items-center justify-center gap-3 p-6 text-center text-gray-400; }
 .empty-state p { @apply max-w-sm text-xs leading-relaxed; }
 
 .error-banner { @apply mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300; }
 .success-banner { @apply mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300; }
 button:disabled { @apply cursor-not-allowed opacity-40; }
-textarea.input { @apply font-mono text-[11px] leading-5; }
+textarea.input { @apply font-mono text-2xs leading-5; }
 @media(max-width:1100px) { .ops-columns {grid-template-columns:1fr;}  }
 </style>

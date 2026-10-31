@@ -21,7 +21,7 @@
       />
       <span
         v-if="showPlatform && model.platform"
-        class="rounded bg-gray-200/60 px-1 text-[10px] uppercase text-gray-600 dark:bg-dark-700 dark:text-gray-400"
+        class="rounded bg-gray-200/60 px-1 text-2xs uppercase text-gray-600 dark:bg-dark-700 dark:text-gray-400"
       >
         {{ model.platform }}
       </span>
@@ -48,7 +48,7 @@
           <span class="truncate font-semibold">{{ model.name }}</span>
           <span
             v-if="model.platform"
-            class="flex-shrink-0 rounded bg-white/70 px-1.5 py-0.5 text-[10px] uppercase tracking-wide dark:bg-dark-900/60"
+            class="flex-shrink-0 rounded bg-white/70 px-1.5 py-0.5 text-2xs uppercase tracking-wide dark:bg-dark-900/60"
           >
             {{ model.platform }}
           </span>
@@ -155,7 +155,7 @@
                 <div
                   v-for="(iv, idx) in model.pricing.intervals"
                   :key="idx"
-                  class="flex justify-between text-[11px]"
+                  class="flex justify-between text-2xs"
                 >
                   <span class="text-gray-500 dark:text-gray-400">
                     <template v-if="iv.tier_label">{{ iv.tier_label }}</template>

@@ -4922,7 +4922,7 @@
                         </p>
                       </div>
                       <span
-                        class="rounded bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                        class="rounded bg-gray-100 px-2 py-0.5 text-2xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
                       >
                         %
                       </span>
@@ -8002,7 +8002,7 @@
                   @update:selected-keys="affiliateState.selected = $event.map(Number)">
                   <template #cell-aff_code="{ row: entry }">
                     <span class="font-mono">{{ entry.aff_code }}</span>
-                    <span v-if="entry.aff_code_custom" class="ml-1 inline-block rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ t('admin.settings.features.affiliate.customUsers.customBadge') }}</span>
+                    <span v-if="entry.aff_code_custom" class="ml-1 inline-block rounded bg-primary-100 px-1.5 py-0.5 text-2xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ t('admin.settings.features.affiliate.customUsers.customBadge') }}</span>
                   </template>
                   <template #cell-aff_rebate_rate_percent="{ row: entry }">
                     <span v-if="entry.aff_rebate_rate_percent != null">{{ entry.aff_rebate_rate_percent }}%</span>

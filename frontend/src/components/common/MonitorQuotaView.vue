@@ -2,7 +2,7 @@
   <div v-if="snapshot" class="space-y-1" data-testid="monitor-quota-view">
     <!-- 套餐等级徽章（如智谱 plan level / Claude 订阅档） -->
     <div v-if="snapshot.plan_level" class="flex flex-wrap items-center gap-1.5">
-      <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-dark-600 dark:text-gray-300">
+      <span class="rounded bg-gray-100 px-1.5 py-0.5 text-2xs font-medium text-gray-600 dark:bg-dark-600 dark:text-gray-300">
         {{ snapshot.plan_level }}
       </span>
     </div>
@@ -23,7 +23,7 @@
     </div>
 
     <!-- 余额（国产 payg；支持多币种） -->
-    <div v-if="snapshot.success && balanceRows.length" class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]">
+    <div v-if="snapshot.success && balanceRows.length" class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs">
       <span
         v-for="b in balanceRows"
         :key="b.currency"
@@ -33,7 +33,7 @@
       </span>
     </div>
 
-    <div v-if="!snapshot.success" class="truncate text-[10px] text-red-600 dark:text-red-400" :title="snapshot.error" data-testid="monitor-quota-error">
+    <div v-if="!snapshot.success" class="truncate text-2xs text-red-600 dark:text-red-400" :title="snapshot.error" data-testid="monitor-quota-error">
       {{ truncatedError }}
     </div>
   </div>

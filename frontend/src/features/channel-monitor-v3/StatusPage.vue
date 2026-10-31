@@ -202,30 +202,30 @@
         @mouseleave="scheduleClose"
       >
         <div class="px-3 pb-2 pt-2.5">
-          <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ formatMonitorV3Slot(detail.cell.start, status.interval_minutes) }}</p>
+          <p class="text-2xs text-gray-500 dark:text-gray-400">{{ formatMonitorV3Slot(detail.cell.start, status.interval_minutes) }}</p>
           <div class="mt-1.5 flex items-center justify-between gap-3">
             <span class="inline-flex items-center gap-1.5 font-medium">
               <StatusDot :status="detail.cell.status" />
               {{ t(`channelMonitorV3.status.${detail.cell.status}`) }}
             </span>
-            <span v-if="detail.cell.probed" class="rounded bg-gray-100 px-1.5 py-px text-[10px] text-gray-600 dark:bg-dark-700 dark:text-gray-300" data-testid="monitor-v3-tooltip-probe">{{ t('channelMonitorV3.tooltip.probe') }}</span>
-            <span v-else class="font-mono text-[11px] text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.tooltip.successRate', { value: formatMonitorV3Rate(detail.cell.success_rate) }) }}</span>
+            <span v-if="detail.cell.probed" class="rounded bg-gray-100 px-1.5 py-px text-2xs text-gray-600 dark:bg-dark-700 dark:text-gray-300" data-testid="monitor-v3-tooltip-probe">{{ t('channelMonitorV3.tooltip.probe') }}</span>
+            <span v-else class="font-mono text-2xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.tooltip.successRate', { value: formatMonitorV3Rate(detail.cell.success_rate) }) }}</span>
           </div>
-          <p class="mt-1 flex items-center justify-between gap-3 text-[11px] text-gray-500 dark:text-gray-400">
+          <p class="mt-1 flex items-center justify-between gap-3 text-2xs text-gray-500 dark:text-gray-400">
             <span>{{ t(detail.cell.probed ? 'channelMonitorV3.tooltip.probeLatency' : 'channelMonitorV3.tooltip.ttft') }}</span>
             <span class="font-mono">{{ detail.cell.probed ? probeSeconds(detail.cell.probe_latency_ms) : formatMonitorV3Bucket(detail.cell.ttft_p50_ms) }}</span>
           </p>
         </div>
         <div v-if="note(detail)" class="border-t border-gray-100 px-3 py-2 dark:border-dark-700" data-testid="monitor-v3-tooltip-note">
-          <p class="text-[11px] font-semibold" :class="detail.cell.status === 'down' ? 'text-[#e2553f]' : detail.cell.status === 'degraded' ? 'text-[#c88a00]' : 'text-gray-500 dark:text-gray-400'">
+          <p class="text-2xs font-semibold" :class="detail.cell.status === 'down' ? 'text-[#e2553f]' : detail.cell.status === 'degraded' ? 'text-[#c88a00]' : 'text-gray-500 dark:text-gray-400'">
             {{ t(detail.cell.status === 'down' ? 'channelMonitorV3.tooltip.error' : 'channelMonitorV3.tooltip.note') }}
           </p>
           <p class="mt-0.5 text-gray-700 dark:text-gray-200">{{ note(detail) }}</p>
-          <p v-if="detail.cell.probed && detail.cell.status !== 'operational'" class="mt-1 text-[11px] text-gray-500 dark:text-gray-400" data-testid="monitor-v3-tooltip-probe-note">
+          <p v-if="detail.cell.probed && detail.cell.status !== 'operational'" class="mt-1 text-2xs text-gray-500 dark:text-gray-400" data-testid="monitor-v3-tooltip-probe-note">
             {{ t('channelMonitorV3.tooltip.probeNote') }}
           </p>
         </div>
-        <div class="flex items-center justify-between gap-2 border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-400 dark:border-dark-700 dark:text-gray-500">
+        <div class="flex items-center justify-between gap-2 border-t border-gray-100 px-3 py-1.5 text-2xs text-gray-400 dark:border-dark-700 dark:text-gray-500">
           <span class="truncate">{{ detail.component.name }}<template v-if="detail.component.model"> · {{ detail.component.model }}</template></span>
           <span v-if="detail.cell.probed && detail.cell.probes" class="shrink-0" data-testid="monitor-v3-tooltip-volume">{{ t('channelMonitorV3.tooltip.probeVolume', { probes: detail.cell.probes, requests: detail.cell.requests || 0 }) }}</span>
           <span v-else-if="detail.cell.requests" class="shrink-0" data-testid="monitor-v3-tooltip-volume">{{ t('channelMonitorV3.tooltip.volume', { requests: detail.cell.requests, errors: detail.cell.errors || 0, ignored: detail.cell.ignored_errors || 0 }) }}</span>

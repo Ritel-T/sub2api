@@ -2,7 +2,7 @@
   <span
     v-if="protocolEnabled && actions.length"
     data-test="excel-bps-403-badge"
-    class="mt-1 inline-flex items-center self-start rounded bg-amber-400 px-1.5 py-0.5 text-[11px] font-semibold leading-4 text-amber-950 ring-1 ring-amber-500"
+    class="mt-1 inline-flex items-center self-start rounded bg-amber-400 px-1.5 py-0.5 text-2xs font-semibold leading-4 text-amber-950 ring-1 ring-amber-500"
     :title="title"
   >
     {{ t('admin.accounts.openai.excelBPS403Badge') }}

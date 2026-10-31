@@ -84,7 +84,7 @@
           </p>
         </div>
       </HelpTooltip>
-      <span v-if="hasEffectiveRate && statusLabel" :class="statusClass" class="whitespace-nowrap text-[10px] font-medium">
+      <span v-if="hasEffectiveRate && statusLabel" :class="statusClass" class="whitespace-nowrap text-2xs font-medium">
         {{ statusLabel }}
       </span>
       <button
@@ -173,7 +173,7 @@
       </HelpTooltip>
       <span
         v-if="balanceFresh && balance?.status === 'failed'"
-        class="whitespace-nowrap text-[10px] font-medium text-red-600 dark:text-red-400"
+        class="whitespace-nowrap text-2xs font-medium text-red-600 dark:text-red-400"
       >
         {{ t('admin.accounts.upstreamBilling.failed') }}
       </span>

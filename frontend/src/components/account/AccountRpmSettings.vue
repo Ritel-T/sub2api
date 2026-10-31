@@ -65,7 +65,7 @@ const strategies = [
               @click="strategy = option.value"
             >
               <div>{{ t(`admin.accounts.quotaControl.rpmLimit.${option.label}`) }}</div>
-              <div class="mt-0.5 text-[10px] opacity-70">{{ t(`admin.accounts.quotaControl.rpmLimit.${option.hint}`) }}</div>
+              <div class="mt-0.5 text-2xs opacity-70">{{ t(`admin.accounts.quotaControl.rpmLimit.${option.hint}`) }}</div>
             </button>
           </div>
         </div>

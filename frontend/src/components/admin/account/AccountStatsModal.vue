@@ -559,7 +559,7 @@ const lineChartOptions = computed(() => ({
         pointStyle: 'circle',
         padding: 15,
         font: {
-          size: 11
+          size: 12
         }
       }
     },
@@ -586,7 +586,7 @@ const lineChartOptions = computed(() => ({
       ticks: {
         color: chartColors.value.text,
         font: {
-          size: 10
+          size: 12
         },
         maxRotation: 45,
         minRotation: 0
@@ -603,7 +603,7 @@ const lineChartOptions = computed(() => ({
       ticks: {
         color: '#3b82f6',
         font: {
-          size: 10
+          size: 12
         },
         callback: (value: string | number) => '$' + formatCost(Number(value))
       },
@@ -612,7 +612,7 @@ const lineChartOptions = computed(() => ({
         text: t('usage.accountBilled') + ' (USD)',
         color: '#3b82f6',
         font: {
-          size: 11
+          size: 12
         }
       }
     },
@@ -627,7 +627,7 @@ const lineChartOptions = computed(() => ({
       ticks: {
         color: '#f97316',
         font: {
-          size: 10
+          size: 12
         },
         callback: (value: string | number) => formatNumber(Number(value))
       },
@@ -636,7 +636,7 @@ const lineChartOptions = computed(() => ({
         text: t('admin.accounts.stats.requests'),
         color: '#f97316',
         font: {
-          size: 11
+          size: 12
         }
       }
     }

@@ -387,10 +387,10 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
               </div></template>
 <template #cell-status="{ row: row }"><div class="whitespace-nowrap ">
                 <div class="flex items-center gap-2">
-                  <span class="rounded-full text-[10px] font-bold" :class="severityBadgeClass(String(row.severity || ''))">
+                  <span class="rounded-full text-2xs font-bold" :class="severityBadgeClass(String(row.severity || ''))">
                     {{ row.severity || '-' }}
                   </span>
-                  <span class="inline-flex items-center rounded-full text-[10px] font-bold ring-1 ring-inset" :class="statusBadgeClass(row.status)">
+                  <span class="inline-flex items-center rounded-full text-2xs font-bold ring-1 ring-inset" :class="statusBadgeClass(row.status)">
                     {{ formatStatusLabel(row.status) }}
                   </span>
                 </div>
@@ -403,14 +403,14 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
               </div></template>
 <template #cell-title="{ row: row }"><div class="min-w-[260px] text-xs text-gray-700 dark:text-gray-200">
                 <div class="font-semibold truncate max-w-[360px]">{{ row.title || '-' }}</div>
-                <div v-if="row.description" class="mt-0.5 line-clamp-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <div v-if="row.description" class="mt-0.5 line-clamp-2 text-2xs text-gray-500 dark:text-gray-400">
                   {{ row.description }}
                 </div>
               </div></template>
 <template #cell-duration="{ row: row }"><div class="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
                 {{ formatDurationLabel(row) }}
               </div></template>
-<template #cell-dimensions="{ row: row }"><div class="whitespace-nowrap text-[11px] text-gray-500 dark:text-gray-400">
+<template #cell-dimensions="{ row: row }"><div class="whitespace-nowrap text-2xs text-gray-500 dark:text-gray-400">
                 {{ formatDimensionsSummary(row) }}
               </div></template>
 <template #cell-email="{ row: row }"><div class="whitespace-nowrap text-right text-xs">
@@ -430,7 +430,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
                     size="sm"
                     class="text-gray-400 dark:text-gray-500"
                   />
-                  <span class="text-[11px] font-bold text-gray-600 dark:text-gray-300">
+                  <span class="text-2xs font-bold text-gray-600 dark:text-gray-300">
                     {{ row.email_sent ? t('admin.ops.alertEvents.table.emailSent') : t('admin.ops.alertEvents.table.emailIgnored') }}
                   </span>
                 </span>
@@ -463,10 +463,10 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
           <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold" :class="severityBadgeClass(String(selected.severity || ''))">
+                <span class="inline-flex items-center rounded-full px-2 py-1 text-2xs font-bold" :class="severityBadgeClass(String(selected.severity || ''))">
                   {{ selected.severity || '-' }}
                 </span>
-                <span class="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold ring-1 ring-inset" :class="statusBadgeClass(selected.status)">
+                <span class="inline-flex items-center rounded-full px-2 py-1 text-2xs font-bold ring-1 ring-inset" :class="statusBadgeClass(selected.status)">
                   {{ formatStatusLabel(selected.status) }}
                 </span>
               </div>
@@ -480,7 +480,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
 
             <div class="flex flex-wrap gap-2">
               <div class="flex items-center gap-2 rounded-lg bg-white px-2 py-1 ring-1 ring-gray-200 dark:bg-dark-800 dark:ring-dark-700">
-                <span class="text-[11px] font-bold text-gray-600 dark:text-gray-300">{{ t('admin.ops.alertEvents.detail.silence') }}</span>
+                <span class="text-2xs font-bold text-gray-600 dark:text-gray-300">{{ t('admin.ops.alertEvents.detail.silence') }}</span>
                 <Select :aria-label="t('admin.ops.alertEvents.detail.silence')"
                   :model-value="silenceDuration"
                   :options="silenceDurationOptions"
@@ -515,14 +515,14 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
               <div class="mt-1 flex flex-wrap items-center gap-2">
                 <div class="font-mono text-sm font-bold text-gray-900 dark:text-white">#{{ selected.rule_id }}</div>
                 <a
-                  class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-dark-800 dark:text-gray-200 dark:ring-dark-700 dark:hover:bg-dark-700"
+                  class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-2xs font-bold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-dark-800 dark:text-gray-200 dark:ring-dark-700 dark:hover:bg-dark-700"
                   :href="`/admin/ops?open_alert_rules=1&alert_rule_id=${selected.rule_id}`"
                 >
                   <Icon name="externalLink" size="xs" />
                   {{ t('admin.ops.alertEvents.detail.viewRule') }}
                 </a>
                 <a
-                  class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-dark-800 dark:text-gray-200 dark:ring-dark-700 dark:hover:bg-dark-700"
+                  class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-2xs font-bold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-dark-800 dark:text-gray-200 dark:ring-dark-700 dark:hover:bg-dark-700"
                   :href="`/admin/ops?platform=${encodeURIComponent(getDimensionString(selected,'platform')||'')}&group_id=${selected.dimensions?.group_id || ''}&error_type=request&open_error_details=1`"
                 >
                   <Icon name="externalLink" size="xs" />
@@ -559,7 +559,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
           <div v-else data-testid="alert-event-history" :aria-busy="historyLoading">
             <DataTable :data="history" :columns="historyColumns" row-key="id" column-order-key="admin-ops-alert-history" :loading="historyLoading && !history.length">
               <template #cell-event_time="{ row }">{{ formatDateTime(row.fired_at || row.created_at) }}</template>
-              <template #cell-status="{ row }"><span class="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold ring-1 ring-inset" :class="statusBadgeClass(row.status)">{{ formatStatusLabel(row.status) }}</span></template>
+              <template #cell-status="{ row }"><span class="inline-flex items-center rounded-full px-2 py-1 text-2xs font-bold ring-1 ring-inset" :class="statusBadgeClass(row.status)">{{ formatStatusLabel(row.status) }}</span></template>
               <template #cell-metric="{ row }"><span v-if="typeof row.metric_value === 'number' && typeof row.threshold_value === 'number'">{{ row.metric_value.toFixed(2) }} / {{ row.threshold_value.toFixed(2) }}</span><span v-else>-</span></template>
             </DataTable>
           </div>

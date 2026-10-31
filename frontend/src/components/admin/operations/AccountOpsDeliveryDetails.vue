@@ -9,7 +9,7 @@
           {{ t(`accountOps.states.${delivery.status}`) }}
         </span>
       </div>
-      <p class="whitespace-nowrap text-[11px] text-gray-500">
+      <p class="whitespace-nowrap text-2xs text-gray-500">
         <span v-if="delivery.name">{{ t(`accountOps.providers.${delivery.provider}`) }} · </span>
         {{ t('accountOps.deliveryAttempts', { count: delivery.attempts }) }}
         <template v-if="delivery.last_sent_at"> · {{ date(delivery.last_sent_at) }}</template>

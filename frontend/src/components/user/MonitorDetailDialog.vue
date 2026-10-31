@@ -33,7 +33,7 @@
             <td class="py-2 pr-3 font-medium text-gray-900 dark:text-gray-100">{{ formatMonitorModel(m.model) }}</td>
             <td class="py-2 pr-3">
               <span
-                class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px]"
+                class="inline-flex items-center rounded-full px-2 py-0.5 text-2xs"
                 :class="statusBadgeClass(m.latest_status)"
               >
                 {{ statusLabel(m.latest_status) }}

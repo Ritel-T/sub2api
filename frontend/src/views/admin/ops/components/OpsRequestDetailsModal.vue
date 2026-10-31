@@ -224,7 +224,7 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.req
                     {{ formatDateTime(row.created_at) }}
                   </div></template>
 <template #cell-kind="{ row: row }"><div class="whitespace-nowrap ">
-                    <span class="rounded-full text-[10px] font-bold" :class="kindBadgeClass(row.kind)">
+                    <span class="rounded-full text-2xs font-bold" :class="kindBadgeClass(row.kind)">
                       {{ row.kind === 'error' ? t('admin.ops.requestDetails.kind.error') : t('admin.ops.requestDetails.kind.success') }}
                     </span>
                   </div></template>
@@ -245,11 +245,11 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.req
                   </div></template>
 <template #cell-request_id="{ row: row }"><div class="">
                     <div v-if="row.request_id" class="flex items-center gap-2">
-                      <span class="max-w-[220px] truncate font-mono text-[11px] text-gray-700 dark:text-gray-200" :title="row.request_id">
+                      <span class="max-w-[220px] truncate font-mono text-2xs text-gray-700 dark:text-gray-200" :title="row.request_id">
                         {{ row.request_id }}
                       </span>
                       <button
-                        class="rounded-md bg-gray-100 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
+                        class="rounded-md bg-gray-100 text-2xs font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
                         @click="handleCopyRequestId(row.request_id)"
                       >
                         {{ t('admin.ops.requestDetails.copy') }}

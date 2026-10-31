@@ -2,7 +2,7 @@
   <span
     v-if="remainingMs > 0"
     data-test="excel-bps-cooldown-badge"
-    class="inline-flex max-w-full flex-wrap items-center gap-x-1 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+    class="inline-flex max-w-full flex-wrap items-center gap-x-1 rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
     :title="tooltip"
     :aria-label="tooltip"
   >

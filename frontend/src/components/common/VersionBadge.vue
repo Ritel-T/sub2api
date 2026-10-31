@@ -471,7 +471,7 @@
 
                       <!-- Version list -->
                       <template v-else>
-                        <p class="px-0.5 text-[11px] text-gray-400 dark:text-dark-500">
+                        <p class="px-0.5 text-2xs text-gray-400 dark:text-dark-500">
                           {{ t('version.rollbackSelectVersion') }}
                         </p>
 
@@ -511,7 +511,7 @@
                               >v{{ item.version }}</span
                             >
                           </span>
-                          <span class="text-[11px] tabular-nums text-gray-400 dark:text-dark-500">
+                          <span class="text-2xs tabular-nums text-gray-400 dark:text-dark-500">
                             {{ formatPublishedAt(item.published_at) }}
                           </span>
                         </button>
@@ -519,7 +519,7 @@
                         <!-- Selected version: manual command (per deploy method) + confirm -->
                         <transition name="rollback">
                           <div v-if="selectedRollbackVersion" class="space-y-2">
-                            <p class="px-0.5 text-[11px] text-gray-400 dark:text-dark-500">
+                            <p class="px-0.5 text-2xs text-gray-400 dark:text-dark-500">
                               {{ t('version.manualRollbackCommand') }}
                             </p>
 
@@ -537,7 +537,7 @@
                                     v-for="tab in manualTabs"
                                     :key="tab.key"
                                     @click="manualTab = tab.key"
-                                    class="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
+                                    class="rounded px-2 py-0.5 text-2xs font-medium transition-colors"
                                     :class="
                                       manualTab === tab.key
                                         ? 'bg-white text-gray-700 shadow-sm dark:bg-dark-800 dark:text-dark-100'
@@ -549,7 +549,7 @@
                                 </div>
                                 <button
                                   @click="copyToClipboard(activeManualCommand)"
-                                  class="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600 dark:text-dark-400 dark:hover:bg-dark-600 dark:hover:text-dark-200"
+                                  class="flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600 dark:text-dark-400 dark:hover:bg-dark-600 dark:hover:text-dark-200"
                                 >
                                   <Icon
                                     :name="copied ? 'check' : 'copy'"
@@ -561,13 +561,13 @@
                                 </button>
                               </div>
                               <code
-                                class="block select-all whitespace-pre-wrap break-all bg-gray-50 p-2.5 font-mono text-[10px] leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-dark-300"
+                                class="block select-all whitespace-pre-wrap break-all bg-gray-50 p-2.5 font-mono text-2xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-dark-300"
                                 >{{ activeManualCommand }}</code
                               >
                             </div>
 
                             <p
-                              class="flex items-start gap-1.5 px-0.5 text-[11px] leading-4 text-amber-600 dark:text-amber-400"
+                              class="flex items-start gap-1.5 px-0.5 text-2xs leading-4 text-amber-600 dark:text-amber-400"
                             >
                               <Icon
                                 name="exclamationTriangle"

@@ -38,10 +38,10 @@
             />
             <span class="min-w-0 flex-1">
               <span class="flex flex-wrap items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-white">
-                <span class="rounded px-1 py-px text-[10px]" :class="platformBadgeLightClass(row.platform)">{{ platformLabel(row.platform) }}</span>
+                <span class="rounded px-1 py-px text-2xs" :class="platformBadgeLightClass(row.platform)">{{ platformLabel(row.platform) }}</span>
                 <span class="truncate">{{ row.name }}</span>
                 <span class="text-xs font-normal text-gray-400">{{ t('channelMonitorV3.admin.idleProbe.componentCount', { count: row.components }) }}</span>
-                <span v-if="row.unavailable" class="rounded-md bg-red-50 px-1.5 text-[10px] text-red-600 dark:bg-red-900/30 dark:text-red-300">{{ t('channelMonitorV3.admin.idleProbe.groupUnavailable') }}</span>
+                <span v-if="row.unavailable" class="rounded-md bg-red-50 px-1.5 text-2xs text-red-600 dark:bg-red-900/30 dark:text-red-300">{{ t('channelMonitorV3.admin.idleProbe.groupUnavailable') }}</span>
               </span>
             </span>
           </label>
@@ -59,7 +59,7 @@
                   :class="missingModel(row) ? '!border-red-300 dark:!border-red-700' : ''"
                   data-testid="monitor-v3-idle-probe-model"
                 />
-                <p class="mt-1 text-[11px]" :class="missingModel(row) ? 'text-red-500' : 'text-gray-400'">
+                <p class="mt-1 text-2xs" :class="missingModel(row) ? 'text-red-500' : 'text-gray-400'">
                   {{ missingModel(row) ? t('channelMonitorV3.admin.idleProbe.modelRequired') : t('channelMonitorV3.admin.idleProbe.modelHint') }}
                 </p>
               </template>
@@ -75,7 +75,7 @@
             </div>
           </div>
 
-          <div class="mt-2 space-y-0.5 text-[11px] text-gray-500 dark:text-gray-400" data-testid="monitor-v3-idle-probe-stats">
+          <div class="mt-2 space-y-0.5 text-2xs text-gray-500 dark:text-gray-400" data-testid="monitor-v3-idle-probe-stats">
             <template v-if="statOf(row.groupId)?.last_at">
               <p>{{ t('channelMonitorV3.admin.idleProbe.lastProbe', { time: formatMonitorV3Short(statOf(row.groupId)!.last_at!), result: lastResult(statOf(row.groupId)!) }) }}</p>
               <p>{{ t('channelMonitorV3.admin.idleProbe.last24h', { probes: statOf(row.groupId)!.probes, failures: statOf(row.groupId)!.failures, cost: formatCost(statOf(row.groupId)!.cost_usd) }) }}</p>

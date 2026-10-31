@@ -1241,7 +1241,7 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .quality-workspace > :not(.workspace-columns) { flex-shrink: 0; }
 .quality-workspace > nav { margin-bottom: 0; max-width: 100%; }
 .workspace-heading { @apply flex flex-wrap items-center justify-between gap-4; }
-.workspace-eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
+.workspace-eyebrow { @apply mb-1 text-2xs font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
 .workspace-subtitle { @apply mt-1.5 text-sm text-gray-500 dark:text-gray-400; }
 .heading-actions { @apply flex flex-wrap items-center gap-2; }
 .heading-actions .btn, .detail-footer .btn { @apply inline-flex items-center gap-2; }
@@ -1293,12 +1293,12 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .rule-select { @apply flex min-w-0 flex-1 items-start gap-2.5 text-left; }
 .account-avatar { @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-600 dark:bg-dark-700 dark:text-gray-300; }
 .rule-select strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; @apply text-[13px] font-semibold leading-5; }
-.rule-meta { @apply mt-1 flex gap-1.5 text-[11px] tabular-nums text-gray-400; }
-.state-toggle { @apply inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-medium; }
+.rule-meta { @apply mt-1 flex gap-1.5 text-2xs tabular-nums text-gray-400; }
+.state-toggle { @apply inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-2xs font-medium; }
 .state-toggle > span, .outcome-badge > span { @apply h-1.5 w-1.5 rounded-full bg-current; }
 .state-enabled { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400; }
 .state-paused { @apply bg-gray-100 text-gray-500 dark:bg-dark-800; }
-.rule-model { @apply mt-3 flex flex-wrap items-center gap-2 text-[11px] text-gray-600 dark:text-gray-400; }
+.rule-model { @apply mt-3 flex flex-wrap items-center gap-2 text-2xs text-gray-600 dark:text-gray-400; }
 .rule-model code { overflow-wrap: anywhere; @apply min-w-0 rounded bg-gray-100 px-1.5 py-0.5 dark:bg-dark-800; }
 .running-label { @apply text-primary-600 dark:text-primary-400; }
 .probe-tag { @apply rounded bg-violet-50 px-1.5 py-0.5 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300; }
@@ -1310,13 +1310,13 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .template-card strong { overflow-wrap: anywhere; @apply block text-[13px] font-semibold leading-5; }
 .template-avatar { @apply bg-sky-100 text-sky-600 dark:bg-sky-950/60 dark:text-sky-300; }
 .template-hint { @apply rounded-lg border border-sky-200 bg-sky-50/60 p-3 text-sm leading-relaxed text-sky-800 dark:border-sky-900 dark:bg-sky-950/20 dark:text-sky-200; }
-.rule-target { @apply mt-2 flex min-w-0 items-center gap-1.5 text-[11px] text-gray-500; }
+.rule-target { @apply mt-2 flex min-w-0 items-center gap-1.5 text-2xs text-gray-500; }
 .rule-target span { @apply truncate; }
-.rule-schedule { @apply mt-3 flex justify-between gap-2 text-[11px] tabular-nums text-gray-400; }
+.rule-schedule { @apply mt-3 flex justify-between gap-2 text-2xs tabular-nums text-gray-400; }
 .rule-schedule time { @apply text-gray-600 dark:text-gray-300; }
 .rule-warning { @apply mt-2 text-xs text-amber-600; }
 .rule-actions { @apply mt-3 flex flex-wrap items-center gap-1 border-t border-gray-100 pt-2 dark:border-dark-700; }
-.rule-actions button { @apply inline-flex min-h-8 flex-1 items-center justify-center whitespace-nowrap gap-1 rounded-md text-[11px] text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-800 dark:hover:text-gray-100; }
+.rule-actions button { @apply inline-flex min-h-8 flex-1 items-center justify-center whitespace-nowrap gap-1 rounded-md text-2xs text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-800 dark:hover:text-gray-100; }
 .rule-actions button:first-child { @apply text-primary-600 dark:text-primary-400; }
 .operations-toolbar { @apply flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-t border-gray-100 bg-gray-50/60 px-5 py-3 dark:border-dark-700 dark:bg-dark-800/50; }
 .scope-label { overflow-wrap: anywhere; @apply flex min-w-0 items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300; max-width: 65%; }
@@ -1326,22 +1326,22 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .operations-scroll :deep(.selected-row) { @apply bg-slate-50/80 dark:bg-dark-800/70; }
 .time-cell { @apply whitespace-nowrap tabular-nums; }
 .time-cell strong { @apply block text-xs font-medium; }
-.time-cell > span, .account-cell > span { @apply mt-1 block text-[10px] text-gray-400; }
+.time-cell > span, .account-cell > span { @apply mt-1 block text-2xs text-gray-400; }
 .account-cell { max-width: 220px; }
 .account-cell button { @apply max-w-full text-left hover:text-primary-600 dark:hover:text-primary-300; }
 .account-cell strong { @apply block truncate font-medium; max-width: 190px; }
 .test-count { @apply inline-flex items-center gap-1.5 whitespace-nowrap font-medium tabular-nums; }
 .test-passed { @apply text-emerald-600 dark:text-emerald-400; }
 .test-other { @apply text-rose-500 dark:text-rose-400; }
-.cell-secondary { @apply mt-1.5 block truncate text-[10px] text-gray-400; max-width: 170px; }
-.outcome-badge { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium; }
+.cell-secondary { @apply mt-1.5 block truncate text-2xs text-gray-400; max-width: 170px; }
+.outcome-badge { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-2xs font-medium; }
 .tone-success { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300; }
 .tone-warning { @apply bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300; }
 .tone-muted { @apply bg-slate-100 text-slate-600 dark:bg-dark-700 dark:text-gray-300; }
 .tone-neutral { @apply bg-gray-100 text-gray-500 dark:bg-dark-800; }
 .tone-danger { @apply bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300; }
 .detail-button { @apply inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-md px-1 text-xs text-gray-400 hover:text-primary-600 dark:hover:text-primary-300; }
-.operations-footer { @apply flex min-h-14 shrink-0 items-center justify-between gap-3 border-t border-gray-100 px-5 text-[11px] text-gray-400 dark:border-dark-700; }
+.operations-footer { @apply flex min-h-14 shrink-0 items-center justify-between gap-3 border-t border-gray-100 px-5 text-2xs text-gray-400 dark:border-dark-700; }
 .operations-footer button { @apply inline-flex items-center gap-1.5 text-primary-600 dark:text-primary-400; }
 .panel-error { @apply m-3 flex items-center justify-between gap-3 rounded-lg bg-red-50 p-3 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300; }
 .panel-error button { @apply shrink-0 underline; }
@@ -1386,17 +1386,17 @@ onBeforeUnmount(() => { alive = false; accountSelectionRequest++; detailRequest+
 .result-navigation button { @apply block w-full rounded-lg border border-transparent p-2.5 text-left text-xs hover:bg-gray-50 dark:hover:bg-dark-800; }
 .result-navigation button.selected { @apply border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/30; }
 .result-navigation button span { @apply block; }
-.result-navigation button span + span { @apply mt-1.5 text-[10px]; }
+.result-navigation button span + span { @apply mt-1.5 text-2xs; }
 .answer-detail { @apply min-w-0 rounded-xl border border-gray-200 p-4 dark:border-dark-700; }
 .answer-heading { @apply mb-4 flex items-center justify-between gap-2; }
 .answer-reference { @apply rounded-lg bg-emerald-50/60 p-3 dark:bg-emerald-950/20; }
-.answer-reference span { @apply text-[11px] text-emerald-700 dark:text-emerald-400; }
+.answer-reference span { @apply text-2xs text-emerald-700 dark:text-emerald-400; }
 .answer-reference p { @apply mt-1 whitespace-pre-wrap break-words text-sm; }
 .response-heading { @apply mb-2 mt-4 flex justify-between text-gray-500; }
 .response-content { @apply max-h-[40dvh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-4 font-sans text-sm leading-7 text-gray-800 dark:bg-dark-800 dark:text-gray-200; }
 .judge-reason { @apply mt-4 border-t border-gray-100 pt-4 dark:border-dark-700; }
 .judge-reason p { @apply mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-gray-600 dark:text-gray-300; }
-.judge-reason > span { @apply mt-3 block text-[10px] text-gray-400; }
+.judge-reason > span { @apply mt-3 block text-2xs text-gray-400; }
 .detail-loading { @apply space-y-4 py-8 text-xs text-gray-400; }
 .detail-footer { @apply flex items-center justify-between gap-2 text-xs text-gray-400; }
 .editor-footer { @apply flex items-center gap-2; }
@@ -1428,6 +1428,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   .scope-label { max-width: 100%; }
   .editor-footer { flex-wrap: wrap; }
 }
-@media (max-width: 640px) { .summary-cell { padding: 14px 12px; gap: 8px; } .summary-cell strong { font-size: 22px; } .summary-icon { width: 32px; height: 32px; } .summary-link { display: none; } .heading-actions { width: 100%; justify-content: flex-end; } .detail-grid { grid-template-columns: 1fr; } .result-navigation { display: flex; gap: 8px; overflow-x: auto; } .result-navigation > p { display: none; } .result-navigation button { min-width: 100px; } .account-management-link { font-size: 10px; } .detail-footer .btn { font-size: 11px; padding: 8px; } }
+@media (max-width: 640px) { .summary-cell { padding: 14px 12px; gap: 8px; } .summary-cell strong { font-size: 22px; } .summary-icon { width: 32px; height: 32px; } .summary-link { display: none; } .heading-actions { width: 100%; justify-content: flex-end; } .detail-grid { grid-template-columns: 1fr; } .result-navigation { display: flex; gap: 8px; overflow-x: auto; } .result-navigation > p { display: none; } .result-navigation button { min-width: 100px; } .account-management-link { font-size: 12px; } .detail-footer .btn { font-size: 12px; padding: 8px; } }
 @media (prefers-reduced-motion: reduce) { .cell-skeleton, .rule-skeleton span { animation: none; } }
 </style>

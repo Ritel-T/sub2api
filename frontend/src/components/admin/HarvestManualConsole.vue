@@ -23,7 +23,7 @@
           />
           <div v-if="open" class="relative z-20">
             <div class="absolute mt-1 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-dark-700 dark:bg-dark-800">
-              <div class="flex items-center justify-between gap-2 border-b border-gray-100 bg-gray-50 px-3 py-1.5 text-[11px] text-gray-500 dark:border-dark-700 dark:bg-dark-700/50">
+              <div class="flex items-center justify-between gap-2 border-b border-gray-100 bg-gray-50 px-3 py-1.5 text-2xs text-gray-500 dark:border-dark-700 dark:bg-dark-700/50">
                 <span>{{ t(`${prefix}.accountCount`, { n: ordered.length }) }}</span>
                 <span>{{ searching ? t(`${prefix}.sortSimilarity`) : t(`${prefix}.sortAvailability`) }}</span>
               </div>
@@ -36,16 +36,16 @@
                   class="flex w-full items-center gap-2 border-b border-gray-50 px-3 py-2 text-left last:border-b-0 hover:bg-gray-50 dark:border-dark-700 dark:hover:bg-dark-700"
                   @click="selectAccount(account)"
                 >
-                  <span class="shrink-0 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">#{{ account.id }}</span>
+                  <span class="shrink-0 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-2xs font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">#{{ account.id }}</span>
                   <span class="min-w-0 flex-1">
                     <span class="block truncate text-xs text-gray-900 dark:text-white">{{ account.name || t(`${prefix}.unnamed`) }}</span>
-                    <span class="block truncate text-[10px] text-gray-400">{{ accountMeta(account) }}</span>
+                    <span class="block truncate text-2xs text-gray-400">{{ accountMeta(account) }}</span>
                   </span>
                   <span class="flex shrink-0 flex-col items-end gap-0.5">
-                    <span class="whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold" :class="harvestAvailabilityClass(resolveHarvestAvailability(account))">
+                    <span class="whitespace-nowrap rounded-full border px-2 py-0.5 text-2xs font-semibold" :class="harvestAvailabilityClass(resolveHarvestAvailability(account))">
                       {{ t(`admin.harvestFlow.availability.${resolveHarvestAvailability(account)}`) }}
                     </span>
-                    <span v-if="recoverText(account)" class="font-mono text-[10px] text-gray-400">{{ recoverText(account) }}</span>
+                    <span v-if="recoverText(account)" class="font-mono text-2xs text-gray-400">{{ recoverText(account) }}</span>
                   </span>
                 </button>
                 <div v-if="!ordered.length" class="px-3 py-6 text-center text-xs text-gray-400">{{ t(`${prefix}.noAccounts`) }}</div>
@@ -73,17 +73,17 @@
           <label class="text-xs text-gray-600 dark:text-gray-300">
             {{ t(`${prefix}.probeInterval`) }}
             <input v-model.number="form.probe_interval_seconds" data-testid="manual-probe-interval" type="number" min="1" max="300" :disabled="harvesting" class="input mt-1 w-full font-mono text-xs" />
-            <span class="mt-1 block text-[10px] text-gray-400">{{ t(`${prefix}.probeIntervalHint`) }}</span>
+            <span class="mt-1 block text-2xs text-gray-400">{{ t(`${prefix}.probeIntervalHint`) }}</span>
           </label>
           <label class="text-xs text-gray-600 dark:text-gray-300">
             {{ t(`${prefix}.rateLimitCooldown`) }}
             <input v-model.number="form.rate_limit_cooldown_seconds" type="number" min="1" max="60" :disabled="harvesting" class="input mt-1 w-full font-mono text-xs" />
-            <span class="mt-1 block text-[10px] text-gray-400">{{ t(`${prefix}.rateLimitCooldownHint`) }}</span>
+            <span class="mt-1 block text-2xs text-gray-400">{{ t(`${prefix}.rateLimitCooldownHint`) }}</span>
           </label>
           <label class="text-xs text-gray-600 dark:text-gray-300">
             {{ t(`${prefix}.maxAttempts`) }}
             <input v-model.number="form.max_attempts" data-testid="manual-max-attempts" type="number" min="1" step="1" :disabled="harvesting" class="input mt-1 w-full font-mono text-xs" />
-            <span class="mt-1 block text-[10px] text-gray-400">{{ t(`${prefix}.maxAttemptsHint`) }}</span>
+            <span class="mt-1 block text-2xs text-gray-400">{{ t(`${prefix}.maxAttemptsHint`) }}</span>
           </label>
           <label class="text-xs text-gray-600 dark:text-gray-300">
             {{ t(`${prefix}.nodeSwitch`) }}
@@ -96,7 +96,7 @@
         <label class="block text-xs text-gray-600 dark:text-gray-300">
           {{ t(`${prefix}.collectLanes`) }}
           <input v-model.number="collectLanes" data-testid="manual-collect-lanes" type="number" min="2" step="1" :disabled="harvesting" class="input mt-1 w-full font-mono text-xs" />
-          <span class="mt-1 block text-[10px] text-gray-400">{{ t(`${prefix}.parallelHint`) }}</span>
+          <span class="mt-1 block text-2xs text-gray-400">{{ t(`${prefix}.parallelHint`) }}</span>
         </label>
 
         <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
@@ -130,11 +130,11 @@
         </div>
         <ol data-testid="manual-logs" class="flex max-h-[420px] flex-1 flex-col gap-1.5 overflow-y-auto p-3 font-mono text-xs text-gray-700 dark:text-gray-300">
           <li v-for="(log, index) in logs" :key="`${log.time}-${index}`" class="flex items-start gap-2">
-            <span class="shrink-0 pt-0.5 text-[10px] text-gray-400">{{ log.time }}</span>
-            <span class="shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold uppercase" :class="logClass(log.level)">{{ log.level }}</span>
+            <span class="shrink-0 pt-0.5 text-2xs text-gray-400">{{ log.time }}</span>
+            <span class="shrink-0 rounded px-1 py-0.5 text-2xs font-semibold uppercase" :class="logClass(log.level)">{{ log.level }}</span>
             <div class="min-w-0 flex-1">
               <div class="break-all leading-snug">{{ log.message }}</div>
-              <div v-if="log.detail" class="mt-0.5 break-all text-[10px] text-gray-400">{{ log.detail }}</div>
+              <div v-if="log.detail" class="mt-0.5 break-all text-2xs text-gray-400">{{ log.detail }}</div>
             </div>
           </li>
           <li v-if="!logs.length" class="py-8 text-center italic text-gray-400">{{ t(`${prefix}.empty`) }}</li>

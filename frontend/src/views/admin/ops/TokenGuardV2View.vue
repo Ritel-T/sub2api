@@ -607,7 +607,7 @@ const openRecordColumns = computed(() => [{ key: 'account', label: t('tokenGuard
 <style scoped>
 .guard-v2 { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .page-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
-.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
+.eyebrow { @apply mb-1 text-2xs font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:20px; @apply mb-5; }
 .summary-card,.table-card,.rules-card { @apply min-w-0 border-t border-gray-200 dark:border-dark-700; }
@@ -621,7 +621,7 @@ const openRecordColumns = computed(() => [{ key: 'account', label: t('tokenGuard
 .list-toolbar { @apply flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-4 dark:border-dark-800; }
 .filter-tabs,.group-tabs { @apply flex max-w-full gap-1 overflow-x-auto; }
 .filter-tabs button,.group-tabs button { @apply whitespace-nowrap rounded-lg border border-transparent px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-dark-800; }
-.filter-tabs button span { @apply ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] tabular-nums dark:bg-dark-700; }
+.filter-tabs button span { @apply ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-2xs tabular-nums dark:bg-dark-700; }
 .filter-tabs button.active,.group-tabs button.active { @apply border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-900 dark:bg-primary-950/30 dark:text-primary-300; }
 .search-box { @apply flex min-w-64 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-gray-400 focus-within:border-primary-400 dark:border-dark-600 dark:bg-dark-900; }
 .search-box input { @apply min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-100; }
@@ -631,13 +631,13 @@ thead { @apply sticky top-0 z-10 bg-white text-gray-400 dark:bg-dark-900; }
 th { @apply whitespace-nowrap px-4 py-3 font-medium; }
 td { @apply border-b border-gray-100 px-4 py-4 align-top dark:border-dark-800; }
 td strong { @apply block max-w-52 truncate text-[13px] font-medium; }
-td small { @apply mt-1.5 block max-w-64 text-[10px] leading-4 text-gray-400; }
+td small { @apply mt-1.5 block max-w-64 text-2xs leading-4 text-gray-400; }
 tbody tr:hover { @apply bg-gray-50/70 dark:bg-dark-800/50; }
-.badge { @apply inline-flex rounded-md bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300; }
+.badge { @apply inline-flex rounded-md bg-amber-50 px-2 py-1 text-2xs font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300; }
 .badge.ok { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300; }
 .badge.danger { @apply bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-300; }
 .actions { @apply flex max-w-64 flex-wrap gap-1.5; }
-.link-btn { @apply rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:hover:bg-dark-800; }
+.link-btn { @apply rounded-lg border border-gray-200 px-2.5 py-1 text-2xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:hover:bg-dark-800; }
 .link-btn:not(.danger-text) { @apply dark:text-primary-400; }
 .danger-text { @apply text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30; }
 .empty-state { @apply flex min-h-72 flex-col items-center justify-center gap-3 p-8 text-center text-gray-400; }
@@ -660,7 +660,7 @@ tbody tr:hover { @apply bg-gray-50/70 dark:bg-dark-800/50; }
 .editor-form { @apply space-y-5; }
 .field-label { @apply block text-xs font-medium text-gray-600 dark:text-gray-300; }
 .field-label .input { @apply mt-2; }
-.field-hint { @apply mt-1.5 block text-[11px] font-normal leading-4 text-gray-400; }
+.field-hint { @apply mt-1.5 block text-2xs font-normal leading-4 text-gray-400; }
 .account-picker { @apply space-y-3; }
 .picker-search { @apply w-full; }
 .account-picker-list { @apply max-h-72 space-y-2 overflow-y-auto rounded-xl border border-gray-200 p-2 dark:border-dark-700; }
@@ -668,7 +668,7 @@ tbody tr:hover { @apply bg-gray-50/70 dark:bg-dark-800/50; }
 .account-picker-list button.selected { @apply border-primary-300 bg-primary-50/50 dark:border-primary-800 dark:bg-primary-950/20; }
 .account-picker-list strong { @apply block text-sm font-medium; }
 .account-picker-list small { @apply mt-1 block text-xs text-gray-400; }
-.plan-badge { @apply shrink-0 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-300; }
+.plan-badge { @apply shrink-0 rounded-md bg-blue-50 px-2 py-1 text-2xs font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-300; }
 .picker-empty { @apply py-8 text-center text-xs text-gray-400; }
 .selected-account { @apply rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-dark-700 dark:bg-dark-800/60; }
 .selected-account span { @apply block text-xs text-gray-400; }

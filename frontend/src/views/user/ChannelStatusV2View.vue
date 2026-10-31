@@ -369,7 +369,7 @@
               >
                 <span class="flex min-w-0 items-center gap-1.5 truncate text-gray-700 dark:text-gray-200">
                   <span class="truncate">{{ errorLabel(row.category) }}</span>
-                  <span v-if="row.ignored" class="badge badge-gray shrink-0 !px-1.5 !py-0 text-[10px]">{{ t('channelMonitorV2.ignored') }}</span>
+                  <span v-if="row.ignored" class="badge badge-gray shrink-0 !px-1.5 !py-0 text-2xs">{{ t('channelMonitorV2.ignored') }}</span>
                 </span>
                 <span class="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
                   <i
@@ -392,7 +392,7 @@
                     class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-900/50 dark:text-dark-300"
                   >
                     <div class="mb-1 flex flex-wrap items-center gap-2">
-                      <span class="badge badge-gray !px-1.5 !py-0 text-[10px]">{{ detail.platform ? providerLabel(detail.platform) : '-' }}</span>
+                      <span class="badge badge-gray !px-1.5 !py-0 text-2xs">{{ detail.platform ? providerLabel(detail.platform) : '-' }}</span>
                       <span class="truncate font-medium">{{ detail.model || '-' }}</span>
                       <span v-if="detail.status_code" class="text-gray-400">{{ t('channelMonitorV2.errorDetail.http', { code: detail.status_code }) }}</span>
                       <span v-if="detail.upstream_status_code" class="text-gray-400">{{ t('channelMonitorV2.errorDetail.upstream', { code: detail.upstream_status_code }) }}</span>
@@ -436,7 +436,7 @@
                       {{ row.display_label }}
                       <span
                         v-if="row.is_self"
-                        class="badge badge-primary ml-2 !px-1.5 !py-0 text-[10px]"
+                        class="badge badge-primary ml-2 !px-1.5 !py-0 text-2xs"
                       >{{ t('channelMonitorV2.currentUser') }}</span>
                     </strong>
                   </td>

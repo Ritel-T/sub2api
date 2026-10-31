@@ -33,7 +33,7 @@ const fmt = (v: number) => v.toFixed(2)
 <template>
   <span
     :class="[
-      'inline-flex items-center gap-1 rounded-md px-1.5 py-px text-[10px] font-medium leading-tight',
+      'inline-flex items-center gap-1 rounded-md px-1.5 py-px text-2xs font-medium leading-tight',
       badgeClass
     ]"
     :title="tooltip"

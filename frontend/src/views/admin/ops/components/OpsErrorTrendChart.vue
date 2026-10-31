@@ -117,7 +117,7 @@ const options = computed(() => {
       legend: {
         position: 'top' as const,
         align: 'end' as const,
-        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 10 } }
+        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 12 } }
       },
       tooltip: {
         ...chartTheme.value.tooltip,
@@ -132,7 +132,7 @@ const options = computed(() => {
         grid: { display: false },
         ticks: {
           color: c.text,
-          font: { size: 10 },
+          font: { size: 12 },
           maxTicksLimit: 8,
           autoSkip: true,
           autoSkipPadding: 10
@@ -144,7 +144,7 @@ const options = computed(() => {
         display: true,
         position: 'left' as const,
         grid: { color: c.grid, borderDash: [4, 4] },
-        ticks: { color: c.text, font: { size: 10 }, precision: 0 }
+        ticks: { color: c.text, font: { size: 12 }, precision: 0 }
       }
     }
   }
@@ -169,7 +169,7 @@ const options = computed(() => {
       <div class="flex items-center gap-2">
         <button
           type="button"
-          class="inline-flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
+          class="inline-flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-2xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
           :disabled="!hasRequestErrors"
           @click="emit('openRequestErrors')"
         >
@@ -177,7 +177,7 @@ const options = computed(() => {
         </button>
         <button
           type="button"
-          class="inline-flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
+          class="inline-flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-2xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
           :disabled="!hasUpstreamErrors"
           @click="emit('openUpstreamErrors')"
         >

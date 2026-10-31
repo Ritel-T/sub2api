@@ -655,7 +655,7 @@ watch(() => ({ active: deleting.value !== null, identity: JSON.stringify(deletin
 <style scoped>
 .pelican-tests { @apply w-full min-w-0 text-gray-900 dark:text-gray-100; }
 .ops-heading { @apply mb-6 flex flex-wrap items-center justify-between gap-4; }
-.eyebrow { @apply mb-1 text-[11px] font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
+.eyebrow { @apply mb-1 text-2xs font-semibold tracking-widest text-primary-600 dark:text-primary-400; }
 .subtitle { @apply mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400; }
 .ops-columns { display: grid; grid-template-columns: minmax(300px, .32fr) minmax(0, .68fr); gap: 20px; align-items: start; }
 .settings-card, .plans-card, .history-card { @apply min-w-0 overflow-hidden     border-t border-gray-200 dark:border-dark-700; }
@@ -681,12 +681,12 @@ watch(() => ({ active: deleting.value !== null, identity: JSON.stringify(deletin
 .plan-title { @apply flex flex-wrap items-center gap-2; }
 .plan-title strong { @apply truncate text-sm font-semibold; max-width: 260px; }
 .plan-meta { @apply mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400; }
-.plan-meta code, td code { @apply rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-700 dark:bg-dark-800 dark:text-gray-300; }
+.plan-meta code, td code { @apply rounded bg-gray-100 px-1.5 py-0.5 font-mono text-2xs text-gray-700 dark:bg-dark-800 dark:text-gray-300; }
 .plan-warning { @apply mt-2 text-xs text-amber-600 dark:text-amber-400; }
 .plan-last { @apply mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-600 dark:text-gray-300; }
 .plan-last .truncate { max-width: 340px; }
 .plan-next { @apply mt-1 text-xs text-gray-400; }
-.state-chip { @apply rounded-full px-2 py-0.5 text-[11px] font-medium; }
+.state-chip { @apply rounded-full px-2 py-0.5 text-2xs font-medium; }
 .state-on { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300; }
 .state-off { @apply bg-gray-100 text-gray-500 dark:bg-dark-800 dark:text-gray-400; }
 .state-running { @apply bg-primary-50 text-primary-700 dark:bg-primary-950/30 dark:text-primary-300; }
@@ -702,9 +702,9 @@ thead { @apply bg-gray-50/60 text-gray-400 dark:bg-dark-800/50; }
 th { @apply whitespace-nowrap px-4 py-3 font-medium; }
 td { @apply border-b border-gray-100 px-4 py-3 align-top dark:border-dark-800; }
 td strong { @apply block truncate text-[13px] font-medium; max-width: 200px; }
-td small { @apply mt-1 block text-[11px]; }
+td small { @apply mt-1 block text-2xs; }
 .error-text { @apply truncate text-red-500; max-width: 280px; }
-.result-badge { @apply inline-block rounded-md px-2 py-0.5 text-[11px] font-medium; }
+.result-badge { @apply inline-block rounded-md px-2 py-0.5 text-2xs font-medium; }
 .badge-ok { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300; }
 .badge-bad { @apply bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-300; }
 .link-button { @apply text-primary-600 hover:underline dark:text-primary-400; }

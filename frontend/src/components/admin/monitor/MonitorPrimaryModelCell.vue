@@ -6,7 +6,7 @@
       <HelpTooltip>
       <template #trigger>
         <span
-          class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+          class="inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-medium"
           :class="statusBadgeClass(row.primary_status)"
         >
           {{ statusLabel(row.primary_status) }}
@@ -16,20 +16,20 @@
         <div class="text-xs font-semibold text-gray-100">
           {{ formatMonitorModel(row.primary_model) }}
           <span
-            class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+            class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-2xs font-medium"
             :class="statusBadgeClass(row.primary_status)"
           >
             {{ statusLabel(row.primary_status) }}
           </span>
         </div>
-        <div v-if="(row.extra_models?.length ?? 0) === 0" class="text-[11px] text-gray-300">
+        <div v-if="(row.extra_models?.length ?? 0) === 0" class="text-2xs text-gray-300">
           {{ t('monitorCommon.extraModelsEmpty') }}
         </div>
         <div v-else class="space-y-1">
-          <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          <div class="text-2xs font-semibold uppercase tracking-wide text-gray-400">
             {{ t('monitorCommon.extraModelsHeader') }}
           </div>
-          <table class="w-full text-left text-[11px]">
+          <table class="w-full text-left text-2xs">
             <thead>
               <tr class="text-gray-400">
                 <th class="py-0.5 pr-2 font-medium">{{ t('admin.channelMonitor.columns.primaryModel') }}</th>
@@ -42,7 +42,7 @@
                 <td class="py-0.5 pr-2 text-gray-100">{{ m.model }}</td>
                 <td class="py-0.5 pr-2">
                   <span
-                    class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px]"
+                    class="inline-flex items-center rounded-full px-1.5 py-0.5 text-2xs"
                     :class="statusBadgeClass(m.status)"
                   >
                     {{ statusLabel(m.status) }}

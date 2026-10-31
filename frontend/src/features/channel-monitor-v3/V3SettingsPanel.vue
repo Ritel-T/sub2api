@@ -70,7 +70,7 @@
                   v-for="category in settings.error_categories"
                   :key="category"
                   type="button"
-                  class="rounded-full border px-2 py-0.5 text-[11px] transition"
+                  class="rounded-full border px-2 py-0.5 text-2xs transition"
                   :class="draft.ignored_error_categories.includes(category) ? 'border-gray-300 bg-gray-100 text-gray-500 line-through dark:border-dark-500 dark:bg-dark-700 dark:text-gray-400' : 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-300'"
                   :aria-pressed="draft.ignored_error_categories.includes(category)"
                   :data-category="category"
@@ -126,7 +126,7 @@
                 <div class="min-w-0">
                   <p class="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                     {{ section.category ? section.category.name : t('channelMonitorV3.admin.uncategorized') }}
-                    <span class="rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-normal text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ section.components.length }}</span>
+                    <span class="rounded-md bg-gray-100 px-1.5 py-0.5 text-2xs font-normal text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ section.components.length }}</span>
                   </p>
                   <p v-if="section.category?.description" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ section.category.description }}</p>
                   <p v-else-if="!section.category" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.admin.uncategorizedHint') }}</p>
@@ -153,15 +153,15 @@
                   <div class="min-w-0 flex-1">
                     <p class="flex flex-wrap items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-white">
                       <span class="truncate">{{ component.name }}</span>
-                      <span v-if="component.show_multiplier" class="rounded-md bg-gray-100 px-1.5 font-mono text-[10px] text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ formatMonitorV3Multiplier(component.group_rate_multiplier) }}</span>
-                      <span v-if="settings.config.featured_component_id === component.id" class="rounded-md bg-primary-50 px-1.5 text-[10px] text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ t('channelMonitorV3.admin.featuredBadge') }}</span>
-                      <span v-if="component.group_deleted || (component.group_status && component.group_status !== 'active')" class="rounded-md bg-red-50 px-1.5 text-[10px] text-red-600 dark:bg-red-900/30 dark:text-red-300">{{ t('channelMonitorV3.admin.groupUnavailable') }}</span>
+                      <span v-if="component.show_multiplier" class="rounded-md bg-gray-100 px-1.5 font-mono text-2xs text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ formatMonitorV3Multiplier(component.group_rate_multiplier) }}</span>
+                      <span v-if="settings.config.featured_component_id === component.id" class="rounded-md bg-primary-50 px-1.5 text-2xs text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ t('channelMonitorV3.admin.featuredBadge') }}</span>
+                      <span v-if="component.group_deleted || (component.group_status && component.group_status !== 'active')" class="rounded-md bg-red-50 px-1.5 text-2xs text-red-600 dark:bg-red-900/30 dark:text-red-300">{{ t('channelMonitorV3.admin.groupUnavailable') }}</span>
                     </p>
                     <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      <span class="rounded px-1 py-px text-[10px]" :class="platformBadgeLightClass(component.group_platform)">{{ platformLabel(component.group_platform) }}</span>
+                      <span class="rounded px-1 py-px text-2xs" :class="platformBadgeLightClass(component.group_platform)">{{ platformLabel(component.group_platform) }}</span>
                       <span class="truncate">{{ component.group_name || '#' + component.group_id }}</span>
                       <span>·</span>
-                      <code v-if="component.model" class="rounded bg-gray-100 px-1 font-mono text-[11px] text-gray-700 dark:bg-dark-700 dark:text-gray-300">{{ component.model }}</code>
+                      <code v-if="component.model" class="rounded bg-gray-100 px-1 font-mono text-2xs text-gray-700 dark:bg-dark-700 dark:text-gray-300">{{ component.model }}</code>
                       <span v-else>{{ t('channelMonitorV3.admin.allModels') }}</span>
                       <span>·</span>
                       <span>{{ t(`channelMonitorV3.visibility.${component.visibility}`) }}</span>

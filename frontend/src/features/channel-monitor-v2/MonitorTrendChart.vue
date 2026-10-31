@@ -27,7 +27,7 @@
         <span class="badge badge-gray shrink-0">{{ bucketLabel }}</span>
         <button
           type="button"
-          class="inline-flex shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
+          class="inline-flex shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-2xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
           :disabled="!zoomed"
           @click="resetChartZoom"
         >
@@ -232,7 +232,7 @@ const chartOptions = computed(() => {
     scales: {
       x: {
         border: { color: chartTheme.value.grid },
-        ticks: { color: text, maxRotation: 0, autoSkip: true, maxTicksLimit: 8, autoSkipPadding: 10, font: { size: 10 } },
+        ticks: { color: text, maxRotation: 0, autoSkip: true, maxTicksLimit: 8, autoSkipPadding: 10, font: { size: 12 } },
         grid: { display: false },
       },
       yPct: {
@@ -243,11 +243,11 @@ const chartOptions = computed(() => {
         suggestedMax: 100,
         ticks: {
           color: text,
-          font: { size: 10 },
+          font: { size: 12 },
           callback: (v: string | number) => `${v}%`,
         },
         grid: { color: grid, borderDash: [4, 4] },
-        title: { display: true, text: t('channelMonitorV2.chart.percentAxis'), color: text, font: { size: 11 } },
+        title: { display: true, text: t('channelMonitorV2.chart.percentAxis'), color: text, font: { size: 12 } },
       },
       yTtft: {
         border: { color: chartTheme.value.grid },
@@ -256,11 +256,11 @@ const chartOptions = computed(() => {
         min: 0,
         ticks: {
           color: '#0ea5e9',
-          font: { size: 10 },
+          font: { size: 12 },
           callback: (v: string | number) => formatMonitorMs(Number(v)),
         },
         grid: { display: false },
-        title: { display: true, text: t('channelMonitorV2.metrics.ttftP50'), color: '#0ea5e9', font: { size: 11 } },
+        title: { display: true, text: t('channelMonitorV2.metrics.ttftP50'), color: '#0ea5e9', font: { size: 12 } },
       },
     },
   }

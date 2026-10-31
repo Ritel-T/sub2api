@@ -3,7 +3,7 @@
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
       <div>
         <h3 id="harvest-nodes-title" class="sr-only">{{ t(`${prefix}.title`) }}</h3>
-        <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ t(`${prefix}.resetHint`) }} · {{ total ?? 0 }}</p>
+        <p class="text-2xs text-gray-500 dark:text-gray-400">{{ t(`${prefix}.resetHint`) }} · {{ total ?? 0 }}</p>
       </div>
       <button type="button" data-testid="reset-all-nodes" class="btn btn-secondary btn-sm" :disabled="busy || !total" @click="reset(0)">{{ t(`${prefix}.resetAll`) }}</button>
     </div>
@@ -20,7 +20,7 @@
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ node.node_name }}</p>
-            <p class="mt-1 truncate text-[11px] text-gray-400">
+            <p class="mt-1 truncate text-2xs text-gray-400">
               {{ node.provider }} · #{{ node.account_id }} {{ accountNames?.[node.account_id] || '—' }} · {{ node.model }}
             </p>
           </div>
@@ -34,7 +34,7 @@
             {{ t(`${prefix}.resetOne`) }}
           </button>
         </div>
-        <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+        <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-2xs text-gray-500 dark:text-gray-400">
           <span><span class="text-emerald-600">{{ node.successes }}</span> / {{ node.misses }} / {{ node.network_errors }} / {{ node.account_errors }} · {{ resultLabel(node.last_result) }}</span>
           <span>{{ t(`${prefix}.lastSuccess`) }} {{ clock(node.last_success) }}</span>
           <span>{{ node.latency_ms }} ms</span>
@@ -46,7 +46,7 @@
       <p v-if="items.length === 0" class="py-8 text-center text-sm text-gray-500">{{ loading ? t(`${prefix}.loading`) : t(`${prefix}.empty`) }}</p>
     </div>
     <InfiniteListSentinel :loading="busy" :error="list.error.value" :has-more="list.hasMore.value && !resetting" @load-more="list.loadMore" @retry="list.retry" />
-    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500">
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-2xs text-gray-500">
       <p>{{ t(`${prefix}.legend`) }}</p>
     </div>
   </section>
