@@ -286,6 +286,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import { consoleFetch, consoleAuthHeaders, consoleOwnedStorageKey } from '@/utils/centralAccount'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { questionPrompt, questionContract, isTextAnswerKind, stateProbeVerdict, STATE_PROBE_QUESTION, type IntelligenceQuestion, type StateProbeVerdict } from '@/utils/intelligenceTest'
@@ -505,9 +507,7 @@ function saveRecords() {
   }
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value))
-}
+function formatDate(value: string) { return displayTimestamp(value) }
 
 
 function editSchedule(config: PelicanTestConfig, model: string) {

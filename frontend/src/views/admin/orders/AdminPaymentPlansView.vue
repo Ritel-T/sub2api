@@ -31,7 +31,7 @@
           <div class="text-sm">
             <span class="font-medium text-gray-900 dark:text-white">{{ planCurrencySymbol(row.currency) }}{{ (value ?? 0).toFixed(2) }}</span>
             <span v-if="row.currency" class="ml-1 text-xs text-gray-400">{{ row.currency }}</span>
-            <span v-if="row.original_price" class="ml-1 text-xs text-gray-400 line-through">{{ planCurrencySymbol(row.currency) }}{{ row.original_price.toFixed(2) }}</span>
+            <span v-if="row.original_price" class="ml-1 text-xs text-gray-400 line-through">{{ planCurrencySymbol(row.currency) }}{{ formatDisplayAmount(row.original_price, 2) }}</span>
           </div>
         </template>
         <template #cell-validity_days="{ value, row }">
@@ -63,6 +63,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import Toggle from '@/components/common/Toggle.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

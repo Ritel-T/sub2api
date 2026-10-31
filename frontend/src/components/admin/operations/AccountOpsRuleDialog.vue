@@ -9,13 +9,17 @@
         <label v-if="isQuota" class="block space-y-2 text-sm"><span>{{ t('accountOps.quotaWindow') }}</span><select v-model="windowId" class="input w-full" data-testid="rule-window"><option value="any">{{ t('accountOps.anyWindow') }}</option><option v-for="window in account.usage_windows" :key="window.window" :value="window.window">{{ window.label }}</option><option v-if="windowId !== 'any' && !account.usage_windows.some(w => w.window === windowId)" :value="windowId">{{ windowId }}</option></select></label>
         <div class="space-y-3 border-y border-gray-200 py-4 dark:border-dark-700"><p class="text-sm font-medium">{{ t('accountOps.transitionNotices') }}</p><label class="flex items-start gap-3 text-sm"><input v-model="notifyAlert" type="checkbox" class="mt-1" data-testid="rule-notify-alert" /><span>{{ t('accountOps.notifyAlert') }}<small class="mt-1 block text-xs leading-5 text-gray-500">{{ t('accountOps.notifyAlertHint') }}</small></span></label><label class="flex items-start gap-3 text-sm"><input v-model="notifyRecovery" type="checkbox" class="mt-1" data-testid="rule-notify-recovery" /><span>{{ t('accountOps.notifyRecovery') }}<small class="mt-1 block text-xs leading-5 text-gray-500">{{ t('accountOps.notifyRecoveryHint') }}</small></span></label></div>
         <p class="text-xs leading-5 text-gray-500">{{ t(isQuota ? 'accountOps.quotaOnceHint' : 'accountOps.balanceOnceHint') }}</p>
-        <details class="text-xs text-gray-500"><summary class="cursor-pointer">{{ t('accountOps.sampleDetails') }}</summary><div class="mt-3 space-y-2"><p v-if="!isQuota">{{ t('accountOps.currentValue') }}: {{ account.balance_status === 'ok' && account.balance != null ? `${account.balance.toFixed(2)} ${account.unit}` : t(`accountOps.observations.${account.balance_status}`) }}</p><p v-if="account.received_at">{{ t('accountOps.sampleTime') }} {{ date(account.received_at) }}</p><div v-for="window in account.usage_windows" :key="window.window"><p>{{ window.label }}: {{ window.status === 'ok' && window.used_percent != null ? `${window.used_percent.toFixed(1)}%` : t(`accountOps.observations.${window.status}`) }}</p><p v-if="window.observed_at">{{ t('accountOps.sampleTime') }} {{ date(window.observed_at) }}</p><p v-if="window.resets_at">{{ t('accountOps.resetTime') }} {{ date(window.resets_at) }}</p></div></div></details>
+        <details class="text-xs text-gray-500"><summary class="cursor-pointer">{{ t('accountOps.sampleDetails') }}</summary><div class="mt-3 space-y-2"><p v-if="!isQuota">{{ t('accountOps.currentValue') }}: {{ account.balance_status === 'ok' && account.balance != null ? `${formatDisplayAmount(account.balance, 2)} ${account.unit}` : t(`accountOps.observations.${account.balance_status}`) }}</p><p v-if="account.received_at">{{ t('accountOps.sampleTime') }} {{ date(account.received_at) }}</p><div v-for="window in account.usage_windows" :key="window.window"><p>{{ window.label }}: {{ window.status === 'ok' && window.used_percent != null ? `${window.used_percent.toFixed(1)}%` : t(`accountOps.observations.${window.status}`) }}</p><p v-if="window.observed_at">{{ t('accountOps.sampleTime') }} {{ date(window.observed_at) }}</p><p v-if="window.resets_at">{{ t('accountOps.resetTime') }} {{ date(window.resets_at) }}</p></div></div></details>
       </fieldset>
     </form>
     <template #footer><button type="button" class="btn btn-secondary" @click="close">{{ t('common.cancel') }}</button><button type="submit" form="account-ops-rule-form" :disabled="busy" class="btn btn-primary">{{ t(busy ? 'common.loading' : 'accountOps.saveRule') }}</button></template>
   </BaseDialog>
 </template>
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -38,7 +42,7 @@ watch(() => [props.show, props.account?.account_id] as const, () => {
 }, { immediate: true, flush: 'pre' })
 const close = () => { sequence++; busy.value = false; emit('close') }
 onBeforeUnmount(() => { sequence++ })
-const date = (s: string) => { const d = new Date(s); return Number.isFinite(d.getTime()) ? d.toLocaleString() : '-' }
+const date = (s: string) => { const d = new Date(s); return Number.isFinite(d.getTime()) ? formatDisplayTimestamp(d) : '-' }
 async function save() {
   if (!props.account || busy.value) return
   const value = Number(threshold.value)

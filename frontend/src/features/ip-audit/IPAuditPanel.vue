@@ -56,6 +56,8 @@
   </section>
 </template>
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
@@ -86,7 +88,7 @@ let loadedPages = 0, failedOperation: 'reset' | 'append' | 'refresh' = 'reset'
 const selectedSource = computed(() => inventory.value.find(s => s.id === source.value))
 const exactSource = computed(() => source.value === 'login_failures' || source.value === 'login_limiter')
 let controller: AbortController | undefined, disposed = false
-const date = (value: number | null) => value == null ? t('ipAudit.unavailable') : new Date(value * 1000).toLocaleString()
+const date = (value: number | null) => value == null ? t('ipAudit.unavailable') : formatDisplayTimestamp(value * 1000)
 const timestamp = (value: string) => value ? Math.floor(new Date(value).getTime() / 1000) : undefined
 async function load(operation: 'reset' | 'append' | 'refresh' = 'reset') {
   if (operation === 'append' && (loading.value || releasing.value || !hasMore.value || listError.value)) return

@@ -6,7 +6,7 @@
     <button type="button" class="btn btn-secondary" @click="load">{{ t('common.refresh') }}</button>
     <template v-if="state">
       <p data-test="current-state" class="text-sm">{{ t('admin.moderationUsers.current', { count: state.current_count, status: state.status, generation: state.generation }) }}</p>
-      <p class="break-words text-xs text-gray-500">{{ t('admin.moderationUsers.lastAction') }}: {{ state.reason || '—' }} · UID {{ state.actor_id ?? '—' }} · {{ state.updated_at ? new Date(state.updated_at).toLocaleString() : '—' }}</p>
+      <p class="break-words text-xs text-gray-500">{{ t('admin.moderationUsers.lastAction') }}: {{ state.reason || '—' }} · UID {{ state.actor_id ?? '—' }} · {{ state.updated_at ? formatDisplayTimestamp(state.updated_at) : '—' }}</p>
       <label class="flex items-start gap-2 text-sm">
         <input v-model="exempt" type="checkbox" data-test="exempt" class="mt-1" />
         <span>{{ t('admin.moderationUsers.exemption') }}</span>
@@ -58,6 +58,8 @@
   </fieldset>
 </template>
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

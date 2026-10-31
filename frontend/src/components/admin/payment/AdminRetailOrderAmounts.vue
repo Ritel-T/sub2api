@@ -3,7 +3,7 @@
     <div v-for="item in items" :key="item.key">
       <p :class="compact ? 'inline text-gray-500 dark:text-gray-400' : 'text-xs text-gray-500 dark:text-gray-400'">{{ t(item.label) }}<span v-if="compact">: </span></p>
       <p :class="compact ? 'inline font-medium text-gray-900 dark:text-white' : 'text-sm font-medium text-gray-900 dark:text-white'">
-        {{ (item.currency ? currencySymbol(item.currency) : '$') + item.amount.toFixed(2) + (item.currency ? ' ' + item.currency : '') }}
+        {{ (item.currency ? currencySymbol(item.currency) : '$') + formatDisplayAmount(item.amount, 2) + (item.currency ? ' ' + item.currency : '') }}
       </p>
     </div>
     <div v-if="verifiedSettlement" data-testid="verified-payment-platform">
@@ -15,6 +15,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { isGelvAlipayQuote } from '@/components/payment/retailQuote'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

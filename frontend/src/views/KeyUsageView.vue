@@ -311,6 +311,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
@@ -749,12 +751,7 @@ function fmtNum(val: number | null | undefined): string {
   return val.toLocaleString()
 }
 
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  const loc = locale.value === 'zh-Hant-HK' ? 'zh-Hant-HK' : locale.value === 'zh' ? 'zh-CN' : 'en-US'
-  return d.toLocaleDateString(loc, { year: 'numeric', month: 'long', day: 'numeric' })
-}
+function formatDate(iso: string | null | undefined): string { return displayTimestamp(iso) }
 
 function getBrowserTimezone(): string {
   try {

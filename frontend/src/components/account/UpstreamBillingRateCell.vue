@@ -183,6 +183,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -327,14 +329,7 @@ const statusClass = computed(() => {
 })
 const hasEffectiveRate = computed(() => effectiveRate.value !== '-')
 const primaryValue = computed(() => hasEffectiveRate.value ? effectiveRate.value : statusLabel.value || '-')
-const formatDate = (value?: string) => value
-  ? new Date(value).toLocaleString(undefined, {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  : '-'
+const formatDate = (value?: string) => displayTimestamp(value)
 
 // 上游余额：同一次探测读取上游 /v1/usage，快照独立记录状态与有效期。
 const BALANCE_WINDOW_KEYS: Record<string, string> = {

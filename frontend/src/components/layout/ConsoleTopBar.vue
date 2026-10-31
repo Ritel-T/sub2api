@@ -121,7 +121,7 @@
               <div class="py-1">
                 <template v-if="centralAccountEnabled">
                   <a :href="accountPageURL('profile')" class="dropdown-item" @click="closeDropdown">{{ t('nav.profile') }}</a>
-                  <a :href="accountPageURL('security')" class="dropdown-item" @click="closeDropdown">{{ locale.startsWith('zh') ? '账号安全' : 'Account security' }}</a>
+                  <a :href="accountPageURL('security')" class="dropdown-item" @click="closeDropdown">{{ t('consoleExperience.accountLink') }}</a>
                   <a :href="accountPageURL('sessions')" class="dropdown-item" @click="closeDropdown">{{ locale.startsWith('zh') ? '登录会话' : 'Sessions' }}</a>
                   <router-link to="/profile" class="dropdown-item" @click="closeDropdown">{{ locale.startsWith('zh') ? '业务通知设置' : 'Business notifications' }}</router-link>
                 </template>
@@ -192,6 +192,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatMoney } from '@/utils/consoleDisplay'
 import { accountPageURL, centralAccountEnabled } from '@/utils/accountConfig'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -277,10 +278,6 @@ function scheduleMeasure() {
 }
 watch([locale, sections, workspace], async () => { await nextTick(); scheduleMeasure() })
 
-function formatMoney(value: number) {
-  if (!Number.isFinite(value)) return '$0.00'
-  return `$${value.toFixed(2)}`
-}
 
 const displayName = computed(() => {
   if (!user.value) return ''

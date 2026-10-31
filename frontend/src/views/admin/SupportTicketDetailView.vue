@@ -83,7 +83,7 @@
               </div>
               <div class="flex justify-between gap-3">
                 <dt class="text-gray-500 dark:text-gray-400">{{ t('supportTickets.admin.balance') }}</dt>
-                <dd class="text-gray-900 dark:text-gray-100">${{ (user?.balance ?? 0).toFixed(2) }}</dd>
+                <dd class="text-gray-900 dark:text-gray-100">${{ formatDisplayAmount((user?.balance ?? 0), 2) }}</dd>
               </div>
               <div class="flex justify-between gap-3">
                 <dt class="text-gray-500 dark:text-gray-400">{{ t('supportTickets.admin.accountStatus') }}</dt>
@@ -138,6 +138,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'

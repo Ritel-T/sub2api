@@ -23,7 +23,7 @@ describe('actual order list amounts', () => {
   })
   it.each(['gelv_alipay', 'gelv', 'alipay', 'wxpay', 'stripe', 'airwallex', 'squarespace', 'balance'])('shows cash and credited totals once for completed %s orders', payment_type => {
     const wrapper = mount(OrderAmounts, { props: { order: { ...order, payment_type, bonus_amount: 1 } } })
-    expect(wrapper.get('[data-testid=order-paid]').text()).toContain('¥12.34 CNY')
+    expect(wrapper.get('[data-testid=order-paid]').text()).toContain('¥12.34')
     expect(wrapper.get('[data-testid=order-credited]').text()).toContain('$12.27')
     expect(wrapper.text().match(/12\.34/g)).toHaveLength(1)
     expect(wrapper.text().match(/12\.27/g)).toHaveLength(1)
@@ -39,7 +39,7 @@ describe('actual order list amounts', () => {
   })
   it.each(['PAID', 'RECHARGING', 'FAILED'] as const)('shows payment with awaiting credit after confirmed payment in %s', status => {
     const wrapper = mount(OrderAmounts, { props: { order: { ...order, status, paid_at: '2026-10-31T01:00:00Z' } } })
-    expect(wrapper.get('[data-testid=order-paid]').text()).toContain('¥12.34 CNY')
+    expect(wrapper.get('[data-testid=order-paid]').text()).toContain('¥12.34')
     expect(wrapper.get('[data-testid=order-credited]').text()).toBe('payment.orders.actualCredited: —')
     wrapper.unmount()
   })
@@ -53,7 +53,7 @@ describe('actual order list amounts', () => {
   })
   it.each(['USD', 'GBP', 'CNY'])('uses persisted %s cash currency rather than a frozen quote total', currency => {
     const wrapper = mount(OrderAmounts, { props: { order: { ...order, currency } } })
-    expect(wrapper.get('[data-testid=order-paid]').text()).toContain('12.34 ' + currency)
+    expect(wrapper.get('[data-testid=order-paid]').text()).toContain(({ USD: '$12.34', GBP: '£12.34', CNY: '¥12.34' } as Record<string, string>)[currency])
     wrapper.unmount()
   })
   it('shares the two actual totals across user and admin tables', () => {
@@ -61,7 +61,7 @@ describe('actual order list amounts', () => {
       const wrapper = mount(component, { props: { orders: [order], loading: false, page: 1, pageSize: 50, total: 1 }, global: { stubs: { DataTable: tableStub, Select: true, Icon: true, InfiniteListSentinel: true } } })
       expect(wrapper.findAll('[data-testid=order-amounts]')).toHaveLength(1)
       expect(wrapper.text()).toContain('$12.27')
-      expect(wrapper.text()).toContain('¥12.34 CNY')
+      expect(wrapper.text()).toContain('¥12.34')
       expect(wrapper.text()).not.toMatch(/gelv\.(agreedDeduction|alipayCredit|androidCredit|iosCredit|feeRates)/)
       wrapper.unmount()
     }
@@ -80,3 +80,5 @@ describe('actual order list amounts', () => {
     wrapper.unmount()
   })
 })
+
+vi.mock('@/composables/useClipboard', () => ({ useClipboard: () => ({ copyToClipboard: vi.fn() }) }))

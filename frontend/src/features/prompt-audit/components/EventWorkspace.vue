@@ -105,6 +105,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, defineComponent, h, reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -128,7 +130,7 @@ const emit = defineEmits<{
   (event: 'batch-delete'): void
   (event: 'preview-delete'): void
 }>()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const localFilters = reactive<PromptEventFilters>(cloneData(props.filters))
 watch(() => props.filters, (value) => Object.assign(localFilters, cloneData(value)), { deep: true })
 const columns = computed(() => [
@@ -183,9 +185,7 @@ function resetFilters() {
   Object.assign(localFilters, emptyEventFilters())
   applyFilters()
 }
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value))
-}
+function formatDate(value: string): string { return displayTimestamp(value) }
 function decisionClass(decision: string): string {
   if (decision === 'critical') return 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300'
   if (decision === 'flag') return 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'

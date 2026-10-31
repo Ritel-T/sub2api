@@ -4385,6 +4385,10 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
+import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'
@@ -5520,7 +5524,7 @@ const formatImagePricePreview = (value: number | string | null | undefined) => {
   if (!Number.isFinite(price) || price < 0) {
     return t("admin.groups.imagePricing.notConfigured");
   }
-  return `$${price.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
+  return `$${formatDisplayAmount(price, 6).replace(/0+$/, "").replace(/\.$/, "")}`;
 };
 
 const formatVideoPricePreview = (value: number | string | null | undefined) => {
@@ -5531,7 +5535,7 @@ const formatVideoPricePreview = (value: number | string | null | undefined) => {
   if (!Number.isFinite(price) || price < 0) {
     return t("admin.groups.videoPricing.notConfigured");
   }
-  return `$${price.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
+  return `$${formatDisplayAmount(price, 6).replace(/0+$/, "").replace(/\.$/, "")}`;
 };
 
 const buildImageFinalPricePreview = (form: ImagePricingFormState) => {
@@ -5712,11 +5716,7 @@ watch(groups, (rows) => {
 })
 
 
-const formatCost = (cost: number): string => {
-  if (cost >= 1000) return cost.toFixed(0);
-  if (cost >= 100) return cost.toFixed(1);
-  return cost.toFixed(2);
-};
+const formatCost = (cost: number): string => { return displayAmount(cost) };
 
 const formatUsd = (cost: number | null | undefined): string =>
   `$${formatCost(cost ?? 0)}`;

@@ -87,6 +87,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppHeading from '@/components/common/AppHeading.vue'
@@ -164,7 +166,7 @@ function dayOf(value: string): string {
 }
 function formatTime(value: string): string {
   const date = new Date(value)
-  return Number.isFinite(date.getTime()) ? date.toLocaleString() : '—'
+  return Number.isFinite(date.getTime()) ? formatDisplayTimestamp(date) : '—'
 }
 function userLabel(event: SafetyPromptEvent): string {
   if (event.user_id != null) return `#${event.user_id}`

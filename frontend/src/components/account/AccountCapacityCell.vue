@@ -39,6 +39,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account } from '@/types'
@@ -191,10 +193,7 @@ const rpmTooltip = computed(() => {
 })
 
 // 格式化费用显示
-const formatCost = (value: number | null | undefined) => {
-  if (value === null || value === undefined) return '0'
-  return value.toFixed(2)
-}
+const formatCost = (value: number | null | undefined) => { return displayAmount(value) }
 
 // ====== 配额 ======
 const isQuotaEligible = computed(() => supportsAccountQuota(props.account.type))

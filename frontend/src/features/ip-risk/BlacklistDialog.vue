@@ -26,7 +26,7 @@
                 <td class="whitespace-nowrap px-4 py-3">
                   <span class="rounded-full px-2 py-1 text-xs" :class="rule.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-400'">{{ tr(rule.enabled ? 'protectionEnabled' : 'protectionDisabled') }}</span>
                 </td>
-                <td class="whitespace-nowrap px-4 py-3 text-gray-500">{{ rule.expires_at ? new Date(rule.expires_at * 1000).toLocaleString() : tr('permanent') }}</td>
+                <td class="whitespace-nowrap px-4 py-3 text-gray-500">{{ rule.expires_at ? formatDisplayTimestamp(rule.expires_at * 1000) : tr('permanent') }}</td>
                 <td class="px-4 py-3">
                   <div class="flex justify-end gap-3 whitespace-nowrap">
                     <button type="button" class="text-primary-600 hover:underline dark:text-primary-400" :aria-label="`${tr('edit')} ${rule.network}`" :data-testid="`risk-rule-edit-${index}`" :data-rule-key="rule.key" @click="openEditor(rule)">{{ tr('edit') }}</button>
@@ -61,6 +61,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'

@@ -448,6 +448,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch, computed } from 'vue'
 import { useChartTheme } from '@/utils/chartTheme'
@@ -672,16 +674,7 @@ const handleClose = () => {
 }
 
 // Format helpers
-const formatCost = (value: number): string => {
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K'
-  } else if (value >= 1) {
-    return value.toFixed(2)
-  } else if (value >= 0.01) {
-    return value.toFixed(3)
-  }
-  return value.toFixed(4)
-}
+const formatCost = (value: number): string => { return displayAmount(value) }
 
 const formatNumber = (value: number): string => {
   if (value >= 1_000_000) {

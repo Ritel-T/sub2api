@@ -71,7 +71,7 @@
             <span v-if="row.order_id == null" class="text-sm text-gray-400 dark:text-dark-500">-</span>
             <div v-else class="space-y-0.5">
               <div class="font-mono text-sm text-gray-900 dark:text-white">#{{ row.order_id }}</div>
-              <div class="max-w-56 truncate text-sm text-gray-500 dark:text-dark-400">{{ row.out_trade_no }}</div>
+              <div class="max-w-56 truncate text-sm text-gray-500 dark:text-dark-400">{{ displayOrderNumber(row.out_trade_no) }}</div>
             </div>
           </template>
           <template #cell-payment_type="{ row }">
@@ -168,6 +168,7 @@
 </template>
 
 <script setup lang="ts">
+import { displayOrderNumber } from '@/utils/consoleDisplay'
 import { computed, defineComponent, h, onMounted, onUnmounted, watch, reactive, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'

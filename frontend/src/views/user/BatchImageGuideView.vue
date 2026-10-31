@@ -694,6 +694,10 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
+import { formatTimestamp as displayTimestamp, formatMoney as displayMoney } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { useOwnedPopover } from '@/composables/overlayLifecycle'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
@@ -2328,10 +2332,7 @@ function friendlyItemError(error: BatchImageItem['error']) {
   return error.message || error.code || '-'
 }
 
-function formatMoney(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '$0.00'
-  return `$${Number(value).toFixed(2)}`
-}
+function formatMoney(value: number | null | undefined) { return displayMoney(value) }
 
 function terminalZeroCost(job: Pick<BatchImageJob, 'status' | 'actual_cost'>) {
   return job.actual_cost === null && (job.status === 'failed' || job.status === 'cancelled')
@@ -2533,14 +2534,11 @@ function batchImageErrorMessage(error: any, fallback: string) {
   return message || fallback
 }
 
-function formatDate(timestamp: number) {
-  if (!timestamp) return ''
-  return new Date(timestamp * 1000).toLocaleString()
-}
+function formatDate(timestamp: number) { return displayTimestamp(timestamp * 1000) }
 
 function defaultTaskName(timestamp?: number) {
   const date = timestamp ? new Date(timestamp * 1000) : new Date()
-  return date.toLocaleString()
+  return formatDisplayTimestamp(date)
 }
 
 onMounted(() => {

@@ -1,3 +1,4 @@
+import consoleExperience from './consoleExperience'
 import adminAccessKeys from './adminAccessKeys'
 import upstreamOps from './upstreamOps'
 import profitOps from './profitOps'
@@ -34,6 +35,7 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  consoleExperience,
   adminAccessKeys,
   upstreamOps,
   profitOps,

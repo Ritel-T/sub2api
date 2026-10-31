@@ -72,6 +72,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
@@ -80,7 +82,7 @@ import type { PromptAuditRuntime } from '../types'
 
 const props = defineProps<{ runtime: PromptAuditRuntime | null; loading: boolean; error: string }>()
 defineEmits<{ (event: 'refresh'): void }>()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
 const statusItems = computed(() => {
   const runtime = props.runtime
@@ -110,9 +112,7 @@ const guardMetricItems = computed(() => {
   ]
 })
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value))
-}
+function formatDate(value: string): string { return displayTimestamp(value) }
 
 function statusDot(status: string): string {
   if (status === 'running') return 'bg-emerald-500'

@@ -140,7 +140,7 @@
           <span v-if="ticket.ready" class="text-emerald-600 dark:text-emerald-400">{{ formatCodexTicketRemaining(ticket.remaining_seconds) }}</span>
           <span v-else-if="ticket.blocked" class="text-amber-600 dark:text-amber-400">{{ t('admin.accounts.openai.codexTurnTicketPaused') }}</span>
           <span v-else class="text-gray-500">{{ t('admin.accounts.openai.codexTurnTicketMissing') }}</span>
-          <span v-if="ticket.probe" class="text-gray-400" :title="`${t('admin.accounts.openai.ticketProbe.' + ticket.probe.result)} · HTTP ${ticket.probe.http_status || '—'} · ${new Date(ticket.probe.checked_at).toLocaleString()}${ticket.probe.next_probe_at ? ' · ' + t('admin.accounts.openai.ticketProbeNext') + new Date(ticket.probe.next_probe_at).toLocaleString() : ''}${ticket.standby_expires_at ? ' · ' + t('admin.accounts.openai.ticketStandbyExpires') + new Date(ticket.standby_expires_at).toLocaleString() : ''}`">ⓘ</span>
+          <span v-if="ticket.probe" class="text-gray-400" :title="`${t('admin.accounts.openai.ticketProbe.' + ticket.probe.result)} · HTTP ${ticket.probe.http_status || '—'} · ${formatDisplayTimestamp(ticket.probe.checked_at)}${ticket.probe.next_probe_at ? ' · ' + t('admin.accounts.openai.ticketProbeNext') + formatDisplayTimestamp(ticket.probe.next_probe_at) : ''}${ticket.standby_expires_at ? ' · ' + t('admin.accounts.openai.ticketStandbyExpires') + formatDisplayTimestamp(ticket.standby_expires_at) : ''}`">ⓘ</span>
         </div>
       </div>
       <div v-if="hasOpenAIUsageFallback" :class="compact ? 'space-y-0.5' : 'space-y-1'">
@@ -738,6 +738,10 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import ExcelBPSCredentialStatus from './ExcelBPSCredentialStatus.vue'
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
@@ -1690,7 +1694,7 @@ const formatKeyTokens = computed(() => {
 
 const formatKeyUserCost = computed(() => {
   if (!props.todayStats || props.todayStats.user_cost == null) return '0.00'
-  return props.todayStats.user_cost.toFixed(2)
+  return formatDisplayAmount(props.todayStats.user_cost, 2)
 })
 
 onMounted(() => {

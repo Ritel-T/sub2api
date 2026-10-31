@@ -4,7 +4,7 @@
     <ConsoleObjectLinks v-if="!props.observerMode && filters.account_id === objectQueryId(route.query.account_id) && objectQueryId(route.query.account_id)" kind="account" :id="objectQueryId(route.query.account_id)!" context class="open-page mb-4" />
     <div class="open-page usage-page">
       <header class="usage-page-header">
-        <AppHeading variant="page" as="h1">{{ pageCopy[usagePage] }}</AppHeading>
+        <AppHeading variant="page" as="h1">{{ props.observerMode ? pageCopy[usagePage] : t('nav.usage') }}</AppHeading>
       <nav class="usage-page-links" :aria-label="pageCopy.navigation">
         <a v-for="page in (['analysis', 'records'] as const)" :key="page" :href="pageLink(page)"
           class="usage-page-link" :class="{ 'is-active': usagePage === page }"
@@ -188,6 +188,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { getLast24HourRange, getDatePresetRange, getGranularityForRange, parseDateBoundary } from '@/utils/dateRange'
 import { ref, reactive, computed, onMounted, onUnmounted, watch, provide } from 'vue'
@@ -668,10 +670,10 @@ const exportToExcel = async () => {
         log.inbound_endpoint || '', log.upstream_endpoint || '', getRequestTypeLabel(log),
         log.input_tokens, log.output_tokens, log.cache_read_tokens, log.cache_creation_tokens,
         ...(showUsageCacheRate(appStore.cachedPublicSettings, props.observerMode ? 'user' : 'admin') ? [formatUsageCacheRate(log) ?? ''] : []),
-        log.input_cost?.toFixed(6) || '0.000000', log.output_cost?.toFixed(6) || '0.000000',
-        log.cache_read_cost?.toFixed(6) || '0.000000', log.cache_creation_cost?.toFixed(6) || '0.000000',
+        formatDisplayAmount(log.input_cost, 2) || '0.000000', formatDisplayAmount(log.output_cost, 2) || '0.000000',
+        formatDisplayAmount(log.cache_read_cost, 2) || '0.000000', formatDisplayAmount(log.cache_creation_cost, 2) || '0.000000',
         log.rate_multiplier?.toPrecision(4) || '1.00', (log.account_rate_multiplier ?? 1).toPrecision(4),
-        log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
+        formatDisplayAmount(log.total_cost, 2) || '0.000000', formatDisplayAmount(log.actual_cost, 2) || '0.000000',
         ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
         log.request_id || '', log.upstream_request_id || '', log.user_agent || '', log.ip_address || ''
       ])

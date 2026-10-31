@@ -107,8 +107,8 @@
                   {{ t('userSubscriptions.daily') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ${{ (subscription.daily_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.daily_limit_usd.toFixed(2)
+                  ${{ formatDisplayAmount((subscription.daily_usage_usd || 0), 2) }} / ${{
+                    formatDisplayAmount(subscription.group.daily_limit_usd, 2)
                   }}
                 </span>
               </div>
@@ -144,8 +144,8 @@
                   {{ t('userSubscriptions.weekly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ${{ (subscription.weekly_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.weekly_limit_usd.toFixed(2)
+                  ${{ formatDisplayAmount((subscription.weekly_usage_usd || 0), 2) }} / ${{
+                    formatDisplayAmount(subscription.group.weekly_limit_usd, 2)
                   }}
                 </span>
               </div>
@@ -185,8 +185,8 @@
                   {{ t('userSubscriptions.monthly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ${{ (subscription.monthly_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.monthly_limit_usd.toFixed(2)
+                  ${{ formatDisplayAmount((subscription.monthly_usage_usd || 0), 2) }} / ${{
+                    formatDisplayAmount(subscription.group.monthly_limit_usd, 2)
                   }}
                 </span>
               </div>
@@ -248,6 +248,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'

@@ -117,6 +117,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -143,7 +145,7 @@ const emit = defineEmits<{
   (event: 'confirm', value: PromptEventFilters): void
   (event: 'criteria-change'): void
 }>()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 function requestClose() { if (!props.deleting) emit('close') }
 
 const preset = ref<DeleteRangePreset>('7d')
@@ -189,7 +191,5 @@ function requestConfirm() {
   if (confirmDisabled.value) return
   emit('confirm', resolveDeleteRangeFilters(local, preset.value))
 }
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value))
-}
+function formatDate(value: string): string { return displayTimestamp(value) }
 </script>

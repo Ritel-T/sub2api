@@ -62,6 +62,8 @@
   </section>
 </template>
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { gatewayBorrowReasonKey } from '@/utils/gatewayBorrowStatus'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -87,7 +89,7 @@ let refreshing = false
 function reason(code: string) { const readable = gatewayBorrowReasonKey(code); if (readable) return t(readable); const key = `${p}.reasons.${code}`; return te(key) ? t(key) : code }
 function routeLifetime(row: { state?: string; expires_at?: string }) { return row.state === 'ready' && row.expires_at && remaining(row.expires_at) > 0 ? `${remaining(row.expires_at)} s` : '—' }
 function integerAnswer(value?: string) { return typeof value === 'string' && /^\d{1,6}$/.test(value) ? value : '' }
-function clock(value?: string) { return value ? new Date(value).toLocaleString() : '—' }
+function clock(value?: string) { return value ? formatDisplayTimestamp(value) : '—' }
 function remaining(expiry?: string) { return expiry ? Math.max(0, Math.ceil((Date.parse(expiry) - now.value) / 1000)) : 0 }
 async function refresh() {
   if (refreshing) return

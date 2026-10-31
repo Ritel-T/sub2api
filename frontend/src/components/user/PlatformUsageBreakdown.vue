@@ -33,9 +33,9 @@
           {{ item.isOther ? t('admin.users.platformOther') : platformLabel(item.platform) }}
         </span>
         <span class="font-mono">
-          ${{ item.today_actual_cost.toFixed(4) }}
+          ${{ formatDisplayAmount(item.today_actual_cost, 2) }}
           <span class="opacity-50">/</span>
-          ${{ item.total_actual_cost.toFixed(4) }}
+          ${{ formatDisplayAmount(item.total_actual_cost, 2) }}
         </span>
       </div>
     </div>
@@ -43,6 +43,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'

@@ -187,6 +187,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account } from '@/types'
@@ -251,7 +253,7 @@ const creditsButtonTitle = computed(() => {
   const refresh = t('admin.accounts.openaiQuotaReset.pointsTooltip')
   if (!fetchedAt || !Number.isFinite(fetchedAt)) return refresh
   return `${refresh}\n${t('admin.accounts.openaiQuotaReset.pointsUpdatedAt', {
-    time: new Date(fetchedAt * 1000).toLocaleString()
+    time: formatDisplayTimestamp(fetchedAt * 1000)
   })}`
 })
 

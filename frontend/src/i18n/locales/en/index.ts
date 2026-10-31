@@ -1,3 +1,4 @@
+import consoleExperience from './consoleExperience'
 import profitOps from './profitOps'
 import upstreamOps from './upstreamOps'
 import channelOps from './channelOps'
@@ -34,6 +35,7 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  consoleExperience,
   traffic,
   qq,
   gelv,

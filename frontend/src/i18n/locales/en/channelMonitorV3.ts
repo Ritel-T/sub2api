@@ -140,7 +140,7 @@ export default {
     admin: {
       tab: 'V3 components',
       siteMode: 'Users of this site see',
-      siteModeHint: 'Takes effect immediately; only one monitor runs at a time.',
+      siteModeHint: "Select a version, then save to publish it. Only one monitor runs at a time.",
       siteModeOff: 'Channel monitor is turned off in system settings.',
       description: {
         v1: 'This site uses V1 active probes. You can prepare V3 now; users see it after switching.',

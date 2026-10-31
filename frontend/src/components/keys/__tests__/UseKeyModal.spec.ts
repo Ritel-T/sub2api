@@ -164,18 +164,18 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
-    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai-compatible')
-    expect(parsed.provider.grok.name).toBe('Grok via Sub2API')
-    expect(parsed.provider.grok.options).toEqual({
+    expect(parsed.provider.ritel.npm).toBe('@ai-sdk/openai-compatible')
+    expect(parsed.provider.ritel.name).toBe('Ritel.SI API')
+    expect(parsed.provider.ritel.options).toEqual({
       baseURL: 'https://example.com/v1',
-      apiKey: 'sk-grok-test'
+      apiKey: '{env:RITEL_API_KEY}'
     })
-    expect(parsed.provider.grok.models['grok-4.5']).toBeDefined()
-    expect(parsed.provider.grok.models['grok-4.5'].limit.context).toBe(500000)
-    expect(parsed.provider.grok.models['grok-build-0.1']).toBeDefined()
-    expect(parsed.provider.grok.models['grok-4.20-multi-agent-0309']).toBeDefined()
-    expect(parsed.provider.grok.models['grok-composer-2.5-fast']).toBeDefined()
-    expect(parsed.provider.grok.models['gpt-5.6']).toBeUndefined()
+    expect(parsed.provider.ritel.models['grok-4.5']).toBeDefined()
+    expect(parsed.provider.ritel.models['grok-4.5'].limit.context).toBe(500000)
+    expect(parsed.provider.ritel.models['grok-build-0.1']).toBeDefined()
+    expect(parsed.provider.ritel.models['grok-4.20-multi-agent-0309']).toBeDefined()
+    expect(parsed.provider.ritel.models['grok-composer-2.5-fast']).toBeDefined()
+    expect(parsed.provider.ritel.models['gpt-5.6']).toBeUndefined()
   })
 
   it('renders copyable Claude Code setup through the Grok Messages gateway', async () => {
@@ -310,12 +310,12 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     let codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    const configToml = codeBlocks.find((content) => content.includes('[model_providers.sub2api]'))
+    const configToml = codeBlocks.find((content) => content.includes('[model_providers.ritel]'))
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model_provider = "sub2api"')
+    expect(configToml).toContain('model_provider = "ritel"')
     expect(configToml).toContain('model = "grok-4.5"')
     expect(configToml).toContain('base_url = "https://example.com/v1"')
-    expect(configToml).toContain('env_key = "SUB2API_API_KEY"')
+    expect(configToml).toContain('env_key = "RITEL_API_KEY"')
     expect(configToml).toContain('wire_api = "responses"')
     // API-key provider: Codex must not require a ChatGPT OAuth login.
     expect(configToml).toContain('requires_openai_auth = false')
@@ -328,7 +328,7 @@ describe('UseKeyModal', () => {
     expect(configToml).not.toContain('supports_websockets = true')
     expect(configToml).not.toContain('responses_websockets_v2')
     expect(wrapper.text()).not.toContain('auth.json')
-    expect(codeBlocks.join('\n')).toContain('SUB2API_API_KEY')
+    expect(codeBlocks.join('\n')).toContain('RITEL_API_KEY')
 
     const windowsTab = wrapper.findAll('button').find(
       (button) => button.text().trim() === 'Windows'
@@ -342,7 +342,7 @@ describe('UseKeyModal', () => {
     expect(codeBlocks.join('\n')).toContain('experimental_bearer_token = "sk-grok-codex-test"')
   })
 
-  it('keeps legacy OpenAI Codex config as the default', () => {
+  it('keeps the legacy OpenAI config available on explicit selection', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {
         show: true,
@@ -362,8 +362,9 @@ describe('UseKeyModal', () => {
       }
     })
 
+    await wrapper.get('[data-testid="codex-auth-mode-legacy"]').trigger('click')
     const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
+    const configToml = codeBlocks.find((content) => content.includes('model_provider = "ritel"'))
 
     expect(configToml).toBeDefined()
     expect(configToml).toContain('model = "gpt-5.5"')
@@ -410,7 +411,7 @@ describe('UseKeyModal', () => {
 
     const codexConfig = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('model_provider = "OpenAI"'))
+      .find((content) => content.includes('model_provider = "ritel"'))
     expect(codexConfig).toContain('base_url = "https://example.com/v1"')
 
     const claudeTab = wrapper.findAll('button').find((button) =>
@@ -451,17 +452,17 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
+    const configToml = codeBlocks.find((content) => content.includes('model_provider = "ritel"'))
 
     expect(apiKeyMode.attributes('aria-checked')).toBe('true')
     expect(configToml).toBeDefined()
     expect(configToml).toContain('requires_openai_auth = false')
-    expect(configToml).toContain('experimental_bearer_token = "sk-test"')
+    expect(configToml).toContain('env_key = "RITEL_API_KEY"')
     expect(configToml).toContain('http_headers = { "x-openai-actor-authorization" = "local-image-extension" }')
     expect(configToml).toContain('model_catalog_url = "https://example.com/v1/models"')
     expect(configToml).not.toContain('model_catalog_json')
     expect(configToml).toContain('[features]\napi_key_model_discovery = true')
-    expect(configToml).not.toContain('env_key')
+    expect(configToml).toContain('env_key')
     expect(configToml).not.toContain('image_generation')
     expect(codeBlocks).not.toContain('{\n  "OPENAI_API_KEY": "sk-test"\n}')
     expect(wrapper.text()).not.toContain('auth.json')
@@ -480,7 +481,7 @@ describe('UseKeyModal', () => {
     )
   })
 
-  it('keeps legacy OpenAI Codex WebSocket config as the default', async () => {
+  it('keeps legacy OpenAI WebSocket config available on explicit selection', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {
         show: true,
@@ -508,6 +509,7 @@ describe('UseKeyModal', () => {
     await wsTab!.trigger('click')
     await nextTick()
 
+    await wrapper.get('[data-testid="codex-auth-mode-legacy"]').trigger('click')
     const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
     const configToml = codeBlocks.find((content) => content.includes('supports_websockets = true'))
 
@@ -570,9 +572,9 @@ describe('UseKeyModal', () => {
     expect(wrapper.get('[data-testid="codex-auth-mode-api-key"]').attributes('aria-checked')).toBe('true')
     expect(configToml).toBeDefined()
     expect(configToml).toContain('requires_openai_auth = false')
-    expect(configToml).toContain('experimental_bearer_token = "sk-test"')
+    expect(configToml).toContain('env_key = "RITEL_API_KEY"')
     expect(configToml).toContain('http_headers = { "x-openai-actor-authorization" = "local-image-extension" }')
-    expect(configToml).not.toContain('env_key')
+    expect(configToml).toContain('env_key')
     expect(configToml).not.toContain('image_generation')
     expect(configToml).toContain('supports_websockets = true')
     const features = configToml?.split('[features]\n')[1]?.split('\n[')[0]
@@ -608,16 +610,16 @@ describe('UseKeyModal', () => {
     await wrapper.setProps({ show: true })
     await nextTick()
 
-    expect(wrapper.get('[data-testid="codex-auth-mode-legacy"]').attributes('aria-checked')).toBe('true')
-    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).toContain('requires_openai_auth = true')
+    expect(wrapper.get('[data-testid="codex-auth-mode-api-key"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).toContain('requires_openai_auth = false')
 
     await wrapper.get('[data-testid="codex-auth-mode-api-key"]').trigger('click')
     await wrapper.setProps({ platform: 'gemini' })
     await wrapper.setProps({ platform: 'openai' })
     await nextTick()
 
-    expect(wrapper.get('[data-testid="codex-auth-mode-legacy"]').attributes('aria-checked')).toBe('true')
-    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).not.toContain('x-openai-actor-authorization')
+    expect(wrapper.get('[data-testid="codex-auth-mode-api-key"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).toContain('x-openai-actor-authorization')
   })
 
   it('renders GPT-5.4 mini entry in OpenCode config', async () => {
@@ -682,7 +684,7 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
-    const models = parsed.provider.openai.models
+    const models = parsed.provider.ritel.models
     for (const model of ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna']) {
       expect(models[model]).toBeDefined()
       expect(models[model].variants).toHaveProperty('max')
@@ -735,7 +737,7 @@ describe('UseKeyModal', () => {
     expect(tab).toBeDefined()
     await tab!.trigger('click')
     await nextTick()
-    const models = JSON.parse(wrapper.find('pre code').text()).provider.anthropic.models
+    const models = JSON.parse(wrapper.find('pre code').text()).provider.ritel.models
     expect(models['claude-opus-5-5'].limit).toEqual({ context: 1000000, output: 128000 })
     expect(models['claude-opus-5-5'].options).toEqual({ thinking: { type: 'adaptive' }, effort: 'medium' })
     expect(models['claude-opus-5-5'].variants.xhigh.effort).toBe('xhigh')
@@ -776,12 +778,12 @@ describe('UseKeyModal', () => {
 
     const claudeConfig = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('"antigravity-claude"'))
+      .find((content) => content.includes('"claude-fable-5-1"'))
 
     expect(claudeConfig).toBeDefined()
     const parsed = JSON.parse(claudeConfig!)
-    const fable51 = parsed.provider['antigravity-claude'].models['claude-fable-5-1']
-    const fable = parsed.provider['antigravity-claude'].models['claude-fable-5']
+    const fable51 = parsed.provider.ritel.models['claude-fable-5-1']
+    const fable = parsed.provider.ritel.models['claude-fable-5']
 
     expect(fable51.name).toBe('Claude Fable 5.1')
     expect(fable51.limit).toEqual({ context: 1048576, output: 128000 })
@@ -848,11 +850,11 @@ describe('UseKeyModal', () => {
 
     const unixConfig = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('[model_providers.sub2api]'))
-    expect(unixConfig).toContain('[model_providers.sub2api]\nname = "Sub2API Composite"\nbase_url = "https://example.com/v1"\nmodel_catalog_url = "https://example.com/v1/models"')
+      .find((content) => content.includes('[model_providers.ritel]'))
+    expect(unixConfig).toContain('[model_providers.ritel]\nname = "Ritel.SI API"\nbase_url = "https://example.com/v1"\nmodel_catalog_url = "https://example.com/v1/models"')
     expect(unixConfig).not.toContain('model_catalog_json')
     expect(unixConfig).toContain('[features]\napi_key_model_discovery = true')
-    expect(unixConfig).toContain('env_key = "SUB2API_API_KEY"')
+    expect(unixConfig).toContain('env_key = "RITEL_API_KEY"')
     expect(fetchMock).not.toHaveBeenCalled()
 
     await wrapper.get('[data-testid="codex-model-catalog-mode"]').setValue('file')
@@ -871,7 +873,7 @@ describe('UseKeyModal', () => {
 
     const loadedUnixConfig = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('[model_providers.sub2api]'))
+      .find((content) => content.includes('[model_providers.ritel]'))
     expect(loadedUnixConfig).toContain('model = "claude-opus-4-8"')
     expect(loadedUnixConfig).toContain('review_model = "claude-opus-4-8"')
     expect(loadedUnixConfig).not.toContain('model = "gpt-5.5"')
@@ -895,7 +897,7 @@ describe('UseKeyModal', () => {
 
     const windowsConfig = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('[model_providers.sub2api]'))
+      .find((content) => content.includes('[model_providers.ritel]'))
     // Codex does not expand %userprofile% in config.toml; it only expands ~/.
     expect(windowsConfig).toContain('model_catalog_json = "~/.codex/codex-models.json"')
     expect(windowsConfig).not.toContain('%userprofile%')
@@ -935,7 +937,7 @@ describe('UseKeyModal', () => {
       expect(wrapper.find('[data-testid="codex-model-catalog"]').exists()).toBe(true)
       const config = wrapper.findAll('pre code')
         .map((code) => code.text())
-        .find((content) => content.includes('[model_providers.sub2api]'))
+        .find((content) => content.includes('[model_providers.ritel]'))
       expect(config).toContain('model_catalog_url = "https://example.com/v1/models"')
       expect(config).not.toContain('model_catalog_json')
       expect(config).toContain('[features]\napi_key_model_discovery = true')
@@ -986,7 +988,7 @@ describe('UseKeyModal', () => {
 
     const config = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('[model_providers.sub2api]'))
+      .find((content) => content.includes('[model_providers.ritel]'))
     expect(config).toContain('model = "gpt-5.5"')
     expect(config).toContain('review_model = "gpt-5.5"')
   })
@@ -1031,7 +1033,7 @@ describe('UseKeyModal', () => {
 
     const configToml = wrapper.findAll('pre code')
       .map((code) => code.text())
-      .find((content) => content.includes('model_provider = "OpenAI"'))
+      .find((content) => content.includes('model_provider = "ritel"'))
     expect(configToml).toContain('model = "glm-5.3"')
     expect(configToml).not.toContain('model_reasoning_effort')
   })
@@ -1064,23 +1066,23 @@ describe('UseKeyModal', () => {
         await wrapper.findAll('button').find((button) => button.text().trim() === os)!.trigger('click')
         const configToml = wrapper.findAll('pre code')
           .map((code) => code.text())
-          .find((content) => content.includes('model_provider = "OpenAI"'))
+          .find((content) => content.includes('model_provider = "ritel"'))
         expect(configToml).toContain('model = "gpt-5.5"')
-        expect(configToml).toContain('[model_providers.OpenAI]\nname = "OpenAI"\nbase_url = "https://example.com/v1"\nmodel_catalog_url = "https://example.com/v1/models"')
+        expect(configToml).toContain('[model_providers.ritel]\nname = "Ritel.SI API"\nbase_url = "https://example.com/v1"\nmodel_catalog_url = "https://example.com/v1/models"')
         expect(configToml).not.toContain('model_catalog_json')
         expect(configToml).toContain('[features]\napi_key_model_discovery = true')
-        expect(configToml).toContain('requires_openai_auth = true')
+        expect(configToml).toContain('requires_openai_auth = false')
         expect(configToml).not.toContain('client_version')
         expect(wrapper.find('[data-testid="codex-model-catalog"]').exists()).toBe(true)
 
         await wrapper.get('[data-testid="codex-model-catalog-mode"]').setValue('file')
         const fileConfig = wrapper.findAll('pre code')
           .map((code) => code.text())
-          .find((content) => content.includes('model_provider = "OpenAI"'))!
+          .find((content) => content.includes('model_provider = "ritel"'))!
         expect(fileConfig).toContain('model_catalog_json = "~/.codex/codex-models.json"')
         expect(fileConfig).not.toContain('model_catalog_url')
         expect(fileConfig).not.toContain('api_key_model_discovery')
-        expect(fileConfig.indexOf('model_catalog_json')).toBeLessThan(fileConfig.indexOf('[model_providers.OpenAI]'))
+        expect(fileConfig.indexOf('model_catalog_json')).toBeLessThan(fileConfig.indexOf('[model_providers.ritel]'))
         await wrapper.get('[data-testid="codex-model-catalog-mode"]').setValue('remote')
       }
     }
@@ -1121,7 +1123,7 @@ describe('UseKeyModal', () => {
       expect((mode.element as HTMLSelectElement).value).toBe(oversized ? 'file' : 'remote')
       expect((mode.get('option[value="remote"]').element as HTMLOptionElement).disabled).toBe(oversized)
       const config = wrapper.findAll('pre code').map((code) => code.text())
-        .find((content) => content.includes('model_provider = "OpenAI"'))!
+        .find((content) => content.includes('model_provider = "ritel"'))!
       if (oversized) {
         expect(config).toContain('model_catalog_json = "~/.codex/codex-models.json"')
         expect(config).not.toContain('model_catalog_url')
@@ -1172,7 +1174,7 @@ describe('UseKeyModal overview connection summary', () => {
     expect(url.protocol).toBe('ccswitch:')
     expect(url.searchParams.get('apiKey')).toBe(record.key)
     expect(url.searchParams.get('endpoint')).toBe('https://api.example.com/v1')
-    expect(url.searchParams.get('name')).toBe('Ritel.SI')
+    expect(url.searchParams.get('name')).toBe('Ritel.SI API')
     expect(url.searchParams.get('app')).toBe('codex')
     expect(open.mock.calls[0][1]).toBe('_self')
     expect(wrapper.find('a[href*="sk-overview"]').exists()).toBe(false)

@@ -634,6 +634,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
@@ -792,10 +794,7 @@ const platformOrder = computed<GroupPlatform[]>(() => listPlatformIds())
 const compositePlatforms = platformOrder
 
 // ── Helpers ──
-function formatDate(value: string): string {
-  if (!value) return '-'
-  return new Date(value).toLocaleDateString()
-}
+function formatDate(value: string): string { return displayTimestamp(value) }
 
 // ── Platform section helpers ──
 const activePlatforms = computed(() => form.platforms.filter(s => s.enabled).map(s => s.platform))

@@ -102,14 +102,14 @@
             <Icon name="refresh" size="sm" />
             <span class="sr-only">{{ t('payment.admin.retry') }}</span>
           </button>
-          <button :title="t('payment.admin.refund')" :aria-label="t('payment.admin.refund')"
+          <MoreActions><button :title="t('payment.admin.refund')" :aria-label="t('payment.admin.refund')"
             v-if="canRefundRow(row)"
             @click="emit('refund', row)"
             class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
           >
             <Icon name="dollar" size="sm" />
             <span class="sr-only">{{ t('payment.admin.refund') }}</span>
-          </button>
+          </button></MoreActions>
         </div>
       </template>
     </DataTable>
@@ -125,6 +125,7 @@
 </template>
 
 <script setup lang="ts">
+import MoreActions from '@/components/common/MoreActions.vue'
 import { ref, reactive, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PaymentOrder } from '@/types/payment'

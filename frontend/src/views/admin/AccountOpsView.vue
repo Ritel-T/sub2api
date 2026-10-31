@@ -151,6 +151,8 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 const contextRoute = useRoute()
@@ -214,7 +216,7 @@ const eventKey = (e: AccountOpsEvent) => e.id ?? `${e.account_id}:${e.kind}:${e.
 const scopedThresholdAccounts = computed(() => thresholdAccounts.value.filter(account => !contextAccountId.value || account.account_id === contextAccountId.value))
 const scopedAccountGroups = computed(() => accountGroups.value.filter(group => !contextAccountId.value || group.account_ids.includes(contextAccountId.value)))
 const filteredEvents = computed(()=>events.value.filter(e=>(!contextAccountId.value || e.account_id === contextAccountId.value)&&(kind.value==='all'||kind.value===e.kind)&&(phase.value==='all'||phase.value===(e.phase??'alert'))&&`${e.account_name} ${e.account_id}`.toLowerCase().includes(query.value.toLowerCase().trim())))
-const date = (value: string) => { const d=new Date(value);return Number.isFinite(d.getTime())?d.toLocaleString():'-' }
+const date = (value: string) => { const d=new Date(value);return Number.isFinite(d.getTime())?formatDisplayTimestamp(d):'-' }
 const message = (e: unknown) => extractApiErrorMessage(e,t('accountOps.saveFailed'))
 async function load() {
   if (!auth.user || mutating.value || globalSaving.value) return

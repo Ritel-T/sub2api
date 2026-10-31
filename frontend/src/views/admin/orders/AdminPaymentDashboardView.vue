@@ -71,6 +71,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatMoney as displayMoney } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -120,9 +122,7 @@ function hasTopUsers(usersByCurrency: Record<string, TopUserPaymentStats[]>): bo
   return Object.values(usersByCurrency).some(users => users.length > 0)
 }
 
-function formatMoney(currency: string, amount: number): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
-}
+function formatMoney(currency: string, amount: number): string { return displayMoney(amount, currency) }
 
 async function loadDashboard() {
   loading.value = true

@@ -222,7 +222,7 @@
             @mouseleave="!isMobile && scheduleHide(hideTooltip)"
             @click="showTooltip($event, row)">
             <span class="flex items-center gap-1.5 whitespace-nowrap">
-              <span class="font-medium text-green-600 dark:text-green-400">${{ row.actual_cost?.toFixed(6) || '0.000000' }}</span>
+              <span class="font-medium text-green-600 dark:text-green-400">${{ formatDisplayAmount(row.actual_cost, 2) || '0.000000' }}</span>
               <Icon name="infoCircle" size="xs" class="text-gray-400" aria-hidden="true" />
             </span>
             <span v-if="showLongContextBadge && row.long_context_billing_applied"
@@ -547,6 +547,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { computed, ref, inject, onUnmounted } from 'vue'
 import { useWindowSize } from '@vueuse/core'
 import UsageDetailPopover from './UsageDetailPopover.vue'

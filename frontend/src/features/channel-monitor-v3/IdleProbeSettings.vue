@@ -99,6 +99,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -202,10 +204,7 @@ function configIssue(stat: MonitorV3IdleProbeStat) {
 }
 
 /** Probes cost fractions of a cent; keep enough digits to show them. */
-function formatCost(value: number) {
-  if (!value) return '0'
-  return value < 0.01 ? value.toFixed(4) : value.toFixed(2)
-}
+function formatCost(value: number) { return displayAmount(value) }
 
 async function save() {
   if (invalid.value) return

@@ -19,6 +19,9 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+
+import { useMediaQuery } from '@vueuse/core'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useChartTheme } from '@/utils/chartTheme'
@@ -122,6 +125,7 @@ const chartData = computed(() => {
   }
 })
 
+const compactCharts = useMediaQuery('(max-width: 640px)')
 const lineOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -169,6 +173,8 @@ const lineOptions = computed(() => ({
         color: chartColors.value.grid
       },
       ticks: {
+        maxTicksLimit: compactCharts.value ? 4 : 10,
+        maxRotation: 0,
         color: chartColors.value.text,
         font: {
           size: 10
@@ -218,14 +224,5 @@ const formatTokens = (value: number): string => {
   return value.toLocaleString()
 }
 
-const formatCost = (value: number): string => {
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K'
-  } else if (value >= 1) {
-    return value.toFixed(2)
-  } else if (value >= 0.01) {
-    return value.toFixed(3)
-  }
-  return value.toFixed(4)
-}
+const formatCost = (value: number): string => { return displayAmount(value) }
 </script>

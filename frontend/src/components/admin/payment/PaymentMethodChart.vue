@@ -42,6 +42,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatMoney as displayMoney } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -86,7 +88,5 @@ function barWidth(currency: string, amount: number): number {
   return Math.min((amount / (maxAmounts.value[currency] || 1)) * 100, 100)
 }
 
-function formatMoney(currency: string, amount: number): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
-}
+function formatMoney(currency: string, amount: number): string { return displayMoney(amount, currency) }
 </script>

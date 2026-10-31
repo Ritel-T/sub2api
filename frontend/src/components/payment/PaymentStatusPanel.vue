@@ -18,7 +18,7 @@
               </div>
               <div v-if="paidOrder.out_trade_no" class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.out_trade_no }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ presentOrderNumber(paidOrder.out_trade_no) }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
@@ -82,7 +82,7 @@
       </div>
     </template>
     <template v-else-if="paymentType === 'squarespace' && retailQuote">
-      <SquarespaceCheckoutInstructions :quote="retailQuote" :pay-url="payUrl || ''" :order-number="displayOrderNumber" :order-id="orderId" :account-email="accountEmail" :payment-claim-mode="paymentClaimMode" @updated="onClaimUpdated" @refresh="pollStatus" />
+      <SquarespaceCheckoutInstructions :quote="retailQuote" :pay-url="payUrl || ''" :order-number="outTradeNo || `#${orderId}`" :order-id="orderId" :account-email="accountEmail" :payment-claim-mode="paymentClaimMode" @updated="onClaimUpdated" @refresh="pollStatus" />
       <div class="open-section text-center">
         <p class="text-sm text-gray-500">{{ t('payment.qr.expiresIn') }}</p>
         <p class="mt-1 text-2xl font-bold tabular-nums">{{ countdownDisplay }}</p>
@@ -242,6 +242,7 @@
 </template>
 
 <script setup lang="ts">
+import { displayOrderNumber as presentOrderNumber } from '@/utils/consoleDisplay'
 import RetailQuoteSummary from './RetailQuoteSummary.vue'
 import { isGelvPaymentType, onPaymentPageReturn, paymentPollInterval } from './paymentPolling'
 import { isValidGelvAlipayPayURL, openGelvAlipayCheckout } from './gelvAlipay'
@@ -379,7 +380,7 @@ const countdownDisplay = computed(() => {
 })
 
 const displayPaymentAmount = computed(() => formatGatewayAmount(props.payAmount || props.amount || 0))
-const displayOrderNumber = computed(() => props.outTradeNo || `#${props.orderId}`)
+const displayOrderNumber = computed(() => presentOrderNumber(props.outTradeNo) || `#${props.orderId}`)
 
 function formatGatewayAmount(value: number, currency?: string | null): string {
   return formatPaymentAmount(value, currency || paymentCurrency.value, localeCode.value)

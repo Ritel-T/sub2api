@@ -15,8 +15,8 @@ import {
 import { consoleRouteTitle } from '@/utils/consoleShell'
 import { resolveRouteMetaKeys } from '@/router/title'
 import {
-  RequestCaptureIcon, OpsMonitoringIcon, SmartOpsIcon, QualityOpsIcon, AccountOpsIcon,
-  TokenGuardIcon, CredentialOpsIcon, PelicanTestsIcon, SupportTicketIcon, SupportTicketInboxIcon,
+  OpsMonitoringIcon, SmartOpsIcon, QualityOpsIcon, AccountOpsIcon,
+  CredentialOpsIcon, SupportTicketIcon, SupportTicketInboxIcon,
   DashboardIcon, KeyIcon, BatchImageIcon, ChartIcon, GiftIcon, UserIcon, UsersIcon, FolderIcon,
   ChannelIcon, CreditCardIcon, RechargeSubscriptionIcon, GlobeIcon, FlowIcon, ServerIcon,
   PluginIcon, BellIcon, TicketIcon, CogIcon, OrderIcon, OrderListIcon, SignalIcon, GalleryIcon,
@@ -180,13 +180,8 @@ export function provideConsoleNav() {
         { path: '/admin/channel-operations', label: t('channelOps.title'), icon: ChannelIcon },
         { path: '/admin/profit-operations', label: t('profitOps.title'), icon: PriceTagIcon },
         { path: '/admin/account-quality', label: t('qualityOps.title'), icon: QualityOpsIcon },
-        { path: '/admin/controlled-experiments', label: t('controlledExperiments.title'), icon: QualityOpsIcon },
         { path: '/admin/account-ops', label: t('accountOps.title'), icon: AccountOpsIcon },
-        { path: '/admin/token-guard', label: t('tokenGuard.title'), icon: TokenGuardIcon },
         { path: '/admin/token-guard-v2', label: t('tokenGuardV2.title'), icon: CredentialOpsIcon },
-        { path: '/admin/pelican-tests', label: t('pelicanTests.title'), icon: PelicanTestsIcon },
-        { path: '/admin/group-cache-tests', label: t('admin.groupCacheTest.title'), icon: QualityOpsIcon },
-        { path: '/admin/request-captures', label: t('admin.requestCapture.title'), icon: RequestCaptureIcon, featureFlag: () => adminSettingsStore.requestCaptureEnabled },
         { path: '/admin/harvest-flow', label: t('nav.harvestFlow'), icon: FlowIcon },
       ] },
       { path: '/admin/plugins', label: t('nav.plugins'), icon: PluginIcon, featureFlag: flagPluginManagement },
@@ -377,6 +372,8 @@ export function provideConsoleNav() {
     billingMode: resolveSiteBillingMode(appStore.cachedPublicSettings),
   }))
   const pageTitle = computed(() => {
+    const navLabel = activeLocation.value?.tab?.label
+    if (navLabel && !route.path.startsWith('/usage')) return navLabel
     const consoleTitle = consoleRouteTitle(route.path, route.query, locale.value, authStore.isObserver)
     if (consoleTitle) return consoleTitle
     if (route.name === 'CustomPage') {

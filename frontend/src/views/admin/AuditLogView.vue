@@ -73,10 +73,10 @@
               <button type="button" class="btn btn-secondary" :disabled="loading" @click="resetFilters">
                 {{ t('common.reset') }}
               </button>
-              <button type="button" class="btn btn-danger" @click="openClearDialog">
+              <MoreActions><button type="button" class="btn btn-danger" @click="openClearDialog">
                 <Icon name="trash" size="sm" class="mr-1.5" />
                 {{ t('admin.audit.clearAll') }}
-              </button>
+              </button></MoreActions>
             </div>
           </div>
         </div>
@@ -298,7 +298,7 @@
     <ConfirmDialog :busy="clearConfirmationAction.busy.value"
       :show="clearConfirmVisible"
       :title="t('admin.audit.clearConfirm.title')"
-      :message="t('admin.audit.clearConfirm.message')"
+      :message="t('consoleExperience.auditScope')"
       :confirm-text="t('admin.audit.clearAll')"
       :cancel-text="t('common.cancel')"
       danger
@@ -345,6 +345,9 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
+import MoreActions from '@/components/common/MoreActions.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -641,7 +644,7 @@ async function submitClear() {
 function formatTime(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString()
+  return formatDisplayTimestamp(d)
 }
 
 function statusText(status: number): string {

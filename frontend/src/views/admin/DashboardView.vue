@@ -335,6 +335,9 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+
+import { useMediaQuery } from '@vueuse/core'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
 import { useChartTheme } from '@/utils/chartTheme'
@@ -432,6 +435,7 @@ const granularityOptions = computed(() => [
 const chartColors = chartTheme
 
 // Line chart options (for user trend chart)
+const compactCharts = useMediaQuery('(max-width: 640px)')
 const lineOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -473,6 +477,8 @@ const lineOptions = computed(() => ({
         color: chartColors.value.grid
       },
       ticks: {
+        maxTicksLimit: compactCharts.value ? 4 : 10,
+        maxRotation: 0,
         color: chartColors.value.text,
         font: {
           size: 10
@@ -582,17 +588,7 @@ const formatNumber = (value: number | null | undefined): string => {
   return toFiniteNumber(value).toLocaleString()
 }
 
-const formatCost = (value: number | null | undefined): string => {
-  const safeValue = toFiniteNumber(value)
-  if (safeValue >= 1000) {
-    return (safeValue / 1000).toFixed(2) + 'K'
-  } else if (safeValue >= 1) {
-    return safeValue.toFixed(2)
-  } else if (safeValue >= 0.01) {
-    return safeValue.toFixed(3)
-  }
-  return safeValue.toFixed(4)
-}
+const formatCost = (value: number | null | undefined): string => { return displayAmount(value) }
 
 const formatDuration = (ms: number): string => {
   if (ms >= 1000) {

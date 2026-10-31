@@ -143,6 +143,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { routeLocationKey, routerKey } from 'vue-router'
 import PenaltyPolicyPanel from '@/features/security-penalties/PenaltyPolicyPanel.vue'
@@ -174,7 +176,7 @@ import type {
 } from './types'
 import { buildUpdateRequest, cloneData, configToDraft, draftFingerprint, emptyEventFilters } from './viewModel'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const appStore = useAppStore()
 type PromptAuditPageTab = 'config' | 'events'
 const promptTab = (value: unknown): PromptAuditPageTab => value === 'config' ? 'config' : 'events'
@@ -459,9 +461,7 @@ const filterDeleteAction = useConfirmedAction(() => ({ active: showFilterDelete.
 const filterDeleteSession = useConfirmationContext(() => ({ active: true, identity: activeTab.value }))
 watch(filterDeleteSession, resetFilterDelete, { deep: true, flush: 'sync' })
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value))
-}
+function formatDate(value: string): string { return displayTimestamp(value) }
 
 onMounted(loadInitial)
 

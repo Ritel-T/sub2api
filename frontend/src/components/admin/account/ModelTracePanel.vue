@@ -74,7 +74,7 @@
       </div>
       <p class="text-xs text-gray-500">{{ t('modelTrace.historyHint') }}</p>
       <button v-for="record in history" :key="record.created_at" type="button" :disabled="running" class="flex w-full flex-wrap justify-between gap-2 rounded-lg border border-gray-200 p-3 text-left text-xs text-gray-700 disabled:opacity-50 dark:border-dark-600 dark:text-gray-300" @click="showRecord(record)">
-        <span>{{ new Date(record.created_at).toLocaleString() }} · {{ record.requested_model }}</span>
+        <span>{{ formatDisplayTimestamp(record.created_at) }} · {{ record.requested_model }}</span>
         <span>{{ record.analysis?.prediction || t('modelTrace.status.insufficient') }} · {{ record.analysis?.used_outputs || 0 }}/3</span>
       </button>
     </section>
@@ -82,6 +82,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { consoleOwnedStorageKey } from '@/utils/centralAccount'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'

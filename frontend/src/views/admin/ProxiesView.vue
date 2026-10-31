@@ -32,7 +32,7 @@
               <Icon name="shield" size="md" class="mr-2" :class="batchQualityChecking ? 'animate-pulse' : ''" />
               {{ t('admin.proxies.batchQualityCheck') }}
             </button>
-            <button
+<MoreActions>            <button
               @click="openBatchDelete"
               :disabled="selectedCount === 0"
               class="btn btn-danger"
@@ -40,7 +40,7 @@
             >
               <Icon name="trash" size="md" class="mr-2" />
               {{ t('admin.proxies.batchDeleteAction') }}
-            </button>
+            </button></MoreActions>
             <button @click="showImportData = true" class="btn btn-secondary">
               {{ t('admin.proxies.dataImport') }}
             </button>
@@ -351,13 +351,13 @@
                 <Icon name="edit" size="sm" />
                 <span class="sr-only">{{ t('common.edit') }}</span>
               </button>
-              <button :title="t('common.delete')" :aria-label="t('common.delete')"
+              <MoreActions><button :title="t('common.delete')" :aria-label="t('common.delete')"
                 @click="handleDelete(row)"
                 class="text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 workspace-icon-action"
               >
                 <Icon name="trash" size="sm" />
                 <span class="sr-only">{{ t('common.delete') }}</span>
-              </button>
+              </button></MoreActions>
             </div>
           </template>
 
@@ -902,6 +902,7 @@
 </template>
 
 <script setup lang="ts">
+import MoreActions from '@/components/common/MoreActions.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'

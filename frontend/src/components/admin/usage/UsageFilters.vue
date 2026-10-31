@@ -189,9 +189,9 @@
         </button>
         <slot name="after-reset" />
         <template v-if="showRecordActions && mode === 'usage'">
-          <button v-if="!observerMode" type="button" @click="$emit('cleanup')" class="btn btn-danger">
+          <MoreActions><button v-if="!observerMode" type="button" @click="$emit('cleanup')" class="btn btn-danger">
             {{ t('admin.usage.cleanup.button') }}
-          </button>
+          </button></MoreActions>
           <button type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary">
             {{ t('usage.exportExcel') }}
           </button>
@@ -202,6 +202,7 @@
 </template>
 
 <script setup lang="ts">
+import MoreActions from '@/components/common/MoreActions.vue'
 import { ref, onMounted, onUnmounted, toRef, watch, computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { observerUsageAPI, type UsageFilterOption } from '@/api/observerUsage'

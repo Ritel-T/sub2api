@@ -32,7 +32,7 @@
             {{ t('admin.proxies.qualityBaseLatency') }}:
             {{ typeof report.base_latency_ms === 'number' ? `${report.base_latency_ms}ms` : '-' }}
           </div>
-          <div>{{ t('admin.proxies.qualityCheckedAt') }}: {{ new Date(report.checked_at * 1000).toLocaleString() }}</div>
+          <div>{{ t('admin.proxies.qualityCheckedAt') }}: {{ formatDisplayTimestamp(report.checked_at * 1000) }}</div>
         </div>
       </div>
 
@@ -77,6 +77,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import type { ProxyQualityCheckResult } from '@/types'

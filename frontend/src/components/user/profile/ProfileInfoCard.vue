@@ -185,6 +185,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatMoney as displayMoney } from '@/utils/consoleDisplay'
+
 import { accountPageURL, centralAccountEnabled } from '@/utils/accountConfig'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
@@ -279,9 +281,7 @@ const providerLabels = computed<Record<UserAuthProvider, string>>(() => ({
   google: 'Google'
 }))
 
-function formatCurrency(value: number): string {
-  return `$${value.toFixed(2)}`
-}
+function formatCurrency(value: number): string { return displayMoney(value) }
 
 function normalizeProvider(value: string): UserAuthProvider | null {
   const normalized = value.trim().toLowerCase()

@@ -249,13 +249,13 @@ export default {
       },
       grok: {
         description:
-          '配置 Grok CLI、Claude Code、Codex 或 OpenCode，讓請求通過當前 Sub2API Grok 分組發送。文本模型走 Responses；圖片/視頻使用 Imagine 模型 ID 與媒體端點。',
-        claudeDescription: '配置 Claude Code，讓 Messages API 請求通過當前 Sub2API Grok 分組發送。',
-        codexDescription: '配置 Codex，讓 Responses API 請求通過當前 Sub2API Grok 分組發送。',
+          '配置 Grok CLI、Claude Code、Codex 或 OpenCode，讓請求通過當前 Ritel.SI API 分組發送。文本模型走 Responses；圖片/視頻使用 Imagine 模型 ID 與媒體端點。',
+        claudeDescription: '配置 Claude Code，讓 Messages API 請求通過當前 Ritel.SI API 分組發送。',
+        codexDescription: '配置 Codex，讓 Responses API 請求通過當前 Ritel.SI API 分組發送。',
         configTomlHint:
           '路徑：~/.grok/config.toml（或 $GROK_HOME）。填寫 [endpoints]（models_base_url / models_list_url / xai_api_base_url / cli_chat_proxy_base_url）、[auth] preferred_method=api_key、[models]、[session]、[features] 圖片/影片設定。優先使用 env_key；文字模型必須使用 api_backend=responses。儲存後執行 grok inspect。',
         codexConfigTomlHint:
-          '儲存至 ~/.codex/config.toml。Codex 的 wire_api 只支援 "responses"。優先使用 env_key，勿與 experimental_bearer_token 混用。非 OpenAI 閘道使用 supports_websockets = false；Sub2API 仍可接收用戶端 WS 並橋接至 HTTP/SSE。',
+          '儲存至 ~/.codex/config.toml。Codex 的 wire_api 只支援 "responses"。優先使用 env_key，勿與 experimental_bearer_token 混用。非 OpenAI 閘道使用 supports_websockets = false；Ritel.SI API 仍可接收用戶端 WS 並橋接至 HTTP/SSE。',
         note:
           '導出 GROK_MODELS_BASE_URL 與 XAI_API_KEY，將完整 config.toml（endpoints/auth/models/session/features）儲存為 ~/.grok/config.toml，運行 grok inspect，再用 /model 選擇 grok-4.5（編程場景可用 grok-build-0.1）。',
         noteWindows:
@@ -263,32 +263,32 @@ export default {
         claudeNote:
           '選擇一種方式：終端環境變數用於目前工作階段；~/.claude/settings.json 用於持續設定。',
         codexNote:
-          '匯出 SUB2API_API_KEY，將 config.toml 儲存至 ~/.codex（可執行 mkdir -p ~/.codex）。使用 env_key 驗證。',
+          '匯出 RITEL_API_KEY，將 config.toml 儲存至 ~/.codex（可執行 mkdir -p ~/.codex）。使用 env_key 驗證。',
         codexNoteWindows:
-          '設定 $env:SUB2API_API_KEY，將 config.toml 儲存至 %USERPROFILE%\\.codex。使用 env_key 驗證。'
+          '設定 $env:RITEL_API_KEY，將 config.toml 儲存至 %USERPROFILE%\\.codex。使用 env_key 驗證。'
       },
       deepseek: {
         description: '通過當前 DeepSeek 分組配置 Claude Code、Codex 或 OpenCode。',
         codexDescription: '使用 API Key 配置 Codex，並通過當前 DeepSeek 分組發送請求。',
         codexConfigTomlHint: '儲存 config.toml 後重啟 Codex，用戶端會載入遠程目錄。使用本地文件模式時，還需下載目錄並儲存到配置中的路徑。',
-        codexNote: '啟動 Codex 前先導出 SUB2API_API_KEY。下載的目錄只包含模型元數據，不包含 API Key。'
+        codexNote: '啟動 Codex 前先導出 RITEL_API_KEY。下載的目錄只包含模型元數據，不包含 API Key。'
       },
       minimax: {
         description: '通過當前 MiniMax 分組配置 Claude Code、Codex 或 OpenCode。',
         codexDescription: '使用 API Key 配置 Codex，並通過當前 MiniMax 分組發送請求。',
         codexConfigTomlHint: '儲存 config.toml 後重啟 Codex，用戶端會載入遠程目錄。使用本地文件模式時，還需下載目錄並儲存到配置中的路徑。',
-        codexNote: '啟動 Codex 前先導出 SUB2API_API_KEY。下載的目錄只包含模型元數據，不包含 API Key。'
+        codexNote: '啟動 Codex 前先導出 RITEL_API_KEY。下載的目錄只包含模型元數據，不包含 API Key。'
       },
       composite: {
         description: '通過當前 Composite 路由分組配置受支持的用戶端。',
         codexDescription: '使用 API Key 和當前 Composite 分組的完整模型目錄配置 Codex。',
         codexConfigTomlHint: '儲存 config.toml 後重啟 Codex，用戶端會載入遠程目錄。使用本地文件模式時，還需下載目錄並儲存到配置中的路徑。',
-        codexNote: '啟動 Codex 前先導出 SUB2API_API_KEY；分組會根據目錄中選中的模型路由請求。'
+        codexNote: '啟動 Codex 前先導出 RITEL_API_KEY；分組會根據目錄中選中的模型路由請求。'
       },
       routedCodex: {
         description: '使用當前路由分組的完整模型目錄配置 Codex。',
         configTomlHint: '儲存 config.toml 後重啟 Codex，用戶端會載入遠程目錄。使用本地文件模式時，還需下載目錄並儲存到配置中的路徑。',
-        note: '啟動 Codex 前先導出 SUB2API_API_KEY。下載的目錄只包含模型元數據，不包含 API Key。'
+        note: '啟動 Codex 前先導出 RITEL_API_KEY。下載的目錄只包含模型元數據，不包含 API Key。'
       },
       codexModelCatalog: {
         mode: '目錄來源',
@@ -400,7 +400,7 @@ export default {
     accountBilled: '帳戶計費',
     apiEquivalentCost: 'API 原價等值',
     apiEquivalentCostTooltip: 'API 原價等值：按記錄的模型、輸入、快取、輸出 Token 和適用的長上下文規則，以官方 API 價格折算；不代表 Pro 訂閱實際扣費。',
-    apiEquivalentInternalPriced: '其中 {count} 條 codex-auto-review 請求按 Sub2API 內部設定的原價計入。',
+    apiEquivalentInternalPriced: '其中 {count} 條 codex-auto-review 請求按 Ritel.SI API 內部設定的原價計入。',
     apiEquivalentUnpriced: '未計價請求：{count}。',
     apiEquivalentPartial: '金額僅包含已計價請求。',
     apiEquivalentUnavailable: '暫無可用的 API 原價等值。',

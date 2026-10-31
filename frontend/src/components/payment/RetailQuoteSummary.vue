@@ -39,6 +39,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { isGelvAlipayQuote } from './retailQuote'
@@ -50,6 +52,6 @@ const fixedCNY = computed(() => props.quote.pricing_mode === 'gelv_channel_cny')
 const cnyBasis = computed(() => props.quote.pricing_basis_currency === 'CNY')
 const { t, locale } = useI18n()
 const rateLabel = computed(() => props.quote.fx.CNY.toLocaleString(locale?.value, { maximumFractionDigits: 6 }))
-const fxAsOfLabel = computed(() => new Date(props.quote.fx_asof).toLocaleString(locale?.value))
+const fxAsOfLabel = computed(() => formatDisplayTimestamp(props.quote.fx_asof))
 const money = (amount: number, currency: string) => formatPaymentAmount(amount, currency, locale?.value)
 </script>

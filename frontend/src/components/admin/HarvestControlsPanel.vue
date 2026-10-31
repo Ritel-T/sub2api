@@ -103,6 +103,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -148,7 +150,7 @@ const selectionLabel = computed(() => {
   return te(key) ? t(key) : reason
 })
 const selectedPreset = computed(() => Object.entries(remote.value?.presets || {}).find(([, speed]) => speedFields.value.every(f => speed[f.key] === draft.value?.speed[f.key]))?.[0] || 'custom')
-const clock = (value?: string | null) => value ? new Date(value).toLocaleTimeString() : '—'
+const clock = (value?: string | null) => value ? formatDisplayTimestamp(value) : '—'
 
 async function refresh() {
   if (saving.value || disposed) return

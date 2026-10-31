@@ -4,6 +4,7 @@
  */
 
 import { i18n, getLocale } from '@/i18n'
+import { formatAmount, formatMoney, formatTimestamp } from './consoleDisplay'
 
 /**
  * 格式化相对时间
@@ -11,24 +12,7 @@ import { i18n, getLocale } from '@/i18n'
  * @returns 相对时间字符串，如 "5m ago", "2h ago", "3d ago"
  */
 export function formatRelativeTime(date: string | Date | null | undefined): string {
-  if (!date) return i18n.global.t('common.time.never')
-
-  const now = new Date()
-  const past = new Date(date)
-  const diffMs = now.getTime() - past.getTime()
-
-  // 处理未来时间或无效日期
-  if (diffMs < 0 || isNaN(diffMs)) return i18n.global.t('common.time.never')
-
-  const diffSecs = Math.floor(diffMs / 1000)
-  const diffMins = Math.floor(diffSecs / 60)
-  const diffHours = Math.floor(diffMins / 60)
-  const diffDays = Math.floor(diffHours / 24)
-
-  if (diffDays > 0) return i18n.global.t('common.time.daysAgo', { n: diffDays })
-  if (diffHours > 0) return i18n.global.t('common.time.hoursAgo', { n: diffHours })
-  if (diffMins > 0) return i18n.global.t('common.time.minutesAgo', { n: diffMins })
-  return i18n.global.t('common.time.justNow')
+  return formatTimestamp(date) || '—'
 }
 
 /**
@@ -58,20 +42,8 @@ export function formatNumber(num: number | null | undefined): string {
  * @param currency 货币代码，默认 USD
  * @returns 格式化后的字符串，如 "$1.25"
  */
-export function formatCurrency(amount: number | null | undefined, currency: string = 'USD'): string {
-  if (amount === null || amount === undefined) return '$0.00'
-
-  const locale = getLocale()
-
-  // For very small amounts, show more decimals
-  const fractionDigits = amount > 0 && amount < 0.01 ? 6 : 2
-
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits
-  }).format(amount)
+export function formatCurrency(amount: number | null | undefined, currency = 'USD'): string {
+  return formatMoney(amount, currency)
 }
 
 /**
@@ -117,8 +89,8 @@ export function formatDate(
   const d = new Date(date)
   if (isNaN(d.getTime())) return ''
 
-  const locale = localeOverride ?? getLocale()
-  return new Intl.DateTimeFormat(locale, options).format(d)
+  void localeOverride
+  return formatTimestamp(d, !options.hour && !options.minute)
 }
 
 /**
@@ -349,8 +321,8 @@ export function formatNumberLocaleString(num: number): string {
  * @param fractionDigits 小数位数，默认 4
  * @returns 格式化后的字符串，如 "1.2345"
  */
-export function formatCostFixed(amount: number, fractionDigits: number = 4): string {
-  return amount.toFixed(fractionDigits)
+export function formatCostFixed(amount: number, fractionDigits: number = 2): string {
+  return formatAmount(amount, fractionDigits)
 }
 
 /**

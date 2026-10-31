@@ -234,9 +234,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ${{ row.daily_usage_usd?.toFixed(2) || '0.00' }}
+                    ${{ formatDisplayAmount(row.daily_usage_usd, 2) || '0.00' }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.daily_limit_usd?.toFixed(2) }}
+                    ${{ formatDisplayAmount(row.group?.daily_limit_usd, 2) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.daily_window_start">
@@ -271,9 +271,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ${{ row.weekly_usage_usd?.toFixed(2) || '0.00' }}
+                    ${{ formatDisplayAmount(row.weekly_usage_usd, 2) || '0.00' }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.weekly_limit_usd?.toFixed(2) }}
+                    ${{ formatDisplayAmount(row.group?.weekly_limit_usd, 2) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.weekly_window_start">
@@ -308,9 +308,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ${{ row.monthly_usage_usd?.toFixed(2) || '0.00' }}
+                    ${{ formatDisplayAmount(row.monthly_usage_usd, 2) || '0.00' }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.monthly_limit_usd?.toFixed(2) }}
+                    ${{ formatDisplayAmount(row.group?.monthly_limit_usd, 2) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.monthly_window_start">
@@ -799,6 +799,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'

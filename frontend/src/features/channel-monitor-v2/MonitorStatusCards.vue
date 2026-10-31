@@ -107,6 +107,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, useId, watch } from 'vue'
@@ -118,7 +120,7 @@ import { formatMonitorMs, formatMonitorPercent } from './monitorFormat'
 import { candyDisplayState, candyHistoryLimit, candyHistorySlots, hasMonitorSamples, MONITOR_CARD_SLOT_COUNT, monitorCandyHistories, monitorCardTimeline, monitorCardTimelineMode, type MonitorCardTimelineMode } from './monitorCards'
 
 const props = defineProps<{ items: MonitorMatrixRow[]; coverage?: MonitorCoverage; countdown: number; loading: boolean; now: number; platformOrder?: string[]; timelineMode?: MonitorCardTimelineMode }>()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 type TrafficBar = ReturnType<typeof monitorCardTimeline>[number]
 type CardDetail = { kind: 'traffic'; row: MonitorMatrixRow; bar: TrafficBar } | { kind: 'candy'; row: MonitorMatrixRow; result: MonitorCandyResult; model: string; effort: string }
 const timelineMode = computed(() => monitorCardTimelineMode(props.timelineMode))
@@ -231,7 +233,7 @@ const platforms = computed(() => {
 const healthBadge = { healthy: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', critical: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', unknown: 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-gray-400' }
 const healthBar = { healthy: 'h-5 bg-emerald-400', warning: 'h-3 bg-amber-400', critical: 'h-2 bg-red-400', unknown: 'h-1 bg-gray-300 dark:bg-dark-600' }
 const candyColor = { correct: 'bg-emerald-400', incorrect: 'bg-amber-400', error: 'bg-red-400', unknown: 'bg-gray-400', stale: 'bg-gray-400' }
-const time = (value: number | string) => new Date(value).toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit', hour12: false })
+const time = (value: number | string) => formatDisplayTimestamp(value)
 function metrics(row: MonitorMatrixRow) {
   const sampled = hasMonitorSamples(row.metrics)
   return [
@@ -241,7 +243,7 @@ function metrics(row: MonitorMatrixRow) {
   ]
 }
 function dateTime(value: number | string) {
-  return new Date(value).toLocaleString(locale.value, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+  return formatDisplayTimestamp(value)
 }
 function trafficLabel(row: MonitorMatrixRow, bar: TrafficBar) {
   return (row.group_name || '#' + row.group_id) + ' · ' + dateTime(bar.start) + ' - ' + dateTime(bar.end) + ' · ' + t('channelMonitorV2.cards.health.' + bar.state)

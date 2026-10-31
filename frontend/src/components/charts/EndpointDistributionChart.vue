@@ -142,6 +142,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import DocumentRows from '@/components/common/DocumentRows.vue'
@@ -325,14 +327,5 @@ const formatNumber = (value: number): string => {
   return value.toLocaleString()
 }
 
-const formatCost = (value: number): string => {
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K'
-  } else if (value >= 1) {
-    return value.toFixed(2)
-  } else if (value >= 0.01) {
-    return value.toFixed(3)
-  }
-  return value.toFixed(4)
-}
+const formatCost = (value: number): string => { return displayAmount(value) }
 </script>

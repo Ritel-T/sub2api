@@ -1,3 +1,4 @@
+import { adminAPI } from '@/api'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -361,5 +362,28 @@ describe('admin BackupView', () => {
     confirmation.vm.$emit('confirm')
     await flushPromises()
     expect(deleteBackup).toHaveBeenCalledWith('archived', true)
+  })
+  it('masks restore passwords, discards cancellation, and submits only the fresh password', async () => {
+    const wrapper = mountBackupView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const first = vm.restoreBackup('backup-a')
+    await flushPromises()
+    const dialog = wrapper.findAllComponents(ConfirmDialog).find(dialog => dialog.props('show'))!
+    expect(document.body.querySelector('input[type="password"]')).not.toBeNull()
+    vm.restorePassword = 'cancelled-secret'
+    dialog.vm.$emit('cancel')
+    await first
+    expect(vm.restorePassword).toBe('')
+    expect(adminAPI.backup.restoreBackup).not.toHaveBeenCalled()
+    vi.mocked(adminAPI.backup.restoreBackup).mockResolvedValue({ ...baseRecord('backup-b'), restore_status: 'running' } as any)
+    const second = vm.restoreBackup('backup-b')
+    await flushPromises()
+    expect(vm.restorePassword).toBe('')
+    vm.restorePassword = 'fresh-secret'
+    wrapper.findAllComponents(ConfirmDialog).find(dialog => dialog.props('show'))!.vm.$emit('confirm')
+    await second
+    expect(adminAPI.backup.restoreBackup).toHaveBeenCalledWith('backup-b', 'fresh-secret')
+    expect(vm.restorePassword).toBe('')
   })
 })

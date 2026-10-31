@@ -27,10 +27,10 @@
               <Icon name="x" size="sm" />
               <span>{{ t('payment.orders.cancel') }}</span>
             </button>
-            <button v-if="canRequestRefund(row)" @click="openRefundDialog(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/20">
+            <MoreActions v-if="canRequestRefund(row)"><button v-if="canRequestRefund(row)" @click="openRefundDialog(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/20">
               <Icon name="dollar" size="sm" />
               <span>{{ t('payment.orders.requestRefund') }}</span>
-            </button>
+            </button></MoreActions>
           </div>
         </template>
       </OrderTable>
@@ -59,7 +59,7 @@
           </div>
           <div class="mt-2 flex justify-between text-sm">
             <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-            <span class="text-gray-900 dark:text-white">${{ refundTarget.amount.toFixed(2) }}</span>
+            <span class="text-gray-900 dark:text-white">${{ formatDisplayAmount(refundTarget.amount, 2) }}</span>
           </div>
         </div>
         <div>
@@ -78,6 +78,9 @@
 </template>
 
 <script setup lang="ts">
+import MoreActions from '@/components/common/MoreActions.vue'
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { provide, ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

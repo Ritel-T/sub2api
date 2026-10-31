@@ -116,6 +116,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import DocumentRows from '@/components/common/DocumentRows.vue'
@@ -283,15 +285,5 @@ const toFiniteNumber = (value: unknown): number => {
   return Number.isFinite(numberValue) ? numberValue : 0
 }
 
-const formatCost = (value: number | null | undefined): string => {
-  const safeValue = toFiniteNumber(value)
-  if (safeValue >= 1000) {
-    return (safeValue / 1000).toFixed(2) + 'K'
-  } else if (safeValue >= 1) {
-    return safeValue.toFixed(2)
-  } else if (safeValue >= 0.01) {
-    return safeValue.toFixed(3)
-  }
-  return safeValue.toFixed(4)
-}
+const formatCost = (value: number | null | undefined): string => { return displayAmount(value) }
 </script>

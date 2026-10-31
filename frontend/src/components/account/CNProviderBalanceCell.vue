@@ -57,6 +57,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
@@ -116,7 +118,7 @@ const currentEntries = computed<CNProviderBalanceEntry[]>(() => {
 })
 
 const formatEntry = (entry: CNProviderBalanceEntry): string => {
-  const fixed = entry.balance >= 100 ? entry.balance.toFixed(0) : entry.balance.toFixed(2)
+  const fixed = entry.balance >= 100 ? entry.balance.toFixed(0) : formatDisplayAmount(entry.balance, 2)
   return `${entry.currency || '¥'} ${fixed}`
 }
 

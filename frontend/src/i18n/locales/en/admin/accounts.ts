@@ -105,7 +105,7 @@ export default {
         "OPENAI_EXCEL_AUTH_REQUIRED": "Excel authorization is waiting for the automatic worker. View progress in Credential Operations.",
         "OPENAI_EXCEL_AUTH_UNAVAILABLE": "Excel authorization status is unavailable. Please retry later."
       },
-      title: 'Account Management',
+      title: 'Accounts',
       description: 'Manage AI platform accounts and credentials',
       createAccount: 'Create Account',
       autoRefresh: 'Auto Refresh',

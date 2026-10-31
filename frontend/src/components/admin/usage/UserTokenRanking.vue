@@ -51,6 +51,7 @@
 </template>
 
 <script setup lang="ts">
+
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getUserBreakdown, type UserBreakdownParams } from '@/api/admin/dashboard'
@@ -116,7 +117,7 @@ const limit = ref(50)
 let reqSeq = 0
 
 const fmtTokens = (v: number) => formatCompactNumber(v)
-const fmtCost = (v: number) => formatCostFixed(v, 4)
+const fmtCost = (v: number) => formatCostFixed(v, 2)
 
 const setSort = (key: SortKey) => {
   if (sortBy.value === key) return

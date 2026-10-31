@@ -16,7 +16,7 @@
       <template #cell-status="{ row }">{{ row.status }} · {{ row.current_count }}</template>
       <template #cell-reason="{ row }"><span class="break-words">{{ row.reason || '—' }}</span></template>
       <template #cell-actor_id="{ row }">{{ row.actor_id ?? '—' }}</template>
-      <template #cell-updated_at="{ row }">{{ row.updated_at ? new Date(row.updated_at).toLocaleString() : '—' }}</template>
+      <template #cell-updated_at="{ row }">{{ row.updated_at ? formatDisplayTimestamp(row.updated_at) : '—' }}</template>
       <template #cell-actions="{ row }"><button type="button" class="workspace-icon-action" :title="t('common.edit')" :aria-label="t('common.edit')" @click="selected = row.user_id"><Icon name="edit" size="sm" /></button></template>
       <template #empty><p v-if="!error" data-test="empty">{{ t('admin.moderationUsers.empty') }}</p></template>
     </DataTable>
@@ -27,6 +27,8 @@
   </section>
 </template>
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'

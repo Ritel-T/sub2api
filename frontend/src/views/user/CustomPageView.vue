@@ -1,6 +1,7 @@
 <template>
   <AppLayout>
     <div class="custom-page-layout">
+      <p v-if="translationMissing" class="text-sm" role="status">{{ t(locale.startsWith('en') ? 'consoleExperience.noEnglish' : 'consoleExperience.noTraditional') }}</p>
       <div class="open-section flex-1 min-h-0 overflow-hidden">
         <div v-if="loading" class="flex h-full items-center justify-center py-12">
           <div role="status" :aria-label="t('common.loading')"
@@ -164,6 +165,7 @@ const tocVisible = ref(typeof window !== 'undefined' ? window.innerWidth > 768 :
 const activeHeadingId = ref('')
 let themeObserver: MutationObserver | null = null
 let markdownRequestVersion = 0
+const translationMissing = ref(false)
 
 const embedShell = ref<HTMLElement | null>(null)
 const openButton = ref<HTMLAnchorElement | null>(null)
@@ -298,9 +300,15 @@ async function fetchAndRenderMarkdown(slug: string) {
   tocItems.value = []
   activeHeadingId.value = ''
   try {
-    const resp = await consoleFetch(buildApiUrl(`/pages/${encodeURIComponent(slug)}`), {
-      headers: consoleAuthHeaders(),
-    })
+    translationMissing.value = false
+    const fetchPage = (pageSlug: string) => consoleFetch(buildApiUrl(`/pages/${encodeURIComponent(pageSlug)}`), { headers: consoleAuthHeaders() })
+    // Translated chapters may be published alongside the original slug.
+    let resp = await fetchPage(locale.value === 'zh' ? slug : `${slug}.${locale.value}`)
+    if (version !== markdownRequestVersion) return
+    if ((resp.status === 404 || resp.status === 403) && locale.value !== 'zh') {
+      translationMissing.value = true
+      resp = await fetchPage(slug)
+    }
     if (version !== markdownRequestVersion) return
     if (!resp.ok) {
       renderedHtml.value = `<p class="text-red-500">${t('common.pageNotFound')}</p>`
@@ -412,7 +420,7 @@ function injectCopyButtons() {
   })
 }
 
-watch(markdownSlug, (slug) => {
+watch([markdownSlug, () => locale.value], ([slug]) => {
   if (slug) {
     fetchAndRenderMarkdown(slug)
   } else {

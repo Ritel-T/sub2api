@@ -48,7 +48,7 @@
               <p v-if="row.quotaValue" class="mt-1 font-mono text-xs">{{ row.quotaValue }}</p>
               <span class="mt-1 inline-block text-xs" :class="row.state === 'warning' ? 'text-amber-700 dark:text-amber-400' : row.state === 'normal' ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500'">{{ t(`accountOps.ruleStates.${row.state}`) }}</span></template>
         <template #cell-rule="{ row }"><template v-if="row.balanceRule || row.quotaRule">
-                <p v-if="row.balanceRule" class="text-xs">≤ {{ row.balanceRule.threshold.toFixed(2) }} {{ row.balanceRule.unit }}</p>
+                <p v-if="row.balanceRule" class="text-xs">≤ {{ formatDisplayAmount(row.balanceRule.threshold, 2) }} {{ row.balanceRule.unit }}</p>
                 <p v-if="row.quotaRule" class="mt-1 text-xs">≥ {{ row.quotaRule.threshold_percent }}%</p>
                 <p class="mt-1 text-xs text-gray-500">{{ policy(row) }}</p>
               </template>
@@ -66,6 +66,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import { computed, ref, watch } from 'vue'
@@ -130,7 +132,7 @@ function metricState(account: AccountOpsThresholdAccount, rule: GroupRow['balanc
 }
 function metricValue(account: AccountOpsThresholdAccount, rule: GroupRow['balanceRule'] | GroupRow['quotaRule'] | undefined): string {
   if (!rule) return ''
-  if ('unit' in rule) return account.balance_status === 'ok' && account.balance != null ? `${account.balance.toFixed(2)} ${account.unit}` : t(`accountOps.observations.${account.balance_status}`)
+  if ('unit' in rule) return account.balance_status === 'ok' && account.balance != null ? `${formatDisplayAmount(account.balance, 2)} ${account.unit}` : t(`accountOps.observations.${account.balance_status}`)
   const selected = rule.window || 'any'
   const current = account.usage_windows.find(item => (selected === 'any' || selected === '' || selected === item.window) && item.status === 'ok' && item.used_percent != null)
   return current ? `${current.used_percent!.toFixed(1)}%` : t('accountOps.observations.unknown')

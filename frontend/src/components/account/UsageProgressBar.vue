@@ -31,7 +31,7 @@
           class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
           :title="t('admin.accounts.usageWindow.estimatedTotalCostTooltip')"
         >
-          {{ t('admin.accounts.usageWindow.estimatedTotalCost', { cost: estimatedTotalCost.toFixed(2) }) }}
+          {{ t('admin.accounts.usageWindow.estimatedTotalCost', { cost: formatDisplayAmount(estimatedTotalCost, 2) }) }}
         </span>
       </div>
     </div>
@@ -69,6 +69,10 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -251,8 +255,8 @@ const formattedStandardCost = computed(() => hasStandardCost.value ? `$${props.w
 const standardCostTooltip = computed(() => {
   if (!hasStandardCost.value) return t('admin.accounts.usageWindow.standardWindowUnavailable')
   return t('admin.accounts.usageWindow.standardWindowCostTooltip', {
-    start: new Date(props.windowStartsAt!).toLocaleString(),
-    until: new Date(props.windowStatsUntil!).toLocaleString()
+    start: formatDisplayTimestamp(props.windowStartsAt!),
+    until: formatDisplayTimestamp(props.windowStatsUntil!)
   })
 })
 
@@ -269,7 +273,7 @@ const formatTokens = computed(() => {
 
 const formatUserCost = computed(() => {
   if (!props.windowStats || props.windowStats.user_cost == null) return '0.00'
-  return props.windowStats.user_cost.toFixed(2)
+  return formatDisplayAmount(props.windowStats.user_cost, 2)
 })
 
 </script>

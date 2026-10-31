@@ -58,6 +58,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { useConfirmedAction } from '@/composables/useConfirmation'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -96,7 +98,7 @@ const dimension = computed(() => accountId.value ? 'account' : !channelId.value 
 let request = 0, alive = true, controller: AbortController | undefined
 function positiveId(value: unknown) { const n = Number(value); return Number.isSafeInteger(n) && n > 0 ? n : 0 }
 function localDate(date: Date) { return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16) }
-function date(value: string | null) { return value ? new Date(value).toLocaleString() : '—' }
+function date(value: string | null) { return value ? formatDisplayTimestamp(value) : '—' }
 function ms(value: number | null) { return value == null ? '—' : Math.round(value).toLocaleString() }
 function message(e: unknown) { return (e as { status?: number } | null)?.status === 409 ? t('channelOps.conflict') : t('channelOps.failed') }
 function upstreamLabel(id: number) { return id <= 0 ? t('channelOps.unassigned') : catalog.value?.upstreams.find(u => u.id === id)?.name || `#${id}` }

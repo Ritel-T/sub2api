@@ -6,6 +6,7 @@
     <ConsoleSectionTabs :inert="appStore.mobileOpen ? true : undefined" />
     <main id="console-main" ref="mainRef" class="ritel-main" :inert="appStore.mobileOpen ? true : undefined" tabindex="-1">
       <ConsolePageTitle v-if="showPageTitle" />
+      <p class="console-timezone">{{ browserTimezone() }}</p>
       <slot />
     </main>
     <ConsoleBottomNav :inert="appStore.mobileOpen ? true : undefined" />
@@ -14,6 +15,7 @@
 
 <script setup lang="ts">
 import '@/styles/onboarding.css'
+import { browserTimezone } from '@/utils/consoleDisplay'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -59,5 +61,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.console-timezone { margin-bottom: 1rem; font-size: 12px; color: var(--ritel-muted); }
+@media (max-width: 767px) { .ritel-main { padding-bottom: calc(112px + env(safe-area-inset-bottom)) !important; } }
 .wide-layout { --console-content-width: 100%; }
 </style>

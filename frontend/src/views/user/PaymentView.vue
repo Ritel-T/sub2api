@@ -55,7 +55,7 @@
             <div class="open-section purchase-account">
               <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
               <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
+              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ formatDisplayAmount(user?.balance, 2) || '0.00' }}</p>
             </div>
             <div v-if="enabledMethods.length === 0" class="open-section py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
@@ -134,10 +134,10 @@
                 </div>
                 <div v-if="showCreditedBalance" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': !showActualPay && !showBonusRow }" data-testid="recharge-credited-row">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
-                  <span :class="bonusQuote.percent > 0 ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-900 dark:text-white'">${{ creditedAmount.toFixed(2) }}</span>
+                  <span :class="bonusQuote.percent > 0 ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-900 dark:text-white'">${{ formatDisplayAmount(creditedAmount, 2) }}</span>
                 </div>
                 <p v-if="balanceRechargeMultiplier !== 1" class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
-                  {{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: balanceRechargeMultiplier.toFixed(2) }) }}
+                  {{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: formatDisplayAmount(balanceRechargeMultiplier, 2) }) }}
                 </p>
               </div>
             </div>
@@ -256,8 +256,8 @@
               </div>
               <div v-if="balanceSubscriptionPurchase" data-test="balance-subscription-summary" class="open-section space-y-3 p-6 text-sm">
                 <p>{{ t('paymentRetail.balanceSubscription.notice') }}</p>
-                <div class="flex justify-between"><span>{{ t('paymentRetail.balanceSubscription.available') }}</span><span>${{ (user?.balance ?? 0).toFixed(2) }}</span></div>
-                <div class="flex justify-between font-semibold"><span>{{ t('paymentRetail.balanceSubscription.debit') }}</span><span>${{ selectedPlan.price.toFixed(2) }}</span></div>
+                <div class="flex justify-between"><span>{{ t('paymentRetail.balanceSubscription.available') }}</span><span>${{ formatDisplayAmount((user?.balance ?? 0), 2) }}</span></div>
+                <div class="flex justify-between font-semibold"><span>{{ t('paymentRetail.balanceSubscription.debit') }}</span><span>${{ formatDisplayAmount(selectedPlan.price, 2) }}</span></div>
                 <p v-if="pendingBalancePurchase" role="status" class="text-amber-700 dark:text-amber-300">{{ t('paymentRetail.balanceSubscription.pending') }}</p>
                 <template v-else-if="!hasSubscriptionBalance">
                   <p class="text-amber-700 dark:text-amber-300">{{ t('paymentRetail.balanceSubscription.insufficient') }}</p>
@@ -292,7 +292,7 @@
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                   {{ t('common.processing') }}
                 </span>
-                <span v-else-if="balanceSubscriptionPurchase">{{ t(pendingBalancePurchase ? 'paymentRetail.balanceSubscription.retry' : 'paymentRetail.balanceSubscription.buy') }} ${{ selectedPlan.price.toFixed(2) }}</span>
+                <span v-else-if="balanceSubscriptionPurchase">{{ t(pendingBalancePurchase ? 'paymentRetail.balanceSubscription.retry' : 'paymentRetail.balanceSubscription.buy') }} ${{ formatDisplayAmount(selectedPlan.price, 2) }}</span>
                 <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
               </button>
               <button class="btn btn-secondary w-full" :disabled="!!pendingBalancePurchase || submitting" @click="cancelSelectedPlan">{{ t('common.cancel') }}</button>
@@ -358,6 +358,10 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -730,7 +734,7 @@ const {
   response: quoteResponse, quote: retailQuote, loading: quoteLoading, failed: quoteFailed,
   confirmed: quoteConfirmed, expired: quoteExpired, current: retailQuoteCurrent, refresh: refreshRetailQuote,
 } = useRetailQuote(quoteRequest)
-const quoteExpiryLabel = computed(() => retailQuote.value ? new Date(retailQuote.value.expires_at).toLocaleTimeString() : '')
+const quoteExpiryLabel = computed(() => retailQuote.value ? formatDisplayTimestamp(retailQuote.value.expires_at) : '')
 const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
   return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1

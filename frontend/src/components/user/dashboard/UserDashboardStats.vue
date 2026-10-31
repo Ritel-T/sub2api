@@ -199,6 +199,10 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
+import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -350,13 +354,7 @@ function formatResetTime(iso: string | null | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString(undefined, {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
+  return formatDisplayTimestamp(d)
 }
 
 const formatBalance = (b: number) =>
@@ -366,7 +364,7 @@ const formatBalance = (b: number) =>
   }).format(b)
 
 const formatNumber = (n: number) => n.toLocaleString()
-const formatCost = (c: number) => c.toFixed(4)
+const formatCost = (c: number) => displayAmount(c)
 const formatTokens = (t: number) => {
   if (t >= 1_000_000) return `${(t / 1_000_000).toFixed(1)}M`
   if (t >= 1000) return `${(t / 1000).toFixed(1)}K`

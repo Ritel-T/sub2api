@@ -361,19 +361,24 @@
     </BaseDialog>
     <TotpStepUpDialog :controller="backupStepUp" />
 
-  <ConfirmationPrompt :confirmation="confirmation" />
+  <ConfirmationPrompt :confirmation="confirmation"><label v-if="restoreTarget" class="block text-sm">{{ t('admin.backup.actions.restorePasswordPrompt') }}<input v-model="restorePassword" type="password" autocomplete="off" class="input mt-2" /></label></ConfirmationPrompt>
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'
-const confirmation = useConfirmation()
+const restorePassword = ref('')
+const restoreTarget = ref('')
+const confirmation = useConfirmation(() => ({ active: true, identity: restoreTarget.value }))
+watch(confirmation.show, show => { if (!show) restorePassword.value = '' }, { flush: 'sync' })
 
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
 import { useAppStore } from '@/stores'
@@ -818,8 +823,13 @@ function closeDownloadParts() {
 }
 
 async function restoreBackup(id: string) {
+  if (confirmation.show.value || confirmation.busy.value) return
+  restoreTarget.value = id
+  restorePassword.value = ''
+  try {
   await confirmation.run({ message: t('admin.backup.actions.restoreConfirm'), title: t('common.reset'), confirmText: t('common.reset'), danger: true }, async (isCurrent) => {
-    const password = window.prompt(t('admin.backup.actions.restorePasswordPrompt'))
+    const password = restorePassword.value
+    restorePassword.value = ''
     if (!password) return
     restoringId.value = id
     try {
@@ -840,6 +850,7 @@ async function restoreBackup(id: string) {
       }
     }
   })
+  } finally { restorePassword.value = ''; restoreTarget.value = '' }
 }
 
 async function removeBackup(id: string) {
@@ -878,12 +889,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function formatDate(value?: string): string {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
+function formatDate(value?: string): string { return displayTimestamp(value) }
 
 onMounted(async () => {
     document.addEventListener('visibilitychange', handleVisibilityChange)

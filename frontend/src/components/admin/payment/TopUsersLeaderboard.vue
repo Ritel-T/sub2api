@@ -38,6 +38,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatMoney as displayMoney } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { useI18n } from 'vue-i18n'
 import type { TopUserPaymentStats } from '@/types/payment'
@@ -63,7 +65,5 @@ function sortedUsers(usersByCurrency: Record<string, TopUserPaymentStats[]>): [s
   return Object.entries(usersByCurrency).sort(([left], [right]) => left.localeCompare(right))
 }
 
-function formatMoney(currency: string, amount: number): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
-}
+function formatMoney(currency: string, amount: number): string { return displayMoney(amount, currency) }
 </script>

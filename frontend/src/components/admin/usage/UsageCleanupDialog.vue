@@ -105,6 +105,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import DocumentRows from '@/components/common/DocumentRows.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch, onUnmounted } from 'vue'
@@ -212,12 +214,7 @@ const statusClass = (status: string) => {
   return map[status] || 'bg-gray-100 text-gray-600'
 }
 
-const formatDateTime = (value?: string | null) => {
-  if (!value) return '--'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
+const formatDateTime = (value?: string | null) => { return displayTimestamp(value) }
 
 const formatRange = (task: UsageCleanupTask) => {
   const start = formatDateTime(task.filters.start_time)

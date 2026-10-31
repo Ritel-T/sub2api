@@ -24,6 +24,8 @@
   </section>
 </template>
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -57,7 +59,7 @@ const historyList = useInfiniteList<AstraGatewayHistoryRecord>({
 })
 const { items, loading, error } = historyList
 let timer: ReturnType<typeof setInterval> | undefined
-function clock(value?: string) { return value ? new Date(value).toLocaleString() : '—' }
+function clock(value?: string) { return value ? formatDisplayTimestamp(value) : '—' }
 function reason(code: string) { const key = `${p}.reasons.${code}`; return te(key) ? t(key) : code }
 function search() {
   query = { host: host.value.trim(), passed: passed.value }

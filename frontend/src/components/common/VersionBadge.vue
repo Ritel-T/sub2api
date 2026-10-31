@@ -640,6 +640,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
@@ -824,7 +826,7 @@ function formatPublishedAt(publishedAt: string): string {
   if (!publishedAt) return ''
   const date = new Date(publishedAt)
   if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleDateString()
+  return formatDisplayTimestamp(date)
 }
 
 async function handleRollback() {

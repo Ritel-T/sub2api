@@ -94,6 +94,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -128,7 +130,7 @@ const number = (n: number | null | undefined) => n == null ? '—' : n.toLocaleS
 const percent = (n: number | null) => n == null ? '—' : (n * 100).toFixed(1) + '%'
 const money = (n: number | null | undefined) => n == null ? '—' : '$' + n.toFixed(6)
 const ms = (n: number | null | undefined) => n == null ? '—' : (n / 1000).toFixed(2) + ' s'
-const date = (value: string) => new Date(value).toLocaleString()
+const date = (value: string) => formatDisplayTimestamp(value)
 function runConfiguration(run: CacheTestRun) {
   const s = run.settings
   return t('admin.groupCacheTest.runConfig', { blocks: s.prefixBlocks, output: s.maxOutputTokens, interval: s.intervalMs, tier: s.serviceTier || t('admin.groupCacheTest.unspecified'), reasoning: s.reasoningEffort || t('admin.groupCacheTest.unspecified') })

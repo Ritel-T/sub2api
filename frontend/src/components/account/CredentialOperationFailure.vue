@@ -12,6 +12,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CredentialOperationFailure } from '@/api/admin/accountTokenGuardV2'
@@ -21,6 +23,6 @@ const props = defineProps<{ failure: CredentialOperationFailure }>()
 const { t } = useI18n()
 const safe = computed(() => safeOperationFailure(props.failure))
 const time = computed(() => safe.value.occurred_at
-  ? new Date(safe.value.occurred_at).toLocaleString()
+  ? formatDisplayTimestamp(safe.value.occurred_at)
   : t('tokenGuardV2.operationFailure.unknownTime'))
 </script>

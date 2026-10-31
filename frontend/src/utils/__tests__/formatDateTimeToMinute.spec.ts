@@ -6,7 +6,7 @@ describe('formatDateTimeToMinute', () => {
   it('formats local date and time without seconds', () => {
     const value = new Date(2026, 6, 19, 20, 30, 45)
 
-    expect(formatDateTimeToMinute(value, 'en-GB')).toBe('19/07/2026, 20:30')
+    expect(formatDateTimeToMinute(value, 'en-GB')).toBe('2026-07-19 20:30')
   })
 
   it('returns an empty string for an invalid date', () => {

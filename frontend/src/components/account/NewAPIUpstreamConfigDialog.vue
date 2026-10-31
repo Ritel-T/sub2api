@@ -75,6 +75,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -208,7 +210,7 @@ const remove = async () => {
   }
 }
 const isFixedRate = (value?: number) => typeof value === 'number' && Number.isFinite(value) && value >= 0
-const formatWallet = (amount: number) => Number.isFinite(amount) ? `$${amount.toFixed(2)} USD` : '-'
+const formatWallet = (amount: number) => Number.isFinite(amount) ? `$${formatDisplayAmount(amount, 2)} USD` : '-'
 const rowError = (value: string) => {
   switch (value) {
     case 'ambiguous_token':

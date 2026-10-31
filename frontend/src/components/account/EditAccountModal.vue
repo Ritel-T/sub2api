@@ -2702,9 +2702,9 @@
             <span v-else class="text-gray-500">{{ t('admin.accounts.openai.codexTurnTicketMissing') }}</span>
             <div v-if="ticket.probe" class="ml-2 text-xs text-gray-500">
               {{ t('admin.accounts.openai.ticketProbe.' + ticket.probe.result) }} · HTTP {{ ticket.probe.http_status || '—' }}
-              <div>{{ new Date(ticket.probe.checked_at).toLocaleString() }}</div>
-              <div v-if="ticket.probe.next_probe_at">{{ t('admin.accounts.openai.ticketProbeNext') }} {{ new Date(ticket.probe.next_probe_at).toLocaleString() }}</div>
-              <div v-if="ticket.standby_expires_at">{{ t('admin.accounts.openai.ticketStandbyExpires') }} {{ new Date(ticket.standby_expires_at).toLocaleString() }}</div>
+              <div>{{ formatDisplayTimestamp(ticket.probe.checked_at) }}</div>
+              <div v-if="ticket.probe.next_probe_at">{{ t('admin.accounts.openai.ticketProbeNext') }} {{ formatDisplayTimestamp(ticket.probe.next_probe_at) }}</div>
+              <div v-if="ticket.standby_expires_at">{{ t('admin.accounts.openai.ticketStandbyExpires') }} {{ formatDisplayTimestamp(ticket.standby_expires_at) }}</div>
             </div>
           </div>
         </div>
@@ -3262,6 +3262,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'
@@ -3497,7 +3499,7 @@ const opencodeGoFormatPercent = (value?: number) => typeof value === 'number' &&
 const opencodeGoFormatDate = (value?: string) => {
   if (!value) return '-'
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+  return Number.isNaN(date.getTime()) ? value : formatDisplayTimestamp(date)
 }
 const opencodeGoWindowSummary = (window?: OpenCodeGoUsageWindow) => {
   if (!window) return '-'

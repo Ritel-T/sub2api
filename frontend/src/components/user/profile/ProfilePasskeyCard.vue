@@ -182,6 +182,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch, useId } from 'vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -330,13 +332,7 @@ async function confirmDelete(): Promise<void> {
   })
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  }).format(new Date(value))
-}
+function formatDate(value: string): string { return displayTimestamp(value) }
 
 watch(
   () => props.enabled,

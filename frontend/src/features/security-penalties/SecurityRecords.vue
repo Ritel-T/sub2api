@@ -41,6 +41,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -65,7 +67,7 @@ const { rendered, paddingTop, paddingBottom, measure } = useDocumentRows(events,
 const expanded = ref<number | null>(null)
 const opening = ref<number | null>(null)
 const details = ref<Record<number, PenaltyEvent>>({})
-const date = (value: string | null) => value ? new Date(value).toLocaleString() : '—'
+const date = (value: string | null) => value ? formatDisplayTimestamp(value) : '—'
 let generation = 0
 let detailGeneration = 0
 function invalidateDetails() {

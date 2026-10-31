@@ -25,13 +25,15 @@
           <td><span class="recent-label">{{ requestCopy.status }}</span><span :class="row.kind === 'error' ? 'text-red-600 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'">{{ row.kind === 'error' ? `${requestCopy.failed} · ${row.record.status_code || '—'}` : requestCopy.success }}</span></td>
           <td class="tabular-nums" data-metric="duration"><span class="recent-label">{{ requestCopy.duration }}</span><span>{{ row.kind === 'usage' ? overviewDuration(row.record.duration_ms) : '—' }}</span></td>
           <td class="tabular-nums" data-metric="tokens"><span class="recent-label">{{ copy.tokensUnit }}</span><span>{{ row.kind === 'usage' ? overviewTokenTotal(row.record).toLocaleString() : '—' }}</span></td>
-          <td class="tabular-nums" data-metric="cost" :title="row.kind === 'usage' ? `${copy.standard}: $${row.record.total_cost.toFixed(4)}` : undefined"><span class="recent-label">{{ copy.actual }}</span><span>{{ row.kind === 'usage' ? `$${row.record.actual_cost.toFixed(4)}` : '—' }}</span></td>
+          <td class="tabular-nums" data-metric="cost" :title="row.kind === 'usage' ? `${copy.standard}: $${formatDisplayAmount(row.record.total_cost, 2)}` : undefined"><span class="recent-label">{{ copy.actual }}</span><span>{{ row.kind === 'usage' ? `$${formatDisplayAmount(row.record.actual_cost, 2)}` : '—' }}</span></td>
         </tr>
       </tbody>
     </table>
   </section>
 </template>
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { computed } from 'vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import Icon from '@/components/icons/Icon.vue'

@@ -140,7 +140,7 @@ export default {
     admin: {
       tab: 'V3 組件監控',
       siteMode: '本站用戶看到的是',
-      siteModeHint: '切換後立即生效，同一時間只運行一種監控。',
+      siteModeHint: "選擇版本後按儲存才會對外生效，同一時間只執行一個版本。",
       siteModeOff: '渠道監控已在系統設定裏關閉。',
       description: {
         v1: '本站當前使用 V1 主動探測。V3 可以先配置好，切換後用戶才看得到。',

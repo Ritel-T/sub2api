@@ -386,7 +386,7 @@ function connectionDeeplink(profile: CcSwitchApplicationProfile) {
   return buildCcSwitchImportDeeplink({
     baseUrl: props.baseUrl || window.location.origin,
     platform: props.platform, profile, settings: props.publicSettings?.ccs_import_config,
-    providerName: props.publicSettings?.site_name?.trim() || 'Ritel.SI',
+    providerName: 'Ritel.SI API',
     apiKey: props.apiKey, keyName: props.keyRecord?.name, userId: props.keyRecord?.user_id
   })
 }
@@ -438,7 +438,7 @@ const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
 const activeClientTab = ref<string>('claude')
 type CodexAuthMode = 'legacy' | 'api-key'
-const codexAuthMode = ref<CodexAuthMode>('legacy')
+const codexAuthMode = ref<CodexAuthMode>('api-key')
 type CodexModelManifestState = 'idle' | 'loading' | 'ready' | 'error'
 const codexModelManifestState = ref<CodexModelManifestState>('idle')
 const codexModelManifestContent = ref('')
@@ -495,12 +495,12 @@ const defaultClientTab = computed(() => {
 watch(() => props.platform, () => {
   activeTab.value = 'unix'
   activeClientTab.value = defaultClientTab.value
-  codexAuthMode.value = 'legacy'
+  codexAuthMode.value = 'api-key'
 }, { immediate: true })
 
 watch(() => props.show, (show) => {
   if (show) {
-    codexAuthMode.value = 'legacy'
+    codexAuthMode.value = 'api-key'
   } else {
     resetCodexModelManifest()
   }
@@ -855,20 +855,21 @@ const currentFiles = computed((): FileConfig[] => {
   if (activeClientTab.value === 'opencode') {
     switch (props.platform) {
       case 'anthropic':
-        return [generateOpenCodeConfig('anthropic', apiBase, apiKey)]
+        return [generateOpenCodeConfig('anthropic', apiBase, apiKey), ritelEnvironmentFile(apiKey)]
       case 'openai':
-        return [generateOpenCodeConfig('openai', apiBase, apiKey)]
+        return [generateOpenCodeConfig('openai', apiBase, apiKey), ritelEnvironmentFile(apiKey)]
       case 'gemini':
-        return [generateOpenCodeConfig('gemini', geminiBase, apiKey)]
+        return [generateOpenCodeConfig('gemini', geminiBase, apiKey), ritelEnvironmentFile(apiKey)]
       case 'antigravity':
         return [
           generateOpenCodeConfig('antigravity-claude', antigravityBase, apiKey, 'opencode.json (Claude)'),
           generateOpenCodeConfig('antigravity-gemini', antigravityGeminiBase, apiKey, 'opencode.json (Gemini)')
+          , ritelEnvironmentFile(apiKey)
         ]
       case 'grok':
-        return [generateOpenCodeConfig('grok', apiBase, apiKey)]
+        return [generateOpenCodeConfig('grok', apiBase, apiKey), ritelEnvironmentFile(apiKey)]
       default:
-        return [generateOpenCodeConfig('openai', apiBase, apiKey)]
+        return [generateOpenCodeConfig('openai', apiBase, apiKey), ritelEnvironmentFile(apiKey)]
     }
   }
 
@@ -1129,15 +1130,15 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content
-  const configContent = `model_provider = "OpenAI"
+  const configContent = `model_provider = "ritel"
 model = "${model}"
 review_model = "${model}"
 ${reasoningEffortLine}disable_response_storage = true
 ${codexLocalCatalogToml.value}network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
-[model_providers.OpenAI]
-name = "OpenAI"
+[model_providers.ritel]
+name = "Ritel.SI API"
 base_url = "${baseUrl}"
 ${codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}wire_api = "responses"
 ${generateCodexProviderAuthConfig(apiKey)}
@@ -1148,14 +1149,18 @@ ${codexModelCatalogMode.value === 'remote' ? 'api_key_model_discovery = true\n' 
   return buildOpenAICodexFileConfigs(configDir, configContent, apiKey)
 }
 
-function generateCodexProviderAuthConfig(apiKey: string): string {
+function generateCodexProviderAuthConfig(_apiKey: string): string {
   if (codexAuthMode.value === 'api-key') {
     return `requires_openai_auth = false
-experimental_bearer_token = "${escapeTomlBasicString(apiKey)}"
+env_key = "RITEL_API_KEY"
 http_headers = { "x-openai-actor-authorization" = "local-image-extension" }`
   }
 
   return 'requires_openai_auth = true'
+}
+
+function ritelEnvironmentFile(apiKey: string): FileConfig {
+  return { path: activeTab.value === 'windows' ? 'PowerShell' : 'Terminal', content: activeTab.value === 'windows' ? `$env:RITEL_API_KEY="${apiKey}"` : `export RITEL_API_KEY="${apiKey}"`, hint: t('consoleExperience.legacyConfig') }
 }
 
 function buildOpenAICodexFileConfigs(
@@ -1171,6 +1176,9 @@ function buildOpenAICodexFileConfigs(
     }
   ]
 
+  if (codexAuthMode.value === 'api-key') {
+    files.unshift(ritelEnvironmentFile(apiKey))
+  }
   if (codexAuthMode.value === 'legacy') {
     files.push({
       path: `${configDir}/auth.json`,
@@ -1216,15 +1224,15 @@ $env:XAI_API_KEY="${apiKey}"`
 export XAI_API_KEY="${apiKey}"`
   }
 
-  // Shape follows Grok Build user guide (~/.grok/docs + custom-models) and production-ready Sub2API setups.
+  // Shape follows Grok Build user guide (~/.grok/docs + custom-models) and production-ready Ritel.SI API setups.
   // Text models only (Responses). Image/video: Imagine model IDs on media endpoints / feature overrides.
   // Credential order: api_key field → env_key → signed-in session → XAI_API_KEY global fallback.
   const modelsListUrl = `${baseUrl.replace(/\/+$/, '')}/models`
-  const configContent = `# Grok Build CLI → Sub2API Grok group (API key auth).
+  const configContent = `# Grok Build CLI → Ritel.SI API group (API key auth).
 # Docs: ~/.grok/docs/user-guide/05-configuration.md + 11-custom-models.md
 # Verify after save: grok inspect
 #
-# IMPORTANT: api_backend must be "responses" for Sub2API Grok (POST /v1/responses).
+# IMPORTANT: api_backend must be "responses" for Ritel.SI API (POST /v1/responses).
 # If omitted, Grok Build defaults to chat_completions (/v1/chat/completions).
 # Keep api_backend = "responses" on every model entry.
 #
@@ -1239,7 +1247,7 @@ models_list_url = "${modelsListUrl}"        # optional override (env: GROK_MODEL
 xai_api_base_url = "${baseUrl}"             # public xAI API base override for gateway routing
 cli_chat_proxy_base_url = "${baseUrl}"      # CLI chat-proxy base (env: GROK_CLI_CHAT_PROXY_BASE_URL)
 
-# Prefer API key when using a custom gateway (matches Sub2API).
+# Prefer API key when using a custom gateway (matches Ritel.SI API).
 # Requires XAI_API_KEY env or per-model env_key / api_key.
 [auth]
 preferred_method = "api_key"
@@ -1247,7 +1255,7 @@ preferred_method = "api_key"
 [model."grok-4.5"]
 model = "grok-4.5"                          # id sent to the API
 name = "Grok 4.5"                           # shown in /model picker
-description = "Grok 4.5 via Sub2API (Responses)"
+description = "Grok 4.5 via Ritel.SI API (Responses)"
 # base_url inherits from [endpoints].models_base_url; override only if needed:
 # base_url = "${baseUrl}"
 env_key = "XAI_API_KEY"                     # or: api_key = "${apiKey}"  (not recommended)
@@ -1310,7 +1318,7 @@ image_description = "grok-4.5"              # vision/describe-image helper model
 [session]
 auto_compact_threshold_percent = 80         # auto-compact at this % of context_window (default 85)
 
-# Imagine tools: model IDs go to Sub2API media endpoints (not the text [model.*] catalog).
+# Imagine tools: model IDs go to Ritel.SI API media endpoints (not the text [model.*] catalog).
 # Enable only if the Grok group allows image/video generation.
 [features]
 image_gen = true
@@ -1345,25 +1353,25 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
   switch (shell) {
     case 'cmd':
       envPath = 'Command Prompt'
-      envContent = `set SUB2API_API_KEY=${apiKey}`
+      envContent = `set RITEL_API_KEY=${apiKey}`
       break
     case 'powershell':
     case 'windows':
       envPath = 'PowerShell'
-      envContent = `$env:SUB2API_API_KEY="${apiKey}"`
+      envContent = `$env:RITEL_API_KEY="${apiKey}"`
       break
     default:
       envPath = 'Terminal'
-      envContent = `export SUB2API_API_KEY="${apiKey}"`
+      envContent = `export RITEL_API_KEY="${apiKey}"`
   }
 
-  const configContent = `# Codex CLI → Sub2API Grok group
+  const configContent = `# Codex CLI → Ritel.SI API group
 # Docs: Codex config reference (model_providers.*, wire_api = "responses")
 #
 # Text models only. Image/video: grok-imagine-image / grok-imagine-video on media endpoints.
 # Switch model: grok-4.5 | grok-4.3 | grok-build-0.1 | grok-4.20-multi-agent-0309 (text / web_search)
 
-model_provider = "sub2api"
+model_provider = "ritel"
 model = "${model}"
 ${codexLocalCatalogToml.value}# Optional:
 # review_model = "${model}"
@@ -1373,17 +1381,17 @@ ${codexLocalCatalogToml.value}# Optional:
 # network_access = "enabled"
 # windows_wsl_setup_acknowledged = true
 
-[model_providers.sub2api]
-name = "Sub2API Grok"
+[model_providers.ritel]
+name = "Ritel.SI API"
 base_url = "${baseUrl}"
 ${codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}# Prefer env_key (variable NAME). Do not combine with experimental_bearer_token.
-env_key = "SUB2API_API_KEY"
+env_key = "RITEL_API_KEY"
 # Fallback only if you cannot set env (discouraged — keeps secret on disk):
 # experimental_bearer_token = "${apiKey}"
 wire_api = "responses"
 # API-key providers: do not require ChatGPT OAuth login
 requires_openai_auth = false
-# Grok/Sub2API path is HTTP/SSE; disable WS (Codex may otherwise try WebSocket first)
+# Grok/Ritel.SI API path is HTTP/SSE; disable WS (Codex may otherwise try WebSocket first)
 supports_websockets = false
 
 ${codexModelCatalogMode.value === 'remote' ? '[features]\napi_key_model_discovery = true\n\n# Optional:' : '# Optional:\n# [features]'}
@@ -1421,37 +1429,20 @@ function generateRoutedCodexFiles(
   }
   const preferredModel = preferredModels[platform] || ''
   const model = selectCodexCatalogModel(preferredModel)
-  const labels: Record<GroupPlatform, string> = {
-    anthropic: 'Anthropic',
-    openai: 'OpenAI',
-    gemini: 'Gemini',
-    antigravity: 'Antigravity',
-    grok: 'Grok',
-    kimi: 'Kimi',
-    zhipu: 'Zhipu',
-    deepseek: 'DeepSeek',
-    minimax: 'MiniMax',
-    opencode_go: 'OpenCode',
-    typesafe: 'TypeSafe / Jev',
-    command_code: 'Command Code',
-    cline: 'Cline',
-    composite: 'Composite'
-  }
-  const label = labels[platform]
   const envContent = isWindows
-    ? `$env:SUB2API_API_KEY="${apiKey}"`
-    : `export SUB2API_API_KEY="${apiKey}"`
+    ? `$env:RITEL_API_KEY="${apiKey}"`
+    : `export RITEL_API_KEY="${apiKey}"`
 
-  const configContent = `# Codex CLI -> Sub2API ${label} group
-model_provider = "sub2api"
+  const configContent = `# Codex CLI -> Ritel.SI API group
+model_provider = "ritel"
 model = "${model}"
 review_model = "${model}"
 disable_response_storage = true
 ${codexLocalCatalogToml.value}
-[model_providers.sub2api]
-name = "Sub2API ${label}"
+[model_providers.ritel]
+name = "Ritel.SI API"
 base_url = "${baseUrl}"
-${codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}env_key = "SUB2API_API_KEY"
+${codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}env_key = "RITEL_API_KEY"
 wire_api = "responses"
 requires_openai_auth = false
 supports_websockets = false${codexModelCatalogMode.value === 'remote' ? '\n\n[features]\napi_key_model_discovery = true' : ''}`
@@ -1477,15 +1468,15 @@ function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content with WebSocket v2
-  const configContent = `model_provider = "OpenAI"
+  const configContent = `model_provider = "ritel"
 model = "${model}"
 review_model = "${model}"
 ${reasoningEffortLine}disable_response_storage = true
 ${codexLocalCatalogToml.value}network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
-[model_providers.OpenAI]
-name = "OpenAI"
+[model_providers.ritel]
+name = "Ritel.SI API"
 base_url = "${baseUrl}"
 ${codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}wire_api = "responses"
 supports_websockets = true
@@ -1498,12 +1489,12 @@ goals = true`
   return buildOpenAICodexFileConfigs(configDir, configContent, apiKey)
 }
 
-function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: string, pathLabel?: string): FileConfig {
+function generateOpenCodeConfig(platform: string, baseUrl: string, _apiKey: string, pathLabel?: string): FileConfig {
   const provider: Record<string, any> = {
     [platform]: {
       options: {
         baseURL: baseUrl,
-        apiKey
+        apiKey: '{env:RITEL_API_KEY}'
       }
     }
   }
@@ -2139,9 +2130,9 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   } else if (platform === 'openai') {
     provider[platform].models = openaiModels
   } else if (platform === 'grok') {
-    // Custom provider pointing at Sub2API OpenAI-compatible Responses/Chat endpoints.
+    // Custom provider pointing at Ritel.SI API OpenAI-compatible Responses/Chat endpoints.
     provider[platform].npm = '@ai-sdk/openai-compatible'
-    provider[platform].name = 'Grok via Sub2API'
+    provider[platform].name = 'Grok via Ritel.SI API'
     provider[platform].models = grokModels
   }
 
@@ -2163,7 +2154,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
 
   const content = JSON.stringify(
     {
-      provider,
+      provider: { ritel: { ...provider[platform], name: 'Ritel.SI API' } },
       ...(agent ? { agent } : {}),
       $schema: 'https://opencode.ai/config.json'
     },

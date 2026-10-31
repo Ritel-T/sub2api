@@ -41,7 +41,7 @@
             </div>
             <div v-if="order.out_trade_no" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ order.out_trade_no }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ displayOrderNumber(order.out_trade_no) }}</span>
             </div>
             <RetailQuoteSummary v-if="resultRetailQuote" :quote="resultRetailQuote" />
             <div v-if="hasAmountFields(order) && !resultRetailQuote" class="flex justify-between">
@@ -62,7 +62,7 @@
             </div>
             <div v-if="hasAmountFields(order) && !resultRetailQuote && (order.amount !== order.pay_amount || orderBonusAmount(order) > 0)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' + order.amount.toFixed(2) : formatGatewayAmount(order.amount) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' + formatDisplayAmount(order.amount, 2) : formatGatewayAmount(order.amount) }}</span>
             </div>
             <div v-if="hasPaymentType(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</span>
@@ -104,6 +104,9 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
+import { displayOrderNumber } from '@/utils/consoleDisplay'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { isGelvPaymentType, onPaymentPageReturn, paymentPollInterval } from '@/components/payment/paymentPolling'
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'

@@ -28,6 +28,7 @@ export function useSettingsNavigation(loading: Ref<boolean>, loadFailed: Ref<boo
 
   function selectSettingsTab(tab: SettingsTab) {
     activeTab.value = tab
+    void nextTick(() => document.getElementById(`settings-tab-${tab}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }))
     // Clear the old anchor so selecting the same search result works again.
     void router.replace({ query: { ...route.query, tab }, hash: '' })
   }

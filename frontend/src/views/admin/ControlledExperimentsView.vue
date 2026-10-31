@@ -88,7 +88,7 @@
                 <div><dt class="text-gray-500">{{ t('controlledExperiments.protocol') }}</dt><dd>{{ summary.protocol_failures }}</dd></div>
                 <div><dt class="text-gray-500">{{ t('controlledExperiments.unknown') }}</dt><dd>{{ summary.unknown_calls }}</dd></div>
                 <div><dt class="text-gray-500">{{ t('controlledExperiments.passed') }}</dt><dd>{{ summary.passed_tasks }} / {{ summary.graded_tasks }}</dd></div>
-                <div><dt class="text-gray-500">{{ t('controlledExperiments.cost') }}</dt><dd>${{ summary.cost_usd.toFixed(6) }} <span v-if="summary.cost_incomplete" class="text-xs text-amber-600">{{ t('controlledExperiments.incompleteCost') }}</span></dd></div>
+                <div><dt class="text-gray-500">{{ t('controlledExperiments.cost') }}</dt><dd>${{ formatDisplayAmount(summary.cost_usd, 2) }} <span v-if="summary.cost_incomplete" class="text-xs text-amber-600">{{ t('controlledExperiments.incompleteCost') }}</span></dd></div>
               </dl>
               <p class="mt-4 text-xs text-gray-500">{{ t('controlledExperiments.coverage', { done: summary.graded_tasks, total: (report.run.spec.tasks?.length || 0) * report.run.spec.repetitions }) }}</p>
             </article>
@@ -117,6 +117,10 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import DocumentRows from '@/components/common/DocumentRows.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
@@ -160,7 +164,7 @@ function stateLabel(state: string) { const key = `controlledExperiments.state.${
 function channelLabel(channel: string) { const key = `controlledExperiments.${channel}`; return te(key) ? t(key) : channel }
 function preflightLabel(reason: string) { const key = `controlledExperiments.preflightReason.${reason}`; return te(key) ? t(key) : reason }
 function percentage(value: number | null | undefined) { return value == null ? '—' : `${(value * 100).toFixed(1)}%` }
-function date(value: string) { return new Date(value).toLocaleString() }
+function date(value: string) { return formatDisplayTimestamp(value) }
 function routeLabel(index: number) { const route = report.value?.run.spec.routes[index]; return route ? `${index + 1} · #${route.account_id} ${route.account_name} · ${channelLabel(route.channel)}` : String(index + 1) }
 function preflightFor(index: number) { return report.value?.preflight.find(item => item.route_index === index) }
 function promptFor(id: string) { return report.value?.run.spec.tasks?.find(task => task.id === id)?.prompt }

@@ -6590,7 +6590,7 @@
             </div>
             <div class="settings-section-fields">
             <div class="space-y-6 p-6">
-              <!-- Backend Mode -->
+              <!-- Backend Mode --><MoreActions>
               <div
                 class="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
               >
@@ -6602,10 +6602,11 @@
                     {{ t("admin.settings.site.backendModeDescription") }}
                   </p>
 	                </div>
-	                <Toggle :aria-label="t('admin.settings.site.backendMode')" v-model="form.backend_mode_enabled" />
+	                <button type="button" class="btn btn-danger" @click="confirmBackendMode">{{ t('admin.settings.site.backendMode') }}: {{ form.backend_mode_enabled ? t('common.enabled') : t('common.disabled') }}</button>
 	              </div>
 
-	              <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+	              </MoreActions>
+<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -9469,6 +9470,7 @@
 </template>
 
 <script setup lang="ts">
+import MoreActions from '@/components/common/MoreActions.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
@@ -14016,6 +14018,9 @@ watch(
 );
 
 // Register after the parent state exists; hidden/replaced callers cancel pending decisions.
+async function confirmBackendMode() {
+  await confirmation.run({ title: t('admin.settings.site.backendMode'), confirmText: t('common.confirm'), message: t('admin.settings.site.backendModeDescription'), danger: true }, () => { form.backend_mode_enabled = !form.backend_mode_enabled })
+}
 const confirmation = useConfirmation(() => ({ active: true, identity: [activeTab.value, webSearchConfig.providers.map(provider => provider.type)] }))
 </script>
 
@@ -14044,7 +14049,8 @@ h2[id^="settings-section-"]:target {
   border-bottom: 1px solid var(--ritel-border);
   background: var(--ritel-bg);
 }
-.settings-tabs-scroll { overflow-x: auto; }
+.settings-tabs-scroll { overflow-x: auto; min-width: 0; max-width: 100%; overscroll-behavior-x: contain; }
+.settings-tabs-shell { min-width: 0; max-width: 100%; }
 .settings-tabs { display: flex; align-items: center; gap: 1.75rem; width: max-content; min-width: 100%; }
 .settings-tab {
   display: flex;

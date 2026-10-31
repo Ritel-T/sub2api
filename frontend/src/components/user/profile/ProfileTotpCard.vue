@@ -101,6 +101,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -137,17 +139,7 @@ const handleDisableSuccess = () => {
   loadStatus()
 }
 
-const formatDate = (timestamp: number) => {
-  // Backend returns Unix timestamp in seconds, convert to milliseconds
-  const date = new Date(timestamp * 1000)
-  return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
+const formatDate = (timestamp: number) => { return displayTimestamp(timestamp * 1000) }
 
 onMounted(() => {
   loadStatus()

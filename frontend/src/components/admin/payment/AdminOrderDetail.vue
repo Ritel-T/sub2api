@@ -21,23 +21,23 @@
         <template v-else>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ baseAmount.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ formatDisplayAmount(baseAmount, 2) }}</p>
         </div>
         <div v-if="order.fee_rate > 0">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.fee') }} ({{ order.fee_rate }}%)</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ feeAmount.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ formatDisplayAmount(feeAmount, 2) }}</p>
         </div>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ order.pay_amount.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ formatDisplayAmount(order.pay_amount, 2) }}</p>
         </div>
         <div v-if="(order.bonus_amount ?? 0) > 0">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.bonusAmount') }}</p>
-          <p class="text-sm font-medium text-amber-600 dark:text-amber-400">+{{ creditedAmountSymbol }}{{ (order.bonus_amount ?? 0).toFixed(2) }}</p>
+          <p class="text-sm font-medium text-amber-600 dark:text-amber-400">+{{ creditedAmountSymbol }}{{ formatDisplayAmount((order.bonus_amount ?? 0), 2) }}</p>
         </div>
         <div v-if="order.amount !== order.pay_amount || (order.bonus_amount ?? 0) > 0">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ order.amount.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ formatDisplayAmount(order.amount, 2) }}</p>
         </div>
         </template>
         <div>
@@ -84,7 +84,7 @@
         <div class="grid grid-cols-2 gap-2 text-sm">
           <div>
             <span class="text-red-600 dark:text-red-400">{{ t('payment.admin.refundAmount') }}:</span>
-            <span class="ml-1 font-medium text-red-700 dark:text-red-300">{{ creditedAmountSymbol }}{{ order.refund_amount.toFixed(2) }}</span>
+            <span class="ml-1 font-medium text-red-700 dark:text-red-300">{{ creditedAmountSymbol }}{{ formatDisplayAmount(order.refund_amount, 2) }}</span>
           </div>
           <div v-if="order.refund_reason" class="col-span-2">
             <span class="text-red-600 dark:text-red-400">{{ t('payment.admin.refundReason') }}:</span>
@@ -108,19 +108,22 @@
         >
           {{ t('payment.admin.retry') }}
         </button>
-        <button
+<MoreActions>        <button
           v-if="canRefund(order)"
           @click="emit('refund', order)"
           class="btn btn-sm rounded-md bg-red-50 px-3 py-1.5 text-sm text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
         >
           {{ t('payment.admin.refund') }}
-        </button>
+        </button></MoreActions>
       </div>
     </div>
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
+import MoreActions from '@/components/common/MoreActions.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

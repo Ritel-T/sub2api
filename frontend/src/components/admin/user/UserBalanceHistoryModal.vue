@@ -31,7 +31,7 @@
           <div class="flex-shrink-0 text-right">
             <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.users.currentBalance') }}</p>
             <p class="text-xl font-bold text-gray-900 dark:text-white">
-              ${{ user.balance?.toFixed(2) || '0.00' }}
+              ${{ formatDisplayAmount(user.balance, 2) || '0.00' }}
             </p>
           </div>
         </div>
@@ -157,6 +157,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import DocumentRows from '@/components/common/DocumentRows.vue'
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

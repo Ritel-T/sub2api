@@ -107,7 +107,8 @@ describe('codexQuickConfig', () => {
       baseUrl: 'https://example.com',
       platform: 'openai'
     })
-    expect(config).toContain('experimental_bearer_token = "sk-quick-\\"test\\""')
+    expect(config).toContain('env_key = "RITEL_API_KEY"')
+    expect(config).not.toContain('experimental_bearer_token')
     expect(config).toContain('base_url = "https://example.com/v1"')
     expect(config).not.toContain('model_catalog_json')
   })
@@ -158,7 +159,7 @@ describe('codexQuickConfig', () => {
 
     const payload = windowsScript.match(/\$configPayload = @\(\s*'([^']+)'/)?.[1]
     expect(payload).toBeDefined()
-    expect(decodeBase64Utf8(payload!)).toContain('experimental_bearer_token')
+    expect(decodeBase64Utf8(payload!)).toContain('env_key = "RITEL_API_KEY"')
     expect(encodeUtf8Base64('中文')).not.toBe('')
   })
 
@@ -184,7 +185,8 @@ describe('codexQuickConfig', () => {
 
   it('escapes all TOML control characters', () => {
     const config = buildCodexQuickConfigToml({ ...input, apiKey: 'sk-\t\n\r\x00\x7f' })
-    expect(config).toContain('experimental_bearer_token = "sk-\\u0009\\u000a\\u000d\\u0000\\u007f"')
+    expect(config).toContain('env_key = "RITEL_API_KEY"')
+    expect(config).not.toContain('experimental_bearer_token')
   })
 
   it('keeps large Windows payloads out of CMD commands and environment variables', () => {
@@ -214,10 +216,15 @@ describe('codexQuickConfig', () => {
     expect(runner.run(script).status).toBe(0)
     const config = readFileSync(join(configDir, 'config.toml'), 'utf8')
     expect(config).toContain(`model_catalog_json = "${realpathSync(configDir)}/codex-models.json"`)
-    expect(config).toContain('experimental_bearer_token = "sk-secret-value"')
+    expect(config).toContain('env_key = "RITEL_API_KEY"')
+    expect(config).not.toContain('experimental_bearer_token')
     expect(readFileSync(join(configDir, 'codex-models.json'), 'utf8')).toBe(catalog)
     expect(statSync(join(configDir, 'config.toml')).mode & 0o777).toBe(0o600)
-    expect(readdirSync(configDir).sort()).toEqual(['codex-models.json', 'config.toml'])
+    expect(readdirSync(configDir).sort()).toEqual(['codex-models.json', 'config.toml', 'ritel-api-key', 'ritel-env.sh'])
+    expect(readFileSync(join(configDir, 'ritel-api-key'), 'utf8')).toBe(input.apiKey)
+    expect(statSync(join(configDir, 'ritel-api-key')).mode & 0o777).toBe(0o600)
+    const loaded = spawnSync('/bin/bash', ['-c', '. "$HOME/.bashrc"; printf %s "$RITEL_API_KEY"'], { env: { HOME: runner.dir }, encoding: 'utf8' })
+    expect(loaded.stdout).toBe(input.apiKey)
     expect(runner.run(buildMacLinuxCodexQuickConfigScript(input)).status).toBe(0)
     expect(readFileSync(join(configDir, 'config.toml'), 'utf8')).not.toContain('model_catalog_json')
   })
@@ -296,7 +303,8 @@ describe('codexQuickConfig', () => {
     writeFileSync(join(runner.bin, 'base64'), '#!/bin/bash\nif [ "$1" != "-D" ]; then exit 1; fi\nexec /usr/bin/base64 -d\n', { mode: 0o755 })
     const result = runner.run(buildMacLinuxCodexQuickConfigScript(input))
     expect(result.status, result.stderr).toBe(0)
-    expect(readFileSync(join(runner.dir, '.codex/config.toml'), 'utf8')).toContain('sk-secret-value')
+    expect(readFileSync(join(runner.dir, '.codex/config.toml'), 'utf8')).toContain('env_key = "RITEL_API_KEY"')
+    expect(readFileSync(join(runner.dir, '.codex/ritel-api-key'), 'utf8')).toBe(input.apiKey)
   })
 
   it.runIf(nativeUnix)('reports a missing decoder without replacing the old config', () => {

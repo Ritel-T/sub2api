@@ -154,6 +154,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import { onMounted, onBeforeUnmount, onDeactivated, ref, toRaw, computed } from 'vue'
@@ -192,7 +194,7 @@ const eventColumns = computed(() => [
 ])
 onMounted(() => { if (initiallyOpen) void load() })
 const lines = (value: string) => [...new Set(value.split(/[\n,]+/).map(v => v.trim()).filter(Boolean))]
-const date = (seconds: number) => new Date(seconds * 1000).toLocaleString()
+const date = (seconds: number) => formatDisplayTimestamp(seconds * 1000)
 function revealInvalidField(event: Event) {
   let details = (event.target as HTMLElement).closest('details')
   while (details) {

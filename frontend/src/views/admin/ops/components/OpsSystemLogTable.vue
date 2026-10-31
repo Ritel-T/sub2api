@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'
@@ -126,7 +128,7 @@ const formatTime = (value: string) => {
   if (!value) return '-'
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
-  return d.toLocaleString()
+  return formatDisplayTimestamp(d)
 }
 
 const getExtraString = (extra: Record<string, any> | undefined, key: string) => {

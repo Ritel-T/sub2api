@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -97,13 +101,7 @@ const customEndTimeInput = ref('')
 function formatCustomTimeRangeLabel(startTime: string, endTime: string): string {
   const start = new Date(startTime)
   const end = new Date(endTime)
-  const formatDate = (d: Date) => {
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    const hour = String(d.getHours()).padStart(2, '0')
-    const minute = String(d.getMinutes()).padStart(2, '0')
-    return `${month}-${day} ${hour}:${minute}`
-  }
+  const formatDate = (d: Date) => { return displayTimestamp(d) }
   return `${formatDate(start)} ~ ${formatDate(end)}`
 }
 
@@ -642,7 +640,7 @@ function formatTimeShort(ts?: string | null): string {
   if (!ts) return '-'
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return '-'
-  return d.toLocaleTimeString()
+  return formatDisplayTimestamp(d)
 }
 
 const cpuPercentValue = computed<number | null>(() => {

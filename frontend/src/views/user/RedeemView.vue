@@ -5,7 +5,7 @@
       <div class="redeem-entry">
         <aside class="redeem-account">
           <AppHeading variant="subtle" as="h2" class="text-gray-500 dark:text-gray-400">{{ t('redeem.currentBalance') }}</AppHeading>
-          <p class="ritel-number-display mt-3 text-5xl">${{ user?.balance?.toFixed(2) || '0.00' }}</p>
+          <p class="ritel-number-display mt-3 text-5xl">${{ formatDisplayAmount(user?.balance, 2) || '0.00' }}</p>
           <p class="mt-5 text-sm text-gray-500 dark:text-gray-400">{{ t('redeem.concurrency') }}: {{ user?.concurrency || 0 }} {{ t('redeem.requests') }}</p>
         </aside>
       <!-- Redeem Form -->
@@ -107,7 +107,7 @@
                     </p>
                     <p v-if="redeemResult.new_balance !== undefined">
                       {{ t('redeem.newBalance') }}:
-                      <span class="font-semibold">${{ redeemResult.new_balance.toFixed(2) }}</span>
+                      <span class="font-semibold">${{ formatDisplayAmount(redeemResult.new_balance, 2) }}</span>
                     </p>
                     <p v-if="redeemResult.new_concurrency !== undefined">
                       {{ t('redeem.newConcurrency') }}:
@@ -338,6 +338,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import DocumentRows from '@/components/common/DocumentRows.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, onMounted, watch } from 'vue'

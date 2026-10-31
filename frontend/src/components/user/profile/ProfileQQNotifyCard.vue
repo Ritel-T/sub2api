@@ -68,6 +68,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { computed, onMounted, onUnmounted, reactive, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppHeading from '@/components/common/AppHeading.vue'
@@ -77,7 +79,7 @@ import { qqAPI, type QQPreferences, type QQStatus } from '@/api/qq'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const app = useAppStore()
 const channelId = useId()
 const channelHintId = useId()
@@ -100,7 +102,7 @@ let refreshPending = false
 let draftRevision = 0
 let clock: ReturnType<typeof setInterval> | undefined
 const challengeActive = computed(() => !!status.value?.expires_at && Date.parse(status.value.expires_at) > now.value)
-const expiryLabel = computed(() => status.value?.expires_at ? new Date(status.value.expires_at).toLocaleTimeString(locale.value) : '')
+const expiryLabel = computed(() => status.value?.expires_at ? formatDisplayTimestamp(status.value.expires_at) : '')
 const dirty = computed(() => !!status.value && (draft.channel !== status.value.channel || draft.balance_low !== status.value.balance_low || draft.subscription_expiry !== status.value.subscription_expiry))
 watch(draft, () => { draftRevision++ }, { flush: 'sync' })
 

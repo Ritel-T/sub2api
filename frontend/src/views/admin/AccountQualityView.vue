@@ -266,6 +266,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { useConfirmedAction, useConfirmationContext } from '@/composables/useConfirmation'
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -559,9 +561,9 @@ function modelCooldownLabel(model: string) {
   return t('qualityOps.cooldownNotRecorded')
 }
 function name(plan: ScheduledTestPlan) { return plan.account_name || accountNames.value[plan.account_id] || `#${plan.account_id ?? plan.id}` }
-function date(value: string | null | undefined) { return value ? new Date(value).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—' }
-function clock(value: string | number | undefined) { return value ? new Date(value).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '—' }
-function day(value: string | undefined) { return value ? new Date(value).toLocaleDateString() : '—' }
+function date(value: string | null | undefined) { return value ? formatDisplayTimestamp(value) : '—' }
+function clock(value: string | number | undefined) { return value ? formatDisplayTimestamp(value) : '—' }
+function day(value: string | undefined) { return value ? formatDisplayTimestamp(value) : '—' }
 function running(plan: ScheduledTestPlan) { return !!plan.running_until && Date.parse(plan.running_until) > Date.now() }
 function allPassed(op: QualityOperation) { return op.total_count > 0 && op.passed_count === op.total_count }
 function bpsTrigger(policy?: QualityBPSPolicy) {

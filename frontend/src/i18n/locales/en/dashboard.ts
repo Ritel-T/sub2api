@@ -245,13 +245,13 @@ export default {
       },
       grok: {
         description:
-          'Configure Grok CLI, Claude Code, Codex, or OpenCode to send requests through your Sub2API Grok group. Text models use Responses; image/video use Imagine model IDs on media endpoints.',
-        claudeDescription: 'Configure Claude Code to send Messages API traffic through your Sub2API Grok group.',
-        codexDescription: 'Configure Codex to send Responses API traffic through your Sub2API Grok group.',
+          'Configure Grok CLI, Claude Code, Codex, or OpenCode to send requests through your Ritel.SI API group. Text models use Responses; image/video use Imagine model IDs on media endpoints.',
+        claudeDescription: 'Configure Claude Code to send Messages API traffic through your Ritel.SI API group.',
+        codexDescription: 'Configure Codex to send Responses API traffic through your Ritel.SI API group.',
         configTomlHint:
           'Path: ~/.grok/config.toml (or $GROK_HOME). Fill [endpoints] (models_base_url / models_list_url / xai_api_base_url / cli_chat_proxy_base_url), [auth] preferred_method=api_key, [models], [session], and [features] image/video overrides. Prefer env_key over api_key; every text model needs api_backend=responses. Save, then run grok inspect.',
         codexConfigTomlHint:
-          'Save as ~/.codex/config.toml. Codex supports wire_api = "responses" only. Prefer env_key over experimental_bearer_token. For non-OpenAI gateways, supports_websockets = false; Sub2API can still accept client WS and bridge to HTTP/SSE.',
+          'Save as ~/.codex/config.toml. Codex supports wire_api = "responses" only. Prefer env_key over experimental_bearer_token. For non-OpenAI gateways, supports_websockets = false; Ritel.SI API can still accept client WS and bridge to HTTP/SSE.',
         note:
           'Export GROK_MODELS_BASE_URL and XAI_API_KEY, save the full config.toml (endpoints/auth/models/session/features) as ~/.grok/config.toml, run grok inspect, then /model grok-4.5 (or grok-build-0.1 for coding).',
         noteWindows:
@@ -259,32 +259,32 @@ export default {
         claudeNote:
           'Choose one method: terminal env for this session, or ~/.claude/settings.json for persistence.',
         codexNote:
-          'Export SUB2API_API_KEY, save config.toml under ~/.codex (mkdir -p ~/.codex). Use env_key authentication.',
+          'Export RITEL_API_KEY, save config.toml under ~/.codex (mkdir -p ~/.codex). Use env_key authentication.',
         codexNoteWindows:
-          'Set $env:SUB2API_API_KEY, save config.toml under %USERPROFILE%\\.codex. Use env_key authentication.',
+          'Set $env:RITEL_API_KEY, save config.toml under %USERPROFILE%\\.codex. Use env_key authentication.',
       },
       deepseek: {
         description: 'Configure Claude Code, Codex, or OpenCode through the current DeepSeek group.',
         codexDescription: 'Configure Codex with API key authentication through the current DeepSeek group.',
         codexConfigTomlHint: 'Save config.toml and restart Codex to load the remote catalog. In local file mode, also download the catalog to the configured path.',
-        codexNote: 'Export SUB2API_API_KEY before starting Codex. The downloaded catalog contains model metadata only, not your API key.',
+        codexNote: 'Export RITEL_API_KEY before starting Codex. The downloaded catalog contains model metadata only, not your API key.',
       },
       minimax: {
         description: 'Configure Claude Code, Codex, or OpenCode through the current MiniMax group.',
         codexDescription: 'Configure Codex with API key authentication through the current MiniMax group.',
         codexConfigTomlHint: 'Save config.toml and restart Codex to load the remote catalog. In local file mode, also download the catalog to the configured path.',
-        codexNote: 'Export SUB2API_API_KEY before starting Codex. The downloaded catalog contains model metadata only, not your API key.',
+        codexNote: 'Export RITEL_API_KEY before starting Codex. The downloaded catalog contains model metadata only, not your API key.',
       },
       composite: {
         description: 'Configure supported clients through the current Composite routing group.',
         codexDescription: 'Configure Codex with API key authentication and the complete model catalog for this Composite group.',
         codexConfigTomlHint: 'Save config.toml and restart Codex to load the remote catalog. In local file mode, also download the catalog to the configured path.',
-        codexNote: 'Export SUB2API_API_KEY before starting Codex. Model requests are routed by the selected catalog slug.',
+        codexNote: 'Export RITEL_API_KEY before starting Codex. Model requests are routed by the selected catalog slug.',
       },
       routedCodex: {
         description: 'Configure Codex with the complete model catalog for the current routed group.',
         configTomlHint: 'Save config.toml and restart Codex to load the remote catalog. In local file mode, also download the catalog to the configured path.',
-        note: 'Export SUB2API_API_KEY before starting Codex. The downloaded catalog contains model metadata only, not your API key.',
+        note: 'Export RITEL_API_KEY before starting Codex. The downloaded catalog contains model metadata only, not your API key.',
       },
       codexModelCatalog: {
         mode: 'Catalog source',
@@ -395,7 +395,7 @@ export default {
     accountBilled: 'Account billed',
     apiEquivalentCost: 'API list-price equivalent',
     apiEquivalentCostTooltip: 'API list-price equivalent: calculated from recorded models, input, cache and output tokens, including applicable long-context rates, at official API prices. It does not represent actual Pro subscription charges.',
-    apiEquivalentInternalPriced: 'Includes {count} codex-auto-review requests at the recorded Sub2API internal base price.',
+    apiEquivalentInternalPriced: 'Includes {count} codex-auto-review requests at the recorded Ritel.SI API internal base price.',
     apiEquivalentUnpriced: 'Unpriced requests: {count}.',
     apiEquivalentPartial: 'The amount includes priced requests only.',
     apiEquivalentUnavailable: 'API list-price equivalent is unavailable.',
@@ -836,7 +836,7 @@ export default {
       withoutMinimum: 'When an invitee completes a positive first balance recharge, you receive {bonus} directly in site balance, plus the regular {rate} rebate.',
       eligibility: 'One bonus per invitee. Online balance payments and balance redemption codes qualify. Promotional credit does not count toward the minimum; separate recharges do not add up. If the first recharge is below the minimum, later recharges do not qualify. Admin gifts, subscription purchases, and earlier recharges are excluded.',
     },
-    title: 'Affiliate Rebates',
+    title: 'Invitations',
     description: 'Invite new users and convert your rebate quota into account balance',
     yourCode: 'Your Affiliate Code',
     inviteLink: 'Invite Link',

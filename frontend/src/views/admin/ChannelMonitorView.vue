@@ -21,17 +21,19 @@
               :key="mode"
               type="button"
               role="radio"
-              :aria-checked="siteMode === mode"
+              :aria-checked="draftMode === mode"
               class="rounded-md px-3 py-1 text-xs font-medium transition disabled:cursor-not-allowed"
-              :class="siteMode === mode ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'"
+              :class="draftMode === mode ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'"
               :disabled="switchingMode || siteMode === 'off'"
               :data-testid="`monitor-mode-${mode}`"
-              @click="pendingMode = mode"
+              @click="draftMode = mode"
             >
               {{ t(`channelMonitorV3.modes.${mode}`) }}
             </button>
           </div>
+          <button type="button" class="btn btn-primary" data-testid="monitor-mode-save" :disabled="siteMode === 'off' || draftMode === siteMode || switchingMode" @click="pendingMode = draftMode">{{ t('common.save') }}</button>
           <span class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t('consoleExperience.liveVersion', { mode: siteMode.toUpperCase() }) }} ·
             {{ siteMode === 'off' ? t('channelMonitorV3.admin.siteModeOff') : t('channelMonitorV3.admin.siteModeHint') }}
             <router-link v-if="siteMode === 'off'" to="/admin/settings" class="ml-1 text-primary-600 hover:underline dark:text-primary-400">{{ t('admin.settings.tabs.features') }}</router-link>
           </span>
@@ -246,6 +248,8 @@ const modes: ChannelMonitorMode[] = ['v1', 'v2', 'v3']
 const siteMode = computed(() => (appStore.cachedPublicSettings?.channel_monitor_enabled === false ? 'off' : getChannelMonitorMode()))
 const tabForMode = (mode: ChannelMonitorMode) => (mode === 'v1' ? 'legacy' : mode)
 const adminMonitorTab = ref<'v3' | 'v2' | 'legacy'>(tabForMode(getChannelMonitorMode()))
+const draftMode = ref<ChannelMonitorMode>(getChannelMonitorMode())
+watch(siteMode, mode => { if (mode !== 'off') draftMode.value = mode })
 const pendingMode = ref<ChannelMonitorMode | null>(null)
 const switchingMode = ref(false)
 

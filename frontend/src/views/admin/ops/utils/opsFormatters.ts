@@ -1,3 +1,4 @@
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
 /**
  * Ops 页面共享的格式化/样式工具。
  *
@@ -27,11 +28,7 @@ export function truncateMessage(msg: string, maxLength = 80): string {
  * 格式化日期时间（短格式，和旧 Ops 页面一致）。
  * 输出: `MM-DD HH:mm:ss`
  */
-export function formatDateTime(dateStr: string): string {
-  const d = new Date(dateStr)
-  if (Number.isNaN(d.getTime())) return ''
-  return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
-}
+export function formatDateTime(dateStr: string): string { return displayTimestamp(dateStr) }
 
 export function sumNumbers(values: Array<number | null | undefined>): number {
   return values.reduce<number>((acc, v) => {

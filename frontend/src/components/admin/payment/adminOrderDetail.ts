@@ -1,3 +1,4 @@
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
 import type { PaymentOrder } from '@/types/payment'
 import { currencySymbol } from '@/components/payment/currency'
 
@@ -64,7 +65,7 @@ export function summarizeOrderAuditLog(log: OrderAuditLog, order: PaymentOrder |
     }
     if (credit !== undefined && paid !== undefined && order.order_type === 'balance' && !(order.payment_type === 'gelv' && hasOrderPayment(order))) {
       summaryKey = 'payment.admin.detail.createdEstimate'
-      params.credit = '$' + credit.toFixed(2)
+      params.credit = '$' + formatDisplayAmount(credit, 2)
     }
   } else if (log.action === 'ORDER_PAID') {
     const paid = amount(data.paidAmount) ?? (hasOrderPayment(order) ? amount(order.pay_amount) : undefined)
@@ -77,7 +78,7 @@ export function summarizeOrderAuditLog(log: OrderAuditLog, order: PaymentOrder |
     const credit = amount(data.creditedAmount) ?? (hasOrderCredit(order) ? amount(order.amount) : undefined)
     if (credit !== undefined) {
       summaryKey = 'payment.admin.detail.creditSummary'
-      params.credit = '$' + credit.toFixed(2)
+      params.credit = '$' + formatDisplayAmount(credit, 2)
     }
   } else if (log.action === 'AFFILIATE_REBATE_APPLIED') {
     const rebate = amount(data.rebateAmount)

@@ -1,3 +1,5 @@
+import { formatMoney } from '@/utils/consoleDisplay'
+
 export const DEFAULT_PAYMENT_CURRENCY = 'CNY'
 
 const PAYMENT_CURRENCY_SYMBOLS: Record<string, string> = {
@@ -31,29 +33,7 @@ export function currencySymbol(currency?: string | null): string {
   return PAYMENT_CURRENCY_SYMBOLS[normalized] || normalized
 }
 
-function paymentCurrencyFractionDigits(currency: string): number {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency,
-    }).resolvedOptions().maximumFractionDigits ?? 2
-  } catch {
-    return 2
-  }
-}
-
 export function formatPaymentAmount(amount: number, currency?: string | null, locale?: string): string {
-  const normalized = normalizePaymentCurrency(currency)
-  const fractionDigits = paymentCurrencyFractionDigits(normalized)
-  try {
-    return new Intl.NumberFormat(locale || undefined, {
-      style: 'currency',
-      currency: normalized,
-      currencyDisplay: 'narrowSymbol',
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
-    }).format(Number.isFinite(amount) ? amount : 0)
-  } catch {
-    return `${normalized} ${(Number.isFinite(amount) ? amount : 0).toFixed(fractionDigits)}`
-  }
+  void locale
+  return formatMoney(amount, normalizePaymentCurrency(currency))
 }

@@ -53,6 +53,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getCodexHarvestNodes, resetCodexHarvestNodes, type CodexHarvestNodeRecord } from '@/api/admin/codexHarvest'
@@ -76,7 +78,7 @@ const error = computed(() => resetError.value || (list.error.value ? t(`${prefix
 const listBody = ref<HTMLElement | null>(null)
 const { rendered, paddingTop, paddingBottom, measure } = useDocumentRows(items, listBody, item => item.id, computed(() => true), () => 124)
 let disposed = false
-const clock = (value: string | null) => value ? new Date(value).toLocaleString() : '—'
+const clock = (value: string | null) => value ? formatDisplayTimestamp(value) : '—'
 const cooling = (value: string | null) => value && new Date(value).getTime() > Date.now() ? clock(value) : '—'
 const resultLabel = (result: string) => te(`admin.harvestFlow.results.${result}`) ? t(`admin.harvestFlow.results.${result}`) : result
 

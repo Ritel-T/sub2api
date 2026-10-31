@@ -127,6 +127,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -166,11 +168,7 @@ const modelSummary = computed(() => snapshot.value?.data?.models?.map(model => {
 const formatPercent = (value?: number) => typeof value === 'number' && Number.isFinite(value)
   ? `${value.toFixed(value % 1 ? 1 : 0)}%`
   : '-'
-const formatDate = (value?: string) => {
-  if (!value) return '-'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
-}
+const formatDate = (value?: string) => { return displayTimestamp(value) }
 const windowSummary = (window?: OllamaCloudUsageWindow) => {
   if (!window) return '-'
   const reset = window.reset_at ? formatDate(window.reset_at) : window.reset_text

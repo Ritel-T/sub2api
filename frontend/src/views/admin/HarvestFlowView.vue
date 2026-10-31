@@ -234,6 +234,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import HarvestCoverageCard from '@/components/admin/HarvestCoverageCard.vue'
 import HarvestAccountCoverage from '@/components/admin/HarvestAccountCoverage.vue'
@@ -440,7 +442,7 @@ function formatClock(value?: string) {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleTimeString()
+  return formatDisplayTimestamp(date)
 }
 
 function recoverText(account: CodexHarvestFlowAccount) {

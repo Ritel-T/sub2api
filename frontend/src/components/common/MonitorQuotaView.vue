@@ -29,7 +29,7 @@
         :key="b.currency"
         :class="['font-medium', b.balance <= 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300']"
       >
-        {{ b.balance.toFixed(2) }} {{ b.currency }}
+        {{ formatDisplayAmount(b.balance, 2) }} {{ b.currency }}
       </span>
     </div>
 
@@ -40,6 +40,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { MonitorQuotaSnapshot, MonitorQuotaTier } from '@/api/admin/channelMonitor'

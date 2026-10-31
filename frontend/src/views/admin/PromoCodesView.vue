@@ -354,7 +354,7 @@
               </div>
               <div class="text-right">
                 <span class="text-sm font-medium text-green-600 dark:text-green-400">
-                  +${{ usage.bonus_amount.toFixed(2) }}
+                  +${{ formatDisplayAmount(usage.bonus_amount, 2) }}
                 </span>
               </div>
             </div>
@@ -392,6 +392,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'

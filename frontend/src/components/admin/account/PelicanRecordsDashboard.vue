@@ -63,6 +63,8 @@
   </BaseDialog>
 </template>
 <script setup lang="ts">
+import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+
 import { centralAccountEnabled } from '@/utils/accountConfig'
 import { centralSessionUID } from '@/utils/centralAccount'
 import AppHeading from '@/components/common/AppHeading.vue'
@@ -134,10 +136,7 @@ let alive = true
 let timer: ReturnType<typeof setTimeout> | undefined
 const inFlight = new Map<string, Promise<void>>()
 function sourceLabel(source: DisplayRecord['source']) { return t(`admin.accounts.pelicanTest.${source === 'manual' ? 'sourceManual' : 'sourceScheduled'}`) }
-function formatDate(value?: string) {
-  if (!value || !Number.isFinite(Date.parse(value))) return '—'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value))
-}
+function formatDate(value?: string) { return displayTimestamp(value) }
 const verdictKeys: Record<StateProbeVerdict, string> = { healthy: 'verdictHealthy', degraded: 'verdictDegraded', inconclusive: 'verdictInconclusive' }
 function statusLabel(record: DisplayRecord) {
   if (record.verdict) return t(`admin.accounts.pelicanTest.probe.${verdictKeys[record.verdict]}`)

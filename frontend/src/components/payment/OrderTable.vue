@@ -4,7 +4,7 @@
       <span class="font-mono text-sm">#{{ value }}</span>
     </template>
     <template #cell-out_trade_no="{ value }">
-      <span class="text-sm text-gray-900 dark:text-white">{{ value }}</span>
+      <span class="text-sm text-gray-900 dark:text-white">{{ displayOrderNumber(value) }}</span><button type="button" class="btn btn-secondary" :aria-label="t('common.copy')" @click="copyToClipboard(value)">{{ t('common.copy') }}</button>
     </template>
     <template v-if="showUser" #cell-user_email="{ value, row }">
       <div class="text-sm">
@@ -31,6 +31,8 @@
 </template>
 
 <script setup lang="ts">
+import { displayOrderNumber, formatTimestamp } from '@/utils/consoleDisplay'
+import { useClipboard } from '@/composables/useClipboard'
 import OrderAmounts from './OrderAmounts.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -40,6 +42,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 
 const { t } = useI18n()
+const { copyToClipboard } = useClipboard()
 
 const props = defineProps<{
   orders: PaymentOrder[]
@@ -47,7 +50,7 @@ const props = defineProps<{
   showUser?: boolean
 }>()
 
-function formatDate(dateStr: string) { return new Date(dateStr).toLocaleString() }
+const formatDate = formatTimestamp
 
 const columns = computed((): Column[] => {
   const cols: Column[] = [

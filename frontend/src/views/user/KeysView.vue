@@ -141,7 +141,7 @@
           </template>
 
           <template #cell-usage="{ row }">
-            <span class="keys-quota-used" :title="t('keys.today')" data-testid="key-today-usage">{{ usageStats[row.id] ? '$' + usageStats[row.id].today_actual_cost.toFixed(4) : '—' }}</span>
+            <span class="keys-quota-used" :title="t('keys.today')" data-testid="key-today-usage">{{ usageStats[row.id] ? '$' + formatDisplayAmount(usageStats[row.id].today_actual_cost, 2) : '—' }}</span>
           </template>
 
           <template #cell-rate_limit="{ row }">
@@ -294,7 +294,7 @@
                 /><div v-if="(row.group_ids?.length ?? 0) > 1" class="keys-extra-groups">{{ (row.group_ids ?? []).map((id: number) => groups.find(group => group.id === id)?.name || '#' + id).join(' · ') }}</div></section>
               <section><AppHeading variant="subsection" as="h3">{{ t('keys.usage') }}</AppHeading>
                 <dl class="keys-usage-details">
-                  <div><dt>{{ kw.recordedTotal }}</dt><dd data-testid="key-total-usage">{{ usageStats[row.id] ? '$' + usageStats[row.id].total_actual_cost.toFixed(4) : '—' }}</dd></div>
+                  <div><dt>{{ kw.recordedTotal }}</dt><dd data-testid="key-total-usage">{{ usageStats[row.id] ? '$' + formatDisplayAmount(usageStats[row.id].total_actual_cost, 2) : '—' }}</dd></div>
                   <div><dt>{{ t('keys.quota') }}</dt><dd>${{ (row.quota_used ?? 0).toFixed(4) }} / {{ row.quota > 0 ? '$' + row.quota.toFixed(2) : kw.unlimited }}</dd></div>
                 </dl>
               </section>
@@ -1037,6 +1037,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+
 import Toggle from '@/components/common/Toggle.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 	import { ref, computed, watch, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'

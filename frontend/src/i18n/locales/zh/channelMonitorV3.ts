@@ -140,7 +140,7 @@ export default {
     admin: {
       tab: 'V3 组件监控',
       siteMode: '本站用户看到的是',
-      siteModeHint: '切换后立即生效，同一时间只运行一种监控。',
+      siteModeHint: "选择版本后点击保存才会对外生效，同一时间只运行一个版本。",
       siteModeOff: '渠道监控已在系统设置里关闭。',
       description: {
         v1: '本站当前使用 V1 主动探测。V3 可以先配置好，切换后用户才看得到。',
