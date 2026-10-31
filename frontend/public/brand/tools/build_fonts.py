@@ -35,7 +35,7 @@ def describe(file):
     font.close()
     return points, variants, axes
 
-def partition(points, common=None, size=1024):
+def partition(points, common=None, size=1024, latin_priority=()):
     groups = []
     if common:
         ui = points & common
@@ -44,9 +44,13 @@ def partition(points, common=None, size=1024):
         points = points - ui
     # Separate Latin/basic punctuation from all remaining Unicode. Keep every code point.
     if common is None:
-        latin = {cp for cp in points if cp <= 0xFF}
+        latin = {cp for cp in points if cp <= 0x7F or cp in latin_priority}
         groups.append(('latin', latin))
         points = points - latin
+        latin1 = {cp for cp in points if cp <= 0xFF}
+        if latin1:
+            groups.append(('latin-1', latin1))
+        points = points - latin1
         return groups + [(f'unicode-{block:04X}', {cp for cp in points if cp // 128 == block})
                          for block in sorted({cp // 128 for cp in points})]
     rest = sorted(points)
@@ -64,6 +68,14 @@ def make(task):
     sub = subset.Subsetter(options=options)
     sub.populate(unicodes=set(points) | {selector for selector, _ in variation_sequences(font)})
     sub.subset(font)
+    # UVS/layout closure can retain extra cmap aliases; each CSS partition owns only its assigned points.
+    selected = set(points)
+    for table in font['cmap'].tables:
+        if table.format == 14:
+            table.uvsDict = {selector: [(cp, name) for cp, name in pairs if cp in selected]
+                             for selector, pairs in table.uvsDict.items()}
+        elif table.isUnicode():
+            table.cmap = {cp: name for cp, name in table.cmap.items() if cp in selected}
     font.flavor = 'woff2'
     font.save(dest)
     actual, variants, axes = describe(dest)
@@ -89,8 +101,12 @@ def write_preloads():
 def main(jobs):
     previous_file = ROOT/'font-subsets.json'
     previous = json.loads(previous_file.read_text(encoding='utf-8'))['subsets'] if previous_file.exists() else []
+    previous_rows = {r['file']: r for r in previous}
+    previous_sources = {s['source']: s['sha256'] for s in json.loads(previous_file.read_text(encoding='utf-8'))['sources']} if previous_file.exists() else {}
+    reused = []
     fonts = ROOT / 'fonts'
-    common, _, _ = describe(fonts/'notosanscjkhk/NotoSansCJKhk-ui.woff2')
+    priority = json.loads((ROOT/'priority-codepoints.json').read_text(encoding='utf-8'))
+    common = set(priority['codepoints'])
     specs = [
         ('I.MingCP', 'iming/I.MingCP-8.10.ttf', '400', '', common, 512),
         ('Cinzel', 'cinzel/Cinzel-variable.ttf', '400 900', '', None, 1024),
@@ -102,13 +118,13 @@ def main(jobs):
     # Repartition the existing complete Noto recovery set without needing a new download.
     noto = sorted((fonts/'notosanscjkhk').glob('NotoSansCJKhk-*.woff2'))
     for p in noto:
-        specs.append(('Noto Sans CJK HK', str(p.relative_to(fonts)), '100 900', '', None if p.stem.endswith('-ui') else set(), 512))
+        specs.append(('Noto Sans CJK HK', str(p.relative_to(fonts)), '100 900', '', common, 128 if p.stem.endswith('-ui') else 512))
     tasks, metadata, faces = [], [], []
     for family, filename, weight, stretch, seed, size in specs:
         source = fonts/filename
         points, variants, axes = describe(source)
-        # The existing common UI repertoire is already compact; do not duplicate Latin there.
-        groups = [('ui', points)] if family == 'Noto Sans CJK HK' and source.stem.endswith('-ui') else partition(points, seed, size)
+        # Page characters are only a priority bucket. The remainder always retains the full cmap.
+        groups = partition(points, seed, size, common)
         rows = []
         output = source.parent/'woff2'
         output.mkdir(exist_ok=True)
@@ -116,13 +132,19 @@ def main(jobs):
             if not selected:
                 continue
             dest = output / f'{source.stem}-{label}.woff2'
-            tasks.append((str(source), str(dest), sorted(selected)))
+            old = previous_rows.get(str(dest.relative_to(ROOT)))
+            if (old and old['unicode_range'] == ranges(selected) and dest.is_file()
+                    and sha(dest.read_bytes()) == old['sha256']
+                    and previous_sources.get(str(source.relative_to(ROOT))) == sha(source.read_bytes())):
+                reused.append(old)
+            else:
+                tasks.append((str(source), str(dest), sorted(selected)))
             rows.append(str(dest.relative_to(ROOT)))
             faces.append((family, weight, stretch, str(dest.relative_to(ROOT)), ranges(selected)))
         metadata.append({'source':str(source.relative_to(ROOT)), 'sha256':sha(source.read_bytes()),
                          'codepoints':len(points), 'uvs':len(variants), 'axes':axes, 'subsets':rows})
     with ProcessPoolExecutor(max_workers=jobs) as pool:
-        results = list(pool.map(make, tasks))
+        results = reused + list(pool.map(make, tasks))
     current_files = {r['file'] for r in results}
     for old in previous:
         if old['file'] not in current_files:
@@ -136,7 +158,7 @@ def main(jobs):
         raw = (ROOT/file).read_bytes()
         css.append(f"@font-face{{font-family:'{family}';src:url('./{file}?v={sha(raw)[:16]}') format('woff2');font-style:normal;font-weight:{weight};{stretch}font-display:swap;unicode-range:{unicode_range}}}")
     (ROOT/'fonts.css').write_text('\n'.join(css)+'\n', encoding='utf-8')
-    manifest = {'schema':1, 'generator':'tools/build_fonts.py', 'sources':metadata, 'subsets':results}
+    manifest = {'schema':1, 'generator':'tools/build_fonts.py', 'priority_source':priority, 'sources':metadata, 'subsets':results}
     (ROOT/'font-subsets.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n', encoding='utf-8')
     write_preloads()
     print(json.dumps({'subsets':len(results), 'bytes':sum(r['bytes'] for r in results),

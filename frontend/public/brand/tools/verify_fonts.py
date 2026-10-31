@@ -18,6 +18,9 @@ def expand(value):
 def verify():
     data = json.loads((ROOT/'font-subsets.json').read_text())
     rows = {r['file']:r for r in data['subsets']}
+    priority = json.loads((ROOT/'priority-codepoints.json').read_text(encoding='utf-8'))
+    assert data['priority_source'] == priority, 'Priority provenance differs'
+    priority_points = set(priority['codepoints'])
     families = {}
     for source in data['sources']:
         original = ROOT/source['source']
@@ -36,6 +39,10 @@ def verify():
             actual_uvs.update(variants)
             assert axes == subset_axes, (file, axes, subset_axes)
         assert expected == actual, (original,'lost or extra Unicode code points')
+        if source['source'].startswith(('fonts/iming/', 'fonts/notosanscjkhk/')):
+            hot = expected & priority_points
+            if hot:
+                assert any(expand(rows[name]['unicode_range']) == hot for name in source['subsets']), (original,'priority characters split across cold shards')
         assert expected_uvs.keys() == actual_uvs.keys(), (original,'lost variation sequences')
         assert {k:v is None for k,v in expected_uvs.items()} == {k:v is None for k,v in actual_uvs.items()}, original
         families[source['source']] = {'codepoints':len(actual),'variation_sequences':len(actual_uvs),'subsets':len(source['subsets']),'axes':axes}
@@ -52,6 +59,7 @@ def verify():
     assert '.ttf' not in brand+css, 'Runtime CSS must not reference the recovery TTF files'
     result = {'ok':True,'sources':families,'subsets':len(rows),'total_subset_bytes':sum(r['bytes'] for r in rows.values()),
               'largest_subset_bytes':max(r['bytes'] for r in rows.values()),'css_font_display':'swap',
+              'priority_codepoints':len(priority_points), 'priority_homepage_sha256':priority['source_sha256'],
               'source_characters_lost':0,'variation_sequences_lost':0,'axes_changed':0}
     return result
 

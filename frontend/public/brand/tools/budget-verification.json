@@ -1,0 +1,620 @@
+{
+  "ok": true,
+  "budgets": {
+    "totalBytes": 2000000,
+    "fontBytes": 1000000,
+    "titlePresentedMs": 2500
+  },
+  "network": {
+    "offline": false,
+    "latency": 150,
+    "downloadThroughput": 200000,
+    "uploadThroughput": 93750,
+    "connectionType": "cellular4g"
+  },
+  "transport": "Local same-origin overlay with gzip for text/SVG; source root logo URLs resolve to canonical vector aliases. Cold browser cache each trial. No CPU throttle.",
+  "homepageSha256": "c8f362592e34a298ca8727178003d3c1b08257acd25c944618c9132502152bef",
+  "brandSha256": "887903996b510063896d44b4ef4a569531207439950186d93eb1ab9f7dd7b8d4",
+  "files": [
+    {
+      "file": "D:\\codex-ws\\servers-ws\\site-navigation\\index.html",
+      "sha256": "c8f362592e34a298ca8727178003d3c1b08257acd25c944618c9132502152bef",
+      "bodyBytes": 3054
+    },
+    {
+      "file": "D:\\codex-ws\\servers-ws\\site-navigation\\shared\\preferences.js",
+      "sha256": "1bf03c53b7e2297775c172d94a059aba42bb0a92881471ceecf9e4bad052a052",
+      "bodyBytes": 1944
+    },
+    {
+      "file": "D:\\codex-ws\\servers-ws\\site-navigation\\locale.js",
+      "sha256": "5fbf32dc5d8fd70a5e8d7d269fa7a32a3aea9876fffafba69ad18e839a6690e6",
+      "bodyBytes": 282
+    },
+    {
+      "file": "D:\\codex-ws\\servers-ws\\site-navigation\\shared\\header-controls.css",
+      "sha256": "ae000e3ef68b605d96fa33c7ad2932f073f816a3ebc0102f1386572322ef0d0f",
+      "bodyBytes": 702
+    },
+    {
+      "file": "D:\\codex-ws\\servers-ws\\site-navigation\\styles.css",
+      "sha256": "3df36fd83c542a6aead0e8ff9960ad4998dbf7ff1801161128bcd65cecaa3095",
+      "bodyBytes": 2660
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\brand.css",
+      "sha256": "887903996b510063896d44b4ef4a569531207439950186d93eb1ab9f7dd7b8d4",
+      "bodyBytes": 1717
+    },
+    {
+      "file": "D:\\codex-ws\\servers-ws\\site-navigation\\app.js",
+      "sha256": "3234335e794520c1a20748258c306017113530cdb462f826b1406ae6a5a4c916",
+      "bodyBytes": 2353
+    },
+    {
+      "file": "D:\\codex-ws\\servers-ws\\site-navigation\\shared\\header-controls.js",
+      "sha256": "e8e0b4c9e2372b85cf098745326fe6cf8368ace2d0dcbaa852fddfcfee5949f0",
+      "bodyBytes": 2382
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\ritel-r.svg",
+      "sha256": "a30d461122ebfa067aea1cd7097e92b18342e9ea4e903a5b910bb8a92a3f2d16",
+      "bodyBytes": 1300
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\typography.css",
+      "sha256": "0d91b869581b9d0753db65c333d73aa394041c8c1b4b278e67b07ee0d69d59ec",
+      "bodyBytes": 1842
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\fonts.css",
+      "sha256": "a66f2ac5aebca25f21298ed92cce395010243f9a54ec18a6445700d786d23754",
+      "bodyBytes": 63734
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\fonts\\chiron\\css\\vf.css",
+      "sha256": "54efa1ea9737c384675e0af424ca75d939eb6d39e419564ec5232f3ea6d425c5",
+      "bodyBytes": 72201
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\fonts\\ibmplexmono\\woff2\\IBMPlexMono-Regular-latin.woff2",
+      "sha256": "9e2c960c4a080aa1c13cdf63207422b0a2955798b6f49b631f14ef8ec2d06ba6",
+      "bodyBytes": 10668
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\fonts\\ibmplexsans\\woff2\\IBMPlexSans-variable-latin.woff2",
+      "sha256": "421641354efc8bed38c8af5767d6a329bfa27b25ce812d63084493a3c1198e33",
+      "bodyBytes": 47060
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\fonts\\cormorantgaramond\\woff2\\CormorantGaramond-variable-latin.woff2",
+      "sha256": "baca32559897ed5c1b7608e7331a3e595fb35faae7e907122be2b9a8a18303d2",
+      "bodyBytes": 40756
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\fonts\\cinzel\\woff2\\Cinzel-variable-latin.woff2",
+      "sha256": "a67a1e722909ed3700e923e88e71c294dc813561d64049529e4dcfec391f597f",
+      "bodyBytes": 25920
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\fonts\\notosanscjkhk\\woff2\\NotoSansCJKhk-ui-ui.woff2",
+      "sha256": "d4148b98c923b6702eca6d1147d4241606872067bf27e7ad3d03c6c980c3b88b",
+      "bodyBytes": 60712
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\fonts\\iming\\woff2\\I.MingCP-8.10-ui.woff2",
+      "sha256": "0805eb530af0ae39be1115fdeb785f243d69f9781b591000e6475d20e1e0173c",
+      "bodyBytes": 24604
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\fonts\\notosanscjkhk\\woff2\\NotoSansCJKhk-extended-02-ui.woff2",
+      "sha256": "60f5f26283925499309b14c51b004baebfaa76155cb1cce5374d1f579cc92706",
+      "bodyBytes": 3460
+    },
+    {
+      "file": "\\\\wsl.localhost\\Ubuntu-26.04-D\\home\\ritel\\worktrees\\brand-assets-phase1-20261031\\frontend\\public\\brand\\ritel-favicon.svg",
+      "sha256": "4e2cb820c5c5fb56a1cf48c8150e067258eead84eccda80bd49c5aeb90be7078",
+      "bodyBytes": 1302
+    }
+  ],
+  "trials": [
+    {
+      "trial": 1,
+      "pass": true,
+      "effectiveLang": "zh-CN",
+      "totalBytes": 372532,
+      "fontBytes": 214418,
+      "heading": {
+        "text": "智能，触手可及",
+        "family": "\"Cormorant Garamond\", \"I.MingCP\", \"Chiron Sung HK\", Georgia, serif",
+        "readyAt": 2400.099999997765,
+        "presentedAt": 2412
+      },
+      "platformFonts": [
+        {
+          "familyName": "一點明體CP",
+          "postScriptName": "I.MingCP-Regular",
+          "isCustomFont": true,
+          "glyphCount": 7
+        }
+      ],
+      "requests": [
+        {
+          "url": "/",
+          "status": 200,
+          "mime": "text/html",
+          "wireBytes": 3253,
+          "bodyBytes": 3054
+        },
+        {
+          "url": "/shared/preferences.js?v=1bf03c53b7e22977",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 2156,
+          "bodyBytes": 1944
+        },
+        {
+          "url": "/locale.js?v=5fbf32dc5d8fd70a",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 493,
+          "bodyBytes": 282
+        },
+        {
+          "url": "/shared/header-controls.css?v=ae000e3ef68b605d",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 899,
+          "bodyBytes": 702
+        },
+        {
+          "url": "/styles.css?v=3df36fd83c542a6a",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 2858,
+          "bodyBytes": 2660
+        },
+        {
+          "url": "/brand/brand.css?v=3716b693ee6880c4",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 1915,
+          "bodyBytes": 1717
+        },
+        {
+          "url": "/app.js?v=3234335e794520c1",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 2565,
+          "bodyBytes": 2353
+        },
+        {
+          "url": "/shared/header-controls.js?v=e8e0b4c9e2372b85",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 2594,
+          "bodyBytes": 2382
+        },
+        {
+          "url": "/ritel-r.svg?v=8921175b03058cca",
+          "status": 200,
+          "mime": "image/svg+xml",
+          "wireBytes": 1503,
+          "bodyBytes": 1300
+        },
+        {
+          "url": "/brand/typography.css?v=0d91b869581b9d07",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 2040,
+          "bodyBytes": 1842
+        },
+        {
+          "url": "/brand/fonts.css?v=a66f2ac5aebca25f",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 63933,
+          "bodyBytes": 63734
+        },
+        {
+          "url": "/brand/fonts/chiron/css/vf.css?v=54efa1ea9737c384",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 72400,
+          "bodyBytes": 72201
+        },
+        {
+          "url": "/brand/fonts/ibmplexmono/woff2/IBMPlexMono-Regular-latin.woff2?v=9e2c960c4a080aa1",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 10845,
+          "bodyBytes": 10668
+        },
+        {
+          "url": "/brand/fonts/notosanscjkhk/woff2/NotoSansCJKhk-extended-02-ui.woff2?v=60f5f26283925499",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 3636,
+          "bodyBytes": 3460
+        },
+        {
+          "url": "/brand/fonts/cinzel/woff2/Cinzel-variable-latin.woff2?v=a67a1e722909ed37",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 26097,
+          "bodyBytes": 25920
+        },
+        {
+          "url": "/brand/fonts/iming/woff2/I.MingCP-8.10-ui.woff2?v=0805eb530af0ae39",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 24781,
+          "bodyBytes": 24604
+        },
+        {
+          "url": "/brand/fonts/cormorantgaramond/woff2/CormorantGaramond-variable-latin.woff2?v=baca32559897ed5c",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 40933,
+          "bodyBytes": 40756
+        },
+        {
+          "url": "/brand/fonts/ibmplexsans/woff2/IBMPlexSans-variable-latin.woff2?v=421641354efc8bed",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 47237,
+          "bodyBytes": 47060
+        },
+        {
+          "url": "/brand/fonts/notosanscjkhk/woff2/NotoSansCJKhk-ui-ui.woff2?v=d4148b98c923b670",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 60889,
+          "bodyBytes": 60712
+        },
+        {
+          "url": "/brand/ritel-favicon.svg",
+          "status": 200,
+          "mime": "image/svg+xml",
+          "wireBytes": 1505,
+          "bodyBytes": 1302
+        }
+      ],
+      "failed": [],
+      "failures": [],
+      "text": "跳至主要内容\nRitel.SI\n探索服务\n开发者\n进入 Ritel.SI API\n智能，\n触手可及\n\n从 Astra 到 Opus。\n连接模型与工具，开始你的下一步。\n\n进入 Ritel.SI API\n↗\n阅读接入指南\n→\n你的世界\n由此进入\n\nRitel.SI API、Ritel.SI Visora、\n商城与接入指南。\n\nRitel.SI API\n\n模型、密钥、订阅与用量。\n\ndash.ritel.si\n↗\nRitel.SI Visora\n\n图片创作与管理工作台。\n\nimages.ritel.si\n↗\nRitel.SI 商城\n\n探索商品，管理订单。\n\nstore.ritel.si\n↗\n接入指南\n\n设置客户端，连接 API。\n\nritel.si/ccs\n↗\n少一点距离\n多一点创造\n\n以熟悉的端点，连接你的工具。\n在同一控制台管理密钥与用量。\n\n接入指南 →\nBase URL\n复制\n\nhttps://api.ritel.si/v1\n\nHTTP\nPython\nPOST /v1/responses HTTP/1.1\nHost: api.ritel.si\nAuthorization: Bearer YOUR_API_KEY\nContent-Type: application/json\n\n{\"model\":\"gpt-6-astra\",\"reasoning\":{\"effort\":\"low\"},\"input\":\"Hello.\"}\nAPI 密钥\n故障排查\n从一个想法开始\n进入 Ritel.SI API\n↗\nRitel.SI\n文档\n支持 ↗\n© 2026 Ritel.SI"
+    },
+    {
+      "trial": 2,
+      "pass": true,
+      "effectiveLang": "zh-CN",
+      "totalBytes": 372532,
+      "fontBytes": 214418,
+      "heading": {
+        "text": "智能，触手可及",
+        "family": "\"Cormorant Garamond\", \"I.MingCP\", \"Chiron Sung HK\", Georgia, serif",
+        "readyAt": 2371.7000000029802,
+        "presentedAt": 2383.7000000029802
+      },
+      "platformFonts": [
+        {
+          "familyName": "一點明體CP",
+          "postScriptName": "I.MingCP-Regular",
+          "isCustomFont": true,
+          "glyphCount": 7
+        }
+      ],
+      "requests": [
+        {
+          "url": "/",
+          "status": 200,
+          "mime": "text/html",
+          "wireBytes": 3253,
+          "bodyBytes": 3054
+        },
+        {
+          "url": "/shared/preferences.js?v=1bf03c53b7e22977",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 2156,
+          "bodyBytes": 1944
+        },
+        {
+          "url": "/shared/header-controls.css?v=ae000e3ef68b605d",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 899,
+          "bodyBytes": 702
+        },
+        {
+          "url": "/locale.js?v=5fbf32dc5d8fd70a",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 493,
+          "bodyBytes": 282
+        },
+        {
+          "url": "/styles.css?v=3df36fd83c542a6a",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 2858,
+          "bodyBytes": 2660
+        },
+        {
+          "url": "/brand/brand.css?v=3716b693ee6880c4",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 1915,
+          "bodyBytes": 1717
+        },
+        {
+          "url": "/ritel-r.svg?v=8921175b03058cca",
+          "status": 200,
+          "mime": "image/svg+xml",
+          "wireBytes": 1503,
+          "bodyBytes": 1300
+        },
+        {
+          "url": "/shared/header-controls.js?v=e8e0b4c9e2372b85",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 2594,
+          "bodyBytes": 2382
+        },
+        {
+          "url": "/app.js?v=3234335e794520c1",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 2565,
+          "bodyBytes": 2353
+        },
+        {
+          "url": "/brand/typography.css?v=0d91b869581b9d07",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 2040,
+          "bodyBytes": 1842
+        },
+        {
+          "url": "/brand/fonts.css?v=a66f2ac5aebca25f",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 63933,
+          "bodyBytes": 63734
+        },
+        {
+          "url": "/brand/fonts/chiron/css/vf.css?v=54efa1ea9737c384",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 72400,
+          "bodyBytes": 72201
+        },
+        {
+          "url": "/brand/fonts/ibmplexmono/woff2/IBMPlexMono-Regular-latin.woff2?v=9e2c960c4a080aa1",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 10845,
+          "bodyBytes": 10668
+        },
+        {
+          "url": "/brand/fonts/notosanscjkhk/woff2/NotoSansCJKhk-extended-02-ui.woff2?v=60f5f26283925499",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 3636,
+          "bodyBytes": 3460
+        },
+        {
+          "url": "/brand/fonts/cinzel/woff2/Cinzel-variable-latin.woff2?v=a67a1e722909ed37",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 26097,
+          "bodyBytes": 25920
+        },
+        {
+          "url": "/brand/fonts/iming/woff2/I.MingCP-8.10-ui.woff2?v=0805eb530af0ae39",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 24781,
+          "bodyBytes": 24604
+        },
+        {
+          "url": "/brand/fonts/cormorantgaramond/woff2/CormorantGaramond-variable-latin.woff2?v=baca32559897ed5c",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 40933,
+          "bodyBytes": 40756
+        },
+        {
+          "url": "/brand/fonts/ibmplexsans/woff2/IBMPlexSans-variable-latin.woff2?v=421641354efc8bed",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 47237,
+          "bodyBytes": 47060
+        },
+        {
+          "url": "/brand/fonts/notosanscjkhk/woff2/NotoSansCJKhk-ui-ui.woff2?v=d4148b98c923b670",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 60889,
+          "bodyBytes": 60712
+        },
+        {
+          "url": "/brand/ritel-favicon.svg",
+          "status": 200,
+          "mime": "image/svg+xml",
+          "wireBytes": 1505,
+          "bodyBytes": 1302
+        }
+      ],
+      "failed": [],
+      "failures": [],
+      "text": "跳至主要内容\nRitel.SI\n探索服务\n开发者\n进入 Ritel.SI API\n智能，\n触手可及\n\n从 Astra 到 Opus。\n连接模型与工具，开始你的下一步。\n\n进入 Ritel.SI API\n↗\n阅读接入指南\n→\n你的世界\n由此进入\n\nRitel.SI API、Ritel.SI Visora、\n商城与接入指南。\n\nRitel.SI API\n\n模型、密钥、订阅与用量。\n\ndash.ritel.si\n↗\nRitel.SI Visora\n\n图片创作与管理工作台。\n\nimages.ritel.si\n↗\nRitel.SI 商城\n\n探索商品，管理订单。\n\nstore.ritel.si\n↗\n接入指南\n\n设置客户端，连接 API。\n\nritel.si/ccs\n↗\n少一点距离\n多一点创造\n\n以熟悉的端点，连接你的工具。\n在同一控制台管理密钥与用量。\n\n接入指南 →\nBase URL\n复制\n\nhttps://api.ritel.si/v1\n\nHTTP\nPython\nPOST /v1/responses HTTP/1.1\nHost: api.ritel.si\nAuthorization: Bearer YOUR_API_KEY\nContent-Type: application/json\n\n{\"model\":\"gpt-6-astra\",\"reasoning\":{\"effort\":\"low\"},\"input\":\"Hello.\"}\nAPI 密钥\n故障排查\n从一个想法开始\n进入 Ritel.SI API\n↗\nRitel.SI\n文档\n支持 ↗\n© 2026 Ritel.SI"
+    },
+    {
+      "trial": 3,
+      "pass": true,
+      "effectiveLang": "zh-CN",
+      "totalBytes": 372532,
+      "fontBytes": 214418,
+      "heading": {
+        "text": "智能，触手可及",
+        "family": "\"Cormorant Garamond\", \"I.MingCP\", \"Chiron Sung HK\", Georgia, serif",
+        "readyAt": 2381.400000002235,
+        "presentedAt": 2393.400000002235
+      },
+      "platformFonts": [
+        {
+          "familyName": "一點明體CP",
+          "postScriptName": "I.MingCP-Regular",
+          "isCustomFont": true,
+          "glyphCount": 7
+        }
+      ],
+      "requests": [
+        {
+          "url": "/",
+          "status": 200,
+          "mime": "text/html",
+          "wireBytes": 3253,
+          "bodyBytes": 3054
+        },
+        {
+          "url": "/locale.js?v=5fbf32dc5d8fd70a",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 493,
+          "bodyBytes": 282
+        },
+        {
+          "url": "/shared/header-controls.css?v=ae000e3ef68b605d",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 899,
+          "bodyBytes": 702
+        },
+        {
+          "url": "/shared/preferences.js?v=1bf03c53b7e22977",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 2156,
+          "bodyBytes": 1944
+        },
+        {
+          "url": "/brand/brand.css?v=3716b693ee6880c4",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 1915,
+          "bodyBytes": 1717
+        },
+        {
+          "url": "/styles.css?v=3df36fd83c542a6a",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 2858,
+          "bodyBytes": 2660
+        },
+        {
+          "url": "/ritel-r.svg?v=8921175b03058cca",
+          "status": 200,
+          "mime": "image/svg+xml",
+          "wireBytes": 1503,
+          "bodyBytes": 1300
+        },
+        {
+          "url": "/brand/typography.css?v=0d91b869581b9d07",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 2040,
+          "bodyBytes": 1842
+        },
+        {
+          "url": "/shared/header-controls.js?v=e8e0b4c9e2372b85",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 2594,
+          "bodyBytes": 2382
+        },
+        {
+          "url": "/app.js?v=3234335e794520c1",
+          "status": 200,
+          "mime": "application/javascript",
+          "wireBytes": 2565,
+          "bodyBytes": 2353
+        },
+        {
+          "url": "/brand/fonts.css?v=a66f2ac5aebca25f",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 63933,
+          "bodyBytes": 63734
+        },
+        {
+          "url": "/brand/fonts/chiron/css/vf.css?v=54efa1ea9737c384",
+          "status": 200,
+          "mime": "text/css",
+          "wireBytes": 72400,
+          "bodyBytes": 72201
+        },
+        {
+          "url": "/brand/fonts/ibmplexmono/woff2/IBMPlexMono-Regular-latin.woff2?v=9e2c960c4a080aa1",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 10845,
+          "bodyBytes": 10668
+        },
+        {
+          "url": "/brand/fonts/notosanscjkhk/woff2/NotoSansCJKhk-extended-02-ui.woff2?v=60f5f26283925499",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 3636,
+          "bodyBytes": 3460
+        },
+        {
+          "url": "/brand/fonts/cinzel/woff2/Cinzel-variable-latin.woff2?v=a67a1e722909ed37",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 26097,
+          "bodyBytes": 25920
+        },
+        {
+          "url": "/brand/fonts/iming/woff2/I.MingCP-8.10-ui.woff2?v=0805eb530af0ae39",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 24781,
+          "bodyBytes": 24604
+        },
+        {
+          "url": "/brand/fonts/cormorantgaramond/woff2/CormorantGaramond-variable-latin.woff2?v=baca32559897ed5c",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 40933,
+          "bodyBytes": 40756
+        },
+        {
+          "url": "/brand/fonts/ibmplexsans/woff2/IBMPlexSans-variable-latin.woff2?v=421641354efc8bed",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 47237,
+          "bodyBytes": 47060
+        },
+        {
+          "url": "/brand/fonts/notosanscjkhk/woff2/NotoSansCJKhk-ui-ui.woff2?v=d4148b98c923b670",
+          "status": 200,
+          "mime": "font/woff2",
+          "wireBytes": 60889,
+          "bodyBytes": 60712
+        },
+        {
+          "url": "/brand/ritel-favicon.svg",
+          "status": 200,
+          "mime": "image/svg+xml",
+          "wireBytes": 1505,
+          "bodyBytes": 1302
+        }
+      ],
+      "failed": [],
+      "failures": [],
+      "text": "跳至主要内容\nRitel.SI\n探索服务\n开发者\n进入 Ritel.SI API\n智能，\n触手可及\n\n从 Astra 到 Opus。\n连接模型与工具，开始你的下一步。\n\n进入 Ritel.SI API\n↗\n阅读接入指南\n→\n你的世界\n由此进入\n\nRitel.SI API、Ritel.SI Visora、\n商城与接入指南。\n\nRitel.SI API\n\n模型、密钥、订阅与用量。\n\ndash.ritel.si\n↗\nRitel.SI Visora\n\n图片创作与管理工作台。\n\nimages.ritel.si\n↗\nRitel.SI 商城\n\n探索商品，管理订单。\n\nstore.ritel.si\n↗\n接入指南\n\n设置客户端，连接 API。\n\nritel.si/ccs\n↗\n少一点距离\n多一点创造\n\n以熟悉的端点，连接你的工具。\n在同一控制台管理密钥与用量。\n\n接入指南 →\nBase URL\n复制\n\nhttps://api.ritel.si/v1\n\nHTTP\nPython\nPOST /v1/responses HTTP/1.1\nHost: api.ritel.si\nAuthorization: Bearer YOUR_API_KEY\nContent-Type: application/json\n\n{\"model\":\"gpt-6-astra\",\"reasoning\":{\"effort\":\"low\"},\"input\":\"Hello.\"}\nAPI 密钥\n故障排查\n从一个想法开始\n进入 Ritel.SI API\n↗\nRitel.SI\n文档\n支持 ↗\n© 2026 Ritel.SI"
+    }
+  ]
+}

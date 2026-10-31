@@ -4,71 +4,71 @@
     "fonts/iming/I.MingCP-8.10.ttf": {
       "codepoints": 60017,
       "variation_sequences": 16,
-      "subsets": 115,
+      "subsets": 118,
       "axes": {}
     },
     "fonts/cinzel/Cinzel-variable.ttf": {
       "codepoints": 367,
       "variation_sequences": 0,
-      "subsets": 14,
+      "subsets": 15,
       "axes": {
         "wght": [
-          400,
-          400,
-          900
+          400.0,
+          400.0,
+          900.0
         ]
       }
     },
     "fonts/cormorantgaramond/CormorantGaramond-variable.ttf": {
       "codepoints": 974,
       "variation_sequences": 0,
-      "subsets": 28,
+      "subsets": 29,
       "axes": {
         "wght": [
-          300,
-          300,
-          700
+          300.0,
+          300.0,
+          700.0
         ]
       }
     },
     "fonts/ibmplexsans/IBMPlexSans-variable.ttf": {
       "codepoints": 891,
       "variation_sequences": 0,
-      "subsets": 25,
+      "subsets": 26,
       "axes": {
         "wght": [
-          100,
-          400,
-          700
+          100.0,
+          400.0,
+          700.0
         ],
         "wdth": [
-          75,
-          100,
-          100
+          75.0,
+          100.0,
+          100.0
         ]
       }
     },
     "fonts/ibmplexmono/IBMPlexMono-Regular.ttf": {
       "codepoints": 930,
       "variation_sequences": 0,
-      "subsets": 22,
+      "subsets": 23,
       "axes": {}
     },
     "fonts/ibmplexmono/IBMPlexMono-Medium.ttf": {
       "codepoints": 930,
       "variation_sequences": 0,
-      "subsets": 22,
+      "subsets": 23,
       "axes": {}
     },
     "fonts/notosanscjkhk/NotoSansCJKhk-extended-00.woff2": {
       "codepoints": 4096,
       "variation_sequences": 0,
-      "subsets": 8,
+      "subsets": 9,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
@@ -78,21 +78,21 @@
       "subsets": 8,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
     "fonts/notosanscjkhk/NotoSansCJKhk-extended-02.woff2": {
       "codepoints": 4096,
       "variation_sequences": 5,
-      "subsets": 8,
+      "subsets": 9,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
@@ -102,9 +102,9 @@
       "subsets": 8,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
@@ -114,21 +114,21 @@
       "subsets": 8,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
     "fonts/notosanscjkhk/NotoSansCJKhk-extended-05.woff2": {
       "codepoints": 4096,
       "variation_sequences": 3,
-      "subsets": 8,
+      "subsets": 9,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
@@ -138,9 +138,9 @@
       "subsets": 8,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
@@ -150,9 +150,9 @@
       "subsets": 8,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
@@ -162,9 +162,9 @@
       "subsets": 8,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
@@ -174,9 +174,9 @@
       "subsets": 8,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
@@ -186,29 +186,31 @@
       "subsets": 4,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     },
     "fonts/notosanscjkhk/NotoSansCJKhk-ui.woff2": {
       "codepoints": 1844,
       "variation_sequences": 16,
-      "subsets": 1,
+      "subsets": 15,
       "axes": {
         "wght": [
-          100,
-          100,
-          900
+          100.0,
+          100.0,
+          900.0
         ]
       }
     }
   },
-  "subsets": 311,
-  "total_subset_bytes": 30543164,
-  "largest_subset_bytes": 873208,
+  "subsets": 336,
+  "total_subset_bytes": 30654332,
+  "largest_subset_bytes": 365584,
   "css_font_display": "swap",
+  "priority_codepoints": 127,
+  "priority_homepage_sha256": "c8f362592e34a298ca8727178003d3c1b08257acd25c944618c9132502152bef",
   "source_characters_lost": 0,
   "variation_sequences_lost": 0,
   "axes_changed": 0

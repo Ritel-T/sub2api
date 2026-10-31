@@ -85,7 +85,7 @@ try{
  const candidate=results.find(r=>r.name==='candidate-main-zh-CN-light');
  const baseline=(quick?prior.results:results).find(r=>r.baseline);
  console.log(JSON.stringify({output:OUT,baselineFontBytes:baseline.fontBytes,candidateFontBytes:candidate.fontBytes,ratio:candidate.fontBytes/baseline.fontBytes,pages:results.length,mainFontRequests:candidate.fonts},null,2));
- if(candidate.fontBytes>2*1024*1024)throw new Error('Chinese reference page exceeds the 2 MiB font transfer budget');
+ if(candidate.fontBytes>1000000)throw new Error('Chinese reference page exceeds the phase-0 1 MB font transfer budget');
  if(results.filter(r=>!r.baseline&&r.fonts).some(r=>r.fonts.some(f=>f.url.includes('.ttf'))))throw new Error('Candidate loaded recovery TTF');
 }finally{
  await browser.close();
