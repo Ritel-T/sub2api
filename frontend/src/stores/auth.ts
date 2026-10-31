@@ -124,7 +124,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function initializeCentralAuth(): Promise<void> {
     if (!centralAccountEnabled || centralAuthInitialized) return
     // A new central build must never inherit a legacy bearer or pending OAuth token.
-    clearAuth()
+    if (!centralSessionAuthenticated.value) clearAuth()
     await initializeCentralAccount(async (session: CentralSession) => {
       const identity = session.user?.uid ?? null
       if (centralAuthInitialized && identity !== centralIdentity) {
@@ -520,7 +520,7 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await authAPI.getCurrentUser()
       if (centralAccountEnabled && (expectedIdentity !== sessionIdentity.value || centralSessionUID() !== `sub2api:${response.data.id}`)) {
         markCentralUnavailable('业务用户与中央会话不一致，请重新检查。')
-        throw new Error('Business user does not match the central session')
+        throw Object.assign(new Error('Business user does not match the central session'), {retryable: false})
       }
       if (response.data.run_mode) {
         runMode.value = response.data.run_mode

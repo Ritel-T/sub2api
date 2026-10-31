@@ -1234,6 +1234,9 @@ router.onError((error) => {
     error.name === 'ChunkLoadError'
 
   if (isChunkLoadError) {
+    // Initial navigation belongs to the startup recovery shell. A temporary
+    // chunk/network failure can retry in place without discarding this document.
+    if (!document.getElementById('app')?.hasAttribute('data-v-app')) return
     // Avoid infinite reload loop by checking sessionStorage
     const reloadKey = 'chunk_reload_attempted'
     const lastReload = sessionStorage.getItem(reloadKey)

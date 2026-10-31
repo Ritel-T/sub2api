@@ -200,7 +200,7 @@ export async function register(userData: RegisterRequest): Promise<AuthResponse>
  * @returns User profile data
  */
 export async function getCurrentUser() {
-  return apiClient.get<CurrentUserResponse>('/auth/me')
+  return apiClient.get<CurrentUserResponse>('/auth/me', centralAccountEnabled ? {timeout: 10000} : undefined)
 }
 
 /**

@@ -192,7 +192,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="!centralIdentityChanged" :inert="!!centralSessionError">
+  <div v-if="!centralIdentityChanged">
     <NavigationProgress />
     <RouterView />
     <Toast />
@@ -201,6 +201,6 @@ onMounted(async () => {
   </div>
   <section v-if="centralAccountEnabled && (centralSessionError || centralIdentityChanged)" class="fixed bottom-4 right-4 z-[100] flex max-w-[calc(100%-2rem)] items-center gap-4 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-900 shadow-sm dark:border-dark-700 dark:bg-dark-900 dark:text-white" role="status" aria-live="polite" :aria-busy="centralChecking">
     <p>{{ centralSessionError || '账号身份已变化，正在重新加载…' }}</p>
-    <button v-if="centralSessionError && !centralChecking && !centralIdentityChanged" type="button" class="btn btn-primary" @click="retryAccountCheck">重新检查</button>
+    <button v-if="centralSessionError && !centralChecking && !centralIdentityChanged" type="button" class="btn btn-primary" @click="retryAccountCheck">重试连接</button>
   </section>
 </template>

@@ -1,11 +1,10 @@
-import {redirectConsoleAlias} from '@/utils/accountConfig'
-import { centralAccountEnabled } from '@/utils/accountConfig'
+import { redirectConsoleAlias, centralAccountEnabled } from '@/utils/accountConfig'
 import { useAuthStore } from '@/stores/auth'
 import { createApp, watch } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
-import i18n, { initI18n } from './i18n'
+import i18n, { getLocale, initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
 import { updateFavicon, BRAND_NAME, BRAND_FAVICON } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
@@ -13,6 +12,8 @@ import { initializeTheme, useTheme } from '@/composables/useTheme'
 import { getChartTheme } from '@/utils/chartTheme'
 import './style.css'
 import './styles/open-workspace.css'
+import './styles/startup.css'
+import { createStartupRecovery } from '@/utils/startupRecovery'
 import { Chart } from 'chart.js'
 
 const chartFont = getComputedStyle(document.documentElement).getPropertyValue('--ritel-ui').trim()
@@ -33,8 +34,7 @@ function initIOSViewportZoomFix() {
   viewport.setAttribute('content', `${content}, maximum-scale=1.0`)
 }
 
-async function bootstrap() {
-  if (redirectConsoleAlias()) return
+function setupApplication() {
   // Apply theme class globally before app mount to keep all routes consistent.
   initializeTheme()
   const { resolvedTheme } = useTheme()
@@ -58,30 +58,63 @@ async function bootstrap() {
   document.title = BRAND_NAME
   updateFavicon(BRAND_FAVICON)
 
-  await initI18n()
+  // Everything above is installed once. Only read-only initialization and the
+  // initial navigation below can be resumed after a temporary connection failure.
+  let localeReady = false
+  let routerInstalled = false
+  let routeReady = false
+  let mounted = false
 
-  // Complete hidden iframe check AND the original full /auth/me before any route or view.
-  if (centralAccountEnabled) await useAuthStore().initializeCentralAuth()
+  return async (whenActive: () => Promise<void>) => {
+    if (mounted) return
+    await whenActive()
+    if (!localeReady) {
+      await initI18n()
+      app.use(i18n)
+      localeReady = true
+    }
 
-  app.use(router)
-  app.use(i18n)
+    await whenActive()
+    // Central auth owns its bounded read-only retries and hydration single flight.
+    // Do not wrap this in another automatic retry loop.
+    if (centralAccountEnabled) await useAuthStore(pinia).initializeCentralAuth()
 
-  // 等待路由器完成初始导航后再挂载，避免竞态条件导致的空白渲染
-  await router.isReady()
-  app.mount('#app')
+    await whenActive()
+    if (!routerInstalled) {
+      routerInstalled = true
+      app.use(router)
+      await router.isReady()
+      routeReady = true
+    } else if (!routeReady) {
+      // isReady() alone would wait forever after a rejected first navigation.
+      // Retry that navigation on the same URL, keeping the router installation.
+      const failure = await router.replace(router.options.history.location)
+      if (failure) throw failure
+      await router.isReady()
+      routeReady = true
+    }
+
+    await whenActive()
+    app.mount('#app')
+    mounted = true
+  }
 }
 
-bootstrap().catch(() => {
+if (!redirectConsoleAlias()) {
+  // Paint the neutral shell before any async session/locale initialization.
+  // Defer setup to the first attempt so synchronous setup failures also reach it.
+  let setup: Promise<ReturnType<typeof setupApplication>> | undefined
   const root = document.getElementById('app')
-  if (!root) return
-  root.replaceChildren()
-  const message = document.createElement('p')
-  message.setAttribute('role', 'alert')
-  message.textContent = '账号会话暂时无法确认，请重新加载后重试。'
-  const retry = document.createElement('button')
-  retry.type = 'button'
-  retry.className = 'btn btn-primary'
-  retry.textContent = '重新加载'
-  retry.onclick = () => location.reload()
-  root.append(message, retry)
-})
+  if (root) {
+    const recovery = createStartupRecovery({
+      root,
+      locale: getLocale(),
+      finish: async whenActive => {
+        setup ??= Promise.resolve().then(setupApplication)
+        const finish = await setup
+        await finish(whenActive)
+      }
+    })
+    void recovery.retry()
+  }
+}
