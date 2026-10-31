@@ -2999,10 +2999,10 @@
 
       <div v-if="!authStore.isObserver">
         <div class="mb-1 flex items-center gap-2">
-          <label class="input-label mb-0">{{ t('admin.accounts.proxy') }}</label>
+          <label :id="`field-${fieldLabelScope}-proxy`" class="input-label mb-0">{{ t('admin.accounts.proxy') }}</label>
           <ProxyAdBanner />
         </div>
-        <ProxySelector v-model="form.proxy_id" :proxies="proxies" />
+        <ProxySelector v-model="form.proxy_id" :proxies="proxies" :aria-labelledby="`field-${fieldLabelScope}-proxy`" />
       </div>
 
       <UpstreamRequestIdHeaderField

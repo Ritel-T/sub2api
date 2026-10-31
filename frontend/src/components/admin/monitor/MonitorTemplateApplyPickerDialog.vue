@@ -48,7 +48,7 @@
           class="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-800"
           @click="toggle(m.id)"
         >
-          <label class="inline-flex items-center gap-2"><input
+          <label class="inline-flex items-center gap-2" @click.stop><input
             type="checkbox"
             :checked="selectedSet.has(m.id)"
             class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"

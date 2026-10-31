@@ -1850,17 +1850,18 @@
       >
         <div class="mb-3 flex items-center justify-between">
           <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.accountSchedulingThresholdOverride') }}</label>
+            <label :for="`field-${fieldLabelScope}-scheduling-override`" class="input-label mb-0">{{ t('admin.accounts.accountSchedulingThresholdOverride') }}</label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.accountSchedulingThresholdOverrideHint') }}
             </p>
           </div>
-          <label class="inline-flex items-center gap-2"><input
+          <input
+            :id="`field-${fieldLabelScope}-scheduling-override`"
             v-model="accountSchedulingThresholdOverrideEnabled"
             data-testid="account-scheduling-threshold-override-enabled"
             type="checkbox"
             class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          /><span class="text-2xs">{{ t('consoleFields.selectRow') }}</span></label>
+          />
         </div>
         <div v-if="accountSchedulingThresholdOverrideEnabled">
           <label :id="'field-' + fieldLabelScope + '-30'" class="input-label">{{ t('admin.accounts.accountSchedulingThresholdOverrideValue') }}</label>
@@ -1896,10 +1897,10 @@
 
       <div v-if="!isSparkShadow && !authStore.isObserver">
         <div class="mb-1 flex items-center gap-2">
-          <label class="input-label mb-0">{{ t('admin.accounts.proxy') }}</label>
+          <label :id="`field-${fieldLabelScope}-proxy`" class="input-label mb-0">{{ t('admin.accounts.proxy') }}</label>
           <ProxyAdBanner />
         </div>
-        <ProxySelector v-model="form.proxy_id" :proxies="proxies" />
+        <ProxySelector v-model="form.proxy_id" :proxies="proxies" :aria-labelledby="`field-${fieldLabelScope}-proxy`" />
       </div>
 
       <UpstreamRequestIdHeaderField

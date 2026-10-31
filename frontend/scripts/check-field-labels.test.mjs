@@ -21,3 +21,9 @@ test('rejects icon names that disappear in a conditional branch', () => {
   assert.equal(inspect('<button :aria-label="isGrok ? name : undefined"><svg/></button>').buttons.length, 1)
   assert.equal(inspect('<button :aria-label="isGrok ? name : fallback"><svg/></button>').buttons.length, 0)
 })
+
+
+test('audits ProxySelector callers rather than just its dropdown search input', () => {
+  assert.equal(inspect('<label>Proxy</label><ProxySelector/>').fields.at(-1)?.ok, false)
+  assert.equal(inspect('<label id="proxy">Proxy</label><ProxySelector aria-labelledby="proxy"/>').fields.at(-1)?.ok, true)
+})

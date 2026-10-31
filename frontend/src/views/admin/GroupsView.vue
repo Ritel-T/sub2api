@@ -585,7 +585,7 @@
                 copyAccountsGroupOptions.find((o) => o.value === groupId)
                   ?.label || `#${groupId}`
               }}
-              <button :aria-label="t('consoleFields.copy')"
+              <button :aria-label="t('consoleFields.remove')"
                 type="button"
                 @click="
                   createForm.copy_accounts_from_group_ids =
@@ -2289,7 +2289,7 @@
                 copyAccountsGroupOptionsForEdit.find((o) => o.value === groupId)
                   ?.label || `#${groupId}`
               }}
-              <button :aria-label="t('consoleFields.copy')"
+              <button :aria-label="t('consoleFields.remove')"
                 type="button"
                 @click="
                   editForm.copy_accounts_from_group_ids =
@@ -4282,7 +4282,7 @@
               {{ t("admin.groups.compositeRoutes.preview") }}
             </AppHeading>
             <div class="space-y-3">
-              <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.group') }}</span><input
+              <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.model') }}</span><input
                 v-model.trim="compositePreviewModel"
                 type="text"
                 class="input"

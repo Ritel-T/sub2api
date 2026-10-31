@@ -5808,9 +5808,9 @@
                           d="M9 5l7 7-7 7"
                         />
                       </svg>
-                      <label class="block min-w-0 w-36">
-                        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.webSearchEmulation.providers') }}</span>
-                        <Select :aria-label="t('admin.settings.webSearchEmulation.providers')"
+                      <label class="block min-w-0 w-36" @click.stop>
+                        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.webSearchEmulation.providerType') }}</span>
+                        <Select :aria-label="t('admin.settings.webSearchEmulation.providerType')"
                         v-model="provider.type"
                         :options="[
                           { value: 'brave', label: 'Brave Search' },
@@ -6065,10 +6065,11 @@
                     <!-- Proxy + Test on same row -->
                     <div class="flex items-end gap-3">
                       <div class="flex-1">
-                        <label class="text-xs text-gray-500">{{
+                        <label :id="`field-${fieldLabelScope}-provider-proxy-${pIdx}`" class="text-xs text-gray-500">{{
                           t("admin.settings.webSearchEmulation.proxy")
                         }}</label>
                         <ProxySelector
+                          :aria-labelledby="`field-${fieldLabelScope}-provider-proxy-${pIdx}`"
                           v-model="provider.proxy_id"
                           :proxies="webSearchProxies"
                         />
@@ -8442,7 +8443,7 @@
                     <label :id="'field-' + fieldLabelScope + '-152'" class="input-label">{{
                       t("admin.settings.payment.cancelRateLimit")
                     }}</label>
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                       <Toggle :model-value="form.payment_cancel_rate_limit_enabled" :aria-label="t('admin.settings.payment.cancelRateLimit')" @click="
                           form.payment_cancel_rate_limit_enabled =
                             !form.payment_cancel_rate_limit_enabled
@@ -8450,7 +8451,7 @@
                       <Select :aria-labelledby="'field-' + fieldLabelScope + '-152'" :aria-label="t('common.windowMode')"
                         v-model="form.payment_cancel_rate_limit_window_mode"
                         :options="cancelRateLimitModeOptions"
-                        class="w-24"
+                        class="w-32"
                         :disabled="!form.payment_cancel_rate_limit_enabled"
                       />
                       <span :id="'field-' + fieldLabelScope + '-153'"

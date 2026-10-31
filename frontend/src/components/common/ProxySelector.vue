@@ -4,6 +4,7 @@
       type="button"
       @click="toggle"
       :disabled="disabled"
+      :aria-labelledby="ariaLabelledby"
       :class="[
         'select-trigger',
         isOpen && 'select-trigger-open',
@@ -193,6 +194,7 @@ interface Props {
   modelValue: number | null
   proxies: Proxy[]
   disabled?: boolean
+  ariaLabelledby?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {

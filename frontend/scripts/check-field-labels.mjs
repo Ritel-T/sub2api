@@ -37,7 +37,7 @@ export function inspectFieldTemplate(source, file = 'src/Fixture.vue') {
   const visible = node => contentText(node) && !visuallyHidden(node) && !(nodes.find(x => x.node === node)?.ancestors ?? []).some(visuallyHidden)
   const fields = [], buttons = []
   for (const { node, ancestors } of nodes) {
-    if (['input', 'select', 'textarea', 'Input', 'SearchInput', 'Select'].includes(node.tag)) {
+    if (['input', 'select', 'textarea', 'Input', 'SearchInput', 'Select', 'ProxySelector'].includes(node.tag)) {
       const type = valueOf(attribute(node, 'type')) ?? 'text'
       const hidden = valueOf(attribute(node, 'aria-hidden')) === 'true' && valueOf(attribute(node, 'tabindex')) === '-1' || type === 'hidden' || type === 'file' && (visuallyHidden(node) || ancestors.some(visuallyHidden))
       const id = attribute(node, 'id'), labelledby = attribute(node, 'aria-labelledby')

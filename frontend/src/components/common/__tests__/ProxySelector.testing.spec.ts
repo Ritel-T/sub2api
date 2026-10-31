@@ -54,3 +54,15 @@ describe('proxy connection tests', () => {
     expect(testProxy).toHaveBeenCalledTimes(4)
   })
 })
+
+
+it('associates the visible caller caption with the proxy trigger', () => {
+  const wrapper = mount(ProxySelector, {
+    props: { modelValue: null, proxies: [] },
+    attrs: { 'aria-labelledby': 'account-proxy-caption' },
+    global: { stubs: { Icon: true } }
+  })
+  expect(wrapper.get('button.select-trigger').attributes('aria-labelledby')).toBe('account-proxy-caption')
+  expect(wrapper.attributes('aria-labelledby')).toBeUndefined()
+  expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+})

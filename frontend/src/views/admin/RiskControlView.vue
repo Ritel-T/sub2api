@@ -429,8 +429,8 @@
                 </div>
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.proxy') }}</label>
-                <ProxySelector v-model="configForm.proxy_id" :proxies="proxies" />
+                <label :id="`field-${fieldLabelScope}-proxy`" class="input-label">{{ t('admin.riskControl.proxy') }}</label>
+                <ProxySelector v-model="configForm.proxy_id" :proxies="proxies" :aria-labelledby="`field-${fieldLabelScope}-proxy`" />
                 <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.proxyHint') }}</p>
               </div>
             </div>
