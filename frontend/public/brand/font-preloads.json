@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "note": "Select only the Latin faces used above the fold; do not preload CJK shards.",
+  "fonts": [
+    {
+      "source": "fonts/cinzel/Cinzel-variable.ttf",
+      "href": "/brand/fonts/cinzel/woff2/Cinzel-variable-latin.woff2?v=fe735ad27b836198",
+      "as": "font",
+      "type": "font/woff2",
+      "crossorigin": "anonymous",
+      "bytes": 33732
+    },
+    {
+      "source": "fonts/cormorantgaramond/CormorantGaramond-variable.ttf",
+      "href": "/brand/fonts/cormorantgaramond/woff2/CormorantGaramond-variable-latin.woff2?v=26498826cf55471d",
+      "as": "font",
+      "type": "font/woff2",
+      "crossorigin": "anonymous",
+      "bytes": 58304
+    },
+    {
+      "source": "fonts/ibmplexsans/IBMPlexSans-variable.ttf",
+      "href": "/brand/fonts/ibmplexsans/woff2/IBMPlexSans-variable-latin.woff2?v=f277fc6d63714012",
+      "as": "font",
+      "type": "font/woff2",
+      "crossorigin": "anonymous",
+      "bytes": 63448
+    },
+    {
+      "source": "fonts/ibmplexmono/IBMPlexMono-Regular.ttf",
+      "href": "/brand/fonts/ibmplexmono/woff2/IBMPlexMono-Regular-latin.woff2?v=d48512bbf47223c8",
+      "as": "font",
+      "type": "font/woff2",
+      "crossorigin": "anonymous",
+      "bytes": 14120
+    },
+    {
+      "source": "fonts/ibmplexmono/IBMPlexMono-Medium.ttf",
+      "href": "/brand/fonts/ibmplexmono/woff2/IBMPlexMono-Medium-latin.woff2?v=3f6307a7caf87978",
+      "as": "font",
+      "type": "font/woff2",
+      "crossorigin": "anonymous",
+      "bytes": 14424
+    }
+  ]
+}
