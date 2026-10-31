@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { GELV_CASH_TIERS, hasGelvAlipayTiers, isValidAlipayFeeRateBps, isValidGelvAlipayPayURL, openGelvAlipayCheckout } from '../gelvAlipay'
+import { gelvAlipayAmountRange, isValidAlipayFeeRateBps, isValidGelvAlipayPayURL, openGelvAlipayCheckout } from '../gelvAlipay'
 import { buildCreateOrderPayload, decidePaymentLaunch, getVisibleMethods, readPaymentRecoverySnapshot } from '../paymentFlow'
 import { isGelvAlipayQuote, isRetailQuote } from '../retailQuote'
 import { PROVIDER_CONFIG_FIELDS, PROVIDER_SUPPORTED_TYPES } from '../providerConfig'
@@ -19,8 +19,7 @@ const quote: RetailQuote = { pricing_mode: 'gelv_channel_cny', pricing_basis_cur
   credited_amount_usd: 9.37, credit_by_channel: { alipay_web: 9.37 }, pay_amount: 10, currency: 'CNY',
   base_amount_gbp: 0, included_cost_gbp: 0, total_amount_gbp: 0, fx: {} as RetailQuote['fx'], fx_source: 'fixed_cny',
   fx_asof: '', issued_at: '', expires_at: '2099-01-01T00:00:00Z', checkout_reference: 'test_alipay' }
-const options = GELV_CASH_TIERS.map(cash => ({ cash_cny: cash, credits: cash * .95 }))
-const limit: MethodLimit = { topup_options: options, currency: 'CNY', available: true, fee_rate: 0, single_min: 0, single_max: 0, daily_limit: 0, daily_used: 0, daily_remaining: 0 }
+const limit: MethodLimit = { amount_currency: 'CNY', amount_step: 0.01, fee_rate_bps: 60, currency: 'CNY', available: true, fee_rate: 0, single_min: 0, single_max: 0, daily_limit: 0, daily_used: 0, daily_remaining: 0 }
 const result = { order_id: 42, amount: 9.37, pay_amount: 10, currency: 'CNY', fee_rate: 0, expires_at: quote.expires_at, pay_url: url, retail_quote: quote, payment_mode: 'redirect' }
 const context = { visibleMethod: 'gelv_alipay', orderType: 'balance' as const, isMobile: true }
 afterEach(() => vi.restoreAllMocks())
@@ -53,14 +52,13 @@ describe('Alipay hosted checkout boundary', () => {
     expect(openGelvAlipayCheckout(url + '&extra=1')).toBe(false)
     expect(click).toHaveBeenCalledTimes(1)
   })
-  it('requires the complete six server-supplied tiers and explicit availability', () => {
-    expect(hasGelvAlipayTiers(limit)).toBe(true)
+  it('accepts arbitrary cash without tier metadata and preserves explicit availability', () => {
     expect(getVisibleMethods({ gelv_alipay: limit }).gelv_alipay.available).toBe(true)
-    for (const topup_options of [undefined, [], options.slice(1), [...options.slice(1), options[1]], options.map(o => ({ ...o, credits: NaN }))]) {
-      expect(getVisibleMethods({ gelv_alipay: { ...limit, topup_options } }).gelv_alipay.available).toBe(false)
-    }
     expect(getVisibleMethods({ gelv_alipay: { ...limit, available: false } }).gelv_alipay.available).toBe(false)
-    expect(getVisibleMethods({ gelv: { ...limit, topup_options: undefined } }).gelv.available).toBe(true)
+    expect(gelvAlipayAmountRange(limit)).toEqual({ min: 0.01, max: 50 })
+    expect(gelvAlipayAmountRange({ ...limit, single_min: 2, single_max: 40 }, 3, 30)).toEqual({ min: 3, max: 30 })
+    expect(gelvAlipayAmountRange({ ...limit, single_min: 5, single_max: 20 }, 1, 100)).toEqual({ min: 5, max: 20 })
+    expect(gelvAlipayAmountRange({ ...limit, single_max: 500 }, 0, 500)).toEqual({ min: 0.01, max: 50 })
   })
   it('uses explicit rate strings, preserving zero and leaving missing values disabled', () => {
     for (const value of ['0', '100', '9999']) expect(isValidAlipayFeeRateBps(value)).toBe(true)
@@ -78,8 +76,12 @@ describe('Alipay hosted checkout boundary', () => {
       { ...quote, credit_by_channel: { alipay_web: 9.37, apple_iap: 8.8 } },
       { ...quote, credit_by_channel: { alipay_web: 9.37, other: 9.37 } },
       { ...quote, credit_by_channel: { alipay_web: NaN } }, { ...quote, base_amount_cny: 9 },
-      { ...quote, pay_amount: 11 }, { ...quote, currency: 'USD' },
+      { ...quote, pay_amount: 11.001 }, { ...quote, pay_amount: NaN }, { ...quote, pay_amount: -1 }, { ...quote, currency: 'USD' },
     ]) expect(isRetailQuote(value)).toBe(false)
+  })
+  it('accepts arbitrary and historical cash snapshots without imposing new-order limits on history', () => {
+    expect(isRetailQuote({ ...quote, pay_amount: 12.34, credited_amount_usd: 12.27, base_amount_cny: 12.27, credit_by_channel: { alipay_web: 12.27 } })).toBe(true)
+    expect(isRetailQuote({ ...quote, pay_amount: 500 })).toBe(true)
   })
   it('launches as waiting on either device and rejects subscription or mismatched channel quotes', () => {
     for (const isMobile of [true, false]) expect(decidePaymentLaunch(result, { ...context, isMobile }).kind).toBe('redirect_waiting')
@@ -116,19 +118,16 @@ describe('Alipay hosted checkout boundary', () => {
     expect(paymentMethodI18nKey('gelv_alipay')).toBe('gelv.alipayName')
     expect(paymentMethodI18nKey('gelv')).toBe('gelv.name')
   })
-  it('renders all six cash tiers using net credits and the existing Alipay icon separately from gelv', async () => {
-    const wrapper = mount(AmountInput, { props: { modelValue: null, amounts: options.map(o => o.credits), fixedOptions: options, paymentType: 'gelv_alipay' } })
-    expect(wrapper.find('input').exists()).toBe(false)
-    expect(wrapper.findAll('button')).toHaveLength(6)
-    expect(wrapper.text()).not.toMatch(/gelv\.(android|ios)/)
-    for (const option of options) {
-      const button = wrapper.get('[data-testid="quick-amount-' + option.credits + '"]')
-      expect(button.text()).toContain('¥' + option.cash_cny)
-      expect(button.findAll('.whitespace-nowrap')).toHaveLength(2)
-      expect(button.text()).toContain('$' + option.credits.toFixed(2))
-      await button.trigger('click')
-    }
-    expect(wrapper.emitted('update:modelValue')).toEqual(options.map(o => [o.credits]))
+  it('allows a CNY custom amount without preset tiers and keeps the Alipay icon', async () => {
+    const wrapper = mount(AmountInput, { props: { modelValue: null, min: 0.01, max: 50, paymentType: 'gelv_alipay' } })
+    expect(wrapper.findAll('button')).toHaveLength(0)
+    expect(wrapper.text()).toContain('¥')
+    const input = wrapper.get('input')
+    await input.setValue('12.34')
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([12.34])
+    await input.setValue('12.345')
+    expect((input.element as HTMLInputElement).value).toBe('12.34')
+    expect(wrapper.emitted('update:modelValue')).toHaveLength(1)
     wrapper.unmount()
     const selector = mount(PaymentMethodSelector, { props: { selected: 'gelv_alipay', methods: [{ type: 'gelv_alipay', fee_rate: 12, available: true }, { type: 'gelv', fee_rate: 0, available: true }] } })
     expect(selector.findAll('button')).toHaveLength(2)

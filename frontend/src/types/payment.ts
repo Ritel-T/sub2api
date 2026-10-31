@@ -81,6 +81,10 @@ export interface TopupOption {
 }
 
 export interface MethodLimit {
+  /** Input amount contract; Alipay accepts CNY cash, not net site credits. */
+  amount_currency?: string
+  amount_step?: number
+  fee_rate_bps?: number
   topup_options?: TopupOption[]
   currency?: string
   display_name?: string
@@ -130,6 +134,8 @@ export interface CheckoutInfoResponse {
 }
 
 export interface RetailQuote {
+  /** New hosted Alipay quotes take CNY cash as request amount; absent on historical quotes. */
+  cash_amount_input?: boolean
   pricing_mode?: 'gelv_channel_cny'
   credit_by_channel?: { wechat_virtual?: number; apple_iap?: number; alipay_web?: number }
   /** Absent for historical USD-based orders; new quotes price site credit in CNY. */

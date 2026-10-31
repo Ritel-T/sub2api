@@ -74,9 +74,9 @@
               ></div>
               <AmountInput
                 v-model="amount"
-                :amounts="['gelv', 'gelv_alipay'].includes(selectedMethod) ? (selectedLimit?.topup_options || []).map(option => option.credits) : [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
+                :amounts="selectedMethod === 'gelv' ? (selectedLimit?.topup_options || []).map(option => option.credits) : [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
                 :payment-type="selectedMethod"
-                :fixed-options="['gelv', 'gelv_alipay'].includes(selectedMethod) ? selectedLimit?.topup_options : undefined"
+                :fixed-options="selectedMethod === 'gelv' ? selectedLimit?.topup_options : undefined"
                 :min="globalMinAmount"
                 :max="globalMaxAmount"
                 :bonus-tiers="rechargeBonusTiers"
@@ -398,7 +398,7 @@ import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import RetailQuoteSummary from '@/components/payment/RetailQuoteSummary.vue'
 import { useRetailQuote } from '@/components/payment/useRetailQuote'
-import { isValidGelvAlipayPayURL } from '@/components/payment/gelvAlipay'
+import { gelvAlipayAmountRange, isValidGelvAlipayPayURL } from '@/components/payment/gelvAlipay'
 import { isGelvAlipayQuote, isRetailQuote } from '@/components/payment/retailQuote'
 import { newBalancePurchase, readBalancePurchase, saveBalancePurchase, clearBalancePurchase, type PendingBalancePurchase } from '@/components/payment/balanceSubscriptionPurchase'
 import Icon from '@/components/icons/Icon.vue'
@@ -719,7 +719,9 @@ const retailPricingEnabled = computed(() => checkout.value.balance_retail_pricin
 const quoteRequest = computed<PaymentQuoteRequest | null>(() => {
   if (!retailPricingEnabled.value || activeTab.value !== 'recharge' || paymentPhase.value !== 'select'
     || validAmount.value <= 0 || !selectedMethod.value
-    || (selectedMethod.value === 'gelv_alipay' && visibleMethods.value.gelv_alipay?.available !== true)
+    || (selectedMethod.value === 'gelv_alipay' && (visibleMethods.value.gelv_alipay?.available !== true
+      || validAmount.value < globalMinAmount.value || validAmount.value > globalMaxAmount.value
+      || Math.abs(validAmount.value * 100 - Math.round(validAmount.value * 100)) > 0.000001))
     || (!['gelv', 'gelv_alipay'].includes(selectedMethod.value) && checkout.value.global_min > 0 && validAmount.value < checkout.value.global_min)
     || (!['gelv', 'gelv_alipay'].includes(selectedMethod.value) && checkout.value.global_max > 0 && validAmount.value > checkout.value.global_max)) return null
   return { amount: validAmount.value, payment_type: selectedMethod.value, order_type: 'balance' }
@@ -754,7 +756,8 @@ function amountFitsMethod(amt: number, methodType: string): boolean {
 
 // Visible methods decide the amount range shown to users.
 const globalMinAmount = computed(() => {
-  if (['gelv', 'gelv_alipay'].includes(selectedMethod.value)) return selectedLimit.value?.topup_options?.[0]?.credits || 0
+  if (selectedMethod.value === 'gelv_alipay') return gelvAlipayAmountRange(selectedLimit.value, checkout.value.global_min, checkout.value.global_max).min
+  if (selectedMethod.value === 'gelv') return selectedLimit.value?.topup_options?.[0]?.credits || 0
   if (retailPricingEnabled.value) return checkout.value.global_min
   const limits = Object.values(visibleMethods.value)
   if (limits.length === 0) return 0
@@ -762,7 +765,8 @@ const globalMinAmount = computed(() => {
   return Math.min(...limits.map(limit => limit.single_min))
 })
 const globalMaxAmount = computed(() => {
-  if (['gelv', 'gelv_alipay'].includes(selectedMethod.value)) return selectedLimit.value?.topup_options?.at(-1)?.credits || 0
+  if (selectedMethod.value === 'gelv_alipay') return gelvAlipayAmountRange(selectedLimit.value, checkout.value.global_min, checkout.value.global_max).max
+  if (selectedMethod.value === 'gelv') return selectedLimit.value?.topup_options?.at(-1)?.credits || 0
   if (retailPricingEnabled.value) return checkout.value.global_max
   const limits = Object.values(visibleMethods.value)
   if (limits.length === 0) return 0
@@ -773,7 +777,7 @@ const globalMaxAmount = computed(() => {
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
 watch(() => [selectedMethod.value, selectedLimit.value?.topup_options] as const, ([method, options]) => {
-  if (['gelv', 'gelv_alipay'].includes(method) && options?.length && !options.some(option => option.credits === amount.value)) amount.value = options[0].credits
+  if (method === 'gelv' && options?.length && !options.some(option => option.credits === amount.value)) amount.value = options[0].credits
 })
 const selectedCurrency = computed(() => normalizePaymentCurrency(selectedLimit.value?.currency))
 const localeCode = computed(() => {
@@ -864,8 +868,8 @@ const showActualPay = computed(() => feeRate.value > 0 || discountAmount.value >
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''
   if (retailPricingEnabled.value) {
-    if (globalMinAmount.value > 0 && validAmount.value < globalMinAmount.value) return t('payment.amountTooLow', { min: formatPaymentAmount(globalMinAmount.value, 'USD', localeCode.value) })
-    if (globalMaxAmount.value > 0 && validAmount.value > globalMaxAmount.value) return t('payment.amountTooHigh', { max: formatPaymentAmount(globalMaxAmount.value, 'USD', localeCode.value) })
+    if (globalMinAmount.value > 0 && validAmount.value < globalMinAmount.value) return t('payment.amountTooLow', { min: formatPaymentAmount(globalMinAmount.value, selectedMethod.value === 'gelv_alipay' ? 'CNY' : 'USD', localeCode.value) })
+    if (globalMaxAmount.value > 0 && validAmount.value > globalMaxAmount.value) return t('payment.amountTooHigh', { max: formatPaymentAmount(globalMaxAmount.value, selectedMethod.value === 'gelv_alipay' ? 'CNY' : 'USD', localeCode.value) })
     if (retailQuote.value && selectedLimit.value) {
       const cash = retailQuote.value.pay_amount
       if (selectedLimit.value.single_min > 0 && cash < selectedLimit.value.single_min) return t('paymentRetail.cashAmountTooLow', { min: formatSelectedPaymentAmount(selectedLimit.value.single_min), currency: selectedCurrency.value })
@@ -1147,6 +1151,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       || (confirmedQuote.pricing_mode === 'gelv_channel_cny'
         ? !Object.values(confirmedQuote.credit_by_channel || {}).includes(result.amount)
         : result.amount !== confirmedQuote.credited_amount_usd)
+      || result.retail_quote.cash_amount_input !== confirmedQuote.cash_amount_input
       || result.retail_quote.pricing_mode !== confirmedQuote.pricing_mode
       || result.retail_quote.credit_by_channel?.wechat_virtual !== confirmedQuote.credit_by_channel?.wechat_virtual
       || result.retail_quote.credit_by_channel?.apple_iap !== confirmedQuote.credit_by_channel?.apple_iap

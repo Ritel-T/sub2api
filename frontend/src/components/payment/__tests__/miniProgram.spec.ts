@@ -76,25 +76,25 @@ describe('shared mini-program products', () => {
   it.each([9.9, 8.8])('shows paid cash and actual credit without an invented CNY principal for %s credits', amount => {
     const wrapper = renderOrder(amount)
     expect(wrapper.text()).toContain('¥10.00 CNY')
-    expect(wrapper.text()).toContain('paymentRetail.siteCredit: $' + amount.toFixed(2))
+    expect(wrapper.text()).toContain('payment.orders.actualCredited: $' + amount.toFixed(2))
     expect(wrapper.text()).not.toContain('paymentRetail.principalCNY')
     expect(wrapper.text()).not.toContain('¥8.80')
     expect(wrapper.text()).not.toContain('gelv.feeRates')
     wrapper.unmount()
   })
-  it('keeps both channel estimates for unpaid orders without presenting an estimate as principal', () => {
+  it('shows no estimated channel or fee amounts in the unpaid order list', () => {
     const wrapper = renderOrder(8.8, false)
-    expect(wrapper.text()).toContain('gelv.androidCredit')
-    expect(wrapper.text()).toContain('gelv.iosCredit')
-    expect(wrapper.text()).toContain('gelv.feeRates')
-    expect(wrapper.text()).not.toContain('paymentRetail.principalCNY')
+    expect(wrapper.text()).not.toMatch(/gelv\.(androidCredit|iosCredit|feeRates)|paymentRetail.principalCNY/)
+    expect(wrapper.text()).not.toMatch(/8.80|9.90|10.00/)
+    expect(wrapper.text()).toContain('payment.orders.actualCredited')
     wrapper.unmount()
   })
-  it('preserves the CNY principal and GBP costs of existing retail quotes', () => {
+  it('shows only actual credit and cash for existing GBP retail orders', () => {
     const wrapper = renderOrder(50, true, { ...quote, pricing_mode: undefined, credit_by_channel: undefined, credited_amount_usd: 50, base_amount_cny: 50,
       base_amount_gbp: 5.64, included_cost_gbp: 0.5, total_amount_gbp: 6.14, pay_amount: 6.14, currency: 'GBP' })
-    expect(wrapper.text()).toContain('paymentRetail.principalCNY: ¥50.00 CNY')
-    expect(wrapper.text()).toContain('paymentRetail.includedCost: £0.50 GBP')
+    expect(wrapper.text()).toContain('payment.orders.actualCredited: $50.00')
+    expect(wrapper.text()).toContain('£6.14 GBP')
+    expect(wrapper.text()).not.toMatch(/principalCNY|includedCost|totalGBP/)
     wrapper.unmount()
   })
 })

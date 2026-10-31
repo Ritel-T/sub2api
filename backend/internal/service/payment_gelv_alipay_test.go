@@ -175,9 +175,16 @@ func TestGelvAlipayConfigAvailabilityQuoteAndSameInstance(t *testing.T) {
 				return
 			}
 			require.Len(t, direct, 1)
-			require.Len(t, direct[0].TopupOptions, 6)
-			amount := direct[0].TopupOptions[0].Credits
-			req := CreateOrderRequest{UserID: 1, PaymentType: payment.TypeGelvAlipay, OrderType: payment.OrderTypeBalance, Amount: amount}
+			require.Empty(t, direct[0].TopupOptions)
+			require.Equal(t, 0.01, direct[0].SingleMin)
+			require.Equal(t, 50.0, direct[0].SingleMax)
+			require.Equal(t, "CNY", direct[0].AmountCurrency)
+			require.Equal(t, 0.01, direct[0].AmountStep)
+			rate, err := provider.GelvAlipayFeeBPS(config)
+			require.NoError(t, err)
+			amount, err := provider.GelvAlipayCredits(1000, rate)
+			require.NoError(t, err)
+			req := CreateOrderRequest{UserID: 1, PaymentType: payment.TypeGelvAlipay, OrderType: payment.OrderTypeBalance, Amount: 10}
 			cfg := &PaymentConfig{MinAmount: 10, MaxAmount: 500, BalanceRetailPricingEnabled: true, BalanceRetailQuoteTTLSeconds: 900}
 			response, err := s.quoteGelvPayment(ctx, req, cfg)
 			require.NoError(t, err)
@@ -191,7 +198,7 @@ func TestGelvAlipayConfigAvailabilityQuoteAndSameInstance(t *testing.T) {
 			require.NoError(t, validateRetailQuoteRequest(claims, req))
 			req.PaymentType = payment.TypeGelv
 			require.Error(t, validateRetailQuoteRequest(claims, req))
-			require.Len(t, limits.Methods[payment.TypeGelvAlipay].TopupOptions, 6)
+			require.Empty(t, limits.Methods[payment.TypeGelvAlipay].TopupOptions)
 		})
 	}
 }

@@ -389,6 +389,8 @@ export default {
       orderNo: '订单编号',
       amount: '金额',
       payAmount: '实付',
+      actualPaid: '实付金额',
+      actualCredited: '实际到账',
       creditedAmount: '到账金额',
       bonusAmount: '赠送额度',
       bonusIncluded: '含赠送 {amount}',

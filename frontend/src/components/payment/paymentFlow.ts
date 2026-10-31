@@ -1,4 +1,4 @@
-import { isValidGelvAlipayPayURL, hasGelvAlipayTiers } from './gelvAlipay'
+import { isValidGelvAlipayPayURL } from './gelvAlipay'
 import { isGelvAlipayQuote, isRetailQuote } from './retailQuote'
 import type {
   CreateOrderRequest,
@@ -126,7 +126,7 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
     const isCanonical = type === normalized
     const existing = visible[normalized]
     if (!existing || isCanonical) {
-      visible[normalized] = { ...limit, ...(normalized === 'gelv_alipay' ? { available: limit.available !== false && hasGelvAlipayTiers(limit) } : {}) }
+      visible[normalized] = { ...limit }
     }
   })
 

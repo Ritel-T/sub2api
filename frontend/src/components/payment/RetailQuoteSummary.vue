@@ -2,7 +2,7 @@
   <div data-test="retail-quote" class="space-y-3 text-sm">
     <div class="flex justify-between gap-4">
       <span class="text-gray-500 dark:text-gray-400">{{ t(cnyBasis ? 'paymentRetail.siteCredit' : 'paymentRetail.credited') }}</span>
-      <span v-if="alipay" data-test="alipay-credit" class="font-semibold text-gray-900 dark:text-white">{{ t('gelv.alipayCredit', { amount: quote.credited_amount_usd.toFixed(2) }) }}</span>
+      <span v-if="alipay" data-test="alipay-credit" class="font-semibold text-gray-900 dark:text-white">${{ quote.credited_amount_usd.toFixed(2) }}</span>
       <span v-else-if="fixedCNY" class="text-right font-semibold text-gray-900 dark:text-white">
         <span class="block">{{ t('gelv.androidCredit', { amount: quote.credit_by_channel!.wechat_virtual!.toFixed(2) }) }}</span>
         <span class="block">{{ t('gelv.iosCredit', { amount: quote.credit_by_channel!.apple_iap!.toFixed(2) }) }}</span>

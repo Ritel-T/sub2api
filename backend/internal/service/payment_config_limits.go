@@ -11,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/shopspring/decimal"
 )
 
 // GetAvailableMethodLimits collects all payment types from enabled provider
@@ -46,7 +47,7 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 			if _, configErr = provider.NewGelv("", config); configErr != nil {
 				continue
 			}
-			ml.TopupOptions, configErr = gelvCreditOptions(pt, config)
+			configErr = s.applyGelvMethodLimits(ctx, &ml, pt, config)
 			if configErr != nil {
 				continue
 			}
@@ -129,7 +130,7 @@ func (s *PaymentConfigService) GetMethodLimits(ctx context.Context, types []stri
 			if _, configErr = provider.NewGelv("", config); configErr != nil {
 				continue
 			}
-			ml.TopupOptions, configErr = gelvCreditOptions(pt, config)
+			configErr = s.applyGelvMethodLimits(ctx, &ml, pt, config)
 			if configErr != nil {
 				continue
 			}
@@ -368,4 +369,46 @@ func pcComputeGlobalRange(methods map[string]MethodLimits) (globalMin, globalMax
 		globalMax = 0
 	}
 	return globalMin, globalMax
+}
+
+// applyGelvMethodLimits advertises cash limits, intersecting the temporary
+// ceiling with existing settings without changing any persisted configuration.
+func (s *PaymentConfigService) applyGelvMethodLimits(ctx context.Context, ml *MethodLimits, method string, config map[string]string) error {
+	if method != payment.TypeGelvAlipay {
+		var err error
+		ml.TopupOptions, err = provider.GelvCreditOptions(config)
+		return err
+	}
+	bps, err := provider.GelvAlipayFeeBPS(config)
+	if err != nil {
+		return err
+	}
+	ml.TopupOptions = nil
+	ml.DisplayName = "Alipay"
+	ml.AmountCurrency, ml.AmountStep, ml.FeeRateBPS = "CNY", 0.01, &bps
+	if ml.SingleMin < 0.01 {
+		ml.SingleMin = 0.01
+	}
+	max := float64(provider.GelvAlipayMaxNewAmountMinor) / 100
+	if ml.SingleMax <= 0 || ml.SingleMax > max {
+		ml.SingleMax = max
+	}
+	if s.settingRepo != nil {
+		cfg, err := s.GetPaymentConfig(ctx)
+		if err != nil {
+			return err
+		}
+		if cfg.MinAmount > ml.SingleMin {
+			ml.SingleMin = cfg.MinAmount
+		}
+		if cfg.MaxAmount > 0 && cfg.MaxAmount < ml.SingleMax {
+			ml.SingleMax = cfg.MaxAmount
+		}
+	}
+	ml.SingleMin = decimal.NewFromFloat(ml.SingleMin).Shift(2).Ceil().Shift(-2).InexactFloat64()
+	ml.SingleMax = decimal.NewFromFloat(ml.SingleMax).Shift(2).Floor().Shift(-2).InexactFloat64()
+	if ml.SingleMin > ml.SingleMax {
+		return fmt.Errorf("alipay cash limits have no valid amount")
+	}
+	return nil
 }

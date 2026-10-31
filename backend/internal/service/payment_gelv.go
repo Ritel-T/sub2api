@@ -50,7 +50,7 @@ func (s *PaymentConfigService) validateGelvInstance(ctx context.Context, id int6
 	return nil
 }
 
-// quoteGelvPayment keeps the shared mini-program's six fixed cash products.
+// quoteGelvPayment keeps mini-program tiers and accepts Alipay cash in cents.
 // Site credit includes the separately configured fee, never GBP conversion.
 func (s *PaymentService) quoteGelvPayment(ctx context.Context, req CreateOrderRequest, cfg *PaymentConfig) (*RetailQuoteResponse, error) {
 	instances, err := s.entClient.PaymentProviderInstance.Query().Where(paymentproviderinstance.ProviderKeyEQ(payment.TypeGelv), paymentproviderinstance.EnabledEQ(true)).All(ctx)
@@ -64,19 +64,26 @@ func (s *PaymentService) quoteGelvPayment(ctx context.Context, req CreateOrderRe
 	if err != nil {
 		return nil, err
 	}
-	options, err := gelvCreditOptions(req.PaymentType, config)
-	if err != nil {
-		return nil, infraerrors.ServiceUnavailable("GELV_CREDITS_NOT_CONFIGURED", "mini-program credit amounts are not configured")
-	}
-	cash := 0.0
-	for _, option := range options {
-		if decimal.NewFromFloat(option.Credits).Equal(decimal.NewFromFloat(req.Amount)) {
-			cash = option.CashCNY
-			break
+	cash := req.Amount
+	if req.PaymentType == payment.TypeGelvAlipay {
+		if _, err := provider.GelvAlipayNewAmountMinor(strconv.FormatFloat(cash, 'f', -1, 64)); err != nil {
+			return nil, infraerrors.BadRequest("INVALID_AMOUNT", "Alipay amount must be 0.01 to 50 CNY with at most two decimal places")
 		}
-	}
-	if cash == 0 {
-		return nil, infraerrors.BadRequest("GELV_DENOMINATION_REQUIRED", "choose one of the configured mini-program recharge tiers")
+	} else {
+		options, err := gelvCreditOptions(req.PaymentType, config)
+		if err != nil {
+			return nil, infraerrors.ServiceUnavailable("GELV_CREDITS_NOT_CONFIGURED", "mini-program credit amounts are not configured")
+		}
+		cash = 0
+		for _, option := range options {
+			if decimal.NewFromFloat(option.Credits).Equal(decimal.NewFromFloat(req.Amount)) {
+				cash = option.CashCNY
+				break
+			}
+		}
+		if cash == 0 {
+			return nil, infraerrors.BadRequest("GELV_DENOMINATION_REQUIRED", "choose one of the configured mini-program recharge tiers")
+		}
 	}
 	if (cfg.MinAmount > 0 && cash < cfg.MinAmount) || (cfg.MaxAmount > 0 && cash > cfg.MaxAmount) {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "cash denomination is outside the configured range")
@@ -104,19 +111,25 @@ func (s *PaymentService) quoteGelvPayment(ctx context.Context, req CreateOrderRe
 	android, _ := provider.GelvCredits(minor, "wechat_virtual")
 	ios, _ := provider.GelvCredits(minor, "apple_iap")
 	credits := map[string]float64{"wechat_virtual": android, "apple_iap": ios}
+	credited := req.Amount
 	if req.PaymentType == payment.TypeGelvAlipay {
 		bps, rateErr := provider.GelvAlipayFeeBPS(sel.Config)
 		if rateErr != nil {
 			return nil, infraerrors.ServiceUnavailable("GELV_CREDITS_NOT_CONFIGURED", "Alipay agreement is not configured")
 		}
 		credit, creditErr := provider.GelvAlipayCredits(minor, bps)
-		if creditErr != nil || !decimal.NewFromFloat(credit).Equal(decimal.NewFromFloat(req.Amount)) {
+		if creditErr != nil || !validRetailNumber(credit) {
 			return nil, infraerrors.Conflict("PAYMENT_PROVIDER_CHANGED", "Alipay agreement changed; request a new quote")
 		}
 		credits = map[string]float64{gelvAlipayCheckout: credit}
+		credited = credit
 	}
-	quote := &RetailQuote{PricingMode: "gelv_channel_cny", CreditByChannel: credits, CreditedAmountUSD: req.Amount, PricingBasisCurrency: "CNY", BaseAmountCNY: req.Amount, PayAmount: cash, Currency: "CNY", FX: map[string]float64{}, FXSource: "fixed_cny", FXAsOf: now, IssuedAt: now, ExpiresAt: now.Add(time.Duration(ttl) * time.Second), CheckoutReference: reference}
-	quote.ProductID, _ = provider.GelvProductForMinor(minor)
+	quote := &RetailQuote{PricingMode: "gelv_channel_cny", CreditByChannel: credits, CreditedAmountUSD: credited, PricingBasisCurrency: "CNY", BaseAmountCNY: credited, PayAmount: cash, Currency: "CNY", FX: map[string]float64{}, FXSource: "fixed_cny", FXAsOf: now, IssuedAt: now, ExpiresAt: now.Add(time.Duration(ttl) * time.Second), CheckoutReference: reference}
+	if req.PaymentType == payment.TypeGelvAlipay {
+		quote.CashAmountInput = true
+	} else {
+		quote.ProductID, _ = provider.GelvProductForMinor(minor)
+	}
 	claims := retailQuoteClaims{Purpose: retailQuotePurpose, UserID: req.UserID, PaymentType: req.PaymentType, ProviderInstanceID: sel.InstanceID, ProviderKey: sel.ProviderKey, ProviderIdentity: buildPaymentOrderProviderSnapshot(sel, CreateOrderRequest{PaymentType: req.PaymentType}), Quote: quote}
 	token, err := s.signRetailQuote(claims)
 	if err != nil {
@@ -187,8 +200,13 @@ func validateGelvMetadata(o *dbent.PaymentOrder, m map[string]string) error {
 			matched = true
 		}
 	}
+	q := PaymentOrderRetailQuote(o)
+	cashCheckout := o.PaymentType == payment.TypeGelvAlipay && q != nil && q.CashAmountInput
+	if cashCheckout {
+		matched = m["product_id"] == "" || matched
+	}
 	minor, err := payment.AmountToMinorUnit(payment.FormatAmountForCurrency(o.PayAmount, "CNY"), "CNY")
-	if !matched || err != nil || m["amount_minor"] != strconv.FormatInt(minor, 10) || m["product_id"] != psSnapshotStringValue(o.ProviderSnapshot["gelv_product_id"]) {
+	if !matched || err != nil || m["amount_minor"] != strconv.FormatInt(minor, 10) || (!cashCheckout && m["product_id"] != psSnapshotStringValue(o.ProviderSnapshot["gelv_product_id"])) {
 		return bad()
 	}
 	return nil
@@ -514,7 +532,7 @@ func (s *PaymentService) reconcileGelvOrderWithProvider(ctx context.Context, o *
 		if time.Now().After(o.ExpiresAt) {
 			return false, nil
 		}
-		pr, err := prov.CreatePayment(ctx, payment.CreatePaymentRequest{OrderID: o.OutTradeNo, PaymentType: o.PaymentType, Amount: payment.FormatAmountForCurrency(o.PayAmount, "CNY")})
+		pr, err := prov.CreatePayment(provider.WithGelvPaymentRecovery(ctx, o.OutTradeNo), payment.CreatePaymentRequest{OrderID: o.OutTradeNo, PaymentType: o.PaymentType, Amount: payment.FormatAmountForCurrency(o.PayAmount, "CNY")})
 		if err != nil {
 			return false, err
 		}

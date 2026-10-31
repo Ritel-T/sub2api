@@ -318,32 +318,32 @@ describe('server-priced retail checkout', () => {
   })
   async function setupHostedAlipay() {
     const checkout = await api.checkout()
-    const tiers = [10, 30, 50, 100, 200, 500].map(cash => ({ cash_cny: cash, credits: cash * .95 }))
     api.checkout.mockResolvedValue({ data: { ...checkout.data, global_max: 500, methods: {
-      gelv_alipay: { ...checkout.data.methods.stripe, currency: 'CNY', available: true, topup_options: tiers },
+      gelv_alipay: { ...checkout.data.methods.stripe, currency: 'CNY', available: true, amount_currency: 'CNY', amount_step: 0.01, fee_rate_bps: 60, single_min: 1, single_max: 50 },
       gelv: { ...checkout.data.methods.stripe, currency: 'CNY', available: true },
     } } })
-    const fixed: RetailQuote = { ...quote(9.5, 'CNY'), pricing_mode: 'gelv_channel_cny', credit_by_channel: { alipay_web: 9.5 },
-      base_amount_gbp: 0, included_cost_gbp: 0, total_amount_gbp: 0, pay_amount: 10 }
+    const fixed: RetailQuote = { ...quote(12.27, 'CNY'), cash_amount_input: true, pricing_mode: 'gelv_channel_cny', credit_by_channel: { alipay_web: 12.27 },
+      base_amount_gbp: 0, included_cost_gbp: 0, total_amount_gbp: 0, pay_amount: 12.34 }
     api.quote.mockResolvedValue(response(fixed))
     api.createOrder.mockResolvedValue({ ...order(fixed), payment_type: 'gelv_alipay',
       pay_url: 'https://alar1c.cn/partner-pay/#id=' + 'a'.repeat(24) + '&token=' + 'b'.repeat(64) })
-    return { fixed, tiers }
+    return { fixed }
   }
-  it('creates hosted Alipay with server credit tiers and keeps mobile tracking on this site', async () => {
+  it('creates hosted Alipay with arbitrary cash input and keeps mobile tracking on this site', async () => {
     await setupHostedAlipay()
     const wrapper = await mountPage()
+    await setAmount(wrapper, 12.34)
     await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
     expect(wrapper.findComponent(AmountInput).props('paymentType')).toBe('gelv_alipay')
-    expect(wrapper.findComponent(AmountInput).find('input').exists()).toBe(false)
-    expect(api.quote).toHaveBeenLastCalledWith({ amount: 9.5, payment_type: 'gelv_alipay', order_type: 'balance' })
-    expect(wrapper.text()).toContain('gelv.alipayCredit')
+    expect(wrapper.findComponent(AmountInput).find('input').exists()).toBe(true)
+    expect(api.quote).toHaveBeenLastCalledWith({ amount: 12.34, payment_type: 'gelv_alipay', order_type: 'balance' })
+    expect(wrapper.get('[data-test=alipay-credit]').text()).toBe('$12.27')
     expect(wrapper.text()).not.toMatch(/gelv\.(android|ios|feeRates)/)
     await wrapper.get('[data-test="confirm-retail-quote"]').setValue(true)
     await wrapper.get('[data-test="create-recharge-order"]').trigger('click')
     await flushPromises()
-    expect(api.createOrder).toHaveBeenCalledWith(expect.objectContaining({ amount: 9.5, payment_type: 'gelv_alipay', quote_token: 'quote-1', order_type: 'balance' }))
+    expect(api.createOrder).toHaveBeenCalledWith(expect.objectContaining({ amount: 12.34, payment_type: 'gelv_alipay', quote_token: 'quote-1', order_type: 'balance' }))
     expect(window.open).not.toHaveBeenCalled()
     const panel = wrapper.findComponent(PaymentStatusPanel)
     expect(panel.props('paymentType')).toBe('gelv_alipay')
@@ -367,21 +367,65 @@ describe('server-priced retail checkout', () => {
     expect(api.createOrder).toHaveBeenCalledTimes(1)
     recovered.unmount()
   })
+  it('caps new Alipay cash at 50 CNY and honors the configured minimum without tier membership', async () => {
+    const { fixed } = await setupHostedAlipay()
+    const wrapper = await mountPage()
+    expect(wrapper.findComponent(AmountInput).props()).toMatchObject({ min: 1, max: 50, fixedOptions: undefined })
+    await setAmount(wrapper, 0.99)
+    expect(api.quote).not.toHaveBeenCalled()
+    await setAmount(wrapper, 50.01)
+    expect(api.quote).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-test=create-recharge-order]').attributes('disabled')).toBeDefined()
+    const boundaryQuote = { ...fixed, pay_amount: 50, credited_amount_usd: 49.7, base_amount_cny: 49.7, credit_by_channel: { alipay_web: 49.7 } }
+    api.quote.mockResolvedValue(response(boundaryQuote))
+    await setAmount(wrapper, 50)
+    expect(api.quote).toHaveBeenLastCalledWith({ amount: 50, payment_type: 'gelv_alipay', order_type: 'balance' })
+    expect(wrapper.get('[data-test=alipay-credit]').text()).toBe('$49.70')
+    await wrapper.get('[data-test=confirm-retail-quote]').setValue(true)
+    expect(wrapper.get('[data-test=create-recharge-order]').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+  it('rejects Alipay quotes for a different cash amount and clears confirmation after editing', async () => {
+    const { fixed } = await setupHostedAlipay()
+    const wrapper = await mountPage()
+    await setAmount(wrapper, 12.34)
+    await wrapper.get('[data-test=confirm-retail-quote]').setValue(true)
+    expect(wrapper.get('[data-test=create-recharge-order]').attributes('disabled')).toBeUndefined()
+    await setAmount(wrapper, 12.35)
+    expect(wrapper.get('[data-test=create-recharge-order]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-test=confirm-retail-quote]').exists()).toBe(false)
+    api.quote.mockResolvedValue(response({ ...fixed, pay_amount: 12.35 }))
+    await wrapper.get('[data-test=refresh-retail-quote]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test=confirm-retail-quote]').element).toHaveProperty('checked', false)
+    wrapper.unmount()
+  })
   it('does not quote or enable hosted Alipay when its explicit rate is unavailable', async () => {
     await setupHostedAlipay()
     const checkout = await api.checkout()
     api.checkout.mockResolvedValue({ data: { ...checkout.data, methods: { gelv_alipay: { ...checkout.data.methods.gelv_alipay, available: false, topup_options: undefined } } } })
     const wrapper = await mountPage()
+    await setAmount(wrapper, 12.34)
     await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
     expect(api.quote).not.toHaveBeenCalled()
     expect(wrapper.get('[data-test="create-recharge-order"]').attributes('disabled')).toBeDefined()
     wrapper.unmount()
   })
+  it('requires cash-input evidence for fresh Alipay quotes without treating historical net credits as cash', async () => {
+    const { fixed } = await setupHostedAlipay()
+    api.quote.mockResolvedValue(response({ ...fixed, cash_amount_input: undefined }))
+    const wrapper = await mountPage()
+    await setAmount(wrapper, 12.34)
+    expect(wrapper.find('[data-test=confirm-retail-quote]').exists()).toBe(false)
+    expect(wrapper.get('[data-test=create-recharge-order]').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
   it('rejects unknown channel rules and mismatched Alipay order quotes', async () => {
     const { fixed } = await setupHostedAlipay()
     api.quote.mockResolvedValueOnce(response({ ...fixed, pricing_mode: 'future_rule' } as unknown as RetailQuote))
     const wrapper = await mountPage()
+    await setAmount(wrapper, 12.34)
     await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
     expect(wrapper.find('[data-test="confirm-retail-quote"]').exists()).toBe(false)

@@ -34,6 +34,9 @@ const paymentRetailQuoteSigningKeyEnv = "PAYMENT_RETAIL_QUOTE_SIGNING_KEY"
 // never changes the credited quantity. Optional pricing fields remain absent
 // on historical USD-priced quotes so their stored JSON and proof hashes survive.
 type RetailQuote struct {
+	// Present only on new arbitrary-cash Alipay quotes. Historical tokens retain
+	// their original credit-input semantics and byte-stable JSON snapshots.
+	CashAmountInput      bool               `json:"cash_amount_input,omitempty"`
 	PricingMode          string             `json:"pricing_mode,omitempty"`
 	CreditByChannel      map[string]float64 `json:"credit_by_channel,omitempty"`
 	CreditedAmountUSD    float64            `json:"credited_amount_usd"`
@@ -280,7 +283,14 @@ func (s *PaymentService) parseRetailQuote(token string) (*retailQuoteClaims, err
 	return &claims, nil
 }
 func validateRetailQuoteRequest(claims *retailQuoteClaims, req CreateOrderRequest) error {
-	if claims.UserID != req.UserID || claims.PaymentType != NormalizeVisibleMethod(req.PaymentType) || req.OrderType != payment.OrderTypeBalance || decimal.NewFromFloat(claims.Quote.CreditedAmountUSD).Cmp(decimal.NewFromFloat(req.Amount)) != 0 {
+	expectedAmount := claims.Quote.CreditedAmountUSD
+	if claims.Quote.CashAmountInput {
+		if claims.PaymentType != payment.TypeGelvAlipay || claims.ProviderKey != payment.TypeGelv {
+			return infraerrors.Forbidden("RETAIL_QUOTE_MISMATCH", "invalid cash quote method")
+		}
+		expectedAmount = claims.Quote.PayAmount
+	}
+	if claims.UserID != req.UserID || claims.PaymentType != NormalizeVisibleMethod(req.PaymentType) || req.OrderType != payment.OrderTypeBalance || decimal.NewFromFloat(expectedAmount).Cmp(decimal.NewFromFloat(req.Amount)) != 0 {
 		return infraerrors.Forbidden("RETAIL_QUOTE_MISMATCH", "quote does not belong to this user, method and balance product")
 	}
 	return nil
@@ -370,6 +380,11 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 	if err = validateRetailCashRange(instance.Limits, req.PaymentType, claims.Quote); err != nil {
 		return nil, err
 	}
+	if req.PaymentType == payment.TypeGelvAlipay {
+		if _, err := provider.GelvAlipayNewAmountMinor(strconv.FormatFloat(claims.Quote.PayAmount, 'f', -1, 64)); err != nil {
+			return nil, infraerrors.BadRequest("INVALID_AMOUNT", "new Alipay payments must be 0.01 to 50 CNY with at most two decimal places")
+		}
+	}
 	if sel.ProviderKey == payment.TypeGelv && ((cfg.MinAmount > 0 && claims.Quote.PayAmount < cfg.MinAmount) || (cfg.MaxAmount > 0 && claims.Quote.PayAmount > cfg.MaxAmount)) {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "cash denomination is outside the configured range")
 	}
@@ -384,7 +399,12 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 	}
 	// Retail credits and cash remain exactly as signed; gateway promotion tiers
 	// cannot add credits or discount a frozen quote during creation or replay.
-	limitAmount := req.Amount
+	// Persist and fulfill net credits; amount on the new request is cash.
+	orderAmount := req.Amount
+	if claims.Quote.CashAmountInput {
+		orderAmount = claims.Quote.CreditedAmountUSD
+	}
+	limitAmount := orderAmount
 	if sel.ProviderKey == payment.TypeGelv {
 		// Before the paying device is known, enforce the largest possible
 		// credit amount rather than letting the iOS lower bound bypass limits.
@@ -394,7 +414,7 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 			}
 		}
 	}
-	order, err := s.createOrderInTx(ctx, req, user, nil, cfg, req.Amount, limitAmount, 0, claims.Quote.PayAmount, 0, sel)
+	order, err := s.createOrderInTx(ctx, req, user, nil, cfg, orderAmount, limitAmount, 0, claims.Quote.PayAmount, 0, sel)
 	if err != nil {
 		// A concurrent replay may have committed the unique checkout reference.
 		existing, lookupErr := s.entClient.PaymentOrder.Query().Where(paymentorder.OutTradeNo(claims.Quote.CheckoutReference)).Only(ctx)
@@ -403,7 +423,7 @@ func (s *PaymentService) createRetailQuotedOrder(ctx context.Context, req Create
 		}
 		return nil, err
 	}
-	result, err := s.invokeProvider(ctx, order, req, cfg, req.Amount, payment.FormatAmountForCurrency(claims.Quote.PayAmount, claims.Quote.Currency), claims.Quote.PayAmount, nil, sel)
+	result, err := s.invokeProvider(ctx, order, req, cfg, orderAmount, payment.FormatAmountForCurrency(claims.Quote.PayAmount, claims.Quote.Currency), claims.Quote.PayAmount, nil, sel)
 	if err != nil {
 		if sel.ProviderKey != payment.TypeGelv {
 			_, _ = s.entClient.PaymentOrder.UpdateOneID(order.ID).SetStatus(OrderStatusFailed).Save(ctx)
@@ -473,6 +493,9 @@ func (s *PaymentService) retailReplayResponse(ctx context.Context, order *dbent.
 		}
 		if err != nil {
 			return nil, err
+		}
+		if sel.ProviderKey == payment.TypeGelv {
+			ctx = provider.WithGelvPaymentRecovery(ctx, order.OutTradeNo)
 		}
 		// Providers use the same out_trade_no/idempotency key: retry restores missing
 		// payment details instead of creating another local balance order.

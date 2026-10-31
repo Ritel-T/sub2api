@@ -33,9 +33,9 @@ export function useRetailQuote(request: Ref<PaymentQuoteRequest | null>) {
       const result = await paymentAPI.quote({ ...input })
       if (requestSequence !== sequence) return
       if (!result.data?.quote_token || !isCurrentRetailQuote(result.data.retail_quote)
-        || (input.payment_type === 'gelv_alipay' && !isGelvAlipayQuote(result.data.retail_quote))
+        || (input.payment_type === 'gelv_alipay' && (!isGelvAlipayQuote(result.data.retail_quote) || result.data.retail_quote.cash_amount_input !== true))
         || (input.payment_type !== 'gelv_alipay' && isGelvAlipayQuote(result.data.retail_quote))
-        || result.data.retail_quote.credited_amount_usd !== input.amount
+        || (input.payment_type === 'gelv_alipay' ? result.data.retail_quote.pay_amount : result.data.retail_quote.credited_amount_usd) !== input.amount
         || Date.parse(result.data.retail_quote.expires_at) <= Date.now()) {
         failed.value = true
         return

@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <!-- Quick Amount Buttons -->
-    <div>
+    <div v-if="paymentType !== 'gelv_alipay'">
       <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {{ t('payment.quickAmounts') }}
       </label>
@@ -35,11 +35,7 @@
             </span>
           </span>
           <span class="block">{{ fixedOptions?.length ? '¥' + fixedOptions.find(option => option.credits === amt)?.cash_cny : amt }}</span>
-          <template v-if="fixedOptions?.length && paymentType === 'gelv_alipay'">
-            <span class="mt-1 block whitespace-nowrap text-xs">{{ t('gelv.alipayCreditLabel') }}</span>
-            <span class="block whitespace-nowrap text-xs">${{ amt.toFixed(2) }}</span>
-          </template>
-          <template v-else-if="fixedOptions?.length">
+          <template v-if="fixedOptions?.length">
             <span class="mt-1 block text-xs">{{ t('gelv.androidCredit', { amount: fixedOptions.find(option => option.credits === amt)?.android_credits }) }}</span>
             <span class="mt-1 block text-xs">{{ t('gelv.iosCredit', { amount: fixedOptions.find(option => option.credits === amt)?.ios_credits }) }}</span>
           </template>
@@ -57,13 +53,13 @@
     </div>
 
     <!-- Custom Amount Input -->
-    <div v-if="!fixedOptions?.length">
+    <div v-if="paymentType === 'gelv_alipay' || !fixedOptions?.length">
       <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {{ t('payment.customAmount') }}
       </label>
       <div class="relative">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
-          $
+          {{ paymentType === 'gelv_alipay' ? '¥' : '$' }}
         </span>
         <input
           type="text"

@@ -389,6 +389,8 @@ export default {
       orderNo: '訂單編號',
       amount: '金額',
       payAmount: '實付',
+      actualPaid: '實付金額',
+      actualCredited: '實際到帳',
       creditedAmount: '到帳金額',
       bonusAmount: '贈送額度',
       bonusIncluded: '含贈送 {amount}',

@@ -22,11 +22,31 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Gelv uses the existing shared products for mini-program and Alipay hosted
-// checkout. Only authenticated partner orders created by this site are eligible
+// Gelv uses existing shared products for mini-program checkout and arbitrary
+// cash for Alipay hosted checkout. Only authenticated site partner orders are eligible
 // for site-credit fulfillment.
 // It has no webhook, cancellation or partner refund API in the supplied v1.
 const GelvAPIBase = "https://alar1c.cn"
+
+// This temporary ceiling applies only when creating Alipay payments. Historical
+// queries and fulfillment continue to use their original frozen amounts.
+const GelvAlipayMaxNewAmountMinor int64 = 5000
+
+func GelvAlipayNewAmountMinor(amount string) (int64, error) {
+	return gelvAlipayAmountMinor(amount, GelvAlipayMaxNewAmountMinor)
+}
+
+func gelvAlipayAmountMinor(amount string, maxMinor int64) (int64, error) {
+	value, err := decimal.NewFromString(strings.TrimSpace(amount))
+	if err != nil || value.LessThan(decimal.NewFromInt(1).Shift(-2)) || value.GreaterThan(decimal.NewFromInt(maxMinor).Shift(-2)) {
+		return 0, gelvError("invalid_alipay_amount")
+	}
+	minor, err := payment.AmountToMinorUnit(amount, "CNY")
+	if err != nil {
+		return 0, gelvError("invalid_alipay_amount")
+	}
+	return minor, nil
+}
 
 var (
 	ErrGelvUnsupported          = errors.New("gelv: operation unsupported; use channel manual refund")
@@ -37,6 +57,15 @@ var (
 	gelvPartnerPattern          = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
 	gelvPlatformPaymentPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]{6,128}$`)
 )
+
+type gelvPaymentRecoveryKey struct{}
+
+// WithGelvPaymentRecovery is for replaying an already-persisted local order.
+// Bind the exception to its immutable reference; HTTP request data must never
+// enable it. The service checks the new-order cap before persisting any order.
+func WithGelvPaymentRecovery(ctx context.Context, reference string) context.Context {
+	return context.WithValue(ctx, gelvPaymentRecoveryKey{}, reference)
+}
 
 // GelvError intentionally excludes upstream bodies, credentials and signed headers.
 type GelvError struct {
@@ -215,17 +244,23 @@ type GelvOrder struct {
 }
 
 func (g *Gelv) validateOrder(o *GelvOrder) error {
-	if !gelvOrderIDPattern.MatchString(o.ID) || !gelvReferencePattern.MatchString(o.PartnerOrderID) || !g.products[o.ProductID] || o.Amount <= 0 || o.Refunded == nil || *o.Refunded < 0 || *o.Refunded > o.Amount || o.Currency != "CNY" {
+	if !gelvOrderIDPattern.MatchString(o.ID) || !gelvReferencePattern.MatchString(o.PartnerOrderID) || o.Amount <= 0 || o.Amount > 50000 || o.Refunded == nil || *o.Refunded < 0 || *o.Refunded > o.Amount || o.Currency != "CNY" {
 		return gelvError("invalid_order_scope_or_amount")
 	}
-	if _, err := GelvAmountMinor(decimal.NewFromInt(o.Amount).Shift(-2).String()); err != nil {
-		return err
-	}
-	// The shared products have a documented, exact cash-to-product mapping.
-	// An allowed product of the wrong tier is still a different purchase.
-	expectedProduct, _ := GelvProductForMinor(o.Amount)
-	if o.ProductID != expectedProduct {
-		return gelvError("product_denomination_mismatch")
+	if o.CheckoutChannel != "alipay_web" {
+		// Only the mini-program purchases a denomination-mapped product.
+		if !g.products[o.ProductID] {
+			return gelvError("invalid_order_scope_or_amount")
+		}
+		expectedProduct, err := GelvProductForMinor(o.Amount)
+		if err != nil {
+			return err
+		}
+		if o.ProductID != expectedProduct {
+			return gelvError("product_denomination_mismatch")
+		}
+	} else if o.ProductID != "" && !g.products[o.ProductID] {
+		return gelvError("invalid_order_scope_or_amount")
 	}
 	switch o.Status {
 	case "pending", "paid", "partially_refunded", "refunded", "closed":
@@ -265,7 +300,18 @@ func (g *Gelv) CreatePayment(ctx context.Context, req payment.CreatePaymentReque
 	if (req.PaymentType != payment.TypeGelv && req.PaymentType != payment.TypeGelvAlipay) || !gelvReferencePattern.MatchString(req.OrderID) {
 		return nil, gelvError("invalid_order_reference")
 	}
-	minor, err := GelvAmountMinor(req.Amount)
+	var minor int64
+	var err error
+	if req.PaymentType == payment.TypeGelvAlipay {
+		if reference, _ := ctx.Value(gelvPaymentRecoveryKey{}).(string); reference != "" && reference == req.OrderID {
+			// Preserve the prior 500-CNY ceiling for idempotent recovery only.
+			minor, err = gelvAlipayAmountMinor(req.Amount, 50000)
+		} else {
+			minor, err = GelvAlipayNewAmountMinor(req.Amount)
+		}
+	} else {
+		minor, err = GelvAmountMinor(req.Amount)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -121,7 +121,8 @@ describe('admin order currency display', () => {
     const text = wrapper.text()
     expect(text).toContain('$108.00')
     expect(text).toContain('¥108.00')
-    expect(text).toContain('$100.00')
+    expect(text).not.toContain('$100.00')
+    expect(text).toContain('payment.orders.actualCredited: —')
   })
 
   it('renders payment currency consistently in the admin order table', () => {
@@ -149,7 +150,8 @@ describe('admin order currency display', () => {
     const text = wrapper.text()
     expect(text).toContain('$108.00')
     expect(text).toContain('¥108.00')
-    expect(text).toContain('$100.00')
+    expect(text).not.toContain('$100.00')
+    expect(text).toContain('payment.orders.actualCredited: —')
   })
 })
 
@@ -211,30 +213,30 @@ describe('admin immutable retail order amounts', () => {
     wrapper.unmount()
   })
 
-  it('shows CNY principal and site credit units in the shared user order table', () => {
+  it('shows only actual credit and payment in the shared user order table', () => {
     const wrapper = mount(OrderTable, {
       props: { orders: [{ ...order, currency: 'GBP', pay_amount: 1.36, retail_quote: { ...retailQuote, pricing_basis_currency: 'CNY', base_amount_cny: 10, base_amount_gbp: 1.05, total_amount_gbp: 1.36, included_cost_gbp: 0.31, pay_amount: 1.36, currency: 'GBP' } }], loading: false },
       global: { stubs: { DataTable: DataTableStub, OrderStatusBadge: true } },
     })
     const text = wrapper.text()
-    expect(text).toContain('paymentRetail.siteCredit')
-    expect(text).toContain('paymentRetail.principalCNY')
+    expect(text).toContain('payment.orders.actualCredited')
+    expect(text).not.toContain('paymentRetail.principalCNY')
     expect(text).toContain('$10.00')
     expect(text).not.toContain('$10.00 USD')
-    expect(text).toContain('¥10.00 CNY')
+    expect(text).not.toContain('¥10.00 CNY')
     expect(text).toContain('£1.36 GBP')
     wrapper.unmount()
   })
 
-  it('shows all four immutable snapshot values in the admin table for any payment method', () => {
+  it('shows only persisted actual totals in the admin table for any payment method', () => {
     const wrapper = mount(AdminOrderTable, {
       props: { orders: [order], loading: false, page: 1, pageSize: 20, total: 1 },
       global: { stubs: { DataTable: DataTableStub, Icon: true, Pagination: true, Select: true } },
     })
-    const text = wrapper.get('[data-testid="admin-retail-order-amounts"]').text()
-    expect(text).toContain('$10.00 USD')
-    expect(text).toContain('£7.88 GBP')
-    expect(text).toContain('£0.41 GBP')
+    const text = wrapper.get('[data-testid="order-amounts"]').text()
+    expect(text).toContain('$10.00')
+    expect(text).not.toContain('£7.88 GBP')
+    expect(text).not.toContain('£0.41 GBP')
     expect(text).toContain('¥75.65 CNY')
     expect(wrapper.text()).not.toContain('88%')
     wrapper.unmount()
@@ -244,8 +246,8 @@ describe('admin immutable retail order amounts', () => {
       props: { orders: [gelvOrder({ amount: credit })], loading: false, page: 1, pageSize: 20, total: 1 },
       global: { stubs: { DataTable: DataTableStub, Icon: true, Pagination: true, Select: true } },
     })
-    const text = wrapper.get('[data-testid="admin-retail-order-amounts"]').text()
-    expect(text).toContain('payment.admin.detail.actualPaid')
+    const text = wrapper.get('[data-testid="order-amounts"]').text()
+    expect(text).toContain('payment.orders.actualPaid')
     expect(text).toContain('¥10.00 CNY')
     expect(text).toContain('$' + credit.toFixed(2))
     expect(text).not.toContain('principalCNY')

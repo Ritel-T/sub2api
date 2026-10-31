@@ -15,10 +15,13 @@ export function isRetailQuote(value: unknown): value is RetailQuote {
       && typeof channels.wechat_virtual === 'number' && typeof channels.apple_iap === 'number'
       && Math.abs(channels.wechat_virtual - (quote.pay_amount ?? 0) * 0.99) < 0.000001
       && Math.abs(channels.apple_iap - (quote.pay_amount ?? 0) * 0.88) < 0.000001
-    return (alipay || legacy) && quote.currency === 'CNY' && quote.pricing_basis_currency === 'CNY'
+    return (alipay || legacy) && (quote.cash_amount_input === undefined || (alipay && quote.cash_amount_input === true)) && quote.currency === 'CNY' && quote.pricing_basis_currency === 'CNY'
       && typeof quote.credited_amount_usd === 'number' && Number.isFinite(quote.credited_amount_usd)
       && quote.credited_amount_usd > 0 && quote.base_amount_cny === quote.credited_amount_usd
-      && [10, 30, 50, 100, 200, 500].includes(quote.pay_amount ?? 0)
+      && (alipay
+        ? typeof quote.pay_amount === 'number' && Number.isFinite(quote.pay_amount) && quote.pay_amount > 0
+          && Math.abs(quote.pay_amount * 100 - Math.round(quote.pay_amount * 100)) < 0.000001
+        : [10, 30, 50, 100, 200, 500].includes(quote.pay_amount ?? 0))
       && quote.credited_amount_usd <= (quote.pay_amount ?? 0)
       && quote.base_amount_gbp === 0 && quote.total_amount_gbp === 0 && quote.included_cost_gbp === 0
       && typeof quote.checkout_reference === 'string' && quote.checkout_reference.trim() !== ''

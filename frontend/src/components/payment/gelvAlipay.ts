@@ -1,6 +1,6 @@
-import type { MethodLimit, TopupOption } from '@/types/payment'
+import type { MethodLimit } from '@/types/payment'
 
-export const GELV_CASH_TIERS = [10, 30, 50, 100, 200, 500] as const
+export const GELV_ALIPAY_MAX_CNY = 50
 
 /** Match the raw wire format; URL parsing alone silently normalizes unsafe input. */
 export function isValidGelvAlipayPayURL(value: unknown): value is string {
@@ -24,10 +24,12 @@ export function isValidAlipayFeeRateBps(value: unknown): value is string {
   return typeof value === 'string' && /^(0|[1-9][0-9]{0,3})(?![\s\S])/.test(value)
 }
 
-/** The server supplies the agreed credits; the client never invents a fee or rate. */
-export function hasGelvAlipayTiers(limit?: MethodLimit): boolean {
-  const options = limit?.topup_options
-  return options?.length === GELV_CASH_TIERS.length
-    && GELV_CASH_TIERS.every(cash => options.some((option: TopupOption) =>
-      option.cash_cny === cash && Number.isFinite(option.credits) && option.credits > 0 && option.credits <= cash))
+/** New requests use cash bounds. Historical quote snapshots may exceed today's cap. */
+export function gelvAlipayAmountRange(limit?: MethodLimit, globalMin = 0, globalMax = 0) {
+  const positive = (values: (number | undefined)[]) => values.filter((value): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0)
+  return {
+    min: Math.max(0.01, ...positive([limit?.single_min, globalMin])),
+    max: Math.min(GELV_ALIPAY_MAX_CNY, ...positive([limit?.single_max, globalMax])),
+  }
 }

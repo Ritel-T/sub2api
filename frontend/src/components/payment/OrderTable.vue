@@ -12,42 +12,8 @@
         <span v-if="row.user_notes" class="ml-1 text-xs text-gray-400">({{ row.user_notes }})</span>
       </div>
     </template>
-    <template #cell-pay_amount="{ value, row }">
-      <div class="text-sm">
-        <div v-if="row.payment_type === 'gelv_alipay'" class="text-xs text-gray-500">{{ t('gelv.orderPayable') }}</div>
-        <span v-if="row.payment_type === 'balance' && row.order_type === 'subscription'" class="font-medium text-gray-900 dark:text-white">{{ t('payment.methods.balance') }} ${{ row.amount.toFixed(2) }}</span>
-        <span v-else class="font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(row) + value.toFixed(2) + (row.retail_quote ? ' ' + row.retail_quote.currency : '') }}</span>
-        <span v-if="!row.retail_quote && row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
-          ({{ t('payment.orders.fee') }} {{ row.fee_rate }}%)
-        </span>
-        <div v-if="row.retail_quote" class="space-y-1 text-xs text-gray-500">
-          <template v-if="isGelvAlipayQuote(row.retail_quote)">
-            <div>{{ t('gelv.alipayCredit', { amount: (row.paid_at ? row.amount : row.retail_quote.credited_amount_usd).toFixed(2) }) }}</div>
-            <div>{{ t('gelv.agreedDeduction') }}: ¥{{ (row.retail_quote.pay_amount - row.retail_quote.credited_amount_usd).toFixed(2) }} CNY</div>
-          </template>
-          <template v-else-if="row.retail_quote.pricing_mode === 'gelv_channel_cny' && !row.paid_at">
-            <div>{{ t('gelv.androidCredit', { amount: row.retail_quote.credit_by_channel!.wechat_virtual!.toFixed(2) }) }}</div>
-            <div>{{ t('gelv.iosCredit', { amount: row.retail_quote.credit_by_channel!.apple_iap!.toFixed(2) }) }}</div>
-          </template>
-          <div v-else>{{ t(row.retail_quote.pricing_basis_currency === 'CNY' ? 'paymentRetail.siteCredit' : 'paymentRetail.credited') }}: {{ creditedAmountSymbol + row.amount.toFixed(2) + (row.retail_quote.pricing_basis_currency === 'CNY' ? '' : ' USD') }}</div>
-          <div v-if="row.retail_quote.pricing_mode !== 'gelv_channel_cny' && row.retail_quote.pricing_basis_currency === 'CNY'">{{ t('paymentRetail.principalCNY') }}: ¥{{ row.retail_quote.base_amount_cny!.toFixed(2) }} CNY</div>
-          <template v-if="isGelvAlipayQuote(row.retail_quote)">
-            <div>{{ t('gelv.alipayCredit', { amount: (row.paid_at ? row.amount : row.retail_quote.credited_amount_usd).toFixed(2) }) }}</div>
-            <div>{{ t('gelv.agreedDeduction') }}: ¥{{ (row.retail_quote.pay_amount - row.retail_quote.credited_amount_usd).toFixed(2) }} CNY</div>
-          </template>
-          <template v-else-if="row.retail_quote.pricing_mode !== 'gelv_channel_cny'">
-            <div>{{ t('paymentRetail.total') }}: £{{ row.retail_quote.total_amount_gbp.toFixed(2) }} GBP</div>
-            <div>{{ t('paymentRetail.includedCost') }}: £{{ row.retail_quote.included_cost_gbp.toFixed(2) }} GBP</div>
-          </template>
-          <div v-else-if="!isGelvAlipayQuote(row.retail_quote) && !row.paid_at">{{ t('gelv.feeRates') }}</div>
-        </div>
-        <div v-else-if="row.payment_type !== 'balance' && (row.amount !== row.pay_amount || (row.bonus_amount ?? 0) > 0)" class="text-xs text-gray-500">
-          {{ t('payment.orders.creditedAmount') }}: {{ creditedAmountSymbol }}{{ row.amount.toFixed(2) }}
-          <span v-if="(row.bonus_amount ?? 0) > 0" class="ml-1 text-amber-600 dark:text-amber-400">
-            ({{ t('payment.orders.bonusIncluded', { amount: creditedAmountSymbol + (row.bonus_amount ?? 0).toFixed(2) }) }})
-          </span>
-        </div>
-      </div>
+    <template #cell-pay_amount="{ row }">
+      <OrderAmounts :order="row" />
     </template>
     <template #cell-payment_type="{ value }">
       <span class="text-sm text-gray-700 dark:text-gray-300">{{ t(value === 'gelv_alipay' ? 'gelv.alipayName' : value === 'gelv' ? 'gelv.name' : 'payment.methods.' + value, value) }}</span>
@@ -65,14 +31,13 @@
 </template>
 
 <script setup lang="ts">
-import { isGelvAlipayQuote } from './retailQuote'
+import OrderAmounts from './OrderAmounts.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PaymentOrder } from '@/types/payment'
 import type { Column } from '@/components/common/types'
 import DataTable from '@/components/common/DataTable.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
-import { currencySymbol } from '@/components/payment/currency'
 
 const { t } = useI18n()
 
@@ -84,12 +49,6 @@ const props = defineProps<{
 
 function formatDate(dateStr: string) { return new Date(dateStr).toLocaleString() }
 
-const creditedAmountSymbol = currencySymbol('USD')
-
-function paymentAmountSymbol(order: PaymentOrder): string {
-  return currencySymbol(order.currency)
-}
-
 const columns = computed((): Column[] => {
   const cols: Column[] = [
     { key: 'id', label: t('payment.orders.orderId') },
@@ -99,7 +58,7 @@ const columns = computed((): Column[] => {
     cols.push({ key: 'user_email', label: t('payment.admin.colUser') })
   }
   cols.push(
-    { key: 'pay_amount', label: t('payment.orders.payAmount') },
+    { key: 'pay_amount', label: t('payment.orders.amount') },
     { key: 'payment_type', label: t('payment.orders.paymentMethod') },
     { key: 'status', label: t('payment.orders.status') },
     { key: 'created_at', label: t('payment.orders.createdAt') },

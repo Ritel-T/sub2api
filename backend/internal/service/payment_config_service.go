@@ -155,14 +155,17 @@ type UpdatePaymentConfigRequest struct {
 
 // MethodLimits holds per-payment-type limits.
 type MethodLimits struct {
-	TopupOptions []provider.GelvCreditOption `json:"topup_options,omitempty"`
-	PaymentType  string                      `json:"payment_type"`
-	DisplayName  string                      `json:"display_name,omitempty"`
-	Currency     string                      `json:"currency"`
-	FeeRate      float64                     `json:"fee_rate"`
-	DailyLimit   float64                     `json:"daily_limit"`
-	SingleMin    float64                     `json:"single_min"`
-	SingleMax    float64                     `json:"single_max"`
+	AmountCurrency string                      `json:"amount_currency,omitempty"`
+	AmountStep     float64                     `json:"amount_step,omitempty"`
+	FeeRateBPS     *int64                      `json:"fee_rate_bps,omitempty"`
+	TopupOptions   []provider.GelvCreditOption `json:"topup_options,omitempty"`
+	PaymentType    string                      `json:"payment_type"`
+	DisplayName    string                      `json:"display_name,omitempty"`
+	Currency       string                      `json:"currency"`
+	FeeRate        float64                     `json:"fee_rate"`
+	DailyLimit     float64                     `json:"daily_limit"`
+	SingleMin      float64                     `json:"single_min"`
+	SingleMax      float64                     `json:"single_max"`
 }
 
 // MethodLimitsResponse is the full response for the user-facing /limits API.
