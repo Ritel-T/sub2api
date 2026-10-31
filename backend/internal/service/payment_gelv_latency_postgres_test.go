@@ -70,6 +70,8 @@ func TestGelvLatencyPostgresLanePartition(t *testing.T) {
 			SetOrderType(payment.OrderTypeBalance).SetStatus(tc.status).SetExpiresAt(time.Now().Add(time.Hour)).SetClientIP("127.0.0.1").SetSrcHost("example.invalid")
 		if tc.bound {
 			create.SetPaymentTradeNo(ref)
+		} else {
+			create.SetPaymentTradeNo("")
 		}
 		row, err := create.Save(ctx)
 		require.NoError(t, err)
