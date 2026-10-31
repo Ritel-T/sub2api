@@ -40,6 +40,9 @@ func lockPaymentRedemptionGuard(ctx context.Context, tx *dbent.Tx, client *dbent
 	if err != nil {
 		return infraerrors.Conflict("PAYMENT_REDEMPTION_CHANGED", "payment order cannot be locked for redemption")
 	}
+	if err := requireGelvFulfillmentEvidence(order); err != nil {
+		return err
+	}
 	if order.OrderType != "balance" || order.Status != OrderStatusRecharging || !order.UpdatedAt.Equal(guard.LeaseVersion) {
 		return infraerrors.Conflict("PAYMENT_REDEMPTION_CHANGED", "payment order was changed or refunded before redemption")
 	}

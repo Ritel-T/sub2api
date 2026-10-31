@@ -93,6 +93,11 @@ func TestGelvResumeAfterCreditBeforeCompletedDoesNotCreditAgain(t *testing.T) {
 	ctx := context.Background()
 	m := gelvServiceMetadata(o, "wechat_virtual")
 	o.ProviderSnapshot["gelv_payment_channel"] = "wechat_virtual"
+	// PAID is persisted atomically with verified identity and finalized pricing.
+	o.ProviderSnapshot["gelv_wx_order_id"] = m["wx_order_id"]
+	o.ProviderSnapshot["gelv_channel_verification_status"] = "verified"
+	o.ProviderSnapshot["gelv_fee_rate_bps"] = "100"
+	o.ProviderSnapshot["gelv_final_credit"] = 9.9
 	_, err := s.entClient.PaymentOrder.UpdateOneID(o.ID).SetAmount(9.9).SetProviderSnapshot(o.ProviderSnapshot).Save(ctx)
 	require.NoError(t, err)
 	uid := o.UserID

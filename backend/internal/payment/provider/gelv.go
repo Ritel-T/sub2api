@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,17 +22,20 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Gelv uses the existing shared mini-program products. Only authenticated
-// partner orders created by this site are eligible for site-credit fulfillment.
+// Gelv uses the existing shared products for mini-program and Alipay hosted
+// checkout. Only authenticated partner orders created by this site are eligible
+// for site-credit fulfillment.
 // It has no webhook, cancellation or partner refund API in the supplied v1.
 const GelvAPIBase = "https://alar1c.cn"
 
 var (
-	ErrGelvUnsupported         = errors.New("gelv: operation unsupported; use channel manual refund")
-	gelvOrderIDPattern         = regexp.MustCompile(`^[a-f0-9]{24}$`)
-	gelvReferencePattern       = regexp.MustCompile(`^[A-Za-z0-9_-]{8,80}$`)
-	gelvPartnerPattern         = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
-	gelvPlatformPaymentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{6,128}$`)
+	ErrGelvUnsupported          = errors.New("gelv: operation unsupported; use channel manual refund")
+	gelvCheckoutFragmentPattern = regexp.MustCompile(`^(id=[a-f0-9]{24}&token=[a-f0-9]{64}|token=[a-f0-9]{64}&id=[a-f0-9]{24})$`)
+	gelvFeeBPSPattern           = regexp.MustCompile(`^[0-9]+$`)
+	gelvOrderIDPattern          = regexp.MustCompile(`^[a-f0-9]{24}$`)
+	gelvReferencePattern        = regexp.MustCompile(`^[A-Za-z0-9_-]{8,80}$`)
+	gelvPartnerPattern          = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
+	gelvPlatformPaymentPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]{6,128}$`)
 )
 
 // GelvError intentionally excludes upstream bodies, credentials and signed headers.
@@ -111,9 +115,57 @@ func GelvCredits(cashMinor int64, channel string) (float64, error) {
 	return decimal.NewFromInt(cashMinor).Mul(decimal.NewFromInt(factor)).Div(decimal.NewFromInt(10000)).Truncate(2).InexactFloat64(), nil
 }
 
-func (*Gelv) Name() string                          { return "WeChat mini-program" }
-func (*Gelv) ProviderKey() string                   { return payment.TypeGelv }
-func (*Gelv) SupportedTypes() []payment.PaymentType { return []payment.PaymentType{payment.TypeGelv} }
+// GelvAlipayFeeBPS reads the explicit partner agreement, independently of any
+// platform-reported rate. Missing configuration must never imply a free channel.
+func GelvAlipayFeeBPS(config map[string]string) (int64, error) {
+	raw := strings.TrimSpace(config["alipayFeeRateBps"])
+	if !gelvFeeBPSPattern.MatchString(raw) {
+		return 0, gelvError("invalid_alipay_fee_rate_bps")
+	}
+	bps, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || bps < 0 || bps > 9999 {
+		return 0, gelvError("invalid_alipay_fee_rate_bps")
+	}
+	return bps, nil
+}
+
+// GelvAlipayCredits deducts the agreed fee rounded to whole fen before converting
+// the net fen to site credits. It does not estimate a platform settlement fee.
+func GelvAlipayCredits(cashMinor, bps int64) (float64, error) {
+	if cashMinor <= 0 || cashMinor > 50000 {
+		return 0, gelvError("invalid_amount")
+	}
+	if bps < 0 || bps > 9999 {
+		return 0, gelvError("invalid_alipay_fee_rate_bps")
+	}
+	cash := decimal.NewFromInt(cashMinor)
+	fee := cash.Mul(decimal.NewFromInt(bps)).Div(decimal.NewFromInt(10000)).Round(0)
+	return cash.Sub(fee).Div(decimal.NewFromInt(100)).InexactFloat64(), nil
+}
+
+// GelvAlipayCreditOptions quotes the six existing products using only the
+// explicit Alipay agreement; legacy Android and iOS credits are not inferred.
+func GelvAlipayCreditOptions(config map[string]string) ([]GelvCreditOption, error) {
+	bps, err := GelvAlipayFeeBPS(config)
+	if err != nil {
+		return nil, err
+	}
+	var out []GelvCreditOption
+	for _, cash := range []int64{10, 30, 50, 100, 200, 500} {
+		credits, err := GelvAlipayCredits(cash*100, bps)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, GelvCreditOption{CashCNY: float64(cash), Credits: credits})
+	}
+	return out, nil
+}
+
+func (*Gelv) Name() string        { return "WeChat mini-program" }
+func (*Gelv) ProviderKey() string { return payment.TypeGelv }
+func (*Gelv) SupportedTypes() []payment.PaymentType {
+	return []payment.PaymentType{payment.TypeGelv, payment.TypeGelvAlipay}
+}
 func (g *Gelv) MerchantIdentityMetadata() map[string]string {
 	return map[string]string{"partner_id": g.partnerID, "currency": "CNY"}
 }
@@ -149,6 +201,9 @@ type GelvOrder struct {
 	WxOrderID                 string `json:"wxOrderId"`
 	MerchantOrderID           string `json:"merchantOrderId"`
 	PaymentChannel            string `json:"paymentChannel"`
+	CheckoutChannel           string `json:"checkoutChannel"`
+	AlipayTradeNo             string `json:"alipayTradeNo"`
+	RefundPending             bool   `json:"refundPending"`
 	ChannelVerified           bool   `json:"channelVerified"`
 	ChannelVerificationStatus string `json:"channelVerificationStatus"`
 	ChannelVerifiedAt         *int64 `json:"channelVerifiedAt"`
@@ -177,7 +232,27 @@ func (g *Gelv) validateOrder(o *GelvOrder) error {
 	default:
 		return gelvError("unknown_order_status")
 	}
-	if o.Status == "paid" && (!gelvPlatformPaymentPattern.MatchString(o.WxOrderID) || *o.Refunded != 0) {
+	// Old records predate checkoutChannel and belong only to the legacy flow.
+	if o.CheckoutChannel == "" {
+		o.CheckoutChannel = "wechat_virtual"
+	}
+	switch o.CheckoutChannel {
+	case "wechat_virtual":
+		if o.PaymentChannel == "alipay_web" {
+			return gelvError("checkout_channel_mismatch")
+		}
+	case "alipay_web":
+		if o.PaymentChannel != "" && o.PaymentChannel != "alipay_web" {
+			return gelvError("checkout_channel_mismatch")
+		}
+	default:
+		return gelvError("invalid_checkout_channel")
+	}
+	evidence := o.WxOrderID
+	if o.PaymentChannel == "alipay_web" {
+		evidence = o.AlipayTradeNo
+	}
+	if o.Status == "paid" && !o.RefundPending && (!gelvPlatformPaymentPattern.MatchString(evidence) || *o.Refunded != 0) {
 		return gelvError("incomplete_paid_evidence")
 	}
 	if (o.Status == "partially_refunded" && (*o.Refunded <= 0 || *o.Refunded >= o.Amount)) || (o.Status == "refunded" && *o.Refunded != o.Amount) {
@@ -187,21 +262,28 @@ func (g *Gelv) validateOrder(o *GelvOrder) error {
 }
 
 func (g *Gelv) CreatePayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {
-	if req.PaymentType != payment.TypeGelv || !gelvReferencePattern.MatchString(req.OrderID) {
+	if (req.PaymentType != payment.TypeGelv && req.PaymentType != payment.TypeGelvAlipay) || !gelvReferencePattern.MatchString(req.OrderID) {
 		return nil, gelvError("invalid_order_reference")
 	}
 	minor, err := GelvAmountMinor(req.Amount)
 	if err != nil {
 		return nil, err
 	}
+	checkoutChannel := "wechat_virtual"
+	requestChannel := ""
+	if req.PaymentType == payment.TypeGelvAlipay {
+		checkoutChannel, requestChannel = "alipay_web", "alipay_web"
+	}
 	var out struct {
-		Order GelvOrder `json:"order"`
-		Image string    `json:"image"`
+		Order       GelvOrder `json:"order"`
+		Image       string    `json:"image"`
+		CheckoutURL string    `json:"checkoutUrl"`
 	}
 	if err = g.post(ctx, "/api/partner/v1/orders", struct {
 		PartnerOrderID string `json:"partnerOrderId"`
 		Amount         int64  `json:"amount"`
-	}{req.OrderID, minor}, &out); err != nil {
+		PaymentChannel string `json:"paymentChannel,omitempty"`
+	}{req.OrderID, minor, requestChannel}, &out); err != nil {
 		return nil, err
 	}
 	if err = g.validateOrder(&out.Order); err != nil {
@@ -210,12 +292,24 @@ func (g *Gelv) CreatePayment(ctx context.Context, req payment.CreatePaymentReque
 	if out.Order.PartnerOrderID != req.OrderID || out.Order.Amount != minor {
 		return nil, gelvError("created_order_mismatch")
 	}
+	if out.Order.CheckoutChannel != checkoutChannel {
+		return nil, gelvError("checkout_channel_mismatch")
+	}
+	if req.PaymentType == payment.TypeGelvAlipay {
+		if !validGelvCheckoutURL(out.CheckoutURL, out.Order.ID) {
+			return nil, gelvError("invalid_alipay_checkout_url")
+		}
+		return &payment.CreatePaymentResponse{TradeNo: out.Order.ID, PayURL: out.CheckoutURL, Currency: "CNY", Metadata: g.orderMetadata(&out.Order)}, nil
+	}
+	if out.CheckoutURL != "" {
+		return nil, gelvError("checkout_channel_mismatch")
+	}
 	if out.Image != "" && !validGelvImage(out.Image) {
 		return nil, gelvError("invalid_miniprogram_image")
 	}
 	// An idempotent replay can legitimately omit the image (already bound,
 	// paid or expired). The service must retain an earlier persisted image.
-	return &payment.CreatePaymentResponse{TradeNo: out.Order.ID, QRCode: out.Image, Currency: "CNY"}, nil
+	return &payment.CreatePaymentResponse{TradeNo: out.Order.ID, QRCode: out.Image, Currency: "CNY", Metadata: g.orderMetadata(&out.Order)}, nil
 }
 
 func (g *Gelv) QueryOrder(ctx context.Context, id string) (*payment.QueryOrderResponse, error) {
@@ -237,13 +331,13 @@ func (g *Gelv) QueryOrder(ctx context.Context, id string) (*payment.QueryOrderRe
 	if o.ID != id {
 		return nil, gelvError("queried_order_mismatch")
 	}
-	if o.Status == "paid" && o.ChannelVerificationStatus == "conflict" {
+	if o.Status == "paid" && !o.RefundPending && o.ChannelVerificationStatus == "conflict" {
 		return nil, gelvError("paid_channel_conflict")
 	}
-	if o.Status == "paid" && (!o.ChannelVerified || o.ChannelVerificationStatus != "verified" || (o.PaymentChannel != "wechat_virtual" && o.PaymentChannel != "apple_iap")) {
+	if o.Status == "paid" && !o.RefundPending && (!o.ChannelVerified || o.ChannelVerificationStatus != "verified" || (o.PaymentChannel != "wechat_virtual" && o.PaymentChannel != "apple_iap" && o.PaymentChannel != "alipay_web")) {
 		return nil, gelvError("paid_channel_unverified")
 	}
-	if o.Status == "paid" {
+	if o.Status == "paid" && !o.RefundPending && o.PaymentChannel != "alipay_web" {
 		expectedRate := int64(100)
 		if o.PaymentChannel == "apple_iap" {
 			expectedRate = 1200
@@ -261,19 +355,55 @@ func (g *Gelv) QueryOrder(ctx context.Context, id string) (*payment.QueryOrderRe
 	case "closed":
 		status = payment.ProviderStatusFailed
 	}
+	if o.RefundPending {
+		status = payment.ProviderStatusPending
+	}
+	return &payment.QueryOrderResponse{TradeNo: o.ID, Status: status, Amount: float64(o.Amount) / 100, Currency: "CNY", Metadata: g.orderMetadata(o)}, nil
+}
+
+// orderMetadata keeps unknown numeric platform evidence absent, distinct from
+// a reported zero. Agreement rates are never substituted for these values.
+func (g *Gelv) orderMetadata(o *GelvOrder) map[string]string {
 	metadata := map[string]string{
 		"partner_id": g.partnerID, "partner_order_id": o.PartnerOrderID, "gelv_order_id": o.ID,
 		"product_id": o.ProductID, "currency": "CNY", "wx_order_id": o.WxOrderID,
-		"gelv_status": o.Status, "amount_minor": strconv.FormatInt(o.Amount, 10), "refunded_minor": strconv.FormatInt(*o.Refunded, 10),
-		"payment_channel": o.PaymentChannel, "channel_verified": strconv.FormatBool(o.ChannelVerified),
-		"channel_verification_status": o.ChannelVerificationStatus,
+		"merchant_order_id": o.MerchantOrderID,
+		"gelv_status":       o.Status, "amount_minor": strconv.FormatInt(o.Amount, 10), "refunded_minor": strconv.FormatInt(*o.Refunded, 10),
+		"checkout_channel": o.CheckoutChannel, "payment_channel": o.PaymentChannel,
+		"alipay_trade_no": o.AlipayTradeNo, "refund_pending": strconv.FormatBool(o.RefundPending),
+		"channel_verified": strconv.FormatBool(o.ChannelVerified), "channel_verification_status": o.ChannelVerificationStatus,
+	}
+	if o.RefundPending {
+		metadata["reconciliation_hold"] = "refund_pending"
 	}
 	for key, value := range map[string]*int64{"fee_rate_bps": o.FeeRateBps, "channel_verified_at": o.ChannelVerifiedAt, "settlement_state": o.SettlementState, "platform_fee_fen": o.PlatformFeeFen, "cps_fee_fen": o.CPSFeeFen, "settled_at": o.SettledAt} {
 		if value != nil {
 			metadata[key] = strconv.FormatInt(*value, 10)
 		}
 	}
-	return &payment.QueryOrderResponse{TradeNo: o.ID, Status: status, Amount: float64(o.Amount) / 100, Currency: "CNY", Metadata: metadata}, nil
+	return metadata
+}
+
+// Validate the original URL as well as its parsed components. The raw fragment
+// grammar disallows duplicate keys, escaped aliases and extra parameters.
+func validGelvCheckoutURL(raw, id string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host != "alar1c.cn" || u.User != nil || u.Opaque != "" {
+		return false
+	}
+	if u.Path != "/partner-pay/" || u.RawPath != "" || u.RawQuery != "" || u.ForceQuery {
+		return false
+	}
+	if u.RawFragment != "" || !strings.HasPrefix(raw, GelvAPIBase+"/partner-pay/#") || !gelvCheckoutFragmentPattern.MatchString(u.Fragment) {
+		return false
+	}
+	for _, pair := range strings.Split(u.Fragment, "&") {
+		key, value, _ := strings.Cut(pair, "=")
+		if key == "id" {
+			return value == id
+		}
+	}
+	return false
 }
 
 func (*Gelv) VerifyNotification(context.Context, string, map[string]string) (*payment.PaymentNotification, error) {

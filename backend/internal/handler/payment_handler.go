@@ -516,84 +516,88 @@ func (h *PaymentHandler) VerifyOrder(c *gin.Context) {
 // proves possession of the checkout session, so the result keeps the legacy
 // frontend contract needed by payment result pages.
 type PublicOrderResult struct {
-	ID                  int64                `json:"id"`
-	OutTradeNo          string               `json:"out_trade_no"`
-	Amount              float64              `json:"amount"`
-	PayAmount           float64              `json:"pay_amount"`
-	RetailQuote         *service.RetailQuote `json:"retail_quote,omitempty"`
-	PaymentClaimMode    string               `json:"payment_claim_mode,omitempty"`
-	PayURL              string               `json:"pay_url,omitempty"`
-	FeeRate             float64              `json:"fee_rate"`
-	BonusAmount         float64              `json:"bonus_amount"`
-	Currency            string               `json:"currency"`
-	PaymentType         string               `json:"payment_type"`
-	OrderType           string               `json:"order_type"`
-	Status              string               `json:"status"`
-	CreatedAt           time.Time            `json:"created_at"`
-	ExpiresAt           time.Time            `json:"expires_at"`
-	PaidAt              *time.Time           `json:"paid_at,omitempty"`
-	CompletedAt         *time.Time           `json:"completed_at,omitempty"`
-	RefundAmount        float64              `json:"refund_amount"`
-	RefundReason        *string              `json:"refund_reason,omitempty"`
-	RefundRequestedAt   *time.Time           `json:"refund_requested_at,omitempty"`
-	RefundRequestedBy   *string              `json:"refund_requested_by,omitempty"`
-	RefundRequestReason *string              `json:"refund_request_reason,omitempty"`
-	PlanID              *int64               `json:"plan_id,omitempty"`
-	RenewalMode         string               `json:"renewal_mode,omitempty"`
+	RefundReconciliationPending bool                 `json:"refund_reconciliation_pending"`
+	ID                          int64                `json:"id"`
+	OutTradeNo                  string               `json:"out_trade_no"`
+	Amount                      float64              `json:"amount"`
+	PayAmount                   float64              `json:"pay_amount"`
+	RetailQuote                 *service.RetailQuote `json:"retail_quote,omitempty"`
+	PaymentClaimMode            string               `json:"payment_claim_mode,omitempty"`
+	PayURL                      string               `json:"pay_url,omitempty"`
+	FeeRate                     float64              `json:"fee_rate"`
+	BonusAmount                 float64              `json:"bonus_amount"`
+	Currency                    string               `json:"currency"`
+	PaymentType                 string               `json:"payment_type"`
+	OrderType                   string               `json:"order_type"`
+	Status                      string               `json:"status"`
+	CreatedAt                   time.Time            `json:"created_at"`
+	ExpiresAt                   time.Time            `json:"expires_at"`
+	PaidAt                      *time.Time           `json:"paid_at,omitempty"`
+	CompletedAt                 *time.Time           `json:"completed_at,omitempty"`
+	RefundAmount                float64              `json:"refund_amount"`
+	RefundReason                *string              `json:"refund_reason,omitempty"`
+	RefundRequestedAt           *time.Time           `json:"refund_requested_at,omitempty"`
+	RefundRequestedBy           *string              `json:"refund_requested_by,omitempty"`
+	RefundRequestReason         *string              `json:"refund_request_reason,omitempty"`
+	PlanID                      *int64               `json:"plan_id,omitempty"`
+	RenewalMode                 string               `json:"renewal_mode,omitempty"`
 }
 
 // PublicOrderVerifyResult is returned by the legacy anonymous out_trade_no
 // lookup. Keep this intentionally minimal because out_trade_no is not secret.
 type PublicOrderVerifyResult struct {
-	RetailPricing bool       `json:"retail_pricing,omitempty"`
-	OutTradeNo    string     `json:"out_trade_no"`
-	Status        string     `json:"status"`
-	Paid          bool       `json:"paid"`
-	CreatedAt     time.Time  `json:"created_at"`
-	ExpiresAt     time.Time  `json:"expires_at"`
-	PaidAt        *time.Time `json:"paid_at,omitempty"`
-	CompletedAt   *time.Time `json:"completed_at,omitempty"`
+	RefundReconciliationPending bool       `json:"refund_reconciliation_pending"`
+	RetailPricing               bool       `json:"retail_pricing,omitempty"`
+	OutTradeNo                  string     `json:"out_trade_no"`
+	Status                      string     `json:"status"`
+	Paid                        bool       `json:"paid"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	ExpiresAt                   time.Time  `json:"expires_at"`
+	PaidAt                      *time.Time `json:"paid_at,omitempty"`
+	CompletedAt                 *time.Time `json:"completed_at,omitempty"`
 }
 
 func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 	return PublicOrderResult{
-		ID:                  order.ID,
-		OutTradeNo:          order.OutTradeNo,
-		Amount:              order.Amount,
-		PayAmount:           order.PayAmount,
-		RetailQuote:         service.PaymentOrderRetailQuote(order),
-		PaymentClaimMode:    service.PaymentOrderClaimMode(order),
-		PayURL:              psHandlerPaymentURL(order),
-		FeeRate:             order.FeeRate,
-		BonusAmount:         order.BonusAmount,
-		Currency:            service.PaymentOrderCurrency(order),
-		PaymentType:         order.PaymentType,
-		OrderType:           order.OrderType,
-		Status:              order.Status,
-		CreatedAt:           order.CreatedAt,
-		ExpiresAt:           order.ExpiresAt,
-		PaidAt:              order.PaidAt,
-		CompletedAt:         order.CompletedAt,
-		RefundAmount:        order.RefundAmount,
-		RefundReason:        order.RefundReason,
-		RefundRequestedAt:   order.RefundRequestedAt,
-		RefundRequestedBy:   order.RefundRequestedBy,
-		RefundRequestReason: order.RefundRequestReason,
-		PlanID:              order.PlanID,
-		RenewalMode:         order.SubscriptionRenewalMode,
+		RefundReconciliationPending: service.PaymentOrderRefundReconciliationPending(order),
+		ID:                          order.ID,
+		OutTradeNo:                  order.OutTradeNo,
+		Amount:                      order.Amount,
+		PayAmount:                   order.PayAmount,
+		RetailQuote:                 service.PaymentOrderRetailQuote(order),
+		PaymentClaimMode:            service.PaymentOrderClaimMode(order),
+		PayURL:                      psHandlerPaymentURL(order),
+		FeeRate:                     order.FeeRate,
+		BonusAmount:                 order.BonusAmount,
+		Currency:                    service.PaymentOrderCurrency(order),
+		PaymentType:                 order.PaymentType,
+		OrderType:                   order.OrderType,
+		Status:                      order.Status,
+		CreatedAt:                   order.CreatedAt,
+		ExpiresAt:                   order.ExpiresAt,
+		PaidAt:                      order.PaidAt,
+		CompletedAt:                 order.CompletedAt,
+		RefundAmount:                order.RefundAmount,
+		RefundReason:                order.RefundReason,
+		RefundRequestedAt:           order.RefundRequestedAt,
+		RefundRequestedBy:           order.RefundRequestedBy,
+		RefundRequestReason:         order.RefundRequestReason,
+		PlanID:                      order.PlanID,
+		RenewalMode:                 order.SubscriptionRenewalMode,
 	}
 }
 
 func buildPublicOrderVerifyResult(order *dbent.PaymentOrder) PublicOrderVerifyResult {
 	return PublicOrderVerifyResult{
-		RetailPricing: service.PaymentOrderRetailQuote(order) != nil,
-		OutTradeNo:    order.OutTradeNo,
-		Status:        order.Status,
-		Paid:          publicOrderStatusPaid(order.Status),
-		CreatedAt:     order.CreatedAt,
-		ExpiresAt:     order.ExpiresAt,
-		PaidAt:        order.PaidAt,
-		CompletedAt:   order.CompletedAt,
+		RefundReconciliationPending: service.PaymentOrderRefundReconciliationPending(order),
+		RetailPricing:               service.PaymentOrderRetailQuote(order) != nil,
+		OutTradeNo:                  order.OutTradeNo,
+		Status:                      order.Status,
+		Paid:                        publicOrderStatusPaid(order.Status),
+		CreatedAt:                   order.CreatedAt,
+		ExpiresAt:                   order.ExpiresAt,
+		PaidAt:                      order.PaidAt,
+		CompletedAt:                 order.CompletedAt,
 	}
 }
 
@@ -671,32 +675,33 @@ func isMobile(c *gin.Context) bool {
 }
 
 type PaymentOrderResult struct {
-	ID                  int64                `json:"id"`
-	UserID              int64                `json:"user_id"`
-	Amount              float64              `json:"amount"`
-	PayAmount           float64              `json:"pay_amount"`
-	RetailQuote         *service.RetailQuote `json:"retail_quote,omitempty"`
-	PaymentClaimMode    string               `json:"payment_claim_mode,omitempty"`
-	PayURL              string               `json:"pay_url,omitempty"`
-	FeeRate             float64              `json:"fee_rate"`
-	BonusAmount         float64              `json:"bonus_amount"`
-	Currency            string               `json:"currency"`
-	PaymentType         string               `json:"payment_type"`
-	OutTradeNo          string               `json:"out_trade_no"`
-	Status              string               `json:"status"`
-	OrderType           string               `json:"order_type"`
-	CreatedAt           time.Time            `json:"created_at"`
-	ExpiresAt           time.Time            `json:"expires_at"`
-	PaidAt              *time.Time           `json:"paid_at,omitempty"`
-	CompletedAt         *time.Time           `json:"completed_at,omitempty"`
-	RefundAmount        float64              `json:"refund_amount"`
-	RefundReason        *string              `json:"refund_reason,omitempty"`
-	RefundRequestedAt   *time.Time           `json:"refund_requested_at,omitempty"`
-	RefundRequestedBy   *string              `json:"refund_requested_by,omitempty"`
-	RefundRequestReason *string              `json:"refund_request_reason,omitempty"`
-	PlanID              *int64               `json:"plan_id,omitempty"`
-	ProviderInstanceID  *string              `json:"provider_instance_id,omitempty"`
-	RenewalMode         string               `json:"renewal_mode,omitempty"`
+	RefundReconciliationPending bool                 `json:"refund_reconciliation_pending"`
+	ID                          int64                `json:"id"`
+	UserID                      int64                `json:"user_id"`
+	Amount                      float64              `json:"amount"`
+	PayAmount                   float64              `json:"pay_amount"`
+	RetailQuote                 *service.RetailQuote `json:"retail_quote,omitempty"`
+	PaymentClaimMode            string               `json:"payment_claim_mode,omitempty"`
+	PayURL                      string               `json:"pay_url,omitempty"`
+	FeeRate                     float64              `json:"fee_rate"`
+	BonusAmount                 float64              `json:"bonus_amount"`
+	Currency                    string               `json:"currency"`
+	PaymentType                 string               `json:"payment_type"`
+	OutTradeNo                  string               `json:"out_trade_no"`
+	Status                      string               `json:"status"`
+	OrderType                   string               `json:"order_type"`
+	CreatedAt                   time.Time            `json:"created_at"`
+	ExpiresAt                   time.Time            `json:"expires_at"`
+	PaidAt                      *time.Time           `json:"paid_at,omitempty"`
+	CompletedAt                 *time.Time           `json:"completed_at,omitempty"`
+	RefundAmount                float64              `json:"refund_amount"`
+	RefundReason                *string              `json:"refund_reason,omitempty"`
+	RefundRequestedAt           *time.Time           `json:"refund_requested_at,omitempty"`
+	RefundRequestedBy           *string              `json:"refund_requested_by,omitempty"`
+	RefundRequestReason         *string              `json:"refund_request_reason,omitempty"`
+	PlanID                      *int64               `json:"plan_id,omitempty"`
+	ProviderInstanceID          *string              `json:"provider_instance_id,omitempty"`
+	RenewalMode                 string               `json:"renewal_mode,omitempty"`
 }
 
 func sanitizePaymentOrdersForResponse(orders []*dbent.PaymentOrder) []PaymentOrderResult {
@@ -714,32 +719,33 @@ func sanitizePaymentOrderForResponse(order *dbent.PaymentOrder) *PaymentOrderRes
 		return nil
 	}
 	return &PaymentOrderResult{
-		ID:                  order.ID,
-		UserID:              order.UserID,
-		Amount:              order.Amount,
-		PayAmount:           order.PayAmount,
-		RetailQuote:         service.PaymentOrderRetailQuote(order),
-		PaymentClaimMode:    service.PaymentOrderClaimMode(order),
-		PayURL:              psHandlerPaymentURL(order),
-		FeeRate:             order.FeeRate,
-		BonusAmount:         order.BonusAmount,
-		Currency:            service.PaymentOrderCurrency(order),
-		PaymentType:         order.PaymentType,
-		OutTradeNo:          order.OutTradeNo,
-		Status:              order.Status,
-		OrderType:           order.OrderType,
-		CreatedAt:           order.CreatedAt,
-		ExpiresAt:           order.ExpiresAt,
-		PaidAt:              order.PaidAt,
-		CompletedAt:         order.CompletedAt,
-		RefundAmount:        order.RefundAmount,
-		RefundReason:        order.RefundReason,
-		RefundRequestedAt:   order.RefundRequestedAt,
-		RefundRequestedBy:   order.RefundRequestedBy,
-		RefundRequestReason: order.RefundRequestReason,
-		PlanID:              order.PlanID,
-		RenewalMode:         order.SubscriptionRenewalMode,
-		ProviderInstanceID:  order.ProviderInstanceID,
+		RefundReconciliationPending: service.PaymentOrderRefundReconciliationPending(order),
+		ID:                          order.ID,
+		UserID:                      order.UserID,
+		Amount:                      order.Amount,
+		PayAmount:                   order.PayAmount,
+		RetailQuote:                 service.PaymentOrderRetailQuote(order),
+		PaymentClaimMode:            service.PaymentOrderClaimMode(order),
+		PayURL:                      psHandlerPaymentURL(order),
+		FeeRate:                     order.FeeRate,
+		BonusAmount:                 order.BonusAmount,
+		Currency:                    service.PaymentOrderCurrency(order),
+		PaymentType:                 order.PaymentType,
+		OutTradeNo:                  order.OutTradeNo,
+		Status:                      order.Status,
+		OrderType:                   order.OrderType,
+		CreatedAt:                   order.CreatedAt,
+		ExpiresAt:                   order.ExpiresAt,
+		PaidAt:                      order.PaidAt,
+		CompletedAt:                 order.CompletedAt,
+		RefundAmount:                order.RefundAmount,
+		RefundReason:                order.RefundReason,
+		RefundRequestedAt:           order.RefundRequestedAt,
+		RefundRequestedBy:           order.RefundRequestedBy,
+		RefundRequestReason:         order.RefundRequestReason,
+		PlanID:                      order.PlanID,
+		RenewalMode:                 order.SubscriptionRenewalMode,
+		ProviderInstanceID:          order.ProviderInstanceID,
 	}
 }
 
@@ -748,7 +754,7 @@ func isWeChatBrowser(c *gin.Context) bool {
 }
 
 func psHandlerPaymentURL(order *dbent.PaymentOrder) string {
-	if order == nil || order.PayURL == nil || service.PaymentOrderSquarespacePaused(order) {
+	if order == nil || order.PayURL == nil || service.PaymentOrderSquarespacePaused(order) || service.PaymentOrderRefundReconciliationPending(order) {
 		return ""
 	}
 	return *order.PayURL

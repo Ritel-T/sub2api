@@ -105,7 +105,7 @@ func (s *PaymentService) QuotePayment(ctx context.Context, req CreateOrderReques
 	if user.Status != payment.EntityStatusActive {
 		return nil, infraerrors.Forbidden("USER_INACTIVE", "user account is disabled")
 	}
-	if req.PaymentType == payment.TypeGelv {
+	if isGelvPaymentType(req.PaymentType) {
 		return s.quoteGelvPayment(ctx, req, cfg)
 	}
 	currency, err := s.configService.ValidateMethodCurrencyConsistency(ctx, req.PaymentType)
@@ -166,7 +166,7 @@ func (s *PaymentService) QuotePayment(ctx context.Context, req CreateOrderReques
 	if err != nil {
 		return nil, err
 	}
-	claims := retailQuoteClaims{Purpose: retailQuotePurpose, UserID: req.UserID, PaymentType: req.PaymentType, ProviderInstanceID: sel.InstanceID, ProviderKey: sel.ProviderKey, ProviderIdentity: buildPaymentOrderProviderSnapshot(sel, CreateOrderRequest{}), Quote: quote}
+	claims := retailQuoteClaims{Purpose: retailQuotePurpose, UserID: req.UserID, PaymentType: req.PaymentType, ProviderInstanceID: sel.InstanceID, ProviderKey: sel.ProviderKey, ProviderIdentity: buildPaymentOrderProviderSnapshot(sel, CreateOrderRequest{PaymentType: req.PaymentType}), Quote: quote}
 	token, err := s.signRetailQuote(claims)
 	if err != nil {
 		return nil, err
@@ -306,7 +306,7 @@ func (s *PaymentService) retailQuoteSelection(ctx context.Context, claims *retai
 	}
 	sel := &payment.InstanceSelection{InstanceID: claims.ProviderInstanceID, ProviderKey: inst.ProviderKey, Config: config, SupportedTypes: inst.SupportedTypes, PaymentMode: inst.PaymentMode}
 	expected, _ := json.Marshal(claims.ProviderIdentity)
-	current, _ := json.Marshal(buildPaymentOrderProviderSnapshot(sel, CreateOrderRequest{}))
+	current, _ := json.Marshal(buildPaymentOrderProviderSnapshot(sel, CreateOrderRequest{PaymentType: claims.PaymentType}))
 	if string(expected) != string(current) || paymentProviderConfigCurrency(sel.ProviderKey, sel.Config) != claims.Quote.Currency {
 		return nil, infraerrors.Conflict("PAYMENT_PROVIDER_CHANGED", "provider identity changed; request a new quote")
 	}
@@ -452,7 +452,7 @@ func (s *PaymentService) retailReplayResponse(ctx context.Context, order *dbent.
 	persisted := PaymentOrderRetailQuote(order)
 	expected, _ := json.Marshal(req.RetailQuote)
 	actual, _ := json.Marshal(persisted)
-	if order.UserID != req.UserID || persisted == nil || string(expected) != string(actual) {
+	if order.UserID != req.UserID || order.PaymentType != req.PaymentType || persisted == nil || string(expected) != string(actual) {
 		return nil, infraerrors.Forbidden("RETAIL_QUOTE_MISMATCH", "quote is already associated with another order")
 	}
 	pr := &payment.CreatePaymentResponse{TradeNo: order.PaymentTradeNo, PayURL: psStringValue(order.PayURL), QRCode: psStringValue(order.QrCode), Currency: persisted.Currency}
@@ -465,7 +465,12 @@ func (s *PaymentService) retailReplayResponse(ctx context.Context, order *dbent.
 		if err != nil {
 			return nil, err
 		}
-		selected, err := s.retailQuoteSelection(ctx, claims)
+		var selected *payment.InstanceSelection
+		if sel.ProviderKey == payment.TypeGelv {
+			selected, err = s.gelvReplaySelection(ctx, order)
+		} else {
+			selected, err = s.retailQuoteSelection(ctx, claims)
+		}
 		if err != nil {
 			return nil, err
 		}

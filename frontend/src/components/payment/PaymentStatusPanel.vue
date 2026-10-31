@@ -30,7 +30,7 @@
                 </span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
+                <span class="text-gray-500 dark:text-gray-400">{{ t(paymentType === 'gelv_alipay' ? 'gelv.orderPayable' : 'payment.orders.payAmount') }}</span>
                 <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(paidOrder.pay_amount, paidOrder.currency) }}</span>
               </div>
             </div>
@@ -88,7 +88,7 @@
         <p class="mt-1 text-2xl font-bold tabular-nums">{{ countdownDisplay }}</p>
       </div>
       <p class="text-xs text-gray-500">{{ t('paymentRetail.claim.cancelHint') }}</p>
-      <button class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">{{ cancelling ? t('common.processing') : t('paymentRetail.claim.cancelLocalOrder') }}</button>
+      <button v-if="!checkoutHeld" class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">{{ cancelling ? t('common.processing') : t('paymentRetail.claim.cancelLocalOrder') }}</button>
     </template>
 
     <!-- Mobile Alipay app handoff. The QR fallback stays hidden until launch timeout. -->
@@ -123,8 +123,8 @@
         </div>
         <div class="open-section text-center">
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.expiresIn') }}</p>
-          <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{{ countdownDisplay }}</p>
-          <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t('payment.qr.waitingPayment') }}</p>
+          <p v-if="!checkoutHeld" class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{{ countdownDisplay }}</p>
+          <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t(checkoutHeld ? 'gelv.alipayHoldWaiting' : 'payment.qr.waitingPayment') }}</p>
         </div>
       </template>
       <template v-else>
@@ -136,7 +136,7 @@
             </div>
             <div class="w-full space-y-2 border-y border-gray-100 py-3 text-sm dark:border-dark-600">
               <div class="flex items-start justify-between gap-4">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
+                <span class="text-gray-500 dark:text-gray-400">{{ t(paymentType === 'gelv_alipay' ? 'gelv.orderPayable' : 'payment.orders.payAmount') }}</span>
                 <span class="font-semibold text-gray-900 dark:text-white">{{ displayPaymentAmount }}</span>
               </div>
               <div class="flex items-start justify-between gap-4">
@@ -203,37 +203,38 @@
             </div>
           </div>
           <p v-if="scanHint" class="text-center text-sm text-gray-500 dark:text-gray-400">{{ scanHint }}</p>
-          <button v-if="payUrl" class="btn btn-secondary text-sm" @click="reopenPopup">
-            {{ t('payment.qr.openPayWindow') }}
+          <button v-if="canOpenCheckout" class="btn btn-secondary text-sm" @click="reopenPopup">
+            {{ t(paymentType === 'gelv_alipay' ? 'gelv.openAlipay' : 'payment.qr.openPayWindow') }}
           </button>
         </div>
       </div>
       <div class="open-section text-center">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.expiresIn') }}</p>
-        <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{{ countdownDisplay }}</p>
-        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t('payment.qr.waitingPayment') }}</p>
+        <p v-if="!checkoutHeld" class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{{ countdownDisplay }}</p>
+        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t(checkoutHeld ? 'gelv.alipayHoldWaiting' : 'payment.qr.waitingPayment') }}</p>
       </div>
-      <button class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">
+      <button v-if="!checkoutHeld" class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">
         {{ cancelling ? t('common.processing') : t('payment.qr.cancelOrder') }}
       </button>
     </template>
 
     <!-- Waiting for Popup/Redirect Mode -->
     <template v-else>
+      <RetailQuoteSummary v-if="paymentType === 'gelv_alipay' && retailQuote" :quote="retailQuote" />
       <div class="open-section">
         <div class="flex flex-col items-center space-y-4 py-4">
           <div role="status" :aria-label="t('common.loading')" class="h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.payInNewWindowHint') }}</p>
-          <button v-if="payUrl" class="btn btn-secondary text-sm" @click="reopenPopup">
-            {{ t('payment.qr.openPayWindow') }}
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t(checkoutHeld ? 'gelv.alipayHoldHint' : paymentType === 'gelv_alipay' ? 'gelv.alipayWaitingHint' : 'payment.qr.payInNewWindowHint') }}</p>
+          <button v-if="canOpenCheckout" class="btn btn-secondary text-sm" @click="reopenPopup">
+            {{ t(paymentType === 'gelv_alipay' ? 'gelv.openAlipay' : 'payment.qr.openPayWindow') }}
           </button>
         </div>
       </div>
       <div class="open-section text-center">
-        <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{{ countdownDisplay }}</p>
-        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t('payment.qr.waitingPayment') }}</p>
+        <p v-if="!checkoutHeld" class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{{ countdownDisplay }}</p>
+        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t(checkoutHeld ? 'gelv.alipayHoldWaiting' : 'payment.qr.waitingPayment') }}</p>
       </div>
-      <button class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">
+      <button v-if="!checkoutHeld" class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">
         {{ cancelling ? t('common.processing') : t('payment.qr.cancelOrder') }}
       </button>
     </template>
@@ -241,6 +242,8 @@
 </template>
 
 <script setup lang="ts">
+import RetailQuoteSummary from './RetailQuoteSummary.vue'
+import { isValidGelvAlipayPayURL, openGelvAlipayCheckout } from './gelvAlipay'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePaymentStore } from '@/stores/payment'
@@ -279,11 +282,12 @@ const props = defineProps<{
   retailQuote?: RetailQuote
   paymentClaimMode?: PaymentClaimMode
   accountEmail?: string
+  refundReconciliationPending?: boolean
 }>()
 
 type PaymentOutcome = 'success' | 'cancelled' | 'expired'
 
-const emit = defineEmits<{ done: []; success: []; settled: [outcome: PaymentOutcome] }>()
+const emit = defineEmits<{ done: []; success: []; settled: [outcome: PaymentOutcome]; checkoutUnavailable: []; checkoutAvailable: [payUrl: string] }>()
 
 const i18n = useI18n()
 const { t } = i18n
@@ -297,6 +301,9 @@ const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
 const retailSettlementPending = ref(false)
 const receiptOrderStatus = ref('PENDING')
+const hostedPayUrl = ref('')
+const checkoutHeld = ref(props.refundReconciliationPending === true)
+const canOpenCheckout = computed(() => props.paymentType === 'gelv_alipay' ? !checkoutHeld.value && isValidGelvAlipayPayURL(hostedPayUrl.value) : !!props.payUrl)
 const isReceiptMode = computed(() => props.paymentType === 'squarespace' && (props.retailQuote?.payment_claim_mode || props.paymentClaimMode) === 'receipt_otp')
 const canClaimReceipt = computed(() => isReceiptMode.value && props.orderId > 0 && ['PENDING', 'EXPIRED'].includes(receiptOrderStatus.value))
 const deepLinkState = ref<AlipayDeepLinkState>('idle')
@@ -381,6 +388,10 @@ function isSuccessStatus(status: string | null | undefined): boolean {
 }
 
 function reopenPopup() {
+  if (props.paymentType === 'gelv_alipay') {
+    if (canOpenCheckout.value) openGelvAlipayCheckout(hostedPayUrl.value)
+    return
+  }
   if (props.payUrl) {
     const win = window.open(props.payUrl, 'paymentPopup', getPaymentPopupFeatures())
     if (!win || win.closed) {
@@ -480,6 +491,27 @@ async function pollStatus() {
     if (!order) return
     // 已进入终态则不再处理迟到的响应。
     if (outcome.value && !canClaimReceipt.value) return
+    if (props.paymentType === 'gelv_alipay') {
+      if (order.refund_reconciliation_pending === true) {
+        checkoutHeld.value = true
+        hostedPayUrl.value = ''
+        emit('checkoutUnavailable')
+        if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+        return
+      }
+      // Only an explicit authoritative false may release a previously held checkout.
+      const wasHeld = checkoutHeld.value
+      if (order.refund_reconciliation_pending === false) checkoutHeld.value = false
+      // Recovery never opens a stored token until a fresh owned-order read permits it.
+      hostedPayUrl.value = !checkoutHeld.value && isValidGelvAlipayPayURL(order.pay_url) ? order.pay_url : ''
+      if (hostedPayUrl.value) {
+        if (wasHeld || props.payUrl !== hostedPayUrl.value) emit('checkoutAvailable', hostedPayUrl.value)
+        if (wasHeld && order.status === 'PENDING') {
+          const remaining = Math.floor((Date.parse(order.expires_at || props.expiresAt) - Date.now()) / 1000)
+          if (remaining > 0) startCountdown(remaining)
+        }
+      } else if (!checkoutHeld.value) emit('checkoutUnavailable')
+    }
     order = await tryRecoverPendingOrder(order)
     receiptOrderStatus.value = order.status
     if (outcome.value && !canClaimReceipt.value) return
@@ -547,12 +579,13 @@ let seconds = 30 * 60
 if (props.expiresAt) {
   seconds = Math.floor((new Date(props.expiresAt).getTime() - Date.now()) / 1000)
 }
-startCountdown(seconds)
+if (!checkoutHeld.value) startCountdown(seconds)
 pollTimer = setInterval(pollStatus, 3000)
 renderQR()
 
 watch([() => qrUrl.value, showQRCode], () => renderQR())
 onMounted(() => {
+  if (props.paymentType === 'gelv_alipay') void pollStatus()
   if (!isMobileAlipayDeepLink.value) return
   alipayLauncher = createAlipayDeepLinkLauncher({
     qrCode: qrUrl.value,

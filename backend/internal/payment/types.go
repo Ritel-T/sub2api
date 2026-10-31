@@ -23,6 +23,7 @@ const (
 	TypeAirwallex    PaymentType = "airwallex"
 	TypeSquarespace  PaymentType = "squarespace"
 	TypeGelv         PaymentType = "gelv"
+	TypeGelvAlipay   PaymentType = "gelv_alipay"
 )
 
 // Order status constants shared across payment and service layers.
@@ -150,6 +151,7 @@ type WechatJSAPIPayload struct {
 
 // CreatePaymentResponse is returned after successfully initiating a payment.
 type CreatePaymentResponse struct {
+	Metadata     map[string]string       // Provider evidence to freeze with the created order
 	TradeNo      string                  // Third-party transaction ID
 	PayURL       string                  // H5 payment URL (alipay/wxpay)
 	QRCode       string                  // QR code content for scanning

@@ -305,6 +305,7 @@
 </template>
 
 <script setup lang="ts">
+import { isValidAlipayFeeRateBps } from './gelvAlipay'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { reactive, computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -468,7 +469,7 @@ const availableTypes = computed(() => {
   // Resolve i18n labels for types not in allPaymentTypes (e.g. card, link inside stripe)
   return base.map(opt =>
     opt.label === opt.value
-      ? { ...opt, label: t(`payment.methods.${opt.value}`, opt.value) }
+      ? { ...opt, label: t(opt.value === 'gelv_alipay' ? 'gelv.alipayName' : opt.value === 'gelv' ? 'gelv.name' : `payment.methods.${opt.value}`, opt.value) }
       : opt,
   )
 })
@@ -688,6 +689,11 @@ function handleSave() {
       return
     }
     syncEasyPayCustomMethods()
+  }
+  if (form.provider_key === 'gelv' && config.alipayFeeRateBps !== undefined && config.alipayFeeRateBps !== ''
+    && !isValidAlipayFeeRateBps(config.alipayFeeRateBps)) {
+    emitValidationError(t('gelv.alipayFeeRateInvalid'))
+    return
   }
   // Validate required config fields — all non-optional fields must be filled.
   // In edit mode, sensitive fields may be left blank to preserve the stored

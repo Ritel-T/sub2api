@@ -25,7 +25,10 @@ export function normalizePaymentMethodForDisplay(paymentType: string): string {
 }
 
 export function paymentMethodI18nKey(paymentType: string): string {
-  return `payment.methods.${normalizePaymentMethodForDisplay(paymentType)}`
+  const method = normalizePaymentMethodForDisplay(paymentType)
+  if (method === 'gelv_alipay') return 'gelv.alipayName'
+  if (method === 'gelv') return 'gelv.name'
+  return `payment.methods.${method}`
 }
 
 export function buildPaymentErrorToastMessage(message: string, hint?: string): string {

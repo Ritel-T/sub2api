@@ -135,7 +135,16 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 		metadataErr = s.validateSquarespaceNotificationScope(ctx, o, tradeNo, metadata)
 	}
 	if pk == payment.TypeGelv {
+		if metadata["refund_pending"] == "true" && validateGelvMetadata(o, metadata) == nil {
+			if err := s.holdGelvRefund(ctx, o, metadata); err != nil {
+				return err
+			}
+			return requireGelvNoRefundHold(o)
+		}
 		_, metadataErr = gelvFinalCredit(o, metadata)
+		if metadataErr == nil && tradeNo != metadata["gelv_order_id"] {
+			metadataErr = fmt.Errorf("gelv payment trade identity mismatch")
+		}
 	}
 	if err := metadataErr; err != nil {
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_PROVIDER_METADATA_MISMATCH", pk, map[string]any{
@@ -225,10 +234,13 @@ func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, trad
 			snapshot[k] = v
 		}
 		snapshot["gelv_payment_channel"] = metadata["payment_channel"]
-		snapshot["gelv_wx_order_id"] = metadata["wx_order_id"]
+		snapshot["gelv_wx_order_id"] = gelvPlatformIdentity(metadata)
+		if metadata["payment_channel"] == gelvAlipayCheckout {
+			snapshot["gelv_alipay_trade_no"] = metadata["alipay_trade_no"]
+		}
 		snapshot["gelv_final_credit"] = credit
 		copyGelvEvidence(snapshot, metadata)
-		paidUpdate.SetAmount(credit).SetProviderSnapshot(snapshot)
+		paidUpdate.Where(gelvSnapshotUnchanged(o)).SetAmount(credit).SetProviderSnapshot(snapshot)
 	}
 	c, err := paidUpdate.Save(ctx)
 	if err != nil {
@@ -365,20 +377,26 @@ func (s *PaymentService) acquirePaymentFulfillmentLease(ctx context.Context, o *
 	if o == nil {
 		return nil, infraerrors.BadRequest("INVALID_STATUS", "nil payment order")
 	}
+	if err := requireGelvFulfillmentEvidence(o); err != nil {
+		return nil, err
+	}
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	staleBefore := now.Add(-paymentFulfillmentLeaseDuration)
-	updated, err := s.entClient.PaymentOrder.Update().
-		Where(
-			paymentorder.IDEQ(o.ID),
-			paymentorder.Or(
-				paymentorder.StatusIn(OrderStatusPaid, OrderStatusFailed),
-				paymentorder.And(
-					paymentorder.StatusEQ(OrderStatusRecharging),
-					paymentorder.UpdatedAtLTE(staleBefore),
-				),
+	leaseUpdate := s.entClient.PaymentOrder.Update()
+	if isGelvPaymentType(o.PaymentType) {
+		leaseUpdate.Where(gelvSnapshotUnchanged(o))
+	}
+	updated, err := leaseUpdate.Where(
+		paymentorder.IDEQ(o.ID),
+		paymentorder.Or(
+			paymentorder.StatusIn(OrderStatusPaid, OrderStatusFailed),
+			paymentorder.And(
+				paymentorder.StatusEQ(OrderStatusRecharging),
+				paymentorder.UpdatedAtLTE(staleBefore),
 			),
-		).
+		),
+	).
 		SetStatus(OrderStatusRecharging).
 		SetUpdatedAt(now).
 		ClearFailedAt().
@@ -406,9 +424,13 @@ func (s *PaymentService) acquirePaymentFulfillmentLease(ctx context.Context, o *
 	if err != nil {
 		return nil, fmt.Errorf("reload acquired fulfillment lease: %w", err)
 	}
+	if err := requireGelvFulfillmentEvidence(claimed); err != nil {
+		return nil, err
+	}
 	if claimed.Status != OrderStatusRecharging {
 		return nil, infraerrors.Conflict("CONFLICT", "fulfillment lease was lost")
 	}
+	*o = *claimed
 	return &paymentFulfillmentLease{version: claimed.UpdatedAt}, nil
 }
 

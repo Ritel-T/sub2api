@@ -71,7 +71,7 @@
           <AdminRetailOrderAmounts v-if="selectedOrder.retail_quote" :quote="selectedOrder.retail_quote" :order="selectedOrder" class="col-span-2" />
           <div v-else><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ selectedOrder.amount.toFixed(2) }}</p></div>
           <div v-if="!selectedOrder.retail_quote"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(selectedOrder) }}{{ selectedOrder.pay_amount.toFixed(2) }}</p></div>
-          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.payment_type === 'gelv' ? t('gelv.name') : selectedOrder.payment_type === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + selectedOrder.payment_type, selectedOrder.payment_type) }}</p></div>
+          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.payment_type === 'gelv_alipay' ? t('gelv.alipayName') : selectedOrder.payment_type === 'gelv' ? t('gelv.name') : selectedOrder.payment_type === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + selectedOrder.payment_type, selectedOrder.payment_type) }}</p></div>
           <div v-if="!selectedOrder.retail_quote"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.feeRate') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.fee_rate }}%</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.createdAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.created_at) }}</p></div>
           <div v-if="!hasOrderPayment(selectedOrder)"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.expiresAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.expires_at) }}</p></div>
@@ -221,6 +221,7 @@ const statusFilterOptions = computed(() => [
 ])
 
 const paymentTypeFilterOptions = computed(() => [
+  { value: 'gelv_alipay', label: t('gelv.alipayName') },
   { value: '', label: t('payment.admin.allPaymentTypes') },
   { value: 'alipay', label: t('payment.methods.alipay') },
   { value: 'wxpay', label: t('payment.methods.wxpay') },

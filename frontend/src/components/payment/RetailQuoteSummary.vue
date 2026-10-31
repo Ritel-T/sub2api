@@ -2,19 +2,20 @@
   <div data-test="retail-quote" class="space-y-3 text-sm">
     <div class="flex justify-between gap-4">
       <span class="text-gray-500 dark:text-gray-400">{{ t(cnyBasis ? 'paymentRetail.siteCredit' : 'paymentRetail.credited') }}</span>
-      <span v-if="fixedCNY" class="text-right font-semibold text-gray-900 dark:text-white">
-        <span class="block">{{ t('gelv.androidCredit', { amount: quote.credit_by_channel!.wechat_virtual.toFixed(2) }) }}</span>
-        <span class="block">{{ t('gelv.iosCredit', { amount: quote.credit_by_channel!.apple_iap.toFixed(2) }) }}</span>
+      <span v-if="alipay" data-test="alipay-credit" class="font-semibold text-gray-900 dark:text-white">{{ t('gelv.alipayCredit', { amount: quote.credited_amount_usd.toFixed(2) }) }}</span>
+      <span v-else-if="fixedCNY" class="text-right font-semibold text-gray-900 dark:text-white">
+        <span class="block">{{ t('gelv.androidCredit', { amount: quote.credit_by_channel!.wechat_virtual!.toFixed(2) }) }}</span>
+        <span class="block">{{ t('gelv.iosCredit', { amount: quote.credit_by_channel!.apple_iap!.toFixed(2) }) }}</span>
       </span>
       <span v-else class="font-semibold text-gray-900 dark:text-white">{{ cnyBasis ? '$' + quote.credited_amount_usd.toFixed(2) : money(quote.credited_amount_usd, 'USD') + ' USD' }}</span>
     </div>
     <div data-test="retail-included-fee" class="flex justify-between gap-4 text-xs">
-      <span class="text-gray-500 dark:text-gray-400">{{ t('paymentRetail.includedCost') }}</span>
-      <span class="text-gray-700 dark:text-gray-300">{{ fixedCNY ? t('gelv.feeRates') : money(quote.included_cost_gbp, 'GBP') + ' GBP' }}</span>
+      <span class="text-gray-500 dark:text-gray-400">{{ t(alipay ? 'gelv.agreedDeduction' : 'paymentRetail.includedCost') }}</span>
+      <span class="text-gray-700 dark:text-gray-300">{{ alipay ? money(quote.pay_amount - quote.credited_amount_usd, 'CNY') + ' CNY' : fixedCNY ? t('gelv.feeRates') : money(quote.included_cost_gbp, 'GBP') + ' GBP' }}</span>
     </div>
-    <p v-if="fixedCNY" class="text-xs text-gray-500">{{ t('gelv.channelRule') }}</p>
+    <p v-if="fixedCNY && !alipay" class="text-xs text-gray-500">{{ t('gelv.channelRule') }}</p>
     <div class="flex justify-between gap-4 border-t border-gray-200 pt-3 dark:border-dark-600">
-      <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('paymentRetail.actualPay') }}</span>
+      <span class="font-medium text-gray-700 dark:text-gray-300">{{ t(alipay ? 'gelv.orderPayable' : 'paymentRetail.actualPay') }}</span>
       <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ money(quote.pay_amount, quote.currency) }} {{ quote.currency }}</span>
     </div>
     <details v-if="!fixedCNY && (cnyBasis || quote.currency !== 'GBP')" data-test="retail-price-details" class="border-t border-gray-200 pt-3 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
@@ -40,9 +41,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { isGelvAlipayQuote } from './retailQuote'
 import type { RetailQuote } from '@/types/payment'
 import { formatPaymentAmount } from './currency'
 const props = defineProps<{ quote: RetailQuote }>()
+const alipay = computed(() => isGelvAlipayQuote(props.quote))
 const fixedCNY = computed(() => props.quote.pricing_mode === 'gelv_channel_cny')
 const cnyBasis = computed(() => props.quote.pricing_basis_currency === 'CNY')
 const { t, locale } = useI18n()

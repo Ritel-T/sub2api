@@ -35,8 +35,8 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 		ml := pcAggregateMethodLimits(pt, insts)
 		ml.DisplayName = s.pcAggregateMethodDisplayName(pt, insts)
 		ml.Currency = currency
-		if pt == payment.TypeGelv {
-			if len(insts) != 1 {
+		if isGelvPaymentType(pt) {
+			if len(insts) != 1 || insts[0].ProviderKey != payment.TypeGelv {
 				continue
 			}
 			config, configErr := s.decryptConfig(insts[0].Config)
@@ -46,11 +46,14 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 			if _, configErr = provider.NewGelv("", config); configErr != nil {
 				continue
 			}
-			ml.TopupOptions, configErr = provider.GelvCreditOptions(config)
+			ml.TopupOptions, configErr = gelvCreditOptions(pt, config)
 			if configErr != nil {
 				continue
 			}
 			ml.DisplayName = "WeChat Mini Program"
+			if pt == payment.TypeGelvAlipay {
+				ml.DisplayName = "Alipay"
+			}
 		}
 		resp.Methods[ml.PaymentType] = ml
 	}
@@ -115,6 +118,22 @@ func (s *PaymentConfigService) GetMethodLimits(ctx context.Context, types []stri
 		ml := pcAggregateMethodLimits(pt, matching)
 		ml.DisplayName = s.pcAggregateMethodDisplayName(pt, matching)
 		ml.Currency = currency
+		if isGelvPaymentType(pt) {
+			if len(matching) != 1 || matching[0].ProviderKey != payment.TypeGelv {
+				continue
+			}
+			config, configErr := s.decryptConfig(matching[0].Config)
+			if configErr != nil {
+				continue
+			}
+			if _, configErr = provider.NewGelv("", config); configErr != nil {
+				continue
+			}
+			ml.TopupOptions, configErr = gelvCreditOptions(pt, config)
+			if configErr != nil {
+				continue
+			}
+		}
 		result = append(result, ml)
 	}
 	return result, nil

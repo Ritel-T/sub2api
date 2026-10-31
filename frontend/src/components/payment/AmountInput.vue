@@ -35,7 +35,11 @@
             </span>
           </span>
           <span class="block">{{ fixedOptions?.length ? '¥' + fixedOptions.find(option => option.credits === amt)?.cash_cny : amt }}</span>
-          <template v-if="fixedOptions?.length">
+          <template v-if="fixedOptions?.length && paymentType === 'gelv_alipay'">
+            <span class="mt-1 block whitespace-nowrap text-xs">{{ t('gelv.alipayCreditLabel') }}</span>
+            <span class="block whitespace-nowrap text-xs">${{ amt.toFixed(2) }}</span>
+          </template>
+          <template v-else-if="fixedOptions?.length">
             <span class="mt-1 block text-xs">{{ t('gelv.androidCredit', { amount: fixedOptions.find(option => option.credits === amt)?.android_credits }) }}</span>
             <span class="mt-1 block text-xs">{{ t('gelv.iosCredit', { amount: fixedOptions.find(option => option.credits === amt)?.ios_credits }) }}</span>
           </template>
@@ -77,13 +81,14 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { RechargeBonusTier } from '@/types/payment'
+import type { RechargeBonusTier, TopupOption } from '@/types/payment'
 import { formatRechargeBonusNumber, quoteRechargeBonus, type RechargeBonusMode } from '@/utils/rechargeBonus'
 import { formatPaymentAmount } from './currency'
 
 const props = withDefaults(defineProps<{
   amounts?: number[]
-  fixedOptions?: { cash_cny: number; credits: number; android_credits: number; ios_credits: number }[]
+  fixedOptions?: TopupOption[]
+  paymentType?: string
   modelValue: number | null
   min?: number
   max?: number

@@ -50,7 +50,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if !paymentRequestEnabled(cfg, req) {
 		return nil, infraerrors.Forbidden("PAYMENT_DISABLED", "payment system is disabled")
 	}
-	if req.PaymentType == payment.TypeGelv && (req.OrderType != payment.OrderTypeBalance || !cfg.BalanceRetailPricingEnabled) {
+	if isGelvPaymentType(req.PaymentType) && (req.OrderType != payment.OrderTypeBalance || !cfg.BalanceRetailPricingEnabled) {
 		return nil, infraerrors.BadRequest("GELV_QUOTE_REQUIRED", "mini-program payments require a balance quote")
 	}
 	if req.PaymentType == "squarespace" && !cfg.BalanceRetailPricingEnabled {
@@ -163,7 +163,7 @@ func (s *PaymentService) validateOrderInput(ctx context.Context, req CreateOrder
 	if math.IsNaN(req.Amount) || math.IsInf(req.Amount, 0) || req.Amount <= 0 {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "amount must be a positive number")
 	}
-	if req.PaymentType != payment.TypeGelv && ((cfg.MinAmount > 0 && req.Amount < cfg.MinAmount) || (cfg.MaxAmount > 0 && req.Amount > cfg.MaxAmount)) {
+	if !isGelvPaymentType(req.PaymentType) && ((cfg.MinAmount > 0 && req.Amount < cfg.MinAmount) || (cfg.MaxAmount > 0 && req.Amount > cfg.MaxAmount)) {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "amount out of range").
 			WithMetadata(map[string]string{"min": fmt.Sprintf("%.2f", cfg.MinAmount), "max": fmt.Sprintf("%.2f", cfg.MaxAmount)})
 	}
@@ -354,6 +354,14 @@ func buildPaymentOrderProviderSnapshot(sel *payment.InstanceSelection, req Creat
 		}
 		snapshot["gelv_android_fee_bps"] = 100
 		snapshot["gelv_ios_fee_bps"] = 1200
+		snapshot["gelv_checkout_channel"] = gelvLegacyCheckout
+		if req.PaymentType == payment.TypeGelvAlipay {
+			snapshot["gelv_checkout_channel"] = gelvAlipayCheckout
+			// Keep an absent agreement absent; explicit zero is a valid agreement.
+			if bps, err := provider.GelvAlipayFeeBPS(sel.Config); err == nil {
+				snapshot["gelv_alipay_fee_bps"] = strconv.FormatInt(bps, 10)
+			}
+		}
 	}
 	if providerKey == payment.TypeAlipay {
 		if merchantAppID := strings.TrimSpace(sel.Config["appId"]); merchantAppID != "" {
@@ -508,7 +516,11 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		return nil, infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_MISCONFIGURED", "provider_misconfigured").
 			WithMetadata(map[string]string{"provider": sel.ProviderKey, "instance_id": sel.InstanceID})
 	}
-	subject := s.buildPaymentSubject(plan, limitAmount, cfg, sel)
+	subjectAmount := limitAmount
+	if sel.ProviderKey == payment.TypeGelv {
+		subjectAmount = order.PayAmount
+	}
+	subject := s.buildPaymentSubject(plan, subjectAmount, cfg, sel)
 	outTradeNo := order.OutTradeNo
 	canonicalReturnURL, err := CanonicalizeReturnURL(req.ReturnURL, req.SrcHost, req.SrcURL)
 	if err != nil {
@@ -552,12 +564,29 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		}
 		return nil, classifyCreatePaymentError(req, sel.ProviderKey, err)
 	}
+	if pr == nil {
+		return nil, fmt.Errorf("provider returned no checkout response")
+	}
+	if sel.ProviderKey == payment.TypeGelv && (order.PaymentType == payment.TypeGelvAlipay || len(pr.Metadata) > 0) {
+		if err = validateGelvMetadata(order, pr.Metadata); err != nil {
+			return nil, err
+		}
+		if pr.TradeNo != pr.Metadata["gelv_order_id"] {
+			return nil, fmt.Errorf("gelv created identity mismatch")
+		}
+	}
 	sanitizeCreatePaymentResponseDetails(pr)
 	if sel.ProviderKey == payment.TypeGelv && pr.QRCode == "" {
 		pr.QRCode = psStringValue(order.QrCode)
 	}
-	_, err = s.entClient.PaymentOrder.UpdateOneID(order.ID).
-		SetNillablePaymentTradeNo(psNilIfEmpty(pr.TradeNo)).
+	checkoutUpdate := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(order.ID))
+	if sel.ProviderKey == payment.TypeGelv {
+		checkoutUpdate.Where(gelvSnapshotUnchanged(order), paymentorder.StatusEQ(OrderStatusPending), paymentorder.Or(paymentorder.PaymentTradeNoEQ(""), paymentorder.PaymentTradeNoEQ(pr.TradeNo)))
+		if pr.PayURL == "" {
+			pr.PayURL = psStringValue(order.PayURL)
+		}
+	}
+	checkoutCount, err := checkoutUpdate.SetNillablePaymentTradeNo(psNilIfEmpty(pr.TradeNo)).
 		SetNillablePayURL(psNilIfEmpty(pr.PayURL)).
 		SetNillableQrCode(psNilIfEmpty(pr.QRCode)).
 		SetNillableProviderInstanceID(psNilIfEmpty(sel.InstanceID)).
@@ -565,6 +594,9 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("update order with payment details: %w", err)
+	}
+	if sel.ProviderKey == payment.TypeGelv && checkoutCount == 0 {
+		return nil, infraerrors.Conflict("GELV_ORDER_CHANGED", "checkout binding changed; reload existing order")
 	}
 	s.writeAuditLog(ctx, order.ID, "ORDER_CREATED", fmt.Sprintf("user:%d", req.UserID), map[string]any{
 		"paymentAmount":  req.Amount,

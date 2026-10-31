@@ -179,14 +179,39 @@ func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.Paym
 		return ""
 	}
 	finishProviderCall := servertiming.ObserveDependency(ctx, "payment")
+	observation := gelvQueryObservation(o)
 	resp, err := prov.QueryOrder(ctx, queryRef)
 	finishProviderCall()
 	if err != nil {
+		if prov.ProviderKey() == payment.TypeGelv {
+			_ = s.holdGelvQueryError(ctx, o, err)
+		}
 		slog.Warn("query upstream failed", "orderID", o.ID, "error", err)
 		return ""
 	}
-	if prov.ProviderKey() == payment.TypeGelv && (resp == nil || validateGelvMetadata(o, resp.Metadata) != nil) {
-		return ""
+	if prov.ProviderKey() == payment.TypeGelv {
+		if resp == nil || validateGelvMetadata(o, resp.Metadata) != nil {
+			return ""
+		}
+		if resp.Metadata["refund_pending"] == "true" {
+			_ = s.holdGelvRefund(ctx, o, resp.Metadata)
+			return ""
+		}
+		if s.clearGelvRefundHold(ctx, observation, resp.Metadata) != nil {
+			return ""
+		}
+		o.ProviderSnapshot = observation.ProviderSnapshot
+		if refunded, parseErr := strconv.ParseInt(resp.Metadata["refunded_minor"], 10, 64); parseErr == nil && refunded > 0 {
+			_ = s.persistGelvReconciliationBlock(ctx, o, "confirmed_refund", resp.Metadata)
+			return ""
+		}
+		if resp.Metadata["channel_verification_status"] == "conflict" {
+			_ = s.persistGelvReconciliationBlock(ctx, o, "paid_channel_conflict", resp.Metadata)
+			return ""
+		}
+		if gelvRefundHeld(o) {
+			return ""
+		}
 	}
 	if resp.Status == payment.ProviderStatusPaid {
 		if !isValidProviderAmount(resp.Amount) {

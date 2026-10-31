@@ -56,3 +56,26 @@ func TestAdminPaymentSettlementVerifiedEvidence(t *testing.T) {
 		t.Fatal("nil order must have no settlement")
 	}
 }
+
+func TestAdminGelvAlipaySettlementUnknownsAndRefundHold(t *testing.T) {
+	now := time.Now()
+	artifact := "checkout-secret-token"
+	order := &dbent.PaymentOrder{PaymentType: "gelv_alipay", Status: "PAID", PaidAt: &now, PayURL: &artifact, QrCode: &artifact, QrCodeImg: &artifact, ProviderSnapshot: map[string]any{
+		"gelv_payment_channel": "alipay_web", "gelv_checkout_channel": "alipay_web", "gelv_channel_verification_status": "verified", "gelv_alipay_fee_bps": "50", "gelv_alipay_trade_no": "alipay-identity-123", "gelv_wx_order_id": "alipay:alipay-identity-123", "gelv_refund_pending": "true", "gelv_refunded_minor": "0",
+	}}
+	if adminPaymentSettlement(order) != nil {
+		t.Fatal("unknown actual platform rate cannot be substituted from partner agreement")
+	}
+	result := sanitizeAdminPaymentOrderForResponse(order)
+	if !result.RefundReconciliationPending || result.PayURL != nil || result.QRCode != nil || result.QRCodeImg != nil {
+		t.Fatal("held checkout artifacts were exposed")
+	}
+	if result.RefundAmount != 0 || result.Status != "PAID" {
+		t.Fatal("hold must preserve financial status")
+	}
+	order.ProviderSnapshot["gelv_fee_rate_bps"] = "9876"
+	evidence := adminPaymentSettlement(order)
+	if evidence == nil || evidence.FeeRateBps != 9876 {
+		t.Fatal("known actual rate must remain separate from partner agreement")
+	}
+}

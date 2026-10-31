@@ -19,7 +19,7 @@ export type OrderStatus =
   | 'REFUNDED'
   | 'REFUND_FAILED'
 
-export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex' | 'squarespace' | 'gelv'
+export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex' | 'squarespace' | 'gelv' | 'gelv_alipay'
 
 export type OrderType = 'balance' | 'subscription'
 export type SubscriptionRenewalMode = 'restart' | 'extend'
@@ -73,8 +73,15 @@ export interface PaymentConfig {
   stripe_publishable_key: string
 }
 
+export interface TopupOption {
+  cash_cny: number
+  credits: number
+  android_credits?: number
+  ios_credits?: number
+}
+
 export interface MethodLimit {
-  topup_options?: { cash_cny: number; credits: number; android_credits: number; ios_credits: number }[]
+  topup_options?: TopupOption[]
   currency?: string
   display_name?: string
   daily_limit: number
@@ -124,7 +131,7 @@ export interface CheckoutInfoResponse {
 
 export interface RetailQuote {
   pricing_mode?: 'gelv_channel_cny'
-  credit_by_channel?: { wechat_virtual: number; apple_iap: number }
+  credit_by_channel?: { wechat_virtual?: number; apple_iap?: number; alipay_web?: number }
   /** Absent for historical USD-based orders; new quotes price site credit in CNY. */
   pricing_basis_currency?: 'CNY'
   base_amount_cny?: number
@@ -170,6 +177,7 @@ export interface PaymentQuoteResponse {
 // ==================== Orders ====================
 
 export interface PaymentOrder {
+  refund_reconciliation_pending?: boolean
   id: number
   user_id: number
   amount: number

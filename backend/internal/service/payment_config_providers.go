@@ -125,7 +125,7 @@ var providerSensitiveConfigFields = map[string]map[string]struct{}{
 // all provider identity fields that are snapshotted into orders or used by
 // webhook/refund verification.
 var providerPendingOrderProtectedConfigFields = map[string]map[string]struct{}{
-	payment.TypeGelv:      {"partnerid": {}, "partnersecret": {}, "productids": {}},
+	payment.TypeGelv:      {"partnerid": {}, "partnersecret": {}, "productids": {}, "alipayfeeratebps": {}},
 	payment.TypeEasyPay:   {"pkey": {}, "pid": {}},
 	payment.TypeAlipay:    {"privatekey": {}, "publickey": {}, "alipaypublickey": {}, "appid": {}},
 	payment.TypeWxpay:     {"privatekey": {}, "apiv3key": {}, "publickey": {}, "appid": {}, "mpappid": {}, "mchid": {}, "publickeyid": {}, "certserial": {}},

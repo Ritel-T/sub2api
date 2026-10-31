@@ -13271,6 +13271,7 @@ const retailPricingSettings = computed<BalanceRetailSettingsValue>({
 // ==================== Provider Management ====================
 
 const allPaymentTypes = computed(() => [
+  { value: "gelv_alipay", label: t("gelv.alipayName") },
   { value: "gelv", label: t("gelv.name") },
   { value: "easypay", label: t("payment.methods.easypay") },
   { value: "alipay", label: t("payment.methods.alipay") },

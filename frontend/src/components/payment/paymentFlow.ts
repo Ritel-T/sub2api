@@ -1,4 +1,5 @@
-import { isRetailQuote } from './retailQuote'
+import { isValidGelvAlipayPayURL, hasGelvAlipayTiers } from './gelvAlipay'
+import { isGelvAlipayQuote, isRetailQuote } from './retailQuote'
 import type {
   CreateOrderRequest,
   CreateOrderResult,
@@ -22,9 +23,10 @@ const VISIBLE_METHOD_ALIASES = {
   airwallex: 'airwallex',
   squarespace: 'squarespace',
   gelv: 'gelv',
+  gelv_alipay: 'gelv_alipay',
 } as const
 
-export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex' | 'squarespace' | 'gelv'
+export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex' | 'squarespace' | 'gelv' | 'gelv_alipay'
 export type StripeVisibleMethod = 'alipay' | 'wechat_pay'
 export type PaymentLaunchKind =
   | 'order_result'
@@ -56,6 +58,7 @@ export interface PaymentRecoverySnapshot {
   orderType: OrderType | ''
   paymentMode: string
   resumeToken: string
+  refundReconciliationPending?: boolean
   alipayMobilePrecreateDeepLink?: boolean
   createdAt: number
   retailQuote?: RetailQuote
@@ -123,7 +126,7 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
     const isCanonical = type === normalized
     const existing = visible[normalized]
     if (!existing || isCanonical) {
-      visible[normalized] = { ...limit }
+      visible[normalized] = { ...limit, ...(normalized === 'gelv_alipay' ? { available: limit.available !== false && hasGelvAlipayTiers(limit) } : {}) }
     }
   })
 
@@ -132,6 +135,7 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
 
 export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): CreateOrderRequest {
   const visibleMethod = normalizeVisibleMethod(input.paymentType) || input.paymentType.trim()
+  if (visibleMethod === 'gelv_alipay' && input.orderType !== 'balance') throw new Error('Alipay hosted checkout requires balance top-up')
   const normalizedOrigin = (input.origin || '').trim().replace(/\/+$/, '')
   // When forceQRCode is enabled for alipay, always tell the backend this is not a mobile
   // request so it generates a QR code instead of a mobile-redirect URL.
@@ -192,6 +196,17 @@ export function decidePaymentLaunch(
 
   if (result.status && result.status.trim().toUpperCase() !== 'PENDING') {
     return { kind: 'order_result', paymentState: baseState, recovery: baseState }
+  }
+
+  if (visibleMethod === 'gelv_alipay') {
+    const ready = context.orderType === 'balance' && isValidGelvAlipayPayURL(baseState.payUrl)
+      && isGelvAlipayQuote(baseState.retailQuote)
+      && baseState.amount === baseState.retailQuote.credited_amount_usd
+      && baseState.payAmount === baseState.retailQuote.pay_amount
+      && baseState.currency === 'CNY'
+    // Hosted checkout always waits for an explicit click and polls on this site.
+    const paymentState = { ...baseState, payUrl: ready ? baseState.payUrl : '', qrCode: '', clientSecret: '' }
+    return { kind: ready ? 'redirect_waiting' : 'unhandled', paymentState, recovery: paymentState }
   }
 
   if (visibleMethod === 'squarespace') {
@@ -336,9 +351,17 @@ export function readPaymentRecoverySnapshot(
       return null
     }
 
+    if (parsed.paymentType === 'gelv_alipay' && (
+      parsed.orderType !== 'balance'
+      || (parsed.refundReconciliationPending === true ? parsed.payUrl !== '' : !isValidGelvAlipayPayURL(parsed.payUrl))
+      || !isGelvAlipayQuote(parsed.retailQuote) || parsed.currency !== 'CNY'
+      || parsed.amount !== parsed.retailQuote.credited_amount_usd || parsed.payAmount !== parsed.retailQuote.pay_amount
+    )) return null
+
     const now = options.now ?? Date.now()
     const expiresAt = Date.parse(parsed.expiresAt)
-    if (Number.isFinite(expiresAt) && expiresAt <= now) {
+    if (Number.isFinite(expiresAt) && expiresAt <= now
+      && !(parsed.paymentType === 'gelv_alipay' && parsed.refundReconciliationPending === true)) {
       return null
     }
     if (options.resumeToken && parsed.resumeToken !== options.resumeToken) {
@@ -348,7 +371,7 @@ export function readPaymentRecoverySnapshot(
     return {
       orderId: parsed.orderId,
       amount: parsed.amount,
-      qrCode: parsed.qrCode,
+      qrCode: parsed.paymentType === 'gelv_alipay' ? '' : parsed.qrCode,
       expiresAt: parsed.expiresAt,
       paymentType: parsed.paymentType,
       payUrl: parsed.payUrl,
@@ -362,6 +385,7 @@ export function readPaymentRecoverySnapshot(
       orderType: parsed.orderType === 'subscription' ? 'subscription' : 'balance',
       paymentMode: parsed.paymentMode,
       resumeToken: parsed.resumeToken,
+      refundReconciliationPending: parsed.refundReconciliationPending === true,
       alipayMobilePrecreateDeepLink: parsed.alipayMobilePrecreateDeepLink === true,
       retailQuote: isRetailQuote(parsed.retailQuote) ? parsed.retailQuote : undefined,
       paymentClaimMode: parsed.paymentClaimMode === 'receipt_otp' || parsed.paymentClaimMode === 'reference' ? parsed.paymentClaimMode : undefined,

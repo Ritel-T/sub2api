@@ -58,6 +58,9 @@ func (s *PaymentService) paymentOrderPaused(ctx context.Context, order *dbent.Pa
 }
 
 func (s *PaymentService) requirePaymentOrderActive(ctx context.Context, order *dbent.PaymentOrder) error {
+	if err := requireGelvNoRefundHold(order); err != nil {
+		return err
+	}
 	if s.paymentOrderPaused(ctx, order) {
 		return payment.ErrSquarespacePaymentsPaused
 	}
@@ -67,7 +70,7 @@ func (s *PaymentService) requirePaymentOrderActive(ctx context.Context, order *d
 // User-facing reads retain history while withholding actionable checkout data.
 // Copying the entity leaves the stored order and all encrypted evidence intact.
 func (s *PaymentService) paymentOrderForResponse(ctx context.Context, order *dbent.PaymentOrder) *dbent.PaymentOrder {
-	if !s.paymentOrderPaused(ctx, order) {
+	if !s.paymentOrderPaused(ctx, order) && !gelvRefundHeld(order) {
 		return order
 	}
 	safe := *order
@@ -83,7 +86,7 @@ func knownNonSquarespaceOrderIdentity(order *dbent.PaymentOrder) bool {
 		key = strings.TrimSpace(order.PaymentType)
 	}
 	switch payment.GetBasePaymentType(strings.ToLower(key)) {
-	case payment.TypeAlipay, payment.TypeWxpay, payment.TypeStripe, payment.TypeEasyPay, payment.TypeAirwallex, payment.TypeGelv, internalBalanceProvider:
+	case payment.TypeAlipay, payment.TypeWxpay, payment.TypeStripe, payment.TypeEasyPay, payment.TypeAirwallex, payment.TypeGelv, payment.TypeGelvAlipay, internalBalanceProvider:
 		return true
 	default:
 		return false

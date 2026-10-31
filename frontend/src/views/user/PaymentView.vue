@@ -31,6 +31,9 @@
             :retail-quote="paymentState.retailQuote"
             :payment-claim-mode="paymentState.paymentClaimMode"
             :account-email="user?.email"
+            :refund-reconciliation-pending="paymentState.refundReconciliationPending"
+            @checkout-unavailable="holdHostedCheckout"
+            @checkout-available="resumeHostedCheckout"
             @done="onPaymentDone"
             @success="onPaymentSuccess"
             @settled="onPaymentSettled"
@@ -60,8 +63,8 @@
             <template v-else>
             <div class="open-section purchase-amount">
               <p v-if="retailPricingEnabled && selectedMethod === 'squarespace'" data-test="gbp-payment-notice" class="mb-4 text-sm text-gray-600 dark:text-gray-300">{{ t('paymentRetail.gbpPaymentNotice') }}</p>
-              <p v-if="retailPricingEnabled" class="mb-2 text-sm font-medium">{{ t(selectedMethod === 'gelv' ? 'gelv.cashLabel' : 'paymentRetail.amountLabel') }}</p>
-              <p v-if="retailPricingEnabled" class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t(selectedMethod === 'gelv' ? 'gelv.pickTier' : 'paymentRetail.amountHint') }}</p>
+              <p v-if="retailPricingEnabled" class="mb-2 text-sm font-medium">{{ t(['gelv', 'gelv_alipay'].includes(selectedMethod) ? 'gelv.cashLabel' : 'paymentRetail.amountLabel') }}</p>
+              <p v-if="retailPricingEnabled" class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t(selectedMethod === 'gelv_alipay' ? 'gelv.alipayPickTier' : selectedMethod === 'gelv' ? 'gelv.pickTier' : 'paymentRetail.amountHint') }}</p>
               <!-- 充值赠送活动文案（后台 Markdown 配置，空则不渲染） -->
               <div
                 v-if="renderedBonusNotice"
@@ -71,8 +74,9 @@
               ></div>
               <AmountInput
                 v-model="amount"
-                :amounts="selectedMethod === 'gelv' ? (selectedLimit?.topup_options || []).map(option => option.credits) : [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
-                :fixed-options="selectedMethod === 'gelv' ? selectedLimit?.topup_options : undefined"
+                :amounts="['gelv', 'gelv_alipay'].includes(selectedMethod) ? (selectedLimit?.topup_options || []).map(option => option.credits) : [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
+                :payment-type="selectedMethod"
+                :fixed-options="['gelv', 'gelv_alipay'].includes(selectedMethod) ? selectedLimit?.topup_options : undefined"
                 :min="globalMinAmount"
                 :max="globalMaxAmount"
                 :bonus-tiers="rechargeBonusTiers"
@@ -394,7 +398,8 @@ import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import RetailQuoteSummary from '@/components/payment/RetailQuoteSummary.vue'
 import { useRetailQuote } from '@/components/payment/useRetailQuote'
-import { isRetailQuote } from '@/components/payment/retailQuote'
+import { isValidGelvAlipayPayURL } from '@/components/payment/gelvAlipay'
+import { isGelvAlipayQuote, isRetailQuote } from '@/components/payment/retailQuote'
 import { newBalancePurchase, readBalancePurchase, saveBalancePurchase, clearBalancePurchase, type PendingBalancePurchase } from '@/components/payment/balanceSubscriptionPurchase'
 import Icon from '@/components/icons/Icon.vue'
 import { DEFAULT_PAYMENT_CURRENCY, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
@@ -556,6 +561,18 @@ async function invokeWechatJsapiPayment(payload: Record<string, unknown>): Promi
 
 const paymentState = ref<PaymentRecoverySnapshot>(emptyPaymentState())
 
+function resumeHostedCheckout(payUrl: string) {
+  if (paymentState.value.paymentType !== 'gelv_alipay' || !isValidGelvAlipayPayURL(payUrl)) return
+  paymentState.value = { ...paymentState.value, payUrl, refundReconciliationPending: false }
+  persistRecoverySnapshot(paymentState.value)
+}
+
+function holdHostedCheckout() {
+  if (paymentState.value.paymentType !== 'gelv_alipay') return
+  paymentState.value = { ...paymentState.value, payUrl: '', qrCode: '', refundReconciliationPending: true }
+  persistRecoverySnapshot(paymentState.value)
+}
+
 function persistRecoverySnapshot(snapshot: PaymentRecoverySnapshot) {
   if (typeof window === 'undefined' || !snapshot.orderId) return
   writePaymentRecoverySnapshot(window.localStorage, snapshot, PAYMENT_RECOVERY_STORAGE_KEY)
@@ -698,12 +715,13 @@ watch(tabs, (available) => {
 const visibleMethods = computed(() => getVisibleMethods(checkout.value.methods))
 const enabledMethods = computed(() => Object.keys(visibleMethods.value))
 const validAmount = computed(() => amount.value ?? 0)
-const retailPricingEnabled = computed(() => checkout.value.balance_retail_pricing_enabled === true)
+const retailPricingEnabled = computed(() => checkout.value.balance_retail_pricing_enabled === true || selectedMethod.value === 'gelv_alipay')
 const quoteRequest = computed<PaymentQuoteRequest | null>(() => {
   if (!retailPricingEnabled.value || activeTab.value !== 'recharge' || paymentPhase.value !== 'select'
     || validAmount.value <= 0 || !selectedMethod.value
-    || (checkout.value.global_min > 0 && validAmount.value < checkout.value.global_min)
-    || (checkout.value.global_max > 0 && validAmount.value > checkout.value.global_max)) return null
+    || (selectedMethod.value === 'gelv_alipay' && visibleMethods.value.gelv_alipay?.available !== true)
+    || (!['gelv', 'gelv_alipay'].includes(selectedMethod.value) && checkout.value.global_min > 0 && validAmount.value < checkout.value.global_min)
+    || (!['gelv', 'gelv_alipay'].includes(selectedMethod.value) && checkout.value.global_max > 0 && validAmount.value > checkout.value.global_max)) return null
   return { amount: validAmount.value, payment_type: selectedMethod.value, order_type: 'balance' }
 })
 const {
@@ -736,7 +754,7 @@ function amountFitsMethod(amt: number, methodType: string): boolean {
 
 // Visible methods decide the amount range shown to users.
 const globalMinAmount = computed(() => {
-  if (selectedMethod.value === 'gelv') return selectedLimit.value?.topup_options?.[0]?.credits || 0
+  if (['gelv', 'gelv_alipay'].includes(selectedMethod.value)) return selectedLimit.value?.topup_options?.[0]?.credits || 0
   if (retailPricingEnabled.value) return checkout.value.global_min
   const limits = Object.values(visibleMethods.value)
   if (limits.length === 0) return 0
@@ -744,7 +762,7 @@ const globalMinAmount = computed(() => {
   return Math.min(...limits.map(limit => limit.single_min))
 })
 const globalMaxAmount = computed(() => {
-  if (selectedMethod.value === 'gelv') return selectedLimit.value?.topup_options?.at(-1)?.credits || 0
+  if (['gelv', 'gelv_alipay'].includes(selectedMethod.value)) return selectedLimit.value?.topup_options?.at(-1)?.credits || 0
   if (retailPricingEnabled.value) return checkout.value.global_max
   const limits = Object.values(visibleMethods.value)
   if (limits.length === 0) return 0
@@ -755,7 +773,7 @@ const globalMaxAmount = computed(() => {
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
 watch(() => [selectedMethod.value, selectedLimit.value?.topup_options] as const, ([method, options]) => {
-  if (method === 'gelv' && options?.length && !options.some(option => option.credits === amount.value)) amount.value = options[0].credits
+  if (['gelv', 'gelv_alipay'].includes(method) && options?.length && !options.some(option => option.credits === amount.value)) amount.value = options[0].credits
 })
 const selectedCurrency = computed(() => normalizePaymentCurrency(selectedLimit.value?.currency))
 const localeCode = computed(() => {
@@ -908,7 +926,7 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
       type,
       display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
-      available: !['squarespace', 'gelv'].includes(type) && ml?.available !== false && amountFitsMethod(subscriptionTotalAmountForCurrency(price, currency), type),
+      available: !['squarespace', 'gelv', 'gelv_alipay'].includes(type) && ml?.available !== false && amountFitsMethod(subscriptionTotalAmountForCurrency(price, currency), type),
     }
   })
 })
@@ -918,7 +936,7 @@ const canSubmitSubscription = computed(() =>
     ? !!pendingBalancePurchase.value || hasSubscriptionBalance.value
     :
   selectedPlan.value !== null
-    && !['squarespace', 'gelv'].includes(selectedMethod.value)
+    && !['squarespace', 'gelv', 'gelv_alipay'].includes(selectedMethod.value)
     && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
@@ -949,7 +967,7 @@ function topUpForSubscription() {
 }
 
 watch([activeTab, selectedPlan], () => {
-  if (activeTab.value !== 'subscription' || !['squarespace', 'gelv'].includes(selectedMethod.value)) return
+  if (activeTab.value !== 'subscription' || !['squarespace', 'gelv', 'gelv_alipay'].includes(selectedMethod.value)) return
   selectedMethod.value = subMethodOptions.value.find(method => method.available)?.type || ''
 })
 
@@ -1098,6 +1116,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
   errorMessage.value = ''
   errorHintMessage.value = ''
   const requestType = normalizeVisibleMethod(options.paymentType || selectedMethod.value) || options.paymentType || selectedMethod.value
+  const visibleMethod = normalizeVisibleMethod(requestType) || requestType
   const effectiveRenewalMode = orderType === 'subscription'
     ? (options.renewalMode ?? renewalMode.value)
     : undefined
@@ -1131,6 +1150,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       || result.retail_quote.pricing_mode !== confirmedQuote.pricing_mode
       || result.retail_quote.credit_by_channel?.wechat_virtual !== confirmedQuote.credit_by_channel?.wechat_virtual
       || result.retail_quote.credit_by_channel?.apple_iap !== confirmedQuote.credit_by_channel?.apple_iap
+      || result.retail_quote.credit_by_channel?.alipay_web !== confirmedQuote.credit_by_channel?.alipay_web
+      || (visibleMethod === 'gelv_alipay' && !isGelvAlipayQuote(result.retail_quote))
       || result.pay_amount !== confirmedQuote.pay_amount
       || result.currency !== confirmedQuote.currency
       || result.retail_quote.pricing_basis_currency !== confirmedQuote.pricing_basis_currency
@@ -1151,7 +1172,6 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
         window.location.href = url
       }
     }
-    const visibleMethod = normalizeVisibleMethod(requestType) || requestType
     // When user clicks the dedicated Stripe button, leave method blank so the
     // landing page renders Stripe's full Payment Element (card/link/alipay/wxpay).
     const stripeMethod = visibleMethod === 'stripe'
@@ -1256,7 +1276,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       }
       return
     }
-    if (decision.kind === 'redirect_waiting' && decision.paymentState.payUrl) {
+    if (decision.kind === 'redirect_waiting' && decision.paymentState.paymentType !== 'gelv_alipay' && decision.paymentState.payUrl) {
       if (isMobileDevice()) {
         window.location.href = decision.paymentState.payUrl
         return
@@ -1461,7 +1481,7 @@ onMounted(async () => {
         const bi = order.indexOf(b)
         return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
       })
-      selectedMethod.value = sorted[0]
+      selectedMethod.value = sorted.find(type => visibleMethods.value[type]?.available !== false) || sorted[0]
     }
     if (typeof window !== 'undefined') {
       if (hasWechatResumeQuery(route.query)) {

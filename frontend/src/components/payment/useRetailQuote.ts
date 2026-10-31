@@ -1,4 +1,4 @@
-import { isCurrentRetailQuote } from './retailQuote'
+import { isGelvAlipayQuote, isCurrentRetailQuote } from './retailQuote'
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { paymentAPI } from '@/api/payment'
 import type { PaymentQuoteRequest, PaymentQuoteResponse } from '@/types/payment'
@@ -33,6 +33,8 @@ export function useRetailQuote(request: Ref<PaymentQuoteRequest | null>) {
       const result = await paymentAPI.quote({ ...input })
       if (requestSequence !== sequence) return
       if (!result.data?.quote_token || !isCurrentRetailQuote(result.data.retail_quote)
+        || (input.payment_type === 'gelv_alipay' && !isGelvAlipayQuote(result.data.retail_quote))
+        || (input.payment_type !== 'gelv_alipay' && isGelvAlipayQuote(result.data.retail_quote))
         || result.data.retail_quote.credited_amount_usd !== input.amount
         || Date.parse(result.data.retail_quote.expires_at) <= Date.now()) {
         failed.value = true

@@ -21,7 +21,7 @@
         <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{{ countdownDisplay }}</p>
         <p class="mt-2 text-sm text-gray-400 dark:text-gray-500">{{ t('payment.qr.waitingPayment') }}</p>
       </div>
-      <a v-if="payUrl && !qrUrl && !expired" :href="payUrl" target="_blank" rel="noopener noreferrer"
+      <a v-if="payUrl && !qrUrl && !expired" :href="payUrl" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer"
         class="btn btn-primary w-full py-3">
         {{ t('payment.qr.openPayWindow') }}
       </a>
@@ -34,6 +34,7 @@
 </template>
 
 <script setup lang="ts">
+import { isValidGelvAlipayPayURL } from '@/components/payment/gelvAlipay'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -63,6 +64,7 @@ const remainingSeconds = ref(0)
 const expired = ref(false)
 const cancelling = ref(false)
 const paymentType = ref('')
+const checkoutHeld = ref(false)
 const miniProgramImage = computed(() => isMiniProgramImage(paymentType.value, qrUrl.value))
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -150,7 +152,13 @@ async function pollStatus() {
     if (!order) return
     // 定时器已被 cleanup 清除时不再执行终态跳转（响应可能在 cleanup 后才回来）。
     if (!pollTimer) return
-    if (order.status === 'COMPLETED' || order.status === 'PAID') {
+    if (paymentType.value === 'gelv_alipay') {
+      if (order.refund_reconciliation_pending === true) checkoutHeld.value = true
+      else if (order.refund_reconciliation_pending === false) checkoutHeld.value = false
+      payUrl.value = !checkoutHeld.value && isValidGelvAlipayPayURL(order.pay_url) ? order.pay_url : ''
+      if (checkoutHeld.value) return
+    }
+    if (order.status === 'COMPLETED' || (paymentType.value !== 'gelv_alipay' && order.status === 'PAID')) {
       cleanup()
       router.push({ path: '/payment/result', query: { order_id: String(orderId.value), status: 'success' } })
     } else if (order.status === 'EXPIRED' || order.status === 'CANCELLED' || order.status === 'FAILED') {
@@ -204,6 +212,11 @@ onMounted(() => {
   qrUrl.value = String(route.query.qr || '')
   payUrl.value = String(route.query.pay_url || '')
   paymentType.value = String(route.query.payment_type || '')
+  if (paymentType.value === 'gelv_alipay') {
+    // Never open a recovered query-string token before an owned-order read.
+    payUrl.value = ''
+    qrUrl.value = ''
+  }
 
   // Calculate countdown from expiresAt
   const expiresAtStr = String(route.query.expires_at || '')
@@ -215,6 +228,7 @@ onMounted(() => {
   }
   startCountdown(seconds)
   pollTimer = setInterval(pollStatus, 3000)
+  if (paymentType.value === 'gelv_alipay') void pollStatus()
   renderQR()
 })
 

@@ -43,7 +43,7 @@
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p>
           <p class="text-sm text-gray-700 dark:text-gray-300">
-            {{ order.payment_type === 'gelv' ? t('gelv.name') : order.payment_type === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + order.payment_type, order.payment_type) }}
+            {{ order.payment_type === 'gelv_alipay' ? t('gelv.alipayName') : order.payment_type === 'gelv' ? t('gelv.name') : order.payment_type === 'squarespace' ? t('squarespaceProvider.name') : t('payment.methods.' + order.payment_type, order.payment_type) }}
           </p>
         </div>
         <div>
