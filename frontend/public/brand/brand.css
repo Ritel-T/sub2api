@@ -1,4 +1,4 @@
-@import url('./typography.css?v=0d91b869581b9d07');
+@import url('./typography.css?v=5350fea93722f0f7');
 @import url('./fonts.css?v=a66f2ac5aebca25f');
 @import url('./fonts/chiron/css/vf.css?v=54efa1ea9737c384');
 :root{
@@ -35,7 +35,7 @@
 .ritel-theme :is(code,pre,kbd,samp){font-family:var(--ritel-mono);font-synthesis:none}
 .ritel-display{font-family:var(--ritel-display);font-weight:600;font-synthesis:none}
 .ritel-heading{font-family:var(--ritel-heading);font-synthesis:none}
-.ritel-number-hero,[data-number=hero]{font-family:var(--ritel-heading);font-variant-numeric:oldstyle-nums proportional-nums;font-synthesis:none;letter-spacing:0}
+.ritel-number-hero,[data-number=hero]{font-family:var(--ritel-display);font-variant-numeric:oldstyle-nums proportional-nums;font-synthesis:none;letter-spacing:0}
 .ritel-number-display,[data-number=display]{font-family:var(--ritel-display);font-weight:500;font-variant-numeric:lining-nums proportional-nums;font-synthesis:none;letter-spacing:0}
 .ritel-number-compact,[data-number=compact]{font-family:var(--ritel-ui);font-variant-numeric:lining-nums tabular-nums;font-synthesis:none;letter-spacing:0}
 .ritel-theme :focus-visible{outline:2px solid var(--ritel-focus);outline-offset:4px}

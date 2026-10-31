@@ -38,7 +38,7 @@
       "bytes": 4503
     },
     "brand.css": {
-      "sha256": "887903996b510063896d44b4ef4a569531207439950186d93eb1ab9f7dd7b8d4",
+      "sha256": "7cc45eb0009d9271b449af26f13749b26c42d22723e0e8976b1d525b39295e82",
       "bytes": 4917
     },
     "favicon-16.png": {
@@ -54,7 +54,7 @@
       "bytes": 1512
     },
     "font-subsets.json": {
-      "sha256": "13b96d5db3cf036433415a4f2eeca00dce8d3a75f73562efece4bf3cb3ce65a6",
+      "sha256": "99342b745bb1559ff64a681c9c923406046b8d24d8b458de255c0b90b0a62a21",
       "bytes": 285331
     },
     "fonts/chiron/LICENSE.md": {
@@ -2022,7 +2022,7 @@
       "bytes": 216494
     },
     "priority-codepoints.json": {
-      "sha256": "e19d5e81ab7447a620c8e80457e79cf3cc48648bd40f1dcd4909772b0170961f",
+      "sha256": "2482dd94d2ef425034710036e9a82b39431c602e79d13c4124eb20048ec222d2",
       "bytes": 2004
     },
     "ritel-favicon.svg": {
@@ -2046,7 +2046,7 @@
       "bytes": 4503
     },
     "typography.css": {
-      "sha256": "0d91b869581b9d0753db65c333d73aa394041c8c1b4b278e67b07ee0d69d59ec",
+      "sha256": "5350fea93722f0f7b8ec5187a9c30418d6a45c84c26599970cd7e63a3dabe887",
       "bytes": 11116
     }
   }

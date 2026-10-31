@@ -2,7 +2,7 @@
   "schema": 1,
   "purpose": "Prioritize observed public home-page characters without removing any source repertoire.",
   "source": "site-navigation/index.html",
-  "source_sha256": "b1081f53a79f0df5618350b5171f57781c9d6ce2c4b77fc245c59b462cd2ff58",
+  "source_sha256": "1fea5ffe9fbe7f15a9ab8a10a0204083bfafa80f3fa3ec1d69c0a93c3910581e",
   "includes": "Visible HTML and public locale attribute strings for en, zh-CN and zh-HK; script/style excluded.",
   "codepoints": [
     169,

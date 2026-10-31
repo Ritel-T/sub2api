@@ -11,8 +11,8 @@
   --ritel-type-subsection-family: var(--ritel-type-section-family); --ritel-type-subsection-size: var(--ritel-type-section-size); --ritel-type-subsection-weight: var(--ritel-type-section-weight); --ritel-type-subsection-leading: var(--ritel-type-section-leading); --ritel-type-subsection-tracking: var(--ritel-type-section-tracking);
   --ritel-type-minor-family: var(--ritel-ui); --ritel-type-minor-size: 14px; --ritel-type-minor-weight: 600; --ritel-type-minor-leading: 1.5; --ritel-type-minor-tracking: 0;
   --ritel-type-dialog-family: var(--ritel-display); --ritel-type-dialog-size: 24px; --ritel-type-dialog-weight: 600; --ritel-type-dialog-leading: 1.2; --ritel-type-dialog-tracking: -.01em;
-  --ritel-type-auth-family: var(--ritel-heading); --ritel-type-auth-size: 36px; --ritel-type-auth-weight: 600; --ritel-type-auth-leading: 1.2; --ritel-type-auth-tracking: -.025em;
-  --ritel-type-hero-family: var(--ritel-heading); --ritel-type-hero-size: clamp(56px, 8vw, 108px); --ritel-type-hero-weight: 400; --ritel-type-hero-leading: 1.05; --ritel-type-hero-tracking: -.04em;
+  --ritel-type-auth-family: var(--ritel-display); --ritel-type-auth-size: 36px; --ritel-type-auth-weight: 600; --ritel-type-auth-leading: 1.2; --ritel-type-auth-tracking: -.025em;
+  --ritel-type-hero-family: var(--ritel-display); --ritel-type-hero-size: clamp(56px, 8vw, 108px); --ritel-type-hero-weight: 400; --ritel-type-hero-leading: 1.05; --ritel-type-hero-tracking: -.04em;
   --ritel-type-empty-family: var(--ritel-ui); --ritel-type-empty-size: 18px; --ritel-type-empty-weight: 500; --ritel-type-empty-leading: 1.4; --ritel-type-empty-tracking: 0;
   --ritel-type-metric-family: var(--ritel-display); --ritel-type-metric-size: 36px; --ritel-type-metric-weight: 500; --ritel-type-metric-leading: 1.2; --ritel-type-metric-tracking: -.01em;
   --ritel-type-subtle-family: var(--ritel-ui); --ritel-type-subtle-size: 13px; --ritel-type-subtle-weight: 400; --ritel-type-subtle-leading: 1.4; --ritel-type-subtle-tracking: 0;
@@ -105,7 +105,7 @@
 
 /* Marketing and reading are distinct presentation roles shared by static products. */
 :root {
-  --ritel-type-marketing-hero-family: var(--ritel-heading);
+  --ritel-type-marketing-hero-family: var(--ritel-display);
   --ritel-type-marketing-hero-size: clamp(44px,5.4vw,86px);
   --ritel-type-marketing-hero-weight: 400;
   --ritel-type-marketing-hero-leading: 1.15;
