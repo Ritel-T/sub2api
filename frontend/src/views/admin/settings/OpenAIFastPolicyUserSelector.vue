@@ -34,7 +34,9 @@
         size="sm"
         class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
       />
-      <input
+      <label class="block min-w-0 w-full">
+        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.openaiFastPolicy.userSearchPlaceholder') }}</span>
+        <input
         v-model="searchQuery"
         type="text"
         autocomplete="off"
@@ -43,6 +45,7 @@
         @input="debounceSearch"
         @focus="showDropdown = true"
       />
+      </label>
     </div>
 
     <div

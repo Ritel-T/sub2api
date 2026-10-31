@@ -22,7 +22,9 @@
         </AppHeading>
         <div class="flex items-end gap-2">
           <div class="relative flex-1">
-            <input
+            <label class="block min-w-0 w-full">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.groups.searchUserPlaceholder') }}</span>
+              <input
               v-model="searchQuery"
               type="text"
               autocomplete="off"
@@ -31,6 +33,7 @@
               @input="handleSearchUsers"
               @focus="showDropdown = true"
             />
+            </label>
             <div
               v-if="showDropdown && searchResults.length > 0"
               class="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-500 dark:bg-dark-700"
@@ -49,7 +52,7 @@
             </div>
           </div>
           <div class="w-24">
-            <input
+            <label class="block min-w-0 w-full"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.rpm') }}</span><input
               v-model.number="newRpm"
               type="number"
               step="1"
@@ -57,7 +60,7 @@
               autocomplete="off"
               class="hide-spinner input w-full"
               placeholder="100"
-            />
+            /></label>
           </div>
           <button
             type="button"
@@ -134,7 +137,7 @@
                       </span>
                     </td>
                     <td class="whitespace-nowrap px-3 py-2">
-                      <input
+                      <label class="block min-w-0 w-20"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.rpm') }}</span><input
                         type="number"
                         step="1"
                         min="0"
@@ -142,10 +145,10 @@
                         :value="entry.rpm_override"
                         class="hide-spinner w-20 rounded border border-gray-200 bg-white px-2 py-1 text-center text-sm font-medium transition-colors focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/20 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500"
                         @change="updateLocalRpm(entry.user_id, ($event.target as HTMLInputElement).value)"
-                      />
+                      /></label>
                     </td>
                     <td class="px-2 py-2">
-                      <button
+                      <button :aria-label="t('consoleFields.remove')"
                         type="button"
                         class="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                         @click="removeLocal(entry.user_id)"

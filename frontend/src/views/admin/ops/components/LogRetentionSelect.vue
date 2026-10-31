@@ -27,9 +27,14 @@ function select(value: string | number | boolean | null | undefined) {
 
 <template>
   <div class="space-y-2">
-    <Select :model-value="selection" :options="options" :aria-label="label" @update:model-value="select" />
-    <input
-      v-if="selection === 'custom'"
+    <label class="block min-w-0">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ label }}</span>
+      <Select :model-value="selection" :options="options" :aria-label="label" @update:model-value="select" />
+    </label>
+    <label v-if="selection === 'custom'" class="block min-w-0">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ `${label}: ${t('admin.ops.systemLogs.retentionDaysCustom')}` }}</span>
+      <input
+
       :value="modelValue"
       type="number"
       min="1"
@@ -39,5 +44,6 @@ function select(value: string | number | boolean | null | undefined) {
       :aria-label="`${label}: ${t('admin.ops.systemLogs.retentionDaysCustom')}`"
       @input="emit('update:modelValue', ($event.target as HTMLInputElement).valueAsNumber)"
     />
+    </label>
   </div>
 </template>

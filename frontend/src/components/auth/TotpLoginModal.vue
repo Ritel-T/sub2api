@@ -24,9 +24,9 @@
         @input="handleHiddenOtpInput"
       />
       <div class="flex justify-center gap-2">
-        <input
-          v-for="(_, index) in 6"
-          :key="index"
+        <label v-for="(_, index) in 6" :key="index" class="block min-w-0 w-10"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.verificationDigit', { digit: index + 1 }) }}</span><input
+
+
           :value="code[index]"
           :ref="(el) => setInputRef(el, index)"
           type="text"
@@ -39,7 +39,7 @@
           @input="handleCodeInput($event, index)"
           @keydown="handleKeydown($event, index)"
           @paste="handlePaste"
-        />
+        /></label>
       </div>
       <!-- Loading indicator -->
       <div v-if="verifying" class="mt-3 flex items-center justify-center gap-2 text-sm text-gray-500">

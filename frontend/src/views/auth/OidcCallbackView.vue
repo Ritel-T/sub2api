@@ -78,11 +78,11 @@
           </div>
 
           <template v-if="needsInvitation">
-            <p class="text-sm text-gray-700 dark:text-gray-300">
+            <p :id="'field-' + fieldLabelScope + '-1'" class="text-sm text-gray-700 dark:text-gray-300">
               {{ t('auth.oidc.invitationRequired', { providerName }) }}
             </p>
             <div>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                 v-model="invitationCode"
                 type="text"
                 class="input w-full"
@@ -168,7 +168,9 @@
               {{ t('auth.oauthFlow.bindLoginHint', { providerName }) }}
             </p>
             <div class="space-y-3">
-              <input
+              <label class="block min-w-0 w-full">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('auth.emailPlaceholder') }}</span>
+                <input
                 v-model="bindLoginEmail"
                 data-testid="oidc-bind-login-email"
                 type="email"
@@ -177,7 +179,10 @@
                 :disabled="isSubmitting"
                 @keyup.enter="handleBindLogin"
               />
-              <input
+              </label>
+              <label class="block min-w-0 w-full">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('auth.passwordPlaceholder') }}</span>
+                <input
                 v-model="bindLoginPassword"
                 data-testid="oidc-bind-login-password"
                 type="password"
@@ -186,6 +191,7 @@
                 :disabled="isSubmitting"
                 @keyup.enter="handleBindLogin"
               />
+              </label>
               <button
                 data-testid="oidc-bind-login-submit"
                 class="btn btn-primary w-full"
@@ -215,7 +221,7 @@
               }}
             </p>
             <div class="space-y-3">
-              <input
+              <label class="block min-w-0 w-full"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.verificationCode') }}</span><input
                 v-model="totpCode"
                 data-testid="oidc-bind-login-totp"
                 type="text"
@@ -225,7 +231,7 @@
                 placeholder="123456"
                 :disabled="isSubmitting"
                 @keyup.enter="handleSubmitTotpChallenge"
-              />
+              /></label>
               <button
                 data-testid="oidc-bind-login-totp-submit"
                 class="btn btn-primary w-full"
@@ -243,6 +249,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

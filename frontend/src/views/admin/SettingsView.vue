@@ -170,20 +170,20 @@
           <ServerlessSettings ref="serverlessSettings" managed />
           <div class="open-settings-section" data-testid="prism-browser-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ localText("Prism 浏览器桥", "Prism browser bridge") }}</AppHeading>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ localText("账号可单独选择 Prism 模型范围。", "Choose the Prism model scope for each account.") }}</p>
+              <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ t('consoleInline.prismBrowserBridge_a5d904') }}</AppHeading>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('consoleInline.chooseThePrismModelScopeForEach_23e3e8') }}</p>
             </div>
             <div class="settings-section-fields">
             <div class="space-y-4 p-6">
               <label class="block">
-                <span class="mb-1 block text-sm text-gray-600 dark:text-gray-300">{{ localText("适配器 Base URL", "Adapter Base URL") }}</span>
+                <span class="mb-1 block text-sm text-gray-600 dark:text-gray-300">{{ t('consoleInline.adapterBaseURL_0369c2') }}</span>
                 <input v-model="form.prism_browser_base_url" class="input w-full" placeholder="http://127.0.0.1:8319/v1" />
               </label>
               <label class="block">
-                <span class="mb-1 block text-sm text-gray-600 dark:text-gray-300">{{ localText("桥接 API Key（留空保持原值）", "Bridge API key (leave empty to keep the current value)") }}</span>
+                <span class="mb-1 block text-sm text-gray-600 dark:text-gray-300">{{ t('consoleInline.bridgeAPIKeyLeaveEmptyToKeep_05a85c') }}</span>
                 <input v-model="form.prism_browser_api_key" type="password" autocomplete="new-password" class="input w-full" />
               </label>
-              <p v-if="form.prism_browser_enabled && !form.prism_browser_api_key_configured" class="text-sm text-amber-600">{{ localText("启用前必须配置至少 32 个字符的适配器密钥。", "Configure an adapter key with at least 32 characters before enabling.") }}</p>
+              <p v-if="form.prism_browser_enabled && !form.prism_browser_api_key_configured" class="text-sm text-amber-600">{{ t('consoleInline.configureAnAdapterKeyWithAtLeast_8bf6e9') }}</p>
             </div>
 
             </div>
@@ -230,12 +230,12 @@
                   class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700"
                 >
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-1'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.overloadCooldown.cooldownMinutes") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                       v-model.number="overloadCooldownForm.cooldown_minutes"
                       type="number"
                       min="1"
@@ -297,7 +297,7 @@
                   class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700"
                 >
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-2'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{
@@ -306,7 +306,7 @@
                         )
                       }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
                       v-model.number="rateLimit429CooldownForm.cooldown_seconds"
                       type="number"
                       min="1"
@@ -374,12 +374,12 @@
                 >
                   <!-- Action -->
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-3'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.streamTimeout.action") }}
                     </label>
-                    <select
+                    <select :aria-labelledby="'field-' + fieldLabelScope + '-3'"
                       v-model="streamTimeoutForm.action"
                       class="input w-64"
                     >
@@ -402,12 +402,12 @@
 
                   <!-- Temp Unsched Minutes (only show when action is temp_unsched) -->
                   <div v-if="streamTimeoutForm.action === 'temp_unsched'">
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-4'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.streamTimeout.tempUnschedMinutes") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
                       v-model.number="streamTimeoutForm.temp_unsched_minutes"
                       type="number"
                       min="1"
@@ -423,12 +423,12 @@
 
                   <!-- Threshold Count -->
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-5'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.streamTimeout.thresholdCount") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-5'"
                       v-model.number="streamTimeoutForm.threshold_count"
                       type="number"
                       min="1"
@@ -442,14 +442,14 @@
 
                   <!-- Threshold Window Minutes -->
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-6'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{
                         t("admin.settings.streamTimeout.thresholdWindowMinutes")
                       }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-6'"
                       v-model.number="
                         streamTimeoutForm.threshold_window_minutes
                       "
@@ -594,7 +594,9 @@
                       :key="index"
                       class="flex items-center gap-2"
                     >
-                      <input
+                      <label class="block min-w-0 flex-1">
+                        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.rectifier.apikeyPatternPlaceholder') }}</span>
+                        <input
                         v-model="rectifierForm.apikey_signature_patterns[index]"
                         type="text"
                         class="input input-sm flex-1"
@@ -602,7 +604,8 @@
                           t('admin.settings.rectifier.apikeyPatternPlaceholder')
                         "
                       />
-                      <button
+                      </label>
+                      <button :aria-label="t('consoleFields.remove')"
                         type="button"
                         @click="
                           rectifierForm.apikey_signature_patterns.splice(
@@ -671,7 +674,7 @@
               <template v-else>
                 <!-- Rule Cards -->
                 <div
-                  v-for="rule in betaPolicyForm.rules"
+                  v-for="(rule, fieldIndex0) in betaPolicyForm.rules"
                   :key="rule.beta_token"
                   class="open-section"
                 >
@@ -691,12 +694,12 @@
                   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <!-- Action -->
                     <div>
-                      <label
+                      <label :id="'field-' + fieldLabelScope + '-7' + '-' + fieldIndex0"
                         class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                       >
                         {{ t("admin.settings.betaPolicy.action") }}
                       </label>
-                      <Select :aria-label="t('admin.settings.betaPolicy.action')"
+                      <Select :aria-labelledby="'field-' + fieldLabelScope + '-7' + '-' + fieldIndex0" :aria-label="t('admin.settings.betaPolicy.action')"
                         :modelValue="rule.action"
                         @update:modelValue="rule.action = $event as any"
                         :options="betaPolicyActionOptions"
@@ -705,12 +708,12 @@
 
                     <!-- Scope -->
                     <div>
-                      <label
+                      <label :id="'field-' + fieldLabelScope + '-8' + '-' + fieldIndex0"
                         class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                       >
                         {{ t("admin.settings.betaPolicy.scope") }}
                       </label>
-                      <Select :aria-label="t('admin.settings.betaPolicy.scope')"
+                      <Select :aria-labelledby="'field-' + fieldLabelScope + '-8' + '-' + fieldIndex0" :aria-label="t('admin.settings.betaPolicy.scope')"
                         :modelValue="rule.scope"
                         @update:modelValue="rule.scope = $event as any"
                         :options="betaPolicyScopeOptions"
@@ -720,12 +723,12 @@
 
                   <!-- Error Message (only when action=block) -->
                   <div v-if="rule.action === 'block'" class="mt-3">
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-9' + '-' + fieldIndex0"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.betaPolicy.errorMessage") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-9' + '-' + fieldIndex0"
                       v-model="rule.error_message"
                       type="text"
                       class="input"
@@ -761,7 +764,7 @@
 
                   <!-- Model Whitelist -->
                   <div class="mt-3">
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-10' + '-' + fieldIndex0"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.betaPolicy.modelWhitelist") }}
@@ -775,7 +778,7 @@
                       :key="index"
                       class="mb-1.5 flex items-center gap-2"
                     >
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-10' + '-' + fieldIndex0"
                         v-model="rule.model_whitelist![index]"
                         type="text"
                         class="input input-sm flex-1"
@@ -783,7 +786,7 @@
                           t('admin.settings.betaPolicy.modelPatternPlaceholder')
                         "
                       />
-                      <button
+                      <button :aria-label="t('consoleFields.remove')"
                         type="button"
                         @click="rule.model_whitelist!.splice(index, 1)"
                         class="shrink-0 rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
@@ -853,12 +856,12 @@
                     "
                     class="mt-3"
                   >
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-11' + '-' + fieldIndex0"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.betaPolicy.fallbackAction") }}
                     </label>
-                    <Select :aria-label="t('admin.settings.betaPolicy.fallbackAction')"
+                    <Select :aria-labelledby="'field-' + fieldLabelScope + '-11' + '-' + fieldIndex0" :aria-label="t('admin.settings.betaPolicy.fallbackAction')"
                       :modelValue="rule.fallback_action || 'pass'"
                       @update:modelValue="rule.fallback_action = $event as any"
                       :options="betaPolicyActionOptions"
@@ -868,7 +871,7 @@
                     </p>
                     <!-- Fallback Error Message (only when fallback_action=block) -->
                     <div v-if="rule.fallback_action === 'block'" class="mt-2">
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-11' + '-' + fieldIndex0"
                         v-model="rule.fallback_error_message"
                         type="text"
                         class="input"
@@ -995,12 +998,12 @@
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <!-- Service Tier -->
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-12' + '-' + ruleIndex"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.openaiFastPolicy.serviceTier") }}
                     </label>
-                    <Select :aria-label="t('admin.settings.openaiFastPolicy.serviceTier')"
+                    <Select :aria-labelledby="'field-' + fieldLabelScope + '-12' + '-' + ruleIndex" :aria-label="t('admin.settings.openaiFastPolicy.serviceTier')"
                       :modelValue="rule.service_tier"
                       @update:modelValue="
                         rule.service_tier = $event as
@@ -1015,12 +1018,12 @@
 
                   <!-- Action -->
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-13' + '-' + ruleIndex"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.openaiFastPolicy.action") }}
                     </label>
-                    <Select :aria-label="t('admin.settings.openaiFastPolicy.action')"
+                    <Select :aria-labelledby="'field-' + fieldLabelScope + '-13' + '-' + ruleIndex" :aria-label="t('admin.settings.openaiFastPolicy.action')"
                       :modelValue="rule.action"
                       @update:modelValue="
                         rule.action = $event as
@@ -1035,12 +1038,12 @@
 
                   <!-- Scope -->
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-14' + '-' + ruleIndex"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.openaiFastPolicy.scope") }}
                     </label>
-                    <Select :aria-label="t('admin.settings.openaiFastPolicy.scope')"
+                    <Select :aria-labelledby="'field-' + fieldLabelScope + '-14' + '-' + ruleIndex" :aria-label="t('admin.settings.openaiFastPolicy.scope')"
                       :modelValue="rule.scope"
                       @update:modelValue="
                         rule.scope = $event as
@@ -1072,12 +1075,12 @@
 
                 <!-- Error Message (only when action=block) -->
                 <div v-if="rule.action === 'block'" class="mt-3">
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-15' + '-' + ruleIndex"
                     class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                   >
                     {{ t("admin.settings.openaiFastPolicy.errorMessage") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-15' + '-' + ruleIndex"
                     v-model="rule.error_message"
                     type="text"
                     class="input"
@@ -1118,7 +1121,7 @@
                     :key="patternIdx"
                     class="mb-1.5 flex items-center gap-2"
                   >
-                    <input
+                    <input :aria-labelledby="`openai-fast-policy-models-label-${ruleIndex}`"
                       v-model="rule.model_whitelist![patternIdx]"
                       type="text"
                       class="input input-sm flex-1"
@@ -1128,7 +1131,7 @@
                         )
                       "
                     />
-                    <button
+                    <button :aria-label="t('consoleFields.remove')"
                       type="button"
                       @click="
                         removeOpenAIFastPolicyModelPattern(rule, patternIdx)
@@ -1177,12 +1180,12 @@
                   v-if="hasOpenAIFastPolicyTargetModels(rule)"
                   class="mt-3"
                 >
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-16' + '-' + ruleIndex"
                     class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                   >
                     {{ t("admin.settings.openaiFastPolicy.fallbackAction") }}
                   </label>
-                  <Select :aria-label="t('admin.settings.openaiFastPolicy.fallbackAction')"
+                  <Select :aria-labelledby="'field-' + fieldLabelScope + '-16' + '-' + ruleIndex" :aria-label="t('admin.settings.openaiFastPolicy.fallbackAction')"
                     :modelValue="rule.fallback_action || 'pass'"
                     @update:modelValue="
                       rule.fallback_action = $event as
@@ -1199,7 +1202,7 @@
                     }}
                   </p>
                   <div v-if="rule.fallback_action === 'block'" class="mt-2">
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-16' + '-' + ruleIndex"
                       v-model="rule.fallback_error_message"
                       type="text"
                       class="input"
@@ -1294,7 +1297,7 @@
 
               <!-- Email Suffix Whitelist -->
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
-                <label class="font-medium text-gray-900 dark:text-white">{{
+                <label :id="'field-' + fieldLabelScope + '-17'" class="font-medium text-gray-900 dark:text-white">{{
                   t("admin.settings.registration.emailSuffixWhitelist")
                 }}</label>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -1312,7 +1315,7 @@
                       class="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-dark-600 dark:text-gray-200"
                     >
                       <span>{{ suffix }}</span>
-                      <button
+                      <button :aria-label="t('consoleFields.remove')"
                         type="button"
                         class="rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-dark-500 dark:hover:text-white"
                         @click="
@@ -1331,7 +1334,7 @@
                     <div
                       class="flex min-w-[220px] flex-1 items-center gap-1 rounded border border-transparent px-2 py-1 focus-within:border-primary-300 dark:focus-within:border-primary-700"
                     >
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-17'"
                         v-model="registrationEmailSuffixWhitelistDraft"
                         type="text"
                         class="w-full bg-transparent text-sm font-mono text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-gray-500"
@@ -1446,12 +1449,12 @@
                 v-if="form.email_verify_enabled && form.password_reset_enabled"
                 class="border-t border-gray-100 pt-4 dark:border-dark-700"
               >
-                <label
+                <label :id="'field-' + fieldLabelScope + '-18'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{ t("admin.settings.registration.frontendUrl") }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-18'"
                   v-model="form.frontend_url"
                   type="url"
                   class="input"
@@ -1621,14 +1624,14 @@
                 class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
               >
                 <div>
-                  <label class="font-medium text-gray-900 dark:text-white">{{
+                  <label :id="'field-' + fieldLabelScope + '-audit-retention'" class="font-medium text-gray-900 dark:text-white">{{
                     t("admin.settings.security.auditRetention")
                   }}</label>
                   <p class="text-sm text-gray-500 dark:text-gray-400">
                     {{ t("admin.settings.security.auditRetentionHint") }}
                   </p>
                 </div>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-audit-retention'"
                   v-model.number="form.audit_log_retention_days"
                   type="number"
                   min="0"
@@ -1796,13 +1799,13 @@
                 >
                   <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                     <div>
-                      <label
+                      <label :id="'field-' + fieldLabelScope + '-19'"
                         class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >
                         {{ t("admin.settings.panelRateLimit.userRpm") }}
                       </label>
                       <div class="flex items-center gap-2">
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-19'"
                           v-model.number="panelRateLimitForm.user_rpm"
                           data-testid="panel-rate-limit-user-rpm"
                           type="number"
@@ -1820,13 +1823,13 @@
                     </div>
 
                     <div>
-                      <label
+                      <label :id="'field-' + fieldLabelScope + '-20'"
                         class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >
                         {{ t("admin.settings.panelRateLimit.heavyRpm") }}
                       </label>
                       <div class="flex items-center gap-2">
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-20'"
                           v-model.number="panelRateLimitForm.heavy_rpm"
                           type="number"
                           min="0"
@@ -1843,13 +1846,13 @@
                     </div>
 
                     <div>
-                      <label
+                      <label :id="'field-' + fieldLabelScope + '-21'"
                         class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >
                         {{ t("admin.settings.panelRateLimit.publicIpRpm") }}
                       </label>
                       <div class="flex items-center gap-2">
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-21'"
                           v-model.number="panelRateLimitForm.public_ip_rpm"
                           type="number"
                           min="0"
@@ -1979,12 +1982,12 @@
                   class="grid grid-cols-1 gap-6"
                 >
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-22'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.turnstile.siteKey") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-22'"
                       v-model="form.turnstile_site_key"
                       type="text"
                       class="input font-mono text-sm"
@@ -2003,12 +2006,12 @@
                     </p>
                   </div>
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-23'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.turnstile.secretKey") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-23'"
                       v-model="form.turnstile_secret_key"
                       type="password"
                       class="input font-mono text-sm"
@@ -2074,10 +2077,10 @@
                       </p>
                     </div>
                     <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label :id="'field-' + fieldLabelScope + '-24'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                         {{ t("admin.settings.tencentCaptcha.appId") }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-24'"
                         v-model="form.tencent_captcha_app_id"
                         type="text"
                         inputmode="numeric"
@@ -2086,10 +2089,10 @@
                       />
                     </div>
                     <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label :id="'field-' + fieldLabelScope + '-25'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                         {{ t("admin.settings.tencentCaptcha.appSecretKey") }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-25'"
                         v-model="form.tencent_captcha_app_secret_key"
                         type="password"
                         autocomplete="new-password"
@@ -2109,10 +2112,10 @@
                       </p>
                     </div>
                     <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label :id="'field-' + fieldLabelScope + '-26'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                         {{ t("admin.settings.tencentCaptcha.cloudSecretId") }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-26'"
                         v-model="form.tencent_captcha_cloud_secret_id"
                         type="password"
                         autocomplete="new-password"
@@ -2124,10 +2127,10 @@
                       </p>
                     </div>
                     <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label :id="'field-' + fieldLabelScope + '-27'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                         {{ t("admin.settings.tencentCaptcha.cloudSecretKey") }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-27'"
                         v-model="form.tencent_captcha_cloud_secret_key"
                         type="password"
                         autocomplete="new-password"
@@ -2215,12 +2218,12 @@
                       </p>
                     </div>
                     <div>
-                      <label
+                      <label :id="'field-' + fieldLabelScope + '-28'"
                         class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >
                         {{ t("admin.settings.aliyunCaptcha.prefix") }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-28'"
                         v-model="form.aliyun_captcha_prefix"
                         type="text"
                         class="input font-mono text-sm"
@@ -2232,12 +2235,12 @@
                     </div>
                   </div>
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-29'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.aliyunCaptcha.sceneId") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-29'"
                       v-model="form.aliyun_captcha_scene_id"
                       type="text"
                       class="input font-mono text-sm"
@@ -2248,12 +2251,12 @@
                     </p>
                   </div>
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-30'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.aliyunCaptcha.accessKeyId") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-30'"
                       v-model="form.aliyun_captcha_access_key_id"
                       type="text"
                       class="input font-mono text-sm"
@@ -2264,12 +2267,12 @@
                     </p>
                   </div>
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-31'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.aliyunCaptcha.accessKeySecret") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-31'"
                       v-model="form.aliyun_captcha_access_key_secret"
                       type="password"
                       autocomplete="new-password"
@@ -2325,12 +2328,12 @@
               >
                 <div class="grid grid-cols-1 gap-6">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-32'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.linuxdo.clientId") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-32'"
                       v-model="form.linuxdo_connect_client_id"
                       type="text"
                       class="input font-mono text-sm"
@@ -2344,12 +2347,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-33'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.linuxdo.clientSecret") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-33'"
                       v-model="form.linuxdo_connect_client_secret"
                       type="password"
                       class="input font-mono text-sm"
@@ -2373,12 +2376,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-34'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.linuxdo.redirectUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-34'"
                       v-model="form.linuxdo_connect_redirect_url"
                       type="url"
                       class="input font-mono text-sm"
@@ -2420,14 +2423,11 @@
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
               <AppHeading variant="section" as="h2" id="settings-section-email-oauth" tabindex="-1" class="text-gray-900 dark:text-white">
-                {{ localText("邮箱快捷登录", "Email OAuth Sign-in") }}
+                {{ t('consoleInline.emailOAuthSignIn_47c757') }}
               </AppHeading>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{
-                  localText(
-                    "开启 GitHub 或 Google 邮箱授权登录后，系统会读取已验证邮箱，存在则直接登录，不存在则自动注册。",
-                    "After GitHub or Google email OAuth is enabled, the system reads a verified email, signs in matching users, and auto-registers missing users.",
-                  )
+                  t('consoleInline.afterGitHubOrGoogleEmailOAuthIs_0dec2c')
                 }}
               </p>
             </div>
@@ -2442,10 +2442,7 @@
                       </AppHeading>
                       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                         {{
-                          localText(
-                            "GitHub OAuth App 需要 read:user user:email 权限，回调地址填写下方后端地址。",
-                            "GitHub OAuth App needs read:user user:email scopes. Use the backend callback URL below.",
-                          )
+                          t('consoleInline.gitHubOAuthAppNeedsReadUserUser_044649')
                         }}
                       </p>
                     </div>
@@ -2454,7 +2451,7 @@
 
                   <div v-if="form.github_oauth_enabled" class="mt-4 space-y-4">
                     <div class="open-section py-2 text-xs text-gray-600 dark:text-gray-300">
-                      {{ localText('开通引导：GitHub Settings → Developer settings →', 'Setup guide: GitHub Settings → Developer settings →') }}
+                      {{ t('consoleInline.setupGuideGitHubSettingsDeveloperSettings_259cb1') }}
                       <a
                         data-testid="github-oauth-apps-guide-link"
                         href="https://github.com/settings/developers"
@@ -2462,13 +2459,13 @@
                         rel="noopener noreferrer"
                         class="font-medium text-primary-600 hover:underline dark:text-primary-400"
                       >OAuth Apps</a>
-                      {{ localText('→ New OAuth App；Homepage URL 填站点域名，Authorization callback URL 填下面的后端回调地址。', '→ New OAuth App. Use your site origin as Homepage URL and the backend callback URL below as Authorization callback URL.') }}
+                      {{ t('consoleInline.newOAuthAppUseYourSiteOrigin_0f15a0') }}
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                       <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label>
-                        <input
+                        <label :id="'field-' + fieldLabelScope + '-35'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label>
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-35'"
                           v-model="form.github_oauth_client_id"
                           type="text"
                           class="input font-mono text-sm"
@@ -2476,14 +2473,14 @@
                         />
                       </div>
                       <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret</label>
-                        <input
+                        <label :id="'field-' + fieldLabelScope + '-36'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret</label>
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-36'"
                           v-model="form.github_oauth_client_secret"
                           type="password"
                           class="input font-mono text-sm"
                           :placeholder="
                             form.github_oauth_client_secret_configured
-                              ? localText('密钥已配置，留空以保留当前值。', 'Secret configured. Leave empty to keep the current value.')
+                              ? t('consoleInline.secretConfiguredLeaveEmptyToKeepThe_603947')
                               : 'GitHub OAuth Client Secret'
                           "
                         />
@@ -2491,10 +2488,10 @@
                     </div>
 
                     <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {{ localText("后端回调地址", "Backend Callback URL") }}
+                      <label :id="'field-' + fieldLabelScope + '-37'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {{ t('consoleInline.backendCallbackURL_ea490d') }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-37'"
                         v-model="form.github_oauth_redirect_url"
                         type="url"
                         class="input font-mono text-sm"
@@ -2506,7 +2503,7 @@
                           class="btn btn-secondary btn-sm w-fit"
                           @click="setAndCopyEmailOAuthRedirectUrl('github')"
                         >
-                          {{ localText("生成并复制", "Generate and copy") }}
+                          {{ t('consoleInline.generateAndCopy_bca8e4') }}
                         </button>
                         <code
                           v-if="githubOAuthRedirectUrlSuggestion"
@@ -2518,10 +2515,10 @@
                     </div>
 
                     <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {{ localText("前端回跳地址", "Frontend Callback URL") }}
+                      <label :id="'field-' + fieldLabelScope + '-38'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {{ t('consoleInline.frontendCallbackURL_e11a38') }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-38'"
                         v-model="form.github_oauth_frontend_redirect_url"
                         type="text"
                         class="input font-mono text-sm"
@@ -2539,10 +2536,7 @@
                       </AppHeading>
                       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                         {{
-                          localText(
-                            "Google OAuth 客户端需要 openid email profile 范围，并在凭据里登记后端回调地址。",
-                            "Google OAuth client needs openid email profile scopes and the backend callback URL registered in credentials.",
-                          )
+                          t('consoleInline.googleOAuthClientNeedsOpenidEmailProfile_76e407')
                         }}
                       </p>
                     </div>
@@ -2552,17 +2546,14 @@
                   <div v-if="form.google_oauth_enabled" class="mt-4 space-y-4">
                     <div class="open-section py-2 text-xs text-gray-600 dark:text-gray-300">
                       {{
-                        localText(
-                          "开通引导：Google Cloud Console → APIs & Services → OAuth consent screen 完成同意屏幕；Credentials → Create Credentials → OAuth client ID，类型选择 Web application，并把下面地址加入 Authorized redirect URIs。",
-                          "Setup guide: Google Cloud Console → APIs & Services → OAuth consent screen, then Credentials → Create Credentials → OAuth client ID, choose Web application, and add the URL below to Authorized redirect URIs.",
-                        )
+                        t('consoleInline.setupGuideGoogleCloudConsoleAPIsServices_0d8b62')
                       }}
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                       <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label>
-                        <input
+                        <label :id="'field-' + fieldLabelScope + '-39'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label>
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-39'"
                           v-model="form.google_oauth_client_id"
                           type="text"
                           class="input font-mono text-sm"
@@ -2570,14 +2561,14 @@
                         />
                       </div>
                       <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret</label>
-                        <input
+                        <label :id="'field-' + fieldLabelScope + '-40'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret</label>
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-40'"
                           v-model="form.google_oauth_client_secret"
                           type="password"
                           class="input font-mono text-sm"
                           :placeholder="
                             form.google_oauth_client_secret_configured
-                              ? localText('密钥已配置，留空以保留当前值。', 'Secret configured. Leave empty to keep the current value.')
+                              ? t('consoleInline.secretConfiguredLeaveEmptyToKeepThe_603947')
                               : 'Google OAuth Client Secret'
                           "
                         />
@@ -2585,10 +2576,10 @@
                     </div>
 
                     <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {{ localText("后端回调地址", "Backend Callback URL") }}
+                      <label :id="'field-' + fieldLabelScope + '-41'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {{ t('consoleInline.backendCallbackURL_ea490d') }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-41'"
                         v-model="form.google_oauth_redirect_url"
                         type="url"
                         class="input font-mono text-sm"
@@ -2600,7 +2591,7 @@
                           class="btn btn-secondary btn-sm w-fit"
                           @click="setAndCopyEmailOAuthRedirectUrl('google')"
                         >
-                          {{ localText("生成并复制", "Generate and copy") }}
+                          {{ t('consoleInline.generateAndCopy_bca8e4') }}
                         </button>
                         <code
                           v-if="googleOAuthRedirectUrlSuggestion"
@@ -2612,10 +2603,10 @@
                     </div>
 
                     <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {{ localText("前端回跳地址", "Frontend Callback URL") }}
+                      <label :id="'field-' + fieldLabelScope + '-42'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {{ t('consoleInline.frontendCallbackURL_e11a38') }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-42'"
                         v-model="form.google_oauth_frontend_redirect_url"
                         type="text"
                         class="input font-mono text-sm"
@@ -2670,18 +2661,15 @@
                     <div class="flex items-start justify-between gap-4">
                       <div>
                         <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
-                          {{ localText("PC 应用", "PC App") }}
+                          {{ t('consoleInline.pCApp_9e22d1') }}
                         </AppHeading>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                           {{
-                            localText(
-                              "桌面浏览器通过微信开放平台扫码登录。可与公众号或移动应用同时存在。",
-                              "Desktop browsers sign in through WeChat Open Platform QR login. This can coexist with Official Account or Mobile App.",
-                            )
+                            t('consoleInline.desktopBrowsersSignInThroughWeChatOpen_1f4fe6')
                           }}
                         </p>
                       </div>
-                      <Toggle :aria-label="localText('PC 应用', 'PC App')"
+                      <Toggle :aria-label="t('consoleInline.pCApp_9e22d1')"
                         :model-value="form.wechat_connect_open_enabled"
                         data-testid="wechat-connect-open-enabled"
                         @update:model-value="handleWeChatOpenEnabledChange"
@@ -2692,45 +2680,36 @@
                       class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2"
                     >
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-43'"
                           class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >
-                          {{ localText("PC AppID", "PC App ID") }}
+                          {{ t('consoleInline.pCAppID_364b63') }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-43'"
                           v-model="form.wechat_connect_open_app_id"
                           data-testid="wechat-connect-open-app-id"
                           type="text"
                           class="input font-mono text-sm"
                           :placeholder="
-                            localText(
-                              '微信开放平台 PC 应用 AppID',
-                              'WeChat Open Platform PC App ID',
-                            )
+                            t('consoleInline.weChatOpenPlatformPCAppID_f9817d')
                           "
                         />
                       </div>
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-44'"
                           class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >
-                          {{ localText("PC AppSecret", "PC App Secret") }}
+                          {{ t('consoleInline.pCAppSecret_5a7f0b') }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-44'"
                           v-model="form.wechat_connect_open_app_secret"
                           data-testid="wechat-connect-open-app-secret"
                           type="password"
                           class="input font-mono text-sm"
                           :placeholder="
                             form.wechat_connect_open_app_secret_configured
-                              ? localText(
-                                  '密钥已配置，留空以保留当前值。',
-                                  'Secret configured. Leave empty to keep the current value.',
-                                )
-                              : localText(
-                                  '微信开放平台 PC 应用 AppSecret',
-                                  'WeChat Open Platform PC App Secret',
-                                )
+                              ? t('consoleInline.secretConfiguredLeaveEmptyToKeepThe_603947')
+                              : t('consoleInline.weChatOpenPlatformPCAppSecret_001e29')
                           "
                         />
                       </div>
@@ -2743,18 +2722,15 @@
                     <div class="flex items-start justify-between gap-4">
                       <div>
                         <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
-                          {{ localText("公众号", "Official Account") }}
+                          {{ t('consoleInline.officialAccount_0e2ef7') }}
                         </AppHeading>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                           {{
-                            localText(
-                              "仅在微信内浏览器可用；非微信环境下会显示不可用。",
-                              "Only available inside the WeChat browser. It is shown as unavailable outside WeChat.",
-                            )
+                            t('consoleInline.onlyAvailableInsideTheWeChatBrowserIt_f7b561')
                           }}
                         </p>
                       </div>
-                      <Toggle :aria-label="localText('公众号', 'Official Account')"
+                      <Toggle :aria-label="t('consoleInline.officialAccount_0e2ef7')"
                         :model-value="form.wechat_connect_mp_enabled"
                         data-testid="wechat-connect-mp-enabled"
                         @update:model-value="handleWeChatMPEnabledChange"
@@ -2765,50 +2741,38 @@
                       class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2"
                     >
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-45'"
                           class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >
-                          {{ localText("公众号 AppID", "Official Account App ID") }}
+                          {{ t('consoleInline.officialAccountAppID_ded9b5') }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-45'"
                           v-model="form.wechat_connect_mp_app_id"
                           data-testid="wechat-connect-mp-app-id"
                           type="text"
                           class="input font-mono text-sm"
                           :placeholder="
-                            localText(
-                              '公众号 AppID',
-                              'Official Account App ID',
-                            )
+                            t('consoleInline.officialAccountAppID_ded9b5')
                           "
                         />
                       </div>
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-46'"
                           class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >
                           {{
-                            localText(
-                              "公众号 AppSecret",
-                              "Official Account App Secret",
-                            )
+                            t('consoleInline.officialAccountAppSecret_8b5fbc')
                           }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-46'"
                           v-model="form.wechat_connect_mp_app_secret"
                           data-testid="wechat-connect-mp-app-secret"
                           type="password"
                           class="input font-mono text-sm"
                           :placeholder="
                             form.wechat_connect_mp_app_secret_configured
-                              ? localText(
-                                  '密钥已配置，留空以保留当前值。',
-                                  'Secret configured. Leave empty to keep the current value.',
-                                )
-                              : localText(
-                                  '公众号 AppSecret',
-                                  'Official Account App Secret',
-                                )
+                              ? t('consoleInline.secretConfiguredLeaveEmptyToKeepThe_603947')
+                              : t('consoleInline.officialAccountAppSecret_8b5fbc')
                           "
                         />
                       </div>
@@ -2821,18 +2785,15 @@
                     <div class="flex items-start justify-between gap-4">
                       <div>
                         <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
-                          {{ localText("移动应用", "Mobile App") }}
+                          {{ t('consoleInline.mobileApp_5eb88a') }}
                         </AppHeading>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                           {{
-                            localText(
-                              "原生移动端通过微信 SDK 唤起授权，网页端不会直接发起该流程。",
-                              "Native mobile clients start authorization through the WeChat SDK. The web UI does not launch this flow directly.",
-                            )
+                            t('consoleInline.nativeMobileClientsStartAuthorizationThroughThe_dee3e4')
                           }}
                         </p>
                       </div>
-                      <Toggle :aria-label="localText('移动应用', 'Mobile App')"
+                      <Toggle :aria-label="t('consoleInline.mobileApp_5eb88a')"
                         :model-value="form.wechat_connect_mobile_enabled"
                         data-testid="wechat-connect-mobile-enabled"
                         @update:model-value="handleWeChatMobileEnabledChange"
@@ -2843,45 +2804,36 @@
                       class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2"
                     >
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-47'"
                           class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >
-                          {{ localText("移动应用 AppID", "Mobile App ID") }}
+                          {{ t('consoleInline.mobileAppID_36857d') }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-47'"
                           v-model="form.wechat_connect_mobile_app_id"
                           data-testid="wechat-connect-mobile-app-id"
                           type="text"
                           class="input font-mono text-sm"
                           :placeholder="
-                            localText(
-                              '移动应用 AppID',
-                              'Mobile App ID',
-                            )
+                            t('consoleInline.mobileAppID_36857d')
                           "
                         />
                       </div>
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-48'"
                           class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >
-                          {{ localText("移动应用 AppSecret", "Mobile App Secret") }}
+                          {{ t('consoleInline.mobileAppSecret_823fa8') }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-48'"
                           v-model="form.wechat_connect_mobile_app_secret"
                           data-testid="wechat-connect-mobile-app-secret"
                           type="password"
                           class="input font-mono text-sm"
                           :placeholder="
                             form.wechat_connect_mobile_app_secret_configured
-                              ? localText(
-                                  '密钥已配置，留空以保留当前值。',
-                                  'Secret configured. Leave empty to keep the current value.',
-                                )
-                              : localText(
-                                  '移动应用 AppSecret',
-                                  'Mobile App Secret',
-                                )
+                              ? t('consoleInline.secretConfiguredLeaveEmptyToKeepThe_603947')
+                              : t('consoleInline.mobileAppSecret_823fa8')
                           "
                         />
                       </div>
@@ -2898,26 +2850,20 @@
                   class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300"
                 >
                   {{
-                    localText(
-                      "如果同时启用 PC 应用和公众号/移动应用，这些应用需要挂在同一个微信开放平台主体下，否则 UnionID 无法稳定归并账号。",
-                      "When PC App is enabled together with Official Account or Mobile App, they should belong to the same WeChat Open Platform account so UnionID can merge identities reliably.",
-                    )
+                    t('consoleInline.whenPCAppIsEnabledTogetherWith_3e7200')
                   }}
                 </div>
 
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-49'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{
-                        localText(
-                          "浏览器回调地址",
-                          "Browser Redirect URL",
-                        )
+                        t('consoleInline.browserRedirectURL_ba8067')
                       }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-49'"
                       data-testid="wechat-connect-redirect-url"
                       v-model="form.wechat_connect_redirect_url"
                       type="url"
@@ -2926,10 +2872,7 @@
                     />
                     <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                       {{
-                        localText(
-                          "用于 PC 应用和公众号的网页回调。移动应用走原生 SDK 时不直接使用这个浏览器回调。",
-                          "Used by PC App and Official Account browser callbacks. Native mobile SDK flows do not start from this browser callback directly.",
-                        )
+                        t('consoleInline.usedByPCAppAndOfficialAccount_b3f077')
                       }}
                     </p>
                     <div
@@ -2953,12 +2896,12 @@
                 </div>
 
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-50'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.wechatConnect.frontendRedirectUrlLabel") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-50'"
                     data-testid="wechat-connect-frontend-redirect-url"
                     v-model="form.wechat_connect_frontend_redirect_url"
                     type="text"
@@ -3007,12 +2950,12 @@
               >
                 <div class="grid grid-cols-1 gap-6">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-51'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.dingtalk.clientId") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-51'"
                       v-model="form.dingtalk_connect_client_id"
                       type="text"
                       class="input font-mono text-sm"
@@ -3026,12 +2969,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-52'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.dingtalk.clientSecret") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-52'"
                       v-model="form.dingtalk_connect_client_secret"
                       type="password"
                       class="input font-mono text-sm"
@@ -3055,12 +2998,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-53'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.dingtalk.redirectUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-53'"
                       v-model="form.dingtalk_connect_redirect_url"
                       type="url"
                       class="input font-mono text-sm"
@@ -3141,10 +3084,10 @@
                     </div>
                     <div v-if="form.dingtalk_connect_sync_display_name" class="space-y-2">
                       <div class="flex items-center gap-2">
-                        <label class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
+                        <label :id="'field-' + fieldLabelScope + '-54'" class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
                           {{ t("admin.settings.dingtalk.syncDisplayNameTarget") }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-54'"
                           v-model="form.dingtalk_connect_sync_display_name_attr_key"
                           type="text"
                           placeholder="dingtalk_name"
@@ -3152,13 +3095,13 @@
                         />
                       </div>
                       <div class="flex items-center gap-2">
-                        <label class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
+                        <label :id="'field-' + fieldLabelScope + '-55'" class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
                           {{ t("admin.settings.dingtalk.syncAttrDisplayName") }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-55'"
                           v-model="form.dingtalk_connect_sync_display_name_attr_name"
                           type="text"
-                          :placeholder="localText('钉钉姓名', 'DingTalk Name')"
+                          :placeholder="t('consoleInline.dingTalkName_e986a1')"
                           class="input text-sm flex-1 max-w-xs"
                         />
                       </div>
@@ -3187,10 +3130,10 @@
                     </div>
                     <div v-if="form.dingtalk_connect_sync_corp_email" class="space-y-2">
                       <div class="flex items-center gap-2">
-                        <label class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
+                        <label :id="'field-' + fieldLabelScope + '-56'" class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
                           {{ t("admin.settings.dingtalk.syncCorpEmailTarget") }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-56'"
                           v-model="form.dingtalk_connect_sync_corp_email_attr_key"
                           type="text"
                           placeholder="dingtalk_email"
@@ -3198,13 +3141,13 @@
                         />
                       </div>
                       <div class="flex items-center gap-2">
-                        <label class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
+                        <label :id="'field-' + fieldLabelScope + '-57'" class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
                           {{ t("admin.settings.dingtalk.syncAttrDisplayName") }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-57'"
                           v-model="form.dingtalk_connect_sync_corp_email_attr_name"
                           type="text"
-                          :placeholder="localText('钉钉企业邮箱', 'DingTalk Corporate Email')"
+                          :placeholder="t('consoleInline.dingTalkCorporateEmail_074033')"
                           class="input text-sm flex-1 max-w-xs"
                         />
                       </div>
@@ -3233,10 +3176,10 @@
                     </div>
                     <div v-if="form.dingtalk_connect_sync_dept" class="space-y-2">
                       <div class="flex items-center gap-2">
-                        <label class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
+                        <label :id="'field-' + fieldLabelScope + '-58'" class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
                           {{ t("admin.settings.dingtalk.syncDeptTarget") }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-58'"
                           v-model="form.dingtalk_connect_sync_dept_attr_key"
                           type="text"
                           placeholder="dingtalk_department"
@@ -3244,13 +3187,13 @@
                         />
                       </div>
                       <div class="flex items-center gap-2">
-                        <label class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
+                        <label :id="'field-' + fieldLabelScope + '-59'" class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap min-w-[5rem]">
                           {{ t("admin.settings.dingtalk.syncAttrDisplayName") }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-59'"
                           v-model="form.dingtalk_connect_sync_dept_attr_name"
                           type="text"
-                          :placeholder="localText('钉钉部门', 'DingTalk Department')"
+                          :placeholder="t('consoleInline.dingTalkDepartment_51d84c')"
                           class="input text-sm flex-1 max-w-xs"
                         />
                       </div>
@@ -3298,12 +3241,12 @@
               >
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-60'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.providerName") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-60'"
                       v-model="form.oidc_connect_provider_name"
                       type="text"
                       class="input"
@@ -3314,12 +3257,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-61'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.clientId") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-61'"
                       v-model="form.oidc_connect_client_id"
                       type="text"
                       class="input font-mono text-sm"
@@ -3330,12 +3273,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-62'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.clientSecret") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-62'"
                       v-model="form.oidc_connect_client_secret"
                       type="password"
                       class="input font-mono text-sm"
@@ -3359,12 +3302,12 @@
 
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-63'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.issuerUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-63'"
                       v-model="form.oidc_connect_issuer_url"
                       type="url"
                       class="input font-mono text-sm"
@@ -3375,12 +3318,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-64'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.discoveryUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-64'"
                       v-model="form.oidc_connect_discovery_url"
                       type="url"
                       class="input font-mono text-sm"
@@ -3391,12 +3334,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-65'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.authorizeUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-65'"
                       v-model="form.oidc_connect_authorize_url"
                       type="url"
                       class="input font-mono text-sm"
@@ -3407,12 +3350,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-66'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.tokenUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-66'"
                       v-model="form.oidc_connect_token_url"
                       type="url"
                       class="input font-mono text-sm"
@@ -3423,12 +3366,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-67'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.userinfoUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-67'"
                       v-model="form.oidc_connect_userinfo_url"
                       type="url"
                       class="input font-mono text-sm"
@@ -3439,12 +3382,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-68'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.jwksUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-68'"
                       v-model="form.oidc_connect_jwks_url"
                       type="url"
                       class="input font-mono text-sm"
@@ -3455,12 +3398,12 @@
 
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-69'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.scopes") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-69'"
                       v-model="form.oidc_connect_scopes"
                       type="text"
                       class="input font-mono text-sm"
@@ -3472,12 +3415,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-70'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.redirectUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-70'"
                       v-model="form.oidc_connect_redirect_url"
                       type="url"
                       class="input font-mono text-sm"
@@ -3508,12 +3451,12 @@
                   </div>
 
                   <div class="lg:col-span-2">
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-71'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.frontendRedirectUrl") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-71'"
                       v-model="form.oidc_connect_frontend_redirect_url"
                       type="text"
                       class="input font-mono text-sm"
@@ -3529,12 +3472,12 @@
 
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-72'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.tokenAuthMethod") }}
                     </label>
-                    <select
+                    <select :aria-labelledby="'field-' + fieldLabelScope + '-72'"
                       v-model="form.oidc_connect_token_auth_method"
                       class="input font-mono text-sm"
                     >
@@ -3549,12 +3492,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-73'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.clockSkewSeconds") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-73'"
                       v-model.number="form.oidc_connect_clock_skew_seconds"
                       type="number"
                       min="0"
@@ -3564,12 +3507,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-74'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.allowedSigningAlgs") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-74'"
                       v-model="form.oidc_connect_allowed_signing_algs"
                       type="text"
                       class="input font-mono text-sm"
@@ -3625,12 +3568,12 @@
 
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-75'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.userinfoEmailPath") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-75'"
                       v-model="form.oidc_connect_userinfo_email_path"
                       type="text"
                       class="input font-mono text-sm"
@@ -3641,12 +3584,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-76'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.userinfoIdPath") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-76'"
                       v-model="form.oidc_connect_userinfo_id_path"
                       type="text"
                       class="input font-mono text-sm"
@@ -3657,12 +3600,12 @@
                   </div>
 
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-77'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.oidc.userinfoUsernamePath") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-77'"
                       v-model="form.oidc_connect_userinfo_username_path"
                       type="text"
                       class="input font-mono text-sm"
@@ -3698,12 +3641,12 @@
             <div class="space-y-6 p-6">
               <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-78'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.defaults.defaultBalance") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-78'"
                     v-model.number="form.default_balance"
                     type="number"
                     step="0.01"
@@ -3716,12 +3659,12 @@
                   </p>
                 </div>
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-79'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.defaults.defaultConcurrency") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-79'"
                     v-model.number="form.default_concurrency"
                     type="number"
                     min="1"
@@ -3733,12 +3676,12 @@
                   </p>
                 </div>
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-80'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.defaults.defaultUserRpmLimit") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-80'"
                     v-model.number="form.default_user_rpm_limit"
                     type="number"
                     min="0"
@@ -3788,12 +3731,12 @@
                     class="grid grid-cols-1 gap-3 rounded border border-gray-200 p-3 md:grid-cols-[1fr_160px_auto] dark:border-dark-600"
                   >
                     <div>
-                      <label
+                      <label :id="'field-' + fieldLabelScope + '-81' + '-' + index"
                         class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                       >
                         {{ t("admin.settings.defaults.subscriptionGroup") }}
                       </label>
-                      <Select :aria-label="t('admin.settings.defaults.subscriptionGroup')"
+                      <Select :aria-labelledby="'field-' + fieldLabelScope + '-81' + '-' + index" :aria-label="t('admin.settings.defaults.subscriptionGroup')"
                         v-model="item.group_id"
                         class="default-sub-group-select"
                         :options="defaultSubscriptionGroupOptions"
@@ -3862,14 +3805,14 @@
                       </Select>
                     </div>
                     <div>
-                      <label
+                      <label :id="'field-' + fieldLabelScope + '-82' + '-' + index"
                         class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                       >
                         {{
                           t("admin.settings.defaults.subscriptionValidityDays")
                         }}
                       </label>
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-82' + '-' + index"
                         v-model.number="item.validity_days"
                         type="number"
                         min="1"
@@ -3908,9 +3851,9 @@
                     <thead>
                       <tr class="text-left text-xs text-gray-500 dark:text-gray-400">
                         <th class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.platform") }}</th>
-                        <th class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.daily") }}</th>
-                        <th class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.weekly") }}</th>
-                        <th class="pb-2 font-medium">{{ t("admin.settings.platformQuota.monthly") }}</th>
+                        <th :id="'field-' + fieldLabelScope + '-83'" class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.daily") }}</th>
+                        <th :id="'field-' + fieldLabelScope + '-84'" class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.weekly") }}</th>
+                        <th :id="'field-' + fieldLabelScope + '-85'" class="pb-2 font-medium">{{ t("admin.settings.platformQuota.monthly") }}</th>
                       </tr>
                     </thead>
                     <tbody class="space-y-2">
@@ -3919,7 +3862,7 @@
                           <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                         </td>
                         <td class="pr-4 py-1">
-                          <input
+                          <input :aria-labelledby="'field-' + fieldLabelScope + '-83'"
                             v-model.number="form.default_platform_quotas[p]!.daily"
                             type="number"
                             step="0.01"
@@ -3929,7 +3872,7 @@
                           />
                         </td>
                         <td class="pr-4 py-1">
-                          <input
+                          <input :aria-labelledby="'field-' + fieldLabelScope + '-84'"
                             v-model.number="form.default_platform_quotas[p]!.weekly"
                             type="number"
                             step="0.01"
@@ -3939,7 +3882,7 @@
                           />
                         </td>
                         <td class="py-1">
-                          <input
+                          <input :aria-labelledby="'field-' + fieldLabelScope + '-85'"
                             v-model.number="form.default_platform_quotas[p]!.monthly"
                             type="number"
                             step="0.01"
@@ -3988,7 +3931,7 @@
 
               <div class="space-y-4">
                 <div
-                  v-for="authSource in authSourceDefaultsMeta"
+                  v-for="(authSource, fieldIndex1) in authSourceDefaultsMeta"
                   :key="authSource.source"
                   class="open-section"
                 >
@@ -4020,12 +3963,12 @@
 
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-86' + '-' + fieldIndex1"
                           class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >
                           {{ t("admin.settings.defaults.defaultBalance") }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-86' + '-' + fieldIndex1"
                           v-model.number="
                             authSourceDefaults[authSource.source].balance
                           "
@@ -4037,12 +3980,12 @@
                         />
                       </div>
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-87' + '-' + fieldIndex1"
                           class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >
                           {{ t("admin.settings.defaults.defaultConcurrency") }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-87' + '-' + fieldIndex1"
                           v-model.number="
                             authSourceDefaults[authSource.source].concurrency
                           "
@@ -4121,12 +4064,12 @@
                         class="grid grid-cols-1 gap-3 rounded border border-gray-200 p-3 md:grid-cols-[1fr_160px_auto] dark:border-dark-600"
                       >
                         <div>
-                          <label
+                          <label :id="'field-' + fieldLabelScope + '-88' + '-' + fieldIndex1 + '-' + index"
                             class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                           >
                             {{ t("admin.settings.defaults.subscriptionGroup") }}
                           </label>
-                          <Select :aria-label="t('admin.settings.defaults.subscriptionGroup')"
+                          <Select :aria-labelledby="'field-' + fieldLabelScope + '-88' + '-' + fieldIndex1 + '-' + index" :aria-label="t('admin.settings.defaults.subscriptionGroup')"
                             v-model="item.group_id"
                             class="default-sub-group-select"
                             :options="defaultSubscriptionGroupOptions"
@@ -4197,7 +4140,7 @@
                           </Select>
                         </div>
                         <div>
-                          <label
+                          <label :id="'field-' + fieldLabelScope + '-89' + '-' + fieldIndex1 + '-' + index"
                             class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                           >
                             {{
@@ -4206,7 +4149,7 @@
                               )
                             }}
                           </label>
-                          <input
+                          <input :aria-labelledby="'field-' + fieldLabelScope + '-89' + '-' + fieldIndex1 + '-' + index"
                             v-model.number="item.validity_days"
                             type="number"
                             min="1"
@@ -4246,9 +4189,9 @@
                           <thead>
                             <tr class="text-left text-xs text-gray-500 dark:text-gray-400">
                               <th class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.platform") }}</th>
-                              <th class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.daily") }}</th>
-                              <th class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.weekly") }}</th>
-                              <th class="pb-2 font-medium">{{ t("admin.settings.platformQuota.monthly") }}</th>
+                              <th :id="'field-' + fieldLabelScope + '-90' + '-' + fieldIndex1" class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.daily") }}</th>
+                              <th :id="'field-' + fieldLabelScope + '-91' + '-' + fieldIndex1" class="pb-2 pr-4 font-medium">{{ t("admin.settings.platformQuota.weekly") }}</th>
+                              <th :id="'field-' + fieldLabelScope + '-92' + '-' + fieldIndex1" class="pb-2 font-medium">{{ t("admin.settings.platformQuota.monthly") }}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -4257,7 +4200,7 @@
                                 <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                               </td>
                               <td class="pr-4 py-1">
-                                <input
+                                <input :aria-labelledby="'field-' + fieldLabelScope + '-90' + '-' + fieldIndex1"
                                   v-model.number="authSourceDefaults[authSource.source].platform_quotas[p]!.daily"
                                   type="number"
                                   step="0.01"
@@ -4267,7 +4210,7 @@
                                 />
                               </td>
                               <td class="pr-4 py-1">
-                                <input
+                                <input :aria-labelledby="'field-' + fieldLabelScope + '-91' + '-' + fieldIndex1"
                                   v-model.number="authSourceDefaults[authSource.source].platform_quotas[p]!.weekly"
                                   type="number"
                                   step="0.01"
@@ -4277,7 +4220,7 @@
                                 />
                               </td>
                               <td class="py-1">
-                                <input
+                                <input :aria-labelledby="'field-' + fieldLabelScope + '-92' + '-' + fieldIndex1"
                                   v-model.number="authSourceDefaults[authSource.source].platform_quotas[p]!.monthly"
                                   type="number"
                                   step="0.01"
@@ -4319,12 +4262,12 @@
             <div class="settings-section-fields">
             <div class="p-6">
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-93'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{ t("admin.settings.claudeCode.minVersion") }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-93'"
                   v-model="form.min_claude_code_version"
                   type="text"
                   class="input max-w-xs font-mono text-sm"
@@ -4337,12 +4280,12 @@
                 </p>
               </div>
               <div class="mt-4">
-                <label
+                <label :id="'field-' + fieldLabelScope + '-94'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{ t("admin.settings.claudeCode.maxVersion") }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-94'"
                   v-model="form.max_claude_code_version"
                   type="text"
                   class="input max-w-xs font-mono text-sm"
@@ -4372,10 +4315,10 @@
             <div class="p-6 space-y-4">
                 <RequestTimezoneSettings v-model="form.openai_request_timezone_enabled" v-model:auto="form.openai_request_timezone_auto" />
                 <div class="open-section" data-testid="codex-management-links">
-                  <p class="text-sm text-gray-500 dark:text-gray-400">{{ localText('自动打票、模型与票据策略在「打票全流程」管理；采票出口、订阅与节点在「IP 管理」管理。', 'Manage automatic harvesting, models and ticket policies in Harvest Flow; manage exits, subscriptions and nodes in IP Management.') }}</p>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('consoleInline.manageAutomaticHarvestingModelsAndTicketPolicies_15c555') }}</p>
                   <div class="mt-3 flex flex-wrap gap-2">
                     <router-link to="/admin/harvest-flow" class="btn btn-secondary btn-sm">{{ t('nav.harvestFlow') }}</router-link>
-                    <router-link to="/admin/proxies#harvest" class="btn btn-secondary btn-sm">{{ localText('IP 管理', 'IP Management') }}</router-link>
+                    <router-link to="/admin/proxies#harvest" class="btn btn-secondary btn-sm">{{ t('consoleInline.iPManagement_0e4af9') }}</router-link>
                   </div>
                 </div>
                 <div>
@@ -4388,12 +4331,12 @@
                 </div>
                 <div class="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-95'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.gatewayForwarding.minCodexVersion") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-95'"
                       v-model="form.min_codex_version"
                       type="text"
                       class="input w-full font-mono text-sm"
@@ -4405,12 +4348,12 @@
                     />
                   </div>
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-96'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.gatewayForwarding.maxCodexVersion") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-96'"
                       v-model="form.max_codex_version"
                       type="text"
                       class="input w-full font-mono text-sm"
@@ -4427,7 +4370,7 @@
                 </p>
 
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label :id="'field-' + fieldLabelScope + '-97'" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     {{ t("admin.settings.gatewayForwarding.codexFingerprintSignals") }}
                   </label>
                   <p class="mb-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -4438,12 +4381,12 @@
                     :key="`codex-fp-${i}`"
                     class="mb-2 flex items-center gap-2"
                   >
-                    <select v-model="row.type" class="input w-32 text-sm">
+                    <select :aria-labelledby="'field-' + fieldLabelScope + '-97'" v-model="row.type" class="input w-32 text-sm">
                       <option value="header_exact">{{ t("admin.settings.gatewayForwarding.codexFpTypeHeaderExact") }}</option>
                       <option value="header_prefix">{{ t("admin.settings.gatewayForwarding.codexFpTypeHeaderPrefix") }}</option>
                       <option value="body_path">{{ t("admin.settings.gatewayForwarding.codexFpTypeBodyPath") }}</option>
                     </select>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-97'"
                       v-model="row.match"
                       type="text"
                       class="input flex-1 font-mono text-sm"
@@ -4495,7 +4438,7 @@
                 </div>
 
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-98'"
                     class="block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.gatewayForwarding.codexBlacklist") }}
@@ -4508,7 +4451,7 @@
                     :key="`codex-bl-${i}`"
                     class="mb-2 flex gap-2"
                   >
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-98'"
                       v-model="row.originator"
                       type="text"
                       class="input w-1/3 font-mono text-sm"
@@ -4518,7 +4461,7 @@
                         )
                       "
                     />
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-98'"
                       v-model="row.uaContains"
                       type="text"
                       class="input flex-1 font-mono text-sm"
@@ -4546,7 +4489,7 @@
                 </div>
 
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-99'"
                     class="block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.gatewayForwarding.codexWhitelist") }}
@@ -4559,7 +4502,7 @@
                     :key="`codex-wl-${i}`"
                     class="mb-2 flex gap-2"
                   >
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-99'"
                       v-model="row.originator"
                       type="text"
                       class="input w-1/3 font-mono text-sm"
@@ -4569,7 +4512,7 @@
                         )
                       "
                     />
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-99'"
                       v-model="row.uaContains"
                       type="text"
                       class="input flex-1 font-mono text-sm"
@@ -4927,7 +4870,7 @@
                         %
                       </span>
                     </div>
-                    <input
+                    <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.schedulingThreshold') }}</span><input
                       v-model.number="form.account_scheduling_thresholds[platform]"
                       type="number"
                       min="1"
@@ -4936,7 +4879,7 @@
                       class="input mt-3"
                       :data-testid="`account-scheduling-threshold-${platform}`"
                       placeholder="100"
-                    />
+                    /></label>
                   </div>
                 </div>
               </div>
@@ -5394,7 +5337,7 @@
                             size="xs"
                           />
                         </button>
-                        <button
+                        <button :aria-label="t('consoleFields.moveUp')"
                           type="button"
                           class="btn btn-secondary btn-sm px-2"
                           :disabled="index === 0"
@@ -5402,7 +5345,7 @@
                         >
                           <Icon name="arrowUp" size="xs" />
                         </button>
-                        <button
+                        <button :aria-label="t('consoleFields.moveDown')"
                           type="button"
                           class="btn btn-secondary btn-sm px-2"
                           :disabled="
@@ -5413,7 +5356,7 @@
                           <Icon name="arrowDown" size="xs" />
                         </button>
                         <Toggle :aria-label="t('admin.settings.gatewayForwarding.systemBlockText') + ' ' + (index + 1)" v-model="block.enabled" />
-                        <button
+                        <button :aria-label="t('consoleFields.remove')"
                           type="button"
                           class="btn btn-secondary btn-sm px-2 text-red-600 hover:text-red-700 dark:text-red-400"
                           @click="removeClaudeOAuthSystemPromptBlock(index)"
@@ -5426,7 +5369,7 @@
                     <div v-show="block.expanded">
                       <div class="grid gap-3 md:grid-cols-2">
                         <div>
-                          <label
+                          <label :id="'field-' + fieldLabelScope + '-100' + '-' + index"
                             class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300"
                           >
                             {{
@@ -5435,7 +5378,7 @@
                               )
                             }}
                           </label>
-                          <Select :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockPreset', )"
+                          <Select :aria-labelledby="'field-' + fieldLabelScope + '-100' + '-' + index" :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockPreset', )"
                             v-model="block.preset"
                             :options="claudeOAuthSystemPromptPresetOptions"
                             @change="
@@ -5445,7 +5388,7 @@
                           />
                         </div>
                         <div>
-                          <label
+                          <label :id="'field-' + fieldLabelScope + '-101' + '-' + index"
                             class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300"
                           >
                             {{
@@ -5454,7 +5397,7 @@
                               )
                             }}
                           </label>
-                          <Select :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockType', )"
+                          <Select :aria-labelledby="'field-' + fieldLabelScope + '-101' + '-' + index" :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockType', )"
                             v-model="block.type"
                             :options="claudeOAuthSystemPromptBlockTypeOptions"
                           />
@@ -5462,12 +5405,12 @@
                       </div>
 
                       <div class="mt-3">
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-102' + '-' + index"
                           class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300"
                         >
                           {{ t("admin.settings.gatewayForwarding.systemBlockText") }}
                         </label>
-                        <textarea
+                        <textarea :aria-labelledby="'field-' + fieldLabelScope + '-102' + '-' + index"
                           v-model="block.text"
                           rows="6"
                           class="input w-full resize-y font-mono text-xs leading-5"
@@ -5493,10 +5436,13 @@
                           <Toggle :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockCacheControl', )" v-model="block.cacheControlEnabled" />
                         </div>
                         <div v-if="block.cacheControlEnabled">
-                          <Select :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockCacheControl', )"
+                          <label class="block min-w-0">
+                            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t( 'admin.settings.gatewayForwarding.systemBlockCacheControl', ) }}</span>
+                            <Select :aria-label="t( 'admin.settings.gatewayForwarding.systemBlockCacheControl', )"
                             v-model="block.cacheControlTTL"
                             :options="claudeOAuthSystemPromptCacheTTLOptions"
                           />
+                          </label>
                         </div>
                       </div>
                     </div>
@@ -5607,7 +5553,7 @@
 
               <!-- Antigravity UA 版本 -->
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-103'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{
@@ -5616,7 +5562,7 @@
                     )
                   }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-103'"
                   v-model="form.antigravity_user_agent_version"
                   type="text"
                   class="input max-w-xs font-mono text-sm"
@@ -5637,7 +5583,7 @@
 
               <!-- OpenAI Codex UA -->
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-104'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{
@@ -5646,7 +5592,7 @@
                     )
                   }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-104'"
                   v-model="form.openai_codex_user_agent"
                   type="text"
                   class="input w-full font-mono text-sm"
@@ -5667,7 +5613,7 @@
 
               <!-- Codex 客户端版本号 -->
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-105'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{
@@ -5676,7 +5622,7 @@
                     )
                   }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-105'"
                   v-model="form.openai_codex_client_version"
                   type="text"
                   class="input w-full font-mono text-sm"
@@ -5726,7 +5672,7 @@
 
               <!-- Claude Code 客户端版本号 -->
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-106'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{
@@ -5735,7 +5681,7 @@
                     )
                   }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-106'"
                   v-model="form.claude_code_client_version"
                   type="text"
                   class="input w-full font-mono text-sm"
@@ -5862,7 +5808,9 @@
                           d="M9 5l7 7-7 7"
                         />
                       </svg>
-                      <Select :aria-label="t('admin.settings.webSearchEmulation.providers')"
+                      <label class="block min-w-0 w-36">
+                        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.webSearchEmulation.providers') }}</span>
+                        <Select :aria-label="t('admin.settings.webSearchEmulation.providers')"
                         v-model="provider.type"
                         :options="[
                           { value: 'brave', label: 'Brave Search' },
@@ -5871,6 +5819,7 @@
                         class="w-36"
                         @click.stop
                       />
+                      </label>
                       <!-- Quota summary (always visible) -->
                       <span class="text-xs text-gray-400">
                         {{ provider.quota_used ?? 0 }} /
@@ -5913,11 +5862,11 @@
                   >
                     <!-- API Key with inline show/copy -->
                     <div>
-                      <label class="text-xs text-gray-500">{{
+                      <label :id="'field-' + fieldLabelScope + '-107' + '-' + pIdx" class="text-xs text-gray-500">{{
                         t("admin.settings.webSearchEmulation.apiKey")
                       }}</label>
                       <div class="relative">
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-107' + '-' + pIdx"
                           v-model="provider.api_key"
                           :type="apiKeyVisible[pIdx] ? 'text' : 'password'"
                           class="input w-full text-sm"
@@ -6021,10 +5970,10 @@
                     <!-- Quota + Subscription in compact row -->
                     <div class="grid grid-cols-2 gap-3">
                       <div>
-                        <label class="text-xs text-gray-500">{{
+                        <label :id="'field-' + fieldLabelScope + '-108' + '-' + pIdx" class="text-xs text-gray-500">{{
                           t("admin.settings.webSearchEmulation.quotaLimit")
                         }}</label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-108' + '-' + pIdx"
                           v-model="provider.quota_limit"
                           type="number"
                           min="1"
@@ -6040,10 +5989,10 @@
                         </p>
                       </div>
                       <div>
-                        <label class="text-xs text-gray-500">{{
+                        <label :id="'field-' + fieldLabelScope + '-109' + '-' + pIdx" class="text-xs text-gray-500">{{
                           t("admin.settings.webSearchEmulation.subscribedAt")
                         }}</label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-109' + '-' + pIdx"
                           :value="formatSubscribedAt(provider.subscribed_at)"
                           type="date"
                           class="input text-sm"
@@ -6143,7 +6092,9 @@
           <!-- Web Search Test Dialog -->
           <BaseDialog :show="wsTestDialogOpen" :title="t('admin.settings.webSearchEmulation.testResultTitle')" width="normal" :close-on-escape="!wsTestLoading" :close-on-click-outside="!wsTestLoading" :show-close-button="!wsTestLoading" @close="!wsTestLoading && (wsTestDialogOpen = false)">
 <div class="flex items-center gap-2">
-                <input
+                <label class="block min-w-0 flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.webSearchEmulation.testDefaultQuery') }}</span>
+                  <input
                   v-model="wsTestQuery"
                   type="text"
                   class="input flex-1 text-sm"
@@ -6152,6 +6103,7 @@
                   "
                   @keyup.enter="testWebSearchProvider()"
                 />
+                </label>
                 <button
                   type="button"
                   class="btn btn-primary btn-sm"
@@ -6225,7 +6177,7 @@
             <!-- User error requests visibility -->
             <div class="flex items-center justify-between">
               <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label :id="'field-' + fieldLabelScope + '-nested-1'" class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.settings.user_error_view.label') }}
                 </label>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -6233,7 +6185,7 @@
                 </p>
               </div>
               <label class="toggle">
-                <input v-model="form.allow_user_view_error_requests" type="checkbox" />
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-nested-1'" v-model="form.allow_user_view_error_requests" type="checkbox" />
                 <span class="toggle-slider"></span>
               </label>
             </div>
@@ -6241,7 +6193,7 @@
             <!-- Long context billing badge visibility -->
             <div class="flex items-center justify-between">
               <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label :id="'field-' + fieldLabelScope + '-nested-2'" class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.settings.long_context_badge.label') }}
                 </label>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -6249,14 +6201,14 @@
                 </p>
               </div>
               <label class="toggle">
-                <input v-model="form.usage_show_long_context_badge" type="checkbox" />
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-nested-2'" v-model="form.usage_show_long_context_badge" type="checkbox" />
                 <span class="toggle-slider"></span>
               </label>
             </div>
 
             <div class="flex items-center justify-between">
               <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label :id="'field-' + fieldLabelScope + '-nested-3'" class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.settings.cache_rate.label') }}
                 </label>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -6264,7 +6216,7 @@
                 </p>
               </div>
               <label class="toggle">
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-nested-3'"
                   v-model="form.usage_show_cache_rate"
                   data-testid="usage-show-cache-rate"
                   type="checkbox"
@@ -6276,7 +6228,7 @@
 
             <div class="flex items-center justify-between" :class="form.usage_show_cache_rate ? '' : 'opacity-60'">
               <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label :id="'field-' + fieldLabelScope + '-nested-4'" class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.settings.cache_rate_to_users.label') }}
                 </label>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -6284,7 +6236,7 @@
                 </p>
               </div>
               <label class="toggle">
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-nested-4'"
                   v-model="form.usage_show_cache_rate_to_users"
                   data-testid="usage-show-cache-rate-to-users"
                   type="checkbox"
@@ -6296,7 +6248,7 @@
 
             <div class="flex items-center justify-between">
               <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label :id="'field-' + fieldLabelScope + '-nested-5'" class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.settings.upstream_response_model_to_users.label') }}
                 </label>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -6304,7 +6256,7 @@
                 </p>
               </div>
               <label class="toggle">
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-nested-5'"
                   v-model="form.usage_show_upstream_response_model_to_users"
                   data-testid="usage-show-upstream-response-model-to-users"
                   type="checkbox"
@@ -6353,12 +6305,12 @@
 	              </MoreActions>
 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-110'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.site.siteName") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-110'"
                     v-model="form.site_name"
                     type="text"
                     class="input"
@@ -6369,12 +6321,12 @@
                   </p>
                 </div>
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-111'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.site.siteSubtitle") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-111'"
                     v-model="form.site_subtitle"
                     type="text"
                     class="input"
@@ -6390,12 +6342,12 @@
 
               <!-- API Base URL -->
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-112'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{ t("admin.settings.site.apiBaseUrl") }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-112'"
                   v-model="form.api_base_url"
                   type="text"
                   class="input font-mono text-sm"
@@ -6416,12 +6368,12 @@
                 </p>
                 <div class="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-113'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.site.tableDefaultPageSize") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-113'"
                       v-model.number="form.table_default_page_size"
                       type="number"
                       min="5"
@@ -6434,12 +6386,12 @@
                     </p>
                   </div>
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-114'"
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
                       {{ t("admin.settings.site.tablePageSizeOptions") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-114'"
                       v-model="tablePageSizeOptionsInput"
                       type="text"
                       class="input font-mono text-sm"
@@ -6481,7 +6433,7 @@
                           })
                         }}
                       </span>
-                      <button
+                      <button :aria-label="t('consoleFields.remove')"
                         type="button"
                         class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                         @click="removeEndpoint(index)"
@@ -6503,12 +6455,12 @@
                     </div>
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-115' + '-' + index"
                           class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                         >
                           {{ t("admin.settings.site.customEndpoints.name") }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-115' + '-' + index"
                           v-model="ep.name"
                           type="text"
                           class="input text-sm"
@@ -6520,14 +6472,14 @@
                         />
                       </div>
                       <div>
-                        <label
+                        <label :id="'field-' + fieldLabelScope + '-116' + '-' + index"
                           class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                         >
                           {{
                             t("admin.settings.site.customEndpoints.endpointUrl")
                           }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-116' + '-' + index"
                           v-model="ep.endpoint"
                           type="url"
                           class="input font-mono text-sm"
@@ -6548,7 +6500,9 @@
                             )
                           }}
                         </label>
-                        <input
+                        <label class="block min-w-0">
+                          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.site.customEndpoints.description') }}</span>
+                          <input
                           v-model="ep.description"
                           type="text"
                           class="input text-sm"
@@ -6558,6 +6512,7 @@
                             )
                           "
                         />
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -6587,12 +6542,12 @@
 
               <!-- Contact Info -->
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-117'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{ t("admin.settings.site.contactInfo") }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-117'"
                   v-model="form.contact_info"
                   type="text"
                   class="input"
@@ -6605,12 +6560,12 @@
 
               <!-- Doc URL -->
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-118'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{ t("admin.settings.site.docUrl") }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-118'"
                   v-model="form.doc_url"
                   type="url"
                   class="input font-mono text-sm"
@@ -6640,12 +6595,12 @@
 
               <!-- Home Content -->
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-119'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
                   {{ t("admin.settings.site.homeContent") }}
                 </label>
-                <textarea
+                <textarea :aria-labelledby="'field-' + fieldLabelScope + '-119'"
                   v-model="form.home_content"
                   rows="6"
                   class="input font-mono text-sm"
@@ -6793,12 +6748,12 @@
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <!-- Localized labels -->
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-120' + '-' + index"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.customMenu.nameZh") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-120' + '-' + index"
                       v-model="item.label_zh"
                       type="text"
                       class="input text-sm"
@@ -6808,12 +6763,12 @@
                     />
                   </div>
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-121' + '-' + index"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.customMenu.nameEn") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-121' + '-' + index"
                       v-model="item.label_en"
                       type="text"
                       class="input text-sm"
@@ -6825,12 +6780,12 @@
 
                   <!-- Legacy label fallback -->
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-122' + '-' + index"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.customMenu.fallbackName") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-122' + '-' + index"
                       v-model="item.label"
                       type="text"
                       class="input text-sm"
@@ -6842,12 +6797,12 @@
 
                   <!-- Visibility -->
                   <div>
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-123' + '-' + index"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.customMenu.visibility") }}
                     </label>
-                    <select v-model="item.visibility" class="input text-sm">
+                    <select :aria-labelledby="'field-' + fieldLabelScope + '-123' + '-' + index" v-model="item.visibility" class="input text-sm">
                       <option value="user">
                         {{ t("admin.settings.customMenu.visibilityUser") }}
                       </option>
@@ -6859,12 +6814,12 @@
 
                   <!-- URL (full width) -->
                   <div class="sm:col-span-2">
-                    <label
+                    <label :id="'field-' + fieldLabelScope + '-124' + '-' + index"
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.customMenu.url") }}
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-124' + '-' + index"
                       v-model="item.url"
                       type="url"
                       class="input font-mono text-sm"
@@ -6940,22 +6895,19 @@
 	              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 	                <div>
 	                  <AppHeading variant="section" as="h2" id="settings-section-login-agreement" tabindex="-1" class="text-gray-900 dark:text-white">
-	                    {{ localText("登录条款确认", "Login agreement") }}
+	                    {{ t('consoleInline.loginAgreement_213367') }}
 	                  </AppHeading>
 	                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
 	                    {{
-	                      localText(
-	                        "控制登录页是否要求用户先阅读并同意服务条款、隐私政策或其他 Markdown 文档。",
-	                        "Control whether the login page requires users to accept Markdown policy documents first.",
-	                      )
+	                      t('consoleInline.controlWhetherTheLoginPageRequiresUsers_e89a64')
 	                    }}
 	                  </p>
 	                </div>
 	                <div class="flex items-center gap-3">
 	                  <span class="text-sm text-gray-600 dark:text-gray-300">
-	                    {{ form.login_agreement_enabled ? localText("已启用", "Enabled") : localText("未启用", "Disabled") }}
+	                    {{ form.login_agreement_enabled ? t('consoleInline.enabled_a476c1') : t('consoleInline.disabled_3936b4') }}
 	                  </span>
-	                  <Toggle :aria-label="localText('登录条款确认', 'Login agreement')" v-model="form.login_agreement_enabled" />
+	                  <Toggle :aria-label="t('consoleInline.loginAgreement_213367')" v-model="form.login_agreement_enabled" />
 	                </div>
 	              </div>
 	            </div>
@@ -6965,7 +6917,7 @@
 	              <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">
 	                <div>
 	                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-	                    {{ localText("展示形式", "Display mode") }}
+	                    {{ t('consoleInline.displayMode_565f98') }}
 	                  </label>
 	                  <div class="open-section grid grid-cols-2 gap-2 p-1">
                     <button
@@ -6979,7 +6931,7 @@
                       @click="form.login_agreement_mode = 'modal'"
                     >
                       <Icon name="shield" size="sm" />
-                      {{ localText("弹窗", "Modal") }}
+                      {{ t('consoleInline.modal_86abba') }}
                     </button>
                     <button
                       type="button"
@@ -6992,29 +6944,29 @@
                       @click="form.login_agreement_mode = 'checkbox'"
                     >
                       <Icon name="checkCircle" size="sm" />
-                      {{ localText("复选框", "Checkbox") }}
+                      {{ t('consoleInline.checkbox_3a2c64') }}
                     </button>
                   </div>
                   <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                     {{
                       form.login_agreement_mode === "checkbox"
-                        ? localText("复选框会显示在登录按钮下方，未勾选前所有登录入口禁用。", "The checkbox appears below the login button and gates all login actions.")
-                        : localText("弹窗会在登录页打开，用户拒绝后所有登录入口保持禁用。", "The modal opens on the login page and gates all login actions until accepted.")
+                        ? t('consoleInline.theCheckboxAppearsBelowTheLoginButton_af41fa')
+                        : t('consoleInline.theModalOpensOnTheLoginPage_a22b9e')
                     }}
                   </p>
                 </div>
 
                 <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ localText("条款更新日期", "Updated date") }}
+                  <label :id="'field-' + fieldLabelScope + '-125'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('consoleInline.updatedDate_68ddc6') }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-125'"
                     v-model="form.login_agreement_updated_at"
                     type="date"
                     class="input"
                   />
                   <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ localText("日期或文档内容变化后，用户需要重新同意。", "Changing the date or content requires fresh consent.") }}
+                    {{ t('consoleInline.changingTheDateOrContentRequiresFresh_64d570') }}
                   </p>
                 </div>
               </div>
@@ -7023,14 +6975,11 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
-                      {{ localText("协议文档", "Agreement documents") }}
+                      {{ t('consoleInline.agreementDocuments_bac034') }}
                     </AppHeading>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       {{
-                        localText(
-                          "文档名称可自定义，内容按 Markdown 保存。可参考：服务条款、使用政策、支持的国家和地区、服务特定条款。",
-                          "Document titles are customizable and content is saved as Markdown.",
-                        )
+                        t('consoleInline.documentTitlesAreCustomizableAndContentIs_47b07c')
                       }}
                     </p>
                   </div>
@@ -7040,7 +6989,7 @@
                     @click="addLoginAgreementDocument"
                   >
                     <Icon name="plus" size="sm" />
-                    {{ localText("添加文档", "Add document") }}
+                    {{ t('consoleInline.addDocument_c2dbbf') }}
                   </button>
                 </div>
 
@@ -7068,14 +7017,14 @@
                         </span>
                         <div class="min-w-0">
                           <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                            {{ doc.title || localText("未命名文档", "Untitled document") }}
+                            {{ doc.title || t('consoleInline.untitledDocument_b02419') }}
                           </p>
                           <p class="truncate text-xs text-gray-500 dark:text-gray-400">
                             {{ loginAgreementRoutePath(doc, index) }}
                           </p>
                         </div>
                       </div>
-                      <button
+                      <button :aria-label="t('consoleFields.remove')"
                         type="button"
                         class="rounded-md p-2 text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-900/20"
                         :disabled="
@@ -7090,25 +7039,25 @@
 
                     <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
                       <div>
-                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                          {{ localText("文档名称", "Document title") }}
+                        <label :id="'field-' + fieldLabelScope + '-126' + '-' + index" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t('consoleInline.documentTitle_0e16b0') }}
                         </label>
-                        <input
+                        <input :aria-labelledby="'field-' + fieldLabelScope + '-126' + '-' + index"
                           v-model="doc.title"
                           type="text"
                           class="input text-sm"
-                          :placeholder="localText('例如：服务条款', 'Example: Terms of Service')"
+                          :placeholder="t('consoleInline.exampleTermsOfService_bb54b1')"
                         />
                       </div>
                       <div>
-                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                          {{ localText("路由标识", "Route slug") }}
+                        <label :id="'field-' + fieldLabelScope + '-127' + '-' + index" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t('consoleInline.routeSlug_d6cc11') }}
                         </label>
                         <div class="flex overflow-hidden rounded-lg border border-gray-300 bg-white focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500 dark:border-dark-600 dark:bg-dark-900">
                           <span class="inline-flex flex-shrink-0 items-center border-r border-gray-200 bg-gray-50 px-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-400">
                             /legal/
                           </span>
-                          <input
+                          <input :aria-labelledby="'field-' + fieldLabelScope + '-127' + '-' + index"
                             v-model="doc.id"
                             type="text"
                             class="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:ring-0 dark:text-white dark:placeholder:text-dark-500"
@@ -7118,14 +7067,14 @@
                       </div>
                     </div>
                     <div class="mt-3">
-                      <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                        {{ localText("Markdown 内容", "Markdown content") }}
+                      <label :id="'field-' + fieldLabelScope + '-128' + '-' + index" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                        {{ t('consoleInline.markdownContent_120c74') }}
                       </label>
-                        <textarea
+                        <textarea :aria-labelledby="'field-' + fieldLabelScope + '-128' + '-' + index"
                           v-model="doc.content_md"
                           rows="8"
                           class="input font-mono text-sm"
-                          :placeholder="localText('在这里填写正式 Markdown 内容。', 'Write the final Markdown content here.')"
+                          :placeholder="t('consoleInline.writeTheFinalMarkdownContentHere_5524cf')"
                         ></textarea>
                     </div>
                   </div>
@@ -7142,18 +7091,18 @@
         <div v-show="activeTab === 'features'" class="space-y-6">
         <div class="open-settings-section" data-testid="protocol-feature-switches">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ localText("协议功能", "Protocol features") }}</AppHeading>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ localText("关闭后立即停止使用对应协议，并隐藏账号编辑中的相关选项。", "Disabling a protocol stops its use immediately and hides its account editor options.") }}</p>
+            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ t('consoleInline.protocolFeatures_782e70') }}</AppHeading>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('consoleInline.disablingAProtocolStopsItsUseImmediately_260f07') }}</p>
           </div>
             <div class="settings-section-fields">
           <div class="space-y-5 p-6">
             <div class="flex items-center justify-between gap-4">
-              <span class="font-medium text-gray-900 dark:text-white">{{ localText("Excel / BPS 协议", "Excel / BPS protocol") }}</span>
-              <Toggle :aria-label="localText('Excel / BPS 协议', 'Excel / BPS protocol')" v-model="form.excel_bps_enabled" />
+              <span class="font-medium text-gray-900 dark:text-white">{{ t('consoleInline.excelBPSProtocol_cb85e8') }}</span>
+              <Toggle :aria-label="t('consoleInline.excelBPSProtocol_cb85e8')" v-model="form.excel_bps_enabled" />
             </div>
             <div class="flex items-center justify-between gap-4">
-              <span class="font-medium text-gray-900 dark:text-white">{{ localText("Prism 浏览器桥", "Prism browser bridge") }}</span>
-              <Toggle :aria-label="localText('Prism 浏览器桥', 'Prism browser bridge')" v-model="form.prism_browser_enabled" />
+              <span class="font-medium text-gray-900 dark:text-white">{{ t('consoleInline.prismBrowserBridge_a5d904') }}</span>
+              <Toggle :aria-label="t('consoleInline.prismBrowserBridge_a5d904')" v-model="form.prism_browser_enabled" />
             </div>
           </div>
 
@@ -7369,11 +7318,11 @@
               </div>
 
               <div v-if="form.channel_monitor_mode === 'v1'">
-                <label class="input-label">
+                <label :id="'field-' + fieldLabelScope + '-129'" class="input-label">
                   {{ t('admin.settings.features.channelMonitor.defaultInterval') }}
                   <span class="text-red-500">*</span>
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-129'"
                   v-model.number="form.channel_monitor_default_interval_seconds"
                   type="number"
                   min="15"
@@ -7524,11 +7473,11 @@
               <p class="mb-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.settings.features.modelPlaza.priceDescriptionHint') }}
               </p>
-              <textarea
+              <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.description') }}</span><textarea
                 v-model="form.model_plaza_description"
                 rows="6"
                 class="input font-mono text-sm"
-              ></textarea>
+              ></textarea></label>
             </div>
           </div>
 
@@ -7548,7 +7497,7 @@
           <div class="space-y-5 p-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div class="min-w-0">
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label :id="'field-' + fieldLabelScope + '-caption-1'" class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.settings.features.siteBillingMode.label') }}
                 </label>
                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -7556,7 +7505,7 @@
                 </p>
               </div>
               <div class="w-full shrink-0 sm:w-56">
-                <Select :aria-label="t('admin.settings.features.siteBillingMode.label')"
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-caption-1'" :aria-label="t('admin.settings.features.siteBillingMode.label')"
                   :modelValue="siteBillingMode"
                   :options="siteBillingModeOptions"
                   @update:modelValue="siteBillingMode = $event as SiteBillingMode"
@@ -7628,7 +7577,7 @@
             </div>
             <template v-if="form.support_ticket_enabled">
               <div>
-                <span class="input-label">{{ t('admin.settings.features.supportTickets.categories') }}</span>
+                <span :id="'field-' + fieldLabelScope + '-130'" class="input-label">{{ t('admin.settings.features.supportTickets.categories') }}</span>
                 <div class="space-y-2" data-testid="support-ticket-categories">
                   <div class="grid gap-2 sm:grid-cols-2">
                     <div
@@ -7636,7 +7585,7 @@
                       :key="index"
                       class="flex items-center gap-2"
                     >
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-130'"
                         v-model="form.support_ticket_config.categories[index]"
                         class="input flex-1"
                         :maxlength="SUPPORT_TICKET_CATEGORY_MAX"
@@ -7760,11 +7709,11 @@
             </div>
 
             <div v-if="form.cyber_session_block_enabled">
-              <label class="input-label">
+              <label :id="'field-' + fieldLabelScope + '-131'" class="input-label">
                 {{ t('admin.settings.features.riskControl.cyberSessionBlockTTL') }}
                 <span class="text-red-500">*</span>
               </label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-131'"
                 v-model.number="form.cyber_session_block_ttl_seconds"
                 type="number"
                 min="1"
@@ -7886,11 +7835,11 @@
               </div>
 
               <div>
-                <label class="input-label">
+                <label :id="'field-' + fieldLabelScope + '-132'" class="input-label">
                   {{ t('admin.settings.features.affiliate.rebateRate') }}
                 </label>
                 <div class="relative">
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-132'"
                     v-model.number="form.affiliate_rebate_rate"
                     type="number"
                     step="0.01"
@@ -7907,10 +7856,10 @@
               </div>
 
               <div>
-                <label class="input-label">
+                <label :id="'field-' + fieldLabelScope + '-133'" class="input-label">
                   {{ t('admin.settings.features.affiliate.freezeHours') }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-133'"
                   v-model.number="form.affiliate_rebate_freeze_hours"
                   type="number"
                   step="1"
@@ -7924,10 +7873,10 @@
               </div>
 
               <div>
-                <label class="input-label">
+                <label :id="'field-' + fieldLabelScope + '-134'" class="input-label">
                   {{ t('admin.settings.features.affiliate.durationDays') }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-134'"
                   v-model.number="form.affiliate_rebate_duration_days"
                   type="number"
                   step="1"
@@ -7941,10 +7890,10 @@
               </div>
 
               <div>
-                <label class="input-label">
+                <label :id="'field-' + fieldLabelScope + '-135'" class="input-label">
                   {{ t('admin.settings.features.affiliate.perInviteeCap') }}
                 </label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-135'"
                   v-model.number="form.affiliate_rebate_per_invitee_cap"
                   type="number"
                   step="0.01"
@@ -7977,13 +7926,16 @@
                 </div>
 
                 <div class="mb-3 flex items-center gap-2">
-                  <input
+                  <label class="block min-w-0 flex-1">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.features.affiliate.customUsers.searchPlaceholder') }}</span>
+                    <input
                     v-model="affiliateState.search"
                     type="text"
                     class="input flex-1"
                     :placeholder="t('admin.settings.features.affiliate.customUsers.searchPlaceholder')"
                     @input="onAffiliateSearchInput"
                   />
+                  </label>
                   <button
                     v-if="affiliateState.selected.length > 0"
                     type="button"
@@ -8035,7 +7987,7 @@
         <BaseDialog :show="affiliateModal.open" :title="affiliateModal.mode === 'add' ? t('admin.settings.features.affiliate.modal.addTitle') : t('admin.settings.features.affiliate.modal.editTitle')" width="narrow" :close-on-escape="!affiliateModal.saving" :close-on-click-outside="!affiliateModal.saving" :show-close-button="!affiliateModal.saving" @close="!affiliateModal.saving && (closeAffiliateModal())">
 <div class="space-y-4">
               <div v-if="affiliateModal.mode === 'add'">
-                <label class="input-label">{{ t('admin.settings.features.affiliate.modal.userLabel') }}</label>
+                <label :id="'field-' + fieldLabelScope + '-136'" class="input-label">{{ t('admin.settings.features.affiliate.modal.userLabel') }}</label>
                 <!-- Chip showing the picked user; clicking it re-opens the search -->
                 <div
                   v-if="affiliateModal.selectedUser"
@@ -8056,7 +8008,7 @@
                 </div>
                 <!-- Search input + result dropdown — hidden once a selection is made -->
                 <template v-else>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-136'"
                     v-model="affiliateModal.userQuery"
                     type="text"
                     class="input"
@@ -8080,8 +8032,8 @@
                 </template>
               </div>
               <div v-else>
-                <label class="input-label">{{ t('admin.settings.features.affiliate.modal.userLabel') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-137'" class="input-label">{{ t('admin.settings.features.affiliate.modal.userLabel') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-137'"
                   type="text"
                   class="input"
                   :value="affiliateModal.editingEntry ? affiliateModal.editingEntry.email : ''"
@@ -8090,8 +8042,8 @@
               </div>
 
               <div>
-                <label class="input-label">{{ t('admin.settings.features.affiliate.modal.codeLabel') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-138'" class="input-label">{{ t('admin.settings.features.affiliate.modal.codeLabel') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-138'"
                   v-model="affiliateModal.code"
                   type="text"
                   class="input font-mono"
@@ -8104,9 +8056,9 @@
               </div>
 
               <div>
-                <label class="input-label">{{ t('admin.settings.features.affiliate.modal.rateLabel') }}</label>
+                <label :id="'field-' + fieldLabelScope + '-139'" class="input-label">{{ t('admin.settings.features.affiliate.modal.rateLabel') }}</label>
                 <div class="relative">
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-139'"
                     v-model="affiliateModal.rate"
                     type="number"
                     step="0.01"
@@ -8150,11 +8102,11 @@
 
         <!-- Affiliate batch rate modal -->
         <BaseDialog :show="affiliateBatchModal.open" :title="t('admin.settings.features.affiliate.batchModal.title', { count: affiliateState.selected.length })" width="narrow" :close-on-escape="!affiliateBatchModal.saving" :close-on-click-outside="!affiliateBatchModal.saving" :show-close-button="!affiliateBatchModal.saving" @close="!affiliateBatchModal.saving && (affiliateBatchModal.open = false)">
-<p class="mb-4 text-sm text-gray-500">
+<p :id="'field-' + fieldLabelScope + '-140'" class="mb-4 text-sm text-gray-500">
               {{ t('admin.settings.features.affiliate.batchModal.hint') }}
             </p>
             <div class="relative">
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-140'"
                 v-model="affiliateBatchModal.rate"
                 type="number"
                 step="0.01"
@@ -8239,10 +8191,10 @@
                 <!-- Row 1: Product name -->
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-141'" class="input-label">{{
                       t("admin.settings.payment.productNamePrefix")
                     }}</label
-                    ><input
+                    ><input :aria-labelledby="'field-' + fieldLabelScope + '-141'"
                       v-model="form.payment_product_name_prefix"
                       type="text"
                       class="input"
@@ -8250,10 +8202,10 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-142'" class="input-label">{{
                       t("admin.settings.payment.productNameSuffix")
                     }}</label
-                    ><input
+                    ><input :aria-labelledby="'field-' + fieldLabelScope + '-142'"
                       v-model="form.payment_product_name_suffix"
                       type="text"
                       class="input"
@@ -8278,10 +8230,10 @@
                 <!-- Row 2: Balance toggle + amounts -->
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-143'" class="input-label">{{
                       t("admin.settings.payment.minAmount")
                     }}</label
-                    ><input
+                    ><input :aria-labelledby="'field-' + fieldLabelScope + '-143'"
                       :value="form.payment_min_amount || ''"
                       @input="
                         form.payment_min_amount =
@@ -8297,10 +8249,10 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-144'" class="input-label">{{
                       t("admin.settings.payment.maxAmount")
                     }}</label
-                    ><input
+                    ><input :aria-labelledby="'field-' + fieldLabelScope + '-144'"
                       :value="form.payment_max_amount || ''"
                       @input="
                         form.payment_max_amount =
@@ -8316,10 +8268,10 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-145'" class="input-label">{{
                       t("admin.settings.payment.dailyLimit")
                     }}</label
-                    ><input
+                    ><input :aria-labelledby="'field-' + fieldLabelScope + '-145'"
                       :value="form.payment_daily_limit || ''"
                       @input="
                         form.payment_daily_limit =
@@ -8335,10 +8287,10 @@
                     />
                   </div>
                   <div v-if="!form.balance_retail_pricing_enabled">
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-146'" class="input-label">{{
                       t("admin.settings.payment.balanceRechargeMultiplier")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-146'"
                       :value="form.payment_balance_recharge_multiplier || ''"
                       @input="
                         form.payment_balance_recharge_multiplier =
@@ -8372,10 +8324,10 @@
                     </p>
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-147'" class="input-label">{{
                       t("admin.settings.payment.subscriptionUsdToCnyRate")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-147'"
                       :value="form.payment_subscription_usd_to_cny_rate || ''"
                       @input="
                         form.payment_subscription_usd_to_cny_rate =
@@ -8400,11 +8352,11 @@
                     </p>
                   </div>
                   <div v-if="!form.balance_retail_pricing_enabled">
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-148'" class="input-label">{{
                       t("admin.settings.payment.rechargeFeeRate")
                     }}</label>
                     <div class="relative">
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-148'"
                         :value="form.payment_recharge_fee_rate ?? ''"
                         @input="
                           form.payment_recharge_fee_rate = Math.min(
@@ -8448,10 +8400,10 @@
                     </p>
                   </div>
                   <div>
-                    <label class="input-label"
+                    <label :id="'field-' + fieldLabelScope + '-149'" class="input-label"
                       >{{ t("admin.settings.payment.orderTimeout") }}
                       <span class="text-red-500">*</span></label
-                    ><input
+                    ><input :aria-labelledby="'field-' + fieldLabelScope + '-149'"
                       v-model.number="form.payment_order_timeout_minutes"
                       type="number"
                       min="1"
@@ -8466,10 +8418,10 @@
                 <!-- Row 3: Pending orders + load balance + cancel rate limit (all in one row) -->
                 <div class="flex flex-wrap items-end gap-4">
                   <div class="w-28">
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-150'" class="input-label">{{
                       t("admin.settings.payment.maxPendingOrders")
                     }}</label
-                    ><input
+                    ><input :aria-labelledby="'field-' + fieldLabelScope + '-150'"
                       v-model.number="form.payment_max_pending_orders"
                       type="number"
                       min="1"
@@ -8477,17 +8429,17 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-151'" class="input-label">{{
                       t("admin.settings.payment.loadBalanceStrategy")
                     }}</label>
-                    <Select :aria-label="t('admin.settings.payment.loadBalanceStrategy')"
+                    <Select :aria-labelledby="'field-' + fieldLabelScope + '-151'" :aria-label="t('admin.settings.payment.loadBalanceStrategy')"
                       v-model="form.payment_load_balance_strategy"
                       :options="loadBalanceOptions"
                       class="w-40"
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-152'" class="input-label">{{
                       t("admin.settings.payment.cancelRateLimit")
                     }}</label>
                     <div class="flex items-center gap-2">
@@ -8495,13 +8447,13 @@
                           form.payment_cancel_rate_limit_enabled =
                             !form.payment_cancel_rate_limit_enabled
                         " />
-                      <Select :aria-label="t('common.windowMode')"
+                      <Select :aria-labelledby="'field-' + fieldLabelScope + '-152'" :aria-label="t('common.windowMode')"
                         v-model="form.payment_cancel_rate_limit_window_mode"
                         :options="cancelRateLimitModeOptions"
                         class="w-24"
                         :disabled="!form.payment_cancel_rate_limit_enabled"
                       />
-                      <span
+                      <span :id="'field-' + fieldLabelScope + '-153'"
                         :class="[
                           'text-sm whitespace-nowrap',
                           form.payment_cancel_rate_limit_enabled
@@ -8512,7 +8464,7 @@
                           t("admin.settings.payment.cancelRateLimitEvery")
                         }}</span
                       >
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-153'"
                         v-model.number="form.payment_cancel_rate_limit_window"
                         type="number"
                         min="1"
@@ -8520,13 +8472,13 @@
                         class="input w-14 text-center"
                         :disabled="!form.payment_cancel_rate_limit_enabled"
                       />
-                      <Select :aria-label="t('common.timeUnit')"
+                      <Select :aria-labelledby="'field-' + fieldLabelScope + '-153'" :aria-label="t('common.timeUnit')"
                         v-model="form.payment_cancel_rate_limit_unit"
                         :options="cancelRateLimitUnitOptions"
                         class="w-28"
                         :disabled="!form.payment_cancel_rate_limit_enabled"
                       />
-                      <span
+                      <span :id="'field-' + fieldLabelScope + '-154'"
                         :class="[
                           'text-sm whitespace-nowrap',
                           form.payment_cancel_rate_limit_enabled
@@ -8537,7 +8489,7 @@
                           t("admin.settings.payment.cancelRateLimitAllowMax")
                         }}</span
                       >
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-154'"
                         v-model.number="form.payment_cancel_rate_limit_max"
                         type="number"
                         min="1"
@@ -8650,10 +8602,10 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-155'" class="input-label">{{
                       t("admin.settings.payment.helpText")
                     }}</label>
-                    <textarea
+                    <textarea :aria-labelledby="'field-' + fieldLabelScope + '-155'"
                       v-model="form.payment_help_text"
                       rows="3"
                       class="input"
@@ -8768,12 +8720,12 @@
             <div class="space-y-6 p-6">
               <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-156'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.smtp.host") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-156'"
                     v-model="form.smtp_host"
                     type="text"
                     class="input"
@@ -8781,12 +8733,12 @@
                   />
                 </div>
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-157'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.smtp.port") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-157'"
                     v-model.number="form.smtp_port"
                     type="number"
                     min="1"
@@ -8796,12 +8748,12 @@
                   />
                 </div>
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-158'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.smtp.username") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-158'"
                     v-model="form.smtp_username"
                     type="text"
                     class="input"
@@ -8809,12 +8761,12 @@
                   />
                 </div>
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-159'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.smtp.password") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-159'"
                     v-model="form.smtp_password"
                     type="password"
                     class="input"
@@ -8838,12 +8790,12 @@
                   </p>
                 </div>
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-160'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.smtp.fromEmail") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-160'"
                     v-model="form.smtp_from_email"
                     type="email"
                     class="input"
@@ -8851,12 +8803,12 @@
                   />
                 </div>
                 <div>
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-161'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.smtp.fromName") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-161'"
                     v-model="form.smtp_from_name"
                     type="text"
                     class="input"
@@ -8900,12 +8852,12 @@
             <div class="p-6">
               <div class="flex items-end gap-4">
                 <div class="flex-1">
-                  <label
+                  <label :id="'field-' + fieldLabelScope + '-162'"
                     class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     {{ t("admin.settings.testEmail.recipientEmail") }}
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-162'"
                     v-model="testEmailAddress"
                     type="email"
                     class="input"
@@ -9010,7 +8962,7 @@
                 <Toggle :aria-label="t('admin.settings.balanceNotify.enabled')" v-model="form.balance_low_notify_enabled" />
               </div>
               <div v-if="form.balance_low_notify_enabled">
-                <label
+                <label :id="'field-' + fieldLabelScope + '-163'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >{{ t("admin.settings.balanceNotify.threshold") }}</label
                 >
@@ -9019,7 +8971,7 @@
                     class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                     >$</span
                   >
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-163'"
                     v-model.number="form.balance_low_notify_threshold"
                     type="number"
                     min="0"
@@ -9032,11 +8984,11 @@
                 </p>
               </div>
               <div>
-                <label
+                <label :id="'field-' + fieldLabelScope + '-164'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >{{ t("admin.settings.balanceNotify.rechargeUrl") }}</label
                 >
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-164'"
                   v-model="form.balance_low_notify_recharge_url"
                   type="url"
                   class="input"
@@ -9073,7 +9025,7 @@
                 <Toggle :aria-label="t('admin.settings.quotaNotify.enabled')" v-model="form.account_quota_notify_enabled" />
               </div>
               <div v-if="form.account_quota_notify_enabled">
-                <label
+                <label :id="'field-' + fieldLabelScope + '-165'"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >{{ t("admin.settings.quotaNotify.emails") }}</label
                 >
@@ -9087,7 +9039,7 @@
                     <label
                       class="relative inline-flex items-center cursor-pointer shrink-0"
                     >
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-165'"
                         type="checkbox"
                         :checked="!entry.disabled"
                         @change="entry.disabled = !entry.disabled"
@@ -9097,7 +9049,7 @@
                         class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:after:border-gray-500 peer-checked:bg-primary-600"
                       ></div>
                     </label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-165'"
                       v-model="entry.email"
                       type="email"
                       class="input flex-1"
@@ -9105,7 +9057,7 @@
                         t('admin.settings.quotaNotify.emailPlaceholder')
                       "
                     />
-                    <button
+                    <button :aria-label="t('consoleFields.remove')"
                       @click="form.account_quota_notify_emails.splice(index, 1)"
                       class="btn btn-secondary px-2"
                       type="button"
@@ -9189,13 +9141,15 @@ import { useSettingsDrafts, cloneDraft, SETTINGS_LEAVE_GUARD } from '@/composabl
 import { SETTINGS_SECTION_FIELDS } from '@/utils/settingsSections'
 import { onBeforeRouteLeave } from 'vue-router'
 import MoreActions from '@/components/common/MoreActions.vue'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'
 
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import { localizeInlineText } from "@/i18n/inline";
 import { excelBPSImageLimits } from "@/utils/excelBPSImageLimits";
 import { ref, reactive, computed, onMounted, onUnmounted, watch, provide } from "vue";
 import { listPlatformIds } from "@/constants/platformCatalog";
@@ -9317,9 +9271,7 @@ const appStore = useAppStore();
 const settingsStepUp = useStepUp();
 const adminSettingsStore = useAdminSettingsStore();
 
-function localText(zh: string, en: string): string {
-  return localizeInlineText(zh, en, locale.value);
-}
+
 
 const paymentGuideHref = computed(() =>
   locale.value.startsWith("zh")
@@ -9517,22 +9469,22 @@ function defaultLoginAgreementDocuments(): LoginAgreementDocument[] {
   return [
     {
       id: "terms",
-      title: localText("服务条款", "Terms of Service"),
+      title: t('consoleInline.termsOfService_3bdf7e'),
       content_md: "",
     },
     {
       id: "usage-policy",
-      title: localText("使用政策", "Usage Policy"),
+      title: t('consoleInline.usagePolicy_5b82c2'),
       content_md: "",
     },
     {
       id: "supported-regions",
-      title: localText("支持的国家和地区", "Supported Countries and Regions"),
+      title: t('consoleInline.supportedCountriesAndRegions_70ca58'),
       content_md: "",
     },
     {
       id: "service-specific-terms",
-      title: localText("服务特定条款", "Service-Specific Terms"),
+      title: t('consoleInline.serviceSpecificTerms_5f90f3'),
       content_md: "",
     },
   ];
@@ -10168,9 +10120,9 @@ const form = reactive<SettingsForm>({
   dingtalk_connect_sync_corp_email_attr_key: "dingtalk_email",
   dingtalk_connect_sync_display_name_attr_key: "dingtalk_name",
   dingtalk_connect_sync_dept_attr_key: "dingtalk_department",
-  dingtalk_connect_sync_corp_email_attr_name: localText("钉钉企业邮箱", "DingTalk Corporate Email"),
-  dingtalk_connect_sync_display_name_attr_name: localText("钉钉姓名", "DingTalk Name"),
-  dingtalk_connect_sync_dept_attr_name: localText("钉钉部门", "DingTalk Department"),
+  dingtalk_connect_sync_corp_email_attr_name: t('consoleInline.dingTalkCorporateEmail_074033'),
+  dingtalk_connect_sync_display_name_attr_name: t('consoleInline.dingTalkName_e986a1'),
+  dingtalk_connect_sync_dept_attr_name: t('consoleInline.dingTalkDepartment_51d84c'),
   wechat_connect_enabled: false,
   wechat_connect_app_id: "",
   wechat_connect_app_secret: "",
@@ -10550,26 +10502,17 @@ const authSourceDefaultsMeta = computed(() => [
   {
     source: "github" as AuthSourceType,
     title: "GitHub",
-    description: localText(
-      "通过 GitHub 已验证邮箱首次注册或首次绑定时应用。",
-      "Applied on first signup or first bind through a verified GitHub email.",
-    ),
+    description: t('consoleInline.appliedOnFirstSignupOrFirstBind_d84e1e'),
   },
   {
     source: "google" as AuthSourceType,
     title: "Google",
-    description: localText(
-      "通过 Google 已验证邮箱首次注册或首次绑定时应用。",
-      "Applied on first signup or first bind through a verified Google email.",
-    ),
+    description: t('consoleInline.appliedOnFirstSignupOrFirstBind_9cf813'),
   },
   {
     source: "dingtalk" as AuthSourceType,
     title: t("auth.dingtalkProviderName"),
-    description: localText(
-      "通过钉钉首次注册或首次绑定时应用。",
-      "Applied on first signup or first bind through DingTalk.",
-    ),
+    description: t('consoleInline.appliedOnFirstSignupOrFirstBind_d94229'),
   },
 ]);
 
@@ -11047,7 +10990,7 @@ async function setAndCopyEmailOAuthRedirectUrl(provider: EmailOAuthProvider) {
   }
   await copyToClipboard(
     url,
-    localText("回调地址已写入并复制。", "Callback URL set and copied."),
+    t('consoleInline.callbackURLSetAndCopied_76fff5'),
   );
 }
 
@@ -11705,10 +11648,7 @@ async function saveSettings(section: SettingsTab = activeTab.value): Promise<boo
       section === 'agreement' ? normalizeLoginAgreementDocumentsForSave() : form.login_agreement_documents;
     if (form.login_agreement_enabled && normalizedLoginAgreementDocuments.length === 0) {
       appStore.showError(
-        localText(
-          "启用登录条款确认时，至少需要保留一份文档。",
-          "At least one document is required when login agreement is enabled.",
-        ),
+        t('consoleInline.atLeastOneDocumentIsRequiredWhen_cd018f'),
       );
       return false;
     }
@@ -11717,10 +11657,7 @@ async function saveSettings(section: SettingsTab = activeTab.value): Promise<boo
     );
     if (emptyTitleDocument) {
       appStore.showError(
-        localText(
-          "登录条款文档名称不能为空。",
-          "Login agreement document title cannot be empty.",
-        ),
+        t('consoleInline.loginAgreementDocumentTitleCannotBeEmpty_566c95'),
       );
       return false;
     }
@@ -11728,10 +11665,7 @@ async function saveSettings(section: SettingsTab = activeTab.value): Promise<boo
       findDuplicateLoginAgreementDocumentId(normalizedLoginAgreementDocuments);
     if (duplicateLoginAgreementDocumentId) {
       appStore.showError(
-        localText(
-          `登录条款文档路由不能重复：/legal/${duplicateLoginAgreementDocumentId}`,
-          `Login agreement document routes cannot be duplicated: /legal/${duplicateLoginAgreementDocumentId}`,
-        ),
+        t('consoleFields.duplicateLegalRoute', { id: duplicateLoginAgreementDocumentId }),
       );
       return false;
     }
@@ -11780,10 +11714,7 @@ async function saveSettings(section: SettingsTab = activeTab.value): Promise<boo
 
     if (form.wechat_connect_mp_enabled && form.wechat_connect_mobile_enabled) {
       appStore.showError(
-        localText(
-          "公众号和移动应用不能同时启用。",
-          "Official Account and Mobile App cannot be enabled at the same time.",
-        ),
+        t('consoleInline.officialAccountAndMobileAppCannotBe_8a8b76'),
       );
       return false;
     }

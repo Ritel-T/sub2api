@@ -106,13 +106,22 @@ const openRecordColumns = computed(() => [{ key: 'model', label: t('admin.ops.op
       <div class="open-filter-toolbar flex flex-wrap items-center gap-2">
         <div ref="tableTools0" class="min-w-0" />
         <div class="w-36">
-          <Select :aria-label="t('admin.dashboard.timeRange')" v-model="timeRange" :options="timeRangeOptions" />
+          <label class="block min-w-0">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}</span>
+            <Select :aria-label="t('admin.dashboard.timeRange')" v-model="timeRange" :options="timeRangeOptions" />
+          </label>
         </div>
         <div class="w-36">
-          <Select :aria-label="t('common.viewMode')" v-model="viewMode" :options="viewModeOptions" />
+          <label class="block min-w-0">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.viewMode') }}</span>
+            <Select :aria-label="t('common.viewMode')" v-model="viewMode" :options="viewModeOptions" />
+          </label>
         </div>
         <div v-if="viewMode === 'topn'" class="w-28">
-          <Select :aria-label="t('common.resultLimit')" v-model="topN" :options="topNOptions" />
+          <label class="block min-w-0">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.resultLimit') }}</span>
+            <Select :aria-label="t('common.resultLimit')" v-model="topN" :options="topNOptions" />
+          </label>
         </div>
       </div>
     </div>

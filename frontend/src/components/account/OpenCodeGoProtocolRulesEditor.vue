@@ -10,18 +10,18 @@
         {{ t('admin.accounts.opencodeGo.protocolRules.restoreDefaults') }}
       </button>
     </div>
-    <p class="input-hint mb-2">{{ t('admin.accounts.opencodeGo.protocolRules.hint') }}</p>
+    <p :id="'field-' + fieldLabelScope + '-1'" class="input-hint mb-2">{{ t('admin.accounts.opencodeGo.protocolRules.hint') }}</p>
     <div v-if="rows.length > 0" class="mb-2 space-y-2">
       <div v-for="(row, index) in rows" :key="getRowKey(row)">
         <div class="flex items-center gap-2">
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="row.pattern"
             type="text"
             class="input flex-1 font-mono text-sm"
             :placeholder="t('admin.accounts.opencodeGo.protocolRules.patternPlaceholder')"
             :data-testid="`opencode-go-protocol-pattern-${index}`"
           />
-          <select
+          <select :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             :value="row.protocol"
             class="input w-44 shrink-0"
             :data-testid="`opencode-go-protocol-select-${index}`"
@@ -82,6 +82,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'

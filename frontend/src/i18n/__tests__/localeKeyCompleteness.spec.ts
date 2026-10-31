@@ -1,5 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
+import { baseCompile } from '@intlify/message-compiler'
+import ts from 'typescript'
+import { parse as parseSfc } from 'vue/compiler-sfc'
 
 import en from '../locales/en'
 import zh from '../locales/zh'
@@ -43,7 +46,43 @@ function collectStaticSourceKeys(source: string): string[] {
     keys.add(match[2])
   }
 
+  for (const match of source.matchAll(/['"]((?:consoleInline|consoleFields)\.[A-Za-z0-9_]+)['"]/g)) keys.add(match[1])
   return [...keys]
+}
+
+function inlineBilingualCopies(source: string, file: string): string[] {
+  const fragments: string[] = []
+  if (file.endsWith('.vue')) {
+    const descriptor = parseSfc(source).descriptor
+    for (const script of [descriptor.script, descriptor.scriptSetup]) if (script) fragments.push(script.content)
+    const visit = (node: any) => {
+      if (node.type === 5) fragments.push(node.content.content)
+      for (const prop of node.props ?? []) if (prop.type === 7 && prop.exp) fragments.push(prop.exp.content)
+      for (const child of node.children ?? []) visit(child)
+    }
+    if (descriptor.template?.ast) visit(descriptor.template.ast)
+  } else fragments.push(source)
+  const errors: string[] = []
+  const leaves = (node: ts.Expression): ts.Expression[] => ts.isConditionalExpression(node) ? [...leaves(node.whenTrue), ...leaves(node.whenFalse)] : [node]
+  for (const fragment of fragments) {
+    const ast = ts.createSourceFile('copy.ts', fragment, ts.ScriptTarget.Latest, true)
+    const visit = (node: ts.Node) => {
+      if (ts.isConditionalExpression(node) && /\blocale\b/.test(node.condition.getText(ast))) {
+        let root: ts.Expression = node
+        while (ts.isConditionalExpression(root.parent)) root = root.parent
+        const values = leaves(root)
+        if (values.length === 2 && values.every(ts.isStringLiteralLike)) {
+          const messages = values.map(value => (value as ts.StringLiteralLike).text)
+          const protocol = messages.every(value => /^(?:en(?:-US)?|zh(?:-CN|-cn|-Hant-HK)?|cn|yue|https?:\/\/.*)$/.test(value))
+          const translatedKeys = ts.isCallExpression(root.parent) && /^(?:t|\$t|i18n\.t)$/.test(root.parent.expression.getText(ast))
+          if (!protocol && !translatedKeys && messages.some(value => /[\p{L}]/u.test(value))) errors.push(node.getText(ast))
+        }
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(ast)
+  }
+  return errors
 }
 
 function sourceKeys(): string[] {
@@ -101,6 +140,36 @@ describe('locale key completeness', () => {
       }
     }
     compare(zh, zhHK)
+  })
+
+  it('compiles migrated messages in all three languages, including placeholders', () => {
+    for (const [locale, messages] of Object.entries({ en, zh, zhHK })) {
+      for (const group of ['consoleInline', 'consoleFields', 'consoleUi'] as const) {
+        for (const key of flattenLeafKeys(messages[group])) {
+          let message: unknown = messages[group]
+          for (const segment of key.split('.')) message = (message as LocaleValue)[segment]
+          const errors: string[] = []
+          baseCompile(message as string, { onError: error => errors.push(error.message) })
+          expect(errors, `${locale}.${group}.${key}`).toEqual([])
+        }
+      }
+    }
+  })
+
+  it('has no legacy bilingual inline fallback in production sources', () => {
+    const files = import.meta.glob('../../**/*.{ts,vue}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+    for (const [path, source] of Object.entries(files).filter(([path]) => !path.includes('/__tests__/') && !/\.(spec|test)\.ts$/.test(path))) {
+      expect(source, path).not.toMatch(/\blocalizeInlineText\s*\(|from\s+['"][^'"]*i18n\/inline['"]/)
+    }
+  })
+
+  it('rejects new bilingual UI branches that bypass Hong Kong messages', () => {
+    expect(inlineBilingualCopies("const name = locale.value.startsWith('zh') ? '状态' : 'Status'", 'fixture.ts')).toHaveLength(1)
+    expect(inlineBilingualCopies("const name = locale.value === 'en' ? 'Status' : locale.value === 'zh' ? '状态' : '狀態'", 'fixture.ts')).toEqual([])
+    const files = import.meta.glob('../../**/*.{ts,vue}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+    for (const [path, source] of Object.entries(files).filter(([path]) => !path.includes('/__tests__/') && !/\.(spec|test)\.ts$/.test(path))) {
+      expect(inlineBilingualCopies(source, path), path).toEqual([])
+    }
   })
 
   it('contains every statically referenced production key', () => {

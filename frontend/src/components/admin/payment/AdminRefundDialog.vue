@@ -96,10 +96,10 @@
 
       <!-- Refund Amount -->
       <div>
-        <label class="input-label">{{ t('payment.admin.refundAmount') }}</label>
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('payment.admin.refundAmount') }}</label>
         <div class="relative">
           <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ creditedAmountSymbol }}</span>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model.number="form.amount"
             type="number"
             step="0.01"
@@ -116,8 +116,8 @@
 
       <!-- Reason -->
       <div>
-        <label class="input-label">{{ t('payment.admin.refundReason') }}</label>
-        <textarea
+        <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('payment.admin.refundReason') }}</label>
+        <textarea :aria-labelledby="'field-' + fieldLabelScope + '-2'"
           v-model="form.reason"
           rows="3"
           class="input"
@@ -169,6 +169,8 @@
 
 <script setup lang="ts">
 import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import { reactive, computed, watch, ref, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'

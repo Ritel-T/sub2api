@@ -150,7 +150,7 @@
 
             <!-- Refresh Token Input -->
             <div class="mb-4">
-              <label
+              <label :id="'field-' + fieldLabelScope + '-1'"
                 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
               >
                 <Icon name="key" size="sm" class="text-primary-500" />
@@ -162,7 +162,7 @@
                   {{ t('admin.accounts.oauth.keysCount', { count: parsedRefreshTokenCount }) }}
                 </span>
               </label>
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                 v-model="refreshTokenInput"
                 rows="3"
                 class="input w-full resize-y font-mono text-sm"
@@ -233,7 +233,7 @@
             </p>
 
             <div class="mb-4">
-              <label
+              <label :id="'field-' + fieldLabelScope + '-2'"
                 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
               >
                 <Icon name="key" size="sm" class="text-primary-500" />
@@ -245,7 +245,7 @@
                   {{ t('admin.accounts.oauth.keysCount', { count: parsedSSOCount }) }}
                 </span>
               </label>
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-2'"
                 v-model="ssoCookieInput"
                 rows="5"
                 class="input w-full resize-y font-mono text-sm"
@@ -307,7 +307,7 @@
               {{ t(getOAuthKey('emailPasswordDesc')) }}
             </p>
             <div class="mb-4">
-              <label
+              <label :id="'field-' + fieldLabelScope + '-3'"
                 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
               >
                 <Icon name="user" size="sm" class="text-primary-500" />
@@ -319,7 +319,7 @@
                   {{ t('admin.accounts.oauth.keysCount', { count: parsedEmailPasswordCount }) }}
                 </span>
               </label>
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-3'"
                 v-model="emailPasswordInput"
                 rows="4"
                 class="input w-full resize-y font-mono text-sm"
@@ -381,7 +381,7 @@
             </p>
 
             <div class="mb-4">
-              <label
+              <label :id="'field-' + fieldLabelScope + '-4'"
                 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
               >
                 <Icon name="key" size="sm" class="text-primary-500" />
@@ -393,7 +393,7 @@
                   {{ t('admin.accounts.oauth.keysCount', { count: parsedCodexSessionCount }) }}
                 </span>
               </label>
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-4'"
                 v-model="codexSessionInput"
                 rows="8"
                 class="input w-full resize-y font-mono text-sm"
@@ -460,13 +460,13 @@
             </p>
 
             <div class="mb-4">
-              <label
+              <label :id="'field-' + fieldLabelScope + '-5'"
                 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
               >
                 <Icon name="key" size="sm" class="text-primary-500" />
                 {{ t('admin.accounts.oauth.openai.codexPatInputLabel') }}
               </label>
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-5'"
                 v-model="codexPATInput"
                 rows="3"
                 class="input w-full resize-y font-mono text-sm"
@@ -534,7 +534,7 @@
 
             <!-- sessionKey Input -->
             <div class="mb-4">
-              <label
+              <label :id="'field-' + fieldLabelScope + '-6'"
                 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
               >
                 <Icon name="key" size="sm" class="text-primary-500" />
@@ -545,7 +545,7 @@
                 >
                   {{ t('admin.accounts.oauth.keysCount', { count: parsedKeyCount }) }}
                 </span>
-                <button
+                <button :aria-label="t('consoleFields.help')"
                   v-if="showHelp"
                   type="button"
                   class="theme-action-link"
@@ -566,7 +566,7 @@
                   </svg>
                 </button>
               </label>
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-6'"
                 v-model="sessionKeyInput"
                 rows="3"
                 class="input w-full resize-y font-mono text-sm"
@@ -677,7 +677,7 @@
                   {{ oauthStep1GenerateUrl }}
                 </p>
                 <div v-if="showProjectId && platform === 'gemini'" class="mb-3">
-                  <label class="input-label flex items-center gap-2">
+                  <label :id="'field-' + fieldLabelScope + '-7'" class="input-label flex items-center gap-2">
                     {{ t('admin.accounts.oauth.gemini.projectIdLabel') }}
                     <a
                       href="https://console.cloud.google.com/"
@@ -691,7 +691,7 @@
                       {{ t('admin.accounts.oauth.gemini.howToGetProjectId') }}
                     </a>
                   </label>
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-7'"
                     v-model="projectId"
                     type="text"
                     class="input w-full font-mono text-sm"
@@ -733,12 +733,12 @@
                 </button>
                 <div v-else class="space-y-3">
                   <div class="flex items-center gap-2">
-                    <input
+                    <label class="block min-w-0 flex-1"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.authorizationUrl') }}</span><input
                       :value="authUrl"
                       readonly
                       type="text"
                       class="input flex-1 bg-gray-50 font-mono text-xs dark:bg-gray-700"
-                    />
+                    /></label>
                     <button
                       type="button"
                       class="btn btn-secondary p-2"
@@ -841,11 +841,11 @@
                   v-text="oauthAuthCodeDesc"
                 ></p>
                 <div>
-                  <label class="input-label">
+                  <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">
                     <Icon name="key" size="sm" class="mr-1 inline text-primary-500" />
                     {{ oauthAuthCode }}
                   </label>
-                  <textarea
+                  <textarea :aria-labelledby="'field-' + fieldLabelScope + '-8'"
                     v-model="authCodeInput"
                     rows="3"
                     class="input w-full resize-none font-mono text-sm"
@@ -869,8 +869,8 @@
                         :stroke-width="2"
                       />
                       <div class="text-sm text-amber-800 dark:text-amber-300">
-                        <p class="font-semibold">{{ $t('admin.accounts.oauth.gemini.stateWarningTitle') }}</p>
-                        <p class="mt-1">{{ $t('admin.accounts.oauth.gemini.stateWarningDesc') }}</p>
+                        <p class="font-semibold">{{ t('admin.accounts.oauth.gemini.stateWarningTitle') }}</p>
+                        <p class="mt-1">{{ t('admin.accounts.oauth.gemini.stateWarningDesc') }}</p>
                       </div>
                     </div>
                   </div>
@@ -895,6 +895,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

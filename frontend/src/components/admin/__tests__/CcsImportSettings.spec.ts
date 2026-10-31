@@ -1,6 +1,8 @@
 import { defineComponent, h, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import consoleInline from '@/i18n/locales/zh/consoleInline'
+import consoleFields from '@/i18n/locales/zh/consoleFields'
 import { describe, expect, it } from 'vitest'
 import CcsImportSettings from '../CcsImportSettings.vue'
 import type { CcsImportConfig, CcsImportProfile } from '@/types/ccswitch'
@@ -20,7 +22,7 @@ function mountEditor(initial: CcsImportConfig = { profiles: [openaiProfile()] },
       'onUpdate:modelValue': (config: CcsImportConfig) => { value.value = config },
     }),
   }), {
-    global: { plugins: [createI18n({ legacy: false, locale: 'zh-CN' })] },
+    global: { plugins: [createI18n({ legacy: false, locale: 'zh-CN', messages: { 'zh-CN': { consoleInline, consoleFields } } })] },
   })
   return { wrapper: host.findComponent(CcsImportSettings), value, baseUrl }
 }

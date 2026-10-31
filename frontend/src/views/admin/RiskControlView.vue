@@ -43,7 +43,7 @@
         <p class="text-sm text-gray-600 dark:text-gray-300" data-test="active-audit-engine">
           {{ t('admin.riskControl.activeEngine', { engine: engineLabel(status?.engine ?? savedEngine) }) }}
         </p>
-        <p v-if="status?.enabled && status.risk_control_enabled && status.mode !== 'off' && status.pre_block_api_key_available_count === 0" class="text-sm text-amber-700 dark:text-amber-300" role="status">
+        <p :id="'field-' + fieldLabelScope + '-1'" v-if="status?.enabled && status.risk_control_enabled && status.mode !== 'off' && status.pre_block_api_key_available_count === 0" class="text-sm text-amber-700 dark:text-amber-300" role="status">
           {{ t('admin.riskControl.engineUnavailable') }}
         </p>
 
@@ -289,12 +289,12 @@
 
             <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
               <div ref="tableTools0" class="min-w-0" />
-              <Select :aria-label="t('admin.riskControl.auditTestResult')" class="w-40" v-model="filters.result" :options="resultOptions" @change="reloadLogsFromFirstPage" />
-              <Select :aria-label="t('admin.riskControl.filters.allGroups')" class="w-40" v-model="filters.group_id" :options="groupFilterOptions" @change="reloadLogsFromFirstPage" />
-              <Select :aria-label="t('admin.riskControl.filters.allEndpoints')" class="w-40" v-model="filters.endpoint" :options="endpointOptions" @change="reloadLogsFromFirstPage" />
-              <input v-model.trim="filters.search" type="search" class="input w-auto min-w-0" :placeholder="t('admin.riskControl.filters.search')" @keyup.enter="reloadLogsFromFirstPage" />
-              <input v-model="filters.from" type="datetime-local" class="input w-auto min-w-0" :title="t('admin.riskControl.filters.from')" @change="reloadLogsFromFirstPage" />
-              <input v-model="filters.to" type="datetime-local" class="input w-auto min-w-0" :title="t('admin.riskControl.filters.to')" @change="reloadLogsFromFirstPage" />
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.riskControl.auditTestResult')" class="w-40" v-model="filters.result" :options="resultOptions" @change="reloadLogsFromFirstPage" />
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.riskControl.filters.allGroups')" class="w-40" v-model="filters.group_id" :options="groupFilterOptions" @change="reloadLogsFromFirstPage" />
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.riskControl.filters.allEndpoints')" class="w-40" v-model="filters.endpoint" :options="endpointOptions" @change="reloadLogsFromFirstPage" />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model.trim="filters.search" type="search" class="input w-auto min-w-0" :placeholder="t('admin.riskControl.filters.search')" @keyup.enter="reloadLogsFromFirstPage" />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="filters.from" type="datetime-local" class="input w-auto min-w-0" :title="t('admin.riskControl.filters.from')" @change="reloadLogsFromFirstPage" />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="filters.to" type="datetime-local" class="input w-auto min-w-0" :title="t('admin.riskControl.filters.to')" @change="reloadLogsFromFirstPage" />
             </div>
           </div>
 
@@ -393,38 +393,38 @@
                 <Toggle :aria-label="t('admin.riskControl.enabled')" v-model="configForm.enabled" />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.mode') }}</label>
-                <Select :aria-label="t('admin.riskControl.mode')" v-model="configForm.mode" :options="modeOptions" />
+                <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.riskControl.mode') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('admin.riskControl.mode')" v-model="configForm.mode" :options="modeOptions" />
                 <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ modeDescription(configForm.mode) }}</p>
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.engine') }}</label>
-                <Select :aria-label="t('admin.riskControl.engine')" data-test="audit-engine-select" :model-value="configForm.engine" :options="engineOptions" :disabled="apiKeyTesting || saving" @update:model-value="switchEngine" />
+                <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.riskControl.engine') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('admin.riskControl.engine')" data-test="audit-engine-select" :model-value="configForm.engine" :options="engineOptions" :disabled="apiKeyTesting || saving" @update:model-value="switchEngine" />
               </div>
               <div v-if="configForm.engine === 'typesafe'" class="lg:col-span-2 text-sm text-amber-700 dark:text-amber-300" role="status">
                 {{ t('admin.riskControl.typeSafeNotice') }}
               </div>
               <div>
-                <label class="input-label">{{ t(configForm.engine === 'typesafe' ? 'admin.riskControl.defaultKeyUrl' : 'admin.riskControl.baseUrl') }}</label>
-                <input ref="baseUrlInput" v-model.trim="configForm.base_url" data-test="audit-base-url" type="url" class="input" :placeholder="configForm.engine === 'typesafe' ? 'https://api.typesafe.ai' : 'https://api.openai.com'" />
+                <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t(configForm.engine === 'typesafe' ? 'admin.riskControl.defaultKeyUrl' : 'admin.riskControl.baseUrl') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-4'" ref="baseUrlInput" v-model.trim="configForm.base_url" data-test="audit-base-url" type="url" class="input" :placeholder="configForm.engine === 'typesafe' ? 'https://api.typesafe.ai' : 'https://api.openai.com'" />
                 <p v-if="configForm.engine === 'typesafe'" data-test="audit-base-url-hint" class="input-hint">{{ t('admin.riskControl.typeSafeBaseUrlHint') }}</p>
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.model') }}</label>
-                <input v-model.trim="configForm.model" data-test="audit-model" type="text" class="input" :placeholder="configForm.engine === 'typesafe' ? 'jev-latest' : 'omni-moderation-latest'" />
+                <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.riskControl.model') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-5'" v-model.trim="configForm.model" data-test="audit-model" type="text" class="input" :placeholder="configForm.engine === 'typesafe' ? 'jev-latest' : 'omni-moderation-latest'" />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.timeoutMs') }}</label>
-                <input v-model.number="configForm.timeout_ms" type="number" min="500" max="30000" class="input" />
+                <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.riskControl.timeoutMs') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-6'" v-model.number="configForm.timeout_ms" type="number" min="500" max="30000" class="input" />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.retryCount') }}</label>
-                <input v-model.number="configForm.retry_count" type="number" min="0" max="5" class="input" />
+                <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.riskControl.retryCount') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-7'" v-model.number="configForm.retry_count" type="number" min="0" max="5" class="input" />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.sampleRate') }}</label>
+                <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('admin.riskControl.sampleRate') }}</label>
                 <div class="relative">
-                  <input v-model.number="configForm.sample_rate" type="number" min="0" max="100" step="1" class="input pr-8" />
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-8'" v-model.number="configForm.sample_rate" type="number" min="0" max="100" step="1" class="input pr-8" />
                   <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">%</span>
                 </div>
               </div>
@@ -507,13 +507,13 @@
                       </button>
                     </div>
                   </div>
-                  <textarea
+                  <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.apiKeys') }}</span><textarea
                     v-model="configForm.api_keys_text"
                     class="input min-h-44 resize-y font-mono text-sm"
                     :placeholder="apiKeysPlaceholder"
                     autocomplete="new-password"
                     :disabled="configForm.clear_api_key"
-                  ></textarea>
+                  ></textarea></label>
                   <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <span class="inline-flex rounded-md bg-gray-100 px-2 py-1 dark:bg-dark-700">
                       {{ t('admin.riskControl.inputApiKeyCount', { count: inputApiKeyCount }) }}
@@ -548,11 +548,14 @@
                         {{ t('admin.riskControl.clearAuditTest') }}
                       </button>
                     </div>
-                    <textarea
+                    <label class="block min-w-0">
+                      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.riskControl.auditTestPromptPlaceholder') }}</span>
+                      <textarea
                       v-model="moderationTestPrompt"
                       class="input min-h-24 resize-y text-sm"
                       :placeholder="t('admin.riskControl.auditTestPromptPlaceholder')"
                     ></textarea>
+                    </label>
                     <div
                       class="mt-3 rounded-lg border border-dashed border-gray-200 bg-white p-3 dark:border-dark-700 dark:bg-dark-800"
                       @dragover.prevent
@@ -579,7 +582,7 @@
                           class="group relative aspect-square overflow-hidden rounded-lg border border-gray-100 bg-gray-100 dark:border-dark-700 dark:bg-dark-700"
                         >
                           <img :src="image" alt="" class="h-full w-full object-cover" />
-                          <button
+                          <button :aria-label="t('consoleFields.remove')"
                             type="button"
                             class="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
                             @click="removeModerationTestImage(index)"
@@ -752,7 +755,10 @@
             <div v-if="!configForm.all_groups" class="space-y-4">
               <div class="relative">
                 <Icon name="search" size="sm" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input v-model.trim="groupSearch" type="search" class="input pl-9" :placeholder="t('admin.riskControl.searchGroups')" />
+                <label class="block min-w-0">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.riskControl.searchGroups') }}</span>
+                  <input v-model.trim="groupSearch" type="search" class="input pl-9" :placeholder="t('admin.riskControl.searchGroups')" />
+                </label>
               </div>
               <div class="grid max-h-[420px] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
                 <button
@@ -827,12 +833,12 @@
 
           <div v-else-if="activeSettingsTab === 'runtime'" class="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <div>
-              <label class="input-label">{{ t('admin.riskControl.workerCount') }}</label>
-              <input v-model.number="configForm.worker_count" type="number" min="1" max="32" class="input" />
+              <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('admin.riskControl.workerCount') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-9'" v-model.number="configForm.worker_count" type="number" min="1" max="32" class="input" />
             </div>
             <div>
-              <label class="input-label">{{ t('admin.riskControl.queueSize') }}</label>
-              <input v-model.number="configForm.queue_size" type="number" min="100" max="100000" class="input" />
+              <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{ t('admin.riskControl.queueSize') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-10'" v-model.number="configForm.queue_size" type="number" min="100" max="100000" class="input" />
             </div>
             <div class="flex items-center justify-between rounded-lg border border-gray-100 p-4 dark:border-dark-700 lg:col-span-2">
               <div>
@@ -868,12 +874,15 @@
                   </button>
                 </div>
                 <div class="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <input
+                  <label class="block min-w-0">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.riskControl.flaggedHashPlaceholder') }}</span>
+                    <input
                     v-model.trim="flaggedHashInput"
                     type="text"
                     class="input font-mono text-sm"
                     :placeholder="t('admin.riskControl.flaggedHashPlaceholder')"
                   />
+                  </label>
                   <button
                     type="button"
                     class="btn btn-secondary inline-flex items-center justify-center gap-2"
@@ -891,12 +900,12 @@
           <div v-else-if="activeSettingsTab === 'response'" class="space-y-5">
             <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <div>
-                <label class="input-label">{{ t('admin.riskControl.blockStatus') }}</label>
-                <input v-model.number="configForm.block_status" type="number" min="400" max="599" class="input" />
+                <label :id="'field-' + fieldLabelScope + '-11'" class="input-label">{{ t('admin.riskControl.blockStatus') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-11'" v-model.number="configForm.block_status" type="number" min="400" max="599" class="input" />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.blockMessage') }}</label>
-                <input v-model.trim="configForm.block_message" type="text" class="input" />
+                <label :id="'field-' + fieldLabelScope + '-12'" class="input-label">{{ t('admin.riskControl.blockMessage') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-12'" v-model.trim="configForm.block_message" type="text" class="input" />
               </div>
               <div class="flex items-center justify-between rounded-lg border border-gray-100 p-4 dark:border-dark-700">
                 <div>
@@ -920,12 +929,12 @@
                 <Toggle :aria-label="t('admin.riskControl.cyberPolicyExcludeBan')" v-model="configForm.cyber_policy_exclude_from_ban_count" />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.banThreshold') }}</label>
-                <input v-model.number="configForm.ban_threshold" type="number" min="1" max="1000" class="input" />
+                <label :id="'field-' + fieldLabelScope + '-13'" class="input-label">{{ t('admin.riskControl.banThreshold') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-13'" v-model.number="configForm.ban_threshold" type="number" min="1" max="1000" class="input" />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.riskControl.violationWindowHours') }}</label>
-                <input v-model.number="configForm.violation_window_hours" type="number" min="1" max="8760" class="input" />
+                <label :id="'field-' + fieldLabelScope + '-14'" class="input-label">{{ t('admin.riskControl.violationWindowHours') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-14'" v-model.number="configForm.violation_window_hours" type="number" min="1" max="8760" class="input" />
               </div>
             </div>
           </div>
@@ -1044,12 +1053,12 @@
 
             <div>
               <div class="mb-2 flex items-center justify-between">
-                <label class="input-label mb-0">{{ t('admin.riskControl.blockedKeywords') }}</label>
+                <label :id="'field-' + fieldLabelScope + '-caption-1'" class="input-label mb-0">{{ t('admin.riskControl.blockedKeywords') }}</label>
                 <span class="inline-flex rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-300">
                   {{ t('admin.riskControl.blockedKeywordCount', { count: blockedKeywordCount }) }}
                 </span>
               </div>
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-caption-1'"
                 v-model="configForm.blocked_keywords_text"
                 class="input min-h-52 resize-y font-mono text-sm"
                 :placeholder="t('admin.riskControl.blockedKeywordsPlaceholder')"
@@ -1064,12 +1073,12 @@
           <div v-else class="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <CyberEvidenceSettings />
             <div>
-              <label class="input-label">{{ t('admin.riskControl.hitRetentionDays') }}</label>
-              <input v-model.number="configForm.hit_retention_days" type="number" min="1" max="3650" class="input" />
+              <label :id="'field-' + fieldLabelScope + '-15'" class="input-label">{{ t('admin.riskControl.hitRetentionDays') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-15'" v-model.number="configForm.hit_retention_days" type="number" min="1" max="3650" class="input" />
             </div>
             <div>
-              <label class="input-label">{{ t('admin.riskControl.nonHitRetentionDays') }}</label>
-              <input v-model.number="configForm.non_hit_retention_days" type="number" min="1" max="3" class="input" />
+              <label :id="'field-' + fieldLabelScope + '-16'" class="input-label">{{ t('admin.riskControl.nonHitRetentionDays') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-16'" v-model.number="configForm.non_hit_retention_days" type="number" min="1" max="3" class="input" />
             </div>
             <div class="rounded-lg border border-gray-100 p-4 text-sm text-gray-500 dark:border-dark-700 dark:text-gray-400 lg:col-span-2">
               <div class="flex flex-wrap items-center gap-3">
@@ -1179,6 +1188,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'

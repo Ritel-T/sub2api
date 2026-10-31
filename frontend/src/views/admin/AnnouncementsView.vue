@@ -26,20 +26,26 @@
         <div class="filter-controls">
           <!-- Left: Search + Filters -->
           <div class="flex-1 sm:max-w-64">
-            <input
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.announcements.searchAnnouncements') }}</span>
+              <input
               v-model="searchQuery"
               type="text"
               :placeholder="t('admin.announcements.searchAnnouncements')"
               class="input"
               @input="handleSearch"
             />
+            </label>
           </div>
-          <Select :aria-label="t('admin.announcements.form.status')"
+          <label class="block min-w-0 w-40">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.announcements.form.status') }}</span>
+            <Select :aria-label="t('admin.announcements.form.status')"
             v-model="filters.status"
             :options="statusFilterOptions"
             class="w-40"
             @change="handleStatusChange"
           />
+          </label>
 
           <TableToolbarTarget />
         </div>
@@ -183,36 +189,36 @@
     >
       <form id="announcement-form" @submit.prevent="handleSave" class="space-y-4">
         <div>
-          <label class="input-label">{{ t('admin.announcements.form.title') }}</label>
-          <input v-model="form.title" type="text" class="input" required />
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.announcements.form.title') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="form.title" type="text" class="input" required />
         </div>
 
         <div>
-          <label class="input-label">{{ t('admin.announcements.form.content') }}</label>
-          <textarea v-model="form.content" rows="6" class="input" required></textarea>
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.announcements.form.content') }}</label>
+          <textarea :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model="form.content" rows="6" class="input" required></textarea>
         </div>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label class="input-label">{{ t('admin.announcements.form.status') }}</label>
-            <Select :aria-label="t('admin.announcements.form.status')" v-model="form.status" :options="statusOptions" />
+            <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.announcements.form.status') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('admin.announcements.form.status')" v-model="form.status" :options="statusOptions" />
           </div>
           <div>
-            <label class="input-label">{{ t('admin.announcements.form.notifyMode') }}</label>
-            <Select :aria-label="t('admin.announcements.form.notifyMode')" v-model="form.notify_mode" :options="notifyModeOptions" />
+            <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('admin.announcements.form.notifyMode') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-4'" :aria-label="t('admin.announcements.form.notifyMode')" v-model="form.notify_mode" :options="notifyModeOptions" />
             <p class="input-hint">{{ t('admin.announcements.form.notifyModeHint') }}</p>
           </div>
         </div>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label class="input-label">{{ t('admin.announcements.form.startsAt') }}</label>
-            <input v-model="form.starts_at_str" type="datetime-local" max="9999-12-31T23:59" class="input" />
+            <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.announcements.form.startsAt') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-5'" v-model="form.starts_at_str" type="datetime-local" max="9999-12-31T23:59" class="input" />
             <p class="input-hint">{{ t('admin.announcements.form.startsAtHint') }}</p>
           </div>
           <div>
-            <label class="input-label">{{ t('admin.announcements.form.endsAt') }}</label>
-            <input v-model="form.ends_at_str" type="datetime-local" max="9999-12-31T23:59" class="input" />
+            <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.announcements.form.endsAt') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-6'" v-model="form.ends_at_str" type="datetime-local" max="9999-12-31T23:59" class="input" />
             <p class="input-hint">{{ t('admin.announcements.form.endsAtHint') }}</p>
           </div>
         </div>
@@ -263,6 +269,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'

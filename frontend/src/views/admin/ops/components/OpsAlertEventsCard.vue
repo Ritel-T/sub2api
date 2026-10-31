@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
@@ -347,10 +350,22 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
 
       <div class="open-filter-toolbar flex flex-wrap items-center gap-2">
         <div ref="tableTools0" class="min-w-0" />
-        <Select :aria-label="t('admin.dashboard.timeRange')" :model-value="timeRange" :options="timeRangeOptions" class="w-[120px]" @change="timeRange = String($event || '24h')" />
-        <Select :aria-label="t('common.severity')" :model-value="severity" :options="severityOptions" class="w-[88px]" @change="severity = String($event || '')" />
-        <Select :aria-label="t('common.status')" :model-value="status" :options="statusOptions" class="w-[110px]" @change="status = String($event || '')" />
-        <Select :aria-label="t('common.emailStatus')" :model-value="emailSent" :options="emailSentOptions" class="w-[110px]" @change="emailSent = String($event || '')" />
+        <label class="block min-w-0 w-[120px]">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}</span>
+          <Select :aria-label="t('admin.dashboard.timeRange')" :model-value="timeRange" :options="timeRangeOptions" class="w-[120px]" @change="timeRange = String($event || '24h')" />
+        </label>
+        <label class="block min-w-0 w-[88px]">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.severity') }}</span>
+          <Select :aria-label="t('common.severity')" :model-value="severity" :options="severityOptions" class="w-[88px]" @change="severity = String($event || '')" />
+        </label>
+        <label class="block min-w-0 w-[110px]">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+          <Select :aria-label="t('common.status')" :model-value="status" :options="statusOptions" class="w-[110px]" @change="status = String($event || '')" />
+        </label>
+        <label class="block min-w-0 w-[110px]">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.emailStatus') }}</span>
+          <Select :aria-label="t('common.emailStatus')" :model-value="emailSent" :options="emailSentOptions" class="w-[110px]" @change="emailSent = String($event || '')" />
+        </label>
         <button
           class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
           :disabled="loading"
@@ -480,8 +495,8 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
 
             <div class="flex flex-wrap gap-2">
               <div class="flex items-center gap-2 rounded-lg bg-white px-2 py-1 ring-1 ring-gray-200 dark:bg-dark-800 dark:ring-dark-700">
-                <span class="text-2xs font-bold text-gray-600 dark:text-gray-300">{{ t('admin.ops.alertEvents.detail.silence') }}</span>
-                <Select :aria-label="t('admin.ops.alertEvents.detail.silence')"
+                <span :id="'field-' + fieldLabelScope + '-1'" class="text-2xs font-bold text-gray-600 dark:text-gray-300">{{ t('admin.ops.alertEvents.detail.silence') }}</span>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.ops.alertEvents.detail.silence')"
                   :model-value="silenceDuration"
                   :options="silenceDurationOptions"
                   class="w-[110px]"
@@ -547,7 +562,10 @@ const openRecordColumns = computed(() => [{ key: 'time', label: t('admin.ops.ale
               <div class="text-sm font-bold text-gray-900 dark:text-white">{{ t('admin.ops.alertEvents.detail.historyTitle') }}</div>
               <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.detail.historyHint') }}</div>
             </div>
-            <Select :aria-label="t('admin.dashboard.timeRange')" :model-value="historyRange" :options="historyRangeOptions" class="w-[140px]" @change="historyRange = String($event || '7d')" />
+            <label class="block min-w-0 w-[140px]">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}</span>
+              <Select :aria-label="t('admin.dashboard.timeRange')" :model-value="historyRange" :options="historyRangeOptions" class="w-[140px]" @change="historyRange = String($event || '7d')" />
+            </label>
           </div>
 
           <div v-if="historyLoading && !history.length" class="py-6 text-center text-xs text-gray-500 dark:text-gray-400">

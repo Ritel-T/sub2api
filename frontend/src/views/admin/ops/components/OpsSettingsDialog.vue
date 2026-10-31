@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -255,8 +258,8 @@ async function saveAllSettings() {
       <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
         <AppHeading variant="minor" as="h4" class="mb-3 text-gray-900 dark:text-white">{{ t('admin.ops.settings.dataCollection') }}</AppHeading>
         <div>
-          <label class="input-label">{{ t('admin.ops.settings.evaluationInterval') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.ops.settings.evaluationInterval') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model.number="runtimeSettings.evaluation_interval_seconds"
             type="number"
             min="1"
@@ -280,9 +283,9 @@ async function saveAllSettings() {
           </div>
 
           <div v-if="emailConfig.alert.enabled">
-            <label class="input-label">{{ t('admin.ops.settings.alertRecipients') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.ops.settings.alertRecipients') }}</label>
             <div class="flex gap-2">
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
                 v-model="alertRecipientInput"
                 type="email"
                 class="input"
@@ -309,8 +312,8 @@ async function saveAllSettings() {
           </div>
 
           <div v-if="emailConfig.alert.enabled">
-            <label class="input-label">{{ t('admin.ops.settings.minSeverity') }}</label>
-            <Select :aria-label="t('admin.ops.settings.minSeverity')" v-model="emailConfig.alert.min_severity" :options="severityOptions" />
+            <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.ops.settings.minSeverity') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('admin.ops.settings.minSeverity')" v-model="emailConfig.alert.min_severity" :options="severityOptions" />
           </div>
         </div>
       </div>
@@ -328,9 +331,9 @@ async function saveAllSettings() {
           </div>
 
           <div v-if="emailConfig.report.enabled">
-            <label class="input-label">{{ t('admin.ops.settings.reportRecipients') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('admin.ops.settings.reportRecipients') }}</label>
             <div class="flex gap-2">
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
                 v-model="reportRecipientInput"
                 type="email"
                 class="input"
@@ -362,14 +365,14 @@ async function saveAllSettings() {
               <Toggle :aria-label="t('admin.ops.settings.dailySummary')" v-model="emailConfig.report.daily_summary_enabled" />
             </div>
             <div v-if="emailConfig.report.daily_summary_enabled">
-              <input v-model="emailConfig.report.daily_summary_schedule" type="text" class="input" placeholder="0 9 * * *" />
+              <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.dailySchedule') }}</span><input v-model="emailConfig.report.daily_summary_schedule" type="text" class="input" placeholder="0 9 * * *" /></label>
             </div>
             <div class="flex items-center justify-between">
               <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.weeklySummary') }}</label>
               <Toggle :aria-label="t('admin.ops.settings.weeklySummary')" v-model="emailConfig.report.weekly_summary_enabled" />
             </div>
             <div v-if="emailConfig.report.weekly_summary_enabled">
-              <input v-model="emailConfig.report.weekly_summary_schedule" type="text" class="input" placeholder="0 9 * * 1" />
+              <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.weeklySchedule') }}</span><input v-model="emailConfig.report.weekly_summary_schedule" type="text" class="input" placeholder="0 9 * * 1" /></label>
             </div>
           </div>
         </div>
@@ -382,8 +385,8 @@ async function saveAllSettings() {
 
         <div class="space-y-4">
           <div>
-            <label class="input-label">{{ t('admin.ops.settings.slaMinPercent') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.ops.settings.slaMinPercent') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-5'"
               v-model.number="metricThresholds.sla_percent_min"
               type="number"
               min="0"
@@ -396,8 +399,8 @@ async function saveAllSettings() {
 
 
           <div>
-            <label class="input-label">{{ t('admin.ops.settings.ttftP99MaxMs') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.ops.settings.ttftP99MaxMs') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-6'"
               v-model.number="metricThresholds.ttft_p99_ms_max"
               type="number"
               min="0"
@@ -408,8 +411,8 @@ async function saveAllSettings() {
           </div>
 
           <div>
-            <label class="input-label">{{ t('admin.ops.settings.requestErrorRateMaxPercent') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.ops.settings.requestErrorRateMaxPercent') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-7'"
               v-model.number="metricThresholds.request_error_rate_percent_max"
               type="number"
               min="0"
@@ -421,8 +424,8 @@ async function saveAllSettings() {
           </div>
 
           <div>
-            <label class="input-label">{{ t('admin.ops.settings.upstreamErrorRateMaxPercent') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('admin.ops.settings.upstreamErrorRateMaxPercent') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-8'"
               v-model.number="metricThresholds.upstream_error_rate_percent_max"
               type="number"
               min="0"
@@ -451,8 +454,8 @@ async function saveAllSettings() {
             </div>
 
             <div v-if="advancedSettings.data_retention.cleanup_enabled">
-              <label class="input-label">{{ t('admin.ops.settings.cleanupSchedule') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('admin.ops.settings.cleanupSchedule') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-9'"
                 v-model="advancedSettings.data_retention.cleanup_schedule"
                 type="text"
                 class="input"
@@ -463,8 +466,8 @@ async function saveAllSettings() {
 
             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <label class="input-label">{{ t('admin.ops.settings.errorLogRetentionDays') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{ t('admin.ops.settings.errorLogRetentionDays') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-10'"
                   v-model.number="advancedSettings.data_retention.error_log_retention_days"
                   type="number"
                   min="0"
@@ -473,8 +476,8 @@ async function saveAllSettings() {
                 />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.ops.settings.minuteMetricsRetentionDays') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-11'" class="input-label">{{ t('admin.ops.settings.minuteMetricsRetentionDays') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-11'"
                   v-model.number="advancedSettings.data_retention.minute_metrics_retention_days"
                   type="number"
                   min="0"
@@ -483,8 +486,8 @@ async function saveAllSettings() {
                 />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.ops.settings.hourlyMetricsRetentionDays') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-12'" class="input-label">{{ t('admin.ops.settings.hourlyMetricsRetentionDays') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-12'"
                   v-model.number="advancedSettings.data_retention.hourly_metrics_retention_days"
                   type="number"
                   min="0"
@@ -516,8 +519,8 @@ async function saveAllSettings() {
 
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label class="input-label">{{ t('admin.ops.settings.openaiQuotaAutoPauseDefault5h') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-13'" class="input-label">{{ t('admin.ops.settings.openaiQuotaAutoPauseDefault5h') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-13'"
                   v-model.number="quotaAutoPause5hPercent"
                   type="number"
                   min="0"
@@ -528,8 +531,8 @@ async function saveAllSettings() {
                 />
               </div>
               <div>
-                <label class="input-label">{{ t('admin.ops.settings.openaiQuotaAutoPauseDefault7d') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-14'" class="input-label">{{ t('admin.ops.settings.openaiQuotaAutoPauseDefault7d') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-14'"
                   v-model.number="quotaAutoPause7dPercent"
                   type="number"
                   min="0"
@@ -603,8 +606,8 @@ async function saveAllSettings() {
             </div>
 
             <div v-if="advancedSettings.auto_refresh_enabled">
-              <label class="input-label">{{ t('admin.ops.settings.refreshInterval') }}</label>
-              <Select :aria-label="t('admin.ops.settings.refreshInterval')"
+              <label :id="'field-' + fieldLabelScope + '-15'" class="input-label">{{ t('admin.ops.settings.refreshInterval') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-15'" :aria-label="t('admin.ops.settings.refreshInterval')"
                 v-model="advancedSettings.auto_refresh_interval_seconds"
                 :options="[
                   { value: 15, label: t('admin.ops.settings.refreshInterval15s') },

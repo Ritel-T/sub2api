@@ -6,16 +6,25 @@
           <div class="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
             <div class="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[260px_160px_144px_152px] 2xl:w-auto">
               <div class="min-w-0">
-                <SearchInput
+                <SearchInput :label="t('batchImage.filters.searchTaskName')"
                   v-model="filters.taskName"
                   :placeholder="t('batchImage.filters.searchTaskName')"
                   class="w-full"
                   @search="applyFilters"
                 />
               </div>
-              <Select :aria-label="t('batchImage.columns.apiKey')" v-model="filters.apiKeyId" :options="apiKeyFilterOptions" class="w-full" @change="applyFilters" />
-              <Select :aria-label="t('common.status')" v-model="filters.status" :options="statusFilterOptions" class="w-full" @change="applyFilters" />
-              <Select :aria-label="t('batchImage.columns.downloadStatus')" v-model="filters.downloaded" :options="downloadFilterOptions" class="w-full" @change="applyFilters" />
+              <label class="block min-w-0 w-full">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('batchImage.columns.apiKey') }}</span>
+                <Select :aria-label="t('batchImage.columns.apiKey')" v-model="filters.apiKeyId" :options="apiKeyFilterOptions" class="w-full" @change="applyFilters" />
+              </label>
+              <label class="block min-w-0 w-full">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+                <Select :aria-label="t('common.status')" v-model="filters.status" :options="statusFilterOptions" class="w-full" @change="applyFilters" />
+              </label>
+              <label class="block min-w-0 w-full">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('batchImage.columns.downloadStatus') }}</span>
+                <Select :aria-label="t('batchImage.columns.downloadStatus')" v-model="filters.downloaded" :options="downloadFilterOptions" class="w-full" @change="applyFilters" />
+              </label>
             </div>
             <div class="flex flex-wrap items-center justify-start gap-2 sm:justify-end 2xl:flex-shrink-0">
               <button type="button" class="btn btn-secondary" :disabled="loadingJobs" @click="resetFilters">
@@ -83,23 +92,23 @@
           row-key="id"
         >
           <template #header-select>
-            <input
+            <label class="inline-flex items-center gap-2"><input
               type="checkbox"
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               :checked="allVisibleSelected"
               :indeterminate="someVisibleSelected"
               @change="toggleAllVisible(($event.target as HTMLInputElement).checked)"
-            />
+            /><span class="text-2xs">{{ t('consoleFields.selectAll') }}</span></label>
           </template>
 
           <template #cell-select="{ row }">
-            <input
+            <label class="inline-flex items-center gap-2"><input
               type="checkbox"
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               :checked="selectedJobIds.has(row.id)"
               @change="toggleJobSelection(row.id, ($event.target as HTMLInputElement).checked)"
               @click.stop
-            />
+            /><span class="text-2xs">{{ t('consoleFields.selectRow') }}</span></label>
           </template>
 
           <template #cell-id="{ row }">
@@ -481,8 +490,8 @@
       <form class="space-y-5" @submit.prevent="submitJob">
         <div class="grid gap-4 md:grid-cols-2">
           <div class="md:col-span-2">
-            <label class="input-label">{{ t('batchImage.create.taskName') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('batchImage.create.taskName') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
               v-model="form.taskName"
               type="text"
               maxlength="255"
@@ -492,8 +501,8 @@
           </div>
 
           <div class="md:col-span-2">
-            <label class="input-label">API Key</label>
-            <select v-model.number="form.apiKeyId" class="input" :disabled="loadingKeys">
+            <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">API Key</label>
+            <select :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model.number="form.apiKeyId" class="input" :disabled="loadingKeys">
               <option :value="0">{{ loadingKeys ? t('batchImage.create.loadingKeys') : t('batchImage.create.selectKeyPlaceholder') }}</option>
               <option v-for="key in geminiApiKeys" :key="key.id" :value="key.id">
                 {{ key.name }} · {{ key.group?.name || 'Gemini' }}
@@ -505,8 +514,8 @@
           </div>
 
           <div>
-            <label class="input-label">{{ t('batchImage.create.model') }}</label>
-            <select v-model="form.model" class="input" :disabled="loadingModels || availableBatchImageModels.length === 0">
+            <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('batchImage.create.model') }}</label>
+            <select :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model="form.model" class="input" :disabled="loadingModels || availableBatchImageModels.length === 0">
               <option v-if="loadingModels" value="">{{ batchImageText('loadingModels') }}</option>
               <option v-else-if="availableBatchImageModels.length === 0" value="">{{ batchImageText('noModels') }}</option>
               <option v-for="model in availableBatchImageModels" :key="model.value" :value="model.value">
@@ -530,8 +539,8 @@
           </div>
 
           <div>
-            <label class="input-label">{{ t('batchImage.create.outputFormat') }}</label>
-            <select v-model="form.responseMimeType" class="input">
+            <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('batchImage.create.outputFormat') }}</label>
+            <select :aria-labelledby="'field-' + fieldLabelScope + '-4'" v-model="form.responseMimeType" class="input">
               <option value="image/png">PNG</option>
               <option value="image/jpeg">JPEG</option>
               <option value="image/webp">WebP</option>
@@ -552,21 +561,29 @@
             <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('batchImage.create.promptAdded', { count: promptRows.length }) }}</span>
           </div>
           <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-700">
-            <textarea
+            <label class="block min-w-0 w-full">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('batchImage.create.promptPlaceholder') }}</span>
+              <textarea
               v-model="promptDraft"
               rows="3"
               class="h-[76px] w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm leading-5 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-dark-600 dark:bg-dark-900 dark:text-gray-100 dark:focus:border-primary-500 dark:focus:ring-primary-900/40"
               :placeholder="t('batchImage.create.promptPlaceholder')"
             />
+            </label>
             <div class="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_112px_132px_112px] md:items-center">
-              <input
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('batchImage.create.customIdPlaceholder') }}</span>
+                <input
                 v-model="customIdDraft"
                 type="text"
                 maxlength="255"
                 class="input h-9 text-sm"
                 :placeholder="t('batchImage.create.customIdPlaceholder')"
               />
-              <select
+              </label>
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('batchImage.create.outputCountPerPrompt') }}</span>
+                <select
                 v-model.number="outputCountDraft"
                 class="batch-output-count-select input h-9 text-sm"
                 :title="t('batchImage.create.outputCountPerPrompt')"
@@ -576,6 +593,7 @@
                   {{ t('batchImage.create.outputCountOption', { n: count }, count) }}
                 </option>
               </select>
+              </label>
               <label
                 class="btn btn-secondary h-9 cursor-pointer justify-center text-sm"
                 :class="referenceImageDrafts.length >= selectedModelReferenceLimit ? 'pointer-events-none opacity-60' : ''"
@@ -671,11 +689,11 @@
 	            <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">{{ t('batchImage.guide.skillTitle') }}</AppHeading>
 	            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('batchImage.guide.skillDesc') }}</p>
 	          </div>
-	        <textarea
+	        <label class="block min-w-0 w-full"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.agentInstructions') }}</span><textarea
 	          :value="agentInstruction"
 	          readonly
 	          class="min-h-[420px] w-full resize-y rounded-md border border-gray-200 bg-gray-50 p-4 font-mono text-sm leading-6 text-gray-800 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-dark-600 dark:bg-dark-900 dark:text-gray-100 dark:focus:border-primary-500 dark:focus:ring-primary-900/40"
-	        />
+	        /></label>
 	        </section>
 	      </div>
       <template #footer>
@@ -697,6 +715,8 @@
 import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
 
 import { formatTimestamp as displayTimestamp, formatMoney as displayMoney } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import AppHeading from '@/components/common/AppHeading.vue'
 import { useOwnedPopover } from '@/composables/overlayLifecycle'

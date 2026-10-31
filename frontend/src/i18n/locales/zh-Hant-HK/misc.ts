@@ -66,9 +66,9 @@ export default {
     subscriptionDescription: '在線訂閱',
     openInNewTab: '新窗口打開',
     notEnabledTitle: '該功能未開啟',
-    notEnabledDesc: '管理員暫未開啟充值/訂閱入口，請聯繫管理員。',
+    notEnabledDesc: '充值與訂閱暫未開放。',
     notConfiguredTitle: '充值/訂閱連結未配置',
-    notConfiguredDesc: '管理員已開啟入口，但尚未配置充值/訂閱連結，請聯繫管理員。'
+    notConfiguredDesc: '充值與訂閱暫時無法使用，請稍後重試。'
   },
 
   // Custom Page (iframe embed)

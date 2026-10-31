@@ -30,7 +30,7 @@
           </div>
           <div class="grid gap-3">
             <div
-              v-for="config in exclusiveGroupConfigs"
+              v-for="(config, fieldIndex0) in exclusiveGroupConfigs"
               :key="config.groupId"
               class="group relative overflow-hidden rounded-xl border-2 p-4 transition-all duration-200"
               :class="config.isSelected
@@ -41,7 +41,7 @@
                 <!-- 复选框 -->
                 <div class="flex-shrink-0">
                   <label class="relative flex h-6 w-6 cursor-pointer items-center justify-center">
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0"
                       type="checkbox"
                       :checked="config.isSelected"
                       @change="toggleExclusiveGroup(config.groupId)"
@@ -77,8 +77,8 @@
 
                 <!-- 专属倍率输入 -->
                 <div class="flex flex-shrink-0 items-center gap-3">
-                  <label class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
-                  <input
+                  <label :id="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0" class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0"
                     type="number"
                     step="0.001"
                     min="0.001"
@@ -114,20 +114,20 @@
           <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.users.restrictPublicGroupsHint') }}</p>
           <div class="grid gap-3">
             <div
-              v-for="config in publicGroupConfigs"
+              v-for="(config, fieldIndex1) in publicGroupConfigs"
               :key="config.groupId"
               class="relative overflow-hidden rounded-xl border-2 border-green-200 bg-green-50/50 p-4 dark:border-green-800/50 dark:bg-green-900/10"
             >
               <div class="flex items-center gap-4">
                 <!-- 未开启限制时公开分组恒可用，此处仅作展示；开启后才是真实开关 -->
                 <div class="flex-shrink-0">
-                  <input
-                    v-if="restrictPublicGroups"
+                  <label v-if="restrictPublicGroups" class="inline-flex items-center gap-2"><input
+
                     type="checkbox"
                     :checked="config.isSelected"
                     @change="togglePublicGroup(config.groupId)"
                     class="h-5 w-5 cursor-pointer rounded-md border-2 border-green-400 text-green-600 focus:ring-green-500 dark:border-green-600"
-                  />
+                  /><span class="text-2xs">{{ t('consoleFields.selectRow') }}</span></label>
                   <div
                     v-else
                     class="flex h-5 w-5 items-center justify-center rounded-md border-2 border-green-400 bg-green-500 dark:border-green-600 dark:bg-green-600"
@@ -157,8 +157,8 @@
 
                 <!-- 专属倍率输入 -->
                 <div class="flex flex-shrink-0 items-center gap-3">
-                  <label class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
-                  <input
+                  <label :id="'field-' + fieldLabelScope + '-2' + '-' + fieldIndex1" class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-2' + '-' + fieldIndex1"
                     type="number"
                     step="0.001"
                     min="0.001"
@@ -201,6 +201,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'

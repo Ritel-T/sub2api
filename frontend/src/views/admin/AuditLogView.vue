@@ -8,14 +8,14 @@
             <!-- Left: filter fields -->
             <div class="flex flex-1 flex-wrap items-end gap-4">
               <div class="w-full sm:w-auto sm:min-w-[240px]">
-                <label class="input-label">{{ t('admin.audit.filters.q') }}</label>
+                <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.audit.filters.q') }}</label>
                 <div class="relative">
                   <Icon
                     name="search"
                     size="md"
                     class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                   />
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                     v-model.trim="filters.q"
                     type="text"
                     class="input pl-10"
@@ -26,38 +26,38 @@
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[200px]">
-                <label class="input-label">{{ t('admin.audit.filters.actorEmail') }}</label>
-                <input v-model.trim="filters.actor_email" type="text" class="input" @keyup.enter="search" />
+                <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.audit.filters.actorEmail') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model.trim="filters.actor_email" type="text" class="input" @keyup.enter="search" />
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[180px]">
-                <label class="input-label">{{ t('admin.audit.filters.action') }}</label>
-                <input v-model.trim="filters.action" type="text" class="input" @keyup.enter="search" />
+                <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.audit.filters.action') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model.trim="filters.action" type="text" class="input" @keyup.enter="search" />
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[160px]">
-                <label class="input-label">{{ t('admin.audit.filters.clientIp') }}</label>
-                <input v-model.trim="filters.client_ip" type="text" class="input" @keyup.enter="search" />
+                <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('admin.audit.filters.clientIp') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-4'" v-model.trim="filters.client_ip" type="text" class="input" @keyup.enter="search" />
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[140px]">
-                <label class="input-label">{{ t('admin.audit.filters.method') }}</label>
-                <Select :aria-label="t('admin.audit.filters.method')" v-model="filters.method" :options="methodOptions" @change="search" />
+                <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.audit.filters.method') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-5'" :aria-label="t('admin.audit.filters.method')" v-model="filters.method" :options="methodOptions" @change="search" />
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[170px]">
-                <label class="input-label">{{ t('admin.audit.filters.authMethod') }}</label>
-                <Select :aria-label="t('admin.audit.filters.authMethod')" v-model="filters.auth_method" :options="authMethodOptions" @change="search" />
+                <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.audit.filters.authMethod') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-6'" :aria-label="t('admin.audit.filters.authMethod')" v-model="filters.auth_method" :options="authMethodOptions" @change="search" />
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[140px]">
-                <label class="input-label">{{ t('admin.audit.filters.result') }}</label>
-                <Select :aria-label="t('admin.audit.filters.result')" v-model="filters.success" :options="resultOptions" @change="search" />
+                <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.audit.filters.result') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-7'" :aria-label="t('admin.audit.filters.result')" v-model="filters.success" :options="resultOptions" @change="search" />
               </div>
 
               <div class="w-full sm:w-auto sm:min-w-[170px]">
-                <label class="input-label">{{ t('admin.dashboard.timeRange') }}</label>
-                <Select :aria-label="t('admin.dashboard.timeRange')"
+                <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('admin.dashboard.timeRange') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-8'" :aria-label="t('admin.dashboard.timeRange')"
                   :model-value="timeRange"
                   :options="timeRangeOptions"
                   @update:model-value="handleTimeRangeChange"
@@ -271,12 +271,12 @@
     >
       <div class="space-y-4 py-2">
         <div>
-          <label class="input-label">{{ t('admin.ops.customTimeRange.startTime') }}</label>
-          <input v-model="customStartTimeInput" type="datetime-local" class="input" />
+          <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('admin.ops.customTimeRange.startTime') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-9'" v-model="customStartTimeInput" type="datetime-local" class="input" />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.ops.customTimeRange.endTime') }}</label>
-          <input v-model="customEndTimeInput" type="datetime-local" class="input" />
+          <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{ t('admin.ops.customTimeRange.endTime') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-10'" v-model="customEndTimeInput" type="datetime-local" class="input" />
         </div>
       </div>
       <template #footer>
@@ -316,7 +316,7 @@
     >
       <div class="py-2">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.audit.clearConfirm.totpHint') }}</p>
-        <input
+        <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.verificationCode') }}</span><input
           v-model.trim="clearTotpCode"
           type="text"
           inputmode="numeric"
@@ -325,7 +325,7 @@
           class="input mt-4 text-center text-lg tracking-[0.5em]"
           placeholder="••••••"
           @keyup.enter="submitClear"
-        />
+        /></label>
       </div>
       <template #footer>
         <button type="button" class="btn btn-secondary" :disabled="clearing" @click="cancelClearTotp">
@@ -348,6 +348,9 @@
 import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
 
 import MoreActions from '@/components/common/MoreActions.vue'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'

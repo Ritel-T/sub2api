@@ -1,7 +1,7 @@
 <template>
   <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-    <label class="input-label">{{ t('admin.accounts.openai.requestTimezone') }}</label>
-    <Select
+    <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.accounts.openai.requestTimezone') }}</label>
+    <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'"
       :model-value="modelValue"
       :options="options"
       :loading="loading"
@@ -15,6 +15,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'

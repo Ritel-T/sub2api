@@ -92,7 +92,9 @@
                 data-testid="profile-binding-email-form"
                 class="grid gap-2 sm:grid-cols-[minmax(0,1.4fr)_auto]"
               >
-                <input
+                <label class="block min-w-0">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('profile.authBindings.emailPlaceholder') }}</span>
+                  <input
                   v-model.trim="emailBindingForm.email"
                   data-testid="profile-binding-email-input"
                   type="email"
@@ -101,6 +103,7 @@
                   :disabled="isSendingEmailCode || isBindingEmail"
                   @input="isEmailBindingFormDirty = true"
                 />
+                </label>
                 <button
                   data-testid="profile-binding-email-send-code"
                   type="button"
@@ -114,7 +117,9 @@
                       : t('profile.authBindings.sendCodeAction')
                   }}
                 </button>
-                <input
+                <label class="block min-w-0">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('profile.authBindings.codePlaceholder') }}</span>
+                  <input
                   v-model.trim="emailBindingForm.verifyCode"
                   data-testid="profile-binding-email-code-input"
                   type="text"
@@ -125,7 +130,8 @@
                   :disabled="isBindingEmail"
                   @input="isEmailBindingFormDirty = true"
                 />
-                <input
+                </label>
+                <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.password') }}</span><input
                   v-model="emailBindingForm.password"
                   data-testid="profile-binding-email-password-input"
                   type="password"
@@ -133,7 +139,7 @@
                   :placeholder="emailPasswordPlaceholder"
                   :disabled="isBindingEmail"
                   @input="isEmailBindingFormDirty = true"
-                />
+                /></label>
                 <button
                   data-testid="profile-binding-email-submit"
                   type="button"

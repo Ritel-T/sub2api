@@ -17,12 +17,12 @@
           </div>
           <template v-if="activeTab === 'errors'">
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('usage.errors.keyName') }}</label>
-              <Select :aria-label="t('usage.errors.keyName')" v-model="errorFilter.api_key_id" :options="errorKeyOptions" @change="applyErrorFilters" />
+              <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('usage.errors.keyName') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('usage.errors.keyName')" v-model="errorFilter.api_key_id" :options="errorKeyOptions" @change="applyErrorFilters" />
             </div>
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('usage.errors.model') }}</label>
-              <Select :aria-label="t('usage.errors.model')"
+              <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('usage.errors.model') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('usage.errors.model')"
                 v-model="errorFilter.model"
                 :options="errorModelOptions"
                 searchable
@@ -33,49 +33,49 @@
               />
             </div>
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('usage.errors.category') }}</label>
-              <Select :aria-label="t('usage.errors.category')" v-model="errorFilter.category" :options="errorCategoryOptions" @change="applyErrorFilters" />
+              <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('usage.errors.category') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('usage.errors.category')" v-model="errorFilter.category" :options="errorCategoryOptions" @change="applyErrorFilters" />
             </div>
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('usage.errors.status') }}</label>
-              <Select :aria-label="t('usage.errors.status')" v-model="errorFilter.status_code" :options="errorStatusOptions" @change="applyErrorFilters" />
+              <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('usage.errors.status') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-4'" :aria-label="t('usage.errors.status')" v-model="errorFilter.status_code" :options="errorStatusOptions" @change="applyErrorFilters" />
             </div>
           </template>
           <template v-else>
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
-              <Select :aria-label="t('usage.apiKeyFilter')" v-model="filters.api_key_id" :options="apiKeyOptions" @change="applyFilters" />
+              <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('usage.apiKeyFilter') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-5'" :aria-label="t('usage.apiKeyFilter')" v-model="filters.api_key_id" :options="apiKeyOptions" @change="applyFilters" />
             </div>
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('usage.model') }}</label>
-              <Select :aria-label="t('usage.model')" v-model="filters.model" :options="modelOptions" searchable @change="applyFilters" />
+              <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('usage.model') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-6'" :aria-label="t('usage.model')" v-model="filters.model" :options="modelOptions" searchable @change="applyFilters" />
             </div>
 
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('admin.usage.group') }}</label>
-              <Select :aria-label="t('admin.usage.group')" v-model="filters.group_id" :options="groupOptions" searchable @change="applyFilters" />
+              <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.usage.group') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-7'" :aria-label="t('admin.usage.group')" v-model="filters.group_id" :options="groupOptions" searchable @change="applyFilters" />
             </div>
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('usage.type') }}</label>
-              <Select :aria-label="t('usage.type')" v-model="filters.request_type" :options="requestTypeOptions" @change="applyFilters" />
+              <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('usage.type') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-8'" :aria-label="t('usage.type')" v-model="filters.request_type" :options="requestTypeOptions" @change="applyFilters" />
             </div>
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('usage.compactionFilter') }}</label>
-              <Select :aria-label="t('usage.compactionFilter')" v-model="filters.native_compaction_v2" :options="compactionOptions" @change="applyFilters" />
+              <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('usage.compactionFilter') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-9'" :aria-label="t('usage.compactionFilter')" v-model="filters.native_compaction_v2" :options="compactionOptions" @change="applyFilters" />
             </div>
             <div v-if="subscriptionFeatureEnabled" class="usage-filter-field">
-              <label class="input-label">{{ t('admin.usage.billingType') }}</label>
-              <Select :aria-label="t('admin.usage.billingType')" v-model="filters.billing_type" :options="billingTypeOptions" @change="applyFilters" />
+              <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{ t('admin.usage.billingType') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-10'" :aria-label="t('admin.usage.billingType')" v-model="filters.billing_type" :options="billingTypeOptions" @change="applyFilters" />
             </div>
             <div class="usage-filter-field">
-              <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
-              <Select :aria-label="t('admin.usage.billingMode')" v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
+              <label :id="'field-' + fieldLabelScope + '-11'" class="input-label">{{ t('admin.usage.billingMode') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-11'" :aria-label="t('admin.usage.billingMode')" v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
             </div>
           </template>
 
           <div v-if="usageView === 'analysis'" class="usage-granularity-filter">
-            <span class="input-label">{{ t('admin.dashboard.granularity') }}</span>
-            <Select :aria-label="t('admin.dashboard.granularity')" v-model="granularity" :options="granularityOptions" @change="onGranularityChange" />
+            <span :id="'field-' + fieldLabelScope + '-12'" class="input-label">{{ t('admin.dashboard.granularity') }}</span>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-12'" :aria-label="t('admin.dashboard.granularity')" v-model="granularity" :options="granularityOptions" @change="onGranularityChange" />
           </div>
           <div ref="sortToolbarTarget" class="inline-table-tools" />
           <div class="usage-filter-actions flex flex-wrap items-center gap-3">
@@ -200,6 +200,11 @@
 </template>
 
 <script setup lang="ts">
+import { consoleUiMessages } from '@/i18n/consoleCopy'
+
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { getLast24HourRange as getLast24HoursRangeDates, getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
 import { computed, onMounted, onUnmounted, reactive, ref, watch, inject } from 'vue'
@@ -249,7 +254,7 @@ const router = inject(routerKey, undefined)
 const authStore = useAuthStore()
 const selectedRequest = ref<UsageLog | null>(null)
 const usageView = ref<'analysis' | 'records'>('records')
-const consoleCopy = computed(() => locale?.value === 'en' ? {analysis:'Usage analytics', records:'Request records'} : locale?.value === 'zh' ? {analysis:'用量分析', records:'请求记录'} : {analysis:'用量分析', records:'請求記錄'})
+const consoleCopy = computed(() => consoleUiMessages(locale?.value ?? 'en').userUsage)
 const appStore = useAppStore()
 const supportEnabled = computed(() => !authStore.isAdmin && !authStore.isObserver && resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.supportTickets))
 

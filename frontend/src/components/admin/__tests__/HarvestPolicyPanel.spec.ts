@@ -6,7 +6,11 @@ vi.mock('@/api/admin/settings', () => ({ getSettings, updateSettings }))
 vi.mock('@/api/admin/groups', () => ({ getAll: getGroups }))
 vi.mock('../HarvestPoolSchedulingPanel.vue', () => ({ default: { template: '<section data-testid="pool-scheduling-panel" />' } }))
 vi.mock('@/stores', () => ({ useAppStore: () => ({ showSuccess }) }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, locale: { value: 'zh-CN' } }) }))
+vi.mock('vue-i18n', async (original) => {
+  const actual = await original<typeof import('vue-i18n')>()
+  const { consoleTestT } = await import('@/__tests__/consoleLocale')
+  return { ...actual, useI18n: () => ({ locale: { value: 'zh-CN' }, t: consoleTestT(actual.createI18n, 'zh-CN') }) }
+})
 enableAutoUnmount(afterEach)
 const baseSettingsResponse = {
   openai_codex_ticket_enabled: false,

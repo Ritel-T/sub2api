@@ -23,7 +23,9 @@
         </AppHeading>
         <div class="flex items-end gap-2">
           <div class="relative flex-1">
-            <input
+            <label class="block min-w-0 w-full">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.groups.searchUserPlaceholder') }}</span>
+              <input
               v-model="searchQuery"
               type="text"
               autocomplete="off"
@@ -32,6 +34,7 @@
               @input="handleSearchUsers"
               @focus="showDropdown = true"
             />
+            </label>
             <div
               v-if="showDropdown && searchResults.length > 0"
               class="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-500 dark:bg-dark-700"
@@ -50,7 +53,7 @@
             </div>
           </div>
           <div class="w-24">
-            <input
+            <label class="block min-w-0 w-full"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.billingRate') }}</span><input
               v-model.number="newRate"
               type="number"
               step="0.001"
@@ -58,7 +61,7 @@
               autocomplete="off"
               class="hide-spinner input w-full"
               placeholder="1.0"
-            />
+            /></label>
           </div>
           <button
             type="button"
@@ -72,10 +75,10 @@
 
         <!-- 批量调整 + 全部清空 -->
         <div v-if="localEntries.length > 0" class="mt-3 flex items-center gap-3 border-t border-gray-100 pt-3 dark:border-dark-600">
-          <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.batchAdjust') }}</span>
+          <span :id="'field-' + fieldLabelScope + '-1'" class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.batchAdjust') }}</span>
           <div class="flex items-center gap-1.5">
             <span class="text-xs text-gray-400">×</span>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
               v-model.number="batchFactor"
               type="number"
               step="0.1"
@@ -159,7 +162,7 @@
                       </span>
                     </td>
                     <td class="whitespace-nowrap px-3 py-2">
-                      <input
+                      <label class="block min-w-0 w-20"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.billingRate') }}</span><input
                         type="number"
                         step="0.001"
                         min="0.001"
@@ -168,13 +171,13 @@
                         :placeholder="String(props.group?.rate_multiplier ?? 1)"
                         class="hide-spinner w-20 rounded border border-gray-200 bg-white px-2 py-1 text-center text-sm font-medium transition-colors focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/20 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500"
                         @change="updateLocalRate(entry.user_id, ($event.target as HTMLInputElement).value)"
-                      />
+                      /></label>
                     </td>
                     <td v-if="showFinalRate" class="whitespace-nowrap px-3 py-2 font-medium text-primary-600 dark:text-primary-400">
                       {{ computeFinalRate(entry.rate_multiplier) }}
                     </td>
                     <td class="px-2 py-2">
-                      <button
+                      <button :aria-label="t('consoleFields.remove')"
                         type="button"
                         class="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                         @click="removeLocal(entry.user_id)"
@@ -234,6 +237,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'

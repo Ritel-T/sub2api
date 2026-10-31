@@ -199,8 +199,8 @@
     >
       <form v-if="editor" id="pelican-test-editor" class="space-y-4" data-testid="pelican-test-editor" @submit.prevent="savePlan">
         <div>
-          <label class="field-label mt-0">{{ t('pelicanTests.editor.group') }}</label>
-          <Select
+          <label :id="'field-' + fieldLabelScope + '-1'" class="field-label mt-0">{{ t('pelicanTests.editor.group') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="editor.form.group_id"
             :options="groupOptions"
             :disabled="!!editor.id"
@@ -226,8 +226,8 @@
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
-            <label class="field-label mt-0">{{ t('pelicanTests.editor.effort') }}</label>
-            <Select v-model="editor.form.reasoning_effort" :options="effortOptions" :aria-label="t('pelicanTests.editor.effort')" />
+            <label :id="'field-' + fieldLabelScope + '-2'" class="field-label mt-0">{{ t('pelicanTests.editor.effort') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model="editor.form.reasoning_effort" :options="effortOptions" :aria-label="t('pelicanTests.editor.effort')" />
           </div>
           <div>
             <label class="field-label mt-0" for="pelican-test-parallel">{{ t('pelicanTests.editor.parallel') }}</label>
@@ -236,8 +236,8 @@
           </div>
         </div>
         <div>
-          <label class="field-label mt-0">{{ t('pelicanTests.editor.schedule') }}</label>
-          <Select v-model="editor.schedule" :options="scheduleOptions" :aria-label="t('pelicanTests.editor.schedule')" data-testid="pelican-test-schedule" />
+          <label :id="'field-' + fieldLabelScope + '-3'" class="field-label mt-0">{{ t('pelicanTests.editor.schedule') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model="editor.schedule" :options="scheduleOptions" :aria-label="t('pelicanTests.editor.schedule')" data-testid="pelican-test-schedule" />
           <template v-if="editor.schedule === 'custom'">
             <label class="field-label" for="pelican-test-cron">{{ t('pelicanTests.editor.cron') }}</label>
             <input id="pelican-test-cron" v-model.trim="editor.form.cron_expression" class="input w-full font-mono" placeholder="*/30 * * * *" data-testid="pelican-test-cron" />
@@ -305,6 +305,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'

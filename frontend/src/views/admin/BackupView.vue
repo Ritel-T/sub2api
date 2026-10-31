@@ -16,28 +16,28 @@
         </div>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
-            <input v-model="s3Form.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
+            <label :id="'field-' + fieldLabelScope + '-1'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="s3Form.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
-            <input v-model="s3Form.region" class="input w-full" placeholder="auto" />
+            <label :id="'field-' + fieldLabelScope + '-2'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model="s3Form.region" class="input w-full" placeholder="auto" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.bucket') }}</label>
-            <input v-model="s3Form.bucket" class="input w-full" />
+            <label :id="'field-' + fieldLabelScope + '-3'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.bucket') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model="s3Form.bucket" class="input w-full" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.prefix') }}</label>
-            <input v-model="s3Form.prefix" class="input w-full" placeholder="backups/" />
+            <label :id="'field-' + fieldLabelScope + '-4'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.prefix') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-4'" v-model="s3Form.prefix" class="input w-full" placeholder="backups/" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
-            <input v-model="s3Form.access_key_id" class="input w-full" />
+            <label :id="'field-' + fieldLabelScope + '-5'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-5'" v-model="s3Form.access_key_id" class="input w-full" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
-            <input v-model="s3Form.secret_access_key" type="password" class="input w-full" :placeholder="s3SecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
+            <label :id="'field-' + fieldLabelScope + '-6'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-6'" v-model="s3Form.secret_access_key" type="password" class="input w-full" :placeholder="s3SecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
           </div>
           <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
             <input v-model="s3Form.force_path_style" type="checkbox" />
@@ -76,30 +76,30 @@
 
         <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.bucket') }}</label>
-            <input v-model="imageStorageForm.bucket" class="input w-full" :placeholder="imageStorageForm.reuse_backup_s3 ? t('admin.backup.imageStorage.bucketInherited') : ''" />
+            <label :id="'field-' + fieldLabelScope + '-7'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.bucket') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-7'" v-model="imageStorageForm.bucket" class="input w-full" :placeholder="imageStorageForm.reuse_backup_s3 ? t('admin.backup.imageStorage.bucketInherited') : ''" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.prefix') }}</label>
-            <input v-model="imageStorageForm.prefix" class="input w-full" placeholder="images/" />
+            <label :id="'field-' + fieldLabelScope + '-8'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.prefix') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-8'" v-model="imageStorageForm.prefix" class="input w-full" placeholder="images/" />
           </div>
 
           <template v-if="!imageStorageForm.reuse_backup_s3">
             <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
-              <input v-model="imageStorageForm.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
+              <label :id="'field-' + fieldLabelScope + '-9'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-9'" v-model="imageStorageForm.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
             </div>
             <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
-              <input v-model="imageStorageForm.region" class="input w-full" placeholder="auto" />
+              <label :id="'field-' + fieldLabelScope + '-10'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-10'" v-model="imageStorageForm.region" class="input w-full" placeholder="auto" />
             </div>
             <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
-              <input v-model="imageStorageForm.access_key_id" class="input w-full" />
+              <label :id="'field-' + fieldLabelScope + '-11'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-11'" v-model="imageStorageForm.access_key_id" class="input w-full" />
             </div>
             <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
-              <input v-model="imageStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="imageStorageSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
+              <label :id="'field-' + fieldLabelScope + '-12'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-12'" v-model="imageStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="imageStorageSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
             </div>
             <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
               <input v-model="imageStorageForm.force_path_style" type="checkbox" />
@@ -108,12 +108,12 @@
           </template>
 
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.publicBaseUrl') }}</label>
-            <input v-model="imageStorageForm.public_base_url" class="input w-full" :placeholder="t('admin.backup.imageStorage.publicBaseUrlPlaceholder')" />
+            <label :id="'field-' + fieldLabelScope + '-13'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.publicBaseUrl') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-13'" v-model="imageStorageForm.public_base_url" class="input w-full" :placeholder="t('admin.backup.imageStorage.publicBaseUrlPlaceholder')" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.presignExpiryHours') }}</label>
-            <input v-model.number="imageStorageForm.presign_expiry_hours" type="number" min="1" class="input w-full" />
+            <label :id="'field-' + fieldLabelScope + '-14'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.presignExpiryHours') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-14'" v-model.number="imageStorageForm.presign_expiry_hours" type="number" min="1" class="input w-full" />
           </div>
         </div>
 
@@ -141,19 +141,19 @@
             <span>{{ t('admin.backup.schedule.enabled') }}</span>
           </label>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.schedule.cronExpr') }}</label>
-            <input v-model="scheduleForm.cron_expr" class="input w-full" placeholder="0 2 * * *" />
+            <label :id="'field-' + fieldLabelScope + '-15'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.schedule.cronExpr') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-15'" v-model="scheduleForm.cron_expr" class="input w-full" placeholder="0 2 * * *" />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.schedule.cronHint') }}</p>
           </div>
           <AppHeading variant="minor" as="h4" class="mt-2 text-gray-900 dark:text-white md:col-span-2">{{ t('admin.backup.schedule.ordinaryRetention') }}</AppHeading>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.schedule.retainDays') }}</label>
-            <input v-model.number="scheduleForm.retain_days" data-testid="backup-retain-days" type="number" min="0" step="1" class="input w-full" />
+            <label :id="'field-' + fieldLabelScope + '-16'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.schedule.retainDays') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-16'" v-model.number="scheduleForm.retain_days" data-testid="backup-retain-days" type="number" min="0" step="1" class="input w-full" />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.schedule.retainDaysHint') }}</p>
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.schedule.retainCount') }}</label>
-            <input v-model.number="scheduleForm.retain_count" data-testid="backup-retain-count" type="number" min="0" step="1" class="input w-full" />
+            <label :id="'field-' + fieldLabelScope + '-17'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.schedule.retainCount') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-17'" v-model.number="scheduleForm.retain_count" data-testid="backup-retain-count" type="number" min="0" step="1" class="input w-full" />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.schedule.retainCountHint') }}</p>
           </div>
         </div>
@@ -182,8 +182,8 @@
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <div class="flex items-center gap-1">
-              <label class="text-xs text-gray-600 dark:text-gray-400">{{ t('admin.backup.operations.expireDays') }}</label>
-              <input v-model.number="manualExpireDays" type="number" min="0" class="input w-20 text-xs" />
+              <label :id="'field-' + fieldLabelScope + '-18'" class="text-xs text-gray-600 dark:text-gray-400">{{ t('admin.backup.operations.expireDays') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-18'" v-model.number="manualExpireDays" type="number" min="0" class="input w-20 text-xs" />
             </div>
             <button type="button" class="btn btn-primary btn-sm" :disabled="creatingBackup" @click="createBackup">
               {{ creatingBackup ? t('admin.backup.operations.backing') : t('admin.backup.operations.createBackup') }}
@@ -364,6 +364,9 @@ import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
 
 import SettingsSaveBar from '@/components/settings/SettingsSaveBar.vue'
 import { useSettingsDrafts } from '@/composables/useSettingsDrafts'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'

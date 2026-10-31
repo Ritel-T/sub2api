@@ -102,7 +102,7 @@
       >
         <div class="space-y-3">
           <div v-if="selectable && !identitySelection" class="flex justify-end">
-            <input
+            <label class="inline-flex items-center gap-2"><input
               type="checkbox"
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
               :checked="isRowSelected(row, index)"
@@ -110,7 +110,7 @@
               data-test="select-row" :disabled="selectionDisabled"
               @click.stop
               @change="toggleRowSelection(row, index, ($event.target as HTMLInputElement).checked)"
-            />
+            /><span class="text-2xs">{{ getRowSelectionLabel(row, index) }}</span></label>
           </div>
           <div
             v-for="column in dataColumns"
@@ -230,7 +230,7 @@
             scope="col"
             class="sticky-header-cell w-11 min-w-11 px-3 py-3 text-center"
           >
-            <input
+            <label class="inline-flex items-center gap-2"><input
               type="checkbox"
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
               :checked="allVisibleSelected"
@@ -238,7 +238,7 @@
               :aria-label="t('common.selectAll')"
               data-test="select-all" :disabled="selectionDisabled"
               @change="toggleAllVisible(($event.target as HTMLInputElement).checked)"
-            />
+            /><span class="text-2xs">{{ t('common.selectAll') }}</span></label>
           </th>
           <th
             v-for="(column, index) in mainColumns"
@@ -377,7 +377,7 @@
               @click="onRowClick($event, item.row, item.index)"
             >
               <td v-if="selectable && !identitySelection" class="w-11 min-w-11 px-3 py-4 text-center">
-                <input
+                <label class="inline-flex items-center gap-2"><input
                   type="checkbox"
                   class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
                   :checked="isRowSelected(item.row, item.index)"
@@ -385,7 +385,7 @@
                   data-test="select-row" :disabled="selectionDisabled"
                   @click.stop
                   @change="toggleRowSelection(item.row, item.index, ($event.target as HTMLInputElement).checked)"
-                />
+                /><span class="text-2xs">{{ getRowSelectionLabel(item.row, item.index) }}</span></label>
               </td>
               <td
                 v-for="(column, colIndex) in mainColumns"

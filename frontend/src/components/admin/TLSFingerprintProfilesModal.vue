@@ -108,8 +108,8 @@
       <form @submit.prevent="handleSubmit" class="space-y-4">
         <!-- Paste YAML -->
         <div>
-          <label class="input-label">{{ t('admin.tlsFingerprintProfiles.form.pasteYaml') }}</label>
-          <textarea
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.tlsFingerprintProfiles.form.pasteYaml') }}</label>
+          <textarea :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="yamlInput"
             rows="4"
             class="input font-mono text-xs"
@@ -132,8 +132,8 @@
         <!-- Basic Info -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="input-label">{{ t('admin.tlsFingerprintProfiles.form.name') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.tlsFingerprintProfiles.form.name') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
               v-model="form.name"
               type="text"
               required
@@ -142,8 +142,8 @@
             />
           </div>
           <div>
-            <label class="input-label">{{ t('admin.tlsFingerprintProfiles.form.description') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-caption-1'" class="input-label">{{ t('admin.tlsFingerprintProfiles.form.description') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-caption-1'"
               v-model="form.description"
               type="text"
               class="input"
@@ -168,8 +168,8 @@
         <!-- TLS Array Fields - 2 column grid -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.cipherSuites') }}</label>
-            <textarea
+            <label :id="'field-' + fieldLabelScope + '-3'" class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.cipherSuites') }}</label>
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-3'"
               v-model="fieldInputs.cipher_suites"
               rows="2"
               class="input font-mono text-xs"
@@ -179,8 +179,8 @@
           </div>
 
           <div>
-            <label class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.curves') }}</label>
-            <textarea
+            <label :id="'field-' + fieldLabelScope + '-4'" class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.curves') }}</label>
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-4'"
               v-model="fieldInputs.curves"
               rows="2"
               class="input font-mono text-xs"
@@ -190,8 +190,8 @@
           </div>
 
           <div>
-            <label class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.signatureAlgorithms') }}</label>
-            <textarea
+            <label :id="'field-' + fieldLabelScope + '-5'" class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.signatureAlgorithms') }}</label>
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-5'"
               v-model="fieldInputs.signature_algorithms"
               rows="2"
               class="input font-mono text-xs"
@@ -200,8 +200,8 @@
           </div>
 
           <div>
-            <label class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.supportedVersions') }}</label>
-            <textarea
+            <label :id="'field-' + fieldLabelScope + '-6'" class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.supportedVersions') }}</label>
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-6'"
               v-model="fieldInputs.supported_versions"
               rows="2"
               class="input font-mono text-xs"
@@ -210,8 +210,8 @@
           </div>
 
           <div>
-            <label class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.keyShareGroups') }}</label>
-            <textarea
+            <label :id="'field-' + fieldLabelScope + '-7'" class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.keyShareGroups') }}</label>
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-7'"
               v-model="fieldInputs.key_share_groups"
               rows="2"
               class="input font-mono text-xs"
@@ -220,8 +220,8 @@
           </div>
 
           <div>
-            <label class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.extensions') }}</label>
-            <textarea
+            <label :id="'field-' + fieldLabelScope + '-8'" class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.extensions') }}</label>
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-8'"
               v-model="fieldInputs.extensions"
               rows="2"
               class="input font-mono text-xs"
@@ -230,8 +230,8 @@
           </div>
 
           <div>
-            <label class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.pointFormats') }}</label>
-            <textarea
+            <label :id="'field-' + fieldLabelScope + '-9'" class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.pointFormats') }}</label>
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-9'"
               v-model="fieldInputs.point_formats"
               rows="2"
               class="input font-mono text-xs"
@@ -240,8 +240,8 @@
           </div>
 
           <div>
-            <label class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.pskModes') }}</label>
-            <textarea
+            <label :id="'field-' + fieldLabelScope + '-10'" class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.pskModes') }}</label>
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-10'"
               v-model="fieldInputs.psk_modes"
               rows="2"
               class="input font-mono text-xs"
@@ -252,8 +252,8 @@
 
         <!-- ALPN Protocols - full width -->
         <div>
-          <label class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.alpnProtocols') }}</label>
-          <textarea
+          <label :id="'field-' + fieldLabelScope + '-11'" class="input-label text-xs">{{ t('admin.tlsFingerprintProfiles.form.alpnProtocols') }}</label>
+          <textarea :aria-labelledby="'field-' + fieldLabelScope + '-11'"
             v-model="fieldInputs.alpn_protocols"
             rows="2"
             class="input font-mono text-xs"
@@ -291,6 +291,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import Toggle from '@/components/common/Toggle.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'

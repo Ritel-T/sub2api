@@ -10,8 +10,8 @@
       <TestModelSelect id="modeltrace-model" :model-value="modelId" :options="modelOptions" :disabled="running"
         :label="t('modelTrace.model')" :hint="t('modelTrace.modelHint')" @update:model-value="emit('update:modelId', $event)" />
       <div>
-        <label class="input-label mb-1.5 block">{{ t('modelTrace.effort') }}</label>
-        <Select :aria-label="t('modelTrace.effort')" v-model="effort" :options="effortOptions" :disabled="running" />
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label mb-1.5 block">{{ t('modelTrace.effort') }}</label>
+        <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('modelTrace.effort')" v-model="effort" :options="effortOptions" :disabled="running" />
         <p class="input-hint">{{ t('modelTrace.effortHint') }}</p>
       </div>
     </div>
@@ -83,6 +83,8 @@
 
 <script setup lang="ts">
 import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import { consoleOwnedStorageKey } from '@/utils/centralAccount'
 import AppHeading from '@/components/common/AppHeading.vue'

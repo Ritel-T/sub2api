@@ -21,9 +21,9 @@
           <thead>
             <tr class="border-b border-gray-200 text-gray-700 dark:border-dark-700 dark:text-gray-300">
               <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.platform') }}</th>
-              <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.daily') }}</th>
-              <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.weekly') }}</th>
-              <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.monthly') }}</th>
+              <th :id="'field-' + fieldLabelScope + '-1'" class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.daily') }}</th>
+              <th :id="'field-' + fieldLabelScope + '-2'" class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.weekly') }}</th>
+              <th :id="'field-' + fieldLabelScope + '-3'" class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.monthly') }}</th>
               <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.usage') }}</th>
             </tr>
           </thead>
@@ -32,7 +32,7 @@
               <td class="px-3 py-2 font-mono text-gray-900 dark:text-white">{{ row.platform }}</td>
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1">
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                     v-model.number="row.daily_limit_usd"
                     type="number"
                     min="0"
@@ -51,7 +51,7 @@
               </td>
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1">
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
                     v-model.number="row.weekly_limit_usd"
                     type="number"
                     min="0"
@@ -70,7 +70,7 @@
               </td>
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1">
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
                     v-model.number="row.monthly_limit_usd"
                     type="number"
                     min="0"
@@ -117,6 +117,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'
 

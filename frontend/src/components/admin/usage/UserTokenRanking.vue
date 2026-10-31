@@ -1,10 +1,10 @@
 <template>
   <div class="min-w-0">
     <div class="mb-5 flex flex-wrap items-center justify-between gap-4">
-      <span v-if="!loading && items.length > 0" class="text-sm text-gray-500">{{ t('admin.usage.tokenRanking.userCount', { count: items.length }) }}</span>
+      <span :id="'field-' + fieldLabelScope + '-1'" v-if="!loading && items.length > 0" class="text-sm text-gray-500">{{ t('admin.usage.tokenRanking.userCount', { count: items.length }) }}</span>
       <div class="ml-auto flex flex-wrap items-center gap-3">
-        <Select :model-value="sortBy" :options="sortableColumns.map(col => ({ value: col.key, label: t(col.label) }))" :aria-label="t('common.sort')" class="w-48" @update:model-value="setSort($event as SortKey)" />
-        <Select :aria-label="t('common.resultLimit')" v-model="limit" :options="limitOptions" class="w-28" @change="load" />
+        <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :model-value="sortBy" :options="sortableColumns.map(col => ({ value: col.key, label: t(col.label) }))" :aria-label="t('common.sort')" class="w-48" @update:model-value="setSort($event as SortKey)" />
+        <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('common.resultLimit')" v-model="limit" :options="limitOptions" class="w-28" @change="load" />
       </div>
     </div>
     <div class="relative overflow-x-auto overflow-y-hidden">
@@ -51,6 +51,8 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

@@ -108,11 +108,11 @@
                 {{ t('common.refresh') }}
               </button>
               <div class="ml-auto flex items-center gap-2">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                <span :id="'field-' + fieldLabelScope + '-1'" class="text-sm font-medium text-gray-700 dark:text-gray-300"
                   >{{ t('admin.dashboard.granularity') }}:</span
                 >
                 <div class="w-28">
-                  <Select :aria-label="t('admin.dashboard.granularity')"
+                  <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.dashboard.granularity')"
                     v-model="granularity"
                     :options="granularityOptions"
                     @change="loadChartData"
@@ -338,6 +338,9 @@
 import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
 
 import { useMediaQuery } from '@vueuse/core'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { getDatePresetRange, getGranularityForRange } from '@/utils/dateRange'
 import { useChartTheme } from '@/utils/chartTheme'

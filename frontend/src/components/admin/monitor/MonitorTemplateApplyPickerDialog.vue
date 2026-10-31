@@ -48,12 +48,12 @@
           class="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-800"
           @click="toggle(m.id)"
         >
-          <input
+          <label class="inline-flex items-center gap-2"><input
             type="checkbox"
             :checked="selectedSet.has(m.id)"
             class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             @click.stop="toggle(m.id)"
-          />
+          /><span class="text-2xs">{{ t('consoleFields.selectRow') }}</span></label>
           <span class="font-medium text-gray-900 dark:text-white">{{ m.name }}</span>
           <span class="text-xs text-gray-400">{{ m.provider }}</span>
           <span v-if="m.provider === 'openai'" class="text-xs text-gray-400">{{ m.api_mode }}</span>

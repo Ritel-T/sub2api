@@ -15,10 +15,10 @@
           <header class="flex items-start gap-3">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300"><ProviderIcon :provider="row.platform" :size="23" /></span>
             <div class="min-w-0 flex-1">
-              <AppHeading as="h3" variant="subsection" class="truncate text-gray-900 dark:text-gray-100" :title="row.group_name">{{ row.group_name || `#${row.group_id}` }}</AppHeading>
+              <AppHeading as="h3" variant="subsection" class="truncate text-gray-900 dark:text-gray-100" :title="rowLabel(row)">{{ rowLabel(row) }}</AppHeading>
               <div class="mt-1 flex flex-wrap gap-1 text-xs">
                 <span class="rounded px-1.5 py-0.5" :class="providerBadgeClass(row.platform)">{{ providerLabel(row.platform) }}</span>
-                <span v-if="row.group_rate_multiplier != null" class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ t('channelMonitorV2.cards.groupRate', { value: row.group_rate_multiplier.toFixed(2) }) }}</span>
+                <span v-if="showGroupDetails !== false && row.group_rate_multiplier != null" class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ t('channelMonitorV2.cards.groupRate', { value: row.group_rate_multiplier.toFixed(2) }) }}</span>
               </div>
             </div>
             <span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold" :class="healthBadge[row.health.overall]">{{ t(`channelMonitorV2.cards.health.${row.health.overall}`) }}</span>
@@ -90,7 +90,7 @@
         <span aria-hidden="true" class="absolute h-2.5 w-2.5 rotate-45 border-gray-300 bg-white dark:border-gray-400 dark:bg-dark-900"
           :class="placement.below ? '-top-1.5 border-l border-t' : '-bottom-1.5 border-b border-r'" :style="{ left: placement.arrowLeft + 'px' }" />
         <div class="max-h-[min(18rem,calc(100vh-48px))] max-w-lg overflow-y-auto overscroll-contain break-words" data-testid="monitor-card-tooltip-content">
-          <p class="font-semibold">{{ detail.row.group_name || '#' + detail.row.group_id }}</p>
+          <p class="font-semibold">{{ rowLabel(detail.row) }}</p>
           <template v-if="detail.kind === 'traffic'">
             <p class="text-gray-500 dark:text-gray-400">{{ dateTime(detail.bar.start) }} - {{ dateTime(detail.bar.end) }} · {{ t('channelMonitorV2.cards.health.' + detail.bar.state) }}</p>
             <p v-if="!detail.bar.buckets.length" class="mt-1">{{ t('channelMonitorV2.matrix.noTraffic') }}</p>
@@ -119,7 +119,12 @@ import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
 import { formatMonitorMs, formatMonitorPercent } from './monitorFormat'
 import { candyDisplayState, candyHistoryLimit, candyHistorySlots, hasMonitorSamples, MONITOR_CARD_SLOT_COUNT, monitorCandyHistories, monitorCardTimeline, monitorCardTimelineMode, type MonitorCardTimelineMode } from './monitorCards'
 
-const props = defineProps<{ items: MonitorMatrixRow[]; coverage?: MonitorCoverage; countdown: number; loading: boolean; now: number; platformOrder?: string[]; timelineMode?: MonitorCardTimelineMode }>()
+const props = withDefaults(defineProps<{ items: MonitorMatrixRow[]; coverage?: MonitorCoverage; countdown: number; loading: boolean; now: number; platformOrder?: string[]; timelineMode?: MonitorCardTimelineMode; showGroupDetails?: boolean }>(), { showGroupDetails: true })
+function rowLabel(row: MonitorMatrixRow): string {
+  return props.showGroupDetails !== false
+    ? row.group_name || `#${row.group_id}`
+    : `${providerLabel(row.platform)} · ${t('consoleFields.channel', { id: row.group_id })}`
+}
 const { t } = useI18n()
 type TrafficBar = ReturnType<typeof monitorCardTimeline>[number]
 type CardDetail = { kind: 'traffic'; row: MonitorMatrixRow; bar: TrafficBar } | { kind: 'candy'; row: MonitorMatrixRow; result: MonitorCandyResult; model: string; effort: string }
@@ -246,7 +251,7 @@ function dateTime(value: number | string) {
   return formatDisplayTimestamp(value)
 }
 function trafficLabel(row: MonitorMatrixRow, bar: TrafficBar) {
-  return (row.group_name || '#' + row.group_id) + ' · ' + dateTime(bar.start) + ' - ' + dateTime(bar.end) + ' · ' + t('channelMonitorV2.cards.health.' + bar.state)
+  return rowLabel(row) + ' · ' + dateTime(bar.start) + ' - ' + dateTime(bar.end) + ' · ' + t('channelMonitorV2.cards.health.' + bar.state)
 }
 function trafficSample(bucket: MonitorMatrixBucket) {
   return t('channelMonitorV2.cards.sampleDetails', {

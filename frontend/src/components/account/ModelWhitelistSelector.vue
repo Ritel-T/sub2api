@@ -16,7 +16,7 @@
               <ModelIcon :model="model" size="14px" />
               <span class="truncate">{{ model }}</span>
             </span>
-            <button
+            <button :aria-label="t('consoleFields.remove')"
               type="button"
               @click.stop="removeModel(model)"
               class="shrink-0 rounded-full hover:bg-gray-200 dark:hover:bg-dark-500"
@@ -38,13 +38,16 @@
         class="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-600 dark:bg-dark-700"
       >
         <div class="sticky top-0 border-b border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-700">
-          <input
+          <label class="block min-w-0 w-full">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.searchModels') }}</span>
+            <input
             v-model="searchQuery"
             type="text"
             class="input w-full text-sm"
             :placeholder="t('admin.accounts.searchModels')"
             @click.stop
           />
+          </label>
         </div>
         <div class="max-h-52 overflow-auto">
           <div
@@ -122,9 +125,9 @@
 
     <!-- Custom Model Input -->
     <div class="mb-3">
-      <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.customModelName') }}</label>
+      <label :id="'field-' + fieldLabelScope + '-1'" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.customModelName') }}</label>
       <div class="flex gap-2">
-        <input
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
           v-model="customModel"
           type="text"
           class="input flex-1"
@@ -146,6 +149,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

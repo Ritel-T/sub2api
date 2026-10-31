@@ -89,8 +89,8 @@
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label class="input-label">{{ t('setup.database.host') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('setup.database.host') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                 v-model="formData.database.host"
                 type="text"
                 class="input"
@@ -98,8 +98,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t('setup.database.port') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('setup.database.port') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
                 v-model.number="formData.database.port"
                 type="number"
                 class="input"
@@ -122,8 +122,8 @@
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label class="input-label">{{ t('setup.database.username') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('setup.database.username') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
                 v-model="formData.database.user"
                 type="text"
                 class="input"
@@ -131,8 +131,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t('setup.database.password') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('setup.database.password') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
                 v-model="formData.database.password"
                 type="password"
                 class="input"
@@ -143,8 +143,8 @@
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label class="input-label">{{ t('setup.database.databaseName') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('setup.database.databaseName') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-5'"
                 v-model="formData.database.dbname"
                 type="text"
                 class="input"
@@ -152,8 +152,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t('setup.database.sslMode') }}</label>
-              <Select :aria-label="t('setup.database.sslMode')"
+              <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('setup.database.sslMode') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-6'" :aria-label="t('setup.database.sslMode')"
                 v-model="formData.database.sslmode"
                 :options="[
                   { value: 'disable', label: t('setup.database.ssl.disable') },
@@ -214,8 +214,8 @@
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label class="input-label">{{ t('setup.redis.host') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('setup.redis.host') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-7'"
                 v-model="formData.redis.host"
                 type="text"
                 class="input"
@@ -223,8 +223,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t('setup.redis.port') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('setup.redis.port') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-8'"
                 v-model.number="formData.redis.port"
                 type="number"
                 class="input"
@@ -235,8 +235,8 @@
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label class="input-label">{{ t('setup.redis.username') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('setup.redis.username') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-9'"
                 v-model="formData.redis.username"
                 type="text"
                 class="input"
@@ -244,8 +244,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t('setup.redis.password') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{ t('setup.redis.password') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-10'"
                 v-model="formData.redis.password"
                 type="password"
                 class="input"
@@ -253,8 +253,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t('setup.redis.database') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-11'" class="input-label">{{ t('setup.redis.database') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-11'"
                 v-model.number="formData.redis.db"
                 type="number"
                 class="input"
@@ -329,8 +329,8 @@
           </div>
 
           <div>
-            <label class="input-label">{{ t('setup.admin.email') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-12'" class="input-label">{{ t('setup.admin.email') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-12'"
               v-model="formData.admin.email"
               type="email"
               class="input"
@@ -339,8 +339,8 @@
           </div>
 
           <div>
-            <label class="input-label">{{ t('setup.admin.password') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-13'" class="input-label">{{ t('setup.admin.password') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-13'"
               v-model="formData.admin.password"
               type="password"
               class="input"
@@ -349,8 +349,8 @@
           </div>
 
           <div>
-            <label class="input-label">{{ t('setup.admin.confirmPassword') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-14'" class="input-label">{{ t('setup.admin.confirmPassword') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-14'"
               v-model="confirmPassword"
               type="password"
               class="input"
@@ -516,6 +516,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'

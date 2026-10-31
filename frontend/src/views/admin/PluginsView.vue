@@ -86,7 +86,7 @@
 
       <div v-else class="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <article
-          v-for="plugin in plugins"
+          v-for="(plugin, fieldIndex0) in plugins"
           :key="plugin.id"
           class="open-section overflow-hidden"
         >
@@ -212,7 +212,7 @@
             </div>
 
             <div class="md:col-span-2">
-              <label
+              <label :id="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0"
                 class="flex items-center justify-between gap-4 text-xs font-medium text-gray-600 dark:text-gray-300"
               >
                 <span>{{ t("admin.plugins.rollout") }}</span>
@@ -222,7 +222,7 @@
                   }}%</span
                 >
               </label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0"
                 :value="rolloutValues[plugin.id] ?? currentRollout(plugin)"
                 type="range"
                 min="1"
@@ -335,6 +335,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'

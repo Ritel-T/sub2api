@@ -19,7 +19,9 @@
         </AppHeading>
         <div class="space-y-2">
           <div class="relative">
-            <input
+            <label class="block min-w-0 w-full">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.groups.searchUserPlaceholder') }}</span>
+              <input
               v-model="searchQuery"
               type="text"
               autocomplete="off"
@@ -29,6 +31,7 @@
               @input="handleSearchUsers"
               @focus="showDropdown = true"
             />
+            </label>
             <div
               v-if="showDropdown && searchResults.length > 0"
               class="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-500 dark:bg-dark-700"
@@ -139,7 +142,7 @@
                       />
                     </td>
                     <td class="px-2 py-2">
-                      <button
+                      <button :aria-label="t('consoleFields.remove')"
                         type="button"
                         class="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                         :data-testid="`denied-models-remove-${entry.user_id}`"

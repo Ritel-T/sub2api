@@ -12,12 +12,12 @@
       class="space-y-5"
     >
       <div>
-        <label class="input-label">{{ t('common.name') }}</label>
-        <input v-model="form.name" type="text" required class="input" data-tour="edit-account-form-name" />
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('common.name') }}</label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="form.name" type="text" required class="input" data-tour="edit-account-form-name" />
       </div>
       <div>
-        <label class="input-label">{{ t('admin.accounts.notes') }}</label>
-        <textarea
+        <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.accounts.notes') }}</label>
+        <textarea :aria-labelledby="'field-' + fieldLabelScope + '-2'"
           v-model="form.notes"
           rows="3"
           class="input"
@@ -60,8 +60,8 @@
       <!-- API Key fields (only for apikey type) -->
       <div v-if="account.type === 'apikey'" class="space-y-4">
         <div v-if="!isCNApiKeyAccount || editApiProtocol !== 'adaptive'">
-          <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
             v-model="editBaseUrl"
             type="text"
             class="input"
@@ -94,13 +94,13 @@
           />
         </div>
         <div v-else>
-          <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.endpoints') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.endpoints') }}</label>
           <div class="mt-2 space-y-3">
             <div v-for="item in editAdaptiveProtocolOptions" :key="item.value">
               <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
                 {{ t(`admin.accounts.cnProviders.apiProtocol.${item.labelKey}`) }}
               </label>
-              <input v-model="editAdaptiveBaseUrls[item.value]" type="text" class="input" />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-4'" v-model="editAdaptiveBaseUrls[item.value]" type="text" class="input" />
             </div>
           </div>
           <p v-if="!cnSupportsNativeResponses(account.platform, currentOpenCodeOrCNMode())" class="input-hint">
@@ -246,19 +246,19 @@
           </div>
           <div class="mt-2 grid gap-4 sm:grid-cols-2">
             <div>
-              <label class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.organization') }}</label>
-              <input v-model="editZhipuOrganization" type="text" class="input" :placeholder="t('admin.accounts.cnProviders.zhipuTeam.organizationPlaceholder')" />
+              <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.organization') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-5'" v-model="editZhipuOrganization" type="text" class="input" :placeholder="t('admin.accounts.cnProviders.zhipuTeam.organizationPlaceholder')" />
             </div>
             <div>
-              <label class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.project') }}</label>
-              <input v-model="editZhipuProject" type="text" class="input" :placeholder="t('admin.accounts.cnProviders.zhipuTeam.projectPlaceholder')" />
+              <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.project') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-6'" v-model="editZhipuProject" type="text" class="input" :placeholder="t('admin.accounts.cnProviders.zhipuTeam.projectPlaceholder')" />
             </div>
           </div>
           <p class="input-hint mt-2">{{ t('admin.accounts.cnProviders.zhipuTeam.hint') }}</p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.accounts.apiKey') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.accounts.apiKey') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-7'"
             v-model="editApiKey"
             type="password"
             class="input font-mono"
@@ -450,13 +450,16 @@
                   ? 'grid grid-cols-[minmax(0,1fr)_1rem_minmax(0,1.2fr)_2rem] items-center gap-1.5 sm:gap-2'
                   : 'flex items-center gap-2'"
               >
-                <input
+                <label class="block min-w-0 w-full flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.requestModel') }}</span>
+                  <input
                   v-model="mapping.from"
                   type="text"
                   :aria-label="account.platform === 'grok' ? t('admin.accounts.grokModelDiagnostics.mappingFromAria', { index: index + 1 }) : undefined"
                   :class="account.platform === 'grok' ? 'input min-w-0 w-full font-mono text-xs' : 'input flex-1'"
                   :placeholder="t('admin.accounts.requestModel')"
                 />
+                </label>
                 <Icon
                   v-if="account.platform === 'grok'"
                   name="arrowRight"
@@ -478,17 +481,20 @@
                     d="M14 5l7 7m0 0l-7 7m7-7H3"
                   />
                 </svg>
-                <input
+                <label class="block min-w-0 w-full flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.actualModel') }}</span>
+                  <input
                   v-model="mapping.to"
                   type="text"
                   :aria-label="account.platform === 'grok' ? t('admin.accounts.grokModelDiagnostics.mappingTargetAria', { index: index + 1 }) : undefined"
                   :class="account.platform === 'grok' ? 'input min-w-0 w-full font-mono text-xs' : 'input flex-1'"
                   :placeholder="t('admin.accounts.actualModel')"
                 />
+                </label>
                 <button
                   type="button"
                   @click="removeModelMapping(index)"
-                  :aria-label="account.platform === 'grok' ? t('admin.accounts.grokModelDiagnostics.removeMappingAria', { index: index + 1 }) : undefined"
+                  :aria-label="account.platform === 'grok' ? t('admin.accounts.grokModelDiagnostics.removeMappingAria', { index: index + 1 }) : t('consoleFields.remove')"
                   :class="account.platform === 'grok'
                     ? 'rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-gray-400 dark:hover:bg-dark-700'
                     : 'rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20'"
@@ -564,8 +570,8 @@
             </p>
           </div>
           <div v-if="poolModeEnabled" class="mt-3">
-            <label class="input-label">{{ t('admin.accounts.poolModeRetryCount') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('admin.accounts.poolModeRetryCount') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-8'"
               v-model.number="poolModeRetryCount"
               type="number"
               min="0"
@@ -583,8 +589,8 @@
             </p>
           </div>
           <div v-if="poolModeEnabled" class="mt-3">
-            <label class="input-label">{{ t('admin.accounts.poolModeRetryStatusCodes') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('admin.accounts.poolModeRetryStatusCodes') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-9'"
               v-model="poolModeRetryStatusCodesInput"
               type="text"
               class="input"
@@ -622,8 +628,8 @@
             </p>
           </div>
           <div v-if="explicitCacheUpstreamEnabled" class="mt-3">
-            <label class="input-label">{{ t('admin.accounts.explicitCacheUpstreamMaxTTL') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{ t('admin.accounts.explicitCacheUpstreamMaxTTL') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-10'"
               v-model="explicitCacheUpstreamMaxTTL"
               data-testid="explicit-cache-upstream-max-ttl"
               type="number"
@@ -678,7 +684,9 @@
 
             <!-- Manual input -->
             <div class="flex items-center gap-2">
-              <input
+              <label class="block min-w-0 flex-1">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.tempUnschedulable.errorCode') }}</span>
+                <input
                 v-model.number="customErrorCodeInput"
                 type="number"
                 min="100"
@@ -687,7 +695,8 @@
                 :placeholder="t('admin.accounts.enterErrorCode')"
                 @keyup.enter="addCustomErrorCode"
               />
-              <button type="button" @click="addCustomErrorCode" class="btn btn-secondary px-3">
+              </label>
+              <button :aria-label="t('consoleFields.add')" type="button" @click="addCustomErrorCode" class="btn btn-secondary px-3">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     stroke-linecap="round"
@@ -707,7 +716,7 @@
                 class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-sm font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"
               >
                 {{ code }}
-                <button
+                <button :aria-label="t('consoleFields.remove')"
                   type="button"
                   @click="removeErrorCode(code)"
                   class="hover:text-red-900 dark:hover:text-red-300"
@@ -777,7 +786,7 @@
               {{ t('admin.accounts.grokMediaEligibility.hint') }}
             </p>
           </div>
-          <select
+          <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.mediaEligibility') }}</span><select
             v-model="grokMediaEligibilityMode"
             class="input"
             data-testid="grok-media-eligibility-mode"
@@ -786,7 +795,7 @@
             <option value="auto">{{ t('admin.accounts.grokMediaEligibility.auto') }}</option>
             <option value="enabled">{{ t('admin.accounts.grokMediaEligibility.enabled') }}</option>
             <option value="disabled">{{ t('admin.accounts.grokMediaEligibility.disabled') }}</option>
-          </select>
+          </select></label>
           <p v-if="grokMediaEligibilityLoading" class="text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.grokMediaEligibility.loading') }}
           </p>
@@ -830,13 +839,16 @@
           <Toggle :model-value="!!grokOAuthCustomBaseUrlEnabled" :aria-label="t('admin.accounts.grokCustomBaseUrl.title')" data-testid="grok-custom-base-url-toggle" @click="grokOAuthCustomBaseUrlEnabled = !grokOAuthCustomBaseUrlEnabled" />
         </div>
         <div v-if="grokOAuthCustomBaseUrlEnabled" class="space-y-2">
-          <input
+          <label class="block min-w-0">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.baseUrl') }}</span>
+            <input
             v-model="grokOAuthBaseUrl"
             type="text"
             class="input"
             data-testid="grok-custom-base-url-input"
             :placeholder="t('admin.accounts.grokCustomBaseUrl.placeholder')"
           />
+          </label>
           <GrokBaseUrlPresets @select="grokOAuthBaseUrl = $event" />
         </div>
       </div>
@@ -994,13 +1006,16 @@
                   ? 'grid grid-cols-[minmax(0,1fr)_1rem_minmax(0,1.2fr)_2rem] items-center gap-1.5 sm:gap-2'
                   : 'flex items-center gap-2'"
               >
-                <input
+                <label class="block min-w-0 w-full flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.requestModel') }}</span>
+                  <input
                   v-model="mapping.from"
                   type="text"
                   :aria-label="account.platform === 'grok' ? t('admin.accounts.grokModelDiagnostics.mappingFromAria', { index: index + 1 }) : undefined"
                   :class="account.platform === 'grok' ? 'input min-w-0 w-full font-mono text-xs' : 'input flex-1'"
                   :placeholder="t('admin.accounts.requestModel')"
                 />
+                </label>
                 <Icon
                   v-if="account.platform === 'grok'"
                   name="arrowRight"
@@ -1022,17 +1037,20 @@
                     d="M14 5l7 7m0 0l-7 7m7-7H3"
                   />
                 </svg>
-                <input
+                <label class="block min-w-0 w-full flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.actualModel') }}</span>
+                  <input
                   v-model="mapping.to"
                   type="text"
                   :aria-label="account.platform === 'grok' ? t('admin.accounts.grokModelDiagnostics.mappingTargetAria', { index: index + 1 }) : undefined"
                   :class="account.platform === 'grok' ? 'input min-w-0 w-full font-mono text-xs' : 'input flex-1'"
                   :placeholder="t('admin.accounts.actualModel')"
                 />
+                </label>
                 <button
                   type="button"
                   @click="removeModelMapping(index)"
-                  :aria-label="account.platform === 'grok' ? t('admin.accounts.grokModelDiagnostics.removeMappingAria', { index: index + 1 }) : undefined"
+                  :aria-label="account.platform === 'grok' ? t('admin.accounts.grokModelDiagnostics.removeMappingAria', { index: index + 1 }) : t('consoleFields.remove')"
                   :class="account.platform === 'grok'
                     ? 'rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-gray-400 dark:hover:bg-dark-700'
                     : 'rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20'"
@@ -1080,8 +1098,8 @@
       <!-- Upstream fields (only for upstream type) -->
       <div v-if="account.type === 'upstream'" class="space-y-4">
         <div>
-          <label class="input-label">{{ t('admin.accounts.upstream.baseUrl') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-11'" class="input-label">{{ t('admin.accounts.upstream.baseUrl') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-11'"
             v-model="editBaseUrl"
             type="text"
             class="input"
@@ -1090,8 +1108,8 @@
           <p class="input-hint">{{ t('admin.accounts.upstream.baseUrlHint') }}</p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.accounts.upstream.apiKey') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-12'" class="input-label">{{ t('admin.accounts.upstream.apiKey') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-12'"
             v-model="editApiKey"
             type="password"
             class="input font-mono"
@@ -1104,8 +1122,8 @@
       <!-- Vertex Service Account -->
       <div v-if="(account.platform === 'gemini' || account.platform === 'anthropic') && account.type === 'service_account'" class="space-y-4">
         <div v-if="isVertexAPIKeyMode">
-          <label class="input-label">API Key</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-13'" class="input-label">API Key</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-13'"
             v-model="editVertexApiKey"
             type="password"
             class="input font-mono"
@@ -1116,8 +1134,8 @@
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div v-if="isVertexAPIKeyMode">
-            <label class="input-label">Project ID</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-14'" class="input-label">Project ID</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-14'"
               v-model="editVertexProjectId"
               type="text"
               class="input font-mono"
@@ -1127,8 +1145,8 @@
             <p class="input-hint">{{ t('admin.accounts.vertexApiKeyProjectIdHint') }}</p>
           </div>
           <div v-else>
-            <label class="input-label">Project ID</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-15'" class="input-label">Project ID</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-15'"
               v-model="editVertexProjectId"
               type="text"
               class="input font-mono"
@@ -1138,8 +1156,8 @@
             <p class="input-hint">{{ t('admin.accounts.vertexSaJsonEditHint') }}</p>
           </div>
           <div v-if="!isVertexAPIKeyMode || editVertexProjectId.trim()">
-            <label class="input-label">Location</label>
-            <select
+            <label :id="'field-' + fieldLabelScope + '-16'" class="input-label">Location</label>
+            <select :aria-labelledby="'field-' + fieldLabelScope + '-16'"
               v-model="editVertexLocation"
               required
               class="input font-mono"
@@ -1164,7 +1182,7 @@
 
         <!-- Model Restriction Section for Service Account -->
         <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-          <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-17'" class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
 
           <!-- Mode Toggle -->
           <div class="mb-4 flex gap-2">
@@ -1259,12 +1277,12 @@
                 :key="getModelMappingKey(mapping)"
                 class="flex items-center gap-2"
               >
-                <input
+                <label class="block min-w-0 flex-1"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.requestModel') }}</span><input
                   v-model="mapping.from"
                   type="text"
                   class="input flex-1"
                   :placeholder="t('admin.accounts.requestModel')"
-                />
+                /></label>
                 <svg
                   class="h-4 w-4 flex-shrink-0 text-gray-400"
                   fill="none"
@@ -1278,13 +1296,13 @@
                     d="M14 5l7 7m0 0l-7 7m7-7H3"
                   />
                 </svg>
-                <input
+                <label class="block min-w-0 flex-1"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.actualModel') }}</span><input
                   v-model="mapping.to"
                   type="text"
                   class="input flex-1"
                   :placeholder="t('admin.accounts.actualModel')"
-                />
-                <button
+                /></label>
+                <button :aria-label="t('consoleFields.remove')"
                   type="button"
                   @click="removeModelMapping(index)"
                   class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
@@ -1343,8 +1361,8 @@
         <!-- SigV4 fields -->
         <template v-if="!isBedrockAPIKeyMode">
           <div>
-            <label class="input-label">{{ t('admin.accounts.bedrockAccessKeyId') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-18'" class="input-label">{{ t('admin.accounts.bedrockAccessKeyId') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-18'"
               v-model="editBedrockAccessKeyId"
               type="text"
               class="input font-mono"
@@ -1352,8 +1370,8 @@
             />
           </div>
           <div>
-            <label class="input-label">{{ t('admin.accounts.bedrockSecretAccessKey') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-19'" class="input-label">{{ t('admin.accounts.bedrockSecretAccessKey') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-19'"
               v-model="editBedrockSecretAccessKey"
               type="password"
               class="input font-mono"
@@ -1362,8 +1380,8 @@
             <p class="input-hint">{{ t('admin.accounts.bedrockSecretKeyLeaveEmpty') }}</p>
           </div>
           <div>
-            <label class="input-label">{{ t('admin.accounts.bedrockSessionToken') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-20'" class="input-label">{{ t('admin.accounts.bedrockSessionToken') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-20'"
               v-model="editBedrockSessionToken"
               type="password"
               class="input font-mono"
@@ -1375,8 +1393,8 @@
 
         <!-- API Key field -->
         <div v-if="isBedrockAPIKeyMode">
-          <label class="input-label">{{ t('admin.accounts.bedrockApiKeyInput') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-21'" class="input-label">{{ t('admin.accounts.bedrockApiKeyInput') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-21'"
             v-model="editBedrockApiKeyValue"
             type="password"
             class="input font-mono"
@@ -1387,8 +1405,8 @@
 
         <!-- Shared: Region -->
         <div>
-          <label class="input-label">{{ t('admin.accounts.bedrockRegion') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-22'" class="input-label">{{ t('admin.accounts.bedrockRegion') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-22'"
             v-model="editBedrockRegion"
             type="text"
             class="input"
@@ -1412,7 +1430,7 @@
 
         <!-- Model Restriction for Bedrock -->
         <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-          <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-23'" class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
 
           <!-- Mode Toggle -->
           <div class="mb-4 flex gap-2">
@@ -1454,10 +1472,10 @@
           <!-- Mapping Mode -->
           <div v-else class="space-y-3">
             <div v-for="(mapping, index) in modelMappings" :key="getModelMappingKey(mapping)" class="flex items-center gap-2">
-              <input v-model="mapping.from" type="text" class="input flex-1" :placeholder="t('admin.accounts.fromModel')" />
+              <label class="block min-w-0 flex-1"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.requestModel') }}</span><input  v-model="mapping.from" type="text" class="input flex-1" :placeholder="t('admin.accounts.fromModel')" /></label>
               <span class="text-gray-400">→</span>
-              <input v-model="mapping.to" type="text" class="input flex-1" :placeholder="t('admin.accounts.toModel')" />
-              <button type="button" @click="modelMappings.splice(index, 1)" class="text-red-500 hover:text-red-700">
+              <label class="block min-w-0 flex-1"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.actualModel') }}</span><input  v-model="mapping.to" type="text" class="input flex-1" :placeholder="t('admin.accounts.toModel')" /></label>
+              <button :aria-label="t('consoleFields.remove')" type="button" @click="modelMappings.splice(index, 1)" class="text-red-500 hover:text-red-700">
                 <Icon name="trash" size="sm" />
               </button>
             </div>
@@ -1497,8 +1515,8 @@
             </p>
           </div>
           <div v-if="poolModeEnabled" class="mt-3">
-            <label class="input-label">{{ t('admin.accounts.poolModeRetryCount') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-24'" class="input-label">{{ t('admin.accounts.poolModeRetryCount') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-24'"
               v-model.number="poolModeRetryCount"
               type="number"
               min="0"
@@ -1516,8 +1534,8 @@
             </p>
           </div>
           <div v-if="poolModeEnabled" class="mt-3">
-            <label class="input-label">{{ t('admin.accounts.poolModeRetryStatusCodes') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-25'" class="input-label">{{ t('admin.accounts.poolModeRetryStatusCodes') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-25'"
               v-model="poolModeRetryStatusCodesInput"
               type="text"
               class="input"
@@ -1534,8 +1552,8 @@
         v-if="account.platform === 'antigravity' && account.type === 'oauth'"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
-        <label class="input-label">{{ t('admin.accounts.antigravityProjectIdLabel') }}</label>
-        <input
+        <label :id="'field-' + fieldLabelScope + '-26'" class="input-label">{{ t('admin.accounts.antigravityProjectIdLabel') }}</label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-26'"
           v-model="antigravityProjectId"
           data-testid="antigravity-project-id-input"
           type="text"
@@ -1574,7 +1592,9 @@
               class="space-y-1"
             >
               <div class="flex items-center gap-2">
-                <input
+                <label class="block min-w-0 flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.requestModel') }}</span>
+                  <input
                   v-model="mapping.from"
                   type="text"
                   :class="[
@@ -1584,10 +1604,13 @@
                   ]"
                   :placeholder="t('admin.accounts.requestModel')"
                 />
+                </label>
                 <svg class="h-4 w-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
-                <input
+                <label class="block min-w-0 flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.actualModel') }}</span>
+                  <input
                   v-model="mapping.to"
                   type="text"
                   :class="[
@@ -1596,7 +1619,8 @@
                   ]"
                   :placeholder="t('admin.accounts.actualModel')"
                 />
-                <button
+                </label>
+                <button :aria-label="t('consoleFields.remove')"
                   type="button"
                   @click="removeAntigravityModelMapping(index)"
                   class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
@@ -1689,7 +1713,7 @@
                   {{ t('admin.accounts.tempUnschedulable.ruleIndex', { index: index + 1 }) }}
                 </span>
                 <div class="flex items-center gap-2">
-                  <button
+                  <button :aria-label="t('consoleFields.moveUp')"
                     type="button"
                     :disabled="index === 0"
                     @click="moveTempUnschedRule(index, -1)"
@@ -1697,7 +1721,7 @@
                   >
                     <Icon name="chevronUp" size="sm" :stroke-width="2" />
                   </button>
-                  <button
+                  <button :aria-label="t('consoleFields.moveDown')"
                     type="button"
                     :disabled="index === tempUnschedRules.length - 1"
                     @click="moveTempUnschedRule(index, 1)"
@@ -1707,7 +1731,7 @@
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  <button
+                  <button :aria-label="t('consoleFields.remove')"
                     type="button"
                     @click="removeTempUnschedRule(index)"
                     class="rounded p-1 text-red-500 transition-colors hover:text-red-600"
@@ -1719,8 +1743,8 @@
 
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label class="input-label">{{ t('admin.accounts.tempUnschedulable.errorCode') }}</label>
-                  <input
+                  <label :id="'field-' + fieldLabelScope + '-27' + '-' + index" class="input-label">{{ t('admin.accounts.tempUnschedulable.errorCode') }}</label>
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-27' + '-' + index"
                     v-model.number="rule.error_code"
                     type="number"
                     min="100"
@@ -1730,8 +1754,8 @@
                   />
                 </div>
                 <div>
-                  <label class="input-label">{{ t('admin.accounts.tempUnschedulable.durationMinutes') }}</label>
-                  <input
+                  <label :id="'field-' + fieldLabelScope + '-28' + '-' + index" class="input-label">{{ t('admin.accounts.tempUnschedulable.durationMinutes') }}</label>
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-28' + '-' + index"
                     v-model.number="rule.duration_minutes"
                     type="number"
                     min="1"
@@ -1778,8 +1802,8 @@
                   <p class="input-hint">{{ t('admin.accounts.tempUnschedulable.scopeHint') }}</p>
                 </div>
                 <div class="sm:col-span-2">
-                  <label class="input-label">{{ t('admin.accounts.tempUnschedulable.keywords') }}</label>
-                  <input
+                  <label :id="'field-' + fieldLabelScope + '-29' + '-' + index" class="input-label">{{ t('admin.accounts.tempUnschedulable.keywords') }}</label>
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-29' + '-' + index"
                     v-model="rule.keywords"
                     type="text"
                     class="input"
@@ -1788,8 +1812,8 @@
                   <p class="input-hint">{{ t('admin.accounts.tempUnschedulable.keywordsHint') }}</p>
                 </div>
                 <div class="sm:col-span-2">
-                  <label class="input-label">{{ t('admin.accounts.tempUnschedulable.description') }}</label>
-                  <input
+                  <label :id="'field-' + fieldLabelScope + '-caption-1' + '-' + index" class="input-label">{{ t('admin.accounts.tempUnschedulable.description') }}</label>
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-caption-1' + '-' + index"
                     v-model="rule.description"
                     type="text"
                     class="input"
@@ -1831,16 +1855,16 @@
               {{ t('admin.accounts.accountSchedulingThresholdOverrideHint') }}
             </p>
           </div>
-          <input
+          <label class="inline-flex items-center gap-2"><input
             v-model="accountSchedulingThresholdOverrideEnabled"
             data-testid="account-scheduling-threshold-override-enabled"
             type="checkbox"
             class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
+          /><span class="text-2xs">{{ t('consoleFields.selectRow') }}</span></label>
         </div>
         <div v-if="accountSchedulingThresholdOverrideEnabled">
-          <label class="input-label">{{ t('admin.accounts.accountSchedulingThresholdOverrideValue') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-30'" class="input-label">{{ t('admin.accounts.accountSchedulingThresholdOverrideValue') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-30'"
             v-model.number="accountSchedulingThresholdOverrideValue"
             data-testid="account-scheduling-threshold-override-value"
             type="number"
@@ -1886,20 +1910,20 @@
 
       <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div>
-          <label class="input-label">{{ t('admin.accounts.concurrency') }}</label>
-          <input v-model.number="form.concurrency" type="number" min="1" class="input"
+          <label :id="'field-' + fieldLabelScope + '-31'" class="input-label">{{ t('admin.accounts.concurrency') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-31'" v-model.number="form.concurrency" type="number" min="1" class="input"
             @input="form.concurrency = Math.max(1, form.concurrency || 1)" />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.accounts.loadFactor') }}</label>
-          <input v-model.number="form.load_factor" type="number" min="1"
+          <label :id="'field-' + fieldLabelScope + '-32'" class="input-label">{{ t('admin.accounts.loadFactor') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-32'" v-model.number="form.load_factor" type="number" min="1"
             class="input" :placeholder="String(form.concurrency || 1)"
             @input="form.load_factor = (form.load_factor &amp;&amp; form.load_factor >= 1) ? form.load_factor : null" />
           <p class="input-hint">{{ t('admin.accounts.loadFactorHint') }}</p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.accounts.priority') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-33'" class="input-label">{{ t('admin.accounts.priority') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-33'"
             v-model.number="form.priority"
             type="number"
             min="1"
@@ -1909,8 +1933,8 @@
           <p class="input-hint">{{ t('admin.accounts.priorityHint') }}</p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.accounts.billingRateMultiplier') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-34'" class="input-label">{{ t('admin.accounts.billingRateMultiplier') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-34'"
             v-model.number="form.rate_multiplier"
             type="number"
             min="0"
@@ -1975,8 +1999,8 @@
           <p class="input-hint">{{ t('admin.accounts.costMultiplierHint') }}</p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.accounts.groupBillingRateMultiplier') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-35'" class="input-label">{{ t('admin.accounts.groupBillingRateMultiplier') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-35'"
             v-model.number="form.group_rate_multiplier"
             type="number"
             min="0"
@@ -2000,8 +2024,8 @@
       </div>
 
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <label class="input-label">{{ t('admin.accounts.expiresAt') }}</label>
-        <input v-model="expiresAtInput" type="datetime-local" class="input" />
+        <label :id="'field-' + fieldLabelScope + '-36'" class="input-label">{{ t('admin.accounts.expiresAt') }}</label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-36'" v-model="expiresAtInput" type="datetime-local" class="input" />
         <div class="mt-2 flex gap-2">
           <button type="button" class="btn btn-secondary btn-sm" @click="form.expires_at = getAccountExpiryTimestamp(1)">
             {{ t('payment.oneMonth') }}
@@ -2102,8 +2126,8 @@
           </label>
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoMoveOn403Desc') }}</p>
           <div v-if="excelBPSAutoMoveOn403" class="mt-2">
-            <label class="input-label">{{ t('admin.accounts.openai.excelBPS403TargetGroup') }}</label>
-            <Select v-model="excelBPS403TargetGroupID" :options="excelBPS403GroupOptions"
+            <label :id="'field-' + fieldLabelScope + '-37'" class="input-label">{{ t('admin.accounts.openai.excelBPS403TargetGroup') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-37'" v-model="excelBPS403TargetGroupID" :options="excelBPS403GroupOptions"
               :aria-label="t('admin.accounts.openai.excelBPS403TargetGroup')"
               data-testid="excel-bps-403-target-group" />
           </div>
@@ -2255,7 +2279,7 @@
       >
         <div class="flex items-center justify-between">
           <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.wsMode') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-caption-2'" class="input-label mb-0">{{ t('admin.accounts.openai.wsMode') }}</label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.openai.wsModeDesc') }}
             </p>
@@ -2264,7 +2288,7 @@
             </p>
           </div>
           <div class="w-52">
-            <Select :aria-label="t('admin.accounts.openai.wsMode')" v-model="openaiResponsesWebSocketV2Mode" data-testid="edit-openai-ws-mode-select" :options="openAIWSModeOptions" />
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-caption-2'" :aria-label="t('admin.accounts.openai.wsMode')" v-model="openaiResponsesWebSocketV2Mode" data-testid="edit-openai-ws-mode-select" :options="openAIWSModeOptions" />
           </div>
         </div>
       </div>
@@ -2293,13 +2317,13 @@
       >
         <div class="flex items-center justify-between gap-4">
           <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.responsesMode') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-caption-3'" class="input-label mb-0">{{ t('admin.accounts.openai.responsesMode') }}</label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.openai.responsesModeDesc') }}
             </p>
           </div>
           <div class="w-56">
-            <Select :aria-label="t('admin.accounts.openai.responsesMode')"
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-caption-3'" :aria-label="t('admin.accounts.openai.responsesMode')"
               v-model="openAIResponsesMode"
               :options="openAIResponsesModeOptions"
               :disabled="!openAITextGenerationCapabilityEnabled"
@@ -2508,10 +2532,10 @@
               {{ t('admin.accounts.anthropic.apiKeyAuthSchemeDesc') }}
             </p>
           </div>
-          <select v-model="anthropicAPIKeyAuthScheme" class="input w-52 text-sm">
+          <label class="block min-w-0 w-52"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.authScheme') }}</span><select v-model="anthropicAPIKeyAuthScheme" class="input w-52 text-sm">
             <option value="x_api_key">{{ t('admin.accounts.anthropic.apiKeyAuthSchemeXApiKey') }}</option>
             <option value="authorization_bearer">{{ t('admin.accounts.anthropic.apiKeyAuthSchemeBearer') }}</option>
-          </select>
+          </select></label>
         </div>
       </div>
 
@@ -2527,11 +2551,14 @@
               {{ t('admin.accounts.anthropic.webSearchEmulationDesc') }}
             </p>
           </div>
-          <select v-model="webSearchEmulationMode" class="input w-24 text-sm">
+          <label class="block min-w-0 w-24">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.webSearchEmulation.title') }}</span>
+            <select v-model="webSearchEmulationMode" class="input w-24 text-sm">
             <option value="default">{{ t('admin.accounts.anthropic.webSearchDefault') }}</option>
             <option value="enabled">{{ t('admin.accounts.anthropic.webSearchEnabled') }}</option>
             <option value="disabled">{{ t('admin.accounts.anthropic.webSearchDisabled') }}</option>
           </select>
+          </label>
         </div>
       </div>
 
@@ -2717,13 +2744,13 @@
       >
         <div class="flex items-center justify-between gap-4">
           <div class="min-w-0">
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.codexFingerprintMode') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-caption-4'" class="input-label mb-0">{{ t('admin.accounts.openai.codexFingerprintMode') }}</label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.openai.codexFingerprintModeDesc') }}
             </p>
           </div>
           <div class="w-52 flex-shrink-0">
-            <Select :aria-label="t('admin.accounts.openai.codexFingerprintMode')" v-model="codexFingerprintMode" data-testid="edit-codex-fingerprint-mode-select" :options="codexFingerprintModeOptions" />
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-caption-4'" :aria-label="t('admin.accounts.openai.codexFingerprintMode')" v-model="codexFingerprintMode" data-testid="edit-codex-fingerprint-mode-select" :options="codexFingerprintModeOptions" />
           </div>
         </div>
       </div>
@@ -2735,13 +2762,13 @@
       >
         <div class="flex items-center justify-between gap-4">
           <div class="min-w-0">
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.planType') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-caption-5'" class="input-label mb-0">{{ t('admin.accounts.openai.planType') }}</label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.openai.planTypeDesc') }}
             </p>
           </div>
           <div class="w-44 flex-shrink-0">
-            <Select :aria-label="t('admin.accounts.openai.planType')" v-model="editPlanType" :options="planTypeOptions" />
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-caption-5'" :aria-label="t('admin.accounts.openai.planType')" v-model="editPlanType" :options="planTypeOptions" />
           </div>
         </div>
       </div>
@@ -2752,13 +2779,13 @@
       >
         <div class="flex items-center justify-between">
           <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.compactMode') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-caption-6'" class="input-label mb-0">{{ t('admin.accounts.openai.compactMode') }}</label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.openai.compactModeDesc') }}
             </p>
           </div>
           <div class="w-44">
-            <Select :aria-label="t('admin.accounts.openai.compactMode')" v-model="openAICompactMode" :options="openAICompactModeOptions" />
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-caption-6'" :aria-label="t('admin.accounts.openai.compactMode')" v-model="openAICompactMode" :options="openAICompactModeOptions" />
           </div>
         </div>
         <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300">
@@ -2772,7 +2799,7 @@
           </span>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.accounts.openai.compactModelMapping') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-38'" class="input-label">{{ t('admin.accounts.openai.compactModelMapping') }}</label>
           <p class="input-hint">{{ t('admin.accounts.openai.compactModelMappingDesc') }}</p>
           <div v-if="openAICompactModelMappings.length > 0" class="mb-3 space-y-2">
             <div
@@ -2780,20 +2807,20 @@
               :key="getOpenAICompactModelMappingKey(mapping)"
               class="flex items-center gap-2"
             >
-              <input
+              <label class="block min-w-0 flex-1"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.requestModel') }}</span><input
                 v-model="mapping.from"
                 type="text"
                 class="input flex-1"
                 :placeholder="t('admin.accounts.fromModel')"
-              />
+              /></label>
               <span class="text-gray-400">→</span>
-              <input
+              <label class="block min-w-0 flex-1"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.actualModel') }}</span><input
                 v-model="mapping.to"
                 type="text"
                 class="input flex-1"
                 :placeholder="t('admin.accounts.toModel')"
-              />
-              <button type="button" @click="removeOpenAICompactModelMapping(index)" class="text-red-500 hover:text-red-700">
+              /></label>
+              <button :aria-label="t('consoleFields.remove')" type="button" @click="removeOpenAICompactModelMapping(index)" class="text-red-500 hover:text-red-700">
                 <Icon name="trash" size="sm" />
               </button>
             </div>
@@ -2830,8 +2857,8 @@
           <p class="input-hint">{{ t('admin.accounts.autoPauseDisabledHint') }}</p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.accounts.autoPause5hThreshold') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-39'" class="input-label">{{ t('admin.accounts.autoPause5hThreshold') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-39'"
             v-model.number="autoPause5hThreshold"
             type="number"
             min="0"
@@ -2851,8 +2878,8 @@
           <p class="input-hint">{{ t('admin.accounts.autoPauseDisabledHint') }}</p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.accounts.autoPause7dThreshold') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-40'" class="input-label">{{ t('admin.accounts.autoPause7dThreshold') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-40'"
             v-model.number="autoPause7dThreshold"
             type="number"
             min="0"
@@ -2882,8 +2909,8 @@
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
-            <label class="input-label">{{ t('admin.accounts.autoResetCredit.threshold5h') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-41'" class="input-label">{{ t('admin.accounts.autoResetCredit.threshold5h') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-41'"
               v-model.number="autoResetCredit5hThreshold"
               type="number"
               min="0"
@@ -2895,8 +2922,8 @@
             />
           </div>
           <div>
-            <label class="input-label">{{ t('admin.accounts.autoResetCredit.threshold7d') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-42'" class="input-label">{{ t('admin.accounts.autoResetCredit.threshold7d') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-42'"
               v-model.number="autoResetCredit7dThreshold"
               type="number"
               min="0"
@@ -2937,10 +2964,10 @@
 
           <div v-if="windowCostEnabled" class="grid grid-cols-2 gap-4">
             <div>
-              <label class="input-label">{{ t('admin.accounts.quotaControl.windowCost.limit') }}</label>
+              <label :id="'field-' + fieldLabelScope + '-43'" class="input-label">{{ t('admin.accounts.quotaControl.windowCost.limit') }}</label>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-43'"
                   v-model.number="windowCostLimit"
                   type="number"
                   min="0"
@@ -2952,10 +2979,10 @@
               <p class="input-hint">{{ t('admin.accounts.quotaControl.windowCost.limitHint') }}</p>
             </div>
             <div>
-              <label class="input-label">{{ t('admin.accounts.quotaControl.windowCost.stickyReserve') }}</label>
+              <label :id="'field-' + fieldLabelScope + '-44'" class="input-label">{{ t('admin.accounts.quotaControl.windowCost.stickyReserve') }}</label>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-44'"
                   v-model.number="windowCostStickyReserve"
                   type="number"
                   min="0"
@@ -2983,8 +3010,8 @@
 
           <div v-if="sessionLimitEnabled" class="grid grid-cols-2 gap-4">
             <div>
-              <label class="input-label">{{ t('admin.accounts.quotaControl.sessionLimit.maxSessions') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-45'" class="input-label">{{ t('admin.accounts.quotaControl.sessionLimit.maxSessions') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-45'"
                 v-model.number="maxSessions"
                 type="number"
                 min="1"
@@ -2995,9 +3022,9 @@
               <p class="input-hint">{{ t('admin.accounts.quotaControl.sessionLimit.maxSessionsHint') }}</p>
             </div>
             <div>
-              <label class="input-label">{{ t('admin.accounts.quotaControl.sessionLimit.idleTimeout') }}</label>
+              <label :id="'field-' + fieldLabelScope + '-46'" class="input-label">{{ t('admin.accounts.quotaControl.sessionLimit.idleTimeout') }}</label>
               <div class="relative">
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-46'"
                   v-model.number="sessionIdleTimeout"
                   type="number"
                   min="1"
@@ -3055,11 +3082,11 @@
           </div>
           <!-- Profile selector -->
           <div v-if="tlsFingerprintEnabled" class="mt-3">
-            <select v-model="tlsFingerprintProfileId" class="input">
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.fingerprintProfile') }}</span><select v-model="tlsFingerprintProfileId" class="input">
               <option :value="null">{{ t('admin.accounts.quotaControl.tlsFingerprint.defaultProfile') }}</option>
               <option v-if="tlsFingerprintProfiles.length > 0" :value="-1">{{ t('admin.accounts.quotaControl.tlsFingerprint.randomProfile') }}</option>
               <option v-for="p in tlsFingerprintProfiles" :key="p.id" :value="p.id">{{ p.name }}</option>
-            </select>
+            </select></label>
           </div>
         </div>
 
@@ -3088,8 +3115,8 @@
             <Toggle :model-value="!!cacheTTLOverrideEnabled" :aria-label="t('admin.accounts.quotaControl.cacheTTLOverride.label')" @click="cacheTTLOverrideEnabled = !cacheTTLOverrideEnabled" />
           </div>
           <div v-if="cacheTTLOverrideEnabled" class="mt-3">
-            <label class="input-label text-xs">{{ t('admin.accounts.quotaControl.cacheTTLOverride.target') }}</label>
-            <select
+            <label :id="'field-' + fieldLabelScope + '-47'" class="input-label text-xs">{{ t('admin.accounts.quotaControl.cacheTTLOverride.target') }}</label>
+            <select :aria-labelledby="'field-' + fieldLabelScope + '-47'"
               v-model="cacheTTLOverrideTarget"
               class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-500 dark:bg-dark-700 dark:text-white"
             >
@@ -3114,20 +3141,23 @@
             <Toggle :model-value="!!customBaseUrlEnabled" :aria-label="t('admin.accounts.quotaControl.customBaseUrl.label')" @click="customBaseUrlEnabled = !customBaseUrlEnabled" />
           </div>
           <div v-if="customBaseUrlEnabled" class="mt-3">
-            <input
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.quotaControl.customBaseUrl.urlHint') }}</span>
+              <input
               v-model="customBaseUrl"
               type="text"
               class="input"
               :placeholder="t('admin.accounts.quotaControl.customBaseUrl.urlHint')"
             />
+            </label>
           </div>
         </div>
       </div>
 
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div>
-          <label class="input-label">{{ t('common.status') }}</label>
-          <Select :aria-label="t('common.status')" v-model="form.status" :options="statusOptions" />
+          <label :id="'field-' + fieldLabelScope + '-48'" class="input-label">{{ t('common.status') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-48'" :aria-label="t('common.status')" v-model="form.status" :options="statusOptions" />
         </div>
 
         <!-- Mixed Scheduling (only for antigravity accounts, read-only in edit mode) -->
@@ -3263,6 +3293,8 @@
 
 <script setup lang="ts">
 import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'

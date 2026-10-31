@@ -179,18 +179,6 @@
                 </p>
                 <!-- Rate + Limits grid -->
                 <div class="mt-3 grid grid-cols-2 gap-3">
-                  <div>
-                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.rate') }}</span>
-                    <div class="flex items-baseline">
-                      <span :class="['text-lg font-bold', planTextClass]">×{{ selectedPlan.rate_multiplier ?? 1 }}</span>
-                    </div>
-                  </div>
-                  <div v-if="planHasPeakRate(selectedPlan)">
-                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.peakRate') }}</span>
-                    <div class="text-sm font-semibold text-amber-700 dark:text-amber-300">
-                      {{ planPeakRateLabel(selectedPlan) }}
-                    </div>
-                  </div>
                   <div v-if="selectedPlan.daily_limit_usd != null">
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.dailyLimit') }}</span>
                     <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.daily_limit_usd }}</div>
@@ -310,17 +298,15 @@
               <div v-if="activeSubscriptions.length > 0">
                 <p class="mb-2 text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.activeSubscription') }}</p>
                 <div class="space-y-2">
-                  <div v-for="sub in activeSubscriptions" :key="sub.id"
+                  <div v-for="sub in activeSubscriptions" :key="sub.id" :data-subscription-id="sub.id"
                     class="flex items-center gap-3 border-b border-gray-200 py-4 dark:border-dark-700">
                     <div :class="['h-1.5 w-1.5 shrink-0 rounded-full', platformAccentBarClass(sub.group?.platform || '')]" />
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
-                        <span class="truncate text-xs font-semibold text-gray-900 dark:text-white">{{ sub.group?.name || t('payment.groupFallback', { id: sub.group_id }) }}</span>
+                        <span class="truncate text-xs font-semibold text-gray-900 dark:text-white">{{ t('consoleFields.subscription', { id: sub.id }) }}</span>
                         <span :class="['shrink-0 rounded-full px-1.5 py-0.5 text-2xs font-medium', platformBadgeLightClass(sub.group?.platform || '')]">{{ platformLabel(sub.group?.platform || '') }}</span>
                       </div>
                       <div class="flex flex-wrap gap-x-3 text-2xs text-gray-400 dark:text-gray-500">
-                        <span>{{ t('payment.planCard.rate') }}: ×{{ sub.group?.rate_multiplier ?? 1 }}</span>
-                        <span v-if="subscriptionHasPeakRate(sub)">{{ t('payment.planCard.peakRate') }}: {{ subscriptionPeakRateLabel(sub) }}</span>
                         <span v-if="sub.group?.daily_limit_usd == null && sub.group?.weekly_limit_usd == null && sub.group?.monthly_limit_usd == null">{{ t('payment.planCard.quota') }}: {{ t('payment.planCard.unlimited') }}</span>
                         <span v-if="sub.expires_at">{{ t('userSubscriptions.daysRemaining', { days: getDaysRemaining(sub.expires_at) }) }}</span>
                         <span v-else>{{ t('userSubscriptions.noExpiration') }}</span>
@@ -377,7 +363,6 @@ import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
-import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
 import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType, PaymentQuoteRequest, SubscriptionRenewalMode } from '@/types/payment'
 import { formatRechargeBonusNumber, normalizeRechargeBonusMode, normalizeRechargeBonusTiers, quoteRechargeBonus } from '@/utils/rechargeBonus'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -433,13 +418,7 @@ function getDaysRemaining(expiresAt: string): number {
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
 }
 
-function subscriptionHasPeakRate(sub: { group?: PeakRateFields | null }): boolean {
-  return hasPeakRate(sub.group)
-}
 
-function subscriptionPeakRateLabel(sub: { group?: PeakRateFields | null }): string {
-  return formatPeakRateWindow(sub.group, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
-}
 
 const loading = ref(true)
 const submitting = ref(false)
@@ -1014,13 +993,7 @@ const planValiditySuffix = computed(() => {
   return validitySuffixOf(selectedPlan.value, t)
 })
 
-function planHasPeakRate(plan: SubscriptionPlan): boolean {
-  return hasPeakRate(plan)
-}
 
-function planPeakRateLabel(plan: SubscriptionPlan): string {
-  return formatPeakRateWindow(plan, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
-}
 
 function cancelSelectedPlan() {
   selectedPlan.value = null

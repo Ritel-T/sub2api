@@ -17,11 +17,11 @@
 
       <fieldset :disabled="submitting" class="space-y-5">
         <div class="space-y-2">
-          <label class="flex items-center gap-2 text-sm font-medium">
+          <label :id="'field-' + fieldLabelScope + '-1'" class="flex items-center gap-2 text-sm font-medium">
             <input v-model="enabled.group_id" type="checkbox" class="checkbox" data-test="enable-group" />
             {{ t('keys.groupLabel') }}
           </label>
-          <Select
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-if="enabled.group_id"
             v-model="groupId"
             :options="groupOptions"
@@ -34,11 +34,11 @@
         </div>
 
         <div class="space-y-2">
-          <label class="flex items-center gap-2 text-sm font-medium">
+          <label :id="'field-' + fieldLabelScope + '-2'" class="flex items-center gap-2 text-sm font-medium">
             <input v-model="enabled.status" type="checkbox" class="checkbox" data-test="enable-status" />
             {{ t('keys.statusLabel') }}
           </label>
-          <Select
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'"
             v-if="enabled.status"
             v-model="status"
             :options="statusOptions"
@@ -48,8 +48,8 @@
           />
         </div>
 
-        <div v-for="field in limitFields" :key="field.key" class="space-y-2">
-          <label class="flex items-center gap-2 text-sm font-medium">
+        <div v-for="(field, fieldIndex0) in limitFields" :key="field.key" class="space-y-2">
+          <label :id="'field-' + fieldLabelScope + '-3' + '-' + fieldIndex0" class="flex items-center gap-2 text-sm font-medium">
             <input
               v-model="enabled[field.key]"
               type="checkbox"
@@ -59,7 +59,7 @@
             {{ t(field.label) }}
           </label>
           <div v-if="enabled[field.key]">
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-3' + '-' + fieldIndex0"
               v-model="limits[field.key]"
               type="number"
               min="0"
@@ -80,11 +80,11 @@
             {{ t('keys.expiration') }}
           </label>
           <div v-if="enabled.expires_at" class="space-y-2">
-            <label class="flex items-center gap-2 text-sm">
+            <label :id="'field-' + fieldLabelScope + '-4'" class="flex items-center gap-2 text-sm">
               <input v-model="neverExpires" type="checkbox" class="checkbox" data-test="never-expires" />
               {{ t('keys.noExpiration') }}
             </label>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
               v-if="!neverExpires"
               v-model="expirationDate"
               type="datetime-local"
@@ -96,8 +96,8 @@
           </div>
         </div>
 
-        <div v-for="field in ipFields" :key="field.key" class="space-y-2">
-          <label class="flex items-center gap-2 text-sm font-medium">
+        <div v-for="(field, fieldIndex1) in ipFields" :key="field.key" class="space-y-2">
+          <label :id="'field-' + fieldLabelScope + '-5' + '-' + fieldIndex1" class="flex items-center gap-2 text-sm font-medium">
             <input
               v-model="enabled[field.key]"
               type="checkbox"
@@ -107,7 +107,7 @@
             {{ t(field.label) }}
           </label>
           <div v-if="enabled[field.key]">
-            <textarea
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-5' + '-' + fieldIndex1"
               v-model="ipLists[field.key]"
               rows="3"
               class="input font-mono text-sm"
@@ -150,6 +150,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { keysAPI } from '@/api'

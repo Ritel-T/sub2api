@@ -7,7 +7,7 @@
   >
     <form class="space-y-4" @submit.prevent="submit">
       <div>
-        <label class="input-label">{{ t('admin.affiliates.withdraw.user') }}</label>
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.affiliates.withdraw.user') }}</label>
         <div
           v-if="selectedUser"
           class="flex items-center justify-between gap-3 rounded-md border border-primary-200 bg-primary-50 px-3 py-2 dark:border-primary-700/50 dark:bg-primary-900/20"
@@ -30,7 +30,7 @@
           </button>
         </div>
         <template v-else>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="userQuery"
             type="text"
             class="input"
@@ -75,9 +75,9 @@
       </div>
 
       <div>
-        <label class="input-label">{{ t('admin.affiliates.withdraw.amount') }}</label>
+        <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.affiliates.withdraw.amount') }}</label>
         <div class="flex gap-2">
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
             v-model="amount"
             type="number"
             min="0"
@@ -134,6 +134,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'

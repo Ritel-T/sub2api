@@ -33,11 +33,11 @@
         </div>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+            <label :id="'field-' + fieldLabelScope + '-1'" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
               {{ t('admin.scheduledTests.model') }}
             </label>
-            <Input v-if="pelicanConfig" v-model="newPlan.model_id" />
-            <Select :aria-label="t('admin.scheduledTests.model')" v-else
+            <Input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-if="pelicanConfig" v-model="newPlan.model_id" />
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.scheduledTests.model')" v-else
               v-model="newPlan.model_id"
               :options="modelOptions"
               :placeholder="t('admin.scheduledTests.model')"
@@ -45,7 +45,7 @@
             />
           </div>
           <div>
-            <label class="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+            <label :id="'field-' + fieldLabelScope + '-2'" class="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
               {{ t('admin.scheduledTests.cronExpression') }}
               <HelpTooltip>
                 <template #trigger>
@@ -64,14 +64,14 @@
                 </div>
               </HelpTooltip>
             </label>
-            <Input
+            <Input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
               v-model="newPlan.cron_expression"
               :placeholder="'*/30 * * * *'"
               :hint="t('admin.scheduledTests.cronHelp')"
             />
           </div>
           <div>
-            <label class="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+            <label :id="'field-' + fieldLabelScope + '-3'" class="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
               {{ t('admin.scheduledTests.maxResults') }}
               <HelpTooltip>
                 <template #trigger>
@@ -88,7 +88,7 @@
                 </div>
               </HelpTooltip>
             </label>
-            <Input
+            <Input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
               v-model="newPlan.max_results"
               type="number"
               placeholder="100"
@@ -151,7 +151,7 @@
       <!-- Plans List -->
       <div v-else class="space-y-3">
         <div
-          v-for="plan in plans"
+          v-for="(plan, fieldIndex0) in plans"
           :key="plan.id"
           class="rounded-xl border border-gray-200 bg-white transition-all dark:border-dark-600 dark:bg-dark-800"
         >
@@ -252,11 +252,11 @@
             </div>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                <label :id="'field-' + fieldLabelScope + '-4' + '-' + fieldIndex0" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
                   {{ t('admin.scheduledTests.model') }}
                 </label>
-                <Input v-if="pelicanConfig" v-model="editForm.model_id" />
-                <Select :aria-label="t('admin.scheduledTests.model')" v-else
+                <Input :aria-labelledby="'field-' + fieldLabelScope + '-4' + '-' + fieldIndex0" v-if="pelicanConfig" v-model="editForm.model_id" />
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-4' + '-' + fieldIndex0" :aria-label="t('admin.scheduledTests.model')" v-else
                   v-model="editForm.model_id"
                   :options="modelOptions"
                   :placeholder="t('admin.scheduledTests.model')"
@@ -264,7 +264,7 @@
                 />
               </div>
               <div>
-                <label class="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+                <label :id="'field-' + fieldLabelScope + '-5' + '-' + fieldIndex0" class="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
                   {{ t('admin.scheduledTests.cronExpression') }}
                   <HelpTooltip>
                     <template #trigger>
@@ -283,14 +283,14 @@
                     </div>
                   </HelpTooltip>
                 </label>
-                <Input
+                <Input :aria-labelledby="'field-' + fieldLabelScope + '-5' + '-' + fieldIndex0"
                   v-model="editForm.cron_expression"
                   :placeholder="'*/30 * * * *'"
                   :hint="t('admin.scheduledTests.cronHelp')"
                 />
               </div>
               <div>
-                <label class="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+                <label :id="'field-' + fieldLabelScope + '-6' + '-' + fieldIndex0" class="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
                   {{ t('admin.scheduledTests.maxResults') }}
                   <HelpTooltip>
                     <template #trigger>
@@ -307,7 +307,7 @@
                     </div>
                   </HelpTooltip>
                 </label>
-                <Input
+                <Input :aria-labelledby="'field-' + fieldLabelScope + '-6' + '-' + fieldIndex0"
                   v-model="editForm.max_results"
                   type="number"
                   placeholder="100"
@@ -472,6 +472,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { ref, reactive, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'

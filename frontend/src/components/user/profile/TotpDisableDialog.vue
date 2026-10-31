@@ -17,9 +17,9 @@
     <form v-else :id="disableFormId" @submit.prevent="handleDisable" class="space-y-4">
       <!-- Email verification -->
       <div v-if="verificationMethod === 'email'">
-        <label class="input-label">{{ t('profile.totp.emailCode') }}</label>
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('profile.totp.emailCode') }}</label>
         <div class="flex gap-2">
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="form.emailCode"
             :disabled="busy"
             type="text"
@@ -66,6 +66,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { ref, onMounted, onUnmounted, computed, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'

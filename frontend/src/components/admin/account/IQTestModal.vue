@@ -124,8 +124,8 @@
       </template>
       <template v-else>
       <div>
-        <label class="input-label mb-1.5 block">{{ t('admin.accounts.pelicanTest.question') }}</label>
-        <Select :aria-label="t('admin.accounts.pelicanTest.question')" data-testid="question-select" :model-value="questionKind" :options="questionOptions" :disabled="running" @update:model-value="selectQuestion" />
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label mb-1.5 block">{{ t('admin.accounts.pelicanTest.question') }}</label>
+        <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.accounts.pelicanTest.question')" data-testid="question-select" :model-value="questionKind" :options="questionOptions" :disabled="running" @update:model-value="selectQuestion" />
         <p v-if="questionKind === 'candy'" class="mt-2 text-xs text-gray-500">{{ t('admin.accounts.pelicanTest.candyHint') }}</p>
       </div>
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -146,8 +146,8 @@
             :hint="t('admin.accounts.pelicanTest.modelHint', { model: defaultModel })"
           />
           <div>
-            <label class="input-label mb-1.5 block">{{ t('admin.accounts.pelicanTest.reasoning') }}</label>
-            <Select :aria-label="t('admin.accounts.pelicanTest.reasoning')" v-model="reasoningEffort" :options="reasoningOptions" :disabled="running" />
+            <label :id="'field-' + fieldLabelScope + '-2'" class="input-label mb-1.5 block">{{ t('admin.accounts.pelicanTest.reasoning') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('admin.accounts.pelicanTest.reasoning')" v-model="reasoningEffort" :options="reasoningOptions" :disabled="running" />
           </div>
           <Input
             v-model="parallelCount"
@@ -287,6 +287,8 @@
 
 <script setup lang="ts">
 import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import { consoleFetch, consoleAuthHeaders, consoleOwnedStorageKey } from '@/utils/centralAccount'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'

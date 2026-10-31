@@ -1,7 +1,9 @@
 <template>
   <div class="space-y-2" data-testid="announcement-user-picker">
     <div class="relative">
-      <input
+      <label class="block min-w-0 w-full">
+        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.announcements.form.searchUsersPlaceholder') }}</span>
+        <input
         v-model="query"
         type="text"
         autocomplete="off"
@@ -13,6 +15,7 @@
         @focus="showResults = query.trim() !== ''"
         @blur="showResults = false"
       />
+      </label>
       <div
         v-if="showResults && searched"
         class="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-500 dark:bg-dark-700"

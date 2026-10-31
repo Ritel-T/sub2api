@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { useI18n } from 'vue-i18n'
 import QuotaNotifyToggle from './QuotaNotifyToggle.vue'
 import type { QuotaThresholdType, QuotaResetMode } from '@/constants/account'
@@ -73,13 +76,13 @@ function getTimezoneOffsetLabel(tz: string): string {
       <span class="text-xs font-medium text-gray-700 dark:text-gray-300 flex-1 min-w-0">{{ label }}</span>
       <span v-if="limit && limit > 0" class="text-xs font-medium text-gray-700 dark:text-gray-300 flex-1 min-w-0">{{ t('admin.accounts.quotaNotify.alert') }}</span>
     </div>
-    <label v-else class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">{{ label }}</label>
+    <label :id="'field-' + fieldLabelScope + '-1'" v-else class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">{{ label }}</label>
 
     <!-- Input row -->
     <div class="flex items-center gap-2">
       <div :class="['relative', quotaNotifyGlobalEnabled ? 'flex-1 min-w-0' : 'flex-1']">
         <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-sm">$</span>
-        <input :value="limit" @input="onLimitInput" type="number" min="0" step="0.01" class="input pl-6 py-1.5 text-sm" :placeholder="t('admin.accounts.quotaLimitPlaceholder')" />
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" :value="limit" @input="onLimitInput" type="number" min="0" step="0.01" class="input pl-6 py-1.5 text-sm" :placeholder="t('admin.accounts.quotaLimitPlaceholder')" />
       </div>
       <QuotaNotifyToggle
         v-if="quotaNotifyGlobalEnabled && limit && limit > 0"
@@ -91,25 +94,25 @@ function getTimezoneOffsetLabel(tz: string): string {
 
     <!-- Reset mode row (daily/weekly only) -->
     <div v-if="hasResetMode" class="mt-1 flex items-center gap-2 flex-wrap">
-      <label class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('admin.accounts.quotaResetMode') }}</label>
-      <select :value="resetMode || 'rolling'" @change="onModeChange" class="input py-1 text-xs w-auto">
+      <label :id="'field-' + fieldLabelScope + '-2'" class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('admin.accounts.quotaResetMode') }}</label>
+      <select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :value="resetMode || 'rolling'" @change="onModeChange" class="input py-1 text-xs w-auto">
         <option value="rolling">{{ t('admin.accounts.quotaResetModeRolling') }}</option>
         <option value="fixed">{{ t('admin.accounts.quotaResetModeFixed') }}</option>
       </select>
       <template v-if="resetMode === 'fixed'">
         <!-- Weekly: day of week selector -->
         <template v-if="dim === 'weekly'">
-          <label class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('admin.accounts.quotaWeeklyResetDay') }}</label>
-          <select :value="resetDay ?? 1" @change="emit('update:resetDay', Number(($event.target as HTMLSelectElement).value))" class="input py-1 text-xs w-28">
+          <label :id="'field-' + fieldLabelScope + '-3'" class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('admin.accounts.quotaWeeklyResetDay') }}</label>
+          <select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :value="resetDay ?? 1" @change="emit('update:resetDay', Number(($event.target as HTMLSelectElement).value))" class="input py-1 text-xs w-28">
             <option v-for="d in dayOptions" :key="d.value" :value="d.value">{{ t('admin.accounts.dayOfWeek.' + d.key) }}</option>
           </select>
         </template>
-        <label class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('admin.accounts.quotaResetHour') }}</label>
-        <select :value="resetHour ?? 0" @change="emit('update:resetHour', Number(($event.target as HTMLSelectElement).value))" class="input py-1 text-xs w-24">
+        <label :id="'field-' + fieldLabelScope + '-4'" class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('admin.accounts.quotaResetHour') }}</label>
+        <select :aria-labelledby="'field-' + fieldLabelScope + '-4'" :value="resetHour ?? 0" @change="emit('update:resetHour', Number(($event.target as HTMLSelectElement).value))" class="input py-1 text-xs w-24">
           <option v-for="h in hourOptions" :key="h" :value="h">{{ String(h).padStart(2, '0') }}:00</option>
         </select>
         <template v-if="timezoneOptions && timezoneOptions.length > 0">
-          <select :value="resetTimezone || 'UTC'" @change="emit('update:resetTimezone', ($event.target as HTMLSelectElement).value)" class="input py-1 text-xs w-auto">
+          <select :aria-labelledby="'field-' + fieldLabelScope + '-4'" :value="resetTimezone || 'UTC'" @change="emit('update:resetTimezone', ($event.target as HTMLSelectElement).value)" class="input py-1 text-xs w-auto">
             <option v-for="tz in timezoneOptions" :key="tz" :value="tz">{{ tz }} ({{ getTimezoneOffsetLabel(tz) }})</option>
           </select>
         </template>

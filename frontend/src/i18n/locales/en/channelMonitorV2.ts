@@ -32,7 +32,7 @@ export default {
         "historyCount": "{count}/{limit} checks recorded; gray means no check",
         "notChecked": "Not checked",
         "disabled": "Checks disabled",
-        "disabledHint": "Intelligence checks are not enabled for this group. An administrator can configure them in Channel Monitor.",
+        "disabledHint": "Intelligence checks are currently unavailable for this service.",
         "invalid": 'Enter a model and an integer interval from 1 to 1440 minutes.',
         "historyLimit": "Recent checks to show",
         "historyLimitHint": "How many recent checks each model shows on a card. 15–100, default 100. Missing checks stay gray.",

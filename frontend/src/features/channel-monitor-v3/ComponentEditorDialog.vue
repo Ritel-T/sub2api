@@ -12,8 +12,8 @@
           <input id="monitor-v3-name" v-model="form.name" class="input" maxlength="100" :placeholder="t('channelMonitorV3.editor.namePlaceholder')" data-testid="monitor-v3-name" />
         </div>
         <div>
-          <label class="input-label">{{ t('channelMonitorV3.editor.category') }}</label>
-          <Select v-model="form.category_id" :options="categoryOptions" :aria-label="t('channelMonitorV3.editor.category')" />
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('channelMonitorV3.editor.category') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="form.category_id" :options="categoryOptions" :aria-label="t('channelMonitorV3.editor.category')" />
         </div>
       </div>
       <div>
@@ -22,8 +22,8 @@
       </div>
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="input-label">{{ t('channelMonitorV3.editor.group') }}</label>
-          <Select v-model="form.group_id" :options="groupOptions" searchable :placeholder="t('channelMonitorV3.editor.groupPlaceholder')" :aria-label="t('channelMonitorV3.editor.group')" data-testid="monitor-v3-group" />
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('channelMonitorV3.editor.group') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model="form.group_id" :options="groupOptions" searchable :placeholder="t('channelMonitorV3.editor.groupPlaceholder')" :aria-label="t('channelMonitorV3.editor.group')" data-testid="monitor-v3-group" />
           <p class="mt-1 text-xs text-gray-400">{{ t('channelMonitorV3.editor.groupHint') }}</p>
         </div>
         <div>
@@ -33,8 +33,8 @@
         </div>
       </div>
       <div>
-        <label class="input-label">{{ t('channelMonitorV3.editor.threshold') }}</label>
-        <Select v-model="form.degraded_ttft_ms" :options="thresholdOptions" :aria-label="t('channelMonitorV3.editor.threshold')" data-testid="monitor-v3-threshold" />
+        <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('channelMonitorV3.editor.threshold') }}</label>
+        <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model="form.degraded_ttft_ms" :options="thresholdOptions" :aria-label="t('channelMonitorV3.editor.threshold')" data-testid="monitor-v3-threshold" />
         <p class="mt-1 text-xs text-gray-400">{{ t('channelMonitorV3.editor.thresholdHint') }}</p>
       </div>
 
@@ -86,6 +86,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'

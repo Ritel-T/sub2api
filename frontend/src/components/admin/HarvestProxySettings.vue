@@ -1,15 +1,15 @@
 <template>
   <section class="open-section" data-testid="harvest-proxy-settings">
     <p v-if="error" role="alert" class="mb-3 text-sm text-red-600">{{ error }}</p>
-    <p v-if="loading" class="text-sm text-gray-500">{{ text('加载中…', 'Loading…') }}</p>
-    <button v-else-if="!loaded" type="button" class="btn btn-secondary" @click="load">{{ text('重试', 'Retry') }}</button>
+    <p v-if="loading" class="text-sm text-gray-500">{{ t('consoleInline.loading_d9e169') }}</p>
+    <button v-else-if="!loaded" type="button" class="btn btn-secondary" @click="load">{{ t('consoleInline.retry_15a6ca') }}</button>
     <form v-else @submit.prevent="save">
       <fieldset :disabled="saving">
         <div>
           <AppHeading as="h3" variant="subsection" class="text-gray-900 dark:text-white">
             {{ t("admin.settings.gatewayForwarding.codexTicketHarvestProxy") }}
           </AppHeading>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p :id="'field-' + fieldLabelScope + '-1'" class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {{ t("admin.settings.gatewayForwarding.codexTicketHarvestProxyDesc") }}
           </p>
           <div class="mt-3 flex flex-wrap gap-2" role="radiogroup" :aria-label="t('admin.settings.gatewayForwarding.codexTicketProxyMode')">
@@ -79,7 +79,7 @@
           >
             {{ t("admin.settings.gatewayForwarding.codexTicketProxyIPPoolHint") }}
           </p>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-else
             id="codex-ticket-harvest-proxy"
             v-model="form.openai_codex_ticket_harvest_proxy_url"
@@ -96,20 +96,21 @@
           </p>
         </div>
       </fieldset>
-      <button type="submit" data-testid="save-harvest-proxy" class="btn btn-primary btn-sm mt-4" :disabled="saving || !canSave">{{ text('保存采票出口', 'Save harvest exit') }}</button>
+      <button type="submit" data-testid="save-harvest-proxy" class="btn btn-primary btn-sm mt-4" :disabled="saving || !canSave">{{ t('consoleInline.saveHarvestExit_8526a7') }}</button>
     </form>
   </section>
 </template>
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
-import { localizeInlineText } from '@/i18n/inline'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getSettings, updateSettings } from '@/api/admin/settings'
 import { useAppStore } from '@/stores'
 import MihomoProxySelector from '@/views/admin/settings/MihomoProxySelector.vue'
-const { t, locale } = useI18n()
-const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
+const { t } = useI18n()
 const appStore = useAppStore()
 const form = ref({ openai_codex_ticket_harvest_proxy_url: '', openai_codex_ticket_harvest_proxy_configured: false, openai_codex_ticket_static_proxy_url: '' })
 const loading = ref(true)
@@ -184,7 +185,7 @@ async function load() {
     apply(settings)
     loaded.value = true
   } catch {
-    if (!disposed) error.value = text('无法加载采票出口，请重试。', 'Could not load harvest exit. Please retry.')
+    if (!disposed) error.value = t('consoleInline.couldNotLoadHarvestExitPleaseRetry_6c9ad4')
   } finally { if (!disposed) loading.value = false }
 }
 async function save() {
@@ -198,9 +199,9 @@ async function save() {
     })
     if (disposed) return
     apply(settings)
-    appStore.showSuccess(text('采票出口已保存。', 'Harvest exit saved.'))
+    appStore.showSuccess(t('consoleInline.harvestExitSaved_f8a145'))
   } catch {
-    if (!disposed) error.value = text('采票出口保存失败，当前修改已保留。', 'Could not save harvest exit. Your changes are retained.')
+    if (!disposed) error.value = t('consoleInline.couldNotSaveHarvestExitYourChanges_156213')
   } finally { if (!disposed) saving.value = false }
 }
 onMounted(load)

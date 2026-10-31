@@ -106,8 +106,8 @@
     <form id="attribute-form" @submit.prevent="handleSave" class="space-y-4">
       <!-- Key -->
       <div>
-        <label class="input-label">{{ t('admin.users.attributes.key') }}</label>
-        <input
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.users.attributes.key') }}</label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
           v-model="form.key"
           type="text"
           required
@@ -121,8 +121,8 @@
 
       <!-- Name -->
       <div>
-        <label class="input-label">{{ t('admin.users.attributes.name') }}</label>
-        <input
+        <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.users.attributes.name') }}</label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
           v-model="form.name"
           type="text"
           required
@@ -133,8 +133,8 @@
 
       <!-- Type -->
       <div>
-        <label class="input-label">{{ t('admin.users.attributes.type') }}</label>
-        <Select :aria-label="t('admin.users.attributes.type')"
+        <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.users.attributes.type') }}</label>
+        <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('admin.users.attributes.type')"
           v-model="form.type"
           :options="attributeTypes.map(type => ({ value: type, label: t(`admin.users.attributes.types.${type}`) }))"
         />
@@ -142,23 +142,23 @@
 
       <!-- Options (for select/multi_select) -->
       <div v-if="form.type === 'select' || form.type === 'multi_select'" class="space-y-2">
-        <label class="input-label">{{ t('admin.users.attributes.options') }}</label>
+        <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('admin.users.attributes.options') }}</label>
         <div v-for="(option, index) in form.options" :key="getOptionKey(option)" class="flex items-center gap-2">
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
             v-model="option.value"
             type="text"
             class="input flex-1 font-mono text-sm"
             :placeholder="t('admin.users.attributes.optionValue')"
             required
           />
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
             v-model="option.label"
             type="text"
             class="input flex-1 text-sm"
             :placeholder="t('admin.users.attributes.optionLabel')"
             required
           />
-          <button
+          <button :aria-label="t('consoleFields.remove')"
             type="button"
             @click="removeOption(index)"
             class="rounded-lg p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
@@ -175,18 +175,21 @@
       <!-- Description -->
       <div>
         <label class="input-label">{{ t('admin.users.attributes.fieldDescription') }}</label>
-        <input
+        <label class="block min-w-0">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.attributes.fieldDescriptionHint') }}</span>
+          <input
           v-model="form.description"
           type="text"
           class="input"
           :placeholder="t('admin.users.attributes.fieldDescriptionHint')"
         />
+        </label>
       </div>
 
       <!-- Placeholder -->
       <div>
-        <label class="input-label">{{ t('admin.users.attributes.placeholder') }}</label>
-        <input
+        <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.users.attributes.placeholder') }}</label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-5'"
           v-model="form.placeholder"
           type="text"
           class="input"
@@ -228,6 +231,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { ref, reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

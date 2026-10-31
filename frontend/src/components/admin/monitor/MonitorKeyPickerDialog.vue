@@ -11,12 +11,15 @@
       </p>
 
       <div class="relative">
-        <input
+        <label class="block min-w-0">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('keys.searchPlaceholder') }}</span>
+          <input
           v-model="search"
           type="text"
           class="input pl-9"
           :placeholder="t('keys.searchPlaceholder')"
         />
+        </label>
         <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
         </svg>

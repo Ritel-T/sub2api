@@ -67,10 +67,10 @@ export default {
     subscriptionDescription: 'Subscribe',
     openInNewTab: 'Open in new tab',
     notEnabledTitle: 'Feature not enabled',
-    notEnabledDesc: 'The administrator has not enabled the recharge/subscription entry. Please contact admin.',
+    notEnabledDesc: 'Recharge and subscriptions are currently unavailable.',
     notConfiguredTitle: 'Recharge / Subscription URL not configured',
     notConfiguredDesc:
-      'The administrator enabled the entry but has not configured a recharge/subscription URL. Please contact admin.'
+      'Recharge and subscriptions are temporarily unavailable. Please try again later.'
   },
 
   // Custom Page (iframe embed)
@@ -80,7 +80,7 @@ export default {
     notFoundTitle: 'Page not found',
     notFoundDesc: 'This custom page does not exist or has been removed.',
     notConfiguredTitle: 'Page URL not configured',
-    notConfiguredDesc: 'The URL for this custom page has not been properly configured.',
+    notConfiguredDesc: 'Recharge and subscriptions are temporarily unavailable. Please try again later.',
     tableOfContents: 'Contents',
     copyCode: 'Copy',
     copiedCode: 'Copied',

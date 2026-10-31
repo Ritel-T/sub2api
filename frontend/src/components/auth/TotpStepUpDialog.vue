@@ -10,13 +10,13 @@
     @close="handleCancel"
   >
     <div v-if="centralAccountEnabled" class="space-y-4">
-      <p>{{ locale.startsWith('zh') ? '请在新标签页完成账号再次验证，返回后关闭此对话框并手动重试操作。此处不会自动重放请求。' : 'Reauthenticate in a new tab, then return, close this dialog and retry the operation manually. No request is replayed automatically.' }}</p>
-      <a :href="accountReauthenticationURL()" target="_blank" rel="noopener noreferrer" class="btn btn-primary">{{ locale.startsWith('zh') ? '再次验证' : 'Reauthenticate' }}</a>
+      <p>{{ t('consoleFields.reauthenticateHint') }}</p>
+      <a :href="accountReauthenticationURL()" target="_blank" rel="noopener noreferrer" class="btn btn-primary">{{ t('consoleFields.reauthenticate') }}</a>
     </div>
     <template v-else>
-      <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">{{ t('stepUp.hint') }}</p>
+      <p :id="'field-' + fieldLabelScope + '-1'" class="mb-6 text-sm text-gray-500 dark:text-gray-400">{{ t('stepUp.hint') }}</p>
       <div class="mb-6">
-        <input
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
           ref="hiddenOtpInputRef"
           type="text"
           inputmode="numeric"
@@ -28,7 +28,7 @@
           @input="handleHiddenOtpInput"
         />
         <div class="flex justify-center gap-2">
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-for="(_, index) in 6"
             :key="index"
             :value="code[index]"
@@ -62,6 +62,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { accountReauthenticationURL, centralAccountEnabled } from '@/utils/accountConfig'
 
 import { ref, watch, nextTick } from 'vue'
@@ -75,7 +78,7 @@ const props = defineProps<{
   controller: StepUpController
 }>()
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const appStore = useAppStore()
 
 const verifying = ref(false)

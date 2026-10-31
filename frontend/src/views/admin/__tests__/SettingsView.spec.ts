@@ -175,6 +175,7 @@ vi.mock("@/utils/apiError", () => ({
 
 vi.mock("vue-i18n", async () => {
   const actual = await vi.importActual<typeof import("vue-i18n")>("vue-i18n");
+  const { consoleTestT } = await import('@/__tests__/consoleLocale');
   const translations: Record<string, string> = {
     "admin.settings.wechatConnect.title": "微信登录",
     "admin.settings.wechatConnect.description": "用于微信开放平台或公众号/小程序的第三方登录配置。",
@@ -281,8 +282,8 @@ vi.mock("vue-i18n", async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string, params?: Record<string, string>) =>
-        (translations[key] ?? key).replace(/\{(\w+)\}/g, (_, token) => params?.[token] ?? `{${token}}`),
+      t: consoleTestT(actual.createI18n, () => localeRef.value, (key: string, params?: Record<string, string>) =>
+        (translations[key] ?? key).replace(/\{(\w+)\}/g, (_, token) => params?.[token] ?? `{${token}}`)),
       locale: localeRef,
     }),
   };

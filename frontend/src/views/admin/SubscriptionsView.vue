@@ -14,12 +14,15 @@
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
             <div class="w-36">
-              <Select
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.subscriptions.columns.user') }}</span>
+                <Select
                 :model-value="userColumnMode"
                 :options="userColumnModeOptions"
                 :aria-label="t('admin.subscriptions.columns.user')"
                 @update:model-value="setUserColumnMode"
               />
+              </label>
             </div>
             <ColumnSettings
               :columns="orderedColumns"
@@ -60,7 +63,9 @@
                 size="md"
                 class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               />
-              <input
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.searchUsers') }}</span>
+                <input
                 v-model="filterUserKeyword"
                 type="text"
                 :placeholder="t('admin.users.searchUsers')"
@@ -68,6 +73,7 @@
                 @input="debounceSearchFilterUsers"
                 @focus="showFilterUserDropdown = true"
               />
+              </label>
               <button
                 v-if="selectedFilterUser"
                 @click="clearFilterUser"
@@ -110,28 +116,37 @@
 
             <!-- Filters -->
             <div class="w-full sm:w-40">
-              <Select :aria-label="t('common.status')"
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+                <Select :aria-label="t('common.status')"
                 v-model="filters.status"
                 :options="statusOptions"
                 :placeholder="t('admin.subscriptions.allStatus')"
                 @change="applyFilters"
               />
+              </label>
             </div>
             <div class="w-full sm:w-48">
-              <Select :aria-label="t('admin.subscriptions.form.group')"
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.subscriptions.form.group') }}</span>
+                <Select :aria-label="t('admin.subscriptions.form.group')"
                 v-model="filters.group_id"
                 :options="groupOptions"
                 :placeholder="t('admin.subscriptions.allGroups')"
                 @change="applyFilters"
               />
+              </label>
             </div>
             <div class="w-full sm:w-40">
-              <Select :aria-label="t('admin.subscriptions.allPlatforms')"
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.subscriptions.allPlatforms') }}</span>
+                <Select :aria-label="t('admin.subscriptions.allPlatforms')"
                 v-model="filters.platform"
                 :options="platformFilterOptions"
                 :placeholder="t('admin.subscriptions.allPlatforms')"
                 @change="applyFilters"
               />
+              </label>
             </div>
           </div>
 
@@ -479,9 +494,9 @@
         </label>
         <p v-if="batchAssignEnabled" class="input-hint">{{ t('admin.subscriptions.batchAssign.hint') }}</p>
         <div>
-          <label class="input-label">{{ t('admin.subscriptions.form.user') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.subscriptions.form.user') }}</label>
           <div class="relative" data-assign-user-search>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
               v-model="userSearchKeyword"
               type="text"
               :disabled="submitting || (batchAssignEnabled && assignUsers.length >= 100)"
@@ -490,7 +505,7 @@
               @input="debounceSearchUsers"
               @focus="showUserDropdown = true"
             />
-            <button
+            <button :aria-label="t('consoleFields.remove')"
               v-if="selectedUser"
               @click="clearUserSelection"
               type="button"
@@ -548,8 +563,8 @@
           </div>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.subscriptions.form.group') }}</label>
-          <Select :aria-label="t('admin.subscriptions.form.group')"
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.subscriptions.form.group') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('admin.subscriptions.form.group')"
             v-model="assignForm.group_id"
             :disabled="submitting"
             :options="subscriptionGroupOptions"
@@ -579,8 +594,8 @@
           <p class="input-hint">{{ t('admin.subscriptions.groupHint') }}</p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.subscriptions.form.validityDays') }}</label>
-          <input v-model.number="assignForm.validity_days" type="number" min="1" max="36500" step="1" :disabled="submitting" class="input" />
+          <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.subscriptions.form.validityDays') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model.number="assignForm.validity_days" type="number" min="1" max="36500" step="1" :disabled="submitting" class="input" />
           <p class="input-hint">{{ t('admin.subscriptions.validityHint') }}</p>
         </div>
         <div v-if="batchAssignResult" class="space-y-2 text-sm" role="status" data-test="batch-assign-result">
@@ -666,9 +681,9 @@
           </p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.subscriptions.form.adjustDays') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('admin.subscriptions.form.adjustDays') }}</label>
           <div class="flex items-center gap-2">
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
               v-model.number="extendForm.days"
               type="number"
               required
@@ -800,6 +815,8 @@
 
 <script setup lang="ts">
 import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'

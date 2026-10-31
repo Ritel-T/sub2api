@@ -1,6 +1,8 @@
 <template>
   <form class="space-y-3" @submit.prevent="handleSubmit">
-    <input
+    <label class="block min-w-0 w-full">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('auth.emailPlaceholder') }}</span>
+      <input
       v-model="email"
       :data-testid="`${testIdPrefix}-create-account-email`"
       type="email"
@@ -8,7 +10,10 @@
       :placeholder="t('auth.emailPlaceholder')"
       :disabled="isSubmitting || isSendingCode"
     />
-    <input
+    </label>
+    <label class="block min-w-0 w-full">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('auth.passwordPlaceholder') }}</span>
+      <input
       v-model="password"
       :data-testid="`${testIdPrefix}-create-account-password`"
       type="password"
@@ -16,6 +21,7 @@
       :placeholder="t('auth.passwordPlaceholder')"
       :disabled="isSubmitting"
     />
+    </label>
     <div v-if="captchaEnabled" class="space-y-2">
       <TurnstileWidget
         ref="turnstileRef"
@@ -35,7 +41,7 @@
       />
     </div>
     <div v-if="emailVerifyEnabled" class="flex gap-3">
-      <input
+      <label class="block min-w-0 min-w-0 flex-1"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.verificationCode') }}</span><input
         v-model="verifyCode"
         :data-testid="`${testIdPrefix}-create-account-verify-code`"
         type="text"
@@ -44,7 +50,7 @@
         class="input min-w-0 flex-1"
         placeholder="123456"
         :disabled="isSubmitting"
-      />
+      /></label>
       <button
         :data-testid="`${testIdPrefix}-create-account-send-code`"
         type="button"
@@ -61,13 +67,13 @@
         }}
       </button>
     </div>
-    <p v-if="emailVerifyEnabled && sendCodeSuccess" class="text-sm text-green-600 dark:text-green-400">
+    <p :id="'field-' + fieldLabelScope + '-1'" v-if="emailVerifyEnabled && sendCodeSuccess" class="text-sm text-green-600 dark:text-green-400">
       {{ t('auth.codeSentSuccess') }}
     </p>
     <p v-else-if="emailVerifyEnabled" class="text-xs text-gray-500 dark:text-dark-400">
       {{ t('auth.verificationCodeHint') }}
     </p>
-    <input
+    <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
       v-if="invitationCodeEnabled"
       v-model="invitationCode"
       :data-testid="`${testIdPrefix}-create-account-invitation-code`"
@@ -97,6 +103,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import TurnstileWidget from '@/components/CaptchaChallenge.vue'

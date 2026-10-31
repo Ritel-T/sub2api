@@ -1,3 +1,5 @@
+import { createI18n } from 'vue-i18n'
+import en from '@/i18n/locales/en'
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ModelTagInput from '../ModelTagInput.vue'
@@ -5,7 +7,7 @@ import ModelTagInput from '../ModelTagInput.vue'
 function mountInput(modelValue: string[] = []) {
   return mount(ModelTagInput, {
     props: { modelValue, candidates: ['gpt-6-luna', 'gpt-6-sol'] },
-    global: { stubs: { Icon: true } }
+    global: { plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })], stubs: { Icon: true } }
   })
 }
 
@@ -39,7 +41,7 @@ describe('ModelTagInput', () => {
 
   it('removes a model with its button or Backspace on an empty draft', async () => {
     const wrapper = mountInput(['gpt-6-luna', 'gpt-6-sol'])
-    await wrapper.get('button[aria-label="remove gpt-6-luna"]').trigger('click')
+    await wrapper.get('button[aria-label="Remove model gpt-6-luna"]').trigger('click')
     expect(lastEmitted(wrapper)).toEqual(['gpt-6-sol'])
 
     await wrapper.get('[data-testid="model-tag-draft"]').trigger('keydown', { key: 'Backspace' })

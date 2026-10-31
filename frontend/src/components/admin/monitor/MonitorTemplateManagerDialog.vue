@@ -112,11 +112,11 @@
     <!-- edit / create form -->
     <div v-else class="space-y-4">
       <div>
-        <label class="input-label">
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">
           {{ t('admin.channelMonitor.template.form.name') }}
           <span class="text-red-500">*</span>
         </label>
-        <input
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
           v-model="form.name"
           type="text"
           required
@@ -162,10 +162,10 @@
       </div>
 
       <div>
-        <label class="input-label">
+        <label :id="'field-' + fieldLabelScope + '-caption-1'" class="input-label">
           {{ t('admin.channelMonitor.template.form.description') }}
         </label>
-        <input
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-caption-1'"
           v-model="form.description"
           type="text"
           class="input"
@@ -228,6 +228,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

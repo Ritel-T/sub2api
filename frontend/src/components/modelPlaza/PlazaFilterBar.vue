@@ -81,7 +81,7 @@
 
     <!-- 四级:模型名搜索(纯前端过滤) -->
     <div class="flex flex-wrap items-start gap-2">
-      <span class="w-20 shrink-0 pt-2 text-xs font-medium text-gray-400 dark:text-dark-400">
+      <span :id="'field-' + fieldLabelScope + '-1'" class="w-20 shrink-0 pt-2 text-xs font-medium text-gray-400 dark:text-dark-400">
         {{ t('modelPlaza.filters.modelLabel') }}
       </span>
       <div class="relative w-full sm:w-72">
@@ -90,14 +90,14 @@
           size="sm"
           class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500"
         />
-        <input
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
           :value="search"
           type="text"
           :placeholder="t('modelPlaza.filters.searchPlaceholder')"
           class="input rounded-lg py-1.5 pl-9 pr-9"
           @input="$emit('update:search', ($event.target as HTMLInputElement).value)"
         />
-        <button
+        <button :aria-label="t('common.clear')"
           v-if="search"
           type="button"
           class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-600 dark:text-dark-500 dark:hover:text-gray-300"
@@ -111,6 +111,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'

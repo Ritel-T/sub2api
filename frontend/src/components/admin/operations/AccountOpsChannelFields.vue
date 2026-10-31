@@ -3,7 +3,7 @@
     <button v-if="!single" type="button" class="text-xs text-primary-600 disabled:opacity-50" :disabled="modelValue.length >= 5 || !encryptionConfigured" data-testid="account-ops-add-webhook" @click="add">{{ t('accountOps.addRobot') }}</button>
     <p class="text-xs leading-5 text-gray-500">{{ t('accountOps.robotHint') }}</p>
     <p v-if="!encryptionConfigured" role="alert" class="text-xs text-amber-700">{{ t('accountOps.encryptionMissing') }}</p>
-    <div v-for="hook in modelValue" :key="hook.id" class="space-y-4">
+    <div v-for="(hook, fieldIndex0) in modelValue" :key="hook.id" class="space-y-4">
       <label class="block space-y-2 text-sm">
         <span>{{ t('accountOps.channelName') }}</span>
         <input :value="hook.name ?? ''" type="text" maxlength="80" autocomplete="off" class="input w-full" :placeholder="t('accountOps.channelNamePlaceholder')" :data-testid="`account-ops-webhook-name-${hook.id}`" @input="patch(hook.id, { name: ($event.target as HTMLInputElement).value })" />
@@ -25,14 +25,14 @@
         <span>{{ t('accountOps.signingSecret') }}</span>
         <input v-model="inputs[hook.id]!.secret" type="password" autocomplete="new-password" spellcheck="false" class="input w-full" :disabled="!encryptionConfigured || inputs[hook.id]!.clearSecret" :placeholder="hook.secret_configured && !inputs[hook.id]!.url ? t('accountOps.retainCredential') : t('accountOps.optionalSecret')" :data-testid="`account-ops-webhook-secret-${hook.id}`" />
       </label>
-      <label v-if="hook.secret_configured && supportsSigning(hook) && !inputs[hook.id]!.url" class="flex items-center gap-2 text-xs text-gray-500">
+      <label :id="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0" v-if="hook.secret_configured && supportsSigning(hook) && !inputs[hook.id]!.url" class="flex items-center gap-2 text-xs text-gray-500">
         <input v-model="inputs[hook.id]!.clearSecret" type="checkbox" :data-testid="`account-ops-webhook-clear-secret-${hook.id}`" />{{ t('accountOps.clearSecret') }}
       </label>
       <details v-if="detectedProvider(hook) === 'custom'" class="open-section" :open="!!hook.message_template">
         <summary class="cursor-pointer text-sm font-medium">{{ t('accountOps.webhookTemplate') }}</summary>
         <div class="mt-3 space-y-3">
           <p class="text-xs leading-5 text-gray-500">{{ t('accountOps.webhookTemplateHint') }}</p>
-          <textarea v-model="inputs[hook.id]!.template" rows="5" maxlength="16384" spellcheck="false" class="input w-full font-mono text-xs" :aria-label="t('accountOps.webhookTemplate')" :placeholder="defaultTemplate" :data-testid="`account-ops-webhook-template-${hook.id}`" />
+          <textarea :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0" v-model="inputs[hook.id]!.template" rows="5" maxlength="16384" spellcheck="false" class="input w-full font-mono text-xs" :aria-label="t('accountOps.webhookTemplate')" :placeholder="defaultTemplate" :data-testid="`account-ops-webhook-template-${hook.id}`" />
           <p class="break-words font-mono text-xs text-gray-500">{{ templateVariables }}</p>
         </div>
       </details>
@@ -44,6 +44,9 @@
   </section>
 </template>
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, onBeforeUnmount, reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountOpsWebhook, AccountOpsWebhookInput, AccountOpsWebhookProvider } from '@/api/admin/accountOps'

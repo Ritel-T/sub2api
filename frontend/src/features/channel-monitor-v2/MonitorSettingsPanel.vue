@@ -120,11 +120,16 @@
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 py-4 dark:border-dark-700">
-          <select v-model="selectedCandidate" class="input min-w-[12rem] flex-1" data-testid="monitor-v2-platform-select" :aria-label="t('channelMonitorV2.settings.selectPlatform')">
+          <label class="block min-w-0 min-w-[12rem] flex-1">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('channelMonitorV2.settings.selectPlatform') }}</span>
+            <select v-model="selectedCandidate" class="input min-w-[12rem] flex-1" data-testid="monitor-v2-platform-select" :aria-label="t('channelMonitorV2.settings.selectPlatform')">
             <option value="">{{ t('channelMonitorV2.settings.selectPlatform') }}</option>
             <option v-for="option in addCandidates" :key="option.value" :value="option.value">{{ option.label }}</option>
           </select>
-          <input
+          </label>
+          <label class="block min-w-0 min-w-[12rem] flex-1">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('channelMonitorV2.settings.customPlatform') }}</span>
+            <input
             v-model="customPlatform"
             class="input min-w-[12rem] flex-1"
             type="text"
@@ -134,6 +139,7 @@
             :aria-label="t('channelMonitorV2.settings.customPlatform')"
             @keydown.enter.prevent="addPlatform"
           />
+          </label>
           <button type="button" class="btn btn-secondary btn-sm" data-testid="monitor-v2-add-platform" @click="addPlatform">
             <Icon name="plus" size="xs" />
             {{ t('channelMonitorV2.settings.addPlatform') }}
@@ -155,13 +161,16 @@
                 <span v-if="isFactoryPlatform(platform.platform)"> · {{ t('channelMonitorV2.settings.factoryBadge') }}</span>
               </small>
             </div>
-            <input
+            <label class="block min-w-0 min-w-[12rem] flex-1">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('channelMonitorV2.settings.modelsPlaceholder') }}</span>
+              <input
               class="input min-w-[12rem] flex-1"
               :value="platform.models.join(', ')"
               type="text"
               :placeholder="t('channelMonitorV2.settings.modelsPlaceholder')"
               @change="setModels(platform, $event)"
             />
+            </label>
             <span
               class="badge justify-self-start sm:justify-self-end"
               :class="platform.models.length ? 'badge-gray' : 'badge badge-primary'"

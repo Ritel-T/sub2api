@@ -33,6 +33,7 @@
 </template>
 <script setup lang="ts">
 import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+import { consoleUiMessages } from '@/i18n/consoleCopy'
 
 import { computed } from 'vue'
 import AppHeading from '@/components/common/AppHeading.vue'
@@ -50,11 +51,7 @@ const copy = useOverviewCopy()
 const { t, locale } = useI18n()
 const appStore = useAppStore()
 const rows = computed(() => recentOverviewRequests(props.data, props.errors))
-const requestCopy = computed(() => locale.value === 'zh'
-  ? { status: '状态', duration: '耗时', success: '成功', failed: '失败' }
-  : /^(zh|yue)/i.test(locale.value)
-    ? { status: '狀態', duration: '耗時', success: '成功', failed: '失敗' }
-    : { status: 'Status', duration: 'Duration', success: 'Success', failed: 'Failed' })
+const requestCopy = computed(() => consoleUiMessages(locale?.value ?? 'en').requestStatus)
 const visibleResponseModel = (log: UsageLog) => userVisibleUpstreamResponseModel(appStore.cachedPublicSettings, log)
 </script>
 <style scoped>

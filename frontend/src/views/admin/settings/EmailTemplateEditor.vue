@@ -113,7 +113,7 @@
                   : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
               "
             >
-              {{ selectedEventMeta.optional ? localText("可退订通知", "Optional") : localText("事务邮件", "Transactional") }}
+              {{ selectedEventMeta.optional ? t('consoleInline.optional_ae4b10') : t('consoleInline.transactional_c00aab') }}
             </span>
           </div>
           <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
@@ -236,7 +236,6 @@ import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'
 
-import { localizeInlineText } from '@/i18n/inline'
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
@@ -342,134 +341,69 @@ interface EventDisplayMeta {
   categoryLabel: string;
 }
 
-function localText(zh: string, en: string): string {
-  return localizeInlineText(zh, en, locale.value);
-}
 
-const eventDisplayMeta: Record<string, EventDisplayMeta> = {
+
+const eventDisplayKeys: Record<string, Record<keyof EventDisplayMeta, string>> = {
   "auth.verify_code": {
-    label: "邮箱验证码",
-    timing: "注册、绑定邮箱、OAuth 补全邮箱或 TOTP 邮箱校验时发送。",
-    categoryLabel: "认证安全",
+    "label": "consoleInline.emailVerificationCode_29c6c7",
+    "timing": "consoleInline.sentForRegistrationEmailBindingOAuthPending_70888f",
+    "categoryLabel": "consoleInline.auth_fc5119"
   },
   "auth.password_reset": {
-    label: "密码重置",
-    timing: "用户请求密码重置链接时发送。",
-    categoryLabel: "认证安全",
+    "label": "consoleInline.passwordReset_2586b6",
+    "timing": "consoleInline.sentWhenAUserRequestsAPassword_b0d9b8",
+    "categoryLabel": "consoleInline.auth_fc5119"
   },
   "notification_email.verify_code": {
-    label: "通知邮箱验证码",
-    timing: "用户添加并验证额外通知邮箱时发送。",
-    categoryLabel: "认证安全",
+    "label": "consoleInline.notificationEmailVerification_1871be",
+    "timing": "consoleInline.sentWhenAUserAddsAndVerifies_8e11fd",
+    "categoryLabel": "consoleInline.auth_fc5119"
   },
   "subscription.purchase_success": {
-    label: "订阅开通成功",
-    timing: "订阅订单完成支付并成功开通或续期后发送。",
-    categoryLabel: "订阅",
+    "label": "consoleInline.subscriptionActivated_dbf742",
+    "timing": "consoleInline.sentAfterASubscriptionOrderIsPaid_2e30f3",
+    "categoryLabel": "consoleInline.subscription_38237b"
   },
   "subscription.expiry_reminder": {
-    label: "订阅到期提醒",
-    timing: "后台任务在订阅仍有效且距离到期剩余 7 天、3 天、1 天时各发送一次，可通过邮件设置中的开关关闭。",
-    categoryLabel: "订阅",
+    "label": "consoleInline.subscriptionExpiryReminder_9e72f1",
+    "timing": "consoleInline.sentByTheBackgroundJobWhenAn_c2d1cd",
+    "categoryLabel": "consoleInline.subscription_38237b"
   },
   "balance.low": {
-    label: "余额不足提醒",
-    timing: "用户余额低于全局或个人配置的提醒阈值时发送。",
-    categoryLabel: "计费",
+    "label": "consoleInline.lowBalanceAlert_f322aa",
+    "timing": "consoleInline.sentWhenAUserSBalanceDrops_e62b2c",
+    "categoryLabel": "consoleInline.billing_81f94d"
   },
   "balance.recharge_success": {
-    label: "余额充值成功",
-    timing: "余额充值订单支付完成并入账后发送。",
-    categoryLabel: "计费",
+    "label": "consoleInline.balanceRechargeSuccess_94ce1d",
+    "timing": "consoleInline.sentAfterABalanceRechargeOrderIs_605361",
+    "categoryLabel": "consoleInline.billing_81f94d"
   },
   "account.quota_alert": {
-    label: "账号限额告警",
-    timing: "上游账号的用量达到配置的额度告警阈值时发送给管理员通知邮箱。",
-    categoryLabel: "管理告警",
+    "label": "consoleInline.accountQuotaAlert_273d98",
+    "timing": "consoleInline.sentToAdminNotificationEmailsWhenAn_7ad879",
+    "categoryLabel": "consoleInline.admin_95bacc"
   },
   "content_moderation.violation_notice": {
-    label: "内容审计违规提醒",
-    timing: "用户请求命中内容审计或风控规则、但尚未被禁用时发送。",
-    categoryLabel: "风控",
+    "label": "consoleInline.riskControlViolationNotice_1c3cae",
+    "timing": "consoleInline.sentWhenAUserRequestTriggersContent_071e07",
+    "categoryLabel": "consoleInline.riskControl_313e8b"
   },
   "content_moderation.account_disabled": {
-    label: "内容审计禁用账号",
-    timing: "内容审计违规次数达到封禁阈值并自动禁用用户账号时发送。",
-    categoryLabel: "风控",
+    "label": "consoleInline.riskControlAccountDisabled_6a67e2",
+    "timing": "consoleInline.sentWhenContentModerationReachesTheBan_8af0e6",
+    "categoryLabel": "consoleInline.riskControl_313e8b"
   },
   "ops.alert": {
-    label: "运维告警",
-    timing: "运维监控规则触发告警并满足邮件通知配置时发送给运维收件人。",
-    categoryLabel: "运维",
+    "label": "consoleInline.opsAlert_6f519a",
+    "timing": "consoleInline.sentToOpsRecipientsWhenAnOps_d9c690",
+    "categoryLabel": "consoleInline.ops_474f51"
   },
   "ops.scheduled_report": {
-    label: "运维定时报表",
-    timing: "运维日报、周报、错误摘要或账号健康报表到达配置的发送时间时发送；日报和周报的完整指标均可在模板中编辑。",
-    categoryLabel: "运维",
-  },
-};
-
-const eventDisplayMetaEn: Record<string, EventDisplayMeta> = {
-  "auth.verify_code": {
-    label: "Email Verification Code",
-    timing: "Sent for registration, email binding, OAuth pending email completion, or TOTP email verification.",
-    categoryLabel: "Auth",
-  },
-  "auth.password_reset": {
-    label: "Password Reset",
-    timing: "Sent when a user requests a password reset link.",
-    categoryLabel: "Auth",
-  },
-  "notification_email.verify_code": {
-    label: "Notification Email Verification",
-    timing: "Sent when a user adds and verifies an extra notification email address.",
-    categoryLabel: "Auth",
-  },
-  "subscription.purchase_success": {
-    label: "Subscription Activated",
-    timing: "Sent after a subscription order is paid and the subscription is activated or extended.",
-    categoryLabel: "Subscription",
-  },
-  "subscription.expiry_reminder": {
-    label: "Subscription Expiry Reminder",
-    timing: "Sent by the background job when an active subscription has 7, 3, or 1 day remaining. It can be disabled in Email settings.",
-    categoryLabel: "Subscription",
-  },
-  "balance.low": {
-    label: "Low Balance Alert",
-    timing: "Sent when a user's balance drops below the global or personal reminder threshold.",
-    categoryLabel: "Billing",
-  },
-  "balance.recharge_success": {
-    label: "Balance Recharge Success",
-    timing: "Sent after a balance recharge order is paid and credited.",
-    categoryLabel: "Billing",
-  },
-  "account.quota_alert": {
-    label: "Account Quota Alert",
-    timing: "Sent to admin notification emails when an upstream account reaches the configured quota alert threshold.",
-    categoryLabel: "Admin",
-  },
-  "content_moderation.violation_notice": {
-    label: "Risk Control Violation Notice",
-    timing: "Sent when a user request triggers content moderation or risk-control rules but the account is not disabled yet.",
-    categoryLabel: "Risk Control",
-  },
-  "content_moderation.account_disabled": {
-    label: "Risk Control Account Disabled",
-    timing: "Sent when content moderation reaches the ban threshold and automatically disables the user account.",
-    categoryLabel: "Risk Control",
-  },
-  "ops.alert": {
-    label: "Ops Alert",
-    timing: "Sent to ops recipients when an ops monitoring rule fires and email notification settings allow it.",
-    categoryLabel: "Ops",
-  },
-  "ops.scheduled_report": {
-    label: "Ops Scheduled Report",
-    timing: "Sent when a configured daily, weekly, error digest, or account health report reaches its scheduled send time. Every daily and weekly summary metric is editable in this template.",
-    categoryLabel: "Ops",
-  },
+    "label": "consoleInline.opsScheduledReport_95ad38",
+    "timing": "consoleInline.sentWhenAConfiguredDailyWeeklyError_0f32a7",
+    "categoryLabel": "consoleInline.ops_474f51"
+  }
 };
 
 function normalizeEventOption(option: EmailTemplateEventOption): EmailTemplateOption {
@@ -481,11 +415,8 @@ function normalizeEventOption(option: EmailTemplateEventOption): EmailTemplateOp
 
 function eventMetaFor(option?: EmailTemplateOption | null) {
   if (!option) return null;
-  const displayMeta = (
-    locale.value.toLowerCase().startsWith("zh")
-      ? eventDisplayMeta
-      : eventDisplayMetaEn
-  )[option.value];
+  const keys = eventDisplayKeys[option.value];
+  const displayMeta = keys ? { label: t(keys.label), timing: t(keys.timing), categoryLabel: t(keys.categoryLabel) } : undefined;
   const label = displayMeta?.label || option.label || option.value;
   const timing = displayMeta?.timing || option.description || "";
   const categoryLabel =
@@ -506,17 +437,17 @@ function formatEventOptionLabel(option: EmailTemplateOption): string {
 
 function formatCategory(category: string): string {
   const normalized = category.trim().toLowerCase();
-  if (!normalized) return localText("通知", "Notification");
-  const labels: Record<string, { zh: string; en: string }> = {
-    auth: { zh: "认证安全", en: "Auth" },
-    subscription: { zh: "订阅", en: "Subscription" },
-    billing: { zh: "计费", en: "Billing" },
-    admin: { zh: "管理告警", en: "Admin" },
-    risk_control: { zh: "风控", en: "Risk Control" },
-    ops: { zh: "运维", en: "Ops" },
+  if (!normalized) return t('consoleInline.notification_e9c04d');
+  const labels: Record<string, { labelKey: string }> = {
+    auth: { labelKey: 'consoleInline.auth_fc5119' },
+    subscription: { labelKey: 'consoleInline.subscription_38237b' },
+    billing: { labelKey: 'consoleInline.billing_81f94d' },
+    admin: { labelKey: 'consoleInline.admin_95bacc' },
+    risk_control: { labelKey: 'consoleInline.riskControl_313e8b' },
+    ops: { labelKey: 'consoleInline.ops_474f51' },
   };
   const item = labels[normalized];
-  return item ? localText(item.zh, item.en) : category;
+  return item ? t(item.labelKey) : category;
 }
 
 const selectedEventOption = computed(() => {

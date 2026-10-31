@@ -9,7 +9,7 @@
         :class="getPlatformTagClass(props.platform || '')"
       >
         {{ model }}
-        <button
+        <button :aria-label="t('consoleFields.remove')"
           type="button"
           @click="removeModel(idx)"
           class="ml-0.5 rounded-full p-0.5 hover:bg-primary-200 dark:hover:bg-primary-800"
@@ -17,7 +17,7 @@
           <Icon name="x" size="xs" />
         </button>
       </span>
-      <input
+      <label class="block min-w-0 flex-1 min-w-[120px]"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.model') }}</span><input
         ref="inputRef"
         v-model="inputValue"
         type="text"
@@ -28,7 +28,7 @@
         @keydown.backspace="handleBackspace"
         @paste="handlePaste"
         @blur="addModel"
-      />
+      /></label>
     </div>
     <p class="mt-1 text-xs text-gray-400">
       {{ t('admin.channels.form.modelInputHint', 'Press Enter to add, supports paste for batch import.') }}

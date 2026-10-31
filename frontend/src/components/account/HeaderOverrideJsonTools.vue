@@ -16,13 +16,13 @@
   </button>
 
   <div v-if="showImportPanel" ref="importPanelRef" class="w-full space-y-2">
-    <textarea
+    <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.headerJson') }}</span><textarea
       ref="importTextareaRef"
       v-model="importText"
       rows="5"
       class="input font-mono text-xs"
       :placeholder="IMPORT_JSON_PLACEHOLDER"
-    ></textarea>
+    ></textarea></label>
     <div class="flex gap-2">
       <button
         type="button"

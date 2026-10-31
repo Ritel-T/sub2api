@@ -1,50 +1,50 @@
 <template>
   <details class="open-section" @toggle="onToggle">
-    <summary class="cursor-pointer px-6 py-4 font-semibold">{{ text('Serverless 管理', 'Serverless management') }}
-      <span class="ml-2 text-xs font-normal text-gray-500">{{ text('地区 → Pod（可选）', 'Region → Pod (optional)') }}</span>
+    <summary class="cursor-pointer px-6 py-4 font-semibold">{{ t('consoleInline.serverlessManagement_0f494d') }}
+      <span class="ml-2 text-xs font-normal text-gray-500">{{ t('consoleInline.regionPodOptional_628d61') }}</span>
     </summary>
     <div class="space-y-5 border-t border-gray-100 p-6 dark:border-dark-700">
-      <p class="text-sm text-gray-500">{{ text('管理已有请求 Pod，不创建或扩缩容。默认关闭；未知地区走主站。地区复用现有 IP 地区分析。', 'Manage existing request Pods without creating or scaling them. Disabled by default; unknown regions use the primary. Regions use the existing IP geolocation provider.') }}</p>
+      <p class="text-sm text-gray-500">{{ t('consoleInline.manageExistingRequestPodsWithoutCreatingOr_4eaca8') }}</p>
       <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
       <p v-if="notice" role="status" class="text-sm text-green-600">{{ notice }}</p>
       <div class="flex flex-wrap items-center gap-4">
-        <label class="flex items-center gap-2"><input v-model="draft.enabled" type="checkbox" :disabled="busy || !loaded" data-testid="serverless-enabled" />{{ text('开启地区分流', 'Enable region routing') }}</label>
-        <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refresh(false)">{{ text('刷新状态', 'Refresh status') }}</button>
-        <button v-if="!managed && dirty" type="button" class="btn btn-primary btn-sm" :disabled="busy || !loaded" @click="save">{{ text('保存 Serverless 配置', 'Save Serverless configuration') }}</button>
+        <label class="flex items-center gap-2"><input v-model="draft.enabled" type="checkbox" :disabled="busy || !loaded" data-testid="serverless-enabled" />{{ t('consoleInline.enableRegionRouting_14520c') }}</label>
+        <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refresh(false)">{{ t('consoleInline.refreshStatus_a26544') }}</button>
+        <button v-if="!managed && dirty" type="button" class="btn btn-primary btn-sm" :disabled="busy || !loaded" @click="save">{{ t('consoleInline.saveServerlessConfiguration_9c8473') }}</button>
       </div>
-      <p class="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">{{ text('同一 API Key 固定到同一 Pod（最后使用后保留 24 小时）。停用分流或 Pod 只阻止新绑定；已有绑定继续使用原 Pod。绑定实例失联或重启时返回错误，不自动迁移会话。首次启用前先结束存量 BPS/WS 会话。', 'Each API Key stays on one Pod for 24 hours after last use. Disabling routing or a Pod stops new bindings; existing bindings remain. A missing or restarted bound instance returns an error without moving the conversation. Finish existing BPS/WS conversations before first enabling routing.') }}</p>
+      <p class="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">{{ t('consoleInline.eachAPIKeyStaysOnOnePod_9a294e') }}</p>
 
       <section class="space-y-3">
-        <AppHeading as="h3" variant="subsection" >{{ text('自动注册的 Pod', 'Automatically registered Pods') }}</AppHeading>
-        <p class="text-xs text-gray-500">{{ text('心跳就绪不等于入口可达；先确认上报地址，再保存并检查连接。跨集群请使用可达的 HTTPS 或受信隧道地址。', 'A ready heartbeat does not prove ingress connectivity. Approve the reported endpoint, save, then check connectivity. Across clusters, use a reachable HTTPS or trusted tunnel endpoint.') }}</p>
-        <p v-if="!pods.length" class="text-sm text-gray-500">{{ text('暂无 Pod；按下方接入说明配置已有 gateway。', 'No Pods yet. Configure an existing gateway using the connection instructions below.') }}</p>
+        <AppHeading as="h3" variant="subsection" >{{ t('consoleInline.automaticallyRegisteredPods_54aae8') }}</AppHeading>
+        <p class="text-xs text-gray-500">{{ t('consoleInline.aReadyHeartbeatDoesNotProveIngress_13866b') }}</p>
+        <p v-if="!pods.length" class="text-sm text-gray-500">{{ t('consoleInline.noPodsYetConfigureAnExistingGateway_ea822e') }}</p>
         <div v-for="pod in pods" :key="pod.id" class="border-t border-gray-200 py-4 text-sm dark:border-dark-700">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="font-medium">{{ pod.id }} <span class="text-xs text-gray-500">{{ pod.region || '—' }} · {{ pod.version || '—' }}</span></span>
-            <span :class="pod.ready ? 'text-green-600' : 'text-amber-600'">{{ pod.ready ? text('心跳就绪', 'Heartbeat ready') : text('未就绪 / 失联', 'Not ready / offline') }}</span>
+            <span :class="pod.ready ? 'text-green-600' : 'text-amber-600'">{{ pod.ready ? t('consoleInline.heartbeatReady_e1e064') : t('consoleInline.notReadyOffline_118587') }}</span>
           </div>
           <p class="mt-1 break-all text-xs text-gray-500">{{ pod.endpoint }} · {{ formatDisplayTimestamp(pod.at * 1000) }}</p>
           <div class="mt-2 flex flex-wrap items-center gap-2">
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || approved(pod)" @click="approve(pod)">{{ approved(pod) ? text('地址已确认', 'Endpoint approved') : text('确认此地址', 'Approve endpoint') }}</button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !approved(pod)" @click="probe(pod.id)">{{ text('检查连接', 'Check connection') }}</button>
-            <span v-if="probes[pod.id] !== undefined" class="text-xs">{{ probes[pod.id] ? text('检查时可达', 'Reachable at last check') : text('检查未通过', 'Check failed') }}</span>
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || approved(pod)" @click="approve(pod)">{{ approved(pod) ? t('consoleInline.endpointApproved_87f6b7') : t('consoleInline.approveEndpoint_c98329') }}</button>
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !approved(pod)" @click="probe(pod.id)">{{ t('consoleInline.checkConnection_9b579b') }}</button>
+            <span v-if="probes[pod.id] !== undefined" class="text-xs">{{ probes[pod.id] ? t('consoleInline.reachableAtLastCheck_624df9') : t('consoleInline.checkFailed_679606') }}</span>
           </div>
         </div>
         <div v-for="policy in draft.pods" :key="policy.id" class="flex flex-wrap items-center gap-3 text-sm">
-          <label class="flex items-center gap-2"><input v-model="policy.enabled" type="checkbox" :disabled="busy" />{{ policy.id }} · {{ text('接收新绑定', 'Accept new bindings') }}</label>
+          <label class="flex items-center gap-2"><input v-model="policy.enabled" type="checkbox" :disabled="busy" />{{ policy.id }} · {{ t('consoleInline.acceptNewBindings_5ed77b') }}</label>
           <code class="break-all text-xs text-gray-500">{{ policy.endpoint }}</code>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="removePod(policy.id)">{{ text('移除规则引用', 'Remove policy') }}</button>
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="removePod(policy.id)">{{ t('consoleInline.removePolicy_3c5607') }}</button>
         </div>
       </section>
 
       <section class="space-y-3">
-        <div class="flex items-center justify-between"><AppHeading as="h3" variant="subsection" >{{ text('地区 → Pod 池', 'Region → Pod pool') }}</AppHeading>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !loaded" @click="addRegion">{{ text('添加地区', 'Add region') }}</button>
+        <div class="flex items-center justify-between"><AppHeading as="h3" variant="subsection" >{{ t('consoleInline.regionPodPool_b1e326') }}</AppHeading>
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !loaded" @click="addRegion">{{ t('consoleInline.addRegion_f621ad') }}</button>
         </div>
         <div v-for="(region, index) in draft.regions" :key="index" class="space-y-3 border-t border-gray-200 py-4 dark:border-dark-700">
           <div class="flex flex-wrap items-center gap-3">
-            <label class="text-sm">{{ text('国家代码', 'Country code') }}<input v-model="region.country" maxlength="2" class="input ml-2 w-24" placeholder="US" :disabled="busy" /></label>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="draft.regions.splice(index, 1)">{{ text('删除地区', 'Remove region') }}</button>
+            <label class="text-sm">{{ t('consoleInline.countryCode_e645d9') }}<input v-model="region.country" maxlength="2" class="input ml-2 w-24" placeholder="US" :disabled="busy" /></label>
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="draft.regions.splice(index, 1)">{{ t('consoleInline.removeRegion_89678b') }}</button>
           </div>
           <div class="flex flex-wrap gap-4">
             <label v-for="pod in draft.pods" :key="pod.id" class="flex items-center gap-2 text-sm"><input v-model="region.pod_ids" :value="pod.id" type="checkbox" :disabled="busy" />{{ pod.id }}</label>
@@ -53,21 +53,21 @@
       </section>
 
       <section>
-        <AppHeading as="h3" variant="subsection" class="mb-2">{{ text('今日分流（UTC）', 'Routing today (UTC)') }}</AppHeading>
+        <AppHeading as="h3" variant="subsection" class="mb-2">{{ t('consoleInline.routingTodayUTC_8ee555') }}</AppHeading>
         <div class="overflow-x-auto"><table class="w-full text-left text-sm">
-          <thead><tr><th>Pod</th><th>{{ text('地区', 'Region') }}</th><th>{{ text('原因', 'Reason') }}</th><th>{{ text('请求', 'Requests') }}</th><th>{{ text('HTTP 错误', 'HTTP errors') }}</th></tr></thead>
+          <thead><tr><th>Pod</th><th>{{ t('consoleInline.region_9833d9') }}</th><th>{{ t('consoleInline.reason_2e3c65') }}</th><th>{{ t('consoleInline.requests_d02991') }}</th><th>{{ t('consoleInline.hTTPErrors_ccb3e3') }}</th></tr></thead>
           <tbody><tr v-for="row in statRows" :key="row.key"><td>{{ row.pod }}</td><td>{{ row.country }}</td><td>{{ reasonLabel(row.reason) }}</td><td>{{ row.requests }}</td><td>{{ row.errors }}</td></tr></tbody>
         </table></div>
-        <p class="mt-2 text-xs text-gray-500">{{ text('统计为入口完成的 HTTP/WS 请求；流已开始后的业务错误不一定反映在 HTTP 状态中。', 'Counts cover completed ingress HTTP/WS requests. Errors after streaming starts may not appear in the HTTP status.') }}</p>
+        <p class="mt-2 text-xs text-gray-500">{{ t('consoleInline.countsCoverCompletedIngressHTTPWSRequests_1ee534') }}</p>
       </section>
       <details class="text-sm">
-        <summary class="cursor-pointer">{{ text('Pod 接入说明', 'Pod connection instructions') }}</summary>
-        <p class="mt-2">{{ text('主站与 Pod 共用 PostgreSQL/Redis 和至少 32 字节的 RUNTIME_SERVERLESS_SECRET，使用 Secret 注入，不填入页面。Pod 额外配置以下环境变量，并允许主站访问 /internal/serverless/probe 与业务路由：', 'The primary and Pods share PostgreSQL/Redis and a RUNTIME_SERVERLESS_SECRET of at least 32 bytes, injected through a Secret, not this form. Configure these additional Pod variables and allow the primary to reach /internal/serverless/probe and gateway routes:') }}</p>
+        <summary class="cursor-pointer">{{ t('consoleInline.podConnectionInstructions_89e705') }}</summary>
+        <p class="mt-2">{{ t('consoleInline.thePrimaryAndPodsSharePostgreSQLRedis_fea5e4') }}</p>
         <pre class="mt-2 overflow-x-auto rounded bg-gray-50 p-3 text-xs dark:bg-dark-800">RUNTIME_ROLE=gateway
 RUNTIME_SERVERLESS_ID=nerd-us-1
 RUNTIME_SERVERLESS_REGION=US
 RUNTIME_SERVERLESS_ENDPOINT=https://pod.example.com</pre>
-        <p class="mt-2 text-xs text-gray-500">{{ text('ID 必须全局唯一；地址应直达该 Pod，不要指向会随机负载均衡的入口。仅同步文本接口和 Responses WebSocket 参与分流；异步任务、管理和支付保持主站。', 'IDs must be globally unique. The endpoint must identify this Pod, not a random load balancer. Routing covers synchronous text APIs and Responses WebSockets; asynchronous tasks, management and payments remain on the primary.') }}</p>
+        <p class="mt-2 text-xs text-gray-500">{{ t('consoleInline.iDsMustBeGloballyUniqueTheEndpoint_e46638') }}</p>
       </details>
     </div>
   </details>
@@ -82,7 +82,6 @@ import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'
 
-import { localizeInlineText } from '@/i18n/inline'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiClient } from '@/api/client'
@@ -97,8 +96,7 @@ const saved = ref<Config | null>(null)
 const dirty = computed(() => saved.value !== null && JSON.stringify(draft.value) !== JSON.stringify(saved.value))
 function discard() { if (saved.value) draft.value = JSON.parse(JSON.stringify(saved.value)) }
 defineExpose({ dirty, save, discard })
-const { locale } = useI18n()
-const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
+const { t } = useI18n()
 const loaded = ref(false), busy = ref(false), error = ref(''), notice = ref('')
 const draft = ref<Config>({ enabled: false, pods: [], regions: [] })
 const pods = ref<Pod[]>([]), stats = ref<Record<string, string>>({}), probes = ref<Record<string, boolean>>({})
@@ -119,16 +117,16 @@ const statRows = computed(() => {
 })
 function reasonLabel(reason: string) {
   const labels: Record<string, string> = {
-    region: text('地区命中', 'Region match'), binding: text('已有绑定', 'Existing binding'),
-    default: text('默认主站', 'Default primary'), unhealthy_fallback: text('无健康 Pod，回主站', 'No healthy Pod; primary'),
-    binding_unavailable: text('绑定实例不可用', 'Bound instance unavailable'),
+    region: t('consoleInline.regionMatch_a03aba'), binding: t('consoleInline.existingBinding_b54730'),
+    default: t('consoleInline.defaultPrimary_1e5a9b'), unhealthy_fallback: t('consoleInline.noHealthyPodPrimary_ca4d26'),
+    binding_unavailable: t('consoleInline.boundInstanceUnavailable_7342f7'),
   }
   return labels[reason] ?? reason
 }
 async function action(fn: () => Promise<void>) {
   if (busy.value) return
   busy.value = true; error.value = ''; notice.value = ''
-  try { await fn() } catch { if (!disposed) error.value = text('操作失败，请检查配置、集群密钥和网络后重试。', 'Operation failed. Check configuration, cluster credentials and connectivity.') }
+  try { await fn() } catch { if (!disposed) error.value = t('consoleInline.operationFailedCheckConfigurationClusterCredentialsAnd_7e6d1a') }
   finally { if (!disposed) busy.value = false }
 }
 async function refresh(replace: boolean) {
@@ -146,7 +144,7 @@ async function save() {
     const config: Config = JSON.parse(JSON.stringify(draft.value))
     config.regions.forEach(r => { r.country = r.country.trim().toUpperCase() })
     const { data } = await apiClient.put<Config>('/admin/serverless', config)
-    if (!disposed) { draft.value = data; saved.value = JSON.parse(JSON.stringify(data)); notice.value = text('已保存。新规则在数秒内生效，已有绑定保持不变。', 'Saved. New rules take effect within seconds; existing bindings remain.') }
+    if (!disposed) { draft.value = data; saved.value = JSON.parse(JSON.stringify(data)); notice.value = t('consoleInline.savedNewRulesTakeEffectWithinSeconds_89cf4e') }
   })
 }
 function approved(p: Pod) { return draft.value.pods.some(v => v.id === p.id && v.endpoint.replace(/\/$/, '') === p.endpoint) }
@@ -154,10 +152,10 @@ function approve(p: Pod) {
   const existing = draft.value.pods.find(v => v.id === p.id)
   if (existing) { existing.endpoint = p.endpoint; existing.enabled = false }
   else draft.value.pods.push({ id: p.id, endpoint: p.endpoint, enabled: false })
-  notice.value = text('已加入草稿，需保存后才能检查连接。确认就绪后再启用新绑定。', 'Added to draft. Save before checking connectivity, then enable new bindings.')
+  notice.value = t('consoleInline.addedToDraftSaveBeforeCheckingConnectivity_d34750')
 }
 async function removePod(id: string) {
-  await confirmation.run({ message: text('移除会让已有绑定无法继续请求。确认该 Pod 已排空？', 'Removing the policy breaks existing bindings. Confirm that this Pod is drained?'), title: text('移除', 'Remove'), confirmText: text('移除', 'Remove'), danger: true }, async () => {
+  await confirmation.run({ message: t('consoleInline.removingThePolicyBreaksExistingBindingsConfirm_8ef14b'), title: t('consoleInline.remove_ca30f1'), confirmText: t('consoleInline.remove_ca30f1'), danger: true }, async () => {
     draft.value.pods = draft.value.pods.filter(p => p.id !== id)
     draft.value.regions.forEach(r => { r.pod_ids = r.pod_ids.filter(p => p !== id) })
   })

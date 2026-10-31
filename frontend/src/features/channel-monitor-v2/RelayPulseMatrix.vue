@@ -210,8 +210,9 @@ const props = withDefaults(
     healthMode: HealthMode
     /** When false, RPM/TPM are omitted from tooltips (user scale privacy). */
     showThroughput?: boolean
+    showGroupDetails?: boolean
   }>(),
-  { showThroughput: true },
+  { showThroughput: true, showGroupDetails: true },
 )
 
 type AlignedSlot = { start: string; bucket?: MonitorMatrixBucket }
@@ -352,7 +353,7 @@ function cellClass(health: MonitorHealth, requestCount: number): string {
 
 function rowLabel(row: MonitorMatrixRow): string {
   const parts = [providerLabel(row.platform) || row.platform]
-  if (row.group_name || row.group_id) parts.push(row.group_name || `#${row.group_id}`)
+  if (row.group_name || row.group_id) parts.push(props.showGroupDetails !== false ? row.group_name || `#${row.group_id}` : t('consoleFields.channel', { id: row.group_id }))
   if (row.model) parts.push(row.model === '__other__' ? t('channelMonitorV2.otherModels') : row.model)
   return parts.join(' / ')
 }

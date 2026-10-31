@@ -1,4 +1,7 @@
 import consoleExperience from './consoleExperience'
+import consoleUi from './consoleUi'
+import consoleFields from './consoleFields'
+import consoleInline from './consoleInline'
 import adminAccessKeys from './adminAccessKeys'
 import upstreamOps from './upstreamOps'
 import profitOps from './profitOps'
@@ -36,6 +39,9 @@ import autoConfig from './autoConfig'
 
 export default {
   consoleExperience,
+  consoleUi,
+  consoleFields,
+  consoleInline,
   adminAccessKeys,
   upstreamOps,
   profitOps,

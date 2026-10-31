@@ -54,10 +54,10 @@
 
       <!-- Grok: mode first, then optional model / mode params -->
       <div v-if="isGrokAccount" class="space-y-1.5">
-        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label :id="'field-' + fieldLabelScope + '-1'" class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.grok.testMode') }}
         </label>
-        <Select :aria-label="t('admin.accounts.grok.testMode')"
+        <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.accounts.grok.testMode')"
           v-model="grokTestMode"
           :options="grokTestModeOptions"
           :disabled="status === 'connecting'"
@@ -68,10 +68,10 @@
       </div>
 
       <div v-if="showModelSelect" class="space-y-1.5">
-        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label :id="'field-' + fieldLabelScope + '-2'" class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.selectTestModel') }}
         </label>
-        <Select :aria-label="t('admin.accounts.selectTestModel')"
+        <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('admin.accounts.selectTestModel')"
           v-model="selectedModelId"
           :options="modelOptionsForMode"
           :disabled="loadingModels || status === 'connecting'"
@@ -82,10 +82,10 @@
       </div>
 
       <div v-if="isOpenAIAccount" class="space-y-1.5">
-        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label :id="'field-' + fieldLabelScope + '-3'" class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.openai.testMode') }}
         </label>
-        <Select :aria-label="t('admin.accounts.openai.testMode')"
+        <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('admin.accounts.openai.testMode')"
           v-model="testMode"
           :options="openAITestModeOptions"
           :disabled="status === 'connecting'"
@@ -358,6 +358,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { consoleFetch, consoleAuthHeaders } from '@/utils/centralAccount'
 import { computed, ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'

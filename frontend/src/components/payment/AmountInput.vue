@@ -54,14 +54,14 @@
 
     <!-- Custom Amount Input -->
     <div v-if="paymentType === 'gelv_alipay' || !fixedOptions?.length">
-      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <label :id="'field-' + fieldLabelScope + '-1'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {{ t('payment.customAmount') }}
       </label>
       <div class="relative">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
           {{ paymentType === 'gelv_alipay' ? '¥' : '$' }}
         </span>
-        <input
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
           type="text"
           inputmode="decimal"
           :value="customText"
@@ -75,6 +75,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RechargeBonusTier, TopupOption } from '@/types/payment'

@@ -1,3 +1,5 @@
+import { createI18n } from 'vue-i18n'
+import en from '@/i18n/locales/en'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import SearchInput from '../SearchInput.vue'
@@ -6,7 +8,7 @@ enableAutoUnmount(afterEach)
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
 function mountInput() {
-  return mount(SearchInput, { props: { modelValue: '', debounceMs: 300 }, global: { stubs: { Icon: true } } })
+  return mount(SearchInput, { props: { modelValue: '', debounceMs: 300 }, global: { plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })], stubs: { Icon: true } } })
 }
 
 describe('SearchInput composition', () => {

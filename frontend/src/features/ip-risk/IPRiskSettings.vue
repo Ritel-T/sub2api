@@ -87,7 +87,10 @@
           <div class="flex justify-end"><button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refreshRecords">{{ tr('refreshRecords') }}</button></div>
           <p class="text-xs text-gray-500">{{ tr('anonymousUnbanHint') }}</p>
           <div class="flex flex-wrap items-center gap-2">
-            <input v-model="anonymousReleaseIP" class="input" :placeholder="tr('anonymousExactIP')" :aria-label="tr('anonymousExactIP')" data-testid="anonymous-release-ip" />
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ tr('anonymousExactIP') }}</span>
+              <input v-model="anonymousReleaseIP" class="input" :placeholder="tr('anonymousExactIP')" :aria-label="tr('anonymousExactIP')" data-testid="anonymous-release-ip" />
+            </label>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !anonymousReleaseIP.trim()" data-testid="anonymous-release-manual" @click="unbanAnonymous(anonymousReleaseIP.trim())">{{ tr('anonymousUnban') }}</button>
           </div>
           <div v-for="ban in anonymousBans" :key="ban.network" class="flex flex-wrap items-center justify-between gap-2 rounded border p-3 text-sm">
@@ -99,8 +102,14 @@
         <RiskSettingsSection :title="tr('checkTitle')" data-testid="risk-check-settings">
           <p class="text-xs text-gray-500">{{ tr('checkHint') }}</p>
           <div class="flex flex-wrap items-center gap-2">
-            <input v-model="checkIP" class="input" :placeholder="tr('network')" :aria-label="tr('checkIP')" data-testid="risk-check-ip" />
-            <input v-model="checkUA" class="input" placeholder="User-Agent" aria-label="User-Agent" />
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ tr('checkIP') }}</span>
+              <input v-model="checkIP" class="input" :placeholder="tr('network')" :aria-label="tr('checkIP')" data-testid="risk-check-ip" />
+            </label>
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ "User-Agent" }}</span>
+              <input v-model="checkUA" class="input" placeholder="User-Agent" aria-label="User-Agent" />
+            </label>
             <label class="flex items-center gap-2 text-sm"><input v-model="checkAuth" type="checkbox" />{{ tr('authRequest') }}</label>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !checkIP.trim()" data-testid="risk-check" @click="check">{{ tr('check') }}</button>
           </div>
@@ -119,9 +128,18 @@
           <AppHeading as="h3" variant="subsection" >{{ tr('events') }}</AppHeading>
           <p class="text-xs text-gray-500">{{ tr('eventsHint') }}</p>
           <div class="flex flex-wrap items-center gap-2">
-            <input v-model="filterIP" class="input" :placeholder="tr('filterIP')" :aria-label="tr('filterIP')" />
-            <select v-model="filterCategory" class="input" :aria-label="tr('category')" data-testid="risk-category"><option value="">{{ tr('allCategories') }}</option><option v-for="category in ['login', 'register', 'verification']" :key="category" :value="category">{{ label(category) }}</option></select>
-            <select v-model="filterReason" class="input" :aria-label="tr('filterReason')"><option value="">{{ tr('allReasons') }}</option><option v-for="reason in reasons" :key="reason" :value="reason">{{ label(reason) }}</option></select>
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ tr('filterIP') }}</span>
+              <input v-model="filterIP" class="input" :placeholder="tr('filterIP')" :aria-label="tr('filterIP')" />
+            </label>
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ tr('category') }}</span>
+              <select v-model="filterCategory" class="input" :aria-label="tr('category')" data-testid="risk-category"><option value="">{{ tr('allCategories') }}</option><option v-for="category in ['login', 'register', 'verification']" :key="category" :value="category">{{ label(category) }}</option></select>
+            </label>
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ tr('filterReason') }}</span>
+              <select v-model="filterReason" class="input" :aria-label="tr('filterReason')"><option value="">{{ tr('allReasons') }}</option><option v-for="reason in reasons" :key="reason" :value="reason">{{ label(reason) }}</option></select>
+            </label>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refreshRecords">{{ tr('filter') }}</button>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !events.length" @click="confirmClear = !confirmClear">{{ tr('clearEvents') }}</button>
           </div>

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -318,14 +321,14 @@ onMounted(() => {
 
       <div>
         <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.evalIntervalSeconds') }}</div>
-        <input
+        <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.evaluationInterval') }}</span><input
           v-model.number="draftAlert.evaluation_interval_seconds"
           type="number"
           min="1"
           max="86400"
           class="input"
           :aria-invalid="!alertValidation.valid"
-        />
+        /></label>
         <p class="mt-1 text-xs text-gray-500">{{ t('admin.ops.runtime.evalIntervalHint') }}</p>
       </div>
 
@@ -336,7 +339,7 @@ onMounted(() => {
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.slaMinPercent') }}</div>
-            <input
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.slaMinimum') }}</span><input
               v-model.number="draftAlert.thresholds.sla_percent_min"
               type="number"
               min="0"
@@ -344,7 +347,7 @@ onMounted(() => {
               step="0.1"
               class="input"
               placeholder="99.5"
-            />
+            /></label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.runtime.slaMinPercentHint') }}</p>
           </div>
 
@@ -352,20 +355,20 @@ onMounted(() => {
 
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.ttftP99MaxMs') }}</div>
-            <input
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.ttftMaximum') }}</span><input
               v-model.number="draftAlert.thresholds.ttft_p99_ms_max"
               type="number"
               min="0"
               step="100"
               class="input"
               placeholder="500"
-            />
+            /></label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.runtime.ttftP99MaxMsHint') }}</p>
           </div>
 
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.requestErrorRateMaxPercent') }}</div>
-            <input
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.requestErrorMaximum') }}</span><input
               v-model.number="draftAlert.thresholds.request_error_rate_percent_max"
               type="number"
               min="0"
@@ -373,13 +376,13 @@ onMounted(() => {
               step="0.1"
               class="input"
               placeholder="5"
-            />
+            /></label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.runtime.requestErrorRateMaxPercentHint') }}</p>
           </div>
 
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.upstreamErrorRateMaxPercent') }}</div>
-            <input
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.upstreamErrorMaximum') }}</span><input
               v-model.number="draftAlert.thresholds.upstream_error_rate_percent_max"
               type="number"
               min="0"
@@ -387,7 +390,7 @@ onMounted(() => {
               step="0.1"
               class="input"
               placeholder="5"
-            />
+            /></label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.runtime.upstreamErrorRateMaxPercentHint') }}</p>
           </div>
         </div>
@@ -396,7 +399,7 @@ onMounted(() => {
       <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
         <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.runtime.silencing.title') }}</div>
 
-        <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <label :id="'field-' + fieldLabelScope + '-1'" class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <input v-model="draftAlert.silencing.enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
           <span>{{ t('admin.ops.runtime.silencing.enabled') }}</span>
         </label>
@@ -404,7 +407,7 @@ onMounted(() => {
         <div v-if="draftAlert.silencing.enabled" class="mt-4 space-y-4">
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.silencing.globalUntil') }}</div>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
               v-model="draftAlert.silencing.global_until_rfc3339"
               type="text"
               class="input font-mono text-sm"
@@ -415,7 +418,7 @@ onMounted(() => {
 
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.silencing.reason') }}</div>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
               v-model="draftAlert.silencing.global_reason"
               type="text"
               class="input"
@@ -454,44 +457,53 @@ onMounted(() => {
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
                     <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.silencing.entries.ruleId') }}</div>
-                    <input
+                    <label class="block min-w-0">
+                      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.silencing.entries.ruleId') }}</span>
+                      <input
                       :value="typeof (entry as any).rule_id === 'number' ? String((entry as any).rule_id) : ''"
                       type="text"
                       class="input font-mono text-sm"
                       :placeholder="t('admin.ops.runtime.silencing.entries.ruleIdPlaceholder')"
                       @input="updateSilenceEntryRuleId(idx, ($event.target as HTMLInputElement).value)"
                     />
+                    </label>
                   </div>
 
                   <div>
                     <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.silencing.entries.severities') }}</div>
-                    <input
+                    <label class="block min-w-0">
+                      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.silencing.entries.severities') }}</span>
+                      <input
                       :value="Array.isArray((entry as any).severities) ? (entry as any).severities.join(', ') : ''"
                       type="text"
                       class="input font-mono text-sm"
                       :placeholder="t('admin.ops.runtime.silencing.entries.severitiesPlaceholder')"
                       @input="updateSilenceEntrySeverities(idx, ($event.target as HTMLInputElement).value)"
                     />
+                    </label>
                   </div>
 
                   <div>
                     <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.silencing.entries.until') }}</div>
-                    <input
+                    <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.silenceUntil') }}</span><input
                       v-model="(entry as any).until_rfc3339"
                       type="text"
                       class="input font-mono text-sm"
               placeholder="2026-01-05T00:00:00Z"
-                    />
+                    /></label>
                   </div>
 
                   <div>
                     <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.silencing.entries.reason') }}</div>
-                    <input
+                    <label class="block min-w-0">
+                      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.runtime.silencing.reason') }}</span>
+                      <input
                       v-model="(entry as any).reason"
                       type="text"
                       class="input"
                       :placeholder="t('admin.ops.runtime.silencing.reasonPlaceholder')"
                     />
+                    </label>
                   </div>
                 </div>
               </div>
@@ -511,14 +523,14 @@ onMounted(() => {
           </div>
           <div class="md:col-span-2">
             <div class="mb-1 text-xs font-medium text-gray-500">{{ t('admin.ops.runtime.lockKey') }}</div>
-            <input v-model="draftAlert.distributed_lock.key" type="text" class="input text-xs font-mono" />
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.lockKey') }}</span><input v-model="draftAlert.distributed_lock.key" type="text" class="input text-xs font-mono" /></label>
             <p v-if="draftAlert.distributed_lock.enabled" class="mt-1 text-2xs text-gray-500 dark:text-gray-400">
               {{ t('admin.ops.runtime.validation.lockKeyHint', { prefix: 'ops:' }) }}
             </p>
           </div>
           <div>
             <div class="mb-1 text-xs font-medium text-gray-500">{{ t('admin.ops.runtime.lockTTLSeconds') }}</div>
-            <input v-model.number="draftAlert.distributed_lock.ttl_seconds" type="number" min="1" max="86400" class="input text-xs font-mono" />
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.lockTtl') }}</span><input v-model.number="draftAlert.distributed_lock.ttl_seconds" type="number" min="1" max="86400" class="input text-xs font-mono" /></label>
           </div>
         </div>
       </details>

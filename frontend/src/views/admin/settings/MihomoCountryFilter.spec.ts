@@ -1,7 +1,11 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import Panel from './MihomoCountryFilter.vue'
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ locale: { value: 'zh' } }) }))
+vi.mock('vue-i18n', async (original) => {
+  const actual = await original<typeof import('vue-i18n')>()
+  const { consoleTestT } = await import('@/__tests__/consoleLocale')
+  return { ...actual, useI18n: () => ({ locale: { value: 'zh' }, t: consoleTestT(actual.createI18n, 'zh') }) }
+})
 const nodes = [{ name: 'hk', state: 'enabled', country_code: 'HK' }, { name: 'us', state: 'enabled', country_code: 'US' }, { name: 'unknown', state: 'enabled' }, { name: 'retired', state: 'used', country_code: 'US' }]
 const props = { codes: ['HK', 'US', 'SG'], nodes, busy: false }
 describe('Country filter panel', () => {

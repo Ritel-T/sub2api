@@ -10,7 +10,7 @@
       <div class="space-y-3 lg:col-span-5">
         <div ref="accountRoot">
           <label class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ t(`${prefix}.account`) }}</label>
-          <input
+          <label class="block min-w-0 w-full"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.keyword') }}</span><input
             v-model="keyword"
             data-testid="manual-account-input"
             type="text"
@@ -20,7 +20,7 @@
             :disabled="harvesting"
             @focus="open = true"
             @input="open = true"
-          />
+          /></label>
           <div v-if="open" class="relative z-20">
             <div class="absolute mt-1 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-dark-700 dark:bg-dark-800">
               <div class="flex items-center justify-between gap-2 border-b border-gray-100 bg-gray-50 px-3 py-1.5 text-2xs text-gray-500 dark:border-dark-700 dark:bg-dark-700/50">

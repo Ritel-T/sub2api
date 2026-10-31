@@ -32,8 +32,8 @@
           <form v-if="draft" class="settings-form" @submit.prevent="save">
             <fieldset :disabled="saving">
               <label class="enable-row"><span><strong>{{ t('tokenGuard.enabled') }}</strong><small>{{ t('tokenGuard.enabledHint') }}</small></span><Toggle v-model="draft.enabled" :aria-label="t('tokenGuard.enabled')" /></label>
-              <label class="field-label">{{ t('tokenGuard.groupIds') }}</label>
-              <Select
+              <label :id="'field-' + fieldLabelScope + '-1'" class="field-label">{{ t('tokenGuard.groupIds') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                 v-model="selectedGroupIds"
                 multiple
                 searchable
@@ -56,19 +56,19 @@
               <label class="field-label">{{ t('tokenGuard.probeEndpoint') }}<input v-model.trim="draft.probe_endpoint" class="input w-full" /></label>
               <label class="field-label">{{ t('tokenGuard.probeModel') }}<input v-model.trim="draft.probe_model" class="input w-full" placeholder="gpt-6-astra" /></label>
               <p class="field-hint">{{ t('tokenGuard.probeModelHint') }}</p>
-              <label class="field-label">{{ t('tokenGuard.probeHeaders') }}</label>
-              <textarea v-model="probeHeadersText" rows="3" class="input w-full" placeholder="Header-Name: value"></textarea>
+              <label :id="'field-' + fieldLabelScope + '-2'" class="field-label">{{ t('tokenGuard.probeHeaders') }}</label>
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model="probeHeadersText" rows="3" class="input w-full" placeholder="Header-Name: value"></textarea>
               <p class="field-hint">{{ t('tokenGuard.headersHint') }}</p>
 
-              <label class="kind-option"><input v-model="draft.auto_relogin" type="checkbox" /><span><strong>{{ t('tokenGuard.autoRelogin') }}</strong><small>{{ t('tokenGuard.reloginEndpoint') }}</small></span></label>
-              <input v-model.trim="draft.relogin_endpoint" class="input w-full" />
-              <label class="field-label">{{ t('tokenGuard.reloginHeaders') }}</label>
-              <textarea v-model="reloginHeadersText" rows="3" class="input w-full" placeholder="Header-Name: value"></textarea>
+              <label :id="'field-' + fieldLabelScope + '-3'" class="kind-option"><input v-model="draft.auto_relogin" type="checkbox" /><span><strong>{{ t('tokenGuard.autoRelogin') }}</strong><small>{{ t('tokenGuard.reloginEndpoint') }}</small></span></label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model.trim="draft.relogin_endpoint" class="input w-full" />
+              <label :id="'field-' + fieldLabelScope + '-4'" class="field-label">{{ t('tokenGuard.reloginHeaders') }}</label>
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-4'" v-model="reloginHeadersText" rows="3" class="input w-full" placeholder="Header-Name: value"></textarea>
               <p class="field-hint">{{ t('tokenGuard.headersHint') }}</p>
               <label class="kind-option"><input v-model="draft.restore_schedulable" type="checkbox" /><span><strong>{{ t('tokenGuard.restoreSchedulable') }}</strong><small>{{ t('tokenGuard.scopeNote') }}</small></span></label>
 
-              <label class="field-label">{{ t('tokenGuard.reloginAccounts') }}</label>
-              <textarea v-model="reloginText" rows="7" class="input w-full font-mono text-xs" placeholder="user@example.com----password----JBSWY3DPEHPK3PXP"></textarea>
+              <label :id="'field-' + fieldLabelScope + '-5'" class="field-label">{{ t('tokenGuard.reloginAccounts') }}</label>
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-5'" v-model="reloginText" rows="7" class="input w-full font-mono text-xs" placeholder="user@example.com----password----JBSWY3DPEHPK3PXP"></textarea>
               <p class="field-hint">{{ t('tokenGuard.reloginAccountsHint') }}</p>
               <p v-if="managedCredentialCount" class="field-hint" data-testid="token-guard-managed-credentials">{{ t('tokenGuard.managedCredentialsHint', { count: managedCredentialCount }) }}</p>
 
@@ -119,6 +119,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import Toggle from '@/components/common/Toggle.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'

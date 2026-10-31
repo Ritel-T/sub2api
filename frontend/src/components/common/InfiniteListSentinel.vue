@@ -11,6 +11,7 @@
 </template>
 
 <script setup lang="ts">
+import { consoleUiMessages } from '@/i18n/consoleCopy'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -19,12 +20,8 @@ const emit = defineEmits<{ 'load-more': []; retry: [] }>()
 const { t, locale } = useI18n()
 const sentinel = ref<HTMLElement | null>(null)
 const visible = ref(false)
-const copy = computed(() => (locale?.value ?? 'en').startsWith('zh')
-  ? locale.value.includes('HK') ? '載入更多' : '加载更多'
-  : 'Load more')
-const retryLabel = computed(() => (locale?.value ?? 'en').startsWith('zh')
-  ? locale.value.includes('HK') ? '重試' : '重试'
-  : 'Retry')
+const copy = computed(() => consoleUiMessages(locale?.value ?? 'en').loadMore)
+const retryLabel = computed(() => consoleUiMessages(locale?.value ?? 'en').retry)
 let observer: IntersectionObserver | undefined
 
 function maybeLoad() {

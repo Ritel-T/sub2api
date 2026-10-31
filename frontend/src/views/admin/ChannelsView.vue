@@ -32,22 +32,28 @@
                 size="md"
                 class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
               />
-              <input
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.channels.searchChannels') }}</span>
+                <input
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('admin.channels.searchChannels', 'Search channels...')"
                 class="input pl-10"
                 @input="handleSearch"
               />
+              </label>
             </div>
 
-            <Select :aria-label="t('admin.channels.form.status', 'Status')"
+            <label class="block min-w-0 w-40">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.channels.form.status', 'Status') }}</span>
+              <Select :aria-label="t('admin.channels.form.status', 'Status')"
               v-model="filters.status"
               :options="statusFilterOptions"
               :placeholder="t('admin.channels.allStatus', 'All Status')"
               class="w-40"
               @change="loadChannels"
             />
+            </label>
           </div>
 
           <TableToolbarTarget />
@@ -183,8 +189,8 @@
           <div v-show="activeTab === 'basic'" class="space-y-5">
             <!-- Name -->
             <div>
-              <label class="input-label">{{ t('admin.channels.form.name', 'Name') }} <span class="text-red-500">*</span></label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.channels.form.name', 'Name') }} <span class="text-red-500">*</span></label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                 v-model="form.name"
                 type="text"
                 required
@@ -196,18 +202,21 @@
             <!-- Description -->
             <div>
               <label class="input-label">{{ t('admin.channels.form.description', 'Description') }}</label>
-              <textarea
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.channels.form.description') }}</span>
+                <textarea
                 v-model="form.description"
                 rows="2"
                 class="input"
                 :placeholder="t('admin.channels.form.descriptionPlaceholder', 'Optional description')"
               ></textarea>
+              </label>
             </div>
 
             <!-- Status (edit only) -->
             <div v-if="editingChannel">
-              <label class="input-label">{{ t('admin.channels.form.status', 'Status') }}</label>
-              <Select :aria-label="t('admin.channels.form.status', 'Status')" v-model="form.status" :options="statusEditOptions" />
+              <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.channels.form.status', 'Status') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('admin.channels.form.status', 'Status')" v-model="form.status" :options="statusEditOptions" />
             </div>
 
             <!-- Model Restriction -->
@@ -227,8 +236,8 @@
 
             <!-- Billing Basis -->
             <div>
-              <label class="input-label">{{ t('admin.channels.form.billingModelSource', 'Billing Basis') }}</label>
-              <Select :aria-label="t('admin.channels.form.billingModelSource', 'Billing Basis')" v-model="form.billing_model_source" :options="billingModelSourceOptions" />
+              <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.channels.form.billingModelSource', 'Billing Basis') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('admin.channels.form.billingModelSource', 'Billing Basis')" v-model="form.billing_model_source" :options="billingModelSourceOptions" />
               <p class="mt-1 text-xs text-gray-400">
                 {{ t('admin.channels.form.billingModelSourceHint', 'Controls which model name is used for pricing lookup') }}
               </p>
@@ -395,7 +404,9 @@
                   :key="srcModel"
                   class="flex items-center gap-2"
                 >
-                  <input
+                  <label class="block min-w-0 flex-1">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.channels.form.mappingSource') }}</span>
+                    <input
                     :value="srcModel"
                     type="text"
                     class="input flex-1 text-xs"
@@ -403,8 +414,11 @@
                     :placeholder="t('admin.channels.form.mappingSource', 'Source model')"
                     @change="renameMappingKey(sIdx, srcModel, ($event.target as HTMLInputElement).value)"
                   />
+                  </label>
                   <span class="text-gray-400 text-xs">→</span>
-                  <input
+                  <label class="block min-w-0 flex-1">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.channels.form.mappingTarget') }}</span>
+                    <input
                     :value="section.model_mapping[srcModel]"
                     type="text"
                     class="input flex-1 text-xs"
@@ -412,7 +426,8 @@
                     :placeholder="t('admin.channels.form.mappingTarget', 'Target model')"
                     @input="section.model_mapping[srcModel] = ($event.target as HTMLInputElement).value"
                   />
-                  <button
+                  </label>
+                  <button :aria-label="t('consoleFields.remove')"
                     type="button"
                     @click="removeMappingEntry(sIdx, srcModel)"
                     class="rounded p-0.5 text-gray-400 hover:text-red-500"
@@ -478,7 +493,7 @@
               </div>
 
               <!-- Filter rules for this platform's groups -->
-              <p
+              <p :id="'field-' + fieldLabelScope + '-4' + '-' + sIdx"
                 v-if="section.account_stats_pricing_rules.length === 0"
                 class="text-xs italic text-gray-400 dark:text-gray-500"
               >
@@ -491,7 +506,7 @@
                 class="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-dark-600"
               >
                 <div class="flex items-center justify-between">
-                  <input
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-4' + '-' + sIdx"
                     v-model="rule.name"
                     :placeholder="t('admin.channels.form.ruleName')"
                     class="bg-transparent text-sm font-medium text-gray-700 placeholder-gray-400 outline-none dark:text-gray-300"
@@ -522,7 +537,7 @@
                 </div>
 
                 <div>
-                  <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.channels.form.ruleAccounts') }}</label>
+                  <label :id="'field-' + fieldLabelScope + '-5' + '-' + sIdx + '-' + ruleIndex" class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.channels.form.ruleAccounts') }}</label>
                   <!-- Selected account chips -->
                   <div class="mt-1 flex flex-wrap gap-1">
                     <span
@@ -531,14 +546,14 @@
                       class="inline-flex items-center gap-1 rounded-md border border-primary-300 bg-primary-50 px-2 py-0.5 text-xs dark:border-primary-700 dark:bg-primary-900/20"
                     >
                       <span :class="['font-medium', platformTextClass(section.platform)]">{{ getRuleAccountLabel(accountId) }}</span>
-                      <button type="button" @click="removeRuleAccount(rule, accountId)" class="text-gray-400 hover:text-red-500">
+                      <button :aria-label="t('consoleFields.remove')" type="button" @click="removeRuleAccount(rule, accountId)" class="text-gray-400 hover:text-red-500">
                         <Icon name="x" size="xs" />
                       </button>
                     </span>
                   </div>
                   <!-- Account search input -->
                   <div class="relative mt-1 rule-account-search-container">
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-5' + '-' + sIdx + '-' + ruleIndex"
                       v-model="ruleAccountSearchKeyword[`${section.platform}-${ruleIndex}`]"
                       type="text"
                       class="input text-sm"
@@ -635,6 +650,8 @@
 
 <script setup lang="ts">
 import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'

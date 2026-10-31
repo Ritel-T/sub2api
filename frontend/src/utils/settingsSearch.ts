@@ -6,7 +6,7 @@ export type SettingsTab = typeof SETTINGS_TABS[number]
 interface SettingsSection {
   tab: SettingsTab
   id: string
-  titleKey?: string
+  titleKey: string
   title?: readonly [string, string]
   keywordKeys?: string[]
 }
@@ -26,7 +26,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { tab: 'security', id: 'panel-rate-limit', titleKey: 'admin.settings.panelRateLimit.title' },
   { tab: 'security', id: 'captcha', titleKey: 'admin.settings.captcha.title' },
   { tab: 'security', id: 'linuxdo', titleKey: 'admin.settings.linuxdo.title' },
-  { tab: 'security', id: 'email-oauth', title: ['邮箱快捷登录', 'Email OAuth Sign-in'] },
+  { tab: 'security', id: 'email-oauth', titleKey: 'consoleFields.emailOAuthTitle', title: ['邮箱快捷登录', 'Email OAuth Sign-in'] },
   { tab: 'security', id: 'wechat-connect', titleKey: 'admin.settings.wechatConnect.title' },
   { tab: 'security', id: 'dingtalk', titleKey: 'admin.settings.dingtalk.title' },
   { tab: 'security', id: 'oidc', titleKey: 'admin.settings.oidc.title' },
@@ -43,7 +43,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { tab: 'gateway', id: 'usage-records', titleKey: 'admin.settings.usageRecords.title', keywordKeys: ['admin.settings.cache_rate.label', 'admin.settings.cache_rate_to_users.label'] },
   { tab: 'general', id: 'site', titleKey: 'admin.settings.site.title' },
   { tab: 'general', id: 'custom-menu', titleKey: 'admin.settings.customMenu.title' },
-  { tab: 'agreement', id: 'login-agreement', title: ['登录条款确认', 'Login agreement'] },
+  { tab: 'agreement', id: 'login-agreement', titleKey: 'consoleFields.loginAgreementTitle', title: ['登录条款确认', 'Login agreement'] },
   { tab: 'features', id: 'request-capture', titleKey: 'admin.requestCapture.title' },
   { tab: 'features', id: 'features-excel-bps-images', titleKey: 'admin.settings.features.excelBpsImages.title' },
   { tab: 'features', id: 'features-channel-monitor', titleKey: 'admin.settings.features.channelMonitor.title' },
@@ -60,13 +60,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { tab: 'email', id: 'test-email', titleKey: 'admin.settings.testEmail.title' }
 ]
 
-export function settingsSearchItems(t: (key: string) => string, locale: string): SearchNavItem[] {
+export function settingsSearchItems(t: (key: string) => string, _locale: string): SearchNavItem[] {
   return SETTINGS_TABS.map(tab => ({
     path: `/admin/settings?tab=${tab}`,
     label: t(`admin.settings.tabs.${tab}`),
     children: SETTINGS_SECTIONS.filter(section => section.tab === tab).map(section => ({
       path: `/admin/settings?tab=${tab}#settings-section-${section.id}`,
-      label: section.titleKey ? t(section.titleKey) : section.title![locale.startsWith('zh') ? 0 : 1],
+      label: t(section.titleKey),
       keywords: [section.titleKey, ...(section.title ?? []), ...(section.keywordKeys ?? []).map(key => t(key))].filter(Boolean).join(' ')
     }))
   }))

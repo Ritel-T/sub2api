@@ -31,7 +31,6 @@
             <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
               <StatusDot :status="status.featured.status" :label="t(`channelMonitorV3.status.${status.featured.status}`)" />
               <span data-testid="monitor-v3-featured-status">{{ t(`channelMonitorV3.headline.${status.featured.status}`) }}</span>
-              <span v-if="multiplier(status.featured)" class="ml-1 rounded-md bg-gray-100 px-1.5 py-px font-mono text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ multiplier(status.featured) }}</span>
             </div>
           </div>
           <div class="shrink-0 text-right">
@@ -151,7 +150,6 @@
                   <div class="flex min-w-0 items-center gap-1.5">
                     <StatusDot size="md" :status="component.status" :label="t(`channelMonitorV3.status.${component.status}`)" />
                     <span class="min-w-0 break-words font-medium text-gray-800 dark:text-gray-100" :title="component.description || component.name">{{ component.name }}</span>
-                    <span v-if="multiplier(component)" class="shrink-0 rounded-md bg-gray-100 px-1.5 py-px font-mono text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-400">{{ multiplier(component) }}</span>
                   </div>
                   <span class="shrink-0 tabular-nums text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.page.availabilityValue', { value: formatMonitorV3Availability(component.availability) }) }}</span>
                 </div>
@@ -251,7 +249,6 @@ import {
   formatMonitorV3Availability,
   formatMonitorV3Bucket,
   formatMonitorV3Full,
-  formatMonitorV3Multiplier,
   formatMonitorV3Offset,
   formatMonitorV3Rate,
   formatMonitorV3Seconds,
@@ -316,9 +313,6 @@ function toggle(id: number) {
   else collapsed.add(id)
 }
 
-function multiplier(component: MonitorV3ComponentStatus) {
-  return formatMonitorV3Multiplier(component.multiplier)
-}
 
 function probeSeconds(ms: number | null | undefined) {
   return ms == null ? '—' : t('channelMonitorV3.tooltip.seconds', { value: formatMonitorV3Seconds(ms) })

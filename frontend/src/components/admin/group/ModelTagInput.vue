@@ -13,13 +13,13 @@
       <button
         type="button"
         class="rounded hover:text-red-900 dark:hover:text-red-100"
-        :aria-label="`remove ${model}`"
+        :aria-label="t('consoleFields.removeModel', { model })"
         @click="removeModel(model)"
       >
         <Icon name="x" size="xs" />
       </button>
     </span>
-    <input
+    <label class="block min-w-0 min-w-[140px] flex-1"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.model') }}</span><input
       v-model="draft"
       :list="listId"
       type="text"
@@ -29,7 +29,7 @@
       data-testid="model-tag-draft"
       @keydown="handleKeydown"
       @blur="commitDraft"
-    />
+    /></label>
     <datalist :id="listId">
       <option v-for="candidate in availableCandidates" :key="candidate" :value="candidate" />
     </datalist>
@@ -37,12 +37,16 @@
 </template>
 
 <script lang="ts">
+
 let modelTagInputCounter = 0
 </script>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   modelValue: string[]

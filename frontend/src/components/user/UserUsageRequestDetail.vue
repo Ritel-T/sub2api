@@ -9,6 +9,8 @@
   </BaseDialog>
 </template>
 <script setup lang="ts">
+import { consoleUiMessages } from '@/i18n/consoleCopy'
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
@@ -18,7 +20,7 @@ import type { UsageLog } from '@/types'
 const props = defineProps<{record: UsageLog | null; supportEnabled: boolean}>()
 defineEmits<{close: []}>()
 const {t, locale} = useI18n()
-const copy = computed(() => locale?.value === 'en' ? {details:'Request details',support:'Contact support',request:'Request ID'} : locale?.value === 'zh' ? {details:'请求详情',support:'联系支持',request:'请求 ID'} : {details:'請求詳情',support:'聯絡支援',request:'請求 ID'})
+const copy = computed(() => consoleUiMessages(locale?.value ?? 'en').requestDetails)
 const entries = computed(() => {
   const r = props.record
   if (!r) return []

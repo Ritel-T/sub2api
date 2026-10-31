@@ -20,7 +20,9 @@
   <BaseDialog :show="show" :title="t('common.featureSearch.title')" :close-on-click-outside="true" @close="show = false">
     <div class="relative">
       <Icon name="search" class="pointer-events-none absolute left-3 top-3 text-gray-400" aria-hidden="true" />
-      <input
+      <label class="block min-w-0 w-full">
+        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.featureSearch.placeholder') }}</span>
+        <input
         ref="inputRef"
         v-model="query"
         class="input w-full pl-10"
@@ -36,6 +38,7 @@
         :aria-activedescendant="results.length ? `feature-search-option-${selectedIndex}` : undefined"
         @keydown="handleInputKeydown"
       />
+      </label>
     </div>
     <p class="my-3 text-xs text-gray-500 dark:text-dark-400" role="status" aria-live="polite">
       {{ t('common.featureSearch.resultCount', { count: results.length }) }}

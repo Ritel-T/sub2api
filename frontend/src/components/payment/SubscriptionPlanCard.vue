@@ -33,20 +33,9 @@
         </div>
       </div>
 
-      <p v-if="plan.group_name" class="subscription-offer-group text-xs text-gray-500 dark:text-dark-400" data-testid="plan-group-name" :title="plan.group_name">
-        {{ t('payment.admin.group') }}: {{ plan.group_name }}
-      </p>
 
       <!-- Group quota info (compact) -->
       <div class="subscription-offer-terms grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.rate') }}</span>
-          <span class="font-medium text-gray-700 dark:text-gray-300">{{ rateDisplay }}</span>
-        </div>
-        <div v-if="hasPeakRate" class="col-span-2 flex items-center justify-between gap-2">
-          <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.peakRate') }}</span>
-          <span class="text-right font-medium text-amber-700 dark:text-amber-300">{{ peakRateDisplay }}</span>
-        </div>
         <div v-if="hasPositivePlanLimit(plan.daily_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.dailyLimit') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">${{ plan.daily_limit_usd }}</span>
@@ -103,8 +92,6 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { UserSubscription } from '@/types'
-import { useAppStore } from '@/stores/app'
-import { hasPeakRate as groupHasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import { planValiditySuffix } from './validity'
 import { currencySymbol } from '@/components/payment/currency'
 import { hasPositivePlanLimit, planCustomFeatures } from './planGroupTerms'
@@ -140,19 +127,10 @@ const discountText = computed(() => {
   return pct > 0 ? `-${pct}%` : ''
 })
 
-const rateDisplay = computed(() => {
-  const rate = props.plan.rate_multiplier ?? 1
-  return `×${Number(rate.toPrecision(10))}`
-})
 
-const appStore = useAppStore()
 const planCurrencySymbol = computed(() => currencySymbol(props.plan.currency || 'USD'))
 
-const hasPeakRate = computed(() => groupHasPeakRate(props.plan))
 
-const peakRateDisplay = computed(() => {
-  return formatPeakRateWindow(props.plan, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
-})
 
 const MODEL_SCOPE_LABELS: Record<string, string> = {
   claude: 'Claude',

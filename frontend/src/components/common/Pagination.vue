@@ -38,11 +38,11 @@
 
         <!-- Page size selector -->
         <div v-if="showPageSizeSelector" class="flex items-center space-x-2">
-          <span class="text-sm text-gray-700 dark:text-gray-300"
+          <span :id="'field-' + fieldLabelScope + '-1'" class="text-sm text-gray-700 dark:text-gray-300"
             >{{ t('pagination.perPage') }}:</span
           >
           <div class="page-size-select w-20">
-            <Select :aria-label="t('pagination.perPage')"
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('pagination.perPage')"
               :model-value="pageSize"
               :options="pageSizeSelectOptions"
               @update:model-value="handlePageSizeChange"
@@ -51,8 +51,8 @@
         </div>
 
         <div v-if="showJump" class="flex items-center space-x-2">
-          <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('pagination.jumpTo') }}</span>
-          <input
+          <span :id="'field-' + fieldLabelScope + '-2'" class="text-sm text-gray-700 dark:text-gray-300">{{ t('pagination.jumpTo') }}</span>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
             v-model="jumpPage"
             type="number"
             min="1"
@@ -118,6 +118,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'

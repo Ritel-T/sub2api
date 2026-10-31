@@ -5,7 +5,11 @@ const { get, post, put } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put:
 vi.mock('@/api/client', () => ({ apiClient: { get, post, put } }))
 const toast = vi.hoisted(() => ({ showSuccess: vi.fn(), showError: vi.fn(), showInfo: vi.fn(), showWarning: vi.fn() }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => toast }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ locale: { value: 'zh' }, t: (key: string) => key }) }))
+vi.mock('vue-i18n', async (original) => {
+  const actual = await original<typeof import('vue-i18n')>()
+  const { consoleTestT } = await import('@/__tests__/consoleLocale')
+  return { ...actual, useI18n: () => ({ locale: { value: 'zh' }, t: consoleTestT(actual.createI18n, 'zh') }) }
+})
 const base = { installed: true, supported: true, running: true, busy: false, nodes: 1, subscriptions: 1, phase: 'running', endpoint: 'http://127.0.0.1:3101', dynamic_proxies: 1, subscription_items: [{ id: 'source-one', label: '机场 A', enabled: true, cached: true, nodes: 1 }], node_states: [{ name: 'node-one', display_name: '东京节点', state: 'enabled', subscription_ids: ['source-one'], country_code: 'JP' }] }
 let wrapper: VueWrapper
 const mountPanel = (section: 'subscriptions' | 'dynamic' | 'nodes' | 'kernel' = 'subscriptions') => mount(MihomoSettings, {

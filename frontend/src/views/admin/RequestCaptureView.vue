@@ -5,7 +5,7 @@
         <div><AppHeading variant="page" as="h1" class="text-gray-900 dark:text-white">{{ t('admin.requestCapture.title') }}</AppHeading><p class="mt-1 text-sm text-gray-500">{{ t('admin.requestCapture.description') }}</p></div>
         <button class="btn btn-secondary" :disabled="loading" @click="refresh">{{ t('admin.requestCapture.refresh') }}</button>
       </div>
-      <p class="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">{{ t('admin.requestCapture.privacy') }}</p>
+      <p :id="'field-' + fieldLabelScope + '-1'" class="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">{{ t('admin.requestCapture.privacy') }}</p>
       <p v-if="error || listError" role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">{{ error || requestErrorMessage(listError) }}</p>
       <div v-if="stats" class="open-section flex flex-wrap gap-5 text-sm">
         <span>{{ t('admin.requestCapture.instance') }}: <code>{{ stats.instance_id }}</code></span>
@@ -23,7 +23,7 @@
           <label class="space-y-1"><span class="input-label">{{ t('admin.requestCapture.duration') }}</span><input v-model.number="duration" class="input" type="number" min="1" max="1440" step="1" required /></label>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <select v-model.number="targetID" class="input min-w-0 flex-1" :disabled="searching" required :aria-label="t('admin.requestCapture.target')"><option :value="0" disabled>{{ t('admin.requestCapture.selectTarget') }}</option><option v-for="option in targets" :key="option.id" :value="option.id">#{{ option.id }} {{ option.label }}</option></select>
+          <select :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model.number="targetID" class="input min-w-0 flex-1" :disabled="searching" required :aria-label="t('admin.requestCapture.target')"><option :value="0" disabled>{{ t('admin.requestCapture.selectTarget') }}</option><option v-for="option in targets" :key="option.id" :value="option.id">#{{ option.id }} {{ option.label }}</option></select>
 
         </div>
         <InfiniteListSentinel data-testid="capture-targets-more" :loading="searching" :error="targetList.error.value" :has-more="targetList.hasMore.value" :progress="targets.length" @load-more="targetList.loadMore" @retry="targetList.retry" />
@@ -46,10 +46,10 @@
 </DataTable></div>
         <InfiniteListSentinel data-testid="capture-tasks-more" :loading="taskList.loading.value || taskList.loadingMore.value || taskList.refreshing.value" :error="taskList.error.value" :has-more="taskList.hasMore.value" :progress="tasks.length" @load-more="taskList.loadMore" @retry="taskList.retry" />
       </div>
-      <p v-if="!streamExport" class="text-sm text-gray-500">{{ t('admin.requestCapture.exportBrowser') }}</p>
+      <p :id="'field-' + fieldLabelScope + '-2'" v-if="!streamExport" class="text-sm text-gray-500">{{ t('admin.requestCapture.exportBrowser') }}</p>
       <section v-if="selectedTask" class="open-section space-y-4 py-5" data-testid="capture-records-section">
         <AppHeading variant="section" as="h2">{{ t('admin.requestCapture.records') }} - {{ selectedTask.target_name }}</AppHeading>
-        <form class="workspace-filter-controls flex flex-wrap items-center gap-3" @submit.prevent="filterRecords"><input v-model.trim="requestID" class="input max-w-md" placeholder="Request ID" /><span class="text-sm text-gray-500">{{ t('admin.requestCapture.errorsOnly') }}</span><button class="btn btn-secondary">{{ t('admin.requestCapture.filter') }}</button><div ref="recordsToolbarTarget" /></form>
+        <form class="workspace-filter-controls flex flex-wrap items-center gap-3" @submit.prevent="filterRecords"><input :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model.trim="requestID" class="input max-w-md" placeholder="Request ID" /><span class="text-sm text-gray-500">{{ t('admin.requestCapture.errorsOnly') }}</span><button class="btn btn-secondary">{{ t('admin.requestCapture.filter') }}</button><div ref="recordsToolbarTarget" /></form>
         <DataTable column-order-key="admin-request-capture-records" :columns="recordColumns" :data="records"
           :loading="recordList.loading.value" row-key="id" :toolbar-target="recordsToolbarTarget">
           <template #cell-request_id="{ row: record }">
@@ -68,10 +68,10 @@
       <section v-if="detail" class="open-section space-y-4 py-5">
         <div class="flex justify-between gap-3"><AppHeading variant="section" as="h2">{{ t('admin.requestCapture.detail') }} - {{ detail.request_id }}</AppHeading><button class="btn btn-secondary" :disabled="busy || !streamExport || selectedTask?.status === 'running'" @click="download(detail.task_id, detail.id)">{{ t('admin.requestCapture.export') }}</button></div>
         <p v-if="detail.is_error" class="text-sm text-red-600">HTTP {{ detail.status }} · {{ captureOutcome(detail) }}<span v-if="detail.error_code"> · {{ detail.error_code }}</span></p>
-        <p v-if="detail.partial" class="text-sm text-amber-700">{{ t('admin.requestCapture.partial') }}: {{ detail.reason }}</p>
+        <p :id="'field-' + fieldLabelScope + '-3'" v-if="detail.partial" class="text-sm text-amber-700">{{ t('admin.requestCapture.partial') }}: {{ detail.reason }}</p>
         <details><summary class="cursor-pointer text-sm">{{ t('admin.requestCapture.metadata') }}</summary><pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded bg-gray-50 p-3 text-xs dark:bg-dark-900">{{ metadata }}</pre></details>
         <div class="flex flex-wrap gap-2"><button v-for="item in stages" :key="item" class="btn" :class="stage === item ? 'btn-primary' : 'btn-secondary'" @click="selectStage(item)">{{ t('admin.requestCapture.' + item) }}</button></div>
-        <select v-if="stageParts.length" :value="part?.name" class="input" :aria-label="t('admin.requestCapture.segment')" @change="selectPart(($event.target as HTMLSelectElement).value)"><option v-for="item in stageParts" :key="item.name" :value="item.name">{{ item.name }} / {{ t('admin.requestCapture.attempt') }} {{ item.attempt }} / {{ t('admin.requestCapture.turn') }} {{ item.turn }} / {{ bytes(item.bytes) }}</option></select>
+        <select :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-if="stageParts.length" :value="part?.name" class="input" :aria-label="t('admin.requestCapture.segment')" @change="selectPart(($event.target as HTMLSelectElement).value)"><option v-for="item in stageParts" :key="item.name" :value="item.name">{{ item.name }} / {{ t('admin.requestCapture.attempt') }} {{ item.attempt }} / {{ t('admin.requestCapture.turn') }} {{ item.turn }} / {{ bytes(item.bytes) }}</option></select>
         <p v-else class="text-sm text-gray-500">{{ t('admin.requestCapture.noPart') }}</p>
         <p v-if="part?.omitted" class="text-sm text-amber-700">{{ t('admin.requestCapture.omitted') }}: {{ part.omitted }}</p>
         <pre v-if="part" class="max-h-[36rem] overflow-auto whitespace-pre-wrap break-all rounded-lg bg-gray-950 p-4 text-xs leading-5 text-gray-100">{{ content }}</pre>
@@ -84,6 +84,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation } from '@/composables/useConfirmation'

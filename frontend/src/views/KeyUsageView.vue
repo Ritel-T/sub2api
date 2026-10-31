@@ -47,14 +47,17 @@
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
             </div>
-            <input
+            <label class="block min-w-0 w-full">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('keyUsage.placeholder') }}</span>
+              <input
               v-model="apiKey"
               :type="keyVisible ? 'text' : 'password'"
               :placeholder="t('keyUsage.placeholder')"
               class="input-ring w-full h-12 pl-12 pr-12 rounded-xl border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 transition-all dark:border-dark-700 dark:bg-dark-900 dark:text-white dark:placeholder:text-dark-500"
               @keydown.enter="queryKey"
             />
-            <button
+            </label>
+            <button :aria-label="keyVisible ? t('consoleFields.hidePassword') : t('consoleFields.showPassword')"
               @click="keyVisible = !keyVisible"
               class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:text-dark-500 dark:hover:text-white transition-colors"
             >
@@ -86,7 +89,7 @@
         <!-- Date Range Picker -->
         <div v-if="showDatePicker" class="mt-4">
           <div class="flex flex-wrap items-center gap-2 justify-center">
-            <span class="text-xs text-gray-500 dark:text-dark-400">{{ t('keyUsage.dateRange') }}</span>
+            <span :id="'field-' + fieldLabelScope + '-1'" class="text-xs text-gray-500 dark:text-dark-400">{{ t('keyUsage.dateRange') }}</span>
             <button
               v-for="range in dateRanges"
               :key="range.key"
@@ -97,13 +100,13 @@
                 : 'border-gray-200 bg-white text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200 hover:border-primary-300 dark:hover:border-dark-600'"
             >{{ range.label }}</button>
             <div v-if="currentRange === 'custom'" class="flex items-center gap-2 ml-1">
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                 v-model="customStartDate"
                 type="date"
                 class="input-ring text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-900 dark:border-dark-700 dark:bg-dark-900 dark:text-white"
               />
               <span class="text-xs text-gray-400">-</span>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                 v-model="customEndDate"
                 type="date"
                 class="input-ring text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-900 dark:border-dark-700 dark:bg-dark-900 dark:text-white"
@@ -312,6 +315,10 @@
 
 <script setup lang="ts">
 import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+import { consoleUiMessages } from '@/i18n/consoleCopy'
+
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
@@ -619,7 +626,7 @@ const detailRows = computed<DetailRow[]>(() => {
       })
     }
     if (data.rate_limits) {
-      const windowMap: Record<string, string> = { '5h': '5H', '1d': locale.value.startsWith('zh') ? '日' : 'D', '7d': '7D' }
+      const windowMap: Record<string, string> = { '5h': '5H', '1d': consoleUiMessages(locale.value).dayShort, '7d': '7D' }
       for (const rl of data.rate_limits) {
         const pct = rl.limit > 0 ? (rl.used / rl.limit) * 100 : 0
         let valueStr = `${usd(rl.used)} / ${usd(rl.limit)}`
@@ -649,21 +656,21 @@ const detailRows = computed<DetailRow[]>(() => {
         const pct = (sub.daily_usage_usd / sub.daily_limit_usd) * 100
         rows.push({
           iconBg: 'bg-primary-500/10', iconColor: 'text-primary-500', iconSvg: ICON_DOLLAR,
-          label: `${t('keyUsage.usedQuota')} (${locale.value.startsWith('zh') ? '日' : 'D'})`, value: `${usd(sub.daily_usage_usd)} / ${usd(sub.daily_limit_usd)}`, valueClass: getUsageColor(pct),
+          label: `${t('keyUsage.usedQuota')} (${consoleUiMessages(locale.value).dayShort})`, value: `${usd(sub.daily_usage_usd)} / ${usd(sub.daily_limit_usd)}`, valueClass: getUsageColor(pct),
         })
       }
       if (sub.weekly_limit_usd > 0) {
         const pct = (sub.weekly_usage_usd / sub.weekly_limit_usd) * 100
         rows.push({
           iconBg: 'bg-indigo-500/10', iconColor: 'text-indigo-500', iconSvg: ICON_DOLLAR,
-          label: `${t('keyUsage.usedQuota')} (${locale.value === 'zh-Hant-HK' ? '週' : locale.value === 'zh' ? '周' : 'W'})`, value: `${usd(sub.weekly_usage_usd)} / ${usd(sub.weekly_limit_usd)}`, valueClass: getUsageColor(pct),
+          label: `${t('keyUsage.usedQuota')} (${consoleUiMessages(locale.value).weekShort})`, value: `${usd(sub.weekly_usage_usd)} / ${usd(sub.weekly_limit_usd)}`, valueClass: getUsageColor(pct),
         })
       }
       if (sub.monthly_limit_usd > 0) {
         const pct = (sub.monthly_usage_usd / sub.monthly_limit_usd) * 100
         rows.push({
           iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', iconSvg: ICON_DOLLAR,
-          label: `${t('keyUsage.usedQuota')} (${locale.value.startsWith('zh') ? '月' : 'M'})`, value: `${usd(sub.monthly_usage_usd)} / ${usd(sub.monthly_limit_usd)}`, valueClass: getUsageColor(pct),
+          label: `${t('keyUsage.usedQuota')} (${consoleUiMessages(locale.value).monthShort})`, value: `${usd(sub.monthly_usage_usd)} / ${usd(sub.monthly_limit_usd)}`, valueClass: getUsageColor(pct),
         })
       }
       if (sub.expires_at) {

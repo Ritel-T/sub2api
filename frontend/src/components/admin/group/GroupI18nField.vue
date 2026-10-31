@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="mb-1.5 flex items-center justify-between gap-3">
-      <label class="input-label mb-0">{{ label }}</label>
+      <label :for="fieldId" class="input-label mb-0">{{ label }}</label>
       <div ref="menuRef" class="relative">
         <button
           type="button"
@@ -43,8 +43,8 @@
         </div>
       </div>
     </div>
-    <textarea
-      v-if="multiline"
+    <textarea v-if="multiline" :id="fieldId"
+
       v-bind="$attrs"
       ref="controlRef"
       class="input"
@@ -53,8 +53,8 @@
       :placeholder="currentPlaceholder"
       @input="onInput"
     ></textarea>
-    <input
-      v-else
+    <input v-else :id="fieldId"
+
       v-bind="$attrs"
       ref="controlRef"
       type="text"
@@ -68,6 +68,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId } from 'vue'
+const fieldId = `group-i18n-${useId()}`
+
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'

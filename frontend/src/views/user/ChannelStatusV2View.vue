@@ -146,12 +146,15 @@
 
           <span class="mx-0.5 hidden h-5 w-px shrink-0 bg-gray-200 dark:bg-dark-700 md:block" aria-hidden="true"></span>
 
-          <Select :aria-label="t('channelMonitorV2.groupBy.label')"
+          <label class="block min-w-0 w-[7.5rem] sm:w-[8.5rem]">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('channelMonitorV2.groupBy.label') }}</span>
+            <Select :aria-label="t('channelMonitorV2.groupBy.label')"
             v-model="matrixGroupBy"
             :options="matrixGroupOptions"
             :placeholder="t('channelMonitorV2.groupBy.label')"
             class="monitor-toolbar-select w-[7.5rem] shrink-0 sm:w-[8.5rem]"
           />
+          </label>
 
           <div
             class="tabs inline-flex shrink-0"
@@ -202,6 +205,7 @@
       </section>
 
       <MonitorStatusCards
+        :show-group-details="isAdmin"
         v-if="!analytics"
         :items="matrix?.items || []"
         :coverage="matrix?.coverage"
@@ -272,6 +276,7 @@
           :loading="loading && !snapshot"
         />
         <RelayPulseMatrix
+          :show-group-details="isAdmin"
           v-else-if="matrix"
           :rows="matrixRows"
           :coverage="matrix.coverage"
@@ -629,7 +634,9 @@ const groupOptions = computed(() =>
     )
     .map((item) => ({
       value: String(item.id),
-      label: item.platform ? `${providerLabel(item.platform)} / ${item.name || `#${item.id}`}` : item.name || `#${item.id}`,
+      label: isAdmin.value
+        ? item.platform ? `${providerLabel(item.platform)} / ${item.name || `#${item.id}`}` : item.name || `#${item.id}`
+        : `${providerLabel(item.platform || '')} · ${t('consoleFields.channel', { id: item.id })}`,
     }))
 )
 const modelOptions = computed(() =>

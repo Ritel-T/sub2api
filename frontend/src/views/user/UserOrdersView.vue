@@ -5,7 +5,10 @@
       <!-- Filters -->
       <div class="open-section p-4">
         <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
-          <Select :aria-label="t('payment.orders.status')" v-model="currentFilter" :options="statusFilters" class="w-36" @change="reset" />
+          <label class="block min-w-0 w-36">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.status') }}</span>
+            <Select :aria-label="t('payment.orders.status')" v-model="currentFilter" :options="statusFilters" class="w-36" @change="reset" />
+          </label>
           <div ref="tableToolbarTarget" class="min-w-0" />
           <div class="flex flex-1 items-center justify-end gap-2">
             <button @click="fetchOrders" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
@@ -63,8 +66,8 @@
           </div>
         </div>
         <div>
-          <label class="input-label">{{ t('payment.refundReason') }}</label>
-          <textarea :disabled="actionLoading" v-model="refundReason" rows="3" class="input mt-1 w-full" :placeholder="t('payment.refundReasonPlaceholder')" />
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('payment.refundReason') }}</label>
+          <textarea :aria-labelledby="'field-' + fieldLabelScope + '-1'" :disabled="actionLoading" v-model="refundReason" rows="3" class="input mt-1 w-full" :placeholder="t('payment.refundReasonPlaceholder')" />
         </div>
       </div>
       <template #footer>
@@ -80,6 +83,8 @@
 <script setup lang="ts">
 import MoreActions from '@/components/common/MoreActions.vue'
 import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import { provide, ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

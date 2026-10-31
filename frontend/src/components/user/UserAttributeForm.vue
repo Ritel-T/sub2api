@@ -1,13 +1,13 @@
 <template>
   <div v-if="attributes.length > 0" class="space-y-4">
-    <div v-for="attr in attributes" :key="attr.id">
-      <label class="input-label">
+    <div v-for="(attr, fieldIndex0) in attributes" :key="attr.id">
+      <label :id="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0" class="input-label">
         {{ attr.name }}
         <span v-if="attr.required" class="text-red-500">*</span>
       </label>
 
       <!-- Text Input -->
-      <input
+      <input :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0"
         v-if="attr.type === 'text' || attr.type === 'email' || attr.type === 'url'"
         v-model="localValues[attr.id]"
         :type="attr.type === 'text' ? 'text' : attr.type"
@@ -18,7 +18,7 @@
       />
 
       <!-- Number Input -->
-      <input
+      <input :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0"
         v-else-if="attr.type === 'number'"
         :value="localValues[attr.id]"
         type="number"
@@ -31,7 +31,7 @@
       />
 
       <!-- Date Input -->
-      <input
+      <input :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0"
         v-else-if="attr.type === 'date'"
         v-model="localValues[attr.id]"
         type="date"
@@ -41,7 +41,7 @@
       />
 
       <!-- Textarea -->
-      <textarea
+      <textarea :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0"
         v-else-if="attr.type === 'textarea'"
         v-model="localValues[attr.id]"
         :required="attr.required"
@@ -52,7 +52,7 @@
       />
 
       <!-- Select -->
-      <Select :aria-label="attr.name"
+      <Select :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + fieldIndex0" :aria-label="attr.name"
         v-else-if="attr.type === 'select'"
         v-model="localValues[attr.id]"
         :options="attr.options || []"
@@ -92,6 +92,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { useI18n } from 'vue-i18n'
 import { ref, watch, onMounted } from 'vue'
 import { adminAPI } from '@/api/admin'

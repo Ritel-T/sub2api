@@ -22,11 +22,17 @@
             <legend class="mb-2 text-sm font-semibold">{{ t('controlledExperiments.routes') }}</legend>
             <div v-for="(route, index) in form.routes" :key="index" class="flex flex-wrap items-center gap-3">
               <span class="w-6 text-sm text-gray-400">{{ index + 1 }}</span>
-              <select v-model.number="route.account_id" class="input min-w-48 flex-1" required :aria-label="t('controlledExperiments.account')" data-testid="experiment-account">
+              <label class="block min-w-0 min-w-48 flex-1">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('controlledExperiments.account') }}</span>
+                <select v-model.number="route.account_id" class="input min-w-48 flex-1" required :aria-label="t('controlledExperiments.account')" data-testid="experiment-account">
                 <option :value="0" disabled>{{ t('controlledExperiments.account') }}</option>
                 <option v-for="account in accounts" :key="account.id" :value="account.id">#{{ account.id }} · {{ account.name }}</option>
               </select>
-              <select v-model="route.channel" class="input min-w-48 flex-1" :aria-label="t('controlledExperiments.channel')"><option v-for="channel in channels" :key="channel" :value="channel">{{ channelLabel(channel) }}</option></select>
+              </label>
+              <label class="block min-w-0 min-w-48 flex-1">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('controlledExperiments.channel') }}</span>
+                <select v-model="route.channel" class="input min-w-48 flex-1" :aria-label="t('controlledExperiments.channel')"><option v-for="channel in channels" :key="channel" :value="channel">{{ channelLabel(channel) }}</option></select>
+              </label>
               <button type="button" class="btn btn-secondary" :disabled="form.routes.length === 1" @click="form.routes.splice(index, 1)">{{ t('controlledExperiments.remove') }}</button>
             </div>
             <button type="button" class="btn btn-secondary" :disabled="form.routes.length >= 4" @click="form.routes.push({ account_id: 0, channel: 'native_http' })">{{ t('controlledExperiments.addRoute') }}</button>

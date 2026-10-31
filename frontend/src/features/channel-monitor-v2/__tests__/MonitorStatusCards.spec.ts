@@ -274,3 +274,14 @@ it('exposes one localized loading status for the six decorative card placeholder
   expect(wrapper.find('[role="status"]').exists()).toBe(false)
   wrapper.unmount()
 })
+
+it('hides internal group names and multiplier codes for the customer caller', () => {
+  const row = { platform: 'openai', group_id: 7, group_name: 'ChatGPT Plus .3', group_rate_multiplier: 0.3,
+    metrics: { has_samples: false, request_count: 0, cache_rate: 0, error_rate: 0, ttft: { p50_ms: null } },
+    health: { overall: 'unknown' }, buckets: [] } as unknown as MonitorMatrixRow
+  const wrapper = mount(MonitorStatusCards, { props: { items: [row], showGroupDetails: false, countdown: 1, loading: false, now: Date.now() }, global: { stubs: { ProviderIcon: true } } })
+  expect(wrapper.text()).not.toContain('ChatGPT Plus .3')
+  expect(wrapper.text()).not.toContain('channelMonitorV2.cards.groupRate')
+  expect(wrapper.text()).toContain('consoleFields.channel')
+  wrapper.unmount()
+})

@@ -2,14 +2,14 @@
   <div class="space-y-4">
     <!-- Headers key-value rows -->
     <div>
-      <label class="input-label">{{ t('admin.channelMonitor.advanced.headers') }}</label>
+      <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.channelMonitor.advanced.headers') }}</label>
       <div class="space-y-1.5">
         <div
           v-for="(row, i) in headerRows"
           :key="i"
           class="flex items-center gap-2"
         >
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="row.name"
             type="text"
             spellcheck="false"
@@ -17,7 +17,7 @@
             class="input w-52 flex-none font-mono text-xs"
             @blur="commitHeaders"
           />
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="row.value"
             type="text"
             spellcheck="false"
@@ -86,7 +86,7 @@
           {{ t('admin.channelMonitor.advanced.bodyJsonFormat') }}
         </button>
       </div>
-      <textarea
+      <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.bodyJson') }}</span><textarea
         v-model="bodyText"
         rows="10"
         :placeholder="bodyPlaceholder"
@@ -94,7 +94,7 @@
         style="white-space: pre; overflow-wrap: normal; overflow-x: auto;"
         spellcheck="false"
         @blur="commitBody"
-      />
+      /></label>
       <p v-if="bodyError" class="mt-1 text-xs text-red-500">{{ bodyError }}</p>
       <p v-else class="mt-1 text-xs text-gray-400">
         {{ t('admin.channelMonitor.advanced.bodyJsonHint') }}
@@ -104,6 +104,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { APIMode, BodyOverrideMode, Provider } from '@/api/admin/channelMonitor'

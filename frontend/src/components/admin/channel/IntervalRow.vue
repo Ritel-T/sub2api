@@ -5,59 +5,59 @@
     <template v-if="mode === 'token'">
       <div class="pricing-interval-grid grid min-w-0 flex-1 gap-2">
         <div>
-          <label class="text-xs text-gray-400">{{ t('admin.channels.form.minTokens') }}</label>
-          <input :value="interval.min_tokens" @input="emitField('min_tokens', toInt(($event.target as HTMLInputElement).value))"
+          <label :id="'field-' + fieldLabelScope + '-1'" class="text-xs text-gray-400">{{ t('admin.channels.form.minTokens') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" :value="interval.min_tokens" @input="emitField('min_tokens', toInt(($event.target as HTMLInputElement).value))"
             type="number" min="0" class="input mt-0.5 text-xs" />
         </div>
         <div>
-          <label class="text-xs text-gray-400">{{ t('admin.channels.form.maxTokens') }} <span class="text-gray-300">{{ t('admin.channels.form.inclusive') }}</span></label>
-          <input :value="interval.max_tokens ?? ''" @input="emitField('max_tokens', toIntOrNull(($event.target as HTMLInputElement).value))"
+          <label :id="'field-' + fieldLabelScope + '-2'" class="text-xs text-gray-400">{{ t('admin.channels.form.maxTokens') }} <span class="text-gray-300">{{ t('admin.channels.form.inclusive') }}</span></label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-2'" :value="interval.max_tokens ?? ''" @input="emitField('max_tokens', toIntOrNull(($event.target as HTMLInputElement).value))"
             type="number" min="0" class="input mt-0.5 text-xs" :placeholder="'∞'" />
         </div>
         <div>
           <label class="text-xs text-gray-400">{{ t('admin.channels.form.inputPrice') }} <span v-if="isEmpty" class="text-red-500">*</span> <span class="text-gray-300">$/M</span></label>
-          <input :value="interval.input_price" @input="emitField('input_price', ($event.target as HTMLInputElement).value)"
-            type="number" step="any" min="0" class="input mt-0.5 text-xs" />
+          <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.inputPrice') }}</span><input :value="interval.input_price" @input="emitField('input_price', ($event.target as HTMLInputElement).value)"
+            type="number" step="any" min="0" class="input mt-0.5 text-xs" /></label>
         </div>
         <div>
           <label class="text-xs text-gray-400">{{ t('admin.channels.form.outputPrice') }} <span v-if="isEmpty" class="text-red-500">*</span> <span class="text-gray-300">$/M</span></label>
-          <input :value="interval.output_price" @input="emitField('output_price', ($event.target as HTMLInputElement).value)"
-            type="number" step="any" min="0" class="input mt-0.5 text-xs" />
+          <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.outputPrice') }}</span><input :value="interval.output_price" @input="emitField('output_price', ($event.target as HTMLInputElement).value)"
+            type="number" step="any" min="0" class="input mt-0.5 text-xs" /></label>
         </div>
         <div>
           <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWrite5mPriceShort') }} <span class="text-gray-300">$/M</span></label>
-          <input :value="interval.cache_write_price" @input="emitField('cache_write_price', ($event.target as HTMLInputElement).value)"
-            type="number" step="any" min="0" class="input mt-0.5 text-xs" />
+          <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.cacheWritePrice') }}</span><input :value="interval.cache_write_price" @input="emitField('cache_write_price', ($event.target as HTMLInputElement).value)"
+            type="number" step="any" min="0" class="input mt-0.5 text-xs" /></label>
         </div>
         <div>
           <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWrite1hPriceShort') }} <span class="text-gray-300">$/M</span></label>
-          <input :value="interval.cache_write_1h_price" @input="emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)"
-            type="number" step="any" min="0" class="input mt-0.5 text-xs" />
+          <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.cacheWriteHourPrice') }}</span><input :value="interval.cache_write_1h_price" @input="emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)"
+            type="number" step="any" min="0" class="input mt-0.5 text-xs" /></label>
         </div>
         <div>
           <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheReadPriceShort') }} <span class="text-gray-300">$/M</span></label>
-          <input :value="interval.cache_read_price" @input="emitField('cache_read_price', ($event.target as HTMLInputElement).value)"
-            type="number" step="any" min="0" class="input mt-0.5 text-xs" />
+          <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.cacheReadPrice') }}</span><input :value="interval.cache_read_price" @input="emitField('cache_read_price', ($event.target as HTMLInputElement).value)"
+            type="number" step="any" min="0" class="input mt-0.5 text-xs" /></label>
         </div>
         <template v-if="enableMultipliers">
           <div>
-            <label class="text-xs text-gray-400">{{ t('admin.channels.form.inputMultiplier') }}</label>
-            <input :value="interval.input_multiplier" @input="emitField('input_multiplier', ($event.target as HTMLInputElement).value)"
+            <label :id="'field-' + fieldLabelScope + '-3'" class="text-xs text-gray-400">{{ t('admin.channels.form.inputMultiplier') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-3'" :value="interval.input_multiplier" @input="emitField('input_multiplier', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0.000001" class="input mt-0.5 text-xs" />
           </div>
           <div>
-            <label class="text-xs text-gray-400">{{ t('admin.channels.form.outputMultiplier') }}</label>
-            <input :value="interval.output_multiplier" @input="emitField('output_multiplier', ($event.target as HTMLInputElement).value)"
+            <label :id="'field-' + fieldLabelScope + '-4'" class="text-xs text-gray-400">{{ t('admin.channels.form.outputMultiplier') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-4'" :value="interval.output_multiplier" @input="emitField('output_multiplier', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0.000001" class="input mt-0.5 text-xs" />
           </div>
           <div>
-            <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWriteMultiplier') }}</label>
-            <input :value="interval.cache_write_multiplier" @input="emitField('cache_write_multiplier', ($event.target as HTMLInputElement).value)"
+            <label :id="'field-' + fieldLabelScope + '-5'" class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWriteMultiplier') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-5'" :value="interval.cache_write_multiplier" @input="emitField('cache_write_multiplier', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0.000001" class="input mt-0.5 text-xs" />
           </div>
           <div>
-            <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheReadMultiplier') }}</label>
-            <input :value="interval.cache_read_multiplier" @input="emitField('cache_read_multiplier', ($event.target as HTMLInputElement).value)"
+            <label :id="'field-' + fieldLabelScope + '-6'" class="text-xs text-gray-400">{{ t('admin.channels.form.cacheReadMultiplier') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-6'" :value="interval.cache_read_multiplier" @input="emitField('cache_read_multiplier', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0.000001" class="input mt-0.5 text-xs" />
           </div>
         </template>
@@ -67,36 +67,39 @@
     <!-- Per-request / Image mode: tier label + context range + price -->
     <template v-else>
       <div class="w-24">
-        <label class="text-xs text-gray-400">
+        <label :id="'field-' + fieldLabelScope + '-7'" class="text-xs text-gray-400">
           {{ mode === 'image' ? t('admin.channels.form.resolution') : t('admin.channels.form.tierLabel') }}
         </label>
-        <input :value="interval.tier_label" @input="emitField('tier_label', ($event.target as HTMLInputElement).value)"
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-7'" :value="interval.tier_label" @input="emitField('tier_label', ($event.target as HTMLInputElement).value)"
           type="text" class="input mt-0.5 text-xs" :placeholder="mode === 'image' ? '1K / 2K / 4K' : ''" />
       </div>
       <div class="w-20">
-        <label class="text-xs text-gray-400">{{ t('admin.channels.form.minTokens') }}</label>
-        <input :value="interval.min_tokens" @input="emitField('min_tokens', toInt(($event.target as HTMLInputElement).value))"
+        <label :id="'field-' + fieldLabelScope + '-8'" class="text-xs text-gray-400">{{ t('admin.channels.form.minTokens') }}</label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-8'" :value="interval.min_tokens" @input="emitField('min_tokens', toInt(($event.target as HTMLInputElement).value))"
           type="number" min="0" class="input mt-0.5 text-xs" />
       </div>
       <div class="w-20">
-        <label class="text-xs text-gray-400">{{ t('admin.channels.form.maxTokens') }} <span class="text-gray-300">{{ t('admin.channels.form.inclusive') }}</span></label>
-        <input :value="interval.max_tokens ?? ''" @input="emitField('max_tokens', toIntOrNull(($event.target as HTMLInputElement).value))"
+        <label :id="'field-' + fieldLabelScope + '-9'" class="text-xs text-gray-400">{{ t('admin.channels.form.maxTokens') }} <span class="text-gray-300">{{ t('admin.channels.form.inclusive') }}</span></label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-9'" :value="interval.max_tokens ?? ''" @input="emitField('max_tokens', toIntOrNull(($event.target as HTMLInputElement).value))"
           type="number" min="0" class="input mt-0.5 text-xs" :placeholder="'∞'" />
       </div>
       <div class="flex-1">
         <label class="text-xs text-gray-400">{{ t('admin.channels.form.perRequestPrice') }} <span v-if="isEmpty" class="text-red-500">*</span> <span class="text-gray-300">$</span></label>
-        <input :value="interval.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
-          type="number" step="any" min="0" class="input mt-0.5 text-xs" />
+        <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.requestPrice') }}</span><input :value="interval.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
+          type="number" step="any" min="0" class="input mt-0.5 text-xs" /></label>
       </div>
     </template>
 
-    <button type="button" @click="emit('remove')" class="mt-4 rounded p-0.5 text-gray-400 hover:text-red-500">
+    <button :aria-label="t('consoleFields.remove')" type="button" @click="emit('remove')" class="mt-4 rounded p-0.5 text-gray-400 hover:text-red-500">
       <Icon name="x" size="sm" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'

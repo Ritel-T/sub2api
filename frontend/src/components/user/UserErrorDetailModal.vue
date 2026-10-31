@@ -72,6 +72,8 @@
 </template>
 
 <script setup lang="ts">
+import { consoleUiMessages } from '@/i18n/consoleCopy'
+
 import { ref, watch, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -92,7 +94,7 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 const canContactSupport = computed(() => props.supportEnabled === true && props.errorId != null)
-const supportLabel = computed(() => locale?.value === 'en' ? 'Contact support' : locale?.value === 'zh' ? '联系支持' : '聯絡支援')
+const supportLabel = computed(() => consoleUiMessages(locale?.value ?? 'en').support)
 
 const loading = ref(false)
 const loadError = ref(false)

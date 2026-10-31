@@ -7,8 +7,8 @@
   >
     <form id="channel-monitor-form" @submit.prevent="handleSubmit" class="space-y-5">
       <div>
-        <label class="input-label">{{ t('admin.channelMonitor.form.name') }} <span class="text-red-500">*</span></label>
-        <input v-model="form.name" type="text" required class="input" :placeholder="t('admin.channelMonitor.form.namePlaceholder')" />
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.channelMonitor.form.name') }} <span class="text-red-500">*</span></label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="form.name" type="text" required class="input" :placeholder="t('admin.channelMonitor.form.namePlaceholder')" />
       </div>
 
       <!-- 检测模式：probe（探活）/ quota（仅配额）/ quota_probe（探活+配额） -->
@@ -53,11 +53,11 @@
 
       <!-- 配额模式数据源：关联账号（复用账号侧用量/余额服务） -->
       <div v-if="usesQuotaMode">
-        <label class="input-label">
+        <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">
           {{ t('admin.channelMonitor.form.linkedAccount') }} <span class="text-red-500">*</span>
         </label>
         <div data-testid="monitor-linked-account">
-          <Select :aria-label="t('admin.channelMonitor.form.linkedAccount')"
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('admin.channelMonitor.form.linkedAccount')"
             v-model="accountSelectValue"
             :options="accountOptions"
             :placeholder="t('admin.channelMonitor.form.linkedAccountPlaceholder')"
@@ -97,9 +97,9 @@
       </div>
 
       <div v-if="usesProbePart">
-        <label class="input-label">{{ t('admin.channelMonitor.form.endpoint') }} <span class="text-red-500">*</span></label>
+        <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.channelMonitor.form.endpoint') }} <span class="text-red-500">*</span></label>
         <div class="flex gap-2">
-          <input v-model="form.endpoint" data-testid="monitor-endpoint" type="text" required class="input flex-1" :placeholder="t('admin.channelMonitor.form.endpointPlaceholder')" />
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model="form.endpoint" data-testid="monitor-endpoint" type="text" required class="input flex-1" :placeholder="t('admin.channelMonitor.form.endpointPlaceholder')" />
           <button type="button" @click="useCurrentDomain" class="btn btn-secondary whitespace-nowrap">
             {{ t('admin.channelMonitor.form.useCurrentDomain') }}
           </button>
@@ -107,11 +107,11 @@
       </div>
 
       <div v-if="usesProbePart">
-        <label class="input-label">
+        <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">
           {{ t('admin.channelMonitor.form.apiKey') }}<span v-if="!editing" class="text-red-500"> *</span>
         </label>
         <div class="flex gap-2">
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
             v-model="form.api_key"
             type="password"
             :required="!editing"
@@ -126,8 +126,8 @@
       </div>
 
       <div v-if="usesProbePart">
-        <label class="input-label">{{ t('admin.channelMonitor.form.primaryModel') }} <span class="text-red-500">*</span></label>
-        <input
+        <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.channelMonitor.form.primaryModel') }} <span class="text-red-500">*</span></label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-5'"
           v-model="form.primary_model"
           data-testid="monitor-primary-model"
           type="text"
@@ -149,19 +149,19 @@
       </div>
 
       <div>
-        <label class="input-label">{{ t('admin.channelMonitor.form.groupName') }}</label>
-        <input v-model="form.group_name" type="text" class="input" :placeholder="t('admin.channelMonitor.form.groupNamePlaceholder')" />
+        <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.channelMonitor.form.groupName') }}</label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-6'" v-model="form.group_name" type="text" class="input" :placeholder="t('admin.channelMonitor.form.groupNamePlaceholder')" />
       </div>
 
       <div>
-        <label class="input-label">{{ t('admin.channelMonitor.form.intervalSeconds') }} <span class="text-red-500">*</span></label>
-        <input v-model.number="form.interval_seconds" type="number" min="15" max="3600" required class="input" />
+        <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.channelMonitor.form.intervalSeconds') }} <span class="text-red-500">*</span></label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-7'" v-model.number="form.interval_seconds" type="number" min="15" max="3600" required class="input" />
         <p class="mt-1 text-xs text-gray-400">{{ t('admin.channelMonitor.form.intervalSecondsHint') }}</p>
       </div>
 
       <div>
-        <label class="input-label">{{ t('admin.channelMonitor.form.jitterSeconds') }}</label>
-        <input v-model.number="form.jitter_seconds" type="number" min="0" :max="maxJitterSeconds" class="input" />
+        <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('admin.channelMonitor.form.jitterSeconds') }}</label>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-8'" v-model.number="form.jitter_seconds" type="number" min="0" :max="maxJitterSeconds" class="input" />
         <p class="mt-1 text-xs text-gray-400">{{ t('admin.channelMonitor.form.jitterSecondsHint') }}</p>
       </div>
 
@@ -179,8 +179,8 @@
 
         <div class="mt-4 space-y-4">
           <div>
-            <label class="input-label">{{ t('admin.channelMonitor.templateField.label') }}</label>
-            <Select :aria-label="t('admin.channelMonitor.templateField.label')"
+            <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('admin.channelMonitor.templateField.label') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-9'" :aria-label="t('admin.channelMonitor.templateField.label')"
               v-model="templateSelectValue"
               :options="templateOptions"
               :placeholder="t('admin.channelMonitor.templateField.placeholder')"
@@ -233,6 +233,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

@@ -59,36 +59,48 @@
                 size="md"
                 class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
               />
-              <input
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.groups.searchGroups') }}</span>
+                <input
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('admin.groups.searchGroups')"
                 class="input pl-10"
                 @input="handleSearch"
               />
+              </label>
             </div>
-            <Select :aria-label="t('admin.groups.form.platform')"
+            <label class="block min-w-0 w-44">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.groups.form.platform') }}</span>
+              <Select :aria-label="t('admin.groups.form.platform')"
               v-model="filters.platform"
               :options="platformFilterOptions"
               :placeholder="t('admin.groups.allPlatforms')"
               class="w-44"
               @change="loadGroups"
             />
-            <Select :aria-label="t('common.status')"
+            </label>
+            <label class="block min-w-0 w-40">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+              <Select :aria-label="t('common.status')"
               v-model="filters.status"
               :options="statusOptions"
               :placeholder="t('admin.groups.allStatus')"
               class="w-40"
               @change="loadGroups"
             />
-            <Select :aria-label="t('admin.groups.allGroups')"
-              v-if="!authStore.isSimpleMode"
+            </label>
+            <label v-if="!authStore.isSimpleMode" class="block min-w-0 w-44">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.groups.allGroups') }}</span>
+              <Select :aria-label="t('admin.groups.allGroups')"
+
               v-model="filters.is_exclusive"
               :options="exclusiveOptions"
               :placeholder="t('admin.groups.allGroups')"
               class="w-44"
               @change="loadGroups"
             />
+            </label>
             <TableToolbarTarget />
           </div>
         </div>
@@ -518,10 +530,10 @@
           />
         </div>
         <div>
-          <label class="input-label">{{
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{
             t("admin.groups.form.platform")
           }}</label>
-          <Select :aria-label="t('admin.groups.form.platform')"
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.groups.form.platform')"
             v-model="createForm.platform"
             data-testid="create-group-platform"
             :options="platformOptions"
@@ -573,7 +585,7 @@
                 copyAccountsGroupOptions.find((o) => o.value === groupId)
                   ?.label || `#${groupId}`
               }}
-              <button
+              <button :aria-label="t('consoleFields.copy')"
                 type="button"
                 @click="
                   createForm.copy_accounts_from_group_ids =
@@ -588,7 +600,7 @@
             </span>
           </div>
           <!-- 分组选择下拉 -->
-          <select
+          <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.group') }}</span><select
             class="input"
             @change="
               (e) => {
@@ -616,15 +628,15 @@
             >
               {{ opt.label }}
             </option>
-          </select>
+          </select></label>
           <p class="input-hint">{{ t("admin.groups.copyAccounts.hint") }}</p>
         </div>
         <template v-if="!authStore.isSimpleMode">
         <div>
-          <label class="input-label">{{
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{
             t("admin.groups.form.rateMultiplier")
           }}</label>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
             v-model.number="createForm.rate_multiplier"
             type="number"
             step="0.001"
@@ -636,8 +648,8 @@
           <p class="input-hint">{{ t("admin.groups.rateMultiplierHint") }}</p>
         </div>
         <div>
-          <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
             v-model.number="createForm.rpm_limit"
             type="number"
             min="0"
@@ -751,10 +763,10 @@
         <!-- Subscription Configuration -->
         <div class="mt-4 border-t pt-4">
           <div>
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{
               t("admin.groups.subscription.type")
             }}</label>
-            <Select :aria-label="t('admin.groups.subscription.type')"
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-4'" :aria-label="t('admin.groups.subscription.type')"
               v-model="createForm.subscription_type"
               data-testid="create-subscription-type"
               :options="subscriptionTypeOptions"
@@ -770,10 +782,10 @@
             class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
           >
             <div>
-              <label class="input-label">{{
+              <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{
                 t("admin.groups.subscription.dailyLimit")
               }}</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-5'"
                 v-model.number="createForm.daily_limit_usd"
                 type="number"
                 step="0.01"
@@ -783,10 +795,10 @@
               />
             </div>
             <div>
-              <label class="input-label">{{
+              <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{
                 t("admin.groups.subscription.weeklyLimit")
               }}</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-6'"
                 v-model.number="createForm.weekly_limit_usd"
                 type="number"
                 step="0.01"
@@ -796,10 +808,10 @@
               />
             </div>
             <div>
-              <label class="input-label">{{
+              <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{
                 t("admin.groups.subscription.monthlyLimit")
               }}</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-7'"
                 v-model.number="createForm.monthly_limit_usd"
                 type="number"
                 step="0.01"
@@ -809,8 +821,8 @@
               />
             </div>
             <div data-testid="create-subscription-fallback">
-              <label class="input-label">{{ t("admin.groups.subscription.fallbackGroup") }}</label>
-              <Select :aria-label="t('admin.groups.subscription.fallbackGroup')"
+              <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t("admin.groups.subscription.fallbackGroup") }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-8'" :aria-label="t('admin.groups.subscription.fallbackGroup')"
                 v-model="createForm.subscription_fallback_group_id"
                 data-testid="create-subscription-fallback-select"
                 :options="subscriptionFallbackOptions"
@@ -872,7 +884,7 @@
               <p v-if="createModelAllowlistLoading" class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelAllowlist.loading") }}
               </p>
-              <p
+              <p :id="'field-' + fieldLabelScope + '-9'"
                 v-else-if="createModelAllowlistState.items.length === 0"
                 class="text-xs text-gray-500 dark:text-gray-400"
               >
@@ -883,7 +895,7 @@
                 :key="item.id"
                 class="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
               >
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-9'"
                   v-model="item.selected"
                   type="checkbox"
                   class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
@@ -897,7 +909,7 @@
                     {{ t("admin.groups.modelAllowlist.wildcardTag") }}
                   </span>
                 </span>
-                <button
+                <button :aria-label="t('consoleFields.moveUp')"
                   type="button"
                   :disabled="index === 0"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
@@ -905,7 +917,7 @@
                 >
                   <Icon name="arrowUp" size="sm" />
                 </button>
-                <button
+                <button :aria-label="t('consoleFields.moveDown')"
                   type="button"
                   :disabled="index === createModelAllowlistState.items.length - 1"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
@@ -917,13 +929,16 @@
             </div>
             <div class="border-t border-gray-200 px-3 py-2 dark:border-dark-600">
               <div class="flex items-center gap-2">
-                <input
+                <label class="block min-w-0 min-w-0 flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.groups.modelAllowlist.customPlaceholder') }}</span>
+                  <input
                   v-model="createAllowlistCustomEntry"
                   type="text"
                   :placeholder="t('admin.groups.modelAllowlist.customPlaceholder')"
                   class="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-gray-200"
                   @keydown.enter.prevent="submitCreateAllowlistCustomEntry"
                 />
+                </label>
                 <button
                   type="button"
                   class="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
@@ -947,7 +962,7 @@
           v-if="supportsImagePricingPlatform(createForm.platform)"
           class="border-t pt-4"
         >
-          <label
+          <label :id="'field-' + fieldLabelScope + '-11'"
             class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
           >
             {{ t(imagePricingI18nKey(createForm.platform, "title")) }}
@@ -991,10 +1006,10 @@
             v-if="createForm.image_rate_independent"
             class="mb-4"
           >
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{
               t(imagePricingI18nKey(createForm.platform, "imageMultiplier"))
             }}</label>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-10'"
               v-model.number="createForm.image_rate_multiplier"
               type="number"
               step="0.0001"
@@ -1006,7 +1021,7 @@
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="input-label">1K ($)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-11'"
                 v-model.number="createForm.image_price_1k"
                 type="number"
                 step="0.001"
@@ -1017,7 +1032,7 @@
             </div>
             <div>
               <label class="input-label">2K ($)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-11'"
                 v-model.number="createForm.image_price_2k"
                 type="number"
                 step="0.001"
@@ -1028,7 +1043,7 @@
             </div>
             <div>
               <label class="input-label">4K ($)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-11'"
                 v-model.number="createForm.image_price_4k"
                 type="number"
                 step="0.001"
@@ -1073,10 +1088,10 @@
               class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2"
             >
               <div>
-                <label class="input-label">{{
+                <label :id="'field-' + fieldLabelScope + '-12'" class="input-label">{{
                   t("admin.groups.imagePricing.batchDiscountMultiplier")
                 }}</label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-12'"
                   v-model.number="createForm.batch_image_discount_multiplier"
                   type="number"
                   step="0.0001"
@@ -1086,10 +1101,10 @@
                 />
               </div>
               <div>
-                <label class="input-label">{{
+                <label :id="'field-' + fieldLabelScope + '-13'" class="input-label">{{
                   t("admin.groups.imagePricing.batchHoldMultiplier")
                 }}</label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-13'"
                   v-model.number="createForm.batch_image_hold_multiplier"
                   type="number"
                   step="0.0001"
@@ -1118,7 +1133,7 @@
           v-if="supportsVideoPricingPlatform(createForm.platform)"
           class="border-t pt-4"
         >
-          <label
+          <label :id="'field-' + fieldLabelScope + '-15'"
             class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
           >
             {{ t(videoPricingI18nKey("title")) }}
@@ -1140,10 +1155,10 @@
             v-if="createForm.video_rate_independent"
             class="mb-4"
           >
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-14'" class="input-label">{{
               t(videoPricingI18nKey("videoMultiplier"))
             }}</label>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-14'"
               v-model.number="createForm.video_rate_multiplier"
               type="number"
               step="0.0001"
@@ -1155,7 +1170,7 @@
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="input-label">480p ($/s)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-15'"
                 v-model.number="createForm.video_price_480p"
                 type="number"
                 step="0.001"
@@ -1166,7 +1181,7 @@
             </div>
             <div>
               <label class="input-label">720p ($/s)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-15'"
                 v-model.number="createForm.video_price_720p"
                 type="number"
                 step="0.001"
@@ -1177,7 +1192,7 @@
             </div>
             <div>
               <label class="input-label">1080p ($/s)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-15'"
                 v-model.number="createForm.video_price_1080p"
                 type="number"
                 step="0.001"
@@ -1261,24 +1276,24 @@
             class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
           >
             <div>
-              <label class="input-label">{{ t("admin.groups.peakRate.peakStart") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-16'" class="input-label">{{ t("admin.groups.peakRate.peakStart") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-16'"
                 v-model="createForm.peak_start"
                 type="time"
                 class="input"
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.peakRate.peakEnd") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-17'" class="input-label">{{ t("admin.groups.peakRate.peakEnd") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-17'"
                 v-model="createForm.peak_end"
                 type="time"
                 class="input"
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.peakRate.peakMultiplier") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-18'" class="input-label">{{ t("admin.groups.peakRate.peakMultiplier") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-18'"
                 v-model.number="createForm.peak_rate_multiplier"
                 type="number"
                 step="0.001"
@@ -1313,8 +1328,8 @@
             class="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2"
           >
             <div>
-              <label class="input-label">{{ t("admin.groups.profitControl.minMargin") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-19'" class="input-label">{{ t("admin.groups.profitControl.minMargin") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-19'"
                 v-model.number="createForm.profit_min_margin_percent"
                 type="number"
                 step="0.1"
@@ -1326,8 +1341,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.profitControl.safetyBuffer") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-20'" class="input-label">{{ t("admin.groups.profitControl.safetyBuffer") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-20'"
                 v-model.number="createForm.profit_safety_buffer_percent"
                 type="number"
                 step="0.1"
@@ -1498,10 +1513,10 @@
           </div>
           <!-- 降级分组选择（仅当启用 claude_code_only 时显示） -->
           <div v-if="createForm.claude_code_only" class="mt-3">
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-21'" class="input-label">{{
               t("admin.groups.claudeCode.fallbackGroup")
             }}</label>
-            <Select :aria-label="t('admin.groups.claudeCode.fallbackGroup')"
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-21'" :aria-label="t('admin.groups.claudeCode.fallbackGroup')"
               v-model="createForm.fallback_group_id"
               :options="fallbackGroupOptions"
               :placeholder="t('admin.groups.claudeCode.noFallback')"
@@ -1521,10 +1536,10 @@
             {{ t("admin.groups.webSearchPricing.title") }}
           </AppHeading>
           <div>
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-22'" class="input-label">{{
               t("admin.groups.webSearchPricing.pricePerCall")
             }}</label>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-22'"
               v-model.number="createForm.web_search_price_per_call"
               type="number"
               step="0.001"
@@ -1580,8 +1595,8 @@
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-23'" class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-23'"
                 v-model.number="createForm.search_price_per_1k"
                 type="number"
                 step="0.000001"
@@ -1592,8 +1607,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.voicePricing.audioRealtimePerMin") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-24'" class="input-label">{{ t("admin.groups.voicePricing.audioRealtimePerMin") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-24'"
                 v-model.number="createForm.audio_realtime_price_per_min"
                 type="number"
                 step="0.000001"
@@ -1604,8 +1619,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.voicePricing.audioTtsPerMillionChars") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-25'" class="input-label">{{ t("admin.groups.voicePricing.audioTtsPerMillionChars") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-25'"
                 v-model.number="createForm.audio_tts_price_per_million_chars"
                 type="number"
                 step="0.000001"
@@ -1616,8 +1631,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.voicePricing.audioSttPerHour") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-26'" class="input-label">{{ t("admin.groups.voicePricing.audioSttPerHour") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-26'"
                 v-model.number="createForm.audio_stt_price_per_hour"
                 type="number"
                 step="0.000001"
@@ -1736,10 +1751,10 @@
               <div class="p-4">
                 <div class="grid gap-4 md:grid-cols-3">
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-27'" class="input-label">{{
                       t("admin.groups.openaiMessages.opusModel")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-27'"
                       v-model="createForm.opus_mapped_model"
                       type="text"
                       :placeholder="
@@ -1749,10 +1764,10 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-28'" class="input-label">{{
                       t("admin.groups.openaiMessages.sonnetModel")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-28'"
                       v-model="createForm.sonnet_mapped_model"
                       type="text"
                       :placeholder="
@@ -1762,10 +1777,10 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-29'" class="input-label">{{
                       t("admin.groups.openaiMessages.haikuModel")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-29'"
                       v-model="createForm.haiku_mapped_model"
                       type="text"
                       :placeholder="
@@ -1824,7 +1839,7 @@
 
                 <div v-else class="space-y-3">
                   <div
-                    v-for="row in createForm.exact_model_mappings"
+                    v-for="(row, fieldIndex0) in createForm.exact_model_mappings"
                     :key="getCreateMessagesDispatchRowKey(row)"
                     class="group relative rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-primary-300 hover:shadow-md dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
                   >
@@ -1833,10 +1848,10 @@
                         class="grid flex-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start"
                       >
                         <div>
-                          <label class="input-label">{{
+                          <label :id="'field-' + fieldLabelScope + '-30' + '-' + fieldIndex0" class="input-label">{{
                             t("admin.groups.openaiMessages.claudeModel")
                           }}</label>
-                          <input
+                          <input :aria-labelledby="'field-' + fieldLabelScope + '-30' + '-' + fieldIndex0"
                             v-model="row.claude_model"
                             type="text"
                             :placeholder="
@@ -1857,10 +1872,10 @@
                           />
                         </div>
                         <div>
-                          <label class="input-label">{{
+                          <label :id="'field-' + fieldLabelScope + '-31' + '-' + fieldIndex0" class="input-label">{{
                             t("admin.groups.openaiMessages.targetModel")
                           }}</label>
-                          <input
+                          <input :aria-labelledby="'field-' + fieldLabelScope + '-31' + '-' + fieldIndex0"
                             v-model="row.target_model"
                             type="text"
                             :placeholder="
@@ -1955,10 +1970,10 @@
           "
           class="border-t pt-4"
         >
-          <label class="input-label">{{
+          <label :id="'field-' + fieldLabelScope + '-32'" class="input-label">{{
             t("admin.groups.invalidRequestFallback.title")
           }}</label>
-          <Select :aria-label="t('admin.groups.invalidRequestFallback.title')"
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-32'" :aria-label="t('admin.groups.invalidRequestFallback.title')"
             v-model="createForm.fallback_group_id_on_invalid_request"
             :options="invalidRequestFallbackOptions"
             :placeholder="t('admin.groups.invalidRequestFallback.noFallback')"
@@ -2021,17 +2036,17 @@
           <!-- 路由规则列表（仅在启用时显示） -->
           <div v-if="createForm.model_routing_enabled" class="space-y-3">
             <div
-              v-for="rule in createModelRoutingRules"
+              v-for="(rule, fieldIndex1) in createModelRoutingRules"
               :key="getCreateRuleRenderKey(rule)"
               class="rounded-lg border border-gray-200 p-3 dark:border-dark-600"
             >
               <div class="flex items-start gap-3">
                 <div class="flex-1 space-y-2">
                   <div>
-                    <label class="input-label text-xs">{{
+                    <label :id="'field-' + fieldLabelScope + '-33' + '-' + fieldIndex1" class="input-label text-xs">{{
                       t("admin.groups.modelRouting.modelPattern")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-33' + '-' + fieldIndex1"
                       v-model="rule.pattern"
                       type="text"
                       class="input text-sm"
@@ -2041,7 +2056,7 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label text-xs">{{
+                    <label :id="'field-' + fieldLabelScope + '-34' + '-' + fieldIndex1" class="input-label text-xs">{{
                       t("admin.groups.modelRouting.accounts")
                     }}</label>
                     <!-- 已选账号标签 -->
@@ -2055,7 +2070,7 @@
                         class="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
                       >
                         {{ account.name }}
-                        <button
+                        <button :aria-label="t('consoleFields.remove')"
                           type="button"
                           @click="removeSelectedAccount(rule, account.id)"
                           class="ml-0.5 text-primary-500 hover:text-primary-700 dark:hover:text-primary-200"
@@ -2066,7 +2081,7 @@
                     </div>
                     <!-- 账号搜索输入框 -->
                     <div class="relative account-search-container">
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-34' + '-' + fieldIndex1"
                         v-model="
                           accountSearchKeyword[getCreateRuleSearchKey(rule)]
                         "
@@ -2219,10 +2234,10 @@
           />
         </div>
         <div>
-          <label class="input-label">{{
+          <label :id="'field-' + fieldLabelScope + '-35'" class="input-label">{{
             t("admin.groups.form.platform")
           }}</label>
-          <Select :aria-label="t('admin.groups.form.platform')"
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-35'" :aria-label="t('admin.groups.form.platform')"
             v-model="editForm.platform"
             :options="platformOptions"
             :disabled="true"
@@ -2274,7 +2289,7 @@
                 copyAccountsGroupOptionsForEdit.find((o) => o.value === groupId)
                   ?.label || `#${groupId}`
               }}
-              <button
+              <button :aria-label="t('consoleFields.copy')"
                 type="button"
                 @click="
                   editForm.copy_accounts_from_group_ids =
@@ -2289,7 +2304,7 @@
             </span>
           </div>
           <!-- 分组选择下拉 -->
-          <select
+          <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.group') }}</span><select
             class="input"
             @change="
               (e) => {
@@ -2317,16 +2332,16 @@
             >
               {{ opt.label }}
             </option>
-          </select>
+          </select></label>
           <p class="input-hint">
             {{ t("admin.groups.copyAccounts.hintEdit") }}
           </p>
         </div>
         <div>
-          <label class="input-label">{{
+          <label :id="'field-' + fieldLabelScope + '-36'" class="input-label">{{
             t("admin.groups.form.rateMultiplier")
           }}</label>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-36'"
             v-model.number="editForm.rate_multiplier"
             type="number"
             step="0.001"
@@ -2337,8 +2352,8 @@
           />
         </div>
         <div>
-          <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-37'" class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-37'"
             v-model.number="editForm.rpm_limit"
             type="number"
             min="0"
@@ -2446,17 +2461,17 @@
           </div>
         </div>
         <div>
-          <label class="input-label">{{ t("admin.groups.form.status") }}</label>
-          <Select :aria-label="t('admin.groups.form.status')" v-model="editForm.status" :options="editStatusOptions" />
+          <label :id="'field-' + fieldLabelScope + '-38'" class="input-label">{{ t("admin.groups.form.status") }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-38'" :aria-label="t('admin.groups.form.status')" v-model="editForm.status" :options="editStatusOptions" />
         </div>
 
         <!-- Subscription Configuration -->
         <div class="mt-4 border-t pt-4">
           <div>
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-39'" class="input-label">{{
               t("admin.groups.subscription.type")
             }}</label>
-            <Select :aria-label="t('admin.groups.subscription.type')"
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-39'" :aria-label="t('admin.groups.subscription.type')"
               v-model="editForm.subscription_type"
               :options="subscriptionTypeOptions"
               :disabled="true"
@@ -2472,10 +2487,10 @@
             class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
           >
             <div>
-              <label class="input-label">{{
+              <label :id="'field-' + fieldLabelScope + '-40'" class="input-label">{{
                 t("admin.groups.subscription.dailyLimit")
               }}</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-40'"
                 v-model.number="editForm.daily_limit_usd"
                 type="number"
                 step="0.01"
@@ -2485,10 +2500,10 @@
               />
             </div>
             <div>
-              <label class="input-label">{{
+              <label :id="'field-' + fieldLabelScope + '-41'" class="input-label">{{
                 t("admin.groups.subscription.weeklyLimit")
               }}</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-41'"
                 v-model.number="editForm.weekly_limit_usd"
                 type="number"
                 step="0.01"
@@ -2498,10 +2513,10 @@
               />
             </div>
             <div>
-              <label class="input-label">{{
+              <label :id="'field-' + fieldLabelScope + '-42'" class="input-label">{{
                 t("admin.groups.subscription.monthlyLimit")
               }}</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-42'"
                 v-model.number="editForm.monthly_limit_usd"
                 type="number"
                 step="0.01"
@@ -2511,8 +2526,8 @@
               />
             </div>
             <div data-testid="edit-subscription-fallback">
-              <label class="input-label">{{ t("admin.groups.subscription.fallbackGroup") }}</label>
-              <Select :aria-label="t('admin.groups.subscription.fallbackGroup')"
+              <label :id="'field-' + fieldLabelScope + '-43'" class="input-label">{{ t("admin.groups.subscription.fallbackGroup") }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-43'" :aria-label="t('admin.groups.subscription.fallbackGroup')"
                 v-model="editForm.subscription_fallback_group_id"
                 data-testid="edit-subscription-fallback-select"
                 :options="subscriptionFallbackOptionsForEdit"
@@ -2574,7 +2589,7 @@
               <p v-if="editModelAllowlistLoading" class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelAllowlist.loading") }}
               </p>
-              <p
+              <p :id="'field-' + fieldLabelScope + '-44'"
                 v-else-if="editModelAllowlistState.items.length === 0"
                 class="text-xs text-gray-500 dark:text-gray-400"
               >
@@ -2585,7 +2600,7 @@
                 :key="item.id"
                 class="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
               >
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-44'"
                   v-model="item.selected"
                   type="checkbox"
                   class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
@@ -2599,7 +2614,7 @@
                     {{ t("admin.groups.modelAllowlist.wildcardTag") }}
                   </span>
                 </span>
-                <button
+                <button :aria-label="t('consoleFields.moveUp')"
                   type="button"
                   :disabled="index === 0"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
@@ -2607,7 +2622,7 @@
                 >
                   <Icon name="arrowUp" size="sm" />
                 </button>
-                <button
+                <button :aria-label="t('consoleFields.moveDown')"
                   type="button"
                   :disabled="index === editModelAllowlistState.items.length - 1"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
@@ -2619,13 +2634,16 @@
             </div>
             <div class="border-t border-gray-200 px-3 py-2 dark:border-dark-600">
               <div class="flex items-center gap-2">
-                <input
+                <label class="block min-w-0 min-w-0 flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.groups.modelAllowlist.customPlaceholder') }}</span>
+                  <input
                   v-model="editAllowlistCustomEntry"
                   type="text"
                   :placeholder="t('admin.groups.modelAllowlist.customPlaceholder')"
                   class="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-gray-200"
                   @keydown.enter.prevent="submitEditAllowlistCustomEntry"
                 />
+                </label>
                 <button
                   type="button"
                   class="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
@@ -2649,7 +2667,7 @@
           v-if="supportsImagePricingPlatform(editForm.platform)"
           class="border-t pt-4"
         >
-          <label
+          <label :id="'field-' + fieldLabelScope + '-46'"
             class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
           >
             {{ t(imagePricingI18nKey(editForm.platform, "title")) }}
@@ -2693,10 +2711,10 @@
             v-if="editForm.image_rate_independent"
             class="mb-4"
           >
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-45'" class="input-label">{{
               t(imagePricingI18nKey(editForm.platform, "imageMultiplier"))
             }}</label>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-45'"
               v-model.number="editForm.image_rate_multiplier"
               type="number"
               step="0.0001"
@@ -2708,7 +2726,7 @@
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="input-label">1K ($)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-46'"
                 v-model.number="editForm.image_price_1k"
                 type="number"
                 step="0.001"
@@ -2719,7 +2737,7 @@
             </div>
             <div>
               <label class="input-label">2K ($)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-46'"
                 v-model.number="editForm.image_price_2k"
                 type="number"
                 step="0.001"
@@ -2730,7 +2748,7 @@
             </div>
             <div>
               <label class="input-label">4K ($)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-46'"
                 v-model.number="editForm.image_price_4k"
                 type="number"
                 step="0.001"
@@ -2775,10 +2793,10 @@
               class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2"
             >
               <div>
-                <label class="input-label">{{
+                <label :id="'field-' + fieldLabelScope + '-47'" class="input-label">{{
                   t("admin.groups.imagePricing.batchDiscountMultiplier")
                 }}</label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-47'"
                   v-model.number="editForm.batch_image_discount_multiplier"
                   type="number"
                   step="0.0001"
@@ -2788,10 +2806,10 @@
                 />
               </div>
               <div>
-                <label class="input-label">{{
+                <label :id="'field-' + fieldLabelScope + '-48'" class="input-label">{{
                   t("admin.groups.imagePricing.batchHoldMultiplier")
                 }}</label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-48'"
                   v-model.number="editForm.batch_image_hold_multiplier"
                   type="number"
                   step="0.0001"
@@ -2820,7 +2838,7 @@
           v-if="supportsVideoPricingPlatform(editForm.platform)"
           class="border-t pt-4"
         >
-          <label
+          <label :id="'field-' + fieldLabelScope + '-50'"
             class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
           >
             {{ t(videoPricingI18nKey("title")) }}
@@ -2842,10 +2860,10 @@
             v-if="editForm.video_rate_independent"
             class="mb-4"
           >
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-49'" class="input-label">{{
               t(videoPricingI18nKey("videoMultiplier"))
             }}</label>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-49'"
               v-model.number="editForm.video_rate_multiplier"
               type="number"
               step="0.0001"
@@ -2857,7 +2875,7 @@
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="input-label">480p ($/s)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-50'"
                 v-model.number="editForm.video_price_480p"
                 type="number"
                 step="0.001"
@@ -2868,7 +2886,7 @@
             </div>
             <div>
               <label class="input-label">720p ($/s)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-50'"
                 v-model.number="editForm.video_price_720p"
                 type="number"
                 step="0.001"
@@ -2879,7 +2897,7 @@
             </div>
             <div>
               <label class="input-label">1080p ($/s)</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-50'"
                 v-model.number="editForm.video_price_1080p"
                 type="number"
                 step="0.001"
@@ -2963,24 +2981,24 @@
             class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
           >
             <div>
-              <label class="input-label">{{ t("admin.groups.peakRate.peakStart") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-51'" class="input-label">{{ t("admin.groups.peakRate.peakStart") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-51'"
                 v-model="editForm.peak_start"
                 type="time"
                 class="input"
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.peakRate.peakEnd") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-52'" class="input-label">{{ t("admin.groups.peakRate.peakEnd") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-52'"
                 v-model="editForm.peak_end"
                 type="time"
                 class="input"
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.peakRate.peakMultiplier") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-53'" class="input-label">{{ t("admin.groups.peakRate.peakMultiplier") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-53'"
                 v-model.number="editForm.peak_rate_multiplier"
                 type="number"
                 step="0.001"
@@ -3015,8 +3033,8 @@
             class="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2"
           >
             <div>
-              <label class="input-label">{{ t("admin.groups.profitControl.minMargin") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-54'" class="input-label">{{ t("admin.groups.profitControl.minMargin") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-54'"
                 v-model.number="editForm.profit_min_margin_percent"
                 type="number"
                 step="0.1"
@@ -3028,8 +3046,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.profitControl.safetyBuffer") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-55'" class="input-label">{{ t("admin.groups.profitControl.safetyBuffer") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-55'"
                 v-model.number="editForm.profit_safety_buffer_percent"
                 type="number"
                 step="0.1"
@@ -3200,10 +3218,10 @@
           </div>
           <!-- 降级分组选择（仅当启用 claude_code_only 时显示） -->
           <div v-if="editForm.claude_code_only" class="mt-3">
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-56'" class="input-label">{{
               t("admin.groups.claudeCode.fallbackGroup")
             }}</label>
-            <Select :aria-label="t('admin.groups.claudeCode.fallbackGroup')"
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-56'" :aria-label="t('admin.groups.claudeCode.fallbackGroup')"
               v-model="editForm.fallback_group_id"
               :options="fallbackGroupOptionsForEdit"
               :placeholder="t('admin.groups.claudeCode.noFallback')"
@@ -3223,10 +3241,10 @@
             {{ t("admin.groups.webSearchPricing.title") }}
           </AppHeading>
           <div>
-            <label class="input-label">{{
+            <label :id="'field-' + fieldLabelScope + '-57'" class="input-label">{{
               t("admin.groups.webSearchPricing.pricePerCall")
             }}</label>
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-57'"
               v-model.number="editForm.web_search_price_per_call"
               type="number"
               step="0.001"
@@ -3292,8 +3310,8 @@
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-58'" class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-58'"
                 v-model.number="editForm.search_price_per_1k"
                 type="number"
                 step="0.000001"
@@ -3304,8 +3322,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.voicePricing.audioRealtimePerMin") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-59'" class="input-label">{{ t("admin.groups.voicePricing.audioRealtimePerMin") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-59'"
                 v-model.number="editForm.audio_realtime_price_per_min"
                 type="number"
                 step="0.000001"
@@ -3316,8 +3334,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.voicePricing.audioTtsPerMillionChars") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-60'" class="input-label">{{ t("admin.groups.voicePricing.audioTtsPerMillionChars") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-60'"
                 v-model.number="editForm.audio_tts_price_per_million_chars"
                 type="number"
                 step="0.000001"
@@ -3328,8 +3346,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t("admin.groups.voicePricing.audioSttPerHour") }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-61'" class="input-label">{{ t("admin.groups.voicePricing.audioSttPerHour") }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-61'"
                 v-model.number="editForm.audio_stt_price_per_hour"
                 type="number"
                 step="0.000001"
@@ -3447,10 +3465,10 @@
               <div class="p-4">
                 <div class="grid gap-4 md:grid-cols-3">
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-62'" class="input-label">{{
                       t("admin.groups.openaiMessages.opusModel")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-62'"
                       v-model="editForm.opus_mapped_model"
                       type="text"
                       :placeholder="
@@ -3460,10 +3478,10 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-63'" class="input-label">{{
                       t("admin.groups.openaiMessages.sonnetModel")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-63'"
                       v-model="editForm.sonnet_mapped_model"
                       type="text"
                       :placeholder="
@@ -3473,10 +3491,10 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
+                    <label :id="'field-' + fieldLabelScope + '-64'" class="input-label">{{
                       t("admin.groups.openaiMessages.haikuModel")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-64'"
                       v-model="editForm.haiku_mapped_model"
                       type="text"
                       :placeholder="
@@ -3535,7 +3553,7 @@
 
                 <div v-else class="space-y-3">
                   <div
-                    v-for="row in editForm.exact_model_mappings"
+                    v-for="(row, fieldIndex2) in editForm.exact_model_mappings"
                     :key="getEditMessagesDispatchRowKey(row)"
                     class="group relative rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-primary-300 hover:shadow-md dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
                   >
@@ -3544,10 +3562,10 @@
                         class="grid flex-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start"
                       >
                         <div>
-                          <label class="input-label">{{
+                          <label :id="'field-' + fieldLabelScope + '-65' + '-' + fieldIndex2" class="input-label">{{
                             t("admin.groups.openaiMessages.claudeModel")
                           }}</label>
-                          <input
+                          <input :aria-labelledby="'field-' + fieldLabelScope + '-65' + '-' + fieldIndex2"
                             v-model="row.claude_model"
                             type="text"
                             :placeholder="
@@ -3568,10 +3586,10 @@
                           />
                         </div>
                         <div>
-                          <label class="input-label">{{
+                          <label :id="'field-' + fieldLabelScope + '-66' + '-' + fieldIndex2" class="input-label">{{
                             t("admin.groups.openaiMessages.targetModel")
                           }}</label>
-                          <input
+                          <input :aria-labelledby="'field-' + fieldLabelScope + '-66' + '-' + fieldIndex2"
                             v-model="row.target_model"
                             type="text"
                             :placeholder="
@@ -3666,10 +3684,10 @@
           "
           class="border-t pt-4"
         >
-          <label class="input-label">{{
+          <label :id="'field-' + fieldLabelScope + '-67'" class="input-label">{{
             t("admin.groups.invalidRequestFallback.title")
           }}</label>
-          <Select :aria-label="t('admin.groups.invalidRequestFallback.title')"
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-67'" :aria-label="t('admin.groups.invalidRequestFallback.title')"
             v-model="editForm.fallback_group_id_on_invalid_request"
             :options="invalidRequestFallbackOptionsForEdit"
             :placeholder="t('admin.groups.invalidRequestFallback.noFallback')"
@@ -3732,17 +3750,17 @@
           <!-- 路由规则列表（仅在启用时显示） -->
           <div v-if="editForm.model_routing_enabled" class="space-y-3">
             <div
-              v-for="rule in editModelRoutingRules"
+              v-for="(rule, fieldIndex3) in editModelRoutingRules"
               :key="getEditRuleRenderKey(rule)"
               class="rounded-lg border border-gray-200 p-3 dark:border-dark-600"
             >
               <div class="flex items-start gap-3">
                 <div class="flex-1 space-y-2">
                   <div>
-                    <label class="input-label text-xs">{{
+                    <label :id="'field-' + fieldLabelScope + '-68' + '-' + fieldIndex3" class="input-label text-xs">{{
                       t("admin.groups.modelRouting.modelPattern")
                     }}</label>
-                    <input
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-68' + '-' + fieldIndex3"
                       v-model="rule.pattern"
                       type="text"
                       class="input text-sm"
@@ -3752,7 +3770,7 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label text-xs">{{
+                    <label :id="'field-' + fieldLabelScope + '-69' + '-' + fieldIndex3" class="input-label text-xs">{{
                       t("admin.groups.modelRouting.accounts")
                     }}</label>
                     <!-- 已选账号标签 -->
@@ -3766,7 +3784,7 @@
                         class="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
                       >
                         {{ account.name }}
-                        <button
+                        <button :aria-label="t('consoleFields.remove')"
                           type="button"
                           @click="removeSelectedAccount(rule, account.id, true)"
                           class="ml-0.5 text-primary-500 hover:text-primary-700 dark:hover:text-primary-200"
@@ -3777,7 +3795,7 @@
                     </div>
                     <!-- 账号搜索输入框 -->
                     <div class="relative account-search-container">
-                      <input
+                      <input :aria-labelledby="'field-' + fieldLabelScope + '-69' + '-' + fieldIndex3"
                         v-model="
                           accountSearchKeyword[getEditRuleSearchKey(rule)]
                         "
@@ -4043,7 +4061,7 @@
               {{ t("admin.groups.compositeRoutes.routes") }}
             </AppHeading>
             <div ref="compositeRoutesToolbarTarget" class="flex items-center gap-2">
-            <button
+            <button :aria-label="t('consoleFields.refresh')"
               type="button"
               class="btn btn-secondary btn-sm"
               :disabled="compositeRoutesLoading"
@@ -4151,10 +4169,10 @@
             </div>
 
             <div>
-              <label class="input-label">{{
+              <label :id="'field-' + fieldLabelScope + '-70'" class="input-label">{{
                 t("admin.groups.compositeRoutes.publicModel")
               }}</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-70'"
                 v-model.trim="compositeRouteForm.public_model"
                 type="text"
                 class="input"
@@ -4165,19 +4183,19 @@
 
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label class="input-label">{{
+                <label :id="'field-' + fieldLabelScope + '-71'" class="input-label">{{
                   t("admin.groups.compositeRoutes.matchType")
                 }}</label>
-                <Select :aria-label="t('admin.groups.compositeRoutes.matchType')"
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-71'" :aria-label="t('admin.groups.compositeRoutes.matchType')"
                   v-model="compositeRouteForm.match_type"
                   :options="compositeRouteMatchOptions"
                 />
               </div>
               <div>
-                <label class="input-label">{{
+                <label :id="'field-' + fieldLabelScope + '-72'" class="input-label">{{
                   t("admin.groups.compositeRoutes.endpoint")
                 }}</label>
-                <Select :aria-label="t('admin.groups.compositeRoutes.endpoint')"
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-72'" :aria-label="t('admin.groups.compositeRoutes.endpoint')"
                   v-model="compositeRouteForm.endpoint"
                   :options="compositeRouteEndpointOptions"
                 />
@@ -4186,19 +4204,19 @@
 
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label class="input-label">{{
+                <label :id="'field-' + fieldLabelScope + '-73'" class="input-label">{{
                   t("admin.groups.compositeRoutes.targetPlatform")
                 }}</label>
-                <Select :aria-label="t('admin.groups.compositeRoutes.targetPlatform')"
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-73'" :aria-label="t('admin.groups.compositeRoutes.targetPlatform')"
                   v-model="compositeRouteForm.target_platform"
                   :options="compositeRoutePlatformOptions"
                 />
               </div>
               <div>
-                <label class="input-label">{{
+                <label :id="'field-' + fieldLabelScope + '-74'" class="input-label">{{
                   t("admin.groups.compositeRoutes.priority")
                 }}</label>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-74'"
                   v-model.number="compositeRouteForm.priority"
                   type="number"
                   min="1"
@@ -4209,10 +4227,10 @@
             </div>
 
             <div>
-              <label class="input-label">{{
+              <label :id="'field-' + fieldLabelScope + '-75'" class="input-label">{{
                 t("admin.groups.compositeRoutes.upstreamModel")
               }}</label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-75'"
                 v-model.trim="compositeRouteForm.upstream_model"
                 type="text"
                 class="input"
@@ -4224,10 +4242,10 @@
             </div>
 
             <div>
-              <label class="input-label">{{
+              <label :id="'field-' + fieldLabelScope + '-76'" class="input-label">{{
                 t("admin.groups.compositeRoutes.notes")
               }}</label>
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-76'"
                 v-model.trim="compositeRouteForm.notes"
                 rows="2"
                 class="input"
@@ -4264,20 +4282,23 @@
               {{ t("admin.groups.compositeRoutes.preview") }}
             </AppHeading>
             <div class="space-y-3">
-              <input
+              <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.group') }}</span><input
                 v-model.trim="compositePreviewModel"
                 type="text"
                 class="input"
                 placeholder="openrouter/gpt-5"
                 @keyup.enter="previewCompositeRoute"
-              />
+              /></label>
               <div class="flex gap-2">
-                <Select :aria-label="t('admin.groups.compositeRoutes.endpoint')"
+                <label class="block min-w-0 min-w-0 flex-1">
+                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.groups.compositeRoutes.endpoint') }}</span>
+                  <Select :aria-label="t('admin.groups.compositeRoutes.endpoint')"
                   v-model="compositePreviewEndpoint"
                   :options="compositeRouteEndpointOptions"
                   class="min-w-0 flex-1"
                 />
-                <button
+                </label>
+                <button :aria-label="t('consoleFields.preview')"
                   type="button"
                   class="btn btn-secondary"
                   :disabled="compositePreviewLoading || !compositePreviewModel"
@@ -4388,6 +4409,8 @@
 import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
 
 import { formatAmount as displayAmount } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import AppHeading from '@/components/common/AppHeading.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'

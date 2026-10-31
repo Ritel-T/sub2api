@@ -1,85 +1,8 @@
+import { consoleUiMessages } from '@/i18n/consoleCopy'
 import type { SearchNavItem } from '@/utils/featureSearch'
 
 export function consoleNavigationText(locale: string) {
-  if (locale.startsWith('zh')) {
-    const traditional = locale === 'zh-Hant' || /HK|TW/i.test(locale)
-    return traditional
-      ? {
-          ownKeys: '我的 API Keys',
-          workspace: '工作區',
-          management: '管理',
-          personal: '個人',
-          navigation: '功能導覽',
-          models: '模型',
-          analysis: '用量分析',
-          records: '請求記錄',
-          sections: {
-            overview: '總覽',
-            access: '接入',
-            usage: '用量',
-            billing: '帳務',
-            support: '支援',
-            account: '帳戶',
-            resources: '資源',
-            users: '用戶',
-            operations: '運維',
-            revenue: '營收',
-            system: '系統',
-            extensions: '擴充',
-            more: '更多',
-          },
-        }
-      : {
-          ownKeys: '我的 API Keys',
-          workspace: '工作区',
-          management: '管理',
-          personal: '个人',
-          navigation: '功能导航',
-          models: '模型',
-          analysis: '用量分析',
-          records: '请求记录',
-          sections: {
-            overview: '总览',
-            access: '接入',
-            usage: '用量',
-            billing: '账务',
-            support: '支持',
-            account: '账户',
-            resources: '资源',
-            users: '用户',
-            operations: '运维',
-            revenue: '营收',
-            system: '系统',
-            extensions: '扩展',
-            more: '更多',
-          },
-        }
-  }
-  return {
-    ownKeys: 'My API Keys',
-    workspace: 'Workspace',
-    management: 'Management',
-    personal: 'Personal',
-    navigation: 'Navigation',
-    models: 'Models',
-    analysis: 'Usage analytics',
-    records: 'Request records',
-    sections: {
-      overview: 'Overview',
-      access: 'Access',
-      usage: 'Usage',
-      billing: 'Billing',
-      support: 'Support',
-      account: 'Account',
-      resources: 'Resources',
-      users: 'Users',
-      operations: 'Operations',
-      revenue: 'Revenue',
-      system: 'System',
-      extensions: 'Extensions',
-      more: 'More',
-    },
-  }
+  return consoleUiMessages(locale).navigation
 }
 export type ConsoleNavigationText = ReturnType<typeof consoleNavigationText>
 export type ConsoleWorkspace = 'personal' | 'management'

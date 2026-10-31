@@ -26,8 +26,8 @@
           <div class="space-y-4 p-5">
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="input-label">{{ t('channelMonitorV3.admin.interval') }}</label>
-                <Select v-model="draft.interval_minutes" :options="intervalOptions" :aria-label="t('channelMonitorV3.admin.interval')" data-testid="monitor-v3-interval" />
+                <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('channelMonitorV3.admin.interval') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="draft.interval_minutes" :options="intervalOptions" :aria-label="t('channelMonitorV3.admin.interval')" data-testid="monitor-v3-interval" />
               </div>
               <div>
                 <label class="input-label" for="monitor-v3-cells">{{ t('channelMonitorV3.admin.cells') }}</label>
@@ -36,8 +36,8 @@
             </div>
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV3.admin.windowHint', { hours: windowHours, cells: draft.cells }) }}</p>
             <div>
-              <label class="input-label">{{ t('channelMonitorV3.admin.range') }}</label>
-              <Select v-model="draft.availability_range" :options="rangeOptions" :aria-label="t('channelMonitorV3.admin.range')" data-testid="monitor-v3-range" />
+              <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('channelMonitorV3.admin.range') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model="draft.availability_range" :options="rangeOptions" :aria-label="t('channelMonitorV3.admin.range')" data-testid="monitor-v3-range" />
             </div>
 
             <div class="rounded-xl border border-gray-100 p-3 dark:border-dark-700">
@@ -52,8 +52,8 @@
                   <input id="monitor-v3-degraded-rate" v-model.number="degradedPercent" type="number" min="1" max="100" step="1" class="input" />
                 </div>
                 <div>
-                  <label class="input-label">{{ t('channelMonitorV3.admin.ttft') }}</label>
-                  <Select v-model="draft.degraded_ttft_ms" :options="ttftOptions" :aria-label="t('channelMonitorV3.admin.ttft')" data-testid="monitor-v3-ttft" />
+                  <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('channelMonitorV3.admin.ttft') }}</label>
+                  <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model="draft.degraded_ttft_ms" :options="ttftOptions" :aria-label="t('channelMonitorV3.admin.ttft')" data-testid="monitor-v3-ttft" />
                 </div>
                 <div>
                   <label class="input-label" for="monitor-v3-min">{{ t('channelMonitorV3.admin.minRequests') }}</label>
@@ -83,8 +83,8 @@
             </div>
 
             <div>
-              <label class="input-label">{{ t('channelMonitorV3.admin.featured') }}</label>
-              <Select v-model="draft.featured_component_id" :options="featuredOptions" :aria-label="t('channelMonitorV3.admin.featured')" data-testid="monitor-v3-featured-select" />
+              <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('channelMonitorV3.admin.featured') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-4'" v-model="draft.featured_component_id" :options="featuredOptions" :aria-label="t('channelMonitorV3.admin.featured')" data-testid="monitor-v3-featured-select" />
               <p class="mt-1 text-xs text-gray-400">{{ t('channelMonitorV3.admin.featuredHint') }}</p>
             </div>
             <div>
@@ -255,6 +255,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import LoadingRegion from '@/components/common/LoadingRegion.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'

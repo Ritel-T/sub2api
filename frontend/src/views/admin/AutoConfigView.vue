@@ -49,8 +49,8 @@
             <fieldset><legend class="field-label">{{ t('autoConfig.groups') }}</legend><div class="group-list"><label v-for="g in initialGroups" :key="g.id" class="group-option"><input v-model="draft.group_ids" :value="g.id" type="checkbox" :data-testid="'initial-group-' + g.id" /><span>{{ g.name }} <small class="text-gray-400">#{{ g.id }}</small></span></label><p v-if="!initialGroups.length" class="text-sm text-gray-500">{{ t('autoConfig.noGroups') }}</p></div></fieldset>
             <fieldset class="space-y-3" data-testid="initial-quality-rule">
               <legend class="field-label">{{ t('autoConfig.quality.title') }}</legend>
-              <p class="text-xs leading-5 text-gray-500">{{ t('autoConfig.quality.hint') }}</p>
-              <select v-model="selectedQualityRule" data-testid="quality-rule-select" class="input w-full" :aria-label="t('autoConfig.quality.title')" @change="selectQualityRule">
+              <p :id="'field-' + fieldLabelScope + '-1'" class="text-xs leading-5 text-gray-500">{{ t('autoConfig.quality.hint') }}</p>
+              <select :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="selectedQualityRule" data-testid="quality-rule-select" class="input w-full" :aria-label="t('autoConfig.quality.title')" @change="selectQualityRule">
                 <option value="">{{ t('autoConfig.quality.none') }}</option>
                 <option v-if="draft.quality_rule" value="saved">{{ t('autoConfig.quality.saved') }}</option>
                 <option v-for="plan in availableQualityPlans" :key="plan.id" :value="String(plan.id)">{{ plan.account_name || '#' + plan.account_id }} · #{{ plan.id }} · {{ plan.model_id }} · {{ qualityActionLabel(plan) }}</option>
@@ -86,6 +86,9 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import Toggle from '@/components/common/Toggle.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'

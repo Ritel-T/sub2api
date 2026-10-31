@@ -9,18 +9,18 @@
       <!-- Name + Key -->
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="input-label">
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">
             {{ t('admin.settings.payment.providerName') }}
             <span class="text-red-500">*</span>
           </label>
-          <input v-model="form.name" type="text" class="input" required />
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="form.name" type="text" class="input" required />
         </div>
         <div>
-          <label class="input-label">
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">
             {{ t('admin.settings.payment.providerKey') }}
             <span class="text-red-500">*</span>
           </label>
-          <Select :aria-label="t('admin.settings.payment.providerKey')"
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('admin.settings.payment.providerKey')"
             v-model="form.provider_key"
             :options="(!!editing ? allKeyOptions : enabledKeyOptions) as SelectOption[]"
             :disabled="!!editing"
@@ -91,16 +91,16 @@
             class="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2"
           >
             <div>
-              <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.customMethodType') }}</label>
-              <input v-model="method.type" type="text" class="input mt-0.5" placeholder="credit_card" />
+              <label :id="'field-' + fieldLabelScope + '-3' + '-' + index" class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.customMethodType') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-3' + '-' + index" v-model="method.type" type="text" class="input mt-0.5" placeholder="credit_card" />
             </div>
             <div>
-              <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.customMethodUpstreamType') }}</label>
-              <input v-model="method.upstreamType" type="text" class="input mt-0.5" placeholder="credit_card" />
+              <label :id="'field-' + fieldLabelScope + '-4' + '-' + index" class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.customMethodUpstreamType') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-4' + '-' + index" v-model="method.upstreamType" type="text" class="input mt-0.5" placeholder="credit_card" />
             </div>
             <div>
-              <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.customMethodDisplayName') }}</label>
-              <input v-model="method.displayName" type="text" class="input mt-0.5" :placeholder="t('admin.settings.payment.customMethodDisplayNamePlaceholder')" />
+              <label :id="'field-' + fieldLabelScope + '-5' + '-' + index" class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.customMethodDisplayName') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-5' + '-' + index" v-model="method.displayName" type="text" class="input mt-0.5" :placeholder="t('admin.settings.payment.customMethodDisplayNamePlaceholder')" />
             </div>
             <button
               type="button"
@@ -153,13 +153,13 @@
           {{ paymentGuide.summary }}
         </p>
         <div class="space-y-3">
-          <div v-for="field in resolvedFields" :key="field.key" :data-config-field="field.key">
-            <label class="input-label">
+          <div v-for="(field, fieldIndex0) in resolvedFields" :key="field.key" :data-config-field="field.key">
+            <label :id="'field-' + fieldLabelScope + '-6' + '-' + fieldIndex0" class="input-label">
               {{ field.label }}
               <span v-if="field.optional" class="text-xs text-gray-400">({{ t('common.optional') }})</span>
               <span v-else class="text-red-500"> *</span>
             </label>
-            <textarea
+            <textarea :aria-labelledby="'field-' + fieldLabelScope + '-6' + '-' + fieldIndex0"
               v-if="field.sensitive && field.key.toLowerCase().includes('key') && field.key !== 'pkey'"
               v-model="config[field.key]"
               rows="3"
@@ -172,7 +172,7 @@
               :placeholder="editing ? t('admin.accounts.leaveEmptyToKeep') : ''"
             />
             <div v-else-if="field.sensitive" class="relative">
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-6' + '-' + fieldIndex0"
                 :type="visibleFields[field.key] ? 'text' : 'password'"
                 v-model="config[field.key]"
                 class="input pr-10"
@@ -183,7 +183,7 @@
                 spellcheck="false"
                 :placeholder="editing ? t('admin.accounts.leaveEmptyToKeep') : (field.defaultValue || '')"
               />
-              <button
+              <button :aria-label="visibleFields[field.key] ? t('consoleFields.hidePassword') : t('consoleFields.showPassword')"
                 type="button"
                 @click="visibleFields[field.key] = !visibleFields[field.key]"
                 class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -192,13 +192,13 @@
                 <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
               </button>
             </div>
-            <Select :aria-label="field.label"
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-6' + '-' + fieldIndex0" :aria-label="field.label"
               v-else-if="field.options?.length"
               v-model="config[field.key]"
               :options="field.options"
               :searchable="field.options.length > 5"
             />
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-6' + '-' + fieldIndex0"
               v-else
               type="text"
               v-model="config[field.key]"
@@ -214,16 +214,16 @@
         <!-- Callback URLs (each = editable URL + fixed path) -->
         <div v-if="callbackPaths" class="mt-4 space-y-3">
           <div v-if="callbackPaths.notifyUrl">
-            <label class="input-label">{{ t('admin.settings.payment.field_notifyUrl') }} <span class="text-red-500">*</span></label>
+            <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.settings.payment.field_notifyUrl') }} <span class="text-red-500">*</span></label>
             <div class="flex">
-              <input v-model="notifyBaseUrl" type="text" class="input min-w-0 flex-1 !rounded-r-none !border-r-0" :placeholder="defaultBaseUrl" />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-7'" v-model="notifyBaseUrl" type="text" class="input min-w-0 flex-1 !rounded-r-none !border-r-0" :placeholder="defaultBaseUrl" />
               <span class="inline-flex items-center whitespace-nowrap rounded-r-lg border border-gray-300 bg-gray-50 px-3 text-xs text-gray-500 dark:border-dark-600 dark:bg-dark-700 dark:text-gray-400">{{ callbackPaths.notifyUrl }}</span>
             </div>
           </div>
           <div v-if="callbackPaths.returnUrl">
-            <label class="input-label">{{ t('admin.settings.payment.field_returnUrl') }} <span class="text-red-500">*</span></label>
+            <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('admin.settings.payment.field_returnUrl') }} <span class="text-red-500">*</span></label>
             <div class="flex">
-              <input v-model="returnBaseUrl" type="text" class="input min-w-0 flex-1 !rounded-r-none !border-r-0" :placeholder="defaultBaseUrl" />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-8'" v-model="returnBaseUrl" type="text" class="input min-w-0 flex-1 !rounded-r-none !border-r-0" :placeholder="defaultBaseUrl" />
               <span class="inline-flex items-center whitespace-nowrap rounded-r-lg border border-gray-300 bg-gray-50 px-3 text-xs text-gray-500 dark:border-dark-600 dark:bg-dark-700 dark:text-gray-400">{{ callbackPaths.returnUrl }}</span>
             </div>
           </div>
@@ -253,15 +253,15 @@
         </button>
         <div v-show="limitsExpanded" class="mt-3 space-y-3">
           <div
-            v-for="lt in limitableTypes"
+            v-for="(lt, fieldIndex1) in limitableTypes"
             :key="lt.value"
             class="rounded-lg border border-gray-100 p-3 dark:border-dark-700"
           >
             <p class="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">{{ lt.label }}</p>
             <div class="grid grid-cols-3 gap-3">
               <div>
-                <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.limitSingleMin') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-9' + '-' + fieldIndex1" class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.limitSingleMin') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-9' + '-' + fieldIndex1"
                   type="number"
                   :value="getLimitVal(lt.value, 'singleMin')"
                   @input="setLimitVal(lt.value, 'singleMin', ($event.target as HTMLInputElement).value)"
@@ -269,8 +269,8 @@
                 />
               </div>
               <div>
-                <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.limitSingleMax') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-10' + '-' + fieldIndex1" class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.limitSingleMax') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-10' + '-' + fieldIndex1"
                   type="number"
                   :value="getLimitVal(lt.value, 'singleMax')"
                   @input="setLimitVal(lt.value, 'singleMax', ($event.target as HTMLInputElement).value)"
@@ -278,8 +278,8 @@
                 />
               </div>
               <div>
-                <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.limitDaily') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-11' + '-' + fieldIndex1" class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.limitDaily') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-11' + '-' + fieldIndex1"
                   type="number"
                   :value="getLimitVal(lt.value, 'dailyLimit')"
                   @input="setLimitVal(lt.value, 'dailyLimit', ($event.target as HTMLInputElement).value)"
@@ -305,6 +305,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { isValidAlipayFeeRateBps } from './gelvAlipay'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { reactive, computed, ref, watch } from 'vue'

@@ -40,7 +40,7 @@
               <div>
                 <div class="flex items-center gap-2">
                   <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
-                    {{ subscription.group?.name || `Group #${subscription.group_id}` }}
+                    {{ t('consoleFields.subscription', { id: subscription.id }) }}
                   </AppHeading>
                   <span :class="['rounded-md border px-2 py-0.5 text-2xs font-medium', platformBadgeClass(subscription.group?.platform || '')]">
                     {{ platformLabel(subscription.group?.platform || '') }}
@@ -49,12 +49,6 @@
                 <p v-if="subscription.group?.description" class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
                   {{ subscription.group.description }}
                 </p>
-                <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-2xs text-gray-400 dark:text-gray-500">
-                  <span>{{ t('payment.planCard.rate') }}: ×{{ subscription.group?.rate_multiplier ?? 1 }}</span>
-                  <span v-if="subscriptionHasPeakRate(subscription)" class="text-amber-700 dark:text-amber-300">
-                    {{ t('payment.planCard.peakRate') }}: {{ subscriptionPeakRateLabel(subscription) }}
-                  </span>
-                </div>
               </div>
             </div>
             <div class="flex items-center gap-2">
@@ -262,7 +256,6 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import BillingNavigation from '@/components/user/BillingNavigation.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTimeToMinute } from '@/utils/format'
-import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import { platformBadgeClass, platformButtonClass, platformLabel } from '@/utils/platformColors'
 import {
   getExpirationDateRelation,
@@ -306,13 +299,7 @@ async function renewSubscription(groupId: number) {
   await router.push({ path: '/purchase', query: { tab: 'subscription', group: String(groupId) } })
 }
 
-function subscriptionHasPeakRate(subscription: UserSubscription): boolean {
-  return hasPeakRate(subscription.group)
-}
 
-function subscriptionPeakRateLabel(subscription: UserSubscription): string {
-  return formatPeakRateWindow(subscription.group, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
-}
 
 async function loadSubscriptions() {
   try {

@@ -1,4 +1,7 @@
 import consoleExperience from './consoleExperience'
+import consoleUi from './consoleUi'
+import consoleFields from './consoleFields'
+import consoleInline from './consoleInline'
 import profitOps from './profitOps'
 import upstreamOps from './upstreamOps'
 import channelOps from './channelOps'
@@ -36,6 +39,9 @@ import autoConfig from './autoConfig'
 
 export default {
   consoleExperience,
+  consoleUi,
+  consoleFields,
+  consoleInline,
   traffic,
   qq,
   gelv,

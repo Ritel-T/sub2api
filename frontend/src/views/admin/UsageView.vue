@@ -38,8 +38,8 @@
             />
           </div>
           <div v-if="usagePage === 'analysis' && activeTab === 'analysis'" class="usage-granularity-filter">
-            <label class="input-label">{{ t('admin.dashboard.granularity') }}</label>
-            <Select v-model="granularity" :options="granularityOptions" :aria-label="t('admin.dashboard.granularity')" @change="onGranularityChange" />
+            <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.dashboard.granularity') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="granularity" :options="granularityOptions" :aria-label="t('admin.dashboard.granularity')" @change="onGranularityChange" />
           </div>
         </template>
         <template #after-reset>
@@ -189,6 +189,10 @@
 
 <script setup lang="ts">
 import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+import { consoleUiMessages } from '@/i18n/consoleCopy'
+
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import AppHeading from '@/components/common/AppHeading.vue'
 import { getLast24HourRange, getDatePresetRange, getGranularityForRange, parseDateBoundary } from '@/utils/dateRange'
@@ -234,9 +238,7 @@ type ModelDistributionSource = 'requested' | 'upstream' | 'mapping'
 const route = useRoute()
 const router = useRouter()
 const usagePage = ref<UsagePage>('records')
-const pageCopy = computed(() => locale.value === 'en' ? { analysis: 'Usage analytics', records: 'Request records', overview: 'Overview', loading: 'Loading usage totals…', failed: 'Usage data could not be loaded.', navigation: 'Usage pages' }
-  : locale.value === 'zh' ? { analysis: '用量分析', records: '请求记录', overview: '概览', loading: '正在加载用量统计…', failed: '用量数据加载失败。', navigation: '用量页面' }
-  : { analysis: '用量分析', records: '請求記錄', overview: '概覽', loading: '正在載入用量統計…', failed: '用量資料載入失敗。', navigation: '用量頁面' })
+const pageCopy = computed(() => consoleUiMessages(locale?.value ?? 'en').adminUsage)
 const tableToolbarTarget = ref<HTMLElement | null>(null)
 const usageStats = ref<AdminUsageStatsResponse | null>(null); const exporting = ref(false)
 const trendData = ref<TrendDataPoint[]>([]); const requestedModelStats = ref<ModelStat[]>([]); const upstreamModelStats = ref<ModelStat[]>([]); const mappingModelStats = ref<ModelStat[]>([]); const groupStats = ref<GroupStat[]>([]); const chartsLoading = ref(false); const modelStatsLoading = ref(false); const granularity = ref<'day' | 'hour'>('hour')

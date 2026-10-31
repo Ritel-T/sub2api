@@ -66,9 +66,9 @@ export default {
     subscriptionDescription: '在线订阅',
     openInNewTab: '新窗口打开',
     notEnabledTitle: '该功能未开启',
-    notEnabledDesc: '管理员暂未开启充值/订阅入口，请联系管理员。',
+    notEnabledDesc: '充值与订阅暂未开放。',
     notConfiguredTitle: '充值/订阅链接未配置',
-    notConfiguredDesc: '管理员已开启入口，但尚未配置充值/订阅链接，请联系管理员。'
+    notConfiguredDesc: '充值与订阅暂时无法使用，请稍后重试。'
   },
 
   // Custom Page (iframe embed)

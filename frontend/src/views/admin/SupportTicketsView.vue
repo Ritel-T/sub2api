@@ -4,7 +4,9 @@
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex-1 sm:max-w-72">
-            <input
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('supportTickets.filters.keywordPlaceholder') }}</span>
+              <input
               v-model="keyword"
               type="search"
               class="input"
@@ -13,15 +15,22 @@
               data-testid="ticket-keyword"
               @input="onKeyword"
             />
+            </label>
           </div>
-          <Select :aria-label="t('common.status')" v-model="status" :options="statusOptions" class="w-36" data-testid="ticket-status-filter" />
-          <Select :aria-label="t('supportTickets.form.category')"
-            v-if="categories.length"
+          <label class="block min-w-0 w-36">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+            <Select :aria-label="t('common.status')" v-model="status" :options="statusOptions" class="w-36" data-testid="ticket-status-filter" />
+          </label>
+          <label v-if="categories.length" class="block min-w-0 w-44">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('supportTickets.form.category') }}</span>
+            <Select :aria-label="t('supportTickets.form.category')"
+
             v-model="category"
             :options="categoryOptions"
             class="w-44"
             data-testid="ticket-category-filter"
           />
+          </label>
           <div class="flex flex-1 justify-end">
             <button type="button" class="btn btn-secondary" :disabled="loading" :title="t('supportTickets.refresh')" :aria-label="t('supportTickets.refresh')" @click="load">
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />

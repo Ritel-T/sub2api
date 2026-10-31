@@ -5,19 +5,25 @@
       :key="getHeaderOverrideRowKey(row)"
       class="flex items-center gap-2"
     >
-      <input
+      <label class="block min-w-0 flex-1">
+        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.headerName') }}</span>
+        <input
         v-model="row.name"
         type="text"
         class="input flex-1"
         :placeholder="t('admin.accounts.headerOverride.namePlaceholder')"
       />
-      <input
+      </label>
+      <label class="block min-w-0 flex-1">
+        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.headerValue') }}</span>
+        <input
         v-model="row.value"
         type="text"
         class="input flex-1"
         :placeholder="t('admin.accounts.headerOverride.valuePlaceholder')"
       />
-      <button
+      </label>
+      <button :aria-label="t('consoleFields.remove')"
         type="button"
         class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
         @click="removeRow(index)"

@@ -23,7 +23,9 @@ const directionLabel = computed(() => props.sortOrder === 'asc'
 
 <template>
   <div class="workspace-sort-control" data-test="mobile-sort-controls">
-    <Select
+    <label class="block min-w-0">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.sort') }}</span>
+      <Select
       class="workspace-sort-field"
       :model-value="sortKey"
       :options="options"
@@ -34,6 +36,7 @@ const directionLabel = computed(() => props.sortOrder === 'asc'
       data-test="mobile-sort"
       @update:model-value="emit('select', String($event ?? ''))"
     />
+    </label>
     <button
       type="button"
       class="workspace-sort-direction"

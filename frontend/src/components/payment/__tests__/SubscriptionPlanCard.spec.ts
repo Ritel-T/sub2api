@@ -132,12 +132,13 @@ describe("SubscriptionPlanCard", () => {
 describe("SubscriptionPlanCard live group terms", () => {
   it("keeps product identity and custom benefits while reading current group quotas", async () => {
     const wrapper = mountPlanCard("openai", {
-      name: "Commercial product", group_name: "Current group", group_status: "active", for_sale: true,
+      name: "Commercial product", group_name: "ChatGPT Plus .3", group_status: "active", for_sale: true,
       daily_limit_usd: 10, weekly_limit_usd: 70, monthly_limit_usd: 1120,
       features: ["月额度：$280", "Priority support", "每日客服支持"],
     });
     expect(wrapper.get("h3").text()).toBe("Commercial product");
-    expect(wrapper.get('[data-testid="plan-group-name"]').text()).toContain("Current group");
+    expect(wrapper.find('[data-testid="plan-group-name"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("ChatGPT Plus .3");
     expect(wrapper.text()).toContain("$1120");
     expect(wrapper.text()).not.toContain("$280");
     expect(wrapper.text()).toContain("Priority support");
@@ -145,7 +146,7 @@ describe("SubscriptionPlanCard live group terms", () => {
     await wrapper.setProps({ plan: { ...wrapper.props("plan"), group_name: "Renamed group", monthly_limit_usd: 2240 } });
     expect(wrapper.text()).toContain("$2240");
     expect(wrapper.text()).not.toContain("$1120");
-    expect(wrapper.get('[data-testid="plan-group-name"]').text()).toContain("Renamed group");
+    expect(wrapper.text()).not.toContain("Renamed group");
   });
 
   it("shows unlimited for zero and absent caps instead of a zero allowance", () => {

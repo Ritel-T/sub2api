@@ -59,7 +59,7 @@ describe('V3 status page', () => {
     const wrapper = render(page())
     const featured = wrapper.get('[data-testid="monitor-v3-featured"]')
     expect(featured.text()).toContain('Claude Max')
-    expect(featured.text()).toContain('×0.9')
+    expect(featured.text()).not.toContain('×0.9')
     expect(featured.text()).toContain('channelMonitorV3.page.availabilityRange.r7d')
     expect(featured.get('[data-testid="monitor-v3-featured-availability"]').text()).toBe('97.46%')
     expect(featured.get('[data-testid="monitor-v3-featured-status"]').text()).toBe('channelMonitorV3.headline.operational')
@@ -75,7 +75,7 @@ describe('V3 status page', () => {
 
     const rows = wrapper.findAll('[data-testid="monitor-v3-component"]')
     expect(rows).toHaveLength(4)
-    expect(rows[0].text()).toContain('×0.2')
+    expect(rows[0].text()).not.toContain('×0.2')
     expect(rows[1].text()).not.toContain('×')
     expect(rows[1].get('[data-testid="monitor-v3-status-dot"]').attributes('data-status')).toBe('down')
     const bar = rows[0].get('[data-testid="monitor-v3-bar"]')

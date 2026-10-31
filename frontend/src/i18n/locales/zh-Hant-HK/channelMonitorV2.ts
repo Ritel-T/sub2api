@@ -32,7 +32,7 @@ export default {
         "historyCount": "已記錄 {count}/{limit} 次檢測, 灰色表示未檢測",
         "notChecked": "未檢測",
         "disabled": "未開啟檢測",
-        "disabledHint": "該分組尚未開啟降智檢測, 可由管理員在渠道監控中配置.",
+        "disabledHint": "此服務暫未提供智能檢測。",
         "invalid": '請填寫檢測模型, 間隔必須是 1-1440 的整數分鐘.',
         "historyLimit": "最近檢測次數",
         "historyLimitHint": "每個模型在卡片上顯示最近多少次檢測，15-100，預設 100。還沒有那麼多次檢測時，空位顯示為未檢測。",

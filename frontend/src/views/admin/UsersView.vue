@@ -131,18 +131,23 @@
                 size="md"
                 class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               />
-              <input
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.searchUsers') }}</span>
+                <input
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('admin.users.searchUsers')"
                 class="input pl-10"
                 @input="handleSearch"
               />
+              </label>
             </div>
 
             <!-- Role Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('role')" class="w-full sm:w-32">
-              <Select :aria-label="t('admin.users.form.roleLabel')"
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.form.roleLabel') }}</span>
+                <Select :aria-label="t('admin.users.form.roleLabel')"
                 v-model="filters.role"
                 :options="[
                   { value: '', label: t('admin.users.allRoles') },
@@ -152,11 +157,14 @@
                 ]"
                 @change="applyFilter"
               />
+              </label>
             </div>
 
             <!-- Status Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('status')" class="w-full sm:w-32">
-              <Select :aria-label="t('common.status')"
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+                <Select :aria-label="t('common.status')"
                 v-model="filters.status"
                 :options="[
                   { value: '', label: t('admin.users.allStatus') },
@@ -165,11 +173,14 @@
                 ]"
                 @change="applyFilter"
               />
+              </label>
             </div>
 
             <!-- Group Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('group')" class="w-full sm:w-44">
-              <Select :aria-label="t('admin.users.searchAuthorizedGroups')"
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.searchAuthorizedGroups') }}</span>
+                <Select :aria-label="t('admin.users.searchAuthorizedGroups')"
                 v-model="filters.group"
                 :options="groupFilterOptions"
                 searchable
@@ -178,17 +189,21 @@
                 :search-placeholder="t('admin.users.searchAuthorizedGroups')"
                 @change="applyFilter"
               />
+              </label>
             </div>
 
             <!-- API Key Group Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('apiKeyGroup')" class="w-full sm:w-44">
-              <Select :aria-label="t('admin.users.searchApiKeyGroups')"
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.searchApiKeyGroups') }}</span>
+                <Select :aria-label="t('admin.users.searchApiKeyGroups')"
                 v-model="filters.apiKeyGroup"
                 :options="apiKeyGroupFilterOptions"
                 searchable
                 :search-placeholder="t('admin.users.searchApiKeyGroups')"
                 @change="applyFilter"
               />
+              </label>
             </div>
 
             <!-- Dynamic Attribute Filters -->
@@ -198,28 +213,30 @@
                 class="relative w-full sm:w-36"
               >
                 <!-- Text/Email/URL/Textarea/Date type: styled input -->
-                <input
-                  v-if="['text', 'textarea', 'email', 'url', 'date'].includes(getAttributeDefinition(Number(attrId))?.type || 'text')"
+                <label v-if="['text', 'textarea', 'email', 'url', 'date'].includes(getAttributeDefinition(Number(attrId))?.type || 'text')" class="block min-w-0 w-full"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ getAttributeDefinitionName(Number(attrId)) }}</span><input
+
                   :value="value"
                   @input="(e) => updateAttributeFilter(Number(attrId), (e.target as HTMLInputElement).value)"
                   @keyup.enter="applyFilter"
                   :placeholder="getAttributeDefinitionName(Number(attrId))"
                   class="input w-full"
-                />
+                /></label>
                 <!-- Number type: number input -->
-                <input
-                  v-else-if="getAttributeDefinition(Number(attrId))?.type === 'number'"
+                <label v-else-if="getAttributeDefinition(Number(attrId))?.type === 'number'" class="block min-w-0 w-full"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ getAttributeDefinitionName(Number(attrId)) }}</span><input
+
                   :value="value"
                   type="number"
                   @input="(e) => updateAttributeFilter(Number(attrId), (e.target as HTMLInputElement).value)"
                   @keyup.enter="applyFilter"
                   :placeholder="getAttributeDefinitionName(Number(attrId))"
                   class="input w-full"
-                />
+                /></label>
                 <!-- Select/Multi-select type -->
                 <template v-else-if="['select', 'multi_select'].includes(getAttributeDefinition(Number(attrId))?.type || '')">
                   <div class="w-full">
-                    <Select :aria-label="getAttributeDefinitionName(Number(attrId))"
+                    <label class="block min-w-0">
+                      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ getAttributeDefinitionName(Number(attrId)) }}</span>
+                      <Select :aria-label="getAttributeDefinitionName(Number(attrId))"
                       :model-value="value"
                       :options="[
                         { value: '', label: getAttributeDefinitionName(Number(attrId)) },
@@ -227,17 +244,18 @@
                       ]"
                       @update:model-value="(val) => { updateAttributeFilter(Number(attrId), String(val ?? '')); applyFilter() }"
                     />
+                    </label>
                   </div>
                 </template>
                 <!-- Fallback -->
-                <input
-                  v-else
+                <label v-else class="block min-w-0 w-full"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ getAttributeDefinitionName(Number(attrId)) }}</span><input
+
                   :value="value"
                   @input="(e) => updateAttributeFilter(Number(attrId), (e.target as HTMLInputElement).value)"
                   @keyup.enter="applyFilter"
                   :placeholder="getAttributeDefinitionName(Number(attrId))"
                   class="input w-full"
-                />
+                /></label>
               </div>
             </template>
           </div>

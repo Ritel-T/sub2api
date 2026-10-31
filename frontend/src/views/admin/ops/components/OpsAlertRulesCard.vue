@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -464,18 +467,18 @@ watch(() => ({ active: showDeleteConfirm.value, identity: JSON.stringify(pending
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="md:col-span-2">
-            <label class="input-label">{{ t('admin.ops.alertRules.form.name') }}</label>
-            <input v-model="draft!.name" class="input" type="text" />
+            <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.ops.alertRules.form.name') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="draft!.name" class="input" type="text" />
           </div>
 
           <div class="md:col-span-2">
             <label class="input-label">{{ t('admin.ops.alertRules.form.description') }}</label>
-            <input v-model="draft!.description" class="input" type="text" />
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.description') }}</span><input v-model="draft!.description" class="input" type="text" /></label>
           </div>
 
           <div>
-            <label class="input-label">{{ t('admin.ops.alertRules.form.metric') }}</label>
-            <Select :aria-label="t('admin.ops.alertRules.form.metric')" v-model="draft!.metric_type" :options="metricOptions" />
+            <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.ops.alertRules.form.metric') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('admin.ops.alertRules.form.metric')" v-model="draft!.metric_type" :options="metricOptions" />
             <div v-if="selectedMetricDefinition" class="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
               <p>{{ selectedMetricDefinition.description }}</p>
               <p>
@@ -491,16 +494,16 @@ watch(() => ({ active: showDeleteConfirm.value, identity: JSON.stringify(pending
           </div>
 
           <div>
-            <label class="input-label">{{ t('admin.ops.alertRules.form.operator') }}</label>
-            <Select :aria-label="t('admin.ops.alertRules.form.operator')" v-model="draft!.operator" :options="operatorOptions" />
+            <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.ops.alertRules.form.operator') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('admin.ops.alertRules.form.operator')" v-model="draft!.operator" :options="operatorOptions" />
           </div>
 
           <div class="md:col-span-2">
-            <label class="input-label">
+            <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">
               {{ t('admin.ops.alertRules.form.groupId') }}
               <span v-if="isGroupMetricSelected" class="ml-1 text-red-500">*</span>
             </label>
-            <Select :aria-label="t('admin.ops.alertRules.form.groupId')"
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-4'" :aria-label="t('admin.ops.alertRules.form.groupId')"
               v-model="draftGroupId"
               :options="groupOptions"
               searchable
@@ -514,38 +517,38 @@ watch(() => ({ active: showDeleteConfirm.value, identity: JSON.stringify(pending
           </div>
 
           <div>
-            <label class="input-label">{{ t('admin.ops.alertRules.form.threshold') }}</label>
-            <input v-model.number="draft!.threshold" class="input" type="number" />
+            <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.ops.alertRules.form.threshold') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-5'" v-model.number="draft!.threshold" class="input" type="number" />
           </div>
 
           <div>
-            <label class="input-label">{{ t('admin.ops.alertRules.form.severity') }}</label>
-            <Select :aria-label="t('admin.ops.alertRules.form.severity')" v-model="draft!.severity" :options="severityOptions" />
+            <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.ops.alertRules.form.severity') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-6'" :aria-label="t('admin.ops.alertRules.form.severity')" v-model="draft!.severity" :options="severityOptions" />
           </div>
 
           <div>
-            <label class="input-label">{{ t('admin.ops.alertRules.form.window') }}</label>
-            <Select :aria-label="t('admin.ops.alertRules.form.window')" v-model="draft!.window_minutes" :options="windowOptions" />
+            <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.ops.alertRules.form.window') }}</label>
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-7'" :aria-label="t('admin.ops.alertRules.form.window')" v-model="draft!.window_minutes" :options="windowOptions" />
           </div>
 
           <div>
-            <label class="input-label">{{ t('admin.ops.alertRules.form.sustained') }}</label>
-            <input v-model.number="draft!.sustained_minutes" class="input" type="number" min="1" max="1440" />
+            <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('admin.ops.alertRules.form.sustained') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-8'" v-model.number="draft!.sustained_minutes" class="input" type="number" min="1" max="1440" />
           </div>
 
           <div>
-            <label class="input-label">{{ t('admin.ops.alertRules.form.cooldown') }}</label>
-            <input v-model.number="draft!.cooldown_minutes" class="input" type="number" min="0" max="1440" />
+            <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('admin.ops.alertRules.form.cooldown') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-9'" v-model.number="draft!.cooldown_minutes" class="input" type="number" min="0" max="1440" />
           </div>
 
           <div class="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-800/50 md:col-span-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-200">{{ t('admin.ops.alertRules.form.enabled') }}</span>
-            <input v-model="draft!.enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <span :id="'field-' + fieldLabelScope + '-10'" class="text-xs font-bold text-gray-700 dark:text-gray-200">{{ t('admin.ops.alertRules.form.enabled') }}</span>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-10'" v-model="draft!.enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
           </div>
 
           <div class="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-800/50 md:col-span-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-200">{{ t('admin.ops.alertRules.form.notifyEmail') }}</span>
-            <input v-model="draft!.notify_email" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <span :id="'field-' + fieldLabelScope + '-11'" class="text-xs font-bold text-gray-700 dark:text-gray-200">{{ t('admin.ops.alertRules.form.notifyEmail') }}</span>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-11'" v-model="draft!.notify_email" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
           </div>
         </div>
       </div>

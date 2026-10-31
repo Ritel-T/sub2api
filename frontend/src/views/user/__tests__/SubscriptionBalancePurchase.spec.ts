@@ -299,7 +299,9 @@ describe('subscription purchase using site credit', () => {
       { id: 2, user_id: 8, group_id: 4, status: 'active', group: { name: 'OTHER ACCOUNT PLAN', platform: 'openai' } },
     ]
     const wrapper = await mountPage()
-    expect(wrapper.text()).toContain('OWN PLAN')
+    expect(wrapper.find('[data-subscription-id="1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-subscription-id="2"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('OWN PLAN')
     expect(wrapper.text()).not.toContain('OTHER ACCOUNT PLAN')
     wrapper.unmount()
   })

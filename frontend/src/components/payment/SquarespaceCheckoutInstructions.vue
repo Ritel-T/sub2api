@@ -6,16 +6,16 @@
     <RetailQuoteSummary :quote="quote" />
     <div class="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-600">
       <div>
-        <label class="mb-1 block text-sm font-medium">{{ t('paymentRetail.exactAmount') }}</label>
+        <label :id="'field-' + fieldLabelScope + '-1'" class="mb-1 block text-sm font-medium">{{ t('paymentRetail.exactAmount') }}</label>
         <div class="flex gap-2">
-          <input data-test="checkout-exact-amount" readonly :value="exactAmount" class="input min-w-0 flex-1 font-mono" @focus="selectValue" />
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" data-test="checkout-exact-amount" readonly :value="exactAmount" class="input min-w-0 flex-1 font-mono" @focus="selectValue" />
           <button data-test="copy-checkout-amount" class="btn btn-secondary" @click="copy(exactAmount, 'amount')">{{ t(amountCopied ? 'paymentRetail.copied' : 'paymentRetail.copyAmount') }}</button>
         </div>
       </div>
       <div v-if="claimMode === 'reference'">
-        <label class="mb-1 block text-sm font-medium">{{ t('paymentRetail.reference') }}</label>
+        <label :id="'field-' + fieldLabelScope + '-2'" class="mb-1 block text-sm font-medium">{{ t('paymentRetail.reference') }}</label>
         <div class="flex gap-2">
-          <input data-test="checkout-reference" readonly :value="quote.checkout_reference" class="input min-w-0 flex-1 font-mono text-xs" @focus="selectValue" />
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-2'" data-test="checkout-reference" readonly :value="quote.checkout_reference" class="input min-w-0 flex-1 font-mono text-xs" @focus="selectValue" />
           <button data-test="copy-checkout-reference" class="btn btn-secondary" @click="copy(quote.checkout_reference, 'reference')">{{ t(referenceCopied ? 'paymentRetail.copied' : 'paymentRetail.copyReference') }}</button>
         </div>
       </div>
@@ -31,6 +31,9 @@
   </div>
 </template>
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'

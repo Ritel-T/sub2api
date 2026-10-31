@@ -68,7 +68,9 @@
           <!-- Search input -->
           <div v-if="isSearchable" class="select-search">
             <Icon name="search" size="sm" class="text-gray-400" />
-            <input
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ searchPlaceholderText }}</span>
+              <input
               ref="searchInputRef"
               v-model="searchQuery"
               type="text"
@@ -77,6 +79,7 @@
               class="select-search-input"
               @click.stop
             />
+            </label>
           </div>
 
           <!-- Options list -->

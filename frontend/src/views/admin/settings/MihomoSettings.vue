@@ -3,98 +3,98 @@
     <div class="open-section flex flex-wrap items-center justify-between gap-3">
       <div class="space-y-1">
         <p class="text-sm font-medium" role="status">Mihomo <span class="badge ml-2" :class="status?.running ? 'badge-success' : 'badge-gray'">{{ status?.phase || '—' }}</span></p>
-        <p class="text-xs text-gray-500">{{ text('内核本地出口', 'Local endpoint') }} <code>{{ status?.endpoint || '—' }}</code> · {{ status?.nodes || 0 }} {{ text('个节点', 'nodes') }}</p>
+        <p class="text-xs text-gray-500">{{ t('consoleInline.localEndpoint_23c834') }} <code>{{ status?.endpoint || '—' }}</code> · {{ status?.nodes || 0 }} {{ t('consoleInline.nodes_331f00') }}</p>
       </div>
-      <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refresh">{{ text('检测状态', 'Check status') }}</button>
+      <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="refresh">{{ t('consoleInline.checkStatus_cf8489') }}</button>
     </div>
     <div v-if="warmPools.length" class="grid gap-3 sm:grid-cols-2">
       <div v-for="pool in warmPools" :key="pool.source" class="open-section text-xs" data-testid="bps-warm-pool">
         <p class="font-medium">{{ pool.source }} · Warm IP pool</p>
-        <p class="mt-2">{{ text('就绪', 'Ready') }} {{ pool.ready }} / {{ text('目标', 'Target') }} {{ pool.target }} · {{ text('探测中', 'Checking') }} {{ pool.checking }} · {{ text('冷却中', 'Cooling') }} {{ pool.cooling }}</p>
-        <p v-if="pool.source === 'Mihomo' && pool.ready_subscription !== undefined" class="mt-1">{{ text('订阅就绪', 'Ready subscription exits') }} {{ pool.ready_subscription }} · {{ text('动态就绪', 'Ready dynamic exits') }} {{ pool.ready_dynamic || 0 }}</p>
-        <p class="mt-1 text-gray-500">{{ text('目标按已启用账号的并发数汇总；不足时复用就绪出口，用户请求不探测冷节点。', 'Targets follow enabled account concurrency. Ready exits are reused when scarce; requests never probe cold nodes.') }}</p>
+        <p class="mt-2">{{ t('consoleInline.ready_8c5afc') }} {{ pool.ready }} / {{ t('consoleInline.target_246453') }} {{ pool.target }} · {{ t('consoleInline.checking_460181') }} {{ pool.checking }} · {{ t('consoleInline.cooling_34082c') }} {{ pool.cooling }}</p>
+        <p v-if="pool.source === 'Mihomo' && pool.ready_subscription !== undefined" class="mt-1">{{ t('consoleInline.readySubscriptionExits_d048db') }} {{ pool.ready_subscription }} · {{ t('consoleInline.readyDynamicExits_be1395') }} {{ pool.ready_dynamic || 0 }}</p>
+        <p class="mt-1 text-gray-500">{{ t('consoleInline.targetsFollowEnabledAccountConcurrencyReadyExits_606b56') }}</p>
         <p v-for="(count, reason) in pool.failure_reasons" :key="reason">{{ reason }}: {{ count }}</p>
-        <p v-if="pool.target > 0 && pool.ready === 0" class="mt-1 text-amber-700">{{ text('后台正在预热；不会退回直连。', 'Background warming continues; direct fallback is disabled.') }}</p>
+        <p v-if="pool.target > 0 && pool.ready === 0" class="mt-1 text-amber-700">{{ t('consoleInline.backgroundWarmingContinuesDirectFallbackIsDisabled_c82045') }}</p>
       </div>
     </div>
     <p v-if="error || status?.error" role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20">{{ error || status?.error }}</p>
     <p v-if="success" role="status" class="text-sm text-green-700 dark:text-green-400">{{ success }}</p>
-    <p v-if="busy" role="status" class="text-sm text-primary-600">{{ text('正在应用，请等待完成…', 'Applying changes. Please wait…') }}</p>
+    <p :id="'field-' + fieldLabelScope + '-1'" v-if="busy" role="status" class="text-sm text-primary-600">{{ t('consoleInline.applyingChangesPleaseWait_b8bc1c') }}</p>
 
     <template v-if="section === 'subscriptions'">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div><AppHeading variant="section" as="h2">{{ text('Mihomo 订阅', 'Mihomo subscriptions') }}</AppHeading><p class="mt-1 text-xs text-gray-500">{{ text('按订阅管理来源；地址和令牌不回显。添加订阅不会替换其他来源。', 'Manage each source independently. URLs and tokens stay hidden; adding a subscription preserves other sources.') }}</p></div>
-        <button type="button" class="btn btn-primary" :disabled="busy || !status?.installed" @click="openSubscription()">{{ text('添加订阅', 'Add subscription') }}</button>
+        <div><AppHeading variant="section" as="h2">{{ t('consoleInline.mihomoSubscriptions_0e9ffb') }}</AppHeading><p class="mt-1 text-xs text-gray-500">{{ t('consoleInline.manageEachSourceIndependentlyURLsAndTokens_ee0f1d') }}</p></div>
+        <button type="button" class="btn btn-primary" :disabled="busy || !status?.installed" @click="openSubscription()">{{ t('consoleInline.addSubscription_43aed6') }}</button>
       </div>
       <div class="open-section">
         <div class="flex flex-wrap items-center gap-3">
-          <label for="subscription-download-mode" class="text-sm font-medium">{{ text('订阅下载模式', 'Subscription download mode') }}</label>
+          <label for="subscription-download-mode" class="text-sm font-medium">{{ t('consoleInline.subscriptionDownloadMode_426f1d') }}</label>
           <select id="subscription-download-mode" v-model="downloadMode" class="input w-auto" :disabled="busy" @change="downloadModeDirty = true">
-            <option value="auto">{{ text('自动：代理失败后直连', 'Auto: proxy with direct fallback') }}</option>
-            <option value="proxy">{{ text('仅通过 Mihomo', 'Mihomo proxy only') }}</option>
-            <option value="direct">{{ text('仅直连', 'Direct only') }}</option>
+            <option value="auto">{{ t('consoleInline.autoProxyWithDirectFallback_513659') }}</option>
+            <option value="proxy">{{ t('consoleInline.mihomoProxyOnly_269c14') }}</option>
+            <option value="direct">{{ t('consoleInline.directOnly_465534') }}</option>
           </select>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !downloadModeDirty" @click="saveDownloadMode">{{ text('保存下载模式', 'Save download mode') }}</button>
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || !downloadModeDirty" @click="saveDownloadMode">{{ t('consoleInline.saveDownloadMode_ec07d0') }}</button>
         </div>
-        <p class="mt-2 text-xs text-gray-500">{{ text('仅影响订阅文件下载，不改变打票或账号业务出口。自动模式在代理下载失败或内容无效时尝试直连；仅代理模式不会回退直连。', 'Only affects subscription downloads, not ticket or account traffic. Auto retries direct after a failed or invalid proxy response; proxy-only never falls back to direct.') }}</p>
+        <p class="mt-2 text-xs text-gray-500">{{ t('consoleInline.onlyAffectsSubscriptionDownloadsNotTicketOr_3c8804') }}</p>
       </div>
       <div class="open-filter-toolbar workspace-filter-controls flex flex-wrap items-center gap-3">
         <div ref="tableTools0" class="min-w-0" />
-        <input v-model="search" type="search" class="input sm:max-w-xs" :placeholder="text('搜索订阅名称', 'Search subscription names')" :aria-label="text('搜索订阅', 'Search subscriptions')" />
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="search" type="search" class="input sm:max-w-xs" :placeholder="t('consoleInline.searchSubscriptionNames_dfbad7')" :aria-label="t('consoleInline.searchSubscriptions_f52920')" />
         <div v-if="selected.length" class="flex flex-wrap items-center gap-2 text-sm">
-          <span>{{ text('已选', 'Selected') }} {{ selected.length }}</span>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="batchSubscriptions('subscription_refresh')">{{ text('更新所选', 'Refresh selected') }}</button>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="batchSubscriptions('subscription_enable')">{{ text('启用所选', 'Enable selected') }}</button>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="batchSubscriptions('subscription_disable')">{{ text('停用所选', 'Disable selected') }}</button>
-          <button type="button" class="btn btn-danger btn-sm" :disabled="busy" @click="confirmRemoval(selected.map(id => 'subscription_remove/' + id))">{{ text('移除所选', 'Remove selected') }}</button>
+          <span>{{ t('consoleInline.selected_4b9216') }} {{ selected.length }}</span>
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="batchSubscriptions('subscription_refresh')">{{ t('consoleInline.refreshSelected_f1bdd4') }}</button>
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="batchSubscriptions('subscription_enable')">{{ t('consoleInline.enableSelected_29a62d') }}</button>
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="batchSubscriptions('subscription_disable')">{{ t('consoleInline.disableSelected_7ae3da') }}</button>
+          <button type="button" class="btn btn-danger btn-sm" :disabled="busy" @click="confirmRemoval(selected.map(id => 'subscription_remove/' + id))">{{ t('consoleInline.removeSelected_de2da4') }}</button>
         </div>
       </div>
       <DataTable :toolbar-target="tableTools0" column-order-key="table-columns:mihomo-subscriptions:v1" v-model:selected-keys="selected" :columns="subscriptionColumns" :data="filteredSubscriptions" row-key="id" selectable :loading="loading">
         <template #cell-label="{ row }"><span class="font-medium">{{ row.label }}</span><code class="ml-2 text-xs text-gray-400">{{ row.id.slice(0, 8) }}</code></template>
-        <template #cell-enabled="{ row }"><span class="badge" :class="row.enabled ? 'badge-success' : 'badge-gray'">{{ row.enabled ? text('启用', 'Enabled') : text('停用', 'Disabled') }}</span></template>
-        <template #cell-nodes="{ row }">{{ row.cached ? row.nodes : text('待更新', 'Not refreshed') }}</template>
+        <template #cell-enabled="{ row }"><span class="badge" :class="row.enabled ? 'badge-success' : 'badge-gray'">{{ row.enabled ? t('consoleInline.enabled_87a030') : t('consoleInline.disabled_c38905') }}</span></template>
+        <template #cell-nodes="{ row }">{{ row.cached ? row.nodes : t('consoleInline.notRefreshed_0e9bfa') }}</template>
         <template #cell-updated_at="{ row }">{{ row.updated_at ? formatDisplayTimestamp(row.updated_at) : '—' }}</template>
         <template #cell-actions="{ row }">
           <div class="flex flex-wrap gap-2">
-            <button :title="text('更新', 'Refresh')" :aria-label="text('更新', 'Refresh')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !row.enabled" @click="operate('subscription_refresh/' + row.id)"><Icon name="refresh" size="sm" /><span class="sr-only">{{ text('更新', 'Refresh') }}</span></button>
-            <button :title="text('编辑', 'Edit')" :aria-label="text('编辑', 'Edit')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy" @click="openSubscription(row)"><Icon name="edit" size="sm" /><span class="sr-only">{{ text('编辑', 'Edit') }}</span></button>
-            <button :title="row.enabled ? text('停用', 'Disable') : text('启用', 'Enable')" :aria-label="row.enabled ? text('停用', 'Disable') : text('启用', 'Enable')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy" @click="operate((row.enabled ? 'subscription_disable/' : 'subscription_enable/') + row.id)"><Icon :name="row.enabled ? 'ban' : 'checkCircle'" size="sm" /><span class="sr-only">{{ row.enabled ? text('停用', 'Disable') : text('启用', 'Enable') }}</span></button>
-            <button :title="text('移除', 'Remove')" :aria-label="text('移除', 'Remove')" type="button" class="workspace-icon-action text-red-600 dark:text-red-400" :disabled="busy" @click="confirmRemoval(['subscription_remove/' + row.id])"><Icon name="trash" size="sm" /><span class="sr-only">{{ text('移除', 'Remove') }}</span></button>
+            <button :title="t('consoleInline.refresh_4adf14')" :aria-label="t('consoleInline.refresh_4adf14')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !row.enabled" @click="operate('subscription_refresh/' + row.id)"><Icon name="refresh" size="sm" /><span class="sr-only">{{ t('consoleInline.refresh_4adf14') }}</span></button>
+            <button :title="t('consoleInline.edit_f7f5fa')" :aria-label="t('consoleInline.edit_f7f5fa')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy" @click="openSubscription(row)"><Icon name="edit" size="sm" /><span class="sr-only">{{ t('consoleInline.edit_f7f5fa') }}</span></button>
+            <button :title="row.enabled ? t('consoleInline.disable_4c7f46') : t('consoleInline.enable_836b3c')" :aria-label="row.enabled ? t('consoleInline.disable_4c7f46') : t('consoleInline.enable_836b3c')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy" @click="operate((row.enabled ? 'subscription_disable/' : 'subscription_enable/') + row.id)"><Icon :name="row.enabled ? 'ban' : 'checkCircle'" size="sm" /><span class="sr-only">{{ row.enabled ? t('consoleInline.disable_4c7f46') : t('consoleInline.enable_836b3c') }}</span></button>
+            <button :title="t('consoleInline.remove_ca30f1')" :aria-label="t('consoleInline.remove_ca30f1')" type="button" class="workspace-icon-action text-red-600 dark:text-red-400" :disabled="busy" @click="confirmRemoval(['subscription_remove/' + row.id])"><Icon name="trash" size="sm" /><span class="sr-only">{{ t('consoleInline.remove_ca30f1') }}</span></button>
           </div>
         </template>
-        <template #empty><p class="p-8 text-center text-sm text-gray-500">{{ text('暂无匹配的订阅。点击“添加订阅”导入 Clash / Mihomo YAML 来源。', 'No matching subscriptions. Add a Clash / Mihomo YAML source to get started.') }}</p></template>
+        <template #empty><p class="p-8 text-center text-sm text-gray-500">{{ t('consoleInline.noMatchingSubscriptionsAddAClashMihomo_f4de84') }}</p></template>
       </DataTable>
-      <p v-if="status?.subscriptions && !status.subscription_items" class="text-sm text-amber-700">{{ text('当前后端尚不支持订阅列表，请升级后端后使用逐条管理。', 'This backend does not support subscription lists yet. Upgrade it to manage individual sources.') }}</p>
+      <p v-if="status?.subscriptions && !status.subscription_items" class="text-sm text-amber-700">{{ t('consoleInline.thisBackendDoesNotSupportSubscriptionLists_22fa30') }}</p>
     </template>
 
     <template v-if="section === 'dynamic' || section === 'nodes'">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div><AppHeading variant="section" as="h2">{{ section === 'dynamic' ? text('动态代理', 'Dynamic proxies') : text('节点管理', 'Node management') }}</AppHeading><p class="mt-1 text-xs text-gray-500">{{ text('测试连接与质量检测通过独立内核只经该节点出口，不调用模型，也不改变节点状态；“检测”会按结果标记检测失败或恢复节点。订阅节点从所属订阅移除；动态代理可单独删除。', 'Test connection and quality check route through an isolated kernel using only that node; they call no models and never change node state. “Probe” marks the node failed or recovers it. Remove subscription nodes through their source; dynamic proxies can be deleted individually.') }}</p></div>
+        <div><AppHeading variant="section" as="h2">{{ section === 'dynamic' ? t('consoleInline.dynamicProxies_29dc5d') : t('consoleInline.nodeManagement_cf5881') }}</AppHeading><p class="mt-1 text-xs text-gray-500">{{ t('consoleInline.testConnectionAndQualityCheckRouteThrough_b28b88') }}</p></div>
         <div class="flex flex-wrap gap-2">
           <button type="button" class="btn btn-secondary" :disabled="!status?.installed || batchTesting || !nodeBatchTargets.length" @click="batchTestNodes">{{ t('admin.proxies.testConnection') }}</button>
           <button type="button" class="btn btn-secondary" :disabled="!status?.installed || batchQualityChecking || !nodeBatchTargets.length" @click="batchCheckNodeQuality">{{ t('admin.proxies.batchQualityCheck') }}</button>
-          <button type="button" class="btn btn-secondary" :disabled="busy || !selectedNodeTargets.length" @click="nodeEditDialog = true">{{ text('批量编辑', 'Batch edit') }}</button>
-          <button type="button" class="btn btn-primary" :disabled="busy || !status?.running || !selectedNodeTargets.length" @click="openStaticProxyDialog(selectedNodeTargets)">{{ text('批量添加为静态代理', 'Add selected as static proxies') }}</button>
-          <button v-if="section === 'dynamic'" type="button" class="btn btn-primary" :disabled="busy || !status?.installed" @click="dynamicDialog = true">{{ text('导入动态代理', 'Import dynamic proxies') }}</button>
+          <button type="button" class="btn btn-secondary" :disabled="busy || !selectedNodeTargets.length" @click="nodeEditDialog = true">{{ t('consoleInline.batchEdit_46fce9') }}</button>
+          <button type="button" class="btn btn-primary" :disabled="busy || !status?.running || !selectedNodeTargets.length" @click="openStaticProxyDialog(selectedNodeTargets)">{{ t('consoleInline.addSelectedAsStaticProxies_98e87f') }}</button>
+          <button v-if="section === 'dynamic'" type="button" class="btn btn-primary" :disabled="busy || !status?.installed" @click="dynamicDialog = true">{{ t('consoleInline.importDynamicProxies_b1a061') }}</button>
         </div>
       </div>
       <div class="open-filter-toolbar workspace-filter-controls flex flex-wrap items-center gap-3">
         <div ref="tableTools1" class="min-w-0" />
-        <input v-model="search" type="search" class="input sm:max-w-xs" :placeholder="text('搜索节点名称或地区', 'Search node names or regions')" :aria-label="text('搜索节点', 'Search nodes')" />
-        <select v-model="nodeState" class="input w-auto" :aria-label="text('节点状态', 'Node status')">
-          <option value="">{{ text('全部状态', 'All statuses') }}</option><option v-for="state in nodeStates" :key="state" :value="state">{{ stateLabel(state) }}</option>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="search" type="search" class="input sm:max-w-xs" :placeholder="t('consoleInline.searchNodeNamesOrRegions_942fed')" :aria-label="t('consoleInline.searchNodes_bddd47')" />
+        <select :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="nodeState" class="input w-auto" :aria-label="t('consoleInline.nodeStatus_b17731')">
+          <option value="">{{ t('consoleInline.allStatuses_f426a4') }}</option><option v-for="state in nodeStates" :key="state" :value="state">{{ stateLabel(state) }}</option>
         </select>
-        <select v-if="section === 'nodes'" v-model="nodeSource" class="input w-auto" :aria-label="text('节点来源', 'Node source')">
-          <option value="">{{ text('全部来源', 'All sources') }}</option><option value="dynamic">{{ text('动态代理', 'Dynamic proxies') }}</option>
+        <select :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-if="section === 'nodes'" v-model="nodeSource" class="input w-auto" :aria-label="t('consoleInline.nodeSource_93671f')">
+          <option value="">{{ t('consoleInline.allSources_b3a114') }}</option><option value="dynamic">{{ t('consoleInline.dynamicProxies_29dc5d') }}</option>
           <option v-for="source in status?.subscription_items || []" :key="source.id" :value="source.id">{{ source.label }}</option>
         </select>
-        <span class="text-xs text-gray-500" data-testid="node-batch-scope">{{ selectedNodes.length ? text(`批量检测已选的 ${nodeBatchTargets.length} 个节点`, `Batch checks cover ${nodeBatchTargets.length} selected nodes`) : text(`未选择时批量检测当前筛选的全部 ${nodeBatchTargets.length} 个节点`, `Without a selection, batch checks cover all ${nodeBatchTargets.length} filtered nodes`) }}</span>
+        <span class="text-xs text-gray-500" data-testid="node-batch-scope">{{ selectedNodes.length ? t('consoleFields.selectedNodeBatch', { count: nodeBatchTargets.length }) : t('consoleFields.filteredNodeBatch', { count: nodeBatchTargets.length }) }}</span>
       </div>
       <DataTable :toolbar-target="tableTools1" column-order-key="table-columns:mihomo-nodes:v1" v-model:selected-keys="selectedNodes" :columns="nodeColumns" :data="visibleNodes" row-key="name" selectable :loading="loading">
-        <template #cell-display_name="{ row }"><span>{{ row.display_name || row.name }}</span><span v-if="row.static_proxy" class="badge badge-primary ml-2">{{ text('已添加静态代理', 'Static proxy added') }}</span></template>
+        <template #cell-display_name="{ row }"><span>{{ row.display_name || row.name }}</span><span v-if="row.static_proxy" class="badge badge-primary ml-2">{{ t('consoleInline.staticProxyAdded_63d0ca') }}</span></template>
         <template #cell-source="{ row }">{{ nodeSourceLabel(row) }}</template>
         <template #cell-state="{ row }"><span class="badge" :class="row.state === 'enabled' ? 'badge-success' : 'badge-gray'">{{ stateLabel(row.state) }}</span></template>
-        <template #cell-country_code="{ row }">{{ row.dynamic ? text('供应商控制', 'Provider managed') : row.country_code || text('未知', 'Unknown') }}</template>
+        <template #cell-country_code="{ row }">{{ row.dynamic ? t('consoleInline.providerManaged_77330d') : row.country_code || t('consoleInline.unknown_556aa9') }}</template>
         <template #cell-check="{ row }">
           <div class="flex flex-col gap-1" data-testid="node-check">
             <span v-if="row.check?.latency_status === 'failed'" class="badge badge-danger" :title="row.check.latency_message || undefined">{{ t('admin.proxies.latencyFailed') }}</span>
@@ -109,90 +109,91 @@
         </template>
         <template #cell-actions="{ row }">
           <div class="flex flex-wrap gap-2">
-            <button :title="text('添加为静态代理', 'Add as static proxy')" :aria-label="text('添加为静态代理', 'Add as static proxy')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !status?.running || row.state !== 'enabled'" @click="openStaticProxyDialog([row])"><Icon name="plus" size="sm" /><span class="sr-only">{{ text('添加为静态代理', 'Add as static proxy') }}</span></button>
+            <button :title="t('consoleInline.addAsStaticProxy_c19047')" :aria-label="t('consoleInline.addAsStaticProxy_c19047')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !status?.running || row.state !== 'enabled'" @click="openStaticProxyDialog([row])"><Icon name="plus" size="sm" /><span class="sr-only">{{ t('consoleInline.addAsStaticProxy_c19047') }}</span></button>
             <button :title="testingNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.testConnection')" :aria-label="testingNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.testConnection')" type="button" class="workspace-icon-action theme-action-button" :disabled="!status?.installed || testingNodes.has(row.name)" :aria-busy="testingNodes.has(row.name)" @click="testNode(row)"><Icon name="checkCircle" size="sm" /><span class="sr-only">{{ testingNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.testConnection') }}</span></button>
             <button :title="qualityNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.qualityCheck')" :aria-label="qualityNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.qualityCheck')" type="button" class="workspace-icon-action theme-action-button" :disabled="!status?.installed || qualityNodes.has(row.name)" :aria-busy="qualityNodes.has(row.name)" @click="checkNodeQuality(row)"><Icon name="shield" size="sm" /><span class="sr-only">{{ qualityNodes.has(row.name) ? t('admin.proxies.testing') : t('admin.proxies.qualityCheck') }}</span></button>
-            <button :aria-label="text('检测', 'Probe')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !status?.running" :title="text('经运行中的内核测速：失败则标记为检测失败，成功则恢复节点', 'Measures through the running kernel: failure marks the node failed, success recovers it')" @click="operate('probe/' + row.name)"><Icon name="bolt" size="sm" /><span class="sr-only">{{ text('检测', 'Probe') }}</span></button>
-            <button :title="text('检测地区', 'Check region')" :aria-label="text('检测地区', 'Check region')" v-if="!row.dynamic" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !status?.running" @click="operate('country_probe/' + row.name)"><Icon name="globe" size="sm" /><span class="sr-only">{{ text('检测地区', 'Check region') }}</span></button>
-            <button :title="row.state === 'enabled' ? text('停用', 'Disable') : text('恢复', 'Recover')" :aria-label="row.state === 'enabled' ? text('停用', 'Disable') : text('恢复', 'Recover')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || row.state === 'country_excluded'" @click="operate((row.state === 'enabled' ? 'disable/' : 'recover/') + row.name)"><Icon :name="row.state === 'enabled' ? 'ban' : 'refresh'" size="sm" /><span class="sr-only">{{ row.state === 'enabled' ? text('停用', 'Disable') : text('恢复', 'Recover') }}</span></button>
-            <button :title="text('移除', 'Remove')" :aria-label="text('移除', 'Remove')" v-if="row.dynamic" type="button" class="workspace-icon-action text-red-600 dark:text-red-400" :disabled="busy" @click="confirmRemoval(['dynamic_remove/' + row.name])"><Icon name="trash" size="sm" /><span class="sr-only">{{ text('移除', 'Remove') }}</span></button>
+            <button :aria-label="t('consoleInline.probe_a35760')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !status?.running" :title="t('consoleInline.measuresThroughTheRunningKernelFailureMarks_0d6637')" @click="operate('probe/' + row.name)"><Icon name="bolt" size="sm" /><span class="sr-only">{{ t('consoleInline.probe_a35760') }}</span></button>
+            <button :title="t('consoleInline.checkRegion_f117c1')" :aria-label="t('consoleInline.checkRegion_f117c1')" v-if="!row.dynamic" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || !status?.running" @click="operate('country_probe/' + row.name)"><Icon name="globe" size="sm" /><span class="sr-only">{{ t('consoleInline.checkRegion_f117c1') }}</span></button>
+            <button :title="row.state === 'enabled' ? t('consoleInline.disable_4c7f46') : t('consoleInline.recover_707d81')" :aria-label="row.state === 'enabled' ? t('consoleInline.disable_4c7f46') : t('consoleInline.recover_707d81')" type="button" class="workspace-icon-action theme-action-button" :disabled="busy || row.state === 'country_excluded'" @click="operate((row.state === 'enabled' ? 'disable/' : 'recover/') + row.name)"><Icon :name="row.state === 'enabled' ? 'ban' : 'refresh'" size="sm" /><span class="sr-only">{{ row.state === 'enabled' ? t('consoleInline.disable_4c7f46') : t('consoleInline.recover_707d81') }}</span></button>
+            <button :title="t('consoleInline.remove_ca30f1')" :aria-label="t('consoleInline.remove_ca30f1')" v-if="row.dynamic" type="button" class="workspace-icon-action text-red-600 dark:text-red-400" :disabled="busy" @click="confirmRemoval(['dynamic_remove/' + row.name])"><Icon name="trash" size="sm" /><span class="sr-only">{{ t('consoleInline.remove_ca30f1') }}</span></button>
           </div>
         </template>
       </DataTable>
-      <p class="text-sm">{{ text('共', 'Total') }} {{ filteredNodes.length }} {{ text('个节点', 'nodes') }}</p>
+      <p class="text-sm">{{ t('consoleInline.total_ca7a6a') }} {{ filteredNodes.length }} {{ t('consoleInline.nodes_331f00') }}</p>
       <InfiniteListSentinel :loading="loading" :has-more="visibleNodes.length < filteredNodes.length" :progress="visibleNodes.length" @load-more="visibleNodeCount += 50" />
     </template>
 
     <template v-if="section === 'kernel'">
-      <AppHeading variant="section" as="h2">{{ text('内核与地区规则', 'Kernel and region rules') }}</AppHeading>
+      <AppHeading variant="section" as="h2">{{ t('consoleInline.kernelAndRegionRules_aa674b') }}</AppHeading>
       <div class="flex flex-wrap gap-2">
-        <button v-if="status && !status.installed" type="button" class="btn btn-primary" :disabled="busy || !status.supported" @click="operate('install')">{{ text('检测并安装', 'Install kernel') }}</button>
-        <button v-else-if="!status?.running" type="button" class="btn btn-secondary" :disabled="busy || !status?.nodes" @click="operate('start')">{{ text('启动内核', 'Start kernel') }}</button>
+        <button v-if="status && !status.installed" type="button" class="btn btn-primary" :disabled="busy || !status.supported" @click="operate('install')">{{ t('consoleInline.installKernel_58fab8') }}</button>
+        <button v-else-if="!status?.running" type="button" class="btn btn-secondary" :disabled="busy || !status?.nodes" @click="operate('start')">{{ t('consoleInline.startKernel_5d04e3') }}</button>
       </div>
-      <label v-if="status?.installed" class="flex items-center gap-2 text-sm"><input type="checkbox" :checked="status.use_once" :disabled="busy" @change="operate(status.use_once ? 'once_off' : 'once_on')" />{{ text('打票节点用后移出（需手动恢复）', 'Retire harvest nodes after use (manual recovery)') }}</label>
+      <label v-if="status?.installed" class="flex items-center gap-2 text-sm"><input type="checkbox" :checked="status.use_once" :disabled="busy" @change="operate(status.use_once ? 'once_off' : 'once_on')" />{{ t('consoleInline.retireHarvestNodesAfterUseManualRecovery_15251a') }}</label>
       <MihomoCountryFilter v-if="status?.installed" :filter="status.country_filter" :codes="status.country_codes || []" :nodes="status.node_states || []" :busy="busy" @save="operate('country_filter', { country_filter: $event })" @scan="operate('country_scan')" />
-      <p class="text-xs text-gray-500">{{ text('这里的配置独立保存。采票出口在本页「采票出口」中选择，账号业务代理在账号设置中选择。', 'Configuration is saved here independently. Select the harvest exit in the Harvest Exit tab and account proxies in account settings.') }}</p>
+      <p class="text-xs text-gray-500">{{ t('consoleInline.configurationIsSavedHereIndependentlySelectThe_5d60b0') }}</p>
     </template>
-    <p v-if="status && !status.installed && section !== 'kernel'" class="text-sm text-amber-700">{{ text('请先在“内核与规则”中安装内核。', 'Install the kernel in Kernel and rules first.') }}</p>
+    <p v-if="status && !status.installed && section !== 'kernel'" class="text-sm text-amber-700">{{ t('consoleInline.installTheKernelInKernelAndRules_6831bb') }}</p>
 
-    <BaseDialog :show="staticProxyDialog" :title="text('添加为静态代理', 'Add as static proxies')" @close="!pending && (staticProxyDialog = false)">
+    <BaseDialog :show="staticProxyDialog" :title="t('consoleInline.addAsStaticProxies_2bbcb7')" @close="!pending && (staticProxyDialog = false)">
       <div class="space-y-3 text-sm">
-        <p>{{ text(`将 ${staticProxyTargets.length} 个节点添加到“静态代理 / IP 代理池”，之后可在账号设置中单独选择。已添加的节点会复用现有代理。`, `Add ${staticProxyTargets.length} nodes to the static proxy pool, then select them in individual account settings. Existing proxies will be reused.`) }}</p>
-        <p class="text-gray-500">{{ text('固定使用所选节点。Mihomo 停止、节点停用或从来源移除后，该代理将不可用；不会自动切换到其他节点。', 'Each proxy uses only its selected node. It becomes unavailable when Mihomo stops or the node is disabled or removed; it will not switch to another node.') }}</p>
-        <p v-if="staticProxyTargets.some(node => node.dynamic)" class="text-amber-700">{{ text('包含动态代理：固定的是代理配置，实际公网 IP 仍由供应商控制，可能随连接变化。', 'Includes dynamic proxies: the proxy configuration is fixed, but the provider may change the public IP between connections.') }}</p>
+        <p>{{ t('consoleFields.staticProxyConfirm', { count: staticProxyTargets.length }) }}</p>
+        <p class="text-gray-500">{{ t('consoleInline.eachProxyUsesOnlyItsSelectedNode_ad5a4a') }}</p>
+        <p v-if="staticProxyTargets.some(node => node.dynamic)" class="text-amber-700">{{ t('consoleInline.includesDynamicProxiesTheProxyConfigurationIs_973263') }}</p>
         <ul class="max-h-48 overflow-auto rounded-lg bg-gray-50 p-3 dark:bg-dark-700"><li v-for="node in staticProxyTargets" :key="node.name">{{ node.display_name || node.name }}</li></ul>
-        <p v-if="staticProxyTargets.some(node => node.state !== 'enabled')" role="alert" class="text-amber-700">{{ text('请先恢复所选节点，并确认地区规则允许使用这些节点。', 'Restore selected nodes and allow their regions before adding them.') }}</p>
+        <p v-if="staticProxyTargets.some(node => node.state !== 'enabled')" role="alert" class="text-amber-700">{{ t('consoleInline.restoreSelectedNodesAndAllowTheirRegions_c3c694') }}</p>
         <p v-if="staticProxyError" role="alert" class="text-red-600">{{ staticProxyError }}</p>
       </div>
-      <template #footer><button type="button" class="btn btn-primary" :disabled="busy || !staticProxyTargets.length || staticProxyTargets.some(node => node.state !== 'enabled')" @click="addStaticProxies">{{ pending ? text('正在添加…', 'Adding…') : text('确认添加', 'Confirm add') }}</button></template>
+      <template #footer><button type="button" class="btn btn-primary" :disabled="busy || !staticProxyTargets.length || staticProxyTargets.some(node => node.state !== 'enabled')" @click="addStaticProxies">{{ pending ? t('consoleInline.adding_a7ba3c') : t('consoleInline.confirmAdd_4d2e1b') }}</button></template>
     </BaseDialog>
-    <BaseDialog :show="nodeEditDialog" :title="text('批量编辑节点', 'Batch edit nodes')" @close="!pending && (nodeEditDialog = false)">
+    <BaseDialog :show="nodeEditDialog" :title="t('consoleInline.batchEditNodes_b3df83')" @close="!pending && (nodeEditDialog = false)">
       <div class="space-y-3 text-sm">
-        <p>{{ text(`仅修改已选择的 ${selectedNodeTargets.length} 个节点。`, `Only the ${selectedNodeTargets.length} selected nodes will be changed.`) }}</p>
-        <label class="block">{{ text('操作', 'Action') }}<select v-model="nodeEditAction" class="input mt-2" data-testid="node-batch-action"><option value="recover">{{ text('恢复节点', 'Recover nodes') }}</option><option value="disable">{{ text('停用节点', 'Disable nodes') }}</option><option value="static">{{ text('添加为静态代理', 'Add as static proxies') }}</option></select></label>
-        <p class="text-gray-500">{{ text('恢复操作仍受地区规则限制；停用节点会同时停止对应静态代理的转发。', 'Recovery still follows region rules. Disabling a node also stops forwarding through its static proxy.') }}</p>
+        <p>{{ t('consoleFields.selectedNodeEdit', { count: selectedNodeTargets.length }) }}</p>
+        <label class="block">{{ t('consoleInline.action_aca1a5') }}<select v-model="nodeEditAction" class="input mt-2" data-testid="node-batch-action"><option value="recover">{{ t('consoleInline.recoverNodes_56bf4b') }}</option><option value="disable">{{ t('consoleInline.disableNodes_fa9ec2') }}</option><option value="static">{{ t('consoleInline.addAsStaticProxies_2bbcb7') }}</option></select></label>
+        <p class="text-gray-500">{{ t('consoleInline.recoveryStillFollowsRegionRulesDisablingA_a7cd0e') }}</p>
         <p v-if="error" role="alert" class="text-red-600">{{ error }}</p>
       </div>
-      <template #footer><button type="button" class="btn btn-primary" :disabled="busy || !selectedNodeTargets.length" @click="applyNodeEdit">{{ text('应用所选', 'Apply to selected') }}</button></template>
+      <template #footer><button type="button" class="btn btn-primary" :disabled="busy || !selectedNodeTargets.length" @click="applyNodeEdit">{{ t('consoleInline.applyToSelected_0619ee') }}</button></template>
     </BaseDialog>
-    <BaseDialog :show="subscriptionDialog" :title="editing ? text('编辑订阅', 'Edit subscription') : text('添加订阅', 'Add subscription')" @close="subscriptionDialog = false">
+    <BaseDialog :show="subscriptionDialog" :title="editing ? t('consoleInline.editSubscription_026057') : t('consoleInline.addSubscription_43aed6')" @close="subscriptionDialog = false">
       <div class="space-y-4">
-        <label class="block text-sm">{{ text('订阅名称（单条订阅，可选）', 'Subscription name (single source, optional)') }}<input v-model="subscriptionName" maxlength="80" class="input mt-2" data-testid="subscription-name" /></label>
-        <label class="block text-sm" for="mihomo-subscriptions">{{ editing ? text('新订阅地址（留空只修改名称）', 'New URL (leave blank to rename only)') : text('机场订阅地址（每行一个）', 'Subscription URLs (one per line)') }}</label>
+        <label class="block text-sm">{{ t('consoleInline.subscriptionNameSingleSourceOptional_12ef7e') }}<input v-model="subscriptionName" maxlength="80" class="input mt-2" data-testid="subscription-name" /></label>
+        <label :id="'field-' + fieldLabelScope + '-2'" class="block text-sm" for="mihomo-subscriptions">{{ editing ? t('consoleInline.newURLLeaveBlankToRenameOnly_a5309e') : t('consoleInline.subscriptionURLsOnePerLine_caad76') }}</label>
         <textarea id="mihomo-subscriptions" v-model="subscriptions" class="input w-full font-mono text-xs" rows="5" autocomplete="off" spellcheck="false" />
-        <p class="text-xs text-gray-500">{{ text('支持 Clash / Mihomo YAML。地址含密钥时请勿填入名称；已保存的地址不会回显。', 'Requires Clash / Mihomo YAML. Keep secrets out of names; saved URLs are never displayed.') }}</p>
-        <input v-if="!editing" type="file" accept=".txt,text/plain" :aria-label="text('导入订阅 TXT', 'Import subscription TXT')" @change="importFile" />
+        <p class="text-xs text-gray-500">{{ t('consoleInline.requiresClashMihomoYAMLKeepSecretsOut_32b3fa') }}</p>
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-if="!editing" type="file" accept=".txt,text/plain" :aria-label="t('consoleInline.importSubscriptionTXT_cf0243')" @change="importFile" />
         <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
       </div>
-      <template #footer><button type="button" class="btn btn-primary" :disabled="busy || (!subscriptions.trim() && !editing)" @click="saveSubscription">{{ text('保存并应用', 'Save and apply') }}</button></template>
+      <template #footer><button type="button" class="btn btn-primary" :disabled="busy || (!subscriptions.trim() && !editing)" @click="saveSubscription">{{ t('consoleInline.saveAndApply_d2151e') }}</button></template>
     </BaseDialog>
-    <BaseDialog :show="dynamicDialog" :title="text('导入动态代理', 'Import dynamic proxies')" @close="dynamicDialog = false">
+    <BaseDialog :show="dynamicDialog" :title="t('consoleInline.importDynamicProxies_b1a061')" @close="dynamicDialog = false">
       <div class="space-y-3">
-        <label class="block text-sm" for="mihomo-dynamic-protocol">{{ text('无协议前缀时使用', 'Default protocol') }}</label>
+        <label class="block text-sm" for="mihomo-dynamic-protocol">{{ t('consoleInline.defaultProtocol_73bd0a') }}</label>
         <select id="mihomo-dynamic-protocol" v-model="dynamicProtocol" class="input"><option value="http">HTTP</option><option value="https">HTTPS</option><option value="socks5">SOCKS5</option><option value="socks5h">SOCKS5H</option></select>
-        <label class="block text-sm" for="mihomo-dynamic-proxies">{{ text('动态代理（每行一个）', 'Dynamic proxies (one per line)') }}</label>
+        <label class="block text-sm" for="mihomo-dynamic-proxies">{{ t('consoleInline.dynamicProxiesOnePerLine_239c7e') }}</label>
         <textarea id="mihomo-dynamic-proxies" v-model="dynamicProxies" class="input w-full font-mono text-xs" rows="6" autocomplete="off" spellcheck="false" />
-        <details class="text-xs text-gray-500"><summary>{{ text('支持的输入格式', 'Supported formats') }}</summary><pre class="mt-2 whitespace-pre-wrap">hostname:port:username:password
+        <details class="text-xs text-gray-500"><summary>{{ t('consoleInline.supportedFormats_59eeae') }}</summary><pre class="mt-2 whitespace-pre-wrap">hostname:port:username:password
 username:password:hostname:port
 username:password@hostname:port
 hostname:port@username:password
 http://username:password@hostname:port</pre></details>
-        <label class="flex items-center gap-2 text-sm"><input v-model="replaceDynamic" type="checkbox" />{{ text('替换已保存的动态代理（不勾选则追加）', 'Replace saved dynamic proxies (otherwise append)') }}</label>
-        <p class="text-xs text-gray-500">{{ text('不会删除机场订阅。更换出口的国家／地区仍由供应商控制。', 'Subscriptions are preserved. Exit regions remain controlled by the provider.') }}</p>
+        <label class="flex items-center gap-2 text-sm"><input v-model="replaceDynamic" type="checkbox" />{{ t('consoleInline.replaceSavedDynamicProxiesOtherwiseAppend_fbe6bb') }}</label>
+        <p class="text-xs text-gray-500">{{ t('consoleInline.subscriptionsArePreservedExitRegionsRemainControlled_a29d04') }}</p>
         <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
       </div>
-      <template #footer><button type="button" class="btn btn-primary" :disabled="busy || !dynamicProxies.trim()" @click="saveDynamic">{{ text('应用动态代理', 'Apply dynamic proxies') }}</button></template>
+      <template #footer><button type="button" class="btn btn-primary" :disabled="busy || !dynamicProxies.trim()" @click="saveDynamic">{{ t('consoleInline.applyDynamicProxies_2b94b8') }}</button></template>
     </BaseDialog>
-    <ConfirmDialog :busy="confirmActionsAction.busy.value || busy" :show="!!confirmation" :title="text('确认变更代理来源', 'Confirm proxy source changes')" :message="confirmation?.message || ''" danger @cancel="confirmation = undefined" @confirm="confirmActions" />
+    <ConfirmDialog :busy="confirmActionsAction.busy.value || busy" :show="!!confirmation" :title="t('consoleInline.confirmProxySourceChanges_39bbe6')" :message="confirmation?.message || ''" danger @cancel="confirmation = undefined" @confirm="confirmActions" />
     <ProxyQualityReportDialog :show="!!qualityReport" :name="qualityReportName" :report="qualityReport" @close="qualityReport = null" />
   </div>
 </template>
 <script setup lang="ts">
 import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import AppHeading from '@/components/common/AppHeading.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { localizeInlineText } from '@/i18n/inline'
 import { computed, ref, onMounted, onUnmounted, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiClient } from '@/api/client'
@@ -209,11 +210,10 @@ import type { ProxyQualityCheckResult } from '@/types'
 import { proxyQualityOverallClass, proxyQualityOverallLabelKey, summarizeProxyQuality } from '@/utils/proxyQuality'
 const props = withDefaults(defineProps<{ section?: 'subscriptions' | 'dynamic' | 'nodes' | 'kernel' }>(), { section: 'subscriptions' })
 const emit = defineEmits<{ 'static-proxies-added': [] }>()
-const { locale, t } = useI18n()
+const { t } = useI18n()
 const tableTools1 = ref<HTMLElement | null>(null)
 const tableTools0 = ref<HTMLElement | null>(null)
 const appStore = useAppStore()
-const text = (zh: string, en: string) => localizeInlineText(zh, en, locale.value)
 type SubscriptionDownloadMode = 'auto' | 'proxy' | 'direct'
 interface WarmPoolStatus { ready_subscription?: number; ready_dynamic?: number; target: number; ready: number; checking: number; cooling: number; failure_reasons?: Record<string, number> }
 interface Subscription { id: string; label: string; enabled: boolean; nodes: number; cached: boolean; updated_at?: string }
@@ -262,19 +262,19 @@ const nodeSource = ref('')
 const visibleNodeCount = ref(50)
 const nodeStates = ['enabled', 'disabled', 'failed', 'used', 'country_excluded']
 const confirmation = ref<{ actions: string[]; message: string; payload?: Payload }>()
-const stateLabel = (state: string) => ({ enabled: text('启用', 'Enabled'), disabled: text('停用', 'Disabled'), failed: text('检测失败', 'Failed'), used: text('已使用', 'Used'), country_excluded: text('地区已排除', 'Region excluded') }[state] || state)
+const stateLabel = (state: string) => ({ enabled: t('consoleInline.enabled_87a030'), disabled: t('consoleInline.disabled_c38905'), failed: t('consoleInline.failed_9eca61'), used: t('consoleInline.used_f45ed8'), country_excluded: t('consoleInline.regionExcluded_2e7cc1') }[state] || state)
 const warmPools = computed(() => [
   { source: 'Mihomo', pool: status.value?.bps_warm_pool },
-  { source: text('IP 管理', 'IP Management'), pool: status.value?.bps_ip_warm_pool }
+  { source: t('consoleInline.iPManagement_0e4af9'), pool: status.value?.bps_ip_warm_pool }
 ].flatMap(item => item.pool ? [{ source: item.source, ...item.pool }] : []))
 const subscriptionColumns = computed(() => [
-  { key: 'label', label: text('名称', 'Name'), sortable: true }, { key: 'enabled', label: text('状态', 'Status') },
-  { key: 'nodes', label: text('节点数', 'Nodes') }, { key: 'updated_at', label: text('最后更新', 'Last refreshed') }, { key: 'actions', label: text('操作', 'Actions') }
+  { key: 'label', label: t('consoleInline.name_5d4e8a'), sortable: true }, { key: 'enabled', label: t('consoleInline.status_4810a8') },
+  { key: 'nodes', label: t('consoleInline.nodes_5e8e0c') }, { key: 'updated_at', label: t('consoleInline.lastRefreshed_3f7303') }, { key: 'actions', label: t('consoleInline.actions_41f1e6') }
 ])
 const nodeColumns = computed(() => [
-  { key: 'display_name', label: text('名称', 'Name') }, { key: 'source', label: text('来源', 'Source') },
-  { key: 'state', label: text('状态', 'Status') }, { key: 'country_code', label: text('地区', 'Region') },
-  { key: 'check', label: t('admin.proxies.columns.latency') }, { key: 'actions', label: text('操作', 'Actions') }
+  { key: 'display_name', label: t('consoleInline.name_5d4e8a') }, { key: 'source', label: t('consoleInline.source_8354d1') },
+  { key: 'state', label: t('consoleInline.status_4810a8') }, { key: 'country_code', label: t('consoleInline.region_9833d9') },
+  { key: 'check', label: t('admin.proxies.columns.latency') }, { key: 'actions', label: t('consoleInline.actions_41f1e6') }
 ])
 const filteredSubscriptions = computed(() => (status.value?.subscription_items || []).filter(s => (s.label + s.id).toLowerCase().includes(search.value.trim().toLowerCase())))
 const filteredNodes = computed(() => (status.value?.node_states || []).filter(n =>
@@ -296,8 +296,8 @@ const nodeBatchTargets = computed(() => {
 watch([search, nodeState, nodeSource, () => props.section], () => { visibleNodeCount.value = 50; selected.value = []; selectedNodes.value = [] })
 watch(() => props.section, () => { search.value = ''; nodeSource.value = ''; nodeState.value = '' })
 function nodeSourceLabel(node: ManagedNode) {
-  if (node.dynamic) return text('动态代理', 'Dynamic proxy')
-  return node.subscription_ids?.map(id => status.value?.subscription_items?.find(s => s.id === id)?.label || id.slice(0, 8)).join(', ') || text('订阅（待更新来源）', 'Subscription (refresh to identify)')
+  if (node.dynamic) return t('consoleInline.dynamicProxy_11639b')
+  return node.subscription_ids?.map(id => status.value?.subscription_items?.find(s => s.id === id)?.label || id.slice(0, 8)).join(', ') || t('consoleInline.subscriptionRefreshToIdentify_d2557a')
 }
 function openStaticProxyDialog(nodes: ManagedNode[]) {
   staticProxyTargets.value = [...nodes]
@@ -321,7 +321,7 @@ async function addStaticProxies() {
       if (disposed) return
     }
     emit('static-proxies-added')
-    const summary = text(`新增 ${created} 个静态代理，复用 ${existing} 个，失败 ${failedNames.size} 个。可在账号设置中选择代理。`, `Created ${created} static proxies, reused ${existing}, failed ${failedNames.size}. Select them in account settings.`)
+    const summary = t('consoleFields.staticProxySummary', { created, existing, failed: failedNames.size })
     if (failedNames.size) {
       staticProxyTargets.value = targets.filter(node => failedNames.has(node.name))
       staticProxyError.value = summary
@@ -332,7 +332,7 @@ async function addStaticProxies() {
       appStore.showSuccess(summary)
     }
   } catch (cause) {
-    staticProxyError.value = causeMessage(cause, text('添加未完成，请重试；已创建的代理会自动复用。', 'Could not finish adding proxies. Retry to reuse any proxies already created.'))
+    staticProxyError.value = causeMessage(cause, t('consoleInline.couldNotFinishAddingProxiesRetryTo_b9ad63'))
     emit('static-proxies-added')
   } finally {
     pending.value = false
@@ -354,8 +354,8 @@ async function applyNodeEdit() {
 }
 const checkExit = (check: NodeCheck) => [check.ip_address, check.country, check.city].filter(Boolean).join(' · ')
 function checkTitle(node: ManagedNode) {
-  const checked = node.check ? text('检测时间 ', 'Checked ') + formatDisplayTimestamp(node.check.checked_at * 1000) : ''
-  return node.dynamic ? checked + text('；动态代理每次连接可能更换出口', '; dynamic proxies may change exit on every connection') : checked
+  const checked = node.check ? t('consoleInline.checked_639fb0') + formatDisplayTimestamp(node.check.checked_at * 1000) : ''
+  return node.dynamic ? checked + t('consoleInline.dynamicProxiesMayChangeExitOnEvery_591f6c') : checked
 }
 const nodeCheckPath = (name: string, check: 'test' | 'quality-check') => `/admin/system/mihomo/nodes/${encodeURIComponent(name)}/${check}`
 const causeMessage = (cause: unknown, fallback: string) => (cause as { message?: string })?.message || fallback
@@ -445,7 +445,7 @@ async function batchTestNodes() {
       } catch { failed++ }
     })
     if (disposed) return
-    const summary = text(`批量测试完成，共 ${succeeded + failed} 个节点：成功 ${succeeded} 个，失败 ${failed} 个`, `Tested ${succeeded + failed} nodes: ${succeeded} succeeded, ${failed} failed`)
+    const summary = t('consoleFields.batchTestSummary', { total: succeeded + failed, succeeded, failed })
     if (failed) appStore.showWarning(summary)
     else appStore.showSuccess(summary)
   } finally {
@@ -465,7 +465,7 @@ async function batchCheckNodeQuality() {
     })
     if (disposed) return
     const total = counts.healthy + counts.warn + counts.challenge + counts.failed
-    const summary = text(`批量质量检测完成，共 ${total} 个节点：优质 ${counts.healthy} 个，告警 ${counts.warn} 个，挑战 ${counts.challenge} 个，异常 ${counts.failed} 个`, `Quality checked ${total} nodes: healthy ${counts.healthy}, warn ${counts.warn}, challenge ${counts.challenge}, abnormal ${counts.failed}`)
+    const summary = t('consoleFields.qualityTestSummary', { total, ...counts })
     if (counts.challenge || counts.failed) appStore.showWarning(summary)
     else appStore.showSuccess(summary)
   } finally {
@@ -484,7 +484,7 @@ async function refresh() {
   try {
     const { data } = await apiClient.get<Status>('/admin/system/mihomo')
     if (!disposed) { status.value = data; error.value = '' }
-  } catch { if (!disposed) error.value = text('无法读取内核状态', 'Cannot read kernel status') }
+  } catch { if (!disposed) error.value = t('consoleInline.cannotReadKernelStatus_723b46') }
   finally { loading.value = false; scheduleRefresh() }
 }
 async function operate(action: string, payload: Payload = {}, isCurrent: () => boolean = () => !disposed): Promise<boolean> {
@@ -503,11 +503,11 @@ async function operate(action: string, payload: Payload = {}, isCurrent: () => b
     }
     if (!isCurrent()) return false
     if (status.value.error) { error.value = status.value.error; return false }
-    success.value = text('变更已应用', 'Changes applied')
+    success.value = t('consoleInline.changesApplied_85149f')
     return true
   } catch (cause: unknown) {
     if (!isCurrent()) return false
-    error.value = (cause as { message?: string })?.message || text('操作未完成，请重试', 'Operation failed. Please retry.')
+    error.value = (cause as { message?: string })?.message || t('consoleInline.operationFailedPleaseRetry_aa79cd')
     return false
   } finally { pending.value = false; scheduleRefresh() }
 }
@@ -518,9 +518,9 @@ async function saveDownloadMode() {
     status.value = (await apiClient.put<Status>('/admin/system/mihomo/download-mode', { mode: downloadMode.value })).data
     downloadModeDirty.value = false
     downloadMode.value = status.value.subscription_download_mode || 'auto'
-    success.value = text('下载模式已保存', 'Download mode saved')
+    success.value = t('consoleInline.downloadModeSaved_b11a60')
   } catch (cause: unknown) {
-    error.value = (cause as { message?: string })?.message || text('无法保存下载模式', 'Cannot save download mode')
+    error.value = (cause as { message?: string })?.message || t('consoleInline.cannotSaveDownloadMode_ccb013')
   } finally { pending.value = false; scheduleRefresh() }
 }
 function openSubscription(source?: Subscription) {
@@ -536,11 +536,11 @@ function dynamicPayload(): Payload {
 }
 async function saveDynamic() {
   if (replaceDynamic.value && status.value?.dynamic_proxies) {
-    confirmation.value = { actions: ['dynamic_replace'], payload: dynamicPayload(), message: text('将替换全部已保存动态代理，可能中断使用旧出口的会话。机场订阅会保留。', 'This replaces all saved dynamic proxies and may interrupt sessions using old exits. Subscriptions are preserved.') }
+    confirmation.value = { actions: ['dynamic_replace'], payload: dynamicPayload(), message: t('consoleInline.thisReplacesAllSavedDynamicProxiesAnd_200eab') }
   } else if (await operate(replaceDynamic.value ? 'dynamic_replace' : 'dynamic_append', dynamicPayload())) { dynamicProxies.value = ''; dynamicDialog.value = false }
 }
 function confirmRemoval(actions: string[]) {
-  confirmation.value = { actions, message: text('移除这些来源及其独有节点？其他来源会保留，正在使用被移除出口的会话可能受影响。移除最后一个来源后将拒绝代理流量。', 'Remove these sources and their exclusive nodes? Other sources are preserved; sessions using removed exits may be affected. Removing the last source rejects proxy traffic.') }
+  confirmation.value = { actions, message: t('consoleInline.removeTheseSourcesAndTheirExclusiveNodes_3df2c1') }
 }
 function confirmActions() {
  return confirmActionsAction.run(async (isCurrent) => {
@@ -567,8 +567,8 @@ async function importFile(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  if (file.size > 256 * 1024) { error.value = text('文件不能超过 256 KiB', 'File must be at most 256 KiB'); return }
-  try { subscriptions.value = await file.text(); input.value = '' } catch { error.value = text('无法读取文件', 'Cannot read file') }
+  if (file.size > 256 * 1024) { error.value = t('consoleInline.fileMustBeAtMost256KiB_590638'); return }
+  try { subscriptions.value = await file.text(); input.value = '' } catch { error.value = t('consoleInline.cannotReadFile_027129') }
 }
 onMounted(refresh)
 onUnmounted(() => { disposed = true; if (timer) clearTimeout(timer) })

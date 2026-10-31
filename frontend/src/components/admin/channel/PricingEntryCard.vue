@@ -52,7 +52,7 @@
       </div>
 
       <!-- Remove button (always visible, stop propagation) -->
-      <button
+      <button :aria-label="t('consoleFields.remove')"
         type="button"
         @click.stop="emit('remove')"
         class="flex-shrink-0 rounded p-1 text-gray-400 hover:text-red-500"
@@ -82,10 +82,10 @@
             />
           </div>
           <div class="w-40">
-            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <label :id="'field-' + fieldLabelScope + '-1'" class="text-xs font-medium text-gray-500 dark:text-gray-400">
               {{ t('admin.channels.form.billingMode') }}
             </label>
-            <Select :aria-label="t('admin.channels.form.billingMode')"
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.channels.form.billingMode')"
               :modelValue="entry.billing_mode"
               @update:modelValue="emit('update', {
                 ...entry,
@@ -108,51 +108,51 @@
           </label>
           <div class="pricing-default-grid mt-1 grid gap-2">
             <div>
-              <label class="text-xs text-gray-400">{{ t('admin.channels.form.inputPrice') }}</label>
-              <input :value="entry.input_price" @input="emitField('input_price', ($event.target as HTMLInputElement).value)"
+              <label :id="'field-' + fieldLabelScope + '-2'" class="text-xs text-gray-400">{{ t('admin.channels.form.inputPrice') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-2'" :value="entry.input_price" @input="emitField('input_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
-              <label class="text-xs text-gray-400">{{ t('admin.channels.form.outputPrice') }}</label>
-              <input :value="entry.output_price" @input="emitField('output_price', ($event.target as HTMLInputElement).value)"
+              <label :id="'field-' + fieldLabelScope + '-3'" class="text-xs text-gray-400">{{ t('admin.channels.form.outputPrice') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-3'" :value="entry.output_price" @input="emitField('output_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
-              <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWrite5mPrice') }}</label>
-              <input :value="entry.cache_write_price" @input="emitField('cache_write_price', ($event.target as HTMLInputElement).value)"
+              <label :id="'field-' + fieldLabelScope + '-4'" class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWrite5mPrice') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-4'" :value="entry.cache_write_price" @input="emitField('cache_write_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
-              <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWrite1hPrice') }}</label>
-              <input :value="entry.cache_write_1h_price" @input="emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)"
+              <label :id="'field-' + fieldLabelScope + '-5'" class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWrite1hPrice') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-5'" :value="entry.cache_write_1h_price" @input="emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
-              <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheReadPrice') }}</label>
-              <input :value="entry.cache_read_price" @input="emitField('cache_read_price', ($event.target as HTMLInputElement).value)"
+              <label :id="'field-' + fieldLabelScope + '-6'" class="text-xs text-gray-400">{{ t('admin.channels.form.cacheReadPrice') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-6'" :value="entry.cache_read_price" @input="emitField('cache_read_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
-              <label class="text-xs text-gray-400">{{ t('admin.channels.form.imageInputPrice') }}</label>
-              <input :value="entry.image_input_price" @input="emitField('image_input_price', ($event.target as HTMLInputElement).value)"
+              <label :id="'field-' + fieldLabelScope + '-7'" class="text-xs text-gray-400">{{ t('admin.channels.form.imageInputPrice') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-7'" :value="entry.image_input_price" @input="emitField('image_input_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
-              <label class="text-xs text-gray-400">{{ t('admin.channels.form.imageTokenPrice') }}</label>
-              <input :value="entry.image_output_price" @input="emitField('image_output_price', ($event.target as HTMLInputElement).value)"
+              <label :id="'field-' + fieldLabelScope + '-8'" class="text-xs text-gray-400">{{ t('admin.channels.form.imageTokenPrice') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-8'" :value="entry.image_output_price" @input="emitField('image_output_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
           </div>
 
           <div v-if="enableTierMultipliers" class="mt-3 grid max-w-md grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
-              <label class="text-xs text-gray-400">{{ t('admin.channels.form.fastMultiplier') }}</label>
-              <input :value="entry.fast_multiplier" @input="emitField('fast_multiplier', ($event.target as HTMLInputElement).value)"
+              <label :id="'field-' + fieldLabelScope + '-9'" class="text-xs text-gray-400">{{ t('admin.channels.form.fastMultiplier') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-9'" :value="entry.fast_multiplier" @input="emitField('fast_multiplier', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0.000001" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.multiplierPlaceholder')" />
             </div>
             <div>
-              <label class="text-xs text-gray-400">{{ t('admin.channels.form.flexMultiplier') }}</label>
-              <input :value="entry.flex_multiplier" @input="emitField('flex_multiplier', ($event.target as HTMLInputElement).value)"
+              <label :id="'field-' + fieldLabelScope + '-10'" class="text-xs text-gray-400">{{ t('admin.channels.form.flexMultiplier') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-10'" :value="entry.flex_multiplier" @input="emitField('flex_multiplier', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0.000001" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.multiplierPlaceholder')" />
             </div>
           </div>
@@ -196,8 +196,11 @@
             <span class="ml-1 font-normal text-gray-400">$</span>
           </label>
           <div class="mt-1 w-48">
-            <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.channels.form.pricePlaceholder') }}</span>
+              <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+            </label>
           </div>
 
           <!-- Tiers -->
@@ -232,8 +235,11 @@
             <span class="ml-1 font-normal text-gray-400">$</span>
           </label>
           <div class="mt-1 w-48">
-            <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.channels.form.pricePlaceholder') }}</span>
+              <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+            </label>
           </div>
 
           <!-- Image tiers -->
@@ -299,6 +305,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'

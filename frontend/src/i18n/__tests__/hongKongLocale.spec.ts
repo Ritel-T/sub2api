@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import zhHK from '../locales/zh-Hant-HK'
-import { localizeInlineText } from '../inline'
-import inlineSource from '../inline?raw'
+import zh from '../locales/zh'
+import en from '../locales/en'
 
 vi.mock('@/router/title', () => ({ resolveRouteDocumentTitle: () => 'Localized page' }))
 vi.mock('@/router', () => ({ default: { currentRoute: { value: {} } } }))
@@ -106,9 +106,6 @@ describe('Hong Kong locale selection', () => {
   })
 
   it('keeps the selected Traditional glyphs across all Hong Kong messages', () => {
-    const inlineStart = inlineSource.indexOf(' = ') + 3
-    const inlineEnd = inlineSource.indexOf('\n\nexport ')
-    const inlineMessages = JSON.parse(inlineSource.slice(inlineStart, inlineEnd)) as Record<string, string>
     const forbidden = /[户帐賬设录电说阅兑脱温税悦卧啓説閲]/u
     const inspect = (node: unknown, path: string): void => {
       if (typeof node === 'string') {
@@ -120,17 +117,16 @@ describe('Hong Kong locale selection', () => {
       }
     }
     inspect(zhHK, 'zh-Hant-HK')
-    inspect(inlineMessages, 'inline')
     expect(zhHK.auth.signInToAccount).toBe('登入您的帳戶以繼續')
     expect(zhHK.auth.dontHaveAccount).toBe('還沒有帳戶？')
-    expect(localizeInlineText('查询用户 ID 模板', 'User ID template', 'zh-Hant-HK')).toBe('查詢用戶 ID 模板')
+    expect(Object.values(zhHK.consoleInline)).toContain('查詢用戶 ID 模板')
   })
 
   it('uses Hong Kong terminology without altering legacy Chinese', () => {
     expect(zhHK.common.settings).toBe('設定')
     expect(zhHK.common.email).toBe('電郵')
-    expect(localizeInlineText('保存打票策略', 'Save harvest policy', 'zh-Hant-HK')).toBe('儲存打票策略')
-    expect(localizeInlineText('保存打票策略', 'Save harvest policy', 'zh')).toBe('保存打票策略')
-    expect(localizeInlineText('new source', 'New English text', 'zh-Hant-HK')).toBe('New English text')
+    expect(Object.values(zhHK.consoleInline)).toContain('儲存打票策略')
+    expect(Object.values(zh.consoleInline)).toContain('保存打票策略')
+    expect(Object.keys(zhHK.consoleInline).sort()).toEqual(Object.keys(en.consoleInline).sort())
   })
 })

@@ -177,8 +177,8 @@
         <!-- Basic Info -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="input-label">{{ t('admin.errorPassthrough.form.name') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.errorPassthrough.form.name') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
               v-model="form.name"
               type="text"
               required
@@ -187,8 +187,8 @@
             />
           </div>
           <div>
-            <label class="input-label">{{ t('admin.errorPassthrough.form.priority') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.errorPassthrough.form.priority') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
               v-model.number="form.priority"
               type="number"
               min="0"
@@ -199,8 +199,8 @@
         </div>
 
         <div>
-          <label class="input-label">{{ t('admin.errorPassthrough.form.description') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-caption-1'" class="input-label">{{ t('admin.errorPassthrough.form.description') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-caption-1'"
             v-model="form.description"
             type="text"
             class="input"
@@ -216,8 +216,8 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="input-label text-xs">{{ t('admin.errorPassthrough.form.errorCodes') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-3'" class="input-label text-xs">{{ t('admin.errorPassthrough.form.errorCodes') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
                 v-model="errorCodesInput"
                 type="text"
                 class="input text-sm"
@@ -226,8 +226,8 @@
               <p class="input-hint text-xs">{{ t('admin.errorPassthrough.form.errorCodesHint') }}</p>
             </div>
             <div>
-              <label class="input-label text-xs">{{ t('admin.errorPassthrough.form.keywords') }}</label>
-              <textarea
+              <label :id="'field-' + fieldLabelScope + '-4'" class="input-label text-xs">{{ t('admin.errorPassthrough.form.keywords') }}</label>
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-4'"
                 v-model="keywordsInput"
                 rows="2"
                 class="input font-mono text-xs"
@@ -299,8 +299,8 @@
                 </span>
               </label>
               <div v-if="!form.passthrough_code" class="mt-2">
-                <label class="input-label text-xs">{{ t('admin.errorPassthrough.form.responseCode') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-5'" class="input-label text-xs">{{ t('admin.errorPassthrough.form.responseCode') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-5'"
                   v-model.number="form.response_code"
                   type="number"
                   min="100"
@@ -322,8 +322,8 @@
                 </span>
               </label>
               <div v-if="!form.passthrough_body" class="mt-2">
-                <label class="input-label text-xs">{{ t('admin.errorPassthrough.form.customMessage') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-6'" class="input-label text-xs">{{ t('admin.errorPassthrough.form.customMessage') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-6'"
                   v-model="form.custom_message"
                   type="text"
                   class="input text-sm"
@@ -336,11 +336,11 @@
 
         <!-- Skip Monitoring -->
         <div class="flex items-center gap-1.5">
-          <input
+          <label class="inline-flex items-center gap-2"><input
             type="checkbox"
             v-model="form.skip_monitoring"
             class="h-3.5 w-3.5 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
-          />
+          /><span class="text-2xs">{{ t('consoleFields.selectRow') }}</span></label>
           <span class="text-xs font-medium text-gray-700 dark:text-gray-300">
             {{ t('admin.errorPassthrough.form.skipMonitoring') }}
           </span>
@@ -349,11 +349,11 @@
 
         <!-- Enabled -->
         <div class="flex items-center gap-1.5">
-          <input
+          <label class="inline-flex items-center gap-2"><input
             type="checkbox"
             v-model="form.enabled"
             class="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
+          /><span class="text-2xs">{{ t('consoleFields.selectRow') }}</span></label>
           <span class="text-xs font-medium text-gray-700 dark:text-gray-300">
             {{ t('admin.errorPassthrough.form.enabled') }}
           </span>
@@ -389,6 +389,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import Toggle from '@/components/common/Toggle.vue'
 import AppHeading from '@/components/common/AppHeading.vue'
 import DataTable from '@/components/common/DataTable.vue'

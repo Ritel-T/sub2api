@@ -71,30 +71,39 @@
               size="md"
               class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
             />
-            <input
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.proxies.searchProxies') }}</span>
+              <input
               v-model="searchQuery"
               type="text"
               :placeholder="t('admin.proxies.searchProxies')"
               class="input pl-10"
               @input="handleSearch"
             />
+            </label>
           </div>
 
           <div class="w-full sm:w-40">
-            <Select :aria-label="t('admin.proxies.protocol')"
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.proxies.protocol') }}</span>
+              <Select :aria-label="t('admin.proxies.protocol')"
               v-model="filters.protocol"
               :options="protocolOptions"
               :placeholder="t('admin.proxies.allProtocols')"
               @change="handleFilterChange"
             />
+            </label>
           </div>
           <div class="w-full sm:w-36">
-            <Select :aria-label="t('admin.proxies.status')"
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.proxies.status') }}</span>
+              <Select :aria-label="t('admin.proxies.status')"
               v-model="filters.status"
               :options="statusOptions"
               :placeholder="t('admin.proxies.allStatus')"
               @change="handleFilterChange"
             />
+            </label>
           </div>
 
           <TableToolbarTarget />
@@ -117,23 +126,23 @@
           @sort="handleSort"
         >
           <template #header-select>
-            <input
+            <label class="inline-flex items-center gap-2"><input
               type="checkbox"
               class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               :checked="allVisibleSelected"
               @click.stop
               @change="toggleSelectAllVisible($event)"
-            />
+            /><span class="text-2xs">{{ t('consoleFields.selectAll') }}</span></label>
           </template>
 
           <template #cell-select="{ row }">
-            <input
+            <label class="inline-flex items-center gap-2"><input
               type="checkbox"
               class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               :checked="selectedProxyIds.has(row.id)"
               @click.stop
               @change="toggleSelectRow(row.id, $event)"
-            />
+            /><span class="text-2xs">{{ t('consoleFields.selectRow') }}</span></label>
           </template>
 
           <template #cell-name="{ value, row }">
@@ -190,7 +199,7 @@
                   {{ visiblePasswordIds.has(row.id) ? row.password : '••••••' }}
                 </span>
               </div>
-              <button
+              <button :aria-label="t('consoleFields.remove')"
                 v-if="row.password"
                 type="button"
                 class="ml-1 rounded p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -446,8 +455,8 @@
         class="space-y-5"
       >
         <div>
-          <label class="input-label">{{ t('admin.proxies.name') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.proxies.name') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="createForm.name"
             type="text"
             required
@@ -456,13 +465,13 @@
           />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.protocol') }}</label>
-          <Select :aria-label="t('admin.proxies.protocol')" v-model="createForm.protocol" :options="protocolSelectOptions" />
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.proxies.protocol') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('admin.proxies.protocol')" v-model="createForm.protocol" :options="protocolSelectOptions" />
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="input-label">{{ t('admin.proxies.host') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.proxies.host') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
               v-model="createForm.host"
               type="text"
               required
@@ -471,8 +480,8 @@
             />
           </div>
           <div>
-            <label class="input-label">{{ t('admin.proxies.port') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('admin.proxies.port') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
               v-model.number="createForm.port"
               type="number"
               required
@@ -484,8 +493,8 @@
           </div>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.username') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.proxies.username') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-5'"
             v-model="createForm.username"
             type="text"
             class="input"
@@ -493,15 +502,15 @@
           />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.password') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.proxies.password') }}</label>
           <div class="relative">
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-6'"
               v-model="createForm.password"
               :type="createPasswordVisible ? 'text' : 'password'"
               class="input pr-10"
               :placeholder="t('admin.proxies.optionalAuth')"
             />
-            <button
+            <button :aria-label="createPasswordVisible ? t('consoleFields.hidePassword') : t('consoleFields.showPassword')"
               type="button"
               class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               @click="createPasswordVisible = !createPasswordVisible"
@@ -511,7 +520,7 @@
           </div>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.expiresAt') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.proxies.expiresAt') }}</label>
           <div class="mb-2 flex flex-wrap gap-2">
             <button
               v-for="d in EXPIRY_PRESETS"
@@ -524,18 +533,18 @@
               {{ t('admin.proxies.nDays', { days: d }) }}
             </button>
           </div>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-7'"
             v-model.number="createExpiresDays"
             type="number"
             min="0"
             class="input mb-2"
             :placeholder="t('admin.proxies.expiryDaysPlaceholder')"
           />
-          <input v-model="createForm.expires_at" type="date" max="9999-12-31" class="input" />
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-7'" v-model="createForm.expires_at" type="date" max="9999-12-31" class="input" />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.fallbackMode') }}</label>
-          <Select :aria-label="t('admin.proxies.fallbackMode')" v-model="createForm.fallback_mode" :options="[
+          <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('admin.proxies.fallbackMode') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-8'" :aria-label="t('admin.proxies.fallbackMode')" v-model="createForm.fallback_mode" :options="[
             { label: t('admin.proxies.fallbackNone'), value: 'none' },
             { label: t('admin.proxies.fallbackProxy'), value: 'proxy' },
             { label: t('admin.proxies.fallbackDirect'), value: 'direct' },
@@ -543,8 +552,8 @@
           <p class="input-hint mt-2">{{ t('admin.proxies.fallbackModeHint') }}</p>
         </div>
         <div v-if="createForm.fallback_mode === 'proxy'">
-          <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
-          <Select :aria-label="t('admin.proxies.backupProxy')" v-model="createForm.backup_proxy_id" :options="backupProxyOptions()" />
+          <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-9'" :aria-label="t('admin.proxies.backupProxy')" v-model="createForm.backup_proxy_id" :options="backupProxyOptions()" />
         </div>
 
       </form>
@@ -552,8 +561,8 @@
       <!-- Batch Add Form -->
       <div v-else class="space-y-5">
         <div>
-          <label class="input-label">{{ t('admin.proxies.batchInput') }}</label>
-          <textarea
+          <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{ t('admin.proxies.batchInput') }}</label>
+          <textarea :aria-labelledby="'field-' + fieldLabelScope + '-10'"
             v-model="batchInput"
             rows="10"
             class="input font-mono text-sm"
@@ -693,21 +702,21 @@
         class="space-y-5"
       >
         <div>
-          <label class="input-label">{{ t('admin.proxies.name') }}</label>
-          <input v-model="editForm.name" type="text" required class="input" />
+          <label :id="'field-' + fieldLabelScope + '-11'" class="input-label">{{ t('admin.proxies.name') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-11'" v-model="editForm.name" type="text" required class="input" />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.protocol') }}</label>
-          <Select :aria-label="t('admin.proxies.protocol')" v-model="editForm.protocol" :options="protocolSelectOptions" :disabled="!!editingProxy?.mihomo_node_id" />
+          <label :id="'field-' + fieldLabelScope + '-12'" class="input-label">{{ t('admin.proxies.protocol') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-12'" :aria-label="t('admin.proxies.protocol')" v-model="editForm.protocol" :options="protocolSelectOptions" :disabled="!!editingProxy?.mihomo_node_id" />
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="input-label">{{ t('admin.proxies.host') }}</label>
-            <input v-model="editForm.host" type="text" required class="input" :disabled="!!editingProxy?.mihomo_node_id" />
+            <label :id="'field-' + fieldLabelScope + '-13'" class="input-label">{{ t('admin.proxies.host') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-13'" v-model="editForm.host" type="text" required class="input" :disabled="!!editingProxy?.mihomo_node_id" />
           </div>
           <div>
-            <label class="input-label">{{ t('admin.proxies.port') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-14'" class="input-label">{{ t('admin.proxies.port') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-14'"
               v-model.number="editForm.port"
               type="number"
               required
@@ -719,13 +728,13 @@
           </div>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.username') }}</label>
-          <input v-model="editForm.username" type="text" class="input" :disabled="!!editingProxy?.mihomo_node_id" />
+          <label :id="'field-' + fieldLabelScope + '-15'" class="input-label">{{ t('admin.proxies.username') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-15'" v-model="editForm.username" type="text" class="input" :disabled="!!editingProxy?.mihomo_node_id" />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.password') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-16'" class="input-label">{{ t('admin.proxies.password') }}</label>
           <div class="relative">
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-16'"
               v-model="editForm.password"
               :type="editPasswordVisible ? 'text' : 'password'"
               :placeholder="t('admin.proxies.leaveEmptyToKeep')"
@@ -733,7 +742,7 @@
               :disabled="!!editingProxy?.mihomo_node_id"
               @input="editPasswordDirty = true"
             />
-            <button
+            <button :aria-label="editPasswordVisible ? t('consoleFields.hidePassword') : t('consoleFields.showPassword')"
               type="button"
               class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               :disabled="!!editingProxy?.mihomo_node_id"
@@ -744,11 +753,11 @@
           </div>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.status') }}</label>
-          <Select :aria-label="t('admin.proxies.status')" v-model="editForm.status" :options="editStatusOptions" />
+          <label :id="'field-' + fieldLabelScope + '-17'" class="input-label">{{ t('admin.proxies.status') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-17'" :aria-label="t('admin.proxies.status')" v-model="editForm.status" :options="editStatusOptions" />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.expiresAt') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-18'" class="input-label">{{ t('admin.proxies.expiresAt') }}</label>
           <div class="mb-2 flex flex-wrap gap-2">
             <button
               v-for="d in EXPIRY_PRESETS"
@@ -761,18 +770,18 @@
               {{ t('admin.proxies.nDays', { days: d }) }}
             </button>
           </div>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-18'"
             v-model.number="editExpiresDays"
             type="number"
             min="0"
             class="input mb-2"
             :placeholder="t('admin.proxies.expiryDaysPlaceholder')"
           />
-          <input v-model="editForm.expires_at" type="date" max="9999-12-31" class="input" />
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-18'" v-model="editForm.expires_at" type="date" max="9999-12-31" class="input" />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.proxies.fallbackMode') }}</label>
-          <Select :aria-label="t('admin.proxies.fallbackMode')" v-model="editForm.fallback_mode" :options="[
+          <label :id="'field-' + fieldLabelScope + '-19'" class="input-label">{{ t('admin.proxies.fallbackMode') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-19'" :aria-label="t('admin.proxies.fallbackMode')" v-model="editForm.fallback_mode" :options="[
             { label: t('admin.proxies.fallbackNone'), value: 'none' },
             { label: t('admin.proxies.fallbackProxy'), value: 'proxy' },
             { label: t('admin.proxies.fallbackDirect'), value: 'direct' },
@@ -780,8 +789,8 @@
           <p class="input-hint mt-2">{{ t('admin.proxies.fallbackModeHint') }}</p>
         </div>
         <div v-if="editForm.fallback_mode === 'proxy'">
-          <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
-          <Select :aria-label="t('admin.proxies.backupProxy')" v-model="editForm.backup_proxy_id" :options="backupProxyOptions(editingProxy?.id)" />
+          <label :id="'field-' + fieldLabelScope + '-20'" class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-20'" :aria-label="t('admin.proxies.backupProxy')" v-model="editForm.backup_proxy_id" :options="backupProxyOptions(editingProxy?.id)" />
         </div>
 
       </form>
@@ -903,6 +912,9 @@
 
 <script setup lang="ts">
 import MoreActions from '@/components/common/MoreActions.vue'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'

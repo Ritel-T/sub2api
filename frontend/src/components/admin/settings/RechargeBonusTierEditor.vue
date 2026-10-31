@@ -84,7 +84,7 @@
             class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-center gap-3 px-3 py-2"
             data-testid="recharge-bonus-tier-row"
           >
-            <input
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.minimumAmount') }}</span><input
               :value="tier.min_amount ?? ''"
               type="number"
               step="0.01"
@@ -93,9 +93,9 @@
               placeholder="100"
               data-testid="recharge-bonus-tier-min-input"
               @input="onMinAmountInput(index, $event)"
-            />
+            /></label>
             <div class="relative">
-              <input
+              <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.bonusPercent') }}</span><input
                 :value="tier.bonus_percent ?? ''"
                 type="number"
                 step="0.01"
@@ -105,7 +105,7 @@
                 placeholder="20"
                 data-testid="recharge-bonus-tier-percent-input"
                 @input="onPercentInput(index, $event)"
-              />
+              /></label>
               <span
                 class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-xs font-medium"
                 :class="currentMode === 'discount' ? 'text-red-600 dark:text-red-400' : 'text-gray-400'"
@@ -156,10 +156,10 @@
 
       <!-- 活动文案 -->
       <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
-        <label class="input-label">
+        <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">
           {{ t('admin.settings.payment.rechargeBonus.noticeLabel') }}
         </label>
-        <textarea
+        <textarea :aria-labelledby="'field-' + fieldLabelScope + '-1'"
           :value="notice ?? ''"
           rows="3"
           class="input"
@@ -176,6 +176,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

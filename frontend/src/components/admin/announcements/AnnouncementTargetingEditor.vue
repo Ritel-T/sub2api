@@ -118,8 +118,8 @@
           >
             <div class="flex flex-col gap-3 md:flex-row md:items-end">
               <div class="w-full md:w-52">
-                <label class="input-label">{{ t('admin.announcements.form.conditionType') }}</label>
-                <Select :aria-label="t('admin.announcements.form.conditionType')"
+                <label :id="'field-' + fieldLabelScope + '-1' + '-' + groupIndex + '-' + condIndex" class="input-label">{{ t('admin.announcements.form.conditionType') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-1' + '-' + groupIndex + '-' + condIndex" :aria-label="t('admin.announcements.form.conditionType')"
                   :model-value="cond.type"
                   :options="conditionTypeOptions"
                   @update:model-value="(v) => setConditionType(groupIndex, condIndex, v as any)"
@@ -144,16 +144,16 @@
 
               <div v-else class="flex flex-1 flex-col gap-3 sm:flex-row">
                 <div class="w-full sm:w-44">
-                  <label class="input-label">{{ t('admin.announcements.form.operator') }}</label>
-                  <Select :aria-label="t('admin.announcements.form.operator')"
+                  <label :id="'field-' + fieldLabelScope + '-2' + '-' + groupIndex + '-' + condIndex" class="input-label">{{ t('admin.announcements.form.operator') }}</label>
+                  <Select :aria-labelledby="'field-' + fieldLabelScope + '-2' + '-' + groupIndex + '-' + condIndex" :aria-label="t('admin.announcements.form.operator')"
                     :model-value="cond.operator"
                     :options="balanceOperatorOptions"
                     @update:model-value="(v) => setOperator(groupIndex, condIndex, v as any)"
                   />
                 </div>
                 <div class="w-full sm:flex-1">
-                  <label class="input-label">{{ t('admin.announcements.form.balanceValue') }}</label>
-                  <input
+                  <label :id="'field-' + fieldLabelScope + '-3' + '-' + groupIndex + '-' + condIndex" class="input-label">{{ t('admin.announcements.form.balanceValue') }}</label>
+                  <input :aria-labelledby="'field-' + fieldLabelScope + '-3' + '-' + groupIndex + '-' + condIndex"
                     :value="String(cond.value ?? '')"
                     type="number"
                     step="any"
@@ -198,6 +198,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type {

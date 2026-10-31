@@ -17,10 +17,11 @@ vi.mock('@/api/admin', () => ({ adminAPI: {
   users: { resetAccountSecurity, getById, update },
   userAttributes: { updateUserAttributeValues: vi.fn() }
 } }))
-vi.mock('vue-i18n', async (original) => ({
-  ...(await original<typeof import('vue-i18n')>()),
-  useI18n: () => ({ t: (key: string) => key, locale })
-}))
+vi.mock('vue-i18n', async (original) => {
+  const actual = await original<typeof import('vue-i18n')>()
+  const { consoleTestT } = await import('@/__tests__/consoleLocale')
+  return { ...actual, useI18n: () => ({ t: consoleTestT(actual.createI18n, () => locale.value), locale }) }
+})
 
 enableAutoUnmount(afterEach)
 const user = { id: 7, email: 'owner@example.test', username: 'owner', role: 'user', concurrency: 3, status: 'active' }

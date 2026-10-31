@@ -20,9 +20,9 @@
         <!-- Email verification -->
         <div v-if="verificationMethod === 'email'" class="space-y-4">
           <div>
-            <label class="input-label">{{ t('profile.totp.emailCode') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('profile.totp.emailCode') }}</label>
             <div class="flex gap-2">
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
                 v-model="verifyForm.emailCode"
                 :disabled="busy"
                 type="text"
@@ -46,8 +46,8 @@
         <!-- Password verification -->
         <div v-else class="space-y-4">
           <div>
-            <label class="input-label">{{ t('profile.currentPassword') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('profile.currentPassword') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
               v-model="verifyForm.password"
               :disabled="busy"
               type="password"
@@ -79,7 +79,7 @@
             <code class="rounded bg-gray-100 px-3 py-2 font-mono text-sm dark:bg-dark-700">
               {{ setupData.secret }}
             </code>
-            <button
+            <button :aria-label="t('consoleFields.copy')"
               type="button"
               class="rounded p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-700"
               @click="copySecret"
@@ -98,11 +98,11 @@
     <div v-if="step === 2" class="space-y-6">
       <form :id="verifyFormId" @submit.prevent="handleVerify">
         <div class="mb-6">
-          <label class="input-label text-center block mb-3">
+          <label :id="'field-' + fieldLabelScope + '-3'" class="input-label text-center block mb-3">
             {{ t('profile.totp.enterCode') }}
           </label>
           <div class="flex justify-center gap-2">
-            <input
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
               v-for="(_, index) in 6"
               :key="index"
               :ref="(el) => setInputRef(el, index)"
@@ -145,6 +145,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { ref, onMounted, onUnmounted, nextTick, watch, computed, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'

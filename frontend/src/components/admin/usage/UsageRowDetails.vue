@@ -13,6 +13,8 @@
   </div>
 </template>
 <script setup lang="ts">
+import { consoleUiMessages } from '@/i18n/consoleCopy'
+
 import { computed, type VNodeChild } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -21,7 +23,7 @@ import type { UsageLog } from '@/types'
 defineProps<{ row: UsageLog; columns: Column[]; renderCell: (column: Column) => VNodeChild; supportEnabled: boolean }>()
 const CellContent = (props: { content: VNodeChild }) => props.content
 const { locale } = useI18n()
-const supportLabel = computed(() => locale?.value === 'en' ? 'Contact support' : locale?.value === 'zh' ? '联系支持' : '聯絡支援')
+const supportLabel = computed(() => consoleUiMessages(locale?.value ?? 'en').support)
 </script>
 <style scoped>
 .usage-row-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); gap: 1rem 2rem; }

@@ -7,10 +7,10 @@
         </label>
         <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div class="min-w-0">
-            <label class="block text-xs text-gray-400">
+            <label :id="'field-' + fieldLabelScope + '-1'" class="block text-xs text-gray-400">
               {{ t('admin.channels.form.timezone') }}
             </label>
-            <Select
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'"
               :model-value="modelValue.timezone"
               :options="timezoneOptions"
               :aria-label="t('admin.channels.form.timezone')"
@@ -22,10 +22,10 @@
             />
           </div>
           <div class="min-w-0">
-            <label class="block text-xs text-gray-400">
+            <label :id="'field-' + fieldLabelScope + '-2'" class="block text-xs text-gray-400">
               {{ t('admin.channels.form.timePricingDayScope') }}
             </label>
-            <Select
+            <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'"
               :model-value="modelValue.weekdays_only"
               :options="dayScopeOptions"
               :aria-label="t('admin.channels.form.timePricingDayScope')"
@@ -117,6 +117,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, getCurrentInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'

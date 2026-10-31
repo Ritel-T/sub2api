@@ -1,17 +1,32 @@
 <template>
   <div class="account-filter-fields">
-    <SearchInput
+    <SearchInput :label="t('admin.accounts.searchAccounts')"
       :model-value="searchQuery"
       :placeholder="t('admin.accounts.searchAccounts')"
       class="account-search"
       @update:model-value="$emit('update:searchQuery', $event)"
       @search="$emit('change')"
     />
-    <Select :model-value="filters.platform" :aria-label="t('admin.accounts.allPlatforms')" class="account-filter" :options="pOpts" @update:model-value="updatePlatform" @change="$emit('change')" />
-    <Select :model-value="filters.status" :aria-label="t('admin.accounts.allStatus')" class="account-filter" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
-    <Select :model-value="filters.type" :aria-label="t('admin.accounts.allTypes')" class="account-filter" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
-    <Select :model-value="filters.privacy_mode" :aria-label="t('admin.accounts.allPrivacyModes')" class="account-filter" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
-    <Select :model-value="filters.group" :aria-label="t('admin.accounts.allGroups')" class="account-filter" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
+    <label class="block min-w-0">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.allPlatforms') }}</span>
+      <Select :model-value="filters.platform" :aria-label="t('admin.accounts.allPlatforms')" class="account-filter" :options="pOpts" @update:model-value="updatePlatform" @change="$emit('change')" />
+    </label>
+    <label class="block min-w-0">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.allStatus') }}</span>
+      <Select :model-value="filters.status" :aria-label="t('admin.accounts.allStatus')" class="account-filter" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
+    </label>
+    <label class="block min-w-0">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.allTypes') }}</span>
+      <Select :model-value="filters.type" :aria-label="t('admin.accounts.allTypes')" class="account-filter" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
+    </label>
+    <label class="block min-w-0">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.allPrivacyModes') }}</span>
+      <Select :model-value="filters.privacy_mode" :aria-label="t('admin.accounts.allPrivacyModes')" class="account-filter" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
+    </label>
+    <label class="block min-w-0">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.allGroups') }}</span>
+      <Select :model-value="filters.group" :aria-label="t('admin.accounts.allGroups')" class="account-filter" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
+    </label>
     <slot><TableToolbarTarget /></slot>
   </div>
 </template>

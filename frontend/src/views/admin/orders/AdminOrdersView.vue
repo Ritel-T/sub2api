@@ -6,11 +6,23 @@
       <div class="open-section">
         <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
           <div class="flex-1 sm:max-w-64">
-            <input v-model="orderSearch" type="text" :placeholder="t('payment.admin.searchOrders')" class="input" @input="debounceLoadOrders" />
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.admin.searchOrders') }}</span>
+              <input v-model="orderSearch" type="text" :placeholder="t('payment.admin.searchOrders')" class="input" @input="debounceLoadOrders" />
+            </label>
           </div>
-          <Select :aria-label="t('payment.orders.status')" v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="resetOrders" />
-          <Select :aria-label="t('payment.orders.paymentMethod')" v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="resetOrders" />
-          <Select :aria-label="t('payment.orders.orderType')" v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="resetOrders" />
+          <label class="block min-w-0 w-36">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.status') }}</span>
+            <Select :aria-label="t('payment.orders.status')" v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="resetOrders" />
+          </label>
+          <label class="block min-w-0 w-40">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.paymentMethod') }}</span>
+            <Select :aria-label="t('payment.orders.paymentMethod')" v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="resetOrders" />
+          </label>
+          <label class="block min-w-0 w-36">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.orderType') }}</span>
+            <Select :aria-label="t('payment.orders.orderType')" v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="resetOrders" />
+          </label>
           <div ref="tableToolbarTarget" class="min-w-0" />
           <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
             <button @click="loadOrders" :disabled="ordersLoading" class="btn btn-secondary" :title="t('common.refresh')">

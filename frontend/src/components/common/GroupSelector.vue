@@ -1,6 +1,6 @@
 <template>
   <div>
-    <label class="input-label">
+    <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">
       {{ label ?? t('admin.users.groups') }}
       <span class="font-normal text-gray-400">{{ t('common.selectedCount', { count: modelValue.length }) }}</span>
     </label>
@@ -9,7 +9,7 @@
       class="flex items-center gap-2 rounded-t-lg border border-b-0 border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
     >
       <Icon name="search" size="sm" class="shrink-0 text-gray-400" />
-      <input
+      <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
         v-model="searchText"
         type="text"
         :placeholder="t('common.searchPlaceholder')"
@@ -57,6 +57,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'

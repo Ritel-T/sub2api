@@ -1,6 +1,8 @@
 <template>
   <form class="space-y-3" data-testid="ticket-reply" @submit.prevent="submit">
-    <textarea
+    <label class="block min-w-0">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ placeholder }}</span>
+      <textarea
       v-model="body"
       rows="4"
       class="input resize-y"
@@ -11,6 +13,7 @@
       @keydown.enter.ctrl.prevent="submit"
       @keydown.enter.meta.prevent="submit"
     ></textarea>
+    </label>
     <div class="flex flex-wrap items-center justify-between gap-3">
       <span class="text-xs" :class="tooLong ? 'font-medium text-red-600 dark:text-red-400' : 'text-gray-400'" data-testid="ticket-reply-counter">
         {{ t('supportTickets.form.counter', { count: length, max: SUPPORT_TICKET_BODY_MAX }) }}

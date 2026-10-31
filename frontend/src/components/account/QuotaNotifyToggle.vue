@@ -22,7 +22,7 @@ const emit = defineEmits<{
   <div class="flex items-center gap-1.5">
     <Toggle :model-value="!!enabled" :aria-label="t('admin.accounts.quotaNotify.enabled')" @click="emit('update:enabled', !enabled)" size="small" />
     <template v-if="enabled">
-      <input
+      <label class="block min-w-0 flex-1 min-w-0"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.alertThreshold') }}</span><input
         :value="threshold"
         @input="emit('update:threshold', parseFloat(($event.target as HTMLInputElement).value) || null)"
         type="number"
@@ -30,15 +30,15 @@ const emit = defineEmits<{
         :max="thresholdType === QUOTA_THRESHOLD_TYPE_PERCENTAGE ? 100 : undefined"
         :step="thresholdType === QUOTA_THRESHOLD_TYPE_PERCENTAGE ? 1 : 0.01"
         class="input py-1 text-sm flex-1 min-w-0"
-      />
-      <select
+      /></label>
+      <label class="block min-w-0 w-[4.5rem] flex-shrink-0"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.thresholdUnit') }}</span><select
         :value="thresholdType || QUOTA_THRESHOLD_TYPE_FIXED"
         @change="emit('update:thresholdType', ($event.target as HTMLSelectElement).value as QuotaThresholdType)"
         class="input py-1 text-xs w-[4.5rem] flex-shrink-0 text-center"
       >
         <option :value="QUOTA_THRESHOLD_TYPE_FIXED">$</option>
         <option :value="QUOTA_THRESHOLD_TYPE_PERCENTAGE">%</option>
-      </select>
+      </select></label>
     </template>
   </div>
 </template>

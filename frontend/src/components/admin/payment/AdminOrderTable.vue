@@ -3,32 +3,44 @@
     <div class="open-section">
       <div class="flex flex-wrap items-center gap-3">
         <div class="flex-1 sm:max-w-64">
-          <input
+          <label class="block min-w-0">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.admin.searchOrders') }}</span>
+            <input
             v-model="searchQuery"
             type="text"
             :placeholder="t('payment.admin.searchOrders')"
             class="input"
             @input="handleSearch"
           />
+          </label>
         </div>
-        <Select :aria-label="t('payment.orders.status')"
+        <label class="block min-w-0 w-36">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.status') }}</span>
+          <Select :aria-label="t('payment.orders.status')"
           v-model="filters.status"
           :options="statusFilterOptions"
           class="w-36"
           @change="emitFiltersChanged"
         />
-        <Select :aria-label="t('payment.orders.paymentMethod')"
+        </label>
+        <label class="block min-w-0 w-40">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.paymentMethod') }}</span>
+          <Select :aria-label="t('payment.orders.paymentMethod')"
           v-model="filters.payment_type"
           :options="paymentTypeFilterOptions"
           class="w-40"
           @change="emitFiltersChanged"
         />
-        <Select :aria-label="t('payment.orders.orderType')"
+        </label>
+        <label class="block min-w-0 w-36">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.orderType') }}</span>
+          <Select :aria-label="t('payment.orders.orderType')"
           v-model="filters.order_type"
           :options="orderTypeFilterOptions"
           class="w-36"
           @change="emitFiltersChanged"
         />
+        </label>
         <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
           <button
             @click="emit('refresh')"

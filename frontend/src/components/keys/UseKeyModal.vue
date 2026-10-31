@@ -240,7 +240,9 @@
               <p class="mt-1 truncate font-mono text-xs text-gray-700 dark:text-gray-300">
                 {{ codexModelCatalogMode === 'remote' ? codexModelCatalogUrl : codexModelCatalogPath }}
               </p>
-              <select
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('keys.useKeyModal.codexModelCatalog.mode') }}</span>
+                <select
                 v-model="codexModelCatalogMode"
                 data-testid="codex-model-catalog-mode"
                 :aria-label="t('keys.useKeyModal.codexModelCatalog.mode')"
@@ -249,6 +251,7 @@
                 <option value="remote" :disabled="codexModelCatalogOversized">{{ t('keys.useKeyModal.codexModelCatalog.remote') }}</option>
                 <option value="file">{{ t('keys.useKeyModal.codexModelCatalog.local') }}</option>
               </select>
+              </label>
               <p v-if="codexModelCatalogOversized" class="mt-2 text-xs text-amber-700 dark:text-amber-300">
                 {{ t('keys.useKeyModal.codexModelCatalog.oversized') }}
               </p>

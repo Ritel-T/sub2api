@@ -76,7 +76,7 @@
           ><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
         </button>
         <!-- Group options -->
-        <button
+        <button :aria-label="t('consoleFields.group')"
           v-for="group in allGroups"
           :key="group.id"
           @click="changeGroup(selectedKeyForGroup!, group.id)"

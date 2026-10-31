@@ -16,7 +16,10 @@
       <div class="workspace-columns">
         <section class="workspace-panel rules-panel" aria-labelledby="quality-rules-heading">
           <header class="panel-heading"><div><AppHeading variant="subsection" as="h3" id="quality-rules-heading">{{ t('qualityOps.ruleLibrary') }}<span class="count-label">{{ contextPlans.length }}</span></AppHeading><p>{{ t('qualityOps.ruleLibraryHint') }}</p></div></header>
-          <div class="rule-search workspace-filter-controls"><Icon name="search" size="sm" /><input v-model="store.search" :aria-label="t('qualityOps.search')" :placeholder="t('qualityOps.searchRule')" /><button v-if="store.search" :aria-label="t('qualityOps.clearSearch')" @click="store.search = ''"><Icon name="x" size="sm" /></button></div>
+          <div class="rule-search workspace-filter-controls"><Icon name="search" size="sm" /><label class="block min-w-0">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('qualityOps.search') }}</span>
+            <input v-model="store.search" :aria-label="t('qualityOps.search')" :placeholder="t('qualityOps.searchRule')" />
+          </label><button v-if="store.search" :aria-label="t('qualityOps.clearSearch')" @click="store.search = ''"><Icon name="x" size="sm" /></button></div>
           <div class="rule-selection-toolbar">
             <label class="rule-check-all"><input type="checkbox" data-testid="quality-select-rules" :checked="allFilteredSelected" :indeterminate="someFilteredSelected && !allFilteredSelected" :disabled="!filteredPlans.length || busy" @change="toggleFilteredSelection" />{{ t('qualityOps.selectFilteredRules') }}</label>
             <span aria-live="polite">{{ t('qualityOps.rulesSelected', { count: selectedRuleIds.length }) }}</span>
@@ -40,7 +43,7 @@
               </article>
             </section>
             <article v-for="plan in filteredPlans" :key="plan.id" class="rule-card" :class="{ selected: store.selectedPlanId === plan.id, checked: selectedRuleIds.includes(plan.id) }" :data-plan-id="plan.id">
-              <div class="rule-card-top"><label class="rule-checkbox"><input v-model="selectedRuleIds" type="checkbox" :value="plan.id" :disabled="busy || !!pending[plan.id] || plan.pelican_config?.quality?.action === 'openai_two_fa_admission'" :aria-label="t('qualityOps.selectRule', { account: name(plan), id: plan.id })" /></label><button class="rule-select" :aria-pressed="store.selectedPlanId === plan.id" @click="store.selectedPlanId = plan.id"><span class="account-avatar">{{ name(plan).slice(0, 1) }}</span><span class="min-w-0"><strong :title="name(plan)">{{ name(plan) }}</strong><span class="rule-meta">#{{ plan.account_id }}<span>·</span>{{ t('qualityOps.rule') }} {{ plan.id }}</span></span></button><button class="state-toggle" :class="plan.enabled ? 'state-enabled' : 'state-paused'" :disabled="busy || !!pending[plan.id] || plan.pelican_config?.quality?.action === 'openai_two_fa_admission'" :title="t(plan.enabled ? 'qualityOps.pause' : 'qualityOps.enable')" @click="toggle(plan)"><span />{{ t(plan.enabled ? 'qualityOps.activeShort' : 'qualityOps.paused') }}</button></div>
+              <div class="rule-card-top"><label class="rule-checkbox"><input :aria-labelledby="'field-' + fieldLabelScope + '-nested-1' + '-' + plan.id" v-model="selectedRuleIds" type="checkbox" :value="plan.id" :disabled="busy || !!pending[plan.id] || plan.pelican_config?.quality?.action === 'openai_two_fa_admission'" :aria-label="t('qualityOps.selectRule', { account: name(plan), id: plan.id })" /></label><button class="rule-select" :aria-pressed="store.selectedPlanId === plan.id" @click="store.selectedPlanId = plan.id"><span class="account-avatar">{{ name(plan).slice(0, 1) }}</span><span class="min-w-0"><strong :id="'field-' + fieldLabelScope + '-nested-1' + '-' + plan.id" :title="name(plan)">{{ name(plan) }}</strong><span class="rule-meta">#{{ plan.account_id }}<span>·</span>{{ t('qualityOps.rule') }} {{ plan.id }}</span></span></button><button class="state-toggle" :class="plan.enabled ? 'state-enabled' : 'state-paused'" :disabled="busy || !!pending[plan.id] || plan.pelican_config?.quality?.action === 'openai_two_fa_admission'" :title="t(plan.enabled ? 'qualityOps.pause' : 'qualityOps.enable')" @click="toggle(plan)"><span />{{ t(plan.enabled ? 'qualityOps.activeShort' : 'qualityOps.paused') }}</button></div>
               <p v-if="plan.pelican_config?.rule_name" class="rule-target" :title="plan.pelican_config.rule_name" data-testid="quality-rule-name">{{ plan.pelican_config.rule_name }}</p>
               <div class="rule-model"><code v-for="model in ruleModels(plan)" :key="model">{{ model }}</code><span v-if="isProbePlan(plan)" class="probe-tag" data-testid="quality-probe-tag">{{ t('qualityOps.probeTag') }}</span><span v-if="planTemplate[plan.id]" class="template-tag" data-testid="quality-template-tag">{{ t('qualityOps.templateTag', { id: planTemplate[plan.id] }) }}</span><span v-if="running(plan)" class="running-label">{{ t('qualityOps.running') }}</span></div>
               <div class="rule-target" :title="planGroups(plan)"><Icon name="users" size="xs" /><span>{{ planGroups(plan) }}</span></div>
@@ -53,7 +56,10 @@
         </section>
         <section class="workspace-panel operations-panel" aria-labelledby="quality-operations-heading">
           <header class="panel-heading"><div><AppHeading variant="subsection" as="h3" id="quality-operations-heading">{{ t('qualityOps.operations') }}</AppHeading><p>{{ t('qualityOps.operationsSubtitle') }}</p></div><button class="icon-button" :disabled="store.operationsLoading" :aria-label="t('qualityOps.refreshOperations')" @click="refreshOperations"><Icon name="refresh" size="sm" :class="{ 'animate-spin': store.operationsLoading }" /></button></header>
-          <div class="operations-toolbar workspace-filter-controls"><div class="scope-label"><span class="scope-dot" />{{ selectedPlan ? name(selectedPlan) : t('qualityOps.allAccounts') }}<button v-if="selectedPlan" :aria-label="t('qualityOps.clearScope')" @click="store.selectedPlanId = null"><Icon name="x" size="xs" /></button></div><select class="input w-auto" v-model="store.operationFilter" :aria-label="t('qualityOps.filterRecords')"><option value="all">{{ t('qualityOps.allOutcomes') }}</option><option value="attention">{{ t('qualityOps.needsAttention') }}</option><option value="passed">{{ t('qualityOps.passedRounds') }}</option><option value="failed">{{ t('qualityOps.otherRounds') }}</option></select></div>
+          <div class="operations-toolbar workspace-filter-controls"><div class="scope-label"><span class="scope-dot" />{{ selectedPlan ? name(selectedPlan) : t('qualityOps.allAccounts') }}<button v-if="selectedPlan" :aria-label="t('qualityOps.clearScope')" @click="store.selectedPlanId = null"><Icon name="x" size="xs" /></button></div><label class="block min-w-0 w-auto">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('qualityOps.filterRecords') }}</span>
+            <select class="input w-auto" v-model="store.operationFilter" :aria-label="t('qualityOps.filterRecords')"><option value="all">{{ t('qualityOps.allOutcomes') }}</option><option value="attention">{{ t('qualityOps.needsAttention') }}</option><option value="passed">{{ t('qualityOps.passedRounds') }}</option><option value="failed">{{ t('qualityOps.otherRounds') }}</option></select>
+          </label></div>
           <div v-if="store.operationsError" role="alert" class="panel-error">{{ store.operationsError }}<button @click="store.retryOperations()">{{ t('qualityOps.retry') }}</button></div>
           <div class="operations-scroll" data-testid="operations-scroll" :aria-busy="store.operationsLoading">
             <DataTable :columns="operationColumns" :data="filteredOperations" row-key="id" :row-attrs="operationRowAttrs" column-order-key="admin-account-quality-operations" :loading="!store.operationsLoaded && store.operationsLoading">
@@ -133,9 +139,9 @@
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <div v-if="editsField('model')" class="space-y-2 sm:col-span-2">
-            <label class="block space-y-1"><span>{{ t(isProbe ? 'qualityOps.model' : 'qualityOps.models') }}</span><input v-model.trim="form.model_id" required maxlength="100" class="input" placeholder="gpt-6-astra" /></label>
+            <label :id="'field-' + fieldLabelScope + '-1'" class="block space-y-1"><span>{{ t(isProbe ? 'qualityOps.model' : 'qualityOps.models') }}</span><input v-model.trim="form.model_id" required maxlength="100" class="input" placeholder="gpt-6-astra" /></label>
             <template v-if="!isProbe"><div v-for="(_, index) in form.pelican_config.model_ids" :key="index" class="flex gap-2">
-              <input v-model.trim="form.pelican_config.model_ids[index]" required maxlength="100" class="input flex-1" data-testid="quality-extra-model" :aria-label="t('qualityOps.modelNumber', { n: index + 2 })" placeholder="gpt-6-sol" />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model.trim="form.pelican_config.model_ids[index]" required maxlength="100" class="input flex-1" data-testid="quality-extra-model" :aria-label="t('qualityOps.modelNumber', { n: index + 2 })" placeholder="gpt-6-sol" />
               <button type="button" class="btn btn-secondary" :aria-label="t('qualityOps.removeModelNumber', { n: index + 2 })" @click="form.pelican_config.model_ids.splice(index, 1)"><Icon name="x" size="sm" /></button>
             </div></template>
             <button v-if="!isProbe" type="button" class="btn btn-secondary btn-sm" data-testid="quality-add-model" :disabled="form.pelican_config.model_ids.length >= 49" @click="form.pelican_config.model_ids.push('')"><Icon name="plus" size="xs" />{{ t('qualityOps.addModel') }}</button>
@@ -267,6 +273,8 @@
 
 <script setup lang="ts">
 import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import { useConfirmedAction, useConfirmationContext } from '@/composables/useConfirmation'
 import AppHeading from '@/components/common/AppHeading.vue'

@@ -44,7 +44,7 @@
             <span class="text-xs font-medium text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.groupCountTotal', { count: groups.length }) }}
             </span>
-            <button
+            <button :aria-label="t('consoleFields.group')"
               @click="showPopover = false"
               class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300"
             >

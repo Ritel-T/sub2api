@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -50,7 +53,7 @@ const examples = computed<HeaderExample[]>(() => {
 <template>
   <div>
     <div class="flex items-center">
-      <label class="input-label">{{ t('admin.accounts.upstreamRequestIdHeader') }}</label>
+      <label :id="'field-' + fieldLabelScope + '-caption-1'" class="input-label">{{ t('admin.accounts.upstreamRequestIdHeader') }}</label>
       <HelpTooltip width-class="w-80">
         <p>{{ t('admin.accounts.upstreamRequestIdHeaderHelp.intro') }}</p>
         <template v-if="examples.length">
@@ -67,7 +70,7 @@ const examples = computed<HeaderExample[]>(() => {
         </template>
       </HelpTooltip>
     </div>
-    <input
+    <input :aria-labelledby="'field-' + fieldLabelScope + '-caption-1'"
       v-model="model"
       data-testid="upstream-request-id-header"
       type="text"

@@ -26,20 +26,26 @@
         <div class="filter-controls">
           <!-- Left: Search + Filters -->
           <div class="flex-1 sm:max-w-64">
-            <input
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.promo.searchCodes') }}</span>
+              <input
               v-model="searchQuery"
               type="text"
               :placeholder="t('admin.promo.searchCodes')"
               class="input"
               @input="handleSearch"
             />
+            </label>
           </div>
-          <Select :aria-label="t('admin.promo.status')"
+          <label class="block min-w-0 w-36">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.promo.status') }}</span>
+            <Select :aria-label="t('admin.promo.status')"
             v-model="filters.status"
             :options="filterStatusOptions"
             class="w-36"
             @change="loadCodes"
           />
+          </label>
 
           <TableToolbarTarget />
         </div>
@@ -171,11 +177,11 @@
     >
       <form id="create-promo-form" @submit.prevent="handleCreate" class="space-y-4">
         <div>
-          <label class="input-label">
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">
             {{ t('admin.promo.code') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('admin.promo.autoGenerate') }})</span>
           </label>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="createForm.code"
             type="text"
             class="input font-mono uppercase"
@@ -183,8 +189,8 @@
           />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
             v-model.number="createForm.bonus_amount"
             type="number"
             step="0.01"
@@ -194,11 +200,11 @@
           />
         </div>
         <div>
-          <label class="input-label">
+          <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">
             {{ t('admin.promo.maxUses') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('admin.promo.zeroUnlimited') }})</span>
           </label>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
             v-model.number="createForm.max_uses"
             type="number"
             min="0"
@@ -206,22 +212,22 @@
           />
         </div>
         <div>
-          <label class="input-label">
+          <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">
             {{ t('admin.promo.expiresAt') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('common.optional') }})</span>
           </label>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
             v-model="createForm.expires_at_str"
             type="datetime-local"
             class="input"
           />
         </div>
         <div>
-          <label class="input-label">
+          <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">
             {{ t('admin.promo.notes') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('common.optional') }})</span>
           </label>
-          <textarea
+          <textarea :aria-labelledby="'field-' + fieldLabelScope + '-5'"
             v-model="createForm.notes"
             rows="2"
             class="input"
@@ -250,16 +256,16 @@
     >
       <form id="edit-promo-form" @submit.prevent="handleUpdate" class="space-y-4">
         <div>
-          <label class="input-label">{{ t('admin.promo.code') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.promo.code') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-6'"
             v-model="editForm.code"
             type="text"
             class="input font-mono uppercase"
           />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-7'"
             v-model.number="editForm.bonus_amount"
             type="number"
             step="0.01"
@@ -269,11 +275,11 @@
           />
         </div>
         <div>
-          <label class="input-label">
+          <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">
             {{ t('admin.promo.maxUses') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('admin.promo.zeroUnlimited') }})</span>
           </label>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-8'"
             v-model.number="editForm.max_uses"
             type="number"
             min="0"
@@ -281,26 +287,26 @@
           />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.promo.status') }}</label>
-          <Select :aria-label="t('admin.promo.status')" v-model="editForm.status" :options="statusOptions" />
+          <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('admin.promo.status') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-9'" :aria-label="t('admin.promo.status')" v-model="editForm.status" :options="statusOptions" />
         </div>
         <div>
-          <label class="input-label">
+          <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">
             {{ t('admin.promo.expiresAt') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('common.optional') }})</span>
           </label>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-10'"
             v-model="editForm.expires_at_str"
             type="datetime-local"
             class="input"
           />
         </div>
         <div>
-          <label class="input-label">
+          <label :id="'field-' + fieldLabelScope + '-11'" class="input-label">
             {{ t('admin.promo.notes') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('common.optional') }})</span>
           </label>
-          <textarea
+          <textarea :aria-labelledby="'field-' + fieldLabelScope + '-11'"
             v-model="editForm.notes"
             rows="2"
             class="input"
@@ -393,6 +399,8 @@
 
 <script setup lang="ts">
 import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import AppHeading from '@/components/common/AppHeading.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'

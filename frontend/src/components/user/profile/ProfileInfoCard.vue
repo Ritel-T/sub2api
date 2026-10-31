@@ -178,8 +178,8 @@
     </div>
     <section v-else class="open-section flex flex-wrap gap-4 py-5">
       <a :href="accountPageURL('profile')" class="btn btn-secondary">{{ t('profile.basicsTitle') }}</a>
-      <a :href="accountPageURL('security')" class="btn btn-secondary">{{ locale.startsWith('zh') ? '账号安全' : 'Account security' }}</a>
-      <a :href="accountPageURL('sessions')" class="btn btn-secondary">{{ locale.startsWith('zh') ? '登录会话' : 'Sessions' }}</a>
+      <a :href="accountPageURL('security')" class="btn btn-secondary">{{ t('consoleFields.accountSecurity') }}</a>
+      <a :href="accountPageURL('sessions')" class="btn btn-secondary">{{ t('consoleFields.sessions') }}</a>
     </section>
   </div>
 </template>
@@ -216,7 +216,7 @@ const props = withDefaults(defineProps<{
   wechatMpEnabled: undefined,
 })
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
 function normalizeBindingStatus(binding: boolean | UserAuthBindingStatus | undefined): boolean | null {
   if (typeof binding === 'boolean') {

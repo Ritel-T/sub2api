@@ -2,6 +2,8 @@
 import { formatTimestamp as formatDisplayTimestamp } from "@/utils/consoleDisplay"
 
 import { formatTimestamp as displayTimestamp } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -894,37 +896,49 @@ function handleToolbarRefresh() {
 
       <div class="flex flex-wrap items-center gap-3">
         <template v-if="!props.fullscreen">
-          <Select :aria-label="t('admin.accounts.allPlatforms')"
+          <label class="block min-w-0 w-full sm:w-[140px]">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.allPlatforms') }}</span>
+            <Select :aria-label="t('admin.accounts.allPlatforms')"
             :model-value="platform"
             :options="platformOptions"
             class="w-full sm:w-[140px]"
             @update:model-value="handlePlatformChange"
           />
+          </label>
 
-          <Select :aria-label="t('admin.accounts.allGroups')"
+          <label class="block min-w-0 w-full sm:w-[160px]">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.allGroups') }}</span>
+            <Select :aria-label="t('admin.accounts.allGroups')"
             :model-value="groupId"
             :options="groupOptions"
             class="w-full sm:w-[160px]"
             @update:model-value="handleGroupChange"
           />
+          </label>
 
           <div class="mx-1 hidden h-4 w-[1px] bg-gray-200 dark:bg-dark-700 sm:block"></div>
 
-          <Select :aria-label="t('admin.dashboard.timeRange')"
+          <label class="block min-w-0 w-full sm:w-[150px]">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}</span>
+            <Select :aria-label="t('admin.dashboard.timeRange')"
             :model-value="timeRange"
             :options="timeRangeOptions"
             class="relative w-full sm:w-[150px]"
             @update:model-value="handleTimeRangeChange"
           />
+          </label>
         </template>
 
-        <Select :aria-label="t('common.queryMode')"
-          v-if="false"
+        <label v-if="false" class="block min-w-0 w-full sm:w-[170px]">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.queryMode') }}</span>
+          <Select :aria-label="t('common.queryMode')"
+
           :model-value="queryMode"
           :options="queryModeOptions"
           class="relative w-full sm:w-[170px]"
           @update:model-value="handleQueryModeChange"
         />
+        </label>
 
         <button
           v-if="!props.fullscreen"
@@ -1607,20 +1621,20 @@ function handleToolbarRefresh() {
     <BaseDialog :show="showCustomTimeRangeDialog" :title="t('admin.ops.timeRange.custom')" width="narrow" @close="handleCustomTimeRangeCancel">
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label :id="'field-' + fieldLabelScope + '-1'" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {{ t('admin.ops.customTimeRange.startTime') }}
           </label>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="customStartTimeInput"
             type="datetime-local"
             class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400 dark:border-dark-600 dark:bg-dark-800 dark:text-white"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label :id="'field-' + fieldLabelScope + '-2'" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {{ t('admin.ops.customTimeRange.endTime') }}
           </label>
-          <input
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
             v-model="customEndTimeInput"
             type="datetime-local"
             class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400 dark:border-dark-600 dark:bg-dark-800 dark:text-white"

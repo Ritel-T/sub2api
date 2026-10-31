@@ -25,7 +25,7 @@
         {{ t("admin.groups.codexModelsManifest.enabledHint") }}
       </p>
 
-      <label class="input-label">
+      <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">
         {{ t("admin.groups.codexModelsManifest.accounts") }}
       </label>
 
@@ -54,7 +54,7 @@
 
       <!-- 搜索输入 + 下拉 -->
       <div class="relative" ref="searchContainerRef">
-        <input
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
           v-model="searchKeyword"
           type="text"
           class="input text-sm"
@@ -126,6 +126,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import Icon from "@/components/icons/Icon.vue";

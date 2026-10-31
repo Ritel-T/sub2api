@@ -21,8 +21,8 @@
 
         <div class="mt-6 space-y-4">
           <div>
-            <label class="input-label">{{ t('auth.emailLabel') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('auth.emailLabel') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
               class="input w-full"
               type="email"
               :value="registrationEmail"
@@ -31,8 +31,8 @@
             />
           </div>
           <div>
-            <label class="input-label">{{ t('auth.passwordLabel') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('auth.passwordLabel') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
               v-model="password"
               type="password"
               class="input w-full"
@@ -43,8 +43,8 @@
             />
           </div>
           <div>
-            <label class="input-label">{{ t('auth.confirmPassword') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('auth.confirmPassword') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-3'"
               v-model="confirmPassword"
               type="password"
               class="input w-full"
@@ -55,8 +55,8 @@
             />
           </div>
           <div v-if="invitationRequired">
-            <label class="input-label">{{ t('auth.invitationCodeLabel') }}</label>
-            <input
+            <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('auth.invitationCodeLabel') }}</label>
+            <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
               v-model="invitationCode"
               type="text"
               class="input w-full"
@@ -101,9 +101,9 @@
 
         <div class="mt-6 space-y-4">
           <div>
-            <label class="input-label">{{ t('auth.oauth.code') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('auth.oauth.code') }}</label>
             <div class="flex gap-2">
-              <input class="input flex-1 font-mono text-sm" :value="code" readonly />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-5'" class="input flex-1 font-mono text-sm" :value="code" readonly />
               <button class="btn btn-secondary" type="button" :disabled="!code" @click="copy(code)">
                 {{ t('common.copy') }}
               </button>
@@ -111,9 +111,9 @@
           </div>
 
           <div>
-            <label class="input-label">{{ t('auth.oauth.state') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('auth.oauth.state') }}</label>
             <div class="flex gap-2">
-              <input class="input flex-1 font-mono text-sm" :value="state" readonly />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-6'" class="input flex-1 font-mono text-sm" :value="state" readonly />
               <button
                 class="btn btn-secondary"
                 type="button"
@@ -126,9 +126,9 @@
           </div>
 
           <div>
-            <label class="input-label">{{ t('auth.oauth.fullUrl') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('auth.oauth.fullUrl') }}</label>
             <div class="flex gap-2">
-              <input class="input flex-1 font-mono text-xs" :value="fullUrl" readonly />
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-7'" class="input flex-1 font-mono text-xs" :value="fullUrl" readonly />
               <button
                 class="btn btn-secondary"
                 type="button"
@@ -146,6 +146,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

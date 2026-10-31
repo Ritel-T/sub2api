@@ -4,26 +4,32 @@
       <template #filters>
         <div class="keys-filters flex flex-col gap-3">
           <div class="flex flex-wrap items-center gap-3">
-            <SearchInput
+            <SearchInput :label="t('keys.searchPlaceholder')"
               v-model="filterSearch"
               :placeholder="t('keys.searchPlaceholder')"
               class="keys-search w-full sm:w-80"
               @search="onFilterChange"
             />
-            <Select
+            <label class="block min-w-0 w-40">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('keys.group') }}</span>
+              <Select
               :model-value="filterGroupId"
               :aria-label="t('keys.group')"
               class="w-40"
               :options="groupFilterOptions"
               @update:model-value="onGroupFilterChange"
             />
-            <Select
+            </label>
+            <label class="block min-w-0 w-40">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+              <Select
               :model-value="filterStatus"
               :aria-label="t('common.status')"
               class="w-40"
               :options="statusFilterOptions"
               @update:model-value="onStatusFilterChange"
             />
+            </label>
             <div ref="sortToolbarTarget" class="inline-table-tools" />
             <div class="keys-table-tools">
               <button
@@ -333,8 +339,8 @@
     >
       <form id="key-form" @submit.prevent="handleSubmit" class="space-y-5">
         <div>
-          <label class="input-label">{{ t('keys.nameLabel') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('keys.nameLabel') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="formData.name"
             type="text"
             required
@@ -393,7 +399,7 @@
         </fieldset>
 
         <div>
-          <label class="input-label" for="key-form-group">{{ t('keys.groupLabel') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label" for="key-form-group">{{ t('keys.groupLabel') }}</label>
           <Select
             :key="showEditModal ? 'edit' : createProvider"
             id="key-form-group"
@@ -443,7 +449,7 @@
             <div class="max-h-48 space-y-2 overflow-y-auto">
               <label v-for="option in groupOptions.filter(item => item.value !== null && item.value !== formData.group_id)"
                 :key="String(option.value)" class="flex items-center gap-2 text-sm">
-                <input v-model="formData.group_ids" type="checkbox" :value="option.value" :disabled="!formData.group_ids.includes(Number(option.value)) && selectedFormGroupIDs().length >= 20" />
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-2'" v-model="formData.group_ids" type="checkbox" :value="option.value" :disabled="!formData.group_ids.includes(Number(option.value)) && selectedFormGroupIDs().length >= 20" />
                 <GroupBadge :name="option.label" :platform="option.platform"
                   :subscription-type="option.subscriptionType" :rate-multiplier="option.rate"
                   :user-rate-multiplier="option.userRate" />
@@ -462,21 +468,24 @@
             <Toggle :model-value="formData.use_custom_key" :aria-label="t('keys.customKeyLabel')" @click="formData.use_custom_key = !formData.use_custom_key" size="small" />
           </div>
           <div v-if="formData.use_custom_key">
-            <input
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('keys.customKeyPlaceholder') }}</span>
+              <input
               v-model="formData.custom_key"
               type="text"
               class="input font-mono"
               :placeholder="t('keys.customKeyPlaceholder')"
               :class="{ 'border-red-500 dark:border-red-500': customKeyError }"
             />
+            </label>
             <p v-if="customKeyError" class="mt-1 text-sm text-red-500">{{ customKeyError }}</p>
             <p v-else class="input-hint">{{ t('keys.customKeyHint') }}</p>
           </div>
         </div>
 
         <div v-if="showEditModal">
-          <label class="input-label">{{ t('keys.statusLabel') }}</label>
-          <Select :aria-label="t('keys.statusLabel')"
+          <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('keys.statusLabel') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('keys.statusLabel')"
             v-model="formData.status"
             :options="statusOptions"
             :placeholder="t('keys.selectStatus')"
@@ -492,8 +501,8 @@
 
           <div v-if="formData.enable_ip_restriction" class="space-y-4 pt-2">
             <div>
-              <label class="input-label">{{ t('keys.ipWhitelist') }}</label>
-              <textarea
+              <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('keys.ipWhitelist') }}</label>
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-4'"
                 v-model="formData.ip_whitelist"
                 rows="3"
                 class="input font-mono text-sm"
@@ -503,8 +512,8 @@
             </div>
 
             <div>
-              <label class="input-label">{{ t('keys.ipBlacklist') }}</label>
-              <textarea
+              <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('keys.ipBlacklist') }}</label>
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-5'"
                 v-model="formData.ip_blacklist"
                 rows="3"
                 class="input font-mono text-sm"
@@ -542,7 +551,7 @@
 
         <!-- Quota Limit Section -->
         <div class="space-y-3">
-          <label class="input-label">{{ t('keys.quotaLimit') }}</label>
+          <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('keys.quotaLimit') }}</label>
           <!-- Switch commented out - always show input, 0 = unlimited
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.quotaLimit') }}</label>
@@ -571,7 +580,7 @@
             <div>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-6'"
                   v-model.number="formData.quota"
                   type="number"
                   step="0.01"
@@ -620,10 +629,10 @@
             <p class="input-hint -mt-2">{{ t('keys.rateLimitHint') }}</p>
             <!-- 5-Hour Limit -->
             <div>
-              <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
+              <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('keys.rateLimit5h') }}</label>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-7'"
                   v-model.number="formData.rate_limit_5h"
                   type="number"
                   step="0.01"
@@ -666,10 +675,10 @@
 
             <!-- Daily Limit -->
             <div>
-              <label class="input-label">{{ t('keys.rateLimit1d') }}</label>
+              <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('keys.rateLimit1d') }}</label>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-8'"
                   v-model.number="formData.rate_limit_1d"
                   type="number"
                   step="0.01"
@@ -712,10 +721,10 @@
 
             <!-- 7-Day Limit -->
             <div>
-              <label class="input-label">{{ t('keys.rateLimit7d') }}</label>
+              <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('keys.rateLimit7d') }}</label>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                <input
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-9'"
                   v-model.number="formData.rate_limit_7d"
                   type="number"
                   step="0.01"
@@ -809,8 +818,8 @@
 
             <!-- Date picker (always show for precise adjustment) -->
             <div>
-              <label class="input-label">{{ t('keys.expirationDate') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{ t('keys.expirationDate') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-10'"
                 v-model="formData.expiration_date"
                 type="datetime-local"
                 class="input"
@@ -984,13 +993,16 @@
             <svg class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <input
+            <label class="block min-w-0 w-full">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('keys.searchGroup') }}</span>
+              <input
               v-model="groupSearchQuery"
               type="text"
               class="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-primary-300 focus:ring-1 focus:ring-primary-300 dark:border-dark-600 dark:bg-dark-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-primary-600 dark:focus:ring-primary-600"
               :placeholder="t('keys.searchGroup')"
               @click.stop
             />
+            </label>
           </div>
         </div>
         <!-- Group list -->
@@ -1038,6 +1050,8 @@
 
 <script setup lang="ts">
 import { formatAmount as formatDisplayAmount } from '@/utils/consoleDisplay'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
 
 import Toggle from '@/components/common/Toggle.vue'
 import AppHeading from '@/components/common/AppHeading.vue'

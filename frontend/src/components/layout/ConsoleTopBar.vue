@@ -122,8 +122,8 @@
                 <template v-if="centralAccountEnabled">
                   <a :href="accountPageURL('profile')" class="dropdown-item" @click="closeDropdown">{{ t('nav.profile') }}</a>
                   <a :href="accountPageURL('security')" class="dropdown-item" @click="closeDropdown">{{ t('consoleExperience.accountLink') }}</a>
-                  <a :href="accountPageURL('sessions')" class="dropdown-item" @click="closeDropdown">{{ locale.startsWith('zh') ? '登录会话' : 'Sessions' }}</a>
-                  <router-link to="/profile" class="dropdown-item" @click="closeDropdown">{{ locale.startsWith('zh') ? '业务通知设置' : 'Business notifications' }}</router-link>
+                  <a :href="accountPageURL('sessions')" class="dropdown-item" @click="closeDropdown">{{ t('consoleFields.sessions') }}</a>
+                  <router-link to="/profile" class="dropdown-item" @click="closeDropdown">{{ t('consoleFields.businessNotifications') }}</router-link>
                 </template>
                 <router-link
                   v-if="!centralAccountEnabled && (!appStore.backendModeEnabled || authStore.isAdmin)"

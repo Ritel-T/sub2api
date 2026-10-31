@@ -49,12 +49,15 @@
 
       <!-- Type filter + Action buttons -->
       <div class="flex items-center gap-3">
-        <Select :aria-label="t('admin.users.allTypes')"
+        <label class="block min-w-0 w-56">
+          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.allTypes') }}</span>
+          <Select :aria-label="t('admin.users.allTypes')"
           v-model="typeFilter"
           :options="typeOptions"
           class="w-56"
           @change="loadHistory"
         />
+        </label>
         <!-- Deposit button - matches menu style -->
         <button
           v-if="!hideActions"

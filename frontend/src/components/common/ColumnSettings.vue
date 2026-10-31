@@ -62,8 +62,8 @@ const props = withDefaults(defineProps<{
   requiredColumns?: string[]
 }>(), { requiredColumns: () => [] })
 const emit = defineEmits<{ toggle: [key: string]; reorder: [keys: string[]]; reset: [] }>()
-const { t, locale } = useI18n()
-const primaryHeading = computed(() => locale?.value?.startsWith('zh') ? locale.value === 'zh-CN' || locale.value === 'zh' ? '主行字段' : '主行欄位' : 'Main row columns')
+const { t } = useI18n()
+const primaryHeading = computed(() => t('consoleFields.mainRowColumns'))
 const panelId = useId()
 const hintId = useId()
 const trigger = ref<HTMLButtonElement>()

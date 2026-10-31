@@ -118,8 +118,8 @@
               </label>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoMoveOn403Desc') }}</p>
               <div v-if="excelBPSAutoMoveOn403" class="mt-2">
-                <label class="input-label">{{ t('admin.accounts.openai.excelBPS403TargetGroup') }}</label>
-                <Select v-model="excelBPS403TargetGroupID" :options="excelBPS403GroupOptions"
+                <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.accounts.openai.excelBPS403TargetGroup') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="excelBPS403TargetGroupID" :options="excelBPS403GroupOptions"
                   :aria-label="t('admin.accounts.openai.excelBPS403TargetGroup')"
                   data-testid="bulk-excel-bps-403-target-group" />
               </div>
@@ -475,12 +475,15 @@
                   :key="index"
                   class="flex items-center gap-2"
                 >
-                  <input
+                  <label class="block min-w-0 flex-1">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.requestModel') }}</span>
+                    <input
                     v-model="mapping.from"
                     type="text"
                     class="input flex-1"
                     :placeholder="t('admin.accounts.requestModel')"
                   />
+                  </label>
                   <svg
                     class="h-4 w-4 flex-shrink-0 text-gray-400"
                     fill="none"
@@ -494,13 +497,16 @@
                       d="M14 5l7 7m0 0l-7 7m7-7H3"
                     />
                   </svg>
-                  <input
+                  <label class="block min-w-0 flex-1">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.actualModel') }}</span>
+                    <input
                     v-model="mapping.to"
                     type="text"
                     class="input flex-1"
                     :placeholder="t('admin.accounts.actualModel')"
                   />
-                  <button
+                  </label>
+                  <button :aria-label="t('consoleFields.remove')"
                     type="button"
                     class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                     @click="removeModelMapping(index)"
@@ -618,7 +624,7 @@
               aria-labelledby="bulk-edit-custom-error-codes-label"
               @keyup.enter="addCustomErrorCode"
             />
-            <button type="button" class="btn btn-secondary px-3" @click="addCustomErrorCode">
+            <button :aria-label="t('consoleFields.add')" type="button" class="btn btn-secondary px-3" @click="addCustomErrorCode">
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   stroke-linecap="round"
@@ -638,7 +644,7 @@
               class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-sm font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"
             >
               {{ code }}
-              <button
+              <button :aria-label="t('consoleFields.remove')"
                 type="button"
                 class="hover:text-red-900 dark:hover:text-red-300"
                 @click="removeErrorCode(code)"
@@ -795,7 +801,7 @@
             </label>
             <input v-model="enableGroupRateMultiplier" id="bulk-edit-group-rate-multiplier-enabled" type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
           </div>
-          <input v-model.number="groupRateMultiplier" id="bulk-edit-group-rate-multiplier" type="number" min="0" step="0.01" :disabled="!enableGroupRateMultiplier" class="input" :class="!enableGroupRateMultiplier && 'cursor-not-allowed opacity-50'" />
+          <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.billingRate') }}</span><input v-model.number="groupRateMultiplier" id="bulk-edit-group-rate-multiplier" type="number" min="0" step="0.01" :disabled="!enableGroupRateMultiplier" class="input" :class="!enableGroupRateMultiplier && 'cursor-not-allowed opacity-50'" /></label>
           <p class="input-hint">{{ t('admin.accounts.groupBillingRateMultiplierHint') }}</p>
         </div>
         <div>
@@ -896,10 +902,10 @@
         </div>
         <div>
           <div class="mb-3 flex items-center justify-between">
-            <label class="input-label mb-0" for="bulk-edit-cost-multiplier-enabled">{{ t('admin.accounts.costMultiplier') }}</label>
+            <label :id="'field-' + fieldLabelScope + '-caption-1'" class="input-label mb-0" for="bulk-edit-cost-multiplier-enabled">{{ t('admin.accounts.costMultiplier') }}</label>
             <input id="bulk-edit-cost-multiplier-enabled" v-model="enableCostMultiplier" type="checkbox" aria-controls="bulk-edit-cost-multiplier" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
           </div>
-          <input id="bulk-edit-cost-multiplier" v-model.number="costMultiplier" type="number" min="0" max="1000000" step="0.001" required :disabled="!enableCostMultiplier" :aria-label="t('admin.accounts.costMultiplier')" class="input" :class="!enableCostMultiplier && 'cursor-not-allowed opacity-50'" />
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-caption-1'" id="bulk-edit-cost-multiplier" v-model.number="costMultiplier" type="number" min="0" max="1000000" step="0.001" required :disabled="!enableCostMultiplier" :aria-label="t('admin.accounts.costMultiplier')" class="input" :class="!enableCostMultiplier && 'cursor-not-allowed opacity-50'" />
           <p class="input-hint">{{ t('admin.accounts.costMultiplierHint') }}</p>
         </div>
       </div>
@@ -1029,8 +1035,8 @@
       <!-- Codex 指纹收敛模式（仅 OpenAI OAuth） -->
       <div v-if="allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
-          <label class="input-label mb-0">{{ t('admin.accounts.openai.codexFingerprintMode') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label mb-0">{{ t('admin.accounts.openai.codexFingerprintMode') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
             id="bulk-edit-openai-codex-fingerprint-mode-enabled"
             v-model="enableCodexFingerprintMode"
             type="checkbox"
@@ -1038,10 +1044,10 @@
           />
         </div>
         <div :class="!enableCodexFingerprintMode && 'pointer-events-none opacity-50'">
-          <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+          <p :id="'field-' + fieldLabelScope + '-3'" class="mb-2 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.openai.codexFingerprintModeDesc') }}
           </p>
-          <Select :aria-label="t('admin.accounts.openai.codexFingerprintMode')" v-model="codexFingerprintMode" data-testid="bulk-codex-fingerprint-mode-select" :options="codexFingerprintModeOptions" />
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('admin.accounts.openai.codexFingerprintMode')" v-model="codexFingerprintMode" data-testid="bulk-codex-fingerprint-mode-select" :options="codexFingerprintModeOptions" />
         </div>
       </div>
 
@@ -1285,22 +1291,28 @@
               :key="index"
               class="flex items-center gap-2"
             >
-              <input
+              <label class="block min-w-0 flex-1">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.requestModel') }}</span>
+                <input
                 v-model="mapping.from"
                 type="text"
                 class="input flex-1"
                 :placeholder="t('admin.accounts.fromModel')"
                 data-testid="bulk-edit-openai-compact-model-mapping-input"
               />
+              </label>
               <span class="text-gray-400">→</span>
-              <input
+              <label class="block min-w-0 flex-1">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.actualModel') }}</span>
+                <input
                 v-model="mapping.to"
                 type="text"
                 class="input flex-1"
                 :placeholder="t('admin.accounts.toModel')"
                 data-testid="bulk-edit-openai-compact-model-mapping-input"
               />
-              <button
+              </label>
+              <button :aria-label="t('consoleFields.remove')"
                 type="button"
                 class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                 @click="removeOpenAICompactModelMapping(index)"
@@ -1459,6 +1471,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import Toggle from '@/components/common/Toggle.vue'
 import ConfirmationPrompt from '@/components/common/ConfirmationPrompt.vue'
 import { useConfirmation, useConfirmedAction } from '@/composables/useConfirmation'

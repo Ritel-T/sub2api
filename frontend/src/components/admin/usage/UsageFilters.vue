@@ -5,8 +5,8 @@
         <slot name="before-filters" />
         <!-- User Search -->
         <div v-if="!observerMode" ref="userSearchRef" class="usage-filter-dropdown relative usage-filter-field">
-          <label class="input-label">{{ t('admin.usage.userFilter') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.usage.userFilter') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'"
             v-model="userKeyword"
             type="text"
             class="input pr-8"
@@ -42,8 +42,8 @@
 
         <!-- API Key Search -->
         <div ref="apiKeySearchRef" class="usage-filter-dropdown relative usage-filter-field">
-          <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('usage.apiKeyFilter') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
             v-model="apiKeyKeyword"
             type="text"
             class="input pr-8"
@@ -82,14 +82,14 @@
         <template v-if="!identityOnly">
         <!-- Model Filter -->
         <div class="usage-filter-field">
-          <label class="input-label">{{ t('usage.model') }}</label>
-          <Select :aria-label="t('usage.model')" v-model="filters.model" :options="modelOptions" searchable creatable @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('usage.model') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('usage.model')" v-model="filters.model" :options="modelOptions" searchable creatable @change="emitChange" />
         </div>
 
         <!-- Account Filter -->
         <div ref="accountSearchRef" class="usage-filter-dropdown relative usage-filter-field">
-          <label class="input-label">{{ t('admin.usage.account') }}</label>
-          <input
+          <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('admin.usage.account') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
             v-model="accountKeyword"
             type="text"
             class="input pr-8"
@@ -125,55 +125,55 @@
 
         <!-- Request Type Filter (usage only) -->
         <div v-if="mode !== 'errors' && mode !== 'connections'" class="usage-filter-field">
-          <label class="input-label">{{ t('usage.type') }}</label>
-          <Select :aria-label="t('usage.type')" v-model="filters.request_type" :options="requestTypeOptions" @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('usage.type') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-5'" :aria-label="t('usage.type')" v-model="filters.request_type" :options="requestTypeOptions" @change="emitChange" />
         </div>
 
         <!-- Native compaction is independent of the transport request type. -->
         <div v-if="mode !== 'errors' && mode !== 'connections'" class="usage-filter-field">
-          <label class="input-label">{{ t('usage.compactionFilter') }}</label>
-          <Select :aria-label="t('usage.compactionFilter')" v-model="filters.native_compaction_v2" :options="compactionOptions" @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('usage.compactionFilter') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-6'" :aria-label="t('usage.compactionFilter')" v-model="filters.native_compaction_v2" :options="compactionOptions" @change="emitChange" />
         </div>
 
         <!-- Billing Type Filter (usage only) -->
         <div v-if="mode !== 'errors' && mode !== 'connections'" class="usage-filter-field">
-          <label class="input-label">{{ t('admin.usage.billingType') }}</label>
-          <Select :aria-label="t('admin.usage.billingType')" v-model="filters.billing_type" :options="billingTypeOptions" @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.usage.billingType') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-7'" :aria-label="t('admin.usage.billingType')" v-model="filters.billing_type" :options="billingTypeOptions" @change="emitChange" />
         </div>
 
         <!-- Billing dimensions are shared by records and analytics/ranking. -->
         <div v-if="mode === 'usage' || mode === 'ranking'" class="usage-filter-field">
-          <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
-          <Select :aria-label="t('admin.usage.billingMode')" v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('admin.usage.billingMode') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-8'" :aria-label="t('admin.usage.billingMode')" v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
         </div>
 
         <div v-if="mode === 'usage' || mode === 'ranking'" class="usage-filter-field">
-          <label class="input-label">{{ t('admin.usage.upstreamModelAudit') }}</label>
-          <Select :aria-label="t('admin.usage.upstreamModelAudit')" v-model="filters.upstream_model_mismatch" :options="upstreamModelMismatchOptions" @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('admin.usage.upstreamModelAudit') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-9'" :aria-label="t('admin.usage.upstreamModelAudit')" v-model="filters.upstream_model_mismatch" :options="upstreamModelMismatchOptions" @change="emitChange" />
         </div>
 
         <!-- Error Phase Filter (errors only) -->
         <div v-if="mode === 'errors'" class="usage-filter-field">
-          <label class="input-label">{{ t('admin.ops.errorLog.type') }}</label>
-          <Select :aria-label="t('admin.ops.errorLog.type')" v-model="filters.error_phase" :options="errorPhaseOptions" @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-10'" class="input-label">{{ t('admin.ops.errorLog.type') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-10'" :aria-label="t('admin.ops.errorLog.type')" v-model="filters.error_phase" :options="errorPhaseOptions" @change="emitChange" />
         </div>
 
         <!-- Error Category Filter (errors only) -->
         <div v-if="mode === 'errors'" class="usage-filter-field">
-          <label class="input-label">{{ t('usage.errors.category') }}</label>
-          <Select :aria-label="t('usage.errors.category')" v-model="filters.error_category" :options="errorCategoryOptions" @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-11'" class="input-label">{{ t('usage.errors.category') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-11'" :aria-label="t('usage.errors.category')" v-model="filters.error_category" :options="errorCategoryOptions" @change="emitChange" />
         </div>
 
         <!-- Status Code Filter (errors only) -->
         <div v-if="mode === 'errors'" class="usage-filter-field">
-          <label class="input-label">{{ t('admin.ops.errorLog.status') }}</label>
-          <Select :aria-label="t('admin.ops.errorLog.status')" v-model="filters.status_code" :options="statusCodeOptions" @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-12'" class="input-label">{{ t('admin.ops.errorLog.status') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-12'" :aria-label="t('admin.ops.errorLog.status')" v-model="filters.status_code" :options="statusCodeOptions" @change="emitChange" />
         </div>
 
         <!-- Group Filter -->
         <div class="usage-filter-field">
-          <label class="input-label">{{ t('admin.usage.group') }}</label>
-          <Select :aria-label="t('admin.usage.group')" v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
+          <label :id="'field-' + fieldLabelScope + '-13'" class="input-label">{{ t('admin.usage.group') }}</label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-13'" :aria-label="t('admin.usage.group')" v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
         </div>
         </template>
 
@@ -203,6 +203,9 @@
 
 <script setup lang="ts">
 import MoreActions from '@/components/common/MoreActions.vue'
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import { ref, onMounted, onUnmounted, toRef, watch, computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { observerUsageAPI, type UsageFilterOption } from '@/api/observerUsage'

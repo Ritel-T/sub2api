@@ -218,31 +218,46 @@ onBeforeUnmount(() => { if (searchTimeout) window.clearTimeout(searchTimeout) })
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
-              <input
+              <label class="block min-w-0 w-full">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.errorDetails.searchPlaceholder') }}</span>
+                <input
                 v-model="q"
                 type="text"
                 class="w-full rounded-lg border-gray-200 bg-gray-50/50 py-1.5 pl-9 pr-3 text-xs font-medium text-gray-700 transition-all focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-400/10 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:focus:bg-dark-800"
                 :placeholder="t('admin.ops.errorDetails.searchPlaceholder')"
               />
+              </label>
             </div>
           </div>
 
           <div class="compact-select">
-            <Select :aria-label="t('admin.ops.errorLog.status')" :model-value="statusCode" :options="statusCodeSelectOptions" @update:model-value="statusCode = $event as any" />
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.errorLog.status') }}</span>
+              <Select :aria-label="t('admin.ops.errorLog.status')" :model-value="statusCode" :options="statusCodeSelectOptions" @update:model-value="statusCode = $event as any" />
+            </label>
           </div>
 
           <div class="compact-select">
-            <Select :aria-label="t('admin.ops.errorLog.type')" :model-value="phase" :options="phaseSelectOptions" @update:model-value="phase = String($event ?? '')" />
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.errorLog.type') }}</span>
+              <Select :aria-label="t('admin.ops.errorLog.type')" :model-value="phase" :options="phaseSelectOptions" @update:model-value="phase = String($event ?? '')" />
+            </label>
           </div>
 
           <div class="compact-select">
-            <Select :aria-label="t('common.errorOwner')" :model-value="errorOwner" :options="ownerSelectOptions" @update:model-value="errorOwner = String($event ?? '')" />
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.errorOwner') }}</span>
+              <Select :aria-label="t('common.errorOwner')" :model-value="errorOwner" :options="ownerSelectOptions" @update:model-value="errorOwner = String($event ?? '')" />
+            </label>
           </div>
 
 
 
           <div class="compact-select">
-            <Select :aria-label="t('common.viewMode')" :model-value="viewMode" :options="viewModeSelectOptions" @update:model-value="viewMode = $event as any" />
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.viewMode') }}</span>
+              <Select :aria-label="t('common.viewMode')" :model-value="viewMode" :options="viewModeSelectOptions" @update:model-value="viewMode = $event as any" />
+            </label>
           </div>
 
           <div class="flex items-center justify-end">

@@ -37,26 +37,35 @@
         <div class="filter-controls">
           <!-- Left: Search + Filters -->
           <div class="flex-1 sm:max-w-64">
-            <input
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.redeem.searchCodes') }}</span>
+              <input
               v-model="searchQuery"
               type="text"
               :placeholder="t('admin.redeem.searchCodes')"
               class="input"
               @input="handleSearch"
             />
+            </label>
           </div>
-          <Select :aria-label="t('admin.redeem.codeType')"
+          <label class="block min-w-0 w-36">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.redeem.codeType') }}</span>
+            <Select :aria-label="t('admin.redeem.codeType')"
             v-model="filters.type"
             :options="filterTypeOptions"
             class="w-36"
             @change="loadCodes"
           />
-          <Select :aria-label="t('common.status')"
+          </label>
+          <label class="block min-w-0 w-36">
+            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+            <Select :aria-label="t('common.status')"
             v-model="filters.status"
             :options="filterStatusOptions"
             class="w-36"
             @change="loadCodes"
           />
+          </label>
 
           <TableToolbarTarget />
         </div>
@@ -73,25 +82,25 @@
           @sort="handleSort"
         >
           <template #header-select>
-            <input
+            <label class="inline-flex items-center gap-2"><input
               data-test="select-all-codes"
               type="checkbox"
               class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               :checked="allVisibleSelected"
               @click.stop
               @change="toggleSelectAllVisible($event)"
-            />
+            /><span class="text-2xs">{{ t('consoleFields.selectAll') }}</span></label>
           </template>
 
           <template #cell-select="{ row }">
-            <input
+            <label class="inline-flex items-center gap-2"><input
               data-test="select-code"
               type="checkbox"
               class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               :checked="selectedCodeIds.has(row.id)"
               @click.stop
               @change="toggleSelectRow(row.id, $event)"
-            />
+            /><span class="text-2xs">{{ t('consoleFields.selectRow') }}</span></label>
           </template>
 
           <template #cell-code="{ value }">
@@ -282,19 +291,19 @@
     <BaseDialog :show="showGenerateDialog" :title="t('admin.redeem.generateCodesTitle')" width="narrow" :close-on-escape="!generating" :close-on-click-outside="!generating" :show-close-button="!generating" @close="!generating && (showGenerateDialog = false)">
 <form id="redeem-generate-form" @submit.prevent="handleGenerateCodes" class="space-y-4">
             <div>
-              <label class="input-label">{{ t('admin.redeem.codeType') }}</label>
-              <Select :aria-label="t('admin.redeem.codeType')" v-model="generateForm.type" :options="typeOptions" />
+              <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('admin.redeem.codeType') }}</label>
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-1'" :aria-label="t('admin.redeem.codeType')" v-model="generateForm.type" :options="typeOptions" />
             </div>
             <!-- 余额/并发类型：显示数值输入 -->
             <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
-              <label class="input-label">
+              <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">
                 {{
                   generateForm.type === 'balance'
                     ? t('admin.redeem.amount')
                     : t('admin.redeem.columns.value')
                 }}
               </label>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-2'"
                 v-model.number="generateForm.value"
                 type="number"
                 :step="generateForm.type === 'balance' ? '0.01' : '1'"
@@ -312,8 +321,8 @@
             <!-- 订阅类型：显示分组选择和有效天数 -->
             <template v-if="generateForm.type === 'subscription'">
               <div>
-                <label class="input-label">{{ t('admin.redeem.selectGroup') }}</label>
-                <Select :aria-label="t('admin.redeem.selectGroup')"
+                <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('admin.redeem.selectGroup') }}</label>
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-3'" :aria-label="t('admin.redeem.selectGroup')"
                   v-model="generateForm.group_id"
                   :options="subscriptionGroupOptions"
                   :placeholder="t('admin.redeem.selectGroupPlaceholder')"
@@ -343,8 +352,8 @@
                 </Select>
               </div>
               <div>
-                <label class="input-label">{{ t('admin.redeem.validityDays') }}</label>
-                <input
+                <label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('admin.redeem.validityDays') }}</label>
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-4'"
                   v-model.number="generateForm.validity_days"
                   type="number"
                   min="1"
@@ -355,7 +364,7 @@
               </div>
             </template>
             <div>
-              <label class="input-label">{{ t('admin.redeem.codeExpiry') }}</label>
+              <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('admin.redeem.codeExpiry') }}</label>
               <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 <button
                   v-for="option in redeemCodeExpiryOptions"
@@ -372,7 +381,7 @@
                   {{ option.label }}
                 </button>
               </div>
-              <input
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-5'"
                 v-if="generateForm.expiry_option === 'custom'"
                 v-model.number="generateForm.custom_expiry_days"
                 type="number"
@@ -384,8 +393,8 @@
               />
             </div>
             <div>
-              <label class="input-label">{{ t('admin.redeem.count') }}</label>
-              <input
+              <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('admin.redeem.count') }}</label>
+              <input :aria-labelledby="'field-' + fieldLabelScope + '-6'"
                 v-model.number="generateForm.count"
                 type="number"
                 min="1"
@@ -414,7 +423,7 @@
 
           <form id="redeem-batch-update-form" data-test="batch-update-form" class="space-y-4" @submit.prevent="handleBatchUpdate">
             <div class="space-y-2">
-              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label :id="'field-' + fieldLabelScope + '-7'" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 <input
                   data-test="batch-field-status"
                   v-model="batchUpdateForm.update_status"
@@ -423,7 +432,7 @@
                 />
                 {{ t('admin.redeem.batchFields.status') }}
               </label>
-              <Select :aria-label="t('admin.redeem.batchFields.status')"
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-7'" :aria-label="t('admin.redeem.batchFields.status')"
                 v-if="batchUpdateForm.update_status"
                 v-model="batchUpdateForm.status"
                 data-test="batch-status-select"
@@ -432,7 +441,7 @@
             </div>
 
             <div class="space-y-2">
-              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label :id="'field-' + fieldLabelScope + '-8'" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 <input
                   v-model="batchUpdateForm.update_expires_at"
                   type="checkbox"
@@ -441,8 +450,8 @@
                 {{ t('admin.redeem.batchFields.expiresAt') }}
               </label>
               <template v-if="batchUpdateForm.update_expires_at">
-                <Select :aria-label="t('admin.redeem.batchFields.expiresAt')" v-model="batchUpdateForm.expires_mode" :options="batchExpiryModeOptions" />
-                <input
+                <Select :aria-labelledby="'field-' + fieldLabelScope + '-8'" :aria-label="t('admin.redeem.batchFields.expiresAt')" v-model="batchUpdateForm.expires_mode" :options="batchExpiryModeOptions" />
+                <input :aria-labelledby="'field-' + fieldLabelScope + '-8'"
                   v-if="batchUpdateForm.expires_mode === 'custom'"
                   v-model="batchUpdateForm.expires_at_local"
                   type="datetime-local"
@@ -455,7 +464,7 @@
             </div>
 
             <div class="space-y-2">
-              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label :id="'field-' + fieldLabelScope + '-9'" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 <input
                   data-test="batch-field-notes"
                   v-model="batchUpdateForm.update_notes"
@@ -464,7 +473,7 @@
                 />
                 {{ t('admin.redeem.batchFields.notes') }}
               </label>
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-9'"
                 v-if="batchUpdateForm.update_notes"
                 data-test="batch-notes-input"
                 v-model="batchUpdateForm.notes"
@@ -475,7 +484,7 @@
             </div>
 
             <div class="space-y-2">
-              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label :id="'field-' + fieldLabelScope + '-10'" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 <input
                   v-model="batchUpdateForm.update_group_id"
                   type="checkbox"
@@ -483,7 +492,7 @@
                 />
                 {{ t('admin.redeem.batchFields.group') }}
               </label>
-              <Select :aria-label="t('admin.redeem.batchFields.group')"
+              <Select :aria-labelledby="'field-' + fieldLabelScope + '-10'" :aria-label="t('admin.redeem.batchFields.group')"
                 v-if="batchUpdateForm.update_group_id"
                 v-model="batchUpdateForm.group_id"
                 :options="batchGroupOptions"
@@ -510,12 +519,12 @@
 
     <!-- Generated Codes Result Dialog -->
     <BaseDialog :show="showResultDialog" :title="t('admin.redeem.generatedSuccessfully')" width="normal" :close-on-click-outside="true" @close="closeResultDialog">
-<p class="text-sm text-gray-500 dark:text-gray-400">
+<p :id="'field-' + fieldLabelScope + '-11'" class="text-sm text-gray-500 dark:text-gray-400">
                   {{ t('admin.redeem.codesCreated', { count: generatedCodes.length }) }}
                 </p>
 
             <div class="relative">
-              <textarea
+              <textarea :aria-labelledby="'field-' + fieldLabelScope + '-11'"
                 readonly
                 :value="generatedCodesText"
                 :style="{ height: textareaHeight }"
@@ -551,6 +560,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import TableToolbarTarget from '@/components/common/TableToolbarTarget.vue'

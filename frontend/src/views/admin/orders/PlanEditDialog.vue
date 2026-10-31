@@ -3,12 +3,12 @@
     <form id="plan-form" @submit.prevent="handleSavePlan" class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="input-label">{{ t('payment.admin.planName') }} <span class="text-red-500">*</span></label>
-          <input v-model="planForm.name" type="text" class="input" required />
+          <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('payment.admin.planName') }} <span class="text-red-500">*</span></label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="planForm.name" type="text" class="input" required />
         </div>
         <div>
-          <label class="input-label">{{ t('payment.admin.group') }} <span class="text-red-500">*</span></label>
-          <Select :aria-label="t('payment.admin.group')" v-model="planForm.group_id" :options="groupOptions" :placeholder="t('payment.admin.selectGroup')" class="w-full">
+          <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('payment.admin.group') }} <span class="text-red-500">*</span></label>
+          <Select :aria-labelledby="'field-' + fieldLabelScope + '-2'" :aria-label="t('payment.admin.group')" v-model="planForm.group_id" :options="groupOptions" :placeholder="t('payment.admin.selectGroup')" class="w-full">
             <template #selected="{ option }">
               <span v-if="option?.platform" :class="platformTextClass(String(option.platform))">{{ option.label }}</span>
               <span v-else>{{ option?.label || t('payment.admin.selectGroup') }}</span>
@@ -33,11 +33,11 @@
         </div>
       </div>
 
-      <div><label class="input-label">{{ t('payment.admin.planDescription') }} <span class="text-red-500">*</span></label><textarea v-model="planForm.description" rows="2" class="input" required></textarea></div>
+      <div><label class="input-label">{{ t('payment.admin.planDescription') }} <span class="text-red-500">*</span></label><label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.description') }}</span><textarea v-model="planForm.description" rows="2" class="input" required></textarea></label></div>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="input-label">{{ t('payment.admin.price') }} <span class="text-red-500">*</span></label>
-          <input v-model.number="planForm.price" type="number" step="0.01" min="0.01" class="input" required />
+          <label :id="'field-' + fieldLabelScope + '-3'" class="input-label">{{ t('payment.admin.price') }} <span class="text-red-500">*</span></label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-3'" v-model.number="planForm.price" type="number" step="0.01" min="0.01" class="input" required />
           <p v-if="subscriptionCnyPreview" class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-400">
             {{ t('payment.admin.subscriptionCnyPayPreview', { amount: subscriptionCnyPreview.amount }) }}
             <span v-if="subscriptionCnyPreview.feeRate > 0">
@@ -45,23 +45,23 @@
             </span>
           </p>
         </div>
-        <div><label class="input-label">{{ t('payment.admin.originalPrice') }}</label><input v-model.number="planForm.original_price" type="number" step="0.01" min="0" class="input" /></div>
+        <div><label :id="'field-' + fieldLabelScope + '-4'" class="input-label">{{ t('payment.admin.originalPrice') }}</label><input :aria-labelledby="'field-' + fieldLabelScope + '-4'" v-model.number="planForm.original_price" type="number" step="0.01" min="0" class="input" /></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="input-label">{{ t('payment.admin.validity') }} <span class="text-red-500">*</span></label><input v-model.number="planForm.validity_days" type="number" min="1" class="input" required /></div>
-        <div><label class="input-label">{{ t('payment.admin.validityUnit') }} <span class="text-red-500">*</span></label><Select :aria-label="t('payment.admin.validityUnit')" v-model="planForm.validity_unit" :options="validityUnitOptions" /></div>
+        <div><label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('payment.admin.validity') }} <span class="text-red-500">*</span></label><input :aria-labelledby="'field-' + fieldLabelScope + '-5'" v-model.number="planForm.validity_days" type="number" min="1" class="input" required /></div>
+        <div><label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('payment.admin.validityUnit') }} <span class="text-red-500">*</span></label><Select :aria-labelledby="'field-' + fieldLabelScope + '-6'" :aria-label="t('payment.admin.validityUnit')" v-model="planForm.validity_unit" :options="validityUnitOptions" /></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="input-label">{{ t('payment.admin.sortOrder') }}</label><input v-model.number="planForm.sort_order" type="number" min="0" class="input" /></div>
+        <div><label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('payment.admin.sortOrder') }}</label><input :aria-labelledby="'field-' + fieldLabelScope + '-7'" v-model.number="planForm.sort_order" type="number" min="0" class="input" /></div>
         <div>
-          <label class="input-label">{{ t('payment.admin.currency') }}</label>
-          <input v-model="planForm.currency" type="text" maxlength="3" class="input uppercase" :placeholder="t('payment.admin.currencyPlaceholder')" />
+          <label :id="'field-' + fieldLabelScope + '-8'" class="input-label">{{ t('payment.admin.currency') }}</label>
+          <input :aria-labelledby="'field-' + fieldLabelScope + '-8'" v-model="planForm.currency" type="text" maxlength="3" class="input uppercase" :placeholder="t('payment.admin.currencyPlaceholder')" />
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.currencyHint') }}</p>
         </div>
       </div>
       <div>
-        <label class="input-label">{{ t('payment.admin.features') }}</label>
-        <textarea v-model="planFeaturesText" rows="3" class="input" :placeholder="t('payment.admin.featuresPlaceholder')"></textarea>
+        <label :id="'field-' + fieldLabelScope + '-9'" class="input-label">{{ t('payment.admin.features') }}</label>
+        <textarea :aria-labelledby="'field-' + fieldLabelScope + '-9'" v-model="planFeaturesText" rows="3" class="input" :placeholder="t('payment.admin.featuresPlaceholder')"></textarea>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.featuresHint') }}</p>
       </div>
       <div class="flex items-center gap-3">
@@ -79,6 +79,9 @@
 </template>
 
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import Toggle from '@/components/common/Toggle.vue'
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

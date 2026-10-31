@@ -23,8 +23,10 @@
       </svg>
     </button>
 
-    <input
-      v-if="editing"
+    <label v-if="editing" class="block min-w-0 w-10">
+      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.columns.priority') }}</span>
+      <input
+
       ref="inputRef"
       v-model="inputValue"
       type="text"
@@ -38,6 +40,7 @@
       @keydown.down.prevent="nudgeInput(-1)"
       @blur="commitInput"
     />
+    </label>
     <button
       v-else
       type="button"

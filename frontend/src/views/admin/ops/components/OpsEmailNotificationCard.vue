@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useId as useFieldLabelId } from 'vue'
+const fieldLabelScope = useFieldLabelId()
+
 import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -277,19 +280,25 @@ onMounted(() => {
 
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.minSeverity') }}</div>
-            <Select :aria-label="t('admin.ops.email.minSeverity')" v-model="draft.alert.min_severity" :options="severityOptions" />
+            <label class="block min-w-0">
+              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.minSeverity') }}</span>
+              <Select :aria-label="t('admin.ops.email.minSeverity')" v-model="draft.alert.min_severity" :options="severityOptions" />
+            </label>
           </div>
 
           <div class="md:col-span-2">
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.recipients') }}</div>
             <div class="flex gap-2">
-              <input
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.recipients') }}</span>
+                <input
                 v-model="alertRecipientInput"
                 type="email"
                 class="input"
                 :placeholder="t('admin.ops.email.recipients')"
                 @keydown.enter.prevent="addRecipient('alert')"
               />
+              </label>
               <button class="btn btn-secondary whitespace-nowrap" type="button" @click="addRecipient('alert')">
                 {{ t('common.add') }}
               </button>
@@ -316,12 +325,12 @@ onMounted(() => {
 
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.rateLimitPerHour') }}</div>
-            <input v-model.number="draft.alert.rate_limit_per_hour" type="number" min="0" max="100000" class="input" />
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.emailRateLimit') }}</span><input v-model.number="draft.alert.rate_limit_per_hour" type="number" min="0" max="100000" class="input" /></label>
           </div>
 
           <div>
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.batchWindowSeconds') }}</div>
-            <input v-model.number="draft.alert.batching_window_seconds" type="number" min="0" max="86400" class="input" />
+            <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.batchWindow') }}</span><input v-model.number="draft.alert.batching_window_seconds" type="number" min="0" max="86400" class="input" /></label>
           </div>
 
           <div>
@@ -348,13 +357,16 @@ onMounted(() => {
           <div class="md:col-span-2">
             <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.recipients') }}</div>
             <div class="flex gap-2">
-              <input
+              <label class="block min-w-0">
+                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.recipients') }}</span>
+                <input
                 v-model="reportRecipientInput"
                 type="email"
                 class="input"
                 :placeholder="t('admin.ops.email.recipients')"
                 @keydown.enter.prevent="addRecipient('report')"
               />
+              </label>
               <button class="btn btn-secondary whitespace-nowrap" type="button" @click="addRecipient('report')">
                 {{ t('common.add') }}
               </button>
@@ -384,45 +396,57 @@ onMounted(() => {
                 <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.dailySummary') }}</div>
                 <div class="flex items-center gap-2">
                   <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input v-model="draft.report.daily_summary_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-nested-1'" v-model="draft.report.daily_summary_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
                   </label>
-                  <input v-model="draft.report.daily_summary_schedule" type="text" class="input" :placeholder="t('admin.ops.email.cronPlaceholder')" />
+                  <label :id="'field-' + fieldLabelScope + '-nested-1'" class="block min-w-0">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.cronPlaceholder') }}</span>
+                    <input v-model="draft.report.daily_summary_schedule" type="text" class="input" :placeholder="t('admin.ops.email.cronPlaceholder')" />
+                  </label>
                 </div>
               </div>
               <div>
                 <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.weeklySummary') }}</div>
                 <div class="flex items-center gap-2">
                   <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input v-model="draft.report.weekly_summary_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-nested-2'" v-model="draft.report.weekly_summary_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
                   </label>
-                  <input v-model="draft.report.weekly_summary_schedule" type="text" class="input" :placeholder="t('admin.ops.email.cronPlaceholder')" />
+                  <label :id="'field-' + fieldLabelScope + '-nested-2'" class="block min-w-0">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.cronPlaceholder') }}</span>
+                    <input v-model="draft.report.weekly_summary_schedule" type="text" class="input" :placeholder="t('admin.ops.email.cronPlaceholder')" />
+                  </label>
                 </div>
               </div>
               <div>
                 <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.errorDigest') }}</div>
                 <div class="flex items-center gap-2">
                   <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input v-model="draft.report.error_digest_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-nested-3'" v-model="draft.report.error_digest_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
                   </label>
-                  <input v-model="draft.report.error_digest_schedule" type="text" class="input" :placeholder="t('admin.ops.email.cronPlaceholder')" />
+                  <label :id="'field-' + fieldLabelScope + '-nested-3'" class="block min-w-0">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.cronPlaceholder') }}</span>
+                    <input v-model="draft.report.error_digest_schedule" type="text" class="input" :placeholder="t('admin.ops.email.cronPlaceholder')" />
+                  </label>
                 </div>
               </div>
               <div>
                 <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.errorDigestMinCount') }}</div>
-                <input v-model.number="draft.report.error_digest_min_count" type="number" min="0" max="1000000" class="input" />
+                <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.minimumErrors') }}</span><input v-model.number="draft.report.error_digest_min_count" type="number" min="0" max="1000000" class="input" /></label>
               </div>
               <div>
                 <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.accountHealth') }}</div>
                 <div class="flex items-center gap-2">
                   <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input v-model="draft.report.account_health_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
+                    <input :aria-labelledby="'field-' + fieldLabelScope + '-nested-4'" v-model="draft.report.account_health_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
                   </label>
-                  <input v-model="draft.report.account_health_schedule" type="text" class="input" :placeholder="t('admin.ops.email.cronPlaceholder')" />
+                  <label :id="'field-' + fieldLabelScope + '-nested-4'" class="block min-w-0">
+                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.cronPlaceholder') }}</span>
+                    <input v-model="draft.report.account_health_schedule" type="text" class="input" :placeholder="t('admin.ops.email.cronPlaceholder')" />
+                  </label>
                 </div>
               </div>
               <div>
                 <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.accountHealthThreshold') }}</div>
-                <input v-model.number="draft.report.account_health_error_rate_threshold" type="number" min="0" max="100" step="0.1" class="input" />
+                <label class="block min-w-0 "><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.healthErrorRate') }}</span><input v-model.number="draft.report.account_health_error_rate_threshold" type="number" min="0" max="100" step="0.1" class="input" /></label>
               </div>
             </div>
             <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.email.reportHint') }}</div>
