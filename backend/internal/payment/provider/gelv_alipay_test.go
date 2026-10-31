@@ -195,10 +195,14 @@ func TestGelvAlipayQueryVerifiedEvidenceAndIndependentPlatformFees(t *testing.T)
 }
 
 func gelvAlipayTestRateName(value any) string {
-	if value == nil {
+	switch rate := value.(type) {
+	case nil:
 		return "null"
+	case int64:
+		return strconv.FormatInt(rate, 10)
+	default:
+		panic("Gelv Alipay test rate fixture must be int64 or nil")
 	}
-	return strconv.FormatInt(value.(int64), 10)
 }
 
 func TestGelvAlipayQueryRejectsMissingEvidenceAndMixedChannels(t *testing.T) {

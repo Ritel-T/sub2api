@@ -522,7 +522,7 @@ func (s *PaymentService) persistGelvReconciliationBlock(ctx context.Context, o *
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	query := tx.PaymentOrder.Query().Where(paymentorder.IDEQ(o.ID))
 	if s.entClient.Driver().Dialect() == dialect.Postgres {
 		query = query.ForUpdate()
