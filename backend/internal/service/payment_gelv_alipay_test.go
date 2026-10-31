@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -430,6 +431,153 @@ func TestGelvPaidQueryEvidenceErrorsBlockButTransportDoesNot(t *testing.T) {
 			require.Equal(t, kind != "transport_result_unknown", PaymentOrderRefundReconciliationPending(saved))
 			require.Zero(t, saved.RefundAmount)
 			require.Equal(t, OrderStatusFailed, saved.Status)
+		})
+	}
+}
+
+func TestGelvRepeatedTerminalRefundObservationDoesNotWrite(t *testing.T) {
+	for _, method := range []string{payment.TypeGelv, payment.TypeGelvAlipay} {
+		for _, status := range []string{OrderStatusCompleted, OrderStatusRefunded} {
+			t.Run(method+"_"+status, func(t *testing.T) {
+				var s *PaymentService
+				var o *dbent.PaymentOrder
+				var users *mockUserRepo
+				var codes *paymentFulfillmentRedeemRepo
+				if method == payment.TypeGelvAlipay {
+					s, o, users, codes = gelvAlipayServiceOrder(t, status, "60")
+				} else {
+					s, o, users, codes = gelvServiceOrder(t, status)
+				}
+				ctx := context.Background()
+				users.getByIDUser.Balance = o.Amount
+				m := gelvServiceMetadata(o, "wechat_virtual")
+				if method == payment.TypeGelvAlipay {
+					m = gelvAlipayMetadata(o)
+				}
+				m["gelv_status"], m["refunded_minor"], m["refund_pending"] = "refunded", "1000", "false"
+				p := &paymentOrderLifecycleQueryProvider{key: payment.TypeGelv, resp: &payment.QueryOrderResponse{TradeNo: o.PaymentTradeNo, Status: payment.ProviderStatusRefunded, Amount: 10, Metadata: m}}
+				recovered, err := s.reconcileGelvOrderWithProvider(ctx, o, p)
+				require.NoError(t, err)
+				require.False(t, recovered)
+				saved, err := s.entClient.PaymentOrder.Get(ctx, o.ID)
+				require.NoError(t, err)
+				expected, err := json.Marshal(saved.ProviderSnapshot)
+				require.NoError(t, err)
+				updatedAt := saved.UpdatedAt
+				generation := saved.ProviderSnapshot["gelv_observation_generation"]
+				auditCount, err := s.entClient.PaymentAuditLog.Query().Count(ctx)
+				require.NoError(t, err)
+				require.Positive(t, auditCount)
+				mutations := 0
+				hook := func(next dbent.Mutator) dbent.Mutator {
+					return dbent.MutateFunc(func(ctx context.Context, m dbent.Mutation) (dbent.Value, error) {
+						mutations++
+						return next.Mutate(ctx, m)
+					})
+				}
+				s.entClient.PaymentOrder.Use(hook)
+				s.entClient.PaymentAuditLog.Use(hook)
+				for i := 0; i < 3; i++ {
+					// The first retry deliberately keeps the caller's older
+					// snapshot; the locked current row must decide idempotency.
+					if i > 0 {
+						o = saved
+					}
+					recovered, err = s.reconcileGelvOrderWithProvider(ctx, o, p)
+					require.NoError(t, err)
+					require.False(t, recovered)
+					saved, err = s.entClient.PaymentOrder.Get(ctx, o.ID)
+					require.NoError(t, err)
+					actual, err := json.Marshal(saved.ProviderSnapshot)
+					require.NoError(t, err)
+					require.Equal(t, string(expected), string(actual))
+					require.Equal(t, updatedAt, saved.UpdatedAt)
+					require.Equal(t, generation, saved.ProviderSnapshot["gelv_observation_generation"])
+					require.Equal(t, "1000", saved.ProviderSnapshot["gelv_refunded_minor"])
+					require.Equal(t, "confirmed_refund", saved.ProviderSnapshot["gelv_reconciliation_blocked"])
+					count, err := s.entClient.PaymentAuditLog.Query().Count(ctx)
+					require.NoError(t, err)
+					require.Equal(t, auditCount, count)
+					require.Zero(t, mutations, "duplicate query must not attempt payment-row or audit writes")
+					require.Equal(t, status, saved.Status)
+					require.Equal(t, o.Amount, users.getByIDUser.Balance)
+					require.Zero(t, codes.createCalls)
+					require.Zero(t, saved.RefundAmount)
+				}
+				require.True(t, PaymentOrderRefundReconciliationPending(saved))
+				require.Error(t, s.RetryFulfillment(ctx, saved.ID))
+				require.Error(t, s.ExecuteBalanceFulfillment(ctx, saved.ID))
+			})
+		}
+	}
+}
+
+func TestGelvPermanentBlockDuplicateAndNewAdverseEvidence(t *testing.T) {
+	for _, reason := range []string{"confirmed_refund", "paid_channel_conflict", "empty_query_response"} {
+		t.Run(reason, func(t *testing.T) {
+			s, o, users, codes := gelvAlipayServiceOrder(t, OrderStatusFailed, "60")
+			ctx := context.Background()
+			m := gelvAlipayMetadata(o)
+			m["refunded_minor"] = "0"
+			if reason == "confirmed_refund" {
+				m["refunded_minor"] = "500"
+			}
+			if reason == "paid_channel_conflict" {
+				m["channel_verification_status"] = "conflict"
+			}
+			require.NoError(t, s.persistGelvReconciliationBlock(ctx, o, reason, m))
+			original, err := s.entClient.PaymentOrder.Get(ctx, o.ID)
+			require.NoError(t, err)
+			expected, err := json.Marshal(original.ProviderSnapshot)
+			require.NoError(t, err)
+			audits, err := s.entClient.PaymentAuditLog.Query().Count(ctx)
+			require.NoError(t, err)
+			for _, value := range []string{m["refunded_minor"], "0", ""} {
+				m["refunded_minor"] = value
+				require.NoError(t, s.persistGelvReconciliationBlock(ctx, o, reason, m))
+				saved, err := s.entClient.PaymentOrder.Get(ctx, o.ID)
+				require.NoError(t, err)
+				actual, err := json.Marshal(saved.ProviderSnapshot)
+				require.NoError(t, err)
+				require.Equal(t, string(expected), string(actual))
+				require.Equal(t, original.UpdatedAt, saved.UpdatedAt)
+				count, err := s.entClient.PaymentAuditLog.Query().Count(ctx)
+				require.NoError(t, err)
+				require.Equal(t, audits, count)
+			}
+			generation := psSnapshotIntValue(o.ProviderSnapshot["gelv_observation_generation"])
+			m["refunded_minor"] = "600"
+			require.NoError(t, s.persistGelvReconciliationBlock(ctx, o, reason, m))
+			require.Equal(t, "600", o.ProviderSnapshot["gelv_refunded_minor"])
+			require.Equal(t, "confirmed_refund", o.ProviderSnapshot["gelv_reconciliation_blocked"])
+			require.Equal(t, generation+1, psSnapshotIntValue(o.ProviderSnapshot["gelv_observation_generation"]))
+			// New verification evidence is retained even under an irreversible
+			// refund block; an identical repeat then becomes a no-op.
+			nextVerification := "conflict"
+			if m["channel_verification_status"] == nextVerification {
+				nextVerification = "verified"
+			}
+			m["channel_verification_status"] = nextVerification
+			require.NoError(t, s.persistGelvReconciliationBlock(ctx, o, "confirmed_refund", m))
+			require.Equal(t, generation+2, psSnapshotIntValue(o.ProviderSnapshot["gelv_observation_generation"]))
+			require.Equal(t, nextVerification, o.ProviderSnapshot["gelv_observed_verification_status"])
+			require.NoError(t, s.persistGelvReconciliationBlock(ctx, o, "confirmed_refund", m))
+			require.Equal(t, generation+2, psSnapshotIntValue(o.ProviderSnapshot["gelv_observation_generation"]))
+			// Every identical pending hold still invalidates an older clear;
+			// stale zero cannot replace the confirmed positive refund.
+			m["refund_pending"], m["refunded_minor"] = "true", "0"
+			for i := 1; i <= 2; i++ {
+				require.NoError(t, s.holdGelvRefund(ctx, o, m))
+				require.Equal(t, generation+2+i, psSnapshotIntValue(o.ProviderSnapshot["gelv_observation_generation"]))
+				require.Equal(t, "600", o.ProviderSnapshot["gelv_refunded_minor"])
+				require.Equal(t, "confirmed_refund", o.ProviderSnapshot["gelv_reconciliation_blocked"])
+			}
+			require.NoError(t, s.clearGelvRefundHold(ctx, o, gelvAlipayMetadata(o)))
+			require.True(t, PaymentOrderRefundReconciliationPending(o))
+			require.Error(t, s.RetryFulfillment(ctx, o.ID))
+			require.Error(t, s.ExecuteBalanceFulfillment(ctx, o.ID))
+			require.Zero(t, users.getByIDUser.Balance)
+			require.Zero(t, codes.createCalls)
 		})
 	}
 }

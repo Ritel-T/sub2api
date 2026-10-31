@@ -509,8 +509,9 @@ func (s *PaymentService) holdGelvRefund(ctx context.Context, o *dbent.PaymentOrd
 	return s.persistGelvReconciliationBlock(ctx, o, "refund_pending", metadata)
 }
 
-// The row lock is shared with redemption. Every observation advances generation,
-// including identical repeated holds, to invalidate a delayed clear query.
+// The row lock is shared with redemption. Repeated pending holds always advance
+// generation to invalidate a delayed clear query. Permanent blocks advance only
+// when their retained evidence changes; identical adverse queries do not write.
 func (s *PaymentService) persistGelvReconciliationBlock(ctx context.Context, o *dbent.PaymentOrder, reason string, metadata map[string]string) error {
 	if len(metadata) > 0 {
 		if err := validateGelvMetadata(o, metadata); err != nil {
@@ -539,12 +540,12 @@ func (s *PaymentService) persistGelvReconciliationBlock(ctx context.Context, o *
 	for key, value := range current.ProviderSnapshot {
 		snapshot[key] = value
 	}
-	generation := psSnapshotIntValue(snapshot["gelv_observation_generation"])
-	snapshot["gelv_observation_generation"] = strconv.Itoa(generation + 1)
+	changed := reason == "refund_pending" || metadata["refund_pending"] == "true"
 	if reason == "refund_pending" {
 		snapshot["gelv_refund_pending"] = "true"
-	} else if snapshot["gelv_reconciliation_blocked"] != "confirmed_refund" {
+	} else if snapshot["gelv_reconciliation_blocked"] != "confirmed_refund" && snapshot["gelv_reconciliation_blocked"] != reason {
 		snapshot["gelv_reconciliation_blocked"] = reason
+		changed = true
 	}
 	// Confirmed refunded cash is monotonic. A stale zero or smaller partial
 	// observation cannot erase an already observed refund or its blocker.
@@ -554,14 +555,25 @@ func (s *PaymentService) persistGelvReconciliationBlock(ctx context.Context, o *
 		if parseErr == nil && incoming >= 0 && (previousErr != nil || incoming > previous) {
 			previous = incoming
 			snapshot["gelv_refunded_minor"] = strconv.FormatInt(incoming, 10)
+			changed = true
 		}
 	}
-	if previous > 0 {
+	if previous > 0 && snapshot["gelv_reconciliation_blocked"] != "confirmed_refund" {
 		snapshot["gelv_reconciliation_blocked"] = "confirmed_refund"
+		changed = true
 	}
-	if value := metadata["channel_verification_status"]; value != "" {
+	if value := metadata["channel_verification_status"]; value != "" && snapshot["gelv_observed_verification_status"] != value {
 		snapshot["gelv_observed_verification_status"] = value
+		changed = true
 	}
+	if !changed {
+		// Refresh a stale caller from the locked row without changing its
+		// snapshot, updated_at, generation, or audit trail.
+		o.ProviderSnapshot = snapshot
+		return nil
+	}
+	generation := psSnapshotIntValue(snapshot["gelv_observation_generation"])
+	snapshot["gelv_observation_generation"] = strconv.Itoa(generation + 1)
 	if _, err = tx.PaymentOrder.UpdateOneID(o.ID).SetProviderSnapshot(snapshot).Save(ctx); err != nil {
 		return err
 	}
