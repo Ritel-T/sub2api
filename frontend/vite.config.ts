@@ -2,10 +2,32 @@ import { defineConfig, loadEnv, Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
+import { readdirSync, unlinkSync } from 'node:fs'
 
 import { validateAccountOrigin } from './src/utils/accountOrigin'
 
 import { injectBranding } from './build/firstPaintBranding'
+
+
+/** Original TTFs remain recovery inputs in source, outside the shipped runtime. */
+function shipWoff2Only(): Plugin {
+  let output = ''
+  return {
+    name: 'ritel-woff2-runtime',
+    apply: 'build',
+    configResolved(config) { output = resolve(config.root, config.build.outDir, 'brand') },
+    closeBundle() {
+      function visit(directory: string) {
+        for (const entry of readdirSync(directory, { withFileTypes: true })) {
+          const file = resolve(directory, entry.name)
+          if (entry.isDirectory()) visit(file)
+          else if (entry.isFile() && /\.ttf$/i.test(entry.name)) unlinkSync(file)
+        }
+      }
+      visit(output)
+    }
+  }
+}
 
 /**
  * Vite 插件：开发模式下注入公开配置到 index.html
@@ -48,6 +70,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
+      shipWoff2Only(),
       checker({
         vueTsc: true,
         // build and verify:release run vue-tsc before bundling; keep live dev checks.

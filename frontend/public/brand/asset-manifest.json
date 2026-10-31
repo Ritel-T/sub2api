@@ -54,8 +54,8 @@
       "bytes": 1512
     },
     "font-subsets.json": {
-      "sha256": "4ed258e8ea5c1f9d3502677b6bdeb0444d1d164e42edc6745d04f4086ddc3945",
-      "bytes": 286384
+      "sha256": "13b96d5db3cf036433415a4f2eeca00dce8d3a75f73562efece4bf3cb3ce65a6",
+      "bytes": 285331
     },
     "fonts/chiron/LICENSE.md": {
       "sha256": "f610abd1c4f410c07fe99e6be924a500e577a378b182a73c691527e2e368c96f",
@@ -2022,8 +2022,8 @@
       "bytes": 216494
     },
     "priority-codepoints.json": {
-      "sha256": "c90210b4111baac1d209052f9a971f1d9bf8f24a0edf4f8e53dffeaa87c6c72f",
-      "bytes": 1777
+      "sha256": "e19d5e81ab7447a620c8e80457e79cf3cc48648bd40f1dcd4909772b0170961f",
+      "bytes": 2004
     },
     "ritel-favicon.svg": {
       "sha256": "4e2cb820c5c5fb56a1cf48c8150e067258eead84eccda80bd49c5aeb90be7078",

@@ -2,7 +2,7 @@
   "schema": 1,
   "purpose": "Prioritize observed public home-page characters without removing any source repertoire.",
   "source": "site-navigation/index.html",
-  "source_sha256": "c8f362592e34a298ca8727178003d3c1b08257acd25c944618c9132502152bef",
+  "source_sha256": "b1081f53a79f0df5618350b5171f57781c9d6ce2c4b77fc245c59b462cd2ff58",
   "includes": "Visible HTML and public locale attribute strings for en, zh-CN and zh-HK; script/style excluded.",
   "codepoints": [
     169,
@@ -132,5 +132,7 @@
     38627,
     40670,
     65292
-  ]
+  ],
+  "semantic_parent_sha256": "c8f362592e34a298ca8727178003d3c1b08257acd25c944618c9132502152bef",
+  "integration_note": "Only preload, icon, cache-key and logo URL attributes changed; the observed text repertoire is unchanged."
 }
