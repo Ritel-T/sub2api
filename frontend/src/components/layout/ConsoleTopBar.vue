@@ -277,7 +277,7 @@ function scheduleMeasure() {
   cancelAnimationFrame(measureFrame)
   measureFrame = requestAnimationFrame(measureNavigation)
 }
-watch([locale, sections, workspace], async () => { await nextTick(); scheduleMeasure() })
+watch([locale, sections, workspace, siteName], async () => { await nextTick(); scheduleMeasure() })
 
 
 const displayName = computed(() => {
@@ -388,6 +388,21 @@ onBeforeUnmount(() => {
   letter-spacing: -.025em;
   white-space: nowrap;
 }
+.console-top-bar-compact .console-top-bar-left {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.console-top-bar-compact .console-wordmark {
+  min-width: 0;
+}
+.console-top-bar-compact .console-wordmark-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.console-top-bar-compact .console-top-bar-left > .console-icon-btn {
+  flex-shrink: 0;
+}
+
 .console-workspace-switch {
   display: flex;
   align-items: center;
