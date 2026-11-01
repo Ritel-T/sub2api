@@ -97,7 +97,7 @@ const {
 const sidebarRef = ref<HTMLElement | null>(null)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
-const siteName = BRAND_NAME
+const siteName = computed(() => appStore.siteName || BRAND_NAME)
 const siteLogo = BRAND_LOGO
 const siteVersion = computed(() => appStore.siteVersion)
 let mobileOpener: HTMLElement | null = null

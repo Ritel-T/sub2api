@@ -22,6 +22,7 @@ let tourActive = false
 let navigation: ConsoleNavSource | undefined
 let appState: {
   cachedPublicSettings: { payment_enabled?: boolean; subscription_enabled?: boolean; payment_balance_disabled?: boolean; custom_menu_items?: CustomMenuItem[] }
+  siteName: string
   mobileOpen: boolean
   backendModeEnabled: boolean
   docUrl: string
@@ -103,6 +104,7 @@ beforeEach(() => {
   })
   appState = reactive({
     cachedPublicSettings: { payment_enabled: false, subscription_enabled: false, payment_balance_disabled: false },
+    siteName: 'Ritel.SI API',
     mobileOpen: false,
     setMobileOpen(value: boolean) { this.mobileOpen = value },
     backendModeEnabled: false, docUrl: '', siteVersion: 'test',
@@ -113,6 +115,21 @@ beforeEach(() => {
 })
 
 afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.restoreAllMocks() })
+
+describe('AppSidebar configured title', () => {
+  it('renders and reactively updates the saved site name in the mobile drawer', async () => {
+    const view = mountSidebar()
+    expect(view.get('.sidebar-brand-title').text()).toBe('Ritel.SI API')
+    appState.siteName = 'Updated API Console'
+    await nextTick()
+    expect(view.get('.sidebar-brand-title').text()).toBe('Updated API Console')
+  })
+
+  it('uses the family brand when no site name is configured', () => {
+    appState.siteName = ''
+    expect(mountSidebar().get('.sidebar-brand-title').text()).toBe('Ritel.SI')
+  })
+})
 
 describe('AppSidebar merchant payment pilot', () => {
   it('shows recharge, owned orders, and admin payments only after fresh explicit protected authorization', async () => {

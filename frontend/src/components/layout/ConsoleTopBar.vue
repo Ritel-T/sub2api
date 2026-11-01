@@ -225,7 +225,7 @@ const {
   searchItems, homePath, switchWorkspace, handleNavigate,
 } = useConsoleNav()
 
-const siteName = BRAND_NAME
+const siteName = computed(() => appStore.siteName || BRAND_NAME)
 const siteLogo = BRAND_LOGO
 const siteVersion = computed(() => appStore.siteVersion)
 const isAdmin = computed(() => authStore.isAdmin)

@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { shallowMount, type VueWrapper } from '@vue/test-utils'
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import ConsoleTopBar from '../ConsoleTopBar.vue'
 import { SETTINGS_LEAVE_GUARD } from '@/composables/useSettingsDrafts'
 import { consoleNavigationText } from '@/navigation/consoleNavigation'
 
 const locale = ref('en')
-const app = reactive({ mobileOpen: false, backendModeEnabled: false, docUrl: '', siteVersion: 'test', publicSettingsLoaded: true, contactInfo: '', toggleMobileSidebar: vi.fn() })
+const app = reactive({ siteName: 'Ritel.SI API', mobileOpen: false, backendModeEnabled: false, docUrl: '', siteVersion: 'test', publicSettingsLoaded: true, contactInfo: '', toggleMobileSidebar: vi.fn() })
 const auth = reactive({ logout: vi.fn().mockResolvedValue(undefined), isAdmin: false, isObserver: false, user: { username: 'Preview', email: 'preview@example.invalid', balance: 20, frozen_balance: 5, avatar_url: '' } })
 const section = { key: 'support', label: 'Support', path: '/support-tickets', tabs: [], badge: () => 3 }
 const nav = {
@@ -26,12 +26,29 @@ vi.mock('@/components/common/AnnouncementBell.vue', () => ({ default: { template
 vi.mock('../FeatureSearch.vue', () => ({ default: { name: 'FeatureSearch', template: '<span />' } }))
 
 let wrapper: VueWrapper
-beforeEach(() => { app.mobileOpen = false; app.toggleMobileSidebar.mockClear(); auth.logout.mockClear(); locale.value = 'en'; auth.isObserver = false; app.backendModeEnabled = false; auth.user.frozen_balance = 5; section.badge = () => 3 })
+beforeEach(() => { app.siteName = 'Ritel.SI API'; app.mobileOpen = false; app.toggleMobileSidebar.mockClear(); auth.logout.mockClear(); locale.value = 'en'; auth.isObserver = false; app.backendModeEnabled = false; auth.user.frozen_balance = 5; section.badge = () => 3 })
 afterEach(() => { wrapper?.unmount() })
 function mountBar(guard?: () => Promise<boolean>) {
   wrapper = shallowMount(ConsoleTopBar, { attachTo: document.body, global: { provide: guard ? { [SETTINGS_LEAVE_GUARD as symbol]: guard } : {}, stubs: { transition: false, RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
   return wrapper
 }
+describe('console configured title', () => {
+  it('renders and reactively updates the saved site name and accessible label', async () => {
+    const view = mountBar()
+    expect(view.get('.console-wordmark-name').text()).toBe('Ritel.SI API')
+    expect(view.get('.console-wordmark').attributes('aria-label')).toBe('Ritel.SI API')
+    app.siteName = 'Updated API Console'
+    await nextTick()
+    expect(view.get('.console-wordmark-name').text()).toBe('Updated API Console')
+    expect(view.get('.console-wordmark').attributes('aria-label')).toBe('Updated API Console')
+  })
+
+  it('uses the family brand when no site name is configured', () => {
+    app.siteName = ''
+    expect(mountBar().get('.console-wordmark-name').text()).toBe('Ritel.SI')
+  })
+})
+
 describe('console utility access and balance semantics', () => {
   it.each([false, true])('asks the settings guard before ending the session (approved=%s)', async approved => {
     const guard = vi.fn().mockResolvedValue(approved); const view = mountBar(guard);
