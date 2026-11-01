@@ -81,6 +81,19 @@ describe('AdminAffiliateRecordsTable', () => {
     localStorage.clear()
   })
 
+  it('R1 groups USD totals and CNY payments without changing their currency or data', async () => {
+    const row = { order_id: 1, out_trade_no: 'LOCAL-R1', inviter_id: 1, inviter_email: '', inviter_username: 'Fixture', invitee_id: 2, invitee_email: '', invitee_username: 'Fixture', order_amount: 1234.5, pay_amount: 1234.5, rebate_amount: 1234.5, payment_type: 'alipay', order_status: 'COMPLETED', created_at: '2026-10-31T12:00:00Z' }
+    listRebateRecords.mockResolvedValue(page([row]))
+    const wrapper = mountTable('rebates')
+    await flushPromises()
+    const rendered = wrapper.get('[data-test="row-0"]')
+    expect(rendered.get('[data-test="cell-order_amount"]').text()).toBe('$1,234.50')
+    expect(rendered.get('[data-test="cell-rebate_amount"]').text()).toBe('$1,234.50')
+    expect(rendered.get('[data-test="cell-pay_amount"]').text()).toBe('¥1,234.50')
+    expect([row.order_amount, row.pay_amount, row.rebate_amount]).toEqual([1234.5, 1234.5, 1234.5])
+    wrapper.unmount()
+  })
+
   it('renders non-order rebate accruals with empty order fields', async () => {
     listRebateRecords.mockResolvedValue(page([
       {

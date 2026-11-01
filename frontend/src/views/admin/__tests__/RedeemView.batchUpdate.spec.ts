@@ -145,6 +145,21 @@ describe('admin RedeemView batch update', () => {
     getAllGroups.mockResolvedValue([])
   })
 
+  it('R1 renders a large balance in grouped USD without changing the redeem value', async () => {
+    const row = { id: 1, code: 'LOCAL-R1', type: 'balance', value: 1234.5, status: 'unused', used_by: null, used_at: null, created_at: '2026-10-31T12:00:00Z', expires_at: null }
+    listRedeemCodes.mockResolvedValueOnce({ items: [row], total: 1, page: 1, page_size: 20, pages: 1 })
+    const wrapper = mount(RedeemView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' },
+      TablePageLayout: { template: '<div><slot name="table" /></div>' },
+      DataTable: DataTableStub, Select: SelectStub, ConfirmDialog: true, Icon: true, GroupBadge: true, GroupOptionItem: true, Teleport: true
+    } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('$1,234.50')
+    expect(row.value).toBe(1234.5)
+    expect(batchUpdateRedeemCodes).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('retains native form association and busy close protection after moving actions into the shared footer', async () => {
     const wrapper = mount(RedeemView, { attachTo: document.body, global: { stubs: {
       AppLayout: { template: '<div><slot /></div>' },

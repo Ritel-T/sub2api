@@ -2,18 +2,35 @@ const contextRoute = vi.hoisted(() => ({ query: {} as Record<string, string> }))
 vi.mock('vue-router', () => ({ useRoute: () => contextRoute }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
+import { browserTimezone, formatTimestamp } from '@/utils/consoleDisplay'
 import { mount, flushPromises } from '@vue/test-utils'
 import PrioritySchedulingView from '../PrioritySchedulingView.vue'
 import { getPriorityConfig, getPrioritySnapshot, savePriorityConfig, type PrioritySchedulingConfig, type PriorityCandidate } from '@/api/admin/priorityScheduling'
 const state = vi.hoisted(() => ({ auth: null as any }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => state.auth }))
-vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<main><slot /></main>' } }))
+vi.mock('@/components/layout/AppLayout.vue', async () => {
+  const { browserTimezone } = await import('@/utils/consoleDisplay')
+  return { default: { setup: () => ({ browserTimezone }), template: '<main><p data-testid="browser-timezone">{{ browserTimezone() }}</p><slot /></main>' } }
+})
 vi.mock('@/components/admin/operations/SmartOpsNav.vue', () => ({ default: { template: '<nav />' } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/api/admin/priorityScheduling', () => ({ getPriorityConfig: vi.fn(), getPrioritySnapshot: vi.fn(), savePriorityConfig: vi.fn() }))
 const config: PrioritySchedulingConfig = { error_rate_weight: 25, error_rate_window_minutes: 10, error_rate_prior_samples: 5, latency_percentile: 90, latency_measurement: 'legacy_forward', recovery_exploration_percent: 0, oauth_quota_priority: false, oauth_quota_threshold: 90, balance_protocols: true, enabled: false, mode: 'balanced', group_ids: [], models: [], window_minutes: 60, min_samples: 5, target_ttft_ms: 3000, latency_penalty_mode: 'deprioritize', latency_penalty_minutes: 10, max_load_percent: 80, min_quality_percent: 90, quality_max_age_hours: 24, quality_weight: 30, latency_weight: 25, load_weight: 25, cost_weight: 20 }
 beforeEach(() => { vi.resetAllMocks(); contextRoute.query = {}; state.auth = reactive({ user: { id: 1, role: 'admin' } }); vi.mocked(getPriorityConfig).mockResolvedValue({ ...config }); vi.mocked(getPrioritySnapshot).mockResolvedValue(null); vi.mocked(savePriorityConfig).mockImplementation(async c => c) })
 describe('priority scheduling', () => {
+  it('R1 renders usage-source profit and revenue totals with two grouped USD decimals', async () => {
+    const candidate: PriorityCandidate = { account_id: 1, account_name: 'Local R1', score: 75, tier: 'eligible', reasons: [], priority: 1, concurrency: 10, load_factor: 10, load_percent: 0, waiting: 0, rate: 0.1234, revenue: 2469, theoretical_cost: 1234.5, profit: 1234.5, margin: 0.5, economics_source: 'usage', profit_samples: 7, samples: 7, p90_ttft_ms: 100, quality_passed: 10, quality_samples: 10 }
+    vi.mocked(getPrioritySnapshot).mockResolvedValue({ at: '2026-10-31T12:00:00Z', model: 'local-r1', group_id: 1, mode: 'profit', history_ready: true, candidates: [candidate] })
+    const wrapper = mount(PrioritySchedulingView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('$1,234.50 · 50.0%')
+    expect(wrapper.text()).toContain('$2,469.00 − $1,234.50')
+    expect(wrapper.text()).not.toContain('$1234.5000')
+    expect([candidate.profit, candidate.revenue, candidate.theoretical_cost, candidate.rate]).toEqual([1234.5, 2469, 1234.5, 0.1234])
+    expect(savePriorityConfig).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('scopes only snapshot candidates without converting global configuration into account settings', async () => {
     contextRoute.query.account_id = '2'
     vi.mocked(getPrioritySnapshot).mockResolvedValue({ at: '', model: 'test', mode: 'balanced', candidates: [{ account_id: 1, score: 10 }, { account_id: 2, score: 20 }] } as any)
@@ -33,7 +50,9 @@ describe('priority scheduling', () => {
     expect(first.text()).toContain('priorityScheduling.errorAttempts: 1 / 4')
     expect(first.text()).toContain('priorityScheduling.errorInsufficientSamples')
     expect(first.text()).toContain('priorityScheduling.errorObservedAt')
-    expect(first.text()).toContain(new Date('2026-10-22T01:02:03Z').toLocaleString())
+    expect(first.findAll('small').find(item => item.text().startsWith('priorityScheduling.errorObservedAt:'))?.text()).toBe('priorityScheduling.errorObservedAt: ' + formatTimestamp('2026-10-22T01:02:03Z'))
+    expect(formatTimestamp('2026-10-22T01:02:03Z')).toMatch(/^\d{4}-\d{2}-\d{2} (?:[01]\d|2[0-3]):[0-5]\d$/)
+    expect(wrapper.get('[data-testid="browser-timezone"]').text()).toBe(browserTimezone())
     expect(first.text()).toContain('/v1/responses')
     expect(first.text()).toContain('0.900')
     expect(first.attributes('title')).toBe('priorityScheduling.errorRateHint')
@@ -192,18 +211,20 @@ describe('priority history refresh', () => {
     const at = '2026-10-22T01:00:00Z'
     vi.mocked(getPrioritySnapshot).mockResolvedValue({ at, evaluated_at: '2026-10-22T01:05:00Z', model: 'test', group_id: 1, mode: 'balanced', history_ready: true, history_status: 'ready', candidates: [candidate] })
     const wrapper = mount(PrioritySchedulingView); await flushPromises()
-    expect(wrapper.get('[data-testid="priority-snapshot-at"]').text()).toContain(new Date(at).toLocaleString())
-    expect(wrapper.get('[data-testid="priority-evaluated-at"]').text()).toContain(new Date('2026-10-22T01:05:00Z').toLocaleString())
+    expect(wrapper.get('[data-testid="priority-snapshot-at"]').text()).toBe(formatTimestamp(at) + ' · priorityScheduling.model: test · priorityScheduling.group: 1 · priorityScheduling.modes.balanced')
+    expect(wrapper.get('[data-testid="browser-timezone"]').text()).toBe(browserTimezone())
+    expect(wrapper.get('[data-testid="priority-evaluated-at"]').text()).toContain(formatTimestamp('2026-10-22T01:05:00Z'))
     expect(wrapper.get('[data-testid="error-rate-1"]').text()).toContain('50.0%')
     expect(wrapper.get('[data-testid="error-rate-1"]').text()).toContain('priorityScheduling.errorObservedAt')
     vi.mocked(getPrioritySnapshot).mockResolvedValue({ at, evaluated_at: '2026-10-22T01:06:00Z', model: 'test', group_id: 1, mode: 'balanced', history_ready: true, history_status: 'ready', candidates: [{ ...candidate, error_rate: 0.2, error_successes: 8, error_failures: 2, error_observed_at: '2026-10-22T01:06:00Z' }] })
     await (wrapper.vm as any).refresh(); await flushPromises()
-    expect(wrapper.get('[data-testid="priority-snapshot-at"]').text()).toContain(new Date(at).toLocaleString())
-    expect(wrapper.get('[data-testid="priority-evaluated-at"]').text()).toContain(new Date('2026-10-22T01:06:00Z').toLocaleString())
+    expect(wrapper.get('[data-testid="priority-snapshot-at"]').text()).toBe(formatTimestamp(at) + ' · priorityScheduling.model: test · priorityScheduling.group: 1 · priorityScheduling.modes.balanced')
+    expect(wrapper.get('[data-testid="browser-timezone"]').text()).toBe(browserTimezone())
+    expect(wrapper.get('[data-testid="priority-evaluated-at"]').text()).toContain(formatTimestamp('2026-10-22T01:06:00Z'))
     const evidence = wrapper.get('[data-testid="error-rate-1"]').text()
     expect(evidence).toContain('20.0%')
     expect(evidence).toContain('priorityScheduling.errorAttempts: 2 / 10')
-    expect(evidence).toContain(new Date('2026-10-22T01:06:00Z').toLocaleString())
+    expect(evidence).toContain(formatTimestamp('2026-10-22T01:06:00Z'))
     wrapper.unmount()
   })
   it.each([true, false])('picks up history while refreshing=%s and continues bounded polling after an empty completed read', async (refreshing) => {

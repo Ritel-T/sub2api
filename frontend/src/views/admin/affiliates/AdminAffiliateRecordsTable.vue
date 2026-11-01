@@ -171,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { displayOrderNumber } from '@/utils/consoleDisplay'
+import { displayOrderNumber, formatAmount } from '@/utils/consoleDisplay'
 import { computed, defineComponent, h, onMounted, onUnmounted, watch, reactive, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -331,10 +331,6 @@ function outflowTypeLabel(action: string | null | undefined): string {
   return action === 'withdraw'
     ? t('admin.affiliates.outflowTypes.withdraw')
     : t('admin.affiliates.outflowTypes.transfer')
-}
-
-function formatAmount(value: number | null | undefined): string {
-  return Number(value || 0).toFixed(2)
 }
 
 function formatPercent(value: number | null | undefined): string {
