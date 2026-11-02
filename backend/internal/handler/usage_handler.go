@@ -534,7 +534,8 @@ func (h *UsageHandler) DashboardStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.usageService.GetUserDashboardStats(c.Request.Context(), subject.UserID)
+	ctx := timezone.WithUserDay(c.Request.Context(), c.Query("timezone"))
+	stats, err := h.usageService.GetUserDashboardStats(ctx, subject.UserID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

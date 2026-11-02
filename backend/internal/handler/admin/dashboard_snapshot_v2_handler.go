@@ -55,6 +55,8 @@ type dashboardSnapshotV2Filters struct {
 }
 
 type dashboardSnapshotV2CacheKey struct {
+	TodayStart            string `json:"today_start"`
+	TodayEnd              string `json:"today_end"`
 	StartTime             string `json:"start_time"`
 	EndTime               string `json:"end_time"`
 	Granularity           string `json:"granularity"`
@@ -79,6 +81,8 @@ type dashboardSnapshotV2CacheKey struct {
 }
 
 func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
+	ctx := timezone.WithUserDay(c.Request.Context(), c.Query("timezone"))
+	todayStart, todayEnd := timezone.DayRange(ctx)
 	startTime, endTime, err := parseTimeRange(c)
 	if err != nil {
 		response.BadRequest(c, err.Error())
@@ -108,6 +112,8 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 	}
 
 	keyRaw, _ := json.Marshal(dashboardSnapshotV2CacheKey{
+		TodayStart: todayStart.UTC().Format(time.RFC3339),
+		TodayEnd:   todayEnd.UTC().Format(time.RFC3339),
 		// This outer cache stores display metadata as well as data. Keep the
 		// caller offsets distinct; inner data-only caches normalize instants to UTC.
 		StartTime:             startTime.Format(time.RFC3339Nano),
@@ -136,7 +142,7 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 
 	cached, hit, err := dashboardSnapshotV2Cache.GetOrLoad(cacheKey, func() (any, error) {
 		return h.buildSnapshotV2Response(
-			c.Request.Context(),
+			ctx,
 			startTime,
 			endTime,
 			granularity,

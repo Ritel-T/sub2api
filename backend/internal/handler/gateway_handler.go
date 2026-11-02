@@ -1612,7 +1612,7 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
+	ctx := timezone.WithUserDay(c.Request.Context(), c.Query("timezone"))
 
 	// 解析可选的日期范围参数（用于 model_stats 查询）
 	startTime, endTime := h.parseUsageDateRange(c)
@@ -1647,17 +1647,18 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 
 // parseUsageDateRange 解析 start_date / end_date query params，默认返回近 30 天范围
 func (h *GatewayHandler) parseUsageDateRange(c *gin.Context) (time.Time, time.Time) {
-	now := timezone.Now()
+	userTZ := c.Query("timezone")
+	now := timezone.NowInUserLocation(userTZ)
 	endTime := now
 	startTime := now.AddDate(0, 0, -30)
 
 	if s := c.Query("start_date"); s != "" {
-		if t, err := timezone.ParseInLocation("2006-01-02", s); err == nil {
+		if t, err := timezone.ParseInUserLocation("2006-01-02", s, userTZ); err == nil {
 			startTime = t
 		}
 	}
 	if s := c.Query("end_date"); s != "" {
-		if t, err := timezone.ParseInLocation("2006-01-02", s); err == nil {
+		if t, err := timezone.ParseInUserLocation("2006-01-02", s, userTZ); err == nil {
 			endTime = t.AddDate(0, 0, 1) // half-open range upper bound
 		}
 	}

@@ -81,13 +81,22 @@ type DashboardStats = usagestats.DashboardStats
 func (r *usageLogRepository) GetDashboardStats(ctx context.Context) (*DashboardStats, error) {
 	stats := &DashboardStats{}
 	now := timezone.Now()
-	todayStart := timezone.Today()
+	todayStart := timezone.StartOfDay(now)
 
-	if err := r.fillDashboardEntityStats(ctx, stats, todayStart, now); err != nil {
+	if err := r.fillDashboardEntityStats(ctx, stats, todayStart, todayStart.AddDate(0, 0, 1), now); err != nil {
 		return nil, err
 	}
 	if err := r.fillDashboardUsageStatsAggregated(ctx, stats, todayStart, now); err != nil {
 		return nil, err
+	}
+
+	dayStart, dayEnd := timezone.DayRange(ctx)
+	if !dayStart.Equal(todayStart) || !dayEnd.Equal(todayStart.AddDate(0, 0, 1)) {
+		// Rollups retain their configured reporting day; only request-day fields
+		// are read from the bounded raw window when the browser day differs.
+		if err := r.fillDashboardTodayStats(ctx, stats, dayStart.UTC(), dayEnd.UTC()); err != nil {
+			return nil, err
+		}
 	}
 
 	rpm, tpm, err := r.getPerformanceStats(ctx, 0)
@@ -109,12 +118,12 @@ func (r *usageLogRepository) GetDashboardStatsWithRange(ctx context.Context, sta
 
 	stats := &DashboardStats{}
 	now := timezone.Now()
-	todayStart := timezone.Today()
+	todayStart, todayEnd := timezone.DayRange(ctx)
 
-	if err := r.fillDashboardEntityStats(ctx, stats, todayStart, now); err != nil {
+	if err := r.fillDashboardEntityStats(ctx, stats, todayStart, todayEnd, now); err != nil {
 		return nil, err
 	}
-	if err := r.fillDashboardUsageStatsFromUsageLogs(ctx, stats, startUTC, endUTC, todayStart, now); err != nil {
+	if err := r.fillDashboardUsageStatsFromUsageLogs(ctx, stats, startUTC, endUTC, todayStart, todayEnd, now); err != nil {
 		return nil, err
 	}
 
@@ -128,11 +137,11 @@ func (r *usageLogRepository) GetDashboardStatsWithRange(ctx context.Context, sta
 	return stats, nil
 }
 
-func (r *usageLogRepository) fillDashboardEntityStats(ctx context.Context, stats *DashboardStats, todayUTC, now time.Time) error {
+func (r *usageLogRepository) fillDashboardEntityStats(ctx context.Context, stats *DashboardStats, todayUTC, todayEnd, now time.Time) error {
 	userStatsQuery := `
 		SELECT
 			COUNT(*) as total_users,
-			COUNT(CASE WHEN created_at >= $1 THEN 1 END) as today_new_users
+			COUNT(CASE WHEN created_at >= $1 AND created_at < $2 THEN 1 END) as today_new_users
 		FROM users
 		WHERE deleted_at IS NULL
 	`
@@ -140,7 +149,7 @@ func (r *usageLogRepository) fillDashboardEntityStats(ctx context.Context, stats
 		ctx,
 		r.sql,
 		userStatsQuery,
-		[]any{todayUTC},
+		[]any{todayUTC, todayEnd},
 		&stats.TotalUsers,
 		&stats.TodayNewUsers,
 	); err != nil {
@@ -279,8 +288,36 @@ func (r *usageLogRepository) fillDashboardUsageStatsAggregated(ctx context.Conte
 	return nil
 }
 
-func (r *usageLogRepository) fillDashboardUsageStatsFromUsageLogs(ctx context.Context, stats *DashboardStats, startUTC, endUTC, todayUTC, now time.Time) error {
-	todayEnd := todayUTC.Add(24 * time.Hour)
+// fillDashboardTodayStats leaves rollup lifetime and current-hour fields intact.
+func (r *usageLogRepository) fillDashboardTodayStats(ctx context.Context, stats *DashboardStats, start, end time.Time) error {
+	query := `
+		SELECT
+			COUNT(*),
+			COALESCE(SUM(input_tokens), 0),
+			COALESCE(SUM(output_tokens), 0),
+			COALESCE(SUM(cache_creation_tokens), 0),
+			COALESCE(SUM(cache_read_tokens), 0),
+			COALESCE(SUM(total_cost), 0),
+			COALESCE(SUM(actual_cost), 0),
+			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0),
+			COUNT(DISTINCT user_id)
+		FROM usage_logs
+		WHERE created_at >= $1 AND created_at < $2
+	`
+	if err := scanSingleRow(ctx, r.sql, query, []any{start, end},
+		&stats.TodayRequests, &stats.TodayInputTokens, &stats.TodayOutputTokens,
+		&stats.TodayCacheCreationTokens, &stats.TodayCacheReadTokens,
+		&stats.TodayCost, &stats.TodayActualCost, &stats.TodayAccountCost, &stats.ActiveUsers,
+	); err != nil {
+		return err
+	}
+	stats.TodayTokens = stats.TodayInputTokens + stats.TodayOutputTokens + stats.TodayCacheCreationTokens + stats.TodayCacheReadTokens
+	return scanSingleRow(ctx, r.sql,
+		"SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND created_at >= $1 AND created_at < $2",
+		[]any{start, end}, &stats.TodayNewUsers)
+}
+
+func (r *usageLogRepository) fillDashboardUsageStatsFromUsageLogs(ctx context.Context, stats *DashboardStats, startUTC, endUTC, todayUTC, todayEnd, now time.Time) error {
 	combinedStatsQuery := `
 		WITH scoped AS (
 			SELECT
@@ -380,7 +417,7 @@ type PlatformDashboardStats = usagestats.PlatformDashboardStats
 // GetUserDashboardStats 获取用户专属的仪表盘统计
 func (r *usageLogRepository) GetUserDashboardStats(ctx context.Context, userID int64) (*UserDashboardStats, error) {
 	stats := &UserDashboardStats{}
-	today := timezone.Today()
+	today, todayEnd := timezone.DayRange(ctx)
 
 	// API Key 统计
 	if err := scanSingleRow(
@@ -445,13 +482,13 @@ func (r *usageLogRepository) GetUserDashboardStats(ctx context.Context, userID i
 			COALESCE(SUM(total_cost), 0) as today_cost,
 			COALESCE(SUM(actual_cost), 0) as today_actual_cost
 		FROM usage_logs
-		WHERE user_id = $1 AND created_at >= $2
+		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3
 	`
 	if err := scanSingleRow(
 		ctx,
 		r.sql,
 		todayStatsQuery,
-		[]any{userID, today},
+		[]any{userID, today, todayEnd},
 		&stats.TodayRequests,
 		&stats.TodayInputTokens,
 		&stats.TodayOutputTokens,
@@ -484,9 +521,9 @@ func (r *usageLogRepository) GetUserDashboardStats(ctx context.Context, userID i
 			COUNT(*) as total_requests,
 			COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens), 0) as total_tokens,
 			COALESCE(SUM(ul.actual_cost), 0) as total_actual_cost,
-			COUNT(*) FILTER (WHERE ul.created_at >= $2) as today_requests,
-			COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens) FILTER (WHERE ul.created_at >= $2), 0) as today_tokens,
-			COALESCE(SUM(ul.actual_cost) FILTER (WHERE ul.created_at >= $2), 0) as today_actual_cost
+			COUNT(*) FILTER (WHERE ul.created_at >= $2 AND ul.created_at < $3) as today_requests,
+			COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens) FILTER (WHERE ul.created_at >= $2 AND ul.created_at < $3), 0) as today_tokens,
+			COALESCE(SUM(ul.actual_cost) FILTER (WHERE ul.created_at >= $2 AND ul.created_at < $3), 0) as today_actual_cost
 		FROM usage_logs ul
 		LEFT JOIN groups g ON g.id = ul.group_id
 		LEFT JOIN accounts a ON a.id = ul.account_id
@@ -496,7 +533,7 @@ func (r *usageLogRepository) GetUserDashboardStats(ctx context.Context, userID i
 		HAVING ` + usageLogEffectivePlatformExpr + ` IS NOT NULL AND ` + usageLogEffectivePlatformExpr + ` <> ''
 		ORDER BY total_actual_cost DESC
 	`
-	rows, err := r.sql.QueryContext(ctx, platformQuery, userID, today)
+	rows, err := r.sql.QueryContext(ctx, platformQuery, userID, today, todayEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -548,7 +585,7 @@ func (r *usageLogRepository) getPerformanceStatsByAPIKey(ctx context.Context, ap
 // GetAPIKeyDashboardStats 获取指定 API Key 的仪表盘统计（按 api_key_id 过滤）
 func (r *usageLogRepository) GetAPIKeyDashboardStats(ctx context.Context, apiKeyID int64) (*UserDashboardStats, error) {
 	stats := &UserDashboardStats{}
-	today := timezone.Today()
+	today, todayEnd := timezone.DayRange(ctx)
 
 	// API Key 维度不需要统计 key 数量，设为 1
 	stats.TotalAPIKeys = 1
@@ -597,13 +634,13 @@ func (r *usageLogRepository) GetAPIKeyDashboardStats(ctx context.Context, apiKey
 			COALESCE(SUM(total_cost), 0) as today_cost,
 			COALESCE(SUM(actual_cost), 0) as today_actual_cost
 		FROM usage_logs
-		WHERE api_key_id = $1 AND created_at >= $2
+		WHERE api_key_id = $1 AND created_at >= $2 AND created_at < $3
 	`
 	if err := scanSingleRow(
 		ctx,
 		r.sql,
 		todayStatsQuery,
-		[]any{apiKeyID, today},
+		[]any{apiKeyID, today, todayEnd},
 		&stats.TodayRequests,
 		&stats.TodayInputTokens,
 		&stats.TodayOutputTokens,

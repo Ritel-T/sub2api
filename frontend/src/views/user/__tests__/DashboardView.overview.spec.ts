@@ -48,6 +48,17 @@ beforeEach(() => {
 })
 
 describe('overview quick workflow', () => {
+  it.each([
+    [0.123456, '$0.1235'],
+    [12.345678, '$12.3457'],
+    [1234.5678, '$1,234.5678'],
+    [1234567.8912, '$1,234,567.8912'],
+  ])('renders raw today_actual_cost %s as %s without scaling or grouped-string parsing', async (amount, expected) => {
+    api.stats.mockResolvedValue({ ...statistics, today_actual_cost: amount, today_cost: 9876543.21, total_actual_cost: 8765432.1 })
+    const wrapper = await render()
+    expect(api.stats).toHaveBeenCalledWith()
+    expect(wrapper.get('[data-test="spending"] .dashboard-spending-value').text()).toBe(expected)
+  })
   it('shows the referral invitation only while referrals are enabled', async () => {
     const wrapper = await render()
     expect(wrapper.find('[data-test="referral-entry"]').exists()).toBe(false)

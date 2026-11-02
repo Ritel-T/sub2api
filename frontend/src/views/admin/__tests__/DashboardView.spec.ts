@@ -156,6 +156,25 @@ describe('admin DashboardView', () => {
 
   afterEach(() => { vi.useRealTimers() })
 
+  it.each([
+    [0.123456, '$0.12'],
+    [12.345678, '$12.35'],
+    [1234.5678, '$1,234.57'],
+    [1234567.8912, '$1,234,567.89'],
+  ])('renders snapshot today_actual_cost %s as %s and keeps cost fields distinct', async (amount, expected) => {
+    getSnapshotV2.mockResolvedValueOnce({
+      stats: { ...createDashboardStats(), today_actual_cost: amount, today_cost: 9876543.21, today_account_cost: 7654321.09, total_actual_cost: 8765432.1 },
+      trend: [],
+      models: []
+    })
+    const wrapper = mountDashboard()
+    await flushPromises()
+    const metrics = wrapper.get('.admin-overview-secondary')
+    expect(metrics.findAll('[title="admin.dashboard.actual"]').map(node => node.text())).toEqual([expected, '$8,765,432.10'])
+    expect(metrics.findAll('[title="admin.dashboard.accountCost"]')[0].text()).toBe('$7,654,321.09')
+    expect(metrics.findAll('[title="admin.dashboard.standard"]')[0].text()).toBe('$9,876,543.21')
+  })
+
   it('shows a persistent failure with recovery and prevents duplicate snapshot requests while retrying', async () => {
     getSnapshotV2.mockRejectedValueOnce(new Error('Unavailable'))
     const wrapper = mountDashboard()

@@ -108,7 +108,7 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context) (*usagestats.D
 		if err == nil && cached != nil {
 			s.refreshAggregationStaleness(cached)
 			if !fresh {
-				s.refreshDashboardStatsAsync()
+				s.refreshDashboardStatsAsync(ctx)
 			}
 			return cached, nil
 		}
@@ -241,11 +241,11 @@ func (s *DashboardService) getCachedDashboardStats(ctx context.Context) (*usages
 
 	var entry dashboardStatsCacheEntry
 	if err := json.Unmarshal([]byte(data), &entry); err != nil {
-		s.evictDashboardStatsCache(err)
+		s.evictDashboardStatsCache(ctx, err)
 		return nil, false, ErrDashboardStatsCacheMiss
 	}
 	if entry.Stats == nil {
-		s.evictDashboardStatsCache(errors.New("仪表盘缓存缺少统计数据"))
+		s.evictDashboardStatsCache(ctx, errors.New("仪表盘缓存缺少统计数据"))
 		return nil, false, ErrDashboardStatsCacheMiss
 	}
 
@@ -259,13 +259,13 @@ func (s *DashboardService) refreshDashboardStats(ctx context.Context) (*usagesta
 		return nil, err
 	}
 	s.applyAggregationStatus(ctx, stats)
-	cacheCtx, cancel := s.cacheOperationContext()
+	cacheCtx, cancel := s.cacheOperationContext(ctx)
 	defer cancel()
 	s.saveDashboardStatsCache(cacheCtx, stats)
 	return stats, nil
 }
 
-func (s *DashboardService) refreshDashboardStatsAsync() {
+func (s *DashboardService) refreshDashboardStatsAsync(parent context.Context) {
 	if s.cache == nil {
 		return
 	}
@@ -276,7 +276,7 @@ func (s *DashboardService) refreshDashboardStatsAsync() {
 	go func() {
 		defer atomic.StoreInt32(&s.refreshing, 0)
 
-		ctx, cancel := context.WithTimeout(context.Background(), s.refreshTimeout)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), s.refreshTimeout)
 		defer cancel()
 
 		stats, err := s.fetchDashboardStats(ctx)
@@ -285,7 +285,7 @@ func (s *DashboardService) refreshDashboardStatsAsync() {
 			return
 		}
 		s.applyAggregationStatus(ctx, stats)
-		cacheCtx, cancel := s.cacheOperationContext()
+		cacheCtx, cancel := s.cacheOperationContext(ctx)
 		defer cancel()
 		s.saveDashboardStatsCache(cacheCtx, stats)
 	}()
@@ -322,11 +322,11 @@ func (s *DashboardService) saveDashboardStatsCache(ctx context.Context, stats *u
 	}
 }
 
-func (s *DashboardService) evictDashboardStatsCache(reason error) {
+func (s *DashboardService) evictDashboardStatsCache(ctx context.Context, reason error) {
 	if s.cache == nil {
 		return
 	}
-	cacheCtx, cancel := s.cacheOperationContext()
+	cacheCtx, cancel := s.cacheOperationContext(ctx)
 	defer cancel()
 
 	if err := s.cache.DeleteDashboardStats(cacheCtx); err != nil {
@@ -337,8 +337,8 @@ func (s *DashboardService) evictDashboardStatsCache(reason error) {
 	}
 }
 
-func (s *DashboardService) cacheOperationContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), s.refreshTimeout)
+func (s *DashboardService) cacheOperationContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), s.refreshTimeout)
 }
 
 func (s *DashboardService) applyAggregationStatus(ctx context.Context, stats *usagestats.DashboardStats) {

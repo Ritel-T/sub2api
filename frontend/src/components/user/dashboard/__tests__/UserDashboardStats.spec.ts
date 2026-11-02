@@ -82,6 +82,17 @@ function cardPlatforms(w: VueWrapper): string[] {
 }
 
 describe('UserDashboardStats 按平台拆分', () => {
+  it.each([
+    [0.123456, '$0.12'],
+    [12.345678, '$12.35'],
+    [1234.5678, '$1,234.57'],
+    [1234567.8912, '$1,234,567.89'],
+  ])('renders raw today_actual_cost %s as %s without mixing standard or lifetime costs', (amount, expected) => {
+    const wrapper = mountStats(makeStats({ today_actual_cost: amount, today_cost: 9876543.21, total_actual_cost: 8765432.1 }))
+    expect(wrapper.get('.open-metric-strip').findAll('[title="dashboard.actual"]').map(node => node.text())).toEqual([expected, '$8,765,432.10'])
+    expect(wrapper.findAll('[title="dashboard.standard"]')[0].text()).toBe('/ $9,876,543.21')
+    wrapper.unmount()
+  })
   it('只有用量的平台才产生卡片；三档全空的限额记录不产生卡片', () => {
     const w = mountStats(
       makeStats({ total_actual_cost: 0.03, today_actual_cost: 0.03, by_platform: [usage('grok', 0.03)] }),
