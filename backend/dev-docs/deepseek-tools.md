@@ -12,11 +12,11 @@ GATEWAY_DEEPSEEK_TOOLS_SEARCH_GROUP_ID=12
 GATEWAY_DEEPSEEK_TOOLS_SEARCH_MODEL=gpt-6-astra
 ```
 
-The group ID must identify an active OpenAI group on the actual installation; `12` is an example, not a universal ID. Only accounts admitted by that pool's existing scheduler can serve the tools. Caller keys remain assigned to their original DeepSeek group. User authentication, balance, subscription, per-key limits, platform quota and billing group are retained.
+The group ID must identify an active OpenAI group on the actual installation; `12` is an example, not a universal ID. Only accounts admitted by that pool's existing scheduler can serve the tools. For a key bound to multiple groups, the exact `/v1/tools/search` and `/v1/tools/fetch` endpoints select an eligible bound DeepSeek group before price and availability ranking. An OpenAI primary group does not prevent use of a bound DeepSeek group, and an ineligible or unavailable DeepSeek group never falls back to an OpenAI caller group. Single-group admission and normal model routing retain their existing behavior. The selected DeepSeek group is the request source and billing group; the configured OpenAI pool and model serve only as the search backend. The stored key, primary group and group bindings are not changed. User authentication, balance, subscription, per-key limits, platform quota and billing group are retained.
 
 ## Requests
 
-Send the existing DeepSeek group API key as `Authorization: Bearer ...`.
+Send the existing API key bound to a DeepSeek group as `Authorization: Bearer ...`. A shared key already bound to both OpenAI and DeepSeek groups can be used unchanged; no separate key or primary-group change is needed.
 
 ```json
 {"query":"DeepSeek Search Fetch documentation","count":3,"need_content":false}

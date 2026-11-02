@@ -71,6 +71,9 @@ func selectAPIKeyRequestGroup(c *gin.Context, keys *service.APIKeyService, subsc
 	}
 	accepts := func(candidate *service.APIKey) bool {
 		group := candidate.Group
+		if (path == "/v1/tools/search" || path == "/v1/tools/fetch") && group.Platform != service.PlatformDeepseek {
+			return false
+		}
 		// Binding the restricted target must not make the normal cheapest-group
 		// selector send healthy conversations there. Forced penalties returned
 		// above already passed the normal target authorization checks.
