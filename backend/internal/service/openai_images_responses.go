@@ -1997,7 +1997,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	writerSizeBeforeResponse := OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c)
 	if parsed.Stream {
 		if direct {
-			usage, imageCount, imageOutputSizes, firstTokenMs, err = s.handleOpenAIImagesStreamingResponse(resp, c, startTime, parsed)
+			usage, imageCount, imageOutputSizes, firstTokenMs, err = s.handleOpenAIImagesStreamingResponse(resp, c, startTime, parsed, nil)
 		} else {
 			usage, imageCount, imageOutputSizes, firstTokenMs, err = s.handleOpenAIImagesOAuthStreamingResponse(resp, c, startTime, parsed.ResponseFormat, openAIImagesStreamPrefix(parsed), upstreamModel)
 		}
