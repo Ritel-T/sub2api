@@ -44,7 +44,6 @@
         :user-email="user.email"
       />
 
-      <ProfileQQNotifyCard v-if="user" />
       <ProfileTotpCard v-if="!centralAccountEnabled" />
       <ProfilePasskeyCard v-if="!centralAccountEnabled" :enabled="passkeyEnabled" />
     </div>
@@ -58,7 +57,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@/components/icons'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import ProfileQQNotifyCard from '@/components/user/profile/ProfileQQNotifyCard.vue'
 import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNotifyCard.vue'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import SecurityRecords from '@/features/security-penalties/SecurityRecords.vue'
