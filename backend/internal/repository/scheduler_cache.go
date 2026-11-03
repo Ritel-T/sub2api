@@ -1409,6 +1409,7 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		service.GatewayBorrowInitialReadyKey,
 		service.GatewayBorrowModelsKey,
 		"quality_candy",
+		"openai_connections_managed", "openai_auth_connections",
 		// Priority scoring runs on candidate metadata before full hydration.
 		// Dropping saved procurement cost silently substitutes the 0.1 default.
 		service.AccountCostMultiplierExtraKey,

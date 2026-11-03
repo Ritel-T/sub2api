@@ -27,7 +27,7 @@ export default {
   "drilldown": "逐層檢視路徑",
   "account": "帳戶",
   "latency": "用量與延遲",
-  "latencyNote": "窗口最長 31 天，左閉右開。TTFT 使用歷史轉發 first_token_ms，僅含有 token/費用證據的流式記錄；不是純上游網絡或端到端延遲。未知值不計為零。",
+  "latencyNote": "窗口最長 31 天，左閉右開。延遲沿用持久化舊 first_token_ms / duration_ms，只統計有 token/費用證據且計時有效的記錄。舊計時口徑依協議不同，passthrough 和 bridge 可能已含准入等待。這是服務端觀察值，不是客戶端 E2E。另增的含排隊指標按測量來源單獨統計，排除歷史未測量記錄。用量日誌仍缺少完整失敗請求分母。",
   "queried": "讀取時間",
   "latest": "最新樣本",
   "noUsage": "查詢成功，此範圍沒有持久化用量。",

@@ -560,4 +560,7 @@ export default {
   "editPreset": "編輯檢測模板",
   "invalidMaxResults": "保留結果數必須為 1–200。",
   "retentionTooSmall": "保留結果數必須容納本輪全部模型與樣本。",
+
+  "waitingForRecovery": "等待質量恢復",
+  "cooldownRecoveryHint": "質量冷卻會保持到後續檢測明確通過並允許自動恢復，或由管理員手動解除；到達下次檢測時間、超時、限流或跳過不會自動放行。"
 }

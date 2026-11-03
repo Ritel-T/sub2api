@@ -124,6 +124,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		PluginManagementEnabled: settings.PluginManagementEnabled,
 
 		SupportTicketEnabled: settings.SupportTicketEnabled,
+		LotteryEnabled:       settings.LotteryEnabled,
 
 		AffiliateEnabled:                settings.AffiliateEnabled,
 		AffiliateSignupBonus:            settings.AffiliateSignupBonus,

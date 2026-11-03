@@ -52,6 +52,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	idempotencyCleanupSvc := service.NewIdempotencyCleanupService(nil, cfg)
 	schedulerSnapshotSvc := service.NewSchedulerSnapshotService(nil, nil, nil, nil, cfg)
 	opsSystemLogSinkSvc := service.NewOpsSystemLogSink(nil)
+	accountPerformanceSvc := service.NewAccountPerformanceService(nil)
 
 	cleanup := provideCleanup(
 		nil, // default/full runtime configuration
@@ -97,6 +98,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // scheduledTestRunner
 		nil, // controlledExperiment
 		nil, // accountOps
+		accountPerformanceSvc,
 		nil, // accountTokenGuard
 		nil, // accountTokenGuardV2
 		nil, // backupSvc

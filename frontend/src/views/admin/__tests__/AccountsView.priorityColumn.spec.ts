@@ -152,7 +152,7 @@ describe('admin AccountsView priority column preferences', () => {
 
     expect(wrapper.get('[data-column="priority"]').text()).toBe('sortable')
     expect(wrapper.findAll('[data-column]').map(column => column.attributes('data-column'))).toEqual([
-      'id', 'platform_type', 'name', 'status', 'schedulable', 'usage', 'capacity', 'groups', 'links', 'today_stats',
+      'id', 'platform_type', 'name', 'status', 'schedulable', 'usage', 'capacity', 'groups', 'links', 'performance', 'today_stats',
       'priority', 'proxy', 'scheduler_score', 'rate_multiplier',
       'upstream_billing_rate', 'last_used_at', 'expires_at', 'notes', 'created_at', 'actions'
     ])
@@ -177,7 +177,7 @@ describe('admin AccountsView priority column preferences', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[data-column="groups"]').exists()).toBe(false)
-    expect(wrapper.findAll('[data-column]')).toHaveLength(19)
+    expect(wrapper.findAll('[data-column]')).toHaveLength(20)
   })
 
 })

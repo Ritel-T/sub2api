@@ -16,11 +16,17 @@ describe('admin usage page locations', () => {
     expect(next).toMatchObject({ ...query, view: 'analysis', tab: 'analysis' })
     expect(parseAdminUsageLocation(next as typeof query, defaults).filters).toEqual(parsed.filters)
   })
-  it.each(['errors', 'connections', 'traffic', 'ranking'])('accepts the legacy %s view and preserves unowned deep-link parameters', tab => {
+  it.each(['errors', 'connections', 'traffic', 'ranking', 'latency'])('accepts the legacy %s view and preserves unowned deep-link parameters', tab => {
     const state = parseAdminUsageLocation({ view: tab }, defaults)
     expect(state.tab).toBe(tab)
     expect(state.page).toBe(tab === 'ranking' ? 'analysis' : 'records')
     expect(adminUsageLocationQuery({ ...state, granularity: 'hour' }, { error_id: '7' }).error_id).toBe('7')
+  })
+  it('roundtrips latency identity, time and timezone filters while restricting observers', () => {
+    const state = parseAdminUsageLocation({ view: 'records', tab: 'latency', account_id: '14', model: 'gpt-6-astra', timezone: 'Europe/Stockholm' }, defaults)
+    const query = adminUsageLocationQuery({ ...state, granularity: 'hour' })
+    expect(parseAdminUsageLocation(query as any, defaults)).toMatchObject({ tab: 'latency', filters: { account_id: 14, model: 'gpt-6-astra', timezone: 'Europe/Stockholm', start_date: defaults.start, end_date: defaults.end } })
+    expect(parseAdminUsageLocation(query as any, defaults, true).tab).toBe('usage')
   })
   it('rejects malformed IDs and keeps restricted observer modes within own pages', () => {
     const state = parseAdminUsageLocation({ view: 'ranking', user_id: '44', account_id: '55', api_key_id: '2.5', group_id: '-1' }, defaults, true)

@@ -1134,7 +1134,12 @@ export default {
         webSearchDefault: '預設',
         webSearchEnabled: '開啟',
         webSearchDisabled: '關閉',
-      },
+
+  "mimicClaudeCode": "模擬 Claude Code 客戶端",
+  "mimicClaudeCodeDesc": "用於要求 Claude Code 客戶端的 Anthropic API Key 上游. 與抹除身份開關互斥. 轉發和連接測試會補齊缺失的客戶端請求頭, system 身份句及會話信息; count_tokens 僅補請求頭. 身份句可能影響模型自述.",
+  "mimicClaudeCodeDeductTokens": "按模型估算扣除身份句 token",
+  "mimicClaudeCodeDeductTokensDesc": "默認關閉, 按上游用量正常計費. 開啟後, 僅在網關補入身份句時按模型估算扣除 14-24 個 token. token 數量和混合緩存分類均為估算. 返回客戶端的 usage 始終保留上游原值."
+},
       modelRestriction: '模型限制（可選）',
       modelWhitelist: '模型白名單',
       modelMapping: '模型映射',

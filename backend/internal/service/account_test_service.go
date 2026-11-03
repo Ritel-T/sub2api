@@ -31,6 +31,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
@@ -50,17 +51,18 @@ const (
 
 // TestEvent represents a SSE event for account testing
 type TestEvent struct {
-	UpstreamStatus    int    `json:"upstream_status,omitempty"`
-	UpstreamModel     string `json:"upstream_model,omitempty"`
-	RequestID         string `json:"request_id,omitempty"`
-	UpstreamErrorCode string `json:"upstream_error_code,omitempty"`
-	Type              string `json:"type"`
-	Text              string `json:"text,omitempty"`
-	Model             string `json:"model,omitempty"`
-	Status            string `json:"status,omitempty"`
-	Code              string `json:"code,omitempty"`
-	Channel           string `json:"channel,omitempty"`
-	ImageURL          string `json:"image_url,omitempty"`
+	Timing            *requesttiming.AccountTestTiming `json:"timing,omitempty"`
+	UpstreamStatus    int                              `json:"upstream_status,omitempty"`
+	UpstreamModel     string                           `json:"upstream_model,omitempty"`
+	RequestID         string                           `json:"request_id,omitempty"`
+	UpstreamErrorCode string                           `json:"upstream_error_code,omitempty"`
+	Type              string                           `json:"type"`
+	Text              string                           `json:"text,omitempty"`
+	Model             string                           `json:"model,omitempty"`
+	Status            string                           `json:"status,omitempty"`
+	Code              string                           `json:"code,omitempty"`
+	Channel           string                           `json:"channel,omitempty"`
+	ImageURL          string                           `json:"image_url,omitempty"`
 	// AudioURL / VideoURL are data: or https URLs for in-browser media players.
 	AudioURL string `json:"audio_url,omitempty"`
 	VideoURL string `json:"video_url,omitempty"`
@@ -375,6 +377,7 @@ func createTestPayload(modelID string) (map[string]any, error) {
 // mode is optional - "compact" routes OpenAI accounts to the /responses/compact probe path
 // opts is optional media (image/audio data URLs for real generation / STT).
 func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string, opts ...AccountTestOptions) (testErr error) {
+	collector, start := beginAccountConnectionTiming(c)
 	initAccountTestLogger(c, accountID, modelID, mode)
 	ctx := context.WithValue(c.Request.Context(), qualityProbeContextKey{}, true)
 	c.Request = c.Request.WithContext(ctx)
@@ -386,7 +389,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 			testErr = c.Request.Context().Err()
 		}
 		stopKeepalive()
+		s.finishAccountConnectionTiming(c, collector, testErr)
 	}()
+	started := requesttiming.AccountTestStarted(start)
+	s.sendEvent(c, TestEvent{Type: "timing", Timing: &started})
 	ctx = c.Request.Context()
 	testOpts := firstAccountTestOptions(opts)
 
@@ -669,6 +675,9 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	if account.IsAnthropicStripClaudeCodeIdentityEnabled() {
 		payloadBytes = stripAnthropicClaudeCodeIdentityFromBody(payloadBytes)
 	}
+	if account.IsAnthropicMimicClaudeCodeEnabled() {
+		payloadBytes, _ = mimicAnthropicClaudeCodeBody(payloadBytes, account, 0, claude.DefaultUserAgent(), testModelID)
+	}
 
 	// Send test_start event
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
@@ -701,6 +710,9 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	if account.IsAnthropicStripClaudeCodeIdentityEnabled() {
 		stripAnthropicClaudeCodeIdentityFromHeaders(req.Header)
 	}
+	if account.IsAnthropicMimicClaudeCodeEnabled() {
+		applyAnthropicClaudeCodeMimicHeaders(req.Header, claude.DefaultUserAgent())
+	}
 
 	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
 	account.ApplyHeaderOverrides(req.Header)
@@ -711,7 +723,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	resp, err := timedAccountTestUpstream(s.httpUpstream).DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
@@ -730,7 +742,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	}
 
 	// Process SSE stream
-	return s.processClaudeStream(c, resp.Body)
+	return s.processClaudeStream(accountTestResponseContext(c, resp), resp.Body)
 }
 
 func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Context, ctx context.Context, account *Account, testModelID string) error {
@@ -786,7 +798,7 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	resp, err := timedAccountTestUpstream(s.httpUpstream).DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
@@ -801,7 +813,7 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 		return s.sendErrorAndEnd(c, errMsg)
 	}
 
-	return s.processClaudeStream(c, resp.Body)
+	return s.processClaudeStream(accountTestResponseContext(c, resp), resp.Body)
 }
 
 // testBedrockAccountConnection tests a Bedrock (SigV4 or API Key) account using non-streaming invoke
@@ -872,7 +884,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
+	resp, err := timedAccountTestUpstream(s.httpUpstream).DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
@@ -1155,7 +1167,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	}
 
 	// Process SSE stream
-	return s.processOpenAIStream(c, resp.Body)
+	return s.processOpenAIStream(accountTestResponseContext(c, resp), resp.Body)
 }
 
 func (s *AccountTestService) testExcelBPSAccountConnection(c *gin.Context, account *Account, modelID, prompt string) error {
@@ -1565,7 +1577,7 @@ func (s *AccountTestService) testGrokResponsesConnection(c *gin.Context, ctx con
 	}
 	s.applyGrokTestRequestHeaders(req, account, authToken, "application/json, text/event-stream")
 
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := timedAccountTestUpstream(s.httpUpstream).Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API request failed: %s", err.Error()))
 	}
@@ -1578,7 +1590,7 @@ func (s *AccountTestService) testGrokResponsesConnection(c *gin.Context, ctx con
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API returned %d: %s", resp.StatusCode, string(body)))
 	}
 
-	return s.processOpenAIStream(c, resp.Body)
+	return s.processOpenAIStream(accountTestResponseContext(c, resp), resp.Body)
 }
 
 func (s *AccountTestService) testGrokImageGeneration(c *gin.Context, ctx context.Context, account *Account, authToken, modelID, prompt, imageDataURL string) error {
@@ -1653,7 +1665,7 @@ func (s *AccountTestService) testGrokImageGeneration(c *gin.Context, ctx context
 			s.applyGrokTestRequestHeaders(req, account, authToken, "application/json")
 			req.ContentLength = int64(len(payloadBytes))
 		}
-		resp, doErr = s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+		resp, doErr = timedAccountTestUpstream(s.httpUpstream).Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
 		if doErr == nil {
 			break
 		}
@@ -1744,7 +1756,7 @@ func (s *AccountTestService) testGrokVideoGeneration(c *gin.Context, ctx context
 	}
 	s.applyGrokTestRequestHeaders(req, account, authToken, "application/json")
 
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := timedAccountTestUpstream(s.httpUpstream).Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok video request failed: %s", err.Error()))
 	}
@@ -1785,7 +1797,7 @@ func (s *AccountTestService) testGrokVideoGeneration(c *gin.Context, ctx context
 			return s.sendErrorAndEnd(c, "Failed to create Grok video status request")
 		}
 		s.applyGrokTestRequestHeaders(statusReq, account, authToken, "application/json")
-		statusResp, err := s.httpUpstream.Do(statusReq, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+		statusResp, err := timedAccountTestUpstream(s.httpUpstream).Do(statusReq, s.grokTestProxyURL(account), account.ID, account.Concurrency)
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Grok video status failed: %s", err.Error()))
 		}
@@ -1842,7 +1854,7 @@ func (s *AccountTestService) emitGrokVideoResult(c *gin.Context, ctx context.Con
 		return s.sendErrorAndEnd(c, "Failed to create Grok video content request")
 	}
 	s.applyGrokTestRequestHeaders(req, account, authToken, "video/*, application/octet-stream, */*")
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := timedAccountTestUpstream(s.httpUpstream).Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok video content download failed: %s", err.Error()))
 	}
@@ -1914,7 +1926,7 @@ User query:
 	}
 	s.applyGrokTestRequestHeaders(req, account, authToken, "application/json")
 
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := timedAccountTestUpstream(s.httpUpstream).Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("standalone web_search probe failed: %s", err.Error()))
 	}
@@ -1995,7 +2007,7 @@ func (s *AccountTestService) testGrokTTS(c *gin.Context, ctx context.Context, ac
 			return s.sendErrorAndEnd(c, "Failed to create Grok TTS request")
 		}
 		s.applyGrokTestRequestHeaders(req, account, authToken, "audio/*, application/json, */*")
-		resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+		resp, err := timedAccountTestUpstream(s.httpUpstream).Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Grok TTS failed: %s", err.Error()))
 		}
@@ -2086,7 +2098,7 @@ func (s *AccountTestService) testGrokSTT(c *gin.Context, ctx context.Context, ac
 	}
 	account.ApplyHeaderOverrides(req.Header)
 
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := timedAccountTestUpstream(s.httpUpstream).Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok STT failed: %s", err.Error()))
 	}
@@ -2465,7 +2477,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	resp, err := timedAccountTestUpstream(s.httpUpstream).DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Chat Completions API (/v1/chat/completions) request failed: %s", err.Error()))
 	}
@@ -2483,7 +2495,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Chat Completions API (/v1/chat/completions) returned %d: %s", resp.StatusCode, string(body)))
 	}
 
-	return s.processOpenAIChatCompletionsStream(c, resp.Body)
+	return s.processOpenAIChatCompletionsStream(accountTestResponseContext(c, resp), resp.Body)
 }
 
 // testOpenAICompactConnection probes native remote compaction v2 (streaming
@@ -2774,7 +2786,7 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	resp, err := timedAccountTestUpstream(s.httpUpstream).DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
@@ -2786,7 +2798,7 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 	}
 
 	// Process SSE stream
-	return s.processGeminiStream(c, resp.Body)
+	return s.processGeminiStream(accountTestResponseContext(c, resp), resp.Body)
 }
 
 // routeAntigravityTest 路由 Antigravity 账号的测试请求。
@@ -3028,6 +3040,7 @@ func createGeminiTestPayload(modelID string, prompt string) []byte {
 
 // processGeminiStream processes SSE stream from Gemini API
 func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader) error {
+	defer accountTestStream(c)()
 	reader := bufio.NewReader(body)
 	usage := startPelicanTestStream(c, "gemini")
 
@@ -3035,8 +3048,7 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
-				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-				return nil
+				return s.sendErrorAndEnd(c, "Stream ended before Gemini completion")
 			}
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
 		}
@@ -3072,6 +3084,7 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 						for _, part := range parts {
 							if partMap, ok := part.(map[string]any); ok {
 								if text, ok := partMap["text"].(string); ok && text != "" {
+									accountTestContent(c, text)
 									s.sendEvent(c, TestEvent{Type: "content", Text: text})
 								}
 								if inlineData, ok := partMap["inlineData"].(map[string]any); ok {
@@ -3158,6 +3171,7 @@ func createOpenAIChatCompletionsTestPayload(modelID string, prompt string) map[s
 
 // processClaudeStream processes the SSE stream from Claude API
 func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader) error {
+	defer accountTestStream(c)()
 	reader := bufio.NewReader(body)
 	usage := startPelicanTestStream(c, "anthropic")
 	// The connection probe only proves the account answers; a Pelican answer
@@ -3182,7 +3196,7 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
-				return complete()
+				return s.sendErrorAndEnd(c, "Stream ended before message_stop")
 			}
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
 		}
@@ -3209,6 +3223,7 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 		case "content_block_delta":
 			if delta, ok := data["delta"].(map[string]any); ok {
 				if text, ok := delta["text"].(string); ok {
+					accountTestContent(c, text)
 					s.sendEvent(c, TestEvent{Type: "content", Text: text})
 				}
 			}
@@ -3239,6 +3254,7 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 // processOpenAIChatCompletionsStream processes SSE chunks from the
 // OpenAI-compatible Chat Completions API.
 func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, body io.Reader) error {
+	defer accountTestStream(c)()
 	reader := bufio.NewReader(body)
 	usage := startPelicanTestStream(c, "chat")
 	seenJSON := false
@@ -3302,11 +3318,13 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 			}
 			if delta, ok := choice["delta"].(map[string]any); ok {
 				if text, ok := delta["content"].(string); ok && text != "" {
+					accountTestContent(c, text)
 					s.sendEvent(c, TestEvent{Type: "content", Text: text})
 				}
 			}
 			if message, ok := choice["message"].(map[string]any); ok {
 				if text, ok := message["content"].(string); ok && text != "" {
+					accountTestContent(c, text)
 					s.sendEvent(c, TestEvent{Type: "content", Text: text})
 				}
 			}
@@ -3322,6 +3340,7 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 
 // processOpenAIStream processes the SSE stream from OpenAI Responses API
 func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader) error {
+	defer accountTestStream(c)()
 	reader := bufio.NewReader(body)
 	usage := startPelicanTestStream(c, "openai")
 	seenCompleted := false
@@ -3365,6 +3384,7 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 		case "response.output_text.delta":
 			// OpenAI Responses API uses "delta" field for text content
 			if delta, ok := data["delta"].(string); ok && delta != "" {
+				accountTestContent(c, delta)
 				s.sendEvent(c, TestEvent{Type: "content", Text: delta})
 			}
 		case "response.completed", "response.done":
@@ -3450,7 +3470,7 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	resp, err := timedAccountTestUpstream(s.httpUpstream).DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
@@ -3722,7 +3742,13 @@ func (s *AccountTestService) sendEvent(c *gin.Context, event TestEvent) {
 			}
 		}
 	}
+	var timingContext context.Context
+	if c.Request != nil {
+		timingContext = c.Request.Context()
+	}
+	endEncoding := requesttiming.Observe(timingContext, "account_event_encode")
 	eventJSON, _ := json.Marshal(event)
+	endEncoding()
 	if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", eventJSON); err != nil {
 		log.Printf("failed to write SSE event: %v", err)
 		return

@@ -3,6 +3,9 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 
 enableAutoUnmount(afterEach)
 
+const { refreshLottery } = vi.hoisted(() => ({ refreshLottery: vi.fn() }))
+vi.mock('@/stores/lottery', () => ({ useLotteryStore: () => ({ enabled: true, refresh: refreshLottery }) }))
+
 const routeState = vi.hoisted(() => ({
   query: {} as Record<string, unknown>,
 }))
@@ -102,6 +105,7 @@ describe('PaymentResultView', () => {
     verifyOrderPublic.mockReset()
     resolveOrderPublicByResumeToken.mockReset()
     refreshUser.mockReset()
+    refreshLottery.mockReset()
     refreshUser.mockResolvedValue({})
     window.localStorage.clear()
   })
@@ -312,6 +316,7 @@ describe('PaymentResultView', () => {
 
     expect(resolveOrderPublicByResumeToken).toHaveBeenCalledTimes(1)
     expect(refreshUser).not.toHaveBeenCalled()
+    expect(refreshLottery).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('payment.result.processing')
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).not.toBeNull()
 
@@ -320,6 +325,7 @@ describe('PaymentResultView', () => {
 
     expect(resolveOrderPublicByResumeToken).toHaveBeenCalledTimes(2)
     expect(refreshUser).toHaveBeenCalledTimes(1)
+    expect(refreshLottery).toHaveBeenCalledWith(true)
     expect(wrapper.text()).toContain('payment.result.success')
     expect(wrapper.text()).not.toContain('payment.result.failed')
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()

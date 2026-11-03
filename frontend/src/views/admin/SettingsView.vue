@@ -19,9 +19,8 @@
             :aria-label="t('admin.settings.title')"
           >
             <div class="settings-tabs">
+              <div v-for="tab in settingsTabs" :key="tab.key" class="relative flex items-center">
               <button
-                v-for="tab in settingsTabs"
-                :key="tab.key"
                 :id="`settings-tab-${tab.key}`"
                 type="button"
                 role="tab"
@@ -41,6 +40,8 @@
                   t(`admin.settings.tabs.${tab.key}`)
                 }}</span><span v-if="sectionDirty(tab.key)" aria-hidden="true">•</span>
               </button>
+              <NewFeatureBadge v-if="tab.key === 'features'" :notice-id="NEW_FEATURE_NOTICES.protocolFeatureSwitches" :user-id="authStore.user?.id" />
+              </div>
             </div>
           </nav>
         </div>
@@ -474,6 +475,63 @@
 
             </div>
           </div></fieldset>
+
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <AppHeading as="h2" variant="section" id="settings-section-account-performance" tabindex="-1" class="text-gray-900 dark:text-white">
+                {{ t('accountPerformance.settings.title') }}
+              </AppHeading>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('accountPerformance.settings.description') }}</p>
+            </div>
+            <AccountPerformanceSettings />
+          </div>
+
+          <!-- OpenAI Response Header Timeout -->
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <AppHeading as="h2" variant="section" id="settings-section-openai-response-header-timeout" tabindex="-1" class="text-gray-900 dark:text-white">
+                {{ t("admin.settings.openaiResponseHeaderTimeout.title") }}
+              </AppHeading>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.openaiResponseHeaderTimeout.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div v-if="openAIResponseHeaderTimeoutLoading" class="flex items-center gap-2 text-gray-500">
+                <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
+                {{ t("common.loading") }}
+              </div>
+              <div v-else-if="openAIResponseHeaderTimeoutLoadFailed" role="alert">
+                {{ t("admin.settings.openaiResponseHeaderTimeout.loadFailed") }}
+                <button type="button" @click="loadOpenAIResponseHeaderTimeoutSettings" class="btn btn-secondary btn-sm">{{ t("common.refresh") }}</button>
+              </div>
+              <template v-else>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{ t("admin.settings.openaiResponseHeaderTimeout.enabled") }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiResponseHeaderTimeout.enabledHint") }}</p>
+                  </div>
+                  <Toggle :aria-label="t('admin.settings.openaiResponseHeaderTimeout.enabled')" v-model="openAIResponseHeaderTimeoutForm.enabled" data-testid="openai-header-timeout-enabled" />
+                </div>
+                <div v-if="openAIResponseHeaderTimeoutForm.enabled">
+                  <label for="openai-header-timeout-seconds" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.openaiResponseHeaderTimeout.seconds") }}
+                  </label>
+                  <input id="openai-header-timeout-seconds" data-testid="openai-header-timeout-seconds" v-model.number="openAIResponseHeaderTimeoutForm.seconds" type="number" min="1" max="600" class="input w-32" />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiResponseHeaderTimeout.secondsHint") }}</p>
+                </div>
+                <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <button data-testid="openai-header-timeout-save" type="button" @click="saveOpenAIResponseHeaderTimeoutSettings" :disabled="openAIResponseHeaderTimeoutSaving" class="btn btn-primary btn-sm">
+                    <svg v-if="openAIResponseHeaderTimeoutSaving" class="mr-1 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {{ openAIResponseHeaderTimeoutSaving ? t("common.saving") : t("common.save") }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
 
           <!-- Request Rectifier Settings -->
           <fieldset class="min-w-0" :disabled="!drafts.has('rectifier')"><div class="open-settings-section">
@@ -7092,7 +7150,9 @@
         <div v-show="activeTab === 'features'" class="space-y-6">
         <div class="open-settings-section" data-testid="protocol-feature-switches">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ t('consoleInline.protocolFeatures_782e70') }}</AppHeading>
+            <AppHeading variant="section" as="h2" class="text-gray-900 dark:text-white">{{ t('consoleInline.protocolFeatures_782e70') }}
+              <NewFeatureBadge :notice-id="NEW_FEATURE_NOTICES.protocolFeatureSwitches" :user-id="authStore.user?.id" />
+            </AppHeading>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('consoleInline.disablingAProtocolStopsItsUseImmediately_260f07') }}</p>
           </div>
             <div class="settings-section-fields">
@@ -9222,6 +9282,7 @@ import {
 import GroupBadge from "@/components/common/GroupBadge.vue";
 import GroupOptionItem from "@/components/common/GroupOptionItem.vue";
 import RequestTimezoneSettings from "@/components/settings/RequestTimezoneSettings.vue";
+import AccountPerformanceSettings from "@/components/settings/AccountPerformanceSettings.vue";
 import Toggle from "@/components/common/Toggle.vue";
 import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
@@ -9250,8 +9311,10 @@ import AdminAccessKeysSettings from "@/components/admin/settings/AdminAccessKeys
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
-import { useAppStore } from "@/stores";
+import { useAppStore, useAuthStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
+import NewFeatureBadge from "@/components/common/NewFeatureBadge.vue";
+import { NEW_FEATURE_NOTICES } from "@/constants/newFeatureNotices";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
   isRegistrationEmailSuffixDomainValid,
@@ -9268,6 +9331,7 @@ import {
 
 const { t, locale } = useI18n();
 const appStore = useAppStore();
+const authStore = useAuthStore();
 // 关闭 step-up 开关是敏感操作：后端返回 STEP_UP_REQUIRED 时弹 TOTP 码重试
 const settingsStepUp = useStepUp();
 const adminSettingsStore = useAdminSettingsStore();
@@ -9426,6 +9490,15 @@ const streamTimeoutForm = reactive({
   temp_unsched_minutes: 5,
   threshold_count: 3,
   threshold_window_minutes: 10,
+});
+
+// OpenAI Response Header Timeout 状态
+const openAIResponseHeaderTimeoutLoading = ref(true);
+const openAIResponseHeaderTimeoutLoadFailed = ref(false);
+const openAIResponseHeaderTimeoutSaving = ref(false);
+const openAIResponseHeaderTimeoutForm = reactive({
+  enabled: false,
+  seconds: 20,
 });
 
 // Rectifier 状态
@@ -12604,6 +12677,41 @@ async function saveStreamTimeoutSettings() {
   }
 }
 
+// OpenAI Response Header Timeout 方法
+async function loadOpenAIResponseHeaderTimeoutSettings() {
+  openAIResponseHeaderTimeoutLoading.value = true;
+  openAIResponseHeaderTimeoutLoadFailed.value = false;
+  try {
+    const settings = await adminAPI.settings.getOpenAIResponseHeaderTimeoutSettings();
+    Object.assign(openAIResponseHeaderTimeoutForm, settings);
+  } catch (_error: unknown) {
+    openAIResponseHeaderTimeoutLoadFailed.value = true;
+  } finally {
+    openAIResponseHeaderTimeoutLoading.value = false;
+  }
+}
+
+async function saveOpenAIResponseHeaderTimeoutSettings() {
+  openAIResponseHeaderTimeoutSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateOpenAIResponseHeaderTimeoutSettings({
+      enabled: openAIResponseHeaderTimeoutForm.enabled,
+      seconds: openAIResponseHeaderTimeoutForm.seconds,
+    });
+    Object.assign(openAIResponseHeaderTimeoutForm, updated);
+    appStore.showSuccess(t("admin.settings.openaiResponseHeaderTimeout.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.openaiResponseHeaderTimeout.saveFailed"),
+      ),
+    );
+  } finally {
+    openAIResponseHeaderTimeoutSaving.value = false;
+  }
+}
+
 // Rectifier 方法
 async function loadRectifierSettings() {
   rectifierLoading.value = true;
@@ -13248,6 +13356,7 @@ onMounted(() => {
   loadRateLimit429CooldownSettings();
   loadPanelRateLimitSettings();
   loadStreamTimeoutSettings();
+  loadOpenAIResponseHeaderTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();
   loadProviders();

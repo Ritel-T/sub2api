@@ -1434,6 +1434,18 @@ export default {
         label: '向用戶展示上游實際響應模型',
         description: '開啟后，用戶在用量記錄中可以看到上游響應里聲明的實際模型。默認關閉，僅管理端可見。不影響計費，也不會展示映射后的請求模型或帳號信息。',
       },
+
+  "openaiResponseHeaderTimeout": {
+  "title": "OpenAI 響應頭超時",
+  "description": "限制 OpenAI/Codex HTTP 上傳完成後的響應頭等待。超時後切到下一個帳號；第一次嘗試可能已在上游計費，成功請求會按 1:1 追加一次費用。已收到響應頭的正文流、原生上游 WebSocket 使用各自時限。",
+  "enabled": "啟用響應頭超時",
+  "enabledHint": "關閉後不設 OpenAI 專用響應頭超時（等價於 0）",
+  "seconds": "超時時間（秒）",
+  "secondsHint": "範圍 1–600 秒，默認 20 秒。慢非流式響應及 SSE 響應頭可能在首 token 前超時；已收到響應頭的正文流、原生上游 WebSocket 使用各自時限。",
+  "saved": "OpenAI 響應頭超時設置保存成功",
+  "saveFailed": "保存 OpenAI 響應頭超時設置失敗",
+  "loadFailed": "無法加載已保存的超時設置，請重新加載後編輯。"
+}
 },
 
     // Error Passthrough Rules

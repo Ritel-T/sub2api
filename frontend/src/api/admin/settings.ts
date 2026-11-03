@@ -1540,6 +1540,51 @@ export async function updateStreamTimeoutSettings(
   return data;
 }
 
+// ==================== OpenAI Response Header Timeout ====================
+
+export interface OpenAIResponseHeaderTimeoutSettings {
+  enabled: boolean;
+  seconds: number;
+}
+
+export async function getOpenAIResponseHeaderTimeoutSettings(): Promise<OpenAIResponseHeaderTimeoutSettings> {
+  const { data } = await apiClient.get<OpenAIResponseHeaderTimeoutSettings>(
+    "/admin/settings/openai-response-header-timeout",
+  );
+  return data;
+}
+
+export async function updateOpenAIResponseHeaderTimeoutSettings(
+  settings: OpenAIResponseHeaderTimeoutSettings,
+): Promise<OpenAIResponseHeaderTimeoutSettings> {
+  const { data } = await apiClient.put<OpenAIResponseHeaderTimeoutSettings>(
+    "/admin/settings/openai-response-header-timeout",
+    settings,
+  );
+  return data;
+}
+
+export interface AccountPerformanceSettings {
+  window_minutes: number;
+}
+
+export async function getAccountPerformanceSettings(): Promise<AccountPerformanceSettings> {
+  const { data } = await apiClient.get<AccountPerformanceSettings>(
+    "/admin/settings/account-performance",
+  );
+  return data;
+}
+
+export async function updateAccountPerformanceSettings(
+  settings: AccountPerformanceSettings,
+): Promise<AccountPerformanceSettings> {
+  const { data } = await apiClient.put<AccountPerformanceSettings>(
+    "/admin/settings/account-performance",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Rectifier Settings ====================
 
 /**
@@ -1732,6 +1777,10 @@ export const settingsAPI = {
   updatePanelRateLimitSettings,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
+  getOpenAIResponseHeaderTimeoutSettings,
+  updateOpenAIResponseHeaderTimeoutSettings,
+  getAccountPerformanceSettings,
+  updateAccountPerformanceSettings,
   getRectifierSettings,
   updateRectifierSettings,
   getBetaPolicySettings,

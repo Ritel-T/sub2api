@@ -140,7 +140,7 @@ func (r *accountRepository) Create(ctx context.Context, account *service.Account
 	}
 	client := r.client
 	var tx *dbent.Tx
-	if account != nil && (account.InitialQualityPlan != nil || account.InitialAdmissionPlan != nil) {
+	if account != nil && (account.InitialQualityPlan != nil || account.InitialAdmissionPlan != nil || service.InitialUpstreamChannel(ctx) > 0) {
 		var err error
 		tx, err = r.client.Tx(ctx)
 		if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
@@ -230,6 +230,27 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 		return translatePersistenceError(err, service.ErrAccountNotFound, nil)
 	}
 
+	if channelID := service.InitialUpstreamChannel(ctx); channelID > 0 {
+		rows, err := client.QueryContext(ctx, `SELECT id FROM upstream_channels WHERE id=$1 FOR UPDATE`, channelID)
+		if err != nil {
+			return err
+		}
+		exists := rows.Next()
+		err = rows.Err()
+		_ = rows.Close()
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return service.ErrUpstreamChannelNotFound
+		}
+		if _, err = client.ExecContext(ctx, `INSERT INTO upstream_channel_bindings(account_id,channel_id,revision) VALUES($1,$2,1)`, created.ID, channelID); err != nil {
+			return err
+		}
+		if _, err = client.ExecContext(ctx, `UPDATE upstream_channels SET revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE id=$1`, channelID); err != nil {
+			return err
+		}
+	}
 	for _, p := range []*service.ScheduledTestPlan{account.InitialQualityPlan, account.InitialAdmissionPlan} {
 		if p == nil {
 			continue
@@ -861,6 +882,9 @@ func lockAndMergeAccountProbeExtra(
 	}
 	extra := service.MergeOpenAICodexTicketExtra(copyJSONMap(normalizeJSONMap(account.Extra)), currentExtra)
 	extra = service.MergeOpenAIGatewayAccountQualityExtra(extra, currentExtra)
+	if identityUnchanged {
+		extra = preserveCommittedCodexUsage(extra, currentExtra)
+	}
 	extra = service.MergeExcelBPS403Marker(extra, currentExtra)
 	// Only ExtendExcelBPSRateLimit owns these runtime keys. Account edits can
 	// carry a snapshot from before a concurrent 429; merge the locked row's
@@ -1285,6 +1309,8 @@ func (r *accountRepository) Delete(ctx context.Context, id int64) error {
 		// 已处于外部事务中（ErrTxStarted），复用当前 client
 		txClient = r.client
 	}
+	// Account.Delete is a soft delete. Keep explicit analytics ownership for
+	// retained usage; only the FK handles a true physical account deletion.
 
 	if _, err := txClient.AccountGroup.Delete().Where(dbaccountgroup.AccountIDEQ(id)).Exec(ctx); err != nil {
 		return err
@@ -2102,13 +2128,8 @@ func (r *accountRepository) syncSchedulerAccountSnapshot(ctx context.Context, ac
 	if r == nil || r.schedulerCache == nil || accountID <= 0 {
 		return
 	}
-	account, err := r.GetByID(ctx, accountID)
-	if err != nil {
-		logger.LegacyPrintf("repository.account", "[Scheduler] sync account snapshot read failed: id=%d err=%v", accountID, err)
-		return
-	}
-	if err := r.schedulerCache.SetAccount(ctx, account); err != nil {
-		logger.LegacyPrintf("repository.account", "[Scheduler] sync account snapshot write failed: id=%d err=%v", accountID, err)
+	if err := r.publishSchedulerAccountSnapshot(ctx, accountID); err != nil {
+		logger.LegacyPrintf("repository.account", "[Scheduler] sync account snapshot failed: id=%d err=%v", accountID, err)
 	}
 }
 
@@ -2152,19 +2173,16 @@ func (r *accountRepository) syncSchedulerAccountSnapshots(ctx context.Context, a
 		return
 	}
 
-	accounts, err := r.GetByIDs(ctx, uniqueIDs)
+	err := r.WithLatestSchedulerAccounts(ctx, uniqueIDs, func(accounts []service.Account) error {
+		for i := range accounts {
+			if err := r.schedulerCache.SetAccount(ctx, &accounts[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		logger.LegacyPrintf("repository.account", "[Scheduler] batch sync account snapshot read failed: count=%d err=%v", len(uniqueIDs), err)
-		return
-	}
-
-	for _, account := range accounts {
-		if account == nil {
-			continue
-		}
-		if err := r.schedulerCache.SetAccount(ctx, account); err != nil {
-			logger.LegacyPrintf("repository.account", "[Scheduler] batch sync account snapshot write failed: id=%d err=%v", account.ID, err)
-		}
+		logger.LegacyPrintf("repository.account", "[Scheduler] batch sync account snapshot failed: count=%d err=%v", len(uniqueIDs), err)
 	}
 }
 
@@ -2437,7 +2455,6 @@ func (r *accountRepository) ListSchedulableAccountLoads(ctx context.Context) ([]
 		Select(
 			dbaccount.FieldID,
 			dbaccount.FieldConcurrency,
-			dbaccount.FieldLoadFactor,
 		).
 		All(ctx)
 	if err != nil {
@@ -2446,14 +2463,9 @@ func (r *accountRepository) ListSchedulableAccountLoads(ctx context.Context) ([]
 
 	loads := make([]service.AccountWithConcurrency, 0, len(accounts))
 	for _, account := range accounts {
-		projection := service.Account{
-			ID:          account.ID,
-			Concurrency: account.Concurrency,
-			LoadFactor:  account.LoadFactor,
-		}
 		loads = append(loads, service.AccountWithConcurrency{
 			ID:             account.ID,
-			MaxConcurrency: projection.EffectiveLoadFactor(),
+			MaxConcurrency: account.Concurrency,
 		})
 	}
 	return loads, nil
@@ -3208,6 +3220,10 @@ func (r *accountRepository) AutoPauseExpiredAccounts(ctx context.Context, now ti
 func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
 	if scoped := r.accountTransactionScope(ctx); scoped != r {
 		return scoped.UpdateExtra(ctx, id, updates)
+	}
+	if hasCodexWindowUpdates(updates) {
+		_, err := r.UpdateCodexUsageSnapshot(ctx, id, updates)
+		return err
 	}
 	updates = stripCodexFingerprintSeedFromExtraUpdate(updates)
 	updates = stripExcelBPSCooldownExtra(updates)

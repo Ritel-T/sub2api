@@ -855,6 +855,10 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	ApplyForwardImageBillingResolution(result)
 	logServiceTierBillingDowngrade("service.gateway", account, result.RequestID, ApplyForwardServiceTierBillingResolution(result))
 
+	// 仅在管理员开启估算扣减且本次补入身份句时扣减用量。
+	// 放在强制缓存计费之前，按模型和上游汇总用量估算。
+	deductClaudeCodeMimicUsage(result)
+
 	// 强制缓存计费：将 input_tokens 转为 cache_read_input_tokens
 	// 用于粘性会话切换时的特殊计费处理
 	if input.ForceCacheBilling && result.Usage.InputTokens > 0 {

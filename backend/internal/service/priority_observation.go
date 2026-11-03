@@ -2,10 +2,28 @@ package service
 
 import (
 	"context"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"slices"
 	"strings"
 	"time"
 )
+
+type observationEffortKey struct{}
+
+func WithObservationEffort(ctx context.Context, effort string) context.Context {
+	return context.WithValue(ctx, observationEffortKey{}, requesttiming.NormalizeObservationEffort(effort))
+}
+func observationEffort(ctx context.Context) (string, bool) {
+	value, ok := ctx.Value(observationEffortKey{}).(string)
+	return value, ok
+}
+func WithObservationRequestEffort(ctx context.Context, body []byte) context.Context {
+	value := ""
+	if effort := CanonicalRequestedReasoningEffort(body); effort != nil {
+		value = *effort
+	}
+	return WithObservationEffort(ctx, value)
+}
 
 // Observation identity is captured before channel routing. It must never drive
 // upstream model support, account mapping, pricing, or response ownership.
@@ -49,7 +67,7 @@ func priorityObservationFromContext(ctx context.Context, fallback string) priori
 }
 
 func priorityRequestAttemptKey(req OpenAIAccountScheduleRequest, accountID int64) priorityAttemptKey {
-	key := priorityAttemptKey{accountID: accountID, model: priorityHistoryModel(req), endpoint: priorityErrorEndpoint(req)}
+	key := priorityAttemptKey{accountID: accountID, model: priorityHistoryModel(req), endpoint: priorityErrorEndpoint(req), effort: req.ObservationEffort}
 	if req.GroupID != nil {
 		key.groupID, key.hasGroup = *req.GroupID, true
 	}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1949,6 +1950,7 @@ func newOpenAIWSHandlerTestServer(t *testing.T, h *OpenAIGatewayHandler, subject
 }
 
 type openAIResponsesWSUsageLogCase struct {
+	timing                 *pr610TimingScenario
 	authSetup              func(*service.APIKey, *config.Config) *service.APIKeyService
 	afterAccountSlot       func()
 	closeStatus            coderws.StatusCode
@@ -2938,6 +2940,12 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	upstreamErrCh := make(chan error, 1)
 	var channelSvc *service.ChannelService
 	upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if tc.timing != nil && tc.timing.serveHTTP(w, r, upstreamPayloadCh) {
+			return
+		}
+		if tc.timing != nil {
+			tc.timing.poolHandshake()
+		}
 		if tc.accountPlatform == service.PlatformGrok {
 			payload, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -2960,7 +2968,11 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 			_ = conn.CloseNow()
 		}()
 
-		for frame := 1; frame <= frameCount; frame++ {
+		maxFrames := frameCount
+		if tc.timing != nil && (tc.timing.poolHolder || tc.timing.ctxRetry) {
+			maxFrames++
+		}
+		for frame := 1; frame <= maxFrames; frame++ {
 			readCtx, cancelRead := context.WithTimeout(r.Context(), 3*time.Second)
 			msgType, payload, readErr := conn.Read(readCtx)
 			cancelRead()
@@ -2972,6 +2984,12 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 				upstreamErrCh <- errors.New("unexpected upstream websocket message type")
 				return
 			}
+			if tc.timing != nil && tc.timing.handleHolder(conn, payload) {
+				continue
+			}
+			if tc.timing != nil && tc.timing.handleCtxRetry(conn) {
+				continue
+			}
 			upstreamPayloadCh <- payload
 			if frame == 1 && tc.afterFirstUpstreamRequest != nil {
 				if callbackErr := tc.afterFirstUpstreamRequest(channelSvc); callbackErr != nil {
@@ -2980,6 +2998,10 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 				}
 			}
 
+			if tc.timing != nil {
+				tc.timing.writeWS(conn, frame, payload)
+				continue
+			}
 			response := fmt.Sprintf(
 				`{"type":"response.completed","response":{"id":"resp_usage_e2e_%d","model":%q,"usage":{"input_tokens":2,"output_tokens":1}}}`,
 				frame,
@@ -3042,8 +3064,14 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 
 	account.GroupIDs = []int64{groupID}
-	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
-	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, turnCount)}
+	if tc.timing != nil {
+		tc.timing.configure(&account, cfg)
+	}
+	var accountRepo service.AccountRepository = &openAIWSUsageHandlerAccountRepoStub{account: account}
+	if tc.timing != nil {
+		accountRepo = tc.timing.accountRepository(account)
+	}
+	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, turnCount+1)}
 
 	if len(tc.channelMapping) > 0 {
 		channelSvc = service.NewChannelService(&openAIWSUsageHandlerChannelRepoStub{
@@ -3080,9 +3108,19 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 			return true, nil
 		},
 	}
+	var concurrencyCache service.ConcurrencyCache = cache
+	if tc.timing != nil {
+		concurrencyCache = tc.timing.cache
+	}
 	var gatewayConcurrency *service.ConcurrencyService
 	if tc.authSetup != nil {
-		gatewayConcurrency = service.NewConcurrencyService(cache)
+		gatewayConcurrency = service.NewConcurrencyService(concurrencyCache)
+	}
+	var networkUpstream service.HTTPUpstream = &compositeWSHTTPUpstream{}
+	if tc.timing != nil && tc.timing.sameAccount {
+		target, err := url.Parse(upstreamServer.URL)
+		require.NoError(t, err)
+		networkUpstream = &pr610OAuthHTTPUpstream{target: target}
 	}
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
@@ -3097,9 +3135,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		nil,
 		gatewayConcurrency,
 		service.NewBillingService(cfg, nil),
-		nil,
+		service.NewRateLimitService(accountRepo, nil, cfg, nil, nil),
 		billingCacheSvc,
-		&compositeWSHTTPUpstream{},
+		networkUpstream,
 		&service.DeferredService{},
 		nil,
 		nil,
@@ -3109,6 +3147,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		nil,
 		nil, // userPlatformQuotaRepo
 	)
+	t.Cleanup(gatewaySvc.CloseOpenAIWSPool)
 
 	h := &OpenAIGatewayHandler{
 		cfg:                 cfg,
@@ -3116,7 +3155,14 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		gatewayService:      gatewaySvc,
 		billingCacheService: billingCacheSvc,
 		apiKeyService:       &service.APIKeyService{},
-		concurrencyHelper:   NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second),
+		concurrencyHelper:   NewConcurrencyHelper(service.NewConcurrencyService(concurrencyCache), SSEPingFormatNone, time.Second),
+	}
+
+	if tc.timing != nil && tc.timing.failover {
+		h.maxAccountSwitches = 2
+	}
+	if tc.timing != nil && tc.timing.keyQueue {
+		h.concurrencyHelper.concurrencyService.SetAPIKeyQueuePolicy(service.APIKeyQueuePolicy{MaxWaiting: 4, Timeout: 10 * time.Second})
 	}
 
 	apiKey := &service.APIKey{
@@ -3140,6 +3186,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		apiKey.Group = tc.group
 	}
 	router := gin.New()
+	if tc.timing != nil {
+		router.Use(tc.timing.middleware)
+	}
 	if tc.authSetup != nil {
 		h.apiKeyService = tc.authSetup(apiKey, cfg)
 		router.Use(gin.HandlerFunc(middleware.NewAPIKeyAuthMiddleware(h.apiKeyService, nil, cfg)))
@@ -3156,11 +3205,16 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	router.Use(middleware.GroupBlockSubagents())
 	handlerDone := make(chan struct{})
 	router.GET("/v1/responses", func(c *gin.Context) {
-		defer close(handlerDone)
+		if c.GetHeader("X-PR610-Pool-Holder") != "true" {
+			defer close(handlerDone)
+		}
 		h.ResponsesWebSocket(c)
 	})
 	handlerServer := httptest.NewServer(router)
 	defer handlerServer.Close()
+	if tc.timing != nil && tc.timing.poolHolder {
+		tc.timing.startHolder(handlerServer.URL, apiKey.Key, gatewaySvc)
+	}
 
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+apiKey.Key)
@@ -3182,6 +3236,10 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		case <-time.After(3 * time.Second):
 			t.Error("WebSocket handler did not release the connection")
 		}
+		if tc.timing != nil {
+			tc.timing.assertReleased()
+			return
+		}
 		require.Equal(t, acquiredUsers.Load(), atomic.LoadInt32(&cache.releaseUserCalled), "user slots must be released")
 		require.Equal(t, acquiredAccounts.Load(), atomic.LoadInt32(&cache.releaseAccountCalled), "account slots must be released")
 	}()
@@ -3190,6 +3248,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		closeStatus = coderws.StatusPolicyViolation
 	}
 
+	if tc.timing != nil {
+		tc.timing.prepareTurn()
+	}
 	writeCtx, cancelWrite := context.WithTimeout(context.Background(), 3*time.Second)
 	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(tc.firstPayload))
 	cancelWrite()
@@ -3213,14 +3274,34 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		return openAIResponsesWSUsageLogResult{}
 	}
 
+	var earlyLogs []*service.UsageLog
 	clientEvents := make([][]byte, 0, turnCount)
 	readCompleted := func() {
 		readCtx, cancelRead := context.WithTimeout(context.Background(), 3*time.Second)
 		_, event, readErr := clientConn.Read(readCtx)
+		if tc.timing != nil && readErr == nil && gjson.GetBytes(event, "type").String() == "response.output_text.delta" {
+			tc.timing.deltaRead <- struct{}{}
+			_, event, readErr = clientConn.Read(readCtx)
+		}
 		cancelRead()
 		require.NoError(t, readErr)
 		require.Equal(t, "response.completed", gjson.GetBytes(event, "type").String())
 		clientEvents = append(clientEvents, append([]byte(nil), event...))
+		if tc.timing != nil {
+			for {
+				select {
+				case usage := <-usageRepo.created:
+					if usage.RequestID == "resp_pool_holder" {
+						continue
+					}
+					earlyLogs = append(earlyLogs, usage)
+				case <-time.After(3 * time.Second):
+					t.Fatal("timing fixture must settle usage before accepting the next turn")
+				}
+				break
+			}
+
+		}
 	}
 	readCompleted()
 	if tc.midPayload != "" {
@@ -3235,6 +3316,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		require.Equal(t, "session.updated", gjson.GetBytes(event, "type").String())
 	}
 	if strings.TrimSpace(tc.secondPayload) != "" && (turnCount >= 2) {
+		if tc.timing != nil {
+			tc.timing.prepareTurn()
+		}
 		writeCtx, cancelWrite = context.WithTimeout(context.Background(), 3*time.Second)
 		err = clientConn.Write(writeCtx, coderws.MessageText, []byte(tc.secondPayload))
 		cancelWrite()
@@ -3273,7 +3357,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	}
 	_ = clientConn.Close(coderws.StatusNormalClosure, "done")
 
-	usageLogs := make([]*service.UsageLog, 0, turnCount)
+	usageLogs := earlyLogs
 	for len(usageLogs) < turnCount {
 		select {
 		case usageLog := <-usageRepo.created:
@@ -3294,7 +3378,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		}
 	}
 
-	if tc.accountPlatform == service.PlatformGrok {
+	if tc.accountPlatform == service.PlatformGrok || (tc.timing != nil && tc.timing.mode == service.OpenAIWSIngressModeHTTPBridge) {
 		upstreamErrCh <- nil
 	}
 	select {

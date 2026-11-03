@@ -92,7 +92,7 @@ jobs:
         run: go test -race -tags=unit ./internal/service ./internal/server/middleware -run 'TestOpenAIModelsSingleflight|TestScopedAdmin|TestPanelRate|TestAPIKeyAdmissionModels|TestFetchCodexModelsManifestAPIKeySharedRefreshSurvivesCallerCancellation|TestGrokCatalogPersistConcurrentWritersAreRaceSafe|ImageCountBillingPreservesExplicitTokenCardsAcrossGateways|GrokCatalog' -count=1
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
       - uses: pnpm/action-setup@v6
         with:
           version: 9

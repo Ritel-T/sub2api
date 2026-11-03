@@ -5,7 +5,7 @@ export default {
   "retry": "重試",
   "empty": "這條記錄暫無詳細採集數據。舊記錄、尚未覆蓋的協議、詳情過期或寫入失敗時無法還原分段；新記錄剛生成時可稍後重試。",
   "traceSelection": "同一計費記錄關聯的實際請求（最近 20 條）",
-  "scope": "計時覆蓋 Sub2API 應用內觀察到的請求，不包含完整公網鏈路。首字是事件解析時間，Flush 不代表用戶端已收到。讀取速率不是用戶端公網帶寬。",
+  "scope": "計時是 Sub2API 應用內的服務端觀察值；事件解析和 flush 不證明客戶端收到。舊計時依協議可能已含准入等待；實測服務端總值使用明確邊界，避免重複加排隊。早前失敗嘗試可能屬於最終轉發前耗時。歷史記錄缺少測量來源；讀取速率不是客戶端帶寬。",
   "truncated": "請求超過採集數量上限，部分分段未保留。",
   "timeline": "處理時間線",
   "overlap": "時間線以請求開始為 0。父子階段和讀寫可能重疊，不能直接相加；未列出的區間尚未細分。",
@@ -74,7 +74,19 @@ export default {
     "outcome": "轉發結果",
     "client_disconnect": "轉發檢測到用戶端斷開",
     "transport_result": "傳輸結束情況"
-  },
+  ,
+  "content_encoding": "上游 Content-Encoding",
+  "auto_decompressed": "HTTP 客戶端已自動解壓（解壓前計時不可用）",
+  "raw_body_first": "解壓前首個正文數據（請求起點）",
+  "decoded_body_first": "解壓後首個正文數據（請求起點）",
+  "sse_parsed_first": "首個完整 SSE 數據 JSON（請求起點）",
+  "sse_visible_first": "轉換前首個可見事件（請求起點）",
+  "tool_converted_first": "工具轉換後首個事件（請求起點）",
+  "tool_visible_first": "工具轉換後首個可見事件（請求起點）",
+  "decode_wait": "解壓前後首數據間隔（含等待讀取）",
+  "sse_wait": "解壓後到首個 SSE 數據間隔",
+  "tool_wait": "轉換前後首個可見事件間隔"
+},
   "httpAttempt": "實際 HTTP 嘗試",
   "parent": "所屬出口嘗試",
   "success": "轉發成功",
@@ -101,4 +113,8 @@ export default {
     "attemptGuide": "出口嘗試 #1 與實際 HTTP #1.1 是同一次請求的不同層級，不代表重試。HTTP 狀態與傳輸結束情況分別展示；舊數據中的取消可能來自完成後的關閉，不能僅憑它判定請求失敗。",
     "readTooBrief": "讀取小於 1ms，不估算速率"
   }
+,
+  "queueWait": "轉發前等待（含排隊/失敗重試）",
+  "serverFirst": "服務端首字（含轉發前等待）",
+  "serverTotal": "服務端總耗時（含轉發前等待）"
 }

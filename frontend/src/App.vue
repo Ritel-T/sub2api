@@ -17,6 +17,8 @@ import { updateFavicon, BRAND_NAME, BRAND_FAVICON } from '@/utils/branding'
 import { ConfirmationSessionKey } from '@/composables/useConfirmation'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
+import { lotteryAPI } from '@/api/lottery'
+import { useLotteryStore } from '@/stores/lottery'
 
 const { locale } = useI18n()
 const router = useRouter()
@@ -28,6 +30,19 @@ const announcementStore = useAnnouncementStore()
 const adminComplianceStore = useAdminComplianceStore()
 const supportTicketStore = useSupportTicketStore()
 const adminSettingsStore = useAdminSettingsStore()
+let claimingLotteryInvitation = false
+async function claimLotteryInvitation() {
+  if (claimingLotteryInvitation || !authStore.isAuthenticated) return
+  try {
+    if (!localStorage.getItem('lottery_invitation_pending')) return
+    claimingLotteryInvitation = true
+    await lotteryAPI.claimInvitation()
+    localStorage.removeItem('lottery_invitation_pending')
+    await useLotteryStore().refresh(true)
+  } catch {
+    // Keep the receipt marker for the next login or foreground retry.
+  } finally { claimingLotteryInvitation = false }
+}
 
 // A confirmation belongs to one authenticated identity and one route context.
 provide(ConfirmationSessionKey, () => ({
@@ -77,6 +92,7 @@ watch(
 // Watch for authentication state and manage subscription data + announcements
 function onVisibilityChange() {
   if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
+    void claimLotteryInvitation()
     announcementStore.fetchAnnouncements()
     supportTicketStore.refresh()
   }
@@ -118,6 +134,7 @@ watch(
   () => authStore.isAuthenticated,
   (isAuthenticated, oldValue) => {
     if (isAuthenticated) {
+      void claimLotteryInvitation()
       if (authStore.isAdmin) {
         adminComplianceStore.fetchStatus().catch((error) => {
           console.error('Failed to fetch admin compliance status:', error)

@@ -374,8 +374,16 @@ func (s *OpenAIGatewayService) admitOpenAIHTTPRequest(req *http.Request, a *Acco
 		scope.continuation = scope.previousID != "" || gjson.GetBytes(raw, "conversation").Exists()
 	}
 	latest, err := s.latestOpenAITurnAccountForGroup(req.Context(), a, scope.groupID, scope.enforceGroup)
-	if err == nil && openAITurnRouteFingerprint(latest) != openAITurnRouteFingerprint(a) {
+	if err == nil && openAITurnRouteFingerprint(latest) != openAITurnRouteFingerprint(a) && (!latest.HasManagedOpenAIConnections() || a.AuthConnectionID == "") {
 		err = denyOpenAITurn("account_binding_changed")
+	}
+	if err == nil {
+		if routeErr := s.validateExcelOAuthRoute(req.Context(), latest, model); routeErr != nil && !latest.HasManagedOpenAIConnections() {
+			err = &OpenAITurnAdmissionError{Reason: excelOAuthRouteErrorCode, cause: routeErr}
+		}
+	}
+	if err == nil && latest.qualityModelBlocked(req.Context(), model) {
+		err = denyOpenAITurn("model_runtime_blocked")
 	}
 	if err == nil {
 		if reason := s.gatewayBorrowUpstreamPolicyReason(req.Context(), latest, model, false); reason != "" {
@@ -409,6 +417,11 @@ func (s *OpenAIGatewayService) admitOpenAIHTTPRequest(req *http.Request, a *Acco
 		if gatewayBorrowCredentialFingerprint(latest) != gatewayBorrowCredentialFingerprint(a) {
 			return nil, denyOpenAITurn("account_binding_changed")
 		}
+	}
+	if latest.HasManagedOpenAIConnections() && a.AuthConnectionID != "" {
+		// The live parent owns lifecycle and quality policy. Keep the selected
+		// connection's credentials for the per-attempt revision/egress fence.
+		return a, nil
 	}
 	if s.openAICodexTicketBlocksAccount(latest, model) {
 		return nil, denyOpenAITicket()

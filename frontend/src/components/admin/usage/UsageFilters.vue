@@ -124,19 +124,19 @@
         </div>
 
         <!-- Request Type Filter (usage only) -->
-        <div v-if="mode !== 'errors' && mode !== 'connections'" class="usage-filter-field">
+        <div v-if="mode !== 'errors' && mode !== 'connections' && mode !== 'latency'" class="usage-filter-field">
           <label :id="'field-' + fieldLabelScope + '-5'" class="input-label">{{ t('usage.type') }}</label>
           <Select :aria-labelledby="'field-' + fieldLabelScope + '-5'" :aria-label="t('usage.type')" v-model="filters.request_type" :options="requestTypeOptions" @change="emitChange" />
         </div>
 
         <!-- Native compaction is independent of the transport request type. -->
-        <div v-if="mode !== 'errors' && mode !== 'connections'" class="usage-filter-field">
+        <div v-if="mode !== 'errors' && mode !== 'connections' && mode !== 'latency'" class="usage-filter-field">
           <label :id="'field-' + fieldLabelScope + '-6'" class="input-label">{{ t('usage.compactionFilter') }}</label>
           <Select :aria-labelledby="'field-' + fieldLabelScope + '-6'" :aria-label="t('usage.compactionFilter')" v-model="filters.native_compaction_v2" :options="compactionOptions" @change="emitChange" />
         </div>
 
         <!-- Billing Type Filter (usage only) -->
-        <div v-if="mode !== 'errors' && mode !== 'connections'" class="usage-filter-field">
+        <div v-if="mode !== 'errors' && mode !== 'connections' && mode !== 'latency'" class="usage-filter-field">
           <label :id="'field-' + fieldLabelScope + '-7'" class="input-label">{{ t('admin.usage.billingType') }}</label>
           <Select :aria-labelledby="'field-' + fieldLabelScope + '-7'" :aria-label="t('admin.usage.billingType')" v-model="filters.billing_type" :options="billingTypeOptions" @change="emitChange" />
         </div>
@@ -229,8 +229,9 @@ interface Props {
   /**
    * errors 模式:隐藏用量专属字段/按钮,显示错误类型+状态码(错误请求 tab 用)
    * ranking 模式:保留共享筛选，隐藏清理/导出按钮(用户排行 tab 用)
+   * latency 模式:仅保留延迟报告接口支持的共享筛选
    */
-  mode?: 'usage' | 'errors' | 'ranking' | 'connections'
+  mode?: 'usage' | 'errors' | 'ranking' | 'connections' | 'latency'
   /** Match the parent page spacing when embedded. */
   flat?: boolean
   /** Reuse user/key search without token, account, model or group filters. */

@@ -2,6 +2,7 @@
   <AppLayout :show-page-title="false">
     <div class="open-page redeem-workspace">
       <BillingNavigation current="redeem" :settings="appStore.cachedPublicSettings" :simple-mode="authStore.isSimpleMode" />
+      <LotteryRechargeNotice source="redeem" />
       <div class="redeem-entry">
         <aside class="redeem-account">
           <AppHeading variant="subtle" as="h2" class="text-gray-500 dark:text-gray-400">{{ t('redeem.currentBalance') }}</AppHeading>
@@ -88,6 +89,7 @@
                 </AppHeading>
                 <div class="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
                   <p>{{ redeemResult.message }}</p>
+                  <router-link v-if="lottery.enabled && redeemResult.type === 'balance' && redeemResult.value > 0" to="/lottery" class="mt-3 inline-flex items-center gap-1 font-medium underline">{{ t('lottery.goLottery') }}<Icon name="arrowRight" size="sm" /></router-link>
                   <div class="mt-3 space-y-1">
                     <p v-if="redeemResult.type === 'balance'" class="font-medium">
                       {{ t('redeem.added') }}: ${{ redeemResult.value.toFixed(2) }}
@@ -346,18 +348,21 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { useLotteryStore } from '@/stores/lottery'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import BillingNavigation from '@/components/user/BillingNavigation.vue'
+import LotteryRechargeNotice from '@/components/lottery/LotteryRechargeNotice.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const lottery = useLotteryStore()
 const subscriptionStore = useSubscriptionStore()
 
 const user = computed(() => authStore.user)
@@ -444,6 +449,7 @@ const handleRedeem = async () => {
     const result = await redeemAPI.redeem(redeemCode.value.trim())
 
     redeemResult.value = result
+    if (result.type === 'balance') void lottery.refresh(true)
 
     // Refresh user data to get updated balance/concurrency
     try {

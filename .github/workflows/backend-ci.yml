@@ -114,7 +114,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install frontend dependencies
@@ -144,6 +144,77 @@ jobs:
           version: v2.14.0
           args: --timeout=30m
           working-directory: backend
+
+  pr612-regressions:
+    if: github.head_ref == 'fix/openai-header-timeout-default' || github.ref_name == 'fix/openai-header-timeout-default'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Exact candidate identity
+        run: git rev-parse HEAD
+      - name: Header safety, runtime settings and cache race regressions (loopback only)
+        working-directory: backend
+        run: >-
+          go test -race -tags=unit ./internal/service ./internal/repository ./internal/handler ./internal/handler/admin
+          -run '^(TestPR612|TestOpenAIResponseHeaderTimeout|TestApplyProfilePoolSettingsUsesRuntimeOpenAIResponseHeaderTimeout|TestDefaultOpenAIResponseHeaderTimeoutSettings|TestRuntimeProxyChainEveryHopMustProveUnsent)'
+          -count=1 -v -timeout=3m
+
+  pr612-regressions-red:
+    if: github.head_ref == 'fix/openai-header-timeout-default' || github.ref_name == 'fix/openai-header-timeout-default'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        defect: [safety, cache]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: red
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: red/backend/go.mod
+          cache-dependency-path: red/backend/go.sum
+      - name: Restore only the defective production file in isolated RED checkout
+        working-directory: red
+        env:
+          DEFECT: ${{ matrix.defect }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          original=3abcf230ee6dd4487d9fd880ad83040289c259a7
+          git fetch --no-tags --depth=1 origin "$original"
+          if [ "$DEFECT" = safety ]; then
+            target=backend/internal/service/openai_plugin_transport.go
+            packages=(./internal/handler)
+            regression='^TestPR612DelayedHeadersNeverReplaySubmittedPOST$'
+            diagnostic='submitted POST was replayed'
+          else
+            target=backend/internal/service/setting_openai_response_header_timeout.go
+            packages=(./internal/service ./internal/repository)
+            regression='^(TestOpenAIResponseHeaderTimeoutStaleRefreshCannotUndoDisable|TestPR612StaleReaderDisableControlsNextHTTPRequest)$'
+            diagnostic='old refresh must return the newer disable|neither success nor error refresh may republish|disabled next-request transport must have timeout 0'
+          fi
+          git rev-parse "$original:$target"
+          git show "$original:$target" > "$target"
+          git diff --stat
+          set +e
+          (cd backend && go test -tags=unit "${packages[@]}" -run "$regression" -count=1 -v -timeout=2m) > "$RUNNER_TEMP/pr612-red.log" 2>&1
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/pr612-red.log"
+          test "$result" -ne 0
+          ! grep -Eq 'build failed|no tests to run|undefined:' "$RUNNER_TEMP/pr612-red.log"
+          grep -q -- '--- FAIL: Test' "$RUNNER_TEMP/pr612-red.log"
+          grep -Eq "$diagnostic" "$RUNNER_TEMP/pr612-red.log"
 
   release-helpers:
     runs-on: ubuntu-latest

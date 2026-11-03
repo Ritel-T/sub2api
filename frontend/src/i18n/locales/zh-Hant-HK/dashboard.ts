@@ -548,7 +548,13 @@ export default {
         loadFailed: '載入詳情失敗，請稍後重試',
       },
     },
-  },
+
+  "latencyFirstTokenShort": "首字",
+  "queuePortion": "含轉發前等待",
+  "latencyFirstTokenHint": "服務端首字含轉發前耗時 {queue}；轉發首字 {first}。轉發前等待包含准入排隊和該口徑內先前失敗的嘗試。使用實測邊界，不是客戶端 E2E。沒有測量來源的記錄顯示舊口徑。",
+  "latencyDurationShort": "總耗時",
+  "latencyDurationHint": "服務端總耗時含轉發前耗時 {queue}；轉發耗時 {forward}。內部重試保留各協議規定的口徑。平均 TPS 仍使用原總耗時。"
+},
 
   // Shared keys for channel monitor (admin + user views)
   monitorCommon: {

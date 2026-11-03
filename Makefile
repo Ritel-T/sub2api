@@ -1,6 +1,7 @@
 .PHONY: build build-backend build-frontend build-ritel test test-backend test-frontend test-frontend-critical
 
 FRONTEND_CRITICAL_VITEST := \
+	src/components/account/__tests__/OpenAIAuthConnections.spec.ts \
 	src/views/admin/__tests__/RiskControlView.spec.ts \
 	src/i18n/__tests__/riskControlLocales.spec.ts \
 	src/components/common/__tests__/PlatformTypeBadge.openaiPlans.spec.ts \
@@ -65,6 +66,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/api/__tests__/traffic.spec.ts \
 	src/views/user/__tests__/UsageEntryView.spec.ts \
 	src/components/admin/usage/__tests__/UsageFilters.spec.ts \
+	src/components/admin/usage/__tests__/LatencyObservabilityPanel.spec.ts \
 	src/components/admin/usage/__tests__/UsageTimingDialog.spec.ts \
 	src/components/admin/usage/__tests__/UsageTable.spec.ts \
 	src/views/user/__tests__/PelicanShowcaseView.spec.ts \
@@ -108,6 +110,9 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/user/__tests__/ChannelStatusView.mode.spec.ts \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
 	src/components/settings/ServerlessSettings.spec.ts \
+	src/components/settings/AccountPerformanceSettings.spec.ts \
+	src/components/account/__tests__/AccountPerformanceCell.spec.ts \
+	src/components/account/__tests__/AccountPerformanceDialog.spec.ts \
 	src/components/user/profile/__tests__/ProfileIdentityBindingsSection.spec.ts \
 	src/views/admin/__tests__/SettingsView.spec.ts \
 	src/views/admin/__tests__/HarvestFlowView.spec.ts \

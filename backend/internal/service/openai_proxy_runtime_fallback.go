@@ -185,7 +185,10 @@ func (s *OpenAIGatewayService) doOpenAIProxyAttempt(req *http.Request, account *
 		req = req.WithContext(next)
 		req = s.withGatewayBorrowFinalSendCheck(req, account, borrowModel)
 	}
-	if s.pluginManager != nil && !borrowRequired && !s.codexTicketRequestBound(req, account) {
+	if err = s.fenceAuthConnectionEgress(req.Context(), req, account); err != nil {
+		return nil, err
+	}
+	if s.pluginManager != nil && !borrowRequired && account.AuthConnectionID == "" && !s.codexTicketRequestBound(req, account) {
 		resp, handled, err := s.pluginManager.RoundTripOpenAIOAuth(req.Context(), req, target.url, account)
 		if handled {
 			return markOpenAIResponseEgress(resp, req, target.proxyID), err

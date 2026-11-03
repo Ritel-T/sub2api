@@ -3,8 +3,8 @@ import type { AdminUsageQueryParams } from '@/api/admin/usage'
 import { objectQueryId } from './objectContext'
 
 export type UsagePage = 'analysis' | 'records'
-export type UsageDetailTab = 'analysis' | 'usage' | 'errors' | 'connections' | 'ranking' | 'traffic'
-const recordTabs = ['usage', 'errors', 'connections', 'traffic']
+export type UsageDetailTab = 'analysis' | 'usage' | 'errors' | 'connections' | 'ranking' | 'traffic' | 'latency'
+const recordTabs = ['usage', 'errors', 'connections', 'traffic', 'latency']
 const boolKeys = ['stream', 'native_compaction_v2', 'upstream_model_mismatch'] as const
 const idKeys = ['user_id', 'api_key_id', 'account_id', 'group_id'] as const
 const stringKeys = ['model', 'request_id', 'billing_mode', 'error_phase', 'error_category', 'timezone'] as const
@@ -23,7 +23,7 @@ export function parseAdminUsageLocation(query: LocationQuery, defaults: { start:
   const page: UsagePage = legacy === 'analysis' || tabQuery === 'ranking' ? 'analysis' : 'records'
   let tab: UsageDetailTab = page === 'analysis' ? tabQuery === 'ranking' ? 'ranking' : 'analysis'
     : recordTabs.includes(tabQuery ?? '') ? tabQuery as UsageDetailTab : 'usage'
-  if (observer && ['connections', 'ranking', 'traffic'].includes(tab)) tab = page === 'analysis' ? 'analysis' : 'usage'
+  if (observer && ['connections', 'ranking', 'traffic', 'latency'].includes(tab)) tab = page === 'analysis' ? 'analysis' : 'usage'
   const queryStart = queryValue(query.start_date)
   const queryEnd = queryValue(query.end_date)
   const calendarBoundary = (queryStart && !queryStart.includes('T')) || (queryEnd && !queryEnd.includes('T'))

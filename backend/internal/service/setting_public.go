@@ -244,6 +244,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyModelPlazaRequireAuth,
 		SettingKeyPluginManagementEnabled,
 		SettingKeySupportTicketEnabled,
+		SettingKeyLotteryEnabled,
 		SettingKeyAffiliateEnabled,
 		SettingKeyAffiliateSignupBonus,
 		SettingKeyAffiliateFirstRechargeBonus,
@@ -388,6 +389,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ModelPlazaRequireAuth:   settings[SettingKeyModelPlazaRequireAuth] == "true",
 		PluginManagementEnabled: settings[SettingKeyPluginManagementEnabled] == "true",
 		SupportTicketEnabled:    settings[SettingKeySupportTicketEnabled] == "true",
+		LotteryEnabled:          settings[SettingKeyLotteryEnabled] == "true",
 
 		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
 		AffiliateSignupBonus: func() float64 {
@@ -735,6 +737,7 @@ type PublicSettingsInjectionPayload struct {
 	UsageShowCacheRate                    bool    `json:"usage_show_cache_rate"`
 	UsageShowCacheRateToUsers             bool    `json:"usage_show_cache_rate_to_users"`
 	UsageShowUpstreamResponseModelToUsers bool    `json:"usage_show_upstream_response_model_to_users"`
+	LotteryEnabled                        bool    `json:"lottery_enabled"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -821,6 +824,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ModelPlazaRequireAuth:                 settings.ModelPlazaRequireAuth,
 		PluginManagementEnabled:               settings.PluginManagementEnabled,
 		SupportTicketEnabled:                  settings.SupportTicketEnabled,
+		LotteryEnabled:                        settings.LotteryEnabled,
 		AffiliateEnabled:                      settings.AffiliateEnabled,
 		AffiliateSignupBonus:                  settings.AffiliateSignupBonus,
 		AffiliateFirstRechargeBonus:           settings.AffiliateFirstRechargeBonus,
