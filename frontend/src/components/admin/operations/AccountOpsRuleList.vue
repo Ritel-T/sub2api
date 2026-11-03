@@ -9,12 +9,12 @@
         <p class="mt-1 text-xs text-gray-500">{{ t('accountOps.rulesOnceSummary') }}</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <label class="block min-w-0 w-48">
-          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('accountOps.search') }}</span>
+        <label data-field-role="filter" class="block min-w-0 w-48">
+          <span class="sr-only">{{ t('accountOps.search') }}</span>
           <input v-model="search" class="input w-48 text-sm" :placeholder="t('accountOps.search')" :aria-label="t('accountOps.search')" />
         </label>
-        <label class="block min-w-0 w-auto">
-          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('accountOps.accountType') }}</span>
+        <label data-field-role="filter" class="block min-w-0 w-auto">
+          <span class="sr-only">{{ t('accountOps.accountType') }}</span>
           <select v-model="type" class="input w-auto text-sm" :aria-label="t('accountOps.accountType')">
           <option value="all">{{ t('accountOps.allAccounts') }}</option>
           <option value="apikey">API Key</option>
@@ -22,8 +22,8 @@
           <option value="mixed">API Key + OAuth</option>
         </select>
         </label>
-        <label class="block min-w-0 w-auto">
-          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('accountOps.ruleState') }}</span>
+        <label data-field-role="filter" class="block min-w-0 w-auto">
+          <span class="sr-only">{{ t('accountOps.ruleState') }}</span>
           <select v-model="state" class="input w-auto text-sm" :aria-label="t('accountOps.ruleState')">
           <option value="all">{{ t('accountOps.allStates') }}</option>
           <option v-for="value in states" :key="value" :value="value">{{ t(`accountOps.ruleStates.${value}`) }}</option>

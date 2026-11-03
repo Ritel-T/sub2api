@@ -10,7 +10,7 @@
       <div class="space-y-3 lg:col-span-5">
         <div ref="accountRoot">
           <label class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ t(`${prefix}.account`) }}</label>
-          <label class="block min-w-0 w-full"><span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('consoleFields.keyword') }}</span><input
+          <label data-field-role="filter" class="block min-w-0 w-full"><span class="sr-only">{{ t('consoleFields.keyword') }}</span><input
             v-model="keyword"
             data-testid="manual-account-input"
             type="text"

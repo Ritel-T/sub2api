@@ -32,8 +32,8 @@
                 size="md"
                 class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
               />
-              <label class="block min-w-0">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.channels.searchChannels') }}</span>
+              <label data-field-role="filter" class="block min-w-0">
+                <span class="sr-only">{{ t('admin.channels.searchChannels') }}</span>
                 <input
                 v-model="searchQuery"
                 type="text"
@@ -44,8 +44,8 @@
               </label>
             </div>
 
-            <label class="block min-w-0 w-40">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.channels.form.status', 'Status') }}</span>
+            <label data-field-role="filter" class="block min-w-0 w-40">
+              <span class="sr-only">{{ t('admin.channels.form.status', 'Status') }}</span>
               <Select :aria-label="t('admin.channels.form.status', 'Status')"
               v-model="filters.status"
               :options="statusFilterOptions"

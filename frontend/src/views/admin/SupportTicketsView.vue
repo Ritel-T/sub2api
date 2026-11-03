@@ -4,8 +4,8 @@
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex-1 sm:max-w-72">
-            <label class="block min-w-0">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('supportTickets.filters.keywordPlaceholder') }}</span>
+            <label data-field-role="filter" class="block min-w-0">
+              <span class="sr-only">{{ t('supportTickets.filters.keywordPlaceholder') }}</span>
               <input
               v-model="keyword"
               type="search"
@@ -21,8 +21,8 @@
             <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
             <Select :aria-label="t('common.status')" v-model="status" :options="statusOptions" class="w-36" data-testid="ticket-status-filter" />
           </label>
-          <label v-if="categories.length" class="block min-w-0 w-44">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('supportTickets.form.category') }}</span>
+          <label data-field-role="filter" v-if="categories.length" class="block min-w-0 w-44">
+            <span class="sr-only">{{ t('supportTickets.form.category') }}</span>
             <Select :aria-label="t('supportTickets.form.category')"
 
             v-model="category"

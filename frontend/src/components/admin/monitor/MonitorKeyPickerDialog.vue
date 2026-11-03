@@ -11,8 +11,8 @@
       </p>
 
       <div class="relative">
-        <label class="block min-w-0">
-          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('keys.searchPlaceholder') }}</span>
+        <label data-field-role="filter" class="block min-w-0">
+          <span class="sr-only">{{ t('keys.searchPlaceholder') }}</span>
           <input
           v-model="search"
           type="text"

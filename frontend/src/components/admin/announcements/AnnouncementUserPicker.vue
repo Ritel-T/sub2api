@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-2" data-testid="announcement-user-picker">
     <div class="relative">
-      <label class="block min-w-0 w-full">
-        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.announcements.form.searchUsersPlaceholder') }}</span>
+      <label data-field-role="filter" class="block min-w-0 w-full">
+        <span class="sr-only">{{ t('admin.announcements.form.searchUsersPlaceholder') }}</span>
         <input
         v-model="query"
         type="text"

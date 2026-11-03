@@ -16,8 +16,8 @@
       <div class="workspace-columns">
         <section class="workspace-panel rules-panel" aria-labelledby="quality-rules-heading">
           <header class="panel-heading"><div><AppHeading variant="subsection" as="h3" id="quality-rules-heading">{{ t('qualityOps.ruleLibrary') }}<span class="count-label">{{ contextPlans.length }}</span></AppHeading><p>{{ t('qualityOps.ruleLibraryHint') }}</p></div></header>
-          <div class="rule-search workspace-filter-controls"><Icon name="search" size="sm" /><label class="block min-w-0">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('qualityOps.search') }}</span>
+          <div class="rule-search workspace-filter-controls"><Icon name="search" size="sm" /><label data-field-role="filter" class="block min-w-0">
+            <span class="sr-only">{{ t('qualityOps.search') }}</span>
             <input v-model="store.search" :aria-label="t('qualityOps.search')" :placeholder="t('qualityOps.searchRule')" />
           </label><button v-if="store.search" :aria-label="t('qualityOps.clearSearch')" @click="store.search = ''"><Icon name="x" size="sm" /></button></div>
           <div class="rule-selection-toolbar">
@@ -56,8 +56,8 @@
         </section>
         <section class="workspace-panel operations-panel" aria-labelledby="quality-operations-heading">
           <header class="panel-heading"><div><AppHeading variant="subsection" as="h3" id="quality-operations-heading">{{ t('qualityOps.operations') }}</AppHeading><p>{{ t('qualityOps.operationsSubtitle') }}</p></div><button class="icon-button" :disabled="store.operationsLoading" :aria-label="t('qualityOps.refreshOperations')" @click="refreshOperations"><Icon name="refresh" size="sm" :class="{ 'animate-spin': store.operationsLoading }" /></button></header>
-          <div class="operations-toolbar workspace-filter-controls"><div class="scope-label"><span class="scope-dot" />{{ selectedPlan ? name(selectedPlan) : t('qualityOps.allAccounts') }}<button v-if="selectedPlan" :aria-label="t('qualityOps.clearScope')" @click="store.selectedPlanId = null"><Icon name="x" size="xs" /></button></div><label class="block min-w-0 w-auto">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('qualityOps.filterRecords') }}</span>
+          <div class="operations-toolbar workspace-filter-controls"><div class="scope-label"><span class="scope-dot" />{{ selectedPlan ? name(selectedPlan) : t('qualityOps.allAccounts') }}<button v-if="selectedPlan" :aria-label="t('qualityOps.clearScope')" @click="store.selectedPlanId = null"><Icon name="x" size="xs" /></button></div><label data-field-role="filter" class="block min-w-0 w-auto">
+            <span class="sr-only">{{ t('qualityOps.filterRecords') }}</span>
             <select class="input w-auto" v-model="store.operationFilter" :aria-label="t('qualityOps.filterRecords')"><option value="all">{{ t('qualityOps.allOutcomes') }}</option><option value="attention">{{ t('qualityOps.needsAttention') }}</option><option value="passed">{{ t('qualityOps.passedRounds') }}</option><option value="failed">{{ t('qualityOps.otherRounds') }}</option></select>
           </label></div>
           <div v-if="store.operationsError" role="alert" class="panel-error">{{ store.operationsError }}<button @click="store.retryOperations()">{{ t('qualityOps.retry') }}</button></div>

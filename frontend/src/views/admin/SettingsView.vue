@@ -7987,8 +7987,8 @@
                 </div>
 
                 <div class="mb-3 flex items-center gap-2">
-                  <label class="block min-w-0 flex-1">
-                    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.settings.features.affiliate.customUsers.searchPlaceholder') }}</span>
+                  <label data-field-role="filter" class="block min-w-0 flex-1">
+                    <span class="sr-only">{{ t('admin.settings.features.affiliate.customUsers.searchPlaceholder') }}</span>
                     <input
                     v-model="affiliateState.search"
                     type="text"

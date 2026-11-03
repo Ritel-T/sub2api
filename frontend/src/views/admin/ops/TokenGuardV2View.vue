@@ -65,7 +65,7 @@
               {{ t(filter.label) }} <span>{{ filter.count }}</span>
             </button>
           </div>
-          <label class="search-box"><span class="text-2xs">{{ t('common.search') }}</span>
+          <label data-field-role="filter" class="search-box"><span class="sr-only">{{ t('common.search') }}</span>
             <Icon name="search" size="sm" />
             <input id="token-guard-v2-search" v-model.trim="searchQuery" type="search" :placeholder="t('tokenGuardV2.searchPlaceholder')" />
           </label>
@@ -146,7 +146,7 @@
           <p v-if="error" role="alert" class="error-banner">{{ error }}</p>
           <p v-if="!encryptionReady" role="alert" class="error-banner">{{ t('tokenGuardV2.encryption.editorHint') }}</p>
           <div v-if="!editing" class="account-picker">
-            <label class="search-box picker-search"><span class="text-2xs">{{ t('common.search') }}</span>
+            <label data-field-role="filter" class="search-box picker-search"><span class="sr-only">{{ t('common.search') }}</span>
               <Icon name="search" size="sm" />
               <input id="token-guard-v2-account-search" v-model.trim="accountSearch" type="search" :placeholder="t('tokenGuardV2.accountSearchPlaceholder')" />
             </label>

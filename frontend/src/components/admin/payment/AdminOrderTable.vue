@@ -3,8 +3,8 @@
     <div class="open-section">
       <div class="flex flex-wrap items-center gap-3">
         <div class="flex-1 sm:max-w-64">
-          <label class="block min-w-0">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.admin.searchOrders') }}</span>
+          <label data-field-role="filter" class="block min-w-0">
+            <span class="sr-only">{{ t('payment.admin.searchOrders') }}</span>
             <input
             v-model="searchQuery"
             type="text"
@@ -14,8 +14,8 @@
           />
           </label>
         </div>
-        <label class="block min-w-0 w-36">
-          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.status') }}</span>
+        <label data-field-role="filter" class="block min-w-0 w-36">
+          <span class="sr-only">{{ t('payment.orders.status') }}</span>
           <Select :aria-label="t('payment.orders.status')"
           v-model="filters.status"
           :options="statusFilterOptions"
@@ -23,8 +23,8 @@
           @change="emitFiltersChanged"
         />
         </label>
-        <label class="block min-w-0 w-40">
-          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.paymentMethod') }}</span>
+        <label data-field-role="filter" class="block min-w-0 w-40">
+          <span class="sr-only">{{ t('payment.orders.paymentMethod') }}</span>
           <Select :aria-label="t('payment.orders.paymentMethod')"
           v-model="filters.payment_type"
           :options="paymentTypeFilterOptions"
@@ -32,8 +32,8 @@
           @change="emitFiltersChanged"
         />
         </label>
-        <label class="block min-w-0 w-36">
-          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.orderType') }}</span>
+        <label data-field-role="filter" class="block min-w-0 w-36">
+          <span class="sr-only">{{ t('payment.orders.orderType') }}</span>
           <Select :aria-label="t('payment.orders.orderType')"
           v-model="filters.order_type"
           :options="orderTypeFilterOptions"

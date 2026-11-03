@@ -13,16 +13,16 @@
                   @search="applyFilters"
                 />
               </div>
-              <label class="block min-w-0 w-full">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('batchImage.columns.apiKey') }}</span>
+              <label data-field-role="filter" class="block min-w-0 w-full">
+                <span class="sr-only">{{ t('batchImage.columns.apiKey') }}</span>
                 <Select :aria-label="t('batchImage.columns.apiKey')" v-model="filters.apiKeyId" :options="apiKeyFilterOptions" class="w-full" @change="applyFilters" />
               </label>
-              <label class="block min-w-0 w-full">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+              <label data-field-role="filter" class="block min-w-0 w-full">
+                <span class="sr-only">{{ t('common.status') }}</span>
                 <Select :aria-label="t('common.status')" v-model="filters.status" :options="statusFilterOptions" class="w-full" @change="applyFilters" />
               </label>
-              <label class="block min-w-0 w-full">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('batchImage.columns.downloadStatus') }}</span>
+              <label data-field-role="filter" class="block min-w-0 w-full">
+                <span class="sr-only">{{ t('batchImage.columns.downloadStatus') }}</span>
                 <Select :aria-label="t('batchImage.columns.downloadStatus')" v-model="filters.downloaded" :options="downloadFilterOptions" class="w-full" @change="applyFilters" />
               </label>
             </div>

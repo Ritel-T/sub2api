@@ -29,8 +29,8 @@
         <div class="select-header">
           <div class="select-search">
             <Icon name="search" size="sm" class="text-gray-400" />
-            <label class="block min-w-0">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.proxies.searchProxies') }}</span>
+            <label class="block min-w-0" data-field-role="filter">
+              <span class="sr-only">{{ t('admin.proxies.searchProxies') }}</span>
               <input
               ref="searchInputRef"
               v-model="searchQuery"

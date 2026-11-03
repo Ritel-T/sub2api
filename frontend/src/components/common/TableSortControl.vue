@@ -23,8 +23,8 @@ const directionLabel = computed(() => props.sortOrder === 'asc'
 
 <template>
   <div class="workspace-sort-control" data-test="mobile-sort-controls">
-    <label class="block min-w-0">
-      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.sort') }}</span>
+    <label class="workspace-sort-label">
+      <span class="workspace-sort-caption">{{ t('common.sort') }}</span>
       <Select
       class="workspace-sort-field"
       :model-value="sortKey"
@@ -59,7 +59,9 @@ const directionLabel = computed(() => props.sortOrder === 'asc'
   min-width: 0;
   width: 100%;
 }
-.workspace-sort-field { flex: 1; min-width: 7.5rem; }
+.workspace-sort-label { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
+.workspace-sort-caption { flex-shrink: 0; color: var(--ritel-muted); font-size: var(--ritel-text-sm); }
+.workspace-sort-field { flex: 1; min-width: 0; }
 .workspace-sort-direction {
   display: inline-flex;
   align-items: center;

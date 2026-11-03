@@ -1,6 +1,6 @@
 <template>
-  <label class="block w-full">
-    <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ labelText }}</span>
+  <label class="block w-full" data-field-role="filter">
+    <span class="sr-only">{{ labelText }}</span>
     <div class="relative">
       <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
         <Icon name="search" size="md" class="text-gray-400" />

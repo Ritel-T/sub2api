@@ -8,8 +8,8 @@
     <div class="space-y-4">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex-1">
-          <label class="block min-w-0">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.announcements.searchUsers') }}</span>
+          <label data-field-role="filter" class="block min-w-0">
+            <span class="sr-only">{{ t('admin.announcements.searchUsers') }}</span>
             <input
             v-model="search"
             type="text"

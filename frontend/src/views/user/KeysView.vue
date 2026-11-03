@@ -10,8 +10,8 @@
               class="keys-search w-full sm:w-80"
               @search="onFilterChange"
             />
-            <label class="block min-w-0 w-40">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('keys.group') }}</span>
+            <label data-field-role="filter" class="block min-w-0 w-40">
+              <span class="sr-only">{{ t('keys.group') }}</span>
               <Select
               :model-value="filterGroupId"
               :aria-label="t('keys.group')"
@@ -20,8 +20,8 @@
               @update:model-value="onGroupFilterChange"
             />
             </label>
-            <label class="block min-w-0 w-40">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+            <label data-field-role="filter" class="block min-w-0 w-40">
+              <span class="sr-only">{{ t('common.status') }}</span>
               <Select
               :model-value="filterStatus"
               :aria-label="t('common.status')"
@@ -993,8 +993,8 @@
             <svg class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <label class="block min-w-0 w-full">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('keys.searchGroup') }}</span>
+            <label data-field-role="filter" class="block min-w-0 w-full">
+              <span class="sr-only">{{ t('keys.searchGroup') }}</span>
               <input
               v-model="groupSearchQuery"
               type="text"

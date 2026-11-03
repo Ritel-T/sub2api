@@ -7,8 +7,8 @@
       </div>
       <div class="workspace-filter-controls flex w-full flex-wrap items-center gap-3 sm:w-auto">
         <div ref="tableToolbarTarget" class="flex items-center gap-2" />
-        <label class="block min-w-0 min-w-0 flex-1 sm:w-40">
-          <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('autoConfig.logs.filter') }}</span>
+        <label data-field-role="filter" class="block min-w-0 min-w-0 flex-1 sm:w-40">
+          <span class="sr-only">{{ t('autoConfig.logs.filter') }}</span>
           <select v-model="kind" class="input min-w-0 flex-1 sm:w-40" :aria-label="t('autoConfig.logs.filter')" data-testid="history-kind">
           <option value="">{{ t('autoConfig.logs.all') }}</option>
           <option v-for="value in kinds" :key="value" :value="value">{{ t('autoConfig.logs.kinds.' + value) }}</option>

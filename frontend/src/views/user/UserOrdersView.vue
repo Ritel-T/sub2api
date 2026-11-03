@@ -5,8 +5,8 @@
       <!-- Filters -->
       <div class="open-section p-4">
         <div class="open-filter-toolbar flex flex-wrap items-center gap-3">
-          <label class="block min-w-0 w-36">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('payment.orders.status') }}</span>
+          <label data-field-role="filter" class="block min-w-0 w-36">
+            <span class="sr-only">{{ t('payment.orders.status') }}</span>
             <Select :aria-label="t('payment.orders.status')" v-model="currentFilter" :options="statusFilters" class="w-36" @change="reset" />
           </label>
           <div ref="tableToolbarTarget" class="min-w-0" />

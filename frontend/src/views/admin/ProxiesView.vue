@@ -71,8 +71,8 @@
               size="md"
               class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
             />
-            <label class="block min-w-0">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.proxies.searchProxies') }}</span>
+            <label data-field-role="filter" class="block min-w-0">
+              <span class="sr-only">{{ t('admin.proxies.searchProxies') }}</span>
               <input
               v-model="searchQuery"
               type="text"
@@ -84,8 +84,8 @@
           </div>
 
           <div class="w-full sm:w-40">
-            <label class="block min-w-0">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.proxies.protocol') }}</span>
+            <label data-field-role="filter" class="block min-w-0">
+              <span class="sr-only">{{ t('admin.proxies.protocol') }}</span>
               <Select :aria-label="t('admin.proxies.protocol')"
               v-model="filters.protocol"
               :options="protocolOptions"
@@ -95,8 +95,8 @@
             </label>
           </div>
           <div class="w-full sm:w-36">
-            <label class="block min-w-0">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.proxies.status') }}</span>
+            <label data-field-role="filter" class="block min-w-0">
+              <span class="sr-only">{{ t('admin.proxies.status') }}</span>
               <Select :aria-label="t('admin.proxies.status')"
               v-model="filters.status"
               :options="statusOptions"
