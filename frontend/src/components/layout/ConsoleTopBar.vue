@@ -118,11 +118,6 @@
                 <div class="text-xs text-gray-500 dark:text-dark-400">{{ user.email }}</div>
                 <VersionBadge v-if="isAdmin" :version="siteVersion" class="mt-2" />
               </div>
-              <dl v-if="showBalance" class="console-menu-balances border-b border-gray-100 px-4 py-3 dark:border-dark-700">
-                <div><dt>{{ shellCopy.available }}</dt><dd>{{ formatMoney(availableBalance) }}</dd></div>
-                <div v-if="frozenBalance > 0"><dt>{{ shellCopy.frozen }}</dt><dd>{{ formatMoney(frozenBalance) }}</dd></div>
-                <div v-if="frozenBalance > 0"><dt>{{ shellCopy.total }}</dt><dd>{{ formatMoney(availableBalance + frozenBalance) }}</dd></div>
-              </dl>
 
               <div class="py-1">
                 <a :href="accountPageURL()" class="dropdown-item" @click="closeDropdown">{{ t('consoleExperience.accountLink') }}</a>
@@ -488,10 +483,6 @@ onBeforeUnmount(() => {
   overflow-y: auto;
 }
 
-.console-menu-balances { font-size: 12px; }
-.console-menu-balances > div { display: flex; justify-content: space-between; gap: 16px; margin: 4px 0; }
-.console-menu-balances dt { color: var(--ritel-muted); }
-.console-menu-balances dd { font-variant-numeric: lining-nums tabular-nums; color: var(--ritel-focus); }
 .console-docs-link { display: none; }
 @media (min-width: 1280px) { .console-docs-link { display: inline-flex; } }
 @media (max-width: 1279px) { .console-balance { display: none; } }
