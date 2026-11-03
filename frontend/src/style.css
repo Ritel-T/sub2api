@@ -87,16 +87,11 @@
     @apply bg-gray-400 dark:bg-dark-500;
   }
 
-  /* 选中文本样式 */
-  ::selection {
-    @apply bg-primary-500/20 text-primary-900 dark:text-primary-100;
-  }
-
 
 }
 
 @layer components {
-  /* Repeated query links and ordinary actions share colors and keyboard focus. */
+  /* Repeated query links and ordinary actions share colors. */
   .theme-action-link,
   .theme-action-button {
     color: var(--theme-primary);
@@ -109,12 +104,6 @@
 
   .theme-action-button:hover {
     background-color: var(--theme-primary-soft);
-  }
-
-  .theme-action-link:focus-visible,
-  .theme-action-button:focus-visible {
-    outline: 2px solid var(--theme-primary);
-    outline-offset: 2px;
   }
 
   .theme-info-panel {
@@ -133,8 +122,6 @@
     @apply inline-flex items-center justify-center gap-2;
     @apply rounded-xl px-4 py-2.5 text-sm font-medium;
     @apply transition-all duration-200 ease-out;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2;
-    @apply dark:focus:ring-primary-400/60 dark:focus:ring-offset-dark-950;
     @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
     @apply active:scale-[0.98];
   }
@@ -871,8 +858,9 @@ code, pre, kbd, samp, .font-mono {
   font-family: var(--ritel-heading);
   letter-spacing: -.025em;
 }
-:focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 4px; }
-::selection { background: var(--theme-control-fill); color: var(--theme-on-control); }
+/* Text selection has its own neutral colors, separate from inverted action fills. */
+::selection { background: #d8d2c2; color: #27251f; text-shadow: none; }
+.dark::selection, .dark ::selection { background: #59584e; color: #fffefa; text-shadow: none; }
 /* Labels and table headers use sentence case; uppercase with wide tracking slows scanning. */
 .uppercase, th { text-transform: none; }
 .uppercase:is(.tracking-wide, .tracking-wider, .tracking-widest, [class*="tracking-["]), th.uppercase { letter-spacing: .01em; }
@@ -1039,7 +1027,27 @@ span.inline-flex.rounded, span.inline-block.rounded { border-radius: var(--ritel
 }
 
 
-/* Mouse interactions stay quiet; keyboard navigation retains :focus-visible. */
-:focus:not(:focus-visible) { outline: none !important; box-shadow: none !important; }
+/* The console uses quiet focus for mouse and keyboard, including nested controls.
+   Central priority also covers component-local outlines and Tailwind ring utilities. */
+:is(:focus, :focus-visible, :focus-within) {
+  outline: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  box-shadow: none !important;
+}
+:is([class*="focus:border-"]:focus, [class*="focus-visible:border-"]:focus-visible, [class*="focus-within:border-"]:focus-within):not(.input-error):not(.select-trigger-error):not([aria-invalid="true"]) {
+  border-color: var(--ritel-control-border) !important;
+}
+/* Radio and switch decorations receive focus styles through a sibling peer.
+   Keep peer-checked borders, fills and rings as selection indicators. */
+.peer:focus-visible ~ [class*="peer-focus-visible:outline"] {
+  outline: none !important;
+}
+.peer:focus ~ [class*="peer-focus:ring-"],
+.peer:focus-visible ~ [class*="peer-focus-visible:ring-"] {
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  box-shadow: none !important;
+}
 /* Underline navigation has square ends throughout the console. */
 :where([role="tab"], nav.-mb-px > button, .purchase-tabs > button, button.border-b-2, a.border-b-2) { border-radius: 0 !important; }

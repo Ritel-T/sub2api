@@ -60,6 +60,9 @@
             :aria-label="shellCopy.unread(sectionBadge(section))"
           >{{ formatNavBadge(sectionBadge(section)) }}</span>
         </router-link>
+        <template v-if="workspace === 'personal'">
+          <a v-for="link in consoleProductLinks" :key="link.href" :href="link.href" target="_blank" rel="noopener noreferrer" class="console-section-link">{{ link.label }}</a>
+        </template>
       </nav>
       <div ref="rightRef" class="console-top-bar-right">
         <FeatureSearch
@@ -82,15 +85,18 @@
         <ThemeSwitcher class="console-theme" />
         <LocaleSwitcher class="console-locale" />
         <SubscriptionProgressMini
-          v-if="user && !authStore.isObserver && !appStore.backendModeEnabled && subscriptionFeatureEnabled"
+          v-if="showBalance && workspace === 'personal' && subscriptionFeatureEnabled"
         />
-        <div
+        <router-link
           v-if="showBalance && workspace === 'personal'"
+          to="/purchase"
           class="console-balance"
+          :title="t('nav.recharge')"
+          @click="handleNavigate('/purchase')"
         >
           <span class="console-balance-amount" :aria-label="`${shellCopy.available}: ${formatMoney(availableBalance)}`">{{ formatMoney(availableBalance) }}</span>
           <span v-if="frozenBalance > 0" class="console-balance-frozen">{{ shellCopy.frozen }} {{ formatMoney(frozenBalance) }}</span>
-        </div>
+        </router-link>
         <div v-if="user" class="relative" ref="dropdownRef">
           <button
             type="button"
@@ -211,7 +217,7 @@ import { BRAND_LOGO, BRAND_NAME } from '@/utils/branding'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { useConsoleNav } from '@/navigation/useConsoleNavSource'
 import { consoleShellCopy, formatNavBadge } from '@/utils/consoleShellUi'
-import { sectionBadge } from '@/navigation/consoleNavigation'
+import { consoleProductLinks, sectionBadge } from '@/navigation/consoleNavigation'
 
 const { t, locale } = useI18n()
 const shellCopy = computed(() => consoleShellCopy(locale.value))
@@ -488,6 +494,7 @@ onBeforeUnmount(() => {
   background: var(--theme-surface);
   border: 1px solid var(--ritel-border);
 }
+.console-balance:hover { background: var(--theme-hover); }
 .console-balance-amount {
   font-size: 13px;
   font-weight: 600;

@@ -61,6 +61,9 @@
           <span v-if="tabBadge(tab)" class="sidebar-nav-badge" data-testid="sidebar-nav-badge">{{ formatNavBadge(tabBadge(tab)) }}</span>
         </router-link>
       </section>
+      <div v-if="workspace === 'personal'" class="console-drawer-section">
+        <a v-for="link in consoleProductLinks" :key="link.href" :href="link.href" target="_blank" rel="noopener noreferrer" class="sidebar-link" @click="closeMobile">{{ link.label }}</a>
+      </div>
     </nav>
   </aside>
 
@@ -81,7 +84,7 @@ import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { BRAND_LOGO, BRAND_NAME } from '@/utils/branding'
-import { tabBadge } from '@/navigation/consoleNavigation'
+import { consoleProductLinks, tabBadge } from '@/navigation/consoleNavigation'
 import { formatNavBadge } from '@/utils/consoleShellUi'
 import { useConsoleNav } from '@/navigation/useConsoleNavSource'
 

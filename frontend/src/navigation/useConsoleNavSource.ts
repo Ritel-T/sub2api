@@ -272,7 +272,8 @@ export function provideConsoleNav() {
     if (appStore.backendModeEnabled && !isAdmin.value) return []
     return userNavItems.value
   })
-  const sections = computed(() => arrangeConsoleSections(visibleNavItems.value, workspace.value, navText.value))
+  const sections = computed(() => arrangeConsoleSections(visibleNavItems.value, workspace.value, navText.value)
+    .filter(section => workspace.value !== 'personal' || section.key !== 'extensions'))
   const activeLocation = computed(() => resolveConsoleLocation(sections.value, route.path, route.query ?? {}))
   const searchItems = computed(() => consoleSearchTree(sections.value))
   const homePath = computed(() => (

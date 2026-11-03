@@ -101,7 +101,7 @@ export default {
     deleteKey: 'Delete API Key',
     deleteConfirmMessage: "Are you sure you want to delete '{name}'? This action cannot be undone.",
     id: 'ID',
-    apiKey: 'API Key',
+    apiKey: 'Key',
     group: 'Group',
     currentConcurrency: 'Current Concurrency',
     concurrencyAndWaiting: 'Concurrency / Waiting',

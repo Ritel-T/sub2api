@@ -15,11 +15,6 @@
 }
 :is(.input, .select-trigger, .date-picker-trigger):hover:not(:disabled):not(.input-error):not(.select-trigger-error):not([aria-invalid="true"]) { border-color: var(--ritel-muted); }
 :is(.select-trigger-open, .date-picker-trigger-open) { border-color: var(--ritel-fg); }
-:is(.input, .select-trigger, .date-picker-trigger, .date-picker-input):focus-visible {
-  outline: 2px solid var(--ritel-focus);
-  outline-offset: 3px;
-  box-shadow: none;
-}
 :is(input.input, textarea.input, button.select-trigger, button.date-picker-trigger, input.date-picker-input):disabled {
   background: var(--theme-surface-inset);
   cursor: not-allowed;
@@ -62,4 +57,3 @@ button.workspace-icon-action {
   border-radius: 6px;
   white-space: nowrap;
 }
-button.workspace-icon-action:focus-visible { outline: 2px solid var(--ritel-focus); outline-offset: 2px; }
