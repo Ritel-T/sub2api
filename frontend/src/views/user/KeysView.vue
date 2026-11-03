@@ -80,7 +80,7 @@
         <div class="keys-page-heading">
           <AppHeading variant="page" as="h1">{{ t('keys.title') }}</AppHeading>
           <div class="keys-primary-actions">
-            <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
+            <button @click="showCreateModal = true" class="btn btn-primary" data-testid="keys-create-btn">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('keys.createKey') }}
             </button>
@@ -346,11 +346,11 @@
             required
             class="input"
             :placeholder="t('keys.namePlaceholder')"
-            data-tour="key-form-name"
+            data-testid="key-form-name"
           />
         </div>
 
-        <fieldset v-if="!showEditModal" data-tour="key-form-provider">
+        <fieldset v-if="!showEditModal" data-testid="key-form-provider">
           <legend class="input-label">{{ t('keys.providerLabel') }}</legend>
           <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label
@@ -410,7 +410,7 @@
             :empty-text="t('common.noGroupsAvailable')"
             :searchable="true"
             :search-placeholder="t('keys.searchGroup')"
-            data-tour="key-form-group"
+            data-testid="key-form-group"
           >
             <template #selected="{ option }">
               <GroupBadge
@@ -849,7 +849,7 @@
             type="submit"
             :disabled="submitting"
             class="btn btn-primary"
-            data-tour="key-form-submit"
+            data-testid="key-form-submit"
           >
             <svg
               v-if="submitting"
@@ -1061,7 +1061,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useKeyConnectionCopy } from '@/components/keys/keyConnectionCopy'
 import { useKeyWorkspaceCopy } from '@/components/keys/keyWorkspaceCopy'
 	import { useAppStore } from '@/stores/app'
-	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useTableColumns } from '@/composables/useTableColumns'
@@ -1124,7 +1123,6 @@ interface GroupOption {
 }
 
 const appStore = useAppStore()
-const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const allColumns = computed<Column[]>(() => [
@@ -1921,10 +1919,7 @@ const handleSubmit = async () => {
       // Use only the returned persisted object; keep its real group capability metadata.
       connectionKey.value = { ...createdKey, group: createdKey.group || groups.value.find((group) => group.id === createdKey.group_id) || undefined }
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
-      // Only advance tour if active, on submit step, and creation succeeded
-      if (onboardingStore.isCurrentStep('[data-tour="key-form-submit"]')) {
-        onboardingStore.nextStep(500)
-      }
+
     }
     const created = !showEditModal.value ? connectionKey.value : null
     closeModals()
@@ -1933,7 +1928,6 @@ const handleSubmit = async () => {
   } catch (error: any) {
     const errorMsg = error.response?.data?.detail || t('keys.failedToSave')
     appStore.showError(errorMsg)
-    // Don't advance tour on error
   } finally {
     submitting.value = false
   }

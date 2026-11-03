@@ -4,9 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 import AppLayout from '../AppLayout.vue'
 vi.mock('vue-router', async () => ({ ...(await vi.importActual<typeof import('vue-router')>('vue-router')), useRoute: () => ({ path: '/fixture' }) }))
 vi.mock('vue-i18n', async () => ({ ...(await vi.importActual<typeof import('vue-i18n')>('vue-i18n')), useI18n: () => ({ locale: ref('en') }) }))
-vi.mock('@/stores', () => ({ useAuthStore: () => ({ user: { role: 'admin' } }), useAppStore: () => ({ mobileOpen: false }), useOnboardingStore: () => ({ setReplayCallback: vi.fn() }) }))
-vi.mock('@/composables/useOnboardingTour', () => ({ useOnboardingTour: () => ({ replayTour: vi.fn() }) }))
-vi.mock('@/navigation/useConsoleNavSource', () => ({ provideConsoleNav: () => ({ activeLocation: ref(null), prepareTourTarget: vi.fn(), finishTour: vi.fn() }) }))
+vi.mock('@/stores', () => ({ useAuthStore: () => ({ user: { role: 'admin' } }), useAppStore: () => ({ mobileOpen: false }) }))
+vi.mock('@/navigation/useConsoleNavSource', () => ({ provideConsoleNav: () => ({ activeLocation: ref(null) }) }))
 
 describe('page title ownership', () => {
   it('uses an explicit prop for local versus layout-owned titles', async () => {

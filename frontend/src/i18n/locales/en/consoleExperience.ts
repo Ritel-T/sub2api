@@ -1,6 +1,6 @@
 export default {
   "liveVersion": "Public version: {mode}",
-  "accountLink": "Go to Ritel.SI Account",
+  "accountLink": "Ritel.SI Account Center",
   "more": "More actions",
   "unsaved": "Unsaved changes",
   "discard": "Discard changes",

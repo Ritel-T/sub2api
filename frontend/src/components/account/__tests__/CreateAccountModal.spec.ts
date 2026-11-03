@@ -518,7 +518,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'OpenAI')
     await wrapper.get('[data-testid="openai-two-fa"]').trigger('click')
-    expect(wrapper.get('[data-tour="account-form-name"]').attributes('required')).toBeUndefined()
+    expect(wrapper.get('[data-testid="account-form-name"]').attributes('required')).toBeUndefined()
     await wrapper.get('form#create-account-form').trigger('submit.prevent')
     const importer = wrapper.getComponent(OpenAITwoFAImport)
     expect(wrapper.findComponent(OAuthAuthorizationFlowStub).exists()).toBe(false)

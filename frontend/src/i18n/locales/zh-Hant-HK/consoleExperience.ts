@@ -1,6 +1,6 @@
 export default {
   "liveVersion": "目前對外版本：{mode}",
-  "accountLink": "前往 Ritel.SI 帳戶",
+  "accountLink": "Ritel.SI 帳戶中心",
   "more": "更多操作",
   "unsaved": "有未儲存的變更",
   "discard": "放棄變更",

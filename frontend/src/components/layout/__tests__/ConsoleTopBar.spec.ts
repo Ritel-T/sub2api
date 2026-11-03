@@ -14,7 +14,7 @@ const nav = {
   workspaceOptions: ref([]), workspace: ref('personal'), searchItems: ref([]), homePath: ref('/dashboard'),
   switchWorkspace: vi.fn(), handleNavigate: vi.fn(),
 }
-vi.mock('@/stores', () => ({ useAppStore: () => app, useAuthStore: () => auth, useOnboardingStore: () => ({ replay: vi.fn() }) }))
+vi.mock('@/stores', () => ({ useAppStore: () => app, useAuthStore: () => auth }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, locale }) }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ currentRoute: ref({ fullPath: '/dashboard' }), push: vi.fn() }) }))
 vi.mock('@/navigation/useConsoleNavSource', () => ({ useConsoleNav: () => nav }))

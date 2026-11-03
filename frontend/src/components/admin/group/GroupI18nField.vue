@@ -77,7 +77,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { availableLocales } from '@/i18n'
 import type { GroupI18n } from '@/types'
 
-// 透传的属性（rows、data-tour 等）落在输入控件上，而不是外层容器
+// 透传的属性（rows、data-testid 等）落在输入控件上，而不是外层容器
 defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(

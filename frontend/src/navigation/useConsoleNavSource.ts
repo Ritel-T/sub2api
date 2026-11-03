@@ -1,6 +1,6 @@
 import { getCustomMenuLabel } from '@/utils/customMenu'
 import { centralAccountEnabled } from '@/utils/accountConfig'
-import { computed, inject, nextTick, onMounted, onUnmounted, provide, ref, watch, type ComputedRef, type InjectionKey } from 'vue'
+import { computed, inject, onMounted, provide, watch, type ComputedRef, type InjectionKey } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useSupportTicketStore } from '@/stores'
@@ -56,10 +56,6 @@ export interface ConsoleNavSource {
   pageTitle: ComputedRef<string>
   switchWorkspace: (value: string) => void
   handleNavigate: (path: string) => void
-  tourId: (path: string, surface?: 'tabs' | 'drawer') => string | undefined
-  tourAttr: (path: string, surface?: 'tabs' | 'drawer') => string | undefined
-  prepareTourTarget: (selector: string) => Promise<boolean>
-  finishTour: () => void
 }
 
 const ConsoleNavSourceKey: InjectionKey<ConsoleNavSource> = Symbol('consoleNavSource')
@@ -316,55 +312,6 @@ export function provideConsoleNav() {
     handleNavigate(path)
   }
 
-  // Only the visible navigation surface owns an anchor, so IDs stay unique.
-  const desktopTour = ref(typeof window === 'undefined' || window.innerWidth >= 1024)
-  const updateTourViewport = () => { desktopTour.value = window.innerWidth >= 1024 }
-  onMounted(() => window.addEventListener('resize', updateTourViewport))
-  onUnmounted(() => window.removeEventListener('resize', updateTourViewport))
-  const pathToSelector: Record<string, string> = {
-    '/admin/groups': '#sidebar-group-manage',
-    '/admin/accounts': '#sidebar-channel-manage',
-    '/keys': '[data-tour="sidebar-my-keys"]'
-  }
-  function ownsTourAnchor(surface?: 'tabs' | 'drawer') {
-    return !surface || (surface === 'tabs' ? desktopTour.value && !appStore.mobileOpen : appStore.mobileOpen)
-  }
-  function tourId(path: string, surface?: 'tabs' | 'drawer') {
-    if (!ownsTourAnchor(surface)) return undefined
-    return path === '/admin/accounts' ? 'sidebar-channel-manage' : path === '/admin/groups' ? 'sidebar-group-manage' : path === '/admin/redeem' ? 'sidebar-wallet' : undefined
-  }
-  function tourAttr(path: string, surface?: 'tabs' | 'drawer') {
-    return ownsTourAnchor(surface) && path === '/keys' ? 'sidebar-my-keys' : undefined
-  }
-  let drawerWasOpenBeforeTour: boolean | undefined
-  function finishTour() {
-    if (drawerWasOpenBeforeTour === false && appStore.mobileOpen) appStore.setMobileOpen(false)
-    drawerWasOpenBeforeTour = undefined
-  }
-  async function prepareTourTarget(selector: string) {
-    const path = Object.keys(pathToSelector).find(path => pathToSelector[path] === selector)
-    if (!path) return true
-    updateTourViewport()
-    const targetWorkspace = path.startsWith('/admin/') ? 'management' : 'personal'
-    const targetSections = arrangeConsoleSections(permittedWorkspaceItems(targetWorkspace), targetWorkspace, navText.value)
-    const section = targetSections.find(section => section.tabs.some(tab => tab.path === path))
-    if (!section) return false
-    drawerWasOpenBeforeTour ??= appStore.mobileOpen
-    // The desktop strip only renders the active section. Enter that section's
-    // first real page, then let the user select the highlighted destination.
-    if (workspace.value !== targetWorkspace || (desktopTour.value && activeLocation.value?.section.key !== section.key)) {
-      await router.push(section.tabs[0].path)
-    }
-    appStore.setMobileOpen(drawerWasOpenBeforeTour || !desktopTour.value || section.tabs.length === 1)
-    await nextTick()
-    const target = document.querySelector<HTMLElement>(selector)
-    target?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
-    const drawer = target?.closest<HTMLElement>('.console-drawer')
-    if (drawer?.getAnimations) {
-      await Promise.all(drawer.getAnimations().map(animation => animation.finished.catch(() => undefined)))
-    }
-    return true
-  }
   function handleNavigate(_itemPath: string) {
     if (appStore.mobileOpen) appStore.setMobileOpen(false)
   }
@@ -396,7 +343,7 @@ export function provideConsoleNav() {
 
   const source: ConsoleNavSource = {
     navText, userNavItems, adminNavItems, workspace, workspaceOptions, sections, activeLocation,
-    searchItems, homePath, pageTitle, switchWorkspace, handleNavigate, tourId, tourAttr, prepareTourTarget, finishTour,
+    searchItems, homePath, pageTitle, switchWorkspace, handleNavigate,
   }
   provide(ConsoleNavSourceKey, source)
   return source

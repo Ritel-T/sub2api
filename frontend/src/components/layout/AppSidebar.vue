@@ -7,7 +7,6 @@
     :aria-hidden="!mobileOpen ? 'true' : undefined"
     :role="mobileOpen ? 'dialog' : undefined"
     :aria-modal="mobileOpen ? 'true' : undefined"
-    :aria-owns="mobileOpen && onboardingStore.isDriverActive() ? 'driver-popover-content' : undefined"
     :aria-label="navText.navigation"
     :class="{ 'console-drawer-open': mobileOpen }"
   >
@@ -48,8 +47,6 @@
           v-for="tab in section.tabs"
           :key="tab.path"
           :to="tab.path"
-          :id="tourId(tab.path, 'drawer')"
-          :data-tour="tourAttr(tab.path, 'drawer')"
           class="sidebar-link"
           :class="{ 'sidebar-link-active': activeLocation?.tab === tab }"
           :aria-current="activeLocation?.tab === tab ? 'page' : undefined"
@@ -76,7 +73,7 @@
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import { useAppStore, useAuthStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
@@ -91,10 +88,9 @@ import { useConsoleNav } from '@/navigation/useConsoleNavSource'
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
-const onboardingStore = useOnboardingStore()
 const {
   navText, workspace, workspaceOptions, sections, activeLocation,
-  switchWorkspace, handleNavigate, tourId, tourAttr,
+  switchWorkspace, handleNavigate,
 } = useConsoleNav()
 
 const sidebarRef = ref<HTMLElement | null>(null)
@@ -114,8 +110,7 @@ function releaseScroll() {
 function closeMobile() { appStore.setMobileOpen(false) }
 function mobileFocusTargets(): HTMLElement[] {
   const selector = 'a[href], button:not([disabled]), select:not([disabled]), [tabindex="0"]'
-  const popover = onboardingStore.isDriverActive() ? document.getElementById('driver-popover-content') : null
-  return [...(sidebarRef.value?.querySelectorAll<HTMLElement>(selector) ?? []), ...(popover?.querySelectorAll<HTMLElement>(selector) ?? [])]
+  return [...(sidebarRef.value?.querySelectorAll<HTMLElement>(selector) ?? [])]
     .filter(element => !element.closest('[aria-hidden="true"]'))
 }
 function handleViewportResize() {
@@ -124,7 +119,6 @@ function handleViewportResize() {
 function handleMobileKeydown(event: KeyboardEvent) {
   if (!mobileOpen.value || document.querySelector('[role="dialog"][aria-modal="true"]:not(.sidebar)')) return
   if (event.key === 'Escape') {
-    if (onboardingStore.isDriverActive()) return
     event.preventDefault(); closeMobile(); return
   }
   if (event.key !== 'Tab') return
