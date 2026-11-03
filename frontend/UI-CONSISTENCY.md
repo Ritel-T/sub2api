@@ -12,7 +12,7 @@ Use the existing brand palette and font roles. Components that serve the same ro
 - Content loading indicators expose a localized status name. Busy button spinners stay inside their already named/disabled button; do not add duplicate live announcements. An empty state is not loading.
 - Keep actual platform/payment/error/quota semantics. Domain badge colors and dangerous versus primary buttons must not be collapsed into one generic style.
 
-For broad changes, enumerate all runtime Vue files and route dependencies, including hand-written implementations and conditional branches. Keep a disposition for every exceptional pattern. Static coverage is not evidence that every role/data/language combination has been exercised in a browser.
+For shared UI changes, check the affected consumers and relevant browser interactions. Do not require a whole-site source inventory or every role/data/language combination for an ordinary change.
 
 2026-10-22 source audit and exact coverage: Windows workspace `reports/ritel-ui-consistency-20261022/`. See its coverage, controls, lists, dialogs and loading inventories, source hashes, test results and rendered proofs. That report records local changes separately from production deployment.
 
@@ -24,7 +24,7 @@ Authored product headings use `AppHeading`. Its `variant` selects a visual role;
 
 `AppLayout` owns the route title by default. A page with its own page heading explicitly sets `:show-page-title="false"`; conditional loading/content ownership uses an explicit boolean expression. Do not inspect descendant DOM to guess title ownership.
 
-Run `pnpm check:design`, `pnpm test:design`, and the AppHeading, Typography.css, AppLayout.title and BaseDialog tests. The AST guard runs before build and lint:check. It scans all runtime sources, rejects local heading overrides (including cross-component unscoped CSS), validates central Tailwind mappings, and checks exact, counted prose/screen-reader exceptions. Exceptions require a specific file/selector, count and reason; no page-wide wildcard.
+Check the changed screen at its relevant desktop/mobile sizes. Shared typography is a design convention, not a source-spelling test or build gate.
 
 2026-10-23 implementation and limits: Windows workspace `reports/ritel-type-architecture-20261023/`. Other products have a separate migration inventory; this frontend batch does not claim cross-product rollout or repair of the outstanding confirmation/control/list behavior findings.
 
@@ -38,19 +38,19 @@ App provides a confirmation session context keyed by authenticated identity and 
 
 Use the shared `overlayLifecycle` registry for modal focus/scroll ownership and interactive body portals. Register every interactive teleported popover with its actual trigger, root, open state and close callback. Escape dismisses the top owned popover before its modal; lower modal closure cannot steal top focus. Select Tab continues after its trigger; reverse Tab from search returns to the trigger. Pure display and layout teleports remain separate roles with a recorded disposition.
 
-`check:design` runs typography, confirmation and control AST gates before build/lint; `test:design` checks the gates. The confirmation gate validates explicit intent, action/busy ownership, adapters and native-confirm escapes; it does not prove target dataflow. Keep runtime race, delayed-result, nested-loader, custom confirmation and browser keyboard regressions alongside the exact consumer/portal inventories. Do not treat a scan pass as a complete screen-reader, mobile-device or production transaction test.
+Verify confirmation behavior where it matters: the right object is submitted once, pending work cannot be duplicated, and results from a replaced editor cannot affect the current object. Reuse those behavioral tests instead of scanning source structure.
 
 2026-10-23 candidate implementation/evidence: Windows workspace `reports/ritel-confirmation-architecture-20261023/`. Preserve existing payment/identity/permission semantics. This does not complete the separate field, list, palette or cross-product adoption work.
 
 ## Development validation
 
-Use [TESTING.md](TESTING.md) for scoped/watch checks, the deduplicated final verification command, escalation rules and test maintenance. The historical batch commands above describe coverage, not a requirement to rerun every gate after each edit.
+Use [TESTING.md](../TESTING.md) for focused checks and the single final CI run. Earlier dated audits record historical coverage, not mandatory checks for every edit.
 
 ## Field roles and loading
 
 `workspace-controls.css` owns field geometry, focus, disabled and invalid states for native `.input`, Select and date controls. Brand variables own regular/compact heights and semantic error color. Edit fields retain a frame; explicit filter containers (or `data-field-role="filter"`) select the baseline. A field's `data-field-density="compact"` is an intentional variant. Keep class/style/role metadata on the wrapper; send labels, descriptions, constraints and events to the actual operable field. Clear actions are separate, named keyboard buttons.
 
-Every Toggle/Select needs its business field name, not a generic enable/select placeholder. Select may use a real `label for`/id pair. `check-controls` rejects unnamed calls and local switch renderers so new pages must adopt the shared contract. Rendered behavior and valid name references still require consumer tests.
+Every Toggle/Select needs its business field name, not a generic enable/select placeholder. Select may use a real `label for`/id pair. Use the shared controls and check their accessible names in the changed interaction. Do not add source-scanning tests for component spelling or markup shape.
 
 Use `LoadingRegion` once for a real skeleton group; repeated cells opt out of repeated live regions. Native table skeletons preserve table structure and expose one parent status. Health pulses, cursors and named busy-action icons keep their separate roles.
 

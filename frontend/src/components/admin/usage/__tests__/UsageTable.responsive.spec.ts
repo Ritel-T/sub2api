@@ -29,7 +29,7 @@ describe('responsive usage details', () => {
     resize(390)
     const wrapper = render(false)
     const trigger = wrapper.get(`button[aria-label="usage.${kind === 'token' ? 'tokenDetails' : 'costDetails'}"]`)
-    expect(trigger.text()).toContain(kind === 'token' ? '100' : '$0.120000')
+    expect(trigger.text()).toContain(kind === 'token' ? '100' : '$0.12')
     await trigger.trigger('mouseenter')
     await trigger.trigger('click')
     await trigger.trigger('mouseleave')

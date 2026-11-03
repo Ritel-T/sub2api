@@ -11,20 +11,6 @@ import (
 	"time"
 )
 
-func TestUsageReadFiltersLegacyAndAliasedSemantics(t *testing.T) {
-	kind := int16(service.RequestTypeWSV2)
-	stream := false
-	native := true
-	bill := int8(1)
-	audit := false
-	query, args := appendUsageLogReadFilters("SELECT * FROM usage_logs ul WHERE true", nil, usagestats.UsageLogFilters{UserID: 11, APIKeyID: 12, AccountID: 13, GroupID: 14, RequestID: " exact-request ", Model: "client-alias", ModelFilterSource: usagestats.ModelSourceRequested, RequestType: &kind, Stream: &stream, NativeCompactionV2: &native, BillingType: &bill, BillingMode: "image", UpstreamModelMismatch: &audit}, "ul")
-	for _, part := range []string{"ul.user_id = $1", "ul.api_key_id = $2", "ul.account_id = $3", "ul.group_id = $4", "ul.request_id = $5", "COALESCE(NULLIF(TRIM(ul.requested_model), ''), ul.model) = $6", "ul.request_type", "ul.openai_ws_mode", "ul.native_compaction_v2", "ul.billing_type", "ul.billing_mode", "COALESCE(ul.image_count, 0) > 0", "ul.upstream_model_mismatch IS FALSE"} {
-		require.Contains(t, query, part)
-	}
-	require.NotContains(t, query, "ul.stream =", "request_type takes precedence over legacy stream just as records")
-	require.Equal(t, []any{int64(11), int64(12), int64(13), int64(14), "exact-request", "client-alias", kind, true, int16(1), "image"}, args)
-}
-
 // This exercises real query execution against synthetic temporary tables. The DSN
 // must point at a disposable local PostgreSQL instance; no application data is read.
 func TestUsageSharedFiltersPostgresParity(t *testing.T) {

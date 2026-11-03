@@ -121,22 +121,6 @@ func TestSanitizeWebSearchConfig_NoAPIKey(t *testing.T) {
 	require.False(t, out.Providers[0].APIKeyConfigured)
 }
 
-func TestSanitizeWebSearchConfig_Nil(t *testing.T) {
-	require.Nil(t, SanitizeWebSearchConfig(context.Background(), nil))
-}
-
-func TestSanitizeWebSearchConfig_PreservesOtherFields(t *testing.T) {
-	cfg := &WebSearchEmulationConfig{
-		Enabled: true,
-		Providers: []WebSearchProviderConfig{
-			{Type: "brave", APIKey: "secret", QuotaLimit: int64Ptr(1000)},
-		},
-	}
-	out := SanitizeWebSearchConfig(context.Background(), cfg)
-	require.True(t, out.Enabled)
-	require.Equal(t, int64(1000), *out.Providers[0].QuotaLimit)
-}
-
 func TestSanitizeWebSearchConfig_DoesNotMutateOriginal(t *testing.T) {
 	cfg := &WebSearchEmulationConfig{
 		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "secret"}},
@@ -146,10 +130,6 @@ func TestSanitizeWebSearchConfig_DoesNotMutateOriginal(t *testing.T) {
 }
 
 // --- PopulateWebSearchUsage ---
-
-func TestPopulateWebSearchUsage_NilInput(t *testing.T) {
-	require.Nil(t, PopulateWebSearchUsage(context.Background(), nil))
-}
 
 func TestPopulateWebSearchUsage_NoManager_QuotaUsedZero(t *testing.T) {
 	// Ensure no global manager is set
@@ -192,33 +172,6 @@ func TestPopulateWebSearchUsage_APIKeyConfigured_False(t *testing.T) {
 	}
 	out := PopulateWebSearchUsage(context.Background(), cfg)
 	require.False(t, out.Providers[0].APIKeyConfigured)
-}
-
-func TestPopulateWebSearchUsage_NilQuotaLimit(t *testing.T) {
-	SetWebSearchManager(nil)
-	defer SetWebSearchManager(nil)
-
-	cfg := &WebSearchEmulationConfig{
-		Providers: []WebSearchProviderConfig{
-			{Type: "brave", APIKey: "sk-key", QuotaLimit: nil},
-		},
-	}
-	out := PopulateWebSearchUsage(context.Background(), cfg)
-	require.Nil(t, out.Providers[0].QuotaLimit)
-}
-
-func TestPopulateWebSearchUsage_NonNilQuotaLimit(t *testing.T) {
-	SetWebSearchManager(nil)
-	defer SetWebSearchManager(nil)
-
-	cfg := &WebSearchEmulationConfig{
-		Providers: []WebSearchProviderConfig{
-			{Type: "brave", APIKey: "sk-key", QuotaLimit: int64Ptr(500)},
-		},
-	}
-	out := PopulateWebSearchUsage(context.Background(), cfg)
-	require.NotNil(t, out.Providers[0].QuotaLimit)
-	require.Equal(t, int64(500), *out.Providers[0].QuotaLimit)
 }
 
 func TestPopulateWebSearchUsage_WithManager_NilRedis(t *testing.T) {

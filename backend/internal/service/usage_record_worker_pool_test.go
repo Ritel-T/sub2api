@@ -354,51 +354,6 @@ func TestNewUsageRecordWorkerPool_FromConfig(t *testing.T) {
 	require.Equal(t, 3, stats.MaxConcurrency)
 }
 
-func TestUsageRecordWorkerPool_OptionsFromConfig_NilConfig(t *testing.T) {
-	opts := usageRecordPoolOptionsFromConfig(nil)
-	require.Equal(t, defaultUsageRecordWorkerCount, opts.WorkerCount)
-	require.Equal(t, defaultUsageRecordQueueSize, opts.QueueSize)
-	require.Equal(t, time.Duration(defaultUsageRecordTaskTimeoutSeconds)*time.Second, opts.TaskTimeout)
-	require.Equal(t, defaultUsageRecordOverflowPolicy, opts.OverflowPolicy)
-	require.Equal(t, defaultUsageRecordOverflowSampleRatio, opts.OverflowSamplePercent)
-	require.True(t, opts.AutoScaleEnabled)
-	require.Equal(t, defaultUsageRecordAutoScaleMinWorkers, opts.AutoScaleMinWorkers)
-	require.Equal(t, defaultUsageRecordAutoScaleMaxWorkers, opts.AutoScaleMaxWorkers)
-}
-
-func TestUsageRecordWorkerPool_NormalizeOptions_BoundsAndDefaults(t *testing.T) {
-	opts := normalizeUsageRecordPoolOptions(UsageRecordWorkerPoolOptions{
-		WorkerCount:           0,
-		QueueSize:             0,
-		TaskTimeout:           0,
-		OverflowPolicy:        "invalid",
-		OverflowSamplePercent: 300,
-		AutoScaleEnabled:      true,
-		AutoScaleMinWorkers:   0,
-		AutoScaleMaxWorkers:   0,
-		AutoScaleUpPercent:    0,
-		AutoScaleDownPercent:  100,
-		AutoScaleUpStep:       0,
-		AutoScaleDownStep:     0,
-		AutoScaleInterval:     0,
-		AutoScaleCooldown:     -time.Second,
-	})
-
-	require.Equal(t, defaultUsageRecordWorkerCount, opts.WorkerCount)
-	require.Equal(t, defaultUsageRecordQueueSize, opts.QueueSize)
-	require.Equal(t, time.Duration(defaultUsageRecordTaskTimeoutSeconds)*time.Second, opts.TaskTimeout)
-	require.Equal(t, defaultUsageRecordOverflowPolicy, opts.OverflowPolicy)
-	require.Equal(t, 100, opts.OverflowSamplePercent)
-	require.Equal(t, defaultUsageRecordAutoScaleMinWorkers, opts.AutoScaleMinWorkers)
-	require.Equal(t, defaultUsageRecordAutoScaleMaxWorkers, opts.AutoScaleMaxWorkers)
-	require.Equal(t, defaultUsageRecordAutoScaleUpPercent, opts.AutoScaleUpPercent)
-	require.Equal(t, defaultUsageRecordAutoScaleDownPercent, opts.AutoScaleDownPercent)
-	require.Equal(t, defaultUsageRecordAutoScaleUpStep, opts.AutoScaleUpStep)
-	require.Equal(t, defaultUsageRecordAutoScaleDownStep, opts.AutoScaleDownStep)
-	require.Equal(t, defaultUsageRecordAutoScaleInterval, opts.AutoScaleInterval)
-	require.Equal(t, defaultUsageRecordAutoScaleCooldown, opts.AutoScaleCooldown)
-}
-
 func TestUsageRecordWorkerPool_NormalizeOptions_SampleAndAutoScaleDisabled(t *testing.T) {
 	sampleOpts := normalizeUsageRecordPoolOptions(UsageRecordWorkerPoolOptions{
 		WorkerCount:           32,

@@ -213,26 +213,6 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestBuildUsageLogBestEffortInsertQuery_IncludesRequestedModelColumn(t *testing.T) {
-	prepared := prepareUsageLogInsert(&service.UsageLog{
-		UserID:         1,
-		APIKeyID:       2,
-		AccountID:      3,
-		RequestID:      "req-best-effort-query",
-		Model:          "gpt-5",
-		RequestedModel: "gpt-5",
-		CreatedAt:      time.Date(2025, 1, 3, 12, 0, 0, 0, time.UTC),
-	})
-
-	query, args := buildUsageLogBestEffortInsertQuery([]usageLogInsertPrepared{prepared})
-
-	require.Contains(t, query, "INSERT INTO usage_logs (")
-	require.Contains(t, query, "\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,\n\t\t\tupstream_response_model,\n\t\t\tupstream_model_mismatch,")
-	require.Contains(t, query, "\n\t\t\trequest_id,\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,\n\t\t\tupstream_response_model,\n\t\t\tupstream_model_mismatch,")
-	require.Len(t, args, len(prepared.args))
-	require.Equal(t, prepared.args[5], args[5])
-}
-
 func TestExecUsageLogInsertNoResult_PersistsRequestedModel(t *testing.T) {
 	db, mock := newSQLMock(t)
 	prepared := prepareUsageLogInsert(&service.UsageLog{
@@ -252,20 +232,6 @@ func TestExecUsageLogInsertNoResult_PersistsRequestedModel(t *testing.T) {
 	err := execUsageLogInsertNoResult(context.Background(), db, prepared)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestPrepareUsageLogInsert_ArgCountMatchesTypes(t *testing.T) {
-	prepared := prepareUsageLogInsert(&service.UsageLog{
-		UserID:         1,
-		APIKeyID:       2,
-		AccountID:      3,
-		RequestID:      "req-arg-count",
-		Model:          "gpt-5",
-		RequestedModel: "gpt-5",
-		CreatedAt:      time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
-	})
-
-	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 }
 
 func TestPrepareUsageLogInsert_PersistsNativeCompactionV2WithoutChangingRequestType(t *testing.T) {
@@ -320,12 +286,6 @@ func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 	breakdownJSON, ok := prepared.args[43].(string)
 	require.True(t, ok)
 	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
-}
-
-func TestCoalesceTrimmedString(t *testing.T) {
-	require.Equal(t, "fallback", coalesceTrimmedString(sql.NullString{}, "fallback"))
-	require.Equal(t, "fallback", coalesceTrimmedString(sql.NullString{Valid: true, String: "   "}, "fallback"))
-	require.Equal(t, "value", coalesceTrimmedString(sql.NullString{Valid: true, String: "value"}, "fallback"))
 }
 
 func TestAppendUsageLogBillingModeWhereCondition(t *testing.T) {

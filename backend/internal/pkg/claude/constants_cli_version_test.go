@@ -15,25 +15,6 @@ import (
 //	"Claude Code <ver> does not support this model; version 2.1.251 or newer is required."
 const fable51MinCLIVersion = "2.1.251"
 
-// TestCLICurrentVersionMatchesDefaultUserAgent 锁定"常量与 UA 同源"这条约束。
-// 两者不一致会被 Anthropic 判为第三方客户端，且只改一处是历史上的常见疏漏，
-// 所以这里从 UA 里反解版本号来比对，而不是并列两个字面量。
-func TestCLICurrentVersionMatchesDefaultUserAgent(t *testing.T) {
-	t.Parallel()
-
-	ua := DefaultHeaders()["User-Agent"]
-	const prefix = "claude-cli/"
-	require.True(t, strings.HasPrefix(ua, prefix), "unexpected User-Agent: %q", ua)
-
-	rest := strings.TrimPrefix(ua, prefix)
-	version := rest
-	if idx := strings.IndexByte(rest, ' '); idx >= 0 {
-		version = rest[:idx]
-	}
-	require.Equal(t, CLICurrentVersion, version,
-		"DefaultHeaders User-Agent version must match CLICurrentVersion")
-}
-
 // TestCLICurrentVersionSatisfiesFable51Gate 锁定伪装版本不低于 claude-fable-5-1
 // 的闸门下限。DefaultModels 里登记了该模型却发着更旧的版本号，等于模型清单可见
 // 但一调就 400。

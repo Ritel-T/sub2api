@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -329,43 +328,6 @@ func TestChannelMonitorV2EmptyRestrictedScopeReturnsEmptyMatrixForEveryGrouping(
 	}
 }
 
-func TestChannelMonitorV2ErrorAggregationCountsFinalUserErrorsOnly(t *testing.T) {
-	query := strings.ToLower(channelMonitorV2ErrorAggregationSQL)
-	require.Contains(t, query, "not current_error.is_count_tokens")
-	require.Contains(t, query, "error_type = 'cyber_policy'")
-	require.Contains(t, query, "distinct on")
-	require.Contains(t, query, "candidate_ids")
-	require.Contains(t, query, "where bucket_start >= $1 and bucket_start < $2")
-	require.Contains(t, query, "upstream_affected_requests")
-	require.Contains(t, query, "jsonb_array_length(current_error.upstream_errors) > 0")
-	// request_id dedup must be time-bounded (no full-history scan).
-	require.Contains(t, query, "interval '90 minutes'")
-	require.Contains(t, query, "current_error.created_at >= $1 - interval '90 minutes'")
-}
-
-func TestChannelMonitorV2ErrorAggregationResolvesCompositePlatform(t *testing.T) {
-	query := strings.ToLower(channelMonitorV2ErrorAggregationSQL)
-	// Composite groups are a routing layer: error facts must resolve the concrete
-	// account platform (joining groups/accounts) so they aggregate under the same
-	// platform key as usage facts instead of the never-enabled 'composite' platform.
-	require.Contains(t, query, "g.platform = 'composite'")
-	require.Contains(t, query, "left join groups g on g.id = current_error.group_id")
-	require.Contains(t, query, "left join accounts a on a.id = current_error.account_id")
-	require.Contains(t, query, "a.platform")
-	require.Contains(t, query, "nullif(trim(a.platform), '')")
-	require.NotContains(t, query, "nullif(trim(a.platform))")
-}
-
-func TestChannelMonitorV2UsageSuccessExcludesCyberBillingRows(t *testing.T) {
-	for _, query := range []string{channelMonitorV2UsageMetricsSQL, channelMonitorV2UserMetricsSQL} {
-		require.Contains(t, query, "COALESCE(ul.request_type, 0) NOT IN (4, 6)")
-		require.Contains(t, query, "ul.actual_cost > 0")
-	}
-	require.Contains(t, channelMonitorV2PlatformSQL, "g.platform = 'composite'")
-	require.Contains(t, channelMonitorV2PlatformSQL, "a.platform")
-	require.Contains(t, channelMonitorV2HistogramSQL, "ul.actual_cost > 0")
-}
-
 func TestChannelMonitorV2RatesUseCoveredWindow(t *testing.T) {
 	start := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	filter := service.ChannelMonitorV2Filter{Start: start, End: start.Add(24 * time.Hour)}
@@ -434,28 +396,6 @@ func TestSameFixedRollupBucket(t *testing.T) {
 	require.False(t, sameFixedRollupBucket(start, start.Add(24*time.Hour), 86400))
 }
 
-// Needles present in service.ClassifyChannelMonitorV2Error must appear in the
-// aggregation SQL CASE so rollup categories match drilldown classification.
-func TestChannelMonitorV2SQLTaxonomyContainsGoNeedles(t *testing.T) {
-	sql := channelMonitorV2ErrorAggregationSQL
-	needles := []string{
-		"blocked keyword",
-		"invalid_api_key",
-		"max_tokens",
-		"invalid_request",
-		"model not supported",
-		"billing hard limit",
-		"no healthy upstream account",
-		"rate_limit",
-		"gateway timeout",
-		"connection refused",
-		"unexpected eof",
-	}
-	for _, needle := range needles {
-		require.Containsf(t, strings.ToLower(sql), strings.ToLower(needle), "SQL taxonomy missing Go needle %q", needle)
-	}
-}
-
 func TestApplyIgnoredErrorsAdjustsRatesKeepsAbsoluteVolume(t *testing.T) {
 	m := service.ChannelMonitorV2Metric{
 		RequestCount:  100,
@@ -482,19 +422,6 @@ func TestApplyIgnoredErrorsAdjustsRatesKeepsAbsoluteVolume(t *testing.T) {
 	applyIgnoredErrors(&m3, 0)
 	require.InDelta(t, 0.2, m3.ErrorRate, 0.0001)
 	require.InDelta(t, 0.8, m3.SuccessRate, 0.0001)
-}
-
-func TestRedactChannelMonitorV2MetricZerosVolume(t *testing.T) {
-	// Service helper is in service package; covered there. Keep a smoke note that
-	// rates survive a manual zeroing of volume fields used by the UI contract.
-	m := service.ChannelMonitorV2Metric{
-		RequestCount: 100, ErrorRequests: 10, SuccessRequests: 90,
-		TokenCount: 1000, RPM: 5, TPM: 50, ErrorRate: 0.1, SuccessRate: 0.9, CacheRate: 0.4,
-	}
-	// Mimic redact: zero volume only
-	m.RequestCount, m.ErrorRequests, m.SuccessRequests, m.TokenCount = 0, 0, 0, 0
-	require.Equal(t, 0.1, m.ErrorRate)
-	require.Equal(t, 5.0, m.RPM)
 }
 
 func TestChannelMonitorV2CatalogFilterClearsMultiSelectDimensions(t *testing.T) {

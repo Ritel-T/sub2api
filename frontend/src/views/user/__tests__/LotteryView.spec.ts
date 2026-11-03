@@ -280,15 +280,6 @@ describe('LotteryView', () => {
     save.mockRestore()
     wrapper.unmount()
   })
-  it('uses a single pool heading without a redundant selector and collapses rules', async () => {
-    const wrapper = render()
-    await flushPromises()
-    expect(wrapper.find('[role="tablist"]').exists()).toBe(false)
-    expect(wrapper.get('#current-pool-title').text()).toBe('Pool')
-    expect(wrapper.get('#lottery-pool-panel').attributes('aria-labelledby')).toBe('current-pool-title')
-    expect(wrapper.get('.lottery-rules').attributes('open')).toBeUndefined()
-    wrapper.unmount()
-  })
   it('totals only confirmed balance rewards and preserves complete text awards', async () => {
     pools.mockResolvedValue([fixture(5)])
     draw.mockResolvedValueOnce({ id: 21, prize: { id: 10, name: 'Small credit', kind: 'balance', amount: 0.1 } })

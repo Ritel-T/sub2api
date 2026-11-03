@@ -2,12 +2,9 @@
 
 // Package tlsfingerprint provides TLS fingerprint simulation for HTTP clients.
 //
-// Unit tests for TLS fingerprint dialer.
-// Integration tests that require external network are in dialer_integration_test.go
-// and require the 'integration' build tag.
-//
-// Run unit tests: go test -v ./internal/pkg/tlsfingerprint/...
-// Run integration tests: go test -v -tags=integration ./internal/pkg/tlsfingerprint/...
+// Local dialer tests and optional external fingerprint diagnostics.
+// The external checks have one implementation, enabled explicitly with
+// TLSFINGERPRINT_NETWORK_TESTS=1 go test -tags=unit ./internal/pkg/tlsfingerprint
 package tlsfingerprint
 
 import (
@@ -15,7 +12,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -188,52 +184,6 @@ func TestDialerWithProfile(t *testing.T) {
 	}
 }
 
-// TestHTTPProxyDialerBasic tests HTTP proxy dialer creation.
-// Note: This is a unit test - actual proxy testing requires a proxy server.
-func TestHTTPProxyDialerBasic(t *testing.T) {
-	profile := &Profile{
-		Name:         "Test Profile",
-		EnableGREASE: false,
-	}
-
-	// Test that dialer is created without panic
-	proxyURL := mustParseURL("http://proxy.example.com:8080")
-	dialer := NewHTTPProxyDialer(profile, proxyURL)
-
-	if dialer == nil {
-		t.Fatal("expected dialer to be created")
-	}
-	if dialer.profile != profile {
-		t.Error("expected profile to be set")
-	}
-	if dialer.proxyURL != proxyURL {
-		t.Error("expected proxyURL to be set")
-	}
-}
-
-// TestSOCKS5ProxyDialerBasic tests SOCKS5 proxy dialer creation.
-// Note: This is a unit test - actual proxy testing requires a proxy server.
-func TestSOCKS5ProxyDialerBasic(t *testing.T) {
-	profile := &Profile{
-		Name:         "Test Profile",
-		EnableGREASE: false,
-	}
-
-	// Test that dialer is created without panic
-	proxyURL := mustParseURL("socks5://proxy.example.com:1080")
-	dialer := NewSOCKS5ProxyDialer(profile, proxyURL)
-
-	if dialer == nil {
-		t.Fatal("expected dialer to be created")
-	}
-	if dialer.profile != profile {
-		t.Error("expected profile to be set")
-	}
-	if dialer.proxyURL != proxyURL {
-		t.Error("expected proxyURL to be set")
-	}
-}
-
 // TestBuildClientHelloSpec tests ClientHello spec construction.
 func TestBuildClientHelloSpec(t *testing.T) {
 	// Test with nil profile (should use defaults)
@@ -262,31 +212,6 @@ func TestBuildClientHelloSpec(t *testing.T) {
 	if len(spec.CipherSuites) != 2 {
 		t.Errorf("expected 2 cipher suites, got %d", len(spec.CipherSuites))
 	}
-}
-
-// TestToUTLSCurves tests curve ID conversion.
-func TestToUTLSCurves(t *testing.T) {
-	input := []uint16{0x001d, 0x0017, 0x0018}
-	result := toUTLSCurves(input)
-
-	if len(result) != len(input) {
-		t.Errorf("expected %d curves, got %d", len(input), len(result))
-	}
-
-	for i, curve := range result {
-		if uint16(curve) != input[i] {
-			t.Errorf("curve %d: expected 0x%04x, got 0x%04x", i, input[i], uint16(curve))
-		}
-	}
-}
-
-// Helper function to parse URL without error handling.
-func mustParseURL(rawURL string) *url.URL {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		panic(err)
-	}
-	return u
 }
 
 // TestAllProfiles tests multiple TLS fingerprint profiles against tls.peet.ws.

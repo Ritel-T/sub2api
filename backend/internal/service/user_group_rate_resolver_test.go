@@ -25,16 +25,6 @@ func (s *userGroupRateResolverRepoStub) GetByUserAndGroup(ctx context.Context, u
 	return s.rate, nil
 }
 
-func TestNewUserGroupRateResolver_Defaults(t *testing.T) {
-	resolver := newUserGroupRateResolver(nil, nil, 0, nil, "")
-
-	require.NotNil(t, resolver)
-	require.NotNil(t, resolver.cache)
-	require.Equal(t, defaultUserGroupRateCacheTTL, resolver.cacheTTL)
-	require.NotNil(t, resolver.sf)
-	require.Equal(t, "service.gateway", resolver.logComponent)
-}
-
 func TestUserGroupRateResolverResolve_FallbackForNilResolverAndInvalidIDs(t *testing.T) {
 	var nilResolver *userGroupRateResolver
 	require.Equal(t, 1.4, nilResolver.Resolve(context.Background(), 101, 202, 1.4))

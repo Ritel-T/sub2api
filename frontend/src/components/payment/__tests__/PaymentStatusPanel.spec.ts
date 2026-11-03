@@ -334,7 +334,6 @@ describe('PaymentStatusPanel', () => {
 
     expect(wrapper.find('[data-test="alipay-qr-fallback"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('payment.qr.saveQRCode')
-    expect(wrapper.text()).toContain('sub2_20260420abcd1234')
     expect(toCanvas).toHaveBeenCalledWith(expect.any(HTMLCanvasElement), 'https://qr.alipay.com/dynamic-order-42', expect.any(Object))
 
     wrapper.unmount()

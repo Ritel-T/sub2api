@@ -2,14 +2,11 @@ package repository
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"strings"
 	"testing"
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/Wei-Shaw/sub2api/migrations"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,27 +94,4 @@ func TestAuthCacheInvalidationOutboxRepository_StatsExposeDurableLagAndFailures(
 	require.Equal(t, 7, stats.MaxAttempts)
 	require.Equal(t, "redis down", stats.LastError)
 	require.NotNil(t, stats.OldestCreatedAt)
-}
-
-func TestAuthCacheInvalidationMigration_SecurityCoverageAndNoPlaintextPayload(t *testing.T) {
-	content, err := migrations.FS.ReadFile("184_auth_cache_invalidation_outbox.sql")
-	require.NoError(t, err)
-	sqlText := string(content)
-	for _, required := range []string{
-		"encode(sha256(convert_to(raw_key, 'UTF8')), 'hex')",
-		"OLD.key", "OLD.status", "OLD.deleted_at", "OLD.user_id", "OLD.group_id",
-		"OLD.ip_whitelist", "OLD.ip_blacklist", "OLD.expires_at",
-		"trg_users_auth_cache_invalidation", "trg_groups_auth_cache_invalidation",
-		"trg_user_allowed_groups_auth_cache_invalidation", "FOR EACH ROW",
-		"delivery_stage", "claimed_at", "available_at",
-	} {
-		require.Contains(t, sqlText, required)
-	}
-	require.NotContains(t, sqlText, "quota_used IS DISTINCT")
-	require.NotContains(t, sqlText, "last_used_at IS DISTINCT")
-
-	plaintext := "sk-plaintext-must-not-be-stored"
-	sum := sha256.Sum256([]byte(plaintext))
-	require.Len(t, hex.EncodeToString(sum[:]), 64)
-	require.NotContains(t, sqlText, plaintext)
 }

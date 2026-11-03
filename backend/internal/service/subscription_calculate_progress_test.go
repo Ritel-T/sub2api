@@ -40,32 +40,6 @@ func TestCalculateProgress_BasicFields(t *testing.T) {
 	assert.Nil(t, progress.Monthly, "无月限额时 Monthly 应为 nil")
 }
 
-func TestCalculateProgress_DailyUsage(t *testing.T) {
-	svc := newTestSubscriptionService()
-	now := time.Now()
-	dailyStart := now.Add(-12 * time.Hour)
-
-	sub := &UserSubscription{
-		ID:               1,
-		ExpiresAt:        now.Add(10 * 24 * time.Hour),
-		DailyUsageUSD:    3.0,
-		DailyWindowStart: ptrTime(dailyStart),
-	}
-	group := &Group{
-		Name:          "Pro",
-		DailyLimitUSD: ptrFloat64(10.0),
-	}
-
-	progress := svc.calculateProgress(sub, group)
-
-	require.NotNil(t, progress.Daily, "有日限额和窗口时 Daily 不应为 nil")
-	assert.Equal(t, 10.0, progress.Daily.LimitUSD)
-	assert.Equal(t, 3.0, progress.Daily.UsedUSD)
-	assert.Equal(t, 7.0, progress.Daily.RemainingUSD)
-	assert.Equal(t, 30.0, progress.Daily.Percentage)
-	assert.Equal(t, dailyStart, progress.Daily.WindowStart)
-}
-
 func TestCalculateProgress_DailyCardUsesExpiryAsDailyResetTime(t *testing.T) {
 	svc := newTestSubscriptionService()
 	startsAt := time.Now().Add(-12 * time.Hour)
@@ -88,31 +62,6 @@ func TestCalculateProgress_DailyCardUsesExpiryAsDailyResetTime(t *testing.T) {
 
 	require.NotNil(t, progress.Daily, "日卡有日限额和窗口时 Daily 不应为 nil")
 	assert.Equal(t, expiresAt, progress.Daily.ResetsAt, "日卡的一次性日额度结束时间应为订阅过期时间")
-}
-
-func TestCalculateProgress_WeeklyUsage(t *testing.T) {
-	svc := newTestSubscriptionService()
-	now := time.Now()
-	weeklyStart := now.Add(-3 * 24 * time.Hour)
-
-	sub := &UserSubscription{
-		ID:                1,
-		ExpiresAt:         now.Add(10 * 24 * time.Hour),
-		WeeklyUsageUSD:    25.0,
-		WeeklyWindowStart: ptrTime(weeklyStart),
-	}
-	group := &Group{
-		Name:           "Pro",
-		WeeklyLimitUSD: ptrFloat64(50.0),
-	}
-
-	progress := svc.calculateProgress(sub, group)
-
-	require.NotNil(t, progress.Weekly, "有周限额和窗口时 Weekly 不应为 nil")
-	assert.Equal(t, 50.0, progress.Weekly.LimitUSD)
-	assert.Equal(t, 25.0, progress.Weekly.UsedUSD)
-	assert.Equal(t, 25.0, progress.Weekly.RemainingUSD)
-	assert.Equal(t, 50.0, progress.Weekly.Percentage)
 }
 
 // 周窗口初始化在开通日零点（legacy anchor）时，展示的 ResetsAt 应与
@@ -139,31 +88,6 @@ func TestCalculateProgress_WeeklyResetsAt_LegacyMidnightAnchor(t *testing.T) {
 	require.NotNil(t, progress.Weekly)
 	assert.True(t, startsAt.Add(7*24*time.Hour).Equal(progress.Weekly.ResetsAt),
 		"legacy 午夜锚点的周窗口 ResetsAt 应为 StartsAt+7d，与实际推进时间一致")
-}
-
-func TestCalculateProgress_MonthlyUsage(t *testing.T) {
-	svc := newTestSubscriptionService()
-	now := time.Now()
-	monthlyStart := now.Add(-15 * 24 * time.Hour)
-
-	sub := &UserSubscription{
-		ID:                 1,
-		ExpiresAt:          now.Add(10 * 24 * time.Hour),
-		MonthlyUsageUSD:    80.0,
-		MonthlyWindowStart: ptrTime(monthlyStart),
-	}
-	group := &Group{
-		Name:            "Enterprise",
-		MonthlyLimitUSD: ptrFloat64(100.0),
-	}
-
-	progress := svc.calculateProgress(sub, group)
-
-	require.NotNil(t, progress.Monthly, "有月限额和窗口时 Monthly 不应为 nil")
-	assert.Equal(t, 100.0, progress.Monthly.LimitUSD)
-	assert.Equal(t, 80.0, progress.Monthly.UsedUSD)
-	assert.Equal(t, 20.0, progress.Monthly.RemainingUSD)
-	assert.Equal(t, 80.0, progress.Monthly.Percentage)
 }
 
 func TestCalculateProgress_OverLimit_ClampedTo100Percent(t *testing.T) {
@@ -241,6 +165,9 @@ func TestCalculateProgress_AllLimits(t *testing.T) {
 	assert.Equal(t, 50.0, progress.Daily.Percentage)
 	assert.Equal(t, 40.0, progress.Weekly.Percentage)
 	assert.Equal(t, 60.0, progress.Monthly.Percentage)
+	assert.Equal(t, 5.0, progress.Daily.RemainingUSD)
+	assert.Equal(t, 30.0, progress.Weekly.RemainingUSD)
+	assert.Equal(t, 40.0, progress.Monthly.RemainingUSD)
 }
 
 func TestCalculateProgress_ExpiredSubscription(t *testing.T) {

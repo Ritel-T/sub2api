@@ -36,6 +36,7 @@ function mountView() {
     global: {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
+        MoreActions: { template: '<div><slot /></div>' },
         OrderTable: { props: ['orders'], template: '<div><div v-for="row in orders" :key="row.id" :data-order="row.id"><slot name="actions" :row="row" /></div></div>' },
         BaseDialog: { props: ['show'], template: '<div v-if="show" data-testid="order-detail"><slot /></div>' },
         InfiniteListSentinel: true, Select: true, Icon: true, OrderStatusBadge: true, AdminRefundDialog: true,

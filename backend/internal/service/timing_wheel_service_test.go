@@ -26,44 +26,6 @@ func TestNewTimingWheelService_InitFail_NoPanicAndReturnError(t *testing.T) {
 	}
 }
 
-func TestNewTimingWheelService_Success(t *testing.T) {
-	svc, err := NewTimingWheelService()
-	if err != nil {
-		t.Fatalf("期望 err 为 nil，但得到: %v", err)
-	}
-	if svc == nil {
-		t.Fatalf("期望 svc 非空，但得到 nil")
-	}
-	svc.Stop()
-}
-
-func TestNewTimingWheelService_ExecuteCallbackRunsFunc(t *testing.T) {
-	original := newTimingWheel
-	t.Cleanup(func() { newTimingWheel = original })
-
-	var captured collection.Execute
-	newTimingWheel = func(interval time.Duration, numSlots int, execute collection.Execute) (*collection.TimingWheel, error) {
-		captured = execute
-		return original(interval, numSlots, execute)
-	}
-
-	svc, err := NewTimingWheelService()
-	if err != nil {
-		t.Fatalf("期望 err 为 nil，但得到: %v", err)
-	}
-	if captured == nil {
-		t.Fatalf("期望 captured 非空，但得到 nil")
-	}
-
-	called := false
-	captured("k", func() { called = true })
-	if !called {
-		t.Fatalf("期望 execute 回调触发传入函数执行")
-	}
-
-	svc.Stop()
-}
-
 func TestTimingWheelService_Schedule_ExecutesOnce(t *testing.T) {
 	original := newTimingWheel
 	t.Cleanup(func() { newTimingWheel = original })

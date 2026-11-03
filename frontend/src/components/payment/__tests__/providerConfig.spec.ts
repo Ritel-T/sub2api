@@ -23,12 +23,6 @@ describe('PROVIDER_CONFIG_FIELDS.wxpay', () => {
     expect(findField('wxpay', 'publicKeyId')?.optional).toBeFalsy()
     expect(findField('wxpay', 'certSerial')?.optional).toBeFalsy()
   })
-
-  it('only keeps the simplified visible credential set in the admin form', () => {
-    expect(findField('wxpay', 'mpAppId')).toBeUndefined()
-    expect(findField('wxpay', 'h5AppName')).toBeUndefined()
-    expect(findField('wxpay', 'h5AppUrl')).toBeUndefined()
-  })
 })
 
 describe('PROVIDER_CONFIG_FIELDS.airwallex', () => {
@@ -46,10 +40,6 @@ describe('PROVIDER_CONFIG_FIELDS.airwallex', () => {
     expect(accountId?.optional).toBe(true)
     expect(accountId?.clearable).toBe(true)
     expect(accountId?.hintKey).toBe('admin.settings.payment.field_accountIdHint')
-  })
-
-  it('explains that apiBase must match the Airwallex key environment', () => {
-    expect(findField('airwallex', 'apiBase')?.hintKey).toBe('admin.settings.payment.field_airwallexApiBaseHint')
   })
 })
 

@@ -1,4 +1,4 @@
-.PHONY: build build-embedded build-linux build-windows build-darwin generate test test-unit test-integration test-e2e
+.PHONY: build build-embedded build-linux build-windows build-darwin generate test test-unit test-integration test-all test-e2e
 
 VERSION ?= $(shell ./scripts/resolve-version.sh)
 LDFLAGS ?= -s -w -X main.Version=$(VERSION)
@@ -30,6 +30,9 @@ test:
 
 test-unit:
 	go test -tags=unit ./...
+
+test-all:
+	go test -tags=unit,integration ./...
 
 test-integration:
 	go test -tags=integration ./...

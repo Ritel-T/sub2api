@@ -3,11 +3,6 @@ package routes
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"regexp"
-	"sort"
-	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler"
@@ -16,107 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
-
-func TestEveryGatewayPOSTRouteIsClassifiedForPromptAuditCoverage(t *testing.T) {
-	routeSource, err := os.ReadFile("gateway.go")
-	require.NoError(t, err)
-	pattern := regexp.MustCompile(`(?:gateway|gemini|r|codexDirect|antigravityV1|antigravityV1Beta)\.POST\("([^"]+)"`)
-	matches := pattern.FindAllStringSubmatch(string(routeSource), -1)
-	actual := map[string]struct{}{}
-	for _, match := range matches {
-		actual[match[1]] = struct{}{}
-	}
-
-	audited := map[string][]string{
-		"/messages":                 {"gateway_handler.go", "openai_gateway_handler.go"},
-		"/systemone":                {"gateway_systemone.go"},
-		"/responses":                {"gateway_handler_responses.go", "openai_gateway_handler.go"},
-		"/responses/*subpath":       {"gateway_handler_responses.go", "openai_gateway_handler.go"},
-		"/chat/completions":         {"gateway_handler_chat_completions.go", "openai_chat_completions.go"},
-		"/embeddings":               {"openai_embeddings.go"},
-		"/alpha/search":             {"openai_alpha_search.go"},
-		"/tools/search":             {"openai_alpha_search.go"},
-		"/tools/fetch":              {"openai_alpha_search.go"},
-		"/live":                     {"openai_live.go"},
-		"/realtime/calls":           {"openai_live.go"},
-		"/images/generations":       {"openai_images.go", "grok_media.go"},
-		"/images/edits":             {"openai_images.go", "grok_media.go"},
-		"/images/generations/async": {"image_task_handler.go"},
-		"/images/edits/async":       {"image_task_handler.go"},
-		"/images/batches":           {"batch_image_handler.go"},
-		"/videos":                   {"grok_media.go"},
-		"/videos/generations":       {"grok_media.go"},
-		"/videos/edits":             {"grok_media.go"},
-		"/videos/extensions":        {"grok_media.go"},
-		"/models/*modelAction":      {"gemini_v1beta_handler.go"},
-		"/cachedContents":           {"gemini_cached_contents_handler.go"},
-		"/tts":                      {"grok_audio.go"},
-		"/web_search":               {"gateway_web_search.go"},
-		"/x_search":                 {"gateway_web_search.go"},
-	}
-	excluded := map[string]string{
-		"/messages/count_tokens":     "tokenization only; it does not execute a model request",
-		"/images/batches/:id/cancel": "control-plane cancellation with no user prompt",
-		"/stt":                       "speech transcription is not a text-generation prompt",
-		"/custom-voices":             "voice profile management has no model prompt",
-	}
-
-	unclassified := make([]string, 0)
-	for route := range actual {
-		if _, ok := audited[route]; ok {
-			continue
-		}
-		if _, ok := excluded[route]; ok {
-			continue
-		}
-		unclassified = append(unclassified, route)
-	}
-	sort.Strings(unclassified)
-	require.Empty(t, unclassified, "new gateway POST routes must be audited or explicitly classified with a no-prompt reason")
-
-	for route, files := range audited {
-		_, exists := actual[route]
-		require.Truef(t, exists, "stale prompt-audit route manifest entry %s", route)
-		for _, filename := range files {
-			source, readErr := os.ReadFile(filepath.Join("..", "..", "handler", filename))
-			require.NoError(t, readErr)
-			require.Containsf(t, string(source), "checkSecurityAudit", "%s route handler %s bypasses Coordinator", route, filename)
-		}
-	}
-
-	for route, reason := range excluded {
-		require.NotEmpty(t, strings.TrimSpace(reason))
-		_, exists := actual[route]
-		require.Truef(t, exists, "stale excluded route %s", route)
-	}
-}
-
-func TestResponsesWebSocketHasFirstAndSubsequentTurnPromptGates(t *testing.T) {
-	routeSource, err := os.ReadFile("gateway.go")
-	require.NoError(t, err)
-	require.GreaterOrEqual(t, strings.Count(string(routeSource), `.GET("/responses"`), 2)
-	handlerSource, err := os.ReadFile(filepath.Join("..", "..", "handler", "openai_gateway_handler.go"))
-	require.NoError(t, err)
-	require.Contains(t, string(handlerSource), `checkSecurityAuditStage`)
-	require.Contains(t, string(handlerSource), `"first_turn"`)
-	require.Contains(t, string(handlerSource), `"subsequent_turn"`)
-	wsStart := strings.Index(string(handlerSource), `func (h *OpenAIGatewayHandler) ResponsesWebSocket`)
-	require.NotEqual(t, -1, wsStart)
-	wsSource := string(handlerSource)[wsStart:]
-	firstGate := strings.Index(wsSource, `"first_turn"`)
-	// Per-turn admission runs through admitOpenAIWSTurn, which performs the Key
-	// wait (WaitOpenAIWSKeyAdmission) before any user slot.
-	firstSlot := strings.Index(wsSource, `admitOpenAIWSTurn(`)
-	require.NotEqual(t, -1, firstGate, "first-turn prompt gate must exist")
-	require.NotEqual(t, -1, firstSlot, "WS user/key slot acquisition must exist")
-	require.Contains(t, string(handlerSource), `WaitOpenAIWSKeyAdmission`)
-	require.Contains(t, string(handlerSource), `TryAcquireUserSlot`)
-	require.Less(t,
-		firstGate,
-		firstSlot,
-		"the first response.create gate must precede per-request user/account slots",
-	)
-}
 
 func TestPromptAuditAdminRoutesRejectUnauthenticatedAndNonAdminRequests(t *testing.T) {
 	gin.SetMode(gin.TestMode)

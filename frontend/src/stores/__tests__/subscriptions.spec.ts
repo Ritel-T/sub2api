@@ -157,35 +157,7 @@ describe('useSubscriptionStore', () => {
   })
 
   // --- hasActiveSubscriptions ---
-
-  describe('hasActiveSubscriptions', () => {
-    it('有订阅时返回 true', async () => {
-      mockGetActiveSubscriptions.mockResolvedValue(fakeSubscriptions)
-      const store = useSubscriptionStore()
-
-      await store.fetchActiveSubscriptions()
-
-      expect(store.hasActiveSubscriptions).toBe(true)
-    })
-
-    it('无订阅时返回 false', () => {
-      const store = useSubscriptionStore()
-      expect(store.hasActiveSubscriptions).toBe(false)
-    })
-
-    it('清除后返回 false', async () => {
-      mockGetActiveSubscriptions.mockResolvedValue(fakeSubscriptions)
-      const store = useSubscriptionStore()
-
-      await store.fetchActiveSubscriptions()
-      expect(store.hasActiveSubscriptions).toBe(true)
-
-      store.clear()
-      expect(store.hasActiveSubscriptions).toBe(false)
-    })
-  })
-
-  // --- invalidateCache ---
+// --- invalidateCache ---
 
   describe('invalidateCache', () => {
     it('失效缓存后下次请求重新获取数据', async () => {

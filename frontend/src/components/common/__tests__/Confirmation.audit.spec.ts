@@ -57,17 +57,6 @@ describe('Independent dialog audit regressions - expected behavior', () => {
     expect(document.activeElement?.id).toBe('child-button')
   })
 
-  it('a destructive scoped confirmation should preserve danger action styling', async () => {
-    const scope = effectScope()
-    const confirmation = scope.run(() => useConfirmation())!
-    const pending = confirmation.request({message: 'Delete selected accounts?', danger: true, confirmText: 'Delete'})
-    mount(ConfirmationPrompt, {attachTo: document.body, props: {confirmation}})
-    await nextTick()
-    const primary = document.querySelector('.modal-footer button:last-child')!
-    expect(primary.classList.contains('btn-danger')).toBe(true)
-    confirmation.settle(false); await pending; scope.stop()
-  })
-
   it('existing Ollama delete confirmation must be invalidated when its account identity changes', async () => {
     const account = (id: number) => ({id, name: 'Account ' + id, ollama_cloud_usage: {account_id: id, eligible: true, configured: true, auto_refresh_enabled: false, encryption_key_configured: true}})
     const wrapper = mount(OllamaCloudUsageSettings, {attachTo: document.body, props: {account: account(7) as any}})

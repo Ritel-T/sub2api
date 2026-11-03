@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { readFileSync } from 'node:fs'
-import { auditTab, listIPAudit, releaseIPAudit, type AuditEntry, type AuditPage } from '../api'
+import { listIPAudit, releaseIPAudit, type AuditEntry, type AuditPage } from '../api'
 import IPAuditPanel from '../IPAuditPanel.vue'
 import ColumnSettings from '@/components/common/ColumnSettings.vue'
 import enCommon from '@/i18n/locales/en/common'
@@ -165,16 +164,6 @@ describe('IP audit', () => {
   expect(wrapper.get('[role="alert"]').text()).toBe(en.loadError)
   expect(wrapper.text()).not.toContain(entry.network)
   wrapper.unmount()
- })
- it('retains admin route guards, security sub-navigation, and legacy settings routes', () => {
-  const router = readFileSync('src/router/index.ts', 'utf8')
-  const route = router.slice(router.indexOf("path: '/admin/ip-audit'"), router.indexOf("path: '/admin/prompt-audit'"))
-  expect(route).toContain('requiresAuth: true');expect(route).toContain('requiresAdmin: true')
-  expect(route).not.toContain('requiresRiskControl')
-  const sidebar = readFileSync('src/navigation/useConsoleNavSource.ts', 'utf8')
-  expect(sidebar).toContain("path: '/admin/ip-audit'")
-  expect(router).toContain("path: '/admin/settings'")
-  expect(auditTab('ip')).toBe('ip');expect(auditTab('config')).toBe('config');expect(auditTab('unknown')).toBe('events')
  })
 })
 

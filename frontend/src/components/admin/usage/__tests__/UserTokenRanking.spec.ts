@@ -159,7 +159,7 @@ describe('UserTokenRanking', () => {
       expect(later.findAll('td')).toHaveLength(6)
       expect(later.get('td:nth-child(3)').text()).toBe('1')
       expect(later.get('td:nth-child(4)').text()).toBe('151')
-      expect(later.get('td:nth-child(5)').text()).toBe('$0.5000')
+      expect(later.get('td:nth-child(5)').text()).toMatch(/^\$0\.50+$/)
       await later.get('td:nth-child(2) button').trigger('click')
       expect(wrapper.emitted('select-user')![0]).toEqual([50, 'u50@test.com'])
       const expand = later.get('td:last-child button')

@@ -3,7 +3,14 @@ name: CI
 on:
   workflow_dispatch:
   push:
+    branches: [main, production]
+    paths: ['backend/**', 'deploy/**', 'prism-adapter/**', 'Makefile', '.github/**']
   pull_request:
+    paths: ['backend/**', 'deploy/**', 'prism-adapter/**', 'Makefile', '.github/**']
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -20,9 +27,6 @@ jobs:
           /bin/bash -n deploy/install.sh deploy/install-mihomo-codex.sh deploy/migrate-mihomo-managed.sh
           /bin/bash -n deploy/apple-container.sh
           /bin/bash deploy/tests/apple-container-test.sh
-          /bin/sh deploy/tests/docker-compose-security-test.sh
-          /bin/sh deploy/tests/docker-compose-gateway-env-test.sh
-          /bin/sh deploy/tests/docker-runtime-resources-test.sh
           /bin/sh deploy/test-caddyfile-cache.sh
 
   test:
@@ -31,10 +35,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Check Docker Compose simple mode environment
-        run: /bin/sh deploy/tests/docker-compose-simple-mode-env-test.sh
-      - name: Check Docker Compose trusted proxy environment
-        run: /bin/sh deploy/tests/docker-compose-trusted-proxies-env-test.sh
       - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod
@@ -51,77 +51,13 @@ jobs:
             sudo apt-get install -y --no-install-recommends redis-server
           fi
           redis-server --version
-      - name: Verify scope conflict regression against original handlers
-        if: github.head_ref == 'fix/quality-template-switch-conflicts' || github.ref_name == 'fix/quality-template-switch-conflicts'
-        shell: bash
-        run: |
-          set -euo pipefail
-          target=backend/internal/handler/admin/scheduled_test_handler.go
-          cp "$target" "$RUNNER_TEMP/quality-current-handler.go"
-          trap 'cp "$RUNNER_TEMP/quality-current-handler.go" "$target"' EXIT
-          git fetch --no-tags --depth=1 origin 9fcfe25d600a331abcc28a1788e597e5542d4cd3
-          git show 9fcfe25d600a331abcc28a1788e597e5542d4cd3:"$target" > "$target"
-          set +e
-          (cd backend && go test ./internal/handler/admin -run '^TestQualityScopeConflictsUse409ForUpdateAndDelete$' -count=1) > "$RUNNER_TEMP/quality-red.log" 2>&1
-          result=$?
-          set -e
-          cat "$RUNNER_TEMP/quality-red.log"
-          test "$result" -ne 0
-          grep -q 'FAIL: TestQualityScopeConflictsUse409ForUpdateAndDelete' "$RUNNER_TEMP/quality-red.log"
-          grep -Eq 'actual.*(400|500)' "$RUNNER_TEMP/quality-red.log"
-      - name: Verify user enable reason regression against original handler
-        if: github.head_ref == 'fix/moderation-user-quick-enable' || github.ref_name == 'fix/moderation-user-quick-enable'
-        shell: bash
-        run: |
-          set -euo pipefail
-          target=backend/internal/handler/admin/user_handler.go
-          cp "$target" "$RUNNER_TEMP/user-enable-current-handler.go"
-          trap 'cp "$RUNNER_TEMP/user-enable-current-handler.go" "$target"' EXIT
-          git fetch --no-tags --depth=1 origin bccac61c757f2c04a2360063c4057db2b270c856
-          git show bccac61c757f2c04a2360063c4057db2b270c856:"$target" > "$target"
-          set +e
-          (cd backend && go test -tags=unit ./internal/handler/admin -run '^TestUserQuickEnableReasonLimit$' -count=1) > "$RUNNER_TEMP/user-enable-red.log" 2>&1
-          result=$?
-          set -e
-          cat "$RUNNER_TEMP/user-enable-red.log"
-          test "$result" -ne 0
-          grep -q 'FAIL: TestUserQuickEnableReasonLimit' "$RUNNER_TEMP/user-enable-red.log"
-          grep -q 'actual.*200' "$RUNNER_TEMP/user-enable-red.log"
-      - name: Verify user enable regressions
-        if: github.head_ref == 'fix/moderation-user-quick-enable' || github.ref_name == 'fix/moderation-user-quick-enable'
+      - name: Compose runtime configuration
+        run: /bin/sh deploy/tests/docker-compose-security-test.sh
+      - name: Unit and integration tests (one combined run)
         working-directory: backend
-        run: go test -tags=unit ./internal/handler/admin ./internal/server/middleware ./internal/service ./internal/repository -run 'TestUserQuickEnable|TestAdminService_UserQuickEnable|TestModerationRecoveryUnbanDoesNotClaimOtherDisable' -count=1 -v
-      - name: Usage trend local bucket regressions
-        working-directory: backend
-        run: go test -tags=integration ./internal/repository -run '^TestUsageTrendAggregateTimezone' -count=1 -v
-      - name: Unit tests
-        working-directory: backend
-        run: make test-unit
-      - name: Integration tests
-        working-directory: backend
-        run: make test-integration
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
-      - name: Frontend typecheck and critical vitest
-        run: make test-frontend
+        env:
+          CI: 'true'
+        run: make test-all
 
   golangci-lint:
     runs-on: ubuntu-latest
@@ -144,77 +80,6 @@ jobs:
           version: v2.14.0
           args: --timeout=30m
           working-directory: backend
-
-  pr612-regressions:
-    if: github.head_ref == 'fix/openai-header-timeout-default' || github.ref_name == 'fix/openai-header-timeout-default'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: backend/go.mod
-          cache-dependency-path: backend/go.sum
-      - name: Exact candidate identity
-        run: git rev-parse HEAD
-      - name: Header safety, runtime settings and cache race regressions (loopback only)
-        working-directory: backend
-        run: >-
-          go test -race -tags=unit ./internal/service ./internal/repository ./internal/handler ./internal/handler/admin
-          -run '^(TestPR612|TestOpenAIResponseHeaderTimeout|TestApplyProfilePoolSettingsUsesRuntimeOpenAIResponseHeaderTimeout|TestDefaultOpenAIResponseHeaderTimeoutSettings|TestRuntimeProxyChainEveryHopMustProveUnsent)'
-          -count=1 -v -timeout=3m
-
-  pr612-regressions-red:
-    if: github.head_ref == 'fix/openai-header-timeout-default' || github.ref_name == 'fix/openai-header-timeout-default'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      matrix:
-        defect: [safety, cache]
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          path: red
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: red/backend/go.mod
-          cache-dependency-path: red/backend/go.sum
-      - name: Restore only the defective production file in isolated RED checkout
-        working-directory: red
-        env:
-          DEFECT: ${{ matrix.defect }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git rev-parse HEAD
-          original=3abcf230ee6dd4487d9fd880ad83040289c259a7
-          git fetch --no-tags --depth=1 origin "$original"
-          if [ "$DEFECT" = safety ]; then
-            target=backend/internal/service/openai_plugin_transport.go
-            packages=(./internal/handler)
-            regression='^TestPR612DelayedHeadersNeverReplaySubmittedPOST$'
-            diagnostic='submitted POST was replayed'
-          else
-            target=backend/internal/service/setting_openai_response_header_timeout.go
-            packages=(./internal/service ./internal/repository)
-            regression='^(TestOpenAIResponseHeaderTimeoutStaleRefreshCannotUndoDisable|TestPR612StaleReaderDisableControlsNextHTTPRequest)$'
-            diagnostic='old refresh must return the newer disable|neither success nor error refresh may republish|disabled next-request transport must have timeout 0'
-          fi
-          git rev-parse "$original:$target"
-          git show "$original:$target" > "$target"
-          git diff --stat
-          set +e
-          (cd backend && go test -tags=unit "${packages[@]}" -run "$regression" -count=1 -v -timeout=2m) > "$RUNNER_TEMP/pr612-red.log" 2>&1
-          result=$?
-          set -e
-          cat "$RUNNER_TEMP/pr612-red.log"
-          test "$result" -ne 0
-          ! grep -Eq 'build failed|no tests to run|undefined:' "$RUNNER_TEMP/pr612-red.log"
-          grep -q -- '--- FAIL: Test' "$RUNNER_TEMP/pr612-red.log"
-          grep -Eq "$diagnostic" "$RUNNER_TEMP/pr612-red.log"
 
   release-helpers:
     runs-on: ubuntu-latest

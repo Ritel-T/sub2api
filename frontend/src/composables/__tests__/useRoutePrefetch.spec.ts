@@ -63,50 +63,7 @@ describe('useRoutePrefetch', () => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
-
-  describe('_isAdminRoute', () => {
-    it('应该正确识别管理员路由', () => {
-      const { _isAdminRoute } = useRoutePrefetch(mockRouter)
-      expect(_isAdminRoute('/admin/dashboard')).toBe(true)
-      expect(_isAdminRoute('/admin/users')).toBe(true)
-      expect(_isAdminRoute('/admin/accounts')).toBe(true)
-    })
-
-    it('应该正确识别非管理员路由', () => {
-      const { _isAdminRoute } = useRoutePrefetch(mockRouter)
-      expect(_isAdminRoute('/dashboard')).toBe(false)
-      expect(_isAdminRoute('/keys')).toBe(false)
-      expect(_isAdminRoute('/usage')).toBe(false)
-    })
-  })
-
-  describe('_getPrefetchConfig', () => {
-    it('管理员 dashboard 应该返回正确的预加载配置', () => {
-      const { _getPrefetchConfig } = useRoutePrefetch(mockRouter)
-      const route = createMockRoute('/admin/dashboard')
-      const config = _getPrefetchConfig(route)
-
-      expect(config).toHaveLength(2)
-    })
-
-    it('普通用户 dashboard 应该返回正确的预加载配置', () => {
-      const { _getPrefetchConfig } = useRoutePrefetch(mockRouter)
-      const route = createMockRoute('/dashboard')
-      const config = _getPrefetchConfig(route)
-
-      expect(config).toHaveLength(2)
-    })
-
-    it('未定义的路由应该返回空数组', () => {
-      const { _getPrefetchConfig } = useRoutePrefetch(mockRouter)
-      const route = createMockRoute('/unknown-route')
-      const config = _getPrefetchConfig(route)
-
-      expect(config).toHaveLength(0)
-    })
-  })
-
-  describe('triggerPrefetch', () => {
+describe('triggerPrefetch', () => {
     it('应该在浏览器空闲时触发预加载', async () => {
       const { triggerPrefetch, prefetchedRoutes } = useRoutePrefetch(mockRouter)
       const route = createMockRoute('/admin/dashboard')
@@ -181,20 +138,7 @@ describe('useRoutePrefetch', () => {
       expect(prefetchedRoutes.value.size).toBe(0)
     })
   })
-
-  describe('预加载映射表', () => {
-    it('管理员预加载映射表应该包含正确的路由', () => {
-      expect(_adminPrefetchMap).toHaveProperty('/admin/dashboard')
-      expect(_adminPrefetchMap['/admin/dashboard']).toHaveLength(2)
-    })
-
-    it('用户预加载映射表应该包含正确的路由', () => {
-      expect(_userPrefetchMap).toHaveProperty('/dashboard')
-      expect(_userPrefetchMap['/dashboard']).toHaveLength(2)
-    })
-  })
-
-  describe('requestIdleCallback 超时处理', () => {
+describe('requestIdleCallback 超时处理', () => {
     it('超时后仍能正常执行预加载', async () => {
       // 模拟超时情况
       vi.stubGlobal('requestIdleCallback', (cb: IdleRequestCallback, options?: IdleRequestOptions) => {

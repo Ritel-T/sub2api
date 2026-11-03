@@ -173,16 +173,16 @@ describe('AccountUsageCell', () => {
     })
     await flushPromises()
     expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A $1421.38')
-    expect(wrapper.text()).toContain('U $1394.83')
+    expect(wrapper.text().replace(/,/g, '')).toContain('U $1394.83')
     expect(wrapper.text()).not.toContain('A $836.00')
 
     await wrapper.setProps({ todayStats: { ...stats, api_equivalent_cost: 1421.375, api_equivalent_unpriced_requests: 2 } })
     expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A ≥$1421.38')
-    expect(wrapper.text()).toContain('U $1394.83')
+    expect(wrapper.text().replace(/,/g, '')).toContain('U $1394.83')
 
     await wrapper.setProps({ todayStats: stats })
     expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A —')
-    expect(wrapper.text()).toContain('U $1394.83')
+    expect(wrapper.text().replace(/,/g, '')).toContain('U $1394.83')
     wrapper.unmount()
   })
 

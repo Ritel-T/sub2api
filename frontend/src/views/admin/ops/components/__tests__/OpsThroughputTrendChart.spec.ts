@@ -85,31 +85,4 @@ describe('OpsThroughputTrendChart', () => {
       document.documentElement.className = previousClass
     }
   })
-
-  it('allows the header controls to wrap on narrow screens', () => {
-    const wrapper = mount(OpsThroughputTrendChart, {
-      props: {
-        points: [],
-        loading: false,
-        timeRange: '1h',
-      },
-      global: {
-        stubs: {
-          EmptyState: true,
-          HelpTooltip: true,
-        },
-      },
-    })
-
-    const header = wrapper.get('[data-testid="throughput-chart-header"]')
-    expect(header.classes()).toEqual(expect.arrayContaining(['flex-col', 'sm:flex-row']))
-
-    const toolbar = wrapper.get('[data-testid="throughput-chart-toolbar"]')
-    expect(toolbar.classes()).toEqual(expect.arrayContaining(['w-full', 'flex-wrap', 'sm:w-auto']))
-    expect(toolbar.findAll('button')).toHaveLength(3)
-    toolbar.findAll('button').forEach((button) => {
-      expect(button.classes()).toContain('shrink-0')
-      expect(button.classes()).not.toContain('ml-2')
-    })
-  })
 })

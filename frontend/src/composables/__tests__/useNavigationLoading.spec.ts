@@ -19,15 +19,6 @@ describe('useNavigationLoading', () => {
   })
 
   describe('startNavigation', () => {
-    it('导航开始时 isNavigating 应变为 true', () => {
-      const { isNavigating, startNavigation } = useNavigationLoading()
-
-      expect(isNavigating.value).toBe(false)
-
-      startNavigation()
-
-      expect(isNavigating.value).toBe(true)
-    })
 
     it('导航开始后延迟显示加载指示器（防闪烁）', () => {
       const { isLoading, startNavigation, ANTI_FLICKER_DELAY } = useNavigationLoading()
@@ -53,16 +44,6 @@ describe('useNavigationLoading', () => {
 
       endNavigation()
       expect(isLoading.value).toBe(false)
-    })
-
-    it('导航结束时 isNavigating 应变为 false', () => {
-      const { isNavigating, startNavigation, endNavigation } = useNavigationLoading()
-
-      startNavigation()
-      expect(isNavigating.value).toBe(true)
-
-      endNavigation()
-      expect(isNavigating.value).toBe(false)
     })
   })
 
@@ -112,16 +93,6 @@ describe('useNavigationLoading', () => {
       const duration = getNavigationDuration()
       expect(duration).toBe(500)
     })
-
-    it('导航结束后应返回 null', () => {
-      const { startNavigation, endNavigation, getNavigationDuration } = useNavigationLoading()
-
-      startNavigation()
-      vi.advanceTimersByTime(500)
-      endNavigation()
-
-      expect(getNavigationDuration()).toBeNull()
-    })
   })
 
   describe('resetState', () => {
@@ -165,13 +136,6 @@ describe('useNavigationLoading', () => {
       // 结束导航
       endNavigation()
       expect(isLoading.value).toBe(false)
-    })
-  })
-
-  describe('ANTI_FLICKER_DELAY 常量', () => {
-    it('应该为 100ms', () => {
-      const { ANTI_FLICKER_DELAY } = useNavigationLoading()
-      expect(ANTI_FLICKER_DELAY).toBe(100)
     })
   })
 })

@@ -792,12 +792,6 @@ func TestHandleSmartRetry_NoRetryDelay_UsesDefaultRateLimit(t *testing.T) {
 // 2. 智能重试失败后清除粘性会话绑定（DeleteSessionAccountID）
 // ---------------------------------------------------------------------------
 
-// TestSmartRetryMaxAttempts_VerifyConstant 验证常量值为 1
-func TestSmartRetryMaxAttempts_VerifyConstant(t *testing.T) {
-	require.Equal(t, 1, antigravitySmartRetryMaxAttempts,
-		"antigravitySmartRetryMaxAttempts should be 1 to prevent repeated rate limiting")
-}
-
 // TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_ClearsSession
 // 核心场景：粘性会话 + 短延迟重试失败 → 必须清除粘性绑定
 func TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_ClearsSession(t *testing.T) {

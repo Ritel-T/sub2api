@@ -108,6 +108,7 @@ function mountFilters(filters = defaultFilters(), mode: 'usage' | 'errors' | 'ra
       stubs: {
         Select: true,
         Teleport: true,
+        MoreActions: { template: '<div><slot /></div>' },
       },
     },
   })

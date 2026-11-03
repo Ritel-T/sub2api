@@ -47,19 +47,6 @@ func TestIsSingleAccountRetry_False_WrongType(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// 2. 常量验证
-// ---------------------------------------------------------------------------
-
-func TestSingleAccountRetryConstants(t *testing.T) {
-	require.Equal(t, 3, antigravitySingleAccountSmartRetryMaxAttempts,
-		"单账号原地重试最多 3 次")
-	require.Equal(t, 15*time.Second, antigravitySingleAccountSmartRetryMaxWait,
-		"单次最大等待 15s")
-	require.Equal(t, 30*time.Second, antigravitySingleAccountSmartRetryTotalMaxWait,
-		"总累计等待不超过 30s")
-}
-
-// ---------------------------------------------------------------------------
 // 3. handleSmartRetry + 503 + SingleAccountRetry → 走 handleSingleAccountRetryInPlace
 //    （而非设模型限流 + 切换账号）
 // ---------------------------------------------------------------------------

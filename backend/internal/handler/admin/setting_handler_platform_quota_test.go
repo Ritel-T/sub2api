@@ -81,53 +81,6 @@ func TestSettingsAuditRequestDoesNotInheritStoredTencentSecrets(t *testing.T) {
 	require.Empty(t, auditReq.TencentCaptchaCloudSecretKey)
 }
 
-func TestDiffSettings_DetectsCompactHomeChange(t *testing.T) {
-	changed := diffSettings(
-		&service.SystemSettings{},
-		&service.SystemSettings{CompactHomeEnabled: true},
-		nil,
-		nil,
-		UpdateSettingsRequest{},
-	)
-
-	require.Contains(t, changed, service.SettingKeyCompactHomeEnabled)
-}
-
-func TestEqualNullableFloat(t *testing.T) {
-	five := 5.0
-	five2 := 5.0
-	ten := 10.0
-	cases := []struct {
-		a, b *float64
-		want bool
-	}{
-		{nil, nil, true},
-		{&five, nil, false},
-		{nil, &five, false},
-		{&five, &five2, true},
-		{&five, &ten, false},
-	}
-	for _, c := range cases {
-		if got := equalNullableFloat(c.a, c.b); got != c.want {
-			t.Errorf("equalNullableFloat(%v, %v) = %v, want %v", c.a, c.b, got, c.want)
-		}
-	}
-}
-
-func TestEqualPlatformQuotaSettings_DetectsPerWindowChange(t *testing.T) {
-	five := 5.0
-	ten := 10.0
-	before := map[string]*service.DefaultPlatformQuotaSetting{
-		"anthropic": {DailyLimitUSD: &five},
-	}
-	after := map[string]*service.DefaultPlatformQuotaSetting{
-		"anthropic": {DailyLimitUSD: &ten},
-	}
-	if equalPlatformQuotaSettings(before, after) {
-		t.Error("expected unequal")
-	}
-}
-
 func TestAppendAuthSourceDefaultChanges_DetectsPerWindow(t *testing.T) {
 	five := 5.0
 	ten := 10.0

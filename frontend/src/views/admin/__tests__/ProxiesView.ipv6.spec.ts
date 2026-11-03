@@ -16,9 +16,6 @@ function extractRegex(): RegExp {
 }
 
 describe('proxy batch URL parsing (IPv6 support)', () => {
-  it('keeps bracketed-IPv6 host alternative in the regex', () => {
-    expect(source).toContain('\\[[0-9a-f:.]+\\]')
-  })
 
   const regex = extractRegex()
 

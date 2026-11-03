@@ -2,10 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -62,33 +58,6 @@ func TestLocalizeUserAvailableGroups(t *testing.T) {
 	var decoded map[string]any
 	require.NoError(t, json.Unmarshal(raw, &decoded))
 	require.NotContains(t, decoded, "i18n")
-}
-
-// 用户侧 handler 输出带分组的 DTO 时必须经过 Localized，否则分组名称与描述会
-// 停留在原字段，并把译文表原样带给用户。管理端（handler/admin）不在此列。
-func TestUserFacingGroupDTOsAreLocalized(t *testing.T) {
-	mapperCall := regexp.MustCompile(`dto\.(APIKey|UserSubscription|RedeemCode|UsageLog|Group)FromService[A-Za-z]*\(`)
-
-	files, err := filepath.Glob("*.go")
-	require.NoError(t, err)
-
-	checked := 0
-	for _, file := range files {
-		if strings.HasSuffix(file, "_test.go") {
-			continue
-		}
-		source, err := os.ReadFile(file)
-		require.NoError(t, err)
-		for i, line := range strings.Split(string(source), "\n") {
-			if !mapperCall.MatchString(line) || strings.Contains(line, "dto.UsageLogFromServiceAdmin(") {
-				continue
-			}
-			checked++
-			require.Containsf(t, line, ".Localized(",
-				"%s:%d outputs a group DTO without Localized(Accept-Language)", file, i+1)
-		}
-	}
-	require.NotZero(t, checked, "expected to find user-facing group DTO call sites")
 }
 
 func TestLocalizedPlazaPreservesDeniedModels(t *testing.T) {

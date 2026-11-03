@@ -3,8 +3,6 @@
 package repository
 
 import (
-	"os"
-	"strings"
 	"testing"
 	"time"
 )
@@ -71,33 +69,5 @@ func TestMonthlyMaybeReset_CrossMonthBoundary(t *testing.T) {
 	}
 	if !start.Equal(windowStart) {
 		t.Errorf("start = %v, want %v (preserved)", start, windowStart)
-	}
-}
-
-// TestMonthlyMaybeReset_Active 验证窗口内正常累加。
-func TestMonthlyMaybeReset_Active(t *testing.T) {
-	windowStart := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
-	// 15 天内，窗口有效
-	now := windowStart.Add(15 * 24 * time.Hour)
-	usage, start := monthlyMaybeReset(3.0, &windowStart, 0.5, now)
-	if usage != 3.5 {
-		t.Errorf("usage = %v, want 3.5", usage)
-	}
-	if !start.Equal(windowStart) {
-		t.Errorf("start = %v, want %v", start, windowStart)
-	}
-}
-
-// TestUpdateLimitsRowQuery_HasDeletedAtGuard 通过读取源文件验证 updateLimitsRow
-// 的 SQL WHERE 子句包含 deleted_at IS NULL 守卫（I-NEW-1）。
-// 此防回归测试可在无 DB 的 CI 环境中运行，防止意外删除该守卫。
-func TestUpdateLimitsRowQuery_HasDeletedAtGuard(t *testing.T) {
-	src, err := os.ReadFile("user_platform_quota_repo.go")
-	if err != nil {
-		t.Fatalf("failed to read source file: %v", err)
-	}
-	const guard = "AND deleted_at IS NULL"
-	if !strings.Contains(string(src), guard) {
-		t.Errorf("updateLimitsRow SQL must contain %q to prevent bulk reactivation of soft-deleted rows (I-NEW-1)", guard)
 	}
 }

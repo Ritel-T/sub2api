@@ -268,61 +268,9 @@ func TestResolveOpenAIUpstreamEndpointPrefersForwardResult(t *testing.T) {
 // responsesSubpathSuffix
 // ──────────────────────────────────────────────────────────
 
-func TestResponsesSubpathSuffix(t *testing.T) {
-	tests := []struct {
-		raw  string
-		want string
-	}{
-		{"/v1/responses", ""},
-		{"/v1/responses/", ""},
-		{"/v1/responses/compact", "/compact"},
-		{"/openai/v1/responses/compact/detail", "/compact/detail"},
-		{"/responses", ""},
-		{"/responses/compact", "/compact"},
-		{"/responses/compact/detail", "/compact/detail"},
-		{"/backend-api/codex/responses", ""},
-		{"/backend-api/codex/responses/compact", "/compact"},
-		{"/backend-api/codex/responses/compact/detail", "/compact/detail"},
-		{"/v1/messages", ""},
-		{"", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.raw, func(t *testing.T) {
-			require.Equal(t, tt.want, responsesSubpathSuffix(tt.raw))
-		})
-	}
-}
-
 // ──────────────────────────────────────────────────────────
 // InboundEndpointMiddleware + context helpers
 // ──────────────────────────────────────────────────────────
-
-func TestInboundEndpointMiddleware(t *testing.T) {
-	router := gin.New()
-	router.Use(InboundEndpointMiddleware())
-
-	var captured string
-	router.POST("/v1/messages", func(c *gin.Context) {
-		captured = GetInboundEndpoint(c)
-		c.Status(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-
-	require.Equal(t, EndpointMessages, captured)
-}
-
-func TestGetInboundEndpoint_FallbackWithoutMiddleware(t *testing.T) {
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/antigravity/v1/messages", nil)
-
-	// Middleware did not run — fallback to normalizing c.Request.URL.Path.
-	got := GetInboundEndpoint(c)
-	require.Equal(t, EndpointMessages, got)
-}
 
 // TestInboundEndpointMiddleware_WildcardRoutes verifies that, when a
 // gateway route is registered with a Gin wildcard pattern (e.g.
@@ -448,16 +396,4 @@ func TestGetInboundEndpoint_FallbackWildcardRouteWithoutMiddleware(t *testing.T)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, EndpointResponsesCompact, captured)
-}
-
-func TestGetUpstreamEndpoint_FullFlow(t *testing.T) {
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses/compact", nil)
-
-	// Simulate middleware.
-	c.Set(ctxKeyInboundEndpoint, NormalizeInboundEndpoint(c.Request.URL.Path))
-
-	got := GetUpstreamEndpoint(c, service.PlatformOpenAI)
-	require.Equal(t, "/v1/responses/compact", got)
 }

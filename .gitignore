@@ -238,12 +238,3 @@ tools/local-worker/
 # Shared typography validation is shipped source, not local operational scripts.
 !/frontend/scripts/
 /frontend/scripts/*
-!/frontend/scripts/check-typography.mjs
-!/frontend/scripts/check-typography.test.mjs
-!/frontend/scripts/typography-exceptions.json
-
-!/frontend/scripts/check-confirmations.mjs
-!/frontend/scripts/check-confirmations.test.mjs
-
-!/frontend/scripts/check-controls.mjs
-!/frontend/scripts/check-controls.test.mjs

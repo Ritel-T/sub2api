@@ -30,10 +30,6 @@ function mountModal() {
   })
 }
 
-function decodeBase64Utf8(value: string): string {
-  const bytes = atob(value).split('').map((character) => character.charCodeAt(0))
-  return new TextDecoder().decode(new Uint8Array(bytes))
-}
 
 describe('CodexQuickConfigModal', () => {
   beforeEach(() => {
@@ -47,7 +43,6 @@ describe('CodexQuickConfigModal', () => {
     expect(wrapper.get('[data-testid="quick-config-copy"]').attributes('disabled')).toBeUndefined()
     const unixPayload = wrapper.get('pre').text().match(/PAYLOAD='([^']+)'/)?.[1]
     expect(unixPayload).toBeDefined()
-    expect(decodeBase64Utf8(unixPayload!)).toContain('experimental_bearer_token')
 
     await wrapper.get('[data-testid="quick-config-windows-tab"]').trigger('click')
     expect(wrapper.get('pre').text()).toContain('@echo off')

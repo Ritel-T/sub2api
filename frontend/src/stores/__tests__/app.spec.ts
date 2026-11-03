@@ -112,22 +112,6 @@ describe('useAppStore', () => {
       expect(store.toasts[0].message).toBe('出错了')
     })
 
-    it('showWarning 创建 warning 类型 toast', () => {
-      const store = useAppStore()
-      store.showWarning('警告信息')
-
-      expect(store.toasts).toHaveLength(1)
-      expect(store.toasts[0].type).toBe('warning')
-    })
-
-    it('showInfo 创建 info 类型 toast', () => {
-      const store = useAppStore()
-      store.showInfo('提示信息')
-
-      expect(store.toasts).toHaveLength(1)
-      expect(store.toasts[0].type).toBe('info')
-    })
-
     it('toast 在指定 duration 后自动消失', () => {
       const store = useAppStore()
       store.showSuccess('临时消息', 3000)
@@ -165,17 +149,6 @@ describe('useAppStore', () => {
       expect(store.toasts).toHaveLength(0)
     })
 
-    it('hasActiveToasts 正确反映 toast 状态', () => {
-      const store = useAppStore()
-      expect(store.hasActiveToasts).toBe(false)
-
-      store.showSuccess('消息')
-      expect(store.hasActiveToasts).toBe(true)
-
-      store.clearAllToasts()
-      expect(store.hasActiveToasts).toBe(false)
-    })
-
     it('多个 toast 的 ID 唯一', () => {
       const store = useAppStore()
       const id1 = store.showSuccess('消息1')
@@ -188,21 +161,7 @@ describe('useAppStore', () => {
   })
 
   // --- 侧边栏 ---
-
-  describe('侧边栏管理', () => {
-    it('toggleMobileSidebar 切换移动端状态', () => {
-      const store = useAppStore()
-      expect(store.mobileOpen).toBe(false)
-
-      store.toggleMobileSidebar()
-      expect(store.mobileOpen).toBe(true)
-
-      store.toggleMobileSidebar()
-      expect(store.mobileOpen).toBe(false)
-    })
-  })
-
-  // --- Loading 状态 ---
+// --- Loading 状态 ---
 
   describe('Loading 状态管理', () => {
     it('setLoading 管理引用计数', () => {

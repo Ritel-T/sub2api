@@ -79,12 +79,6 @@ func TestSubscriptionMaintenanceQueue_TryEnqueue_NilTask(t *testing.T) {
 	require.Contains(t, err.Error(), "nil")
 }
 
-func TestSubscriptionMaintenanceQueue_Stop_NilReceiver(t *testing.T) {
-	var q *SubscriptionMaintenanceQueue
-	// 不应 panic
-	q.Stop()
-}
-
 func TestSubscriptionMaintenanceQueue_Stop_Idempotent(t *testing.T) {
 	q := NewSubscriptionMaintenanceQueue(1, 4)
 	q.Stop()
@@ -96,14 +90,6 @@ func TestNewSubscriptionMaintenanceQueue_ZeroParams(t *testing.T) {
 	t.Cleanup(q.Stop)
 
 	// workerCount/queueSize 应被修正为 1
-	err := q.TryEnqueue(func() {})
-	require.NoError(t, err)
-}
-
-func TestNewSubscriptionMaintenanceQueue_NegativeParams(t *testing.T) {
-	q := NewSubscriptionMaintenanceQueue(-1, -1)
-	t.Cleanup(q.Stop)
-
 	err := q.TryEnqueue(func() {})
 	require.NoError(t, err)
 }

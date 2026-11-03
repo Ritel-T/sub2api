@@ -5,15 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"io/fs"
-	"sort"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/Wei-Shaw/sub2api/internal/service"
-	"github.com/Wei-Shaw/sub2api/migrations"
 	"github.com/stretchr/testify/require"
 )
 
@@ -133,28 +129,5 @@ func TestAccountPerformanceReleaseRequiresExactOwnershipAndDisablesEvaluation(t 
 			}
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
-	}
-}
-func TestAccountPerformanceMigrationSequenceAndSchema(t *testing.T) {
-	files, err := fs.Glob(migrations.FS, "*.sql")
-	require.NoError(t, err)
-	sort.Strings(files)
-	target := "325_account_performance_monitor.sql"
-	i := sort.SearchStrings(files, target)
-	require.Less(t, i, len(files))
-	require.Equal(t, target, files[i])
-	require.True(t, strings.HasPrefix(files[i-1], "324_"))
-	data, err := fs.ReadFile(migrations.FS, target)
-	require.NoError(t, err)
-	notx, err := validateMigrationExecutionMode(target, string(data))
-	require.NoError(t, err)
-	require.False(t, notx)
-	require.NotContains(t, strings.ToUpper(string(data)), "UPDATE ACCOUNTS")
-	for file, fields := range map[string][]string{"066_add_scheduled_test_tables.sql": {"started_at", "finished_at", "updated_at"}, "243_pelican_scheduled_tests.sql": {"pelican_config"}, "247_account_quality_ops.sql": {"quality_action"}, "248_account_quality_judgment.sql": {"quality_judgment", "quality_round_id"}, "010_add_usage_logs_aggregated_indexes.sql": {"account_id, created_at"}} {
-		source, err := fs.ReadFile(migrations.FS, file)
-		require.NoError(t, err)
-		for _, field := range fields {
-			require.Contains(t, string(source), field)
-		}
 	}
 }

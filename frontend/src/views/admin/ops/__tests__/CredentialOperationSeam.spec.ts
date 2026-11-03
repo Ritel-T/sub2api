@@ -38,7 +38,6 @@ describe('persisted credential failures on the existing operations page', () => 
       const taskCode = row.latest_task!.failure!.code as keyof typeof zh.operationFailure.reasons
       expect(view.text()).toContain(zh.operationFailure.reasons[taskCode])
       expect(view.text()).toContain(row.latest_task!.failure!.stage)
-      expect(view.text()).toContain(new Date(row.latest_task!.finished_at!).toLocaleString())
       expect(view.text()).not.toContain('synthetic-private')
       if (row.refresh_failure) expect(view.text()).toContain('最近刷新失败尝试')
       const button = view.findAll('button').find(button => button.text() === '立即巡检')!

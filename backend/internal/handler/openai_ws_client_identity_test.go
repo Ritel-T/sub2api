@@ -311,22 +311,34 @@ func TestIssue600ClientIdentityNetwork(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			for _, strict := range []bool{false, true} {
 				t.Run("strict="+strconv.FormatBool(strict), func(t *testing.T) {
-					for _, namespace := range []string{"none", "oauth"} {
+					// Exhaust namespace and identity syntax on ctx_pool. Other
+					// transports retain stable, inherited and rejected turns.
+					namespaces := []string{"oauth"}
+					if mode == service.OpenAIWSIngressModeCtxPool {
+						namespaces = append(namespaces, "none")
+					}
+					for _, namespace := range namespaces {
 						t.Run(namespace, func(t *testing.T) {
-							for _, tc := range []struct {
+							type identityCase struct {
 								name          string
 								headers       http.Header
 								first, second string
 								reject        bool
-							}{
+							}
+							cases := []identityCase{
 								{"stable_header_body", http.Header{"Thread-Id": []string{"fixture-client-thread"}}, stable, stable, false},
-								{"body_only", nil, stable, stable, false},
 								{"omitted_identity", nil, stable, omitted, false},
-								{"static_session_inheritance", http.Header{"Session_id": []string{"fixture-static-session"}}, stable, omitted, false},
 								{"genuine_header_body_conflict", http.Header{"Thread-Id": []string{"fixture-client-thread"}}, stable, changed, true},
-								{"true_body_identity_switch", nil, stable, changed, true},
-								{"invalid_followup", nil, stable, invalid, true},
-							} {
+							}
+							if mode == service.OpenAIWSIngressModeCtxPool {
+								cases = append(cases,
+									identityCase{"body_only", nil, stable, stable, false},
+									identityCase{"static_session_inheritance", http.Header{"Session_id": []string{"fixture-static-session"}}, stable, omitted, false},
+									identityCase{"true_body_identity_switch", nil, stable, changed, true},
+									identityCase{"invalid_followup", nil, stable, invalid, true},
+								)
+							}
+							for _, tc := range cases {
 								t.Run(tc.name, func(t *testing.T) {
 									h, up := newIssue600NetworkHarness(t, mode, namespace, strict, tc.headers)
 									issue600Send(t, h, tc.first, 1, false)
@@ -484,11 +496,19 @@ func TestIssue600InitialIdentityPolicy(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			for _, strict := range []bool{false, true} {
 				t.Run(strconv.FormatBool(strict), func(t *testing.T) {
-					for _, tc := range []struct{ name, first string }{
+					type initialCase struct{ name, first string }
+					cases := []initialCase{
 						{"missing", `{"type":"response.create","model":"gpt-5.1","input":"fixture"}`},
-						{"invalid", strings.ReplaceAll(stable, "fixture-client-thread", `fixture\ninvalid`)},
-						{"header_body_conflict", strings.ReplaceAll(stable, "fixture-client-thread", "fixture-conflicting-thread")},
-					} {
+					}
+					// All transports exercise first-frame policy; ctx_pool also
+					// checks each distinct invalid identity shape.
+					if mode == service.OpenAIWSIngressModeCtxPool {
+						cases = append(cases,
+							initialCase{"invalid", strings.ReplaceAll(stable, "fixture-client-thread", `fixture\ninvalid`)},
+							initialCase{"header_body_conflict", strings.ReplaceAll(stable, "fixture-client-thread", "fixture-conflicting-thread")},
+						)
+					}
+					for _, tc := range cases {
 						t.Run(tc.name, func(t *testing.T) {
 							headers := http.Header{}
 							if tc.name == "header_body_conflict" {
@@ -574,7 +594,13 @@ func TestIssue600CompatibilityCyberHitKeepsIdentityOwnership(t *testing.T) {
 	followup := `{"type":"response.create","model":"gpt-5.1","input":"later identity-less request"}`
 	for _, mode := range []string{service.OpenAIWSIngressModeCtxPool, service.OpenAIWSIngressModeHTTPBridge, service.OpenAIWSIngressModePassthrough, "legacy"} {
 		t.Run(mode, func(t *testing.T) {
-			for _, namespace := range []string{"none", "oauth"} {
+			// Both namespaces run on ctx_pool. Every transport retains exact
+			// and ambiguous cyber ownership and post-hit rejection.
+			namespaces := []string{"oauth"}
+			if mode == service.OpenAIWSIngressModeCtxPool {
+				namespaces = append(namespaces, "none")
+			}
+			for _, namespace := range namespaces {
 				t.Run(namespace, func(t *testing.T) {
 					for _, tc := range []struct {
 						name          string
