@@ -581,7 +581,7 @@ func RegisterGatewayRoutes(
 	})
 
 	// Antigravity 模型列表
-	r.GET("/antigravity/models", traffic, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.AntigravityModels)
+	r.GET("/antigravity/models", traffic, gin.HandlerFunc(apiKeyAuth), groupCodexCLIOnly, requireGroupAnthropic, h.Gateway.AntigravityModels)
 
 	// Antigravity 专用路由（仅使用 antigravity 账户，不混合调度）
 	antigravityV1 := r.Group("/antigravity/v1")
@@ -624,6 +624,10 @@ func RegisterGatewayRoutes(
 }
 
 func dispatchCodexModelsGateway(c *gin.Context, openAIHandler, generatedHandler gin.HandlerFunc) {
+	if _, ok := middleware.GetAPIKeyModelDiscoveryGroups(c); ok {
+		generatedHandler(c)
+		return
+	}
 	if getGroupPlatform(c) == service.PlatformOpenAI {
 		openAIHandler(c)
 		return
@@ -719,6 +723,11 @@ func compositeGeminiTargetPlatformMiddleware(resolver *service.CompositeRouteRes
 		resolver = service.NewCompositeRouteResolver(nil)
 	}
 	return func(c *gin.Context) {
+		if _, multi := middleware.GetAPIKeyModelDiscoveryGroups(c); multi {
+			c.Next()
+			return
+		}
+
 		apiKey, ok := middleware.GetAPIKeyFromContext(c)
 		if ok && apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformComposite {
 			model := compositeGeminiModelFromParams(c)

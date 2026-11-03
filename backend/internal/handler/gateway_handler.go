@@ -1190,6 +1190,11 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		defer release()
 	}
 
+	if groups, ok := middleware2.GetAPIKeyModelDiscoveryGroups(c); ok {
+		h.multiGroupModels(c, groups, false)
+		return
+	}
+
 	var groupID *int64
 	var platform string
 
@@ -1268,6 +1273,10 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 // expected by Codex custom providers. Official OpenAI groups continue to use
 // OpenAIGatewayHandler.CodexModels so their live upstream metadata is preserved.
 func (h *GatewayHandler) CodexModels(c *gin.Context) {
+	if groups, ok := middleware2.GetAPIKeyModelDiscoveryGroups(c); ok {
+		h.multiGroupModels(c, groups, true)
+		return
+	}
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok || apiKey == nil || apiKey.Group == nil {
 		h.errorResponse(c, http.StatusUnauthorized, "invalid_request_error", "API key group is required")
@@ -1339,17 +1348,28 @@ func (h *GatewayHandler) codexModelIDsForGroup(ctx context.Context, group *servi
 }
 
 func (h *GatewayHandler) compositeAvailableModels(ctx context.Context, groupID *int64, endpoint string) []string {
+	models, _ := h.compositeAvailableModelsForDiscovery(ctx, groupID, endpoint, false)
+	return models
+}
+
+func (h *GatewayHandler) compositeAvailableModelsForDiscovery(ctx context.Context, groupID *int64, endpoint string, strict bool) ([]string, error) {
 	if h == nil || h.gatewayService == nil {
-		return nil
+		return nil, nil
 	}
 	seen := make(map[string]struct{})
 	models := make([]string, 0)
-	schedulablePlatforms := h.gatewayService.GetSchedulablePlatforms(ctx, groupID)
+	schedulablePlatforms, err := h.gatewayService.GetSchedulablePlatformsForDiscovery(ctx, groupID)
+	if strict && err != nil {
+		return nil, err
+	}
 	for _, platform := range domain.CompositePrecedencePlatformIDs() {
 		if platform == service.PlatformTypeSafe && endpoint != "" {
 			continue
 		}
-		platformModels := h.gatewayService.GetAvailableModels(ctx, groupID, platform)
+		platformModels, err := h.gatewayService.GetAvailableModelsForDiscovery(ctx, groupID, platform)
+		if strict && err != nil {
+			return nil, err
+		}
 		if len(platformModels) == 0 && (platform != service.PlatformOpenAI || platformModels == nil) {
 			// CN 供应商没有静态默认模型列表（service.DefaultModelIDsForPlatform 的
 			// default 分支是 Claude 列表），composite 下只暴露账号映射键。
@@ -1371,7 +1391,11 @@ func (h *GatewayHandler) compositeAvailableModels(ctx context.Context, groupID *
 	}
 	// A route can expose a public ID that no account model mapping contains.
 	// On lookup failure, retain the existing account-derived catalog only.
-	if routeModels, err := h.gatewayService.GetCompositeRouteModels(ctx, groupID, endpoint); err == nil {
+	routeModels, err := h.gatewayService.GetCompositeRouteModels(ctx, groupID, endpoint)
+	if strict && err != nil {
+		return nil, err
+	}
+	if err == nil {
 		for _, model := range routeModels {
 			if _, ok := seen[model]; !ok {
 				seen[model] = struct{}{}
@@ -1379,12 +1403,16 @@ func (h *GatewayHandler) compositeAvailableModels(ctx context.Context, groupID *
 			}
 		}
 	}
-	return models
+	return models, nil
 }
 
 // deepSeekModels adds the Messages discovery contract used by DeepSeek Harness.
 // Keep the existing list source, order, base fields and final deny/retrieve path.
 func (h *GatewayHandler) deepSeekModels(c *gin.Context, group *service.Group, availableModels []string) {
+	writeModelsListResponse(c, h.deepSeekModelEntries(c.Request.Context(), group, availableModels))
+}
+
+func (h *GatewayHandler) deepSeekModelEntries(ctx context.Context, group *service.Group, availableModels []string) []any {
 	models := claude.DefaultModels
 	modelIDs := availableModels
 	if group.ModelAllowlistEnabled() {
@@ -1402,7 +1430,7 @@ func (h *GatewayHandler) deepSeekModels(c *gin.Context, group *service.Group, av
 			modelIDs = append(modelIDs, model.ID)
 		}
 	}
-	images := h.gatewayService.DeepSeekModelImageInputsForGroup(c.Request.Context(), group, modelIDs)
+	images := h.gatewayService.DeepSeekModelImageInputsForGroup(ctx, group, modelIDs)
 	type messagesCapabilities struct {
 		SystemPromptUpdate string `json:"system_prompt_update"`
 		ToolUpdate         string `json:"tool_update"`
@@ -1433,17 +1461,19 @@ func (h *GatewayHandler) deepSeekModels(c *gin.Context, group *service.Group, av
 			APICapabilities: apiCapabilities{AnthropicMessages: messagesCapabilities{SystemPromptUpdate: "leading-only", ToolUpdate: "leading-only"}},
 		})
 	}
-	writeModelsListResponse(c, entries)
+	return entries
 }
 
 func writeModelsList(c *gin.Context, platform string, modelIDs []string) {
+	writeModelsListResponse(c, modelsListEntries(platform, modelIDs))
+}
+
+func modelsListEntries(platform string, modelIDs []string) any {
 	if platform == service.PlatformOpenAI {
-		writeOpenAIModelsList(c, modelIDs)
-		return
+		return openAIModelsListEntries(modelIDs)
 	}
 	if platform == service.PlatformGrok {
-		writeGrokModelsList(c, modelIDs)
-		return
+		return grokModelsListEntries(modelIDs)
 	}
 	models := make([]claude.Model, 0, len(modelIDs))
 	for _, modelID := range modelIDs {
@@ -1454,7 +1484,7 @@ func writeModelsList(c *gin.Context, platform string, modelIDs []string) {
 			CreatedAt:   "2024-01-01T00:00:00Z",
 		})
 	}
-	writeModelsListResponse(c, models)
+	return models
 }
 
 func writeAllowlistedModelsList(c *gin.Context, platform string, modelIDs []string) {
@@ -1479,6 +1509,10 @@ type grokModelListItem struct {
 }
 
 func writeGrokModelsList(c *gin.Context, modelIDs []string) {
+	writeModelsListResponse(c, grokModelsListEntries(modelIDs))
+}
+
+func grokModelsListEntries(modelIDs []string) any {
 	defaults := xai.DefaultModels()
 	defaultsByID := make(map[string]xai.Model, len(defaults))
 	for _, model := range defaults {
@@ -1513,7 +1547,7 @@ func writeGrokModelsList(c *gin.Context, modelIDs []string) {
 		models = append(models, item)
 	}
 
-	writeModelsListResponse(c, models)
+	return models
 }
 
 func grokModelSupportsConfigurableReasoning(modelID string) bool {
@@ -1526,6 +1560,10 @@ func grokModelSupportsConfigurableReasoning(modelID string) bool {
 }
 
 func writeOpenAIModelsList(c *gin.Context, modelIDs []string) {
+	writeModelsListResponse(c, openAIModelsListEntries(modelIDs))
+}
+
+func openAIModelsListEntries(modelIDs []string) any {
 	defaultsByID := make(map[string]openai.Model, len(openai.DefaultModels))
 	for _, model := range openai.DefaultModels {
 		defaultsByID[model.ID] = model
@@ -1546,7 +1584,7 @@ func writeOpenAIModelsList(c *gin.Context, modelIDs []string) {
 			DisplayName: modelID,
 		})
 	}
-	writeModelsListResponse(c, models)
+	return models
 }
 
 func defaultCodexModelIDsForPlatform(platform string) []string {
@@ -1563,6 +1601,10 @@ func defaultCodexModelIDsForPlatform(platform string) []string {
 // AntigravityModels 返回 Antigravity 支持的全部模型。
 // GET /antigravity/models；开启分组白名单时按白名单过滤。
 func (h *GatewayHandler) AntigravityModels(c *gin.Context) {
+	if groups, ok := middleware2.GetAPIKeyModelDiscoveryGroups(c); ok {
+		h.multiGroupAntigravityModels(c, groups)
+		return
+	}
 	models := antigravity.DefaultModels()
 	if apiKey, ok := middleware2.GetAPIKeyFromContext(c); ok && apiKey != nil &&
 		((apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled()) || len(apiKey.DeniedModelsInGroup()) > 0) {

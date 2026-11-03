@@ -19,6 +19,36 @@ type groupCodexFrameCheck func(body []byte, headersOnly bool) service.CodexClien
 // they never enter this middleware and need no caller-controlled bypass header.
 func GroupCodexCLIOnly(settings *service.SettingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if groups, ok := GetAPIKeyModelDiscoveryGroups(c); ok {
+			policy := service.CodexRestrictionPolicy{}
+			if settings != nil {
+				policy = settings.GetCodexRestrictionPolicy(c.Request.Context())
+			}
+			policy.EngineFingerprintSignals = nil
+			allowed := make([]*service.APIKey, 0, len(groups))
+			var rejected service.CodexClientRestrictionDetectionResult
+			for _, candidate := range groups {
+				result := service.DetectCodexGroupClient(c, candidate.Group, policy, nil)
+				if !result.Enabled || result.Matched {
+					allowed = append(allowed, candidate)
+				} else {
+					rejected = result
+				}
+			}
+			if len(allowed) == 0 {
+				markGroupCodexRejected(c)
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": gin.H{
+					"type": "permission_error", "code": "codex_client_required", "message": GroupCodexClientMessage(rejected),
+				}})
+				return
+			}
+			SetAPIKeyModelDiscoveryGroups(c, allowed)
+			c.Set(string(ContextKeyAPIKey), allowed[0])
+			setGroupContext(c, allowed[0].Group)
+			SetOpsFallbackAPIKey(c, allowed[0])
+			c.Next()
+			return
+		}
 		key, ok := GetAPIKeyFromContext(c)
 		if !ok || key == nil || key.Group == nil || c.Request == nil {
 			c.Next()

@@ -1413,12 +1413,19 @@ func mixedListingModelAllowed(groupPlatform, model string) bool {
 }
 
 func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64, platform string) []string {
+	models, _ := s.GetAvailableModelsForDiscovery(ctx, groupID, platform)
+	return models
+}
+
+// GetAvailableModelsForDiscovery distinguishes unavailable storage from a valid
+// empty/default catalogue so multi-group discovery cannot return a partial list.
+func (s *GatewayService) GetAvailableModelsForDiscovery(ctx context.Context, groupID *int64, platform string) ([]string, error) {
 	cacheKey := modelsListCacheKey(groupID, platform)
 	if s.modelsListCache != nil {
 		if cached, found := s.modelsListCache.Get(cacheKey); found {
 			if models, ok := cached.([]string); ok {
 				modelsListCacheHitTotal.Add(1)
-				return cloneStringSlice(models)
+				return cloneStringSlice(models), nil
 			}
 		}
 	}
@@ -1433,8 +1440,11 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		accounts, err = s.accountRepo.ListSchedulable(ctx)
 	}
 
-	if err != nil || len(accounts) == 0 {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+	if len(accounts) == 0 {
+		return nil, nil
 	}
 
 	// Filter by platform if specified. Mixed scheduling (a gemini group routing
@@ -1494,7 +1504,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	if !hasAnyMapping && platform == PlatformOpenAI {
 		models := filterRetiredOpenAIModelIDs(accounts, openai.DefaultModelIDs())
 		if len(models) != len(openai.DefaultModels) {
-			return models
+			return models, nil
 		}
 	}
 	if !hasAnyMapping {
@@ -1502,7 +1512,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 			s.modelsListCache.Set(cacheKey, []string(nil), s.modelsListCacheTTL)
 			modelsListCacheStoreTotal.Add(1)
 		}
-		return nil
+		return nil, nil
 	}
 
 	// Convert to slice
@@ -1518,7 +1528,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		// nil means "use defaults" to listing callers; an empty filtered catalog
 		// must remain authoritative instead of resurrecting retired defaults.
 		if len(models) == 0 {
-			return models
+			return models, nil
 		}
 	}
 
@@ -1526,7 +1536,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		s.modelsListCache.Set(cacheKey, cloneStringSlice(models), s.modelsListCacheTTL)
 		modelsListCacheStoreTotal.Add(1)
 	}
-	return cloneStringSlice(models)
+	return cloneStringSlice(models), nil
 }
 
 func (s *GatewayService) resolveCompositeModelOwnership(ctx context.Context, groupID int64, model string) (CompositeModelOwnership, error) {
@@ -1595,9 +1605,17 @@ func (s *GatewayService) GetCompositeRouteModels(ctx context.Context, groupID *i
 // GetSchedulablePlatforms returns the concrete platforms that currently have
 // schedulable accounts in the target group.
 func (s *GatewayService) GetSchedulablePlatforms(ctx context.Context, groupID *int64) map[string]struct{} {
+	platforms, _ := s.GetSchedulablePlatformsForDiscovery(ctx, groupID)
+	if platforms == nil {
+		return map[string]struct{}{}
+	}
+	return platforms
+}
+
+func (s *GatewayService) GetSchedulablePlatformsForDiscovery(ctx context.Context, groupID *int64) (map[string]struct{}, error) {
 	platforms := make(map[string]struct{})
 	if s == nil || s.accountRepo == nil {
-		return platforms
+		return platforms, nil
 	}
 
 	var accounts []Account
@@ -1608,7 +1626,7 @@ func (s *GatewayService) GetSchedulablePlatforms(ctx context.Context, groupID *i
 		accounts, err = s.accountRepo.ListSchedulable(ctx)
 	}
 	if err != nil {
-		return platforms
+		return nil, err
 	}
 
 	for _, acc := range accounts {
@@ -1617,7 +1635,7 @@ func (s *GatewayService) GetSchedulablePlatforms(ctx context.Context, groupID *i
 			platforms[platform] = struct{}{}
 		}
 	}
-	return platforms
+	return platforms, nil
 }
 
 func (s *GatewayService) InvalidateAvailableModelsCache(groupID *int64, platform string) {
