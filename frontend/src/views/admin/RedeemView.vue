@@ -37,8 +37,8 @@
         <div class="filter-controls">
           <!-- Left: Search + Filters -->
           <div class="flex-1 sm:max-w-64">
-            <label class="block min-w-0">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.redeem.searchCodes') }}</span>
+            <label data-field-role="filter" class="block min-w-0">
+              <span class="sr-only">{{ t('admin.redeem.searchCodes') }}</span>
               <input
               v-model="searchQuery"
               type="text"
@@ -48,8 +48,8 @@
             />
             </label>
           </div>
-          <label class="block min-w-0 w-36">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.redeem.codeType') }}</span>
+          <label data-field-role="filter" class="block min-w-0 w-36">
+            <span class="sr-only">{{ t('admin.redeem.codeType') }}</span>
             <Select :aria-label="t('admin.redeem.codeType')"
             v-model="filters.type"
             :options="filterTypeOptions"
@@ -57,8 +57,8 @@
             @change="loadCodes"
           />
           </label>
-          <label class="block min-w-0 w-36">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+          <label data-field-role="filter" class="block min-w-0 w-36">
+            <span class="sr-only">{{ t('common.status') }}</span>
             <Select :aria-label="t('common.status')"
             v-model="filters.status"
             :options="filterStatusOptions"

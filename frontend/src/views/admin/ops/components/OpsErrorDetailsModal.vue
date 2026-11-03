@@ -218,8 +218,8 @@ onBeforeUnmount(() => { if (searchTimeout) window.clearTimeout(searchTimeout) })
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
-              <label class="block min-w-0 w-full">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.ops.errorDetails.searchPlaceholder') }}</span>
+              <label data-field-role="filter" class="block min-w-0 w-full">
+                <span class="sr-only">{{ t('admin.ops.errorDetails.searchPlaceholder') }}</span>
                 <input
                 v-model="q"
                 type="text"

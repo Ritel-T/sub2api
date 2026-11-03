@@ -38,8 +38,8 @@
         class="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-600 dark:bg-dark-700"
       >
         <div class="sticky top-0 border-b border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-700">
-          <label class="block min-w-0 w-full">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.accounts.searchModels') }}</span>
+          <label class="block min-w-0 w-full" data-field-role="filter">
+            <span class="sr-only">{{ t('admin.accounts.searchModels') }}</span>
             <input
             v-model="searchQuery"
             type="text"

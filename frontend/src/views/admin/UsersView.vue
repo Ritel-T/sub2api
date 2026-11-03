@@ -131,8 +131,8 @@
                 size="md"
                 class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               />
-              <label class="block min-w-0">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.searchUsers') }}</span>
+              <label data-field-role="filter" class="block min-w-0">
+                <span class="sr-only">{{ t('admin.users.searchUsers') }}</span>
                 <input
                 v-model="searchQuery"
                 type="text"
@@ -145,8 +145,8 @@
 
             <!-- Role Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('role')" class="w-full sm:w-32">
-              <label class="block min-w-0">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.form.roleLabel') }}</span>
+              <label data-field-role="filter" class="block min-w-0">
+                <span class="sr-only">{{ t('admin.users.form.roleLabel') }}</span>
                 <Select :aria-label="t('admin.users.form.roleLabel')"
                 v-model="filters.role"
                 :options="[
@@ -162,8 +162,8 @@
 
             <!-- Status Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('status')" class="w-full sm:w-32">
-              <label class="block min-w-0">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.status') }}</span>
+              <label data-field-role="filter" class="block min-w-0">
+                <span class="sr-only">{{ t('common.status') }}</span>
                 <Select :aria-label="t('common.status')"
                 v-model="filters.status"
                 :options="[
@@ -178,8 +178,8 @@
 
             <!-- Group Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('group')" class="w-full sm:w-44">
-              <label class="block min-w-0">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.searchAuthorizedGroups') }}</span>
+              <label data-field-role="filter" class="block min-w-0">
+                <span class="sr-only">{{ t('admin.users.searchAuthorizedGroups') }}</span>
                 <Select :aria-label="t('admin.users.searchAuthorizedGroups')"
                 v-model="filters.group"
                 :options="groupFilterOptions"
@@ -194,8 +194,8 @@
 
             <!-- API Key Group Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('apiKeyGroup')" class="w-full sm:w-44">
-              <label class="block min-w-0">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.users.searchApiKeyGroups') }}</span>
+              <label data-field-role="filter" class="block min-w-0">
+                <span class="sr-only">{{ t('admin.users.searchApiKeyGroups') }}</span>
                 <Select :aria-label="t('admin.users.searchApiKeyGroups')"
                 v-model="filters.apiKeyGroup"
                 :options="apiKeyGroupFilterOptions"

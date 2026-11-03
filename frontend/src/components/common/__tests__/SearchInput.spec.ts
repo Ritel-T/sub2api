@@ -49,3 +49,17 @@ describe('SearchInput composition', () => {
     expect(wrapper.emitted('search')).toBeUndefined()
   })
 })
+
+
+describe('SearchInput compact label', () => {
+  it('keeps the field name available without repeating the placeholder above it', async () => {
+    const wrapper = mountInput()
+    await wrapper.setProps({ label: 'Search accounts', placeholder: 'Search accounts…' })
+    expect(wrapper.get('label').attributes('data-field-role')).toBe('filter')
+    expect(wrapper.get('label > span').classes()).toContain('sr-only')
+    expect(wrapper.get('input').attributes('aria-label')).toBe('Search accounts')
+    expect(wrapper.get('input').attributes('placeholder')).toBe('Search accounts…')
+    await wrapper.get('input').setValue('OpenAI')
+    expect(wrapper.get('input').attributes('aria-label')).toBe('Search accounts')
+  })
+})

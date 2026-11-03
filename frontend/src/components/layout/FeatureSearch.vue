@@ -20,8 +20,8 @@
   <BaseDialog :show="show" :title="t('common.featureSearch.title')" :close-on-click-outside="true" @close="show = false">
     <div class="relative">
       <Icon name="search" class="pointer-events-none absolute left-3 top-3 text-gray-400" aria-hidden="true" />
-      <label class="block min-w-0 w-full">
-        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('common.featureSearch.placeholder') }}</span>
+      <label class="block min-w-0 w-full" data-field-role="filter">
+        <span class="sr-only">{{ t('common.featureSearch.placeholder') }}</span>
         <input
         ref="inputRef"
         v-model="query"

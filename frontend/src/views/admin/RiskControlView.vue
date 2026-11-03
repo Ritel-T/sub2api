@@ -755,8 +755,8 @@
             <div v-if="!configForm.all_groups" class="space-y-4">
               <div class="relative">
                 <Icon name="search" size="sm" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <label class="block min-w-0">
-                  <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.riskControl.searchGroups') }}</span>
+                <label data-field-role="filter" class="block min-w-0">
+                  <span class="sr-only">{{ t('admin.riskControl.searchGroups') }}</span>
                   <input v-model.trim="groupSearch" type="search" class="input pl-9" :placeholder="t('admin.riskControl.searchGroups')" />
                 </label>
               </div>

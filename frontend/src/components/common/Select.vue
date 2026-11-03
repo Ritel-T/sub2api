@@ -68,8 +68,8 @@
           <!-- Search input -->
           <div v-if="isSearchable" class="select-search">
             <Icon name="search" size="sm" class="text-gray-400" />
-            <label class="block min-w-0">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ searchPlaceholderText }}</span>
+            <label class="block min-w-0" data-field-role="filter">
+              <span class="sr-only">{{ searchPlaceholderText }}</span>
               <input
               ref="searchInputRef"
               v-model="searchQuery"

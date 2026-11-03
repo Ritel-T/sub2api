@@ -1,8 +1,8 @@
 <template>
   <fieldset class="open-section min-w-0">
     <legend class="px-1 text-sm font-medium text-gray-800 dark:text-gray-100">{{ label }} · {{ modelValue.length }}/64</legend>
-    <label class="block min-w-0 w-full">
-      <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('admin.astraGateway.search') }}</span>
+    <label data-field-role="filter" class="block min-w-0 w-full">
+      <span class="sr-only">{{ t('admin.astraGateway.search') }}</span>
       <input v-model="search" type="search" class="input mb-3 w-full" :aria-label="t('admin.astraGateway.search')" :placeholder="t('admin.astraGateway.search')" />
     </label>
     <div class="max-h-52 space-y-1 overflow-y-auto">

@@ -3,8 +3,8 @@
     <AppHeading as="h2" variant="section" id="astra-history-title" >{{ t(`${p}.historyTitle`) }}</AppHeading>
     <p class="text-xs text-gray-500">{{ t(`${p}.historyHint`) }}</p>
     <form class="workspace-filter-controls flex flex-wrap items-center gap-3" @submit.prevent="search">
-      <label class="block min-w-0 w-72">
-        <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t(`${p}.historySearch`) }}</span>
+      <label data-field-role="filter" class="block min-w-0 w-72">
+        <span class="sr-only">{{ t(`${p}.historySearch`) }}</span>
         <input v-model="host" class="input w-72" :placeholder="t(`${p}.historySearch`)" :aria-label="t(`${p}.historySearch`)" maxlength="200" />
       </label>
       <label class="flex items-center gap-2 text-sm"><input v-model="passed" type="checkbox" @change="search" />{{ t(`${p}.historyPassed`) }}</label>

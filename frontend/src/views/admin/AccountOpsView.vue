@@ -27,19 +27,19 @@
             <AppHeading variant="section" as="h2">{{ t('accountOps.recordsTab') }}</AppHeading>
             <p class="mt-1 text-xs text-gray-500">{{ t('accountOps.recordsOnceHint') }}</p>
           </div>
-          <div class="workspace-filter-controls flex flex-wrap gap-2"><label class="block min-w-0 w-48">
-            <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('accountOps.search') }}</span>
+          <div class="workspace-filter-controls flex flex-wrap gap-2"><label data-field-role="filter" class="block min-w-0 w-48">
+            <span class="sr-only">{{ t('accountOps.search') }}</span>
             <input v-model="query" class="input w-48 text-sm" :placeholder="t('accountOps.search')"
               :aria-label="t('accountOps.search')" />
-          </label><label class="block min-w-0 w-auto">
-                <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('accountOps.alertTypes') }}</span>
+          </label><label data-field-role="filter" class="block min-w-0 w-auto">
+                <span class="sr-only">{{ t('accountOps.alertTypes') }}</span>
                 <select v-model="kind" class="input w-auto text-sm"
               :aria-label="t('accountOps.alertTypes')">
               <option value="all">{{ t('accountOps.allTypes') }}</option>
               <option v-for="value in alertKinds" :key="value" :value="value">{{ t(`accountOps.${value}`) }}</option>
             </select>
-              </label><label class="block min-w-0 w-auto">
-              <span class="mb-1 block text-2xs text-gray-600 dark:text-gray-300">{{ t('accountOps.eventPhase') }}</span>
+              </label><label data-field-role="filter" class="block min-w-0 w-auto">
+              <span class="sr-only">{{ t('accountOps.eventPhase') }}</span>
               <select v-model="phase" class="input w-auto text-sm" :aria-label="t('accountOps.eventPhase')">
               <option value="all">{{ t('accountOps.allPhases') }}</option>
               <option value="alert">{{ t('accountOps.phases.alert') }}</option>
