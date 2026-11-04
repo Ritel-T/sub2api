@@ -108,12 +108,12 @@ const selectedProfile = computed(() => props.modelValue.profiles[selectedIndex.v
 const parameterDefaults = computed(() => selectedProfile.value
   ? getCcSwitchImportParameterDefaults(selectedProfile.value, props.baseUrl || '{{baseUrl}}') : {})
 const templateTokens = ['{{apiKey}}', '{{baseUrl}}', '{{siteName}}', '{{keyName}}', '{{userId}}']
-const platforms: CcsImportPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok']
-const apps: CcsImportApp[] = ['claude', 'codex', 'gemini', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi']
+const platforms: CcsImportPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'deepseek', 'minimax', 'kimi', 'zhipu', 'opencode_go', 'composite']
+const apps: CcsImportApp[] = ['claude', 'codex', 'gemini', 'agy', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi']
 const apiFormats = computed(() => formatsForApp(selectedProfile.value?.app))
 
 function formatsForApp(app?: CcsImportApp): string[] {
-  if (app === 'gemini') return ['gemini_native']
+  if (app === 'gemini' || app === 'agy') return ['gemini_native']
   const formats = ['anthropic', 'openai_chat', 'openai_responses']
   return app && ['claude', 'opencode', 'openclaw', 'pi'].includes(app) ? [...formats, 'gemini_native'] : formats
 }
@@ -186,9 +186,11 @@ function updateProfile(patch: Partial<CcsImportProfile>) {
 }
 
 function parameterText(key: string): string {
+  // Pi templates require their model explicitly, even though generated choices inherit it.
+  if (key === 'model' && selectedProfile.value?.app === 'pi') return String(selectedProfile.value.parameters.model || '')
   const value = selectedProfile.value?.parameters[key] ?? parameterDefaults.value[key]
   // These empty strings are accepted by the API and inherit the current default.
-  if (value === '' && ['name', 'homepage', 'endpoint', 'apiFormat', 'configFormat', 'usageApiKey', 'usageBaseUrl'].includes(key)) return String(parameterDefaults.value[key] ?? '')
+  if (value === '' && ['model', 'name', 'homepage', 'endpoint', 'apiFormat', 'configFormat', 'usageApiKey', 'usageBaseUrl'].includes(key)) return String(parameterDefaults.value[key] ?? '')
   return value === undefined ? '' : String(value)
 }
 

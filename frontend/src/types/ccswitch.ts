@@ -1,7 +1,7 @@
 /** CC Switch provider deeplink profiles published in public site settings. */
-export type CcsImportPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
+export type CcsImportPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'deepseek' | 'minimax' | 'kimi' | 'zhipu' | 'opencode_go' | 'composite'
 
-export type CcsImportApp = 'claude' | 'codex' | 'gemini' | 'grokbuild' | 'opencode' | 'openclaw' | 'hermes' | 'pi'
+export type CcsImportApp = 'claude' | 'codex' | 'gemini' | 'agy' | 'grokbuild' | 'opencode' | 'openclaw' | 'hermes' | 'pi'
 
 export type CcsImportParameterValue = string | boolean | number
 

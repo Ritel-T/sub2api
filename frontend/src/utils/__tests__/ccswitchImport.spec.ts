@@ -19,7 +19,7 @@ describe('ccswitchImport utils', () => {
   })
 
   it('defaults Grok Build imports to the current Grok model', () => {
-    expect(GROK_CC_SWITCH_MODEL).toBe('grok-4.5')
+    expect(GROK_CC_SWITCH_MODEL).toBe('grok-4.7')
   })
 
   const baseInput = {

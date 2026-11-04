@@ -27,13 +27,17 @@ import grok from '@/assets/ccs-apps/grok.svg?raw'
 import pi from '@/assets/ccs-apps/pi.svg?raw'
 import deepseek from '@/assets/ccs-apps/deepseek.svg?raw'
 import hermes from '@/assets/ccs-apps/hermes.png'
+import minimax from '@/assets/ccs-apps/minimax.svg?raw'
+import kimi from '@/assets/ccs-apps/kimi.svg?raw'
+import antigravity from '@/assets/ccs-apps/antigravity.svg?raw'
+import omp from '@/assets/ccs-apps/omp.svg?raw'
 
 const props = defineProps<{ app: string }>()
-const brands: Record<string, string> = { codex: 'openai', 'codex-ws': 'openai', 'claude-desktop': 'claude', dsh: 'deepseek' }
+const brands: Record<string, string> = { codex: 'openai', 'codex-ws': 'openai', 'claude-desktop': 'claude', dsh: 'deepseek', mcode: 'minimax', agy: 'antigravity' }
 const brand = computed(() => brands[props.app] || props.app)
 // Static, reviewed SVGs copied from CCS. No remote or user-supplied markup.
-const svgIcons: Record<string, string> = { openai, claude, gemini, opencode, openclaw, grok, pi, deepseek }
-const colors: Record<string, string> = { claude: '#D4915D', gemini: '#4285F4', openclaw: '#ff4f40', deepseek: '#1E88E5' }
+const svgIcons: Record<string, string> = { openai, claude, gemini, opencode, openclaw, grok, pi, deepseek, minimax, kimi, antigravity, omp }
+const colors: Record<string, string> = { claude: '#D4915D', gemini: '#4285F4', openclaw: '#ff4f40', deepseek: '#1E88E5', minimax: '#FF6B6B', kimi: '#1783FF', antigravity: '#3186FF', omp: '#9b4dff' }
 </script>
 
 <style scoped>

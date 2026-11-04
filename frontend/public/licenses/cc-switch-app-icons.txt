@@ -1,5 +1,5 @@
 CC Switch application icons and AppGlyph adaptation
-Source: https://github.com/farion1231/cc-switch/tree/51fce968bca807aeee93be9420c651afb582c2c8
+Source: https://github.com/farion1231/cc-switch/tree/a3eafa408ae679db2e3401fca767ed2b89d9a2b2
 
 MIT License
 
