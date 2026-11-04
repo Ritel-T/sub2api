@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/DATA-DOG/go-sqlmock"
 	"net/http"
 	"net/http/httptest"
@@ -105,7 +106,7 @@ func TestQQDefaultAndAuthEmailUnchanged(t *testing.T) {
 	}
 }
 
-func TestQQKeywordHelpWithoutAccountAccess(t *testing.T) {
+func TestQQBoundKeywordHelpPreservesDeliveryChecks(t *testing.T) {
 	s, m := qqTestService(t)
 	var reply string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -121,14 +122,19 @@ func TestQQKeywordHelpWithoutAccountAccess(t *testing.T) {
 	}))
 	defer server.Close()
 	s.endpoint = server.URL
-	// Only event/rate-limit and delivery audit SQL is permitted; account queries fail the mock.
+	m.ExpectQuery("SELECT n.user_id").WithArgs("234567").WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(42))
 	m.ExpectBegin()
 	m.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs("qq:234567").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.ExpectQuery("SELECT COUNT").WithArgs("234567").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	m.ExpectExec("INSERT INTO qq_inbound_events").WithArgs("123456:234567:9", "234567").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.ExpectCommit()
 	m.ExpectBegin()
-	m.ExpectExec("INSERT INTO qq_delivery_attempts").WithArgs("reply:123456:234567:9", int64(0), "234567").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.ExpectQuery("SELECT qq").WithArgs(int64(42)).WillReturnRows(sqlmock.NewRows([]string{"qq"}).AddRow("234567"))
+	m.ExpectExec("INSERT INTO qq_delivery_attempts").WithArgs("reply:123456:234567:9", int64(42), "234567").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.ExpectCommit()
+	m.ExpectBegin()
+	m.ExpectQuery("SELECT qq").WithArgs(int64(42)).WillReturnRows(sqlmock.NewRows([]string{"qq"}).AddRow("234567"))
+	m.ExpectQuery("SELECT EXISTS").WithArgs(int64(42)).WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 	m.ExpectCommit()
 	m.ExpectExec("UPDATE qq_delivery_attempts").WithArgs("reply:123456:234567:9", "sent", "123").WillReturnResult(sqlmock.NewResult(0, 1))
 	ev := QQEvent{SelfID: "123456", UserID: "234567", MessageID: "9", Time: time.Now().Unix(), PostType: "message", MessageType: "private", SubType: "friend", Message: json.RawMessage(`[{"type":"text","data":{"text":"帮助"}}]`)}
@@ -207,5 +213,38 @@ func TestQQAccessChecksCurrentPrivateBindingOnly(t *testing.T) {
 	body, _ = json.Marshal(map[string]any{"event": ev})
 	if _, err := s.Access(context.Background(), body); !errors.Is(err, ErrQQRequest) {
 		t.Fatal("group access accepted")
+	}
+}
+
+func TestQQUnboundCommandsStaySilentWithoutAuditWrites(t *testing.T) {
+	s, m := qqTestService(t)
+	for _, text := range []string{"帮助", "查余额", "查套餐", "查用量"} {
+		m.ExpectQuery("SELECT n.user_id").WithArgs("234567").WillReturnError(sql.ErrNoRows)
+		ev := QQEvent{SelfID: "123456", UserID: "234567", MessageID: "12", Time: time.Now().Unix(), PostType: "message", MessageType: "private", SubType: "friend"}
+		ev.Message, _ = json.Marshal([]any{map[string]any{"type": "text", "data": map[string]string{"text": text}}})
+		body, _ := json.Marshal(ev)
+		if err := s.Webhook(context.Background(), body); err != nil {
+			t.Fatalf("%s: %v", text, err)
+		}
+	}
+}
+
+func TestQQUnboundCodeOnlyRecordsPendingWithoutReply(t *testing.T) {
+	for _, changed := range []int64{0, 1} {
+		t.Run(fmt.Sprint(changed), func(t *testing.T) {
+			s, m := qqTestService(t)
+			m.ExpectQuery("SELECT n.user_id").WithArgs("234567").WillReturnError(sql.ErrNoRows)
+			m.ExpectBegin()
+			m.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs("qq:234567").WillReturnResult(sqlmock.NewResult(0, 1))
+			m.ExpectQuery("SELECT COUNT").WithArgs("234567").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+			m.ExpectExec("INSERT INTO qq_inbound_events").WithArgs("123456:234567:13", "234567").WillReturnResult(sqlmock.NewResult(0, 1))
+			m.ExpectCommit()
+			m.ExpectExec("UPDATE qq_user_notifications SET pending_qq").WithArgs(qqHash("0123456789ABCDEF"), "234567").WillReturnResult(sqlmock.NewResult(0, changed))
+			ev := QQEvent{SelfID: "123456", UserID: "234567", MessageID: "13", Time: time.Now().Unix(), PostType: "message", MessageType: "private", SubType: "friend", Message: json.RawMessage(`[{"type":"text","data":{"text":"0123456789ABCDEF"}}]`)}
+			body, _ := json.Marshal(ev)
+			if err := s.Webhook(context.Background(), body); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
