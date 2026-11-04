@@ -296,6 +296,20 @@ func (s *QQNotificationService) Webhook(ctx context.Context, body []byte) error 
 	if len(ev.MessageID.String()) > 30 {
 		return ErrQQRequest
 	}
+	binding := strings.HasPrefix(text, "/sub 绑定 ")
+	code := strings.TrimPrefix(text, "/sub 绑定 ")
+	if binding && !qqCode.MatchString(code) {
+		return nil
+	}
+	boundUID, err := s.boundUser(ctx, ev.UserID.String())
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	// Until website confirmation, only a well-formed code may record a pending
+	// candidate. Help and queries consume neither audit rows nor a QQ reply.
+	if boundUID == 0 && !binding || boundUID > 0 && binding {
+		return nil
+	}
 	// Per-sender transaction lock serializes replay and quota checks across replicas.
 	tx, e := s.db.BeginTx(ctx, nil)
 	if e != nil {
@@ -325,41 +339,19 @@ func (s *QQNotificationService) Webhook(ctx context.Context, body []byte) error 
 	if e = tx.Commit(); e != nil {
 		return e
 	}
-	reply := ""
-	var boundUID int64
-	if text == "/sub" {
-		reply = "Sub2API QQ 助手\n请在账号中心 → QQ Bot 生成验证码，只需将验证码私聊发给我，再返回网页核对 QQ 并确认。\n绑定后直接发送：查余额、查套餐、查用量。\n也可以用自然语言让我查询。通知偏好与解绑请在账号中心设置：https://account.ritel.si/account/#qq"
-	} else if strings.HasPrefix(text, "/sub 绑定 ") {
-		code := strings.TrimPrefix(text, "/sub 绑定 ")
-		if !qqCode.MatchString(code) {
-			return nil
-		}
-		r, e = s.db.ExecContext(ctx, `UPDATE qq_user_notifications SET pending_qq=$2 WHERE code_hash=$1 AND expires_at>NOW() AND pending_qq IS NULL
+	if binding {
+		_, e = s.db.ExecContext(ctx, `UPDATE qq_user_notifications SET pending_qq=$2 WHERE code_hash=$1 AND expires_at>NOW() AND pending_qq IS NULL
  AND NOT EXISTS(SELECT 1 FROM qq_user_notifications q WHERE q.qq=$2 AND q.user_id<>qq_user_notifications.user_id)`, qqHash(code), ev.UserID.String())
+		return e // The website confirms the candidate; QQ remains silent until then.
+	}
+	reply := "Sub2API QQ 助手\n请在账号中心 → QQ Bot 生成验证码，只需将验证码私聊发给我，再返回网页核对 QQ 并确认。\n绑定后直接发送：查余额、查套餐、查用量。\n也可以用自然语言让我查询。通知偏好与解绑请在账号中心设置：https://account.ritel.si/account/#qq"
+	if text != "/sub" {
+		reply, e = s.query(ctx, boundUID, text)
 		if e != nil {
 			return e
 		}
-		n, _ = r.RowsAffected()
-		if n == 1 {
-			reply = "已收到绑定申请，请返回账号中心核对 QQ 后确认。"
-		} else {
-			reply = "验证码无效、已使用或已过期，请返回账号中心重新生成。"
-		}
-	} else {
-		uid, e := s.boundUser(ctx, ev.UserID.String())
-		if errors.Is(e, sql.ErrNoRows) {
-			reply = "请先在账号中心绑定 QQ。"
-		} else if e != nil {
-			return e
-		} else {
-			boundUID = uid
-			reply, e = s.query(ctx, uid, text)
-			if e != nil {
-				return e
-			}
-		}
 	}
-	return s.deliver(ctx, boundUID, ev.UserID.String(), "reply:"+key, reply, boundUID > 0)
+	return s.deliver(ctx, boundUID, ev.UserID.String(), "reply:"+key, reply, true)
 }
 func (s *QQNotificationService) query(ctx context.Context, uid int64, command string) (string, error) {
 	switch command {
