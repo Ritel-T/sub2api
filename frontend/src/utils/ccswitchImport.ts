@@ -15,7 +15,7 @@ export function getCcSwitchDefaultModel(platform: GroupPlatform, app?: CcsImport
     openai: OPENAI_CC_SWITCH_CODEX_MODEL, composite: OPENAI_CC_SWITCH_CODEX_MODEL,
     anthropic: CLAUDE_CC_SWITCH_MODEL, antigravity: CLAUDE_CC_SWITCH_MODEL,
     gemini: GEMINI_CC_SWITCH_MODEL, grok: GROK_CC_SWITCH_MODEL,
-    deepseek: 'deepseek-v4-pro', minimax: 'MiniMax-M3', kimi: 'kimi-k3.1-pro',
+    deepseek: 'deepseek-v4.1-flash', minimax: 'minimax-m3.1-flash', kimi: 'kimi-k3.1-pro',
     zhipu: 'glm-5.3', opencode_go: 'glm-5.3'
   }
   return models[platform] || ''
