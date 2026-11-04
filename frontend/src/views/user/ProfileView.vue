@@ -35,14 +35,6 @@
       <SecurityRecords />
       <ProfilePasswordForm v-if="!centralAccountEnabled" />
 
-      <ProfileBalanceNotifyCard
-        v-if="user && balanceLowNotifyEnabled"
-        :enabled="user.balance_notify_enabled ?? true"
-        :threshold="user.balance_notify_threshold"
-        :extra-emails="user.balance_notify_extra_emails ?? []"
-        :system-default-threshold="systemDefaultThreshold"
-        :user-email="user.email"
-      />
 
       <ProfileTotpCard v-if="!centralAccountEnabled" />
       <ProfilePasskeyCard v-if="!centralAccountEnabled" :enabled="passkeyEnabled" />
@@ -57,7 +49,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@/components/icons'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNotifyCard.vue'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import SecurityRecords from '@/features/security-penalties/SecurityRecords.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
