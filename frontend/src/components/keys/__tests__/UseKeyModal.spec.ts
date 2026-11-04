@@ -1185,7 +1185,7 @@ describe('UseKeyModal overview connection summary', () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     const wrapper = renderConnection()
     expect(wrapper.findAll('[data-app-tab]').map(button => button.attributes('data-app-tab'))).toEqual([
-      'codex', 'claude', 'opencode', 'openclaw', 'gemini', 'grok', 'hermes', 'pi', 'dsh'
+      'codex', 'claude', 'claude-desktop', 'opencode', 'openclaw', 'gemini', 'grok', 'hermes', 'pi', 'dsh'
     ])
     expect(wrapper.findAll('[data-testid^="connection-ccs-"]')).toHaveLength(1)
     expect(wrapper.find('[data-testid="key-connection-summary"] [data-testid^="connection-ccs-"]').exists()).toBe(false)

@@ -74,12 +74,22 @@
 
         <section id="connection-application-panel" role="tabpanel" :aria-labelledby="`connection-tab-${activeApplication}`" :data-application="activeApplication" class="space-y-4">
         <div v-if="selectedCcsProfiles.length" class="space-y-3" data-testid="selected-application-import">
+          <p v-if="activeApplication === 'codex'" class="text-sm text-gray-600 dark:text-gray-300">{{ kc.codexSharedConfig }}</p>
+          <div v-if="activeApplication === 'claude-desktop'" class="space-y-2 text-sm text-gray-600 dark:text-gray-300" data-testid="claude-desktop-import-guide">
+            <p>{{ kc.claudeDesktopSeparate }}</p>
+            <p>{{ kc.claudeDesktopImportLimit }}</p>
+          </div>
           <div class="flex flex-wrap gap-2">
             <button v-for="profile in selectedCcsProfiles" :key="profile.id" type="button" class="btn btn-primary" :disabled="!canImportApplication(profile)" :title="canImportApplication(profile) ? undefined : kc.geminiNativeOnly" :data-testid="`connection-ccs-${profile.id}`" @click="importConnection(profile)">
-              <Icon name="download" size="sm" class="mr-2" />{{ kc.oneClickImport }} · {{ profile.label }}
+              <Icon name="download" size="sm" class="mr-2" />{{ activeApplication === 'claude-desktop' ? kc.claudeDesktopImportSource : kc.oneClickImport }} · {{ profile.label }}
             </button>
           </div>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ activeApplication === 'gemini' && !supportsGeminiNative ? kc.geminiNativeOnly : kc.ccsRouting }} <a href="https://ccswitch.io" target="_blank" rel="noopener noreferrer" class="link">{{ kc.downloadCcs }}</a></p>
+          <div v-if="activeApplication === 'claude-desktop'" class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+            <p>{{ kc.claudeDesktopImportNext }}</p>
+            <p>{{ kc.claudeDesktopRestart }}</p>
+            <a href="https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/zh/2-providers/2.6-claude-desktop.md" target="_blank" rel="noopener noreferrer" class="link">{{ kc.officialGuide }} ↗</a>
+          </div>
+          <p v-else class="text-sm text-gray-500 dark:text-gray-400">{{ activeApplication === 'gemini' && !supportsGeminiNative ? kc.geminiNativeOnly : kc.ccsRouting }} <a href="https://ccswitch.io" target="_blank" rel="noopener noreferrer" class="link">{{ kc.downloadCcs }}</a></p>
           <p v-if="ccsImportFailed" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ t('keys.ccSwitchNotInstalled') }}</p>
         </div>
         <section v-if="activeClientTab === 'dsh'" class="space-y-3" data-testid="dsh-guide">
@@ -382,13 +392,18 @@ const ccsImportFailed = ref(false)
 const ccsProfiles = computed(() => !props.keyRecord || !props.platform || props.publicSettings?.hide_ccs_import_button
   ? [] : getCcSwitchApplicationProfiles(props.platform, props.publicSettings?.ccs_import_config))
 const activeApplication = computed(() => activeClientTab.value === 'codex-ws' ? 'codex' : activeClientTab.value)
-const selectedCcsProfiles = computed(() => ccsProfiles.value.filter(profile => profile.app === (activeApplication.value === 'grok' ? 'grokbuild' : activeApplication.value)))
+const selectedCcsProfiles = computed(() => ccsProfiles.value.filter(profile => profile.app === (activeApplication.value === 'grok' ? 'grokbuild' : activeApplication.value === 'claude-desktop' ? 'claude' : activeApplication.value)))
 const supportsGeminiNative = computed(() => ['gemini', 'antigravity', 'composite'].includes(props.platform || ''))
 const canImportApplication = (profile: CcSwitchApplicationProfile) => profile.app !== 'gemini' || supportsGeminiNative.value
 function connectionDeeplink(profile: CcSwitchApplicationProfile) {
   return buildCcSwitchImportDeeplink({
     baseUrl: props.baseUrl || window.location.origin,
-    platform: props.platform, profile, settings: props.publicSettings?.ccs_import_config,
+    platform: props.platform,
+    // Desktop is imported inside CCS from a Claude Code source provider. Keep
+    // the source inactive so this step does not switch the user's Code setup.
+    profile: activeApplication.value === 'claude-desktop'
+      ? { ...profile, parameters: { ...profile.parameters, enabled: false } } : profile,
+    settings: props.publicSettings?.ccs_import_config,
     providerName: 'Ritel.SI API',
     apiKey: props.apiKey, keyName: props.keyRecord?.name, userId: props.keyRecord?.user_id
   })
@@ -654,8 +669,9 @@ const openaiTabs: TabConfig[] = [
 ]
 
 const applicationTabs = computed(() => props.platform === 'typesafe' ? clientTabs.value : [
-  { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
+  { id: 'codex', label: kc.value.codexSharedApp, icon: TerminalIcon },
   { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
+  { id: 'claude-desktop', label: 'Claude Desktop', icon: TerminalIcon },
   { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
   { id: 'openclaw', label: 'OpenClaw', icon: TerminalIcon },
   { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
