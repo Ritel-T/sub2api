@@ -65,7 +65,8 @@
               ]"
             >
               <span class="flex items-center gap-2">
-                <component :is="tab.icon" class="w-4 h-4" />
+                <CcsAppIcon v-if="typeof tab.icon === 'string'" :app="tab.icon" />
+                <component v-else :is="tab.icon" class="w-4 h-4" />
                 {{ tab.label }}
               </span>
             </button>
@@ -340,6 +341,7 @@ import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, h, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useKeyConnectionCopy } from './keyConnectionCopy'
+import CcsAppIcon from './CcsAppIcon.vue'
 import { saveAs } from 'file-saver'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -371,7 +373,7 @@ interface Emits {
 interface TabConfig {
   id: string
   label: string
-  icon: Component
+  icon: Component | string
 }
 
 interface FileConfig {
@@ -581,58 +583,39 @@ const TerminalIcon = {
   }
 }
 
-// Sparkle icon for Gemini
-const SparkleIcon = {
-  render() {
-    return h('svg', {
-      fill: 'none',
-      stroke: 'currentColor',
-      viewBox: '0 0 24 24',
-      'stroke-width': '1.5',
-      class: 'w-4 h-4'
-    }, [
-      h('path', {
-        'stroke-linecap': 'round',
-        'stroke-linejoin': 'round',
-        d: 'M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z'
-      })
-    ])
-  }
-}
-
 const clientTabs = computed((): TabConfig[] => {
   if (!props.platform) return []
   switch (props.platform) {
     case 'openai': {
       const tabs: TabConfig[] = [
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: TerminalIcon },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: 'codex-ws' },
       ]
       if (props.allowMessagesDispatch) {
-        tabs.push({ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon })
+        tabs.push({ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' })
       }
-      tabs.push({ id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon })
+      tabs.push({ id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' })
       return tabs
     }
     case 'gemini':
       return [
-        { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: 'gemini' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
     case 'antigravity':
       return [
-        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+        { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: 'gemini' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
     case 'grok':
       return [
-        { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: TerminalIcon },
-        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: 'grok' },
+        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
     case 'typesafe':
       return [
@@ -642,15 +625,15 @@ const clientTabs = computed((): TabConfig[] => {
     case 'minimax':
     case 'composite':
       return [
-        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
     default:
       return [
-        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
   }
 })
@@ -669,16 +652,16 @@ const openaiTabs: TabConfig[] = [
 ]
 
 const applicationTabs = computed(() => props.platform === 'typesafe' ? clientTabs.value : [
-  { id: 'codex', label: kc.value.codexSharedApp, icon: TerminalIcon },
-  { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-  { id: 'claude-desktop', label: 'Claude Desktop', icon: TerminalIcon },
-  { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
-  { id: 'openclaw', label: 'OpenClaw', icon: TerminalIcon },
-  { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-  { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: TerminalIcon },
-  { id: 'hermes', label: 'Hermes', icon: TerminalIcon },
-  { id: 'pi', label: 'Pi', icon: TerminalIcon },
-  { id: 'dsh', label: 'dsh', icon: TerminalIcon }
+  { id: 'codex', label: kc.value.codexSharedApp, icon: 'codex' },
+  { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+  { id: 'claude-desktop', label: 'Claude Desktop', icon: 'claude-desktop' },
+  { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' },
+  { id: 'openclaw', label: 'OpenClaw', icon: 'openclaw' },
+  { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: 'gemini' },
+  { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: 'grok' },
+  { id: 'hermes', label: 'Hermes', icon: 'hermes' },
+  { id: 'pi', label: 'Pi', icon: 'pi' },
+  { id: 'dsh', label: 'dsh', icon: 'dsh' }
 ])
 const hasManualConfiguration = computed(() => clientTabs.value.some(tab => tab.id === activeClientTab.value))
 function onApplicationTabKeydown(event: KeyboardEvent, current: string) {
