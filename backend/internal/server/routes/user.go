@@ -19,6 +19,7 @@ func RegisterUserRoutes(
 ) {
 	v1.POST("/qq/webhook", h.User.QQWebhook)
 	v1.POST("/qq/query", h.User.QQQuery)
+	v1.POST("/qq/access", h.User.QQAccess)
 	authenticated := v1.Group("")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))
 	authenticated.Use(middleware.BackendModeUserGuard(settingService))

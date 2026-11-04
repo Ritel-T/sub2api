@@ -205,6 +205,25 @@ func (s *QQNotificationService) AuthenticateQuery(body []byte, signature string)
 	return s.Authenticate(append([]byte("qq-query-v1\n"), body...), signature)
 }
 
+// Access uses its own signature domain and returns only current binding eligibility.
+func (s *QQNotificationService) AuthenticateAccess(body []byte, signature string) bool {
+	return s.Authenticate(append([]byte("qq-access-v1\n"), body...), signature)
+}
+
+func (s *QQNotificationService) Access(ctx context.Context, body []byte) (bool, error) {
+	var input struct {
+		Event QQEvent `json:"event"`
+	}
+	if json.Unmarshal(body, &input) != nil || !s.validEvent(input.Event) {
+		return false, ErrQQRequest
+	}
+	_, err := s.boundUser(ctx, input.Event.UserID.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (s *QQNotificationService) validEvent(ev QQEvent) bool {
 	return ev.SelfID.String() == s.bot && qqNumber.MatchString(ev.UserID.String()) && ev.UserID.String() != s.bot && ev.PostType == "message" && ev.MessageType == "private" && ev.SubType == "friend" && qqMessageID.MatchString(ev.MessageID.String()) && time.Since(time.Unix(ev.Time, 0)).Abs() <= 5*time.Minute
 }

@@ -122,6 +122,26 @@ func (h *UserHandler) QQQuery(c *gin.Context) {
 	response.Success(c, map[string]string{"text": text})
 }
 
+// QQAccess lets the trusted bridge check a current friend's active account binding.
+func (h *UserHandler) QQAccess(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16384)
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.Status(http.StatusRequestEntityTooLarge)
+		return
+	}
+	if !h.qq.AuthenticateAccess(body, c.GetHeader("X-QQ-Signature")) {
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+	bound, err := h.qq.Access(c.Request.Context(), body)
+	if err != nil {
+		response.BadRequest(c, "QQ access unavailable")
+		return
+	}
+	response.Success(c, map[string]bool{"bound": bound})
+}
+
 func ProvideUserHandlerWithQQ(user *service.UserService, auth *service.AuthService, email *service.EmailService, cache service.EmailCache, aff *service.AffiliateService, quotas service.UserPlatformQuotaRepository, qq *service.QQNotificationService) *UserHandler {
 	h := NewUserHandler(user, auth, email, cache, aff, quotas)
 	h.qq = qq

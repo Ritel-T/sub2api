@@ -184,3 +184,28 @@ func TestQQQueryUsesPrivateSenderBindingAndNeverSends(t *testing.T) {
 		t.Fatal("unsupported query accepted")
 	}
 }
+
+func TestQQAccessChecksCurrentPrivateBindingOnly(t *testing.T) {
+	s, m := qqTestService(t)
+	ev := QQEvent{SelfID: "123456", UserID: "234567", MessageID: "11", Time: time.Now().Unix(), PostType: "message", MessageType: "private", SubType: "friend"}
+	body, _ := json.Marshal(map[string]any{"event": ev})
+	h := hmac.New(sha256.New, []byte(s.secret))
+	_, _ = h.Write(append([]byte("qq-access-v1\n"), body...))
+	sig := "sha256=" + hex.EncodeToString(h.Sum(nil))
+	if !s.AuthenticateAccess(body, sig) || s.AuthenticateQuery(body, sig) || s.Authenticate(body, sig) {
+		t.Fatal("access signature crossed endpoint boundary")
+	}
+	m.ExpectQuery("SELECT n.user_id").WithArgs("234567").WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(42))
+	if bound, err := s.Access(context.Background(), body); !bound || err != nil {
+		t.Fatalf("bound access: %v %v", bound, err)
+	}
+	m.ExpectQuery("SELECT n.user_id").WithArgs("234567").WillReturnError(sql.ErrNoRows)
+	if bound, err := s.Access(context.Background(), body); bound || err != nil {
+		t.Fatalf("unbound access: %v %v", bound, err)
+	}
+	ev.MessageType = "group"
+	body, _ = json.Marshal(map[string]any{"event": ev})
+	if _, err := s.Access(context.Background(), body); !errors.Is(err, ErrQQRequest) {
+		t.Fatal("group access accepted")
+	}
+}
