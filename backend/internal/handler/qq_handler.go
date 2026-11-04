@@ -102,6 +102,26 @@ func (h *UserHandler) QQWebhook(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// QQQuery is a signed, read-only bridge call, separate from message delivery.
+func (h *UserHandler) QQQuery(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16384)
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.Status(http.StatusRequestEntityTooLarge)
+		return
+	}
+	if !h.qq.AuthenticateQuery(body, c.GetHeader("X-QQ-Signature")) {
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+	text, err := h.qq.Query(c.Request.Context(), body)
+	if err != nil {
+		response.BadRequest(c, "QQ query unavailable")
+		return
+	}
+	response.Success(c, map[string]string{"text": text})
+}
+
 func ProvideUserHandlerWithQQ(user *service.UserService, auth *service.AuthService, email *service.EmailService, cache service.EmailCache, aff *service.AffiliateService, quotas service.UserPlatformQuotaRepository, qq *service.QQNotificationService) *UserHandler {
 	h := NewUserHandler(user, auth, email, cache, aff, quotas)
 	h.qq = qq

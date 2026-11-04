@@ -105,7 +105,7 @@ func TestQQDefaultAndAuthEmailUnchanged(t *testing.T) {
 	}
 }
 
-func TestQQBareSubHelpWithoutAccountAccess(t *testing.T) {
+func TestQQKeywordHelpWithoutAccountAccess(t *testing.T) {
 	s, m := qqTestService(t)
 	var reply string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -131,17 +131,56 @@ func TestQQBareSubHelpWithoutAccountAccess(t *testing.T) {
 	m.ExpectExec("INSERT INTO qq_delivery_attempts").WithArgs("reply:123456:234567:9", int64(0), "234567").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.ExpectCommit()
 	m.ExpectExec("UPDATE qq_delivery_attempts").WithArgs("reply:123456:234567:9", "sent", "123").WillReturnResult(sqlmock.NewResult(0, 1))
-	ev := QQEvent{SelfID: "123456", UserID: "234567", MessageID: "9", Time: time.Now().Unix(), PostType: "message", MessageType: "private", SubType: "friend", Message: json.RawMessage(`[{"type":"text","data":{"text":"/sub"}}]`)}
+	ev := QQEvent{SelfID: "123456", UserID: "234567", MessageID: "9", Time: time.Now().Unix(), PostType: "message", MessageType: "private", SubType: "friend", Message: json.RawMessage(`[{"type":"text","data":{"text":"帮助"}}]`)}
 	body, _ := json.Marshal(ev)
 	if e := s.Webhook(context.Background(), body); e != nil {
 		t.Fatal(e)
 	}
-	for _, text := range []string{"控制台", "QQ 通知", "/sub 绑定", "/sub 余额", "/sub 套餐", "/sub 今日用量"} {
+	for _, text := range []string{"账号中心", "验证码", "查余额", "查套餐", "查用量"} {
 		if !strings.Contains(reply, text) {
 			t.Errorf("missing help text %s", text)
 		}
 	}
 	if strings.Contains(reply, "当前余额") || strings.Contains(reply, "实际费用") {
 		t.Fatal("help contains account information")
+	}
+}
+
+func TestQQKeywordAndBareCodeCommands(t *testing.T) {
+	for input, want := range map[string]string{"帮助": "/sub", "查余额": "/sub 余额", "查套餐": "/sub 套餐", "查用量": "/sub 今日用量", "0123456789abcdef": "/sub 绑定 0123456789ABCDEF", "请帮我查余额": "请帮我查余额"} {
+		if got := qqCommand(input); got != want {
+			t.Errorf("%q: %q", input, got)
+		}
+	}
+}
+
+func TestQQQueryUsesPrivateSenderBindingAndNeverSends(t *testing.T) {
+	s, m := qqTestService(t)
+	ev := QQEvent{SelfID: "123456", UserID: "234567", MessageID: "10", Time: time.Now().Unix(), PostType: "message", MessageType: "private", SubType: "friend"}
+	body, _ := json.Marshal(map[string]any{"event": ev, "query": "balance"})
+	signature := func(body []byte) string {
+		h := hmac.New(sha256.New, []byte(s.secret))
+		_, _ = h.Write(body)
+		return "sha256=" + hex.EncodeToString(h.Sum(nil))
+	}
+	sig := signature(append([]byte("qq-query-v1\n"), body...))
+	if !s.AuthenticateQuery(body, sig) || s.Authenticate(body, sig) || s.AuthenticateQuery(body, signature(body)) {
+		t.Fatal("query signature crossed endpoint boundary")
+	}
+	m.ExpectQuery("SELECT n.user_id").WithArgs("234567").WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(42))
+	m.ExpectQuery("SELECT balance FROM users").WithArgs(int64(42)).WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.3456))
+	got, err := s.Query(context.Background(), body)
+	if err != nil || got != "当前余额：$12.3456" {
+		t.Fatalf("%q %v", got, err)
+	}
+	ev.MessageType = "group"
+	body, _ = json.Marshal(map[string]any{"event": ev, "query": "balance"})
+	if _, err = s.Query(context.Background(), body); !errors.Is(err, ErrQQRequest) {
+		t.Fatal("group query accepted")
+	}
+	ev.MessageType = "private"
+	body, _ = json.Marshal(map[string]any{"event": ev, "query": "admin"})
+	if _, err = s.Query(context.Background(), body); !errors.Is(err, ErrQQRequest) {
+		t.Fatal("unsupported query accepted")
 	}
 }
