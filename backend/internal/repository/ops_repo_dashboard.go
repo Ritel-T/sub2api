@@ -74,11 +74,11 @@ FROM (
  FROM usage_logs ul
  ` + join + `
  ` + where + `
- AND ul.output_tokens > 0 AND ul.duration_ms > 0
+ AND ul.output_tokens >= 2 AND ul.duration_ms > 0
  AND ul.image_count = 0 AND ul.image_output_tokens = 0
- AND COALESCE(ul.billing_mode, '') <> 'image'
- ` + fmt.Sprintf("AND ul.request_type IN (%d, %d, %d, %d)",
-		service.RequestTypeSync, service.RequestTypeStream, service.RequestTypeWSV2, service.RequestTypeCyberBlocked) + `
+ AND COALESCE(ul.billing_mode, '') NOT IN ('image', 'video')
+ ` + fmt.Sprintf("AND ul.request_type IN (%d, %d, %d)",
+		service.RequestTypeSync, service.RequestTypeStream, service.RequestTypeWSV2) + `
 ) rates`
 	var stats service.OpsOutputTPS
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&stats.P5, &stats.P10, &stats.P50, &stats.Avg, &stats.SampleCount); err != nil {
@@ -108,8 +108,8 @@ func (r *opsRepository) getDashboardOverviewRaw(ctx context.Context, filter *ser
 	if err != nil {
 		if isQueryTimeoutErr(err) {
 			degraded = true
-			duration = service.OpsPercentiles{}
-			ttft = service.OpsPercentiles{}
+			duration = service.OpsPercentiles{PercentileMethod: "unavailable"}
+			ttft = service.OpsPercentiles{PercentileMethod: "unavailable"}
 		} else {
 			return nil, err
 		}
@@ -300,6 +300,19 @@ func (r *opsRepository) getDashboardOverviewPreaggregated(ctx context.Context, f
 		{weight: head.ttftSampleCount, p: head.ttft},
 		{weight: tail.ttftSampleCount, p: tail.ttft},
 	})
+
+	method := "legacy_subwindow_approx"
+	if head.duration.PercentileMethod == "unavailable" || tail.duration.PercentileMethod == "unavailable" {
+		method = "partial_raw"
+	}
+	duration.PercentileMethod = method
+	ttft.PercentileMethod = method
+	if method != "partial_raw" {
+		count := preagg.ttftSampleCount + head.ttftSampleCount + tail.ttftSampleCount
+		ttft.SampleCount = &count
+	}
+	// Legacy hourly rows do not preserve COUNT(duration_ms). Do not substitute
+	// success_count (which includes records without a measured duration).
 
 	windowSeconds := end.Sub(start).Seconds()
 	if windowSeconds <= 0 {
@@ -693,8 +706,8 @@ func (r *opsRepository) queryRawPartial(ctx context.Context, filter *service.Ops
 	cancelLatency()
 	if err != nil {
 		if isQueryTimeoutErr(err) {
-			duration = service.OpsPercentiles{}
-			ttft = service.OpsPercentiles{}
+			duration = service.OpsPercentiles{PercentileMethod: "unavailable"}
+			ttft = service.OpsPercentiles{PercentileMethod: "unavailable"}
 			ttftSampleCount = 0
 		} else {
 			return nil, err
@@ -870,7 +883,8 @@ SELECT
   percentile_cont(0.99) WITHIN GROUP (ORDER BY first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS ttft_p99,
   AVG(first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS ttft_avg,
   MAX(first_token_ms) AS ttft_max,
-  COUNT(first_token_ms) AS ttft_sample_count
+  COUNT(first_token_ms) AS ttft_sample_count,
+  COUNT(duration_ms) AS duration_sample_count
 FROM usage_logs ul
 ` + join + `
 ` + where
@@ -881,10 +895,10 @@ FROM usage_logs ul
 	var tP50, tP90, tP95, tP99 sql.NullFloat64
 	var tAvg sql.NullFloat64
 	var tMax sql.NullInt64
-	var tCount int64
+	var tCount, dCount int64
 	if err := r.db.QueryRowContext(ctx, q, args...).Scan(
 		&dP50, &dP90, &dP95, &dP99, &dAvg, &dMax,
-		&tP50, &tP90, &tP95, &tP99, &tAvg, &tMax, &tCount,
+		&tP50, &tP90, &tP95, &tP99, &tAvg, &tMax, &tCount, &dCount,
 	); err != nil {
 		return service.OpsPercentiles{}, service.OpsPercentiles{}, 0, err
 	}
@@ -909,6 +923,10 @@ FROM usage_logs ul
 		ttft.Max = &v
 	}
 
+	duration.SampleCount = &dCount
+	duration.PercentileMethod = "raw_exact"
+	ttft.SampleCount = &tCount
+	ttft.PercentileMethod = "raw_exact"
 	return duration, ttft, tCount, nil
 }
 

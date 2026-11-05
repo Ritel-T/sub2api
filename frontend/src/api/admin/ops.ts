@@ -33,6 +33,11 @@ export interface OpsDashboardOverview {
   group_id?: number | null
 
   health_score?: number
+  health_score_available?: boolean
+  health_score_version?: string
+  health_status?: 'healthy' | 'degraded' | 'unknown'
+  health_score_details?: OpsHealthScoreDetail[]
+  job_health?: OpsJobHealth[] | null
 
   system_metrics?: OpsSystemMetricsSnapshot | null
   job_heartbeats?: OpsJobHeartbeat[] | null
@@ -76,7 +81,28 @@ export interface OpsDashboardOverview {
   ttft: OpsPercentiles
 }
 
+export type OpsPercentileMethod = 'raw_exact' | 'legacy_subwindow_approx' | 'partial_raw' | 'unavailable'
+
+export interface OpsHealthScoreDetail {
+  component: string
+  score: number
+  weight: number
+  reason: string
+}
+
+export type OpsJobState = 'healthy' | 'late' | 'failed' | 'pending' | 'disabled' | 'unknown'
+
+export interface OpsJobHealth {
+  job_name: string
+  state: OpsJobState
+  reason: string
+  deadline_at?: string | null
+  evaluated_at: string
+}
+
 export interface OpsPercentiles {
+  sample_count: number | null
+  percentile_method: OpsPercentileMethod
   p50_ms?: number | null
   p90_ms?: number | null
   p95_ms?: number | null

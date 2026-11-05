@@ -714,6 +714,15 @@ func ProvideOpsCleanupService(
 	startBackgroundService(cfg, svc)
 	if opsService != nil && cfg.RunsBackgroundJobs() {
 		opsService.SetCleanupReloader(svc)
+		opsService.cleanupHealthConfig = func() (bool, string, *time.Location) {
+			svc.mu.Lock()
+			defer svc.mu.Unlock()
+			var loc *time.Location
+			if svc.cron != nil {
+				loc = svc.cron.Location()
+			}
+			return svc.effective.Enabled, svc.effective.Schedule, loc
+		}
 	}
 	return svc
 }

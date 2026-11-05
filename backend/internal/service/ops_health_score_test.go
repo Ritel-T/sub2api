@@ -9,11 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestComputeDashboardHealthScore_IdleReturns100(t *testing.T) {
+func TestComputeDashboardHealthScore_IdleWithoutEvidenceIsUnknown(t *testing.T) {
 	t.Parallel()
 
-	score := computeDashboardHealthScore(time.Now().UTC(), &OpsDashboardOverview{})
-	require.Equal(t, 100, score)
+	ov := &OpsDashboardOverview{}
+	score := computeDashboardHealthScore(time.Now().UTC(), ov)
+	require.Equal(t, 0, score)
+	require.Equal(t, "unknown", ov.HealthStatus)
+	require.False(t, ov.HealthScoreAvailable)
 }
 
 func TestComputeDashboardHealthScore_DegradesOnBadSignals(t *testing.T) {
@@ -50,6 +53,8 @@ func TestComputeDashboardHealthScore_DegradesOnBadSignals(t *testing.T) {
 		},
 	}
 
+	ov.SystemMetrics.CreatedAt = time.Now().UTC()
+	ov.JobHealth = []OpsJobHealth{{JobName: "job-a", State: "failed"}}
 	score := computeDashboardHealthScore(time.Now().UTC(), ov)
 	require.Less(t, score, 80)
 	require.GreaterOrEqual(t, score, 0)
@@ -229,7 +234,17 @@ func TestComputeDashboardHealthScore_Comprehensive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score := computeDashboardHealthScore(time.Now().UTC(), tt.overview)
+			now := time.Now().UTC()
+			if ov := tt.overview; ov != nil {
+				ov.SystemMetrics.CreatedAt = now
+				ov.JobHealth = []OpsJobHealth{{JobName: "job-a", State: "healthy", EvaluatedAt: now}}
+				if ov.TTFT.P99 == nil {
+					ov.TTFT.P99 = intPtr(500)
+				}
+				ov.TTFT.SampleCount = int64Ptr(1000)
+				ov.TTFT.PercentileMethod = "raw_exact"
+			}
+			score := computeDashboardHealthScore(now, tt.overview)
 			require.GreaterOrEqual(t, score, tt.wantMin, "score should be >= %d", tt.wantMin)
 			require.LessOrEqual(t, score, tt.wantMax, "score should be <= %d", tt.wantMax)
 			require.GreaterOrEqual(t, score, 0, "score must be >= 0")
@@ -414,12 +429,7 @@ func TestComputeInfraHealth(t *testing.T) {
 					CPUUsagePercent:    float64Ptr(30),
 					MemoryUsagePercent: float64Ptr(40),
 				},
-				JobHeartbeats: []*OpsJobHeartbeat{
-					{
-						JobName:     "test-job",
-						LastErrorAt: &now,
-					},
-				},
+				JobHealth: []OpsJobHealth{{JobName: "test-job", State: "failed"}},
 			},
 			wantMin: 70,
 			wantMax: 90,

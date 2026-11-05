@@ -21,12 +21,15 @@ type OpsRateSummary struct {
 }
 
 type OpsPercentiles struct {
-	P50 *int `json:"p50_ms"`
-	P90 *int `json:"p90_ms"`
-	P95 *int `json:"p95_ms"`
-	P99 *int `json:"p99_ms"`
-	Avg *int `json:"avg_ms"`
-	Max *int `json:"max_ms"`
+	// Nil count means legacy aggregates did not preserve the valid sample count.
+	SampleCount      *int64 `json:"sample_count"`
+	PercentileMethod string `json:"percentile_method"`
+	P50              *int   `json:"p50_ms"`
+	P90              *int   `json:"p90_ms"`
+	P95              *int   `json:"p95_ms"`
+	P99              *int   `json:"p99_ms"`
+	Avg              *int   `json:"avg_ms"`
+	Max              *int   `json:"max_ms"`
 }
 
 // OpsOutputTPS describes per-request output rates, not aggregate token throughput.
@@ -46,7 +49,12 @@ type OpsDashboardOverview struct {
 
 	// HealthScore is a backend-computed overall health score (0-100).
 	// It is derived from the monitored metrics in this overview, plus best-effort system metrics/job heartbeats.
-	HealthScore int `json:"health_score"`
+	HealthScore          int                    `json:"health_score"`
+	JobHealth            []OpsJobHealth         `json:"job_health"`
+	HealthScoreVersion   string                 `json:"health_score_version"`
+	HealthScoreDetails   []OpsHealthScoreDetail `json:"health_score_details"`
+	HealthStatus         string                 `json:"health_status"`
+	HealthScoreAvailable bool                   `json:"health_score_available"`
 
 	// Latest system-level snapshot (window=1m, global).
 	SystemMetrics *OpsSystemMetricsSnapshot `json:"system_metrics"`

@@ -42,7 +42,7 @@ func TestOpsOutputTPSOverviewFailurePolicy(t *testing.T) {
 			db, mock := newSQLMock(t)
 			repo := &opsRepository{db: db}
 			// The six existing raw overview queries run before the output-rate query.
-			for _, count := range []int{2, 13, 6, 2, 6, 2} {
+			for _, count := range []int{2, 14, 6, 2, 6, 2} {
 				columns := make([]string, count)
 				values := make([]driver.Value, count)
 				for i := range columns {

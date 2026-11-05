@@ -43,7 +43,7 @@ func (s *OpsService) GetDashboardOverview(ctx context.Context, filter *OpsDashbo
 	}
 
 	// Best-effort system health + jobs; dashboard metrics should still render if these are missing.
-	if metrics, err := s.opsRepo.GetLatestSystemMetrics(ctx, 1); err == nil {
+	if metrics, err := s.opsRepo.GetLatestSystemMetrics(ctx, 1); err == nil && metrics != nil {
 		// Attach config-derived limits so the UI can show "current / max" for connection pools.
 		// These are best-effort and should never block the dashboard rendering.
 		if s != nil && s.cfg != nil {
@@ -59,13 +59,26 @@ func (s *OpsService) GetDashboardOverview(ctx context.Context, filter *OpsDashbo
 		log.Printf("[Ops] GetLatestSystemMetrics failed: %v", err)
 	}
 
+	heartbeatAvailable := true
 	if heartbeats, err := s.opsRepo.ListJobHeartbeats(ctx); err == nil {
 		overview.JobHeartbeats = heartbeats
 	} else {
+		heartbeatAvailable = false
 		log.Printf("[Ops] ListJobHeartbeats failed: %v", err)
 	}
 
-	overview.HealthScore = computeDashboardHealthScore(time.Now().UTC(), overview)
+	now := time.Now().UTC()
+	overview.JobHealth = s.evaluateJobHealth(ctx, now, overview.JobHeartbeats)
+	if !heartbeatAvailable {
+		for i := range overview.JobHealth {
+			if overview.JobHealth[i].State != "disabled" {
+				overview.JobHealth[i].State = "unknown"
+				overview.JobHealth[i].Reason = "heartbeat_read_failed"
+				overview.JobHealth[i].DeadlineAt = nil
+			}
+		}
+	}
+	applyDashboardHealth(now, overview)
 
 	return overview, nil
 }

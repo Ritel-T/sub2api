@@ -1,8 +1,8 @@
 import type { UsageLog } from '@/types'
-import { BILLING_MODE_VIDEO } from './billingMode'
+import { BILLING_MODE_IMAGE, BILLING_MODE_VIDEO } from './billingMode'
 
 type UsageTpsRow = Partial<
-  Pick<UsageLog, 'output_tokens' | 'duration_ms' | 'first_token_ms' | 'image_count' | 'image_output_tokens' | 'billing_mode'>
+  Pick<UsageLog, 'output_tokens' | 'duration_ms' | 'first_token_ms' | 'image_count' | 'image_output_tokens' | 'billing_mode' | 'request_type'>
 >
 
 /**
@@ -14,7 +14,8 @@ type UsageTpsRow = Partial<
  * divide the full output count by an unrelated, potentially tiny window.
  *
  * This includes waiting time and is not a measurement of model generation speed.
- * Image/video requests and records without valid output or duration are excluded.
+ * Only sync/stream/ws_v2 records with at least two output tokens are eligible.
+ * Image/video billing, image output, CyberBlocked and unknown types are excluded.
  */
 export const usageOutputTps = (row: UsageTpsRow | null | undefined): number | null => {
   const outputTokens = row?.output_tokens ?? 0
@@ -22,7 +23,8 @@ export const usageOutputTps = (row: UsageTpsRow | null | undefined): number | nu
   if (!Number.isFinite(outputTokens) || !Number.isFinite(durationMs) || outputTokens < 2 || durationMs <= 0) {
     return null
   }
-  if ((row?.image_count ?? 0) > 0 || (row?.image_output_tokens ?? 0) > 0 || row?.billing_mode === BILLING_MODE_VIDEO) {
+  if (!row?.request_type || !['sync', 'stream', 'ws_v2'].includes(row.request_type)) return null
+  if ((row?.image_count ?? 0) > 0 || (row?.image_output_tokens ?? 0) > 0 || row?.billing_mode === BILLING_MODE_IMAGE || row?.billing_mode === BILLING_MODE_VIDEO) {
     return null
   }
   const tps = outputTokens / (durationMs / 1000)

@@ -45,10 +45,10 @@ func TestOpsOutputTPSDistribution(t *testing.T) {
 		kind             service.RequestType
 		at               time.Time
 	}{
-		{1, 1000, service.RequestTypeSync, start},
+		{2, 2000, service.RequestTypeSync, start},
 		{20, 2000, service.RequestTypeStream, start.Add(time.Hour)},
 		{100, 1000, service.RequestTypeWSV2, start.Add(2 * time.Hour)},
-		{500, 500, service.RequestTypeCyberBlocked, end.Add(-time.Minute)},
+		{500, 500, service.RequestTypeStream, end.Add(-time.Minute)},
 	} {
 		insert(sample.at, &group.ID, sample.output, &sample.duration, sample.kind, 0, 0, "token")
 	}
@@ -56,15 +56,16 @@ func TestOpsOutputTPSDistribution(t *testing.T) {
 	for _, d := range []*int{nil, &zero, &negative} {
 		insert(start, &group.ID, 9999, d, service.RequestTypeSync, 0, 0, "token")
 	}
-	for _, n := range []int{0, -1} {
+	for _, n := range []int{0, 1, -1} {
 		insert(start, &group.ID, n, &positive, service.RequestTypeSync, 0, 0, "token")
 	}
-	for _, kind := range []service.RequestType{service.RequestTypeLive, service.RequestTypeUnknown} {
+	for _, kind := range []service.RequestType{service.RequestTypeLive, service.RequestTypeUnknown, service.RequestTypeCyberBlocked} {
 		insert(start, &group.ID, 9999, &positive, kind, 0, 0, "token")
 	}
 	insert(start, &group.ID, 9999, &positive, service.RequestTypeSync, 1, 0, "token")
 	insert(start, &group.ID, 9999, &positive, service.RequestTypeSync, 0, 1, "token")
 	insert(start, &group.ID, 9999, &positive, service.RequestTypeSync, 0, 0, "image")
+	insert(start, &group.ID, 9999, &positive, service.RequestTypeSync, 0, 0, "video")
 	insert(start.Add(-time.Second), &group.ID, 9999, &positive, service.RequestTypeSync, 0, 0, "token")
 	insert(end, &group.ID, 9999, &positive, service.RequestTypeSync, 0, 0, "token")
 	insert(start, &otherGroup.ID, 9999, &positive, service.RequestTypeSync, 0, 0, "token")
@@ -90,6 +91,15 @@ func TestOpsOutputTPSDistribution(t *testing.T) {
 		overview, err := repo.GetDashboardOverview(ctx, filter)
 		require.NoError(t, err)
 		assertStats(overview.OutputTPS)
+		if mode == service.OpsQueryModeRaw {
+			require.Equal(t, "raw_exact", overview.Duration.PercentileMethod)
+			require.NotNil(t, overview.Duration.SampleCount)
+			require.NotNil(t, overview.TTFT.SampleCount)
+		} else if overview.Duration.PercentileMethod != "raw_exact" {
+			require.Equal(t, "legacy_subwindow_approx", overview.Duration.PercentileMethod)
+			require.Nil(t, overview.Duration.SampleCount)
+			require.NotNil(t, overview.TTFT.SampleCount)
+		}
 	}
 	require.NoError(t, repo.UpsertHourlyMetrics(ctx, start.Truncate(time.Hour), end))
 	for _, mode := range []service.OpsQueryMode{service.OpsQueryModePreagg, service.OpsQueryModeAuto} {
@@ -97,6 +107,15 @@ func TestOpsOutputTPSDistribution(t *testing.T) {
 		overview, err := repo.GetDashboardOverview(ctx, filter)
 		require.NoError(t, err)
 		assertStats(overview.OutputTPS)
+		if mode == service.OpsQueryModeRaw {
+			require.Equal(t, "raw_exact", overview.Duration.PercentileMethod)
+			require.NotNil(t, overview.Duration.SampleCount)
+			require.NotNil(t, overview.TTFT.SampleCount)
+		} else if overview.Duration.PercentileMethod != "raw_exact" {
+			require.Equal(t, "legacy_subwindow_approx", overview.Duration.PercentileMethod)
+			require.Nil(t, overview.Duration.SampleCount)
+			require.NotNil(t, overview.TTFT.SampleCount)
+		}
 	}
 	filter.Platform = service.PlatformAnthropic
 	empty, err := repo.queryOutputTPS(ctx, filter)
