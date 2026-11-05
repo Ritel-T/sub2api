@@ -426,6 +426,18 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 	settings.CCSImportConfig = ccsImportConfig
 	updates[SettingKeyCCSImportConfig] = string(ccsImportJSON)
+	if err := ValidateQuickKeyDefaultGroups(settings.QuickKeyDefaultGroups); err != nil {
+		return nil, infraerrors.BadRequest("INVALID_QUICK_KEY_DEFAULT_GROUPS", err.Error())
+	}
+	quickKeyDefaultGroups := settings.QuickKeyDefaultGroups
+	if quickKeyDefaultGroups == nil {
+		quickKeyDefaultGroups = QuickKeyDefaultGroups{}
+	}
+	quickKeyJSON, err := json.Marshal(quickKeyDefaultGroups)
+	if err != nil {
+		return nil, err
+	}
+	updates[SettingKeyQuickKeyDefaultGroups] = string(quickKeyJSON)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)
 	tableDefaultPageSize, tablePageSizeOptions := normalizeTablePreferences(

@@ -190,6 +190,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyCompactHomeEnabled,
 		SettingKeyHideCcsImportButton,
 		SettingKeyCCSImportConfig,
+		SettingKeyQuickKeyDefaultGroups,
 		SettingKeyPurchaseSubscriptionEnabled,
 		SettingKeyPurchaseSubscriptionURL,
 		SettingKeyTableDefaultPageSize,
@@ -346,6 +347,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		CompactHomeEnabled:                  settings[SettingKeyCompactHomeEnabled] == "true",
 		HideCcsImportButton:                 settings[SettingKeyHideCcsImportButton] == "true",
 		CCSImportConfig:                     parseCCSImportConfigOrDefault(settings[SettingKeyCCSImportConfig]),
+		QuickKeyDefaultGroups:               parseQuickKeyDefaultGroups(settings[SettingKeyQuickKeyDefaultGroups]),
 		PurchaseSubscriptionEnabled:         settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:             strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		TableDefaultPageSize:                tableDefaultPageSize,
@@ -673,6 +675,7 @@ type PublicSettingsInjectionPayload struct {
 	CompactHomeEnabled                  bool                     `json:"compact_home_enabled"`
 	HideCcsImportButton                 bool                     `json:"hide_ccs_import_button"`
 	CCSImportConfig                     CCSImportConfig          `json:"ccs_import_config"`
+	QuickKeyDefaultGroups               QuickKeyDefaultGroups    `json:"quick_key_default_groups"`
 	PurchaseSubscriptionEnabled         bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL             string                   `json:"purchase_subscription_url"`
 	TableDefaultPageSize                int                      `json:"table_default_page_size"`
@@ -779,6 +782,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		CompactHomeEnabled:                  settings.CompactHomeEnabled,
 		HideCcsImportButton:                 settings.HideCcsImportButton,
 		CCSImportConfig:                     settings.CCSImportConfig,
+		QuickKeyDefaultGroups:               settings.QuickKeyDefaultGroups,
 		PurchaseSubscriptionEnabled:         settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:             settings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:                settings.TableDefaultPageSize,

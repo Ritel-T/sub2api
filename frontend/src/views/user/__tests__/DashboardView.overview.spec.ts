@@ -126,10 +126,11 @@ describe('overview quick workflow', () => {
     expect(api.createKey).toHaveBeenCalledWith('Chinese models Key', 17)
     expect(wrapper.find('[data-test="use-dialog"]').text()).toContain('deepseek')
   })
-  it('prefers active domestic 060 over an earlier unlimited group without a fixed ID', async () => {
+  it('selects the configured domestic ID independent of name and order', async () => {
+    app.cachedPublicSettings.quick_key_default_groups = { domestic: 817 }
     api.groups.mockResolvedValue([
       { ...group, id: 23, name: 'DeepSeek 无限', platform: 'deepseek' },
-      { ...group, id: 817, name: ' 国模 060 ', platform: 'deepseek' },
+      { ...group, id: 817, name: 'Renamed domestic group', platform: 'deepseek' },
       { ...group, id: 18, name: 'Kimi', platform: 'kimi' }
     ])
     const wrapper = await render()
@@ -138,7 +139,8 @@ describe('overview quick workflow', () => {
     expect(api.createKey).toHaveBeenCalledTimes(1)
     expect(api.createKey).toHaveBeenCalledWith('Chinese models Key', 817)
   })
-  it('falls back to the first eligible domestic group when domestic 060 is inactive', async () => {
+  it('falls back to the first eligible domestic group when its configured ID is inactive', async () => {
+    app.cachedPublicSettings.quick_key_default_groups = { domestic: 17 }
     api.groups.mockResolvedValue([
       { ...group, id: 17, name: '国模 060', platform: 'deepseek', status: 'inactive' },
       { ...group, id: 24, name: 'Kimi', platform: 'kimi' },
@@ -148,7 +150,8 @@ describe('overview quick workflow', () => {
     await wrapper.get('[data-platform="domestic"]').trigger('click'); await flushPromises()
     expect(api.createKey).toHaveBeenCalledWith('Chinese models Key', 24)
   })
-  it('prefers the available active Grok 060 group by its current name without a fixed ID', async () => {
+  it('selects the configured Grok ID', async () => {
+    app.cachedPublicSettings.quick_key_default_groups = { grok: 806 }
     api.groups.mockResolvedValue([
       { ...group, id: 61, name: 'Grok Premium', platform: 'grok' },
       { ...group, id: 806, name: 'Grok 060', platform: 'grok' },
@@ -160,7 +163,8 @@ describe('overview quick workflow', () => {
     expect(api.createKey).toHaveBeenCalledTimes(1)
     expect(api.createKey).toHaveBeenCalledWith('Grok Key', 806)
   })
-  it('falls back to the first eligible Grok group if Grok 060 is unavailable', async () => {
+  it('falls back to the first eligible Grok group if its configured ID is unavailable', async () => {
+    app.cachedPublicSettings.quick_key_default_groups = { grok: 32 }
     api.groups.mockResolvedValue([
       { ...group, id: 32, name: 'Grok 060', platform: 'grok', status: 'inactive' },
       { ...group, id: 75, name: 'Grok Available', platform: 'grok' },
@@ -170,6 +174,16 @@ describe('overview quick workflow', () => {
     await wrapper.get('[data-platform="grok"]').trigger('click'); await flushPromises()
     expect(api.createKey).toHaveBeenCalledTimes(1)
     expect(api.createKey).toHaveBeenCalledWith('Grok Key', 75)
+  })
+  it('does not add an inaccessible configured group or use another platform group', async () => {
+    app.cachedPublicSettings.quick_key_default_groups = { domestic: 999, openai: 23, grok: 806 }
+    api.groups.mockResolvedValue([group, { ...group, id: 23, platform: 'deepseek' }])
+    const wrapper = await render()
+    expect(wrapper.find('[data-platform="grok"]').exists()).toBe(false)
+    await wrapper.get('[data-platform="openai"]').trigger('click'); await flushPromises()
+    expect(api.createKey).toHaveBeenCalledWith('OpenAI Key', 12)
+    await wrapper.get('[data-platform="domestic"]').trigger('click'); await flushPromises()
+    expect(api.createKey).toHaveBeenLastCalledWith('Chinese models Key', 23)
   })
   it('prevents duplicate creation while pending and ignores a late result after owner changes', async () => {
     const pending = deferred<ApiKey>(); api.createKey.mockReturnValue(pending.promise)

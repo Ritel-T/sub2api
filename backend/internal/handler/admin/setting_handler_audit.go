@@ -349,6 +349,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.SiteSubtitle != after.SiteSubtitle {
 		changed = append(changed, "site_subtitle")
 	}
+	if !reflect.DeepEqual(before.QuickKeyDefaultGroups, after.QuickKeyDefaultGroups) {
+		changed = append(changed, service.SettingKeyQuickKeyDefaultGroups)
+	}
 	if before.APIBaseURL != after.APIBaseURL {
 		changed = append(changed, "api_base_url")
 	}

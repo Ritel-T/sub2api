@@ -185,7 +185,8 @@ type UpdateSettingsRequest struct {
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
 
-	CCSImportConfig *service.CCSImportConfig `json:"ccs_import_config"`
+	CCSImportConfig       *service.CCSImportConfig       `json:"ccs_import_config"`
+	QuickKeyDefaultGroups *service.QuickKeyDefaultGroups `json:"quick_key_default_groups"`
 
 	// 默认配置
 	DefaultConcurrency                        int                               `json:"default_concurrency"`
@@ -572,6 +573,16 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		}
 		req.CCSImportConfig = &normalized
 	}
+	if raw, sent := sentFields[service.SettingKeyQuickKeyDefaultGroups]; sent {
+		if string(raw) == "null" || req.QuickKeyDefaultGroups == nil {
+			response.BadRequest(c, "quick_key_default_groups must be an object; use {} to clear defaults")
+			return
+		}
+		if err := service.ValidateQuickKeyDefaultGroups(*req.QuickKeyDefaultGroups); err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+	}
 	if req.OpenAICodexTicketHarvestScope != nil && req.OpenAICodexTicketHarvestScope.Mode == "" {
 		response.BadRequest(c, "harvest scope mode is required")
 		return
@@ -626,6 +637,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	auditReq := settingsAuditRequest(req)
 	omitted := omittedSettingKeys(sentFields)
+	if req.QuickKeyDefaultGroups == nil {
+		omitted[service.SettingKeyQuickKeyDefaultGroups] = struct{}{}
+	}
 	if req.CCSImportConfig == nil {
 		omitted[service.SettingKeyCCSImportConfig] = struct{}{}
 	}
@@ -661,6 +675,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 
+	quickKeyDefaultGroups := previousSettings.QuickKeyDefaultGroups
+	if req.QuickKeyDefaultGroups != nil {
+		quickKeyDefaultGroups = *req.QuickKeyDefaultGroups
+	}
 	ccsImportConfig := previousSettings.CCSImportConfig
 	if req.CCSImportConfig != nil {
 		ccsImportConfig = *req.CCSImportConfig
@@ -1860,6 +1878,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CompactHomeEnabled:                     req.CompactHomeEnabled,
 		HideCcsImportButton:                    req.HideCcsImportButton,
 		CCSImportConfig:                        ccsImportConfig,
+		QuickKeyDefaultGroups:                  quickKeyDefaultGroups,
 		PurchaseSubscriptionEnabled:            purchaseEnabled,
 		PurchaseSubscriptionURL:                purchaseURL,
 		TableDefaultPageSize:                   req.TableDefaultPageSize,
@@ -2778,6 +2797,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CompactHomeEnabled:                                     updatedSettings.CompactHomeEnabled,
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,
 		CCSImportConfig:                                        updatedSettings.CCSImportConfig,
+		QuickKeyDefaultGroups:                                  updatedSettings.QuickKeyDefaultGroups,
 		PurchaseSubscriptionEnabled:                            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                updatedSettings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:                                   updatedSettings.TableDefaultPageSize,

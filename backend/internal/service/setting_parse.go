@@ -431,6 +431,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		CompactHomeEnabled:                     settings[SettingKeyCompactHomeEnabled] == "true",
 		HideCcsImportButton:                    settings[SettingKeyHideCcsImportButton] == "true",
 		CCSImportConfig:                        parseCCSImportConfigOrDefault(settings[SettingKeyCCSImportConfig]),
+		QuickKeyDefaultGroups:                  parseQuickKeyDefaultGroups(settings[SettingKeyQuickKeyDefaultGroups]),
 		PurchaseSubscriptionEnabled:            settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:                strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		CustomMenuItems:                        settings[SettingKeyCustomMenuItems],
