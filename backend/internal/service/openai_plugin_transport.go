@@ -27,6 +27,10 @@ func (s *OpenAIGatewayService) doOpenAIUpstream(request *http.Request, proxyURL 
 			return nil, err
 		}
 	}
+	if attempt := deepSeekAttemptForRequest(request, account); attempt != nil {
+		return s.doDeepSeekRecoveryUpstream(request, proxyURL, account, attempt)
+
+	}
 	var phaseGuard *openAIHTTPPhaseGuard
 	request, phaseGuard = s.guardOpenAIHTTPRequest(request, account)
 	request, finishHeaderTimeout := guardOpenAIResponseHeaderTimeout(request, account)

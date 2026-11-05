@@ -1736,6 +1736,22 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	// 分组利润控制：Messages 文本入口同样请求级装门并固定 pricingAt。
 	msgPricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
 	c.Request = c.Request.WithContext(msgPricingCtx)
+	if deepSeekRecoveryEnabled(requestPlatform, reqModel, body) {
+		forwardModel := routingModel
+		if effectiveMappedModel != "" {
+			forwardModel = effectiveMappedModel
+		}
+		forwardBody := mappedBodyForMessages(channelMappingMsg.Mapped, channelMappingMsg.MappedModel)
+		h.runDeepSeekRecovery(c, deepSeekRecoveryRequest{
+			apiKey: apiKey, subscription: subscription, model: reqModel, forwardModel: forwardModel,
+			protocol: "messages", stream: reqStream, body: body, mapping: channelMappingMsg,
+			sessionHash: sessionHash, pricingAt: pricingAt,
+			forward: func(ctx context.Context, attempt *gin.Context, account *service.Account) (*service.OpenAIForwardResult, error) {
+				return h.gatewayService.ForwardAsAnthropic(ctx, attempt, account, forwardBody, promptCacheKey, strings.TrimSpace(effectiveMappedModel))
+			},
+		}, reqLog)
+		return
+	}
 
 	for {
 		if failoverClientGone(c) {
