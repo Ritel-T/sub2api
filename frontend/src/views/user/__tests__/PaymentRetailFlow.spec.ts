@@ -329,6 +329,24 @@ describe('server-priced retail checkout', () => {
       pay_url: 'https://alar1c.cn/partner-pay/#id=' + 'a'.repeat(24) + '&token=' + 'b'.repeat(64) })
     return { fixed }
   }
+  it('quotes and enables Alipay when the limits API omits optional availability', async () => {
+    await setupHostedAlipay()
+    const checkout = await api.checkout()
+    const alipay = { ...checkout.data.methods.gelv_alipay }
+    delete alipay.available
+    api.checkout.mockResolvedValue({ data: { ...checkout.data, methods: { gelv_alipay: alipay } } })
+    const wrapper = await mountPage()
+    await setAmount(wrapper, 12.34)
+    expect(api.quote).toHaveBeenLastCalledWith({ amount: 12.34, payment_type: 'gelv_alipay', order_type: 'balance' })
+    expect(wrapper.get('[data-test="create-recharge-order"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-test="confirm-retail-quote"]').setValue(true)
+    expect(wrapper.get('[data-test="create-recharge-order"]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('[data-test="create-recharge-order"]').trigger('click')
+    await flushPromises()
+    expect(api.createOrder).toHaveBeenCalledTimes(1)
+    expect(api.createOrder).toHaveBeenCalledWith(expect.objectContaining({ amount: 12.34, payment_type: 'gelv_alipay', quote_token: 'quote-1' }))
+    wrapper.unmount()
+  })
   it('creates hosted Alipay with arbitrary cash input and keeps mobile tracking on this site', async () => {
     await setupHostedAlipay()
     const wrapper = await mountPage()

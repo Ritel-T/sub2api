@@ -702,7 +702,7 @@ const retailPricingEnabled = computed(() => checkout.value.balance_retail_pricin
 const quoteRequest = computed<PaymentQuoteRequest | null>(() => {
   if (!retailPricingEnabled.value || activeTab.value !== 'recharge' || paymentPhase.value !== 'select'
     || validAmount.value <= 0 || !selectedMethod.value
-    || (selectedMethod.value === 'gelv_alipay' && (visibleMethods.value.gelv_alipay?.available !== true
+    || (selectedMethod.value === 'gelv_alipay' && (visibleMethods.value.gelv_alipay?.available === false
       || validAmount.value < globalMinAmount.value || validAmount.value > globalMaxAmount.value
       || Math.abs(validAmount.value * 100 - Math.round(validAmount.value * 100)) > 0.000001))
     || (!['gelv', 'gelv_alipay'].includes(selectedMethod.value) && checkout.value.global_min > 0 && validAmount.value < checkout.value.global_min)
