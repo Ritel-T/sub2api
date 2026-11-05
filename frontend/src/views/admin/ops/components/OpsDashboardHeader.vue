@@ -14,7 +14,7 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api'
-import { opsAPI, type OpsDashboardOverview, type OpsMetricThresholds, type OpsRealtimeTrafficSummary } from '@/api/admin/ops'
+import { opsAPI, type OpsDashboardOverview, type OpsMetricThresholds, type OpsRealtimeTrafficSummary, type OpsJobState, type OpsPercentiles } from '@/api/admin/ops'
 import type { OpsRequestDetailsPreset } from './OpsRequestDetailsModal.vue'
 import { useAdminSettingsStore } from '@/stores'
 import { formatDateTimeLocalInput, formatNumber } from '@/utils/format'
@@ -433,12 +433,12 @@ const isSystemIdle = computed(() => {
 })
 
 const healthScoreValue = computed<number | null>(() => {
+  if (overview.value?.health_score_available === false || overview.value?.health_status === 'unknown') return null
   const v = overview.value?.health_score
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 })
 
 const healthScoreColor = computed(() => {
-  if (isSystemIdle.value) return '#9ca3af' // gray-400
   const score = healthScoreValue.value
   if (score == null) return '#9ca3af'
   if (score >= 90) return '#10b981' // green
@@ -447,7 +447,6 @@ const healthScoreColor = computed(() => {
 })
 
 const healthScoreClass = computed(() => {
-  if (isSystemIdle.value) return 'text-gray-400'
   const score = healthScoreValue.value
   if (score == null) return 'text-gray-400'
   if (score >= 90) return 'text-green-500'
@@ -460,8 +459,7 @@ const strokeWidth = computed(() => props.fullscreen ? 10 : 8)
 const radius = computed(() => (circleSize.value - strokeWidth.value) / 2)
 const circumference = computed(() => 2 * Math.PI * radius.value)
 const dashOffset = computed(() => {
-  if (isSystemIdle.value) return 0
-  if (healthScoreValue.value == null) return 0
+  if (healthScoreValue.value == null) return circumference.value
   const score = Math.max(0, Math.min(100, healthScoreValue.value))
   return circumference.value - (score / 100) * circumference.value
 })
@@ -804,26 +802,54 @@ const goroutineStatusClass = computed(() => {
   }
 })
 
-const jobHeartbeats = computed(() => overview.value?.job_heartbeats ?? [])
-
+// Job states are evaluated by the server, including scheduled/disabled jobs without heartbeats.
+const jobHealth = computed(() => overview.value?.job_health ?? [])
+const jobsWarnCount = computed(() => jobHealth.value.filter(job => job.state === 'late' || job.state === 'failed').length)
 const jobsStatus = computed<'ok' | 'warn' | 'unknown'>(() => {
-  const list = jobHeartbeats.value
-  if (!list.length) return 'unknown'
-  for (const hb of list) {
-    if (!hb) continue
-    if (hb.last_error_at && (!hb.last_success_at || hb.last_error_at > hb.last_success_at)) return 'warn'
-  }
+  if (jobsWarnCount.value) return 'warn'
+  if (!jobHealth.value.length || jobHealth.value.some(job => job.state === 'unknown' || job.state === 'pending')) return 'unknown'
+  if (jobHealth.value.every(job => job.state === 'disabled')) return 'unknown'
   return 'ok'
 })
 
-const jobsWarnCount = computed(() => {
-  let warn = 0
-  for (const hb of jobHeartbeats.value) {
-    if (!hb) continue
-    if (hb.last_error_at && (!hb.last_success_at || hb.last_error_at > hb.last_success_at)) warn++
+function jobStateClass(state: OpsJobState): string {
+  if (state === 'healthy') return 'text-emerald-600 dark:text-emerald-400'
+  if (state === 'failed') return 'text-rose-600 dark:text-rose-400'
+  if (state === 'late') return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-gray-500 dark:text-gray-400'
+}
+
+const knownHealthComponents = new Set(["error_rate", "ttft", "storage", "compute", "jobs"])
+const knownHealthReasons = new Set(["error_rate_within_legacy_threshold", "request_or_upstream_error_rate_above_1_percent", "insufficient_evidence_no_requests", "ttft_within_legacy_threshold", "ttft_p99_above_1000ms_legacy_threshold", "insufficient_evidence_ttft", "provisional_percentile_evidence", "storage_healthy", "database_unhealthy", "redis_unhealthy", "insufficient_evidence_storage_missing_or_stale", "compute_within_legacy_threshold", "cpu_above_80_or_memory_above_85_percent", "insufficient_evidence_compute_missing_or_stale", "enabled_jobs_healthy", "background_jobs_failed_or_late", "insufficient_evidence_job_health", "schedule_unavailable", "disabled_by_configuration", "invalid_schedule", "no_completion_observed", "completion_in_future", "last_execution_failed", "within_completion_deadline", "completion_deadline_exceeded"])
+
+function healthComponentLabel(component: string): string {
+  return t(`admin.ops.${knownHealthComponents.has(component) ? 'healthComponents.' + component : 'healthReasons.other_unassessed'}`)
+}
+
+function healthReasonLabel(reason: string): string {
+  return reason.split(';').map(part => {
+    const [code, method] = part.split(':', 2)
+    return knownHealthReasons.has(code)
+      ? t(`admin.ops.healthReasons.${code}`, { method: method || '--' })
+      : t('admin.ops.healthReasons.other_unassessed')
+  }).join('; ')
+}
+
+function percentileLabel(metric: OpsPercentiles | undefined, percentile: string): string {
+  if (metric?.percentile_method === 'legacy_subwindow_approx') {
+    return t(`admin.ops.metricAccuracy.${percentile === 'P95' || percentile === 'P99' ? 'subwindowMax' : 'weightedApprox'}`, { percentile })
   }
-  return warn
-})
+  if (metric?.percentile_method === 'partial_raw') return t('admin.ops.metricAccuracy.partialLabel', { percentile })
+  return percentile
+}
+
+function metricMethod(metric: OpsPercentiles | undefined): string {
+  return metric?.percentile_method ?? 'unavailable'
+}
+
+function metricValue(metric: OpsPercentiles | undefined, value: number | null | undefined): number | string {
+  return metricMethod(metric) === 'unavailable' ? '--' : value ?? '--'
+}
 
 const jobsStatusLabel = computed(() => {
   switch (jobsStatus.value) {
@@ -1090,8 +1116,8 @@ function handleToolbarRefresh() {
               </svg>
 
               <div class="absolute flex flex-col items-center">
-                <span :class="[props.fullscreen ? 'text-5xl' : 'text-3xl', 'font-black', healthScoreClass]">
-                  {{ isSystemIdle ? t('admin.ops.idleStatus') : (overview.health_score ?? '--') }}
+                <span data-testid="health-score" :class="[props.fullscreen ? 'text-5xl' : 'text-3xl', 'font-black', healthScoreClass]">
+                  {{ healthScoreValue ?? '--' }}
                 </span>
                 <span :class="[props.fullscreen ? 'text-xs' : 'text-2xs', 'font-bold uppercase tracking-wider text-gray-400']">{{ t('admin.ops.health') }}</span>
               </div>
@@ -1104,12 +1130,21 @@ function handleToolbarRefresh() {
               </div>
               <div class="mt-1 text-xs font-bold" :class="healthScoreClass">
                 {{
-                  isSystemIdle
-                    ? t('admin.ops.idleStatus')
-                    : typeof overview.health_score === 'number' && overview.health_score >= 90
-                      ? t('admin.ops.healthyStatus')
-                      : t('admin.ops.riskyStatus')
+                  overview.health_status === 'degraded'
+                    ? t('admin.ops.riskyStatus')
+                    : healthScoreValue == null
+                      ? t('admin.ops.jobStates.unknown')
+                      : overview.health_status === 'healthy' || healthScoreValue >= 90
+                        ? t('admin.ops.healthyStatus')
+                        : t('admin.ops.riskyStatus')
                 }}
+              </div>
+            </div>
+            <div class="mt-3 space-y-1 text-xs text-gray-500 dark:text-gray-400" data-testid="health-score-details">
+              <div>{{ t('admin.ops.metricAccuracy.scoreVersion') }}: {{ overview.health_score_version || '--' }}</div>
+              <div v-for="detail in overview.health_score_details ?? []" :key="detail.component">
+                <span class="font-semibold" :title="detail.component">{{ healthComponentLabel(detail.component) }}</span>: {{ detail.score }} · {{ t('admin.ops.metricAccuracy.weight') }} {{ detail.weight }}
+                <span class="block break-words" :title="detail.reason">{{ healthReasonLabel(detail.reason) }}</span>
               </div>
             </div>
           </div>
@@ -1286,6 +1321,7 @@ function handleToolbarRefresh() {
               <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber((overview.request_count_sla ?? 0) - (overview.success_count ?? 0)) }}</span>
             </div>
           </div>
+          <p class="mt-3 text-xs text-gray-500 dark:text-gray-400" data-testid="usage-count-semantics">{{ t('admin.ops.metricAccuracy.usageSemantics') }}</p>
         </div>
 
         <!-- Card 4: Request Duration -->
@@ -1304,38 +1340,43 @@ function handleToolbarRefresh() {
               {{ t('admin.ops.requestDetails.details') }}
             </button>
           </div>
-          <div class="mt-2 flex items-baseline gap-2">
+          <div class="mt-2 flex flex-wrap items-baseline gap-2">
             <div class="text-3xl font-black text-gray-900 dark:text-white">
-              {{ durationP99Ms ?? '-' }}
+              {{ metricValue(overview.duration, durationP99Ms) }}
             </div>
-            <span class="text-xs font-bold text-gray-400">ms (P99)</span>
+            <span class="text-xs font-bold text-gray-400">ms ({{ percentileLabel(overview.duration, 'P99') }})</span>
           </div>
           <div class="mt-3 grid grid-cols-1 gap-x-3 gap-y-1 text-xs 2xl:grid-cols-2">
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
-              <span class="text-gray-500">P95:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationP95Ms ?? '-' }}</span>
+            <div class="flex items-baseline gap-1 flex-wrap">
+              <span class="text-gray-500">{{ percentileLabel(overview.duration, 'P95') }}:</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ metricValue(overview.duration, durationP95Ms) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
-              <span class="text-gray-500">P90:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationP90Ms ?? '-' }}</span>
+            <div class="flex items-baseline gap-1 flex-wrap">
+              <span class="text-gray-500">{{ percentileLabel(overview.duration, 'P90') }}:</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ metricValue(overview.duration, durationP90Ms) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
-              <span class="text-gray-500">P50:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationP50Ms ?? '-' }}</span>
+            <div class="flex items-baseline gap-1 flex-wrap">
+              <span class="text-gray-500">{{ percentileLabel(overview.duration, 'P50') }}:</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ metricValue(overview.duration, durationP50Ms) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
+            <div class="flex items-baseline gap-1 flex-wrap">
               <span class="text-gray-500">Avg:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationAvgMs ?? '-' }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ metricValue(overview.duration, durationAvgMs) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
+            <div class="flex items-baseline gap-1 flex-wrap">
               <span class="text-gray-500">Max:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationMaxMs ?? '-' }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ metricValue(overview.duration, durationMaxMs) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
+          </div>
+          <div class="mt-3 space-y-1 text-xs text-gray-500 dark:text-gray-400" data-testid="duration-accuracy">
+            <div>{{ t('admin.ops.metricAccuracy.samples', { count: overview.duration?.sample_count ?? '--' }) }}</div>
+            <div>{{ t('admin.ops.metricAccuracy.method') }}: {{ metricMethod(overview.duration) }}</div>
+            <p>{{ t(`admin.ops.metricAccuracy.${metricMethod(overview.duration)}`) }}</p>
           </div>
         </div>
 
@@ -1355,38 +1396,43 @@ function handleToolbarRefresh() {
               {{ t('admin.ops.requestDetails.details') }}
             </button>
           </div>
-          <div class="mt-2 flex items-baseline gap-2">
+          <div class="mt-2 flex flex-wrap items-baseline gap-2">
             <div class="text-3xl font-black" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP99Ms))">
-              {{ ttftP99Ms ?? '-' }}
+              {{ metricValue(overview.ttft, ttftP99Ms) }}
             </div>
-            <span class="text-xs font-bold text-gray-400">ms (P99)</span>
+            <span class="text-xs font-bold text-gray-400">ms ({{ percentileLabel(overview.ttft, 'P99') }})</span>
           </div>
           <div class="mt-3 grid grid-cols-1 gap-x-3 gap-y-1 text-xs 2xl:grid-cols-2">
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
-              <span class="text-gray-500">P95:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP95Ms))">{{ ttftP95Ms ?? '-' }}</span>
+            <div class="flex items-baseline gap-1 flex-wrap">
+              <span class="text-gray-500">{{ percentileLabel(overview.ttft, 'P95') }}:</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP95Ms))">{{ metricValue(overview.ttft, ttftP95Ms) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
-              <span class="text-gray-500">P90:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP90Ms))">{{ ttftP90Ms ?? '-' }}</span>
+            <div class="flex items-baseline gap-1 flex-wrap">
+              <span class="text-gray-500">{{ percentileLabel(overview.ttft, 'P90') }}:</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP90Ms))">{{ metricValue(overview.ttft, ttftP90Ms) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
-              <span class="text-gray-500">P50:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP50Ms))">{{ ttftP50Ms ?? '-' }}</span>
+            <div class="flex items-baseline gap-1 flex-wrap">
+              <span class="text-gray-500">{{ percentileLabel(overview.ttft, 'P50') }}:</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP50Ms))">{{ metricValue(overview.ttft, ttftP50Ms) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
+            <div class="flex items-baseline gap-1 flex-wrap">
               <span class="text-gray-500">Avg:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftAvgMs))">{{ ttftAvgMs ?? '-' }}</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftAvgMs))">{{ metricValue(overview.ttft, ttftAvgMs) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
+            <div class="flex items-baseline gap-1 flex-wrap">
               <span class="text-gray-500">Max:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftMaxMs))">{{ ttftMaxMs ?? '-' }}</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftMaxMs))">{{ metricValue(overview.ttft, ttftMaxMs) }}</span>
               <span class="text-gray-400">ms</span>
             </div>
+          </div>
+          <div class="mt-3 space-y-1 text-xs text-gray-500 dark:text-gray-400" data-testid="ttft-accuracy">
+            <div>{{ t('admin.ops.metricAccuracy.samples', { count: overview.ttft?.sample_count ?? '--' }) }}</div>
+            <div>{{ t('admin.ops.metricAccuracy.method') }}: {{ metricMethod(overview.ttft) }}</div>
+            <p>{{ t(`admin.ops.metricAccuracy.${metricMethod(overview.ttft)}`) }}</p>
           </div>
         </div>
 
@@ -1560,7 +1606,7 @@ function handleToolbarRefresh() {
               <div class="text-2xs font-bold uppercase tracking-wider text-gray-400">{{ t('admin.ops.jobs') }}</div>
               <HelpTooltip v-if="!props.fullscreen" :content="t('admin.ops.tooltips.jobs')" />
             </div>
-            <button v-if="!props.fullscreen" class="theme-action-link text-2xs font-bold hover:underline" type="button" @click="openJobsDetails">
+            <button v-if="!props.fullscreen" class="theme-action-link text-2xs font-bold hover:underline" type="button" data-testid="job-details-button" @click="openJobsDetails">
               {{ t('admin.ops.requestDetails.details') }}
             </button>
           </div>
@@ -1570,7 +1616,7 @@ function handleToolbarRefresh() {
           </div>
 
           <div v-if="!props.fullscreen" class="mt-1 text-2xs text-gray-500 dark:text-gray-400">
-            {{ t('common.total') }} <span class="font-mono">{{ jobHeartbeats.length }}</span>
+            {{ t('common.total') }} <span class="font-mono">{{ jobHealth.length }}</span>
             · {{ t('common.warning') }} <span class="font-mono">{{ jobsWarnCount }}</span>
           </div>
         </div>
@@ -1578,40 +1624,26 @@ function handleToolbarRefresh() {
     </div>
 
     <BaseDialog :show="showJobsDetails" :title="t('admin.ops.jobs')" width="wide" @close="showJobsDetails = false">
-      <div v-if="!jobHeartbeats.length" class="text-sm text-gray-500 dark:text-gray-400">
+      <div v-if="!jobHealth.length" class="text-sm text-gray-500 dark:text-gray-400">
         {{ t('admin.ops.noData') }}
       </div>
       <div v-else class="space-y-3">
         <div
-          v-for="hb in jobHeartbeats"
+          v-for="hb in jobHealth"
+          data-testid="job-health-row"
           :key="hb.job_name"
           class="rounded-xl border border-gray-100 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
         >
           <div class="flex items-center justify-between gap-3">
             <div class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ hb.job_name }}</div>
             <div class="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-              <span v-if="hb.last_duration_ms != null" class="font-mono">{{ hb.last_duration_ms }}ms</span>
-              <span>{{ formatTimeShort(hb.updated_at) }}</span>
+              <span :class="jobStateClass(hb.state)">{{ t(`admin.ops.jobStates.${hb.state}`) }}</span>
             </div>
           </div>
-
-          <div class="mt-2 grid grid-cols-1 gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-2">
-            <div>
-              {{ t('admin.ops.lastSuccess') }} <span class="font-mono">{{ formatTimeShort(hb.last_success_at) }}</span>
-            </div>
-            <div>
-              {{ t('admin.ops.lastError') }} <span class="font-mono">{{ formatTimeShort(hb.last_error_at) }}</span>
-            </div>
-            <div>
-              {{ t('admin.ops.result') }} <span class="font-mono">{{ hb.last_result || '-' }}</span>
-            </div>
-          </div>
-
-          <div
-            v-if="hb.last_error"
-            class="mt-3 rounded-lg bg-rose-50 p-2 text-xs text-rose-700 dark:bg-rose-900/20 dark:text-rose-300"
-          >
-            {{ hb.last_error }}
+          <div class="mt-2 break-words text-xs text-gray-600 dark:text-gray-300" :title="hb.reason">{{ healthReasonLabel(hb.reason) }}</div>
+          <div class="mt-2 grid grid-cols-1 gap-2 text-xs text-gray-500 sm:grid-cols-2">
+            <div>{{ t('admin.ops.metricAccuracy.evaluatedAt') }}: {{ formatTimeShort(hb.evaluated_at) }}</div>
+            <div>{{ t('admin.ops.metricAccuracy.deadlineAt') }}: {{ formatTimeShort(hb.deadline_at) }}</div>
           </div>
         </div>
       </div>
