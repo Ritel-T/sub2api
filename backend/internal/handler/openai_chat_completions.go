@@ -193,6 +193,18 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	// 分组利润控制：chat completions 文本入口请求级装门并固定 pricingAt。
 	ccPricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
 	c.Request = c.Request.WithContext(ccPricingCtx)
+	if deepSeekRecoveryEnabled(requestPlatform, reqModel, body) {
+		forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
+		h.runDeepSeekRecovery(c, deepSeekRecoveryRequest{
+			apiKey: apiKey, subscription: subscription, model: reqModel, forwardModel: forwardModel,
+			protocol: "chat", stream: reqStream, body: body, mapping: channelMapping,
+			sessionHash: sessionHash, pricingAt: pricingAt,
+			forward: func(ctx context.Context, attempt *gin.Context, account *service.Account) (*service.OpenAIForwardResult, error) {
+				return h.gatewayService.ForwardAsChatCompletions(ctx, attempt, account, forwardBody, promptCacheKey, "")
+			},
+		}, reqLog)
+		return
+	}
 
 	for {
 		if failoverClientGone(c) {
