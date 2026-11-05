@@ -53,7 +53,7 @@ function expectSetupOnce() {
   expect(mocks.createApp).toHaveBeenCalledTimes(1)
   expect(mocks.createPinia).toHaveBeenCalledTimes(1)
   expect(mocks.initializeTheme).toHaveBeenCalledTimes(1)
-  expect(mocks.watch).toHaveBeenCalledTimes(1)
+  expect(mocks.watch).not.toHaveBeenCalled()
   expect(mocks.initConfig).toHaveBeenCalledTimes(1)
   expect(mocks.initI18n).toHaveBeenCalledTimes(1)
   // Pinia, i18n and router each installed once.

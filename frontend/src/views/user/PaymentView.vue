@@ -640,7 +640,7 @@ function onPaymentDone() {
   selectedPlan.value = null
   if (!wasSubscription && returnPlan.value) resumeSelectedPlan()
   if (wasSubscription) {
-    subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
+    subscriptionStore.fetchActiveSubscriptions(true, { afterWrite: true }).catch(() => {})
   }
 }
 
@@ -649,7 +649,7 @@ async function onPaymentSuccess() {
   removeRecoverySnapshot()
   authStore.refreshUser()
   if (paymentState.value.orderType === 'subscription') {
-    subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
+    subscriptionStore.fetchActiveSubscriptions(true, { afterWrite: true }).catch(() => {})
   }
   await redirectToPaymentResult(completedPayment)
 }

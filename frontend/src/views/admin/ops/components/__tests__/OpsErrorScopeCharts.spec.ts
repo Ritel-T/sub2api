@@ -5,7 +5,7 @@ import OpsErrorDistributionChart from '../OpsErrorDistributionChart.vue'
 import OpsErrorTrendChart from '../OpsErrorTrendChart.vue'
 
 vi.mock('chart.js', () => ({
-  Chart: { register: vi.fn() },
+  Chart: { register: vi.fn(), defaults: { font: {} } },
   ArcElement: {},
   CategoryScale: {},
   Filler: {},

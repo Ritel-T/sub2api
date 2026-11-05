@@ -4,7 +4,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onScopeDispose } from 'vue'
 import subscriptionsAPI from '@/api/subscriptions'
 import { useAuthStore } from '@/stores/auth'
 import type { UserSubscription } from '@/types'
@@ -12,10 +12,12 @@ import type { UserSubscription } from '@/types'
 // Cache TTL: 60 seconds
 const CACHE_TTL_MS = 60_000
 
-// Request generation counter to invalidate stale in-flight responses
-let requestGeneration = 0
-
 export const useSubscriptionStore = defineStore('subscriptions', () => {
+  const auth = useAuthStore()
+  let requestGeneration = 0
+  // Invalidate both cache and pending reads on every identity transition, including A -> B -> A.
+  watch([() => auth.sessionIdentity, () => auth.user?.id], clear, { flush: 'sync' })
+  onScopeDispose(stopPolling)
   // State
   const activeSubscriptions = ref<UserSubscription[]>([])
   const ownerUserId = ref<number | null>(null)
@@ -25,6 +27,7 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
 
   // In-flight request deduplication
   let activePromise: Promise<UserSubscription[]> | null = null
+  let authoritativePromise: Promise<UserSubscription[]> | null = null
 
   // Auto-refresh interval
   let pollerInterval: ReturnType<typeof setInterval> | null = null
@@ -36,36 +39,51 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
    * Fetch active subscriptions with caching and deduplication
    * @param force - Force refresh even if cache is valid
    */
-  async function fetchActiveSubscriptions(force = false): Promise<UserSubscription[]> {
+  async function fetchActiveSubscriptions(
+    force = false,
+    options: { afterWrite?: boolean } = {}
+  ): Promise<UserSubscription[]> {
+    if (options.afterWrite) {
+      // A confirmed write must read after the pre-write GET settles, even if it failed.
+      const generation = requestGeneration
+      const pending = activePromise ?? authoritativePromise
+      if (pending) await pending.catch(() => {})
+      // A newer IfCurrent owns publication; a delayed write-read must not supersede it.
+      if (generation !== requestGeneration) return []
+      force = true
+    } else {
+      // Ordinary reads may adopt an authoritative read, never cancel it.
+      if (authoritativePromise) return authoritativePromise
+      if (activePromise) return activePromise
+    }
+    const expectedIdentity = auth.sessionIdentity
+    const expectedUserId = auth.user?.id
     const now = Date.now()
 
     // Return cached data if valid
     if (
       !force &&
       loaded.value &&
-      lastFetchedAt.value &&
+      lastFetchedAt.value !== null &&
       now - lastFetchedAt.value < CACHE_TTL_MS
     ) {
       return activeSubscriptions.value
     }
 
-    // Return in-flight request if exists (deduplication)
-    if (activePromise && !force) {
-      return activePromise
-    }
-
-    const currentGeneration = ++requestGeneration
+    const currentGeneration = requestGeneration
 
     // Start new request
     loading.value = true
     const requestPromise = subscriptionsAPI
       .getActiveSubscriptions()
       .then((data) => {
-        if (currentGeneration === requestGeneration) {
-          activeSubscriptions.value = data
-          loaded.value = true
-          lastFetchedAt.value = Date.now()
-        }
+        if (activePromise !== requestPromise || currentGeneration !== requestGeneration
+          || auth.sessionIdentity !== expectedIdentity || auth.user?.id !== expectedUserId) return []
+        if (expectedUserId !== undefined && data.some(sub => sub.user_id !== expectedUserId)) return []
+        ownerUserId.value = expectedUserId ?? null
+        activeSubscriptions.value = data
+        loaded.value = true
+        lastFetchedAt.value = Date.now()
         return data
       })
       .catch((error) => {
@@ -90,8 +108,10 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     const auth = useAuthStore()
     const expectedToken = auth.sessionIdentity
     if (!expectedToken || auth.user?.id !== expectedUserId) return []
-    if (ownerUserId.value !== expectedUserId) clear()
+    if (ownerUserId.value !== null && ownerUserId.value !== expectedUserId) clear()
     const generation = ++requestGeneration
+    // This independent authoritative read supersedes the ordinary pending read.
+    activePromise = null
     let stale = false
     const isCurrent = () => !stale && generation === requestGeneration
       && auth.sessionIdentity === expectedToken && auth.user?.id === expectedUserId
@@ -100,37 +120,51 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
       if (generation === requestGeneration) clear()
     }, { flush: 'sync' })
     loading.value = true
-    try {
-      const data = await subscriptionsAPI.getActiveSubscriptions()
+    const requestPromise = subscriptionsAPI.getActiveSubscriptions().then((data) => {
       if (!isCurrent() || data.some(sub => sub.user_id !== expectedUserId)) return []
       activeSubscriptions.value = data
       ownerUserId.value = expectedUserId
       loaded.value = true
       lastFetchedAt.value = Date.now()
       return data
-    } finally {
-      if (generation === requestGeneration) loading.value = false
+    }).finally(() => {
+      if (authoritativePromise === requestPromise) {
+        authoritativePromise = null
+        loading.value = false
+      }
       stop()
-    }
+    })
+    authoritativePromise = requestPromise
+    return requestPromise
   }
 
   /**
    * Start auto-refresh polling 
    */
+  function refreshAutomatically(force = false) {
+    if (document.visibilityState !== 'visible' || !navigator.onLine) return
+    void fetchActiveSubscriptions(force).catch((error) => {
+      console.error('Subscription polling failed:', error)
+    })
+  }
+
+  function onResume() {
+    refreshAutomatically()
+  }
+
   function startPolling() {
     if (pollerInterval) return
-
-    pollerInterval = setInterval(() => {
-      fetchActiveSubscriptions(true).catch((error) => {
-        console.error('Subscription polling failed:', error)
-      })
-    }, 5 * 60 * 1000)
+    document.addEventListener('visibilitychange', onResume)
+    window.addEventListener('online', onResume)
+    pollerInterval = setInterval(() => refreshAutomatically(true), 5 * 60 * 1000)
   }
 
   /**
    * Stop auto-refresh polling
    */
   function stopPolling() {
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onResume)
+    if (typeof window !== 'undefined') window.removeEventListener('online', onResume)
     if (pollerInterval) {
       clearInterval(pollerInterval)
       pollerInterval = null
@@ -143,6 +177,7 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
   function clear() {
     requestGeneration++
     activePromise = null
+    authoritativePromise = null
     loading.value = false
     activeSubscriptions.value = []
     ownerUserId.value = null

@@ -1,7 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useSubscriptionStore } from '@/stores/subscriptions'
-import type { UserSubscription } from '@/types'
+import type { UserSubscription, User } from '@/types'
+import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
+import { useAnnouncementStore } from '@/stores/announcements'
+import { shallowMount, flushPromises } from '@vue/test-utils'
+import App from '@/App.vue'
+import { i18n } from '@/i18n'
+
+vi.mock('vue-router', async () => ({
+  ...(await vi.importActual<typeof import('vue-router')>('vue-router')),
+  useRouter: () => ({ afterEach: vi.fn(), replace: vi.fn() }),
+  useRoute: () => ({ path: '/keys', fullPath: '/keys', meta: {}, params: {}, query: {} })
+}))
+vi.mock('@/api/setup', () => ({ getSetupStatus: async () => ({ needs_setup: true }) }))
 
 // Mock subscriptions API
 const mockGetActiveSubscriptions = vi.fn()
@@ -56,11 +69,14 @@ describe('useSubscriptionStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
     mockGetActiveSubscriptions.mockReset()
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {
+    useSubscriptionStore().clear()
     vi.clearAllTimers()
     vi.useRealTimers()
     vi.restoreAllMocks()
@@ -153,6 +169,167 @@ describe('useSubscriptionStore', () => {
       const store = useSubscriptionStore()
 
       await expect(store.fetchActiveSubscriptions()).rejects.toThrow('Network error')
+    })
+  })
+
+  describe('P16 request scheduling', () => {
+    it('merges ordinary and forced reads while a request is pending', async () => {
+      const pending = deferred()
+      mockGetActiveSubscriptions.mockReturnValue(pending.promise)
+      const store = useSubscriptionStore()
+      const reads = [store.fetchActiveSubscriptions(), store.fetchActiveSubscriptions(true), store.fetchActiveSubscriptions(true)]
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(1)
+      pending.resolve(fakeSubscriptions)
+      expect(await Promise.all(reads)).toEqual([fakeSubscriptions, fakeSubscriptions, fakeSubscriptions])
+    })
+
+    it.each(['resolve', 'reject'] as const)('reads afresh after a confirmed write when the old GET %s', async outcome => {
+      const pending = deferred()
+      const updated = [fakeSubscriptions[0]]
+      mockGetActiveSubscriptions.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(updated)
+      const store = useSubscriptionStore()
+      const old = store.fetchActiveSubscriptions().catch(() => [])
+      const afterWrite = store.fetchActiveSubscriptions(true, { afterWrite: true })
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(1)
+      if (outcome === 'resolve') pending.resolve(fakeSubscriptions)
+      else pending.reject(new Error('offline'))
+      await old
+      expect(await afterWrite).toEqual(updated)
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+      expect(store.activeSubscriptions).toEqual(updated)
+    })
+
+    it('does not run a queued post-write read after clear', async () => {
+      const pending = deferred()
+      mockGetActiveSubscriptions.mockReturnValueOnce(pending.promise)
+      const store = useSubscriptionStore()
+      const old = store.fetchActiveSubscriptions()
+      const afterWrite = store.fetchActiveSubscriptions(true, { afterWrite: true })
+      store.clear()
+      pending.resolve(fakeSubscriptions)
+      await old
+      expect(await afterWrite).toEqual([])
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['hidden', 'offline'] as const)('does not poll while %s and merges simultaneous resume events', async mode => {
+      mockGetActiveSubscriptions.mockResolvedValue(fakeSubscriptions)
+      const store = useSubscriptionStore()
+      await store.fetchActiveSubscriptions()
+      store.startPolling()
+      if (mode === 'hidden') vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+      else vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+      await vi.advanceTimersByTimeAsync(15 * 60_000)
+      document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new Event('online'))
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(1)
+      const pending = deferred()
+      mockGetActiveSubscriptions.mockReturnValueOnce(pending.promise)
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+      document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new Event('online'))
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+      pending.resolve(fakeSubscriptions)
+      await vi.advanceTimersByTimeAsync(0)
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+    })
+
+    it('resumes only when the 60-second TTL expires, including a timestamp of zero', async () => {
+      vi.setSystemTime(0)
+      mockGetActiveSubscriptions.mockResolvedValue(fakeSubscriptions)
+      const store = useSubscriptionStore()
+      await store.fetchActiveSubscriptions()
+      store.startPolling()
+      await vi.advanceTimersByTimeAsync(59_999)
+      window.dispatchEvent(new Event('online'))
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      window.dispatchEvent(new Event('online'))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(240_000)
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(3)
+    })
+
+    it('keeps explicit force refresh available while hidden and offline', async () => {
+      mockGetActiveSubscriptions.mockResolvedValue(fakeSubscriptions)
+      const store = useSubscriptionStore()
+      await store.fetchActiveSubscriptions()
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+      await store.fetchActiveSubscriptions(true)
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not cancel IfCurrent when the five-minute poll fires', async () => {
+      const auth = useAuthStore()
+      auth.user = { id: 1, role: 'user' } as User
+      auth.token = 'session-1'
+      const pending = deferred()
+      mockGetActiveSubscriptions.mockReturnValueOnce(pending.promise)
+      const store = useSubscriptionStore()
+      store.startPolling()
+      const guarded = store.fetchActiveSubscriptionsIfCurrent(1)
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(1)
+      pending.resolve(fakeSubscriptions)
+      expect(await guarded).toEqual(fakeSubscriptions)
+      expect(store.loading).toBe(false)
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+    })
+
+    it('App restarts subscription sync on identity changes while authenticated and stops on feature-off/logout', async () => {
+      const auth = useAuthStore()
+      auth.user = { id: 1, role: 'user' } as User
+      auth.token = 'session-1'
+      const app = useAppStore()
+      vi.spyOn(useAnnouncementStore(), 'fetchAnnouncements').mockResolvedValue()
+      mockGetActiveSubscriptions.mockResolvedValue(fakeSubscriptions)
+      const wrapper = shallowMount(App, { global: { plugins: [i18n] } })
+      try {
+        await flushPromises()
+        expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(1)
+        auth.token = 'session-2'
+        expect(auth.isAuthenticated).toBe(true)
+        await flushPromises()
+        expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+        await vi.advanceTimersByTimeAsync(5 * 60_000)
+        expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(3)
+        auth.user = { id: 2, role: 'user' } as User
+        mockGetActiveSubscriptions.mockResolvedValue(fakeSubscriptions.map(sub => ({ ...sub, user_id: 2 })))
+        await flushPromises()
+        expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(4)
+        app.$patch({ cachedPublicSettings: { subscription_enabled: false } })
+        await flushPromises()
+        await vi.advanceTimersByTimeAsync(5 * 60_000)
+        window.dispatchEvent(new Event('online'))
+        expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(4)
+        app.$patch({ cachedPublicSettings: { subscription_enabled: true } })
+        await flushPromises()
+        expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(5)
+        auth.token = null
+        expect(auth.isAuthenticated).toBe(false)
+        await flushPromises()
+        await vi.advanceTimersByTimeAsync(5 * 60_000)
+        window.dispatchEvent(new Event('online'))
+        expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(5)
+      } finally {
+        wrapper.unmount()
+      }
+    })
+
+    it.each(['stopPolling', 'clear'] as const)('%s removes resume listeners and the timer', async action => {
+      mockGetActiveSubscriptions.mockResolvedValue(fakeSubscriptions)
+      const store = useSubscriptionStore()
+      store.startPolling()
+      store[action]()
+      document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new Event('online'))
+      await vi.advanceTimersByTimeAsync(600_000)
+      expect(mockGetActiveSubscriptions).not.toHaveBeenCalled()
     })
   })
 
