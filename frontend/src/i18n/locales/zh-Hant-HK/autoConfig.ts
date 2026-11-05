@@ -1,4 +1,34 @@
 export default {
+  accountDefaults: {
+    "title": "OpenAI 套餐範本",
+    "hint": "新增 OpenAI OAuth 帳戶時立即按套餐套用範本。請同時啟用上方的 OAuth 首次配置，並選擇共用分組。",
+    "scopeHint": "套餐值取代通用的容量和模型設定。儲存後適用於新帳戶，不會重設現有帳戶的容量或分組。",
+    "empty": "請先新增套餐範本及其允許的模型，再啟用此配置。",
+    "summary": "併發 {concurrency} · 負載 {load} · 優先級 {priority}",
+    "preserve": "保留匯入值",
+    "loadHint": "負載因子留空時保留匯入值。優先級數值越小越優先。",
+    "models": "允許的模型與映射",
+    "modelsHint": "只允許這裏列出的請求模型。直通模型的兩側填寫相同名稱；匯入的其他模型規則會被取代。",
+    "removeTier": "移除此套餐範本",
+    "plan": "要新增的套餐",
+    "addTier": "新增套餐範本",
+    "countries": "獨佔代理的出口國家",
+    "countriesHint": "填寫以逗號分隔的兩位國家代碼。配置後會選擇經檢測、未佔用且出口 IP 不重複的代理；留空則保留匯入代理。",
+    "exclusionsHint": "已保留 {count} 個帳戶的模型排除規則，品質聯動規則繼續生效。",
+    "templatesRequired": "啟用套餐預設配置前，請至少新增一個套餐範本。",
+    "modelsRequired": "每個套餐範本至少需要一個允許的模型。",
+    "invalid": "併發和負載因子須為 1–10000 的整數，優先級須為 0–10000 的整數。負載因子可留空。",
+    "invalidCountries": "請使用兩位國家代碼，例如 US、GB 或 DE。",
+    "plans": {
+      "free": "Free",
+      "go": "Go",
+      "plus": "Plus",
+      "prolite": "Pro100",
+      "pro": "Pro200",
+      "promax": "Pro500",
+      "business": "Business / Team"
+    }
+  },
   quality: {
   "title": "首次加入質量運維",
   "hint": "選擇已有質量規則，為所選平台的新 OAuth 帳戶複製一份。留空則不自動建立。",

@@ -21,6 +21,7 @@ import (
 
 type CRSSyncService struct {
 	autoConfigure      func(context.Context, *CreateAccountInput) error
+	nativeCreate       func(context.Context, *Account) (bool, error)
 	accountRepo        AccountRepository
 	proxyRepo          ProxyRepository
 	oauthService       *OAuthService
@@ -1589,6 +1590,11 @@ func (s *CRSSyncService) PreviewFromCRS(ctx context.Context, input SyncFromCRSIn
 }
 
 func (s *CRSSyncService) createSyncedAccount(ctx context.Context, a *Account) error {
+	if s.nativeCreate != nil {
+		if handled, err := s.nativeCreate(ctx, a); handled || err != nil {
+			return err
+		}
+	}
 	var groups []int64
 	if s.autoConfigure != nil {
 		input := &CreateAccountInput{Platform: a.Platform, Type: a.Type, Priority: a.Priority, Concurrency: a.Concurrency, LoadFactor: a.LoadFactor, Extra: a.Extra, Credentials: a.Credentials}
