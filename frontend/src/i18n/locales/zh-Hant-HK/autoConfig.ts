@@ -104,6 +104,8 @@ export default {
   "history": "自動升級記錄",
   "cooling": "冷卻至 {time}",
   "logs": {
+    "savedPlanDetail": "首次配置：{initial}；自動升檔：{upgrade}。按套餐（{count} 檔）套用。",
+    "importedProxy": "保留匯入代理",
     "title": "近期日誌",
     "description": "查看配置儲存、OAuth 首次配置及帳戶併發變化，按最新記錄排序。",
     "filter": "篩選日誌類型",

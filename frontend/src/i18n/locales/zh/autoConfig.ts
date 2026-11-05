@@ -143,6 +143,8 @@ export default {
   "history": "自动升级记录",
   "cooling": "冷却至 {time}",
   "logs": {
+    "savedPlanDetail": "首次配置：{initial}；自动升档：{upgrade}。按套餐（{count} 档）应用。",
+    "importedProxy": "保留导入代理",
     "title": "近期日志",
     "description": "查看配置保存、OAuth 首次配置及账号并发变化，按最新记录排序。",
     "filter": "筛选日志类型",

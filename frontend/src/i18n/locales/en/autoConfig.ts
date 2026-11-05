@@ -143,6 +143,8 @@ export default {
   "history": "Auto-upgrade record",
   "cooling": "Cooling down until {time}",
   "logs": {
+    "savedPlanDetail": "Initial setup: {initial}; upgrades: {upgrade}. Applied by plan ({count} tiers).",
+    "importedProxy": "Keep imported proxy",
     "title": "Recent logs",
     "description": "Configuration saves, initial OAuth setup and concurrency changes, newest first.",
     "filter": "Filter log type",
