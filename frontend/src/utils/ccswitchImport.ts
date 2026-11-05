@@ -4,7 +4,22 @@ import type { CcsImportApp, CcsImportConfig, CcsImportProfile } from '@/types/cc
 export type CcSwitchApplicationProfile = Omit<CcsImportProfile, 'platform'> & { platform: GroupPlatform }
 
 export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-6-astra'
-export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
+export const GROK_CC_SWITCH_MODEL = 'grok-4.7'
+export const CLAUDE_CC_SWITCH_MODEL = 'claude-fable-5-1'
+export const GEMINI_CC_SWITCH_MODEL = 'gemini-4-argon'
+
+/** Flagship text models checked against the live provider catalog on 2026-11-04. */
+export function getCcSwitchDefaultModel(platform: GroupPlatform, app?: CcsImportApp): string {
+  if (app === 'gemini' || app === 'agy') return GEMINI_CC_SWITCH_MODEL
+  const models: Partial<Record<GroupPlatform, string>> = {
+    openai: OPENAI_CC_SWITCH_CODEX_MODEL, composite: OPENAI_CC_SWITCH_CODEX_MODEL,
+    anthropic: CLAUDE_CC_SWITCH_MODEL, antigravity: CLAUDE_CC_SWITCH_MODEL,
+    gemini: GEMINI_CC_SWITCH_MODEL, grok: GROK_CC_SWITCH_MODEL,
+    deepseek: 'deepseek-v4.1-flash', minimax: 'minimax-m3.1-flash', kimi: 'kimi-k3.1-pro',
+    zhipu: 'glm-5.3', opencode_go: 'glm-5.3'
+  }
+  return models[platform] || ''
+}
 
 export type CcSwitchClientType = 'claude' | 'gemini'
 
@@ -27,19 +42,19 @@ export interface CcSwitchImportDeeplinkInput {
   profile?: CcSwitchApplicationProfile
 }
 
-/** The provider import contract was checked against CC Switch v4.0.14. */
+/** Provider import contract: CC Switch v4.0.25 (release and current main agree). */
 export const CC_SWITCH_SUPPORTED_APPS = [
-  'claude', 'codex', 'gemini', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi'
+  'claude', 'codex', 'gemini', 'agy', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi'
 ] as const
 
 export function createDefaultCcSwitchImportConfig(): CcsImportConfig {
   return {
     profiles: [
-      { id: 'anthropic-claude', label: 'Claude Code', platform: 'anthropic', app: 'claude', parameters: {} },
+      { id: 'anthropic-claude', label: 'Claude Code', platform: 'anthropic', app: 'claude', parameters: { model: CLAUDE_CC_SWITCH_MODEL } },
       { id: 'openai-codex', label: 'Codex', platform: 'openai', app: 'codex', parameters: { model: OPENAI_CC_SWITCH_CODEX_MODEL } },
-      { id: 'gemini-cli', label: 'Gemini CLI', platform: 'gemini', app: 'gemini', parameters: {} },
-      { id: 'antigravity-claude', label: 'Claude Code', platform: 'antigravity', app: 'claude', parameters: {} },
-      { id: 'antigravity-gemini', label: 'Gemini CLI', platform: 'antigravity', app: 'gemini', parameters: {} },
+      { id: 'gemini-cli', label: 'Gemini CLI', platform: 'gemini', app: 'gemini', parameters: { model: GEMINI_CC_SWITCH_MODEL } },
+      { id: 'antigravity-claude', label: 'Claude Code', platform: 'antigravity', app: 'claude', parameters: { model: CLAUDE_CC_SWITCH_MODEL } },
+      { id: 'antigravity-gemini', label: 'Gemini CLI', platform: 'antigravity', app: 'gemini', parameters: { model: GEMINI_CC_SWITCH_MODEL } },
       { id: 'grok-build', label: 'Grok Build', platform: 'grok', app: 'grokbuild', parameters: { model: GROK_CC_SWITCH_MODEL } }
     ]
   }
@@ -66,22 +81,14 @@ export function getCcSwitchApplicationProfiles(
   if (platform === 'typesafe') return []
   if (Array.isArray(settings?.profiles) && settings.profiles.length === 0) return []
   const templates = getCcSwitchImportProfiles(platform, settings)
-  const preferredModels: Partial<Record<GroupPlatform, string>> = {
-    openai: OPENAI_CC_SWITCH_CODEX_MODEL, anthropic: 'claude-sonnet-4-6',
-    antigravity: 'claude-sonnet-4-6', gemini: 'gemini-2.5-pro', grok: GROK_CC_SWITCH_MODEL,
-    deepseek: 'deepseek-v4-pro', minimax: 'MiniMax-M3', kimi: 'kimi-k2.5',
-    zhipu: 'glm-4.7', opencode_go: 'glm-5.3', composite: OPENAI_CC_SWITCH_CODEX_MODEL
-  }
-  const platformModel = templates.find(item => item.parameters.model)?.parameters.model || preferredModels[platform]
   const apps: { app: CcsImportApp; label: string }[] = [
     { app: 'codex', label: 'Codex' }, { app: 'claude', label: 'Claude Code' },
     { app: 'opencode', label: 'OpenCode' }, { app: 'openclaw', label: 'OpenClaw' },
-    { app: 'gemini', label: 'Gemini CLI' }, { app: 'grokbuild', label: 'Grok Build' },
+    { app: 'gemini', label: 'Gemini CLI' }, { app: 'agy', label: 'Antigravity CLI' }, { app: 'grokbuild', label: 'Grok Build' },
     { app: 'hermes', label: 'Hermes' }, { app: 'pi', label: 'Pi' }
   ]
   return apps.flatMap(({ app, label }) => {
-    const model = app === 'gemini' && (platform === 'antigravity' || platform === 'composite')
-      ? 'gemini-2.5-pro' : platformModel
+    const model = getCcSwitchDefaultModel(platform, app)
     const profile: CcSwitchApplicationProfile = {
       id: `${platform}-${app}`, label, platform, app, parameters: model ? { model } : {}
     }
@@ -90,7 +97,7 @@ export function getCcSwitchApplicationProfiles(
     let apiFormat = platform === 'gemini' ? 'gemini_native'
       : platform === 'anthropic' || platform === 'antigravity' ? 'anthropic'
         : platform === 'openai' || platform === 'composite' ? 'openai_responses' : 'openai_chat'
-    if (app === 'gemini') apiFormat = 'gemini_native'
+    if (app === 'gemini' || app === 'agy') apiFormat = 'gemini_native'
     if (apiFormat === 'gemini_native' && ['codex', 'grokbuild', 'hermes'].includes(app)) apiFormat = 'openai_responses'
     profile.parameters.apiFormat = apiFormat
     if (app === 'claude' && model && platform !== 'anthropic' && platform !== 'antigravity') {
@@ -221,7 +228,7 @@ function defaultProfileApiFormat(profile: CcSwitchApplicationProfile): string {
       : profile.platform === 'anthropic' || profile.platform === 'antigravity' ? 'anthropic'
         : profile.platform === 'grok' ? 'openai_chat' : 'openai_responses'
   }
-  return profile.app === 'claude' ? 'anthropic' : profile.app === 'gemini' ? 'gemini_native' : 'openai_responses'
+  return profile.app === 'claude' ? 'anthropic' : profile.app === 'gemini' || profile.app === 'agy' ? 'gemini_native' : 'openai_responses'
 }
 
 /** Current inherited values for the editor; viewing them must not create overrides. */
@@ -229,6 +236,7 @@ export function getCcSwitchImportParameterDefaults(profile: CcsImportProfile, ba
   const apiFormat = String(profile.parameters.apiFormat || defaultProfileApiFormat(profile))
   const defaults: Record<string, string | boolean | number> = {
     ...DEFAULT_IMPORT_PARAMETERS,
+    model: getCcSwitchDefaultModel(profile.platform, profile.app),
     endpoint: defaultProfileEndpoint({ baseUrl, platform: profile.platform }, profile, apiFormat),
     enabled: ['opencode', 'openclaw', 'hermes', 'pi'].includes(profile.app),
     usageApiKey: '{{apiKey}}',
@@ -260,18 +268,24 @@ export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput):
   )
   const parameters: Record<string, string | boolean | number> = {
     ...DEFAULT_IMPORT_PARAMETERS,
+    model: getCcSwitchDefaultModel(profile.platform, profile.app),
     name: input.providerName,
     homepage: input.baseUrl,
     usageScript: input.usageScript ?? DEFAULT_IMPORT_PARAMETERS.usageScript,
     ...profile.parameters
   }
+  if (!String(parameters.model || '').trim()) parameters.model = getCcSwitchDefaultModel(profile.platform, profile.app)
   // Additive clients default to OpenAI Chat in CCS. Select the platform's
   // native format unless the administrator explicitly chose another one.
   if (!profile.parameters.apiFormat && ['opencode', 'openclaw', 'hermes', 'pi'].includes(profile.app)) {
     parameters.apiFormat = defaultProfileApiFormat(profile)
   }
-  if (profile.app === 'hermes' && parameters.apiFormat === 'gemini_native') {
-    throw new Error('Hermes requires an explicit supported API format for Gemini import profiles')
+  const apiFormat = String(parameters.apiFormat || defaultProfileApiFormat(profile))
+  if (['gemini', 'agy'].includes(profile.app) && apiFormat !== 'gemini_native') {
+    throw new Error('This application requires the Gemini Native API format')
+  }
+  if (apiFormat === 'gemini_native' && ['codex', 'grokbuild', 'hermes'].includes(profile.app)) {
+    throw new Error('This application does not support the Gemini Native API format')
   }
   const defaultEndpoint = defaultProfileEndpoint(input, profile, String(parameters.apiFormat || defaultProfileApiFormat(profile)))
   if (!parameters.endpoint) parameters.endpoint = defaultEndpoint

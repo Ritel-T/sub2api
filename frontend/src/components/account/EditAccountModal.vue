@@ -14,7 +14,7 @@
       <AccountUpstreamChannelBinding v-if="show" :account-ids="[account.id]" />
       <div>
         <label :id="'field-' + fieldLabelScope + '-1'" class="input-label">{{ t('common.name') }}</label>
-        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="form.name" type="text" required class="input" data-tour="edit-account-form-name" />
+        <input :aria-labelledby="'field-' + fieldLabelScope + '-1'" v-model="form.name" type="text" required class="input" data-testid="edit-account-form-name" />
       </div>
       <div>
         <label :id="'field-' + fieldLabelScope + '-2'" class="input-label">{{ t('admin.accounts.notes') }}</label>
@@ -1933,7 +1933,7 @@
             type="number"
             min="1"
             class="input"
-            data-tour="account-form-priority"
+            data-testid="account-form-priority"
           />
           <p class="input-hint">{{ t('admin.accounts.priorityHint') }}</p>
         </div>
@@ -3259,7 +3259,7 @@
         :groups="selectableGroups"
         :platform="account?.platform"
         :mixed-scheduling="mixedScheduling"
-        data-tour="account-form-groups"
+        data-testid="account-form-groups"
       />
 
       <AccountGroupModelLimits
@@ -3281,7 +3281,7 @@
           form="edit-account-form"
           :disabled="submitting"
           class="btn btn-primary"
-          data-tour="account-form-submit"
+          data-testid="account-form-submit"
         >
           <svg
             v-if="submitting"

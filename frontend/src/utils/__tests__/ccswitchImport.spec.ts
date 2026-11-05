@@ -19,7 +19,7 @@ describe('ccswitchImport utils', () => {
   })
 
   it('defaults Grok Build imports to the current Grok model', () => {
-    expect(GROK_CC_SWITCH_MODEL).toBe('grok-4.5')
+    expect(GROK_CC_SWITCH_MODEL).toBe('grok-4.7')
   })
 
   const baseInput = {
@@ -72,9 +72,9 @@ describe('ccswitchImport utils', () => {
   })
 
   it.each([
-    { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude' },
-    { platform: 'gemini' as GroupPlatform, clientType: 'gemini' as const, app: 'gemini' }
-  ])('does not add a model parameter for $platform imports', ({ platform, clientType, app }) => {
+    { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude', model: 'claude-fable-5-1' },
+    { platform: 'gemini' as GroupPlatform, clientType: 'gemini' as const, app: 'gemini', model: 'gemini-4-argon' }
+  ])('includes the production default model for $platform imports', ({ platform, clientType, app, model }) => {
     const params = paramsFromDeeplink(
       buildCcSwitchImportDeeplink({
         ...baseInput,
@@ -85,10 +85,10 @@ describe('ccswitchImport utils', () => {
 
     expect(params.get('app')).toBe(app)
     expect(params.get('endpoint')).toBe(baseInput.baseUrl)
-    expect(params.has('model')).toBe(false)
+    expect(params.get('model')).toBe(model)
   })
 
-  it('keeps Antigravity imports on the selected client endpoint without a model parameter', () => {
+  it('keeps Antigravity imports on the selected client endpoint with its default model', () => {
     const params = paramsFromDeeplink(
       buildCcSwitchImportDeeplink({
         ...baseInput,
@@ -99,7 +99,7 @@ describe('ccswitchImport utils', () => {
 
     expect(params.get('app')).toBe('gemini')
     expect(params.get('endpoint')).toBe(`${baseInput.baseUrl}/antigravity`)
-    expect(params.has('model')).toBe(false)
+    expect(params.get('model')).toBe('gemini-4-argon')
   })
 })
 
@@ -155,7 +155,7 @@ describe('Antigravity CC Switch endpoint', () => {
       expect(url.searchParams.get('endpoint')).toBe(endpoint)
       expect(url.searchParams.get('app')).toBe(clientType)
       expect(url.searchParams.get('homepage')).toBe(baseUrl)
-      expect(url.searchParams.has('model')).toBe(false)
+      expect(url.searchParams.get('model')).toBe(clientType === 'claude' ? 'claude-fable-5-1' : 'gemini-4-argon')
     }
   })
 })

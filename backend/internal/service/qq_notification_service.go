@@ -199,23 +199,116 @@ func (s *QQNotificationService) Authenticate(body []byte, signature string) bool
 	got, e := hex.DecodeString(strings.TrimPrefix(signature, "sha256="))
 	return e == nil && strings.HasPrefix(signature, "sha256=") && hmac.Equal(got, expected.Sum(nil))
 }
+
+// Query signatures are separate from delivery webhooks: a read cannot be replayed as a send.
+func (s *QQNotificationService) AuthenticateQuery(body []byte, signature string) bool {
+	return s.Authenticate(append([]byte("qq-query-v1\n"), body...), signature)
+}
+
+// Access uses its own signature domain and returns only current binding eligibility.
+func (s *QQNotificationService) AuthenticateAccess(body []byte, signature string) bool {
+	return s.Authenticate(append([]byte("qq-access-v1\n"), body...), signature)
+}
+
+func (s *QQNotificationService) Access(ctx context.Context, body []byte) (bool, error) {
+	var input struct {
+		Event QQEvent `json:"event"`
+	}
+	if json.Unmarshal(body, &input) != nil || !s.validEvent(input.Event) {
+		return false, ErrQQRequest
+	}
+	_, err := s.boundUser(ctx, input.Event.UserID.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (s *QQNotificationService) validEvent(ev QQEvent) bool {
+	return ev.SelfID.String() == s.bot && qqNumber.MatchString(ev.UserID.String()) && ev.UserID.String() != s.bot && ev.PostType == "message" && ev.MessageType == "private" && ev.SubType == "friend" && qqMessageID.MatchString(ev.MessageID.String()) && time.Since(time.Unix(ev.Time, 0)).Abs() <= 5*time.Minute
+}
+
+// Only complete keywords bypass chat. Other natural language remains an AI turn.
+func qqCommand(text string) string {
+	switch text {
+	case "帮助":
+		return "/sub"
+	case "查余额":
+		return "/sub 余额"
+	case "查套餐":
+		return "/sub 套餐"
+	case "查用量":
+		return "/sub 今日用量"
+	}
+	if code := strings.ToUpper(text); qqCode.MatchString(code) {
+		return "/sub 绑定 " + code
+	}
+	return text
+}
+
+// Query returns only the current private sender's bound account data. It never sends
+// a QQ message or changes bindings, preferences, balances or delivery state.
+func (s *QQNotificationService) Query(ctx context.Context, body []byte) (string, error) {
+	var input struct {
+		Event QQEvent `json:"event"`
+		Query string  `json:"query"`
+	}
+	if json.Unmarshal(body, &input) != nil || !s.validEvent(input.Event) {
+		return "", ErrQQRequest
+	}
+	commands := map[string]string{"balance": "/sub 余额", "subscriptions": "/sub 套餐", "usage": "/sub 今日用量"}
+	command, ok := commands[input.Query]
+	if !ok {
+		return "", ErrQQRequest
+	}
+	uid, err := s.boundUser(ctx, input.Event.UserID.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return "请先在账号中心绑定 QQ。", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return s.query(ctx, uid, command)
+}
+
+func (s *QQNotificationService) boundUser(ctx context.Context, qq string) (int64, error) {
+	var uid int64
+	err := s.db.QueryRowContext(ctx, "SELECT n.user_id FROM qq_user_notifications n JOIN users u ON u.id=n.user_id WHERE n.qq=$1 AND u.deleted_at IS NULL AND u.status='active'", qq).Scan(&uid)
+	return uid, err
+}
+
 func (s *QQNotificationService) Webhook(ctx context.Context, body []byte) error {
 	var ev QQEvent
 	if json.Unmarshal(body, &ev) != nil {
 		return ErrQQRequest
 	}
-	if ev.SelfID.String() != s.bot || !qqNumber.MatchString(ev.UserID.String()) || ev.UserID.String() == s.bot || ev.PostType != "message" || ev.MessageType != "private" || ev.SubType != "friend" || !qqMessageID.MatchString(ev.MessageID.String()) || time.Since(time.Unix(ev.Time, 0)).Abs() > 5*time.Minute {
+	if !s.validEvent(ev) {
 		return ErrQQRequest
 	}
 	text, ok := qqText(ev.Message)
 	if !ok {
 		return nil
 	}
+	text = qqCommand(text)
 	if text != "/sub" && text != "/sub 余额" && text != "/sub 套餐" && text != "/sub 今日用量" && !strings.HasPrefix(text, "/sub 绑定 ") {
 		return nil
 	}
 	if len(ev.MessageID.String()) > 30 {
 		return ErrQQRequest
+	}
+	binding := strings.HasPrefix(text, "/sub 绑定 ")
+	code := strings.TrimPrefix(text, "/sub 绑定 ")
+	if binding && !qqCode.MatchString(code) {
+		return nil
+	}
+	boundUID, err := s.boundUser(ctx, ev.UserID.String())
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	// Until website confirmation, only a well-formed code may record a pending
+	// candidate. Help and queries consume neither audit rows nor a QQ reply.
+	if boundUID == 0 && !binding || boundUID > 0 && binding {
+		return nil
 	}
 	// Per-sender transaction lock serializes replay and quota checks across replicas.
 	tx, e := s.db.BeginTx(ctx, nil)
@@ -246,42 +339,19 @@ func (s *QQNotificationService) Webhook(ctx context.Context, body []byte) error 
 	if e = tx.Commit(); e != nil {
 		return e
 	}
-	reply := ""
-	var boundUID int64
-	if text == "/sub" {
-		reply = "Sub2API QQ 助手\n请在控制台 → 个人设置 → QQ 通知生成绑定码，再私聊发送 /sub 绑定 绑定码，并返回控制台确认。\n绑定后可使用：\n/sub 余额\n/sub 套餐\n/sub 今日用量\n通知偏好与解绑请在控制台设置。"
-	} else if strings.HasPrefix(text, "/sub 绑定 ") {
-		code := strings.TrimPrefix(text, "/sub 绑定 ")
-		if !qqCode.MatchString(code) {
-			return nil
-		}
-		r, e = s.db.ExecContext(ctx, `UPDATE qq_user_notifications SET pending_qq=$2 WHERE code_hash=$1 AND expires_at>NOW() AND pending_qq IS NULL
+	if binding {
+		_, e = s.db.ExecContext(ctx, `UPDATE qq_user_notifications SET pending_qq=$2 WHERE code_hash=$1 AND expires_at>NOW() AND pending_qq IS NULL
  AND NOT EXISTS(SELECT 1 FROM qq_user_notifications q WHERE q.qq=$2 AND q.user_id<>qq_user_notifications.user_id)`, qqHash(code), ev.UserID.String())
+		return e // The website confirms the candidate; QQ remains silent until then.
+	}
+	reply := "Sub2API QQ 助手\n请在账号中心 → QQ Bot 生成验证码，只需将验证码私聊发给我，再返回网页核对 QQ 并确认。\n绑定后直接发送：查余额、查套餐、查用量。\n也可以用自然语言让我查询。通知偏好与解绑请在账号中心设置：https://account.ritel.si/account/#qq"
+	if text != "/sub" {
+		reply, e = s.query(ctx, boundUID, text)
 		if e != nil {
 			return e
 		}
-		n, _ = r.RowsAffected()
-		if n == 1 {
-			reply = "已收到绑定申请，请返回 Sub2API 控制台核对 QQ 后确认。"
-		} else {
-			reply = "绑定码无效、已使用或已过期，请返回控制台重新生成。"
-		}
-	} else {
-		var uid int64
-		e = s.db.QueryRowContext(ctx, "SELECT n.user_id FROM qq_user_notifications n JOIN users u ON u.id=n.user_id WHERE n.qq=$1 AND u.deleted_at IS NULL AND u.status='active'", ev.UserID.String()).Scan(&uid)
-		if errors.Is(e, sql.ErrNoRows) {
-			reply = "请先在 Sub2API 控制台绑定 QQ。"
-		} else if e != nil {
-			return e
-		} else {
-			boundUID = uid
-			reply, e = s.query(ctx, uid, text)
-			if e != nil {
-				return e
-			}
-		}
 	}
-	return s.deliver(ctx, boundUID, ev.UserID.String(), "reply:"+key, reply, boundUID > 0)
+	return s.deliver(ctx, boundUID, ev.UserID.String(), "reply:"+key, reply, true)
 }
 func (s *QQNotificationService) query(ctx context.Context, uid int64, command string) (string, error) {
 	switch command {

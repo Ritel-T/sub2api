@@ -65,7 +65,8 @@
               ]"
             >
               <span class="flex items-center gap-2">
-                <component :is="tab.icon" class="w-4 h-4" />
+                <CcsAppIcon v-if="typeof tab.icon === 'string'" :app="tab.icon" />
+                <component v-else :is="tab.icon" class="w-4 h-4" />
                 {{ tab.label }}
               </span>
             </button>
@@ -74,14 +75,38 @@
 
         <section id="connection-application-panel" role="tabpanel" :aria-labelledby="`connection-tab-${activeApplication}`" :data-application="activeApplication" class="space-y-4">
         <div v-if="selectedCcsProfiles.length" class="space-y-3" data-testid="selected-application-import">
+          <p v-if="activeApplication === 'codex'" class="text-sm text-gray-600 dark:text-gray-300">{{ kc.codexSharedConfig }}</p>
+          <div v-if="activeApplication === 'claude-desktop'" class="space-y-2 text-sm text-gray-600 dark:text-gray-300" data-testid="claude-desktop-import-guide">
+            <p>{{ kc.claudeDesktopSeparate }}</p>
+            <p>{{ kc.claudeDesktopImportLimit }}</p>
+          </div>
           <div class="flex flex-wrap gap-2">
             <button v-for="profile in selectedCcsProfiles" :key="profile.id" type="button" class="btn btn-primary" :disabled="!canImportApplication(profile)" :title="canImportApplication(profile) ? undefined : kc.geminiNativeOnly" :data-testid="`connection-ccs-${profile.id}`" @click="importConnection(profile)">
-              <Icon name="download" size="sm" class="mr-2" />{{ kc.oneClickImport }} · {{ profile.label }}
+              <Icon name="download" size="sm" class="mr-2" />{{ activeApplication === 'claude-desktop' ? kc.claudeDesktopImportSource : kc.oneClickImport }} · {{ profile.label }}
             </button>
           </div>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ activeApplication === 'gemini' && !supportsGeminiNative ? kc.geminiNativeOnly : kc.ccsRouting }} <a href="https://ccswitch.io" target="_blank" rel="noopener noreferrer" class="link">{{ kc.downloadCcs }}</a></p>
+          <p class="text-sm text-gray-600 dark:text-gray-300">{{ kc.defaultModel }} · <code>{{ selectedCcsModels.join(' / ') }}</code></p>
+          <div v-if="activeApplication === 'claude-desktop'" class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+            <p>{{ kc.claudeDesktopImportNext }}</p>
+            <p>{{ kc.claudeDesktopRestart }}</p>
+            <a href="https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/zh/2-providers/2.6-claude-desktop.md" target="_blank" rel="noopener noreferrer" class="link">{{ kc.officialGuide }} ↗</a>
+          </div>
+          <p v-else class="text-sm text-gray-500 dark:text-gray-400">{{ ['gemini', 'agy'].includes(activeApplication) ? kc.geminiNativeOnly : kc.ccsRouting }} <a href="https://ccswitch.io" target="_blank" rel="noopener noreferrer" class="link">{{ kc.downloadCcs }}</a></p>
           <p v-if="ccsImportFailed" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ t('keys.ccSwitchNotInstalled') }}</p>
         </div>
+        <section v-if="nativeCcsConfiguration" class="space-y-3" data-testid="native-ccs-configuration">
+          <p class="text-sm text-gray-600 dark:text-gray-300">{{ kc.ccsNativeImportLimit }}</p>
+          <dl class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            <div><dt class="inline text-gray-500 dark:text-gray-400">{{ kc.defaultModel }} · </dt><dd class="inline"><code>{{ nativeCcsModel }}</code></dd></div>
+            <div><dt class="inline text-gray-500 dark:text-gray-400">{{ kc.configurationFile }} · </dt><dd class="inline"><code>{{ nativeCcsConfiguration.file }}</code></dd></div>
+          </dl>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" data-testid="copy-native-ccs-configuration" @click="clipboardCopy(nativeCcsConfiguration.content)"><Icon name="copy" size="sm" class="mr-2" />{{ kc.copyConfiguration }}</button>
+            <button type="button" class="btn btn-secondary" data-testid="download-native-ccs-configuration" @click="downloadNativeCcsConfiguration"><Icon name="download" size="sm" class="mr-2" />{{ kc.downloadConfiguration }}</button>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-300">{{ kc.ccsNativeImportNext }}</p>
+          <a href="https://github.com/farion1231/cc-switch/blob/v4.0.25/docs/user-manual/zh/2-providers/2.1-add.md" target="_blank" rel="noopener noreferrer" class="link text-sm">{{ kc.officialGuide }} ↗</a>
+        </section>
         <section v-if="activeClientTab === 'dsh'" class="space-y-3" data-testid="dsh-guide">
           <AppHeading as="h3" variant="subsection">DeepSeek Harness · dsh</AppHeading>
           <ol class="list-decimal space-y-2 pl-5 text-sm leading-6">
@@ -330,13 +355,15 @@ import AppHeading from '@/components/common/AppHeading.vue'
 import { ref, computed, h, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useKeyConnectionCopy } from './keyConnectionCopy'
+import CcsAppIcon from './CcsAppIcon.vue'
+import { buildCcsNativeConfiguration } from './ccsNativeConfiguration'
 import { saveAs } from 'file-saver'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { buildCodexModelCatalogUrl, fetchCodexModelsManifest } from '@/api/codex'
 import type { ApiKey, GroupPlatform, PublicSettings } from '@/types'
-import { buildCcSwitchImportDeeplink, getCcSwitchApplicationProfiles, type CcSwitchApplicationProfile } from '@/utils/ccswitchImport'
+import { buildCcSwitchImportDeeplink, getCcSwitchApplicationProfiles, getCcSwitchDefaultModel, type CcSwitchApplicationProfile } from '@/utils/ccswitchImport'
 import {
   findCodexCatalogModel,
   formatCodexReasoningEffortTomlLine,
@@ -361,7 +388,7 @@ interface Emits {
 interface TabConfig {
   id: string
   label: string
-  icon: Component
+  icon: Component | string
 }
 
 interface FileConfig {
@@ -382,16 +409,32 @@ const ccsImportFailed = ref(false)
 const ccsProfiles = computed(() => !props.keyRecord || !props.platform || props.publicSettings?.hide_ccs_import_button
   ? [] : getCcSwitchApplicationProfiles(props.platform, props.publicSettings?.ccs_import_config))
 const activeApplication = computed(() => activeClientTab.value === 'codex-ws' ? 'codex' : activeClientTab.value)
-const selectedCcsProfiles = computed(() => ccsProfiles.value.filter(profile => profile.app === (activeApplication.value === 'grok' ? 'grokbuild' : activeApplication.value)))
+const selectedCcsProfiles = computed(() => ccsProfiles.value.filter(profile => profile.app === (activeApplication.value === 'grok' ? 'grokbuild' : activeApplication.value === 'claude-desktop' ? 'claude' : activeApplication.value)))
+const selectedCcsModels = computed(() => [...new Set(selectedCcsProfiles.value.map(profile => String(profile.parameters.model || getCcSwitchDefaultModel(profile.platform, profile.app))))])
 const supportsGeminiNative = computed(() => ['gemini', 'antigravity', 'composite'].includes(props.platform || ''))
-const canImportApplication = (profile: CcSwitchApplicationProfile) => profile.app !== 'gemini' || supportsGeminiNative.value
+const canImportApplication = (profile: CcSwitchApplicationProfile) => !['gemini', 'agy'].includes(profile.app) || supportsGeminiNative.value
 function connectionDeeplink(profile: CcSwitchApplicationProfile) {
   return buildCcSwitchImportDeeplink({
     baseUrl: props.baseUrl || window.location.origin,
-    platform: props.platform, profile, settings: props.publicSettings?.ccs_import_config,
+    platform: props.platform,
+    // Desktop is imported inside CCS from a Claude Code source provider. Keep
+    // the source inactive so this step does not switch the user's Code setup.
+    profile: activeApplication.value === 'claude-desktop'
+      ? { ...profile, parameters: { ...profile.parameters, enabled: false } } : profile,
+    settings: props.publicSettings?.ccs_import_config,
     providerName: 'Ritel.SI API',
     apiKey: props.apiKey, keyName: props.keyRecord?.name, userId: props.keyRecord?.user_id
   })
+}
+const nativeCcsModel = computed(() => props.platform ? getCcSwitchDefaultModel(props.platform) : '')
+const nativeCcsConfiguration = computed(() => props.platform ? buildCcsNativeConfiguration({
+  app: activeApplication.value, platform: props.platform,
+  baseUrl: props.baseUrl || window.location.origin, apiKey: props.apiKey,
+  model: nativeCcsModel.value, contextWindow: 262144
+}) : null)
+function downloadNativeCcsConfiguration() {
+  const config = nativeCcsConfiguration.value
+  if (config) saveAs(new Blob([config.content], { type: 'text/plain;charset=utf-8' }), `ritel-${activeApplication.value}-${config.file}`)
 }
 const advancedOpen = ref(false)
 const dshConnectionUrl = computed(() => {
@@ -400,8 +443,9 @@ const dshConnectionUrl = computed(() => {
   return props.platform === 'anthropic' ? root : `${root}/v1`
 })
 const dshProtocol = computed(() => props.platform === 'anthropic' || props.platform === 'antigravity' ? 'Anthropic Messages'
-  : props.platform === 'openai' || props.platform === 'composite' ? 'OpenAI Responses' : 'OpenAI Chat Completions')
+  : ['openai', 'gemini', 'composite'].includes(props.platform || '') ? 'OpenAI Responses' : 'OpenAI Chat Completions')
 const connectionUrls = computed(() => {
+  if (nativeCcsConfiguration.value) return [{ url: nativeCcsConfiguration.value.endpoint, label: '' }]
   const root = (props.baseUrl || window.location.origin).replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
   const antigravityRoot = root.endsWith('/antigravity') ? root : `${root}/antigravity`
   const client = activeClientTab.value
@@ -566,58 +610,39 @@ const TerminalIcon = {
   }
 }
 
-// Sparkle icon for Gemini
-const SparkleIcon = {
-  render() {
-    return h('svg', {
-      fill: 'none',
-      stroke: 'currentColor',
-      viewBox: '0 0 24 24',
-      'stroke-width': '1.5',
-      class: 'w-4 h-4'
-    }, [
-      h('path', {
-        'stroke-linecap': 'round',
-        'stroke-linejoin': 'round',
-        d: 'M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z'
-      })
-    ])
-  }
-}
-
 const clientTabs = computed((): TabConfig[] => {
   if (!props.platform) return []
   switch (props.platform) {
     case 'openai': {
       const tabs: TabConfig[] = [
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: TerminalIcon },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: 'codex-ws' },
       ]
       if (props.allowMessagesDispatch) {
-        tabs.push({ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon })
+        tabs.push({ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' })
       }
-      tabs.push({ id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon })
+      tabs.push({ id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' })
       return tabs
     }
     case 'gemini':
       return [
-        { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: 'gemini' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
     case 'antigravity':
       return [
-        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+        { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: 'gemini' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
     case 'grok':
       return [
-        { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: TerminalIcon },
-        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: 'grok' },
+        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
     case 'typesafe':
       return [
@@ -627,15 +652,15 @@ const clientTabs = computed((): TabConfig[] => {
     case 'minimax':
     case 'composite':
       return [
-        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
     default:
       return [
-        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: 'codex' },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' }
       ]
   }
 })
@@ -654,15 +679,20 @@ const openaiTabs: TabConfig[] = [
 ]
 
 const applicationTabs = computed(() => props.platform === 'typesafe' ? clientTabs.value : [
-  { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
-  { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-  { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
-  { id: 'openclaw', label: 'OpenClaw', icon: TerminalIcon },
-  { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-  { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: TerminalIcon },
-  { id: 'hermes', label: 'Hermes', icon: TerminalIcon },
-  { id: 'pi', label: 'Pi', icon: TerminalIcon },
-  { id: 'dsh', label: 'dsh', icon: TerminalIcon }
+  { id: 'codex', label: kc.value.codexSharedApp, icon: 'codex' },
+  { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: 'claude' },
+  { id: 'claude-desktop', label: 'Claude Desktop', icon: 'claude-desktop' },
+  { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: 'opencode' },
+  { id: 'openclaw', label: 'OpenClaw', icon: 'openclaw' },
+  { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: 'gemini' },
+  { id: 'agy', label: 'Antigravity', icon: 'agy' },
+  { id: 'grok', label: 'Grok Build', icon: 'grok' },
+  { id: 'hermes', label: 'Hermes', icon: 'hermes' },
+  { id: 'pi', label: 'Pi', icon: 'pi' },
+  { id: 'mcode', label: 'MiniMax Code', icon: 'mcode' },
+  { id: 'kimi', label: 'Kimi Code', icon: 'kimi' },
+  { id: 'dsh', label: 'DeepSeek Harness', icon: 'dsh' },
+  { id: 'omp', label: 'Oh My Pi', icon: 'omp' }
 ])
 const hasManualConfiguration = computed(() => clientTabs.value.some(tab => tab.id === activeClientTab.value))
 function onApplicationTabKeydown(event: KeyboardEvent, current: string) {
@@ -872,7 +902,7 @@ const currentFiles = computed((): FileConfig[] => {
       case 'grok':
         return [generateOpenCodeConfig('grok', apiBase, apiKey), ritelEnvironmentFile(apiKey)]
       default:
-        return [generateOpenCodeConfig('openai', apiBase, apiKey), ritelEnvironmentFile(apiKey)]
+        return [generateOpenCodeConfig(props.platform || 'openai', apiBase, apiKey), ritelEnvironmentFile(apiKey)]
     }
   }
 
@@ -976,24 +1006,28 @@ Invoke-RestMethod -Method Post -Uri "${endpoint}" -Headers $headers -ContentType
 function generateAnthropicFiles(baseUrl: string, apiKey: string): FileConfig[] {
   let path: string
   let content: string
+  const model = getCcSwitchDefaultModel(props.platform || 'anthropic')
 
   switch (activeTab.value) {
     case 'unix':
       path = 'Terminal'
       content = `export ANTHROPIC_BASE_URL="${baseUrl}"
 export ANTHROPIC_AUTH_TOKEN="${apiKey}"
+export ANTHROPIC_MODEL="${model}"
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     case 'cmd':
       path = 'Command Prompt'
       content = `set ANTHROPIC_BASE_URL=${baseUrl}
 set ANTHROPIC_AUTH_TOKEN=${apiKey}
+set ANTHROPIC_MODEL=${model}
 set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     case 'powershell':
       path = 'PowerShell'
       content = `$env:ANTHROPIC_BASE_URL="${baseUrl}"
 $env:ANTHROPIC_AUTH_TOKEN="${apiKey}"
+$env:ANTHROPIC_MODEL="${model}"
 $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     default:
@@ -1010,6 +1044,7 @@ $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
   "env": {
     "ANTHROPIC_BASE_URL": "${baseUrl}",
     "ANTHROPIC_AUTH_TOKEN": "${apiKey}",
+    "ANTHROPIC_MODEL": "${model}",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
   }
 }`
@@ -1028,12 +1063,12 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] 
   const environment = {
     ANTHROPIC_BASE_URL: baseUrl,
     ANTHROPIC_AUTH_TOKEN: apiKey,
-    ANTHROPIC_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_OPUS_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_SONNET_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.5',
-    CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.5',
+    ANTHROPIC_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_OPUS_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_SONNET_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.7',
+    CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.7',
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
   }
   let path: string
@@ -1081,7 +1116,7 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] 
 }
 
 function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
-  const model = 'gemini-2.0-flash'
+  const model = getCcSwitchDefaultModel('gemini')
   const modelComment = t('keys.useKeyModal.gemini.modelComment')
   let path: string
   let content: string
@@ -1129,7 +1164,7 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
 
-  const model = selectCodexCatalogModel('gpt-5.5')
+  const model = selectCodexCatalogModel(getCcSwitchDefaultModel('openai'))
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content
@@ -1255,10 +1290,10 @@ cli_chat_proxy_base_url = "${baseUrl}"      # CLI chat-proxy base (env: GROK_CLI
 [auth]
 preferred_method = "api_key"
 
-[model."grok-4.5"]
-model = "grok-4.5"                          # id sent to the API
-name = "Grok 4.5"                           # shown in /model picker
-description = "Grok 4.5 via Ritel.SI API (Responses)"
+[model."grok-4.7"]
+model = "grok-4.7"                          # id sent to the API
+name = "Grok 4.7"                           # shown in /model picker
+description = "Grok 4.7 via Ritel.SI API (Responses)"
 # base_url inherits from [endpoints].models_base_url; override only if needed:
 # base_url = "${baseUrl}"
 env_key = "XAI_API_KEY"                     # or: api_key = "${apiKey}"  (not recommended)
@@ -1300,7 +1335,7 @@ supports_backend_search = true
 
 # Optional short alias for /model grok:
 # [model."grok"]
-# model = "grok-4.5"
+# model = "grok-4.7"
 # name = "Grok"
 # env_key = "XAI_API_KEY"
 # api_backend = "responses"
@@ -1308,10 +1343,10 @@ supports_backend_search = true
 # supports_backend_search = true
 
 [models]
-# xAI recommends grok-build* for coding/agent sessions; use grok-4.5 for general chat.
-default = "grok-4.5"
-web_search = "grok-4.5"                     # client-side web_search tool model (must exist as [model.*])
-image_description = "grok-4.5"              # vision/describe-image helper model
+# Use the current Grok flagship for coding and general chat.
+default = "grok-4.7"
+web_search = "grok-4.7"                     # client-side web_search tool model (must exist as [model.*])
+image_description = "grok-4.7"              # vision/describe-image helper model
 # Optional environment-wide sampling defaults (per-model values win):
 # temperature = 0.7
 # top_p = 0.95
@@ -1349,7 +1384,7 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const shell = activeTab.value
   const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
   const configDir = isWindowsPath ? '%userprofile%\\.codex' : '~/.codex'
-  const model = selectCodexCatalogModel('grok-4.5')
+  const model = selectCodexCatalogModel('grok-4.7')
 
   let envPath: string
   let envContent: string
@@ -1372,7 +1407,7 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
 # Docs: Codex config reference (model_providers.*, wire_api = "responses")
 #
 # Text models only. Image/video: grok-imagine-image / grok-imagine-video on media endpoints.
-# Switch model: grok-4.5 | grok-4.3 | grok-build-0.1 | grok-4.20-multi-agent-0309 (text / web_search)
+# Switch model: grok-4.7 | grok-4.3 | grok-build-0.1 | grok-4.20-multi-agent-0309 (text / web_search)
 
 model_provider = "ritel"
 model = "${model}"
@@ -1417,20 +1452,7 @@ function generateRoutedCodexFiles(
 ): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
-  const preferredModels: Partial<Record<GroupPlatform, string>> = {
-    openai: 'gpt-5.5',
-    anthropic: 'claude-sonnet-4-6',
-    gemini: 'gemini-2.5-pro',
-    antigravity: 'claude-sonnet-4-6',
-    grok: 'grok-4.5',
-    kimi: 'kimi-k2.5',
-    zhipu: 'glm-4.7',
-    deepseek: 'deepseek-v4-pro',
-    minimax: 'MiniMax-M3',
-    opencode_go: 'glm-5.3',
-    composite: 'gpt-5.5'
-  }
-  const preferredModel = preferredModels[platform] || ''
+  const preferredModel = getCcSwitchDefaultModel(platform)
   const model = selectCodexCatalogModel(preferredModel)
   const envContent = isWindows
     ? `$env:RITEL_API_KEY="${apiKey}"`
@@ -1467,7 +1489,7 @@ supports_websockets = false${codexModelCatalogMode.value === 'remote' ? '\n\n[fe
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
-  const model = selectCodexCatalogModel('gpt-5.5')
+  const model = selectCodexCatalogModel(getCcSwitchDefaultModel('openai'))
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content with WebSocket v2
@@ -2155,8 +2177,17 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, _apiKey: stri
         }
       : undefined
 
+  const modelPlatform = platform.startsWith('antigravity-') ? 'antigravity' : platform
+  const defaultModel = getCcSwitchDefaultModel(modelPlatform, platform === 'antigravity-gemini' ? 'gemini' : undefined)
+  provider[platform].models = {
+    ...provider[platform].models,
+    ...(platform === 'anthropic' ? claudeModels : {}),
+    [defaultModel]: provider[platform].models?.[defaultModel] || { name: defaultModel }
+  }
+  if (!provider[platform].npm) provider[platform].npm = platform === 'openai' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible'
   const content = JSON.stringify(
     {
+      model: `ritel/${defaultModel}`,
       provider: { ritel: { ...provider[platform], name: 'Ritel.SI API' } },
       ...(agent ? { agent } : {}),
       $schema: 'https://opencode.ai/config.json'

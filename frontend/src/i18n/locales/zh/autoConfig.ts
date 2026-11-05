@@ -1,4 +1,34 @@
 export default {
+  accountDefaults: {
+    "title": "OpenAI 套餐模板",
+    "hint": "新增 OpenAI OAuth 账号时立即按套餐应用模板。请同时开启上方的 OAuth 首次配置，并选择共用分组。",
+    "scopeHint": "套餐值替代通用的容量和模型设置。保存后作用于新账号，不重设已有账号的容量或分组。",
+    "empty": "请先添加套餐模板及其允许的模型，再启用此配置。",
+    "summary": "并发 {concurrency} · 负载 {load} · 优先级 {priority}",
+    "preserve": "保留导入值",
+    "loadHint": "负载因子留空时保留导入值。优先级数值越小越优先。",
+    "models": "允许的模型与映射",
+    "modelsHint": "仅允许这里列出的请求模型。直通模型的两侧填写相同名称；导入的其他模型规则会被替换。",
+    "removeTier": "移除此套餐模板",
+    "plan": "要添加的套餐",
+    "addTier": "添加套餐模板",
+    "countries": "独占代理的出口国家",
+    "countriesHint": "填写逗号分隔的两位国家代码。配置后会选择经检测、未占用且出口 IP 不重复的代理；留空则保留导入代理。",
+    "exclusionsHint": "已保留 {count} 个账号的模型排除规则，质量联动规则继续生效。",
+    "templatesRequired": "启用套餐默认配置前，请至少添加一个套餐模板。",
+    "modelsRequired": "每个套餐模板至少需要一个允许的模型。",
+    "invalid": "并发和负载因子须为 1–10000 的整数，优先级须为 0–10000 的整数。负载因子可留空。",
+    "invalidCountries": "请使用两位国家代码，例如 US、GB 或 DE。",
+    "plans": {
+      "free": "Free",
+      "go": "Go",
+      "plus": "Plus",
+      "prolite": "Pro100",
+      "pro": "Pro200",
+      "promax": "Pro500",
+      "business": "Business / Team"
+    }
+  },
   admission: {
     "pending": "待准入：21 连续 {count}/{required}",
     "passed": "准入已通过",
@@ -113,6 +143,8 @@ export default {
   "history": "自动升级记录",
   "cooling": "冷却至 {time}",
   "logs": {
+    "savedPlanDetail": "首次配置：{initial}；自动升档：{upgrade}。按套餐（{count} 档）应用。",
+    "importedProxy": "保留导入代理",
     "title": "近期日志",
     "description": "查看配置保存、OAuth 首次配置及账号并发变化，按最新记录排序。",
     "filter": "筛选日志类型",

@@ -35,6 +35,11 @@ func GroupModelAllowlist() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		done := requesttiming.Observe(c.Request.Context(), "model_allowlist")
 		defer done()
+		if _, ok := GetAPIKeyModelDiscoveryGroups(c); ok {
+			done()
+			c.Next()
+			return
+		}
 		apiKey, ok := GetAPIKeyFromContext(c)
 		if !ok || apiKey == nil {
 			done()

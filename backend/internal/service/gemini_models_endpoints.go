@@ -163,11 +163,20 @@ func modelsEndpointAccountRank(a *Account) int {
 // AI Studio 兼容账号原样返回上游响应；Vertex 服务账号读取 Google 发布方模型列表后转换格式，
 // 上游非 2xx 时原样返回该响应；Vertex API Key 账号返回内置列表。
 func (s *GeminiMessagesCompatService) ForwardListModels(ctx context.Context, account *Account) (*UpstreamHTTPResult, error) {
+	return s.ForwardListModelsPage(ctx, account, "")
+}
+
+// ForwardListModelsPage forwards an opaque AI Studio continuation token. Vertex
+// already consumes its publisher pages internally and returns no continuation.
+func (s *GeminiMessagesCompatService) ForwardListModelsPage(ctx context.Context, account *Account, pageToken string) (*UpstreamHTTPResult, error) {
 	if account == nil {
 		return nil, errors.New("account is nil")
 	}
 	if !account.IsVertexServiceAccount() {
-		return s.forwardGeminiModelsGET(ctx, account, "/v1beta/models")
+		return s.forwardGeminiModelsGETPage(ctx, account, "/v1beta/models", pageToken)
+	}
+	if pageToken != "" {
+		return nil, errors.New("Vertex model catalogs do not expose continuation tokens")
 	}
 	if account.IsVertexAPIKey() {
 		return geminiModelsJSONResult(http.StatusOK, gemini.FallbackModelsList())
@@ -222,6 +231,10 @@ func (s *GeminiMessagesCompatService) ForwardGetModel(ctx context.Context, accou
 // forwardGeminiModelsGET 向 AI Studio 兼容上游转发模型接口的 GET 请求。
 // path 会被直接拼到上游 base URL 后面，因此按路径护栏逐片段校验，见 upstream_path_guard.go。
 func (s *GeminiMessagesCompatService) forwardGeminiModelsGET(ctx context.Context, account *Account, path string) (*UpstreamHTTPResult, error) {
+	return s.forwardGeminiModelsGETPage(ctx, account, path, "")
+}
+
+func (s *GeminiMessagesCompatService) forwardGeminiModelsGETPage(ctx context.Context, account *Account, path, pageToken string) (*UpstreamHTTPResult, error) {
 	sanitizedPath, ok := sanitizedUpstreamPathSuffix(path)
 	if !ok || sanitizedPath == "" {
 		return nil, errors.New("invalid path")
@@ -237,6 +250,12 @@ func (s *GeminiMessagesCompatService) forwardGeminiModelsGET(ctx context.Context
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if pageToken != "" {
+		query := req.URL.Query()
+		query.Set("pageToken", pageToken)
+		req.URL.RawQuery = query.Encode()
 	}
 
 	switch account.Type {

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -41,7 +40,11 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		googleError(c, http.StatusUnauthorized, "Invalid API key")
 		return
 	}
-	// 检查平台：优先使用强制平台（/antigravity 路由），否则要求 gemini 分组（composite 分组允许路由到 antigravity）
+	if groups, ok := middleware.GetAPIKeyModelDiscoveryGroups(c); ok {
+		h.multiGroupGeminiModels(c, groups, "")
+		return
+	}
+	// Keep the existing single-group platform check and upstream response contract.
 	forcePlatform, hasForcePlatform := middleware.GetForcePlatformFromContext(c)
 	effectivePlatform := effectiveAPIKeyPlatform(c, apiKey)
 	if !hasForcePlatform && effectivePlatform != service.PlatformGemini &&
@@ -49,95 +52,10 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		googleError(c, http.StatusBadRequest, "API key group platform is not gemini")
 		return
 	}
-
-	// 分组级模型白名单开启、或用户在分组内有禁用模型时过滤 models[].name（名字形如 models/xxx）。
-	filterGeminiModels := func(models []gemini.Model) []gemini.Model {
-		allowlistEnabled := apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled()
-		denied := apiKey.DeniedModelsInGroup()
-		if !allowlistEnabled && len(denied) == 0 {
-			return models
-		}
-		filtered := make([]gemini.Model, 0, len(models))
-		for _, model := range models {
-			if (!allowlistEnabled || apiKey.Group.ModelAllowlist.Allows(model.Name)) && !service.UserGroupDeniesModel(denied, model.Name) {
-				filtered = append(filtered, model)
-			}
-		}
-		return filtered
-	}
-
-	agModelIDs, err := h.geminiCompatService.AntigravityGeminiModelIDs(c.Request.Context(), apiKey.GroupID, forcePlatform != service.PlatformAntigravity)
-	if err != nil {
-		googleError(c, http.StatusServiceUnavailable, "Unable to list Antigravity models")
+	res, failure := h.loadGeminiModels(c.Request.Context(), apiKey, forcePlatform, false)
+	if failure != nil {
+		failure.write(c)
 		return
-	}
-	agModels := make([]gemini.Model, 0, len(agModelIDs))
-	for _, id := range agModelIDs {
-		agModels = append(agModels, gemini.FallbackModel(id))
-	}
-	if forcePlatform == service.PlatformAntigravity {
-		c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: filterGeminiModels(agModels)})
-		return
-	}
-
-	// 分组内 Gemini 账号都声明了 model_mapping 时，列表与 /v1/models 同源（含白名单口径），不透传单个账号的上游列表。
-	if declared, err := h.geminiCompatService.DeclaredModelIDs(c.Request.Context(), apiKey.GroupID); err == nil && len(declared) > 0 {
-		ids := append([]string{}, declared...)
-		for _, id := range agModelIDs {
-			if !slices.Contains(declared, id) {
-				ids = append(ids, id)
-			}
-		}
-		if apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
-			ids = apiKey.Group.ModelAllowlist.FilterForListing(ids)
-		}
-		declaredModels := make([]gemini.Model, 0, len(ids))
-		for _, id := range ids {
-			declaredModels = append(declaredModels, gemini.FallbackModel(id))
-		}
-		c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: declaredModels})
-		return
-	}
-
-	account, err := h.geminiCompatService.SelectAccountForModelsEndpoints(c.Request.Context(), apiKey.GroupID)
-	if err != nil {
-		if len(agModels) > 0 {
-			c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: filterGeminiModels(agModels)})
-			return
-		}
-		markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
-		googleError(c, http.StatusServiceUnavailable, "No available Gemini accounts: "+err.Error())
-		return
-	}
-
-	keyRelease, keyErr := h.concurrencyHelper.AcquireAPIKeySlot(c.Request.Context(), apiKey.ID, apiKey.ConcurrencyLimit)
-	if keyErr != nil {
-		status, _, _, message := concurrencyErrorResponse(keyErr, "API key")
-		googleError(c, status, message)
-		return
-	}
-	defer keyRelease()
-	res, err := h.geminiCompatService.ForwardListModels(c.Request.Context(), account)
-	if err != nil {
-		googleError(c, http.StatusBadGateway, err.Error())
-		return
-	}
-	if shouldFallbackGeminiModels(res) {
-		c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: filterGeminiModels(mergeGeminiModelLists(gemini.DefaultModels(), agModels))})
-		return
-	}
-	if res.StatusCode == http.StatusOK && len(agModels) > 0 {
-		if merged, ok := appendUpstreamGeminiModels(res.Body, agModels); ok {
-			res.Body = merged
-		}
-	}
-
-	if apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
-		if filtered, dropped, ok := filterUpstreamGeminiModelsBody(res.Body, apiKey.Group.ModelAllowlist); ok && dropped {
-			// 只在确有条目被过滤时替换响应体；全命中或解析失败时保持原始响应，
-			// 统一经 writeUpstreamResponse 写出（保留全部上游响应头）。
-			res.Body = filtered
-		}
 	}
 	writeUpstreamResponse(c, res)
 }
@@ -206,6 +124,10 @@ func appendUpstreamGeminiModels(body []byte, extra []gemini.Model) ([]byte, bool
 // 为 false，调用方应保持原始响应以完整透传上游头）；ok=false 表示解析失败，
 // 调用方同样应透传原始响应。
 func filterUpstreamGeminiModelsBody(body []byte, allowlist service.GroupModelAllowlist) (filtered []byte, dropped bool, ok bool) {
+	return filterGeminiModelsBody(body, allowlist, nil)
+}
+
+func filterGeminiModelsBody(body []byte, allowlist service.GroupModelAllowlist, denied []string) (filtered []byte, dropped bool, ok bool) {
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		return nil, false, false
@@ -227,7 +149,7 @@ func filterUpstreamGeminiModelsBody(body []byte, allowlist service.GroupModelAll
 		if err := json.Unmarshal(raw, &model); err != nil {
 			return nil, false, false
 		}
-		if allowlist.Allows(model.Name) {
+		if allowlist.Allows(model.Name) && !service.UserGroupDeniesModel(denied, model.Name) {
 			kept = append(kept, raw)
 		}
 	}
@@ -253,6 +175,19 @@ func (h *GatewayHandler) GeminiV1BetaGetModel(c *gin.Context) {
 	apiKey, ok := middleware.GetAPIKeyFromContext(c)
 	if !ok || apiKey == nil {
 		googleError(c, http.StatusUnauthorized, "Invalid API key")
+		return
+	}
+	if groups, ok := middleware.GetAPIKeyModelDiscoveryGroups(c); ok {
+		model := strings.TrimSpace(c.Param("model"))
+		if model == "" {
+			googleError(c, http.StatusBadRequest, "Missing model in URL")
+			return
+		}
+		if !service.IsSafeGeminiModelPathSegment(model) {
+			googleError(c, http.StatusBadRequest, "Invalid model in URL")
+			return
+		}
+		h.multiGroupGeminiModels(c, groups, model)
 		return
 	}
 	// 检查平台：优先使用强制平台（/antigravity 路由），否则要求 gemini 分组（composite 分组允许路由到 antigravity）

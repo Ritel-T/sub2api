@@ -705,9 +705,9 @@ const {
   toggleColumn,
   setColumnOrder,
   resetColumns,
-} = useTableColumns('table-columns:user-usage:v1', allColumns, {
+} = useTableColumns('table-columns:user-usage:v2', allColumns, {
   required: ALWAYS_VISIBLE,
-  primary: ['created_at', 'model', 'tokens', 'cost', 'latency']
+  primary: ['created_at', 'api_key', 'model', 'tokens', 'cost', 'latency']
 })
 
 const errAllColumns = computed(() => [

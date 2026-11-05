@@ -167,12 +167,12 @@ describe('GroupI18nField', () => {
   it('requires only the default content and keeps the form placeholder for it', async () => {
     const { wrapper } = mountField(
       { text: '', i18n: {} },
-      { required: true, placeholder: 'Enter name', 'data-tour': 'group-form-name' }
+      { required: true, placeholder: 'Enter name', 'data-testid': 'group-form-name' }
     )
     const input = wrapper.get('input')
     expect(input.attributes('required')).toBeDefined()
     expect(input.attributes('placeholder')).toBe('Enter name')
-    expect(input.attributes('data-tour')).toBe('group-form-name')
+    expect(input.attributes('data-testid')).toBe('group-form-name')
 
     await choose(wrapper, 'en')
 

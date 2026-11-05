@@ -44,6 +44,43 @@ describe('AutoConfigHistory', () => {
     expect(w.findAll('[data-testid=history-row]')[0].text()).toContain('模型映射：gpt-5.4 → gpt-5.5')
     expect(w.get('details').text()).toContain('模型映射')
     expect(w.get('details').text()).toContain('gpt-5.4 → gpt-5.5')
+    expect(w.findAll('[data-testid=history-row]')[1].text()).toContain('初始并发 3，优先级 50，负载因子 1')
+  })
+
+  it('shows saved native tier rules instead of ignored legacy defaults and retains actual applied-account values', async () => {
+    const saved = event(12, 'config_saved')
+    const templates = Object.fromEntries([
+      ['free', 2, null, 0], ['go', 2, null, 0], ['plus', 3, 3, 3],
+      ['prolite', 7, 7, 4], ['pro', 10, 10, 4], ['promax', 20, 20, 4], ['business', 20, 20, 2]
+    ].map(([plan, concurrency, load_factor, priority]) => [plan, {
+      concurrency, load_factor, priority,
+      model_mappings: [{ from: 'model-' + plan, to: 'target-' + plan }]
+    }]))
+    saved.details.model_mapping = { 'legacy-echo': 'legacy-target' }
+    saved.details.config = {
+      enabled: true, platform: 'openai', priority: 50, load_factor: 1, concurrency: 3,
+      group_ids: [3], upgrade_enabled: false, upgrade_group_ids: [], successes_per_step: 20,
+      upgrade_step: 1, max_concurrency: 100, cooldown_seconds: 60, revision: 'native',
+      model_mappings: [{ from: 'gpt-5.4', to: 'gpt-5.5' }],
+      openai_account_defaults: { enabled: true, templates, dedicated_proxy_country_codes: ['US', 'DE'] }
+    }
+    const applied = event(11, 'initial_applied')
+    applied.details = { ...applied.details, concurrency: 20, load_factor: 20, priority: 2, model_mapping: { 'gpt-6-sol': 'gpt-6.1-sol' } }
+    vi.mocked(getAutoConfigEvents).mockResolvedValue({ items: [saved, applied], has_more: false })
+    const w = render(); await flushPromises()
+    const rows = w.findAll('[data-testid=history-row]')
+    expect(rows[0].text()).toContain('首次配置：开启；自动升档：关闭。按套餐（7 档）应用。')
+    expect(rows[0].text()).not.toContain('优先级 50')
+    expect(rows[0].text()).not.toContain('gpt-5.4 → gpt-5.5')
+    expect(rows[0].text()).not.toContain('legacy-echo')
+    const snapshot = rows[0].get('details').text()
+    expect(snapshot).toContain('Free · 并发 2 · 负载 保留导入值 · 优先级 0')
+    expect(snapshot).toContain('Business / Team · 并发 20 · 负载 20 · 优先级 2')
+    expect(snapshot).toContain('model-business → target-business')
+    expect(snapshot).toContain('model-promax → target-promax')
+    expect(snapshot).toContain('独占代理的出口国家：US / DE')
+    expect(rows[1].text()).toContain('并发 20，优先级 2，负载因子 20；加入分组 #3')
+    expect(rows[1].text()).toContain('gpt-6-sol → gpt-6.1-sol')
   })
 
   it('shows an honest empty state without invented history', async () => {

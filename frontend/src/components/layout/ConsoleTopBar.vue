@@ -60,6 +60,9 @@
             :aria-label="shellCopy.unread(sectionBadge(section))"
           >{{ formatNavBadge(sectionBadge(section)) }}</span>
         </router-link>
+        <template v-if="workspace === 'personal'">
+          <a v-for="link in consoleProductLinks" :key="link.href" :href="link.href" target="_blank" rel="noopener noreferrer" class="console-section-link">{{ link.label }}</a>
+        </template>
       </nav>
       <div ref="rightRef" class="console-top-bar-right">
         <FeatureSearch
@@ -82,15 +85,18 @@
         <ThemeSwitcher class="console-theme" />
         <LocaleSwitcher class="console-locale" />
         <SubscriptionProgressMini
-          v-if="user && !authStore.isObserver && !appStore.backendModeEnabled && subscriptionFeatureEnabled"
+          v-if="showBalance && workspace === 'personal' && subscriptionFeatureEnabled"
         />
-        <div
+        <router-link
           v-if="showBalance && workspace === 'personal'"
+          to="/purchase"
           class="console-balance"
+          :title="t('nav.recharge')"
+          @click="handleNavigate('/purchase')"
         >
           <span class="console-balance-amount" :aria-label="`${shellCopy.available}: ${formatMoney(availableBalance)}`">{{ formatMoney(availableBalance) }}</span>
           <span v-if="frozenBalance > 0" class="console-balance-frozen">{{ shellCopy.frozen }} {{ formatMoney(frozenBalance) }}</span>
-        </div>
+        </router-link>
         <div v-if="user" class="relative" ref="dropdownRef">
           <button
             type="button"
@@ -112,50 +118,9 @@
                 <div class="text-xs text-gray-500 dark:text-dark-400">{{ user.email }}</div>
                 <VersionBadge v-if="isAdmin" :version="siteVersion" class="mt-2" />
               </div>
-              <dl v-if="showBalance" class="console-menu-balances border-b border-gray-100 px-4 py-3 dark:border-dark-700">
-                <div><dt>{{ shellCopy.available }}</dt><dd>{{ formatMoney(availableBalance) }}</dd></div>
-                <div v-if="frozenBalance > 0"><dt>{{ shellCopy.frozen }}</dt><dd>{{ formatMoney(frozenBalance) }}</dd></div>
-                <div v-if="frozenBalance > 0"><dt>{{ shellCopy.total }}</dt><dd>{{ formatMoney(availableBalance + frozenBalance) }}</dd></div>
-              </dl>
 
               <div class="py-1">
-                <template v-if="centralAccountEnabled">
-                  <a :href="accountPageURL('profile')" class="dropdown-item" @click="closeDropdown">{{ t('nav.profile') }}</a>
-                  <a :href="accountPageURL('security')" class="dropdown-item" @click="closeDropdown">{{ t('consoleExperience.accountLink') }}</a>
-                  <a :href="accountPageURL('sessions')" class="dropdown-item" @click="closeDropdown">{{ t('consoleFields.sessions') }}</a>
-                  <router-link to="/profile" class="dropdown-item" @click="closeDropdown">{{ t('consoleFields.businessNotifications') }}</router-link>
-                </template>
-                <router-link
-                  v-if="!centralAccountEnabled && (!appStore.backendModeEnabled || authStore.isAdmin)"
-                  to="/profile"
-                  class="dropdown-item"
-                  @click="closeDropdown"
-                >
-                  <Icon name="user" size="sm" />
-                  {{ t('nav.profile') }}
-                </router-link>
-                <router-link
-                  v-if="!authStore.isObserver && (!appStore.backendModeEnabled || authStore.isAdmin)"
-                  to="/keys"
-                  class="dropdown-item"
-                  @click="closeDropdown"
-                >
-                  <Icon name="key" size="sm" />
-                  {{ t('nav.apiKeys') }}
-                </router-link>
-                <a
-                  v-if="authStore.isAdmin"
-                  href="https://github.com/Wei-Shaw/sub2api"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="dropdown-item"
-                  @click="closeDropdown"
-                >
-                  <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
-                  </svg>
-                  {{ t('nav.github') }}
-                </a>
+                <a :href="accountPageURL()" class="dropdown-item" @click="closeDropdown">{{ t('consoleExperience.accountLink') }}</a>
               </div>
 
               <div v-if="contactInfo" class="border-t border-gray-100 px-4 py-2.5 dark:border-dark-700">
@@ -163,13 +128,6 @@
                   <span>{{ t('common.contactSupport') }}:</span>
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{ contactInfo }}</span>
                 </div>
-              </div>
-
-              <div v-if="showOnboardingButton" class="border-t border-gray-100 py-1 dark:border-dark-700">
-                <button type="button" class="dropdown-item w-full" @click="handleReplayGuide">
-                  <Icon name="infoCircle" size="sm" />
-                  {{ t('onboarding.restartTour') }}
-                </button>
               </div>
 
               <div class="border-t border-gray-100 py-1 dark:border-dark-700">
@@ -198,7 +156,7 @@ import { accountPageURL, centralAccountEnabled } from '@/utils/accountConfig'
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import { useAppStore, useAuthStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
@@ -211,14 +169,13 @@ import { BRAND_LOGO, BRAND_NAME } from '@/utils/branding'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { useConsoleNav } from '@/navigation/useConsoleNavSource'
 import { consoleShellCopy, formatNavBadge } from '@/utils/consoleShellUi'
-import { sectionBadge } from '@/navigation/consoleNavigation'
+import { consoleProductLinks, sectionBadge } from '@/navigation/consoleNavigation'
 
 const { t, locale } = useI18n()
 const shellCopy = computed(() => consoleShellCopy(locale.value))
 const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
-const onboardingStore = useOnboardingStore()
 
 const {
   navText, sections, activeLocation, workspaceOptions, workspace,
@@ -238,7 +195,6 @@ const availableBalance = computed(() => Number(user.value?.balance || 0))
 const frozenBalance = computed(() => Number(user.value?.frozen_balance || 0))
 const showBalance = computed(() => !!user.value && !authStore.isObserver && !appStore.backendModeEnabled)
 const subscriptionFeatureEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.subscription))
-const showOnboardingButton = computed(() => !authStore.isSimpleMode && user.value?.role === 'admin')
 
 const visibleSections = computed(() => sections.value.filter(s => !s.hidden))
 
@@ -307,11 +263,6 @@ async function handleLogout() {
   } catch (error) {
     appStore.showError(error instanceof Error ? error.message : '退出结果未确认，请重新检查会话。')
   } finally { logoutPending.value = false }
-}
-
-function handleReplayGuide() {
-  closeDropdown()
-  onboardingStore.replay()
 }
 
 function handleClickOutside(event: MouseEvent) {
@@ -488,6 +439,7 @@ onBeforeUnmount(() => {
   background: var(--theme-surface);
   border: 1px solid var(--ritel-border);
 }
+.console-balance:hover { background: var(--theme-hover); }
 .console-balance-amount {
   font-size: 13px;
   font-weight: 600;
@@ -531,10 +483,6 @@ onBeforeUnmount(() => {
   overflow-y: auto;
 }
 
-.console-menu-balances { font-size: 12px; }
-.console-menu-balances > div { display: flex; justify-content: space-between; gap: 16px; margin: 4px 0; }
-.console-menu-balances dt { color: var(--ritel-muted); }
-.console-menu-balances dd { font-variant-numeric: lining-nums tabular-nums; color: var(--ritel-focus); }
 .console-docs-link { display: none; }
 @media (min-width: 1280px) { .console-docs-link { display: inline-flex; } }
 @media (max-width: 1279px) { .console-balance { display: none; } }

@@ -18,10 +18,9 @@ interface AuthState {
 }
 
 let authState: AuthState
-let tourActive = false
 let navigation: ConsoleNavSource | undefined
 let appState: {
-  cachedPublicSettings: { payment_enabled?: boolean; subscription_enabled?: boolean; payment_balance_disabled?: boolean; custom_menu_items?: CustomMenuItem[] }
+  cachedPublicSettings: { lottery_enabled?: boolean; payment_enabled?: boolean; subscription_enabled?: boolean; payment_balance_disabled?: boolean; custom_menu_items?: CustomMenuItem[] }
   siteName: string
   mobileOpen: boolean
   backendModeEnabled: boolean
@@ -43,7 +42,6 @@ vi.mock('@/stores', () => ({
   useAuthStore: () => authState,
   useAppStore: () => appState,
   useAdminSettingsStore: () => adminState,
-  useOnboardingStore: () => ({ isCurrentStep: () => false, isDriverActive: () => tourActive }),
   useSupportTicketStore: () => ({ userUnread: 0, adminPending: 0 }),
 }))
 vi.mock('@/composables/useBatchImageAccess', () => ({
@@ -83,7 +81,6 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
-  tourActive = false
   navigation = undefined
   vi.clearAllMocks()
   Object.defineProperty(window, 'innerWidth', { value: 390, writable: true, configurable: true })
@@ -413,25 +410,6 @@ describe('workspace session restoration', () => {
 })
 
 describe('mobile drawer keyboard behavior', () => {
-  it('owns the active tour popover and includes its controls in the keyboard cycle', async () => {
-    tourActive = true
-    const popover = document.createElement('div')
-    popover.id = 'driver-popover-content'
-    popover.innerHTML = '<button>Close tour</button><button>Next step</button>'
-    document.body.append(popover)
-    try {
-      mountSidebar()
-      appState.mobileOpen = true
-      await nextTick(); await nextTick()
-      expect(wrapper!.get('aside').attributes('aria-owns')).toBe('driver-popover-content')
-      const close = wrapper!.get('.sidebar-mobile-close').element as HTMLButtonElement
-      close.focus()
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }))
-      expect(document.activeElement).toBe(popover.lastElementChild)
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
-      expect(document.activeElement).toBe(close)
-    } finally { popover.remove() }
-  })
   it('focuses its close control, traps Tab, closes with Escape and returns focus to its opener', async () => {
     const opener = document.createElement('button')
     opener.textContent = 'Toggle menu'
@@ -474,5 +452,19 @@ describe('closed mobile navigation accessibility', () => {
     await nextTick()
     expect(aside.attributes('inert')).toBeDefined()
     expect(aside.attributes('aria-hidden')).toBe('true')
+  })
+})
+
+describe('merged lottery navigation', () => {
+  it('keeps enabled lottery reachable after personal extensions are hidden', async () => {
+    authState.user = { id: 52, role: 'user' }
+    route.path = '/lottery'
+    appState.cachedPublicSettings.lottery_enabled = true
+    mountSidebar()
+    expect(wrapper!.get('a[href="/lottery"]').attributes('aria-current')).toBe('page')
+    expect(navigation!.searchItems.value.some(item => item.children?.some(child => child.path === '/lottery'))).toBe(true)
+    appState.cachedPublicSettings.lottery_enabled = false
+    await nextTick()
+    expect(wrapper!.find('a[href="/lottery"]').exists()).toBe(false)
   })
 })

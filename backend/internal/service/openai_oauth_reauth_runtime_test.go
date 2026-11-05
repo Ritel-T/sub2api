@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -76,29 +77,36 @@ func (f offlineReauthRuntimeTransport) RoundTrip(r *http.Request) (*http.Respons
 }
 
 func TestOpenAIOAuthReauthForkVersionUsesPinnedRuntimeRelease(t *testing.T) {
-	t.Setenv("OPENAI_REAUTH_WORKER_TOKEN", "")
-	t.Setenv("DATA_DIR", t.TempDir())
-	originalTransport := http.DefaultTransport
-	requests := make(chan string, 1)
-	http.DefaultTransport = offlineReauthRuntimeTransport(func(r *http.Request) (*http.Response, error) {
-		requests <- r.URL.String()
-		return nil, errors.New("offline runtime test")
-	})
-	s := &OpenAIOAuthReauthService{}
-	defer func() {
-		s.stopWorker()
-		http.DefaultTransport = originalTransport
-	}()
-	s.configureWorker(&config.Config{}, BuildInfo{Version: "2.9.8.1-ritel"})
-	s.EnsureWorker()
-	select {
-	case got := <-requests:
-		require.Equal(t, "https://api.github.com/repos/ranxi2001/sub2api/releases/tags/v2.9.8", got)
-	case <-time.After(3 * time.Second):
-		t.Fatal("managed worker did not request the pinned upstream release")
+	version, err := os.ReadFile("../../cmd/server/VERSION")
+	require.NoError(t, err)
+	// Use the actual release version: a version bump must keep its reviewed runtime mapping.
+	for _, tt := range []struct{ version, runtime string }{
+		{strings.TrimSpace(string(version)), "2.18.0"},
+		{"2.9.8.1-ritel", "2.9.8"},
+	} {
+		t.Run(tt.version, func(t *testing.T) {
+			t.Setenv("OPENAI_REAUTH_WORKER_TOKEN", "")
+			t.Setenv("DATA_DIR", t.TempDir())
+			originalTransport := http.DefaultTransport
+			requests := make(chan string, 1)
+			http.DefaultTransport = offlineReauthRuntimeTransport(func(r *http.Request) (*http.Response, error) {
+				requests <- r.URL.String()
+				return nil, errors.New("offline runtime test")
+			})
+			s := &OpenAIOAuthReauthService{}
+			defer func() { s.stopWorker(); http.DefaultTransport = originalTransport }()
+			s.configureWorker(&config.Config{}, BuildInfo{Version: tt.version})
+			s.EnsureWorker()
+			select {
+			case got := <-requests:
+				require.Equal(t, "https://api.github.com/repos/ranxi2001/sub2api/releases/tags/v"+tt.runtime, got)
+			case <-time.After(3 * time.Second):
+				t.Fatal("managed worker did not request the pinned upstream release")
+			}
+			s.stopWorker()
+			require.NotEqual(t, "release_required", s.WorkerStatus().Reason)
+		})
 	}
-	s.stopWorker()
-	require.NotEqual(t, "release_required", s.WorkerStatus().Reason)
 }
 
 func TestOpenAIOAuthReauthOtherBuildsKeepReleaseGate(t *testing.T) {

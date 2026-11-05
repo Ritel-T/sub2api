@@ -521,7 +521,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'OpenAI')
     await wrapper.get('[data-testid="openai-two-fa"]').trigger('click')
-    expect(wrapper.get('[data-tour="account-form-name"]').attributes('required')).toBeUndefined()
+    expect(wrapper.get('[data-testid="account-form-name"]').attributes('required')).toBeUndefined()
     await wrapper.get('form#create-account-form').trigger('submit.prevent')
     const importer = wrapper.getComponent(OpenAITwoFAImport)
     expect(wrapper.findComponent(OAuthAuthorizationFlowStub).exists()).toBe(false)
@@ -609,7 +609,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     ])
 
     await selectButtonByText(wrapper, 'OpenAI')
-    await wrapper.get('[data-testid="select-pricing-groups"]').trigger('click')
+    await wrapper.get('[data-testid="account-form-groups"]').trigger('click')
 
     expect(wrapper.find('[data-testid="openai-long-context-billing-toggle"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="create-openai-ws-mode"]').exists()).toBe(true)
@@ -623,7 +623,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     ])
 
     await selectButtonByText(wrapper, 'OpenAI')
-    await wrapper.get('[data-testid="select-pricing-groups"]').trigger('click')
+    await wrapper.get('[data-testid="account-form-groups"]').trigger('click')
 
     expect(wrapper.find('[data-testid="openai-long-context-billing-toggle"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="create-openai-ws-mode"]').exists()).toBe(true)

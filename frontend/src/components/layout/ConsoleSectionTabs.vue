@@ -8,8 +8,6 @@
       <div v-for="tab in activeTabs" :key="tab.path" class="flex shrink-0 items-center">
       <router-link
         :to="tab.path"
-        :id="tourId(tab.path, 'tabs')"
-        :data-tour="tourAttr(tab.path, 'tabs')"
         class="console-tab-link"
         :class="{ 'console-tab-link-active': activeLocation?.tab === tab }"
         :aria-current="activeLocation?.tab === tab ? 'page' : undefined"
@@ -38,7 +36,7 @@ import { consoleShellCopy, formatNavBadge } from '@/utils/consoleShellUi'
 import { tabBadge } from '@/navigation/consoleNavigation'
 import { useConsoleNav } from '@/navigation/useConsoleNavSource'
 
-const { activeLocation, handleNavigate, tourId, tourAttr } = useConsoleNav()
+const { activeLocation, handleNavigate } = useConsoleNav()
 const { locale } = useI18n()
 const authStore = useAuthStore()
 const shellCopy = computed(() => consoleShellCopy(locale.value))

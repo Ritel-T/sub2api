@@ -59,20 +59,21 @@ func (c *CCSImportConfig) UnmarshalJSON(data []byte) error {
 
 func DefaultCCSImportConfig() CCSImportConfig {
 	return CCSImportConfig{Profiles: []CCSImportProfile{
-		{ID: "anthropic-claude", Label: "Claude Code", Platform: "anthropic", App: "claude", Parameters: map[string]any{}},
+		{ID: "anthropic-claude", Label: "Claude Code", Platform: "anthropic", App: "claude", Parameters: map[string]any{"model": "claude-fable-5-1"}},
 		{ID: "openai-codex", Label: "Codex", Platform: "openai", App: "codex", Parameters: map[string]any{"model": "gpt-6-astra"}},
-		{ID: "gemini-cli", Label: "Gemini CLI", Platform: "gemini", App: "gemini", Parameters: map[string]any{}},
-		{ID: "antigravity-claude", Label: "Claude Code", Platform: "antigravity", App: "claude", Parameters: map[string]any{}},
-		{ID: "antigravity-gemini", Label: "Gemini CLI", Platform: "antigravity", App: "gemini", Parameters: map[string]any{}},
-		{ID: "grok-build", Label: "Grok Build", Platform: "grok", App: "grokbuild", Parameters: map[string]any{"model": "grok-4.5"}},
+		{ID: "gemini-cli", Label: "Gemini CLI", Platform: "gemini", App: "gemini", Parameters: map[string]any{"model": "gemini-4-argon"}},
+		{ID: "antigravity-claude", Label: "Claude Code", Platform: "antigravity", App: "claude", Parameters: map[string]any{"model": "claude-fable-5-1"}},
+		{ID: "antigravity-gemini", Label: "Gemini CLI", Platform: "antigravity", App: "gemini", Parameters: map[string]any{"model": "gemini-4-argon"}},
+		{ID: "grok-build", Label: "Grok Build", Platform: "grok", App: "grokbuild", Parameters: map[string]any{"model": "grok-4.7"}},
 	}}
 }
 
 var ccsImportPlatforms = map[string]bool{
 	"anthropic": true, "openai": true, "gemini": true, "antigravity": true, "grok": true,
+	"deepseek": true, "minimax": true, "kimi": true, "zhipu": true, "opencode_go": true, "composite": true,
 }
 var ccsImportApps = map[string]bool{
-	"claude": true, "codex": true, "gemini": true, "grokbuild": true,
+	"claude": true, "codex": true, "gemini": true, "agy": true, "grokbuild": true,
 	"opencode": true, "openclaw": true, "hermes": true, "pi": true,
 }
 var ccsImportStringParameters = map[string]bool{
@@ -248,8 +249,8 @@ func validateCCSImportAPIFormat(profile CCSImportProfile) error {
 	if !ccsImportAPIFormats[format] {
 		return fmt.Errorf("unsupported apiFormat")
 	}
-	if profile.App == "gemini" && format != "gemini_native" {
-		return fmt.Errorf("gemini CLI only supports gemini_native apiFormat")
+	if (profile.App == "gemini" || profile.App == "agy") && format != "gemini_native" {
+		return fmt.Errorf("%s only supports gemini_native apiFormat", profile.App)
 	}
 	if format == "gemini_native" && (profile.App == "codex" || profile.App == "grokbuild" || profile.App == "hermes") {
 		return fmt.Errorf("%s does not support gemini_native apiFormat", profile.App)

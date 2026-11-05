@@ -1343,10 +1343,15 @@ func ProvideAccountTokenGuardV2Service(repo AccountTokenGuardV2Repository, setti
 	return svc
 }
 
-func ProvideCRSSyncService(accounts AccountRepository, proxies ProxyRepository, oauth *OAuthService, openai *OpenAIOAuthService, gemini *GeminiOAuthService, cfg *config.Config, settings *SettingService, groups GroupRepository) *CRSSyncService {
+func ProvideCRSSyncService(accounts AccountRepository, proxies ProxyRepository, oauth *OAuthService, openai *OpenAIOAuthService, gemini *GeminiOAuthService, cfg *config.Config, settings *SettingService, groups GroupRepository, admin AdminService) *CRSSyncService {
 	svc := NewCRSSyncService(accounts, proxies, oauth, openai, gemini, cfg)
 	defaults := &adminServiceImpl{settingService: settings, groupRepo: groups}
 	svc.autoConfigure = defaults.ApplyOAuthAutoConfig
+	if native, ok := admin.(interface {
+		createNativeSyncedAccount(context.Context, *Account) (bool, error)
+	}); ok {
+		svc.nativeCreate = native.createNativeSyncedAccount
+	}
 	return svc
 }
 

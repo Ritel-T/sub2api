@@ -7,6 +7,11 @@ export function consoleNavigationText(locale: string) {
 export type ConsoleNavigationText = ReturnType<typeof consoleNavigationText>
 export type ConsoleWorkspace = 'personal' | 'management'
 
+export const consoleProductLinks = [
+  { href: 'https://images.ritel.si', label: 'Visora 生图' },
+  { href: 'https://store.ritel.si', label: '代充小铺' },
+] as const
+
 const aliases: Record<string, string> = {
   '/admin/dashboard': 'Overview 总览 總覽 仪表盘 儀表板',
   '/admin/users': 'Users 用户 用戶',
@@ -101,6 +106,7 @@ const personalTable: Record<string, SectionKey> = {
   '/orders': 'billing',
   '/redeem': 'billing',
   '/affiliate': 'billing',
+  '/lottery': 'billing',
   '/support-tickets': 'support',
   '/monitor': 'support',
   '/profile': 'account',

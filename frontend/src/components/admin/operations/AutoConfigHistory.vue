@@ -30,7 +30,7 @@
       <template #cell-kind="{ row }"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium" :class="badgeClass(row.kind)">{{ t('autoConfig.logs.kinds.' + row.kind) }}</span></template>
       <template #cell-detail="{ row }">
         {{ details(row) }}
-        <p v-if="row.details.model_mapping && Object.keys(row.details.model_mapping).length" class="mt-1 break-words text-xs">{{ t('autoConfig.mapping.applied') }}：{{ Object.entries(row.details.model_mapping).map(([from, to]) => from + ' → ' + to).join(' / ') }}</p>
+        <p v-if="!(row.kind === 'config_saved' && nativeDefaultsFor(row.details.config)) && row.details.model_mapping && Object.keys(row.details.model_mapping).length" class="mt-1 break-words text-xs">{{ t('autoConfig.mapping.applied') }}：{{ Object.entries(row.details.model_mapping).map(([from, to]) => from + ' → ' + to).join(' / ') }}</p>
                 <details v-if="row.kind === 'config_saved' && row.details.config" class="mt-1 text-xs" @click.stop>
                   <summary class="w-fit cursor-pointer text-primary-600 dark:text-primary-400">{{ t('autoConfig.logs.snapshot') }}</summary>
                   <div class="mt-2 space-y-1 rounded-lg bg-gray-50 p-3 dark:bg-dark-800">
@@ -38,8 +38,18 @@
                       <p>{{ t('autoConfig.modelBilling.title') }}：{{ t(row.details.config.model_billing.enabled ? 'autoConfig.logs.on' : 'autoConfig.logs.off') }}</p>
                       <p v-for="rule in row.details.config.model_billing.rules" :key="rule.model" class="break-all">{{ rule.model }} · {{ rule.multiplier }}× · {{ rule.group_ids?.length ? t('autoConfig.modelBilling.groups') + '：' + groupIDs(rule.group_ids) : t('autoConfig.modelBilling.allGroups') }}</p>
                     </template>
-                    <p v-if="row.details.config.model_mappings?.length">{{ t('autoConfig.mapping.title') }}：</p>
-                    <p v-for="rule in row.details.config.model_mappings ?? []" :key="rule.from" class="break-words">{{ rule.from }} → {{ rule.to }}</p>
+                    <template v-if="nativeDefaultsFor(row.details.config)">
+                      <p>{{ t('autoConfig.accountDefaults.title') }}：</p>
+                      <template v-for="(template, plan) in nativeDefaultsFor(row.details.config)?.templates ?? {}" :key="plan">
+                        <p class="break-words">{{ planLabel(String(plan)) }} · {{ t('autoConfig.accountDefaults.summary', { concurrency: template.concurrency, load: template.load_factor ?? t('autoConfig.accountDefaults.preserve'), priority: template.priority }) }}</p>
+                        <p v-for="rule in template.model_mappings" :key="rule.from" class="break-words">{{ rule.from }} → {{ rule.to }}</p>
+                      </template>
+                      <p class="break-words">{{ t('autoConfig.accountDefaults.countries') }}：{{ nativeDefaultsFor(row.details.config)?.dedicated_proxy_country_codes?.join(' / ') || t('autoConfig.logs.importedProxy') }}</p>
+                    </template>
+                    <template v-else>
+                      <p v-if="row.details.config.model_mappings?.length">{{ t('autoConfig.mapping.title') }}：</p>
+                      <p v-for="rule in row.details.config.model_mappings ?? []" :key="rule.from" class="break-words">{{ rule.from }} → {{ rule.to }}</p>
+                    </template>
                     <p>{{ t('autoConfig.groups') }}：{{ groupIDs(row.details.config.group_ids) }}</p>
                     <p>{{ t('autoConfig.upgradeGroups') }}：{{ groupIDs(row.details.config.upgrade_group_ids) }}</p>
                     <p>{{ t('autoConfig.logs.savedRule', { count: row.details.config.successes_per_step, step: row.details.config.upgrade_step, max: row.details.config.max_concurrency, seconds: row.details.config.cooldown_seconds }) }}</p>
@@ -69,7 +79,8 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
-import { getAutoConfigEvents, type AutoConfigEvent, type AutoConfigEventKind } from '@/api/admin/autoConfig'
+import { OPENAI_TEMPLATE_PLANS } from '@/utils/openaiAccountDefaults'
+import { getAutoConfigEvents, type AutoConfig, type AutoConfigEvent, type AutoConfigEventKind } from '@/api/admin/autoConfig'
 
 const props = defineProps<{ refreshKey: number }>()
 const { t } = useI18n()
@@ -118,11 +129,22 @@ function badgeClass(value: AutoConfigEventKind) {
 }
 function details(event: AutoConfigEvent) {
   const d = event.details
-  if (event.kind === 'config_saved' && d.config) return t('autoConfig.logs.savedDetail', { initial: t(d.config.enabled ? 'autoConfig.logs.on' : 'autoConfig.logs.off'), upgrade: t(d.config.upgrade_enabled ? 'autoConfig.logs.on' : 'autoConfig.logs.off'), priority: d.config.priority, load: d.config.load_factor, concurrency: d.config.concurrency })
+  if (event.kind === 'config_saved' && d.config) {
+    const native = nativeDefaultsFor(d.config)
+    const switches = { initial: t(d.config.enabled ? 'autoConfig.logs.on' : 'autoConfig.logs.off'), upgrade: t(d.config.upgrade_enabled ? 'autoConfig.logs.on' : 'autoConfig.logs.off') }
+    if (native) return t('autoConfig.logs.savedPlanDetail', { ...switches, count: Object.keys(native.templates ?? {}).length })
+    return t('autoConfig.logs.savedDetail', { ...switches, priority: d.config.priority, load: d.config.load_factor, concurrency: d.config.concurrency })
+  }
   if (event.kind === 'initial_applied') return t('autoConfig.logs.initialDetail', { priority: d.priority, load: d.load_factor, concurrency: d.concurrency, groups: groupIDs(d.group_ids) })
   if (event.kind === 'concurrency_upgraded') return t('autoConfig.logs.upgradeDetail', { before: d.previous_concurrency, after: d.concurrency, seconds: d.cooldown_seconds })
   if (event.kind === 'failure_cooldown') return t('autoConfig.logs.cooldownDetail', { concurrency: d.concurrency, seconds: d.cooldown_seconds })
   return '—'
+}
+function nativeDefaultsFor(config?: AutoConfig) {
+  return config?.platform === 'openai' && config.openai_account_defaults?.enabled ? config.openai_account_defaults : null
+}
+function planLabel(plan: string) {
+  return OPENAI_TEMPLATE_PLANS.includes(plan as typeof OPENAI_TEMPLATE_PLANS[number]) ? t('autoConfig.accountDefaults.plans.' + plan) : plan
 }
 function groupIDs(ids?: number[]) {
   return (ids ?? []).map(id => '#' + id).join(' / ') || '—'

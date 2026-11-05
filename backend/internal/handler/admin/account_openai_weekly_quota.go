@@ -23,7 +23,7 @@ func (h *AccountHandler) GetOpenAIWeeklyQuota(c *gin.Context) {
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
-	summary, err := service.CollectOpenAIWeeklyQuota(ctx, h.adminService, time.Now().UTC())
+	summary, err := service.CollectOpenAIWeeklyQuota(ctx, h.adminService, h.concurrencyService, time.Now().UTC())
 	if err != nil {
 		// List errors may contain account metadata; keep the public error generic.
 		response.Error(c, http.StatusServiceUnavailable, "weekly quota unavailable; account list failed or changed, retry later")

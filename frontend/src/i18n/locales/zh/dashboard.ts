@@ -101,7 +101,7 @@ export default {
     deleteKey: '删除密钥',
     deleteConfirmMessage: "确定要删除 '{name}' 吗？此操作无法撤销。",
     id: 'ID',
-    apiKey: 'API 密钥',
+    apiKey: '密钥',
     group: '分组',
     currentConcurrency: '当前并发',
     concurrencyAndWaiting: '并发 / 等待',

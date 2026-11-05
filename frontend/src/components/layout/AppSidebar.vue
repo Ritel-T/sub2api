@@ -7,7 +7,6 @@
     :aria-hidden="!mobileOpen ? 'true' : undefined"
     :role="mobileOpen ? 'dialog' : undefined"
     :aria-modal="mobileOpen ? 'true' : undefined"
-    :aria-owns="mobileOpen && onboardingStore.isDriverActive() ? 'driver-popover-content' : undefined"
     :aria-label="navText.navigation"
     :class="{ 'console-drawer-open': mobileOpen }"
   >
@@ -47,8 +46,6 @@
         <div v-for="tab in section.tabs" :key="tab.path" class="flex items-center">
         <router-link
           :to="tab.path"
-          :id="tourId(tab.path, 'drawer')"
-          :data-tour="tourAttr(tab.path, 'drawer')"
           class="sidebar-link flex-1"
           :class="{ 'sidebar-link-active': activeLocation?.tab === tab }"
           :aria-current="activeLocation?.tab === tab ? 'page' : undefined"
@@ -62,6 +59,9 @@
         <NewFeatureBadge v-if="tab.path === '/admin/settings'" :notice-id="NEW_FEATURE_NOTICES.protocolFeatureSwitches" :user-id="authStore.user?.id" />
         </div>
       </section>
+      <div v-if="workspace === 'personal'" class="console-drawer-section">
+        <a v-for="link in consoleProductLinks" :key="link.href" :href="link.href" target="_blank" rel="noopener noreferrer" class="sidebar-link" @click="closeMobile">{{ link.label }}</a>
+      </div>
     </nav>
   </aside>
 
@@ -76,7 +76,7 @@ import { NEW_FEATURE_NOTICES } from '@/constants/newFeatureNotices'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import { useAppStore, useAuthStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
@@ -84,17 +84,16 @@ import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { BRAND_LOGO, BRAND_NAME } from '@/utils/branding'
-import { tabBadge } from '@/navigation/consoleNavigation'
+import { consoleProductLinks, tabBadge } from '@/navigation/consoleNavigation'
 import { formatNavBadge } from '@/utils/consoleShellUi'
 import { useConsoleNav } from '@/navigation/useConsoleNavSource'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
-const onboardingStore = useOnboardingStore()
 const {
   navText, workspace, workspaceOptions, sections, activeLocation,
-  switchWorkspace, handleNavigate, tourId, tourAttr,
+  switchWorkspace, handleNavigate,
 } = useConsoleNav()
 
 const sidebarRef = ref<HTMLElement | null>(null)
@@ -114,8 +113,7 @@ function releaseScroll() {
 function closeMobile() { appStore.setMobileOpen(false) }
 function mobileFocusTargets(): HTMLElement[] {
   const selector = 'a[href], button:not([disabled]), select:not([disabled]), [tabindex="0"]'
-  const popover = onboardingStore.isDriverActive() ? document.getElementById('driver-popover-content') : null
-  return [...(sidebarRef.value?.querySelectorAll<HTMLElement>(selector) ?? []), ...(popover?.querySelectorAll<HTMLElement>(selector) ?? [])]
+  return [...(sidebarRef.value?.querySelectorAll<HTMLElement>(selector) ?? [])]
     .filter(element => !element.closest('[aria-hidden="true"]'))
 }
 function handleViewportResize() {
@@ -124,7 +122,6 @@ function handleViewportResize() {
 function handleMobileKeydown(event: KeyboardEvent) {
   if (!mobileOpen.value || document.querySelector('[role="dialog"][aria-modal="true"]:not(.sidebar)')) return
   if (event.key === 'Escape') {
-    if (onboardingStore.isDriverActive()) return
     event.preventDefault(); closeMobile(); return
   }
   if (event.key !== 'Tab') return

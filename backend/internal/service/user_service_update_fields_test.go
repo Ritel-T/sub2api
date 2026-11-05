@@ -4,10 +4,75 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+// Reminder preferences are part of the cached authentication user snapshot.
+// Updating them must evict that snapshot after the owning write succeeds.
+type profileRepoWithoutIdentityTx struct {
+	UserRepository
+}
+
+func TestUpdateProfile_ReminderPreferencesInvalidateAuthCache(t *testing.T) {
+	username, concurrency := "renamed", 3
+	tests := []struct {
+		name        string
+		req         UpdateProfileRequest
+		enabled     bool
+		wantEvicted bool
+		updateErr   error
+	}{
+		{name: "enable reminders", req: UpdateProfileRequest{BalanceNotifyEnabled: boolPtr(true)}, wantEvicted: true},
+		{name: "disable reminders", req: UpdateProfileRequest{BalanceNotifyEnabled: boolPtr(false)}, enabled: true, wantEvicted: true},
+		{name: "change threshold", req: UpdateProfileRequest{BalanceNotifyThreshold: float64Ptr(2.5)}, enabled: true, wantEvicted: true},
+		{name: "clear threshold", req: UpdateProfileRequest{BalanceNotifyThreshold: float64Ptr(0)}, enabled: true, wantEvicted: true},
+		{name: "unrelated username", req: UpdateProfileRequest{Username: &username}, enabled: true},
+		{name: "existing concurrency change", req: UpdateProfileRequest{Concurrency: &concurrency}, wantEvicted: true},
+		{name: "failed preference write", req: UpdateProfileRequest{BalanceNotifyEnabled: boolPtr(true)}, updateErr: errors.New("profile write failed")},
+	}
+	for _, transactional := range []bool{true, false} {
+		path := "without transaction"
+		if transactional {
+			path = "transaction"
+		}
+		t.Run(path, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					repo := &mockUserRepo{getByIDUser: &User{ID: 7, Concurrency: 2, BalanceNotifyEnabled: tt.enabled, BalanceNotifyThreshold: float64Ptr(1)}}
+					if tt.updateErr != nil {
+						repo.updateFn = func(context.Context, *User) error { return tt.updateErr }
+					}
+					var serviceRepo UserRepository = repo
+					if !transactional {
+						serviceRepo = profileRepoWithoutIdentityTx{UserRepository: repo}
+					}
+					invalidator := &mockAuthCacheInvalidator{}
+					svc := NewUserService(serviceRepo, nil, invalidator, nil)
+					updated, err := svc.UpdateProfile(context.Background(), 7, tt.req)
+					if tt.updateErr != nil {
+						require.Error(t, err)
+					} else {
+						require.NoError(t, err)
+						require.Equal(t, int64(7), updated.ID)
+					}
+					if tt.wantEvicted {
+						require.Equal(t, []int64{7}, invalidator.invalidatedUserIDs)
+					} else {
+						require.Empty(t, invalidator.invalidatedUserIDs)
+					}
+					if transactional {
+						require.Equal(t, 1, repo.txCalls)
+					} else {
+						require.Zero(t, repo.txCalls)
+					}
+				})
+			}
+		})
+	}
+}
 
 // 这些用例锁死"每个入口只声明自己真正要改的列"：
 // 任何退回整行回写的改动都会让并发写入被陈旧快照覆盖，并在这里变红。

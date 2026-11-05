@@ -179,6 +179,9 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		if err != nil || c.IsAborted() {
 			return
 		}
+		if finishAPIKeyModelDiscoveryAuth(c, apiKey, false) {
+			return
+		}
 		if !isMultiGroupBillingInfoRequest(c, apiKey) && abortIfAPIKeyGroupUnavailable(c, apiKey) {
 			return
 		}

@@ -40,6 +40,10 @@ type groupSubagentFrameCheck func([]byte) bool
 // this chain and do not require a caller-controlled bypass.
 func GroupBlockSubagents() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if _, ok := GetAPIKeyModelDiscoveryGroups(c); ok {
+			c.Next()
+			return
+		}
 		key, ok := GetAPIKeyFromContext(c)
 		if !ok || key == nil || key.Group == nil || c.Request == nil {
 			c.Next()

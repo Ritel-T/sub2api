@@ -15,8 +15,6 @@ const {
   listAccounts,
   showError,
   showSuccess,
-  isCurrentStep,
-  nextStep,
   authState,
 } = vi.hoisted(() => ({
   listGroups: vi.fn(),
@@ -28,8 +26,6 @@ const {
   listAccounts: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
-  isCurrentStep: vi.fn(),
-  nextStep: vi.fn(),
   authState: { isSimpleMode: false },
 }))
 
@@ -83,12 +79,6 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authState,
 }))
 
-vi.mock('@/stores/onboarding', () => ({
-  useOnboardingStore: () => ({
-    isCurrentStep,
-    nextStep,
-  }),
-}))
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -265,8 +255,6 @@ describe('admin GroupsView column settings', () => {
     listAccounts.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
-    isCurrentStep.mockReset()
-    nextStep.mockReset()
     authState.isSimpleMode = false
 
     listGroups.mockResolvedValue({
@@ -282,7 +270,6 @@ describe('admin GroupsView column settings', () => {
     getCapacitySummary.mockResolvedValue([])
     getLiveCapability.mockResolvedValue({ supported: false })
     listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
-    isCurrentStep.mockReturnValue(false)
   })
 
   afterEach(() => {

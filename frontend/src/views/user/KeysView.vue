@@ -80,7 +80,7 @@
         <div class="keys-page-heading">
           <AppHeading variant="page" as="h1">{{ t('keys.title') }}</AppHeading>
           <div class="keys-primary-actions">
-            <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
+            <button @click="showCreateModal = true" class="btn btn-primary" data-testid="keys-create-btn">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('keys.createKey') }}
             </button>
@@ -108,8 +108,8 @@
           </template>
 
           <template #cell-key="{ row }">
-            <button class="keys-key-copy" :disabled="busyKeyIds.has(row.id)" :aria-label="`${t('keys.copyToClipboard')}: ${row.name}`" @click.stop="copyToClipboard(row.key, row.id)">
-              <span>{{ maskApiKey(row.key) }}</span><Icon v-if="copiedKeyId === row.id" name="check" size="xs" />
+            <button class="keys-key-copy" :class="{ 'is-copied': copiedKeyId === row.id }" :title="copiedKeyId === row.id ? t('common.copied') : t('keys.copyToClipboard')" :disabled="busyKeyIds.has(row.id)" :aria-label="`${t('keys.copyToClipboard')}: ${row.name}`" @click.stop="copyToClipboard(row.key, row.id)">
+              <span aria-live="polite">{{ copiedKeyId === row.id ? t('common.copied') : maskApiKey(row.key) }}</span><Icon :name="copiedKeyId === row.id ? 'check' : 'copy'" size="xs" />
             </button>
           </template>
 
@@ -276,7 +276,7 @@
 
           <template #cell-actions="{ row }">
             <div class="keys-row-actions">
-              <button data-testid="connect-key-row" :disabled="row.status !== 'active' || busyKeyIds.has(row.id)" :title="kw.use" :aria-label="kw.use" @click.stop="openConnection(row)"><Icon name="link" size="sm" /><span class="sr-only">{{ kw.use }}</span></button>
+              <button class="keys-use-button" data-testid="connect-key-row" :disabled="row.status !== 'active' || busyKeyIds.has(row.id)" :title="kw.use" :aria-label="kw.use" @click.stop="openConnection(row)"><Icon name="link" size="sm" /><span>{{ kw.use }}</span></button>
               <button :disabled="busyKeyIds.has(row.id)" :title="t('common.edit')" :aria-label="t('common.edit')" @click.stop="editKey(row)"><Icon name="edit" size="sm" /><span class="sr-only">{{ t('common.edit') }}</span></button>
               <button :title="kc.requests" :aria-label="kc.requests" @click.stop="viewKeyRequests(row)"><Icon name="document" size="sm" /><span class="sr-only">{{ kc.requests }}</span></button>
               <button v-if="(row.rate_limit_5h > 0 || row.rate_limit_1d > 0 || row.rate_limit_7d > 0) && (row.usage_5h > 0 || row.usage_1d > 0 || row.usage_7d > 0)" data-testid="reset-key-rate-limit" :data-key-id="row.id" :disabled="busyKeyIds.has(row.id) || resetRateLimitUsageAction.busy.value || loading" :title="t('keys.resetRateLimitUsage')" :aria-label="t('keys.resetRateLimitUsage')" @click.stop="confirmResetRateLimitFromTable(row)"><Icon name="refresh" size="sm" /><span class="sr-only">{{ t('keys.resetRateLimitUsage') }}</span></button>
@@ -346,11 +346,11 @@
             required
             class="input"
             :placeholder="t('keys.namePlaceholder')"
-            data-tour="key-form-name"
+            data-testid="key-form-name"
           />
         </div>
 
-        <fieldset v-if="!showEditModal" data-tour="key-form-provider">
+        <fieldset v-if="!showEditModal" data-testid="key-form-provider">
           <legend class="input-label">{{ t('keys.providerLabel') }}</legend>
           <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label
@@ -410,7 +410,7 @@
             :empty-text="t('common.noGroupsAvailable')"
             :searchable="true"
             :search-placeholder="t('keys.searchGroup')"
-            data-tour="key-form-group"
+            data-testid="key-form-group"
           >
             <template #selected="{ option }">
               <GroupBadge
@@ -849,7 +849,7 @@
             type="submit"
             :disabled="submitting"
             class="btn btn-primary"
-            data-tour="key-form-submit"
+            data-testid="key-form-submit"
           >
             <svg
               v-if="submitting"
@@ -1061,7 +1061,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useKeyConnectionCopy } from '@/components/keys/keyConnectionCopy'
 import { useKeyWorkspaceCopy } from '@/components/keys/keyWorkspaceCopy'
 	import { useAppStore } from '@/stores/app'
-	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useTableColumns } from '@/composables/useTableColumns'
@@ -1124,7 +1123,6 @@ interface GroupOption {
 }
 
 const appStore = useAppStore()
-const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const allColumns = computed<Column[]>(() => [
@@ -1324,6 +1322,7 @@ const selectedCodexQuickConfigPlatform = computed(() => {
   return isCodexQuickConfigPlatform(platform) ? platform : null
 })
 const copiedKeyId = ref<number | null>(null)
+let copiedKeyTimer: ReturnType<typeof setTimeout> | undefined
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
@@ -1499,9 +1498,10 @@ const copyToClipboard = async (text: string, keyId: number) => {
   const success = await clipboardCopy(text, t('keys.copied'))
   if (success) {
     copiedKeyId.value = keyId
-    setTimeout(() => {
+    if (copiedKeyTimer) clearTimeout(copiedKeyTimer)
+    copiedKeyTimer = setTimeout(() => {
       copiedKeyId.value = null
-    }, 800)
+    }, 1800)
   }
 }
 
@@ -1919,10 +1919,7 @@ const handleSubmit = async () => {
       // Use only the returned persisted object; keep its real group capability metadata.
       connectionKey.value = { ...createdKey, group: createdKey.group || groups.value.find((group) => group.id === createdKey.group_id) || undefined }
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
-      // Only advance tour if active, on submit step, and creation succeeded
-      if (onboardingStore.isCurrentStep('[data-tour="key-form-submit"]')) {
-        onboardingStore.nextStep(500)
-      }
+
     }
     const created = !showEditModal.value ? connectionKey.value : null
     closeModals()
@@ -1931,7 +1928,6 @@ const handleSubmit = async () => {
   } catch (error: any) {
     const errorMsg = error.response?.data?.detail || t('keys.failedToSave')
     appStore.showError(errorMsg)
-    // Don't advance tour on error
   } finally {
     submitting.value = false
   }
@@ -2098,6 +2094,7 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleConcurrencyVisibility)
   document.removeEventListener('click', closeGroupSelector)
   if (resetTimer) clearInterval(resetTimer)
+  if (copiedKeyTimer) clearTimeout(copiedKeyTimer)
 })
 
 // Direct confirmations share one execution and stale-context contract.
@@ -2133,12 +2130,13 @@ watch(() => ({ active: showResetRateLimitDialog.value, identity: JSON.stringify(
   margin-left: auto;
 }
 .keys-key-copy{display:inline-flex;align-items:center;gap:6px;min-height:44px;max-width:100%;background:none;border:0;padding:0;color:var(--ritel-muted);font:12px var(--ritel-ui);cursor:pointer}
+.keys-key-copy{min-width:108px;transition:color .15s}.keys-key-copy:hover,.keys-key-copy.is-copied{color:var(--ritel-fg)}.keys-key-copy:hover>span{text-decoration:underline;text-underline-offset:4px}.keys-key-copy.is-copied>span{text-decoration:none}
 .keys-key-copy>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .keys-group-button{display:flex;align-items:center;gap:6px;min-height:44px;max-width:100%;border:0;background:none;padding:0;font:inherit;text-align:left;cursor:pointer}
 .keys-group-button>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.keys-group-button>span:not(:first-child){flex:none;white-space:nowrap}.keys-group-button>svg{flex:none}
 .keys-quota-used{font-weight:500}.keys-quota-total{color:var(--ritel-muted)}
 .keys-concurrency-main{display:flex;align-items:center;gap:10px;max-width:100%;white-space:nowrap}.keys-waiting{display:inline-flex;align-items:center;gap:4px}.keys-concurrency-notice{font-size:12px;overflow:hidden;text-overflow:ellipsis;color:var(--ritel-muted)}
-.keys-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:0}.keys-row-actions>button{display:inline-flex;align-items:center;justify-content:center;width:36px;min-height:44px;border:0;background:none;padding:0;color:var(--ritel-muted);font:inherit;cursor:pointer}.keys-row-actions>button:hover{color:var(--ritel-fg)}.keys-row-actions>button:last-child:hover{color:var(--ritel-field-danger)}
+.keys-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:0}.keys-row-actions>button{display:inline-flex;align-items:center;justify-content:center;width:36px;min-height:44px;border:0;background:none;padding:0;color:var(--ritel-muted);font:inherit;cursor:pointer}.keys-row-actions>button:hover{color:var(--ritel-fg)}.keys-row-actions>button.keys-use-button{width:auto;min-height:32px;margin-right:8px;padding:6px 14px;gap:6px;border-radius:var(--ritel-radius-pill);background:var(--theme-control-fill);color:var(--theme-on-control);font-size:13px;font-weight:600;white-space:nowrap}.keys-row-actions>button.keys-use-button:hover{background:var(--theme-control-hover);color:var(--theme-on-control)}.keys-row-actions>button:last-child:hover{color:var(--ritel-field-danger)}
 .keys-status-switch{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer}.keys-switch-track{display:flex;align-items:center;width:32px;height:18px;border:1px solid var(--ritel-control-border);border-radius:999px;background:var(--ritel-surface-raised);padding:2px;box-sizing:border-box}.keys-switch-track>span{width:12px;height:12px;border-radius:50%;background:var(--ritel-muted);transition:transform .15s ease-out}.keys-status-switch[aria-checked=true] .keys-switch-track{background:#047857;border-color:#047857}.keys-status-switch[aria-checked=true] .keys-switch-track>span{transform:translateX(12px);background:#fffefa}.keys-blocked-status{min-height:44px;border:0;background:none;padding:0;font:inherit;font-size:12px;text-align:left;cursor:pointer}
 .keys-extra-details{display:grid;grid-template-columns:1fr 1fr;gap:32px;padding-top:24px}.keys-extra-details h3{color:var(--ritel-muted);margin-bottom:10px}.keys-extra-groups{font-size:12px;color:var(--ritel-muted);margin-top:8px}.keys-usage-details{display:grid;gap:6px}.keys-usage-details>div{display:flex;align-items:baseline;gap:12px}.keys-usage-details dt{color:var(--ritel-muted)}.keys-usage-details dd{font-variant-numeric:tabular-nums}
 .keys-key-copy:disabled,.keys-group-button:disabled,.keys-row-actions>button:disabled,.keys-status-switch:disabled{opacity:.5;cursor:wait}

@@ -86,7 +86,7 @@ func (r *accountRepository) markGatewayBorrowInitialReadyInTx(ctx context.Contex
 	if !a.IsOpenAIOAuth() || a.IsShadow() || a.IsOpenAIAgentIdentity() || a.IsOpenAIPersonalAccessToken() {
 		return skip("account_unavailable")
 	}
-	if row.Status != service.StatusActive || !row.Schedulable {
+	if (row.Status != service.StatusActive || !row.Schedulable) && !o.AllowPaused {
 		return skip("paused_or_inactive")
 	}
 	if time.Since(o.ObservedAt) > 10*time.Minute {

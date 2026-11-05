@@ -13,7 +13,7 @@ export default {
       "count": "帳戶數",
       "limit": "單帳戶每週上限",
       "remaining": "估計剩餘",
-      "formula": "剩餘每週額度百分比 × 方案每週上限後加總。Plus 140 · Pro100 700 · Pro200 1,400 · Pro500 3,500。",
+      "formula": "剩餘每週額度百分比 × 方案每週上限後加總。Plus 140 · Pro100 700 · Pro200 1,400 · Pro500 3,500 · Business/Team 140 · Business Premium 700。",
       "snapshots": "使用已記錄的額度快照 · 最早 {time}",
       "generated": "計算於 {time}",
       "excluded": "未計入：{reasons}",

@@ -100,10 +100,10 @@ func selectAPIKeyRequestGroup(c *gin.Context, keys *service.APIKeyService, subsc
 				return false
 			}
 		}
-		if group.BlockSubagents && service.IsCodexSubagentRequest(c, body) {
+		if !isAPIKeyModelDiscoveryRequest(c) && group.BlockSubagents && service.IsCodexSubagentRequest(c, body) {
 			return false
 		}
-		if group.CodexCLIOnly {
+		if group.CodexCLIOnly && !isAPIKeyModelDiscoveryRequest(c) {
 			policy := service.CodexRestrictionPolicy{EngineFingerprintSignals: openai.DefaultEngineFingerprintSignals}
 			if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead {
 				policy.EngineFingerprintSignals = nil
@@ -115,7 +115,21 @@ func selectAPIKeyRequestGroup(c *gin.Context, keys *service.APIKeyService, subsc
 		return true
 	}
 	ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, key.UserID)
-	selected, err := keys.SelectRequestGroup(ctx, key, models, kind, subscriptions, accepts, checkBilling)
+	var selected *service.APIKey
+	if isAPIKeyModelDiscoveryRequest(c) {
+		var groups []*service.APIKey
+		groups, err = keys.ModelDiscoveryGroups(ctx, key, accepts)
+		if err == nil {
+			if len(groups) == 0 {
+				err = infraerrors.Forbidden("NO_ELIGIBLE_API_KEY_GROUP", "No selected group permits model discovery")
+			} else {
+				SetAPIKeyModelDiscoveryGroups(c, groups)
+				selected = groups[0]
+			}
+		}
+	} else {
+		selected, err = keys.SelectRequestGroup(ctx, key, models, kind, subscriptions, accepts, checkBilling)
+	}
 	if err != nil {
 		status := infraerrors.Code(err)
 		message, reason := infraerrors.Message(err), infraerrors.Reason(err)
