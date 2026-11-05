@@ -180,6 +180,8 @@ type SystemSettings struct {
 
 	CCSImportConfig service.CCSImportConfig `json:"ccs_import_config"`
 
+	QuickKeyDefaultGroups service.QuickKeyDefaultGroups `json:"quick_key_default_groups"`
+
 	DefaultConcurrency              int                          `json:"default_concurrency"`
 	DefaultBalance                  float64                      `json:"default_balance"`
 	AffiliateRebateRate             float64                      `json:"affiliate_rebate_rate"`
@@ -423,6 +425,8 @@ type DefaultSubscriptionSetting struct {
 }
 
 type PublicSettings struct {
+	QuickKeyDefaultGroups service.QuickKeyDefaultGroups `json:"quick_key_default_groups"`
+
 	RegistrationEnabled                 bool                     `json:"registration_enabled"`
 	EmailVerifyEnabled                  bool                     `json:"email_verify_enabled"`
 	ForceEmailOnThirdPartySignup        bool                     `json:"force_email_on_third_party_signup"`

@@ -252,6 +252,7 @@ export interface PublicSettings {
   compact_home_enabled: boolean
   hide_ccs_import_button: boolean
   ccs_import_config?: CcsImportConfig
+  quick_key_default_groups?: Record<string, number>
   payment_enabled: boolean
   risk_control_enabled: boolean
   table_default_page_size: number

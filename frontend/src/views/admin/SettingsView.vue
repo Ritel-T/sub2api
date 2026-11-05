@@ -6417,6 +6417,8 @@
                 </p>
               </div>
 
+              <QuickKeyDefaultSettings v-model="form.quick_key_default_groups" />
+
               <!-- Global Table Preferences -->
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <AppHeading variant="subsection" as="h3" class="text-gray-900 dark:text-white">
@@ -9253,6 +9255,7 @@ import type {
 } from "@/types";
 import type { ProviderInstance } from "@/types/payment";
 import AppLayout from "@/components/layout/AppLayout.vue";
+import QuickKeyDefaultSettings from "@/components/admin/QuickKeyDefaultSettings.vue";
 import CcsImportSettings from "@/components/admin/CcsImportSettings.vue";
 import { createDefaultCcSwitchImportConfig } from "@/utils/ccswitchImport";
 import Icon from "@/components/icons/Icon.vue";
@@ -9974,6 +9977,7 @@ type SettingsForm = Omit<
 > & BalanceRetailSettingsValue & {
   /** Old settings responses may omit CCS profiles; the editor always binds defaults. */
   ccs_import_config: CcsImportConfig;
+  quick_key_default_groups: Record<string, number>;
   /** Form always binds a concrete boolean (SystemSettings marks this optional). */
   channel_monitor_hide_throughput: boolean;
   channel_monitor_show_quota: boolean;
@@ -10091,6 +10095,7 @@ const form = reactive<SettingsForm>({
   backend_mode_enabled: false,
   hide_ccs_import_button: false,
   ccs_import_config: createDefaultCcSwitchImportConfig(),
+  quick_key_default_groups: {},
   payment_enabled: false,
   risk_control_enabled: false,
   cyber_policy_user_allowlist: "",
@@ -11897,6 +11902,7 @@ async function saveSettings(section: SettingsTab = activeTab.value): Promise<boo
       backend_mode_enabled: form.backend_mode_enabled,
       hide_ccs_import_button: form.hide_ccs_import_button,
       ccs_import_config: form.ccs_import_config,
+      quick_key_default_groups: form.quick_key_default_groups,
       table_default_page_size: form.table_default_page_size,
       table_page_size_options: form.table_page_size_options,
       custom_menu_items: form.custom_menu_items.map((item) => ({

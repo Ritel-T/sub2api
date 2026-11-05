@@ -503,6 +503,7 @@ export interface SystemSettings {
   compact_home_enabled: boolean;
   hide_ccs_import_button: boolean;
   ccs_import_config?: CcsImportConfig;
+  quick_key_default_groups?: Record<string, number>;
   table_default_page_size: number;
   table_page_size_options: number[];
   backend_mode_enabled: boolean;
@@ -918,6 +919,7 @@ export interface UpdateSettingsRequest {
   compact_home_enabled?: boolean;
   hide_ccs_import_button?: boolean;
   ccs_import_config?: CcsImportConfig;
+  quick_key_default_groups?: Record<string, number>;
   table_default_page_size?: number;
   table_page_size_options?: number[];
   backend_mode_enabled?: boolean;

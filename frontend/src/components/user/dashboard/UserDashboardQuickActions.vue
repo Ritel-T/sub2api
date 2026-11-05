@@ -41,7 +41,7 @@ import AppHeading from '@/components/common/AppHeading.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { platformBadgeClass } from '@/utils/platformColors'
-import { getKeyGroupProvider } from '@/utils/keyGroupProviders'
+import { quickKeyPlatformBucket, selectQuickKeyGroups } from '@/utils/quickKeyGroups'
 import UseKeyModal from '@/components/keys/UseKeyModal.vue'
 import { GROUP_PLATFORM_OPTIONS } from '@/constants/platforms'
 import { keysAPI } from '@/api/keys'
@@ -60,20 +60,11 @@ const creating = ref<string | null>(null)
 const createError = ref(false)
 const creationUnknown = ref(false)
 const baseUrl = computed(() => appStore.cachedPublicSettings?.api_base_url || window.location.origin)
-const platformBucket = (platform: GroupPlatform) => getKeyGroupProvider(platform) === 'domestic' ? 'domestic' : platform
+const platformBucket = quickKeyPlatformBucket
 const platformIcon = (platform: GroupPlatform): GroupPlatform => platformBucket(platform) === 'domestic' ? 'deepseek' : platform
 const creationLabel = (platform: GroupPlatform) => platformBucket(platform) === 'domestic' ? copy.value.domestic : platformLabel(platform)
-// Available groups are already permission-filtered and ordered by the server.
-const platformGroups = computed(() => {
-  const seen = new Set<string>()
-  const preferredGrok = props.groups.find(group => group.status === 'active' && group.platform === 'grok' && group.name.trim().toLowerCase() === 'grok 060')
-  return props.groups.filter(group => {
-    const bucket = platformBucket(group.platform)
-    if (group.status !== 'active' || seen.has(bucket)) return false
-    seen.add(bucket)
-    return true
-  }).map(group => group.platform === 'grok' ? preferredGrok ?? group : group)
-})
+// Defaults only select from the permission-filtered group list.
+const platformGroups = computed(() => selectQuickKeyGroups(props.groups, appStore.cachedPublicSettings?.quick_key_default_groups))
 const platformLabel = (platform?: string) => GROUP_PLATFORM_OPTIONS.find(option => option.value === platform)?.label ?? platform ?? '—'
 let generation = 0
 let alive = true
