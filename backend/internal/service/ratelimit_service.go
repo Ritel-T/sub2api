@@ -1181,14 +1181,26 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 	return true
 }
 
-// isCloudflareBotBlockResponse reports Cloudflare's WAF bot-signature response
-// (error code 1010). The upstream never reached the account API, so this is a
-// request/edge-level failure and must not consume the account 403 strike budget.
+// isCloudflareBotBlockResponse reports explicit Cloudflare edge refusals:
+// error 1010 or its Access denied HTML template. These are not evidence of
+// invalid account credentials and must not consume the account 403 budget.
 func isCloudflareBotBlockResponse(body []byte) bool {
 	normalized := strings.ToLower(strings.TrimSpace(string(body)))
 	var payload any
 	if json.Unmarshal(body, &payload) == nil {
 		return containsCloudflareBotBlockCode(payload)
+	}
+	// Match the observed title, not arbitrary HTML or a Cloudflare footer on
+	// an origin permission page. JSON account errors keep their existing path.
+	if isHTMLResponse(body) {
+		_, title, found := strings.Cut(normalized, "<title>")
+		if found {
+			title, _, _ = strings.Cut(title, "</title>")
+			if strings.HasPrefix(strings.TrimSpace(title), "access denied |") &&
+				strings.Contains(title, " used cloudflare to restrict access") {
+				return true
+			}
+		}
 	}
 	return strings.Contains(normalized, "error code: 1010")
 }
