@@ -1,8 +1,12 @@
 name: Multi-host Caddy contract
 
 on:
+  workflow_dispatch:
   push:
+    branches: [main, production]
+    paths: ['deploy/traffic/**', '.github/workflows/multihost-caddy.yml']
   pull_request:
+    paths: ['deploy/traffic/**', '.github/workflows/multihost-caddy.yml']
 
 permissions:
   contents: read

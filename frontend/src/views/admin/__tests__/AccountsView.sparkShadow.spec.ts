@@ -373,7 +373,8 @@ describe('admin AccountsView — 账号行展示', () => {
     const wrapper = mountViewWithRow()
     await flushPromises()
 
-    const links = wrapper.findAll('a')
+    expect(wrapper.get('[data-testid="manage-upstream-channels"]').attributes('href')).toBe('/admin/upstream-channels')
+    const links = wrapper.findAll('a[target="_blank"]')
     expect(links).toHaveLength(1)
     const [link] = links
     expect(link.text()).toBe('relay-account')

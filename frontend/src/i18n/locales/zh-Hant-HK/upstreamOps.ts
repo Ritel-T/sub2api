@@ -40,7 +40,7 @@ export default {
   "duration": "總耗時 P90 (ms)",
   "samples": "TTFT 有效樣本",
   "unknown": "未知",
-  "latencyNote": "延遲沿用持久化轉發 TTFT，僅統計有用量證據且首 token 時間為正的流式記錄；不是純上游語義延遲。總耗時來自 duration_ms。沒有完整失敗請求分母，不計算請求錯誤率。",
+  "latencyNote": "延遲沿用持久化舊 first_token_ms / duration_ms，只統計有 token/費用證據且計時有效的記錄。舊計時口徑依協議不同，passthrough 和 bridge 可能已含准入等待。這是服務端觀察值，不是客戶端 E2E。另增的含排隊指標按測量來源單獨統計，排除歷史未測量記錄。用量日誌仍缺少完整失敗請求分母。",
   "previous": "上一頁",
   "next": "下一頁",
   "quality": "質量歷史",

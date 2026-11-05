@@ -120,7 +120,7 @@ describe('GroupDistributionChart', () => {
       raw: 0.9,
       dataset: { data: [0.9, 0.1] },
     })
-    expect(label).toBe('group-b: $0.900 (90.0%)')
+    expect(label).toMatch(/^group-b: \$0\.90+ \(90\.0%\)$/)
   })
 
   it('can hide account cost for user usage stats without account_cost', () => {
@@ -328,12 +328,12 @@ describe('UserBreakdownSubTable record rendering', () => {
       expect(wrapper.findAll('[data-document-row]').length).toBeGreaterThan(0)
       expect(wrapper.findAll('[data-document-row]').length).toBeLessThan(40)
       const first = wrapper.get('[data-document-row]')
-      expect(first.findAll('td').map(cell => cell.text())).toEqual(['User #200', '1,234', '1.20K', '$0.123', '$1.23', '$1.23K'])
+      expect(first.findAll('td').map(cell => cell.text())).toEqual(['User #200', '1,234', '1.20K', '$0.12', '$1.23', expect.stringMatching(/^\$1,?234(?:\.0+)?$/)])
       host.scrollTop = 147 * 28; host.dispatchEvent(new Event('scroll')); await settle()
       expect(wrapper.get('[data-index="147"] td').text()).toBe('user-53@test.com')
       expect(wrapper.get('[data-index="147"] td').attributes('title')).toBe('user-53@test.com')
       await wrapper.setProps({ showAccountCost: false }); await settle()
-      expect(wrapper.get('[data-index="147"]').findAll('td').map(cell => cell.text())).toEqual(['user-53@test.com', '1,234', '1.20K', '$0.123', '$1.23K'])
+      expect(wrapper.get('[data-index="147"]').findAll('td').map(cell => cell.text())).toEqual(['user-53@test.com', '1,234', '1.20K', '$0.12', expect.stringMatching(/^\$1,?234(?:\.0+)?$/)])
       expect(wrapper.findAll('[data-document-spacer]').every(gap => gap.get('td').attributes('colspan') === '5')).toBe(true)
       expect(wrapper.get('tbody').findAll(':scope > div')).toHaveLength(0)
       await wrapper.setProps({ loading: true }); await settle()

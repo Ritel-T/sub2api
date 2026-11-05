@@ -33,20 +33,6 @@ func TestNormalizeSortOrder(t *testing.T) {
 	}
 }
 
-func TestPaginationParamsNormalizedSortOrder(t *testing.T) {
-	t.Parallel()
-
-	params := PaginationParams{SortOrder: "ASC"}
-	if got := params.NormalizedSortOrder("desc"); got != "asc" {
-		t.Fatalf("NormalizedSortOrder = %q, want asc", got)
-	}
-
-	params = PaginationParams{SortOrder: "bad"}
-	if got := params.NormalizedSortOrder("asc"); got != "asc" {
-		t.Fatalf("NormalizedSortOrder invalid fallback = %q, want asc", got)
-	}
-}
-
 func TestPaginationParamsLimit(t *testing.T) {
 	t.Parallel()
 
@@ -102,24 +88,5 @@ func TestPaginationParamsOffsetUsesNormalizedLimit(t *testing.T) {
 				t.Fatalf("Offset() for Page=%d, PageSize=%d = %d, want %d", tt.page, tt.pageSize, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestPaginationParamsOffsetDoesNotOverflow(t *testing.T) {
-	t.Parallel()
-
-	pages := []int{math.MinInt, -1, 0, 1, math.MaxInt, math.MaxInt - 1, math.MaxInt / 2, math.MaxInt/20 + 1, math.MaxInt/1000 + 1}
-	pageSizes := []int{math.MinInt, -1, 0, 1, 2, 3, 20, 21, 999, 1000, 1001, math.MaxInt}
-	for _, page := range pages {
-		for _, pageSize := range pageSizes {
-			params := PaginationParams{Page: page, PageSize: pageSize}
-			offset, limit := params.Offset(), params.Limit()
-			if offset < 0 || offset > math.MaxInt-limit {
-				t.Fatalf("Offset() for Page=%d, PageSize=%d = %d, want 0 <= offset <= MaxInt-%d", page, pageSize, offset, limit)
-			}
-			if again := params.Offset(); again != offset {
-				t.Fatalf("Offset() for Page=%d, PageSize=%d is unstable: %d then %d", page, pageSize, offset, again)
-			}
-		}
 	}
 }

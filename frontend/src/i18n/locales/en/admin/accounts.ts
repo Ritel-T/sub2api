@@ -1091,6 +1091,12 @@ export default {
         stripClaudeCodeIdentity: 'Strip Claude Code identity',
         stripClaudeCodeIdentityDesc:
           'Only applies to Anthropic API Key accounts. When enabled, forwarding and connectivity tests automatically strip Claude Code / Agent SDK client signals (rewriting claude-cli User-Agent, removing claude-code/oauth betas, stripping x-anthropic-billing-header blocks and official CLI/SDK identity banners from system, and removing metadata.user_id) so official API keys restricted from Claude Code (such as sk-ant-usr-* credit keys) are not rejected with a low credit balance error.',
+        mimicClaudeCode: 'Mimic Claude Code client',
+        mimicClaudeCodeDesc:
+          'For Anthropic API Key upstreams that require Claude Code clients. Adds missing client headers, a system identity line and session metadata to forwarded requests and connectivity tests; count_tokens only adds headers. Mutually exclusive with "Strip Claude Code identity". The identity line may cause the model to introduce itself as Claude Code.',
+        mimicClaudeCodeDeductTokens: 'Deduct estimated identity tokens',
+        mimicClaudeCodeDeductTokensDesc:
+          'Off by default: bill upstream usage normally. When enabled, deduct an estimated 14-24 tokens only when the gateway adds an identity line. Token counts and mixed-cache classification are estimates. Usage returned to the client always retains upstream values.',
         apiKeyAuthScheme: 'Upstream auth scheme',
         apiKeyAuthSchemeDesc: 'Choose the API key auth header used when forwarding to an Anthropic-compatible upstream. Ollama Cloud uses Authorization: Bearer.',
         apiKeyAuthSchemeXApiKey: 'x-api-key',

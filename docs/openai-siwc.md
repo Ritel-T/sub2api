@@ -179,3 +179,7 @@ time; classify timeouts, transport failures and unknown responses as unknown.
 Do not automatically reauthorize, retry a policy rejection, switch billing paths,
 quarantine or disable accounts. Such a feature needs its own API/UI acceptance
 and safety review; this follow-up does not claim to resolve the entire issue.
+
+## 多份授权连接
+
+Issue #594 / Draft PR #595 为同一账号增加显式的多授权连接管理。原 SIWC 单份侧授权和已有 #485/#491/#498/#511 行为保留；旧授权映射不复制 rotating token，新连接使用独立加密记录、真实 issued client、验证 subject、CAS 和跨实例租约。身份型 SIWC 不获得推理能力。迁移、选择、解绑、共享额度及回滚边界见 [OpenAI authorization connections](openai-auth-connections.md)。当前验证状态以该 PR 的确切 head 和 raw CI 为准，不据此宣称已上线或获得商业 SIWC 准入。

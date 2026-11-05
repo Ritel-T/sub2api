@@ -18,6 +18,7 @@
                 @reorder="setColumnOrder"
                 @reset="resetColumns"
               />
+              <a href="/admin/upstream-channels" class="btn btn-secondary" data-testid="manage-upstream-channels">{{ t('upstreamEntities.manage') }}</a>
               <!-- Auto Refresh Dropdown -->
               <div class="relative" ref="autoRefreshDropdownRef">
                 <button
@@ -218,6 +219,7 @@
             <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ value }}</span>
           </template>
           <template #cell-name="{ row, value }">
+            <a v-if="row.upstream_channel_binding" href="/admin/upstream-channels" class="block text-xs text-primary-600" data-testid="account-current-upstream">{{ row.upstream_channel_binding.channel ? `${row.upstream_channel_binding.channel.name} · ${row.upstream_channel_binding.channel.code}` : t('upstreamEntities.unbound') }}</a>
             <div class="flex flex-col">
               <HelpTooltip
                 v-if="accountHomepageUrl(row)"
@@ -293,6 +295,9 @@
           <template #cell-schedulable="{ row }">
             <SchedulableTimerControl v-if="authStore.isAdmin" :account-id="row.id" :refresh-key="timerRefreshKey" @executed="handleTimerExecuted" />
             <Toggle :model-value="row.schedulable" :aria-label="t('admin.accounts.columns.schedulable')" @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')" size="small" />
+          </template>
+          <template #cell-performance="{ row }">
+            <AccountPerformanceCell :metrics="performanceMetrics[row.id]" :unavailable="performanceUnavailable" :can-configure="authStore.isAdmin" @configure="performanceAccount = row" />
           </template>
           <template #cell-today_stats="{ row }">
             <AccountTodayStatsCell
@@ -493,6 +498,7 @@
     <ErrorPassthroughRulesModal v-if="authStore.isAdmin" :show="showErrorPassthrough" @close="showErrorPassthrough = false" />
     <TLSFingerprintProfilesModal v-if="authStore.isAdmin" :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
     <TotpStepUpDialog :controller="accountExportStepUp" />
+    <AccountPerformanceDialog v-if="performanceAccount" :key="performanceAccount.id" :account-id="performanceAccount.id" :account-name="performanceAccount.name" @close="performanceAccount = null" @updated="refreshPerformance" />
     <BulkExport2FADialog v-if="authStore.isAdmin && export2faIds.length" :account-ids="export2faIds" @close="export2faIds = []" />
   </AppLayout>
 
@@ -550,6 +556,9 @@ import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import SchedulableTimerControl from '@/components/account/SchedulableTimerControl.vue'
+import AccountPerformanceCell from '@/components/account/AccountPerformanceCell.vue'
+import AccountPerformanceDialog from '@/components/account/AccountPerformanceDialog.vue'
+import { performanceWindowMinutes, type AccountPerformance } from '@/types/accountPerformance'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
 import ExcelBPS403Badge from '@/components/account/ExcelBPS403Badge.vue'
 import UpstreamBillingRateCell from '@/components/account/UpstreamBillingRateCell.vue'
@@ -697,6 +706,9 @@ const accountToolsDropdownStyle = computed(() => ({
   left: `${accountToolsDropdownPosition.left}px`,
   width: `${accountToolsDropdownPosition.width}px`
 }))
+const performanceMetrics = ref<Record<number, AccountPerformance>>({})
+const performanceMinutes = computed(() => performanceWindowMinutes(Object.values(performanceMetrics.value)[0]))
+
 const allColumns = computed(() => [
   { key: 'id', label: 'ID', sortable: true, width: 112 },
   { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false, width: 104 },
@@ -707,6 +719,7 @@ const allColumns = computed(() => [
   { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false, width: 88 },
   { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false, weight: 1.3, minWidth: 120 },
   { key: 'links', label: t('common.view'), sortable: false },
+  { key: 'performance', label: t('accountPerformance.column', { minutes: performanceMinutes.value }), sortable: false },
   { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false },
   { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
   { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
@@ -1236,6 +1249,37 @@ const resetAutoRefreshCache = () => {
   upstreamBillingRatePages.clear()
   upstreamBillingRateAbortController?.abort()
 }
+
+// Performance is one bounded batch per visible page, independent of account ETags.
+const performanceUnavailable = ref(false)
+const performanceAccount = ref<Account | null>(null)
+let performanceAbort: AbortController | null = null
+let performanceRequest = 0
+const refreshPerformance = async () => {
+  const ids = accounts.value.map(account => account.id)
+  if (!isColumnVisible('performance') || !ids.length) return
+  performanceAbort?.abort()
+  const request = ++performanceRequest
+  const controller = new AbortController()
+  performanceAbort = controller
+  try {
+    const next: Record<number, AccountPerformance> = {}
+    for (let start = 0; start < ids.length; start += 100) {
+      Object.assign(next, await adminAPI.accounts.getPerformance(ids.slice(start, start + 100), controller.signal))
+    }
+    if (request !== performanceRequest || controller.signal.aborted) return
+    performanceMetrics.value = next
+    performanceUnavailable.value = false
+  } catch {
+    if (request === performanceRequest && !controller.signal.aborted) {
+      performanceMetrics.value = {}
+      performanceUnavailable.value = true
+    }
+  }
+}
+watch(() => accounts.value.map(account => account.id).join(','), () => { void refreshPerformance() })
+watch(() => isColumnVisible('performance'), visible => { if (visible) void refreshPerformance() })
+useIntervalFn(() => { void refreshPerformance() }, 30_000)
 
 type AccountLoadOptions = {
   refreshTodayStats?: boolean
@@ -2741,6 +2785,8 @@ onMounted(async () => {
 onUnmounted(() => {
   filterReloadVersion++
   todayStatsReqSeq.value++
+  performanceRequest++
+  performanceAbort?.abort()
   clearTimeout(timerListRefresh)
   concurrencyUpgradeRequest++
   upstreamBillingRateAbortController?.abort()

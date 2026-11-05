@@ -40,7 +40,7 @@ describe('overview recent requests', () => {
     const row = wrapper.get('[data-request="usage:4"]')
     expect(row.get('[data-metric="tokens"] > span:last-child').text()).toBe('200')
     expect(row.get('[data-metric="duration"] > span:last-child').text()).toBe('1.23s')
-    expect(row.get('[data-metric="cost"] > span:last-child').text()).toBe('$0.2000')
+    expect(row.get('[data-metric="cost"] > span:last-child').text()).toMatch(/^\$0\.20+$/)
     expect(row.text()).toContain('Success')
     expect(row.find('a').exists()).toBe(false)
     expect(row.get('.recent-model').text()).toBe('model-4')

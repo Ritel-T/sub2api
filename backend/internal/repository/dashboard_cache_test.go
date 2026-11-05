@@ -37,7 +37,8 @@ func TestDashboardCache_RequestDayScope(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	cache := NewDashboardCache(client, nil).(*dashboardCache)
+	cache, ok := NewDashboardCache(client, nil).(*dashboardCache)
+	require.True(t, ok)
 	utc := timezone.WithUserDay(context.Background(), "UTC")
 	same := timezone.WithUserDay(context.Background(), "Etc/UTC")
 	different := timezone.WithUserDay(context.Background(), "Pacific/Honolulu")
@@ -45,7 +46,7 @@ func TestDashboardCache_RequestDayScope(t *testing.T) {
 	require.NotEqual(t, cache.buildKey(utc), cache.buildKey(different))
 	require.Contains(t, cache.buildKey(utc), "dashboard:stats:v2:")
 	// A pre-fix global value must never populate the newly scoped response.
-	server.Set("sub2api:dashboard:stats:v1", "old-server-day")
+	require.NoError(t, server.Set("sub2api:dashboard:stats:v1", "old-server-day"))
 	_, err := cache.GetDashboardStats(utc)
 	require.Error(t, err)
 	require.NoError(t, cache.SetDashboardStats(utc, "utc", time.Minute))

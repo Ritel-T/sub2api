@@ -143,7 +143,10 @@ export default {
         withSuffix: '{time} 後解除'
       }
     }
-  },
+  ,
+  "newFeature": "新功能",
+  "dismissNewFeature": "隱藏此新功能提示"
+},
 
   adminCompliance: {
     title: '部署與運營合規確認',

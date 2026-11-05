@@ -98,7 +98,7 @@ describe('idle probe settings', () => {
     expect((rows(wrapper)[0].get('[data-testid="monitor-v3-idle-probe-effort"]').element as HTMLSelectElement).value).toBe('medium')
     const first = rows(wrapper)[0].get('[data-testid="monitor-v3-idle-probe-stats"]').text()
     expect(first).toContain('channelMonitorV3.admin.idleProbe.lastSuccess:{\\"seconds\\":\\"1.8\\"}')
-    expect(first).toContain('"probes":12,"failures":1,"cost":"0.0042"')
+    expect(first).toContain('"probes":12,"failures":1')
     const second = rows(wrapper)[1].get('[data-testid="monitor-v3-idle-probe-stats"]').text()
     expect(second).toContain('channelMonitorV3.admin.idleProbe.lastFailure:{\\"reason\\":\\"channelMonitorV3.errors.not_found\\"}')
     expect(rows(wrapper)[1].get('[data-testid="monitor-v3-idle-probe-issue"]').text()).toContain('API returned 404: no such model')

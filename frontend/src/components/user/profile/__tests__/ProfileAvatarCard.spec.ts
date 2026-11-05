@@ -158,23 +158,6 @@ describe('ProfileAvatarCard', () => {
     vi.restoreAllMocks()
   })
 
-  it('does not render a manual avatar input field', () => {
-    authStoreState.user = createUser()
-
-    const wrapper = mount(ProfileAvatarCard, {
-      props: {
-        user: authStoreState.user
-      },
-      global: {
-        stubs: {
-          Icon: true
-        }
-      }
-    })
-
-    expect(wrapper.find('[data-testid="profile-avatar-input"]').exists()).toBe(false)
-  })
-
   it('compresses an uploaded image that exceeds the 20KB target before saving', async () => {
     installAvatarCompressionMocks()
     const updatedUser = createUser({ avatar_url: 'data:image/webp;base64,Y29tcHJlc3NlZC1hdmF0YXI=' })

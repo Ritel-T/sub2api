@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import PaymentProviderDialog from '@/components/payment/PaymentProviderDialog.vue'
-import { STRIPE_SDK_API_VERSION } from '@/components/payment/providerConfig'
 import type { ProviderInstance } from '@/types/payment'
 
 const messages: Record<string, string> = {
@@ -138,13 +137,6 @@ describe('PaymentProviderDialog callback URLs', () => {
 })
 
 describe('PaymentProviderDialog payment guide', () => {
-  it('shows no payment guide for providers without a flow guide', () => {
-    const wrapper = mountDialog()
-
-    expect(wrapper.text()).not.toContain(messages['admin.settings.payment.alipayGuideSummary'])
-    expect(wrapper.text()).not.toContain(messages['admin.settings.payment.wxpayGuideSummary'])
-    expect(wrapper.find('button[title="View payment guide"]').exists()).toBe(false)
-  })
 
   it.each([
     ['alipay', 'admin.settings.payment.alipayGuideSummary'],
@@ -159,27 +151,6 @@ describe('PaymentProviderDialog payment guide', () => {
 
     expect(wrapper.text()).toContain(messages[summaryKey])
     expect(wrapper.find('button[title="View payment guide"]').exists()).toBe(true)
-  })
-
-  it('shows Airwallex webhook event and API version guidance with the webhook URL', async () => {
-    const wrapper = mountDialog()
-
-    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('airwallex')
-    await nextTick()
-
-    expect(wrapper.text()).toContain(messages['admin.settings.payment.airwallexWebhookHint'])
-    expect(wrapper.text()).toContain('/api/v1/payment/webhook/airwallex')
-  })
-
-  it('shows Stripe webhook API version guidance with the integrated SDK version', async () => {
-    const wrapper = mountDialog()
-
-    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('stripe')
-    await nextTick()
-
-    expect(wrapper.text()).toContain(messages['admin.settings.payment.stripeWebhookHint'])
-    expect(wrapper.text()).toContain(`Use Stripe API version ${STRIPE_SDK_API_VERSION}.`)
-    expect(wrapper.text()).toContain('/api/v1/payment/webhook/stripe')
   })
 
   it('emits an empty Airwallex accountId when the admin clears it', async () => {

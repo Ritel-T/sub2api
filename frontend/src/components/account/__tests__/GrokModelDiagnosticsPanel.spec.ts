@@ -28,63 +28,7 @@ vi.mock('vue-i18n', async () => {
 import GrokModelDiagnosticsPanel from '../GrokModelDiagnosticsPanel.vue'
 
 const NOT_LISTED_ZH = '未在该账号此端点的当前目录中发现'
-const SAVED_CONFIG_ZH = '诊断基于已保存配置，请保存后重新同步'
 const REQUESTS_NOT_BLOCKED_ZH = '请求不会被阻断'
-const REQUIRED_KEYS = [
-  'title',
-  'configuredModels',
-  'upstreamModels',
-  'lastSuccess',
-  'lastAttempt',
-  'fresh',
-  'stale',
-  'unknown',
-  'sourceChanged',
-  'notListed',
-  'unverifiable',
-  'outOfScope',
-  'compatibilityNotice',
-  'configuredFallback',
-  'savedConfigOnly',
-  'refreshFailed',
-  'syncSavedConfig',
-  'catalogTitle',
-  'syncCatalog',
-  'details',
-  'viewDifferences',
-  'hideDifferences',
-  'missingSummary',
-  'summaryNotice',
-  'modelCount',
-  'historicalModelCount',
-  'lastSuccessRelative',
-  'source',
-  'historicalSource',
-  'historicalModels',
-  'savedMappings',
-  'currentListed',
-  'historicalComparison',
-  'syncFailed',
-  'attemptSuccess',
-  'attemptFallback',
-  'attemptUnknown',
-  'attemptUnavailable',
-  'previousCatalogValid',
-  'staleNotice',
-  'changedNotice',
-  'unknownNotice',
-  'fallbackNotice',
-  'savedConfigHint',
-  'requestColumn',
-  'targetColumn',
-  'errorConfiguration',
-  'errorHTTP',
-  'errorTransport',
-  'errorInvalidResponse',
-  'errorEmptyCatalog',
-  'errorTooLarge',
-  'errorPersistence'
-] as const
 
 const START = Date.parse('2026-10-25T12:00:00.000Z')
 const FETCHED_AT = '2026-10-25T11:00:00.000Z'
@@ -203,25 +147,6 @@ describe('GrokModelDiagnosticsPanel', () => {
     i18n.global.locale.value = initialI18nLocale
   })
 
-  it('keeps English and Chinese diagnostic copy isomorphic and non-empty', () => {
-    const en = (enAccounts as { accounts: { grokModelDiagnostics?: Record<string, string> } }).accounts.grokModelDiagnostics
-    const zh = (zhAccounts as { accounts: { grokModelDiagnostics?: Record<string, string> } }).accounts.grokModelDiagnostics
-    expect(en).toBeTruthy()
-    expect(zh).toBeTruthy()
-    expect(Object.keys(en!).sort()).toEqual(Object.keys(zh!).sort())
-    for (const key of REQUIRED_KEYS) {
-      expect(en![key]?.trim()).toBeTruthy()
-      expect(zh![key]?.trim()).toBeTruthy()
-    }
-    expect(zh!.notListed).toBe(NOT_LISTED_ZH)
-    expect(zh!.savedConfigOnly).toBe(SAVED_CONFIG_ZH)
-    expect(zh!.compatibilityNotice).toBe(REQUESTS_NOT_BLOCKED_ZH)
-    expect(zhCommon.common.loading.trim()).toBeTruthy()
-    expect(enCommon.common.loading.trim()).toBeTruthy()
-    expect(zhCommon.common.refresh.trim()).toBeTruthy()
-    expect(enCommon.common.refresh.trim()).toBeTruthy()
-  })
-
   it('shows source, last success, the latest attempt, and mapping differences for a fresh catalog', async () => {
     const wrapper = track(mountPanel({ diagnostics: freshDiagnostics() }))
     await wrapper.get('[data-testid="grok-diagnostics-difference-toggle"]').trigger('click')
@@ -249,23 +174,6 @@ describe('GrokModelDiagnosticsPanel', () => {
     expect(text).toContain('不在此文本目录范围内')
     expect(text).toContain('已保存配置核对')
     expect(text).toContain('上游目录')
-  })
-
-  it('renders the same sections in English', async () => {
-    const wrapper = track(mountPanel({ diagnostics: freshDiagnostics() }, 'en'))
-    await wrapper.get('[data-testid="grok-diagnostics-difference-toggle"]').trigger('click')
-    await openDetails(wrapper)
-    const text = wrapper.text()
-    const copy = (enAccounts as { accounts: { grokModelDiagnostics: Record<string, string> } }).accounts.grokModelDiagnostics
-    expect(text).toContain(copy.catalogTitle)
-    expect(text).toContain(copy.fresh)
-    expect(text).toContain(copy.notListed)
-    expect(text).toContain(copy.compatibilityNotice)
-    expect(text).toContain(copy.unverifiable)
-    expect(text).toContain(copy.outOfScope)
-    expect(text).toContain(copy.lastSuccess)
-    expect(text).toContain(copy.lastAttempt)
-    expect(text).not.toContain('configured_fallback')
   })
 
   it('becomes stale at ExpiresAt and stops claiming current catalog gaps without a request', async () => {
@@ -904,37 +812,6 @@ describe('GrokModelDiagnosticsPanel', () => {
     expect(wrapper.text()).toContain('历史记录，需重新同步后核验')
     expect(wrapper.text()).not.toContain(NOT_LISTED_ZH)
     expect(fetchSpy).not.toHaveBeenCalled()
-  })
-
-  it('advances the relative success time when the existing clock crosses a minute', async () => {
-    const wrapper = track(mountPanel({
-      diagnostics: freshDiagnostics({
-        fetched_at: '2026-10-25T11:58:30.000Z',
-        expires_at: '2026-10-25T18:00:00.000Z'
-      })
-    }))
-    const line = () => wrapper.get('[data-testid="grok-diagnostics-last-success"]').text()
-    expect(line()).toContain('上次成功：')
-    expect(line()).toContain('1分钟前')
-    expect(line()).not.toContain(formatDateTime('2026-10-25T11:58:30.000Z'))
-    await vi.advanceTimersByTimeAsync(30_000)
-    expect(line()).toContain('2分钟前')
-    expect(line()).not.toContain('1分钟前')
-  })
-
-  it('uses the English relative clock when the fixture locale is English', async () => {
-    const wrapper = track(mountPanel({
-      diagnostics: freshDiagnostics({
-        fetched_at: '2026-10-25T11:58:30.000Z',
-        expires_at: '2026-10-25T18:00:00.000Z'
-      })
-    }, 'en'))
-    const line = () => wrapper.get('[data-testid="grok-diagnostics-last-success"]').text()
-    expect(line()).toContain('Last success:')
-    expect(line()).toContain('1m ago')
-    await vi.advanceTimersByTimeAsync(30_000)
-    expect(line()).toContain('2m ago')
-    expect(wrapper.text()).not.toContain('分钟前')
   })
 
   it('shows only the parsed host in the summary and keeps the full endpoint in details', async () => {

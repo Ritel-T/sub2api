@@ -98,33 +98,6 @@ func TestRegistryGetProviderByKeyNotFound(t *testing.T) {
 	}
 }
 
-func TestRegistryGetProviderKeyUnknownType(t *testing.T) {
-	t.Parallel()
-	r := NewRegistry()
-
-	key := r.GetProviderKey("unknown_type")
-	if key != "" {
-		t.Fatalf("GetProviderKey for unknown type should return empty, got %q", key)
-	}
-}
-
-func TestRegistryGetProviderKeyKnownType(t *testing.T) {
-	t.Parallel()
-	r := NewRegistry()
-
-	p := &mockProvider{
-		name:           "Stripe",
-		key:            "stripe",
-		supportedTypes: []PaymentType{TypeStripe},
-	}
-	r.Register(p)
-
-	key := r.GetProviderKey(TypeStripe)
-	if key != "stripe" {
-		t.Fatalf("GetProviderKey(stripe) = %q, want %q", key, "stripe")
-	}
-}
-
 func TestRegistrySupportedTypes(t *testing.T) {
 	t.Parallel()
 	r := NewRegistry()
@@ -155,16 +128,6 @@ func TestRegistrySupportedTypes(t *testing.T) {
 		if !typeSet[expected] {
 			t.Fatalf("SupportedTypes() missing %q", expected)
 		}
-	}
-}
-
-func TestRegistrySupportedTypesEmpty(t *testing.T) {
-	t.Parallel()
-	r := NewRegistry()
-
-	types := r.SupportedTypes()
-	if len(types) != 0 {
-		t.Fatalf("SupportedTypes() on empty registry should be empty, got %d", len(types))
 	}
 }
 

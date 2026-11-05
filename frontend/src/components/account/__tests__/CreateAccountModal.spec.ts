@@ -1,3 +1,6 @@
+vi.mock('@/api/admin/upstreamChannels', () => ({ listUpstreamChannels: vi.fn(), readChannelBindings: vi.fn(), bindChannelAccounts: vi.fn() }))
+import { readChannelBindings, listUpstreamChannels } from '@/api/admin/upstreamChannels'
+import UpstreamChannelSelector from '../UpstreamChannelSelector.vue'
 
 vi.mock('@/api/admin/credentialEncryption', () => ({
   getCredentialEncryption: vi.fn().mockResolvedValue({ configured: true, source: 'server_config' }),
@@ -606,7 +609,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     ])
 
     await selectButtonByText(wrapper, 'OpenAI')
-    await wrapper.get('[data-testid="select-pricing-groups"]').trigger('click')
+    await wrapper.get('[data-testid="account-form-groups"]').trigger('click')
 
     expect(wrapper.find('[data-testid="openai-long-context-billing-toggle"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="create-openai-ws-mode"]').exists()).toBe(true)
@@ -620,7 +623,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     ])
 
     await selectButtonByText(wrapper, 'OpenAI')
-    await wrapper.get('[data-testid="select-pricing-groups"]').trigger('click')
+    await wrapper.get('[data-testid="account-form-groups"]').trigger('click')
 
     expect(wrapper.find('[data-testid="openai-long-context-billing-toggle"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="create-openai-ws-mode"]').exists()).toBe(true)
@@ -1183,6 +1186,56 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(createAccountMock.mock.calls[0]?.[0]?.upstream_billing_probe_enabled).toBe(true)
   })
 
+  it.each([false, true])('saves Anthropic mimic with estimated deduction=%s and clears strip identity', async (deduct) => {
+    const wrapper = mountModal()
+    expect(wrapper.find('[data-testid="anthropic-mimic-claude-code-toggle"]').exists()).toBe(false)
+    await selectButtonByText(wrapper, 'admin.accounts.claudeConsole')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Claude Code relay')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('fixture-only-key')
+
+    const mimic = wrapper.get('[data-testid="anthropic-mimic-claude-code-toggle"]')
+    const strip = wrapper.findAll('div.flex.items-center.justify-between')
+      .find(row => row.text().includes('admin.accounts.anthropic.stripClaudeCodeIdentityDesc'))!
+      .get('button')
+    expect(mimic.classes()).not.toContain('bg-primary-600')
+    await strip.trigger('click')
+    await mimic.trigger('click')
+    await flushPromises()
+    expect(strip.classes()).not.toContain('bg-primary-600')
+    const deduction = wrapper.get('[data-testid="anthropic-mimic-claude-code-deduct-tokens-toggle"]')
+    expect(deduction.attributes('aria-checked')).toBe('false')
+    if (deduct) {
+      await deduction.trigger('click')
+    }
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    const payload = createAccountMock.mock.calls[0]?.[0]
+    expect(payload).toMatchObject({
+      platform: 'anthropic', type: 'apikey', extra: { anthropic_mimic_claude_code: true },
+    })
+    expect(payload.extra).not.toHaveProperty('anthropic_strip_claude_code_identity')
+    if (deduct) {
+      expect(payload.extra.anthropic_mimic_claude_code_deduct_tokens).toBe(true)
+    } else {
+      expect(payload.extra).not.toHaveProperty('anthropic_mimic_claude_code_deduct_tokens')
+    }
+  })
+
+  it('clears the Anthropic mimic switch when changing the account platform', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'admin.accounts.claudeConsole')
+    await wrapper.get('[data-testid="anthropic-mimic-claude-code-toggle"]').trigger('click')
+    await wrapper.get('[data-testid="anthropic-mimic-claude-code-deduct-tokens-toggle"]').trigger('click')
+    await selectButtonByText(wrapper, 'OpenAI')
+    expect(wrapper.find('[data-testid="anthropic-mimic-claude-code-toggle"]').exists()).toBe(false)
+    await selectButtonByText(wrapper, 'Anthropic')
+    await selectButtonByText(wrapper, 'admin.accounts.claudeConsole')
+    expect(wrapper.get('[data-testid="anthropic-mimic-claude-code-toggle"]').classes()).not.toContain('bg-primary-600')
+    await wrapper.get('[data-testid="anthropic-mimic-claude-code-toggle"]').trigger('click')
+    expect(wrapper.get('[data-testid="anthropic-mimic-claude-code-deduct-tokens-toggle"]').attributes('aria-checked')).toBe('false')
+  })
+
   it('sends an explicit disabled state when the non-OpenAI create toggle is turned off', async () => {
     await submitApiKeyAccount('anthropic', false, true)
 
@@ -1460,4 +1513,43 @@ it('discards late create API completion from a closed editor session', async () 
   expect(wrapper.emitted('updated')).toBeUndefined()
   expect(wrapper.emitted('close')).toBeUndefined()
   expect(vm.submitting).toBe(false)
+})
+
+describe('explicit upstream channel on account creation', () => {
+ beforeEach(() => { vi.clearAllMocks() })
+ it('does not bind a late imported account after its editor closes', async () => {
+  const wrapper = mountModal(); await flushPromises()
+  const vm = wrapper.vm as any
+  vm.initialChannelId = 7; vm.initialChannelConfirmed = true
+  let finish!: (value: any) => void
+  createOpenAICodexPATMock.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  const request = vm.createPATWithUpstream({ name: 'late', pat: 'fixture-only' })
+  await wrapper.setProps({ show: false }); await wrapper.setProps({ show: true })
+  finish({ id: 701 })
+  await expect(request).rejects.toMatchObject({ name: 'AbortError' })
+  expect(readChannelBindings).not.toHaveBeenCalled()
+ })
+ it('confirms selected ownership, sends immutable entity ID and verifies binding without duplicating after a failed readback', async () => {
+  const w = mountModal(); await selectButtonByText(w, 'admin.accounts.claudeConsole')
+  await w.get('form#create-account-form input[type="text"]').setValue('owned account')
+  await w.get('form#create-account-form input[type="password"]').setValue('fixture-only-key')
+  createAccountMock.mockResolvedValue({ id: 700, name: 'owned account', platform: 'anthropic', type: 'apikey' })
+  w.getComponent(UpstreamChannelSelector).vm.$emit('update:modelValue', 7); await flushPromises()
+  await w.get('form#create-account-form').trigger('submit.prevent'); await flushPromises(); expect(createAccountMock).not.toHaveBeenCalled()
+  await w.get('[data-testid="confirm-create-channel"]').setValue(true)
+  vi.mocked(readChannelBindings).mockRejectedValueOnce(new Error('offline'))
+  await w.get('form#create-account-form').trigger('submit.prevent'); await flushPromises()
+  expect(createAccountMock).toHaveBeenCalledWith(expect.objectContaining({ upstream_channel_id: 7, confirm_upstream_channel_binding: true }))
+  expect(w.emitted('created')).toBeUndefined()
+  vi.mocked(readChannelBindings).mockResolvedValue([{ account_id: 700, account_name: 'owned account', channel_id: 7, revision: 1, deleted: false }])
+  await w.get('form#create-account-form').trigger('submit.prevent'); await flushPromises()
+  expect(createAccountMock).toHaveBeenCalledTimes(1); expect(w.emitted('created')).toHaveLength(1)
+ })
+ it('supports paging a channel catalog and selecting an entity regardless of account URL', async () => {
+  vi.mocked(listUpstreamChannels).mockResolvedValue({ items: [{ id: 7, code: 'supplier', name: '渠道', remark: '', revision: 1, members: 0 }], total: 21 })
+  const w = mountModal(); const selector = w.getComponent(UpstreamChannelSelector)
+  await selector.get('[data-testid="upstream-channel-select"]').trigger('focus'); await flushPromises()
+  await selector.get('[data-testid="upstream-channel-select"]').setValue('7')
+  expect(w.find('[data-testid="confirm-create-channel"]').exists()).toBe(true)
+ })
 })

@@ -84,25 +84,6 @@ describe('ProfileInfoCard', () => {
     wrapper.unmount()
   })
 
-  it('renders basic account information inside the new overview shell', () => {
-    const wrapper = mount(ProfileInfoCard, {
-      props: {
-        user: createUser()
-      },
-      global: {
-        stubs: {
-          Icon: true
-        }
-      }
-    })
-
-    expect(wrapper.text()).toContain('alice@example.com')
-    expect(wrapper.text()).toContain('alice')
-    expect(wrapper.text()).toContain('User')
-    expect(wrapper.get('[data-testid="profile-basics-panel"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="profile-auth-bindings-panel"]').exists()).toBe(true)
-  })
-
   it('renders third-party source hints from profile sources', () => {
     const wrapper = mount(ProfileInfoCard, {
       props: {

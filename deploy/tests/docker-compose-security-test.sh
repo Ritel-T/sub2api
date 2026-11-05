@@ -1,44 +1,39 @@
 #!/bin/sh
 set -eu
-
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
-check_application_security_opt() {
-  file=$1
-  count=$(
-    awk '
-      $0 == "  sub2api:" {
-        in_application = 1
-        next
-      }
-      in_application && $0 ~ /^  [A-Za-z0-9_-]+:$/ {
-        in_application = 0
-      }
-      in_application && $0 == "    security_opt:" {
-        in_security_opt = 1
-        next
-      }
-      in_application && in_security_opt && $0 == "      - no-new-privileges:true" {
-        count++
-      }
-      END { print count + 0 }
-    ' "$file"
-  )
+python3 - <<'PY'
+import json
+import os
+import subprocess
 
-  if [ "$count" -ne 1 ]; then
-    printf '%s must enable no-new-privileges exactly once for the sub2api service\n' "$file" >&2
-    exit 1
-  fi
-}
-
-for compose_file in \
-  deploy/docker-compose.yml \
-  deploy/docker-compose.local.yml \
-  deploy/docker-compose.standalone.yml \
-  deploy/docker-compose.dev.yml
-do
-  check_application_security_opt "$compose_file"
-done
-
-printf 'docker compose security test passed\n'
+# Render our templates. Do not duplicate Docker's environment precedence matrix
+# or assert indentation/spelling in YAML source.
+for filename in ("docker-compose.yml", "docker-compose.local.yml",
+                 "docker-compose.standalone.yml", "docker-compose.dev.yml"):
+    for overrides in ({}, {"SIMPLE_MODE_AUTO_CREATE_DEFAULT_GROUPS": "false",
+                           "SERVER_TRUSTED_PROXIES": "127.0.0.1/32,::1/128",
+                           "GATEWAY_MAX_CONNS_PER_HOST": "64"},
+                      {"SERVER_TRUSTED_PROXIES": ""}):
+        env = dict(os.environ, POSTGRES_PASSWORD="compose-test-password",
+                   DATABASE_HOST="postgres", DATABASE_PASSWORD="compose-test-password",
+                   REDIS_HOST="redis")
+        for key in ("SIMPLE_MODE_AUTO_CREATE_DEFAULT_GROUPS", "SERVER_TRUSTED_PROXIES",
+                    "GATEWAY_MAX_CONNS_PER_HOST", "GATEWAY_MAX_IDLE_CONNS",
+                    "GATEWAY_MAX_IDLE_CONNS_PER_HOST"):
+            env.pop(key, None)
+        env.update(overrides)
+        result = subprocess.run(["docker", "compose", "--env-file", "/dev/null", "-f",
+                                 "deploy/" + filename, "config", "--format", "json"],
+                                env=env, capture_output=True, text=True, check=True)
+        app = json.loads(result.stdout)["services"]["sub2api"]
+        actual = app["environment"]
+        assert "no-new-privileges:true" in app["security_opt"], filename
+        assert actual["SIMPLE_MODE_AUTO_CREATE_DEFAULT_GROUPS"] == overrides.get("SIMPLE_MODE_AUTO_CREATE_DEFAULT_GROUPS", ""), filename
+        assert actual.get("SERVER_TRUSTED_PROXIES") == overrides.get("SERVER_TRUSTED_PROXIES"), filename
+        assert actual["GATEWAY_MAX_CONNS_PER_HOST"] == overrides.get("GATEWAY_MAX_CONNS_PER_HOST", "1024"), filename
+        assert actual["GATEWAY_MAX_IDLE_CONNS"] == "2560", filename
+        assert actual["GATEWAY_MAX_IDLE_CONNS_PER_HOST"] == "120", filename
+print("Compose security and environment behavior passed (four templates, three distinct cases)")
+PY

@@ -153,6 +153,19 @@
           :refresh-key="connectionRefreshKey"
         />
         <TrafficPanel v-if="!props.observerMode && activeTab === 'traffic'" admin />
+        <LatencyObservabilityPanel
+          v-if="!props.observerMode && activeTab === 'latency'"
+          flat
+          hide-title
+          :start-date="filters.start_date || startDate"
+          :end-date="filters.end_date || endDate"
+          :model="filters.model"
+          :user-id="filters.user_id"
+          :api-key-id="filters.api_key_id"
+          :account-id="filters.account_id"
+          :group-id="filters.group_id"
+          :refresh-token="connectionRefreshKey"
+        />
         <!-- 懒挂载：首次切到该 tab 才请求排行数据，之后随筛选自动刷新 -->
         <div v-if="!props.observerMode && usagePage === 'analysis' && activeTab === 'ranking'" class="min-w-0">
           <UserTokenRanking
@@ -215,6 +228,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'; import InfiniteListSe
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import UsageConnections from '@/components/admin/usage/UsageConnections.vue'
+import LatencyObservabilityPanel from '@/components/admin/usage/LatencyObservabilityPanel.vue'
 import TrafficPanel from '@/components/usage/TrafficPanel.vue'
 import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
@@ -709,6 +723,9 @@ const allColumns = computed(() => [
   { key: 'tokens', label: t('usage.tokens'), sortable: false },
   { key: 'cost', label: t('usage.cost'), sortable: false },
   { key: 'latency', label: t('usage.latency'), sortable: false },
+  { key: 'content_reasoning_first_ms', label: t('latencyObservability.reasoning_first_ms'), sortable: false },
+  { key: 'content_visible_text_first_ms', label: t('latencyObservability.visible_text_first_ms'), sortable: false },
+  { key: 'content_response_byte_first_ms', label: t('latencyObservability.response_byte_first_ms'), sortable: false },
   { key: 'group', label: t('admin.usage.group'), sortable: false },
   { key: 'reasoning_effort', label: t('usage.reasoningEffort'), sortable: false },
   { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
@@ -776,6 +793,7 @@ const detailTabs = computed(() => usagePage.value === 'analysis' ? [
   ...(canViewErrors.value ? [{ key: 'errors' as const, label: t('usage.tabs.errors'), icon: 'exclamationTriangle' as const }] : []),
   ...(!props.observerMode ? [{ key: 'connections' as const, label: t('connections.title'), icon: 'clock' as const }] : []),
   ...(!props.observerMode ? [{ key: 'traffic' as const, label: t('traffic.title'), icon: 'chart' as const }] : []),
+  ...(!props.observerMode ? [{ key: 'latency' as const, label: t('latencyObservability.title'), icon: 'clock' as const }] : []),
 ])
 const usageFiltersRef = ref<InstanceType<typeof UsageFilters> | null>(null)
 const connectionRefreshKey = ref(0)

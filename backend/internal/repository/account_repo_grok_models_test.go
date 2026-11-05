@@ -208,16 +208,23 @@ func TestGrokCatalogCASRefreshesSingleAccountOutsideTransaction(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(grokCatalogCASQuery)).
 		WithArgs(int64(25), "null", string(nextJSON)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("SELECT pg_advisory_xact_lock($1)")).
+		WithArgs(int64(0x5780000000000000) ^ int64(25)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery(`(?s)SELECT .* FROM "accounts" WHERE .*`).
 		WithArgs(int64(25)).
 		WillReturnRows(updatedAccountRows(25, `{"unrelated":"keep","grok_observed_models":{"models":["grok-4.7"],"fetched_at":"2026-10-25T02:00:01Z"}}`))
 	mock.ExpectQuery(`(?s)account_groups`).
 		WillReturnRows(sqlmock.NewRows([]string{"account_id", "group_id", "priority", "created_at"}))
 
+	mock.ExpectCommit()
+
 	applied, err := repo.CompareAndSwapGrokObservedModels(context.Background(), 25, nil, nextJSON)
 
 	require.NoError(t, err)
 	require.True(t, applied)
+	require.NoError(t, mock.ExpectationsWereMet(), "scheduler refresh query sequence")
 	require.Equal(t, 1, cache.setAccounts)
 	require.Zero(t, cache.bucketOps)
 	require.NotNil(t, cache.lastAccount)

@@ -63,6 +63,8 @@ func (r *usageLogRepository) runTimingWriter() {
 	}
 }
 func (r *usageLogRepository) writeTiming(ctx context.Context, job timingWrite) error {
+	derived := requesttiming.DeriveLatency(job.data)
+	job.data.Latency = &derived
 	raw, err := json.Marshal(job.data)
 	if err != nil {
 		return err

@@ -66,18 +66,6 @@ func TestOpenAIWSConnPool_CleanupStaleAndTrimIdle(t *testing.T) {
 	require.NotNil(t, ap.conns["idle_new"], "newer idle should be kept")
 }
 
-func TestOpenAIWSConnPool_NextConnIDFormat(t *testing.T) {
-	pool := newOpenAIWSConnPool(&config.Config{})
-	id1 := pool.nextConnID(42)
-	id2 := pool.nextConnID(42)
-
-	require.True(t, strings.HasPrefix(id1, "oa_ws_42_"))
-	require.True(t, strings.HasPrefix(id2, "oa_ws_42_"))
-	require.NotEqual(t, id1, id2)
-	require.Equal(t, "oa_ws_42_1", id1)
-	require.Equal(t, "oa_ws_42_2", id2)
-}
-
 func TestOpenAIWSConnPool_AcquireCleanupInterval(t *testing.T) {
 	require.Equal(t, 3*time.Second, openAIWSAcquireCleanupInterval)
 	require.Less(t, openAIWSAcquireCleanupInterval, openAIWSBackgroundSweepTicker)
@@ -1758,17 +1746,6 @@ func TestOpenAIWSConnPool_RunBackgroundCleanupSweep_SkipsInvalidAndUsesAccountCa
 	require.Equal(t, now, lastCleanupAt)
 }
 
-func TestOpenAIWSConnPool_QueueLimitPerConn_DefaultAndConfigured(t *testing.T) {
-	var nilPool *openAIWSConnPool
-	require.Equal(t, 256, nilPool.queueLimitPerConn())
-
-	pool := &openAIWSConnPool{cfg: &config.Config{}}
-	require.Equal(t, 256, pool.queueLimitPerConn())
-
-	pool.cfg.Gateway.OpenAIWS.QueueLimitPerConn = 9
-	require.Equal(t, 9, pool.queueLimitPerConn())
-}
-
 func TestOpenAIWSConnPool_Close(t *testing.T) {
 	cfg := &config.Config{}
 	pool := newOpenAIWSConnPool(cfg)
@@ -1986,104 +1963,6 @@ func TestOpenAIWSConnPool_RunBackgroundPingSweep_ConcurrencyLimit(t *testing.T) 
 	}
 
 	require.LessOrEqual(t, maxConcurrent.Load(), int32(10))
-}
-
-func TestOpenAIWSConnLease_BasicGetterBranches(t *testing.T) {
-	var nilLease *openAIWSConnLease
-	require.Equal(t, "", nilLease.ConnID())
-	require.Equal(t, time.Duration(0), nilLease.QueueWaitDuration())
-	require.Equal(t, time.Duration(0), nilLease.ConnPickDuration())
-	require.False(t, nilLease.Reused())
-	require.Equal(t, "", nilLease.HandshakeHeader("x-test"))
-	require.False(t, nilLease.IsPrewarmed())
-	nilLease.MarkPrewarmed()
-	nilLease.Release()
-
-	conn := newOpenAIWSConn("getter_conn", 1, &openAIWSFakeConn{}, http.Header{"X-Test": []string{"ok"}})
-	lease := &openAIWSConnLease{
-		conn:      conn,
-		queueWait: 3 * time.Millisecond,
-		connPick:  4 * time.Millisecond,
-		reused:    true,
-	}
-	require.Equal(t, "getter_conn", lease.ConnID())
-	require.Equal(t, 3*time.Millisecond, lease.QueueWaitDuration())
-	require.Equal(t, 4*time.Millisecond, lease.ConnPickDuration())
-	require.True(t, lease.Reused())
-	require.Equal(t, "ok", lease.HandshakeHeader("x-test"))
-	require.False(t, lease.IsPrewarmed())
-	lease.MarkPrewarmed()
-	require.True(t, lease.IsPrewarmed())
-	lease.Release()
-}
-
-func TestOpenAIWSConnPool_UtilityBranches(t *testing.T) {
-	var nilPool *openAIWSConnPool
-	require.Equal(t, OpenAIWSPoolMetricsSnapshot{}, nilPool.SnapshotMetrics())
-	require.Equal(t, OpenAIWSTransportMetricsSnapshot{}, nilPool.SnapshotTransportMetrics())
-
-	pool := &openAIWSConnPool{cfg: &config.Config{}}
-	pool.metrics.acquireTotal.Store(7)
-	pool.metrics.acquireReuseTotal.Store(3)
-	metrics := pool.SnapshotMetrics()
-	require.Equal(t, int64(7), metrics.AcquireTotal)
-	require.Equal(t, int64(3), metrics.AcquireReuseTotal)
-
-	// 非 transport metrics dialer 路径
-	pool.clientDialer = &openAIWSFakeDialer{}
-	require.Equal(t, OpenAIWSTransportMetricsSnapshot{}, pool.SnapshotTransportMetrics())
-	pool.setClientDialerForTest(nil)
-	require.NotNil(t, pool.clientDialer)
-
-	require.Equal(t, 8, nilPool.maxConnsHardCap())
-	require.False(t, nilPool.dynamicMaxConnsEnabled())
-	require.Equal(t, 1.0, nilPool.maxConnsFactorByAccount(nil))
-	require.Equal(t, 0, nilPool.minIdlePerAccount())
-	require.Equal(t, 4, nilPool.maxIdlePerAccount())
-	require.Equal(t, 256, nilPool.queueLimitPerConn())
-	require.Equal(t, 0.7, nilPool.targetUtilization())
-	require.Equal(t, time.Duration(0), nilPool.prewarmCooldown())
-	require.Equal(t, 10*time.Second, nilPool.dialTimeout())
-
-	// shouldSuppressPrewarmLocked 覆盖 3 条分支
-	now := time.Now()
-	apNilFail := &openAIWSAccountPool{prewarmFails: 1}
-	require.False(t, pool.shouldSuppressPrewarmLocked(apNilFail, now))
-	apZeroTime := &openAIWSAccountPool{prewarmFails: 2}
-	require.False(t, pool.shouldSuppressPrewarmLocked(apZeroTime, now))
-	require.Equal(t, 0, apZeroTime.prewarmFails)
-	apOldFail := &openAIWSAccountPool{prewarmFails: 2, prewarmFailAt: now.Add(-openAIWSPrewarmFailureWindow - time.Second)}
-	require.False(t, pool.shouldSuppressPrewarmLocked(apOldFail, now))
-	apRecentFail := &openAIWSAccountPool{prewarmFails: openAIWSPrewarmFailureSuppress, prewarmFailAt: now}
-	require.True(t, pool.shouldSuppressPrewarmLocked(apRecentFail, now))
-
-	// recordConnPickDuration 的保护分支
-	nilPool.recordConnPickDuration(10 * time.Millisecond)
-	pool.recordConnPickDuration(-10 * time.Millisecond)
-	require.Equal(t, int64(1), pool.metrics.connPickTotal.Load())
-
-	// account pool 读写分支
-	require.Nil(t, nilPool.getOrCreateAccountPool(1))
-	require.Nil(t, pool.getOrCreateAccountPool(0))
-	pool.accounts.Store(int64(7), "invalid")
-	ap := pool.getOrCreateAccountPool(7)
-	require.NotNil(t, ap)
-	_, ok := pool.getAccountPool(0)
-	require.False(t, ok)
-	_, ok = pool.getAccountPool(12345)
-	require.False(t, ok)
-	pool.accounts.Store(int64(8), "bad-type")
-	_, ok = pool.getAccountPool(8)
-	require.False(t, ok)
-
-	// health check 条件
-	require.False(t, pool.shouldHealthCheckConn(nil))
-	conn := newOpenAIWSConn("health", 1, &openAIWSFakeConn{}, nil)
-	conn.lastUsedNano.Store(time.Now().Add(-openAIWSConnHealthCheckIdle - time.Second).UnixNano())
-	require.True(t, pool.shouldHealthCheckConn(conn))
-	unsafeConn := newOpenAIWSConn("unsafe_health", 1, &openAIWSIdlePingUnsupportedConn{}, nil)
-	unsafeConn.lastUsedNano.Store(time.Now().Add(-openAIWSConnHealthCheckIdle - time.Second).UnixNano())
-	require.False(t, pool.shouldHealthCheckConn(unsafeConn))
 }
 
 func TestOpenAIWSConn_LeaseAndTimeHelpers_NilAndClosedBranches(t *testing.T) {

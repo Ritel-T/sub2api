@@ -1,3 +1,9 @@
+import lottery from './lottery'
+import openaiAuth from './openaiAuth'
+import latencyObservability from './latencyObservability'
+import accountPerformance from './accountPerformance'
+import upstreamEntities from './upstreamEntities'
+import accountTestTiming from './accountTestTiming'
 import consoleExperience from './consoleExperience'
 import consoleUi from './consoleUi'
 import consoleFields from './consoleFields'
@@ -38,6 +44,12 @@ import requestTiming from './requestTiming'
 import autoConfig from './autoConfig'
 
 export default {
+  lottery,
+  openaiAuth,
+  latencyObservability,
+  accountPerformance,
+  upstreamEntities,
+  accountTestTiming,
   consoleExperience,
   consoleUi,
   consoleFields,

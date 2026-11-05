@@ -17,6 +17,8 @@ type permissionDefinition struct {
 // 接口按方法和 Gin 完整路径精确登记；新增接口不会继承同目录权限。
 // 全站权限与账户规则独立，选中分组绝不会隐式授予全站操作。
 var definitions = []permissionDefinition{
+	{Permission{"lottery.read", "读取抽奖奖池与记录", "财务", "global"}, []string{"GET /lottery/settings", "GET /lottery/pools", "GET /lottery/records", "GET /lottery/ledger"}},
+	{Permission{"lottery.write", "管理抽奖奖池与奖品", "财务", "global"}, []string{"PUT /lottery/settings", "POST /lottery/pools", "PUT /lottery/pools/:id", "DELETE /lottery/pools/:id", "POST /lottery/pools/:id/prizes", "PUT /lottery/pools/:id/prizes/:prize_id", "DELETE /lottery/pools/:id/prizes/:prize_id"}},
 	{Permission{"accounts.read", "查看账户（脱敏）", "账户", "account"}, []string{"GET /accounts", "GET /accounts/:id", "GET /accounts/:id/models"}},
 	{Permission{"accounts.create", "创建账户", "账户", "account"}, []string{"POST /accounts", "POST /accounts/import/codex-session"}},
 	{Permission{"accounts.update", "编辑名称与备注", "账户", "account"}, []string{"PUT /accounts/:id"}},
@@ -40,7 +42,7 @@ var definitions = []permissionDefinition{
 	{Permission{"users.quotas.read", "读取全站用户平台额度", "用户", "global"}, []string{"GET /users/:id/platform-quotas"}},
 	{Permission{"users.quotas.write", "修改与重置全站用户平台额度", "用户", "global"}, []string{"PUT /users/:id/platform-quotas", "POST /users/:id/platform-quotas/reset"}},
 	{Permission{"groups.read", "读取所有分组配置", "分组", "global"}, []string{"GET /groups", "GET /groups/all", "GET /groups/:id", "GET /groups/:id/rate-multipliers", "GET /groups/:id/composite-routes", "GET /groups/:id/model-allowlist-candidates"}},
-	{Permission{"usage.read", "读取全站用量明细及用户用量", "报表", "global"}, []string{"GET /usage", "GET /usage/stats", "GET /users/:id/usage"}},
+	{Permission{"usage.read", "读取全站用量明细及用户用量", "报表", "global"}, []string{"GET /usage", "GET /usage/stats", "GET /usage/latency-report", "GET /users/:id/usage"}},
 	{Permission{"payment.read", "读取全站支付订单与报表", "财务", "global"}, []string{"GET /payment/dashboard", "GET /payment/orders", "GET /payment/orders/:id"}},
 	{Permission{"payment.cancel", "取消支付订单", "财务", "global"}, []string{"POST /payment/orders/:id/cancel"}},
 	{Permission{"payment.fulfill", "重新履约支付订单", "财务", "global"}, []string{"POST /payment/orders/:id/retry"}},
@@ -59,7 +61,7 @@ var definitions = []permissionDefinition{
 	{Permission{"promo.read", "读取优惠码及使用记录", "财务", "global"}, []string{"GET /promo-codes", "GET /promo-codes/:id", "GET /promo-codes/:id/usages"}},
 	{Permission{"promo.write", "创建与修改优惠码权益", "财务", "global"}, []string{"POST /promo-codes", "PUT /promo-codes/:id"}},
 	{Permission{"promo.delete", "删除优惠码", "财务", "global"}, []string{"DELETE /promo-codes/:id"}},
-	{Permission{"ops.read", "读取全站运维指标", "监控", "global"}, []string{"GET /ops/concurrency", "GET /ops/user-concurrency", "GET /ops/account-availability", "GET /ops/realtime-traffic", "GET /ops/ingress-rejections", "GET /ops/ingress-rejections/health", "GET /ops/auth-cache-invalidation/health", "GET /ops/dashboard/snapshot-v2", "GET /ops/dashboard/overview", "GET /ops/dashboard/throughput-trend", "GET /ops/dashboard/latency-histogram", "GET /ops/dashboard/error-trend", "GET /ops/dashboard/error-distribution", "GET /ops/dashboard/openai-token-stats"}},
+	{Permission{"ops.read", "读取全站运维指标", "监控", "global"}, []string{"GET /ops/concurrency", "GET /ops/user-concurrency", "GET /ops/account-availability", "GET /ops/realtime-traffic", "GET /ops/ingress-rejections", "GET /ops/ingress-rejections/health", "GET /ops/auth-cache-invalidation/health", "GET /ops/dashboard/snapshot-v2", "GET /ops/dashboard/overview", "GET /ops/dashboard/latency-report", "GET /ops/dashboard/network-series", "GET /ops/dashboard/throughput-trend", "GET /ops/dashboard/latency-histogram", "GET /ops/dashboard/error-trend", "GET /ops/dashboard/error-distribution", "GET /ops/dashboard/openai-token-stats"}},
 	{Permission{"ops.errors.read", "读取全站请求错误详情（敏感）", "监控", "global"}, []string{"GET /ops/errors", "GET /ops/errors/:id", "GET /ops/request-errors", "GET /ops/request-errors/:id", "GET /ops/request-errors/:id/upstream-errors", "GET /ops/upstream-errors", "GET /ops/upstream-errors/:id", "GET /ops/requests"}},
 	{Permission{"ops.errors.resolve", "标记请求错误处理状态", "监控", "global"}, []string{"PUT /ops/errors/:id/resolve", "PUT /ops/request-errors/:id/resolve", "PUT /ops/upstream-errors/:id/resolve"}},
 	{Permission{"ops.alerts.read", "读取全站告警规则与事件", "监控", "global"}, []string{"GET /ops/alert-rules", "GET /ops/alert-events", "GET /ops/alert-events/:id"}},

@@ -89,11 +89,6 @@ func TestUsageCleanupTaskFromService_RequestTypeMapping(t *testing.T) {
 	require.Equal(t, "stream", *dtoTask.Filters.RequestType)
 }
 
-func TestRequestTypeStringPtrNil(t *testing.T) {
-	t.Parallel()
-	require.Nil(t, requestTypeStringPtr(nil))
-}
-
 func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 	t.Parallel()
 

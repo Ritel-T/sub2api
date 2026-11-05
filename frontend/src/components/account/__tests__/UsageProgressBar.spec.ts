@@ -279,7 +279,7 @@ describe('UsageProgressBar API equivalent badge', () => {
       }
     })
     expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A $1421.38')
-    expect(wrapper.text()).toContain('U $1394.83')
+    expect(wrapper.text().replace(/,/g, '')).toContain('U $1394.83')
     expect(wrapper.text()).not.toContain('A $836.00')
     wrapper.unmount()
   })
@@ -290,10 +290,10 @@ describe('UsageProgressBar API equivalent badge', () => {
       props: { label: '5h', utilization: 12, color: 'indigo', windowStats: stats }
     })
     expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A —')
-    expect(wrapper.text()).toContain('U $1394.83')
+    expect(wrapper.text().replace(/,/g, '')).toContain('U $1394.83')
     await wrapper.setProps({ windowStats: { ...stats, api_equivalent_cost: 1421.375, api_equivalent_unpriced_requests: 2 } })
     expect(wrapper.get('[data-test="api-equivalent-cost"]').text()).toBe('A ≥$1421.38')
-    expect(wrapper.text()).toContain('U $1394.83')
+    expect(wrapper.text().replace(/,/g, '')).toContain('U $1394.83')
     wrapper.unmount()
   })
 })

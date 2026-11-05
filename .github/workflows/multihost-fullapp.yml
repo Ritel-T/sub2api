@@ -1,8 +1,12 @@
 name: Multi-host full application bootstrap
 
 on:
+  workflow_dispatch:
   push:
+    branches: [main, production]
+    paths: ['backend/**', 'deploy/traffic/**', '.github/workflows/multihost-fullapp.yml']
   pull_request:
+    paths: ['backend/**', 'deploy/traffic/**', '.github/workflows/multihost-fullapp.yml']
 
 permissions:
   contents: read

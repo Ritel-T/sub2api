@@ -1252,8 +1252,8 @@ type GatewayConfig struct {
 	// 等待上游响应头的超时时间（秒），0表示无超时
 	// 注意：这不影响流式数据传输，只控制等待响应头的时间
 	ResponseHeaderTimeout int `mapstructure:"response_header_timeout"`
-	// OpenAIResponseHeaderTimeout: OpenAI/Codex 上游等待响应头的超时时间（秒），0表示无超时
-	// OpenAI/Codex 请求可能在上游排队较久；默认不使用通用响应头超时截断。
+	// OpenAIResponseHeaderTimeout: OpenAI/Codex 上游等待响应头的超时时间（秒）。
+	// 默认 0（禁用）；显式配置正数以启用该超时。
 	OpenAIResponseHeaderTimeout int `mapstructure:"openai_response_header_timeout"`
 	// GrokResponseHeaderTimeout bounds the pre-first-byte wait for xAI/Grok.
 	// A zero value uses the provider-safe default instead of the generic gateway timeout.
@@ -1573,9 +1573,18 @@ type OpenAICodexTicketConfig struct {
 // DefaultOpenAIWSClientFirstMessageTimeoutSeconds preserves the legacy ingress deadline.
 const DefaultOpenAIWSClientFirstMessageTimeoutSeconds = 30
 
+// GatewayOpenAIWSSmartProtocolConfig controls new sessions only. Disabled preserves legacy routing.
+type GatewayOpenAIWSSmartProtocolConfig struct {
+	Enabled              bool   `mapstructure:"enabled"`
+	Mode                 string `mapstructure:"mode"`
+	LargeOutputThreshold int    `mapstructure:"large_output_threshold"`
+	LongContextBytes     int    `mapstructure:"long_context_bytes"`
+}
+
 // GatewayOpenAIWSConfig OpenAI Responses WebSocket 配置。
 // 注意：默认全局开启；如需回滚可使用 force_http 或关闭 enabled。
 type GatewayOpenAIWSConfig struct {
+	SmartProtocol GatewayOpenAIWSSmartProtocolConfig `mapstructure:"smart_protocol"`
 	// ModeRouterV2Enabled: 新版 WS mode 路由开关（默认 false；关闭时保持 legacy 行为）
 	ModeRouterV2Enabled bool `mapstructure:"mode_router_v2_enabled"`
 	// IngressModeDefault: ingress 默认模式（off/ctx_pool/passthrough/http_bridge）
@@ -2852,6 +2861,10 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.store_disabled_force_new_conn", true)
 	viper.SetDefault("gateway.openai_ws.prewarm_generate_enabled", false)
 	viper.SetDefault("gateway.openai_ws.client_read_limit_bytes", 64*1024*1024)
+	viper.SetDefault("gateway.openai_ws.smart_protocol.enabled", false)
+	viper.SetDefault("gateway.openai_ws.smart_protocol.mode", "auto")
+	viper.SetDefault("gateway.openai_ws.smart_protocol.large_output_threshold", 2000)
+	viper.SetDefault("gateway.openai_ws.smart_protocol.long_context_bytes", 200000)
 	viper.SetDefault("gateway.openai_ws.http_bridge_enabled", true)
 	viper.SetDefault("gateway.openai_ws.http_bridge_threshold_bytes", 15*1024*1024)
 	viper.SetDefault("gateway.openai_ws.sse_acceleration_max_payload_bytes", 15*1024*1024)
@@ -3965,6 +3978,14 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.OpenAIWS.SSEAccelerationMaxPayloadBytes <= 0 {
 		return fmt.Errorf("gateway.openai_ws.sse_acceleration_max_payload_bytes must be positive")
+	}
+	switch c.Gateway.OpenAIWS.SmartProtocol.Mode {
+	case "", "auto", "shadow", "http", "ws":
+	default:
+		return fmt.Errorf("gateway.openai_ws.smart_protocol.mode must be auto|shadow|http|ws")
+	}
+	if c.Gateway.OpenAIWS.SmartProtocol.LargeOutputThreshold < 0 || c.Gateway.OpenAIWS.SmartProtocol.LongContextBytes < 0 {
+		return fmt.Errorf("gateway.openai_ws.smart_protocol thresholds must be non-negative")
 	}
 	if c.Gateway.OpenAIWS.HTTPBridgeThresholdBytes < 0 {
 		return fmt.Errorf("gateway.openai_ws.http_bridge_threshold_bytes must be non-negative")

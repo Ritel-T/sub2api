@@ -53,7 +53,7 @@ func SkipAudit(c *gin.Context) {
 // are never accepted through this channel.
 var auditExtraAllowedKeys = map[string]struct{}{
 	"verification_note": {},
-	"source":            {}, "reason_code": {}, "readback": {}, "remaining_count": {}, "target_user_id": {},
+	"source":            {}, "target_channel_id": {}, "reason_code": {}, "readback": {}, "remaining_count": {}, "target_user_id": {},
 	"anonymous_api_enabled": {},
 	"result":                {}, "error_code": {}, "enabled": {}, "blocking_enabled": {},
 	"config_version": {}, "endpoint_count": {}, "scanner_count": {},
@@ -172,6 +172,10 @@ var auditBodyOmittedRoutes = map[string]struct{}{
 	"POST /api/v1/auth/login/recovery":                          {},
 	"POST /api/v1/user/passkeys/reauth/finish":                  {},
 	"POST /api/v1/admin/payment/squarespace/oauth/import":       {},
+	"POST /api/v1/admin/upstream-channels":                      {},
+	"PUT /api/v1/admin/upstream-channels/:id":                   {},
+	"DELETE /api/v1/admin/upstream-channels/:id":                {},
+	"PUT /api/v1/admin/upstream-channel-bindings":               {},
 	"POST /api/v1/admin/settings/ip-audit/release":              {},
 	"PUT /api/v1/admin/settings/ip-risk":                        {},
 	"POST /api/v1/admin/settings/ip-risk/anonymous-unban":       {},

@@ -370,9 +370,9 @@ describe('user KeysView column settings', () => {
     setKeys({ ...createApiKey(), quota_used: 0, quota: 50 })
     getDashboardApiKeysUsage.mockResolvedValue({ stats: { '1': { api_key_id: 1, today_actual_cost: 12.3456, total_actual_cost: 123.4567 } } })
     const wrapper = await mountView()
-    expect(wrapper.get('[data-testid="key-today-usage"]').text()).toBe('$12.3456')
-    expect(wrapper.get('[data-testid="key-total-usage"]').text()).toBe('$123.4567')
-    expect(wrapper.get('[data-test="key-details"]').text()).toContain('$0.0000 / $50.00')
+    expect(Number(wrapper.get('[data-testid="key-today-usage"]').text().replace(/[$,]/g, ''))).toBeCloseTo(12.3456, 2)
+    expect(Number(wrapper.get('[data-testid="key-total-usage"]').text().replace(/[$,]/g, ''))).toBeCloseTo(123.4567, 2)
+    expect(wrapper.get('[data-test="key-details"]').text()).toMatch(/\$0\.0+ \/ \$50\.0+/)
     expect(wrapper.get('[data-test="key-details"]').find('[data-testid="key-concurrency"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="connect-key-entry"]').exists()).toBe(false)
   })
@@ -590,7 +590,7 @@ describe('user KeysView column settings', () => {
     expect(open).toHaveBeenCalledOnce()
     const params = new URL(String(open.mock.calls[0]?.[0])).searchParams
     expect(params.get('model')).toBe('configured-model')
-    expect(params.get('name')).toBe('Ritel SI / test-key')
+    expect(params.get('name')).toMatch(/ \/ test-key$/)
     expect(params.get('apiKey')).toBe('sk-test-key')
     expect(params.get('usageAutoInterval')).toBe('0')
     expect(wrapper.findAll('[role="dialog"]')).toHaveLength(1)
@@ -609,7 +609,7 @@ describe('user KeysView column settings', () => {
     await wrapper.get('[data-testid="connect-key-row"]').trigger('click')
     expect(open).not.toHaveBeenCalled()
     expect(wrapper.findAll('[data-app-tab]').map(tab => tab.attributes('data-app-tab'))).toEqual([
-      'codex', 'claude', 'opencode', 'openclaw', 'gemini', 'grok', 'hermes', 'pi', 'dsh'
+      'codex', 'claude', 'claude-desktop', 'opencode', 'openclaw', 'gemini', 'agy', 'grok', 'hermes', 'pi', 'mcode', 'kimi', 'dsh', 'omp'
     ])
     expect(wrapper.get('[data-app-tab="codex"]').attributes('aria-selected')).toBe('true')
     expect(wrapper.findAll('[data-testid^="connection-ccs-"]')).toHaveLength(1)

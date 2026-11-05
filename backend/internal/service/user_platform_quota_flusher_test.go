@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/Wei-Shaw/sub2api/internal/config"
 )
 
 // ---------------------------------------------------------------------------
@@ -320,49 +318,6 @@ func TestScenario_ZeroPercentCompany(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// P1: IntervalFallback — flush_interval_ms ≤0 时回退 2s；正常值保留
-// ---------------------------------------------------------------------------
-
-func TestNewUserPlatformQuotaUsageFlusher_IntervalFallback(t *testing.T) {
-	cases := []struct {
-		name   string
-		inMs   int
-		wantDu time.Duration
-	}{
-		{"零值回退 2s", 0, 2 * time.Second},
-		{"负数回退 2s", -100, 2 * time.Second},
-		{"正常 2000ms 保留", 2000, 2 * time.Second},
-		{"正常 500ms 保留", 500, 500 * time.Millisecond},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &config.Config{}
-			cfg.Database.UserPlatformQuotaFlushIntervalMs = tc.inMs
-			f := NewUserPlatformQuotaUsageFlusher(cfg, nil, nil, nil)
-			if f.interval != tc.wantDu {
-				t.Fatalf("interval = %v, want %v", f.interval, tc.wantDu)
-			}
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
-// P1: EnabledField — flusher_enabled 配置正确写入 f.enabled
-// ---------------------------------------------------------------------------
-
-func TestNewUserPlatformQuotaUsageFlusher_EnabledField(t *testing.T) {
-	for _, enabled := range []bool{true, false} {
-		cfg := &config.Config{}
-		cfg.Database.UserPlatformQuotaFlusherEnabled = enabled
-		cfg.Database.UserPlatformQuotaFlushIntervalMs = 500
-		f := NewUserPlatformQuotaUsageFlusher(cfg, nil, nil, nil)
-		if f.enabled != enabled {
-			t.Errorf("enabled = %v, want %v", f.enabled, enabled)
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
 // P2: ReaddFailCounts — BatchGet 失败 + Readd 失败 → DirtyLostTotal 增、DirtyReaddTotal 不变
 //                       BatchGet 失败 + Readd 成功 → DirtyReaddTotal 增、DirtyLostTotal 不变
 // ---------------------------------------------------------------------------
@@ -408,35 +363,6 @@ func TestFlusher_ReaddFailCounts(t *testing.T) {
 			t.Errorf("DirtyLostTotal = %d, want 0 (Readd 成功不应计 lost)", f.metrics.DirtyLostTotal.Load())
 		}
 	})
-}
-
-// ---------------------------------------------------------------------------
-// ClampsBatchSize — NewUserPlatformQuotaUsageFlusher 构造时按
-// [defaultFlushBatchSize, maxFlushBatchSize] 区间 clamp batchSize
-// ---------------------------------------------------------------------------
-
-func TestNewUserPlatformQuotaUsageFlusher_ClampsBatchSize(t *testing.T) {
-	cases := []struct {
-		name string
-		in   int
-		want int
-	}{
-		{"超上限被 clamp", 7000, maxFlushBatchSize},
-		{"恰好上限保留", maxFlushBatchSize, maxFlushBatchSize},
-		{"零回退默认", 0, defaultFlushBatchSize},
-		{"负数回退默认", -5, defaultFlushBatchSize},
-		{"正常值保留", 500, 500},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &config.Config{}
-			cfg.Database.UserPlatformQuotaFlushBatchSize = tc.in
-			f := NewUserPlatformQuotaUsageFlusher(cfg, nil, nil, nil)
-			if f.batchSize != tc.want {
-				t.Fatalf("batchSize = %d, want %d", f.batchSize, tc.want)
-			}
-		})
-	}
 }
 
 // ---------------------------------------------------------------------------

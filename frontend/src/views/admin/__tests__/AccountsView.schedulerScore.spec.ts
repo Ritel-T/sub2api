@@ -233,7 +233,7 @@ describe('admin AccountsView scheduler score column', () => {
     await flushPromises()
     expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ include_scheduler_score: '1' }))
     const keys = wrapper.findComponent({ name: 'DataTable' }).props('columns').map((column: { key: string }) => column.key)
-    expect(keys).toHaveLength(20)
+    expect(keys).toHaveLength(21)
     expect(keys).toContain('today_stats')
     expect(keys).toContain('scheduler_score')
     expect(getBatchTodayStats).toHaveBeenCalled()

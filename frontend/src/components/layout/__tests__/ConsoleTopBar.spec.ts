@@ -76,30 +76,32 @@ describe('console utility access and balance semantics', () => {
     await toggle.trigger('click')
     expect(app.toggleMobileSidebar).toHaveBeenCalledTimes(1)
   })
-  it('shows available, frozen and total funds in the avatar menu', async () => {
+  it('shows available and frozen funds on the recharge link', async () => {
     const view = mountBar()
     await view.find('.console-avatar-btn').trigger('click')
-    expect(view.find('.console-menu-balances').text()).toContain('Available balance$20.00')
-    expect(view.find('.console-menu-balances').text()).toContain('Frozen balance$5.00')
-    expect(view.find('.console-menu-balances').text()).toContain('Total balance$25.00')
+    expect(view.get('.console-balance').attributes('href')).toBe('/purchase')
+    expect(view.get('.console-balance-amount').attributes('aria-label')).toBe('Available balance: $20.00')
+    expect(view.get('.console-balance-frozen').text()).toBe('Frozen balance $5.00')
   })
   it.each(['observer', 'backend'])('omits financial details in %s mode', async mode => {
     auth.isObserver = mode === 'observer'; app.backendModeEnabled = mode === 'backend'
     const view = mountBar()
     await view.find('.console-avatar-btn').trigger('click')
-    expect(view.find('.console-menu-balances').exists()).toBe(false)
+    expect(view.find('.console-balance').exists()).toBe(false)
   })
   it('does not present a frozen amount when none exists', async () => {
     auth.user.frozen_balance = 0
     const view = mountBar()
     await view.find('.console-avatar-btn').trigger('click')
-    expect(view.findAll('.console-menu-balances dt').map(node => node.text())).toEqual(['Available balance'])
+    expect(view.get('.console-balance-amount').text()).toBe('$20.00')
+    expect(view.find('.console-balance-frozen').exists()).toBe(false)
   })
   it('uses translated numeric badge names and Hong Kong balance terms', async () => {
     locale.value = 'zh-Hant-HK'
     const view = mountBar()
     expect(view.find('.console-nav-badge').attributes('aria-label')).toBe('3 項待處理')
     await view.find('.console-avatar-btn').trigger('click')
-    expect(view.findAll('.console-menu-balances dt').map(node => node.text())).toEqual(['可用餘額', '凍結金額', '總額'])
+    expect(view.get('.console-balance-amount').attributes('aria-label')).toBe('可用餘額: $20.00')
+    expect(view.get('.console-balance-frozen').text()).toBe('凍結金額 $5.00')
   })
 })

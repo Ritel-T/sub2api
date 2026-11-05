@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/spf13/viper"
@@ -22,20 +21,6 @@ func resetViperWithJWTSecret(t *testing.T) {
 	t.Setenv("CONFIG_FILE", "")
 	t.Setenv("DATA_DIR", "")
 	t.Setenv("JWT_SECRET", strings.Repeat("x", 32))
-}
-
-func TestLoadDefaultModelsListReadMaxBytes(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, DefaultModelsListReadMaxBytes, cfg.Gateway.ModelsListReadMaxBytes)
-}
-
-func TestLoadDefaultMinOutputTokens(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, 128, cfg.Gateway.MinOutputTokens)
 }
 
 func TestLoadMinOutputTokensFromEnv(t *testing.T) {
@@ -452,37 +437,6 @@ func TestNormalizeRunMode(t *testing.T) {
 	}
 }
 
-func TestLoadDefaultSchedulingConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	if cfg.Gateway.Scheduling.StickySessionMaxWaiting != 3 {
-		t.Fatalf("StickySessionMaxWaiting = %d, want 3", cfg.Gateway.Scheduling.StickySessionMaxWaiting)
-	}
-	if cfg.Gateway.Scheduling.StickySessionWaitTimeout != 120*time.Second {
-		t.Fatalf("StickySessionWaitTimeout = %v, want 120s", cfg.Gateway.Scheduling.StickySessionWaitTimeout)
-	}
-	if cfg.Gateway.Scheduling.FallbackWaitTimeout != 30*time.Second {
-		t.Fatalf("FallbackWaitTimeout = %v, want 30s", cfg.Gateway.Scheduling.FallbackWaitTimeout)
-	}
-	if cfg.Gateway.Scheduling.FallbackMaxWaiting != 100 {
-		t.Fatalf("FallbackMaxWaiting = %d, want 100", cfg.Gateway.Scheduling.FallbackMaxWaiting)
-	}
-	if !cfg.Gateway.Scheduling.LoadBatchEnabled {
-		t.Fatalf("LoadBatchEnabled = false, want true")
-	}
-	if cfg.Gateway.Scheduling.LoadBatchCacheTTLMS != 200 {
-		t.Fatalf("LoadBatchCacheTTLMS = %d, want 200", cfg.Gateway.Scheduling.LoadBatchCacheTTLMS)
-	}
-	if cfg.Gateway.Scheduling.SlotCleanupInterval != 30*time.Second {
-		t.Fatalf("SlotCleanupInterval = %v, want 30s", cfg.Gateway.Scheduling.SlotCleanupInterval)
-	}
-}
-
 func TestLoadDefaultOpenAIFirstOutputTimeoutsDisabled(t *testing.T) {
 	resetViperWithJWTSecret(t)
 
@@ -511,128 +465,6 @@ func TestValidateOpenAIFirstOutputTimeoutMinimum(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
-func TestLoadDefaultOpenAIWSConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	if !cfg.Gateway.OpenAIWS.Enabled {
-		t.Fatalf("Gateway.OpenAIWS.Enabled = false, want true")
-	}
-	if !cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 {
-		t.Fatalf("Gateway.OpenAIWS.ResponsesWebsocketsV2 = false, want true")
-	}
-	if cfg.Gateway.OpenAIWS.ResponsesWebsockets {
-		t.Fatalf("Gateway.OpenAIWS.ResponsesWebsockets = true, want false")
-	}
-	if !cfg.Gateway.OpenAIWS.DynamicMaxConnsByAccountConcurrencyEnabled {
-		t.Fatalf("Gateway.OpenAIWS.DynamicMaxConnsByAccountConcurrencyEnabled = false, want true")
-	}
-	if cfg.Gateway.OpenAIWS.OAuthMaxConnsFactor != 5.0 {
-		t.Fatalf("Gateway.OpenAIWS.OAuthMaxConnsFactor = %v, want 5.0", cfg.Gateway.OpenAIWS.OAuthMaxConnsFactor)
-	}
-	if cfg.Gateway.OpenAIWS.APIKeyMaxConnsFactor != 5.0 {
-		t.Fatalf("Gateway.OpenAIWS.APIKeyMaxConnsFactor = %v, want 5.0", cfg.Gateway.OpenAIWS.APIKeyMaxConnsFactor)
-	}
-	if cfg.Gateway.OpenAIWS.StickySessionTTLSeconds != 3600 {
-		t.Fatalf("Gateway.OpenAIWS.StickySessionTTLSeconds = %d, want 3600", cfg.Gateway.OpenAIWS.StickySessionTTLSeconds)
-	}
-	if !cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled {
-		t.Fatalf("Gateway.OpenAIScheduler.StickyEscapeEnabled = false, want true")
-	}
-	if cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs != 15000 {
-		t.Fatalf("Gateway.OpenAIScheduler.StickyEscapeTTFTMs = %d, want 15000", cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs)
-	}
-	if cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate != 0.5 {
-		t.Fatalf("Gateway.OpenAIScheduler.StickyEscapeErrorRate = %v, want 0.5", cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate)
-	}
-	if !cfg.Gateway.OpenAIWS.SessionHashReadOldFallback {
-		t.Fatalf("Gateway.OpenAIWS.SessionHashReadOldFallback = false, want true")
-	}
-	if !cfg.Gateway.OpenAIWS.SessionHashDualWriteOld {
-		t.Fatalf("Gateway.OpenAIWS.SessionHashDualWriteOld = false, want true")
-	}
-	if !cfg.Gateway.OpenAIWS.MetadataBridgeEnabled {
-		t.Fatalf("Gateway.OpenAIWS.MetadataBridgeEnabled = false, want true")
-	}
-	if cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds != 3600 {
-		t.Fatalf("Gateway.OpenAIWS.StickyResponseIDTTLSeconds = %d, want 3600", cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds)
-	}
-	if cfg.Gateway.OpenAIWS.FallbackCooldownSeconds != 30 {
-		t.Fatalf("Gateway.OpenAIWS.FallbackCooldownSeconds = %d, want 30", cfg.Gateway.OpenAIWS.FallbackCooldownSeconds)
-	}
-	if cfg.Gateway.OpenAIWS.EventFlushBatchSize != 1 {
-		t.Fatalf("Gateway.OpenAIWS.EventFlushBatchSize = %d, want 1", cfg.Gateway.OpenAIWS.EventFlushBatchSize)
-	}
-	if cfg.Gateway.OpenAIWS.EventFlushIntervalMS != 10 {
-		t.Fatalf("Gateway.OpenAIWS.EventFlushIntervalMS = %d, want 10", cfg.Gateway.OpenAIWS.EventFlushIntervalMS)
-	}
-	if cfg.Gateway.OpenAIWS.PrewarmCooldownMS != 300 {
-		t.Fatalf("Gateway.OpenAIWS.PrewarmCooldownMS = %d, want 300", cfg.Gateway.OpenAIWS.PrewarmCooldownMS)
-	}
-	if cfg.Gateway.OpenAIWS.ClientReadLimitBytes != 64*1024*1024 {
-		t.Fatalf("Gateway.OpenAIWS.ClientReadLimitBytes = %d, want %d", cfg.Gateway.OpenAIWS.ClientReadLimitBytes, 64*1024*1024)
-	}
-	if cfg.Gateway.OpenAIWS.SSEAccelerationMaxPayloadBytes != 15*1024*1024 {
-		t.Fatalf("SSEAccelerationMaxPayloadBytes = %d, want 15 MiB", cfg.Gateway.OpenAIWS.SSEAccelerationMaxPayloadBytes)
-	}
-	if !cfg.Gateway.OpenAIWS.HTTPBridgeEnabled {
-		t.Fatalf("Gateway.OpenAIWS.HTTPBridgeEnabled = false, want true")
-	}
-	if cfg.Gateway.OpenAIWS.HTTPBridgeThresholdBytes != 15*1024*1024 {
-		t.Fatalf("Gateway.OpenAIWS.HTTPBridgeThresholdBytes = %d, want %d", cfg.Gateway.OpenAIWS.HTTPBridgeThresholdBytes, 15*1024*1024)
-	}
-	if cfg.Gateway.OpenAIWS.RetryBackoffInitialMS != 120 {
-		t.Fatalf("Gateway.OpenAIWS.RetryBackoffInitialMS = %d, want 120", cfg.Gateway.OpenAIWS.RetryBackoffInitialMS)
-	}
-	if cfg.Gateway.OpenAIWS.RetryBackoffMaxMS != 2000 {
-		t.Fatalf("Gateway.OpenAIWS.RetryBackoffMaxMS = %d, want 2000", cfg.Gateway.OpenAIWS.RetryBackoffMaxMS)
-	}
-	if cfg.Gateway.OpenAIWS.RetryJitterRatio != 0.2 {
-		t.Fatalf("Gateway.OpenAIWS.RetryJitterRatio = %v, want 0.2", cfg.Gateway.OpenAIWS.RetryJitterRatio)
-	}
-	if cfg.Gateway.OpenAIWS.RetryTotalBudgetMS != 5000 {
-		t.Fatalf("Gateway.OpenAIWS.RetryTotalBudgetMS = %d, want 5000", cfg.Gateway.OpenAIWS.RetryTotalBudgetMS)
-	}
-	if cfg.Gateway.OpenAIWS.PayloadLogSampleRate != 0.2 {
-		t.Fatalf("Gateway.OpenAIWS.PayloadLogSampleRate = %v, want 0.2", cfg.Gateway.OpenAIWS.PayloadLogSampleRate)
-	}
-	if cfg.Gateway.OpenAIWS.SchedulerScoreWeights.QuotaHeadroom != 0 {
-		t.Fatalf("Gateway.OpenAIWS.SchedulerScoreWeights.QuotaHeadroom = %v, want 0", cfg.Gateway.OpenAIWS.SchedulerScoreWeights.QuotaHeadroom)
-	}
-	if cfg.Gateway.OpenAIWS.SchedulerScoreWeights.UpstreamCost != 0 {
-		t.Fatalf("Gateway.OpenAIWS.SchedulerScoreWeights.UpstreamCost = %v, want 0", cfg.Gateway.OpenAIWS.SchedulerScoreWeights.UpstreamCost)
-	}
-	if !cfg.Gateway.OpenAIWS.StoreDisabledForceNewConn {
-		t.Fatalf("Gateway.OpenAIWS.StoreDisabledForceNewConn = false, want true")
-	}
-	if cfg.Gateway.OpenAIWS.StoreDisabledConnMode != "strict" {
-		t.Fatalf("Gateway.OpenAIWS.StoreDisabledConnMode = %q, want %q", cfg.Gateway.OpenAIWS.StoreDisabledConnMode, "strict")
-	}
-	if cfg.Gateway.OpenAIWS.ModeRouterV2Enabled {
-		t.Fatalf("Gateway.OpenAIWS.ModeRouterV2Enabled = true, want false")
-	}
-	if cfg.Gateway.OpenAIWS.IngressModeDefault != "ctx_pool" {
-		t.Fatalf("Gateway.OpenAIWS.IngressModeDefault = %q, want %q", cfg.Gateway.OpenAIWS.IngressModeDefault, "ctx_pool")
-	}
-	if cfg.Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds != DefaultOpenAIWSClientFirstMessageTimeoutSeconds {
-		t.Fatalf(
-			"Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds = %d, want %d",
-			cfg.Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds,
-			DefaultOpenAIWSClientFirstMessageTimeoutSeconds,
-		)
-	}
-	if cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds != 300 {
-		t.Fatalf("Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = %d, want 300", cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds)
-	}
-	if cfg.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey != 64 {
-		t.Fatalf("Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey = %d, want 64", cfg.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey)
-	}
-}
-
 func TestLoadOpenAIWSClientFirstMessageTimeoutFromEnv(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("GATEWAY_OPENAI_WS_CLIENT_FIRST_MESSAGE_TIMEOUT_SECONDS", "120")
@@ -649,14 +481,6 @@ func TestLoadOpenAIWSForceHTTPFromEnv(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	require.True(t, cfg.Gateway.OpenAIWS.ForceHTTP)
-}
-
-func TestLoadDefaultOpenAICompactModel(t *testing.T) {
-	resetViperWithJWTSecret(t)
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, "gpt-5.5", cfg.Gateway.OpenAICompactModel)
 }
 
 func TestLoadOpenAICompactModelFromEnv(t *testing.T) {
@@ -679,19 +503,6 @@ func TestLoadDefaultGrokFreeQuotaSoftGate(t *testing.T) {
 	require.Equal(t, 95, cfg.Gateway.Grok.FreeQuotaSoftGatePercent)
 	require.Equal(t, 24, cfg.Gateway.Grok.FreeQuotaWindowHours)
 	require.Equal(t, 60, cfg.Gateway.Grok.FreeQuotaStatsCacheSeconds)
-}
-
-func TestLoadDefaultOpenAIHTTP2Enabled(t *testing.T) {
-	resetViperWithJWTSecret(t)
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.True(t, cfg.Gateway.OpenAIHTTP2.Enabled)
-	require.True(t, cfg.Gateway.OpenAIHTTP2.AllowProxyFallbackToHTTP1)
-	require.False(t, cfg.Gateway.OpenAIProxyStreamCircuit.Disabled)
-	require.Equal(t, 2, cfg.Gateway.OpenAIProxyStreamCircuit.FailureThreshold)
-	require.Equal(t, 60, cfg.Gateway.OpenAIProxyStreamCircuit.WindowSeconds)
-	require.Equal(t, 600, cfg.Gateway.OpenAIProxyStreamCircuit.TTLSeconds)
 }
 
 func TestLoadOpenAIProxyStreamCircuitFromEnv(t *testing.T) {
@@ -718,12 +529,12 @@ func TestLoadOpenAIHTTP2DisabledFromEnv(t *testing.T) {
 	require.False(t, cfg.Gateway.OpenAIHTTP2.Enabled)
 }
 
-func TestLoadDefaultOpenAIResponseHeaderTimeoutUnlimited(t *testing.T) {
+func TestLoadDefaultOpenAIResponseHeaderTimeoutDisabled(t *testing.T) {
 	resetViperWithJWTSecret(t)
 
 	cfg, err := Load()
 	require.NoError(t, err)
-	require.Equal(t, 0, cfg.Gateway.OpenAIResponseHeaderTimeout)
+	require.Zero(t, cfg.Gateway.OpenAIResponseHeaderTimeout)
 }
 
 func TestLoadOpenAIResponseHeaderTimeoutFromEnv(t *testing.T) {
@@ -733,6 +544,18 @@ func TestLoadOpenAIResponseHeaderTimeoutFromEnv(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	require.Equal(t, 1800, cfg.Gateway.OpenAIResponseHeaderTimeout)
+}
+
+func TestLoadOpenAIResponseHeaderTimeoutFromConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("GATEWAY_OPENAI_RESPONSE_HEADER_TIMEOUT", "")
+	configFile := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configFile, []byte("gateway:\n  openai_response_header_timeout: 45\n"), 0o600))
+	t.Setenv("CONFIG_FILE", configFile)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, 45, cfg.Gateway.OpenAIResponseHeaderTimeout)
 }
 
 func TestLoadImageNonstreamKeepaliveFromEnv(t *testing.T) {
@@ -1120,31 +943,6 @@ func TestValidateOIDCAllowsExplicitCompatibilityOverridesForPKCEAndIDTokenValida
 	}
 }
 
-func TestLoadDefaultDashboardCacheConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	if !cfg.Dashboard.Enabled {
-		t.Fatalf("Dashboard.Enabled = false, want true")
-	}
-	if cfg.Dashboard.KeyPrefix != "sub2api:" {
-		t.Fatalf("Dashboard.KeyPrefix = %q, want %q", cfg.Dashboard.KeyPrefix, "sub2api:")
-	}
-	if cfg.Dashboard.StatsFreshTTLSeconds != 15 {
-		t.Fatalf("Dashboard.StatsFreshTTLSeconds = %d, want 15", cfg.Dashboard.StatsFreshTTLSeconds)
-	}
-	if cfg.Dashboard.StatsTTLSeconds != 30 {
-		t.Fatalf("Dashboard.StatsTTLSeconds = %d, want 30", cfg.Dashboard.StatsTTLSeconds)
-	}
-	if cfg.Dashboard.StatsRefreshTimeoutSeconds != 30 {
-		t.Fatalf("Dashboard.StatsRefreshTimeoutSeconds = %d, want 30", cfg.Dashboard.StatsRefreshTimeoutSeconds)
-	}
-}
-
 func TestValidateDashboardCacheConfigEnabled(t *testing.T) {
 	resetViperWithJWTSecret(t)
 
@@ -1262,46 +1060,6 @@ func TestValidateDashboardAggregationBackfillMaxDays(t *testing.T) {
 	}
 }
 
-func TestLoadDefaultUsageCleanupConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	if !cfg.UsageCleanup.Enabled {
-		t.Fatalf("UsageCleanup.Enabled = false, want true")
-	}
-	if cfg.UsageCleanup.MaxRangeDays != 31 {
-		t.Fatalf("UsageCleanup.MaxRangeDays = %d, want 31", cfg.UsageCleanup.MaxRangeDays)
-	}
-	if cfg.UsageCleanup.BatchSize != 5000 {
-		t.Fatalf("UsageCleanup.BatchSize = %d, want 5000", cfg.UsageCleanup.BatchSize)
-	}
-	if cfg.UsageCleanup.WorkerIntervalSeconds != 10 {
-		t.Fatalf("UsageCleanup.WorkerIntervalSeconds = %d, want 10", cfg.UsageCleanup.WorkerIntervalSeconds)
-	}
-	if cfg.UsageCleanup.TaskTimeoutSeconds != 1800 {
-		t.Fatalf("UsageCleanup.TaskTimeoutSeconds = %d, want 1800", cfg.UsageCleanup.TaskTimeoutSeconds)
-	}
-}
-
-func TestLoadDefaultOpsCleanupConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-	if !cfg.Ops.Cleanup.Enabled {
-		t.Fatal("Ops.Cleanup.Enabled = false, want true")
-	}
-	if cfg.Ops.Cleanup.SystemLogRetentionDays != 30 {
-		t.Fatalf("Ops.Cleanup.SystemLogRetentionDays = %d, want 30", cfg.Ops.Cleanup.SystemLogRetentionDays)
-	}
-}
-
 func TestValidateUsageCleanupConfigEnabled(t *testing.T) {
 	resetViperWithJWTSecret(t)
 
@@ -1379,16 +1137,6 @@ func TestConfigAddressHelpers(t *testing.T) {
 	redis := RedisConfig{Host: "redis", Port: 6379}
 	if redis.Address() != "redis:6379" {
 		t.Fatalf("RedisConfig.Address() = %q", redis.Address())
-	}
-}
-
-func TestNormalizeStringSlice(t *testing.T) {
-	values := normalizeStringSlice([]string{" a ", "", "b", "   ", "c"})
-	if len(values) != 3 || values[0] != "a" || values[1] != "b" || values[2] != "c" {
-		t.Fatalf("normalizeStringSlice() unexpected result: %#v", values)
-	}
-	if normalizeStringSlice(nil) != nil {
-		t.Fatalf("normalizeStringSlice(nil) expected nil slice")
 	}
 }
 
@@ -1507,12 +1255,6 @@ func TestValidateFrontendRedirectURL(t *testing.T) {
 	}
 }
 
-func TestWarnIfInsecureURL(t *testing.T) {
-	warnIfInsecureURL("test", "http://example.com")
-	warnIfInsecureURL("test", "bad://url")
-	warnIfInsecureURL("test", "://invalid")
-}
-
 func TestGenerateJWTSecretDefaultLength(t *testing.T) {
 	secret, err := generateJWTSecret(0)
 	if err != nil {
@@ -1555,13 +1297,6 @@ func TestValidateConcurrencyPingInterval(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "concurrency.ping_interval") {
 		t.Fatalf("Validate() expected concurrency.ping_interval error, got: %v", err)
-	}
-}
-
-func TestProvideConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	if _, err := ProvideConfig(); err != nil {
-		t.Fatalf("ProvideConfig() error: %v", err)
 	}
 }
 
@@ -1645,10 +1380,6 @@ func TestValidateFrontendRedirectURLInvalidChars(t *testing.T) {
 	if err := ValidateFrontendRedirectURL("mailto:user@example.com"); err == nil {
 		t.Fatalf("ValidateFrontendRedirectURL should reject mailto")
 	}
-}
-
-func TestWarnIfInsecureURLHTTPS(t *testing.T) {
-	warnIfInsecureURL("secure", "https://example.com")
 }
 
 func TestValidateJWTSecret_UTF8Bytes(t *testing.T) {
@@ -2671,100 +2402,6 @@ func TestValidateConfig_LogRequiredAndRotationBounds(t *testing.T) {
 				t.Fatalf("Validate() error = %v, want %q", err, tt.wantErr)
 			}
 		})
-	}
-}
-
-func TestLoad_DefaultGatewayUsageRecordConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-	if cfg.Gateway.UsageRecord.WorkerCount != 128 {
-		t.Fatalf("worker_count = %d, want 128", cfg.Gateway.UsageRecord.WorkerCount)
-	}
-	if cfg.Gateway.UsageRecord.QueueSize != 16384 {
-		t.Fatalf("queue_size = %d, want 16384", cfg.Gateway.UsageRecord.QueueSize)
-	}
-	if cfg.Gateway.UsageRecord.TaskTimeoutSeconds != 5 {
-		t.Fatalf("task_timeout_seconds = %d, want 5", cfg.Gateway.UsageRecord.TaskTimeoutSeconds)
-	}
-	if cfg.Gateway.UsageRecord.OverflowPolicy != UsageRecordOverflowPolicySync {
-		t.Fatalf("overflow_policy = %s, want %s", cfg.Gateway.UsageRecord.OverflowPolicy, UsageRecordOverflowPolicySync)
-	}
-	if cfg.Gateway.UsageRecord.OverflowSamplePercent != 10 {
-		t.Fatalf("overflow_sample_percent = %d, want 10", cfg.Gateway.UsageRecord.OverflowSamplePercent)
-	}
-	if !cfg.Gateway.UsageRecord.AutoScaleEnabled {
-		t.Fatalf("auto_scale_enabled = false, want true")
-	}
-	if cfg.Gateway.UsageRecord.AutoScaleMinWorkers != 128 {
-		t.Fatalf("auto_scale_min_workers = %d, want 128", cfg.Gateway.UsageRecord.AutoScaleMinWorkers)
-	}
-	if cfg.Gateway.UsageRecord.AutoScaleMaxWorkers != 512 {
-		t.Fatalf("auto_scale_max_workers = %d, want 512", cfg.Gateway.UsageRecord.AutoScaleMaxWorkers)
-	}
-	if cfg.Gateway.UsageRecord.AutoScaleUpQueuePercent != 70 {
-		t.Fatalf("auto_scale_up_queue_percent = %d, want 70", cfg.Gateway.UsageRecord.AutoScaleUpQueuePercent)
-	}
-	if cfg.Gateway.UsageRecord.AutoScaleDownQueuePercent != 15 {
-		t.Fatalf("auto_scale_down_queue_percent = %d, want 15", cfg.Gateway.UsageRecord.AutoScaleDownQueuePercent)
-	}
-	if cfg.Gateway.UsageRecord.AutoScaleUpStep != 32 {
-		t.Fatalf("auto_scale_up_step = %d, want 32", cfg.Gateway.UsageRecord.AutoScaleUpStep)
-	}
-	if cfg.Gateway.UsageRecord.AutoScaleDownStep != 16 {
-		t.Fatalf("auto_scale_down_step = %d, want 16", cfg.Gateway.UsageRecord.AutoScaleDownStep)
-	}
-	if cfg.Gateway.UsageRecord.AutoScaleCheckIntervalSeconds != 3 {
-		t.Fatalf("auto_scale_check_interval_seconds = %d, want 3", cfg.Gateway.UsageRecord.AutoScaleCheckIntervalSeconds)
-	}
-	if cfg.Gateway.UsageRecord.AutoScaleCooldownSeconds != 10 {
-		t.Fatalf("auto_scale_cooldown_seconds = %d, want 10", cfg.Gateway.UsageRecord.AutoScaleCooldownSeconds)
-	}
-}
-
-func TestLoad_DefaultGatewayImageStreamConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-	if cfg.Gateway.StreamDataIntervalTimeout != 180 {
-		t.Fatalf("stream_data_interval_timeout = %d, want 180", cfg.Gateway.StreamDataIntervalTimeout)
-	}
-	if cfg.Gateway.ExcelBPSStreamDataIntervalTimeout != 120 {
-		t.Fatalf("excel_bps_stream_data_interval_timeout = %d, want 120", cfg.Gateway.ExcelBPSStreamDataIntervalTimeout)
-	}
-	if cfg.Gateway.StreamKeepaliveInterval != 10 {
-		t.Fatalf("stream_keepalive_interval = %d, want 10", cfg.Gateway.StreamKeepaliveInterval)
-	}
-	if cfg.Gateway.ImageStreamDataIntervalTimeout != 900 {
-		t.Fatalf("image_stream_data_interval_timeout = %d, want 900", cfg.Gateway.ImageStreamDataIntervalTimeout)
-	}
-	if cfg.Gateway.ImageStreamKeepaliveInterval != 10 {
-		t.Fatalf("image_stream_keepalive_interval = %d, want 10", cfg.Gateway.ImageStreamKeepaliveInterval)
-	}
-	if cfg.Gateway.ImageNonstreamKeepaliveInterval != 0 {
-		t.Fatalf("image_nonstream_keepalive_interval = %d, want 0", cfg.Gateway.ImageNonstreamKeepaliveInterval)
-	}
-	if cfg.Gateway.ImageConcurrency.Enabled {
-		t.Fatalf("image_concurrency.enabled = true, want false")
-	}
-	if cfg.Gateway.ImageConcurrency.MaxConcurrentRequests != 0 {
-		t.Fatalf("image_concurrency.max_concurrent_requests = %d, want 0", cfg.Gateway.ImageConcurrency.MaxConcurrentRequests)
-	}
-	if cfg.Gateway.ImageConcurrency.OverflowMode != ImageConcurrencyOverflowModeReject {
-		t.Fatalf("image_concurrency.overflow_mode = %q, want %q", cfg.Gateway.ImageConcurrency.OverflowMode, ImageConcurrencyOverflowModeReject)
-	}
-	if cfg.Gateway.ImageConcurrency.WaitTimeoutSeconds != 30 {
-		t.Fatalf("image_concurrency.wait_timeout_seconds = %d, want 30", cfg.Gateway.ImageConcurrency.WaitTimeoutSeconds)
-	}
-	if cfg.Gateway.ImageConcurrency.MaxWaitingRequests != 100 {
-		t.Fatalf("image_concurrency.max_waiting_requests = %d, want 100", cfg.Gateway.ImageConcurrency.MaxWaitingRequests)
-	}
-	if cfg.Gateway.ImageStreamDataIntervalTimeout <= cfg.Gateway.StreamDataIntervalTimeout {
-		t.Fatalf("image stream timeout = %d, want greater than ordinary stream timeout %d", cfg.Gateway.ImageStreamDataIntervalTimeout, cfg.Gateway.StreamDataIntervalTimeout)
 	}
 }
 

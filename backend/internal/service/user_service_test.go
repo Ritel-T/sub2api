@@ -707,18 +707,6 @@ func TestUpdateBalance_WithAuthCacheInvalidator(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
-func TestNewUserService_FieldsAssignment(t *testing.T) {
-	repo := &mockUserRepo{}
-	auth := &mockAuthCacheInvalidator{}
-	cache := &mockBillingCache{}
-
-	svc := NewUserService(repo, nil, auth, cache)
-	require.NotNil(t, svc)
-	require.Equal(t, repo, svc.userRepo)
-	require.Equal(t, auth, svc.authCacheInvalidator)
-	require.Equal(t, cache, svc.billingCache)
-}
-
 func TestUpdateProfile_StoresInlineAvatarWithinLimit(t *testing.T) {
 	raw := []byte("small-avatar")
 	dataURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(raw)

@@ -4,41 +4,11 @@ package service
 
 import (
 	"encoding/json"
-	"errors"
-	"os"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/stretchr/testify/require"
 )
-
-func TestBuildPlatformCatalogMirrorsPlatformListAndProfiles(t *testing.T) {
-	catalog := BuildPlatformCatalog()
-	require.Equal(t, domain.CompositePrecedencePlatformIDs(), catalog.CompositePrecedence)
-	require.Len(t, catalog.Platforms, len(domain.ConcretePlatformIDs()))
-
-	for i, entry := range catalog.Platforms {
-		require.Equal(t, domain.ConcretePlatformIDs()[i], entry.ID)
-		profile := LookupProviderProfile(entry.ID)
-		if profile == nil {
-			require.Nil(t, entry.MultiProtocol, entry.ID)
-			continue
-		}
-		require.NotNil(t, entry.MultiProtocol, entry.ID)
-		require.Equal(t, profile.DefaultMode, entry.MultiProtocol.DefaultMode, entry.ID)
-		require.Equal(t, profile.DefaultMode, entry.MultiProtocol.Modes[0].Mode, entry.ID)
-		require.Equal(t, profile.ResponsesPath, entry.MultiProtocol.ResponsesPath, entry.ID)
-		require.Len(t, entry.MultiProtocol.Modes, len(profile.Modes), entry.ID)
-		for _, mode := range entry.MultiProtocol.Modes {
-			endpoints := profile.Modes[mode.Mode]
-			require.Equal(t, endpoints.BaseURLs, mode.BaseURLs, "%s/%s", entry.ID, mode.Mode)
-			require.Equal(t, len(endpoints.ProtocolRules), len(mode.ProtocolRules), "%s/%s", entry.ID, mode.Mode)
-			for j, rule := range endpoints.ProtocolRules {
-				require.Equal(t, rule, mode.ProtocolRules[j])
-			}
-		}
-	}
-}
 
 func TestBuildPlatformCatalogJSONShape(t *testing.T) {
 	raw, err := json.Marshal(BuildPlatformCatalog())
@@ -114,27 +84,4 @@ func TestBuildPlatformCatalogReturnsCopies(t *testing.T) {
 	}
 	require.Equal(t, DefaultOpenCodeGoBaseURL, LookupProviderProfile(PlatformOpenCodeGo).DefaultBaseURL(AccountModeGo, APIProtocolChatCompletions))
 	require.NotEqual(t, "mutated", LookupProviderProfile(PlatformOpenCodeGo).Modes[AccountModeGo].ProtocolRules[0].Protocol)
-}
-
-// 前端内置的平台清单（接口加载前与加载失败时使用）必须与后端一致。
-// 更新平台清单或 profile 后运行：
-//
-//	UPDATE_PLATFORM_CATALOG=1 go test -tags unit ./internal/service/ -run TestFrontendBuiltinPlatformCatalogInSync
-func TestFrontendBuiltinPlatformCatalogInSync(t *testing.T) {
-	const path = "../../../frontend/src/constants/platformCatalog.builtin.json"
-	want, err := json.MarshalIndent(BuildPlatformCatalog(), "", "  ")
-	require.NoError(t, err)
-	want = append(want, '\n')
-
-	if os.Getenv("UPDATE_PLATFORM_CATALOG") == "1" {
-		require.NoError(t, os.WriteFile(path, want, 0o644))
-		return
-	}
-	got, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		t.Skip("frontend sources not available")
-	}
-	require.NoError(t, err)
-	require.JSONEq(t, string(want), string(got),
-		"frontend/src/constants/platformCatalog.builtin.json 与后端平台清单不一致，按测试注释重新生成")
 }

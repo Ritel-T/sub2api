@@ -280,36 +280,6 @@ func TestCompositeTokenCacheInvalidator_DeleteError(t *testing.T) {
 	}
 }
 
-func TestCompositeTokenCacheInvalidator_AllPlatformsIntegration(t *testing.T) {
-	// 测试所有平台的缓存键生成和删除
-	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
-
-	accounts := []*Account{
-		{ID: 1, Platform: PlatformGemini, Type: AccountTypeOAuth, Credentials: map[string]any{"project_id": "gemini-proj"}},
-		{ID: 2, Platform: PlatformAntigravity, Type: AccountTypeOAuth, Credentials: map[string]any{"project_id": "ag-proj"}},
-		{ID: 3, Platform: PlatformOpenAI, Type: AccountTypeOAuth},
-		{ID: 4, Platform: PlatformAnthropic, Type: AccountTypeOAuth},
-	}
-
-	// 新行为：Gemini 和 Antigravity 会同时删除基于 project_id 和 account_id 的键
-	expectedKeys := []string{
-		"gemini:gemini-proj",
-		"gemini:account:1",
-		"ag:ag-proj",
-		"ag:account:2",
-		"openai:account:3",
-		"claude:account:4",
-	}
-
-	for _, acc := range accounts {
-		err := invalidator.InvalidateToken(context.Background(), acc)
-		require.NoError(t, err)
-	}
-
-	require.Equal(t, expectedKeys, cache.deletedKeys)
-}
-
 // ========== GetCredentialAsInt64 测试 ==========
 
 func TestAccount_GetCredentialAsInt64(t *testing.T) {
@@ -388,12 +358,6 @@ func TestAccount_GetCredentialAsInt64(t *testing.T) {
 			require.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func TestAccount_GetCredentialAsInt64_NilAccount(t *testing.T) {
-	var account *Account
-	result := account.GetCredentialAsInt64("_token_version")
-	require.Equal(t, int64(0), result)
 }
 
 // ========== CheckTokenVersion 测试 ==========

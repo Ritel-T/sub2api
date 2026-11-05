@@ -196,6 +196,14 @@ type SettingService struct {
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
 	openAIAPIKeyHealthBreakerCache    atomic.Value // *cachedOpenAIAPIKeyHealthBreakerSettings
 
+	// openAIResponseHeaderTimeoutCache lets the HTTP upstream client read the
+	// admin-configurable OpenAI response-header timeout without a DB hit per
+	// request. SetOpenAIResponseHeaderTimeoutSettings refreshes it immediately.
+	openAIResponseHeaderTimeoutCache atomic.Value // *cachedOpenAIResponseHeaderTimeoutSettings
+	openAIResponseHeaderTimeoutSF    singleflight.Group
+	openAIResponseHeaderTimeoutMu    sync.Mutex
+	openAIResponseHeaderTimeoutGen   uint64 // guarded by Mu; successful saves supersede in-flight reads
+
 	channelMonitorRuntimeListenersMu sync.Mutex
 	channelMonitorRuntimeListeners   []func()
 	codexHarvestWakeOnce             sync.Once

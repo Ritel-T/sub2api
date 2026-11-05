@@ -94,6 +94,7 @@
         <p v-if="order?.payment_type === 'squarespace' && order.status === 'CANCELLED'" class="rounded-xl border border-amber-200 p-4 text-sm text-amber-800 dark:border-amber-800 dark:text-amber-200">{{ t('paymentRetail.claim.cancelledManual') }}</p>
         <SquarespaceReceiptClaim v-if="claimableOwnedOrder" :order-id="claimableOwnedOrder.id" :account-email="authStore.user?.email" @updated="onClaimUpdated" @refresh="refreshOwnedOrder" />
         <!-- Actions -->
+        <router-link v-if="lottery.enabled && order?.status === 'COMPLETED' && hasAmountFields(order) && order.order_type === 'balance'" to="/lottery" class="btn btn-secondary w-full">{{ t('lottery.goLottery') }}</router-link>
         <div class="flex gap-3">
           <button class="btn btn-secondary flex-1" @click="router.push('/purchase')">{{ t('payment.result.backToRecharge') }}</button>
           <button class="btn btn-primary flex-1" @click="router.push('/orders')">{{ t('payment.result.viewOrders') }}</button>
@@ -122,6 +123,7 @@ import {
 } from '@/components/payment/paymentFlow'
 import { usePaymentStore } from '@/stores/payment'
 import { useAuthStore } from '@/stores/auth'
+import { useLotteryStore } from '@/stores/lottery'
 import { paymentAPI } from '@/api/payment'
 import type { PublicOrderVerifyResult } from '@/api/payment'
 import type { OrderStatus, PaymentOrder, RetailQuote } from '@/types/payment'
@@ -134,6 +136,7 @@ const route = useRoute()
 const router = useRouter()
 const paymentStore = usePaymentStore()
 const authStore = useAuthStore()
+const lottery = useLotteryStore()
 
 type ResolvedOrder = PaymentOrder | PublicOrderVerifyResult
 
@@ -265,6 +268,7 @@ function refreshUserBalanceForSuccessfulOrder(nextOrder: ResolvedOrder | null): 
   }
 
   userBalanceRefreshStarted = true
+  void lottery.refresh(true)
   void authStore.refreshUser().catch(() => {
     // The order result remains authoritative even if refreshing profile data fails.
   })

@@ -20,7 +20,7 @@ interface AuthState {
 let authState: AuthState
 let navigation: ConsoleNavSource | undefined
 let appState: {
-  cachedPublicSettings: { payment_enabled?: boolean; subscription_enabled?: boolean; payment_balance_disabled?: boolean; custom_menu_items?: CustomMenuItem[] }
+  cachedPublicSettings: { lottery_enabled?: boolean; payment_enabled?: boolean; subscription_enabled?: boolean; payment_balance_disabled?: boolean; custom_menu_items?: CustomMenuItem[] }
   siteName: string
   mobileOpen: boolean
   backendModeEnabled: boolean
@@ -452,5 +452,19 @@ describe('closed mobile navigation accessibility', () => {
     await nextTick()
     expect(aside.attributes('inert')).toBeDefined()
     expect(aside.attributes('aria-hidden')).toBe('true')
+  })
+})
+
+describe('merged lottery navigation', () => {
+  it('keeps enabled lottery reachable after personal extensions are hidden', async () => {
+    authState.user = { id: 52, role: 'user' }
+    route.path = '/lottery'
+    appState.cachedPublicSettings.lottery_enabled = true
+    mountSidebar()
+    expect(wrapper!.get('a[href="/lottery"]').attributes('aria-current')).toBe('page')
+    expect(navigation!.searchItems.value.some(item => item.children?.some(child => child.path === '/lottery'))).toBe(true)
+    appState.cachedPublicSettings.lottery_enabled = false
+    await nextTick()
+    expect(wrapper!.find('a[href="/lottery"]').exists()).toBe(false)
   })
 })

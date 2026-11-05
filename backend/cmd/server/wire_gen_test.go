@@ -5,20 +5,9 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
-
-func TestProvideServiceBuildInfo(t *testing.T) {
-	in := handler.BuildInfo{
-		Version:   "v-test",
-		BuildType: "release",
-	}
-	out := provideServiceBuildInfo(in)
-	require.Equal(t, in.Version, out.Version)
-	require.Equal(t, in.BuildType, out.BuildType)
-}
 
 func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	cfg := &config.Config{}
@@ -52,6 +41,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	idempotencyCleanupSvc := service.NewIdempotencyCleanupService(nil, cfg)
 	schedulerSnapshotSvc := service.NewSchedulerSnapshotService(nil, nil, nil, nil, cfg)
 	opsSystemLogSinkSvc := service.NewOpsSystemLogSink(nil)
+	accountPerformanceSvc := service.NewAccountPerformanceService(nil)
 
 	cleanup := provideCleanup(
 		nil, // default/full runtime configuration
@@ -97,6 +87,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // scheduledTestRunner
 		nil, // controlledExperiment
 		nil, // accountOps
+		accountPerformanceSvc,
 		nil, // accountTokenGuard
 		nil, // accountTokenGuardV2
 		nil, // backupSvc

@@ -6,6 +6,7 @@
     @close="handleClose"
   >
     <form id="bulk-edit-account-form" class="space-y-5" @submit.prevent="() => handleSubmit()">
+      <AccountUpstreamChannelBinding v-if="show" :account-ids="targetMode === 'selected' ? targetAccountIds : []" />
       <!-- Info -->
       <div class="rounded-lg theme-info-panel p-4">
         <p class="text-sm text-primary-700 dark:text-primary-300">
@@ -1500,6 +1501,7 @@ import type {
   OpenAIResponsesMode
 } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import AccountUpstreamChannelBinding from './AccountUpstreamChannelBinding.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'

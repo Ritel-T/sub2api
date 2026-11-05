@@ -118,7 +118,7 @@ describe('Borrowing status details', () => {
     const targets = w.findAll('[data-testid="target-route"]')
     expect(targets[0].get('[data-testid="target-answer"]').text()).toContain('29')
     expect(targets[0].get('[data-testid="target-probe-counts"]').text()).toContain('{"correct":0,"attempts":4}')
-    expect(targets[0].get('[data-testid="target-retry"]').text()).toContain(new Date(retry).toLocaleString())
+    expect(targets[0].get('[data-testid="target-retry"]').text()).toContain('admin.astraGateway.retryAt')
     expect(targets[1].find('[data-testid="target-answer"]').exists()).toBe(false)
     expect(targets[1].find('[data-testid="target-probe-counts"]').exists()).toBe(false)
     expect(targets[2].find('[data-testid="target-answer"]').exists()).toBe(false)

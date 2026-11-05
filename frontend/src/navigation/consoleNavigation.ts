@@ -106,6 +106,7 @@ const personalTable: Record<string, SectionKey> = {
   '/orders': 'billing',
   '/redeem': 'billing',
   '/affiliate': 'billing',
+  '/lottery': 'billing',
   '/support-tickets': 'support',
   '/monitor': 'support',
   '/profile': 'account',

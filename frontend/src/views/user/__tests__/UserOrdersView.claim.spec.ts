@@ -21,6 +21,7 @@ beforeEach(() => {
 async function page(status: string, type = 'squarespace') {
   api.getMyOrders.mockResolvedValue({ data: { items: [{ id: 42, amount: 10, status, payment_type: type, payment_claim_mode: 'receipt_otp', provider_instance_id: 'provider-1' }], total: 1 } })
   const wrapper = mount(UserOrdersView, { global: { stubs: { AppLayout: { template: '<div><slot /></div>' },
+        MoreActions: { template: '<div><slot /></div>' },
     OrderTable: { props: ['orders'], template: '<div><div v-for="row in orders" :key="row.id"><slot name="actions" :row="row" /></div></div>' },
     BillingNavigation: true, RouterLink: { props: ['to'], template: '<a><slot /></a>' }, BaseDialog: { props: ['show'], template: '<div v-if="show" data-test="refund-form"><slot /><slot name="footer" /></div>' },
     ConfirmDialog: { name: 'ConfirmDialog', props: ['show', 'busy'], emits: ['confirm', 'cancel'], template: '<div v-if="show" data-test="cancel-confirm" />' }, Icon: true, Pagination: true, Select: true,

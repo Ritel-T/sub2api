@@ -43,11 +43,10 @@
     <nav class="sidebar-nav" :aria-label="navText.navigation">
       <section v-for="section in sections" :key="section.key" class="console-drawer-section" :aria-labelledby="`console-drawer-${section.key}`">
         <AppHeading as="h2" variant="subtle" :id="`console-drawer-${section.key}`" class="sidebar-section-heading">{{ section.label }}</AppHeading>
+        <div v-for="tab in section.tabs" :key="tab.path" class="flex items-center">
         <router-link
-          v-for="tab in section.tabs"
-          :key="tab.path"
           :to="tab.path"
-          class="sidebar-link"
+          class="sidebar-link flex-1"
           :class="{ 'sidebar-link-active': activeLocation?.tab === tab }"
           :aria-current="activeLocation?.tab === tab ? 'page' : undefined"
           @click="handleNavigate(tab.path)"
@@ -57,6 +56,8 @@
           <span class="sidebar-label">{{ tab.label }}</span>
           <span v-if="tabBadge(tab)" class="sidebar-nav-badge" data-testid="sidebar-nav-badge">{{ formatNavBadge(tabBadge(tab)) }}</span>
         </router-link>
+        <NewFeatureBadge v-if="tab.path === '/admin/settings'" :notice-id="NEW_FEATURE_NOTICES.protocolFeatureSwitches" :user-id="authStore.user?.id" />
+        </div>
       </section>
       <div v-if="workspace === 'personal'" class="console-drawer-section">
         <a v-for="link in consoleProductLinks" :key="link.href" :href="link.href" target="_blank" rel="noopener noreferrer" class="sidebar-link" @click="closeMobile">{{ link.label }}</a>
@@ -70,6 +71,8 @@
 </template>
 
 <script setup lang="ts">
+import NewFeatureBadge from '@/components/common/NewFeatureBadge.vue'
+import { NEW_FEATURE_NOTICES } from '@/constants/newFeatureNotices'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

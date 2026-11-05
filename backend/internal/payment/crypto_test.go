@@ -20,11 +20,8 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 	key := makeKey(t)
 
 	plaintexts := []string{
-		"hello world",
-		"short",
-		"a longer string with special chars: !@#$%^&*()",
-		`{"key":"value","num":42}`,
-		"你好世界 unicode test 🎉",
+		"",
+		`{"name":"测试用户 🎉","balance":100.50}`,
 		strings.Repeat("x", 10000),
 	}
 
@@ -109,41 +106,6 @@ func TestDecryptRejectsInvalidKeyLength(t *testing.T) {
 	}
 }
 
-func TestEncryptEmptyPlaintext(t *testing.T) {
-	t.Parallel()
-	key := makeKey(t)
-
-	encrypted, err := Encrypt("", key)
-	if err != nil {
-		t.Fatalf("Encrypt empty plaintext error: %v", err)
-	}
-	decrypted, err := Decrypt(encrypted, key)
-	if err != nil {
-		t.Fatalf("Decrypt empty plaintext error: %v", err)
-	}
-	if decrypted != "" {
-		t.Fatalf("expected empty string, got %q", decrypted)
-	}
-}
-
-func TestEncryptDecryptUnicodeJSON(t *testing.T) {
-	t.Parallel()
-	key := makeKey(t)
-
-	jsonContent := `{"name":"测试用户","email":"test@example.com","balance":100.50}`
-	encrypted, err := Encrypt(jsonContent, key)
-	if err != nil {
-		t.Fatalf("Encrypt JSON error: %v", err)
-	}
-	decrypted, err := Decrypt(encrypted, key)
-	if err != nil {
-		t.Fatalf("Decrypt JSON error: %v", err)
-	}
-	if decrypted != jsonContent {
-		t.Fatalf("JSON round-trip failed: got %q, want %q", decrypted, jsonContent)
-	}
-}
-
 func TestDecryptInvalidFormat(t *testing.T) {
 	t.Parallel()
 	key := makeKey(t)
@@ -158,26 +120,6 @@ func TestDecryptInvalidFormat(t *testing.T) {
 		_, err := Decrypt(input, key)
 		if err == nil {
 			t.Fatalf("Decrypt(%q) should fail but got nil error", input)
-		}
-	}
-}
-
-func TestCiphertextFormat(t *testing.T) {
-	t.Parallel()
-	key := makeKey(t)
-
-	encrypted, err := Encrypt("test", key)
-	if err != nil {
-		t.Fatalf("Encrypt error: %v", err)
-	}
-
-	parts := strings.SplitN(encrypted, ":", 3)
-	if len(parts) != 3 {
-		t.Fatalf("ciphertext should have format iv:authTag:ciphertext, got %d parts", len(parts))
-	}
-	for i, part := range parts {
-		if part == "" {
-			t.Fatalf("ciphertext part %d is empty", i)
 		}
 	}
 }

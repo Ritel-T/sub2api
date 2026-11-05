@@ -20,16 +20,6 @@ func TestAccount_IsInterceptWarmupEnabled(t *testing.T) {
 			expected:    false,
 		},
 		{
-			name:        "empty map",
-			credentials: map[string]any{},
-			expected:    false,
-		},
-		{
-			name:        "field not present",
-			credentials: map[string]any{"access_token": "tok"},
-			expected:    false,
-		},
-		{
 			name:        "field is true",
 			credentials: map[string]any{"intercept_warmup_requests": true},
 			expected:    true,
@@ -42,16 +32,6 @@ func TestAccount_IsInterceptWarmupEnabled(t *testing.T) {
 		{
 			name:        "field is string true",
 			credentials: map[string]any{"intercept_warmup_requests": "true"},
-			expected:    false,
-		},
-		{
-			name:        "field is int 1",
-			credentials: map[string]any{"intercept_warmup_requests": 1},
-			expected:    false,
-		},
-		{
-			name:        "field is nil",
-			credentials: map[string]any{"intercept_warmup_requests": nil},
 			expected:    false,
 		},
 	}

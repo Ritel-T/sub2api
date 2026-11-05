@@ -107,24 +107,24 @@ describe('UseKeyModal', () => {
     })
 
     const grokTab = wrapper.findAll('button').find((button) =>
-      button.text().includes('keys.useKeyModal.cliTabs.grokCli')
+      button.attributes('data-app-tab') === 'grok'
     )
     expect(grokTab).toBeDefined()
 
     const allCode = wrapper.findAll('pre code').map((code) => code.text()).join('\n')
     expect(allCode).toContain('GROK_MODELS_BASE_URL')
     expect(allCode).toContain('XAI_API_KEY')
-    expect(allCode).toContain('[model."grok-4.5"]')
+    expect(allCode).toContain('[model."grok-4.7"]')
     expect(allCode).toContain('[model."grok-build-0.1"]')
     expect(allCode).toContain('[model."grok-4.20-multi-agent-0309"]')
     expect(allCode).toContain('[model."grok-4.3"]')
-    expect(allCode).toContain('default = "grok-4.5"')
+    expect(allCode).toContain('default = "grok-4.7"')
     expect(allCode).toContain('models_base_url = "https://example.com/v1"')
     expect(allCode).toContain('models_list_url = "https://example.com/v1/models"')
     expect(allCode).toContain('xai_api_base_url = "https://example.com/v1"')
     expect(allCode).toContain('cli_chat_proxy_base_url = "https://example.com/v1"')
     expect(allCode).toContain('preferred_method = "api_key"')
-    expect(allCode).toContain('image_description = "grok-4.5"')
+    expect(allCode).toContain('image_description = "grok-4.7"')
     expect(allCode).toContain('auto_compact_threshold_percent = 80')
     expect(allCode).toContain('image_gen = true')
     expect(allCode).toContain('video_gen = true')
@@ -134,7 +134,7 @@ describe('UseKeyModal', () => {
     expect(allCode).toContain('Keep api_backend = "responses" on every model entry.')
     expect(allCode).toContain('grok-imagine-image')
     expect(allCode).toContain('grok-imagine-edit')
-    expect(allCode).toMatch(/\[model\."grok-4\.5"\][\s\S]*?context_window = 500000/)
+    expect(allCode).toMatch(/\[model\."grok-4\.7"\][\s\S]*?context_window = 500000/)
     expect(allCode).toMatch(/\[model\."grok-build-0\.1"\][\s\S]*?context_window = 256000/)
     // Prefer env_key; hardcode api_key only as commented alternative
     expect(allCode).not.toMatch(/^api_key = "sk-grok-test"$/m)
@@ -170,7 +170,8 @@ describe('UseKeyModal', () => {
       baseURL: 'https://example.com/v1',
       apiKey: '{env:RITEL_API_KEY}'
     })
-    expect(parsed.provider.ritel.models['grok-4.5']).toBeDefined()
+    expect(parsed.provider.ritel.models['grok-4.7']).toBeDefined()
+    // Production retains the known legacy model limits; the new default is additive.
     expect(parsed.provider.ritel.models['grok-4.5'].limit.context).toBe(500000)
     expect(parsed.provider.ritel.models['grok-build-0.1']).toBeDefined()
     expect(parsed.provider.ritel.models['grok-4.20-multi-agent-0309']).toBeDefined()
@@ -219,13 +220,13 @@ describe('UseKeyModal', () => {
       'ANTHROPIC_DEFAULT_FABLE_MODEL',
       'CLAUDE_CODE_SUBAGENT_MODEL'
     ]) {
-      expect(unixConfig).toContain(`export ${name}="grok-4.5"`)
+      expect(unixConfig).toContain(`export ${name}="grok-4.7"`)
     }
     const settingsConfig = codeBlocks.find((content) => content.includes('"$schema"'))
     expect(settingsConfig).toBeDefined()
     const parsedSettings = JSON.parse(settingsConfig!)
     expect(parsedSettings.$schema).toBe('https://json.schemastore.org/claude-code-settings.json')
-    expect(parsedSettings.env.ANTHROPIC_MODEL).toBe('grok-4.5')
+    expect(parsedSettings.env.ANTHROPIC_MODEL).toBe('grok-4.7')
     expect(codeBlocks.join('\n')).not.toContain('CLAUDE_CODE_ATTRIBUTION_HEADER')
     expect(codeBlocks.join('\n')).toContain('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC')
     expect(parsedSettings.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe('1')
@@ -243,9 +244,9 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    expect(codeBlocks.join('\n')).toContain('set ANTHROPIC_MODEL=grok-4.5')
-    expect(codeBlocks.join('\n')).toContain('set ANTHROPIC_DEFAULT_FABLE_MODEL=grok-4.5')
-    expect(codeBlocks.join('\n')).toContain('set CLAUDE_CODE_SUBAGENT_MODEL=grok-4.5')
+    expect(codeBlocks.join('\n')).toContain('set ANTHROPIC_MODEL=grok-4.7')
+    expect(codeBlocks.join('\n')).toContain('set ANTHROPIC_DEFAULT_FABLE_MODEL=grok-4.7')
+    expect(codeBlocks.join('\n')).toContain('set CLAUDE_CODE_SUBAGENT_MODEL=grok-4.7')
     expect(codeBlocks.join('\n')).toContain('set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1')
     expect(codeBlocks.join('\n')).not.toContain('CLAUDE_CODE_ATTRIBUTION_HEADER')
     const cmdSettings = JSON.parse(codeBlocks.find((content) => content.includes('"$schema"'))!)
@@ -261,9 +262,9 @@ describe('UseKeyModal', () => {
 
     codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
     expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_BASE_URL="https://example.com"')
-    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_MODEL="grok-4.5"')
-    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_DEFAULT_FABLE_MODEL="grok-4.5"')
-    expect(codeBlocks.join('\n')).toContain('$env:CLAUDE_CODE_SUBAGENT_MODEL="grok-4.5"')
+    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_MODEL="grok-4.7"')
+    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_DEFAULT_FABLE_MODEL="grok-4.7"')
+    expect(codeBlocks.join('\n')).toContain('$env:CLAUDE_CODE_SUBAGENT_MODEL="grok-4.7"')
     expect(codeBlocks.join('\n')).toContain('$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"')
     expect(codeBlocks.join('\n')).not.toContain('CLAUDE_CODE_ATTRIBUTION_HEADER')
     const powershellSettings = JSON.parse(codeBlocks.find((content) => content.includes('"$schema"'))!)
@@ -303,7 +304,7 @@ describe('UseKeyModal', () => {
     })
 
     const codexTab = wrapper.findAll('button').find((button) =>
-      button.text().includes('keys.useKeyModal.cliTabs.codexCli')
+      button.attributes('data-app-tab') === 'codex'
     )
     expect(codexTab).toBeDefined()
     await codexTab!.trigger('click')
@@ -313,7 +314,7 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('[model_providers.ritel]'))
     expect(configToml).toBeDefined()
     expect(configToml).toContain('model_provider = "ritel"')
-    expect(configToml).toContain('model = "grok-4.5"')
+    expect(configToml).toContain('model = "grok-4.7"')
     expect(configToml).toContain('base_url = "https://example.com/v1"')
     expect(configToml).toContain('env_key = "RITEL_API_KEY"')
     expect(configToml).toContain('wire_api = "responses"')
@@ -367,8 +368,8 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('model_provider = "ritel"'))
 
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
+    expect(configToml).toContain('model = "gpt-6-astra"')
+    expect(configToml).toContain('review_model = "gpt-6-astra"')
     expect(configToml).not.toContain('model = "gpt-5.4"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
@@ -514,8 +515,8 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('supports_websockets = true'))
 
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
+    expect(configToml).toContain('model = "gpt-6-astra"')
+    expect(configToml).toContain('review_model = "gpt-6-astra"')
     expect(configToml).not.toContain('model = "gpt-5.4"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
@@ -842,7 +843,7 @@ describe('UseKeyModal', () => {
     })
 
     const codexTab = wrapper.findAll('button').find((button) =>
-      button.text().includes('keys.useKeyModal.cliTabs.codexCli')
+      button.attributes('data-app-tab') === 'codex'
     )
     expect(codexTab).toBeDefined()
     await codexTab!.trigger('click')
@@ -876,7 +877,7 @@ describe('UseKeyModal', () => {
       .find((content) => content.includes('[model_providers.ritel]'))
     expect(loadedUnixConfig).toContain('model = "claude-opus-4-8"')
     expect(loadedUnixConfig).toContain('review_model = "claude-opus-4-8"')
-    expect(loadedUnixConfig).not.toContain('model = "gpt-5.5"')
+    expect(loadedUnixConfig).not.toContain('model = "gpt-6-astra"')
     expect(loadedUnixConfig).toContain('model_catalog_json = "~/.codex/codex-models.json"')
     expect(loadedUnixConfig).not.toContain('model_catalog_url')
     expect(loadedUnixConfig).not.toContain('api_key_model_discovery')
@@ -928,7 +929,7 @@ describe('UseKeyModal', () => {
       })
 
       const codexTab = wrapper.findAll('button').find((button) =>
-        button.text().includes('keys.useKeyModal.cliTabs.codexCli')
+        button.attributes('data-app-tab') === 'codex'
       )
       expect(codexTab).toBeDefined()
       await codexTab!.trigger('click')
@@ -954,7 +955,7 @@ describe('UseKeyModal', () => {
       text: async () => JSON.stringify({
         models: [
           { slug: 'claude-opus-4-8' },
-          { slug: 'gpt-5.5' }
+          { slug: 'gpt-6-astra' }
         ]
       })
     }))
@@ -979,7 +980,7 @@ describe('UseKeyModal', () => {
     })
 
     const codexTab = wrapper.findAll('button').find((button) =>
-      button.text().includes('keys.useKeyModal.cliTabs.codexCli')
+      button.attributes('data-app-tab') === 'codex'
     )
     expect(codexTab).toBeDefined()
     await codexTab!.trigger('click')
@@ -989,8 +990,8 @@ describe('UseKeyModal', () => {
     const config = wrapper.findAll('pre code')
       .map((code) => code.text())
       .find((content) => content.includes('[model_providers.ritel]'))
-    expect(config).toContain('model = "gpt-5.5"')
-    expect(config).toContain('review_model = "gpt-5.5"')
+    expect(config).toContain('model = "gpt-6-astra"')
+    expect(config).toContain('review_model = "gpt-6-astra"')
   })
 
   it('derives OpenAI Codex reasoning effort from the selected catalog descriptor', async () => {
@@ -1061,13 +1062,13 @@ describe('UseKeyModal', () => {
     })
 
     for (const transport of ['keys.useKeyModal.cliTabs.codexCli', 'keys.useKeyModal.cliTabs.codexCliWs']) {
-      await wrapper.findAll('button').find((button) => button.text().trim() === transport)!.trigger('click')
+      await wrapper.findAll('button').find((button) => transport.endsWith('codexCli') ? button.attributes('data-app-tab') === 'codex' : button.text().trim() === transport)!.trigger('click')
       for (const os of ['macOS / Linux', 'Windows']) {
         await wrapper.findAll('button').find((button) => button.text().trim() === os)!.trigger('click')
         const configToml = wrapper.findAll('pre code')
           .map((code) => code.text())
           .find((content) => content.includes('model_provider = "ritel"'))
-        expect(configToml).toContain('model = "gpt-5.5"')
+        expect(configToml).toContain('model = "gpt-6-astra"')
         expect(configToml).toContain('[model_providers.ritel]\nname = "Ritel.SI API"\nbase_url = "https://example.com/v1"\nmodel_catalog_url = "https://example.com/v1/models"')
         expect(configToml).not.toContain('model_catalog_json')
         expect(configToml).toContain('[features]\napi_key_model_discovery = true')
@@ -1092,7 +1093,7 @@ describe('UseKeyModal', () => {
   it.each([1024 * 1024 - 1, 1024 * 1024, 1024 * 1024 + 1])(
     'uses file mode only when the manifest exceeds the remote byte limit (%s bytes)',
     async (responseBytes) => {
-      const manifest = { models: [{ slug: 'gpt-5.5', description: '' }] }
+      const manifest = { models: [{ slug: 'gpt-6-astra', description: '' }] }
       manifest.models[0]!.description = 'x'.repeat(responseBytes - JSON.stringify(manifest).length)
       const responseText = JSON.stringify(manifest)
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -1185,7 +1186,7 @@ describe('UseKeyModal overview connection summary', () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     const wrapper = renderConnection()
     expect(wrapper.findAll('[data-app-tab]').map(button => button.attributes('data-app-tab'))).toEqual([
-      'codex', 'claude', 'claude-desktop', 'opencode', 'openclaw', 'gemini', 'grok', 'hermes', 'pi', 'dsh'
+      'codex', 'claude', 'claude-desktop', 'opencode', 'openclaw', 'gemini', 'agy', 'grok', 'hermes', 'pi', 'mcode', 'kimi', 'dsh', 'omp'
     ])
     expect(wrapper.findAll('[data-testid^="connection-ccs-"]')).toHaveLength(1)
     expect(wrapper.find('[data-testid="key-connection-summary"] [data-testid^="connection-ccs-"]').exists()).toBe(false)
@@ -1251,7 +1252,7 @@ describe('UseKeyModal overview connection summary', () => {
     expect(wrapper.get('[data-app-tab="claude"]').attributes('aria-selected')).toBe('true')
     expect(wrapper.get('[data-app-tab="claude"]').attributes('tabindex')).toBe('0')
     await wrapper.get('[data-app-tab="claude"]').trigger('keydown', { key: 'End' })
-    expect(wrapper.get('[data-app-tab="dsh"]').attributes('aria-selected')).toBe('true')
+    expect(wrapper.get('[data-app-tab="omp"]').attributes('aria-selected')).toBe('true')
     expect(open).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
     wrapper.unmount()
@@ -1260,7 +1261,7 @@ describe('UseKeyModal overview connection summary', () => {
   it('retains the SystemOne curl guide without offering unsupported agent imports or dsh', () => {
     const wrapper = renderConnection(undefined, 'typesafe')
     expect(wrapper.findAll('[data-testid^="connection-ccs-"]')).toHaveLength(0)
-    expect(wrapper.findAll('button').some(button => button.text() === 'dsh')).toBe(false)
+    expect(wrapper.findAll('button').some(button => button.attributes('data-app-tab') === 'dsh')).toBe(false)
     expect(wrapper.find('pre code').text()).toContain('/v1/systemone')
     wrapper.unmount()
   })
@@ -1268,7 +1269,7 @@ describe('UseKeyModal overview connection summary', () => {
   it('collapses advanced configuration by default and exposes a short dsh guide separately', async () => {
     const wrapper = renderConnection()
     expect(wrapper.get('[data-testid="advanced-configuration"]').attributes('open')).toBeUndefined()
-    const dshTab = wrapper.findAll('button').find(button => button.text() === 'dsh')!
+    const dshTab = wrapper.findAll('button').find(button => button.attributes('data-app-tab') === 'dsh')!
     await dshTab.trigger('click')
     const guide = wrapper.get('[data-testid="dsh-guide"]')
     expect(guide.text()).toContain('npx @deepseek-ai/dsh web')
@@ -1281,7 +1282,7 @@ describe('UseKeyModal overview connection summary', () => {
 
   it('uses the dedicated Anthropic endpoint for the Antigravity dsh guide without repeating its suffix', async () => {
     const wrapper = renderConnection(undefined, 'antigravity')
-    await wrapper.findAll('button').find(button => button.text() === 'dsh')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.attributes('data-app-tab') === 'dsh')!.trigger('click')
     for (const baseUrl of ['https://api.example.com/v1/', 'https://api.example.com/antigravity/v1']) {
       await wrapper.setProps({ baseUrl })
       const guide = wrapper.get('[data-testid="dsh-guide"]')
@@ -1295,10 +1296,10 @@ describe('UseKeyModal overview connection summary', () => {
   it('keeps the copyable URL aligned with the selected client protocol', async () => {
     const wrapper = renderConnection(undefined, 'gemini')
     expect(wrapper.get('[data-testid="connection-url"]').text()).toBe('https://api.example.com')
-    const codex = wrapper.findAll('button').find(button => button.text() === 'keys.useKeyModal.cliTabs.codexCli')!
+    const codex = wrapper.findAll('button').find(button => button.attributes('data-app-tab') === 'codex')!
     await codex.trigger('click')
     expect(wrapper.get('[data-testid="connection-url"]').text()).toBe('https://api.example.com/v1')
-    const opencode = wrapper.findAll('button').find(button => button.text() === 'keys.useKeyModal.cliTabs.opencode')!
+    const opencode = wrapper.findAll('button').find(button => button.attributes('data-app-tab') === 'opencode')!
     await opencode.trigger('click')
     expect(wrapper.get('[data-testid="connection-url"]').text()).toBe('https://api.example.com/v1beta')
     wrapper.unmount()

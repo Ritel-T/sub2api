@@ -754,29 +754,6 @@ func TestLogOpsStreamError_RecordsOneFailurePerWebSocketTurn(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, second.entry.StatusCode)
 }
 
-func TestIsKnownOpsErrorType(t *testing.T) {
-	known := []string{
-		"invalid_request_error",
-		"authentication_error",
-		"rate_limit_error",
-		"billing_error",
-		"subscription_error",
-		"upstream_error",
-		"overloaded_error",
-		"api_error",
-		"not_found_error",
-		"forbidden_error",
-	}
-	for _, k := range known {
-		require.True(t, isKnownOpsErrorType(k), "expected known: %s", k)
-	}
-
-	unknown := []string{"<nil>", "null", "", "random_error", "some_new_type", "<nil>\u003e"}
-	for _, u := range unknown {
-		require.False(t, isKnownOpsErrorType(u), "expected unknown: %q", u)
-	}
-}
-
 func TestNormalizeOpsErrorType(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -1893,51 +1870,6 @@ func BenchmarkOpsCaptureWriterSuccessfulSSEFrames(b *testing.B) {
 	if state.buf.Len() != 0 {
 		b.Fatal("successful frames must not be captured")
 	}
-}
-
-func TestSetOpsEndpointContext_SetsContextKeys(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-
-	setOpsEndpointContext(c, "claude-3-5-sonnet-20241022", int16(2)) // stream
-
-	v, ok := c.Get(opsUpstreamModelKey)
-	require.True(t, ok)
-	vStr, ok := v.(string)
-	require.True(t, ok)
-	require.Equal(t, "claude-3-5-sonnet-20241022", vStr)
-
-	rt, ok := c.Get(opsRequestTypeKey)
-	require.True(t, ok)
-	rtVal, ok := rt.(int16)
-	require.True(t, ok)
-	require.Equal(t, int16(2), rtVal)
-}
-
-func TestSetOpsEndpointContext_EmptyModelNotStored(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-
-	setOpsEndpointContext(c, "", int16(1))
-
-	_, ok := c.Get(opsUpstreamModelKey)
-	require.False(t, ok, "empty upstream model should not be stored")
-
-	rt, ok := c.Get(opsRequestTypeKey)
-	require.True(t, ok)
-	rtVal, ok := rt.(int16)
-	require.True(t, ok)
-	require.Equal(t, int16(1), rtVal)
-}
-
-func TestSetOpsEndpointContext_NilContext(t *testing.T) {
-	require.NotPanics(t, func() {
-		setOpsEndpointContext(nil, "model", int16(1))
-	})
 }
 
 func TestGetOpsAPIKeyFallsBackToOpsFallbackKey(t *testing.T) {

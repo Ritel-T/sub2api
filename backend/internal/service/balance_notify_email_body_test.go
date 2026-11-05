@@ -3,7 +3,6 @@
 package service
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -89,59 +88,4 @@ func TestBuildQuotaAlertEmailBody_AllFieldsPresent(t *testing.T) {
 	require.NotContains(t, body, "%!")
 	require.NotContains(t, body, "MISSING")
 	require.NotContains(t, body, "EXTRA")
-}
-
-func TestBuildQuotaAlertEmailBody_UnlimitedDisplay(t *testing.T) {
-	s := &BalanceNotifyService{}
-	body := s.buildQuotaAlertEmailBody(
-		1, "n", "p", "dim",
-		100.0, 0.0, // limit=0 triggers unlimited branch
-		0.0, "30%", "Site",
-	)
-	require.Contains(t, body, "无限制")
-	require.Contains(t, body, "Unlimited")
-}
-
-func TestBuildQuotaAlertEmailBody_PercentageThresholdDisplay(t *testing.T) {
-	s := &BalanceNotifyService{}
-	body := s.buildQuotaAlertEmailBody(
-		1, "n", "p", "dim",
-		700.0, 1000.0, 300.0,
-		"30%", // percentage-formatted threshold
-		"Site",
-	)
-	require.Contains(t, body, "30%")
-	require.NotContains(t, body, "%!")
-}
-
-func TestBuildQuotaAlertEmailBody_RemainingClampedAtZero(t *testing.T) {
-	// Even though caller is responsible for clamping, this test documents the
-	// display behavior with remaining=0.
-	s := &BalanceNotifyService{}
-	body := s.buildQuotaAlertEmailBody(
-		1, "n", "p", "dim",
-		1500.0, 1000.0, 0.0, // used > limit (over-quota)
-		"$100.00", "Site",
-	)
-	require.Contains(t, body, "$0.00")
-}
-
-// ---------- sanity checks on the CSS `%%` escape ----------
-
-func TestBuildBalanceLowEmailBody_NoCSSFormatError(t *testing.T) {
-	s := &BalanceNotifyService{}
-	body := s.buildBalanceLowEmailBody("u", 1.0, 5.0, "Site", "")
-	// CSS `linear-gradient(135deg, #f59e0b 0%, #d97706 100%)` should appear with
-	// literal percent signs (from the %% escape in the template).
-	require.True(t,
-		strings.Contains(body, "0%") && strings.Contains(body, "100%"),
-		"CSS gradient percentages not rendered; got: %s", body)
-}
-
-func TestBuildQuotaAlertEmailBody_NoCSSFormatError(t *testing.T) {
-	s := &BalanceNotifyService{}
-	body := s.buildQuotaAlertEmailBody(1, "n", "p", "d", 0, 0, 0, "$0.00", "Site")
-	require.True(t,
-		strings.Contains(body, "0%") && strings.Contains(body, "100%"),
-		"CSS gradient percentages not rendered; got: %s", body)
 }

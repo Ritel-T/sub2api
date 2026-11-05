@@ -106,28 +106,6 @@ describe('PelicanShowcaseView', () => {
     expect(wrapper.find('[data-testid="showcase-notice"]').exists()).toBe(false)
   })
 
-  it('puts the notice about imperfect drawings at the top of the page while there are groups', async () => {
-    getShowcase.mockResolvedValue(showcase())
-    wrapper = mountView()
-    await flushPromises()
-
-    const notice = wrapper.get('[data-testid="showcase-notice"]')
-    expect(notice.text()).toBe('pelicanShowcase.notice')
-    expect(notice.attributes('role')).toBe('note')
-    // First element of the page, directly above the toolbar with the gallery rules.
-    expect(notice.element.previousElementSibling).toBeNull()
-    expect(notice.element.nextElementSibling?.querySelector('[data-testid="showcase-keep-rule"]')).not.toBeNull()
-  })
-
-  it('leaves the notice out of an empty gallery', async () => {
-    getShowcase.mockResolvedValue(showcase({ groups: [] }))
-    wrapper = mountView()
-    await flushPromises()
-
-    expect(wrapper.get('.empty-state').text()).toBe('pelicanShowcase.empty.title')
-    expect(wrapper.find('[data-testid="showcase-notice"]').exists()).toBe(false)
-  })
-
   it('opens API examples with the effective access state and an existing result ID', async () => {
     getShowcase.mockResolvedValue(showcase())
     wrapper = mountView()

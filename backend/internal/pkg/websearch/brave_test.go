@@ -10,11 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBraveProvider_Name(t *testing.T) {
-	p := NewBraveProvider("key", nil)
-	require.Equal(t, "brave", p.Name())
-}
-
 func TestBraveProvider_Search_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "test-key", r.Header.Get("X-Subscription-Token"))

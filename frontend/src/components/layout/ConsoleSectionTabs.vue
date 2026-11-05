@@ -5,9 +5,8 @@
     :aria-label="activeLocation?.section?.label"
   >
     <div class="console-section-tabs-inner">
+      <div v-for="tab in activeTabs" :key="tab.path" class="flex shrink-0 items-center">
       <router-link
-        v-for="tab in activeTabs"
-        :key="tab.path"
         :to="tab.path"
         class="console-tab-link"
         :class="{ 'console-tab-link-active': activeLocation?.tab === tab }"
@@ -21,12 +20,17 @@
           :aria-label="shellCopy.unread(tabBadge(tab))"
         >{{ formatNavBadge(tabBadge(tab)) }}</span>
       </router-link>
+      <NewFeatureBadge v-if="tab.path === '/admin/settings'" :notice-id="NEW_FEATURE_NOTICES.protocolFeatureSwitches" :user-id="authStore.user?.id" />
+      </div>
     </div>
   </nav>
 </template>
 
 <script setup lang="ts">
+import NewFeatureBadge from '@/components/common/NewFeatureBadge.vue'
+import { NEW_FEATURE_NOTICES } from '@/constants/newFeatureNotices'
 import { computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { consoleShellCopy, formatNavBadge } from '@/utils/consoleShellUi'
 import { tabBadge } from '@/navigation/consoleNavigation'
@@ -34,6 +38,7 @@ import { useConsoleNav } from '@/navigation/useConsoleNavSource'
 
 const { activeLocation, handleNavigate } = useConsoleNav()
 const { locale } = useI18n()
+const authStore = useAuthStore()
 const shellCopy = computed(() => consoleShellCopy(locale.value))
 
 const activeTabs = computed(() => activeLocation.value?.section?.tabs ?? [])

@@ -4,7 +4,6 @@ import OrderAmounts from '../OrderAmounts.vue'
 import OrderTable from '../OrderTable.vue'
 import AdminOrderTable from '@/components/admin/payment/AdminOrderTable.vue'
 import type { PaymentOrder } from '@/types/payment'
-import zh from '@/i18n/locales/zh/misc'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 afterEach(() => vi.restoreAllMocks())
@@ -16,11 +15,6 @@ const order: PaymentOrder = {
 const tableStub = { props: ['data'], template: '<div><div v-for="row in data" :key="row.id"><slot name="cell-pay_amount" :row="row" :value="row.pay_amount" /></div></div>' }
 
 describe('actual order list amounts', () => {
-  it('uses the requested Chinese list labels without changing detail wording', () => {
-    expect(zh.payment.orders.actualPaid).toBe('实付金额')
-    expect(zh.payment.orders.actualCredited).toBe('实际到账')
-    expect(zh.payment.admin.detail.actualPaid).toBe('实际支付')
-  })
   it.each(['gelv_alipay', 'gelv', 'alipay', 'wxpay', 'stripe', 'airwallex', 'squarespace', 'balance'])('shows cash and credited totals once for completed %s orders', payment_type => {
     const wrapper = mount(OrderAmounts, { props: { order: { ...order, payment_type, bonus_amount: 1 } } })
     expect(wrapper.get('[data-testid=order-paid]').text()).toContain('¥12.34')

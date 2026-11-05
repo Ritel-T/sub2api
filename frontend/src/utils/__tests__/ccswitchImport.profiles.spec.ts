@@ -189,7 +189,7 @@ describe('administrator CC Switch provider profiles', () => {
   it('requires explicit compatible formats for Hermes on Gemini profiles', () => {
     expect(() => buildCcSwitchImportDeeplink({
       ...base, platform: 'gemini', profile: { ...profile({}, 'hermes'), platform: 'gemini' }
-    })).toThrow('Hermes')
+    })).toThrow('This application does not support the Gemini Native API format')
     const params = new URL(buildCcSwitchImportDeeplink({
       ...base, platform: 'gemini', profile: { ...profile({ apiFormat: 'openai_chat' }, 'hermes'), platform: 'gemini' }
     })).searchParams

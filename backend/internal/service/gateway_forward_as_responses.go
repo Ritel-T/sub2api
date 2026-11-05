@@ -218,6 +218,7 @@ func (s *GatewayService) ForwardAsResponses(
 		result, handleErr = s.handleResponsesBufferedStreamingResponse(resp, c, originalModel, mappedModel, reasoningEffort, startTime, clientToolMapping)
 	}
 
+	attachClaudeCodeMimicInjection(c, account, result)
 	return result, handleErr
 }
 

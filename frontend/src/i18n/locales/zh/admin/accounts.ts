@@ -1201,6 +1201,12 @@ export default {
         stripClaudeCodeIdentity: '抹除 Claude Code 身份',
         stripClaudeCodeIdentityDesc:
           '仅对 Anthropic API Key 生效。开启后，转发与测试连接时自动剥离 Claude Code / Agent SDK 客户端特征（替换 claude-cli User-Agent、移除 claude-code/oauth beta、剔除 system 中的 x-anthropic-billing-header 块与官方 CLI/SDK 身份句、移除 metadata.user_id），避免限制 Claude Code 调用的官方 API Key（如 sk-ant-usr-* 额度 Key）被上游拒绝并返回余额不足错误。',
+        mimicClaudeCode: '模拟 Claude Code 客户端',
+        mimicClaudeCodeDesc:
+          '用于要求 Claude Code 客户端的 Anthropic API Key 上游. 与抹除身份开关互斥. 转发和连接测试会补齐缺失的客户端请求头, system 身份句及会话信息; count_tokens 仅补请求头. 身份句可能影响模型自述.',
+        mimicClaudeCodeDeductTokens: '按模型估算扣除身份句 token',
+        mimicClaudeCodeDeductTokensDesc:
+          '默认关闭, 按上游用量正常计费. 开启后, 仅在网关补入身份句时按模型估算扣除 14-24 个 token. token 数量和混合缓存分类均为估算. 返回客户端的 usage 始终保留上游原值.',
         apiKeyAuthScheme: '上游认证方式',
         apiKeyAuthSchemeDesc: '选择转发到 Anthropic-compatible 上游时使用的 API Key 认证头。Ollama Cloud 使用 Authorization: Bearer。',
         apiKeyAuthSchemeXApiKey: 'x-api-key',

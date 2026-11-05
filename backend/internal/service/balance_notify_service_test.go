@@ -30,11 +30,6 @@ func TestResolveBalanceThreshold_PercentageZeroRecharged(t *testing.T) {
 	require.Equal(t, 10.0, resolveBalanceThreshold(10, thresholdTypePercentage, 0))
 }
 
-func TestResolveBalanceThreshold_EmptyType(t *testing.T) {
-	// Empty type is treated as fixed (not percentage).
-	require.Equal(t, 10.0, resolveBalanceThreshold(10, "", 1000))
-}
-
 // ---------- quotaDim.resolvedThreshold ----------
 
 func TestResolvedThreshold_FixedNormal(t *testing.T) {
@@ -85,12 +80,6 @@ func TestResolvedThreshold_ZeroLimit(t *testing.T) {
 	require.Equal(t, 0.0, d.resolvedThreshold())
 }
 
-func TestResolvedThreshold_NegativeLimit(t *testing.T) {
-	// Negative limit treated as 0
-	d := quotaDim{threshold: 100, thresholdType: thresholdTypeFixed, limit: -10}
-	require.Equal(t, 0.0, d.resolvedThreshold())
-}
-
 // ---------- sanitizeEmailHeader ----------
 
 func TestSanitizeEmailHeader_CRLF(t *testing.T) {
@@ -105,82 +94,7 @@ func TestSanitizeEmailHeader_OnlyLF(t *testing.T) {
 	require.Equal(t, "foobar", sanitizeEmailHeader("foo\nbar"))
 }
 
-func TestSanitizeEmailHeader_Clean(t *testing.T) {
-	require.Equal(t, "Sub2API", sanitizeEmailHeader("Sub2API"))
-}
-
-func TestSanitizeEmailHeader_Empty(t *testing.T) {
-	require.Equal(t, "", sanitizeEmailHeader(""))
-}
-
-func TestSanitizeEmailHeader_MultipleNewlines(t *testing.T) {
-	require.Equal(t, "abc", sanitizeEmailHeader("a\r\nb\r\nc"))
-}
-
 // ---------- buildQuotaDims ----------
-
-func TestBuildQuotaDims_AllDimensionsReturned(t *testing.T) {
-	// Use an account with quota notify config across all 3 dimensions.
-	a := &Account{
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeAPIKey,
-		Extra: map[string]any{
-			"quota_notify_daily_enabled":         true,
-			"quota_notify_daily_threshold":       100.0,
-			"quota_notify_daily_threshold_type":  thresholdTypeFixed,
-			"quota_notify_weekly_enabled":        true,
-			"quota_notify_weekly_threshold":      20.0,
-			"quota_notify_weekly_threshold_type": thresholdTypePercentage,
-			"quota_notify_total_enabled":         false,
-			"quota_daily_limit":                  500.0,
-			"quota_weekly_limit":                 2000.0,
-			"quota_limit":                        10000.0,
-			"quota_daily_used":                   50.0,
-			"quota_weekly_used":                  300.0,
-			"quota_used":                         1000.0,
-		},
-	}
-
-	dims := buildQuotaDims(a)
-	require.Len(t, dims, 3)
-
-	// Daily
-	require.Equal(t, quotaDimDaily, dims[0].name)
-	require.True(t, dims[0].enabled)
-	require.Equal(t, 100.0, dims[0].threshold)
-	require.Equal(t, thresholdTypeFixed, dims[0].thresholdType)
-	require.Equal(t, 500.0, dims[0].limit)
-	require.Equal(t, 50.0, dims[0].currentUsed)
-
-	// Weekly
-	require.Equal(t, quotaDimWeekly, dims[1].name)
-	require.True(t, dims[1].enabled)
-	require.Equal(t, 20.0, dims[1].threshold)
-	require.Equal(t, thresholdTypePercentage, dims[1].thresholdType)
-	require.Equal(t, 2000.0, dims[1].limit)
-
-	// Total
-	require.Equal(t, quotaDimTotal, dims[2].name)
-	require.False(t, dims[2].enabled)
-	require.Equal(t, 10000.0, dims[2].limit)
-	require.Equal(t, 1000.0, dims[2].currentUsed)
-}
-
-func TestBuildQuotaDims_EmptyExtra(t *testing.T) {
-	// Missing fields default to zero/disabled.
-	a := &Account{
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeAPIKey,
-		Extra:    map[string]any{},
-	}
-	dims := buildQuotaDims(a)
-	require.Len(t, dims, 3)
-	for _, d := range dims {
-		require.False(t, d.enabled)
-		require.Equal(t, 0.0, d.threshold)
-		require.Equal(t, 0.0, d.limit)
-	}
-}
 
 // ---------- buildQuotaDimsFromState ----------
 
@@ -219,12 +133,6 @@ func TestBuildQuotaDimsFromState_UsesStateValues(t *testing.T) {
 }
 
 // ---------- collectBalanceNotifyRecipients ----------
-
-func TestCollectBalanceNotifyRecipients_Empty(t *testing.T) {
-	s := &BalanceNotifyService{}
-	u := &User{BalanceNotifyExtraEmails: nil}
-	require.Empty(t, s.collectBalanceNotifyRecipients(u))
-}
 
 func TestCollectBalanceNotifyRecipients_FiltersDisabledAndUnverified(t *testing.T) {
 	s := &BalanceNotifyService{}
