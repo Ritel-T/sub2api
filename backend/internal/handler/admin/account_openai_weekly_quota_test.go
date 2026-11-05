@@ -87,8 +87,8 @@ func TestAccountHandlerOpenAIWeeklyQuotaIgnoresUIFiltersAndHidesIdentity(t *test
 	require.Equal(t, float64(14000), payload.Data.TotalRemaining)
 	require.Equal(t, float64(28000), payload.Data.TotalWeeklyLimit)
 	require.Equal(t, 1, payload.Data.Excluded.Inactive)
-	require.Len(t, payload.Data.Tiers, 4)
-	require.Equal(t, []string{"Plus", "Pro100", "Pro200", "Pro500"}, []string{payload.Data.Tiers[0].Label, payload.Data.Tiers[1].Label, payload.Data.Tiers[2].Label, payload.Data.Tiers[3].Label})
+	require.Len(t, payload.Data.Tiers, 6)
+	require.Equal(t, []string{"Plus", "Pro100", "Pro200", "Pro500", "Business / Team", "Business Premium"}, []string{payload.Data.Tiers[0].Label, payload.Data.Tiers[1].Label, payload.Data.Tiers[2].Label, payload.Data.Tiers[3].Label, payload.Data.Tiers[4].Label, payload.Data.Tiers[5].Label})
 	require.NotNil(t, payload.Data.OldestSnapshotAt)
 	require.NotNil(t, payload.Data.LatestSnapshotAt)
 	for _, secret := range []string{"secret", "credentials", "access_token", "email", "account_id", "items"} {

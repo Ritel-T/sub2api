@@ -72,6 +72,8 @@ func TestOpenAIWeeklyQuotaTiersAndRounding(t *testing.T) {
 		{Plan: "prolite", Label: "Pro100", WeeklyLimit: 700, AccountCount: 1, Remaining: 525},
 		{Plan: "pro", Label: "Pro200", WeeklyLimit: 1400, AccountCount: 1, Remaining: 1227.1605},
 		{Plan: "promax", Label: "Pro500", WeeklyLimit: 3500, AccountCount: 1, Remaining: 0},
+		{Plan: "team", Label: "Business / Team", WeeklyLimit: 140},
+		{Plan: "self_serve_business_prolite", Label: "Business Premium", WeeklyLimit: 700},
 	}, got.Tiers)
 	require.Equal(t, weeklyQuotaTestNow, got.GeneratedAt)
 	require.Equal(t, weeklyQuotaTestNow.Add(-2*time.Hour), *got.OldestSnapshotAt)
@@ -81,6 +83,28 @@ func TestOpenAIWeeklyQuotaTiersAndRounding(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(body), "private")
 	require.NotContains(t, string(body), "credentials")
+}
+
+func TestOpenAIWeeklyQuotaBusinessPlans(t *testing.T) {
+	accounts := []Account{
+		weeklyQuotaFixture(1, "team", 0),
+		weeklyQuotaFixture(2, "business", 25),
+		weeklyQuotaFixture(3, "self_serve_business_usage_based", 100),
+		weeklyQuotaFixture(4, " SELF_SERVE_BUSINESS_PROLITE ", 25),
+		weeklyQuotaFixture(5, "team", 0),
+		weeklyQuotaFixture(6, "self_serve_business_prolite", 0),
+	}
+	accounts[4].Schedulable = false
+	accounts[5].Extra["codex_7d_reset_at"] = weeklyQuotaTestNow.Format(time.RFC3339)
+	got, err := CollectOpenAIWeeklyQuota(context.Background(), &weeklyQuotaTestLister{accounts: accounts}, weeklyQuotaTestNow)
+	require.NoError(t, err)
+	require.Equal(t, 4, got.IncludedAccounts)
+	require.Equal(t, float64(1120), got.TotalWeeklyLimit)
+	require.Equal(t, float64(770), got.TotalRemaining)
+	require.Equal(t, OpenAIWeeklyQuotaTier{Plan: "team", Label: "Business / Team", WeeklyLimit: 140, AccountCount: 3, Remaining: 245}, got.Tiers[4])
+	require.Equal(t, OpenAIWeeklyQuotaTier{Plan: "self_serve_business_prolite", Label: "Business Premium", WeeklyLimit: 700, AccountCount: 1, Remaining: 525}, got.Tiers[5])
+	require.Equal(t, 1, got.Excluded.Inactive)
+	require.Equal(t, 1, got.Excluded.ExpiredSnapshot)
 }
 
 func TestOpenAIWeeklyQuotaSnapshotFixtures(t *testing.T) {
@@ -197,12 +221,12 @@ func TestOpenAIWeeklyQuotaExcludedCountsAndEmptyContract(t *testing.T) {
 	require.Zero(t, got.TotalRemaining)
 	require.Zero(t, got.TotalWeeklyLimit)
 	require.Zero(t, got.IncludedAccounts)
-	require.Len(t, got.Tiers, 4)
+	require.Len(t, got.Tiers, 6)
 	require.Nil(t, got.OldestSnapshotAt)
 	require.Nil(t, got.LatestSnapshotAt)
 	empty, err := CollectOpenAIWeeklyQuota(context.Background(), &weeklyQuotaTestLister{}, weeklyQuotaTestNow)
 	require.NoError(t, err)
-	require.Len(t, empty.Tiers, 4)
+	require.Len(t, empty.Tiers, 6)
 	require.Equal(t, OpenAIWeeklyQuotaExcluded{}, empty.Excluded)
 }
 

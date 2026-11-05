@@ -13,7 +13,7 @@ export default {
       "count": "账号数",
       "limit": "单账号周限",
       "remaining": "估计剩余",
-      "formula": "剩余周额度百分比 × 套餐周限后求和。Plus 140 · Pro100 700 · Pro200 1,400 · Pro500 3,500。",
+      "formula": "剩余周额度百分比 × 套餐周限后求和。Plus 140 · Pro100 700 · Pro200 1,400 · Pro500 3,500 · Business/Team 140 · Business Premium 700。",
       "snapshots": "使用已记录的额度快照 · 最早 {time}",
       "generated": "计算于 {time}",
       "excluded": "未计入：{reasons}",

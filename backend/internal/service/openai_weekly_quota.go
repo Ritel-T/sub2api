@@ -62,6 +62,8 @@ func openAIWeeklyQuotaTiers() []OpenAIWeeklyQuotaTier {
 		{Plan: "prolite", Label: "Pro100", WeeklyLimit: 700},
 		{Plan: "pro", Label: "Pro200", WeeklyLimit: 1400},
 		{Plan: "promax", Label: "Pro500", WeeklyLimit: 3500},
+		{Plan: "team", Label: "Business / Team", WeeklyLimit: 140},
+		{Plan: "self_serve_business_prolite", Label: "Business Premium", WeeklyLimit: 700},
 	}
 }
 
@@ -176,8 +178,13 @@ func evaluateOpenAIWeeklyQuota(a *Account, now time.Time) openAIWeeklyQuotaRow {
 		row.reason = "inactive"
 		return row
 	}
-	// Exact allowlist: never infer an allowance from a substring such as business_prolite.
+	// Exact wire names only; allowances are site estimates, not inferred from
+	// substrings, concurrency or load factor.
 	plan := strings.ToLower(strings.TrimSpace(a.GetCredential("plan_type")))
+	switch plan {
+	case "business", "self_serve_business_usage_based":
+		plan = "team"
+	}
 	tiers := openAIWeeklyQuotaTiers()
 	for i := range tiers {
 		if tiers[i].Plan == plan {

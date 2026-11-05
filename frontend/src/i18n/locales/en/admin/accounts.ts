@@ -13,7 +13,7 @@ export default {
       "count": "Accounts",
       "limit": "Weekly limit per account",
       "remaining": "Estimated remaining",
-      "formula": "Sum of remaining weekly percentage × plan limit. Plus 140 · Pro100 700 · Pro200 1,400 · Pro500 3,500.",
+      "formula": "Sum of remaining weekly percentage × plan limit. Plus 140 · Pro100 700 · Pro200 1,400 · Pro500 3,500 · Business/Team 140 · Business Premium 700.",
       "snapshots": "Stored quota snapshots · oldest {time}",
       "generated": "Calculated {time}",
       "excluded": "Excluded: {reasons}",

@@ -8,13 +8,15 @@ import { getOpenAIWeeklyQuota } from '@/api/admin/accounts'
 vi.mock('@/api/admin/accounts', () => ({ getOpenAIWeeklyQuota: vi.fn() }))
 const read = vi.mocked(getOpenAIWeeklyQuota)
 const result = {
-  generated_at: '2026-10-25T07:30:33Z', total_remaining: 8611.4, total_weekly_limit: 9800,
-  included_accounts: 20, oldest_snapshot_at: '2026-10-25T07:01:11Z',
+  generated_at: '2026-10-25T07:30:33Z', total_remaining: 9206.4, total_weekly_limit: 10640,
+  included_accounts: 22, oldest_snapshot_at: '2026-10-25T07:01:11Z',
   tiers: [
     { plan: 'plus', label: 'Plus', weekly_limit: 140, account_count: 13, remaining: 1667.4 },
     { plan: 'prolite', label: 'Pro100', weekly_limit: 700, account_count: 3, remaining: 1638 },
     { plan: 'pro', label: 'Pro200', weekly_limit: 1400, account_count: 4, remaining: 5306 },
-    { plan: 'promax', label: 'Pro500', weekly_limit: 3500, account_count: 0, remaining: 0 }
+    { plan: 'promax', label: 'Pro500', weekly_limit: 3500, account_count: 0, remaining: 0 },
+    { plan: 'team', label: 'Business / Team', weekly_limit: 140, account_count: 1, remaining: 70 },
+    { plan: 'self_serve_business_prolite', label: 'Business Premium', weekly_limit: 700, account_count: 1, remaining: 525 }
   ],
   excluded: { inactive: 1, non_weekly_window: 1, unsupported_plan: 6 }
 }
@@ -29,11 +31,14 @@ describe('global OpenAI weekly allowance', () => {
   it('loads the global summary without account-table filters and discloses tier totals and exclusions', async () => {
     const wrapper = render()
     await flushPromises()
-    expect(wrapper.text()).toContain('8,611.4')
+    expect(wrapper.text()).toContain('9,206.4')
     expect(wrapper.find('table').exists()).toBe(false)
     await wrapper.find('button[aria-expanded]').trigger('click')
     expect(wrapper.find('button[aria-expanded]').attributes('aria-expanded')).toBe('true')
-    expect(wrapper.findAll('tbody tr')).toHaveLength(4)
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows).toHaveLength(6)
+    expect(rows[4].findAll('th, td').map(cell => cell.text())).toEqual(['Business / Team', '1', '140', '70'])
+    expect(rows[5].findAll('th, td').map(cell => cell.text())).toEqual(['Business Premium', '1', '700', '525'])
     expect(wrapper.text()).toContain('1 error or disabled')
     expect(wrapper.text()).toContain('1 non-weekly windows')
     expect(wrapper.text()).toContain('independent of table filters')
@@ -44,10 +49,10 @@ describe('global OpenAI weekly allowance', () => {
     const wrapper = render(); await flushPromises()
     read.mockRejectedValueOnce(new Error('unavailable'))
     await wrapper.setProps({ refreshToken: 1 }); await flushPromises()
-    expect(wrapper.text()).not.toContain('8,611.4')
+    expect(wrapper.text()).not.toContain('9,206.4')
     expect(wrapper.find('[role="alert"]').text()).toContain('Could not load')
     await wrapper.find('[role="alert"] button').trigger('click'); await flushPromises()
-    expect(wrapper.text()).toContain('8,611.4')
+    expect(wrapper.text()).toContain('9,206.4')
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     wrapper.unmount()
   })
@@ -67,7 +72,7 @@ describe('global OpenAI weekly allowance', () => {
     await wrapper.setProps({ refreshToken: 1 }); await flushPromises()
     expect(signal.aborted).toBe(true)
     resolve({ ...result, total_remaining: 99999 }); await flushPromises()
-    expect(wrapper.text()).toContain('8,611.4')
+    expect(wrapper.text()).toContain('9,206.4')
     expect(wrapper.text()).not.toContain('99,999')
     wrapper.unmount()
   })
