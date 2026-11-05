@@ -42,18 +42,20 @@ type OpenAIWeeklyQuotaExcluded struct {
 	ExpiredSnapshot int `json:"expired_snapshot"`
 }
 
-// OpenAIWeeklyQuotaSummary contains aggregate cached data only. Monetary values
+// OpenAIWeeklyQuotaSummary contains aggregate weekly snapshots and live concurrency. Monetary values
 // are rounded per included account to four decimals, then summed as fixed-point
 // integers, so totals equal the displayed tier sums. No account identity escapes.
 type OpenAIWeeklyQuotaSummary struct {
-	GeneratedAt      time.Time                 `json:"generated_at"`
-	TotalRemaining   float64                   `json:"total_remaining"`
-	TotalWeeklyLimit float64                   `json:"total_weekly_limit"`
-	IncludedAccounts int                       `json:"included_accounts"`
-	Tiers            []OpenAIWeeklyQuotaTier   `json:"tiers"`
-	Excluded         OpenAIWeeklyQuotaExcluded `json:"excluded"`
-	OldestSnapshotAt *time.Time                `json:"oldest_snapshot_at"`
-	LatestSnapshotAt *time.Time                `json:"latest_snapshot_at"`
+	GeneratedAt        time.Time                 `json:"generated_at"`
+	TotalRemaining     float64                   `json:"total_remaining"`
+	TotalWeeklyLimit   float64                   `json:"total_weekly_limit"`
+	IncludedAccounts   int                       `json:"included_accounts"`
+	CurrentConcurrency int                       `json:"current_concurrency"`
+	TotalConcurrency   int                       `json:"total_concurrency"`
+	Tiers              []OpenAIWeeklyQuotaTier   `json:"tiers"`
+	Excluded           OpenAIWeeklyQuotaExcluded `json:"excluded"`
+	OldestSnapshotAt   *time.Time                `json:"oldest_snapshot_at"`
+	LatestSnapshotAt   *time.Time                `json:"latest_snapshot_at"`
 }
 
 func openAIWeeklyQuotaTiers() []OpenAIWeeklyQuotaTier {
@@ -68,10 +70,12 @@ func openAIWeeklyQuotaTiers() []OpenAIWeeklyQuotaTier {
 }
 
 type openAIWeeklyQuotaRow struct {
-	tier      int
-	reason    string
-	remaining int64
-	snapshot  time.Time
+	tier           int
+	reason         string
+	remaining      int64
+	snapshot       time.Time
+	accountID      int64
+	maxConcurrency int
 }
 
 // CollectOpenAIWeeklyQuota reads the full OAuth pool, ignoring UI query filters.
@@ -80,7 +84,7 @@ type openAIWeeklyQuotaRow struct {
 // transactional point-in-time database snapshot. Normal quota/timestamp updates
 // do not trigger a reread or reject the estimate. Observed pagination failures or
 // structural inconsistencies fail closed without partial data.
-func CollectOpenAIWeeklyQuota(ctx context.Context, lister OpenAIWeeklyQuotaAccountLister, now time.Time) (*OpenAIWeeklyQuotaSummary, error) {
+func CollectOpenAIWeeklyQuota(ctx context.Context, lister OpenAIWeeklyQuotaAccountLister, concurrency *ConcurrencyService, now time.Time) (*OpenAIWeeklyQuotaSummary, error) {
 	if lister == nil {
 		return nil, errors.New("weekly quota account service unavailable")
 	}
@@ -95,7 +99,12 @@ func CollectOpenAIWeeklyQuota(ctx context.Context, lister OpenAIWeeklyQuotaAccou
 	result := &OpenAIWeeklyQuotaSummary{GeneratedAt: now, Tiers: openAIWeeklyQuotaTiers()}
 	tierUnits := make([]int64, len(result.Tiers))
 	var totalUnits int64
+	var accountIDs []int64
 	for _, row := range rows {
+		if row.accountID > 0 {
+			accountIDs = append(accountIDs, row.accountID)
+			result.TotalConcurrency += row.maxConcurrency
+		}
 		switch row.reason {
 		case "inactive":
 			result.Excluded.Inactive++
@@ -123,6 +132,18 @@ func CollectOpenAIWeeklyQuota(ctx context.Context, lister OpenAIWeeklyQuotaAccou
 			if result.LatestSnapshotAt == nil || at.After(*result.LatestSnapshotAt) {
 				result.LatestSnapshotAt = &at
 			}
+		}
+	}
+	if len(accountIDs) > 0 {
+		if concurrency == nil {
+			return nil, errors.New("account concurrency service unavailable")
+		}
+		counts, err := concurrency.GetAccountConcurrencyBatch(ctx, accountIDs)
+		if err != nil {
+			return nil, fmt.Errorf("account concurrency read failed: %w", err)
+		}
+		for _, count := range counts {
+			result.CurrentConcurrency += count
 		}
 	}
 	for i := range result.Tiers {
@@ -178,6 +199,7 @@ func evaluateOpenAIWeeklyQuota(a *Account, now time.Time) openAIWeeklyQuotaRow {
 		row.reason = "inactive"
 		return row
 	}
+	row.accountID, row.maxConcurrency = a.ID, a.Concurrency
 	// Exact wire names only; allowances are site estimates, not inferred from
 	// substrings, concurrency or load factor.
 	plan := strings.ToLower(strings.TrimSpace(a.GetCredential("plan_type")))
