@@ -63,16 +63,22 @@ const baseUrl = computed(() => appStore.cachedPublicSettings?.api_base_url || wi
 const platformBucket = (platform: GroupPlatform) => getKeyGroupProvider(platform) === 'domestic' ? 'domestic' : platform
 const platformIcon = (platform: GroupPlatform): GroupPlatform => platformBucket(platform) === 'domestic' ? 'deepseek' : platform
 const creationLabel = (platform: GroupPlatform) => platformBucket(platform) === 'domestic' ? copy.value.domestic : platformLabel(platform)
-// Available groups are already permission-filtered and ordered by the server.
+// Available groups are permission-filtered and ordered by the server.
+// Prefer the named 060 defaults only within that eligible list.
 const platformGroups = computed(() => {
   const seen = new Set<string>()
   const preferredGrok = props.groups.find(group => group.status === 'active' && group.platform === 'grok' && group.name.trim().toLowerCase() === 'grok 060')
+  const preferredDomestic = props.groups.find(group => group.status === 'active' && platformBucket(group.platform) === 'domestic' && group.name.trim() === '国模 060')
   return props.groups.filter(group => {
     const bucket = platformBucket(group.platform)
     if (group.status !== 'active' || seen.has(bucket)) return false
     seen.add(bucket)
     return true
-  }).map(group => group.platform === 'grok' ? preferredGrok ?? group : group)
+  }).map(group => {
+    if (group.platform === 'grok') return preferredGrok ?? group
+    if (platformBucket(group.platform) === 'domestic') return preferredDomestic ?? group
+    return group
+  })
 })
 const platformLabel = (platform?: string) => GROUP_PLATFORM_OPTIONS.find(option => option.value === platform)?.label ?? platform ?? '—'
 let generation = 0
