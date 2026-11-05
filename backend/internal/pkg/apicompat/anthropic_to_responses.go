@@ -19,6 +19,20 @@ func AnthropicToResponses(req *AnthropicRequest) (*ResponsesRequest, error) {
 // AnthropicToResponsesWithMinOutputTokens converts an Anthropic request using
 // the supplied max_output_tokens floor.
 func AnthropicToResponsesWithMinOutputTokens(req *AnthropicRequest, minOutputTokens int) (*ResponsesRequest, error) {
+	return AnthropicToResponsesWithOptions(req, AnthropicToResponsesOptions{MinOutputTokens: minOutputTokens})
+}
+
+type AnthropicToResponsesOptions struct {
+	MinOutputTokens int
+	// OpenAIEncryptedReasoning accepts the OpenAI ciphertext format instead of
+	// the legacy compatible-provider format. Set only for a known OpenAI target;
+	// a model name or signature prefix does not authenticate the issuing account.
+	OpenAIEncryptedReasoning bool
+}
+
+// AnthropicToResponsesWithOptions keeps replay policy tied to the actual
+// upstream, rather than guessing it from a client-controlled model alias.
+func AnthropicToResponsesWithOptions(req *AnthropicRequest, opts AnthropicToResponsesOptions) (*ResponsesRequest, error) {
 	requestedEffort := anthropicReasoningEffort(req)
 	effort := openai.NormalizeGPT61SolReasoningEffort(req.Model, requestedEffort)
 	if err := openai.ValidateGPT61SolReasoningEffort(req.Model, effort); err != nil {
@@ -27,7 +41,7 @@ func AnthropicToResponsesWithMinOutputTokens(req *AnthropicRequest, minOutputTok
 	if err := openai.ValidateGPT61TerraReasoningEffort(req.Model, effort); err != nil {
 		return nil, err
 	}
-	input, err := convertAnthropicToResponsesInput(req.System, req.Messages)
+	input, err := convertAnthropicToResponsesInput(req.System, req.Messages, opts.OpenAIEncryptedReasoning)
 	if err != nil {
 		return nil, err
 	}
@@ -61,8 +75,8 @@ func AnthropicToResponsesWithMinOutputTokens(req *AnthropicRequest, minOutputTok
 
 	if req.MaxTokens > 0 {
 		v := req.MaxTokens
-		if v < minOutputTokens {
-			v = minOutputTokens
+		if v < opts.MinOutputTokens {
+			v = opts.MinOutputTokens
 		}
 		out.MaxOutputTokens = &v
 	}
@@ -130,7 +144,7 @@ func convertAnthropicToolChoiceToResponses(raw json.RawMessage) (json.RawMessage
 
 // convertAnthropicToResponsesInput builds the Responses API input items array
 // from the Anthropic system field and message list.
-func convertAnthropicToResponsesInput(system json.RawMessage, msgs []AnthropicMessage) ([]ResponsesInputItem, error) {
+func convertAnthropicToResponsesInput(system json.RawMessage, msgs []AnthropicMessage, openAIReasoning bool) ([]ResponsesInputItem, error) {
 	var out []ResponsesInputItem
 
 	// System prompt → developer role input item. ChatGPT Codex SSE behaves like
@@ -152,7 +166,7 @@ func convertAnthropicToResponsesInput(system json.RawMessage, msgs []AnthropicMe
 	}
 
 	for _, m := range msgs {
-		items, err := anthropicMsgToResponsesItems(m)
+		items, err := anthropicMsgToResponsesItems(m, openAIReasoning)
 		if err != nil {
 			return nil, err
 		}
@@ -191,12 +205,12 @@ func isAnthropicBillingHeaderText(text string) bool {
 
 // anthropicMsgToResponsesItems converts a single Anthropic message into one
 // or more Responses API input items.
-func anthropicMsgToResponsesItems(m AnthropicMessage) ([]ResponsesInputItem, error) {
+func anthropicMsgToResponsesItems(m AnthropicMessage, openAIReasoning bool) ([]ResponsesInputItem, error) {
 	switch m.Role {
 	case "user":
 		return anthropicUserToResponses(m.Content)
 	case "assistant":
-		return anthropicAssistantToResponses(m.Content)
+		return anthropicAssistantToResponses(m.Content, openAIReasoning)
 	default:
 		return anthropicUserToResponses(m.Content)
 	}
@@ -275,7 +289,7 @@ func anthropicUserToResponses(raw json.RawMessage) ([]ResponsesInputItem, error)
 // thinking blocks with signature → reasoning items (encrypted_content) so
 // multi-turn Grok/Codex prompt cache can reuse prior reasoning prefixes.
 // thinking without signature remains ignored (not accepted as plain text input).
-func anthropicAssistantToResponses(raw json.RawMessage) ([]ResponsesInputItem, error) {
+func anthropicAssistantToResponses(raw json.RawMessage, openAIReasoning bool) ([]ResponsesInputItem, error) {
 	// Try plain string.
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
@@ -294,52 +308,56 @@ func anthropicAssistantToResponses(raw json.RawMessage) ([]ResponsesInputItem, e
 
 	var items []ResponsesInputItem
 
-	// Preserve turn order: reasoning → assistant text → tool calls. xAI/Codex
-	// multi-turn cache and tool continuations expect reasoning before the
-	// assistant message that followed it.
-	for _, b := range blocks {
-		if b.Type != "thinking" {
-			continue
+	// Preserve block order, including interleaved text/reasoning/tool calls.
+	// Only adjacent text blocks share a message; regrouping by type loses the
+	// position at which the model generated each reasoning block.
+	var textParts []string
+	flushText := func() error {
+		if len(textParts) == 0 {
+			return nil
 		}
-		sig := strings.TrimSpace(b.Signature)
-		// Only replay provider ciphertext. Skip GPT/Codex-style gAAAA blobs and
-		// empty placeholders — xAI returns 400 on decrypt for foreign signatures.
-		if sig == "" || strings.HasPrefix(sig, "gAAAA") {
-			continue
-		}
-		items = append(items, ResponsesInputItem{
-			Type:             "reasoning",
-			EncryptedContent: sig,
-		})
-	}
-
-	// Text content → assistant message with output_text content parts.
-	text := extractAnthropicTextFromBlocks(blocks)
-	if text != "" {
-		parts := []ResponsesContentPart{{Type: "output_text", Text: text}}
-		partsJSON, err := json.Marshal(parts)
+		partsJSON, err := json.Marshal([]ResponsesContentPart{{Type: "output_text", Text: strings.Join(textParts, "\n\n")}})
 		if err != nil {
-			return nil, err
+			return err
 		}
 		items = append(items, ResponsesInputItem{Type: "message", Role: "assistant", Content: partsJSON})
+		textParts = nil
+		return nil
 	}
-
-	// tool_use → function_call items.
 	for _, b := range blocks {
-		if b.Type != "tool_use" {
-			continue
+		switch b.Type {
+		case "thinking":
+			sig := b.Signature
+			// xAI rejects OpenAI ciphertext. Conversely, OpenAI must not receive
+			// native Anthropic signatures or another provider's opaque payload.
+			// The upstream still validates the ciphertext and its account scope.
+			classifiedSignature := strings.TrimSpace(sig)
+			if classifiedSignature == "" || strings.HasPrefix(classifiedSignature, "gAAAA") != openAIReasoning {
+				continue
+			}
+			if err := flushText(); err != nil {
+				return nil, err
+			}
+			items = append(items, ResponsesInputItem{Type: "reasoning", EncryptedContent: sig})
+		case "text":
+			if b.Text != "" {
+				textParts = append(textParts, b.Text)
+			}
+		case "tool_use":
+			if err := flushText(); err != nil {
+				return nil, err
+			}
+			args := "{}"
+			if len(b.Input) > 0 {
+				args = string(b.Input)
+			}
+			items = append(items, ResponsesInputItem{
+				Type: "function_call", CallID: toResponsesCallID(b.ID), Name: b.Name, Arguments: args,
+			})
 		}
-		args := "{}"
-		if len(b.Input) > 0 {
-			args = string(b.Input)
-		}
-		fcID := toResponsesCallID(b.ID)
-		items = append(items, ResponsesInputItem{
-			Type:      "function_call",
-			CallID:    fcID,
-			Name:      b.Name,
-			Arguments: args,
-		})
+	}
+	if err := flushText(); err != nil {
+		return nil, err
 	}
 
 	return items, nil

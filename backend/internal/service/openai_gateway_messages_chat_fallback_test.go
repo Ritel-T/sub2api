@@ -5,13 +5,16 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -24,6 +27,126 @@ func forceChatMessagesFallbackAccount() *Account {
 		openai_compat.ExtraKeyResponsesMode: string(openai_compat.ResponsesSupportModeForceChatCompletions),
 	}
 	return account
+}
+
+func TestForwardAsAnthropic_DeepSeekChatPreservesPlainAssistantReasoningByUpstream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name, platform, baseURL, requested, mapped string
+		wantReasoning                              bool
+	}{
+		{"native_deepseek", PlatformDeepseek, "http://upstream.example", "public", "deepseek-v4-flash", true},
+		{"official_host_alias", PlatformOpenAI, DefaultDeepseekBaseURL, "public", "provider-alias", true},
+		{"mapped_deepseek", PlatformOpenAI, "http://upstream.example", "public", "deepseek-v4-flash", true},
+		{"opencode_deepseek", PlatformOpenCodeGo, DefaultOpenCodeGoBaseURL, "public", "opencode-go/DeepSeek-V4-Pro", true},
+		{"deepseek_name_mapped_away", PlatformOpenAI, "http://upstream.example", "deepseek-v4-flash", "glm-5.3", false},
+		{"non_deepseek", PlatformOpenAI, "http://upstream.example", "public", "glm-5.3", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			account := forceChatMessagesFallbackAccount()
+			account.Platform = tc.platform
+			account.Credentials["base_url"] = tc.baseURL
+			account.Credentials["api_protocol"] = APIProtocolChatCompletions
+			account.Credentials["model_mapping"] = map[string]any{tc.requested: tc.mapped, "other-alias": "deepseek-v4-flash"}
+			body := []byte(fmt.Sprintf(`{"model":%q,"max_tokens":256,"tools":[{"name":"lookup","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"plan"},{"role":"assistant","content":[{"type":"thinking","thinking":"original plain-turn reasoning"},{"type":"text","text":"ready"}]},{"role":"user","content":"execute"}]}`, tc.requested))
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+			upstream := newOKChatCompletionsUpstream("rid_plain_reasoning", deepSeekChatFallbackOKBody)
+			svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+
+			_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+			require.NoError(t, err)
+			require.True(t, strings.HasSuffix(upstream.lastReq.URL.Path, "/chat/completions"))
+			reasoning := gjson.GetBytes(upstream.lastBody, "messages.1.reasoning_content")
+			if tc.wantReasoning {
+				require.Equal(t, "original plain-turn reasoning", reasoning.String(), "real reasoning must survive instead of becoming a placeholder")
+			} else {
+				require.False(t, reasoning.Exists(), "another mapping on the same account must not enable DeepSeek replay")
+			}
+			require.Equal(t, "ready", gjson.GetBytes(upstream.lastBody, "messages.1.content").String())
+			require.Equal(t, "execute", gjson.GetBytes(upstream.lastBody, "messages.2.content").String())
+		})
+	}
+}
+
+func TestForwardAsAnthropic_DeepSeekChatThreeToolRoundTripsPreserveReasoning(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	account := forceChatMessagesFallbackAccount()
+	account.Credentials["model_mapping"] = map[string]any{"public": "deepseek-v4-flash"}
+	upstream := &httpUpstreamRecorder{}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	plainReply := apicompat.ChatCompletionsResponseToAnthropic(&apicompat.ChatCompletionsResponse{
+		Choices: []apicompat.ChatChoice{{Message: apicompat.ChatMessage{
+			Role: "assistant", ReasoningContent: "keep the original plan", Content: json.RawMessage(`"ready"`),
+		}, FinishReason: "stop"}},
+	}, "public")
+	plainContent, err := json.Marshal(plainReply.Content)
+	require.NoError(t, err)
+	request := apicompat.AnthropicRequest{
+		Model: "public", MaxTokens: 256,
+		Tools: []apicompat.AnthropicTool{{Name: "lookup", InputSchema: json.RawMessage(`{"type":"object","properties":{"step":{"type":"integer"}}}`)}},
+		Messages: []apicompat.AnthropicMessage{
+			{Role: "user", Content: json.RawMessage(`"plan"`)},
+			{Role: "assistant", Content: plainContent},
+			{Role: "user", Content: json.RawMessage(`"execute"`)},
+		},
+	}
+	// Three tool responses are returned to the client and echoed back. The
+	// fourth request verifies the complete third result before the final reply.
+	for step := 1; step <= 4; step++ {
+		message := apicompat.ChatMessage{Role: "assistant", ReasoningContent: fmt.Sprintf("reasoning for step %d", step)}
+		finishReason := "stop"
+		if step <= 3 {
+			message.ToolCalls = []apicompat.ChatToolCall{{ID: fmt.Sprintf("call_%d", step), Type: "function", Function: apicompat.ChatFunctionCall{Name: "lookup", Arguments: fmt.Sprintf(`{"step":%d}`, step)}}}
+			finishReason = "tool_calls"
+		} else {
+			message.Content = json.RawMessage(`"done"`)
+		}
+		upstreamBody, err := json.Marshal(apicompat.ChatCompletionsResponse{ID: fmt.Sprintf("chatcmpl_%d", step), Model: "deepseek-v4-flash", Choices: []apicompat.ChatChoice{{Message: message, FinishReason: finishReason}}})
+		require.NoError(t, err)
+		upstream.resp = &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader(upstreamBody))}
+		body, err := json.Marshal(request)
+		require.NoError(t, err)
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+
+		_, err = svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, rec.Code)
+		var sent apicompat.ChatCompletionsRequest
+		require.NoError(t, json.Unmarshal(upstream.lastBody, &sent))
+		require.Len(t, sent.Messages, 3+2*(step-1))
+		require.Equal(t, "keep the original plan", sent.Messages[1].ReasoningContent)
+		for previous := 1; previous < step; previous++ {
+			assistant, result := sent.Messages[3+2*(previous-1)], sent.Messages[4+2*(previous-1)]
+			require.Equal(t, "assistant", assistant.Role)
+			require.Equal(t, fmt.Sprintf("reasoning for step %d", previous), assistant.ReasoningContent)
+			require.Len(t, assistant.ToolCalls, 1)
+			require.Equal(t, fmt.Sprintf("call_%d", previous), assistant.ToolCalls[0].ID)
+			require.JSONEq(t, fmt.Sprintf(`{"step":%d}`, previous), assistant.ToolCalls[0].Function.Arguments)
+			require.Equal(t, "tool", result.Role)
+			require.Equal(t, assistant.ToolCalls[0].ID, result.ToolCallID)
+			require.Equal(t, fmt.Sprintf(`"result %d"`, previous), string(result.Content))
+		}
+
+		var reply apicompat.AnthropicResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &reply))
+		require.Equal(t, message.ReasoningContent, reply.Content[0].Thinking)
+		if step <= 3 {
+			require.Equal(t, "tool_use", apicompat.AnthropicStopReasonString(reply.StopReason))
+			content, err := json.Marshal(reply.Content)
+			require.NoError(t, err)
+			request.Messages = append(request.Messages,
+				apicompat.AnthropicMessage{Role: "assistant", Content: content},
+				apicompat.AnthropicMessage{Role: "user", Content: json.RawMessage(fmt.Sprintf(`[{"type":"tool_result","tool_use_id":"call_%d","content":"result %d"}]`, step, step))},
+			)
+		} else {
+			require.Equal(t, "end_turn", apicompat.AnthropicStopReasonString(reply.StopReason))
+		}
+	}
+	require.Len(t, upstream.requests, 4)
 }
 
 // errTailReader yields the given data, then returns err instead of io.EOF,
