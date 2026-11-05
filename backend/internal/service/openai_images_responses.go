@@ -51,9 +51,10 @@ func validateOpenAIImagesResponsesCount(parsed *OpenAIImagesRequest) error {
 	return nil
 }
 
-// ValidateOpenAIImagesRequestCount applies after channel and account mapping.
-// API-key passthrough and the explicit native Images models keep their n contract.
-func ValidateOpenAIImagesRequestCount(account *Account, parsed *OpenAIImagesRequest, channelMappedModel string) error {
+// ValidateOpenAIImagesRequestCapabilities applies after channel and account mapping,
+// before credential retrieval or upstream execution. API-key passthrough retains
+// its independent option and count contracts.
+func ValidateOpenAIImagesRequestCapabilities(account *Account, parsed *OpenAIImagesRequest, channelMappedModel string) error {
 	if account == nil || parsed == nil || (account.Type != AccountTypeOAuth && account.Type != AccountTypeSetupToken) {
 		return nil
 	}
@@ -64,10 +65,40 @@ func ValidateOpenAIImagesRequestCount(account *Account, parsed *OpenAIImagesRequ
 	if model == "" {
 		model = "gpt-image-2"
 	}
-	if usesCodexDirectImages(account.GetMappedModel(model)) {
+	upstreamModel := account.GetMappedModel(model)
+	if err := validateOpenAIImagesOAuth25Options(account, parsed, upstreamModel); err != nil {
+		return err
+	}
+	if usesCodexDirectImages(upstreamModel) {
 		return nil
 	}
 	return validateOpenAIImagesResponsesCount(parsed)
+}
+
+// The OAuth alias currently ignores explicit dimensions and quality above low.
+// Reject those requirements before generation rather than charge for an output
+// that cannot fulfill them. Other account/model contracts remain independent.
+func validateOpenAIImagesOAuth25Options(account *Account, parsed *OpenAIImagesRequest, upstreamModel string) error {
+	if !account.IsOpenAIOAuthLike() || upstreamModel != "gpt-image-2.5" {
+		return nil
+	}
+	switch parsed.Quality {
+	case "", "auto", "low":
+	default:
+		return &OpenAIImagesRequestValidationError{
+			Code: "unsupported_image_quality", Param: "quality",
+			Message: "The current OAuth image model supports only quality=auto or low. Explicitly set quality to auto to continue.",
+		}
+	}
+	switch parsed.Size {
+	case "", "auto":
+		return nil
+	default:
+		return &OpenAIImagesRequestValidationError{
+			Code: "unsupported_image_size", Param: "size",
+			Message: "The current OAuth image model uses automatic output dimensions and cannot honor an explicit size. Set size to auto to continue.",
+		}
+	}
 }
 
 type OpenAIImagesUpstreamError struct {
@@ -1898,6 +1929,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	}
 	upstreamModel := account.GetMappedModel(requestModel)
 	if err := validateOpenAIImagesModel(upstreamModel); err != nil {
+		return nil, err
+	}
+	if err := validateOpenAIImagesOAuth25Options(account, parsed, upstreamModel); err != nil {
 		return nil, err
 	}
 	direct := usesCodexDirectImages(upstreamModel) && !isOpenAIImagesForceResponses(ctx)

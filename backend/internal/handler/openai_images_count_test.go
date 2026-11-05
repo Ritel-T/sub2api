@@ -231,3 +231,29 @@ func TestOpenAIGatewayHandlerImages_RequestValidationOpsAttribution(t *testing.T
 		})
 	}
 }
+
+func TestOpenAIGatewayHandlerImages_UnsupportedOAuthOptionsReleaseWithoutFeedback(t *testing.T) {
+	for _, tc := range []struct{ quality, size, param, code string }{
+		{"high", "auto", "quality", "unsupported_image_quality"},
+		{"auto", "1024x1024", "size", "unsupported_image_size"},
+	} {
+		t.Run(tc.param, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+			released := 0
+			selection := &service.AccountSelectionResult{Account: &service.Account{Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth}, ReleaseFunc: func() { released++ }}
+			parsed := &service.OpenAIImagesRequest{Model: "gpt-image-2.5", N: 1, Quality: tc.quality, Size: tc.size}
+			h := &OpenAIGatewayHandler{} // No gateway, credential, or health writer is available.
+			require.True(t, h.handleOpenAIImagesSelectedCountValidation(c, selection, parsed, ""))
+			require.Equal(t, 1, released)
+			require.Nil(t, selection.ReleaseFunc)
+			require.Equal(t, http.StatusBadRequest, rec.Code)
+			require.Equal(t, tc.code, gjson.GetBytes(rec.Body.Bytes(), "error.code").String())
+			require.Equal(t, tc.param, gjson.GetBytes(rec.Body.Bytes(), "error.param").String())
+			require.Equal(t, "invalid_request_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
+			_, hasOps := c.Get(service.OpsUpstreamErrorsKey)
+			require.False(t, hasOps)
+		})
+	}
+}

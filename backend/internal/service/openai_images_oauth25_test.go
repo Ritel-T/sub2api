@@ -28,7 +28,7 @@ func TestOAuthImage25FallbackPreservesRequest(t *testing.T) {
 		{"fidelity", `,"input_fidelity":"high"`, `{"detail":"Not Found"}`, 404, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			body := []byte(`{"model":"gpt-image-2.5","prompt":"draw","quality":"low","size":"1024x1024"` + tc.options + `}`)
+			body := []byte(`{"model":"gpt-image-2.5","prompt":"draw","quality":"low","size":"auto"` + tc.options + `}`)
 			c, _ := newOpenAIImagesTestContext(t, body)
 			calls := 0
 			upstream := &codexModelsHTTPUpstreamStub{do: func(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
@@ -41,7 +41,7 @@ func TestOAuthImage25FallbackPreservesRequest(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, "gpt-image-2.5", gjson.GetBytes(wire, "tools.0.model").String())
 				require.Equal(t, "low", gjson.GetBytes(wire, "tools.0.quality").String())
-				require.Equal(t, "1024x1024", gjson.GetBytes(wire, "tools.0.size").String())
+				require.Equal(t, "auto", gjson.GetBytes(wire, "tools.0.size").String())
 				require.False(t, gjson.GetBytes(wire, "reasoning.effort").Exists())
 				// Real upstream shape: the image is in output_item.done; completed has only usage.
 				frames := "data: {\"type\":\"response.created\",\"response\":{\"tools\":[{\"type\":\"image_generation\",\"model\":\"gpt-image-2-codex\"}]}}\n\n" +
@@ -85,7 +85,7 @@ func TestOAuthImage25BridgeEffortOnlyAffectsSelfBuiltAlias(t *testing.T) {
 func TestOAuthImage25DirectActualSizeAndUsage(t *testing.T) {
 	for _, stream := range []bool{false, true} {
 		t.Run(fmt.Sprint(stream), func(t *testing.T) {
-			body := []byte(fmt.Sprintf(`{"model":"gpt-image-2.5","prompt":"draw","size":"1024x1024","stream":%t}`, stream))
+			body := []byte(fmt.Sprintf(`{"model":"gpt-image-2.5","prompt":"draw","size":"auto","stream":%t}`, stream))
 			c, rec := newOpenAIImagesTestContext(t, body)
 			wire := `{"data":[{"b64_json":"aGVsbG8="}],"size":"1024x1024","usage":{"input_tokens":24,"output_tokens":515,"output_tokens_details":{"image_tokens":515}}}`
 			if stream {
@@ -221,5 +221,89 @@ func TestOAuthImage25BridgeDoesNotInventResponseModel(t *testing.T) {
 			require.Empty(t, result.UpstreamResponseModel)
 			require.NotContains(t, rec.Body.String(), `"model":"gpt-image-2.5"`)
 		})
+	}
+}
+
+func TestOAuthImage25UnsupportedOptionsStopBeforeCredentialsAndSend(t *testing.T) {
+	for _, accountType := range []string{AccountTypeOAuth, AccountTypeSetupToken} {
+		for _, endpoint := range []string{openAIImagesGenerationsEndpoint, openAIImagesEditsEndpoint} {
+			for _, tc := range []struct{ field, value, code string }{
+				{"quality", "medium", "unsupported_image_quality"}, {"quality", "high", "unsupported_image_quality"},
+				{"quality", "xhigh", "unsupported_image_quality"}, {"quality", "max", "unsupported_image_quality"},
+				{"quality", "unknown", "unsupported_image_quality"}, {"size", "1024x1024", "unsupported_image_size"},
+				{"size", "1024x1536", "unsupported_image_size"},
+			} {
+				for _, stream := range []bool{false, true} {
+					t.Run(fmt.Sprintf("%s/%s/%s=%s/stream=%t", accountType, endpoint, tc.field, tc.value, stream), func(t *testing.T) {
+						body := []byte(fmt.Sprintf(`{"model":"gpt-image-2.5","prompt":"draw","images":[{"image_url":"data:image/png;base64,AA=="}],"%s":%q,"stream":%t}`, tc.field, tc.value, stream))
+						c, rec := newOpenAIImagesTestContext(t, body)
+						c.Request.URL.Path = endpoint
+						calls := 0
+						upstream := &codexModelsHTTPUpstreamStub{do: func(*http.Request, string, int64, int) (*http.Response, error) {
+							calls++
+							return nil, errors.New("must not send")
+						}}
+						svc := newOpenAIImagesTestService(upstream)
+						parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+						require.NoError(t, err)
+						account := directImagesTestAccount()
+						account.Type = accountType
+						delete(account.Credentials, "access_token")
+						result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+						require.Nil(t, result)
+						var validation *OpenAIImagesRequestValidationError
+						require.ErrorAs(t, err, &validation, "option rejection must precede missing credentials or upstream auth")
+						require.Equal(t, tc.code, validation.Code)
+						require.Equal(t, tc.field, validation.Param)
+						require.Zero(t, calls)
+						require.Empty(t, rec.Body.String(), "handler owns the local400 response")
+						_, hasOps := c.Get(OpsUpstreamErrorsKey)
+						require.False(t, hasOps, "local unsupported options are not upstream401/health feedback")
+						_, err = svc.forwardOpenAIImagesOAuth(context.Background(), c, account, parsed, "")
+						require.ErrorAs(t, err, &validation, "direct service entry must enforce the same boundary")
+					})
+				}
+			}
+		}
+	}
+}
+
+func TestOAuthImage25CapabilitiesFollowMappedAccountModel(t *testing.T) {
+	for _, tc := range []struct {
+		name, requested, channel, mapped, kind, platform string
+		blocked                                          bool
+	}{
+		{"bare", "gpt-image-2.5", "", "", AccountTypeOAuth, PlatformOpenAI, true},
+		{"channel_to_bare", "gpt-image-2", "gpt-image-2.5", "", AccountTypeOAuth, PlatformOpenAI, true},
+		{"account_to_bare", "gpt-image-2", "", "gpt-image-2.5", AccountTypeOAuth, PlatformOpenAI, true},
+		{"channel_away", "gpt-image-2.5", "gpt-image-2", "", AccountTypeOAuth, PlatformOpenAI, false},
+		{"account_away", "gpt-image-2.5", "", "gpt-image-2", AccountTypeOAuth, PlatformOpenAI, false},
+		{"apikey", "gpt-image-2.5", "", "", AccountTypeAPIKey, PlatformOpenAI, false},
+		{"other_model", "gpt-image-2", "", "", AccountTypeOAuth, PlatformOpenAI, false},
+		{"other_platform", "gpt-image-2.5", "", "", AccountTypeOAuth, PlatformGrok, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			account := directImagesTestAccount()
+			account.Type = tc.kind
+			account.Platform = tc.platform
+			if tc.mapped != "" {
+				account.Credentials["model_mapping"] = map[string]any{tc.requested: tc.mapped}
+			}
+			parsed := &OpenAIImagesRequest{Model: tc.requested, N: 1, Quality: "high", Size: "1024x1024"}
+			err := ValidateOpenAIImagesRequestCapabilities(account, parsed, tc.channel)
+			if tc.blocked {
+				var validation *OpenAIImagesRequestValidationError
+				require.ErrorAs(t, err, &validation)
+				require.Equal(t, "quality", validation.Param)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+	for _, quality := range []string{"", "auto", "low"} {
+		for _, size := range []string{"", "auto"} {
+			parsed := &OpenAIImagesRequest{Model: "gpt-image-2.5", N: 1, Quality: quality, Size: size}
+			require.NoError(t, ValidateOpenAIImagesRequestCapabilities(directImagesTestAccount(), parsed, ""))
+		}
 	}
 }

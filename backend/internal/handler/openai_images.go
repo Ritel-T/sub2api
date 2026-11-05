@@ -575,7 +575,7 @@ func (h *OpenAIGatewayHandler) handleOpenAIImagesSelectedCountValidation(c *gin.
 	if selection == nil {
 		return false
 	}
-	err := service.ValidateOpenAIImagesRequestCount(selection.Account, parsed, channelMappedModel)
+	err := service.ValidateOpenAIImagesRequestCapabilities(selection.Account, parsed, channelMappedModel)
 	if err == nil {
 		return false
 	}
