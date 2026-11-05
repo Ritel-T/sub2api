@@ -1,4 +1,5 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { Chart } from 'chart.js'
 import { useMutationObserver } from '@vueuse/core'
 
 /** Resolve theme tokens to real colors before passing them to the canvas renderer. */
@@ -42,5 +43,13 @@ export function useChartTheme() {
     }, { attributes: true, attributeFilter: ['class'] })
   }
 
-  return computed(() => getChartTheme(isDark.value))
+  const font = root && getComputedStyle(root).getPropertyValue('--ritel-ui').trim()
+  if (font) Chart.defaults.font.family = font
+  Chart.defaults.font.size = 12
+  const theme = computed(() => getChartTheme(isDark.value))
+  watch(theme, colors => {
+    Chart.defaults.color = colors.text
+    Chart.defaults.borderColor = colors.grid
+  }, { immediate: true })
+  return theme
 }

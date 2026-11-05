@@ -77,7 +77,7 @@ describe('RedeemView refresh after redemption', () => {
       expect(getHistory).toHaveBeenCalledTimes(2)
       expect(wrapper.text()).toContain('REDEEM-C...')
       if (type === 'subscription') {
-        expect(fetchActiveSubscriptions).toHaveBeenCalledWith(true)
+        expect(fetchActiveSubscriptions).toHaveBeenCalledWith(true, { afterWrite: true })
       } else {
         expect(fetchActiveSubscriptions).not.toHaveBeenCalled()
       }

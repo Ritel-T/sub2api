@@ -117,6 +117,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChartTheme } from '@/utils/chartTheme'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -128,6 +129,7 @@ import { getTraffic, getTrafficKeys, getTrafficHealth, formatTrafficBytes as byt
 
 const props = withDefaults(defineProps<{ admin?: boolean; apiKeyOptions?: SelectOption[] }>(), { admin: false, apiKeyOptions: () => [] })
 const { t } = useI18n()
+const chartTheme = useChartTheme()
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 const periods: TrafficPeriod[] = ['day', 'week', 'month', 'year']
 const directions = ['upload_bytes', 'download_bytes'] as const
@@ -194,8 +196,8 @@ const chartData = computed(() => ({
 }))
 const chartOptions = computed<ChartOptions<'bar'>>(() => ({
   responsive: true, maintainAspectRatio: false,
-  plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: context => `${context.dataset.label}: ${bytes(Number(context.raw))}` } } },
-  scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 6 } }, y: { stacked: true, beginAtZero: true, ticks: { callback: value => bytes(Number(value)) } } }
+  plugins: { legend: { position: 'bottom', labels: { color: chartTheme.value.text } }, tooltip: { ...chartTheme.value.tooltip, callbacks: { label: context => `${context.dataset.label}: ${bytes(Number(context.raw))}` } } },
+  scales: { x: { stacked: true, grid: { display: false }, ticks: { color: chartTheme.value.text, maxRotation: 0, maxTicksLimit: 6 } }, y: { stacked: true, beginAtZero: true, grid: { color: chartTheme.value.grid }, ticks: { color: chartTheme.value.text, callback: value => bytes(Number(value)) } } }
 }))
 function setDate(event: Event) { date.value = (event.target as HTMLInputElement).value }
 function applyFilters() {

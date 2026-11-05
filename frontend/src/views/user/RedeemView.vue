@@ -456,7 +456,7 @@ const handleRedeem = async () => {
     // If subscription type, immediately refresh subscription status
     if (result.type === 'subscription') {
       try {
-        await subscriptionStore.fetchActiveSubscriptions(true) // force refresh
+        await subscriptionStore.fetchActiveSubscriptions(true, { afterWrite: true }) // force refresh
       } catch (error) {
         console.error('Failed to refresh subscriptions after redeem:', error)
         appStore.showWarning(t('redeem.subscriptionRefreshFailed'))

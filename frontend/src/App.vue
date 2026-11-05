@@ -99,20 +99,24 @@ function onAdminComplianceRequired(event: Event) {
 const subscriptionFeatureEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.subscription))
 
 function startSubscriptionSync() {
-  subscriptionStore.fetchActiveSubscriptions().catch((error) => {
-    console.error('Failed to preload subscriptions:', error)
-  })
+  if (document.visibilityState === 'visible' && navigator.onLine) {
+    subscriptionStore.fetchActiveSubscriptions().catch((error) => {
+      console.error('Failed to preload subscriptions:', error)
+    })
+  }
   subscriptionStore.startPolling()
 }
 
-watch(subscriptionFeatureEnabled, (enabled) => {
-  if (!authStore.isAuthenticated) return
-  if (enabled) {
-    startSubscriptionSync()
-  } else {
-    subscriptionStore.clear()
-  }
-})
+// Store identity invalidation runs synchronously; restart only the subscription
+// sync on the next Vue flush, even when isAuthenticated stays true.
+watch(
+  [() => authStore.isAuthenticated, () => authStore.sessionIdentity, () => authStore.user?.id, subscriptionFeatureEnabled],
+  ([authenticated, identity, userId, enabled]) => {
+    if (authenticated && identity && userId && enabled) startSubscriptionSync()
+    else subscriptionStore.clear()
+  },
+  { immediate: true }
+)
 
 watch(
   () => authStore.isAuthenticated,
@@ -122,12 +126,6 @@ watch(
         adminComplianceStore.fetchStatus().catch((error) => {
           console.error('Failed to fetch admin compliance status:', error)
         })
-      }
-
-      // User logged in: preload subscriptions and start polling (skipped when the
-      // subscription feature is switched off; see the flag watcher below)
-      if (subscriptionFeatureEnabled.value) {
-        startSubscriptionSync()
       }
 
       // Announcements: new login vs page refresh restore
@@ -146,7 +144,6 @@ watch(
       document.addEventListener('visibilitychange', onVisibilityChange)
     } else {
       // User logged out: clear data and stop polling
-      subscriptionStore.clear()
       announcementStore.reset()
       adminComplianceStore.reset()
       supportTicketStore.reset()
