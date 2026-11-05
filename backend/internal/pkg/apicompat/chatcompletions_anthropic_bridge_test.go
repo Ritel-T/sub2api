@@ -143,9 +143,8 @@ func TestAnthropicToChatCompletionsRequest_ThinkingDropped(t *testing.T) {
 	out, err := AnthropicToChatCompletionsRequest(req)
 	require.NoError(t, err)
 	require.Len(t, out.Messages, 1)
-	// Only text survives. Thinking is dropped because this turn carries no tool
-	// calls — reasoning rides along with tool calls only, matching the
-	// Responses→Chat bridge (see anthropicThinkingToReasoningContent).
+	// The default bridge preserves the existing tool-turn-only behavior;
+	// plain assistant replay requires the gateway's DeepSeek option.
 	require.Equal(t, `"answer"`, string(out.Messages[0].Content))
 	require.Empty(t, out.Messages[0].ReasoningContent)
 }
