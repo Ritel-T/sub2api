@@ -1684,6 +1684,12 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		return openAIGPT54FallbackPricing
 	}
 
+	// Official standard GPT Image 2.6 rates match the 2.5 rates above (verified
+	// 2026-11-05). Keep exact model names; do not guess a bare 2.6 alias.
+	if model == "gpt-image-2.6-flare" || model == "gpt-image-2.6-sunburst" {
+		return openAIGPTImage25FallbackPricing
+	}
+
 	// Remote price mirrors can lag new releases. Never bill GPT Image 2.5
 	// using the older image model's rates when its entry is absent.
 	for _, imageModel := range []string{"gpt-image-2.5-flare", "gpt-image-2.5-sunburst"} {

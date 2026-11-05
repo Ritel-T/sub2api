@@ -32,6 +32,7 @@ func usesCodexDirectImages(model string) bool {
 	switch strings.TrimSpace(model) {
 	case "gpt-image-1.5", "gpt-image-2", "gpt-image-2.5",
 		"gpt-image-2.5-flare", "gpt-image-2.5-sunburst",
+		"gpt-image-2.6-flare", "gpt-image-2.6-sunburst",
 		"gpt-image-2.5-flare-2026-09-08", "gpt-image-2.5-sunburst-2026-09-08":
 		return true
 	default:
@@ -39,11 +40,20 @@ func usesCodexDirectImages(model string) bool {
 	}
 }
 
+// Only the documented 2.6 names are recognized; there is no proven bare alias.
+func isOpenAIImage26Model(model string) bool {
+	return model == "gpt-image-2.6-flare" || model == "gpt-image-2.6-sunburst"
+}
+
+func preservesOpenAIImagesOutcome(model string) bool {
+	return model == "gpt-image-2.5" || isOpenAIImage26Model(model)
+}
+
 // Only a definite route/method rejection permits another execution path. A
 // model-not-found 404 or an ambiguous response must not turn into a second
 // generation, and the Responses bridge must preserve the requested options.
 func canFallbackOpenAIImagesToResponses(parsed *OpenAIImagesRequest, status int, body []byte) bool {
-	if parsed == nil || parsed.N > 1 || parsed.InputFidelity != "" {
+	if parsed == nil || parsed.N > 1 || parsed.InputFidelity != "" || isOpenAIImage26Model(parsed.Model) || parsed.Complexity != "" || parsed.FrameCount != nil || parsed.FrameDurationMS != nil || parsed.HasMarkup {
 		return false
 	}
 	message := strings.TrimSpace(string(body))
@@ -89,11 +99,17 @@ func buildOpenAIImagesOAuthPayload(parsed *OpenAIImagesRequest, model string) ([
 		{"size", parsed.Size}, {"quality", parsed.Quality},
 		{"background", parsed.Background}, {"output_format", parsed.OutputFormat},
 		{"moderation", parsed.Moderation}, {"input_fidelity", parsed.InputFidelity},
-		{"style", parsed.Style},
+		{"style", parsed.Style}, {"complexity", parsed.Complexity},
 	} {
 		if value := strings.TrimSpace(field.value); value != "" {
 			payload[field.key] = value
 		}
+	}
+	if parsed.FrameCount != nil {
+		payload["frame_count"] = *parsed.FrameCount
+	}
+	if parsed.FrameDurationMS != nil {
+		payload["frame_duration_ms"] = *parsed.FrameDurationMS
 	}
 	if parsed.N > 1 {
 		payload["n"] = parsed.N

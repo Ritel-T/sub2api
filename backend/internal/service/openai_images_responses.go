@@ -55,7 +55,7 @@ func validateOpenAIImagesResponsesCount(parsed *OpenAIImagesRequest) error {
 // before credential retrieval or upstream execution. API-key passthrough retains
 // its independent option and count contracts.
 func ValidateOpenAIImagesRequestCapabilities(account *Account, parsed *OpenAIImagesRequest, channelMappedModel string) error {
-	if account == nil || parsed == nil || (account.Type != AccountTypeOAuth && account.Type != AccountTypeSetupToken) {
+	if account == nil || parsed == nil {
 		return nil
 	}
 	model := strings.TrimSpace(parsed.Model)
@@ -66,13 +66,70 @@ func ValidateOpenAIImagesRequestCapabilities(account *Account, parsed *OpenAIIma
 		model = "gpt-image-2"
 	}
 	upstreamModel := account.GetMappedModel(model)
+	if isOpenAIImage26Model(upstreamModel) {
+		if err := validateOpenAIImage26Options(parsed); err != nil {
+			return err
+		}
+	}
+	if account.Type != AccountTypeOAuth && account.Type != AccountTypeSetupToken {
+		return nil
+	}
 	if err := validateOpenAIImagesOAuth25Options(account, parsed, upstreamModel); err != nil {
 		return err
+	}
+	if isOpenAIImage26Model(upstreamModel) && parsed.UnsupportedOAuth26Option != "" {
+		return &OpenAIImagesRequestValidationError{Code: "unsupported_image_option", Param: parsed.UnsupportedOAuth26Option, Message: "This image option requires an API-key Images provider; its OAuth backend contract is not verified."}
+	}
+	if isOpenAIImage26Model(upstreamModel) && parsed.HasPromptRewriter {
+		return &OpenAIImagesRequestValidationError{Code: "unsupported_image_option", Param: "prompt_rewriter", Message: "prompt_rewriter requires an API-key Images provider; its OAuth backend contract is not verified."}
+	}
+	if isOpenAIImage26Model(upstreamModel) && parsed.HasMarkup {
+		return &OpenAIImagesRequestValidationError{Code: "unsupported_image_markup", Param: "markup", Message: "Markup edits require an API-key Images provider; the OAuth backend markup contract is not verified."}
 	}
 	if usesCodexDirectImages(upstreamModel) {
 		return nil
 	}
 	return validateOpenAIImagesResponsesCount(parsed)
+}
+
+// These Image API option combinations cannot be represented by other paths.
+func validateOpenAIImage26Options(parsed *OpenAIImagesRequest) error {
+	invalid := func(param, message string) error {
+		return &OpenAIImagesRequestValidationError{Code: "invalid_image_option", Param: param, Message: message}
+	}
+	if parsed.Complexity != "" && parsed.Complexity != "low" && parsed.Complexity != "medium" && parsed.Complexity != "high" {
+		return invalid("complexity", "complexity must be low, medium or high.")
+	}
+	format := strings.ToLower(parsed.OutputFormat)
+	if format == "svg" || format == "gif" {
+		if parsed.Stream {
+			return invalid("stream", "SVG and GIF output do not support streaming.")
+		}
+		if parsed.PartialImages != nil {
+			return invalid("partial_images", "SVG and GIF output do not support partial_images.")
+		}
+		if parsed.OutputCompression != nil {
+			return invalid("output_compression", "SVG and GIF output do not support output_compression.")
+		}
+		if parsed.HasPromptRewriter {
+			return invalid("prompt_rewriter", "SVG and GIF output do not support prompt_rewriter.")
+		}
+	}
+	if format == "svg" && (parsed.IsEdits() || parsed.N != 1) {
+		return invalid("output_format", "SVG output supports only generations with n=1.")
+	}
+	if parsed.FrameCount != nil || parsed.FrameDurationMS != nil {
+		if format != "gif" {
+			return invalid("output_format", "frame_count and frame_duration_ms require GIF output.")
+		}
+		if parsed.FrameCount != nil && (*parsed.FrameCount < 2 || *parsed.FrameCount > 16) {
+			return invalid("frame_count", "frame_count must be between 2 and 16.")
+		}
+		if parsed.FrameDurationMS != nil && (*parsed.FrameDurationMS < 20 || *parsed.FrameDurationMS > 2000) {
+			return invalid("frame_duration_ms", "frame_duration_ms must be between 20 and 2000.")
+		}
+	}
+	return nil
 }
 
 // The OAuth alias currently ignores explicit dimensions and quality above low.
@@ -390,6 +447,10 @@ func openAIImageOutputMIMEType(outputFormat string) string {
 		return "image/jpeg"
 	case "webp":
 		return "image/webp"
+	case "svg":
+		return "image/svg+xml"
+	case "gif":
+		return "image/gif"
 	default:
 		return "image/png"
 	}
@@ -459,7 +520,7 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 	// Explicit effort=medium is rejected as image complexity on the OAuth
 	// gpt-image-2.5 bridge, even though omitting it succeeds with the upstream
 	// default. This body is gateway-built, so no client reasoning choice is lost.
-	if strings.TrimSpace(toolModel) == "gpt-image-2.5" {
+	if preservesOpenAIImagesOutcome(strings.TrimSpace(toolModel)) {
 		req, _ = sjson.DeleteBytes(req, "reasoning.effort")
 	}
 	req, _ = sjson.SetBytes(req, "model", openAIImagesResponsesMainModelValue())
@@ -1449,7 +1510,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthNonStreamingResponse(
 			RetryableOnSameAccount: true,
 		}
 	}
-	if fallbackModel == "gpt-image-2.5" {
+	if preservesOpenAIImagesOutcome(fallbackModel) {
 		if observer := upstreamResponseModelObserverFromContext(c); observer != nil {
 			observer.Observe(firstMeta.Model, true)
 		}
@@ -1498,7 +1559,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 	pendingResults := make([]openAIResponsesImageResult, 0, 1)
 	pendingSeen := make(map[string]struct{})
 	streamMeta := openAIResponsesImageResult{}
-	if fallbackModel != "gpt-image-2.5" {
+	if !preservesOpenAIImagesOutcome(fallbackModel) {
 		streamMeta.Model = strings.TrimSpace(fallbackModel)
 	}
 	var fallbackText strings.Builder
@@ -1534,7 +1595,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 		}
 		if meta, eventCreatedAt, ok := extractOpenAIResponsesImageMetaFromLifecycleEvent(dataBytes); ok {
 			mergeOpenAIResponsesImageMeta(&streamMeta, meta)
-			if fallbackModel == "gpt-image-2.5" {
+			if preservesOpenAIImagesOutcome(fallbackModel) {
 				if observer := upstreamResponseModelObserverFromContext(c); observer != nil {
 					observer.Observe(meta.Model, false)
 				}
@@ -1863,14 +1924,14 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 }
 
 // A generation with an unreadable/missing result may already have consumed
-// quota. Keep the proven OAuth alias terminal instead of scanning more accounts.
+// quota. Keep these OAuth image requests terminal instead of scanning accounts.
 func finishOpenAIImage25ForwardError(c *gin.Context, account *Account, resp *http.Response, model string, err error) (error, bool) {
-	if model != "gpt-image-2.5" || err == nil {
+	if !preservesOpenAIImagesOutcome(model) || err == nil {
 		return err, false
 	}
 	var source *OpenAIImagesUpstreamError
 	errors.As(err, &source)
-	adapterError := source != nil && source.Code == "invalid_value" && source.Param == "complexity" && source.Message == "Complexity 'medium' is not supported for this image model."
+	adapterError := model == "gpt-image-2.5" && source != nil && source.Code == "invalid_value" && source.Param == "complexity" && source.Message == "Complexity 'medium' is not supported for this image model."
 	if source != nil && source.clientStatusCode() < 500 && !adapterError {
 		return err, false
 	}
@@ -2045,7 +2106,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		respBody := s.readUpstreamErrorBody(resp)
 		_ = resp.Body.Close()
 		respBody = s.redactAgentIdentitySensitiveBody(upstreamCtx, account, respBody)
-		if direct && canFallbackOpenAIImagesToResponses(parsed, resp.StatusCode, respBody) {
+		if direct && !isOpenAIImage26Model(upstreamModel) && canFallbackOpenAIImagesToResponses(parsed, resp.StatusCode, respBody) {
 			return s.forwardOpenAIImagesOAuth(withOpenAIImagesForceResponses(ctx), c, account, parsed, channelMappedModel)
 		}
 		if !agentIdentityTaskRecoveryWasTried(ctx) && s.isAgentIdentityAccount(ctx, account) && isAgentIdentityTaskInvalidHTTPResponse(resp.StatusCode, respBody) {
@@ -2105,7 +2166,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	// for scheduling and billing.
 	responseParsed := parsed
 	responseFallbackModel := requestModel
-	if upstreamModel == "gpt-image-2.5" {
+	if preservesOpenAIImagesOutcome(upstreamModel) {
 		copy := *parsed
 		copy.Model = ""
 		responseParsed = &copy

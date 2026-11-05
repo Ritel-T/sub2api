@@ -9,6 +9,13 @@ import { buildModelMappingObject, getModelsByPlatform, splitModelMappingObject }
 import { BUILTIN_PLATFORM_CATALOG, resetPlatformCatalog, setPlatformCatalog } from '@/constants/platformCatalog'
 
 describe('useModelWhitelist', () => {
+  it('offers exact GPT Image 2.6 names without inventing a bare alias', () => {
+    const models = getModelsByPlatform('openai')
+    expect(models).toContain('gpt-image-2.6-flare')
+    expect(models).toContain('gpt-image-2.6-sunburst')
+    expect(models).not.toContain('gpt-image-2.6')
+  })
+
   it('平台清单中没有内置模型列表的多协议供应商不预填白名单', () => {
     setPlatformCatalog({
       ...BUILTIN_PLATFORM_CATALOG,

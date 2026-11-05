@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	_ "image/gif"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -73,35 +74,41 @@ type OpenAIImagesUpload struct {
 }
 
 type OpenAIImagesRequest struct {
-	Endpoint           string
-	ContentType        string
-	Multipart          bool
-	Model              string
-	ExplicitModel      bool
-	Prompt             string
-	Stream             bool
-	N                  int
-	Size               string
-	ExplicitSize       bool
-	SizeTier           string
-	ResponseFormat     string
-	Quality            string
-	Background         string
-	OutputFormat       string
-	Moderation         string
-	InputFidelity      string
-	Style              string
-	OutputCompression  *int
-	PartialImages      *int
-	HasMask            bool
-	HasNativeOptions   bool
-	RequiredCapability OpenAIImagesCapability
-	InputImageURLs     []string
-	MaskImageURL       string
-	Uploads            []OpenAIImagesUpload
-	MaskUpload         *OpenAIImagesUpload
-	Body               []byte
-	bodyHash           string
+	Endpoint                 string
+	ContentType              string
+	Multipart                bool
+	Model                    string
+	ExplicitModel            bool
+	Prompt                   string
+	Stream                   bool
+	N                        int
+	Size                     string
+	ExplicitSize             bool
+	SizeTier                 string
+	ResponseFormat           string
+	Complexity               string
+	FrameCount               *int
+	FrameDurationMS          *int
+	HasMarkup                bool
+	HasPromptRewriter        bool
+	UnsupportedOAuth26Option string
+	Quality                  string
+	Background               string
+	OutputFormat             string
+	Moderation               string
+	InputFidelity            string
+	Style                    string
+	OutputCompression        *int
+	PartialImages            *int
+	HasMask                  bool
+	HasNativeOptions         bool
+	RequiredCapability       OpenAIImagesCapability
+	InputImageURLs           []string
+	MaskImageURL             string
+	Uploads                  []OpenAIImagesUpload
+	MaskUpload               *OpenAIImagesUpload
+	Body                     []byte
+	bodyHash                 string
 
 	clientModel           string
 	authorizationAccounts []Account
@@ -290,6 +297,24 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 		req.ExplicitSize = req.Size != ""
 	}
 	req.ResponseFormat = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "response_format").String()))
+	req.Complexity = strings.TrimSpace(gjson.GetBytes(body, "complexity").String())
+	req.HasMarkup = gjson.GetBytes(body, "markup").Exists()
+	req.HasPromptRewriter = gjson.GetBytes(body, "prompt_rewriter").Exists()
+	for _, name := range []string{"svg", "safety_identifier"} {
+		if gjson.GetBytes(body, name).Exists() {
+			req.UnsupportedOAuth26Option = name
+			req.HasNativeOptions = true
+		}
+	}
+	for key, dest := range map[string]**int{"frame_count": &req.FrameCount, "frame_duration_ms": &req.FrameDurationMS} {
+		if v := gjson.GetBytes(body, key); v.Exists() {
+			if v.Type != gjson.Number || v.Float() != float64(v.Int()) {
+				return fmt.Errorf("invalid %s field type", key)
+			}
+			n := int(v.Int())
+			*dest = &n
+		}
+	}
 	req.Quality = strings.TrimSpace(gjson.GetBytes(body, "quality").String())
 	req.Background = strings.TrimSpace(gjson.GetBytes(body, "background").String())
 	req.OutputFormat = strings.TrimSpace(gjson.GetBytes(body, "output_format").String())
@@ -383,6 +408,9 @@ func parseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ope
 		fileName := strings.TrimSpace(part.FileName())
 		if fileName != "" {
 			partContentType := strings.TrimSpace(part.Header.Get("Content-Type"))
+			if name == "markup" {
+				req.HasMarkup = true
+			}
 			if name == "mask" && len(data) > 0 {
 				req.HasMask = true
 				width, height := parseOpenAIImageDimensions(part.Header)
@@ -434,6 +462,28 @@ func parseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ope
 				return fmt.Errorf("n must be a positive integer")
 			}
 			req.N = n
+		case "complexity":
+			req.Complexity = value
+			req.HasNativeOptions = true
+		case "svg", "safety_identifier":
+			req.UnsupportedOAuth26Option = name
+			req.HasNativeOptions = true
+		case "prompt_rewriter":
+			req.HasPromptRewriter = true
+			req.HasNativeOptions = true
+		case "markup":
+			req.HasMarkup = true
+		case "frame_count", "frame_duration_ms":
+			n, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("invalid %s field value", name)
+			}
+			if name == "frame_count" {
+				req.FrameCount = &n
+			} else {
+				req.FrameDurationMS = &n
+			}
+			req.HasNativeOptions = true
 		case "quality":
 			req.Quality = value
 			req.HasNativeOptions = true
@@ -588,6 +638,13 @@ func classifyOpenAIImagesCapability(req *OpenAIImagesRequest) OpenAIImagesCapabi
 func hasOpenAINativeImageOptions(exists func(path string) bool) bool {
 	for _, path := range []string{
 		"background",
+		"svg",
+		"safety_identifier",
+		"prompt_rewriter",
+		"complexity",
+		"frame_count",
+		"frame_duration_ms",
+		"markup",
 		"quality",
 		"style",
 		"output_format",
@@ -605,7 +662,7 @@ func hasOpenAINativeImageOptions(exists func(path string) bool) bool {
 
 func isOpenAINativeImageOption(name string) bool {
 	switch strings.TrimSpace(strings.ToLower(name)) {
-	case "background", "quality", "style", "output_format", "output_compression", "moderation", "input_fidelity", "partial_images":
+	case "svg", "safety_identifier", "prompt_rewriter", "complexity", "frame_count", "frame_duration_ms", "markup", "background", "quality", "style", "output_format", "output_compression", "moderation", "input_fidelity", "partial_images":
 		return true
 	default:
 		return false
@@ -637,6 +694,9 @@ func (s *OpenAIGatewayService) ForwardImages(
 	}
 	account = latest
 	if err := parsed.ValidateAccountModels(account, channelMappedModel); err != nil {
+		return nil, err
+	}
+	if err := ValidateOpenAIImagesRequestCapabilities(account, parsed, channelMappedModel); err != nil {
 		return nil, err
 	}
 	if account.IsSIWCEnabled() {
