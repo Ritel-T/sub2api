@@ -143,7 +143,7 @@ func (e *OpenAIImagesUpstreamError) clientMessage() string {
 // IsOpenAIImagesRetryableUpstreamError reports whether an Images error is an
 // upstream server failure that may be retried on another account.
 func IsOpenAIImagesRetryableUpstreamError(err *OpenAIImagesUpstreamError) bool {
-	return err != nil && err.StatusCode >= http.StatusInternalServerError
+	return err != nil && err.Code != "image_result_unknown" && err.Code != "image_adapter_parameter_error" && err.StatusCode >= http.StatusInternalServerError
 }
 
 func openAIImagesSSEErrorStatus(errType, code string) int {
@@ -425,6 +425,12 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 	}
 
 	req := []byte(`{"instructions":"","stream":true,"reasoning":{"effort":"medium","summary":"auto"},"parallel_tool_calls":true,"include":["reasoning.encrypted_content"],"model":"","store":false,"tool_choice":{"type":"image_generation"}}`)
+	// Explicit effort=medium is rejected as image complexity on the OAuth
+	// gpt-image-2.5 bridge, even though omitting it succeeds with the upstream
+	// default. This body is gateway-built, so no client reasoning choice is lost.
+	if strings.TrimSpace(toolModel) == "gpt-image-2.5" {
+		req, _ = sjson.DeleteBytes(req, "reasoning.effort")
+	}
 	req, _ = sjson.SetBytes(req, "model", openAIImagesResponsesMainModelValue())
 	req, _ = sjson.SetBytes(req, "instructions", openAIImagesVerbatimPromptInstructions)
 
@@ -1412,7 +1418,11 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthNonStreamingResponse(
 			RetryableOnSameAccount: true,
 		}
 	}
-	if strings.TrimSpace(firstMeta.Model) == "" {
+	if fallbackModel == "gpt-image-2.5" {
+		if observer := upstreamResponseModelObserverFromContext(c); observer != nil {
+			observer.Observe(firstMeta.Model, true)
+		}
+	} else if strings.TrimSpace(firstMeta.Model) == "" {
 		firstMeta.Model = strings.TrimSpace(fallbackModel)
 	}
 
@@ -1456,7 +1466,10 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 	emitted := make(map[string]struct{})
 	pendingResults := make([]openAIResponsesImageResult, 0, 1)
 	pendingSeen := make(map[string]struct{})
-	streamMeta := openAIResponsesImageResult{Model: strings.TrimSpace(fallbackModel)}
+	streamMeta := openAIResponsesImageResult{}
+	if fallbackModel != "gpt-image-2.5" {
+		streamMeta.Model = strings.TrimSpace(fallbackModel)
+	}
 	var fallbackText strings.Builder
 	appendFallbackText := func(text string) {
 		if text == "" || fallbackText.Len() >= 600 {
@@ -1490,6 +1503,11 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 		}
 		if meta, eventCreatedAt, ok := extractOpenAIResponsesImageMetaFromLifecycleEvent(dataBytes); ok {
 			mergeOpenAIResponsesImageMeta(&streamMeta, meta)
+			if fallbackModel == "gpt-image-2.5" {
+				if observer := upstreamResponseModelObserverFromContext(c); observer != nil {
+					observer.Observe(meta.Model, false)
+				}
+			}
 			if eventCreatedAt > 0 {
 				createdAt = eventCreatedAt
 			}
@@ -1813,6 +1831,53 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 	}
 }
 
+// A generation with an unreadable/missing result may already have consumed
+// quota. Keep the proven OAuth alias terminal instead of scanning more accounts.
+func finishOpenAIImage25ForwardError(c *gin.Context, account *Account, resp *http.Response, model string, err error) (error, bool) {
+	if model != "gpt-image-2.5" || err == nil {
+		return err, false
+	}
+	var source *OpenAIImagesUpstreamError
+	errors.As(err, &source)
+	adapterError := source != nil && source.Code == "invalid_value" && source.Param == "complexity" && source.Message == "Complexity 'medium' is not supported for this image model."
+	if source != nil && source.clientStatusCode() < 500 && !adapterError {
+		return err, false
+	}
+	terminal := &OpenAIImagesUpstreamError{
+		StatusCode: http.StatusBadGateway, ErrorType: "upstream_error", Code: "image_result_unknown",
+		Message: "The image request outcome is unknown. Do not automatically resubmit; check the request result first.",
+	}
+	if adapterError {
+		terminal.Code = "image_adapter_parameter_error"
+		terminal.Param = source.Param
+		terminal.Message = source.Message
+	}
+	if resp != nil {
+		terminal.UpstreamRequestID = strings.TrimSpace(resp.Header.Get("x-request-id"))
+	}
+	if source != nil && source.UpstreamRequestID != "" {
+		terminal.UpstreamRequestID = source.UpstreamRequestID
+	}
+	c.Header("x-should-retry", "false")
+	setOpsUpstreamError(c, terminal.StatusCode, terminal.Message, "")
+	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		Platform: account.Platform, AccountID: account.ID, AccountName: account.Name,
+		UpstreamStatusCode: terminal.StatusCode, UpstreamRequestID: terminal.UpstreamRequestID,
+		Kind: "http_error", Message: terminal.Message,
+	})
+	if terminal.Code == "image_result_unknown" && source == nil && c.Writer.Written() && strings.HasPrefix(c.Writer.Header().Get("Content-Type"), "text/event-stream") {
+		// A progress frame has already committed HTTP 200. End that stream with
+		// an explicit unknown result; an upstream error frame was already sent
+		// when source != nil and must not be duplicated.
+		if _, writeErr := fmt.Fprintf(c.Writer, "event: error\ndata: %s\n\n", buildOpenAIImagesStreamErrorBodyFromUpstream(terminal)); writeErr == nil {
+			c.Writer.Flush()
+		}
+	} else {
+		writeOpenAIImagesUpstreamErrorResponse(c, terminal)
+	}
+	return terminal, true
+}
+
 func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	ctx context.Context,
 	c *gin.Context,
@@ -1936,13 +2001,17 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 			Kind:               "request_error",
 			Message:            safeErr,
 		})
-		return nil, fmt.Errorf("upstream request failed: %s", safeErr)
+		forwardErr := fmt.Errorf("upstream request failed: %s", safeErr)
+		if terminal, handled := finishOpenAIImage25ForwardError(c, account, nil, upstreamModel, forwardErr); handled {
+			return nil, terminal
+		}
+		return nil, forwardErr
 	}
 	if resp.StatusCode >= 400 {
 		respBody := s.readUpstreamErrorBody(resp)
 		_ = resp.Body.Close()
 		respBody = s.redactAgentIdentitySensitiveBody(upstreamCtx, account, respBody)
-		if direct && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed) {
+		if direct && canFallbackOpenAIImagesToResponses(parsed, resp.StatusCode, respBody) {
 			return s.forwardOpenAIImagesOAuth(withOpenAIImagesForceResponses(ctx), c, account, parsed, channelMappedModel)
 		}
 		if !agentIdentityTaskRecoveryWasTried(ctx) && s.isAgentIdentityAccount(ctx, account) && isAgentIdentityTaskInvalidHTTPResponse(resp.StatusCode, respBody) {
@@ -1953,6 +2022,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 			return s.forwardOpenAIImagesOAuth(markAgentIdentityTaskRecoveryTried(ctx), c, account, parsed, channelMappedModel)
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
+		if resp.StatusCode == http.StatusBadRequest || resp.StatusCode >= http.StatusInternalServerError {
+			if terminal, handled := finishOpenAIImage25ForwardError(c, account, resp, upstreamModel, openAIImagesUpstreamErrorFromHTTP(resp.StatusCode, resp.Header, respBody)); handled {
+				return nil, terminal
+			}
+		}
 		if !direct && isOpenAIImagesMainModelError(resp.StatusCode, respBody) {
 			return s.handleOpenAIImagesErrorResponse(upstreamCtx, resp, c, account, upstreamModel)
 		}
@@ -1992,12 +2066,23 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		imageOutputSizes []string
 		firstTokenMs     *int
 	)
+	// For the ChatGPT compatibility alias, do not replace actual/absent upstream
+	// model metadata with the requested alias. Keep the original parsed request
+	// for scheduling and billing.
+	responseParsed := parsed
+	responseFallbackModel := requestModel
+	if upstreamModel == "gpt-image-2.5" {
+		copy := *parsed
+		copy.Model = ""
+		responseParsed = &copy
+		responseFallbackModel = upstreamModel
+	}
 	// 与 handleOpenAIImagesOAuthResponseError 的比较端同口径：排除非流式 JSON
 	// keepalive 心跳字节，避免 failover 第 2 轮起把上一轮心跳残留误判为已写响应。
 	writerSizeBeforeResponse := OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c)
 	if parsed.Stream {
 		if direct {
-			usage, imageCount, imageOutputSizes, firstTokenMs, err = s.handleOpenAIImagesStreamingResponse(resp, c, startTime, parsed, nil)
+			usage, imageCount, imageOutputSizes, firstTokenMs, err = s.handleOpenAIImagesStreamingResponse(resp, c, startTime, responseParsed, nil)
 		} else {
 			usage, imageCount, imageOutputSizes, firstTokenMs, err = s.handleOpenAIImagesOAuthStreamingResponse(resp, c, startTime, parsed.ResponseFormat, openAIImagesStreamPrefix(parsed), upstreamModel)
 		}
@@ -2023,6 +2108,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 					ImageOutputSizes:              imageOutputSizes,
 				}, err
 			}
+			if terminal, handled := finishOpenAIImage25ForwardError(c, account, resp, upstreamModel, err); handled {
+				return nil, terminal
+			}
 			return nil, s.handleOpenAIImagesOAuthResponseError(
 				upstreamCtx,
 				c,
@@ -2036,11 +2124,14 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		}
 	} else {
 		if direct {
-			usage, imageCount, imageOutputSizes, err = s.handleCodexDirectImagesNonStreamingResponse(resp, c, parsed)
+			usage, imageCount, imageOutputSizes, err = s.handleCodexDirectImagesNonStreamingResponse(resp, c, responseParsed)
 		} else {
-			usage, imageCount, imageOutputSizes, err = s.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, parsed.ResponseFormat, requestModel)
+			usage, imageCount, imageOutputSizes, err = s.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, parsed.ResponseFormat, responseFallbackModel)
 		}
 		if err != nil {
+			if terminal, handled := finishOpenAIImage25ForwardError(c, account, resp, upstreamModel, err); handled {
+				return nil, terminal
+			}
 			return nil, s.handleOpenAIImagesOAuthResponseError(
 				upstreamCtx,
 				c,

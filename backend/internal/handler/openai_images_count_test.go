@@ -92,7 +92,7 @@ func TestOpenAIGatewayHandlerImages_UnsupportedBatchStopsBeforeForward(t *testin
 	)
 	handler.maxAccountSwitches = 10
 
-	body := []byte(`{"model":"gpt-image-2.5","prompt":"draw a cat","quality":"high","size":"1536x1024","n":2}`)
+	body := []byte(`{"model":"gpt-image-1","prompt":"draw a cat","quality":"high","size":"1536x1024","n":2}`)
 	core, observedLogs := observer.New(zap.DebugLevel)
 	requestCtx := logger.IntoContext(context.Background(), zap.New(core))
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body)).WithContext(requestCtx)
@@ -148,7 +148,7 @@ func TestOpenAIGatewayHandlerImages_UnsupportedBatchReleasesSchedulerSlotOnce(t 
 	selection := &service.AccountSelectionResult{Account: &service.Account{
 		Type: service.AccountTypeOAuth, Platform: service.PlatformOpenAI,
 	}, ReleaseFunc: func() { released++ }}
-	parsed := &service.OpenAIImagesRequest{Model: "gpt-image-2.5", N: 2}
+	parsed := &service.OpenAIImagesRequest{Model: "gpt-image-1", N: 2}
 	h := &OpenAIGatewayHandler{} // No gateway/feedback writer is available on this path.
 	require.True(t, h.handleOpenAIImagesSelectedCountValidation(c, selection, parsed, ""))
 	require.Equal(t, 1, released)
@@ -167,7 +167,7 @@ func TestOpenAIGatewayHandlerImages_RequestValidationAfterUserWaitSSEPing(t *tes
 	c.Writer.Flush()
 	released := 0
 	selection := &service.AccountSelectionResult{Account: &service.Account{Type: service.AccountTypeOAuth}, ReleaseFunc: func() { released++ }}
-	parsed := &service.OpenAIImagesRequest{Model: "gpt-image-2.5", N: 2, Stream: true}
+	parsed := &service.OpenAIImagesRequest{Model: "gpt-image-1", N: 2, Stream: true}
 	h := &OpenAIGatewayHandler{}
 	require.True(t, h.handleOpenAIImagesSelectedCountValidation(c, selection, parsed, ""))
 	require.Equal(t, 1, released)
@@ -192,7 +192,7 @@ func TestOpenAIGatewayHandlerImages_RequestValidationOpsAttribution(t *testing.T
 			router := gin.New()
 			router.Use(OpsErrorLoggerMiddleware(ops))
 			router.POST("/v1/images/generations", func(c *gin.Context) {
-				setOpsRequestContext(c, "gpt-image-2.5", mode == "sse_ping")
+				setOpsRequestContext(c, "gpt-image-1", mode == "sse_ping")
 				c.Set(service.OpsUpstreamStatusCodeKey, http.StatusTooManyRequests)
 				c.Set(service.OpsUpstreamErrorMessageKey, "earlier attempt was rate limited")
 				c.Set(service.OpsUpstreamErrorsKey, []*service.OpsUpstreamErrorEvent{{UpstreamStatusCode: http.StatusTooManyRequests, Message: "earlier attempt was rate limited"}})

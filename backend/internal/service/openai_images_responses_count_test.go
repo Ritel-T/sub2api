@@ -16,9 +16,9 @@ import (
 // than silently turning n=2 into one generated and billed image.
 func TestResponsesImagesBatchRejectsBeforeUpstream(t *testing.T) {
 	for _, tc := range []struct{ name, requested, channel, mapped string }{
-		{"bare_generation", "gpt-image-2.5", "", ""},
-		{"account_mapping_to_responses", "gpt-image-2", "", "gpt-image-2.5"},
-		{"channel_mapping_to_responses", "gpt-image-2", "gpt-image-2.5", ""},
+		{"bare_generation", "gpt-image-1", "", ""},
+		{"account_mapping_to_responses", "gpt-image-2", "", "gpt-image-1"},
+		{"channel_mapping_to_responses", "gpt-image-2", "gpt-image-1", ""},
 	} {
 		for _, stream := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/stream=%t", tc.name, stream), func(t *testing.T) {
@@ -56,7 +56,7 @@ func TestResponsesImagesBatchRejectsBeforeUpstream(t *testing.T) {
 }
 
 func TestResponsesImagesBatchRejectsBeforeCredentials(t *testing.T) {
-	body := []byte(`{"model":"gpt-image-2.5","prompt":"draw","n":2}`)
+	body := []byte(`{"model":"gpt-image-1","prompt":"draw","n":2}`)
 	c, rec := newOpenAIImagesTestContext(t, body)
 	svc := newOpenAIImagesTestService(nil)
 	account := directImagesTestAccount()
@@ -73,11 +73,11 @@ func TestResponsesImagesBatchRejectsBeforeCredentials(t *testing.T) {
 }
 
 func TestResponsesImagesSingleDoesNotEmitN(t *testing.T) {
-	parsed := &OpenAIImagesRequest{Endpoint: openAIImagesGenerationsEndpoint, Model: "gpt-image-2.5", Prompt: "draw a circle", N: 1}
+	parsed := &OpenAIImagesRequest{Endpoint: openAIImagesGenerationsEndpoint, Model: "gpt-image-1", Prompt: "draw a circle", N: 1}
 	body, err := buildOpenAIImagesResponsesRequest(parsed, parsed.Model)
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(body, "tools.0.n").Exists())
-	require.Equal(t, "gpt-image-2.5", gjson.GetBytes(body, "tools.0.model").String())
+	require.Equal(t, "gpt-image-1", gjson.GetBytes(body, "tools.0.model").String())
 	require.Equal(t, "draw a circle", gjson.GetBytes(body, "input.0.content.0.text").String())
 }
 
@@ -87,8 +87,8 @@ func TestNativeAndAPIKeyImagesBatchKeepCount(t *testing.T) {
 		apiKey                  bool
 	}{
 		{"direct", "gpt-image-2", "", false},
-		{"bare_mapped_to_direct", "gpt-image-2.5", "gpt-image-2", false},
-		{"apikey_bare", "gpt-image-2.5", "", true},
+		{"bare_mapped_to_direct", "gpt-image-1", "gpt-image-2", false},
+		{"apikey_bare", "gpt-image-1", "", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"draw two circles","n":2}`, tc.requested))
@@ -119,7 +119,7 @@ func TestResponsesImagesBatchEditRejectsBeforeUpstream(t *testing.T) {
 		t.Run(accountType, func(t *testing.T) {
 			c, rec := newOpenAIImagesTestContext(t, []byte(`{}`))
 			c.Request.URL.Path = openAIImagesEditsEndpoint
-			parsed := &OpenAIImagesRequest{Endpoint: openAIImagesEditsEndpoint, Model: "gpt-image-2.5", Prompt: "edit a circle", N: 2, InputImageURLs: []string{"https://example.com/source.png"}}
+			parsed := &OpenAIImagesRequest{Endpoint: openAIImagesEditsEndpoint, Model: "gpt-image-1", Prompt: "edit a circle", N: 2, InputImageURLs: []string{"https://example.com/source.png"}}
 			account := directImagesTestAccount()
 			account.Type = accountType
 			delete(account.Credentials, "access_token")
@@ -141,14 +141,15 @@ func TestNativeImagesBatchDoesNotFallBackToUnsupportedResponsesCount(t *testing.
 	upstream := &codexModelsHTTPUpstreamStub{do: func(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
 		calls++
 		require.Equal(t, "/backend-api/codex/images/generations", req.URL.Path)
-		return &http.Response{StatusCode: http.StatusNotFound, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"error":{"type":"not_found_error"}}`))}, nil
+		return &http.Response{StatusCode: http.StatusNotFound, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"detail":"Not Found"}`))}, nil
 	}}
 	svc := newOpenAIImagesTestService(upstream)
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 	result, err := svc.ForwardImages(context.Background(), c, directImagesTestAccount(), body, parsed, "")
 	require.Nil(t, result)
-	var validationErr *OpenAIImagesRequestValidationError
-	require.ErrorAs(t, err, &validationErr)
+	var upstreamErr *OpenAIImagesUpstreamError
+	require.ErrorAs(t, err, &upstreamErr)
+	require.Equal(t, http.StatusNotFound, upstreamErr.StatusCode)
 	require.Equal(t, 1, calls, "do not send the batch again to a Responses tool that cannot honor n")
 }

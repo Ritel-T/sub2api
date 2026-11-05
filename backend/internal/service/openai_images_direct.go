@@ -30,10 +30,31 @@ func isOpenAIImagesForceResponses(ctx context.Context) bool {
 // 显式列出已接入的模型，不把未来模型或未知快照自动送到直调端点。
 func usesCodexDirectImages(model string) bool {
 	switch strings.TrimSpace(model) {
-	case "gpt-image-1.5", "gpt-image-2",
+	case "gpt-image-1.5", "gpt-image-2", "gpt-image-2.5",
 		"gpt-image-2.5-flare", "gpt-image-2.5-sunburst",
 		"gpt-image-2.5-flare-2026-09-08", "gpt-image-2.5-sunburst-2026-09-08":
 		return true
+	default:
+		return false
+	}
+}
+
+// Only a definite route/method rejection permits another execution path. A
+// model-not-found 404 or an ambiguous response must not turn into a second
+// generation, and the Responses bridge must preserve the requested options.
+func canFallbackOpenAIImagesToResponses(parsed *OpenAIImagesRequest, status int, body []byte) bool {
+	if parsed == nil || parsed.N > 1 || parsed.InputFidelity != "" {
+		return false
+	}
+	message := strings.TrimSpace(string(body))
+	if gjson.ValidBytes(body) {
+		message = strings.TrimSpace(gjson.GetBytes(body, "detail").String())
+	}
+	switch status {
+	case http.StatusNotFound:
+		return strings.EqualFold(message, "Not Found") || message == "404 page not found"
+	case http.StatusMethodNotAllowed:
+		return strings.EqualFold(message, "Method Not Allowed")
 	default:
 		return false
 	}

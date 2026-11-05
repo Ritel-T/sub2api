@@ -361,6 +361,13 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			} else {
 				var imageUpstreamErr *service.OpenAIImagesUpstreamError
 				if errors.As(err, &imageUpstreamErr) {
+					// These describe adapter behavior or an unknown execution outcome,
+					// not caller misuse or evidence that another account should be tried.
+					if imageUpstreamErr.Code == "image_adapter_parameter_error" || imageUpstreamErr.Code == "image_result_unknown" {
+						reqLog.Warn("openai.images."+imageUpstreamErr.Code,
+							zap.Int64("account_id", account.ID), zap.Error(err))
+						return
+					}
 					retryableServerError := service.IsOpenAIImagesRetryableUpstreamError(imageUpstreamErr)
 					if retryableServerError {
 						h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), false, nil, err)
