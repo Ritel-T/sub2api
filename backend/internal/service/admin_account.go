@@ -511,6 +511,12 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 }
 
 func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {
+	return s.withOAuthAccountCreation(ctx, input, func(creationCtx context.Context) (*Account, error) {
+		return s.createAccount(creationCtx, input)
+	})
+}
+
+func (s *adminServiceImpl) createAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {
 	if err := ValidateAccountCostMultiplierExtra(input.Extra); err != nil {
 		return nil, err
 	}
@@ -603,6 +609,13 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 			if err := s.accountRepo.BindGroups(ctx, account.ID, groupIDs); err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	if nativeOAuthAccountCreation(ctx) {
+		account, err = markNativeOAuthInitialReady(ctx, s.accountRepo, account)
+		if err != nil {
+			return nil, err
 		}
 	}
 

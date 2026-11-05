@@ -311,3 +311,61 @@ it('keeps scopes during a group page failure, retries all pages and preserves ID
  expect(listGroups).toHaveBeenLastCalledWith(2,100,expect.objectContaining({status:'active'}))
  w.unmount()
 })
+
+
+describe('OpenAI account plan defaults', () => {
+ const native = {
+  enabled: true,
+  legacy_account_ids: [88, 195],
+  templates: { business: { concurrency: 20, load_factor: 20, priority: 2, model_mappings: [{ from: 'gpt-6-astra', to: 'gpt-6-astra' }, { from: 'gpt-6-sol', to: 'gpt-6.1-sol' }] } },
+  model_exclusions: { '88': ['gpt-6-luna'] },
+  dedicated_proxy_country_codes: ['US', 'GB']
+ }
+ it('edits tier fields and preserves existing exclusions, billing and BPS configuration', async () => {
+  vi.mocked(getAutoConfig).mockResolvedValueOnce({ ...structuredClone(config), enabled: true, group_ids: [5], openai_account_defaults: structuredClone(native) })
+  const w = mount(AutoConfigView); await flushPromises()
+  expect(w.find('[data-testid="priority"]').exists()).toBe(false)
+  expect(w.find('[data-testid="initial-model-mappings"]').exists()).toBe(false)
+  await w.get('[data-testid="openai-tier-concurrency-business"]').setValue(24)
+  await w.get('[data-testid="openai-tier-load-business"]').setValue('')
+  await w.get('[data-testid="openai-tier-model-to-business-1"]').setValue(' custom-sol ')
+  await w.get('[data-testid="openai-proxy-countries"]').setValue('us, de, US')
+  await w.get('form').trigger('submit'); await flushPromises()
+  expect(saveAutoConfig).toHaveBeenCalledWith({
+   ...config, enabled: true, group_ids: [5],
+   openai_account_defaults: { ...native, templates: { business: { ...native.templates.business, concurrency: 24, load_factor: null, model_mappings: [{ from: 'gpt-6-astra', to: 'gpt-6-astra' }, { from: 'gpt-6-sol', to: 'custom-sol' }] } }, dedicated_proxy_country_codes: ['US', 'DE'] }
+  })
+  expect(w.get<HTMLInputElement>('[data-testid="openai-tier-load-business"]').element.value).toBe('')
+  w.unmount()
+ })
+ it('starts disabled without inventing templates and requires model rules before enabling', async () => {
+  const w = mount(AutoConfigView); await flushPromises()
+  expect(w.get('[data-testid="openai-defaults-enabled"]').attributes('aria-checked')).toBe('false')
+  expect(w.find('[data-testid="openai-tier-business"]').exists()).toBe(false)
+  await w.get('[data-testid="openai-defaults-enabled"]').trigger('click')
+  await w.get('form').trigger('submit')
+  expect(saveAutoConfig).not.toHaveBeenCalled()
+  expect(w.get('[role="alert"]').text()).toContain('templatesRequired')
+  await w.get('[data-testid="openai-tier-plan"]').setValue('business')
+  await w.get('[data-testid="openai-tier-add"]').trigger('click')
+  await w.get('form').trigger('submit')
+  expect(w.get('[role="alert"]').text()).toContain('modelsRequired')
+  await w.get('[data-testid="openai-tier-model-add-business"]').trigger('click')
+  await w.get('[data-testid="openai-tier-model-from-business-0"]').setValue('gpt-6-astra')
+  await w.get('[data-testid="openai-tier-model-to-business-0"]').setValue('gpt-6-astra')
+  await w.get('form').trigger('submit'); await flushPromises()
+  expect(saveAutoConfig).toHaveBeenCalled()
+  w.unmount()
+ })
+ it('retains native rules while another platform uses the common settings', async () => {
+  vi.mocked(getAutoConfig).mockResolvedValueOnce({ ...structuredClone(config), openai_account_defaults: structuredClone(native) })
+  const w = mount(AutoConfigView); await flushPromises()
+  await w.get('[data-testid="platform"]').setValue('anthropic')
+  expect(w.find('[data-testid="openai-account-defaults"]').exists()).toBe(false)
+  expect(w.find('[data-testid="priority"]').exists()).toBe(true)
+  expect(w.find('[data-testid="initial-model-mappings"]').exists()).toBe(true)
+  await w.get('form').trigger('submit'); await flushPromises()
+  expect(saveAutoConfig).toHaveBeenCalledWith({ ...config, platform: 'anthropic', quality_rule: null, model_mappings: [], openai_account_defaults: native })
+  w.unmount()
+ })
+})

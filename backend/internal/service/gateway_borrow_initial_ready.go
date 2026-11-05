@@ -15,6 +15,9 @@ import (
 // No credential material is transported. Identity is compared to the same
 // fingerprint already used by the quality policy endpoint.
 type GatewayBorrowInitialReadyObservation struct {
+	// Only native creation may bind defaults while retaining a paused import.
+	// This internal flag is never accepted or returned by the HTTP endpoint.
+	AllowPaused      bool           `json:"-"`
 	ObservedAt       time.Time      `json:"observed_at"`
 	ExpectedProxyID  *int64         `json:"expected_proxy_id"`
 	CredentialSHA256 string         `json:"credential_sha256"`

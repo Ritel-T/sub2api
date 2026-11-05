@@ -1,3 +1,4 @@
+import type { OpenAIAccountDefaultsConfig } from '@/utils/openaiAccountDefaults'
 import type { OpenAITwoFAAdmissionConfig } from '@/utils/openaiTwoFAAdmission'
 import { list as listGroups } from './groups'
 import type { AdminGroup } from '@/types'
@@ -8,6 +9,7 @@ import type { ExcelBPSDefaults } from '@/utils/excelBPSDefaults'
 import type { OAuthModelMappingRule } from '@/utils/oauthModelMappings'
 export type OAuthInitialQualityRule = Pick<ScheduledTestPlan, 'model_id' | 'cron_expression' | 'enabled' | 'max_results' | 'pelican_config'>
 export interface AutoConfig {
+ openai_account_defaults?: OpenAIAccountDefaultsConfig
  openai_two_fa_admission?: OpenAITwoFAAdmissionConfig
  quality_rule?: OAuthInitialQualityRule | null
  model_billing?: ModelBillingConfig

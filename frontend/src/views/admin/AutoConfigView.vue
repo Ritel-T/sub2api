@@ -44,8 +44,9 @@
             <header class="flex items-center justify-between gap-3"><AppHeading variant="section" as="h2">{{ t('autoConfig.initial') }}</AppHeading><label class="flex items-center gap-2 text-sm"><Toggle v-model="draft.enabled" data-testid="initial-enabled" :aria-label="t('autoConfig.initial')" />{{ t('autoConfig.enable') }}</label></header>
             <p class="text-sm leading-6 text-gray-500">{{ t('autoConfig.initialHint') }}</p>
             <label class="block"><span class="field-label">{{ t('autoConfig.platform') }}</span><select v-model="draft.platform" data-testid="platform" class="input w-full" @change="draft.group_ids = []; draft.model_mappings = defaultOAuthModelMappings(draft.platform); draft.quality_rule = null; selectedQualityRule = ''"><option v-for="p in platforms" :key="p.value" :value="p.value">{{ p.label }}</option></select></label>
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><label v-for="field in initialFields" :key="field.key"><span class="field-label">{{ t('autoConfig.' + field.key) }}</span><input v-model.number="draft[field.key]" :data-testid="field.key" type="number" :min="field.min" max="10000" step="1" required class="input w-full" /></label><label><span class="field-label">{{ t('autoConfig.cost_multiplier') }}</span><input v-model.number="draft.cost_multiplier" data-testid="cost_multiplier" type="number" min="0" max="1000000" step="0.001" required class="input w-full" /></label></div>
-            <p class="text-xs leading-5 text-gray-500">{{ t('autoConfig.loadHint') }}</p>
+            <div v-if="!nativeDefaultsEnabled" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><label v-for="field in initialFields" :key="field.key"><span class="field-label">{{ t('autoConfig.' + field.key) }}</span><input v-model.number="draft[field.key]" :data-testid="field.key" type="number" :min="field.min" max="10000" step="1" required class="input w-full" /></label><label><span class="field-label">{{ t('autoConfig.cost_multiplier') }}</span><input v-model.number="draft.cost_multiplier" data-testid="cost_multiplier" type="number" min="0" max="1000000" step="0.001" required class="input w-full" /></label></div>
+            <p v-if="!nativeDefaultsEnabled" class="text-xs leading-5 text-gray-500">{{ t('autoConfig.loadHint') }}</p>
+            <OpenAIAccountDefaultsCard v-if="draft.platform === 'openai'" v-model="draft.openai_account_defaults" />
             <fieldset><legend class="field-label">{{ t('autoConfig.groups') }}</legend><div class="group-list"><label v-for="g in initialGroups" :key="g.id" class="group-option"><input v-model="draft.group_ids" :value="g.id" type="checkbox" :data-testid="'initial-group-' + g.id" /><span>{{ g.name }} <small class="text-gray-400">#{{ g.id }}</small></span></label><p v-if="!initialGroups.length" class="text-sm text-gray-500">{{ t('autoConfig.noGroups') }}</p></div></fieldset>
             <fieldset class="space-y-3" data-testid="initial-quality-rule">
               <legend class="field-label">{{ t('autoConfig.quality.title') }}</legend>
@@ -59,7 +60,7 @@
               <p v-if="draft.quality_rule" data-testid="quality-rule-summary" class="text-sm text-gray-500">{{ draft.quality_rule.model_id }} · {{ draft.quality_rule.cron_expression }} · {{ t(draft.quality_rule.enabled ? 'qualityOps.activeShort' : 'qualityOps.paused') }}</p>
               <p class="text-xs leading-5 text-gray-500">{{ t('autoConfig.quality.copyHint') }}</p>
             </fieldset>
-            <fieldset class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700" data-testid="initial-model-mappings">
+            <fieldset v-if="!nativeDefaultsEnabled" class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700" data-testid="initial-model-mappings">
               <legend class="field-label">{{ t('autoConfig.mapping.title') }}</legend>
               <p class="text-xs leading-5 text-gray-500">{{ t('autoConfig.mapping.hint') }}</p>
               <div v-for="(rule, index) in draft.model_mappings" :key="index" class="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
@@ -96,6 +97,8 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BPSDefaultsCard from '@/components/admin/operations/BPSDefaultsCard.vue'
+import OpenAIAccountDefaultsCard from '@/components/admin/operations/OpenAIAccountDefaultsCard.vue'
+import { openaiAccountDefaultsError, openaiAccountDefaultsPayload } from '@/utils/openaiAccountDefaults'
 import OpenAITwoFAAdmissionCard from '@/components/admin/operations/OpenAITwoFAAdmissionCard.vue'
 import { defaultOpenAITwoFAAdmissionConfig, openaiTwoFAAdmissionError, type OpenAITwoFAAdmissionConfig } from '@/utils/openaiTwoFAAdmission'
 import { defaultOAuthModelMappings, oauthModelMappingsError, oauthModelMappingsPayload, type OAuthModelMappingRule } from '@/utils/oauthModelMappings'
@@ -135,6 +138,7 @@ const validGeneration = (v: number) => alive && generation === v
 const platforms = [{ value: 'openai', label: 'OpenAI' }, { value: 'anthropic', label: 'Anthropic' }, { value: 'gemini', label: 'Gemini' }, { value: 'antigravity', label: 'Antigravity' }, { value: 'grok', label: 'Grok' }]
 const initialFields = [{ key: 'priority', min: 0 }, { key: 'load_factor', min: 1 }, { key: 'concurrency', min: 1 }] as const
 const upgradeFields = [{ key: 'successes_per_step', max: 100000 }, { key: 'upgrade_step', max: 1000 }, { key: 'max_concurrency', max: 10000 }, { key: 'cooldown_seconds', max: 86400 }] as const
+const nativeDefaultsEnabled = computed(() => draft.value?.platform === 'openai' && draft.value?.openai_account_defaults?.enabled === true)
 const initialGroups = computed(() => groups.value.filter(g => g.platform === draft.value?.platform))
 async function loadModelBillingGroups() {
  const v = generation
@@ -163,12 +167,14 @@ async function save() {
  if (modelError) { error.value = t(modelError); return }
  const bpsError = excelBPSDefaultsError(c.excel_bps)
  if (bpsError) { error.value = t(bpsError); return }
- const mappingError = oauthModelMappingsError(c.model_mappings)
+ const defaultsError = c.platform === 'openai' ? openaiAccountDefaultsError(c.openai_account_defaults) : null
+ if (defaultsError) { error.value = t(defaultsError); return }
+ const mappingError = nativeDefaultsEnabled.value ? null : oauthModelMappingsError(c.model_mappings)
  if (mappingError) { error.value = t(mappingError); return }
  const costMultiplier = c.cost_multiplier ?? 0.07
  if (c.enabled && !c.group_ids.length || c.upgrade_enabled && !c.upgrade_group_ids.length || !Number.isFinite(costMultiplier) || costMultiplier < 0 || costMultiplier > 1000000 || [...initialFields, ...upgradeFields].some(f => !Number.isInteger(c[f.key]) || c[f.key] < ('min' in f ? f.min : 1) || c[f.key] > ('max' in f ? f.max : 10000))) { error.value = t('autoConfig.invalid'); return }
  const v = generation; saving.value = true; error.value = ''; notice.value = ''
- try { const { runtime_blocked: _blocked, ...payload } = c; const result = await saveAutoConfig({ ...payload, cost_multiplier: costMultiplier, model_mappings: oauthModelMappingsPayload(c.model_mappings), model_billing: modelBillingPayload(c.model_billing), excel_bps: excelBPSDefaultsPayload(c.excel_bps) }); if (validGeneration(v)) { draft.value = { ...result, openai_two_fa_admission: result.openai_two_fa_admission ?? defaultOpenAITwoFAAdmissionConfig(), cost_multiplier: result.cost_multiplier ?? 0.07, model_mappings: result.model_mappings ?? defaultOAuthModelMappings(result.platform), model_billing: modelBillingPayload(result.model_billing ?? defaultModelBillingConfig()), excel_bps: result.excel_bps ?? defaultExcelBPSDefaults() }; selectedQualityRule.value = result.quality_rule ? 'saved' : ''; notice.value = t('autoConfig.saved'); historyRefreshKey.value++ } }
+ try { const { runtime_blocked: _blocked, ...payload } = c; const result = await saveAutoConfig({ ...payload, cost_multiplier: costMultiplier, model_mappings: oauthModelMappingsPayload(c.model_mappings), ...(c.openai_account_defaults ? { openai_account_defaults: openaiAccountDefaultsPayload(c.openai_account_defaults) } : {}), model_billing: modelBillingPayload(c.model_billing), excel_bps: excelBPSDefaultsPayload(c.excel_bps) }); if (validGeneration(v)) { draft.value = { ...result, openai_two_fa_admission: result.openai_two_fa_admission ?? defaultOpenAITwoFAAdmissionConfig(), cost_multiplier: result.cost_multiplier ?? 0.07, model_mappings: result.model_mappings ?? defaultOAuthModelMappings(result.platform), model_billing: modelBillingPayload(result.model_billing ?? defaultModelBillingConfig()), excel_bps: result.excel_bps ?? defaultExcelBPSDefaults() }; selectedQualityRule.value = result.quality_rule ? 'saved' : ''; notice.value = t('autoConfig.saved'); historyRefreshKey.value++ } }
  catch { if (validGeneration(v)) error.value = t('autoConfig.saveFailed') }
  finally { if (validGeneration(v)) saving.value = false }
 }

@@ -35,7 +35,7 @@ func MergeOpenAIGatewayAccountQualityExtra(incoming, current map[string]any) map
 	if out == nil {
 		out = make(map[string]any)
 	}
-	keys := []string{GatewayBorrowAccountQualityModeKey, GatewayBorrowAccountQualityPendingKey, GatewayBorrowInitialReadyKey, GatewayBorrowInitialReadyFingerprintKey}
+	keys := []string{GatewayBorrowAccountQualityModeKey, GatewayBorrowAccountQualityPendingKey, GatewayBorrowInitialReadyKey, GatewayBorrowInitialReadyFingerprintKey, "openai_account_defaults_revision", nativeOAuthAccountDefaultsIdentityKey}
 	if current[GatewayBorrowAccountQualityModeKey] == GatewayBorrowAccountQualityMode {
 		keys = append(keys, "quality_candy", GatewayBorrowQualityKey, GatewayBorrowModelsKey)
 	}
@@ -87,7 +87,7 @@ func (a *Account) IsOpenAIGatewayAccountQualityPendingForUpstreamModel(model str
 // Key-level account edits can neither erase nor supply managed gate fields.
 func stripGatewayBorrowAccountQualityManagedExtraUpdates(updates map[string]any, protectClassification bool) map[string]any {
 	out := maps.Clone(updates)
-	for _, key := range []string{GatewayBorrowAccountQualityModeKey, GatewayBorrowAccountQualityPendingKey, GatewayBorrowInitialReadyKey, GatewayBorrowInitialReadyFingerprintKey} {
+	for _, key := range []string{GatewayBorrowAccountQualityModeKey, GatewayBorrowAccountQualityPendingKey, GatewayBorrowInitialReadyKey, GatewayBorrowInitialReadyFingerprintKey, "openai_account_defaults_revision", nativeOAuthAccountDefaultsIdentityKey} {
 		delete(out, key)
 	}
 	if protectClassification {

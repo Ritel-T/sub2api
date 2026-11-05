@@ -1,4 +1,34 @@
 export default {
+  accountDefaults: {
+    "title": "OpenAI plan templates",
+    "hint": "Apply a plan-specific template when a new OpenAI OAuth account is created. Enable initial OAuth configuration above and select its shared groups.",
+    "scopeHint": "These values replace the common capacity and model settings. Saved changes apply to new accounts; existing account capacities and groups stay unchanged.",
+    "empty": "Add a plan template and its allowed models before enabling this configuration.",
+    "summary": "Concurrency {concurrency} · Load {load} · Priority {priority}",
+    "preserve": "Keep imported value",
+    "loadHint": "Leave the load factor empty to keep the imported value. A lower priority number is selected first.",
+    "models": "Allowed models and mappings",
+    "modelsHint": "Only these requested models are allowed. Use the same model on both sides for direct routing; other imported model rules are replaced.",
+    "removeTier": "Remove this plan template",
+    "plan": "Plan to add",
+    "addTier": "Add plan template",
+    "countries": "Countries for dedicated proxies",
+    "countriesHint": "Enter two-letter country codes separated by commas. A configured pool selects a tested, unused exit with a unique IP. Leave empty to keep the imported proxy.",
+    "exclusionsHint": "Existing model exclusions for {count} accounts are retained. Quality controls continue to apply.",
+    "templatesRequired": "Add at least one plan template before enabling plan defaults.",
+    "modelsRequired": "Each plan template needs at least one allowed model.",
+    "invalid": "Enter integer concurrency and load factors from 1 to 10000, and priority from 0 to 10000. An empty load factor is allowed.",
+    "invalidCountries": "Use two-letter country codes, such as US, GB or DE.",
+    "plans": {
+      "free": "Free",
+      "go": "Go",
+      "plus": "Plus",
+      "prolite": "Pro100",
+      "pro": "Pro200",
+      "promax": "Pro500",
+      "business": "Business / Team"
+    }
+  },
   admission: {
     "pending": "Awaiting admission: 21 streak {count}/{required}",
     "passed": "Admission passed",
