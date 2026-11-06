@@ -20,21 +20,28 @@
     </p>
 
     <div class="flex flex-wrap items-center gap-2">
+      <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <span>{{ t('consoleInline.aPIKeyPlatform_eb8cb9') }}</span>
+        <select class="input w-auto" data-testid="ccs-view-platform" :value="selectedPlatform" @change="selectPlatform(inputValue($event) as CcsImportPlatform)">
+          <option v-for="platform in platforms" :key="platform" :value="platform">{{ platform }}</option>
+        </select>
+      </label>
       <button type="button" class="btn btn-secondary btn-sm" data-testid="ccs-add-profile" :disabled="modelValue.profiles.length >= 64" @click="addProfile">
         {{ t('consoleInline.addProfile_e7a2c7') }}
       </button>
-      <span class="text-xs text-gray-500 dark:text-gray-400">{{ modelValue.profiles.length }} / 64</span>
+      <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('consoleInline.ccsSavedCount', { count: modelValue.profiles.length }) }} / 64</span>
     </div>
 
     <p v-if="!modelValue.profiles.length" class="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400">
       {{ t('consoleInline.noImportOptionsAreConfigured_743f59') }}
     </p>
     <div v-else class="grid gap-4 xl:grid-cols-[15rem_minmax(0,1fr)]">
-      <div class="space-y-2">
-        <div v-for="(profile, index) in modelValue.profiles" :key="index" class="open-section flex items-center gap-1" :class="index === selectedIndex ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600'">
-          <button type="button" class="min-w-0 flex-1 text-left" :data-testid="`ccs-select-${index}`" :aria-pressed="index === selectedIndex" @click="selectedIndex = index">
+      <div class="max-h-80 space-y-2 overflow-y-auto pr-1 xl:max-h-[36rem]">
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('consoleInline.ccsEffectiveCount', { count: savedProfiles.length + defaultProfiles.length }) }}</p>
+        <div v-for="{ profile, index } in savedProfiles" :key="index" class="open-section flex items-center gap-1" :class="!selectedDefaultApp && index === selectedIndex ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600'">
+          <button type="button" class="min-w-0 flex-1 text-left" :data-testid="`ccs-select-${index}`" :aria-pressed="!selectedDefaultApp && index === selectedIndex" @click="selectedIndex = index; selectedDefaultApp = null">
             <span class="block truncate text-sm font-medium text-gray-900 dark:text-white">{{ profile.label || t('consoleInline.unnamedProfile_5ba2ab') }}</span>
-            <span class="block text-xs text-gray-500 dark:text-gray-400">{{ profile.platform }} / {{ profile.app }}</span>
+            <span class="block text-xs text-gray-500 dark:text-gray-400">{{ profile.platform }} / {{ profile.app }} · {{ t('consoleInline.ccsSavedOverride') }}</span>
           </button>
           <div class="flex flex-col">
             <button type="button" class="px-1 text-gray-500 disabled:opacity-30" :disabled="index === 0" :aria-label="t('consoleInline.moveUp_4a0439')" :data-testid="`ccs-up-${index}`" @click="moveProfile(index, -1)">↑</button>
@@ -42,8 +49,15 @@
           </div>
           <button type="button" class="px-1 text-red-500" :aria-label="t('consoleInline.removeProfile_91e63a')" :data-testid="`ccs-remove-${index}`" @click="removeProfile(index)">×</button>
         </div>
+        <div v-for="profile in defaultProfiles" :key="profile.app" class="open-section flex items-center gap-1" :class="selectedDefaultApp === profile.app ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600'">
+          <button type="button" class="min-w-0 flex-1 text-left" :data-testid="`ccs-default-${profile.app}`" :aria-pressed="selectedDefaultApp === profile.app" @click="selectedDefaultApp = profile.app; selectedIndex = -1">
+            <span class="block truncate text-sm font-medium text-gray-900 dark:text-white">{{ profile.label }}</span>
+            <span class="block text-xs text-gray-500 dark:text-gray-400">{{ profile.app }} · {{ t('consoleInline.ccsSystemDefault') }}</span>
+          </button>
+        </div>
       </div>
-      <div v-if="selectedProfile" class="open-section min-w-0 space-y-5">
+      <fieldset v-if="selectedProfile" class="open-section min-w-0 space-y-5" :disabled="!!selectedDefaultApp && modelValue.profiles.length >= 64">
+        <p class="text-sm text-gray-500 dark:text-gray-400" data-testid="ccs-profile-source">{{ t(selectedDefaultApp ? 'consoleInline.ccsDefaultEditing' : 'consoleInline.ccsSavedEditing') }}</p>
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="space-y-1 text-sm text-gray-700 dark:text-gray-300">
             <span>{{ t('consoleInline.menuLabel_2c711e') }}</span>
@@ -87,7 +101,7 @@
             </label>
           </div>
         </details>
-      </div>
+      </fieldset>
     </div>
     <p v-if="validationError" role="alert" class="text-sm text-red-600 dark:text-red-400" data-testid="ccs-error">{{ validationError }}</p>
   </section>
@@ -98,15 +112,27 @@ import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CcsImportApp, CcsImportConfig, CcsImportParameterValue, CcsImportPlatform, CcsImportProfile } from '@/types/ccswitch'
-import { createDefaultCcSwitchImportConfig, getCcSwitchImportParameterDefaults } from '@/utils/ccswitchImport'
+import { createDefaultCcSwitchImportConfig, getCcSwitchApplicationProfiles, getCcSwitchImportParameterDefaults } from '@/utils/ccswitchImport'
 
 const props = defineProps<{ modelValue: CcsImportConfig; baseUrl?: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: CcsImportConfig] }>()
 const { t } = useI18n()
 const selectedIndex = ref(0)
-const selectedProfile = computed(() => props.modelValue.profiles[selectedIndex.value])
+const selectedPlatform = ref<CcsImportPlatform>(props.modelValue.profiles[0]?.platform || 'openai')
+const selectedDefaultApp = ref<CcsImportApp | null>(null)
+const savedProfiles = computed(() => props.modelValue.profiles.map((profile, index) => ({ profile, index }))
+  .filter(row => row.profile.platform === selectedPlatform.value))
+const effectiveProfiles = computed(() => getCcSwitchApplicationProfiles(selectedPlatform.value, props.modelValue)
+  .map(profile => ({ ...profile, platform: selectedPlatform.value })))
+const defaultProfiles = computed(() => effectiveProfiles.value.filter(profile =>
+  !savedProfiles.value.some(row => row.profile.app === profile.app)))
+const selectedProfile = computed(() => selectedDefaultApp.value
+  ? defaultProfiles.value.find(profile => profile.app === selectedDefaultApp.value)
+  : props.modelValue.profiles[selectedIndex.value])
+const selectedEffectiveProfile = computed(() => selectedDefaultApp.value ? selectedProfile.value
+  : effectiveProfiles.value.find(profile => profile.id === selectedProfile.value?.id && profile.app === selectedProfile.value?.app))
 const parameterDefaults = computed(() => selectedProfile.value
-  ? getCcSwitchImportParameterDefaults(selectedProfile.value, props.baseUrl || '{{baseUrl}}') : {})
+  ? { ...getCcSwitchImportParameterDefaults(selectedEffectiveProfile.value || selectedProfile.value, props.baseUrl || '{{baseUrl}}'), ...Object.fromEntries(Object.entries(selectedEffectiveProfile.value?.parameters || {}).filter(([, value]) => value !== '')) } : {})
 const templateTokens = ['{{apiKey}}', '{{baseUrl}}', '{{siteName}}', '{{keyName}}', '{{userId}}']
 const platforms: CcsImportPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'deepseek', 'minimax', 'kimi', 'zhipu', 'opencode_go', 'composite']
 const apps: CcsImportApp[] = ['claude', 'codex', 'gemini', 'agy', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi', 'claude-desktop', 'mcode', 'kimi', 'dsh', 'omp']
@@ -169,8 +195,14 @@ const fieldGroups: Array<{ id: string; labelKey: string; fields: ParameterField[
 const supportedParameters = new Set(fieldGroups.flatMap(group => group.fields.map(field => field.key)))
 const booleanParameters = new Set(['enabled', 'usageEnabled'])
 
-watch(() => props.modelValue.profiles.length, length => {
-  selectedIndex.value = Math.max(0, Math.min(selectedIndex.value, length - 1))
+function selectPlatform(platform: CcsImportPlatform) {
+  selectedPlatform.value = platform
+  selectedIndex.value = savedProfiles.value[0]?.index ?? -1
+  selectedDefaultApp.value = selectedIndex.value < 0 ? defaultProfiles.value[0]?.app ?? null : null
+}
+
+watch(() => props.modelValue.profiles, () => {
+  if (!selectedProfile.value || selectedProfile.value.platform !== selectedPlatform.value) selectPlatform(selectedPlatform.value)
 })
 
 function inputValue(event: Event): string {
@@ -182,7 +214,28 @@ function replaceProfiles(profiles: CcsImportProfile[]) {
 }
 
 function updateProfile(patch: Partial<CcsImportProfile>) {
-  replaceProfiles(props.modelValue.profiles.map((profile, index) => index === selectedIndex.value ? { ...profile, ...patch } : profile))
+  const profile = selectedProfile.value
+  if (!profile) return
+  if (selectedDefaultApp.value) {
+    if (props.modelValue.profiles.length >= 64) return
+    let id = profile.id
+    let suffix = 1
+    while (props.modelValue.profiles.some(item => item.id === id)) id = `${profile.id}-${suffix++}`
+    // Preserve the effective protocol and required model when creating one override.
+    const app = patch.app || profile.app
+    const seed = patch.app || patch.platform
+      ? getCcSwitchApplicationProfiles(patch.platform || profile.platform).find(item => item.app === app)!
+      : profile
+    const parameters: Record<string, CcsImportParameterValue> = { apiFormat: seed.parameters.apiFormat }
+    if (['pi', 'mcode', 'kimi', 'dsh', 'omp'].includes(app)) parameters.model = seed.parameters.model
+    const created: CcsImportProfile = { ...profile, ...patch, id: patch.id ?? id, parameters: { ...parameters, ...patch.parameters } }
+    selectedIndex.value = props.modelValue.profiles.length
+    selectedDefaultApp.value = null
+    replaceProfiles([...props.modelValue.profiles, created])
+  } else {
+    replaceProfiles(props.modelValue.profiles.map((item, index) => index === selectedIndex.value ? { ...item, ...patch } : item))
+  }
+  if (patch.platform) selectedPlatform.value = patch.platform
 }
 
 function parameterText(key: string): string {
@@ -195,14 +248,14 @@ function parameterText(key: string): string {
 }
 
 function setParameter(key: string, value: string, number = false) {
-  const parameters = { ...selectedProfile.value?.parameters }
+  const parameters = { ...(selectedDefaultApp.value ? {} : selectedProfile.value?.parameters) }
   if (value === '') delete parameters[key]
   else parameters[key] = number ? Number(value) : value
   updateProfile({ parameters })
 }
 
 function setBooleanParameter(key: string, value: string) {
-  const parameters: Record<string, CcsImportParameterValue> = { ...selectedProfile.value?.parameters }
+  const parameters: Record<string, CcsImportParameterValue> = { ...(selectedDefaultApp.value ? {} : selectedProfile.value?.parameters) }
   if (value === '') delete parameters[key]
   else parameters[key] = value === 'true'
   updateProfile({ parameters })
@@ -217,6 +270,8 @@ function addProfile() {
     id: `openai-codex-${suffix}`, label: `OpenAI Codex ${suffix}`, platform: 'openai', app: 'codex',
     parameters: template ? { ...template.parameters } : { model: 'gpt-6-astra' },
   }
+  selectedPlatform.value = profile.platform
+  selectedDefaultApp.value = null
   selectedIndex.value = props.modelValue.profiles.length
   replaceProfiles([...props.modelValue.profiles, profile])
 }

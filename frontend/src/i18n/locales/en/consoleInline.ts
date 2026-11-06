@@ -1,5 +1,12 @@
 // Console copy migrated from inline bilingual messages (phase 9c).
 export default {
+  "ccsEffectiveCount": "{count} configurations for this platform",
+  "ccsSavedCount": "{count} saved profiles",
+  "ccsSavedOverride": "Saved",
+  "ccsSystemDefault": "System default",
+  "ccsDefaultEditing": "System default: editing saves only this override. Viewing and switching platforms do not write settings. At 64 saved profiles, remove an unused override first.",
+  "ccsSavedEditing": "Saved profile: clear a field to inherit its default, or delete the profile to restore defaults. Deleting all saved profiles disables imports.",
+
   "cCSwitchImportProfiles_e493be": "CC Switch import profiles",
   "importOptionsAreShownForMatchingAPI_0fee9d": "Import options are shown for matching API key platforms in this order. Remove all profiles to disable import options. Save the settings page to apply changes.",
   "theseTemplatesArePublishedToUsersDo_8e5e78": "These templates are published to users. Do not enter administrator keys, tokens, or other secrets.",

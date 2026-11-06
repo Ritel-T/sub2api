@@ -1,5 +1,12 @@
 // Console copy migrated from inline bilingual messages (phase 9c).
 export default {
+  "ccsEffectiveCount": "当前平台 {count} 项配置",
+  "ccsSavedCount": "已保存 {count} 项",
+  "ccsSavedOverride": "已保存",
+  "ccsSystemDefault": "系统默认",
+  "ccsDefaultEditing": "系统默认：编辑后仅保存此项覆盖；查看和切换平台不会写入配置。保存项达到 64 条时，请先删除不需要的覆盖。",
+  "ccsSavedEditing": "已保存配置：清空字段恢复默认；删除此项恢复系统默认。删除全部已保存配置会关闭导入。",
+
   "cCSwitchImportProfiles_e493be": "CC Switch 一键导入配置",
   "importOptionsAreShownForMatchingAPI_0fee9d": "按 API Key 平台展示以下导入选项，顺序与此列表相同。删除全部配置可关闭导入选项。保存整页设置后生效。",
   "theseTemplatesArePublishedToUsersDo_8e5e78": "这些模板会公开发送给用户，请勿填写管理员密钥、令牌或其他秘密。",

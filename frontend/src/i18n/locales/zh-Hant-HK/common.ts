@@ -1,5 +1,6 @@
 export default {
   common: {
+    retry: '重試',
     theme: {
       label: '外觀',
       system: '跟隨系統',
