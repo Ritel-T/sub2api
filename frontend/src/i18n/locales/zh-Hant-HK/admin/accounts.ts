@@ -22,6 +22,7 @@ export default {
       "missing_quota": "缺少快照 {count} 個",
       "non_weekly_window": "非每週時段 {count} 個",
       "invalid_quota": "無效快照 {count} 個",
+      "degraded": "降智帳號 {count} 個",
       "expired_snapshot": "過期快照 {count} 個"
 },
     details: {

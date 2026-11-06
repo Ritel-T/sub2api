@@ -62,7 +62,7 @@ const data = ref<OpenAIWeeklyQuotaSummary | null>(null)
 const loading = ref(false)
 const error = ref(false)
 let controller: AbortController | null = null
-const excludedKeys = ['inactive', 'unsupported_plan', 'missing_quota', 'non_weekly_window', 'invalid_quota', 'expired_snapshot'] as const
+const excludedKeys = ['inactive', 'degraded', 'unsupported_plan', 'missing_quota', 'non_weekly_window', 'invalid_quota', 'expired_snapshot'] as const
 const excludedReasons = computed(() => excludedKeys
   .filter(key => (data.value?.excluded[key] ?? 0) > 0)
   .map(key => t(`admin.accounts.weeklyQuota.${key}`, { count: data.value!.excluded[key] }))

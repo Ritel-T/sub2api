@@ -35,6 +35,7 @@ type OpenAIWeeklyQuotaTier struct {
 
 type OpenAIWeeklyQuotaExcluded struct {
 	Inactive        int `json:"inactive"`
+	Degraded        int `json:"degraded"`
 	UnsupportedPlan int `json:"unsupported_plan"`
 	MissingQuota    int `json:"missing_quota"`
 	NonWeeklyWindow int `json:"non_weekly_window"`
@@ -101,13 +102,11 @@ func CollectOpenAIWeeklyQuota(ctx context.Context, lister OpenAIWeeklyQuotaAccou
 	var totalUnits int64
 	var accountIDs []int64
 	for _, row := range rows {
-		if row.accountID > 0 {
-			accountIDs = append(accountIDs, row.accountID)
-			result.TotalConcurrency += row.maxConcurrency
-		}
 		switch row.reason {
 		case "inactive":
 			result.Excluded.Inactive++
+		case "degraded":
+			result.Excluded.Degraded++
 		case "unsupported_plan":
 			result.Excluded.UnsupportedPlan++
 		case "missing_quota":
@@ -119,6 +118,9 @@ func CollectOpenAIWeeklyQuota(ctx context.Context, lister OpenAIWeeklyQuotaAccou
 		case "expired_snapshot":
 			result.Excluded.ExpiredSnapshot++
 		default:
+			// The successful quota rows are the single pool for every aggregate.
+			accountIDs = append(accountIDs, row.accountID)
+			result.TotalConcurrency += row.maxConcurrency
 			tier := &result.Tiers[row.tier]
 			tier.AccountCount++
 			tierUnits[row.tier] += row.remaining
@@ -197,6 +199,14 @@ func evaluateOpenAIWeeklyQuota(a *Account, now time.Time) openAIWeeklyQuotaRow {
 	row := openAIWeeklyQuotaRow{tier: -1}
 	if a.Status != StatusActive || !a.Schedulable {
 		row.reason = "inactive"
+		return row
+	}
+	// Consume the quality owner's persisted account classification. Its Astra
+	// result also controls Sol; per-model observations and probe freshness are
+	// not a new classification or an automatic recovery of this stored state.
+	quality, _ := a.Extra["quality_candy"].(map[string]any)
+	if quality["state"] == "degraded" {
+		row.reason = "degraded"
 		return row
 	}
 	row.accountID, row.maxConcurrency = a.ID, a.Concurrency

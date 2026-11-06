@@ -22,6 +22,7 @@ export default {
       "missing_quota": "{count} missing snapshots",
       "non_weekly_window": "{count} non-weekly windows",
       "invalid_quota": "{count} invalid snapshots",
+      "degraded": "{count} degraded accounts",
       "expired_snapshot": "{count} expired snapshots"
 },
     details: {
