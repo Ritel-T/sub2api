@@ -1,5 +1,6 @@
 export default {
   common: {
+    retry: 'Retry',
     theme: {
       label: 'Appearance',
       system: 'System',
