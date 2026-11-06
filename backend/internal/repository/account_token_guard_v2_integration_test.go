@@ -184,3 +184,59 @@ func TestAccountTokenGuardV2PruneDeletedAccounts(t *testing.T) {
 		})
 	}
 }
+
+func TestAccountTokenGuardV2ClaimDuePersisted401AndTaskCompletion(t *testing.T) {
+	ctx := context.Background()
+	account := mustCreateAccount(t, testEntClient(t), &service.Account{Name: "fast-credential-recovery", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Credentials: map[string]any{"access_token": "synthetic"}})
+	t.Cleanup(func() {
+		_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM accounts WHERE id=$1`, account.ID)
+		require.NoError(t, err)
+	})
+	repo := NewAccountTokenGuardV2Repository(integrationDB)
+	require.NoError(t, repo.UpsertAccount(ctx, account.ID, true, true))
+	reset := func(state, errorMessage, accountStatus string, enabled, auto, exhausted, cooling bool) {
+		_, err := integrationDB.ExecContext(ctx, `UPDATE accounts SET status=$2,error_message=$3 WHERE id=$1`, account.ID, accountStatus, errorMessage)
+		require.NoError(t, err)
+		_, err = integrationDB.ExecContext(ctx, `UPDATE account_token_guard_v2_accounts SET next_probe_at=NOW()+INTERVAL '30 minutes',lease_owner=NULL,lease_until=NULL,probe_state=$2,enabled=$3,auto_relogin_enabled=$4,auto_relogin_exhausted=$5,cooldown_until=CASE WHEN $6 THEN NOW()+INTERVAL '30 minutes' ELSE NULL END WHERE account_id=$1`, account.ID, state, enabled, auto, exhausted, cooling)
+		require.NoError(t, err)
+	}
+	for _, tt := range []struct {
+		name, state, message, status            string
+		enabled, auto, exhausted, cooling, want bool
+	}{
+		{name: "known401 early", state: "ok", message: "Token revoked (401): synthetic", status: "error", enabled: true, auto: true, want: true},
+		{name: "pending known401", state: "pending", message: "Unauthorized (401): synthetic", status: "error", enabled: true, auto: true, want: true},
+		{name: "already observed auth", state: "auth", message: "Token revoked (401): synthetic", status: "error", enabled: true, auto: true},
+		{name: "transient preserves retry", state: "transient", message: "Token revoked (401): synthetic", status: "error", enabled: true, auto: true},
+		{name: "healthy", state: "ok", status: "active", enabled: true, auto: true},
+		{name: "policy error", state: "ok", message: "Forbidden (403): synthetic", status: "error", enabled: true, auto: true},
+		{name: "paused", state: "ok", message: "Token revoked (401): synthetic", status: "error", auto: true},
+		{name: "auto off", state: "ok", message: "Token revoked (401): synthetic", status: "error", enabled: true},
+		{name: "budget exhausted", state: "ok", message: "Token revoked (401): synthetic", status: "error", enabled: true, auto: true, exhausted: true},
+		{name: "cooldown", state: "ok", message: "Token revoked (401): synthetic", status: "error", enabled: true, auto: true, cooling: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			reset(tt.state, tt.message, tt.status, tt.enabled, tt.auto, tt.exhausted, tt.cooling)
+			got, err := repo.ClaimDue(ctx, "fast-owner", time.Minute, 10)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, len(got) == 1)
+			if tt.want {
+				second, err := repo.ClaimDue(ctx, "other-owner", time.Minute, 10)
+				require.NoError(t, err)
+				require.Empty(t, second)
+			}
+		})
+	}
+	reset("auth", "", "active", true, true, false, true)
+	var taskID int64
+	err := integrationDB.QueryRowContext(ctx, `INSERT INTO openai_oauth_reauth_tasks(account_id,status,stage,expected_credentials_hash,finished_at) VALUES($1,'succeeded','succeeded','synthetic',NOW()) RETURNING id`, account.ID).Scan(&taskID)
+	require.NoError(t, err)
+	got, err := repo.ClaimDue(ctx, "reconcile-owner", time.Minute, 10)
+	require.NoError(t, err)
+	require.Len(t, got, 1, "a finished task prompts verification before the old inspection deadline")
+	_, err = integrationDB.ExecContext(ctx, `UPDATE account_token_guard_v2_accounts SET lease_until=NULL,last_counted_task_id=$2 WHERE account_id=$1`, account.ID, taskID)
+	require.NoError(t, err)
+	got, err = repo.ClaimDue(ctx, "reconcile-owner", time.Minute, 10)
+	require.NoError(t, err)
+	require.Empty(t, got, "a reconciled outcome does not continuously wake inspections")
+}

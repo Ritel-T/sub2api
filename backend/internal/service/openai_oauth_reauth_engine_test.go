@@ -132,3 +132,37 @@ func TestOpenAIOAuthReauthEngineManagedClaimRetainsPasswordScope(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, claim)
 }
+
+func TestOpenAIOAuthReauthBusinessFirstRegistrationUsesInitialLoginService(t *testing.T) {
+	for _, tt := range []struct{ name, plan, explicit, existing, want string }{
+		{"business", "business", "", "", OpenAIOAuthReauthEngineSessionStudio},
+		{"team", "team", "", "", OpenAIOAuthReauthEngineSessionStudio},
+		{"business usage", "self_serve_business_usage_based", "", "", OpenAIOAuthReauthEngineSessionStudio},
+		{"business prolite", "self_serve_business_prolite", "", "", OpenAIOAuthReauthEngineSessionStudio},
+		{"pro unchanged", "pro", "", "", OpenAIOAuthReauthEngineLocal},
+		{"explicit local", "business", OpenAIOAuthReauthEngineLocal, "", OpenAIOAuthReauthEngineLocal},
+		{"existing local", "business", "", OpenAIOAuthReauthEngineLocal, OpenAIOAuthReauthEngineLocal},
+		{"existing remote", "business", "", OpenAIOAuthReauthEngineSessionStudio, OpenAIOAuthReauthEngineSessionStudio},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, reader, repo, _, _, _ := newReauthTestService("acct-1")
+			reader.account.Credentials["plan_type"] = tt.plan
+			ctx := context.Background()
+			if tt.existing != "" {
+				_, err := svc.SaveCredentialConfig(ctx, 42, OpenAIOAuthReauthConfigInput{LoginEmail: "user@example.com", CredentialMode: OpenAIOAuthReauthModePasswordTOTP, Engine: tt.existing, Password: "synthetic-password", TOTPSecret: "synthetic-totp"})
+				require.NoError(t, err)
+			}
+			view, err := svc.SaveCredentialConfig(ctx, 42, OpenAIOAuthReauthConfigInput{LoginEmail: "user@example.com", CredentialMode: OpenAIOAuthReauthModePasswordTOTP, Engine: tt.explicit, Password: "synthetic-password", TOTPSecret: "synthetic-totp"})
+			require.NoError(t, err)
+			require.Equal(t, tt.want, view.Engine)
+			require.Equal(t, tt.want, repo.config.Engine)
+		})
+	}
+	t.Run("business email remains local", func(t *testing.T) {
+		svc, reader, _, _, _, _ := newReauthTestService("acct-1")
+		reader.account.Credentials["plan_type"] = "business"
+		view, err := svc.SaveConfig(context.Background(), 42, "user@example.com", "https://mail.example.test/code")
+		require.NoError(t, err)
+		require.Equal(t, OpenAIOAuthReauthEngineLocal, view.Engine)
+	})
+}

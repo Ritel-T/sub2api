@@ -383,3 +383,45 @@ func TestAccountTokenGuardV2RunDuePruneFailurePreservesRecords(t *testing.T) {
 	require.NotNil(t, repo.record)
 	require.False(t, repo.claimed)
 }
+
+func TestAccountTokenGuardV2Persisted401GetsFreshConfirmation(t *testing.T) {
+	authErr := &codexModelsManifestUpstreamError{err: errors.New("synthetic"), statusCode: http.StatusUnauthorized}
+	for _, tt := range []struct {
+		name, storedError                 string
+		status                            string
+		probeErr                          error
+		enabled, auto, exhausted, cooling bool
+		want                              int
+	}{
+		{name: "revoked confirmed", storedError: "Token revoked (401): revoked", status: StatusError, probeErr: authErr, enabled: true, auto: true, want: 1},
+		{name: "unauthorized confirmed", storedError: "Unauthorized (401): invalid", status: StatusError, probeErr: authErr, enabled: true, auto: true, want: 1},
+		{name: "recovered token", storedError: "Token revoked (401): revoked", status: StatusError, enabled: true, auto: true},
+		{name: "probe only", status: StatusActive, probeErr: authErr, enabled: true, auto: true},
+		{name: "manual disabled", storedError: "Token revoked (401): revoked", status: StatusDisabled, probeErr: authErr, enabled: true, auto: true},
+		{name: "monitor disabled", storedError: "Token revoked (401): revoked", status: StatusError, probeErr: authErr, auto: true},
+		{name: "auto disabled", storedError: "Token revoked (401): revoked", status: StatusError, probeErr: authErr, enabled: true},
+		{name: "exhausted", storedError: "Token revoked (401): revoked", status: StatusError, probeErr: authErr, enabled: true, auto: true, exhausted: true},
+		{name: "cooldown", storedError: "Token revoked (401): revoked", status: StatusError, probeErr: authErr, enabled: true, auto: true, cooling: true},
+		{name: "security denial", storedError: "Token revoked (401): revoked", status: StatusError, probeErr: &codexModelsManifestUpstreamError{err: errors.New("synthetic"), statusCode: http.StatusForbidden, body: []byte(`{"error":{"code":"session_blocked_by_cyber_policy"}}`)}, enabled: true, auto: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			reauth, reader, tasks, _, _, _ := newReauthTestService("acct-1")
+			reader.account.Status = tt.status
+			reader.account.ErrorMessage = tt.storedError
+			require.NoError(t, tasks.UpsertConfig(context.Background(), reauthEmailConfig(42, "user@example.test", "encrypted:https://mail.example.test/code")))
+			record := &AccountTokenGuardV2Record{AccountID: 42, Enabled: tt.enabled, AutoReloginEnabled: tt.auto, AutoReloginExhausted: tt.exhausted}
+			if tt.exhausted {
+				record.ReloginFailStreak = 3
+			}
+			if tt.cooling {
+				until := time.Now().Add(time.Hour)
+				record.CooldownUntil = &until
+			}
+			repo := &accountTokenGuardV2TestRepo{record: record, createTask: tasks.CreateTask}
+			svc := NewAccountTokenGuardV2Service(repo, nil, reader, accountTokenGuardV2TestProber{err: tt.probeErr}, reauth)
+			svc.runProbe(context.Background(), *record)
+			require.Equal(t, tt.want, tasks.createCalls)
+			require.NotNil(t, repo.completion)
+		})
+	}
+}

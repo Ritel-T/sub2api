@@ -520,7 +520,10 @@ func (s *AccountTokenGuardV2Service) runProbe(ctx context.Context, record Accoun
 		if cooldownActive && completion.BlockedReason == "" {
 			completion.BlockedReason = "automatic re-login cooling down"
 		}
-		if hasBudget && record.Enabled && record.AutoReloginEnabled && !record.AutoReloginExhausted && !pending && completion.FailStreak >= rules.FailStreakThreshold && !cooldownActive {
+		// A persisted credential-level 401 plus this fresh failed models probe
+		// are two independent auth observations. Do not wait another retry
+		// interval, while keeping the normal threshold for probe-only failures.
+		if hasBudget && record.Enabled && record.AutoReloginEnabled && !record.AutoReloginExhausted && !pending && (completion.FailStreak >= rules.FailStreakThreshold || guardAccountHasAuthFailure(account)) && !cooldownActive {
 			task, taskErr := s.reauth.createTaskForProfile(ctx, record.AccountID, "codex", func(createCtx context.Context, id int64, hash string) (*OpenAIOAuthReauthTaskRecord, error) {
 				return budgetRepo.CreateAutomaticRelogin(createCtx, id, hash, s.leaseOwner, rules, s.clockNow())
 			})

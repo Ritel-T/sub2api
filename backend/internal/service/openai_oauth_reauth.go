@@ -391,7 +391,8 @@ func (s *OpenAIOAuthReauthService) SaveCredentialConfig(ctx context.Context, acc
 	if err := s.ensureDurableEncryption(); err != nil {
 		return nil, err
 	}
-	if _, err := s.accountFor(ctx, accountID); err != nil {
+	account, err := s.accountFor(ctx, accountID)
+	if err != nil {
 		return nil, err
 	}
 	existing, err := s.repo.GetConfig(ctx, accountID)
@@ -414,6 +415,13 @@ func (s *OpenAIOAuthReauthService) SaveCredentialConfig(ctx context.Context, acc
 	}
 	if mode != OpenAIOAuthReauthModeEmailOTPURL && mode != OpenAIOAuthReauthModePasswordTOTP {
 		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_REAUTH_MODE_INVALID", "invalid OpenAI re-login credential mode")
+	}
+	// The 2FA importer already uses this configured service for initial login.
+	// Keep the same engine for a newly registered Business login; explicit
+	// account/global choices and existing configurations remain authoritative.
+	if existing == nil && strings.TrimSpace(input.Engine) == "" && mode == OpenAIOAuthReauthModePasswordTOTP &&
+		oauthAccountDefaultsPlanKey(strings.ToLower(strings.TrimSpace(account.GetCredential("plan_type")))) == "business" {
+		engine = OpenAIOAuthReauthEngineSessionStudio
 	}
 	if mode == OpenAIOAuthReauthModeEmailOTPURL && input.Engine == "" {
 		engine = OpenAIOAuthReauthEngineLocal
