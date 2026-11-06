@@ -237,10 +237,12 @@ func evaluateOpenAIWeeklyQuota(a *Account, now time.Time) openAIWeeklyQuotaRow {
 	if reason != "" {
 		return row
 	}
-	row.concurrencyAvailable = true
-	if plan == "plus" {
+	// The switch alone is not current availability: reuse the scheduler's
+	// account gate (rate limit, cooldown, expiry, overload, performance pause).
+	row.concurrencyAvailable = a.IsSchedulable() && used < 100
+	if plan == "plus" && row.concurrencyAvailable {
 		used5h, known := resolveOpenAIQuotaUtilization(a.Extra, "5h", now)
-		row.concurrencyAvailable = !known || used5h < 1
+		row.concurrencyAvailable = !(known && used5h >= 1)
 	}
 	row.snapshot = at
 	row.remaining = int64(math.Round(tiers[row.tier].WeeklyLimit * (1 - used/100) * openAIWeeklyQuotaScale))
