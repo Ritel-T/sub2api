@@ -7,6 +7,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -195,7 +196,7 @@ func (h *ContentModerationHandler) ListLogs(c *gin.Context) {
 		filter.GroupID = &groupID
 	}
 	if raw := strings.TrimSpace(c.Query("from")); raw != "" {
-		t, _, err := parseContentModerationDate(raw)
+		t, _, err := parseContentModerationDate(raw, c.Query("timezone"))
 		if err != nil {
 			response.BadRequest(c, "Invalid from")
 			return
@@ -203,13 +204,13 @@ func (h *ContentModerationHandler) ListLogs(c *gin.Context) {
 		filter.From = &t
 	}
 	if raw := strings.TrimSpace(c.Query("to")); raw != "" {
-		t, dateOnly, err := parseContentModerationDate(raw)
+		t, dateOnly, err := parseContentModerationDate(raw, c.Query("timezone"))
 		if err != nil {
 			response.BadRequest(c, "Invalid to")
 			return
 		}
 		if dateOnly {
-			t = t.Add(24*time.Hour - time.Nanosecond)
+			t = t.AddDate(0, 0, 1).Add(-time.Nanosecond)
 		}
 		filter.To = &t
 	}
@@ -329,7 +330,7 @@ func (h *ContentModerationHandler) ClearFlaggedHashes(c *gin.Context) {
 	response.Success(c, result)
 }
 
-func parseContentModerationDate(raw string) (time.Time, bool, error) {
+func parseContentModerationDate(raw string, userTZ ...string) (time.Time, bool, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return time.Time{}, false, nil
@@ -337,6 +338,10 @@ func parseContentModerationDate(raw string) (time.Time, bool, error) {
 	if t, err := time.Parse(time.RFC3339, raw); err == nil {
 		return t, false, nil
 	}
-	t, err := time.Parse("2006-01-02", raw)
+	zone := ""
+	if len(userTZ) > 0 {
+		zone = userTZ[0]
+	}
+	t, err := timezone.ParseInUserLocation("2006-01-02", raw, zone)
 	return t, err == nil, err
 }

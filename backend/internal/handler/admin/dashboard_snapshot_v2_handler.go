@@ -55,6 +55,7 @@ type dashboardSnapshotV2Filters struct {
 }
 
 type dashboardSnapshotV2CacheKey struct {
+	Timezone              string `json:"timezone"`
 	TodayStart            string `json:"today_start"`
 	TodayEnd              string `json:"today_end"`
 	StartTime             string `json:"start_time"`
@@ -112,6 +113,7 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 	}
 
 	keyRaw, _ := json.Marshal(dashboardSnapshotV2CacheKey{
+		Timezone:   timezone.UserTimezone(ctx),
 		TodayStart: todayStart.UTC().Format(time.RFC3339),
 		TodayEnd:   todayEnd.UTC().Format(time.RFC3339),
 		// This outer cache stores display metadata as well as data. Keep the

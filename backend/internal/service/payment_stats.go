@@ -12,6 +12,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
 // --- Dashboard & Analytics ---
@@ -20,7 +21,7 @@ func (s *PaymentService) GetDashboardStats(ctx context.Context, days int) (*Dash
 	if days <= 0 {
 		days = 30
 	}
-	now := time.Now()
+	now := time.Now().In(timezone.UserLocation(ctx))
 	since := now.AddDate(0, 0, -days)
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
@@ -83,7 +84,7 @@ func buildDailySeries(orders []*dbent.PaymentOrder, since time.Time, days int) [
 		if o.PaidAt == nil {
 			continue
 		}
-		date := o.PaidAt.Format("2006-01-02")
+		date := o.PaidAt.In(since.Location()).Format("2006-01-02")
 		ds, ok := dailyMap[date]
 		if !ok {
 			ds = &DailyStats{Date: date, Amount: make(CurrencyAmounts)}

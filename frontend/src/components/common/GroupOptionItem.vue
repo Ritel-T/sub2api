@@ -23,8 +23,8 @@
     </div>
 
     <!-- Right: rate pill + checkmark (vertically centered to first row) -->
-    <div class="flex shrink-0 items-center gap-2 pt-0.5">
-      <div class="flex shrink-0 flex-col items-end gap-1">
+    <div class="flex max-w-[65%] shrink-0 items-center gap-2 pt-0.5">
+      <div class="flex min-w-0 flex-col items-end gap-1">
         <!-- Rate pill (platform color) -->
         <span v-if="rateMultiplier !== undefined" :class="['inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', ratePillClass]">
           <template v-if="hasCustomRate">
@@ -37,7 +37,7 @@
         </span>
         <span
           v-if="hasPeakRate"
-          class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+          class="inline-flex max-w-full items-center whitespace-normal text-right [overflow-wrap:anywhere] rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
           :title="peakRateTitle"
         >
           {{ peakRateText }}
@@ -64,7 +64,7 @@ import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
 import type { SubscriptionType, GroupPlatform } from '@/types'
 import { useAppStore } from '@/stores/app'
-import { formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
+import { formatPeakRateWindow, sourcePeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 
 const { t } = useI18n()
 
@@ -115,12 +115,12 @@ const peakRateText = computed(() => {
       peak_end: props.peakEnd,
       peak_rate_multiplier: props.peakRateMultiplier
     },
-    serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)
+    appStore.cachedPublicSettings?.server_timezone || serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)
   )
 })
 
 const peakRateTitle = computed(() => {
-  return t('common.peakRateTooltip', { window: peakRateText.value })
+  return t('common.peakRateTooltip', { window: peakRateText.value }) + ' · ' + sourcePeakRateWindow({ peak_rate_enabled: props.peakRateEnabled, peak_start: props.peakStart, peak_end: props.peakEnd, peak_rate_multiplier: props.peakRateMultiplier }, appStore.cachedPublicSettings?.server_timezone || serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
 })
 
 // Rate pill color matches platform badge color

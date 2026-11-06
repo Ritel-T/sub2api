@@ -709,10 +709,10 @@ describe('PlazaModelPricingTable 分时计价', () => {
     // 夜间时段行:输入 3 × 0.8 × 0.5,倍率 0.4x,标注时段不含时区
     const nightCells = trs[1].findAll('td')
     expect(nightCells[0].text()).toContain('deepseek-chat')
-    expect(nightCells[0].text()).toContain('00:30–08:30')
-    expect(nightCells[0].text()).not.toContain('Asia/Shanghai')
+    expect(nightCells[0].text()).toContain(Intl.DateTimeFormat().resolvedOptions().timeZone)
+    expect(nightCells[0].text()).toMatch(/\d{4}-\d{2}-\d{2}/)
     // 时区只放在 tooltip 里(i18n mock 不做插值,这里只断言挂了说明)
-    expect(nightCells[0].find('[title="modelPlaza.table.timePricingRowHint"]').exists()).toBe(true)
+    expect(nightCells[0].find('[title]').attributes('title')).toContain('00:30–08:30:00, 18:00–22:00 (Asia/Shanghai)')
     expect(nightCells[1].text()).toContain('$1.20')
     expect(nightCells[2].text()).toContain('$6.00')
     expect(nightCells[3].text()).toContain('$1.50')
@@ -720,7 +720,7 @@ describe('PlazaModelPricingTable 分时计价', () => {
 
     // 晚高峰行:3 × 0.8 × 1.2 = 2.88,倍率 0.96x
     const peakCells = trs[2].findAll('td')
-    expect(peakCells[0].text()).toContain('18:00–22:00')
+    expect(peakCells[0].text()).toContain(Intl.DateTimeFormat().resolvedOptions().timeZone)
     expect(peakCells[1].text()).toContain('$2.88')
     expect(peakCells[4].text()).toContain('0.96x')
 
@@ -737,15 +737,15 @@ describe('PlazaModelPricingTable 分时计价', () => {
 
     const nightCells = trs[1].findAll('td')
     expect(nightCells[0].text()).toContain('modelPlaza.table.timePricingWeekdays')
-    expect(nightCells[0].text()).toContain('00:30–08:30')
-    expect(nightCells[0].find('[title="modelPlaza.table.timePricingRowHintWeekdays"]').exists()).toBe(true)
-    expect(nightCells[0].find('[title="modelPlaza.table.timePricingRowHint"]').exists()).toBe(false)
+    expect(nightCells[0].text()).toContain(Intl.DateTimeFormat().resolvedOptions().timeZone)
+    expect(nightCells[0].find('[title^="modelPlaza.table.timePricingRowHintWeekdays"]').exists()).toBe(true)
+    expect(nightCells[0].find('[title^="modelPlaza.table.timePricingRowHint ·"]').exists()).toBe(false)
   })
 
   it('每日生效(无 weekdays_only)不渲染工作日前缀', () => {
     const wrapper = mountTable([timePricedModel()], 1)
     expect(wrapper.find('tbody').text()).not.toContain('modelPlaza.table.timePricingWeekdays')
-    expect(wrapper.find('[title="modelPlaza.table.timePricingRowHint"]').exists()).toBe(true)
+    expect(wrapper.find('[title^="modelPlaza.table.timePricingRowHint ·"]').exists()).toBe(true)
   })
 
   it('分组启用高峰倍率时时段行 tooltip 追加高峰披露,价格与倍率列保持不含高峰的口径', () => {

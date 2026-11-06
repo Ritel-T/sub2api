@@ -8,6 +8,7 @@ import { waitForCentralRequest, consoleAuthHeaders, centralSessionVersion, centr
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import type { ApiResponse } from '@/types'
 import { getLocale } from '@/i18n'
+import { browserTimezone } from '@/utils/consoleDisplay'
 import {
   ADMIN_UI_REQUEST_HEADER,
   USER_UI_REQUEST_HEADER,
@@ -31,15 +32,6 @@ export const apiClient: AxiosInstance = axios.create({
 
 // ==================== Request Interceptor ====================
 
-// Get user's timezone
-const getUserTimezone = (): string => {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone
-  } catch {
-    return 'UTC'
-  }
-}
-
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     // Central builds use BFF cookies; legacy builds retain browser bearer auth.
@@ -60,12 +52,12 @@ apiClient.interceptors.request.use(
       config.headers['Accept-Language'] = getLocale()
     }
 
-    // Attach timezone for all GET requests (backend may use it for default date ranges)
-    if (config.method === 'get') {
-      if (!config.params) {
-        config.params = {}
-      }
-      config.params.timezone = getUserTimezone()
+    // Read-only batch statistics use POST too. Carry the viewer zone on every
+    // request without changing payloads or explicit policy timezone fields.
+    if (config.params instanceof URLSearchParams) {
+      if (!config.params.has('timezone')) config.params.set('timezone', browserTimezone())
+    } else {
+      config.params = { ...config.params, timezone: config.params?.timezone || browserTimezone() }
     }
 
     if (config.headers) {

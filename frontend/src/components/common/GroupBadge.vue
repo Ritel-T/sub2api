@@ -1,7 +1,7 @@
 <template>
   <span
     :class="[
-      'inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium transition-colors',
+      'inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium transition-colors',
       badgeClass
     ]"
   >
@@ -31,7 +31,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SubscriptionType, GroupPlatform } from '@/types'
 import { useAppStore } from '@/stores/app'
-import { formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
+import { formatPeakRateWindow, sourcePeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import PlatformIcon from './PlatformIcon.vue'
 
 interface Props {
@@ -94,12 +94,12 @@ const peakRateText = computed(() => {
       peak_end: props.peakEnd,
       peak_rate_multiplier: props.peakRateMultiplier
     },
-    serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)
+    appStore.cachedPublicSettings?.server_timezone || serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)
   )
 })
 
 const peakRateTitle = computed(() => {
-  return t('common.peakRateTooltip', { window: peakRateText.value })
+  return t('common.peakRateTooltip', { window: peakRateText.value }) + ' · ' + sourcePeakRateWindow({ peak_rate_enabled: props.peakRateEnabled, peak_start: props.peakStart, peak_end: props.peakEnd, peak_rate_multiplier: props.peakRateMultiplier }, appStore.cachedPublicSettings?.server_timezone || serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
 })
 
 // 是否显示右侧标签
@@ -184,7 +184,7 @@ const labelClass = computed(() => {
 })
 
 const peakRateClass = computed(() => {
-  return 'px-1.5 py-0.5 rounded text-2xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+  return 'min-w-0 whitespace-normal [overflow-wrap:anywhere] px-1.5 py-0.5 rounded text-2xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
 })
 
 // Badge color based on platform and subscription type

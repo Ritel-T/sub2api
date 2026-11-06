@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -62,12 +63,12 @@ func (h *ContentModerationHandler) ListSafetyPromptEvents(c *gin.Context) {
 		return
 	}
 	cfg := h.safetyPromptConfig.GetSafetyPromptConfig(c.Request.Context())
-	from, err := parseSafetyPromptDate(c.Query("from"), false)
+	from, err := parseSafetyPromptDate(c.Query("from"), false, c.Query("timezone"))
 	if err != nil {
 		c.JSON(400, gin.H{"error": "invalid from date"})
 		return
 	}
-	to, err := parseSafetyPromptDate(c.Query("to"), true)
+	to, err := parseSafetyPromptDate(c.Query("to"), true, c.Query("timezone"))
 	if err != nil {
 		c.JSON(400, gin.H{"error": "invalid to date"})
 		return
@@ -77,17 +78,21 @@ func (h *ContentModerationHandler) ListSafetyPromptEvents(c *gin.Context) {
 	c.JSON(200, gin.H{"events": events, "stats": h.safetyPromptStore.Stats(cfg.RetentionDays)})
 }
 
-func parseSafetyPromptDate(raw string, endOfDay bool) (time.Time, error) {
+func parseSafetyPromptDate(raw string, endOfDay bool, userTZ ...string) (time.Time, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return time.Time{}, nil
 	}
-	value, err := time.ParseInLocation("2006-01-02", raw, time.Local)
+	zone := ""
+	if len(userTZ) > 0 {
+		zone = userTZ[0]
+	}
+	value, err := timezone.ParseInUserLocation("2006-01-02", raw, zone)
 	if err != nil {
 		return time.Time{}, err
 	}
 	if endOfDay {
-		value = value.Add(24*time.Hour - time.Nanosecond)
+		value = value.AddDate(0, 0, 1).Add(-time.Nanosecond)
 	}
 	return value, nil
 }

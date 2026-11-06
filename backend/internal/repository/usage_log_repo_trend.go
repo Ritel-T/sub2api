@@ -44,7 +44,7 @@ func (r *usageLogRepository) GetAPIKeyUsageTrendWithUsageFilters(ctx context.Con
 			LIMIT $3
 		)
 		SELECT
-			TO_CHAR(u.created_at, '%s') as date,
+			TO_CHAR(u.created_at AT TIME ZONE $6, '%s') as date,
 			u.api_key_id,
 			COALESCE(k.name, '') as key_name,
 			COUNT(*) as requests,
@@ -57,7 +57,7 @@ func (r *usageLogRepository) GetAPIKeyUsageTrendWithUsageFilters(ctx context.Con
 		ORDER BY date ASC, tokens DESC
 	`, dateFormat)
 
-	args := []any{startTime, endTime, limit, startTime, endTime}
+	args := []any{startTime, endTime, limit, startTime, endTime, timezone.UserTimezone(ctx)}
 	if filters.HasRowFilters() {
 		topWhere := "WHERE created_at >= $1 AND created_at < $2"
 		scopedTop, values := appendUsageLogReadFilters(topWhere, args, filters, "")
@@ -117,7 +117,7 @@ func (r *usageLogRepository) GetUserUsageTrendWithUsageFilters(ctx context.Conte
 			LIMIT $3
 		)
 		SELECT
-			TO_CHAR(u.created_at, '%s') as date,
+			TO_CHAR(u.created_at AT TIME ZONE $6, '%s') as date,
 			u.user_id,
 			COALESCE(us.email, '') as email,
 			COALESCE(us.username, '') as username,
@@ -133,7 +133,7 @@ func (r *usageLogRepository) GetUserUsageTrendWithUsageFilters(ctx context.Conte
 		ORDER BY date ASC, tokens DESC
 	`, rankExpr, dateFormat)
 
-	args := []any{startTime, endTime, limit, startTime, endTime}
+	args := []any{startTime, endTime, limit, startTime, endTime, timezone.UserTimezone(ctx)}
 	if filters.HasRowFilters() {
 		topWhere := "WHERE created_at >= $1 AND created_at < $2"
 		scopedTop, values := appendUsageLogReadFilters(topWhere, args, filters, "")
@@ -268,7 +268,7 @@ func (r *usageLogRepository) GetUserUsageTrendByUserID(ctx context.Context, user
 
 	query := fmt.Sprintf(`
 		SELECT
-			TO_CHAR(created_at, '%s') as date,
+			TO_CHAR(created_at AT TIME ZONE $4, '%s') as date,
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens), 0) as input_tokens,
 			COALESCE(SUM(output_tokens), 0) as output_tokens,
@@ -283,7 +283,7 @@ func (r *usageLogRepository) GetUserUsageTrendByUserID(ctx context.Context, user
 		ORDER BY date ASC
 	`, dateFormat)
 
-	rows, err := r.sql.QueryContext(ctx, query, userID, startTime, endTime)
+	rows, err := r.sql.QueryContext(ctx, query, userID, startTime, endTime, timezone.UserTimezone(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +323,7 @@ func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, start
 		requestID = strings.TrimSpace(fullFilters[0].RequestID)
 	}
 
-	if requestID == "" && trendRangeMatchesAggregateBuckets(startTime, endTime, granularity) && shouldUsePreaggregatedTrend(granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, billingType, billingMode, upstreamModelMismatch, nativeCompactionV2) {
+	if requestID == "" && timezone.UserTimezone(ctx) == "UTC" && trendRangeMatchesAggregateBuckets(startTime, endTime, granularity) && shouldUsePreaggregatedTrend(granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, billingType, billingMode, upstreamModelMismatch, nativeCompactionV2) {
 		aggregated, aggregatedErr := r.getUsageTrendFromAggregates(ctx, startTime, endTime, granularity)
 		if aggregatedErr == nil && len(aggregated) > 0 {
 			return aggregated, nil
@@ -334,7 +334,7 @@ func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, start
 
 	query := fmt.Sprintf(`
 		SELECT
-			TO_CHAR(created_at, '%s') as date,
+			TO_CHAR(created_at AT TIME ZONE $3, '%s') as date,
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens), 0) as input_tokens,
 			COALESCE(SUM(output_tokens), 0) as output_tokens,
@@ -347,7 +347,7 @@ func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, start
 		WHERE created_at >= $1 AND created_at < $2
 	`, dateFormat)
 
-	args := []any{startTime, endTime}
+	args := []any{startTime, endTime, timezone.UserTimezone(ctx)}
 	if userID > 0 {
 		query += fmt.Sprintf(" AND user_id = $%d", len(args)+1)
 		args = append(args, userID)
@@ -823,7 +823,50 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 
 // GetAllGroupUsageSummary 返回所有分组在服务端配置时区内的今日、昨日与当前保留记录累计金额。
 func (r *usageLogRepository) GetAllGroupUsageSummary(ctx context.Context, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
-	return r.getAllGroupUsageSummaryFromRollups(ctx, todayStart)
+	rows, err := r.getAllGroupUsageSummaryFromRollups(ctx, todayStart)
+	if err != nil {
+		return nil, err
+	}
+	userStart, userEnd := timezone.DayRange(ctx)
+	userYesterday := userStart.AddDate(0, 0, -1)
+	serverStart := timezone.StartOfDay(todayStart)
+	if userStart.Equal(serverStart) && userYesterday.Equal(serverStart.AddDate(0, 0, -1)) {
+		return rows, nil
+	}
+	// Retain lifetime rollup totals, but derive display days from a bounded indexed
+	// raw window. Server rollup buckets cannot be relabelled as a user's day.
+	daily, err := r.sql.QueryContext(ctx, `SELECT group_id,
+ COALESCE(SUM(actual_cost) FILTER (WHERE created_at >= $1), 0),
+ COALESCE(SUM(actual_cost) FILTER (WHERE created_at < $1), 0)
+ FROM usage_logs WHERE created_at >= $2 AND created_at < $3 GROUP BY group_id`, userStart, userYesterday, userEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer daily.Close()
+	byID := make(map[int64]*usagestats.GroupUsageSummary, len(rows))
+	for i := range rows {
+		rows[i].TodayCost = 0
+		rows[i].YesterdayCost = 0
+		byID[rows[i].GroupID] = &rows[i]
+	}
+	for daily.Next() {
+		var id int64
+		var today, yesterday float64
+		if err := daily.Scan(&id, &today, &yesterday); err != nil {
+			return nil, err
+		}
+		if row := byID[id]; row != nil {
+			row.TodayCost = today
+			row.YesterdayCost = yesterday
+		}
+	}
+	if err := daily.Err(); err != nil {
+		return nil, err
+	}
+	if err := daily.Close(); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // resolveModelDimensionExpression maps model source type to a safe SQL expression.

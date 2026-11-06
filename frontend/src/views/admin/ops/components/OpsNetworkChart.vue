@@ -12,15 +12,16 @@
         <AppHeading as="h4" variant="minor" class="">{{ t(`latencyObservability.${series.key}`) }}</AppHeading>
         <svg viewBox="0 0 600 100" class="h-28 w-full" role="img" :aria-label="t(`latencyObservability.${series.key}`)">
           <path :d="path(series.values)" fill="none" stroke="currentColor" stroke-width="2" class="text-sky-600" />
-          <circle v-for="(v, i) in series.values" :key="i" :cx="x(i, series.values)" :cy="y(v.value, series.values)" :r="v.value == null ? 0 : 3" class="fill-sky-600"><title>{{ v.at }} · {{ v.value ?? t('latencyObservability.notCollected') }} · {{ v.status }}</title></circle>
+          <circle v-for="(v, i) in series.values" :key="i" :cx="x(i, series.values)" :cy="y(v.value, series.values)" :r="v.value == null ? 0 : 3" class="fill-sky-600"><title>{{ formatTimestamp(v.at) }} · {{ v.value ?? t('latencyObservability.notCollected') }} · {{ v.status }}</title></circle>
         </svg>
         <p class="text-xs text-gray-500">{{ series.values.at(-1)?.value ?? t('latencyObservability.notCollected') }} · {{ series.values.at(-1)?.status ?? t('latencyObservability.notCollected') }}</p>
-        <p v-if="series.values.length" class="flex justify-between text-xs text-gray-400"><span>{{ series.values[0]?.at.slice(11, 16) }} UTC</span><span>{{ series.values.at(-1)?.at.slice(11, 16) }} UTC</span></p>
+        <p v-if="series.values.length" class="flex justify-between text-xs text-gray-400"><span>{{ formatTimestamp(series.values[0]?.at) }}</span><span>{{ formatTimestamp(series.values.at(-1)?.at) }}</span></p>
       </div>
     </div>
   </section>
 </template>
 <script setup lang="ts">
+import { formatTimestamp } from '@/utils/consoleDisplay'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'

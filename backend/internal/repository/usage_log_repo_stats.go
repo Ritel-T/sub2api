@@ -186,7 +186,7 @@ func (r *usageLogRepository) GetModelStatsAggregated(ctx context.Context, modelN
 // GetDailyStatsAggregated 使用 SQL 聚合统计用户的每日使用数据
 // 性能优化：使用 GROUP BY 在数据库层按日期分组聚合，避免应用层循环分组统计
 func (r *usageLogRepository) GetDailyStatsAggregated(ctx context.Context, userID int64, startTime, endTime time.Time) (result []map[string]any, err error) {
-	tzName := resolveUsageStatsTimezone()
+	tzName := timezone.UserTimezone(ctx)
 	query := `
 		SELECT
 			-- 使用应用时区分组，避免数据库会话时区导致日边界偏移。
@@ -274,7 +274,7 @@ func resolveUsageStatsTimezone() string {
 
 // GetAccountTodayStats 获取账号今日统计
 func (r *usageLogRepository) GetAccountTodayStats(ctx context.Context, accountID int64) (*usagestats.AccountStats, error) {
-	today := timezone.Today()
+	today, _ := timezone.DayRange(ctx)
 
 	query := accountAPIEquivalentRowsCTE("account_id = $1 AND created_at >= $2") + `
 		SELECT
@@ -522,7 +522,7 @@ func (r *usageLogRepository) GetBatchUserUsageStats(ctx context.Context, userIDs
 		  AND ` + usageLogSuccessFilterUL + `
 		GROUP BY ul.user_id, ` + usageLogEffectivePlatformExpr + `
 	`
-	today := timezone.Today()
+	today, _ := timezone.DayRange(ctx)
 	rows, err := r.sql.QueryContext(ctx, query, pq.Array(normalizedUserIDs), startTime, endTime, today)
 	if err != nil {
 		return nil, err
@@ -595,7 +595,7 @@ func (r *usageLogRepository) GetBatchAPIKeyUsageStats(ctx context.Context, apiKe
 		  AND created_at >= LEAST($2, $4)
 		GROUP BY api_key_id
 	`
-	today := timezone.Today()
+	today, _ := timezone.DayRange(ctx)
 	rows, err := r.sql.QueryContext(ctx, query, pq.Array(normalizedAPIKeyIDs), startTime, endTime, today)
 	if err != nil {
 		return nil, err
@@ -903,7 +903,7 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 
 	query := `
 		SELECT
-			TO_CHAR(created_at, 'YYYY-MM-DD') as date,
+			TO_CHAR(created_at AT TIME ZONE $4, 'YYYY-MM-DD') as date,
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
@@ -915,7 +915,7 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 		ORDER BY date ASC
 	`
 
-	rows, err := r.sql.QueryContext(ctx, query, accountID, startTime, endTime)
+	rows, err := r.sql.QueryContext(ctx, query, accountID, startTime, endTime, timezone.UserTimezone(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -1000,7 +1000,7 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 		AvgDurationMs:     avgDuration,
 	}
 
-	todayStr := timezone.Now().Format("2006-01-02")
+	todayStr := time.Now().In(timezone.UserLocation(ctx)).Format("2006-01-02")
 	for i := range history {
 		if history[i].Date == todayStr {
 			summary.Today = &struct {

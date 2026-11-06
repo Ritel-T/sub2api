@@ -457,14 +457,15 @@ func (h *DashboardHandler) GetBatchUsersUsage(c *gin.Context) {
 		return
 	}
 
-	// cacheKey 必须包含当日日期，否则跨午夜后 30s 内会复用昨天的 "today_*" 结果。
+	// Cache the selected natural day, including its offset.
+	todayStart, _ := timezone.DayRange(c.Request.Context())
 	keyRaw, _ := json.Marshal(struct {
 		V       int     `json:"v"`
 		Day     string  `json:"day"`
 		UserIDs []int64 `json:"user_ids"`
 	}{
 		V:       2, // bump 当响应结构变化（如加入 by_platform 时）
-		Day:     timezone.Today().Format("2006-01-02"),
+		Day:     todayStart.Format(time.RFC3339),
 		UserIDs: userIDs,
 	})
 	cacheKey := string(keyRaw)
@@ -506,10 +507,13 @@ func (h *DashboardHandler) GetBatchAPIKeysUsage(c *gin.Context) {
 		return
 	}
 
+	todayStart, _ := timezone.DayRange(c.Request.Context())
 	keyRaw, _ := json.Marshal(struct {
 		APIKeyIDs []int64 `json:"api_key_ids"`
+		Day       string  `json:"day"`
 	}{
 		APIKeyIDs: apiKeyIDs,
+		Day:       todayStart.Format(time.RFC3339),
 	})
 	cacheKey := string(keyRaw)
 	if cached, ok := dashboardBatchAPIKeysUsageCache.Get(cacheKey); ok {

@@ -440,8 +440,8 @@ func TestUsageLogRepositoryGetUsageTrendWithFiltersRequestTypePriority(t *testin
 	requestType := int16(service.RequestTypeStream)
 	stream := true
 
-	mock.ExpectQuery("AND \\(request_type = \\$3 OR \\(request_type = 0 AND stream = TRUE AND openai_ws_mode = FALSE\\)\\)").
-		WithArgs(start, end, requestType).
+	mock.ExpectQuery("AND \\(request_type = \\$4 OR \\(request_type = 0 AND stream = TRUE AND openai_ws_mode = FALSE\\)\\)").
+		WithArgs(start, end, sqlmock.AnyArg(), requestType).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "cost", "actual_cost"}))
 
 	trend, err := repo.GetUsageTrendWithFilters(context.Background(), start, end, "day", 0, 0, 0, 0, "", &requestType, &stream, nil)
@@ -461,8 +461,8 @@ func TestUsageLogRepositoryGetUsageTrendWithUsageFiltersRequestedModelSource(t *
 		ModelFilterSource: usagestats.ModelSourceRequested,
 	}
 
-	mock.ExpectQuery("AND COALESCE\\(NULLIF\\(TRIM\\(requested_model\\), ''\\), model\\) = \\$3").
-		WithArgs(start, end, "gpt-5").
+	mock.ExpectQuery("AND COALESCE\\(NULLIF\\(TRIM\\(requested_model\\), ''\\), model\\) = \\$4").
+		WithArgs(start, end, sqlmock.AnyArg(), "gpt-5").
 		WillReturnRows(sqlmock.NewRows([]string{"date", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "cost", "actual_cost"}))
 
 	trend, err := repo.GetUsageTrendWithUsageFilters(context.Background(), start, end, "day", filters)
@@ -496,8 +496,8 @@ func TestUsageLogRepositoryUsageAggregatesFilterNativeCompactionV2(t *testing.T)
 	t.Run("trend bypasses preaggregate", func(t *testing.T) {
 		db, mock := newSQLMock(t)
 		repo := &usageLogRepository{sql: db}
-		mock.ExpectQuery("(?s)FROM usage_logs.*AND native_compaction_v2 = \\$3").
-			WithArgs(start, end, true).
+		mock.ExpectQuery("(?s)FROM usage_logs.*AND native_compaction_v2 = \\$4").
+			WithArgs(start, end, sqlmock.AnyArg(), true).
 			WillReturnRows(sqlmock.NewRows([]string{"date", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "cost", "actual_cost"}))
 
 		_, err := repo.GetUsageTrendWithUsageFilters(context.Background(), start, end, "day", filters)

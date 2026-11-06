@@ -4,7 +4,7 @@
  */
 
 import { i18n, getLocale } from '@/i18n'
-import { formatAmount, formatMoney, formatTimestamp } from './consoleDisplay'
+import { browserTimezone, formatAmount, formatMoney, formatTimestamp } from './consoleDisplay'
 
 /**
  * 格式化相对时间
@@ -225,11 +225,7 @@ export function parseDateTimeLocalInput(value: string): number | null {
  * 获取浏览器当前使用的 IANA 时区
  */
 export function getBrowserTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-  } catch {
-    return 'UTC'
-  }
+  return browserTimezone()
 }
 
 /**

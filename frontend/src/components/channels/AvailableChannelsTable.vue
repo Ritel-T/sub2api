@@ -328,7 +328,7 @@ import type { UserAvailableChannel, UserAvailableGroup, UserChannelPlatformSecti
 import type { GroupPlatform, SubscriptionType } from '@/types'
 import { platformBadgeClass } from '@/utils/platformColors'
 import { useAppStore } from '@/stores/app'
-import { hasPeakRate as groupHasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
+import { hasPeakRate as groupHasPeakRate, formatPeakRateWindow, sourcePeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 
 const props = defineProps<{
   columns: {
@@ -369,11 +369,11 @@ function hasPeakRate(group: UserAvailableGroup): boolean {
 }
 
 function peakRateLabel(group: UserAvailableGroup): string {
-  return formatPeakRateWindow(group, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
+  return formatPeakRateWindow(group, appStore.cachedPublicSettings?.server_timezone || serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
 }
 
 function peakRateTitle(group: UserAvailableGroup): string {
-  return t('common.peakRateTooltip', { window: peakRateLabel(group) }) + t('common.peakRateImageNote')
+  return t('common.peakRateTooltip', { window: peakRateLabel(group) }) + ' · ' + sourcePeakRateWindow(group, appStore.cachedPublicSettings?.server_timezone || serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)) + t('common.peakRateImageNote')
 }
 </script>
 

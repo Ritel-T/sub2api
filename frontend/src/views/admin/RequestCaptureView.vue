@@ -54,7 +54,7 @@
           :loading="recordList.loading.value" row-key="id" :toolbar-target="recordsToolbarTarget">
           <template #cell-request_id="{ row: record }">
             <button type="button" class="break-all text-primary-600 underline" @click="viewRecord(record)">{{ record.request_id || record.id }}</button>
-            <div class="text-xs text-gray-500">{{ record.created_at }} / {{ record.protocol }}<span v-if="record.turn"> / {{ t('admin.requestCapture.turn') }} {{ record.turn }}</span></div>
+            <div class="text-xs text-gray-500">{{ formatTimestamp(record.created_at) }} / {{ record.protocol }}<span v-if="record.turn"> / {{ t('admin.requestCapture.turn') }} {{ record.turn }}</span></div>
           </template>
           <template #cell-status="{ row: record }">
             <span>HTTP {{ record.status }}</span><span v-if="record.is_error" class="ml-2 text-red-600" data-testid="capture-outcome">{{ captureOutcome(record) }}</span>
@@ -84,6 +84,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '@/utils/consoleDisplay'
 import { useId as useFieldLabelId } from 'vue'
 const fieldLabelScope = useFieldLabelId()
 

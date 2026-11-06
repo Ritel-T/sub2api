@@ -1478,7 +1478,7 @@ func (s *AccountUsageService) GetTodayStatsBatch(ctx context.Context, accountIDs
 		return result, nil
 	}
 
-	startTime := timezone.Today()
+	startTime, _ := timezone.DayRange(ctx)
 	if batchReader, ok := s.usageLogRepo.(accountWindowStatsBatchReader); ok {
 		statsByAccount, err := batchReader.GetAccountWindowStatsBatch(ctx, uniqueIDs, startTime)
 		if err == nil {

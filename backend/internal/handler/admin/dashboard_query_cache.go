@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 )
 
@@ -18,6 +19,7 @@ var (
 )
 
 type dashboardTrendCacheKey struct {
+	Timezone              string `json:"timezone"`
 	StartTime             string `json:"start_time"`
 	EndTime               string `json:"end_time"`
 	Granularity           string `json:"granularity"`
@@ -56,6 +58,7 @@ type dashboardModelGroupCacheKey struct {
 }
 
 type dashboardEntityTrendCacheKey struct {
+	Timezone    string `json:"timezone"`
 	StartTime   string `json:"start_time"`
 	EndTime     string `json:"end_time"`
 	Granularity string `json:"granularity"`
@@ -111,6 +114,7 @@ func (h *DashboardHandler) getUsageTrendCached(
 	}
 
 	key := mustMarshalDashboardCacheKey(dashboardTrendCacheKey{
+		Timezone:  timezone.UserTimezone(ctx),
 		RequestID: filters.RequestID, BillingMode: filters.BillingMode, ModelFilterSource: filters.ModelFilterSource,
 		StartTime:             startTime.UTC().Format(time.RFC3339Nano),
 		EndTime:               endTime.UTC().Format(time.RFC3339Nano),
@@ -239,6 +243,7 @@ func (h *DashboardHandler) getAPIKeyUsageTrendCached(ctx context.Context, startT
 	}
 
 	key := mustMarshalDashboardCacheKey(dashboardEntityTrendCacheKey{
+		Timezone:    timezone.UserTimezone(ctx),
 		Filters:     filterKey,
 		StartTime:   startTime.UTC().Format(time.RFC3339Nano),
 		EndTime:     endTime.UTC().Format(time.RFC3339Nano),
@@ -266,6 +271,7 @@ func (h *DashboardHandler) getUserUsageTrendCached(ctx context.Context, startTim
 	}
 
 	key := mustMarshalDashboardCacheKey(dashboardEntityTrendCacheKey{
+		Timezone:    timezone.UserTimezone(ctx),
 		Filters:     filterKey,
 		StartTime:   startTime.UTC().Format(time.RFC3339Nano),
 		EndTime:     endTime.UTC().Format(time.RFC3339Nano),

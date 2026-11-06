@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -202,8 +203,8 @@ func channelToResponse(ch *service.Channel) *channelResponse {
 		FeaturesConfig: ch.FeaturesConfig,
 		GroupIDs:       ch.GroupIDs,
 		ModelMapping:   ch.ModelMapping,
-		CreatedAt:      ch.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:      ch.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:      ch.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:      ch.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 	resp.BillingModelSource = ch.BillingModelSource
 	if resp.GroupIDs == nil {

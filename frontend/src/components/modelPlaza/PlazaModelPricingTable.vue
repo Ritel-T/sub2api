@@ -49,13 +49,13 @@
               <!-- 时段徽章紧跟模型名,其余徽章排在后面,空间不足时先换行的是它们 -->
               <span
                 v-if="period"
-                class="inline-flex items-center whitespace-nowrap rounded-md bg-gray-100 px-1 py-0.5 font-mono text-xs font-medium text-gray-500 dark:bg-dark-700/70 dark:text-dark-300"
+                class="inline-flex max-w-full flex-wrap items-center whitespace-normal [overflow-wrap:anywhere] rounded-md bg-gray-100 px-1 py-0.5 font-mono text-xs font-medium text-gray-500 dark:bg-dark-700/70 dark:text-dark-300"
                 :title="timePricingRowHint(m)"
               >
                 <span v-if="m.time_pricing?.weekdays_only" class="mr-1 font-sans">{{
                   t('modelPlaza.table.timePricingWeekdays')
                 }}</span>
-                {{ formatTimeWindow(period) }}
+                {{ formatTimeWindow(period, m) }}
               </span>
               <span
                 v-if="platform && m.platform !== platform"
@@ -302,6 +302,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatLocalTimeWindow } from '@/utils/peak-rate'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -491,7 +492,7 @@ function timePricingRowHint(m: PlazaModel): string {
   const key = m.time_pricing?.weekdays_only
     ? 'modelPlaza.table.timePricingRowHintWeekdays'
     : 'modelPlaza.table.timePricingRowHint'
-  let hint = t(key, { timezone: m.time_pricing?.timezone })
+  let hint = t(key, { timezone: m.time_pricing?.timezone }) + ' · ' + timePeriods(m).map(p => `${p.start_time}–${p.end_time}`).join(', ') + ` (${m.time_pricing?.timezone || '?'})`
   if (props.peakWindow) {
     hint += t('modelPlaza.table.timePricingRowHintPeak', {
       window: props.peakWindow,
@@ -502,9 +503,9 @@ function timePricingRowHint(m: PlazaModel): string {
 }
 
 /** “00:30–08:30”;整分钟的 HH:mm:ss 省略秒。 */
-function formatTimeWindow(p: PlazaTimePricingPeriod): string {
+function formatTimeWindow(p: PlazaTimePricingPeriod, m: PlazaModel): string {
   const clock = (v: string) => v.replace(/^(\d{2}:\d{2}):00$/, '$1')
-  return `${clock(p.start_time)}–${clock(p.end_time)}`
+  return formatLocalTimeWindow(clock(p.start_time), clock(p.end_time), m.time_pricing?.timezone)
 }
 
 /** 上下文档位按下限升序展示(后端已升序,此处兜底)。 */

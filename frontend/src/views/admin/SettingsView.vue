@@ -6057,6 +6057,7 @@
                           @input="
                             provider.subscribed_at = parseSubscribedAt(
                               ($event.target as HTMLInputElement).value,
+                              provider.subscribed_at,
                             )
                           "
                         />
@@ -10655,19 +10656,18 @@ function addWebSearchProvider() {
 }
 
 function formatSubscribedAt(ts: number | null): string {
-  if (!ts) return "";
-  // Use UTC to avoid timezone drift on repeated edits
-  const d = new Date(ts * 1000);
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  if (ts == null) return "";
+  const date = new Date(ts * 1000);
+  if (!Number.isFinite(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function parseSubscribedAt(dateStr: string): number | null {
-  if (!dateStr) return null;
-  // Parse as UTC to match formatSubscribedAt
-  return Math.floor(new Date(dateStr + "T00:00:00Z").getTime() / 1000);
+function parseSubscribedAt(dateStr: string, original: number | null): number | null {
+  // A display-only round trip must retain the exact stored quota anchor.
+  if (dateStr === formatSubscribedAt(original)) return original;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const seconds = Math.floor(new Date(`${dateStr}T00:00:00`).getTime() / 1000);
+  return formatSubscribedAt(seconds) === dateStr ? seconds : null;
 }
 
 function quotaPercentage(provider: WebSearchProviderConfig): number {

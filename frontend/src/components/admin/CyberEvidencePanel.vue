@@ -6,7 +6,7 @@
     <button type="button" class="btn btn-secondary" :disabled="busy" @click="load">{{ t('admin.riskControl.evidence.load') }}</button>
     <p v-if="error" role="alert">{{ error }}</p>
     <template v-if="record">
-      <p class="break-all text-sm">UID {{ record.user_id ?? '-' }} · {{ record.request_id || '-' }} · {{ record.occurred_at }}</p>
+      <p class="break-all text-sm">UID {{ record.user_id ?? '-' }} · {{ record.request_id || '-' }} · {{ formatTimestamp(record.occurred_at) }}</p>
       <p class="text-sm">{{ t('admin.riskControl.evidence.state') }}: {{ statusText(record.status) }}</p>
       <p v-if="!record.payload" class="text-sm">{{ t('admin.riskControl.evidence.noHistory') }}</p>
       <template v-else>
@@ -27,6 +27,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '@/utils/consoleDisplay'
 import AppHeading from '@/components/common/AppHeading.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

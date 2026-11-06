@@ -2,6 +2,8 @@ package timezone
 
 import (
 	"context"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -27,4 +29,23 @@ func DayRange(ctx context.Context) (time.Time, time.Time) {
 func localDayRange(now time.Time) (time.Time, time.Time) {
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	return start, start.AddDate(0, 0, 1)
+}
+
+// UserLocation returns the request's display calendar location. Background jobs
+// without a user context retain their configured server location.
+func UserLocation(ctx context.Context) *time.Location {
+	start, _ := DayRange(ctx)
+	return start.Location()
+}
+
+// UserTimezone is suitable for PostgreSQL AT TIME ZONE parameters.
+func UserTimezone(ctx context.Context) string {
+	name := UserLocation(ctx).String()
+	if name == "Local" || name == "" {
+		if configured := strings.TrimSpace(os.Getenv("TZ")); configured != "" {
+			return configured
+		}
+		return "UTC"
+	}
+	return name
 }

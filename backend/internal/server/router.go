@@ -8,6 +8,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/server/routes"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -151,6 +152,11 @@ func registerRoutes(
 
 	// API v1
 	v1 := r.Group("/api/v1")
+	// Panel calendars are request-scoped; background and gateway reset policies stay unchanged.
+	v1.Use(func(c *gin.Context) {
+		c.Request = c.Request.WithContext(timezone.WithUserDay(c.Request.Context(), c.Query("timezone")))
+		c.Next()
+	})
 
 	// 面板 API 限流器：认证接口按用户 ID、公开接口按安全客户端 IP，
 	// 防止高频刷管理面接口打爆数据库（阈值可在系统设置中调整）。

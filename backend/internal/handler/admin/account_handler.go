@@ -1880,9 +1880,9 @@ func (h *AccountHandler) GetStats(c *gin.Context) {
 	}
 
 	// Calculate time range
-	now := timezone.Now()
-	endTime := timezone.StartOfDay(now.AddDate(0, 0, 1))
-	startTime := timezone.StartOfDay(now.AddDate(0, 0, -days+1))
+	now := timezone.NowInUserLocation(c.Query("timezone"))
+	endTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), c.Query("timezone"))
+	startTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -days+1), c.Query("timezone"))
 
 	stats, err := h.accountUsageService.GetAccountUsageStats(c.Request.Context(), accountID, startTime, endTime)
 	if err != nil {

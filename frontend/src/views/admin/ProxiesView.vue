@@ -1380,7 +1380,7 @@ const handleEdit = (proxy: Proxy) => {
   editForm.username = proxy.username || ''
   editForm.password = proxy.password || ''
   editForm.status = proxy.status === 'expired' ? 'inactive' : proxy.status
-  editForm.expires_at = proxy.expires_at ? proxy.expires_at.slice(0, 10) : ''
+  editForm.expires_at = proxy.expires_at ? toLocalDateStr(new Date(proxy.expires_at)) : ''
   editForm.fallback_mode = proxy.fallback_mode || 'none'
   editForm.backup_proxy_id = proxy.backup_proxy_id ?? null
   editForm.expiry_warn_days = proxy.expiry_warn_days ?? 7
@@ -1685,7 +1685,7 @@ const daysFromBase = (baseDateStr: string, targetDateStr: string): number | null
 }
 // 编辑时有效期自「代理创建日」起算;创建时无 created_at → base='' 用今天
 const editBaseDate = computed(() =>
-  editingProxy.value?.created_at ? editingProxy.value.created_at.slice(0, 10) : '',
+  editingProxy.value?.created_at ? toLocalDateStr(new Date(editingProxy.value.created_at)) : '',
 )
 const createExpiresDays = computed<number | null>({
   get: () => daysFromBase('', createForm.expires_at),

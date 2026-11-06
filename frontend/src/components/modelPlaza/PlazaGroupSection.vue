@@ -36,6 +36,7 @@
       </p>
       <p
         v-if="peakNote"
+        :title="sourcePeakWindow"
         class="mt-1.5 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
       >
         <Icon name="clock" size="xs" class="h-3 w-3" />
@@ -79,7 +80,7 @@ import GroupBadge from '@/components/common/GroupBadge.vue'
 import PlazaModelPricingTable from './PlazaModelPricingTable.vue'
 import type { ModelPlazaGroup } from '@/api/modelPlaza'
 import type { GroupPlatform, SubscriptionType } from '@/types'
-import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
+import { hasPeakRate, formatPeakRateWindow, sourcePeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{
@@ -89,12 +90,14 @@ const props = defineProps<{
 const { t } = useI18n()
 const appStore = useAppStore()
 
-/** 高峰窗口描述(含倍率与服务器时区标注);分组未启用高峰为空串。 */
+const sourcePeakWindow = computed(() => sourcePeakRateWindow(props.group, appStore.cachedPublicSettings?.server_timezone || serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)))
+
+/** Source-today occurrence displayed with explicit browser-local dates and zone. */
 const peakWindow = computed(() => {
   if (!hasPeakRate(props.group)) return ''
   return formatPeakRateWindow(
     props.group,
-    serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)
+    appStore.cachedPublicSettings?.server_timezone || serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)
   )
 })
 

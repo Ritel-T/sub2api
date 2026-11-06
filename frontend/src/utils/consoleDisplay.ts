@@ -14,7 +14,11 @@ export function formatMoney(value: number | null | undefined, currency = 'USD', 
 }
 
 export function browserTimezone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  } catch {
+    return 'UTC'
+  }
 }
 
 export function formatTimestamp(value: string | Date | number | null | undefined, dateOnly = false): string {
