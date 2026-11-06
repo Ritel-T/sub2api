@@ -8,7 +8,7 @@ vi.mock('@/api/observerUsage', () => ({ observerUsageAPI: { getTiming: mocks.own
 vi.mock('@/api/admin/usageTiming', () => ({ getUsageTiming: mocks.get }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/utils/format', () => ({ formatDateTime: (s: string) => s }))
-const row = (id: number) => ({ id, model: 'test', request_id: `r${id}`, first_token_ms: 6055, duration_ms: 6067, created_at: '2026-09-23' }) as AdminUsageLog
+const row = (id: number) => ({ id, model: 'test', request_type: 'stream', request_id: `r${id}`, first_token_ms: 6055, duration_ms: 6067, created_at: '2026-09-23' }) as AdminUsageLog
 const options = { global: { stubs: { BaseDialog: { template: '<section><slot /></section>' } } } }
 describe('Usage timing details', () => {
   it('reacts to viewport changes between centered mobile and desktop drawer', async () => {

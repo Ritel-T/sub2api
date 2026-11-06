@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -48,6 +49,7 @@ func (h *OpenAIGatewayHandler) runDeepSeekRecovery(c *gin.Context, in deepSeekRe
 	parent, cancel := context.WithTimeout(c.Request.Context(), deepSeekRecoveryTimeout)
 	defer cancel()
 	sink := newDeepSeekRecoveryStream(c.Writer, in.protocol, in.stream)
+	sink.observationContext = c.Request.Context()
 	stopHeartbeat := startDeepSeekRecoveryHeartbeat(parent, sink, cancel)
 	defer stopHeartbeat()
 	excluded := make(map[int64]struct{})
@@ -118,6 +120,7 @@ func (h *OpenAIGatewayHandler) runDeepSeekRecovery(c *gin.Context, in deepSeekRe
 		}
 		account = fresh
 		attempts++
+		requesttiming.BeginOperationAttempt(c.Request.Context(), attempts)
 		attemptCtx, attempt := service.NewDeepSeekRecoveryAttempt(child.Request.Context())
 		child.Request = child.Request.WithContext(attemptCtx)
 		result, forwardErr := func() (*service.OpenAIForwardResult, error) {
@@ -145,6 +148,12 @@ func (h *OpenAIGatewayHandler) runDeepSeekRecovery(c *gin.Context, in deepSeekRe
 				in.body, clientRequestedUsageFields(child, in.mapping, in.model, ""), service.HashUsageRequestPayload(in.body))
 		}
 		forwardErr = sink.EndAttempt(forwardErr)
+		observed := attempt.Outcome()
+		terminal := ""
+		if observed.Terminal {
+			terminal = "completed"
+		}
+		requesttiming.ObserveOperationSource(c.Request.Context(), requesttiming.OperationEvidence{Protocol: in.protocol, Answer: observed.Answer, Reasoning: observed.Semantic && !observed.Answer && !observed.ToolCall && !observed.Refusal, ToolCall: observed.ToolCall, Refusal: observed.Refusal, FinishReason: observed.FinishReason, Terminal: terminal, Complete: observed.Terminal})
 		lastErr, lastResult, lastAccount, finalContext = forwardErr, result, account, child
 		if forwardErr == nil {
 			if result == nil {
@@ -157,10 +166,27 @@ func (h *OpenAIGatewayHandler) runDeepSeekRecovery(c *gin.Context, in deepSeekRe
 			// Commit is a delivery operation. A write failure must never return to
 			// the model loop, even when zero bytes were reported written.
 			stopHeartbeat()
-			_ = sink.CommitSuccess()
+			commitObservationErr := sink.CommitSuccess()
+			if commitObservationErr == nil {
+				kind := ""
+				if observed.Answer {
+					kind = "text"
+				} else if observed.ToolCall {
+					kind = "tool"
+				}
+				requesttiming.OperationDelivery(c.Request.Context(), kind, false, nil)
+			}
+			requesttiming.OperationDelivery(c.Request.Context(), "", true, commitObservationErr)
 			h.submitDeepSeekRecoveryUsage(c, child, in, account, result, log)
 			return
 		}
+		var observationFailure *service.UpstreamFailoverError
+		if errors.As(forwardErr, &observationFailure) && observationFailure.Reason == service.GatewayFailureReason("deepseek_no_answer") {
+			requesttiming.ObserveOperationSource(c.Request.Context(), requesttiming.OperationEvidence{Protocol: in.protocol, FailureReason: "no_answer", Complete: true})
+		} else if c.Request.Context().Err() == nil && !sink.ClientGone() {
+			requesttiming.ObserveOperationSource(c.Request.Context(), requesttiming.OperationEvidence{Protocol: in.protocol, Terminal: "failed", FailureReason: "deepseek_attempt_failed", Complete: true})
+		}
+		requesttiming.OperationAttemptFailed(c.Request.Context(), "deepseek_attempt_failed")
 		service.RecordDeepSeekRecoveryFailure(c, account, result, attempts, forwardErr, attempt.Outcome())
 		outcome := attempt.Outcome()
 		var upstreamFailure *service.UpstreamFailoverError
@@ -192,8 +218,12 @@ func (h *OpenAIGatewayHandler) runDeepSeekRecovery(c *gin.Context, in deepSeekRe
 		}
 	}
 	if c.Request.Context().Err() == nil && !sink.ClientGone() {
+		if attempts == 0 {
+			requesttiming.ObserveOperationSource(c.Request.Context(), requesttiming.OperationEvidence{Protocol: in.protocol, Terminal: "failed", FailureReason: "no_available_attempt", Complete: true})
+		}
 		service.MarkOpsStreamFailure(c, "api_error", "deepseek_recovery_exhausted", "DeepSeek recovery exhausted", http.StatusBadGateway)
-		_ = sink.CommitFailure("DeepSeek 暂时无法完成回复，请稍后重试。")
+		commitObservationErr := sink.CommitFailure("DeepSeek 暂时无法完成回复，请稍后重试。")
+		requesttiming.OperationDelivery(c.Request.Context(), "", true, commitObservationErr)
 	}
 	// Only an attempt that exposed a tool or whose downstream disconnected
 	// retains the existing partial-usage contract. Recoverable failed text

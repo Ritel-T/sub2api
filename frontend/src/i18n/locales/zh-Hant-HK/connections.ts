@@ -1,4 +1,6 @@
 export default {
+ operation: {"title": "操作觀測 v2", "scope": "應用入口 → 本機終態交付，不證明用戶端收到。來源終態與交付證據分開，恢復重試仍屬同一次操作。", "unknown": "未知：沒有 v2 證據。舊終態、帳單、HTTP 200 或輸出 token 均不證明答案完成。", "summaryTitle": "已觀測操作樣本 · 入站視窗不超過 1 小時", "coverage": "覆蓋率未知。僅統計已持久化的 v2 應用記錄；仍在途、晚寫、丟棄及未覆蓋入口不在樣本中，不代表全站完成率。", "shortWindow": "選擇不超過 1 小時的範圍查看樣本；查詢不可用不等於零樣本。", "sampleCount": "已觀測 {count} 個樣本", "recoveredCount": "{count} 次失敗後完成", "writer": "進程累計診斷：入隊 {enqueued} · 丟棄 {dropped} · 寫入失敗 {write_failed}；不能換算本視窗覆蓋率。", "legacy": "舊觀測；完成情況未知", "reason": "原因 / 結束類別", "elapsed": "整次操作等待（含失敗嘗試）", "first": "首個可用內容寫出", "finalFirst": "最終嘗試首個可用內容", "attempts": "嘗試數 / 失敗嘗試數", "delivery": "本機交付 / 證據", "protocol": "協定 / 傳輸 / 範圍", "recovered": "失敗後完成"},
+
   recognizedCredential: "已識別 key；認證被拒絕",
   errorDetail: '查看結構化錯誤詳情', logicalError: '記錄的業務錯誤',
   title: '連接診斷',
@@ -12,6 +14,8 @@ export default {
   upstreamStatus: '入口觀察的后端狀態', networkError: '入口網絡錯誤類型',
   sources: { all: '全部來源', edge: '入口代理', application: '應用', nginx: 'Nginx 入口', caddy: 'Caddy 入口' },
   states: {
+ limited: '限制／策略拒絕',
+ cancelled: '明確取消',
     all: '全部結果', abnormal: '異常結果', completed: '應用側完成', edge_completed: '入口響應結束', edge_failed: '入口異常',
     client_disconnected: '下游連接斷開', downstream_write_failed: '下游寫出失敗', failed: '請求失敗', incomplete: '流未完成', canceled: '請求被取消', unknown: '結果未確認'
   }

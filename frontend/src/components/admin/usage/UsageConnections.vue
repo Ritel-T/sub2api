@@ -1,6 +1,16 @@
 <template>
   <div class="space-y-4 p-4 sm:p-6" data-testid="usage-connections">
     <p class="rounded-lg bg-sky-50 p-3 text-sm text-sky-800 dark:bg-sky-950/30 dark:text-sky-200">{{ t('connections.scope') }}</p>
+    <section class="rounded-lg border border-gray-200 p-3 text-sm dark:border-dark-600" data-testid="operation-summary">
+      <p class="font-medium">{{ t('connections.operation.summaryTitle') }}</p>
+      <p class="mt-1 text-xs text-gray-500">{{ t('connections.operation.coverage') }}</p>
+      <template v-if="observedSummary?.status === 'observed'">
+        <p class="mt-2">{{ t('connections.operation.sampleCount', { count: observedSummary.sample_count }) }} · {{ t('connections.operation.recoveredCount', { count: observedSummary.recovered_count }) }}</p>
+        <p class="mt-1 flex flex-wrap gap-x-4 gap-y-1"><span v-for="(count, outcome) in observedSummary.outcomes" :key="outcome">{{ t(`connections.states.${outcome}`) }}: {{ count }}</span></p>
+        <p class="mt-2 text-xs text-gray-500">{{ t('connections.operation.writer', observedSummary.writer) }}</p>
+      </template>
+      <p v-else class="mt-2 text-xs text-gray-500">{{ t('connections.operation.shortWindow') }}</p>
+    </section>
     <form class="workspace-filter-controls flex flex-wrap items-end gap-3" @submit.prevent="reload()">
       <label class="text-sm">{{ t('connections.state') }}<select v-model="state" class="input mt-1" @change="reload()"><option v-for="s in states" :key="s" :value="s">{{ t(`connections.states.${s}`) }}</option></select></label>
       <label class="text-sm">{{ t('connections.source') }}<select v-model="source" class="input mt-1" @change="reload()"><option v-for="s in sources" :key="s" :value="s">{{ t(`connections.sources.${s}`) }}</option></select></label>
@@ -17,7 +27,7 @@
       <template #cell-url="{ row }"><span class="block text-xs text-gray-500">{{ row.method }} · {{ row.http_version || '—' }} · {{ row.tls_version || '—' }}</span><span class="break-all font-mono text-xs">{{ url(row) }}</span></template>
       <template #cell-source="{ row }">{{ t(`connections.sources.${row.source}`) }}<span v-if="row.legacy" class="block text-xs text-gray-500">{{ t('connections.legacy') }}</span></template>
       <template #cell-user="{ row }"><span>{{ row.user_name || row.user_email || (row.user_id ? `#${row.user_id}` : t('connections.unidentified')) }}</span><span v-if="row.detail.identity_source === 'recognized_credential'" class="block text-xs text-amber-700">{{ t('connections.recognizedCredential') }}</span><span v-if="row.api_key_id" class="block text-xs text-gray-500">{{ row.api_key_name || `#${row.api_key_id}` }}</span></template>
-      <template #cell-state="{ row }"><span class="rounded px-2 py-1 text-xs" :class="stateClass(row.state)">{{ t(`connections.states.${row.state}`) }}</span><span class="mt-1 block text-xs text-gray-500">HTTP {{ row.legacy && !row.detail.version ? '—' : row.detail.status || '—' }}</span><span v-if="row.detail.auth_rejection || row.error_type" class="mt-1 block text-xs text-gray-500">{{ row.detail.auth_rejection || row.error_type }} · {{ row.error_status || row.detail.status }}</span></template>
+      <template #cell-state="{ row }"><span class="rounded px-2 py-1 text-xs" :class="stateClass(row.state)">{{ t(`connections.states.${row.state}`) }}</span><span v-if="row.source === 'application' && row.detail.operation?.version !== 2" class="mt-1 block text-xs text-gray-500">{{ t('connections.operation.legacy') }}</span><span class="mt-1 block text-xs text-gray-500">HTTP {{ row.legacy && !row.detail.version ? '—' : row.detail.status || '—' }}</span><span v-if="row.detail.auth_rejection || row.error_type" class="mt-1 block text-xs text-gray-500">{{ row.detail.auth_rejection || row.error_type }} · {{ row.error_status || row.detail.status }}</span></template>
       <template #cell-model="{ row }">{{ row.model || '—' }}<span v-if="row.account_id" class="block text-xs text-gray-500">{{ row.account_name || `#${row.account_id}` }}</span></template>
       <template #cell-total="{ row }">{{ elapsed(row) }}<span class="block text-xs text-gray-500">{{ row.detail.downstream_bytes == null || (row.network_error === 'tls_error' && !row.detail.status) || (row.legacy && !row.detail.version) ? t('requestTiming.missing') : t('connections.bytes', { count: row.detail.downstream_bytes }) }}</span></template>
       <template #cell-actions="{ row }"><button type="button" class="workspace-icon-action" :title="t('connections.details')" :aria-label="t('connections.details')" @click="selected = row"><Icon name="eye" size="sm" /></button></template>
@@ -28,6 +38,7 @@
     <BaseDialog :show="!!selected" :title="t('connections.details')" width="extra-wide" close-on-click-outside @close="selected = null">
       <div v-if="selected" class="space-y-5">
         <p class="rounded-lg bg-sky-50 p-3 text-sm text-sky-800 dark:bg-sky-950/30 dark:text-sky-200">{{ t('connections.scope') }}</p>
+        <OperationObservation :operation="selected.detail.operation" />
         <dl class="grid gap-4 text-sm sm:grid-cols-2">
           <div v-for="item in summary(selected)" :key="item.label"><dt class="text-gray-500">{{ item.label }}</dt><dd class="mt-1 break-all font-mono text-xs">{{ item.value }}</dd></div>
         </dl>
@@ -41,6 +52,7 @@
 </template>
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
+import OperationObservation from './OperationObservation.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DataTable from '@/components/common/DataTable.vue'
@@ -50,14 +62,15 @@ import InfiniteListSentinel from '@/components/common/InfiniteListSentinel.vue'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
 import { formatDateTime } from '@/utils/format'
-import { listConnections, type ConnectionQuery, type ConnectionTrace, type ConnectionState } from '@/api/admin/usageConnections'
+import { listConnections, type ConnectionQuery, type ConnectionTrace, type ConnectionState, type ObservedOperationSummary } from '@/api/admin/usageConnections'
 const props = defineProps<{ filters: ConnectionQuery; refreshKey: number }>()
 const { t, te } = useI18n()
 const state = ref('all'), source = ref('all'), host = ref(''), requestId = ref(''), clientIp = ref('')
 const selected = ref<ConnectionTrace | null>(null)
+const observedSummary = ref<ObservedOperationSummary | null>(null)
 const showErrorDetail = ref(false), errorDetailId = ref<number | null>(null)
 function openError(r: ConnectionTrace) { errorDetailId.value = r.error_log_id; selected.value = null; showErrorDetail.value = true }
-const states = ['all', 'abnormal', 'client_disconnected', 'downstream_write_failed', 'incomplete', 'failed', 'canceled', 'edge_failed', 'completed', 'edge_completed', 'unknown']
+const states = ['all', 'abnormal', 'client_disconnected', 'downstream_write_failed', 'incomplete', 'failed', 'limited', 'cancelled', 'canceled', 'edge_failed', 'completed', 'edge_completed', 'unknown']
 const sources = ['all', 'edge', 'application', 'nginx', 'caddy']
 // Keep pagination and refresh on the submitted query while text inputs are edited.
 let query: ConnectionQuery = {}
@@ -65,7 +78,10 @@ const { items: rows, loading, loadingMore, refreshing, error, hasMore, reset, lo
   pageSize: 20,
   keyOf: row => row.trace_id,
   fetchPage: async (page, signal) => {
-    const result = await listConnections({ ...query, page, page_size: 20 }, signal)
+    const start = Date.parse(query.start_time ?? ''), end = Date.parse(query.end_time ?? '')
+    const shortWindow = Number.isFinite(start) && Number.isFinite(end) && end > start && end - start <= 3600000
+    const result = await listConnections({ ...query, page, page_size: 20, operation_summary: page === 1 && shortWindow ? true : undefined }, signal)
+    if (!signal?.aborted && page === 1) observedSummary.value = result.operation_summary ?? null
     return { items: result.items, pages: result.has_more ? 500 : page }
   }
 })
@@ -76,7 +92,7 @@ const columns = computed(() => [
 ])
 const url = (r: ConnectionTrace) => r.host ? `${r.scheme ? r.scheme + '://' : ''}${r.host}${r.path}` : r.path || t('requestTiming.missing')
 const ms = (v: number | null | undefined) => v == null ? t('requestTiming.missing') : v < 1000 ? `${v.toFixed(0)}ms` : `${(v / 1000).toFixed(2)}s`
-const elapsed = (r: ConnectionTrace) => r.network_error === 'tls_error' && !r.detail.status ? t('requestTiming.missing') : ms(r.detail.total_ms)
+const elapsed = (r: ConnectionTrace) => r.detail.operation?.version === 2 ? ms(r.detail.operation.server_elapsed_ms) : r.network_error === 'tls_error' && !r.detail.status ? t('requestTiming.missing') : ms(r.detail.total_ms)
 const field = (name: string) => te(`requestTiming.fields.${name}`) ? t(`requestTiming.fields.${name}`) : te(`requestTiming.${name}`) ? t(`requestTiming.${name}`) : name
 const stateClass = (s: ConnectionState) => s === 'completed' || s === 'edge_completed' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200' : s === 'unknown' ? 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
 const events = computed(() => Object.entries(selected.value?.detail.events ?? {}).sort((a, b) => a[1] - b[1]))
@@ -98,6 +114,7 @@ function closeDetails() { selected.value = null; showErrorDetail.value = false; 
 function reload() {
   query = { ...props.filters, state: state.value, source: source.value, host: host.value.trim() || undefined, request_id: requestId.value.trim() || undefined, client_ip: clientIp.value.trim() || undefined }
   closeDetails()
+  observedSummary.value = null
   void reset()
 }
 function resetLocal() { state.value = 'all'; source.value = 'all'; host.value = ''; requestId.value = ''; clientIp.value = ''; reload() }

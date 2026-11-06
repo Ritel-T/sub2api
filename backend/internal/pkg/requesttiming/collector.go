@@ -40,6 +40,7 @@ type Attempt struct {
 	Events           map[string]float64  `json:"events"`
 }
 type Snapshot struct {
+	Operation         *OperationSummary  `json:"operation,omitempty"`
 	WSTurns           []WSTurnTiming     `json:"ws_turns,omitempty"`
 	ProtocolDecision  *ProtocolDecision  `json:"protocol_decision,omitempty"`
 	Latency           *LatencySummary    `json:"latency,omitempty"`
@@ -70,6 +71,7 @@ type Snapshot struct {
 	Attempts          []Attempt          `json:"attempts"`
 }
 type Collector struct {
+	operation *operationState
 	mu        sync.Mutex
 	start     time.Time
 	now       func() time.Time
@@ -194,6 +196,7 @@ func Mode(ctx context.Context, mode string) {
 }
 func (c *Collector) snapshot() Snapshot {
 	d := c.data
+	d.Operation = c.operationSummary()
 	if d.ProtocolDecision != nil {
 		decision := *d.ProtocolDecision
 		d.ProtocolDecision = &decision

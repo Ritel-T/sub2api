@@ -1364,6 +1364,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			arrival = hooks.InitialTurnStartedAt
 		}
 		acceptedQueueArrival.Store(&arrival)
+		if hooks.ObserveOperationStarted != nil {
+			hooks.ObserveOperationStarted(1, arrival)
+		}
 	}
 	firstWriteErr := relayUpstreamFrameConn.WriteFrame(firstWriteCtx, coderws.MessageText, firstClientMessage)
 	cancelFirstWrite()
@@ -1523,6 +1526,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				}
 			},
 			AfterClientWrite: func(msgType coderws.MessageType, payload []byte, writeErr error) {
+				if msgType == coderws.MessageText && hooks != nil && hooks.ObserveOperationDelivery != nil {
+					hooks.ObserveOperationDelivery(payload, writeErr)
+				}
 				if msgType == coderws.MessageText && writeErr == nil {
 					eventType, _, _ := parseOpenAIWSEventEnvelope(payload)
 					markOpenAIWSClientVisibleFailure(c, eventType, payload)
@@ -1547,6 +1553,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				_ = clientConn.CloseNow()
 			},
 			BeforeWriteClient: func(msgType coderws.MessageType, payload []byte, wroteDownstream bool) error {
+				if msgType == coderws.MessageText && hooks != nil && hooks.ObserveOperationSource != nil {
+					hooks.ObserveOperationSource(payload)
+				}
 				if msgType != coderws.MessageText {
 					return nil
 				}

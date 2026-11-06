@@ -55,12 +55,40 @@ type ConnectionTraceFilter struct {
 	Page, PageSize                       int
 }
 
+type OperationWriterStats struct {
+	Enqueued    uint64 `json:"enqueued"`
+	Dropped     uint64 `json:"dropped"`
+	WriteFailed uint64 `json:"write_failed"`
+	Scope       string `json:"scope"`
+}
+type OperationSummary struct {
+	Status         string               `json:"status"`
+	Coverage       string               `json:"coverage"`
+	WindowBasis    string               `json:"window_basis"`
+	Start          time.Time            `json:"start_time"`
+	End            time.Time            `json:"end_time"`
+	SampleCount    int64                `json:"sample_count"`
+	Outcomes       map[string]int64     `json:"outcomes"`
+	RecoveredCount int64                `json:"recovered_count"`
+	Writer         OperationWriterStats `json:"writer"`
+}
+
+func (s *UsageService) ObservedOperationSummary(ctx context.Context, f ConnectionTraceFilter) *OperationSummary {
+	if repo, ok := s.usageRepo.(interface {
+		ObservedOperationSummary(context.Context, ConnectionTraceFilter) *OperationSummary
+	}); ok {
+		return repo.ObservedOperationSummary(ctx, f)
+	}
+	return &OperationSummary{Status: "unavailable", Coverage: "unknown", WindowBasis: "started_at", Start: f.Start, End: f.End, Outcomes: map[string]int64{}}
+}
+
 type ConnectionTraceList struct {
-	Items         []ConnectionTrace `json:"items"`
-	HasMore       bool              `json:"has_more"`
-	Page          int               `json:"page"`
-	PageSize      int               `json:"page_size"`
-	RetentionDays int               `json:"retention_days"`
+	OperationSummary *OperationSummary `json:"operation_summary,omitempty"`
+	Items            []ConnectionTrace `json:"items"`
+	HasMore          bool              `json:"has_more"`
+	Page             int               `json:"page"`
+	PageSize         int               `json:"page_size"`
+	RetentionDays    int               `json:"retention_days"`
 	// RetentionDays is the legacy TTL, or the hot target when ArchiveManaged.
 	// The target is advisory, not an independent application TTL: failed archive
 	// verification keeps older rows.

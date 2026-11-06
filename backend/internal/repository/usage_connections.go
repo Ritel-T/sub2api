@@ -4,12 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
 )
+
+var connectionObservationsEnqueued atomic.Uint64
+var connectionObservationsDropped atomic.Uint64
+var connectionObservationsWriteFailed atomic.Uint64
 
 // RecordConnectionTrace never blocks the response on database I/O. The queue,
 // payload, retries and retention cleanup are bounded and diagnostics-only.
@@ -20,7 +25,9 @@ func (r *usageLogRepository) RecordConnectionTrace(record service.ConnectionTrac
 	r.startConnectionWriter()
 	select {
 	case r.connectionQueue <- record:
+		connectionObservationsEnqueued.Add(1)
 	default:
+		connectionObservationsDropped.Add(1)
 		logger.LegacyPrintf("connection_diagnostics", "queue full; trace dropped")
 	}
 }
@@ -46,6 +53,7 @@ func (r *usageLogRepository) runConnectionWriter() {
 					break
 				}
 				if attempt == 2 {
+					connectionObservationsWriteFailed.Add(1)
 					logger.LegacyPrintf("connection_diagnostics", "trace persistence failed")
 				}
 			}
@@ -79,6 +87,9 @@ func (r *usageLogRepository) writeConnectionTrace(ctx context.Context, v service
 // completed terminal can be normal cleanup; recovered attempt failures do not
 // turn a completed request into a failure. Unknown/legacy data stays unknown.
 const connectionStateSQL = `CASE
+ WHEN source='application' AND detail->'operation'->>'version'='2' THEN
+  CASE WHEN detail->'operation'->>'final_outcome' IN ('completed','incomplete','limited','failed','client_disconnected','cancelled','unknown')
+   THEN detail->'operation'->>'final_outcome' ELSE 'unknown' END
  WHEN source IN ('nginx','caddy') AND (network_error<>'' OR COALESCE((detail->>'status')::int,0)>=400) THEN 'edge_failed'
  WHEN source IN ('nginx','caddy') THEN 'edge_completed'
  WHEN detail->>'downstream_error'='true' THEN 'downstream_write_failed'

@@ -262,9 +262,13 @@ type OpenAIWSIngressHooks struct {
 	MaxReasoningEffortOverLimit string
 	// ReasoningEffortMappings rewrites explicit effort values for this WS session.
 	ReasoningEffortMappings []ReasoningEffortMapping
-	TurnStarted             func(turn int, startedAt time.Time)
-	BeforeTurn              func(turn int) error
-	BeforeRequest           func(turn int, payload []byte, originalModel string) error
+	// Observation callbacks never control forwarding or retain payloads.
+	ObserveOperationStarted  func(turn int, startedAt time.Time)
+	ObserveOperationSource   func(payload []byte)
+	ObserveOperationDelivery func(payload []byte, writeErr error)
+	TurnStarted              func(turn int, startedAt time.Time)
+	BeforeTurn               func(turn int) error
+	BeforeRequest            func(turn int, payload []byte, originalModel string) error
 	// BeforeRequestWithClientPayload runs at the same admission boundary as
 	// BeforeRequest. clientPayload is the original client frame, before outbound
 	// normalization; use it only for local client identity validation. payload

@@ -18,6 +18,7 @@
       <div v-else-if="error" role="alert"><p>{{ t('requestTiming.loadError') }}</p><button class="btn btn-secondary mt-2" @click="load">{{ t('requestTiming.retry') }}</button></div>
       <p v-else-if="!trace" class="rounded-lg bg-gray-50 p-4 text-sm dark:bg-dark-800">{{ t('requestTiming.empty') }}</p>
       <template v-if="trace">
+        <OperationObservation :operation="trace.operation" />
         <label v-if="traces.length > 1" class="block text-sm">{{ t('requestTiming.traceSelection') }}
           <select v-model="selected" class="input mt-2 w-full"><option v-for="(item, i) in traces" :key="item.trace_id" :value="i">{{ formatDateTime(item.started_at) }} · {{ ms(item.total_ms) }}</option></select>
         </label>
@@ -61,6 +62,7 @@
 </template>
 <script setup lang="ts">
 import AppHeading from '@/components/common/AppHeading.vue'
+import OperationObservation from './OperationObservation.vue'
 import { inject, computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWindowSize } from '@vueuse/core'

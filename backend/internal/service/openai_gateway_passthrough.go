@@ -2176,6 +2176,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 			return
 		}
 		requesttiming.OutputFlushed(ctx)
+		operationProtocolOutputFlushed(ctx)
 		flushPending = false
 	}
 	defer flushPendingOutput()
@@ -2450,6 +2451,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 				}
 			}
 			requesttiming.Content(ctx, []byte(trimmedData), eventType)
+			ObserveOperationProtocol(ctx, "responses", []byte(trimmedData), eventType)
 			requesttiming.Output(ctx, openAIStreamDataStartsSemanticTTFT(trimmedData, eventType), openAIStreamDataStartsVisibleOutput(trimmedData, eventType), timingTerminal(eventType))
 			if firstTokenMs == nil && openAIStreamDataStartsTTFT(trimmedData, eventType, forceFlushFailedEvent, ttftMode) {
 				ms := int(time.Since(startTime).Milliseconds())
@@ -2560,12 +2562,14 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 			upstreamRequestID,
 			err,
 		)
+		requesttiming.ObserveOperationSource(ctx, requesttiming.OperationEvidence{Protocol: "responses", Terminal: "failed", Complete: true, FailureReason: "source_read_error"})
 		return resultWithUsage(), fmt.Errorf("stream read error: %w", err)
 	}
 	if sawFailedEvent {
 		return resultWithUsage(), fmt.Errorf("upstream response failed: %s", failedMessage)
 	}
 	if !clientDisconnected && !sawDone && !sawTerminalEvent && ctx.Err() == nil {
+		requesttiming.ObserveOperationSource(ctx, requesttiming.OperationEvidence{Protocol: "responses", Terminal: "failed", Complete: true, FailureReason: "source_missing_terminal"})
 		logger.FromContext(ctx).With(
 			zap.String("component", "service.openai_gateway"),
 			zap.Int64("account_id", account.ID),
@@ -2585,6 +2589,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 	logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, terminalEventType, clientDisconnected)
 	if terminalSuccessful && !clientDisconnected {
 		requesttiming.TerminalFlushed(ctx, terminalEventType)
+		operationProtocolDelivered(ctx, nil)
 		if account != nil {
 			MarkOpsStreamCompleted(c, account.ID)
 		}

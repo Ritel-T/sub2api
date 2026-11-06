@@ -3209,6 +3209,14 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 
 	// 解析渠道级模型映射
 	channelMappingWS, _ := h.gatewayService.ResolveChannelMappingAndRestrict(ctx, apiKey.GroupID, wsRouteModel)
+	// A WebSocket operation starts at its accepted frame, before admission.
+	// This observer never changes forwarding, retry, or billing decisions.
+	wsOperationRecord := service.ConnectionTrace{Model: reqModel, Path: service.ConnectionPath(c.Request.URL.Path), Host: c.Request.Host, HTTPVersion: c.Request.Proto, UserID: apiKey.UserID, APIKeyID: apiKey.ID}
+	if apiKey.GroupID != nil {
+		wsOperationRecord.GroupID = *apiKey.GroupID
+	}
+	wsOperation := h.gatewayService.NewWSOperationObserver(ctx, firstFrameArrivedAt, wsOperationRecord)
+	defer wsOperation.Finish()
 	wsForwardModel := openAIChannelForwardModel(channelMappingWS, wsRouteModel)
 
 	var currentUserRelease func()
@@ -3578,6 +3586,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		var turnStartsMu sync.Mutex
 		turnStarts := make(map[int]time.Time, 4)
 		recordTurnStart := func(turn int, startedAt time.Time) {
+			wsOperation.Start(turn, startedAt)
 			if turn <= 0 || startedAt.IsZero() {
 				return
 			}
@@ -3624,6 +3633,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			MaxReasoningEffortOverLimit: maxReasoningEffortOverLimit,
 			ReasoningEffortMappings:     reasoningEffortMappings,
 			TurnStarted:                 recordTurnStart,
+			ObserveOperationStarted:     wsOperation.Start,
+			ObserveOperationSource:      wsOperation.Source,
+			ObserveOperationDelivery:    wsOperation.Delivery,
 			BeforePayloadParse: func(turn int, raw []byte, effectiveModel string) error {
 				if middleware2.CheckGroupSubagentFrame(c, raw) {
 					return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, middleware2.GroupSubagentsBlockedMessage, nil)
@@ -3823,6 +3835,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				return checkSimpleModeTurnBilling(true)
 			},
 			AfterTurn: func(turn int, result *service.OpenAIForwardResult, turnErr error) {
+				wsOperation.End(account.ID, result, turnErr)
 				turnStart := getTurnStart(turn)
 				// Each ingress samples its own forward boundary. Callback cleanup is
 				// never queue time. Preserve the current frame across account failover.

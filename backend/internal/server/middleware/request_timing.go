@@ -23,12 +23,14 @@ type ConnectionTraceRecorder interface {
 func RequestTiming(recorders ...ConnectionTraceRecorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := strings.TrimRight(c.Request.URL.Path, "/")
-		if c.Request.Method != http.MethodPost || (!strings.HasSuffix(path, "/responses") && !strings.HasSuffix(path, "/responses/compact")) {
+		protocol := timingOperationProtocol(path)
+		if c.Request.Method != http.MethodPost || protocol == "" {
 			c.Next()
 			return
 		}
 		collector := requesttiming.New(time.Now(), c.Request.ContentLength)
 		c.Request = c.Request.WithContext(requesttiming.With(c.Request.Context(), collector))
+		requesttiming.BeginOperation(c.Request.Context(), protocol, "http", "application_request")
 		c.Request.Body = collector.WrapBody(c.Request.Body)
 		writer := &timingWriter{ResponseWriter: c.Writer, collector: collector}
 		c.Writer = writer
@@ -142,4 +144,22 @@ func connectionMetadata(value string, limit int) string {
 		value = strings.ToValidUTF8(value[:limit], "")
 	}
 	return value
+}
+
+// Only model-operation routes are observed. Count-token and asynchronous media
+// APIs keep their existing separate scopes.
+func timingOperationProtocol(path string) string {
+	switch {
+	case strings.HasSuffix(path, "/responses/compact"):
+		return "compaction"
+	case strings.HasSuffix(path, "/responses"):
+		return "responses"
+	case strings.HasSuffix(path, "/chat/completions"):
+		return "chat"
+	case strings.HasSuffix(path, "/messages"):
+		return "messages"
+	case strings.Contains(path, ":generateContent"), strings.Contains(path, ":streamGenerateContent"):
+		return "gemini"
+	}
+	return ""
 }

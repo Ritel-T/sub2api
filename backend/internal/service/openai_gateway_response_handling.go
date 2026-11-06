@@ -161,6 +161,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return err
 		}
 		requesttiming.OutputFlushed(ctx)
+		operationProtocolOutputFlushed(ctx)
 		return nil
 	}
 
@@ -423,6 +424,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		}
 		flushPending("Client disconnected during final flush, returning collected usage")
 		if !sawTerminalEvent {
+			requesttiming.ObserveOperationSource(ctx, requesttiming.OperationEvidence{Protocol: "responses", Terminal: "failed", Complete: true, FailureReason: "source_missing_terminal"})
 			if openAIStreamClientOutputStarted(c, clientOutputStarted) && !clientDisconnected {
 				s.recordOpenAIProxyStreamDisconnect(account, errors.New("stream ended before terminal event"), upstreamRequestID, resp)
 			}
@@ -437,6 +439,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, terminalEventType, clientDisconnected)
 		if terminalSuccessful && !clientDisconnected {
 			requesttiming.TerminalFlushed(ctx, terminalEventType)
+			operationProtocolDelivered(ctx, nil)
 			if account != nil {
 				MarkOpsStreamCompleted(c, account.ID)
 			}
@@ -765,6 +768,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 
 			requesttiming.Content(ctx, []byte(data), eventType)
+			ObserveOperationProtocol(ctx, "responses", []byte(data), eventType)
 			requesttiming.Output(ctx, openAIStreamDataStartsSemanticTTFT(data, eventType), startsVisibleOutput, timingTerminal(eventType))
 			// 写入客户端（客户端断开后继续 drain 上游）
 			if !clientDisconnected && !failureDelivered && !suppressCurrentEvent {
@@ -1712,6 +1716,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		}
 	}
 
+	ObserveOperationProtocol(ctx, "responses", body, "")
 	usageValue, usageOK := extractOpenAIUsageFromJSONBytes(body)
 	regionalMeterObserveUsage(ctx, body, "json")
 	if !usageOK {
@@ -1755,6 +1760,8 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)
+		operationProtocolOutputFlushed(c.Request.Context())
+		operationProtocolDelivered(c.Request.Context(), nil)
 	}
 
 	return &openaiNonStreamingResult{
@@ -1869,6 +1876,8 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 	}
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)
+		operationProtocolOutputFlushed(c.Request.Context())
+		operationProtocolDelivered(c.Request.Context(), nil)
 	}
 
 	return &openaiNonStreamingResult{

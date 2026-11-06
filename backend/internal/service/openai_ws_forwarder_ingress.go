@@ -574,6 +574,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	hooks *OpenAIWSIngressHooks,
 ) (returnErr error) {
 	ctx = s.withRequestTimezoneEgress(ctx, account)
+	if hooks != nil && hooks.ObserveOperationSource != nil {
+		ctx = context.WithValue(ctx, openAIWSOperationSourceKey{}, hooks.ObserveOperationSource)
+	}
 	if s == nil {
 		return errors.New("service is nil")
 	}
@@ -1160,7 +1163,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		writeCtx, cancel := newOpenAIWSDownstreamWriteContext(ctx, hooks, s.openAIWSWriteTimeout())
 		defer cancel()
 		message = restoreCodexToolNamesFromContext(c, message)
-		return WriteCapturedWSClient(writeCtx, clientConn, coderws.MessageText, message)
+		err := WriteCapturedWSClient(writeCtx, clientConn, coderws.MessageText, message)
+		if hooks != nil && hooks.ObserveOperationDelivery != nil {
+			hooks.ObserveOperationDelivery(message, err)
+		}
+		return err
 	}
 
 	clientReader := openAIWSGetIngressReader(c, clientConn)
@@ -1942,6 +1949,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					fmt.Errorf("read upstream websocket event: %w", readErr),
 					wroteDownstream,
 				)
+			}
+			if hooks != nil && hooks.ObserveOperationSource != nil {
+				hooks.ObserveOperationSource(upstreamMessage)
 			}
 			if normalized, changed := normalizeCompletedImageGenerationStatus(upstreamMessage); changed {
 				upstreamMessage = normalized

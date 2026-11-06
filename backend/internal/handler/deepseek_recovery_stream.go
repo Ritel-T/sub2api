@@ -3,9 +3,12 @@ package handler
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"io"
 	"net"
 	"net/http"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -42,6 +46,7 @@ type deepSeekRecoveryBlock struct {
 // access. Status/Size/Written describe the current virtual attempt; heartbeats
 // only affect the real downstream writer.
 type deepSeekRecoveryStream struct {
+	observationContext                          context.Context
 	mu                                          sync.Mutex
 	downstream                                  gin.ResponseWriter
 	protocol                                    string
@@ -693,7 +698,15 @@ func (w *deepSeekRecoveryStream) emitFrame(frame deepSeekRecoveryFrame) error {
 	b = append(b, []byte("data: ")...)
 	b = append(b, payload...)
 	b = append(b, '\n', '\n')
-	return w.emit(b, deepSeekRecoveryTool(frame.data))
+	err = w.emit(b, deepSeekRecoveryTool(frame.data))
+	if err == nil {
+		kind := service.OperationProtocolContentKind(w.protocol, payload, frame.event)
+		if gjson.GetBytes(payload, "choices.0.delta.content").String() == deepSeekRecoveryNotice || gjson.GetBytes(payload, "delta.text").String() == deepSeekRecoveryNotice {
+			kind = ""
+		}
+		requesttiming.OperationDelivery(w.observationContext, kind, false, nil)
+	}
+	return err
 }
 func (w *deepSeekRecoveryStream) emit(p []byte, tool bool) error {
 	if w.clientGone {

@@ -841,6 +841,9 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		}
 
 		upstreamMessage := []byte(openAICompatPayloadWithEventType(trimmedData, pendingSSEEventType))
+		if observe, ok := ctx.Value(openAIWSOperationSourceKey{}).(func([]byte)); ok {
+			observe(upstreamMessage)
+		}
 		if normalized, changed := normalizeCompletedImageGenerationStatus(upstreamMessage); changed {
 			upstreamMessage = normalized
 		}

@@ -36,7 +36,7 @@ func (h *UsageHandler) Connections(c *gin.Context) {
 		f.State = "all"
 	}
 	switch f.State {
-	case "edge_failed", "edge_completed", "all", "abnormal", "completed", "client_disconnected", "downstream_write_failed", "failed", "incomplete", "canceled", "unknown":
+	case "edge_failed", "edge_completed", "all", "abnormal", "completed", "client_disconnected", "downstream_write_failed", "failed", "incomplete", "canceled", "cancelled", "limited", "unknown":
 	default:
 		response.BadRequest(c, "Invalid connection state")
 		return
@@ -99,12 +99,22 @@ func (h *UsageHandler) Connections(c *gin.Context) {
 		response.BadRequest(c, "Connection diagnostic range must be positive and no longer than 31 days")
 		return
 	}
+	wantSummary := c.Query("operation_summary") == "true"
+	if wantSummary && f.End.Sub(f.Start) > time.Hour {
+		response.BadRequest(c, "Observed operation summary is limited to one hour")
+		return
+	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 8*time.Second)
 	defer cancel()
 	result, err := h.usageService.ListConnectionTraces(ctx, f)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	if wantSummary {
+		summaryCtx, summaryCancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+		result.OperationSummary = h.usageService.ObservedOperationSummary(summaryCtx, f)
+		summaryCancel()
 	}
 	response.Success(c, result)
 }

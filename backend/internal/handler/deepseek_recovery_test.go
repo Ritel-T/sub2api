@@ -14,10 +14,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -343,4 +345,59 @@ func TestDeepSeekRecoveryHandlersStructuredOutputDoesNotAppendRestart(t *testing
 	h.ChatCompletions(c)
 	require.Len(t, u.ids, 1, rec.Body.String())
 	require.NotContains(t, rec.Body.String(), "正在重新生成")
+}
+
+func TestDeepSeekRecoveryOperationObservation(t *testing.T) {
+	for _, protocol := range []string{"chat", "messages"} {
+		for _, scenario := range []string{"recovered", "tool", "reasoning_only", "budget"} {
+			t.Run(protocol+"/"+scenario, func(t *testing.T) {
+				u := &deepSeekRecoveryTestUpstream{response: func(n int, _ *http.Request) (int, string) {
+					if scenario == "recovered" && n == 1 {
+						return 502, `{"error":{"message":"upstream failed"}}`
+					}
+					if scenario == "tool" {
+						return 200, deepSeekChunk(`{"tool_calls":[{"index":0,"id":"call1","type":"function","function":{"name":"read","arguments":"{}"}}]}`, "null") + deepSeekChunk(`{}`, `"tool_calls"`) + "data: [DONE]\n\n"
+					}
+					if scenario == "reasoning_only" {
+						return 200, deepSeekChunk(`{"reasoning_content":"think"}`, "null") + deepSeekChunk(`{}`, `"stop"`) + "data: [DONE]\n\n"
+					}
+					if scenario == "budget" {
+						return 200, deepSeekChunk(`{"content":"partial"}`, "null") + deepSeekChunk(`{}`, `"length"`) + "data: [DONE]\n\n"
+					}
+					return 200, deepSeekSuccess()
+				}}
+				h, c, _, _ := deepSeekHandlerFixture(t, protocol, u)
+				collector := requesttiming.New(time.Now(), -1)
+				c.Request = c.Request.WithContext(requesttiming.With(c.Request.Context(), collector))
+				requesttiming.BeginOperation(c.Request.Context(), protocol, "http", "application")
+				var snapshot requesttiming.Snapshot
+				collector.WhenFinished(func(s requesttiming.Snapshot) { snapshot = s })
+				if protocol == "chat" {
+					h.ChatCompletions(c)
+				} else {
+					h.Messages(c)
+				}
+				collector.Finish(200, false)
+				require.NotNil(t, snapshot.Operation)
+				op := snapshot.Operation
+				switch scenario {
+				case "recovered":
+					require.Equal(t, "completed", op.FinalOutcome)
+					require.True(t, op.Recovered)
+					require.Equal(t, 2, op.AttemptCount)
+				case "tool":
+					require.Equal(t, "completed", op.FinalOutcome)
+					require.Equal(t, "tool", op.ContentKind)
+					require.NotNil(t, op.FirstUsableMS)
+				case "reasoning_only":
+					require.Equal(t, "incomplete", op.FinalOutcome)
+					require.Equal(t, "reasoning_only", op.Reason)
+					require.Nil(t, op.FirstUsableMS)
+				case "budget":
+					require.Equal(t, "incomplete", op.FinalOutcome)
+					require.Equal(t, "output_budget", op.Reason)
+				}
+			})
+		}
+	}
 }

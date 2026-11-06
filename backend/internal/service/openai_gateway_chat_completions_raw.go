@@ -75,6 +75,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletionsWithStartTime(
 ) (result *OpenAIForwardResult, resultErr error) {
 
 	// 1. Parse minimal fields needed for routing/billing
+	if gjson.GetBytes(body, "n").Int() > 1 {
+		c.Set("ops_operation_multichoice", true)
+		requesttiming.ObserveOperationSource(ctx, requesttiming.OperationEvidence{Protocol: "chat", Unsupported: true})
+	}
 	originalModel := gjson.GetBytes(body, "model").String()
 	if originalModel == "" {
 		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
@@ -334,6 +338,10 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	startTime time.Time,
 	requestBodyLen int,
 ) (*OpenAIForwardResult, error) {
+	observationCtx := requesttiming.ResponseContext(c.Request.Context(), resp)
+	if c.GetBool("ops_operation_multichoice") {
+		requesttiming.ObserveOperationSource(observationCtx, requesttiming.OperationEvidence{Protocol: "chat", Unsupported: true})
+	}
 	observer := upstreamResponseModelObserverFromContext(c)
 	if observer == nil {
 		observer = beginUpstreamResponseModelObservation(c)
@@ -389,6 +397,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			trimmedPayload := strings.TrimSpace(payload)
 			terminal.ObserveDataLine(trimmedPayload)
+			ObserveOperationProtocol(observationCtx, "chat", []byte(payload), "")
 			if trimmedPayload == "[DONE]" && c.Request != nil {
 				regionalMeterObserveUsage(c.Request.Context(), regionalUsagePayload, "json")
 			}
@@ -413,11 +422,13 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		if line == "" {
 			if !clientDisconnected && clientOutputStarted {
 				c.Writer.Flush()
+				operationProtocolOutputFlushed(observationCtx)
 			}
 			continue
 		}
 		if !clientDisconnected && clientOutputStarted {
 			c.Writer.Flush()
+			operationProtocolOutputFlushed(observationCtx)
 		}
 	}
 
@@ -458,6 +469,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	// 两者都不能再记成功——此前统一返回 nil error，把上游截断伪装成
 	// `HTTP 200 + usage 0/0`，客户端收到半截回答且 Ops 侧完全无感。
 	if !clientAborted && terminal.IsTruncated(clientOutputStarted) {
+		requesttiming.ObserveOperationSource(observationCtx, requesttiming.OperationEvidence{Protocol: "chat", Terminal: "failed", Complete: true, FailureReason: "source_missing_terminal"})
 		cause := scanErr
 		if cause == nil {
 			cause = ErrOpenAIUpstreamStreamTruncated
@@ -498,11 +510,15 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			}
 			if !clientDisconnected {
 				c.Writer.Flush()
+				operationProtocolOutputFlushed(observationCtx)
 				clientOutputStarted = true
 			}
 		}
 	}
 
+	if !clientDisconnected {
+		operationProtocolDelivered(observationCtx, nil)
+	}
 	return resultWithUsage(), nil
 }
 
@@ -554,6 +570,10 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	serviceTier *string,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
+	observationCtx := requesttiming.ResponseContext(c.Request.Context(), resp)
+	if c.GetBool("ops_operation_multichoice") {
+		requesttiming.ObserveOperationSource(observationCtx, requesttiming.OperationEvidence{Protocol: "chat", Unsupported: true})
+	}
 	requestID := resp.Header.Get("x-request-id")
 
 	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
@@ -581,6 +601,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		upstreamRequestID := firstNonEmpty(requestID, resp.Header.Get("xai-request-id"))
 		return nil, newGrokMissingUsageFailoverError(c, account, upstreamRequestID)
 	}
+	ObserveOperationProtocol(observationCtx, "chat", respBody, "")
 	respBody = applyOllamaCloudRawChatCompletionsResponse(account, respBody)
 	respBody = s.replaceModelInResponseBody(respBody, upstreamModel, originalModel)
 
@@ -593,7 +614,9 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		c.Writer.Header().Set("Content-Type", "application/json")
 	}
 	c.Writer.WriteHeader(http.StatusOK)
-	_, _ = c.Writer.Write(respBody)
+	_, observationWriteErr := c.Writer.Write(respBody)
+	operationProtocolOutputFlushed(observationCtx)
+	operationProtocolDelivered(observationCtx, observationWriteErr)
 
 	return &OpenAIForwardResult{
 		RequestID:                     requestID,
