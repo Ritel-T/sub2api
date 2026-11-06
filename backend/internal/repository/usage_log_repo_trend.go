@@ -838,7 +838,7 @@ func (r *usageLogRepository) GetAllGroupUsageSummary(ctx context.Context, todayS
 	daily, err := r.sql.QueryContext(ctx, `SELECT group_id,
  COALESCE(SUM(actual_cost) FILTER (WHERE created_at >= $1), 0),
  COALESCE(SUM(actual_cost) FILTER (WHERE created_at < $1), 0)
- FROM usage_logs WHERE created_at >= $2 AND created_at < $3 GROUP BY group_id`, userStart, userYesterday, userEnd)
+ FROM usage_logs WHERE group_id IS NOT NULL AND created_at >= $2 AND created_at < $3 GROUP BY group_id`, userStart, userYesterday, userEnd)
 	if err != nil {
 		return nil, err
 	}
