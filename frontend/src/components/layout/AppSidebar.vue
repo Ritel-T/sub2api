@@ -15,7 +15,7 @@
         <img :src="siteLogo" alt="" class="ritel-logo h-full w-full object-contain" />
       </span>
       <div class="sidebar-brand">
-        <span class="sidebar-brand-title">{{ siteName }}</span>
+        <span class="sidebar-brand-title"><span v-if="brandName.brand" class="ritel-brand-mark">{{ brandName.brand }}</span><span v-if="brandName.suffix" class="ritel-brand-suffix">{{ brandName.suffix }}</span></span>
         <VersionBadge v-if="isAdmin" :version="siteVersion" />
       </div>
       <button type="button" class="sidebar-mobile-close" :aria-label="t('common.close')" @click="closeMobile">
@@ -83,7 +83,7 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { sanitizeSvg } from '@/utils/sanitize'
-import { BRAND_LOGO, BRAND_NAME } from '@/utils/branding'
+import { BRAND_LOGO, BRAND_NAME, splitBrandName } from '@/utils/branding'
 import { consoleProductLinks, tabBadge } from '@/navigation/consoleNavigation'
 import { formatNavBadge } from '@/utils/consoleShellUi'
 import { useConsoleNav } from '@/navigation/useConsoleNavSource'
@@ -100,6 +100,7 @@ const sidebarRef = ref<HTMLElement | null>(null)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
 const siteName = computed(() => appStore.siteName || BRAND_NAME)
+const brandName = computed(() => splitBrandName(siteName.value))
 const siteLogo = BRAND_LOGO
 const siteVersion = computed(() => appStore.siteVersion)
 let mobileOpener: HTMLElement | null = null

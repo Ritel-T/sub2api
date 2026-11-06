@@ -16,7 +16,7 @@
         </button>
         <router-link :to="homePath" class="console-wordmark" :aria-label="siteName" @click="handleNavigate(homePath)">
           <img :src="siteLogo" alt="" class="ritel-logo console-wordmark-logo" />
-          <span class="console-wordmark-name">{{ siteName }}</span>
+          <span class="console-wordmark-name"><span v-if="brandName.brand" class="ritel-brand-mark">{{ brandName.brand }}</span><span v-if="brandName.suffix" class="ritel-brand-suffix">{{ brandName.suffix }}</span></span>
         </router-link>
 
         <div
@@ -165,7 +165,7 @@ import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import FeatureSearch from './FeatureSearch.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
-import { BRAND_LOGO, BRAND_NAME } from '@/utils/branding'
+import { BRAND_LOGO, BRAND_NAME, splitBrandName } from '@/utils/branding'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { useConsoleNav } from '@/navigation/useConsoleNavSource'
 import { consoleShellCopy, formatNavBadge } from '@/utils/consoleShellUi'
@@ -183,6 +183,7 @@ const {
 } = useConsoleNav()
 
 const siteName = computed(() => appStore.siteName || BRAND_NAME)
+const brandName = computed(() => splitBrandName(siteName.value))
 const siteLogo = BRAND_LOGO
 const siteVersion = computed(() => appStore.siteVersion)
 const isAdmin = computed(() => authStore.isAdmin)
