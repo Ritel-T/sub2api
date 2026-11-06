@@ -43,9 +43,16 @@ func UserTimezone(ctx context.Context) string {
 	name := UserLocation(ctx).String()
 	if name == "Local" || name == "" {
 		if configured := strings.TrimSpace(os.Getenv("TZ")); configured != "" {
-			return configured
+			name = configured
+		} else {
+			name = "UTC"
 		}
-		return "UTC"
+	}
+	if name == "UTC" {
+		return name
+	}
+	if canonical, ok := ianaZoneAliases[name]; ok {
+		return canonical
 	}
 	return name
 }
