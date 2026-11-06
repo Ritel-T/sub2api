@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => {
   const router = {
     isReady: vi.fn(),
     replace: vi.fn(),
+    resolve: vi.fn(() => ({ matched: [] })),
     options: { history: { location: '/dashboard?keep=1#usage' } }
   }
   return {
@@ -62,6 +63,27 @@ function expectSetupOnce() {
 }
 
 describe('startup entrypoint', () => {
+  it('loads locale, identity and the matched route together while withholding the mount', async () => {
+    let releaseLocale!: () => void
+    let releaseAuth!: () => void
+    mocks.initI18n.mockImplementation(() => new Promise<void>(resolve => { releaseLocale = resolve }))
+    mocks.auth.mockImplementation(() => new Promise<void>(resolve => { releaseAuth = resolve }))
+    const component = vi.fn().mockResolvedValue({})
+    mocks.router.resolve.mockReturnValueOnce({ matched: [{ components: { default: component } }] } as never)
+    await import('../../main')
+    await settle()
+    expect(component).toHaveBeenCalledTimes(1)
+    expect(mocks.initI18n).toHaveBeenCalledTimes(1)
+    expect(mocks.auth).toHaveBeenCalledTimes(1)
+    expect(mocks.app.mount).not.toHaveBeenCalled()
+    releaseAuth()
+    await settle()
+    expect(mocks.app.mount).not.toHaveBeenCalled()
+    releaseLocale()
+    await settle()
+    expectSetupOnce()
+  })
+
   it('withholds mounting until hydration succeeds, then automatically resumes without repeating setup', async () => {
     mocks.auth.mockRejectedValueOnce(new Error('502'))
     await import('../../main')

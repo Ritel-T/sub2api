@@ -18,6 +18,7 @@ import { getSetupStatus } from '@/api/setup'
 import { paymentAPI } from '@/api/payment'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
+import { clearRouteLoadFailure, reportRouteLoadFailure } from '@/utils/routeLoadRecovery'
 
 /**
  * Route definitions with lazy loading
@@ -1220,9 +1221,10 @@ router.beforeEach(async (to, _from, next) => {
 /**
  * Navigation guard: End loading and trigger prefetch
  */
-router.afterEach((to) => {
+router.afterEach((to, _from, failure) => {
   // 结束导航加载状态
   navigationLoading.endNavigation()
+  if (!failure) clearRouteLoadFailure()
 
   // 懒初始化预加载（首次导航时创建，传入 router 实例）
   if (!routePrefetch) {
@@ -1236,34 +1238,10 @@ router.afterEach((to) => {
  * Navigation guard: Error handling
  * Handles dynamic import failures caused by deployment updates
  */
-router.onError((error) => {
+router.onError((error, to) => {
   console.error('Router error:', error)
-
-  // Check if this is a dynamic import failure (chunk loading error)
-  const isChunkLoadError =
-    error.message?.includes('Failed to fetch dynamically imported module') ||
-    error.message?.includes('Loading chunk') ||
-    error.message?.includes('Loading CSS chunk') ||
-    error.name === 'ChunkLoadError'
-
-  if (isChunkLoadError) {
-    // Initial navigation belongs to the startup recovery shell. A temporary
-    // chunk/network failure can retry in place without discarding this document.
-    if (!document.getElementById('app')?.hasAttribute('data-v-app')) return
-    // Avoid infinite reload loop by checking sessionStorage
-    const reloadKey = 'chunk_reload_attempted'
-    const lastReload = sessionStorage.getItem(reloadKey)
-    const now = Date.now()
-
-    // Allow reload if never attempted or more than 10 seconds ago
-    if (!lastReload || now - parseInt(lastReload) > 10000) {
-      sessionStorage.setItem(reloadKey, now.toString())
-      console.warn('Chunk load error detected, reloading page to fetch latest version...')
-      window.location.reload()
-    } else {
-      console.error('Chunk load error persists after reload. Please clear browser cache.')
-    }
-  }
+  navigationLoading.endNavigation()
+  void reportRouteLoadFailure(error, to.fullPath)
 })
 
 export default router
