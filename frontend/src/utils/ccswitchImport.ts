@@ -3,12 +3,12 @@ import type { CcsImportApp, CcsImportConfig, CcsImportProfile } from '@/types/cc
 
 export type CcSwitchApplicationProfile = Omit<CcsImportProfile, 'platform'> & { platform: GroupPlatform }
 
-export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-6-astra'
+export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-6.1-sol'
 export const GROK_CC_SWITCH_MODEL = 'grok-4.7'
-export const CLAUDE_CC_SWITCH_MODEL = 'claude-fable-5-1'
+export const CLAUDE_CC_SWITCH_MODEL = 'claude-opus-5-5'
 export const GEMINI_CC_SWITCH_MODEL = 'gemini-4-argon'
 
-/** Flagship text models checked against the live provider catalog on 2026-11-04. */
+/** GPT/Claude defaults selected by the administrator on 2026-11-06; other platforms retain their defaults. */
 export function getCcSwitchDefaultModel(platform: GroupPlatform, app?: CcsImportApp): string {
   if (app === 'gemini' || app === 'agy') return GEMINI_CC_SWITCH_MODEL
   const models: Partial<Record<GroupPlatform, string>> = {

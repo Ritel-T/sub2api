@@ -15,7 +15,7 @@ function paramsFromDeeplink(deeplink: string): URLSearchParams {
 
 describe('ccswitchImport utils', () => {
   it('defaults OpenAI CC Switch imports to the current Codex model', () => {
-    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-6-astra')
+    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-6.1-sol')
   })
 
   it('defaults Grok Build imports to the current Grok model', () => {
@@ -72,7 +72,7 @@ describe('ccswitchImport utils', () => {
   })
 
   it.each([
-    { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude', model: 'claude-fable-5-1' },
+    { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude', model: 'claude-opus-5-5' },
     { platform: 'gemini' as GroupPlatform, clientType: 'gemini' as const, app: 'gemini', model: 'gemini-4-argon' }
   ])('includes the production default model for $platform imports', ({ platform, clientType, app, model }) => {
     const params = paramsFromDeeplink(
@@ -155,7 +155,7 @@ describe('Antigravity CC Switch endpoint', () => {
       expect(url.searchParams.get('endpoint')).toBe(endpoint)
       expect(url.searchParams.get('app')).toBe(clientType)
       expect(url.searchParams.get('homepage')).toBe(baseUrl)
-      expect(url.searchParams.get('model')).toBe(clientType === 'claude' ? 'claude-fable-5-1' : 'gemini-4-argon')
+      expect(url.searchParams.get('model')).toBe(clientType === 'claude' ? 'claude-opus-5-5' : 'gemini-4-argon')
     }
   })
 })

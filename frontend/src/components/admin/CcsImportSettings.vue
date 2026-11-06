@@ -157,7 +157,7 @@ const fieldGroups: Array<{ id: string; labelKey: string; fields: ParameterField[
   {
     id: 'provider', labelKey: 'consoleInline.providerAndModel_0cf867', fields: [
       { key: 'name', labelKey: 'consoleInline.providerName_6c5717', placeholder: '{{siteName}}' },
-      { key: 'model', labelKey: 'consoleInline.defaultModel_aa5219', placeholder: 'gpt-6-astra' },
+      { key: 'model', labelKey: 'consoleInline.defaultModel_aa5219', placeholder: 'gpt-6.1-sol' },
       { key: 'endpoint', labelKey: 'consoleInline.aPIEndpointMultipleEndpoints_a13df6', placeholder: '{{baseUrl}}', hintKey: 'consoleInline.separateMultipleEndpointsWithCommasIncludeThe_c1e40b' },
       { key: 'homepage', labelKey: 'consoleInline.providerHomepage_df4038', placeholder: '{{baseUrl}}' },
       { key: 'apiFormat', labelKey: 'consoleInline.aPIFormat_564ff6', hintKey: 'consoleInline.leaveBlankForTheSiteApplicationDefault_a5c940' },
@@ -268,7 +268,7 @@ function addProfile() {
   while (props.modelValue.profiles.some(profile => profile.id === `openai-codex-${suffix}`)) suffix++
   const profile: CcsImportProfile = {
     id: `openai-codex-${suffix}`, label: `OpenAI Codex ${suffix}`, platform: 'openai', app: 'codex',
-    parameters: template ? { ...template.parameters } : { model: 'gpt-6-astra' },
+    parameters: template ? { ...template.parameters } : { model: 'gpt-6.1-sol' },
   }
   selectedPlatform.value = profile.platform
   selectedDefaultApp.value = null

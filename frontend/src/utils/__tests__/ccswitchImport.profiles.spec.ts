@@ -40,10 +40,10 @@ describe('user CC Switch application choices', () => {
     const params = new URL(buildCcSwitchImportDeeplink({ ...base, profile })).searchParams
     expect(params.get('apiFormat')).toBe('openai_responses')
     expect(params.get('endpoint')).toBe('https://api.example.com/v1')
-    expect(params.get('model')).toBe('gpt-6-astra')
-    expect(params.get('haikuModel')).toBe('gpt-6-astra')
-    expect(params.get('sonnetModel')).toBe('gpt-6-astra')
-    expect(params.get('opusModel')).toBe('gpt-6-astra')
+    expect(params.get('model')).toBe('gpt-6.1-sol')
+    expect(params.get('haikuModel')).toBe('gpt-6.1-sol')
+    expect(params.get('sonnetModel')).toBe('gpt-6.1-sol')
+    expect(params.get('opusModel')).toBe('gpt-6.1-sol')
   })
 
   it('uses compatible formats for Gemini keys in clients without native Gemini support', () => {
@@ -76,13 +76,13 @@ describe('user CC Switch application choices', () => {
 const decode = (encoded: string) => new TextDecoder().decode(Uint8Array.from(atob(encoded), byte => byte.charCodeAt(0)))
 
 describe('administrator CC Switch provider profiles', () => {
-  it('uses fresh defaults with Astra and preserves explicitly disabled platforms', () => {
+  it('uses fresh defaults with Sol and preserves explicitly disabled platforms', () => {
     const defaults = createDefaultCcSwitchImportConfig()
-    expect(getCcSwitchImportProfiles('openai')[0]?.parameters.model).toBe('gpt-6-astra')
+    expect(getCcSwitchImportProfiles('openai')[0]?.parameters.model).toBe('gpt-6.1-sol')
     expect(getCcSwitchImportProfiles('antigravity')).toHaveLength(2)
     expect(getCcSwitchImportProfiles('openai', { profiles: [] })).toEqual([])
     defaults.profiles[1]!.parameters.model = 'edited'
-    expect(createDefaultCcSwitchImportConfig().profiles[1]?.parameters.model).toBe('gpt-6-astra')
+    expect(createDefaultCcSwitchImportConfig().profiles[1]?.parameters.model).toBe('gpt-6.1-sol')
     expect(() => buildCcSwitchImportDeeplink({ ...base, settings: { profiles: [] } })).toThrow('No CC Switch')
   })
 

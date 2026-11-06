@@ -11,7 +11,7 @@ import (
 func TestCCSImportDefaultsAndStorageFallback(t *testing.T) {
 	defaults := DefaultCCSImportConfig()
 	require.Len(t, defaults.Profiles, 6)
-	require.Equal(t, "gpt-6-astra", defaults.Profiles[1].Parameters["model"])
+	require.Equal(t, "gpt-6.1-sol", defaults.Profiles[1].Parameters["model"])
 	for _, raw := range []string{"", "null", "{broken", `{"profiles":null}`, `{"profiles":[{"id":"x","label":"bad","platform":"unsupported","app":"codex"}]}`} {
 		require.Equal(t, defaults, parseCCSImportConfigOrDefault(raw), raw)
 	}
@@ -20,7 +20,7 @@ func TestCCSImportDefaultsAndStorageFallback(t *testing.T) {
 	require.Empty(t, disabled.Profiles)
 	// Callers must not share mutable default parameter maps.
 	defaults.Profiles[1].Parameters["model"] = "changed"
-	require.Equal(t, "gpt-6-astra", DefaultCCSImportConfig().Profiles[1].Parameters["model"])
+	require.Equal(t, "gpt-6.1-sol", DefaultCCSImportConfig().Profiles[1].Parameters["model"])
 }
 
 func TestCCSImportRoundTripPreservesRawTemplatesAndEmptyOverrides(t *testing.T) {
