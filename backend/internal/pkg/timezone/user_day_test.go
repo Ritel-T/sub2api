@@ -44,3 +44,36 @@ func TestUserDayFallbackMatchesServerDay(t *testing.T) {
 		require.True(t, end.Equal(wantEnd))
 	}
 }
+
+func TestIndianapolisBrowserAliasPreservesCalendarForPostgres(t *testing.T) {
+	const alias = "America/Indianapolis"
+	const canonical = "America/Indiana/Indianapolis"
+	ctx := WithUserDay(context.Background(), alias)
+	require.Equal(t, canonical, UserTimezone(ctx))
+	canonicalLocation, err := time.LoadLocation(UserTimezone(ctx))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		date  string
+		hours time.Duration
+	}{
+		// Indianapolis did not observe DST in 2005. Preserve historical rules
+		// instead of replacing the zone with a fixed current offset or New York.
+		{"2005-07-01", 24},
+		{"2026-03-08", 23},
+		{"2026-07-01", 24},
+		{"2026-11-01", 25},
+	} {
+		t.Run(tc.date, func(t *testing.T) {
+			start, err := ParseRangeBoundary(tc.date, alias, false)
+			require.NoError(t, err)
+			end, err := ParseRangeBoundary(tc.date, alias, true)
+			require.NoError(t, err)
+			wantStart, err := time.ParseInLocation("2006-01-02", tc.date, canonicalLocation)
+			require.NoError(t, err)
+			require.True(t, start.Equal(wantStart))
+			require.True(t, end.Equal(wantStart.AddDate(0, 0, 1)))
+			require.Equal(t, tc.hours*time.Hour, end.Sub(start))
+		})
+	}
+}

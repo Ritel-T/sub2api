@@ -12,17 +12,21 @@ import (
 )
 
 func TestPanelTrendsUseRequestTimezoneWithPreciseUTCRange(t *testing.T) {
-	for _, zone := range []string{"America/New_York", "Asia/Kathmandu"} {
-		t.Run(zone, func(t *testing.T) {
+	for _, tc := range []struct{ zone, sqlZone string }{
+		{"America/New_York", "America/New_York"},
+		{"Asia/Kathmandu", "Asia/Kathmandu"},
+		{"America/Indianapolis", "America/Indiana/Indianapolis"},
+	} {
+		t.Run(tc.zone, func(t *testing.T) {
 			db, mock, err := sqlmock.New()
 			require.NoError(t, err)
 			defer db.Close()
 			repo := newUsageLogRepositoryWithSQL(nil, db)
-			ctx := timezone.WithUserDay(context.Background(), zone)
+			ctx := timezone.WithUserDay(context.Background(), tc.zone)
 			// Explicit UTC bounds must not erase the selected display calendar.
 			start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
 			end := start.Add(24 * time.Hour)
-			mock.ExpectQuery(`(?s)TO_CHAR\(created_at AT TIME ZONE \$3.*FROM usage_logs`).WithArgs(start, end, zone).
+			mock.ExpectQuery(`(?s)TO_CHAR\(created_at AT TIME ZONE \$3.*FROM usage_logs`).WithArgs(start, end, tc.sqlZone).
 				WillReturnRows(sqlmock.NewRows([]string{"date", "requests", "input", "output", "cache_creation", "cache_read", "tokens", "cost", "actual"}).AddRow("2026-10-31", 1, 1, 2, 0, 0, 3, 0.1, 0.1))
 			rows, err := repo.GetUsageTrendWithFilters(ctx, start, end, "day", 0, 0, 0, 0, "", nil, nil, nil)
 			require.NoError(t, err)
@@ -31,6 +35,21 @@ func TestPanelTrendsUseRequestTimezoneWithPreciseUTCRange(t *testing.T) {
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
+}
+
+func TestPanelUsersTrendNormalizesIndianapolisBrowserAlias(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	ctx := timezone.WithUserDay(context.Background(), "America/Indianapolis")
+	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	mock.ExpectQuery(`(?s)TO_CHAR\(u.created_at AT TIME ZONE \$6.*FROM usage_logs`).
+		WithArgs(start, end, 12, start, end, "America/Indiana/Indianapolis").
+		WillReturnRows(sqlmock.NewRows([]string{"date", "user_id", "email", "username", "requests", "tokens", "cost", "actual"}))
+	_, err = newUsageLogRepositoryWithSQL(nil, db).GetUserUsageTrend(ctx, start, end, "day", 12, "tokens")
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestPanelBatchKeyTodayUsesUserDay(t *testing.T) {

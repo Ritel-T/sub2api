@@ -41,6 +41,12 @@ func UserLocation(ctx context.Context) *time.Location {
 // UserTimezone is suitable for PostgreSQL AT TIME ZONE parameters.
 func UserTimezone(ctx context.Context) string {
 	name := UserLocation(ctx).String()
+	// Browsers can report this IANA backward link. Go's embedded tzdata
+	// accepts it, but PostgreSQL installations may omit backward links.
+	// Use the equivalent named zone, retaining historical and DST rules.
+	if name == "America/Indianapolis" {
+		return "America/Indiana/Indianapolis"
+	}
 	if name == "Local" || name == "" {
 		if configured := strings.TrimSpace(os.Getenv("TZ")); configured != "" {
 			return configured
