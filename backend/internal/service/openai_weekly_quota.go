@@ -71,12 +71,13 @@ func openAIWeeklyQuotaTiers() []OpenAIWeeklyQuotaTier {
 }
 
 type openAIWeeklyQuotaRow struct {
-	tier           int
-	reason         string
-	remaining      int64
-	snapshot       time.Time
-	accountID      int64
-	maxConcurrency int
+	tier                 int
+	reason               string
+	remaining            int64
+	snapshot             time.Time
+	accountID            int64
+	maxConcurrency       int
+	concurrencyAvailable bool
 }
 
 // CollectOpenAIWeeklyQuota reads the full OAuth pool, ignoring UI query filters.
@@ -118,9 +119,12 @@ func CollectOpenAIWeeklyQuota(ctx context.Context, lister OpenAIWeeklyQuotaAccou
 		case "expired_snapshot":
 			result.Excluded.ExpiredSnapshot++
 		default:
-			// The successful quota rows are the single pool for every aggregate.
-			accountIDs = append(accountIDs, row.accountID)
-			result.TotalConcurrency += row.maxConcurrency
+			// Weekly quota remains meaningful while a Plus 5h window is exhausted.
+			// Both concurrency numbers use the same currently available subset.
+			if row.concurrencyAvailable {
+				accountIDs = append(accountIDs, row.accountID)
+				result.TotalConcurrency += row.maxConcurrency
+			}
 			tier := &result.Tiers[row.tier]
 			tier.AccountCount++
 			tierUnits[row.tier] += row.remaining
@@ -232,6 +236,11 @@ func evaluateOpenAIWeeklyQuota(a *Account, now time.Time) openAIWeeklyQuotaRow {
 	row.reason = reason
 	if reason != "" {
 		return row
+	}
+	row.concurrencyAvailable = true
+	if plan == "plus" {
+		used5h, known := resolveOpenAIQuotaUtilization(a.Extra, "5h", now)
+		row.concurrencyAvailable = !known || used5h < 1
 	}
 	row.snapshot = at
 	row.remaining = int64(math.Round(tiers[row.tier].WeeklyLimit * (1 - used/100) * openAIWeeklyQuotaScale))
