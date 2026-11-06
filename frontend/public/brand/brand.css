@@ -37,7 +37,7 @@
 .ritel-heading{font-family:var(--ritel-heading);font-synthesis:none}
 /* Family identity keeps Cinzel's native small capitals. Product names use display type. */
 .ritel-brand-mark{font-family:var(--ritel-heading);font-weight:400;font-style:normal;font-synthesis:none;text-transform:none}
-.ritel-brand-suffix{font-family:var(--ritel-display);font-weight:400;font-style:normal;font-synthesis:none;text-transform:none}
+.ritel-brand-suffix{font-family:var(--ritel-display);font-size:1.12em;font-weight:600;font-style:normal;font-synthesis:none;text-transform:none}
 .ritel-number-hero,[data-number=hero]{font-family:var(--ritel-display);font-variant-numeric:oldstyle-nums proportional-nums;font-synthesis:none;letter-spacing:0}
 .ritel-number-display,[data-number=display]{font-family:var(--ritel-display);font-weight:500;font-variant-numeric:lining-nums proportional-nums;font-synthesis:none;letter-spacing:0}
 .ritel-number-compact,[data-number=compact]{font-family:var(--ritel-ui);font-variant-numeric:lining-nums tabular-nums;font-synthesis:none;letter-spacing:0}

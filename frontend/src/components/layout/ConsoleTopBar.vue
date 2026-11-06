@@ -334,6 +334,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 .console-wordmark-name {
+  line-height: 1.2;
   font-family: var(--ritel-heading);
   font-size: 18px;
   font-weight: 400;
@@ -348,6 +349,7 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 .console-top-bar-compact .console-wordmark-name {
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
 }
