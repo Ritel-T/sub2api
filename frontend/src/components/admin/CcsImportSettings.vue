@@ -109,13 +109,13 @@ const parameterDefaults = computed(() => selectedProfile.value
   ? getCcSwitchImportParameterDefaults(selectedProfile.value, props.baseUrl || '{{baseUrl}}') : {})
 const templateTokens = ['{{apiKey}}', '{{baseUrl}}', '{{siteName}}', '{{keyName}}', '{{userId}}']
 const platforms: CcsImportPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'deepseek', 'minimax', 'kimi', 'zhipu', 'opencode_go', 'composite']
-const apps: CcsImportApp[] = ['claude', 'codex', 'gemini', 'agy', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi']
+const apps: CcsImportApp[] = ['claude', 'codex', 'gemini', 'agy', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi', 'claude-desktop', 'mcode', 'kimi', 'dsh', 'omp']
 const apiFormats = computed(() => formatsForApp(selectedProfile.value?.app))
 
 function formatsForApp(app?: CcsImportApp): string[] {
   if (app === 'gemini' || app === 'agy') return ['gemini_native']
   const formats = ['anthropic', 'openai_chat', 'openai_responses']
-  return app && ['claude', 'opencode', 'openclaw', 'pi'].includes(app) ? [...formats, 'gemini_native'] : formats
+  return app && ['claude', 'claude-desktop', 'opencode', 'openclaw', 'pi', 'kimi', 'omp'].includes(app) ? [...formats, 'gemini_native'] : formats
 }
 
 interface ParameterField {
@@ -186,8 +186,8 @@ function updateProfile(patch: Partial<CcsImportProfile>) {
 }
 
 function parameterText(key: string): string {
-  // Pi templates require their model explicitly, even though generated choices inherit it.
-  if (key === 'model' && selectedProfile.value?.app === 'pi') return String(selectedProfile.value.parameters.model || '')
+  // These clients require an explicit model in the import link.
+  if (key === 'model' && selectedProfile.value && ['pi', 'mcode', 'kimi', 'dsh', 'omp'].includes(selectedProfile.value.app)) return String(selectedProfile.value.parameters.model || '')
   const value = selectedProfile.value?.parameters[key] ?? parameterDefaults.value[key]
   // These empty strings are accepted by the API and inherit the current default.
   if (value === '' && ['model', 'name', 'homepage', 'endpoint', 'apiFormat', 'configFormat', 'usageApiKey', 'usageBaseUrl'].includes(key)) return String(parameterDefaults.value[key] ?? '')
@@ -251,7 +251,7 @@ function validate(): string | null {
     ids.add(profile.id)
     if (!platforms.includes(profile.platform) || !apps.includes(profile.app)) return prefix + t('consoleInline.invalidPlatformOrApplication_245428')
     if (profile.platform === 'gemini' && profile.app === 'hermes' && !profile.parameters.apiFormat) return prefix + t('consoleInline.hermesDoesNotSupportNativeGeminiSelect_832744')
-    if (profile.app === 'pi' && (typeof profile.parameters.model !== 'string' || !profile.parameters.model.trim())) return prefix + t('consoleInline.piImportsRequireADefaultModel_5a3ae3')
+    if (['pi', 'mcode', 'kimi', 'dsh', 'omp'].includes(profile.app) && (typeof profile.parameters.model !== 'string' || !profile.parameters.model.trim())) return prefix + t('consoleInline.piImportsRequireADefaultModel_5a3ae3').replace('Pi', profile.app === 'pi' ? 'Pi' : profile.app)
     for (const [key, value] of Object.entries(profile.parameters)) {
       if (!supportedParameters.has(key)) return prefix + t('consoleInline.unsupportedParameter_99b8ea') + key
       if (booleanParameters.has(key)) {

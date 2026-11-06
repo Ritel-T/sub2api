@@ -85,8 +85,8 @@ func TestCCSImportAPIFormatCompatibility(t *testing.T) {
 		for format := range ccsImportAPIFormats {
 			profile := CCSImportProfile{ID: "test", Label: "Test", Platform: "openai", App: app, Parameters: map[string]any{"apiFormat": format, "model": "required-model"}}
 			_, err := NormalizeCCSImportConfig(CCSImportConfig{Profiles: []CCSImportProfile{profile}})
-			allowed := (app != "gemini" || format == "gemini_native") &&
-				(format != "gemini_native" || (app != "codex" && app != "grokbuild" && app != "hermes"))
+			allowed := ((app != "gemini" && app != "agy") || format == "gemini_native") &&
+				(format != "gemini_native" || (app != "codex" && app != "grokbuild" && app != "hermes" && app != "mcode" && app != "dsh"))
 			require.Equal(t, allowed, err == nil, "%s/%s: %v", app, format, err)
 		}
 	}

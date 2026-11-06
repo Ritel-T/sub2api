@@ -75,6 +75,7 @@ var ccsImportPlatforms = map[string]bool{
 var ccsImportApps = map[string]bool{
 	"claude": true, "codex": true, "gemini": true, "agy": true, "grokbuild": true,
 	"opencode": true, "openclaw": true, "hermes": true, "pi": true,
+	"claude-desktop": true, "mcode": true, "kimi": true, "dsh": true, "omp": true,
 }
 var ccsImportStringParameters = map[string]bool{
 	"name": true, "endpoint": true, "homepage": true, "model": true,
@@ -198,10 +199,10 @@ func validateCCSImportFormats(profile CCSImportProfile) error {
 		return fmt.Errorf("configFormat must be json or toml")
 	}
 	config, _ := profile.Parameters["config"].(string)
-	if profile.App == "pi" {
+	if profile.App == "pi" || profile.App == "mcode" || profile.App == "kimi" || profile.App == "dsh" || profile.App == "omp" {
 		model, _ := profile.Parameters["model"].(string)
 		if strings.TrimSpace(model) == "" {
-			return fmt.Errorf("pi requires a nonempty model parameter")
+			return fmt.Errorf("%s requires a nonempty model parameter", profile.App)
 		}
 	}
 	if config != "" {
@@ -252,7 +253,7 @@ func validateCCSImportAPIFormat(profile CCSImportProfile) error {
 	if (profile.App == "gemini" || profile.App == "agy") && format != "gemini_native" {
 		return fmt.Errorf("%s only supports gemini_native apiFormat", profile.App)
 	}
-	if format == "gemini_native" && (profile.App == "codex" || profile.App == "grokbuild" || profile.App == "hermes") {
+	if format == "gemini_native" && (profile.App == "codex" || profile.App == "grokbuild" || profile.App == "hermes" || profile.App == "mcode" || profile.App == "dsh") {
 		return fmt.Errorf("%s does not support gemini_native apiFormat", profile.App)
 	}
 	return nil

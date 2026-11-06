@@ -24,7 +24,7 @@ describe('user CC Switch application choices', () => {
   it.each(['openai', 'anthropic', 'gemini', 'antigravity', 'grok', 'deepseek', 'minimax', 'composite'] as const)(
     'offers the same ordered applications for a %s key and preserves its key in each link', platform => {
       const profiles = getCcSwitchApplicationProfiles(platform)
-      expect(profiles.map(item => item.app)).toEqual(['codex', 'claude', 'opencode', 'openclaw', 'gemini', 'agy', 'grokbuild', 'hermes', 'pi'])
+      expect(profiles.map(item => item.app)).toEqual(['codex', 'claude', 'opencode', 'openclaw', 'gemini', 'agy', 'grokbuild', 'hermes', 'pi', 'claude-desktop', 'mcode', 'kimi', 'dsh', 'omp'])
       for (const item of profiles) {
         const params = new URL(buildCcSwitchImportDeeplink({ ...base, platform, profile: item })).searchParams
         expect(params.get('apiKey')).toBe(base.apiKey)
@@ -49,7 +49,7 @@ describe('user CC Switch application choices', () => {
   it('uses compatible formats for Gemini keys in clients without native Gemini support', () => {
     for (const profile of getCcSwitchApplicationProfiles('gemini')) {
       const params = new URL(buildCcSwitchImportDeeplink({ ...base, platform: 'gemini', profile })).searchParams
-      expect(params.get('apiFormat')).toBe(['codex', 'grokbuild', 'hermes'].includes(profile.app) ? 'openai_responses' : 'gemini_native')
+      expect(params.get('apiFormat')).toBe(['codex', 'grokbuild', 'hermes', 'mcode', 'dsh'].includes(profile.app) ? 'openai_responses' : 'gemini_native')
     }
   })
 

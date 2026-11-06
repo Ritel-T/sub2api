@@ -78,35 +78,24 @@
           <p v-if="activeApplication === 'codex'" class="text-sm text-gray-600 dark:text-gray-300">{{ kc.codexSharedConfig }}</p>
           <div v-if="activeApplication === 'claude-desktop'" class="space-y-2 text-sm text-gray-600 dark:text-gray-300" data-testid="claude-desktop-import-guide">
             <p>{{ kc.claudeDesktopSeparate }}</p>
-            <p>{{ kc.claudeDesktopImportLimit }}</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button v-for="profile in selectedCcsProfiles" :key="profile.id" type="button" class="btn btn-primary" :disabled="!canImportApplication(profile)" :title="canImportApplication(profile) ? undefined : kc.geminiNativeOnly" :data-testid="`connection-ccs-${profile.id}`" @click="importConnection(profile)">
-              <Icon name="download" size="sm" class="mr-2" />{{ activeApplication === 'claude-desktop' ? kc.claudeDesktopImportSource : kc.oneClickImport }} · {{ profile.label }}
+            <button v-for="profile in selectedCcsProfiles" :key="profile.id" type="button" class="btn btn-primary" :disabled="!canImportApplication(profile)" :title="canImportApplication(profile) ? undefined : profile.app === 'omp' ? kc.ompKeyLimit : kc.geminiNativeOnly" :data-testid="`connection-ccs-${profile.id}`" @click="importConnection(profile)">
+              <Icon name="download" size="sm" class="mr-2" />{{ kc.oneClickImport }} · {{ profile.label }}
             </button>
           </div>
           <p class="text-sm text-gray-600 dark:text-gray-300">{{ kc.defaultModel }} · <code>{{ selectedCcsModels.join(' / ') }}</code></p>
           <div v-if="activeApplication === 'claude-desktop'" class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
             <p>{{ kc.claudeDesktopImportNext }}</p>
             <p>{{ kc.claudeDesktopRestart }}</p>
-            <a href="https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/zh/2-providers/2.6-claude-desktop.md" target="_blank" rel="noopener noreferrer" class="link">{{ kc.officialGuide }} ↗</a>
+            <a href="https://github.com/farion1231/cc-switch/blob/v4.0.26/docs/user-manual/zh/2-providers/2.6-claude-desktop.md" target="_blank" rel="noopener noreferrer" class="link">{{ kc.officialGuide }} ↗</a>
           </div>
           <p v-else class="text-sm text-gray-500 dark:text-gray-400">{{ ['gemini', 'agy'].includes(activeApplication) ? kc.geminiNativeOnly : kc.ccsRouting }} <a href="https://ccswitch.io" target="_blank" rel="noopener noreferrer" class="link">{{ kc.downloadCcs }}</a></p>
+          <p v-if="['claude-desktop', 'mcode', 'kimi', 'dsh', 'omp'].includes(activeApplication)" class="text-sm text-gray-500 dark:text-gray-400">{{ kc.ccsNewImportVersion }}</p>
+          <p v-if="activeApplication === 'kimi'" class="text-sm text-gray-500 dark:text-gray-400">{{ kc.kimiModelNamespace }}</p>
+          <p v-if="activeApplication === 'omp'" class="text-sm text-gray-500 dark:text-gray-400">{{ kc.ompKeyLimit }}</p>
           <p v-if="ccsImportFailed" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ t('keys.ccSwitchNotInstalled') }}</p>
         </div>
-        <section v-if="nativeCcsConfiguration" class="space-y-3" data-testid="native-ccs-configuration">
-          <p class="text-sm text-gray-600 dark:text-gray-300">{{ kc.ccsNativeImportLimit }}</p>
-          <dl class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-            <div><dt class="inline text-gray-500 dark:text-gray-400">{{ kc.defaultModel }} · </dt><dd class="inline"><code>{{ nativeCcsModel }}</code></dd></div>
-            <div><dt class="inline text-gray-500 dark:text-gray-400">{{ kc.configurationFile }} · </dt><dd class="inline"><code>{{ nativeCcsConfiguration.file }}</code></dd></div>
-          </dl>
-          <div class="flex flex-wrap gap-2">
-            <button type="button" class="btn btn-primary" data-testid="copy-native-ccs-configuration" @click="clipboardCopy(nativeCcsConfiguration.content)"><Icon name="copy" size="sm" class="mr-2" />{{ kc.copyConfiguration }}</button>
-            <button type="button" class="btn btn-secondary" data-testid="download-native-ccs-configuration" @click="downloadNativeCcsConfiguration"><Icon name="download" size="sm" class="mr-2" />{{ kc.downloadConfiguration }}</button>
-          </div>
-          <p class="text-sm text-gray-600 dark:text-gray-300">{{ kc.ccsNativeImportNext }}</p>
-          <a href="https://github.com/farion1231/cc-switch/blob/v4.0.25/docs/user-manual/zh/2-providers/2.1-add.md" target="_blank" rel="noopener noreferrer" class="link text-sm">{{ kc.officialGuide }} ↗</a>
-        </section>
         <section v-if="activeClientTab === 'dsh'" class="space-y-3" data-testid="dsh-guide">
           <AppHeading as="h3" variant="subsection">DeepSeek Harness · dsh</AppHeading>
           <ol class="list-decimal space-y-2 pl-5 text-sm leading-6">
@@ -356,14 +345,13 @@ import { ref, computed, h, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useKeyConnectionCopy } from './keyConnectionCopy'
 import CcsAppIcon from './CcsAppIcon.vue'
-import { buildCcsNativeConfiguration } from './ccsNativeConfiguration'
 import { saveAs } from 'file-saver'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { buildCodexModelCatalogUrl, fetchCodexModelsManifest } from '@/api/codex'
 import type { ApiKey, GroupPlatform, PublicSettings } from '@/types'
-import { buildCcSwitchImportDeeplink, getCcSwitchApplicationProfiles, getCcSwitchDefaultModel, type CcSwitchApplicationProfile } from '@/utils/ccswitchImport'
+import { buildCcSwitchImportDeeplink, getCcSwitchApplicationProfiles, getCcSwitchDefaultModel, isCcSwitchOmpKeyReference, type CcSwitchApplicationProfile } from '@/utils/ccswitchImport'
 import {
   findCodexCatalogModel,
   formatCodexReasoningEffortTomlLine,
@@ -409,32 +397,21 @@ const ccsImportFailed = ref(false)
 const ccsProfiles = computed(() => !props.keyRecord || !props.platform || props.publicSettings?.hide_ccs_import_button
   ? [] : getCcSwitchApplicationProfiles(props.platform, props.publicSettings?.ccs_import_config))
 const activeApplication = computed(() => activeClientTab.value === 'codex-ws' ? 'codex' : activeClientTab.value)
-const selectedCcsProfiles = computed(() => ccsProfiles.value.filter(profile => profile.app === (activeApplication.value === 'grok' ? 'grokbuild' : activeApplication.value === 'claude-desktop' ? 'claude' : activeApplication.value)))
+const selectedCcsProfiles = computed(() => ccsProfiles.value.filter(profile => profile.app === (activeApplication.value === 'grok' ? 'grokbuild' : activeApplication.value)))
 const selectedCcsModels = computed(() => [...new Set(selectedCcsProfiles.value.map(profile => String(profile.parameters.model || getCcSwitchDefaultModel(profile.platform, profile.app))))])
 const supportsGeminiNative = computed(() => ['gemini', 'antigravity', 'composite'].includes(props.platform || ''))
-const canImportApplication = (profile: CcSwitchApplicationProfile) => !['gemini', 'agy'].includes(profile.app) || supportsGeminiNative.value
+const canImportApplication = (profile: CcSwitchApplicationProfile) =>
+  (!['gemini', 'agy'].includes(profile.app) || supportsGeminiNative.value) &&
+  (profile.app !== 'omp' || !isCcSwitchOmpKeyReference(props.apiKey))
 function connectionDeeplink(profile: CcSwitchApplicationProfile) {
   return buildCcSwitchImportDeeplink({
     baseUrl: props.baseUrl || window.location.origin,
     platform: props.platform,
-    // Desktop is imported inside CCS from a Claude Code source provider. Keep
-    // the source inactive so this step does not switch the user's Code setup.
-    profile: activeApplication.value === 'claude-desktop'
-      ? { ...profile, parameters: { ...profile.parameters, enabled: false } } : profile,
+    profile,
     settings: props.publicSettings?.ccs_import_config,
     providerName: 'Ritel.SI API',
     apiKey: props.apiKey, keyName: props.keyRecord?.name, userId: props.keyRecord?.user_id
   })
-}
-const nativeCcsModel = computed(() => props.platform ? getCcSwitchDefaultModel(props.platform) : '')
-const nativeCcsConfiguration = computed(() => props.platform ? buildCcsNativeConfiguration({
-  app: activeApplication.value, platform: props.platform,
-  baseUrl: props.baseUrl || window.location.origin, apiKey: props.apiKey,
-  model: nativeCcsModel.value, contextWindow: 262144
-}) : null)
-function downloadNativeCcsConfiguration() {
-  const config = nativeCcsConfiguration.value
-  if (config) saveAs(new Blob([config.content], { type: 'text/plain;charset=utf-8' }), `ritel-${activeApplication.value}-${config.file}`)
 }
 const advancedOpen = ref(false)
 const dshConnectionUrl = computed(() => {
@@ -445,7 +422,6 @@ const dshConnectionUrl = computed(() => {
 const dshProtocol = computed(() => props.platform === 'anthropic' || props.platform === 'antigravity' ? 'Anthropic Messages'
   : ['openai', 'gemini', 'composite'].includes(props.platform || '') ? 'OpenAI Responses' : 'OpenAI Chat Completions')
 const connectionUrls = computed(() => {
-  if (nativeCcsConfiguration.value) return [{ url: nativeCcsConfiguration.value.endpoint, label: '' }]
   const root = (props.baseUrl || window.location.origin).replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
   const antigravityRoot = root.endsWith('/antigravity') ? root : `${root}/antigravity`
   const client = activeClientTab.value

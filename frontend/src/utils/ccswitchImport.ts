@@ -42,9 +42,10 @@ export interface CcSwitchImportDeeplinkInput {
   profile?: CcSwitchApplicationProfile
 }
 
-/** Provider import contract: CC Switch v4.0.25 (release and current main agree). */
+/** Provider import contract: CC Switch v4.0.26 (f621d4216189ef06bcc6acd3588c84937b9794e1). */
 export const CC_SWITCH_SUPPORTED_APPS = [
-  'claude', 'codex', 'gemini', 'agy', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi'
+  'claude', 'codex', 'gemini', 'agy', 'grokbuild', 'opencode', 'openclaw', 'hermes', 'pi',
+  'claude-desktop', 'mcode', 'kimi', 'dsh', 'omp'
 ] as const
 
 export function createDefaultCcSwitchImportConfig(): CcsImportConfig {
@@ -85,7 +86,9 @@ export function getCcSwitchApplicationProfiles(
     { app: 'codex', label: 'Codex' }, { app: 'claude', label: 'Claude Code' },
     { app: 'opencode', label: 'OpenCode' }, { app: 'openclaw', label: 'OpenClaw' },
     { app: 'gemini', label: 'Gemini CLI' }, { app: 'agy', label: 'Antigravity CLI' }, { app: 'grokbuild', label: 'Grok Build' },
-    { app: 'hermes', label: 'Hermes' }, { app: 'pi', label: 'Pi' }
+    { app: 'hermes', label: 'Hermes' }, { app: 'pi', label: 'Pi' },
+    { app: 'claude-desktop', label: 'Claude Desktop' }, { app: 'mcode', label: 'MiniMax Code' },
+    { app: 'kimi', label: 'Kimi Code' }, { app: 'dsh', label: 'DeepSeek Harness' }, { app: 'omp', label: 'Oh My Pi' }
   ]
   return apps.flatMap(({ app, label }) => {
     const model = getCcSwitchDefaultModel(platform, app)
@@ -98,9 +101,9 @@ export function getCcSwitchApplicationProfiles(
       : platform === 'anthropic' || platform === 'antigravity' ? 'anthropic'
         : platform === 'openai' || platform === 'composite' ? 'openai_responses' : 'openai_chat'
     if (app === 'gemini' || app === 'agy') apiFormat = 'gemini_native'
-    if (apiFormat === 'gemini_native' && ['codex', 'grokbuild', 'hermes'].includes(app)) apiFormat = 'openai_responses'
+    if (apiFormat === 'gemini_native' && ['codex', 'grokbuild', 'hermes', 'mcode', 'dsh'].includes(app)) apiFormat = 'openai_responses'
     profile.parameters.apiFormat = apiFormat
-    if (app === 'claude' && model && platform !== 'anthropic' && platform !== 'antigravity') {
+    if (['claude', 'claude-desktop'].includes(app) && model && platform !== 'anthropic' && platform !== 'antigravity') {
       profile.parameters.haikuModel = model
       profile.parameters.sonnetModel = model
       profile.parameters.opusModel = model
@@ -109,7 +112,7 @@ export function getCcSwitchApplicationProfiles(
     if (configured.length) return configured.map(item => ({
       ...item, parameters: {
         ...profile.parameters,
-        ...(app === 'claude' && item.parameters.model && platform !== 'anthropic' && platform !== 'antigravity'
+        ...(['claude', 'claude-desktop'].includes(app) && item.parameters.model && platform !== 'anthropic' && platform !== 'antigravity'
           ? { haikuModel: item.parameters.model, sonnetModel: item.parameters.model, opusModel: item.parameters.model } : {}),
         ...item.parameters
       }
@@ -209,7 +212,7 @@ function defaultProfileEndpoint(input: Pick<CcSwitchImportDeeplinkInput, 'baseUr
   if (input.platform === 'antigravity' && !root.endsWith('/antigravity')) root += '/antigravity'
   if (apiFormat === 'openai_chat' || apiFormat === 'openai_responses') return `${root}/v1`
   if (apiFormat === 'anthropic' && profile.app === 'opencode') return `${root}/v1`
-  if (apiFormat === 'gemini_native' && ['opencode', 'pi', 'openclaw'].includes(profile.app)) return `${root}/v1beta`
+  if (apiFormat === 'gemini_native' && ['opencode', 'pi', 'openclaw', 'kimi', 'omp'].includes(profile.app)) return `${root}/v1beta`
   return root
 }
 
@@ -223,12 +226,12 @@ const DEFAULT_IMPORT_PARAMETERS = {
 }
 
 function defaultProfileApiFormat(profile: CcSwitchApplicationProfile): string {
-  if (['opencode', 'openclaw', 'hermes', 'pi'].includes(profile.app)) {
-    return profile.platform === 'gemini' ? 'gemini_native'
+  if (['opencode', 'openclaw', 'hermes', 'pi', 'mcode', 'kimi', 'dsh', 'omp'].includes(profile.app)) {
+    return profile.platform === 'gemini' ? (['mcode', 'dsh'].includes(profile.app) ? 'openai_responses' : 'gemini_native')
       : profile.platform === 'anthropic' || profile.platform === 'antigravity' ? 'anthropic'
         : profile.platform === 'grok' ? 'openai_chat' : 'openai_responses'
   }
-  return profile.app === 'claude' ? 'anthropic' : profile.app === 'gemini' || profile.app === 'agy' ? 'gemini_native' : 'openai_responses'
+  return ['claude', 'claude-desktop'].includes(profile.app) ? 'anthropic' : profile.app === 'gemini' || profile.app === 'agy' ? 'gemini_native' : 'openai_responses'
 }
 
 /** Current inherited values for the editor; viewing them must not create overrides. */
@@ -238,7 +241,7 @@ export function getCcSwitchImportParameterDefaults(profile: CcsImportProfile, ba
     ...DEFAULT_IMPORT_PARAMETERS,
     model: getCcSwitchDefaultModel(profile.platform, profile.app),
     endpoint: defaultProfileEndpoint({ baseUrl, platform: profile.platform }, profile, apiFormat),
-    enabled: ['opencode', 'openclaw', 'hermes', 'pi'].includes(profile.app),
+    enabled: ['opencode', 'openclaw', 'hermes', 'pi', 'mcode', 'kimi', 'dsh', 'omp'].includes(profile.app),
     usageApiKey: '{{apiKey}}',
   }
   // CCS inherits its provider's current first endpoint when no query URL is set.
@@ -248,11 +251,20 @@ export function getCcSwitchImportParameterDefaults(profile: CcsImportProfile, ba
   return defaults
 }
 
+export function isCcSwitchOmpKeyReference(apiKey: string): boolean {
+  return apiKey.trimStart().startsWith('!') || /^[A-Z_][A-Z0-9_]*$/.test(apiKey)
+    || apiKey.includes('${') || /\{(?:env|file):/.test(apiKey)
+}
+
 export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput): string {
   const profiles = getCcSwitchImportProfiles(input.platform, input.settings)
   const profile = input.profile || profiles.find(item => item.app === input.clientType) || profiles[0]
   if (!profile || !CC_SWITCH_SUPPORTED_APPS.includes(profile.app) || profile.platform !== (input.platform || 'anthropic')) {
     throw new Error('No CC Switch import profile is available for this platform')
+  }
+
+  if (profile.app === 'omp' && isCcSwitchOmpKeyReference(input.apiKey)) {
+    throw new Error('Oh My Pi requires a literal API key; enter reference-shaped keys manually in CC Switch')
   }
 
   const variables: Record<string, string> = {
@@ -277,14 +289,14 @@ export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput):
   if (!String(parameters.model || '').trim()) parameters.model = getCcSwitchDefaultModel(profile.platform, profile.app)
   // Additive clients default to OpenAI Chat in CCS. Select the platform's
   // native format unless the administrator explicitly chose another one.
-  if (!profile.parameters.apiFormat && ['opencode', 'openclaw', 'hermes', 'pi'].includes(profile.app)) {
+  if (!profile.parameters.apiFormat && ['opencode', 'openclaw', 'hermes', 'pi', 'mcode', 'kimi', 'dsh', 'omp'].includes(profile.app)) {
     parameters.apiFormat = defaultProfileApiFormat(profile)
   }
   const apiFormat = String(parameters.apiFormat || defaultProfileApiFormat(profile))
   if (['gemini', 'agy'].includes(profile.app) && apiFormat !== 'gemini_native') {
     throw new Error('This application requires the Gemini Native API format')
   }
-  if (apiFormat === 'gemini_native' && ['codex', 'grokbuild', 'hermes'].includes(profile.app)) {
+  if (apiFormat === 'gemini_native' && ['codex', 'grokbuild', 'hermes', 'mcode', 'dsh'].includes(profile.app)) {
     throw new Error('This application does not support the Gemini Native API format')
   }
   const defaultEndpoint = defaultProfileEndpoint(input, profile, String(parameters.apiFormat || defaultProfileApiFormat(profile)))
