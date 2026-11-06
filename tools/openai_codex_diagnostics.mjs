@@ -87,6 +87,26 @@ export function observeProtocolResponse(result, fallback = 'protocol_error') {
   }
 }
 
+// prepareProxy wraps its failures in localized text. Observe the actual
+// preflight response before that translation, retaining its existing rejection.
+export async function prepareCodexProxy(transport, proxy, validationUrl) {
+  const request = transport.request;
+  let challengeObserved = false;
+  transport.request = async function (...args) {
+    const response = await request.apply(this, args);
+    if (response.headers.get('cf-mitigated') === 'challenge') challengeObserved = true;
+    return response;
+  };
+  try {
+    return await transport.prepareProxy(proxy, validationUrl);
+  } catch (error) {
+    if (challengeObserved) throw new Error('security_check');
+    throw error;
+  } finally {
+    transport.request = request;
+  }
+}
+
 function reasonFor(error, stage) {
   try {
     if (reasons.has(error?.message)) return error.message;

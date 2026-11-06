@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {createProtocolDiagnostics, validateCodexCallback, credentialOperationReason, parseOperationJSON, observeProtocolResponse} from './openai_codex_diagnostics.mjs';
+import {createProtocolDiagnostics, validateCodexCallback, credentialOperationReason, parseOperationJSON, observeProtocolResponse, prepareCodexProxy} from './openai_codex_diagnostics.mjs';
 
 test('actual error envelopes classify only codes and full allowlisted messages', () => {
   const fixtures = JSON.parse(fs.readFileSync(new URL('./fixtures/credential-operation-errors.json', import.meta.url)));
@@ -80,4 +80,35 @@ test('private snapshots contain only bounded enums, time and the task binding', 
     channel.fail({get message() { throw new Error('synthetic-private'); }});
     assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).reason, 'protocol_error');
   } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});
+
+
+test('proxy preflight classifies only an observed challenge and preserves the rejection', async () => {
+  for (const [headers, expected] of [
+    [{'cf-mitigated': 'challenge'}, 'security_check'],
+    [{}, 'proxy preflight HTTP403 synthetic-private'],
+    [{'cf-mitigated': 'other'}, 'proxy preflight HTTP403 synthetic-private'],
+  ]) {
+    const calls = [];
+    const transport = {
+      async request(...args) { calls.push(args); return new Response('', {status: 403, headers}); },
+      async prepareProxy(proxy, url) {
+        const response = await this.request('GET', url, {proxy});
+        if (response.status === 403) throw new Error('proxy preflight HTTP403 synthetic-private');
+      },
+    };
+    const original = transport.request;
+    await assert.rejects(prepareCodexProxy(transport, 'synthetic-private', 'https://example.test/'), {message: expected});
+    assert.equal(calls.length, 1);
+    assert.equal(transport.request, original);
+  }
+  // Text resembling a challenge is not evidence of an actual challenge page.
+  const failure = new Error('cf-mitigated: challenge synthetic-private');
+  const transport = {request() {}, async prepareProxy() { throw failure; }};
+  await assert.rejects(prepareCodexProxy(transport, null, 'https://example.test/'), error => error === failure);
+  transport.prepareProxy = async function () { await this.request(); return 'original-result'; };
+  transport.request = async () => new Response('', {status: 200});
+  const successfulRequest = transport.request;
+  assert.equal(await prepareCodexProxy(transport, null, 'https://example.test/'), 'original-result');
+  assert.equal(transport.request, successfulRequest);
 });

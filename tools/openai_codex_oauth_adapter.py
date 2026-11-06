@@ -34,10 +34,12 @@ def codex_source(source):
     if hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() != PINNED_PROTOCOL_BLOB:
         raise ValueError('unsupported_codex_runtime_layout')
     source = replace_exact(source, 'import crypto from "node:crypto";', '''import crypto from "node:crypto";
-import {createProtocolDiagnostics, validateCodexCallback, observeProtocolResponse} from "./openai_codex_diagnostics.mjs";
+import {createProtocolDiagnostics, validateCodexCallback, observeProtocolResponse, prepareCodexProxy} from "./openai_codex_diagnostics.mjs";
 const protocolDiagnostic = createProtocolDiagnostics(process.env.SUB2API_PROTOCOL_DIAGNOSTIC_PATH,
   Number(process.env.SUB2API_PROTOCOL_TASK_ID));
 console.log = console.warn = console.error = () => {};''')
+    source = replace_exact(source, '    await transport.prepareProxy(proxyTemplate, `${chatgptBase}/`);\n    if (args.addPassword)',
+                           '    await prepareCodexProxy(transport, proxyTemplate, `${chatgptBase}/`);\n    if (args.addPassword)')
     for old, new in (
         ('    assertOk(result, `${method} ${url}`);', '    observeProtocolResponse(result);\n    assertOk(result, `${method} ${url}`);'),
         ('async function loginChatgptWeb(client, { chatgptBase, authBase, email, rl, password, totpSecret }) {',

@@ -85,6 +85,8 @@ Worker 单元测试使用离线协议替身及本地假邮箱；真实密码/TOT
 
 本地密码/TOTP路径继续使用固定 toSub2 提交 `8548397e89bf80e508eda64a87e0d556d43abc84`。Worker 只在任务临时目录建立适配副本：校验精确 callback origin/path、唯一 code/state 与绑定 state、PKCE verifier，然后才交换授权码；三项 OAuth 凭据完整后保留原子文件输出与后端身份/profile/ownership/CAS 校验。授权拒绝不在同一任务内重新登录，不切换引擎或代理。未知依赖布局在登录前拒绝，不静默部分适配。
 
+Codex 登录前的代理预检若实际观察到 `cf-mitigated: challenge` 且原预检失败，保留其拒绝结果并报告 `starting / security_check`；普通 403 或异常文本中的 challenge 不据此改判。诊断不改变代理、请求次数、TLS 指纹或安全检查。此逻辑随新 Worker 运行包发布生效，不应覆盖既有已校验的正式运行包。
+
 适配进程只把版本、task_id、白名单 stage/reason 和有限 elapsed_ms 写到任务私有诊断文件；不把 stdout/stderr、异常原文、URL、密码、OTP、cookie 或 Token 当诊断。Worker 有界读取、验证任务绑定及枚举；失败仍要求非零退出/错误结果，`completed` 进度不能替代完整输出。旧运行器没有诊断文件时保留原有退出码/完整输出契约。
 
 任务终态仍是 `failed`，接口新增可选 `diagnostic`（stage/reason/elapsed_ms/exit_code），页面展示安全阶段。Node 的阶段不等于上游业务成功，回写后的巡检复验仍决定账号是否恢复；这不会自动停止、退避或增加自动重登。此功能需要对应 API 与 Worker 生效，不能仅凭源码合并认为线上已升级，也不能从通用 exit1 反推真实故障阶段。
