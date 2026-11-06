@@ -35,7 +35,7 @@ const (
 	// Releases are maintained on the owner-controlled production fork. Keep the
 	// updater independent from the upstream repository so production installs
 	// see our release stream and can update to our fork's assets.
-	githubRepo = "Ritel-T/sub2api"
+	githubRepo = "RitelDevs/sub2api"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"

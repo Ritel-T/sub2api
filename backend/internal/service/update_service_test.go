@@ -70,7 +70,7 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrNoUpdateAvailable))
 	require.ErrorIs(t, err, ErrNoUpdateAvailable)
-	require.Equal(t, "Ritel-T/sub2api", githubClient.latestRepo)
+	require.Equal(t, "RitelDevs/sub2api", githubClient.latestRepo)
 }
 
 func TestCompareVersionsForkRevision(t *testing.T) {
