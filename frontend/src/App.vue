@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { centralAccountEnabled } from '@/utils/accountConfig'
 import { centralChecking, centralSessionError, centralIdentityChanged, refreshCentralAccount } from '@/utils/centralAccount'
+import { routeLoadFailure, routeLoadRetrying, retryRouteLoad } from '@/utils/routeLoadRecovery'
 function retryAccountCheck() { void refreshCentralAccount().catch(() => { /* Keep the error and drafts visible. */ }) }
 
 import { RouterView, useRouter, useRoute } from 'vue-router'
@@ -23,6 +24,20 @@ import { useLotteryStore } from '@/stores/lottery'
 const { locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
+const routeRecoveryCopy = computed(() => {
+  if (locale.value === 'zh') return {
+    failed: '页面暂时未能加载，当前内容已保留。', retry: '重试打开',
+    updated: '页面已有更新，当前内容已保留。请先保存编辑，再重新加载。', reload: '重新加载'
+  }
+  if (locale.value === 'zh-Hant-HK') return {
+    failed: '頁面暫時未能載入，目前內容已保留。', retry: '重試開啟',
+    updated: '頁面已有更新，目前內容已保留。請先儲存編輯，再重新載入。', reload: '重新載入'
+  }
+  return {
+    failed: 'This page could not load. Your current content is still here.', retry: 'Try opening again',
+    updated: 'An update is available. Your current content is still here. Save your edits before reloading.', reload: 'Reload page'
+  }
+})
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const subscriptionStore = useSubscriptionStore()
@@ -216,5 +231,9 @@ onMounted(async () => {
   <section v-if="centralAccountEnabled && (centralSessionError || centralIdentityChanged)" class="fixed bottom-4 right-4 z-[100] flex max-w-[calc(100%-2rem)] items-center gap-4 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-900 shadow-sm dark:border-dark-700 dark:bg-dark-900 dark:text-white" role="status" aria-live="polite" :aria-busy="centralChecking">
     <p>{{ centralSessionError || '账号身份已变化，正在重新加载…' }}</p>
     <button v-if="centralSessionError && !centralChecking && !centralIdentityChanged" type="button" class="btn btn-primary" @click="retryAccountCheck">重试连接</button>
+  </section>
+  <section v-else-if="routeLoadFailure" class="fixed bottom-4 right-4 z-[100] flex max-w-[calc(100%-2rem)] items-center gap-4 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-900 shadow-sm dark:border-dark-700 dark:bg-dark-900 dark:text-white" role="status" aria-live="polite" :aria-busy="routeLoadRetrying">
+    <p>{{ routeLoadFailure.updateAvailable ? routeRecoveryCopy.updated : routeRecoveryCopy.failed }}</p>
+    <button type="button" class="btn btn-primary shrink-0" :disabled="routeLoadRetrying" @click="retryRouteLoad(router)">{{ routeLoadFailure.updateAvailable ? routeRecoveryCopy.reload : routeRecoveryCopy.retry }}</button>
   </section>
 </template>

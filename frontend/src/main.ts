@@ -55,16 +55,33 @@ function setupApplication() {
   return async (whenActive: () => Promise<void>) => {
     if (mounted) return
     await whenActive()
-    if (!localeReady) {
-      await initI18n()
-      app.use(i18n)
-      localeReady = true
+    // Route records contain lazy component imports. Warm only this document's
+    // matched modules while checking identity; component setup and business
+    // requests still wait for the authenticated navigation and mount below.
+    if (!routerInstalled) {
+      for (const record of router.resolve(router.options.history.location).matched) {
+        const component = record.components?.default
+        if (typeof component === 'function') {
+          void (component as () => Promise<unknown>)().catch(() => {
+            // The real navigation owns loading errors and recovery.
+          })
+        }
+      }
     }
-
-    await whenActive()
-    // Central auth owns its bounded read-only retries and hydration single flight.
-    // Do not wrap this in another automatic retry loop.
-    if (centralAccountEnabled) await useAuthStore(pinia).initializeCentralAuth()
+    // These reads are independent. Wait for both to settle before a recovery
+    // attempt so a failed locale load cannot overlap an unfinished auth check.
+    const initialization = await Promise.allSettled([
+      (async () => {
+        if (localeReady) return
+        await initI18n()
+        app.use(i18n)
+        localeReady = true
+      })(),
+      centralAccountEnabled ? useAuthStore(pinia).initializeCentralAuth() : Promise.resolve()
+    ])
+    for (const result of initialization) {
+      if (result.status === 'rejected') throw result.reason
+    }
 
     await whenActive()
     if (!routerInstalled) {
