@@ -7,7 +7,16 @@ let state;
 const jwt = claims => 'e30.' + Buffer.from(JSON.stringify(claims)).toString('base64url') + '.synthetic';
 export class TlsFingerprintTransport {
   enabled = true;
-  async prepareProxy() {}
+  async prepareProxy() {
+    if (!process.env.CODEX_TEST_MODE?.startsWith('preflight-')) return;
+    const response = await this.request('GET', 'https://chatgpt.com/');
+    if (response.status === 403) throw new Error('proxy preflight HTTP403 synthetic-private');
+  }
+  async request() {
+    fs.appendFileSync(process.env.CODEX_TEST_ROUTES, 'GET preflight\n');
+    return new Response('<html>synthetic-private</html>', {status: 403,
+      headers: process.env.CODEX_TEST_MODE === 'preflight-challenge' ? {'cf-mitigated': 'challenge'} : {}});
+  }
   async configure() {}
   async close() {}
   async generateSentinelTokens() { return {token: 'synthetic-sentinel'}; }

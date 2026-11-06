@@ -137,6 +137,28 @@ class PinnedCodexProtocolTests(unittest.TestCase):
                 self.assertNotIn('POST /oauth/token', trace)
                 self.assertFalse(output.exists())
 
+    def test_proxy_preflight_failure_stops_before_login_with_response_bound_reason(self):
+        dependency = Path(os.environ['EXCEL_TEST_TOSUB2_ROOT'])
+        for mode, reason in [('preflight-challenge', 'security_check'), ('preflight-denied', 'protocol_error')]:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                temporary = Path(directory)
+                script = adapter.prepare_codex_runtime(dependency, temporary)
+                script.with_name('tls-transport.mjs').write_bytes(
+                    (Path(__file__).parent / 'fixtures/codex-http-transport.mjs').read_bytes())
+                output, diagnostic, routes = (temporary / n for n in ('oauth.json', 'diagnostic.json', 'routes.txt'))
+                env = dict(os.environ, SUB2API_PROTOCOL_TASK_ID='7', SUB2API_PROTOCOL_DIAGNOSTIC_PATH=str(diagnostic),
+                           CHATGPT_LOGIN_PASSWORD='synthetic-password', CODEX_TEST_MODE=mode, CODEX_TEST_ROUTES=str(routes))
+                result = subprocess.run([os.getenv('NODE_EXECUTABLE', 'node'), str(script), '--email',
+                                         'test@example.test', '--output-mode', 'sub2api', '--sub2api-out', str(output)],
+                                        cwd=temporary, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=20)
+                safe = adapter.read_protocol_diagnostic(diagnostic, 7)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout + result.stderr, '')
+                self.assertEqual(safe['stage'], 'starting')
+                self.assertEqual(safe['reason'], reason)
+                self.assertEqual(routes.read_text(), 'GET preflight\n')
+                self.assertFalse(output.exists())
+
     def test_real_pinned_cli_with_only_mock_http(self):
         dependency = Path(os.environ['EXCEL_TEST_TOSUB2_ROOT'])
         original = (dependency / 'src/protocol-login.mjs').read_bytes()
