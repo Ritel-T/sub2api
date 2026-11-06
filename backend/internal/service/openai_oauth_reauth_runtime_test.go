@@ -80,9 +80,10 @@ func TestOpenAIOAuthReauthForkVersionUsesPinnedRuntimeRelease(t *testing.T) {
 	version, err := os.ReadFile("../../cmd/server/VERSION")
 	require.NoError(t, err)
 	// Use the actual release version: a version bump must keep its reviewed runtime mapping.
-	for _, tt := range []struct{ version, runtime string }{
-		{strings.TrimSpace(string(version)), "2.18.0"},
-		{"2.9.8.1-ritel", "2.9.8"},
+	for _, tt := range []struct{ version, runtime, repository string }{
+		{strings.TrimSpace(string(version)), "2.19.2-ritel-reauth.1", "RitelDevs/sub2api"},
+		{"2.19.2.8-ritel", "2.18.0", "ranxi2001/sub2api"},
+		{"2.9.8.1-ritel", "2.9.8", "ranxi2001/sub2api"},
 	} {
 		t.Run(tt.version, func(t *testing.T) {
 			t.Setenv("OPENAI_REAUTH_WORKER_TOKEN", "")
@@ -99,7 +100,7 @@ func TestOpenAIOAuthReauthForkVersionUsesPinnedRuntimeRelease(t *testing.T) {
 			s.EnsureWorker()
 			select {
 			case got := <-requests:
-				require.Equal(t, "https://api.github.com/repos/ranxi2001/sub2api/releases/tags/v"+tt.runtime, got)
+				require.Equal(t, "https://api.github.com/repos/"+tt.repository+"/releases/tags/v"+tt.runtime, got)
 			case <-time.After(3 * time.Second):
 				t.Fatal("managed worker did not request the pinned upstream release")
 			}

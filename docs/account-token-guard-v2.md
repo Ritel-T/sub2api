@@ -130,3 +130,5 @@ Session Studio 事件流使用 `type=result` 与对象类型的 `payload` 表示
 ## 异常原因与历史诊断
 
 最近巡检、最近重登及详情展示安全分类、原操作时间、阶段、短码和人工处理提示。删除/停用合并信号不拆分；未知记录显示未知，原始 provider 文本不回传。最近刷新失败尝试独立展示，后续重试可能已恢复，不代表账号当前状态。协议、旧数据兼容、迁移 309 和跨仓边界见[异常识别说明](credential-operation-errors.md)。
+
+正式诊断运行包 `2.19.2-ritel-reauth.1` 由 RitelDevs/sub2api 同名 tag 发布；仅核心 `2.19.2.9-ritel` 精确映射此包，历史版本保持原受审运行包和来源。下载仍校验 GitHub asset digest，持久 Journal/key 与认证和任务预算合同保持。

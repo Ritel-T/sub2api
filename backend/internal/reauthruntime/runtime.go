@@ -154,7 +154,11 @@ func (m *Manager) prepare(ctx context.Context) (string, error) {
 	// A release digest from the owner repository is required; never execute an
 	// unverified download or follow an arbitrary manifest download URL.
 	name := "sub2api-reauth_" + m.version + "_linux_" + runtime.GOARCH + ".tar.gz"
-	url := "https://api.github.com/repos/ranxi2001/sub2api/releases/tags/v" + m.version
+	repository := "ranxi2001/sub2api"
+	if m.version == "2.19.2-ritel-reauth.1" {
+		repository = "RitelDevs/sub2api"
+	}
+	url := "https://api.github.com/repos/" + repository + "/releases/tags/v" + m.version
 	body, err := m.get(ctx, url, 4<<20)
 	if err != nil {
 		return "", err
@@ -180,7 +184,7 @@ func (m *Manager) prepare(ctx context.Context) (string, error) {
 	if _, err := hex.DecodeString(digest); err != nil {
 		return "", errors.New("invalid runtime digest")
 	}
-	archive, err := m.get(ctx, "https://github.com/ranxi2001/sub2api/releases/download/v"+m.version+"/"+name, maxArchive)
+	archive, err := m.get(ctx, "https://github.com/"+repository+"/releases/download/v"+m.version+"/"+name, maxArchive)
 	if err != nil {
 		return "", err
 	}
