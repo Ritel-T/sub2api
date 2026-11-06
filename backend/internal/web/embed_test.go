@@ -741,6 +741,34 @@ func TestEmbeddedFrontendBypassesBareVideoAPIRoutes(t *testing.T) {
 	}
 }
 
+func TestEmbeddedFrontendMissingAssetsDoNotFallBackToHTML(t *testing.T) {
+	server, err := NewFrontendServer(&mockSettingsProvider{})
+	require.NoError(t, err)
+	for name, handler := range map[string]gin.HandlerFunc{
+		"settings": server.Middleware(),
+		"legacy":   ServeEmbeddedFrontend(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			router := gin.New()
+			router.Use(handler)
+			for _, path := range []string{"/assets/missing-release-AbCd1234.js", "/assets/missing-release-AbCd1234.css"} {
+				t.Run(path, func(t *testing.T) {
+					response := httptest.NewRecorder()
+					router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+					assert.Equal(t, http.StatusNotFound, response.Code)
+					assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
+					assert.Empty(t, response.Body.String())
+					assert.NotContains(t, response.Header().Get("Content-Type"), "text/html")
+				})
+			}
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/keys", nil))
+			assert.Equal(t, http.StatusOK, response.Code)
+			assert.Contains(t, response.Header().Get("Content-Type"), "text/html")
+		})
+	}
+}
+
 func TestEmbeddedFrontendBypassesBareAPIAliases(t *testing.T) {
 	for _, path := range []string{
 		"/v3/other",

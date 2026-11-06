@@ -101,6 +101,13 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 
 		// For index.html or SPA routes, serve with injected settings
 		if cleanPath == "index.html" || !s.fileExists(cleanPath) {
+			// A missing build asset is not a SPA route. Returning HTML here hides
+			// deployment mismatches behind a successful module response.
+			if strings.HasPrefix(cleanPath, "assets/") {
+				c.Header("Cache-Control", "no-store")
+				c.AbortWithStatus(http.StatusNotFound)
+				return
+			}
 			s.serveIndexHTML(c)
 			return
 		}
@@ -335,6 +342,11 @@ func ServeEmbeddedFrontend() gin.HandlerFunc {
 			return
 		}
 
+		if strings.HasPrefix(cleanPath, "assets/") {
+			c.Header("Cache-Control", "no-store")
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
 		serveIndexHTML(c, distFS)
 	}
 }
