@@ -2225,6 +2225,11 @@ func normalizeCodexCallOutputBootstrap(body []byte, isCandidate func(map[string]
 			}
 			return body, false
 		}
+		// Server-managed web search replays an item ID, not a client call ID.
+		// It must not disable delegation normalization on subsequent turns.
+		if allowHistoricalContext && typ == "web_search_call" && strings.TrimSpace(stringField(item, "id")) != "" {
+			continue
+		}
 		if strings.HasSuffix(typ, "_call") || isResponsesCallOutputType(typ) {
 			if allowHistoricalContext && strings.TrimSpace(stringField(item, "call_id")) != "" {
 				continue

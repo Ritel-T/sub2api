@@ -182,3 +182,52 @@ func mustJSON(t *testing.T, value string) string {
 	require.NoError(t, err)
 	return string(encoded)
 }
+
+func TestNormalizeCodexDelegationBootstrapAfterWebSearch(t *testing.T) {
+	for _, tool := range []string{"create_thread", "send_message_to_thread"} {
+		for _, previous := range []string{"", "resp_previous"} {
+			t.Run(tool+"/previous="+previous, func(t *testing.T) {
+				request := map[string]any{"model": "gpt-6-astra", "input": []any{
+					map[string]any{"type": "message", "role": "user", "content": "Workspace rules"},
+					map[string]any{"type": "function_call_output", "id": "fco_delegation", "namespace": "codex_app", "name": tool, "output": delegationEnvelope},
+					map[string]any{"type": "web_search_call", "id": "ws_search", "status": "completed", "action": map[string]any{"type": "search", "query": "layout"}},
+					map[string]any{"type": "custom_tool_call", "call_id": "call_read", "name": "exec", "input": "read source"},
+					map[string]any{"type": "custom_tool_call_output", "call_id": "call_read", "output": "source contents"},
+				}}
+				if previous != "" {
+					request["previous_response_id"] = previous
+				}
+				body, err := json.Marshal(request)
+				require.NoError(t, err)
+				got, changed := normalizeCodexDelegationBootstrap(body)
+				require.True(t, changed)
+				require.Equal(t, "user", gjson.GetBytes(got, "input.1.role").String())
+				require.Equal(t, delegationEnvelope, gjson.GetBytes(got, "input.1.content.0.text").String())
+				for _, index := range []string{"0", "2", "3", "4"} {
+					require.JSONEq(t, gjson.GetBytes(body, "input."+index).Raw, gjson.GetBytes(got, "input."+index).Raw)
+				}
+				require.Equal(t, previous, gjson.GetBytes(got, "previous_response_id").String())
+				again, changed := normalizeCodexDelegationBootstrap(got)
+				require.False(t, changed)
+				require.Equal(t, got, again)
+			})
+		}
+	}
+}
+
+func TestNormalizeCodexDelegationBootstrapWebSearchDoesNotRelaxOtherCalls(t *testing.T) {
+	for _, history := range []string{
+		`{"type":"web_search_call"}`,
+		`{"type":"web_search_call","id":" "}`,
+		`{"type":"web_search_call","id":42}`,
+		`{"type":"function_call","id":"fc_unbound"}`,
+		`{"type":"custom_tool_call_output","id":"ctco_unbound","output":"result"}`,
+	} {
+		t.Run(history, func(t *testing.T) {
+			body := []byte(`{"input":[{"type":"function_call_output","namespace":"codex_app","name":"create_thread","output":"` + delegationEnvelope + `"},` + history + `]}`)
+			got, changed := normalizeCodexDelegationBootstrap(body)
+			require.False(t, changed)
+			require.Equal(t, body, got)
+		})
+	}
+}

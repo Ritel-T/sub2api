@@ -220,3 +220,37 @@ func TestOpenAIGatewayService_PreservesOversizedToolOutputForUpstream(t *testing
 	require.Len(t, upstream.bodies, 1)
 	require.Equal(t, oversized, gjson.GetBytes(upstream.bodies[0], "input.1.output").String())
 }
+
+// A normalized delegation must survive the same transform/sanitize order used
+// by the HTTP forwarder, without elevating real tool outputs into user input.
+func TestCodexDelegationUserMessageSurvivesForwardTransforms(t *testing.T) {
+	for _, previous := range []string{"", "resp_previous"} {
+		t.Run("previous="+previous, func(t *testing.T) {
+			envelope := "<codex_delegation><source_thread_id>source</source_thread_id><input>Inspect layout</input></codex_delegation>"
+			input := []any{
+				map[string]any{"type": "message", "role": "user", "content": []any{map[string]any{"type": "input_text", "text": envelope}}},
+				map[string]any{"type": "web_search_call", "id": "ws_search", "status": "completed", "action": map[string]any{"type": "search", "query": "layout"}},
+				map[string]any{"type": "custom_tool_call", "call_id": "call_read", "name": "exec", "input": "read source"},
+				map[string]any{"type": "custom_tool_call_output", "call_id": "call_read", "output": "source contents"},
+			}
+			body := map[string]any{"model": "gpt-6-astra", "input": input, "instructions": "Inspect layout"}
+			if previous != "" {
+				body["previous_response_id"] = previous
+			}
+			result := applyCodexOAuthTransformWithOptions(body, codexOAuthTransformOptions{IsCodexCLI: true})
+			require.NoError(t, result.Error)
+			got := body["input"].([]any)
+			require.False(t, sanitizeOpenAIResponsesOrphanToolOutputs(body, got, previous != ""))
+			require.Len(t, got, 4)
+			user := got[0].(map[string]any)
+			require.Equal(t, "user", user["role"])
+			content := user["content"].([]any)
+			require.Equal(t, envelope, content[0].(map[string]any)["text"])
+			require.Equal(t, "web_search_call", got[1].(map[string]any)["type"])
+			output := got[3].(map[string]any)
+			require.Equal(t, "custom_tool_call_output", output["type"])
+			require.Equal(t, "source contents", output["output"])
+			require.NotContains(t, output, "role")
+		})
+	}
+}
