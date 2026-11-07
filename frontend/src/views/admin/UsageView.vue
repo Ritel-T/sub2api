@@ -1,7 +1,7 @@
 <template>
   <AppLayout :show-page-title="false">
-    <ConsoleObjectLinks v-if="!props.observerMode && filters.user_id === objectQueryId(route.query.user_id) && objectQueryId(route.query.user_id)" kind="user" :id="objectQueryId(route.query.user_id)!" context class="open-page mb-4" />
-    <ConsoleObjectLinks v-if="!props.observerMode && filters.account_id === objectQueryId(route.query.account_id) && objectQueryId(route.query.account_id)" kind="account" :id="objectQueryId(route.query.account_id)!" context class="open-page mb-4" />
+    <ConsoleObjectLinks v-if="!props.observerMode && filters.user_id === objectQueryId(route.query.user_id) && objectQueryId(route.query.user_id)" kind="user" :id="objectQueryId(route.query.user_id)!" context class="mb-4" />
+    <ConsoleObjectLinks v-if="!props.observerMode && filters.account_id === objectQueryId(route.query.account_id) && objectQueryId(route.query.account_id)" kind="account" :id="objectQueryId(route.query.account_id)!" context class="mb-4" />
     <div class="open-page usage-page">
       <header class="usage-page-header">
         <AppHeading variant="page" as="h1">{{ props.observerMode ? pageCopy[usagePage] : t('nav.usage') }}</AppHeading>

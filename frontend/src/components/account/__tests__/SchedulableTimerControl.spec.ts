@@ -22,7 +22,7 @@ beforeEach(() => {
 afterEach(() => wrapper?.unmount())
 describe('one-shot schedulable timer', () => {
   it('expands compact controls and saves 8h using server relative input', async () => {
-    wrapper = mount(SchedulableTimerControl, { props: { accountId: 7 } })
+    wrapper = mount(SchedulableTimerControl, { global: { stubs: { teleport: true } }, props: { accountId: 7 } })
     await flushPromises()
     expect(wrapper.find('[data-test="timer-form"]').exists()).toBe(false)
     await wrapper.get('[data-test="timer-open"]').trigger('click')
@@ -36,7 +36,7 @@ describe('one-shot schedulable timer', () => {
     expect(toast.showSuccess).toHaveBeenCalled()
   })
   it('requires confirmation of the concrete local date, UTC offset and zone for HH:mm only', async () => {
-    wrapper = mount(SchedulableTimerControl, { props: { accountId: 7 } })
+    wrapper = mount(SchedulableTimerControl, { global: { stubs: { teleport: true } }, props: { accountId: 7 } })
     await flushPromises()
     await wrapper.get('[data-test="timer-close"]').trigger('click')
     await flushPromises()
@@ -54,7 +54,7 @@ describe('one-shot schedulable timer', () => {
   })
   it('reloads saved tasks, edits by version and cancels the chosen action', async () => {
     api.list.mockResolvedValue({ ...snapshot(), tasks: [task] })
-    wrapper = mount(SchedulableTimerControl, { props: { accountId: 7 } })
+    wrapper = mount(SchedulableTimerControl, { global: { stubs: { teleport: true } }, props: { accountId: 7 } })
     await flushPromises()
     expect(wrapper.text()).toContain('2026-10-23')
     await wrapper.get('[data-test="timer-open"]').trigger('click')
@@ -71,7 +71,7 @@ describe('one-shot schedulable timer', () => {
     expect(api.cancel).toHaveBeenCalledWith(7, 'open', 3)
   })
   it('shows translated validation errors and clears obsolete previews after editing', async () => {
-    wrapper = mount(SchedulableTimerControl, { props: { accountId: 7 } })
+    wrapper = mount(SchedulableTimerControl, { global: { stubs: { teleport: true } }, props: { accountId: 7 } })
     await flushPromises()
     await wrapper.get('[data-test="timer-open"]').trigger('click')
     await flushPromises()
@@ -85,7 +85,7 @@ describe('one-shot schedulable timer', () => {
     expect(wrapper.text()).toContain('timer.errors.timezone')
   })
   it('refreshes after manual changes and keeps an accessible narrow-screen form', async () => {
-    wrapper = mount(SchedulableTimerControl, { props: { accountId: 7, refreshKey: 0 } })
+    wrapper = mount(SchedulableTimerControl, { global: { stubs: { teleport: true } }, props: { accountId: 7, refreshKey: 0 } })
     await flushPromises()
     await wrapper.setProps({ refreshKey: 1 })
     await flushPromises()
@@ -98,12 +98,53 @@ describe('one-shot schedulable timer', () => {
   })
   it('requests account reconciliation after a persisted execution changes the switch', async () => {
     api.list.mockResolvedValueOnce({ ...snapshot(), tasks: [task] })
-    wrapper = mount(SchedulableTimerControl, { props: { accountId: 7 } })
+    wrapper = mount(SchedulableTimerControl, { global: { stubs: { teleport: true } }, props: { accountId: 7 } })
     await flushPromises()
     api.list.mockResolvedValue({ ...snapshot(), tasks: [{ ...task, status: 'executed', actual_at: task.execute_at }] })
     await wrapper.setProps({ refreshKey: 1 })
     await flushPromises()
     expect(wrapper.emitted('executed')).toHaveLength(1)
+  })
+
+  it('keeps errors inside the dialog and restores the trigger after saving', async () => {
+    wrapper = mount(SchedulableTimerControl, { attachTo: document.body, global: { stubs: { teleport: true } }, props: { accountId: 7 } })
+    await flushPromises()
+    const trigger = wrapper.get('[data-test="timer-open"]')
+    await trigger.trigger('click')
+    await flushPromises()
+    api.preview.mockRejectedValueOnce({ response: { data: { reason: 'TIMER_timezone' } } })
+    await wrapper.get('[data-test="timer-preview"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="dialog"] [role="alert"]').text()).toContain('timer.errors.timezone')
+    await wrapper.get('[data-test="timer-preview"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test="timer-save"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(trigger.element)
+  })
+
+  it('restores focus when closed during a background refresh', async () => {
+    vi.useFakeTimers()
+    try {
+      wrapper = mount(SchedulableTimerControl, { attachTo: document.body, global: { stubs: { teleport: true } }, props: { accountId: 7 } })
+      await flushPromises()
+      const trigger = wrapper.get('[data-test="timer-open"]')
+      await trigger.trigger('click')
+      await flushPromises()
+      let finish!: (value: ReturnType<typeof snapshot>) => void
+      api.list.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(trigger.attributes('aria-disabled')).toBe('true')
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(document.activeElement).toBe(trigger.element)
+      const calls = api.list.mock.calls.length
+      await trigger.trigger('click')
+      expect(api.list).toHaveBeenCalledTimes(calls)
+      finish(snapshot())
+      await flushPromises()
+    } finally { vi.useRealTimers() }
   })
 
 })

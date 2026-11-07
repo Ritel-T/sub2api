@@ -2,63 +2,68 @@
   <div class="mb-1 min-w-0 text-left text-xs" @click.stop>
     <div class="flex flex-wrap gap-x-2 gap-y-1">
       <button v-for="value in actions" :key="value" type="button" :data-test="`timer-${value}`"
-        class="text-primary-600 hover:underline disabled:opacity-50 dark:text-primary-400"
-        :disabled="busy || loading" :aria-expanded="expanded && action === value" @click="begin(value)">
+        class="text-primary-600 hover:underline disabled:opacity-50 aria-disabled:opacity-50 dark:text-primary-400"
+        :disabled="busy" :aria-disabled="busy || loading" :aria-expanded="expanded && action === value" @click="begin(value, $event)">
         {{ t(`admin.accounts.timer.${value}`) }}
       </button>
     </div>
     <div v-for="task in pending" :key="task.action" class="mt-1 max-w-72 whitespace-normal break-words text-gray-600 dark:text-dark-300" aria-live="polite">
       <span>{{ t(`admin.accounts.timer.${task.action}`) }} · {{ taskLocalTime(task) }} · {{ countdown(task) }}</span>
       <div class="flex flex-wrap gap-2">
-        <button type="button" class="text-primary-600 hover:underline" :disabled="busy" @click="begin(task.action)">{{ t('admin.accounts.timer.edit') }}</button>
+        <button type="button" class="text-primary-600 hover:underline" :disabled="busy" @click="begin(task.action, $event)">{{ t('admin.accounts.timer.edit') }}</button>
         <button type="button" :data-test="`timer-cancel-${task.action}`" class="text-red-600 hover:underline" :disabled="busy" @click="cancel(task)">{{ t('admin.accounts.timer.cancel') }}</button>
       </div>
       <span v-if="task.reason" class="text-amber-600">{{ reasonText(task.reason) }}</span>
     </div>
-    <p v-if="error" class="mt-1 max-w-72 whitespace-normal text-red-600" role="alert">{{ error }}</p>
-    <button v-if="loadFailed" type="button" class="text-primary-600 underline" @click="load">{{ t('admin.accounts.timer.reload') }}</button>
-    <div v-if="expanded" data-test="timer-form" class="mt-2 w-72 max-w-full space-y-2 whitespace-normal rounded-lg border border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-800">
-      <fieldset :disabled="busy" class="min-w-0 space-y-2">
-        <label class="block">{{ t('admin.accounts.timer.mode') }}
-          <select v-model="form.mode" data-test="timer-mode" class="input mt-1 w-full text-xs">
-            <option value="relative">{{ t('admin.accounts.timer.relative') }}</option>
-            <option value="absolute">{{ t('admin.accounts.timer.absolute') }}</option>
-          </select>
-        </label>
-        <div v-if="form.mode === 'relative'" class="space-y-1">
-          <div class="grid grid-cols-2 gap-2">
-            <label>{{ t('admin.accounts.timer.hours') }}<input v-model.number="form.hours" type="number" min="0" step="1" :max="Math.floor(maxMinutes / 60)" class="input mt-1 w-full text-xs" /></label>
-            <label>{{ t('admin.accounts.timer.minutes') }}<input v-model.number="form.minutes" type="number" min="0" step="1" :max="maxMinutes" class="input mt-1 w-full text-xs" /></label>
-          </div>
-          <button type="button" class="text-primary-600 underline" @click="form.hours = 8; form.minutes = 0">{{ t('admin.accounts.timer.preset') }}</button>
-          <p class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.timer.relativeHint') }}</p>
-        </div>
-        <div v-else class="space-y-1">
-          <label class="block">{{ t('admin.accounts.timer.date') }}<input v-model="form.date" type="date" class="input mt-1 w-full text-xs" /></label>
-          <label class="block">{{ t('admin.accounts.timer.time') }}<input v-model="form.time" type="time" step="60" class="input mt-1 w-full text-xs" /></label>
-          <p class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.timer.absoluteHint') }}</p>
-        </div>
-        <label class="block">{{ t('admin.accounts.timer.timezone') }}
-          <input v-model.trim="form.timezone" data-test="timer-zone" :aria-label="t('admin.accounts.timer.timezone')" class="input mt-1 w-full text-xs" placeholder="Asia/Shanghai" />
-        </label>
-        <div class="flex flex-wrap gap-2">
-          <button type="button" class="text-primary-600 underline" @click="form.timezone = 'Asia/Shanghai'">{{ t('admin.accounts.timer.beijing') }}</button>
-          <button type="button" class="text-primary-600 underline" @click="form.timezone = 'UTC'">UTC</button>
-        </div>
-        <p class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.timer.zoneHint') }}</p>
-        <button type="button" data-test="timer-preview" class="btn btn-secondary w-full text-xs" @click="previewTime">{{ t('admin.accounts.timer.preview') }}</button>
-        <div v-if="preview" class="space-y-2 rounded bg-primary-50 p-2 dark:bg-dark-700" aria-live="polite">
-          <p data-test="timer-preview-value">{{ preview.local_date }} {{ preview.local_time }} · {{ preview.timezone }} · UTC{{ preview.offset }}</p>
-          <label v-if="form.mode === 'absolute'" class="flex items-start gap-2">
-            <input v-model="confirmed" data-test="timer-confirm" type="checkbox" class="mt-0.5" />
-            {{ t('admin.accounts.timer.confirm') }}
+    <p v-if="error && !expanded" class="mt-1 max-w-72 whitespace-normal text-red-600" role="alert">{{ error }}</p>
+    <button v-if="loadFailed && !expanded" type="button" class="text-primary-600 underline" @click="load">{{ t('admin.accounts.timer.reload') }}</button>
+    <BaseDialog :show="expanded" :title="`${t(`admin.accounts.timer.${action}`)} · #${accountId}`"
+      width="normal" :close-on-escape="!busy" :show-close-button="!busy" @close="expanded = false">
+      <div data-test="timer-form" class="min-w-0 max-w-full space-y-4 whitespace-normal text-sm">
+        <p v-if="error" class="text-red-600" role="alert">{{ error }}</p>
+        <button v-if="loadFailed" type="button" class="text-primary-600 underline" @click="load">{{ t('admin.accounts.timer.reload') }}</button>
+        <fieldset :disabled="busy" class="min-w-0 space-y-2">
+          <label class="block">{{ t('admin.accounts.timer.mode') }}
+            <select v-model="form.mode" data-test="timer-mode" class="input mt-1 w-full">
+              <option value="relative">{{ t('admin.accounts.timer.relative') }}</option>
+              <option value="absolute">{{ t('admin.accounts.timer.absolute') }}</option>
+            </select>
           </label>
-          <button type="button" data-test="timer-save" class="btn btn-primary w-full text-xs" :disabled="form.mode === 'absolute' && !confirmed" @click="save">{{ t('admin.accounts.timer.save') }}</button>
-        </div>
-      </fieldset>
-      <p class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.timer.policy', { seconds: snapshot?.poll_seconds ?? 30, grace: (snapshot?.open_grace_seconds ?? 900) / 60, days: maxMinutes / 1440 }) }}</p>
-      <button type="button" class="text-gray-500 underline" @click="expanded = false">{{ t('admin.accounts.timer.collapse') }}</button>
-    </div>
+          <div v-if="form.mode === 'relative'" class="space-y-1">
+            <div class="grid grid-cols-2 gap-2">
+              <label>{{ t('admin.accounts.timer.hours') }}<input v-model.number="form.hours" type="number" min="0" step="1" :max="Math.floor(maxMinutes / 60)" class="input mt-1 w-full" /></label>
+              <label>{{ t('admin.accounts.timer.minutes') }}<input v-model.number="form.minutes" type="number" min="0" step="1" :max="maxMinutes" class="input mt-1 w-full" /></label>
+            </div>
+            <button type="button" class="text-primary-600 underline" @click="form.hours = 8; form.minutes = 0">{{ t('admin.accounts.timer.preset') }}</button>
+            <p class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.timer.relativeHint') }}</p>
+          </div>
+          <div v-else class="space-y-1">
+            <label class="block">{{ t('admin.accounts.timer.date') }}<input v-model="form.date" type="date" class="input mt-1 w-full" /></label>
+            <label class="block">{{ t('admin.accounts.timer.time') }}<input v-model="form.time" type="time" step="60" class="input mt-1 w-full" /></label>
+            <p class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.timer.absoluteHint') }}</p>
+          </div>
+          <label class="block">{{ t('admin.accounts.timer.timezone') }}
+            <input v-model.trim="form.timezone" data-test="timer-zone" :aria-label="t('admin.accounts.timer.timezone')" class="input mt-1 w-full" placeholder="Asia/Shanghai" />
+          </label>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="text-primary-600 underline" @click="form.timezone = 'Asia/Shanghai'">{{ t('admin.accounts.timer.beijing') }}</button>
+            <button type="button" class="text-primary-600 underline" @click="form.timezone = 'UTC'">UTC</button>
+          </div>
+          <p class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.timer.zoneHint') }}</p>
+          <button type="button" data-test="timer-preview" class="btn btn-secondary w-full text-xs" @click="previewTime">{{ t('admin.accounts.timer.preview') }}</button>
+          <div v-if="preview" class="space-y-2 rounded bg-primary-50 p-2 dark:bg-dark-700" aria-live="polite">
+            <p data-test="timer-preview-value">{{ preview.local_date }} {{ preview.local_time }} · {{ preview.timezone }} · UTC{{ preview.offset }}</p>
+            <label v-if="form.mode === 'absolute'" class="flex items-start gap-2">
+              <input v-model="confirmed" data-test="timer-confirm" type="checkbox" class="mt-0.5" />
+              {{ t('admin.accounts.timer.confirm') }}
+            </label>
+            <button type="button" data-test="timer-save" class="btn btn-primary w-full text-xs" :disabled="form.mode === 'absolute' && !confirmed" @click="save">{{ t('admin.accounts.timer.save') }}</button>
+          </div>
+        </fieldset>
+        <p class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.timer.policy', { seconds: snapshot?.poll_seconds ?? 30, grace: (snapshot?.open_grace_seconds ?? 900) / 60, days: maxMinutes / 1440 }) }}</p>
+        <button type="button" class="text-gray-500 underline" :disabled="busy" @click="expanded = false">{{ t('common.close') }}</button>
+      </div>
+    </BaseDialog>
     <details v-if="snapshot?.history.length" class="mt-1 max-w-72 whitespace-normal text-gray-500 dark:text-dark-400">
       <summary class="cursor-pointer">{{ t('admin.accounts.timer.history') }} · {{ t(`admin.accounts.timer.results.${snapshot.history[0]?.result}`) }}<span v-if="snapshot.history[0]?.reason"> · {{ reasonText(snapshot.history[0].reason) }}</span></summary>
       <p v-for="(item, index) in snapshot.history" :key="index" class="mt-1 break-words">
@@ -71,8 +76,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { schedulableTimersAPI, type SchedulableTimer, type TimerAction, type TimerInput, type TimerPreview, type TimerSnapshot } from '@/api/admin/schedulableTimers'
 
@@ -149,9 +155,13 @@ function countdown(task: SchedulableTimer) {
   const minutes = Math.ceil((Date.parse(task.execute_at) - now.value) / 60000)
   return minutes <= 0 ? t('admin.accounts.timer.awaiting') : t('admin.accounts.timer.remaining', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
 }
-async function begin(value: TimerAction) {
+async function begin(value: TimerAction, event?: MouseEvent) {
+  if (busy.value || loading.value) return
+  const trigger = event?.currentTarget as HTMLElement | null
   if (expanded.value && action.value === value) { expanded.value = false; return }
   await load()
+  await nextTick()
+  if (trigger?.isConnected) trigger.focus()
   if (loadFailed.value) return
   action.value = value
   const task = snapshot.value?.tasks.find(item => item.action === value)
@@ -183,7 +193,10 @@ async function save() {
     const request = input()
     if (request.mode === 'absolute') request.date = preview.value.local_date
     await schedulableTimersAPI.save(props.accountId, { ...request, action: action.value, expected_version: editVersion.value, confirmed_at: request.mode === 'absolute' ? preview.value.execute_at : undefined })
-    app.showSuccess(t('admin.accounts.timer.saved')); expanded.value = false; await load()
+    app.showSuccess(t('admin.accounts.timer.saved')); await load()
+    busy.value = false
+    await nextTick()
+    expanded.value = false
   } catch (err) { showError(err) }
   finally { busy.value = false }
 }
