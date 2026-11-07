@@ -1,6 +1,6 @@
 <template>
   <AppLayout :show-page-title="false">
-    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="open-page mb-4" />
+    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="mb-4" />
     <div class="open-page quality-workspace">
       <div class="workspace-heading">
         <div><AppHeading variant="page" as="h1">{{ t('qualityOps.workspaceTitle') }}</AppHeading><p class="workspace-subtitle">{{ t('qualityOps.workspaceHint') }}</p></div>

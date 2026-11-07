@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="open-page mb-4" />
+    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="mb-4" />
     <div class="open-page account-ops space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-dark-700">
         <div role="tablist" :aria-label="t('accountOps.pageSections')" class="flex gap-6">

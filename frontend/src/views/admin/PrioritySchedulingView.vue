@@ -1,7 +1,7 @@
 <template>
   <AppLayout :show-page-title="false">
     <ConfirmationPrompt :confirmation="stickyConfirmation" />
-    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="open-page mb-4" />
+    <ConsoleObjectLinks v-if="contextAccountId" kind="account" :id="contextAccountId" context class="mb-4" />
     <div class="open-page min-w-0 space-y-5">
       <header><AppHeading variant="page" as="h1">{{ t('priorityScheduling.title') }}</AppHeading><p class="mt-2 text-sm text-gray-500">{{ t('priorityScheduling.description') }}</p></header>
       <p class="rounded-xl bg-primary-50 p-4 text-sm leading-6 text-primary-800 dark:bg-primary-950/30 dark:text-primary-200">{{ t('priorityScheduling.scopeNote') }}</p>
