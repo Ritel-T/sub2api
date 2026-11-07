@@ -38,9 +38,13 @@ type OpsErrorLog struct {
 
 	Severity string `json:"severity"`
 
-	StatusCode int    `json:"status_code"`
-	Platform   string `json:"platform"`
-	Model      string `json:"model"`
+	// StatusCode retains the historical effective upstream-or-client status.
+	StatusCode int `json:"status_code"`
+	// ClientStatusCode exposes the stored status, which can be a synthetic
+	// stream/attempt status. It alone does not prove a complete reply; nil is unknown.
+	ClientStatusCode *int   `json:"client_status_code"`
+	Platform         string `json:"platform"`
+	Model            string `json:"model"`
 
 	Resolved           bool       `json:"resolved"`
 	ResolvedAt         *time.Time `json:"resolved_at"`
