@@ -100,6 +100,16 @@ func (h *AccountHandler) ScopedAdminKeyAccounts(c *gin.Context) {
 		return
 	}
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	// These handlers return their own narrow projection and enforce resource
+	// permissions in the service; recovery also rechecks under the native lock.
+	if path == base+"/:id/balance-recovery-preview" && c.Request.Method == "GET" {
+		h.PreviewBalanceRecovery(c)
+		return
+	}
+	if path == base+"/:id/balance-recover" && c.Request.Method == "POST" {
+		h.RecoverBalance(c)
+		return
+	}
 	if (path == base+"/:id" || path == base+"/:id/models") && c.Request.Method == "GET" {
 		a, err := h.adminService.GetAccount(ctx, id)
 		if err != nil || a == nil || !principal.Policy.AllowsAccount("accounts.read", adminaccess.Account{ID: id, GroupIDs: accountGroupIDs(a), Type: accountType(a), Platform: accountPlatform(a)}) {
